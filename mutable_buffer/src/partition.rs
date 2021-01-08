@@ -73,7 +73,7 @@ impl Partition {
         let mut id_generator = 0;
 
         let key: String = key.into();
-        let open_chunk = Chunk::new(&key, id_generator);
+        let open_chunk = Chunk::new(id_generator);
         id_generator += 1;
 
         Self {
@@ -132,7 +132,7 @@ impl Partition {
     pub fn rollover_chunk(&mut self) -> Arc<Chunk> {
         let chunk_id = self.id_generator;
         self.id_generator += 1;
-        let mut chunk = Chunk::new(self.key(), chunk_id);
+        let mut chunk = Chunk::new(chunk_id);
         std::mem::swap(&mut chunk, &mut self.open_chunk);
         chunk.mark_closed();
         let chunk = Arc::new(chunk);

@@ -73,7 +73,7 @@ where
     T: Send + Sync + 'static + PartitionChunk,
 {
     fn new(
-        partition_key: String,
+        partition_key: impl Into<String>,
         metadata_path: ObjectStorePath,
         data_path: ObjectStorePath,
         store: Arc<ObjectStore>,
@@ -90,7 +90,7 @@ where
         Self {
             id: Uuid::new_v4(),
             partition_meta: PartitionMeta {
-                key: partition_key,
+                key: partition_key.into(),
                 tables,
             },
             metadata_path,
@@ -250,23 +250,24 @@ pub fn snapshot_chunk<T>(
     metadata_path: ObjectStorePath,
     data_path: ObjectStorePath,
     store: Arc<ObjectStore>,
-    partition: Arc<T>,
+    partition_key: &str,
+    chunk: Arc<T>,
     notify: Option<oneshot::Sender<()>>,
 ) -> Result<Arc<Snapshot<T>>>
 where
     T: Send + Sync + 'static + PartitionChunk,
 {
-    let table_stats = partition
+    let table_stats = chunk
         .table_stats()
         .map_err(|e| Box::new(e) as _)
         .context(PartitionError)?;
 
     let snapshot = Snapshot::new(
-        partition.key().to_string(),
+        partition_key.to_string(),
         metadata_path,
         data_path,
         store,
-        partition,
+        chunk,
         table_stats,
     );
     let snapshot = Arc::new(snapshot);
@@ -352,7 +353,7 @@ mem,host=A,region=west used=45 1
 
         let lines: Vec<_> = parse_lines(lp).map(|l| l.unwrap()).collect();
         let write = lines_to_replicated_write(1, 1, &lines, &DatabaseRules::default());
-        let mut chunk = ChunkWB::new("testaroo", 11);
+        let mut chunk = ChunkWB::new(11);
 
         for e in write.write_buffer_batch().unwrap().entries().unwrap() {
             chunk.write_entry(&e).unwrap();
@@ -371,6 +372,7 @@ mem,host=A,region=west used=45 1
             metadata_path.clone(),
             data_path,
             store.clone(),
+            "testaroo",
             chunk.clone(),
             Some(tx),
         )
@@ -412,21 +414,14 @@ mem,host=A,region=west used=45 1
         ];
 
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let chunk = Arc::new(ChunkWB::new("testaroo", 11));
+        let chunk = Arc::new(ChunkWB::new(11));
         let mut metadata_path = ObjectStorePath::default();
         metadata_path.push("meta");
 
         let mut data_path = ObjectStorePath::default();
         data_path.push("data");
 
-        let snapshot = Snapshot::new(
-            chunk.key.clone(),
-            metadata_path,
-            data_path,
-            store,
-            chunk,
-            tables,
-        );
+        let snapshot = Snapshot::new("testaroo", metadata_path, data_path, store, chunk, tables);
 
         let (pos, name) = snapshot.next_table().unwrap();
         assert_eq!(0, pos);

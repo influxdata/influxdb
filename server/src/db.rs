@@ -126,14 +126,6 @@ pub enum DBChunk {
 impl PartitionChunk for DBChunk {
     type Error = Error;
 
-    fn key(&self) -> &str {
-        match self {
-            Self::MutableBuffer(chunk) => chunk.key(),
-            Self::ReadBuffer => unimplemented!("read buffer not implemented"),
-            Self::ParquetFile => unimplemented!("parquet file not implemented"),
-        }
-    }
-
     fn id(&self) -> u64 {
         match self {
             Self::MutableBuffer(chunk) => chunk.id(),
