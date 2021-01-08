@@ -413,7 +413,6 @@ jobs:
           keys:
             - influxdb-gotest-{{ .Branch }}-{{ .Revision }}
             - influxdb-gotest-{{ .Branch }}-
-            - influxdb-gotest-
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
@@ -452,7 +451,6 @@ jobs:
           keys:
             - influxdb-iqlvalidation-{{ .Branch }}-{{ .Revision }}
             - influxdb-iqlvalidation-{{ .Branch }}-
-            - influxdb-iqlvalidation-
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
@@ -486,7 +484,6 @@ jobs:
           keys:
             - influxdb-iqlintegration-{{ .Branch }}-{{ .Revision }}
             - influxdb-iqlintegration-{{ .Branch }}-
-            - influxdb-iqlintegration-
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
@@ -527,7 +524,6 @@ jobs:
           keys:
             - influxdb-build-{{ .Branch }}-{{ .Revision }}
             - influxdb-build-{{ .Branch }}-
-            - influxdb-build-
       - restore_cache:
           name: Restore Yarn Cache
           keys:
@@ -567,8 +563,6 @@ jobs:
             - influxdb-cross-build-{{ .Branch }}-
             - influxdb-build-{{ .Branch }}-{{ .Revision }}
             - influxdb-build-{{ .Branch }}-
-            - influxdb-cross-build-
-            - influxdb-build-
       - restore_cache:
           name: Restore Yarn Cache
           keys:
@@ -607,9 +601,6 @@ jobs:
             - influxdb-cross-build-{{ .Branch }}-
             - influxdb-build-{{ .Branch }}-{{ .Revision }}
             - influxdb-build-{{ .Branch }}-
-            - influxdb-nightly-
-            - influxdb-cross-build-
-            - influxdb-build-
       - restore_cache:
           name: Restore Yarn Cache
           keys:
