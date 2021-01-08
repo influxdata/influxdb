@@ -1,8 +1,8 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
-use crate::column::AggregateType;
 use crate::row_group::{ColumnName, Predicate};
 use crate::table::{ReadFilterResults, ReadGroupResults, Table};
+use crate::{column::AggregateType, row_group::RowGroup};
 
 type TableName = String;
 
@@ -29,6 +29,47 @@ impl Chunk {
         };
         p.tables.insert(table.name().to_owned(), table);
         p
+    }
+
+    /// The total size in bytes of all row groups in all tables in this chunk.
+    pub fn size(&self) -> u64 {
+        self.meta.size
+    }
+
+    /// The total number of rows in all row groups in all tables in this chunk.
+    pub fn rows(&self) -> u64 {
+        self.meta.rows
+    }
+
+    /// The total number of row groups in all tables in this chunk.
+    pub fn row_groups(&self) -> usize {
+        self.meta.row_groups
+    }
+
+    /// The total number of tables in this chunk.
+    pub fn tables(&self) -> usize {
+        self.tables.len()
+    }
+
+    /// Returns true if there are no tables under this chunk.
+    pub fn is_empty(&self) -> bool {
+        self.tables() == 0
+    }
+
+    /// Add a row_group to a table in the chunk, updating all Chunk meta data.
+    pub fn update_table(&mut self, table_name: String, row_group: RowGroup) {
+        // update meta data
+        self.meta.update(&row_group);
+
+        match self.tables.entry(table_name.to_owned()) {
+            Entry::Occupied(mut e) => {
+                let table = e.get_mut();
+                table.add_row_group(row_group);
+            }
+            Entry::Vacant(e) => {
+                e.insert(Table::new(table_name, row_group));
+            }
+        };
     }
 
     /// Returns data for the specified column selections on the specified table
@@ -75,12 +116,12 @@ impl Chunk {
 
     /// Returns the distinct set of table names that contain data that satisfies
     /// the time range and predicates.
-    pub fn table_names(&self, predicates: &[Predicate<'_>]) -> BTreeSet<String> {
-        //
-        // TODO(edd): do we want to add the ability to apply a predicate to the
-        // table names? For example, a regex where you only want table names
-        // beginning with /cpu.+/ or something?
-        todo!()
+    pub fn table_names(&self, predicates: &[Predicate<'_>]) -> BTreeSet<&String> {
+        if !predicates.is_empty() {
+            unimplemented!("Predicate support on `table_names` is not yet implemented");
+        }
+
+        self.tables.keys().collect::<BTreeSet<&String>>()
     }
 
     /// Returns the distinct set of tag keys (column names) matching the
@@ -126,6 +167,8 @@ struct MetaData {
     size: u64, // size in bytes of the chunk
     rows: u64, // Total number of rows across all tables
 
+    row_groups: usize, // Total number of row groups across all tables in the chunk.
+
     // The total time range of *all* data (across all tables) within this
     // chunk.
     //
@@ -140,12 +183,22 @@ impl MetaData {
             size: table.size(),
             rows: table.rows(),
             time_range: table.time_range(),
+            row_groups: 1,
         }
     }
 
-    pub fn add_table(&mut self, table: &Table) {
-        // Update size, rows, time_range
-        todo!()
+    /// Updates the meta data associated with the `Chunk` based on the provided
+    /// row_group
+    pub fn update(&mut self, table_data: &RowGroup) {
+        self.size += table_data.size();
+        self.rows += table_data.rows() as u64;
+        self.row_groups += 1;
+
+        let (them_min, them_max) = table_data.time_range();
+        self.time_range = Some(match self.time_range {
+            Some((this_min, this_max)) => (them_min.min(this_min), them_max.max(this_max)),
+            None => (them_min, them_max),
+        })
     }
 
     // invalidate should be called when a table is removed. All meta data must

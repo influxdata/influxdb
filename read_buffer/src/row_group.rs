@@ -3,9 +3,13 @@ use std::{borrow::Cow, collections::BTreeMap};
 use hashbrown::{hash_map, HashMap};
 use itertools::Itertools;
 
+use arrow_deps::arrow;
+use arrow_deps::arrow::record_batch::RecordBatch;
+
 use crate::column::{
     cmp::Operator, AggregateResult, AggregateType, Column, EncodedValues, OwnedValue, RowIDs,
-    RowIDsOption, Scalar, Value, Values, ValuesIterator,
+    RowIDsOption, Scalar, Value, Values, ValuesIterator, FIELD_COLUMN_TYPE, TAG_COLUMN_TYPE,
+    TIME_COLUMN_TYPE,
 };
 
 /// The name used for a timestamp column.
@@ -803,6 +807,85 @@ impl RowGroup {
         aggregates: &[(ColumnName<'_>, AggregateType)],
     ) {
         todo!()
+    }
+}
+
+/// Initialise a `RowGroup` from an Arrow RecordBatch.
+///
+/// Presently this requires the RecordBatch to contain meta-data that specifies
+/// the semantic meaning of each column in terms of an Influx time-series
+/// use-case, i.e., whether the column is a tag column, field column or a time
+/// column.
+impl From<RecordBatch> for RowGroup {
+    fn from(rb: RecordBatch) -> Self {
+        let rows = rb.num_rows();
+        let schema = rb.schema();
+
+        let mut columns = BTreeMap::new();
+        for (i, col_data) in rb.columns().iter().enumerate() {
+            let col_name = schema.field(i).name();
+
+            match rb.schema().metadata().get(col_name).unwrap().as_str() {
+                TAG_COLUMN_TYPE => {
+                    let arrow_column = rb.column(i);
+                    assert_eq!(arrow_column.data_type(), &arrow::datatypes::DataType::Utf8);
+                    let arr: &arrow::array::StringArray = arrow_column
+                        .as_any()
+                        .downcast_ref::<arrow::array::StringArray>()
+                        .unwrap();
+
+                    let column_data = Column::from(arr);
+
+                    columns.insert(col_name.to_owned(), ColumnType::Tag(column_data));
+                }
+                FIELD_COLUMN_TYPE => {
+                    let arrow_column = rb.column(i);
+                    let column_data = match arrow_column.data_type() {
+                        arrow::datatypes::DataType::Int64 => Column::from(
+                            arrow_column
+                                .as_any()
+                                .downcast_ref::<arrow::array::Int64Array>()
+                                .unwrap(),
+                        ),
+                        arrow::datatypes::DataType::Float64 => Column::from(
+                            arrow_column
+                                .as_any()
+                                .downcast_ref::<arrow::array::Float64Array>()
+                                .unwrap(),
+                        ),
+                        arrow::datatypes::DataType::UInt64 => Column::from(
+                            arrow_column
+                                .as_any()
+                                .downcast_ref::<arrow::array::UInt64Array>()
+                                .unwrap(),
+                        ),
+                        dt => unimplemented!(
+                            "data type {:?} currently not supported for field columns",
+                            dt
+                        ),
+                    };
+
+                    columns.insert(col_name.to_owned(), ColumnType::Field(column_data));
+                }
+                TIME_COLUMN_TYPE => {
+                    assert_eq!(col_name, TIME_COLUMN_NAME);
+
+                    let arrow_column = rb.column(i);
+                    let column_data = Column::from(match arrow_column.data_type() {
+                        arrow::datatypes::DataType::Int64 => arrow_column
+                            .as_any()
+                            .downcast_ref::<arrow::array::Int64Array>()
+                            .unwrap(),
+                        dt => panic!("{:?} column with {:?} must have type i64", col_name, dt),
+                    });
+
+                    columns.insert(col_name.to_owned(), ColumnType::Time(column_data));
+                }
+                _ => panic!("unknown column type"),
+            }
+        }
+
+        Self::new(rows as u32, columns)
     }
 }
 

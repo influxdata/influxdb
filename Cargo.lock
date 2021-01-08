@@ -2736,6 +2736,7 @@ dependencies = [
  "permutation",
  "rand",
  "rand_distr",
+ "snafu",
 ]
 
 [[package]]
