@@ -2,7 +2,7 @@
 //! across different backing implementations and platforms.
 
 use itertools::Itertools;
-use percent_encoding::{percent_encode, AsciiSet, CONTROLS};
+use percent_encoding::{percent_decode_str, percent_encode, AsciiSet, CONTROLS};
 use std::path::PathBuf;
 
 /// Universal interface for handling paths and locations for objects and
@@ -17,18 +17,6 @@ use std::path::PathBuf;
 pub struct ObjectStorePath {
     parts: Vec<PathPart>,
 }
-
-// Invariants to maintain/document/test:
-//
-// - always ends in DELIMITER if it's a directory. If it's the end object, it
-//   should have some sort of file extension like .parquet, .json, or .segment
-// - does not contain unencoded DELIMITER
-// - for file paths: does not escape root dir
-// - for object storage: looks like directories
-// - Paths that come from object stores directly don't need to be
-//   parsed/validated
-// - Within a process, the same backing store will always be used
-//
 
 impl ObjectStorePath {
     /// For use when receiving a path from an object store API directly, not
@@ -82,12 +70,7 @@ impl ObjectStorePath {
 
     /// Push a bunch of parts in one go.
     pub fn push_all<'a>(&mut self, parts: impl AsRef<[&'a str]>) {
-        // Turn T into a slice of str, validate each one, and collect() it into a
-        // Vec<String>
-        let parts = parts.as_ref().iter().map(|&v| v.into()).collect::<Vec<_>>();
-
-        // Push them to the internal path
-        self.parts.extend(parts);
+        self.parts.extend(parts.as_ref().iter().map(|&v| v.into()));
     }
 
     /// Return the component parts of the path.
@@ -101,8 +84,25 @@ impl ObjectStorePath {
     }
 
     /// Determines whether `prefix` is a prefix of `self`.
-    pub fn starts_with(&self, _prefix: &Self) -> bool {
-        unimplemented!()
+    pub fn starts_with(&self, prefix: &Self) -> bool {
+        let diff = itertools::diff_with(self.parts.iter(), prefix.parts.iter(), |a, b| a == b);
+        match diff {
+            None => true,
+            Some(itertools::Diff::Shorter(..)) => true,
+            Some(itertools::Diff::FirstMismatch(_, mut remaining_self, mut remaining_prefix)) => {
+                let first_prefix = remaining_prefix.next().expect("must be at least one value");
+
+                // there must not be any other remaining parts in the prefix
+                remaining_prefix.next().is_none()
+                // and the next item in self must start with the last item in the prefix
+                    && remaining_self
+                        .next()
+                        .expect("must be at least one value")
+                        .0
+                        .starts_with(&first_prefix.0)
+            }
+            _ => false,
+        }
     }
 
     /// Returns delimiter-separated parts contained in `self` after `prefix`.
@@ -144,9 +144,8 @@ impl FileConverter {
 
 /// The delimiter to separate object namespaces, creating a directory structure.
 pub const DELIMITER: &str = "/";
-// percent_encode's API needs this as a byte... is there a const conversion for
-// this?
-const DELIMITER_BYTE: u8 = b'/';
+// percent_encode's API needs this as a byte
+const DELIMITER_BYTE: u8 = DELIMITER.as_bytes()[0];
 
 /// The PathPart type exists to validate the directory/file names that form part
 /// of a path.
@@ -170,23 +169,38 @@ const INVALID: &AsciiSet = &CONTROLS
     .add(b'%')
     .add(b'`')
     .add(b']')
-    .add(b'"')
+    .add(b'"') // " <-- my editor is confused about double quotes within single quotes
     .add(b'>')
     .add(b'[')
     .add(b'~')
     .add(b'<')
     .add(b'#')
-    .add(b'|');
+    .add(b'|')
+    // Characters Google Cloud Storage recommends avoiding for object names
+    // https://cloud.google.com/storage/docs/naming-objects
+    .add(b'\r')
+    .add(b'\n')
+    .add(b'*')
+    .add(b'?');
 
 impl From<&str> for PathPart {
     fn from(v: &str) -> Self {
-        Self(percent_encode(v.as_bytes(), INVALID).to_string())
+        match v {
+            // We don't want to encode `.` generally, but we do want to disallow parts of paths
+            // to be equal to `.` or `..` to prevent file system traversal shenanigans.
+            "." => Self(String::from("%2E")),
+            ".." => Self(String::from("%2E%2E")),
+            other => Self(percent_encode(other.as_bytes(), INVALID).to_string()),
+        }
     }
 }
 
 impl std::fmt::Display for PathPart {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(f)
+        percent_decode_str(&self.0)
+            .decode_utf8()
+            .expect("Valid UTF-8 that came from String")
+            .fmt(f)
     }
 }
 
@@ -197,6 +211,151 @@ mod tests {
     #[test]
     fn path_part_delimiter_gets_encoded() {
         let part: PathPart = "foo/bar".into();
-        assert_eq!(part, PathPart(String::from("foo%2Fbar")))
+        assert_eq!(part, PathPart(String::from("foo%2Fbar")));
+    }
+
+    #[test]
+    fn path_part_gets_decoded_for_display() {
+        let part: PathPart = "foo/bar".into();
+        assert_eq!(part.to_string(), "foo/bar");
+    }
+
+    #[test]
+    fn path_part_given_already_encoded_string() {
+        let part: PathPart = "foo%2Fbar".into();
+        assert_eq!(part, PathPart(String::from("foo%252Fbar")));
+        assert_eq!(part.to_string(), "foo%2Fbar");
+    }
+
+    #[test]
+    fn path_part_cant_be_one_dot() {
+        let part: PathPart = ".".into();
+        assert_eq!(part, PathPart(String::from("%2E")));
+        assert_eq!(part.to_string(), ".");
+    }
+
+    #[test]
+    fn path_part_cant_be_two_dots() {
+        let part: PathPart = "..".into();
+        assert_eq!(part, PathPart(String::from("%2E%2E")));
+        assert_eq!(part.to_string(), "..");
+    }
+
+    // Invariants to maintain/document/test:
+    //
+    // - always ends in DELIMITER if it's a directory. If it's the end object, it
+    //   should have some sort of file extension like .parquet, .json, or .segment
+    // - does not contain unencoded DELIMITER
+    // - for file paths: does not escape root dir
+    // - for object storage: looks like directories
+    // - Paths that come from object stores directly don't need to be
+    //   parsed/validated
+    // - Within a process, the same backing store will always be used
+    //
+
+    #[test]
+    fn cloud_prefix_no_trailing_delimiter_or_filename() {
+        // Use case: a file named `test_file.json` exists in object storage and it
+        // should be returned for a search on prefix `test`, so the prefix path
+        // should not get a trailing delimiter automatically added
+        let mut prefix = ObjectStorePath::default();
+        prefix.push("test");
+
+        let converted = CloudConverter::convert(&prefix);
+        assert_eq!(converted, "test");
+    }
+
+    #[test]
+    fn cloud_prefix_with_trailing_delimiter() {
+        // Use case: files exist in object storage named `foo/bar.json` and
+        // `foo_test.json`. A search for the prefix `foo/` should return
+        // `foo/bar.json` but not `foo_test.json'.
+        let mut prefix = ObjectStorePath::default();
+        prefix.push_all(&["test", ""]);
+
+        let converted = CloudConverter::convert(&prefix);
+        assert_eq!(converted, "test/");
+    }
+
+    #[test]
+    fn push_encodes() {
+        let mut location = ObjectStorePath::default();
+        location.push("foo/bar");
+        location.push("baz%2Ftest");
+
+        let converted = CloudConverter::convert(&location);
+        assert_eq!(converted, "foo%2Fbar/baz%252Ftest");
+    }
+
+    #[test]
+    fn push_all_encodes() {
+        let mut location = ObjectStorePath::default();
+        location.push_all(&["foo/bar", "baz%2Ftest"]);
+
+        let converted = CloudConverter::convert(&location);
+        assert_eq!(converted, "foo%2Fbar/baz%252Ftest");
+    }
+
+    #[test]
+    fn starts_with_parts() {
+        let mut haystack = ObjectStorePath::default();
+        haystack.push_all(&["foo/bar", "baz%2Ftest", "something"]);
+
+        assert!(
+            haystack.starts_with(&haystack),
+            "{:?} should have started with {:?}",
+            haystack,
+            haystack
+        );
+
+        let mut needle = haystack.clone();
+        needle.push("longer now");
+        assert!(
+            !haystack.starts_with(&needle),
+            "{:?} shouldn't have started with {:?}",
+            haystack,
+            needle
+        );
+
+        let mut needle = ObjectStorePath::default();
+        needle.push("foo/bar");
+        assert!(
+            haystack.starts_with(&needle),
+            "{:?} should have started with {:?}",
+            haystack,
+            needle
+        );
+        needle.push("baz%2Ftest");
+        assert!(
+            haystack.starts_with(&needle),
+            "{:?} should have started with {:?}",
+            haystack,
+            needle
+        );
+
+        let mut needle = ObjectStorePath::default();
+        needle.push("f");
+        assert!(
+            haystack.starts_with(&needle),
+            "{:?} should have started with {:?}",
+            haystack,
+            needle
+        );
+        needle.push("oo/bar");
+        assert!(
+            !haystack.starts_with(&needle),
+            "{:?} shouldn't have started with {:?}",
+            haystack,
+            needle
+        );
+
+        let mut needle = ObjectStorePath::default();
+        needle.push_all(&["foo/bar", "baz"]);
+        assert!(
+            haystack.starts_with(&needle),
+            "{:?} should have started with {:?}",
+            haystack,
+            needle
+        );
     }
 }
