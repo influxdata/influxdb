@@ -222,7 +222,7 @@ commands:
           name: Install Docker cross-build kit and emulators
           environment:
             DOCKER_BUILDX_VERSION: 0.5.1
-            DOCKER_BUILDX_CROSS_TARGETS: linux/arm64
+            DOCKER_BUILDX_CROSS_TARGETS: linux/amd64,linux/arm64
           command: |
             mkdir -p ${HOME}/.docker/cli-plugins
             curl -sfL -o ${HOME}/.docker/cli-plugins/docker-buildx \
@@ -235,11 +235,8 @@ commands:
             docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 
             # Create a new buildx context using the freshly-installed emulators.
-            docker buildx create --name cross-builder --driver docker --platform ${DOCKER_BUILDX_CROSS_TARGETS}
+            docker buildx create --name cross-builder --platform ${DOCKER_BUILDX_CROSS_TARGETS}
             docker buildx use --default cross-builder
-
-            # print("HERE")
-            docker buildx ls
       - run:
           name: Install goreleaser
           environment:
