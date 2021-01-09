@@ -4,57 +4,57 @@ workflows:
   version: 2
   build:
     jobs:
-#      - godeps
-#      - jsdeps
-#      - gotest:
-#          requires:
-#            - godeps
-#      - jstest:
-#          requires:
-#            - jsdeps
-#      - influxql_validation:
-#          requires:
-#            - godeps
-#      - influxql_integration:
-#          requires:
-#            - godeps
-#      - golint:
-#          requires:
-#            - godeps
-#      - jslint:
-#          requires:
-#            - jsdeps
-#      - build:
-#          requires:
-#            - godeps
-#            - jsdeps
-#      - e2e:
-#          requires:
-#            - build
-#      - grace_daily:
-#          requires:
-#            - build
-#      - litmus_daily:
-#          requires:
-#            - build
-#          filters:
-#            branches:
-#              only:
-#                - /^(?!pull\/).*$/
-      - cross_build #:
-#          requires:
-#            - build
-#          filters:
-#            branches:
-#              only:
-#                - master
-#      - litmus_integration:
-#          requires:
-#            - build
-#          filters:
-#            branches:
-#              only:
-#                - master
+      - godeps
+      - jsdeps
+      - gotest:
+          requires:
+            - godeps
+      - jstest:
+          requires:
+            - jsdeps
+      - influxql_validation:
+          requires:
+            - godeps
+      - influxql_integration:
+          requires:
+            - godeps
+      - golint:
+          requires:
+            - godeps
+      - jslint:
+          requires:
+            - jsdeps
+      - build:
+          requires:
+            - godeps
+            - jsdeps
+      - e2e:
+          requires:
+            - build
+      - grace_daily:
+          requires:
+            - build
+      - litmus_daily:
+          requires:
+            - build
+          filters:
+            branches:
+              only:
+                - /^(?!pull\/).*$/
+      - cross_build:
+          requires:
+            - build
+          filters:
+            branches:
+              only:
+                - master
+      - litmus_integration:
+          requires:
+            - build
+          filters:
+            branches:
+              only:
+                - master
 
   hourly-e2e:
     triggers:
