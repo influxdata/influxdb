@@ -2,9 +2,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Display;
 use std::slice::Iter;
 
+use arrow_deps::arrow;
+
 use crate::{
     column,
-    row_group::{ColumnName, GroupKey, Predicate, RowGroup},
+    column::LogicalDataType,
+    row_group::{self, ColumnName, GroupKey, Predicate, RowGroup},
 };
 use crate::{
     column::{AggregateResult, AggregateType, OwnedValue, Scalar, Value},
@@ -113,7 +116,7 @@ impl Table {
     }
 
     // Identify set of row groups that may satisfy the predicates.
-    fn filter_row_groups(&self, predicates: &[Predicate<'_>]) -> Vec<&RowGroup> {
+    fn filter_row_groups<'input>(&self, predicates: &[Predicate<'input>]) -> Vec<&RowGroup> {
         let mut rgs = Vec::with_capacity(self.row_groups.len());
 
         'rowgroup: for rg in &self.row_groups {
@@ -131,39 +134,31 @@ impl Table {
         rgs
     }
 
-    /// Returns vectors of columnar data for the specified column
-    /// selections.
+    /// Select data for the specified column selections with the provided
+    /// predicates applied.
+    ///
+    /// All selection columns **must** exist within the schema.
     ///
     /// Results may be filtered by (currently only) conjunctive (AND)
     /// predicates, but can be ranged by time, which should be represented
     /// as nanoseconds since the epoch. Results are included if they satisfy
     /// the predicate and fall with the [min, max) time range domain.
-    pub fn select<'input>(
-        &self,
-        columns: &[ColumnName<'input>],
-        predicates: &[Predicate<'_>],
-    ) -> ReadFilterResults<'input, '_> {
-        // identify segments where time range and predicates match could match
-        // using segment meta data, and then execute against those segments and
-        // merge results.
-        let segments = self.filter_row_groups(predicates);
+    pub fn read_filter<'input, 'table>(
+        &'table self,
+        columns: &'input [ColumnName<'input>],
+        predicates: &'input [Predicate<'input>],
+    ) -> ReadFilterResults<'input, 'table> {
+        // identify row groups where time range and predicates match could match
+        // using row group meta data, and then execute against those row groups
+        // and merge results.
+        let rgs = self.filter_row_groups(predicates);
 
-        let mut results = ReadFilterResults {
-            names: columns.to_vec(),
-            values: vec![],
-        };
-
-        if segments.is_empty() {
-            return results;
+        ReadFilterResults {
+            columns,
+            predicates,
+            schema: self.meta.schema_for_column_names(columns),
+            row_groups: rgs,
         }
-
-        for segment in segments {
-            results
-                .values
-                .push(segment.read_filter(columns, predicates));
-        }
-
-        results
     }
 
     /// Returns aggregates segmented by grouping keys.
@@ -489,6 +484,17 @@ impl MetaData {
         }
     }
 
+    // Extract schema information for a set of columns.
+    fn schema_for_column_names<'a>(
+        &self,
+        names: &[ColumnName<'a>],
+    ) -> Vec<(&'a str, LogicalDataType)> {
+        names
+            .iter()
+            .map(|&name| (name, *self.column_types.get(name).unwrap()))
+            .collect::<Vec<_>>()
+    }
+
     pub fn update(&mut self, rg: &RowGroup) {
         // update size, rows, column ranges, time range
         self.size += rg.size();
@@ -522,37 +528,75 @@ impl MetaData {
     }
 }
 
-/// Encapsulates results from tables with a structure that makes them easier
-/// to work with and display.
-pub struct ReadFilterResults<'input, 'segment> {
-    pub names: Vec<ColumnName<'input>>,
-    pub values: Vec<ReadFilterResult<'segment>>,
+/// Results of a `read_filter` execution on the table. Execution is lazy -
+/// row groups are only queried when `ReadFilterResults` is iterated.
+#[derive(Default)]
+pub struct ReadFilterResults<'input, 'table> {
+    // schema of all columns in the query results
+    schema: Vec<(&'input str, LogicalDataType)>,
+
+    // These row groups passed the predicates and need to be queried.
+    row_groups: Vec<&'table RowGroup>,
+
+    // TODO(edd): encapsulate these into a single executor function that just
+    // executes on the next row group.
+    columns: &'input [ColumnName<'input>],
+    predicates: &'input [Predicate<'input>],
 }
 
-impl<'input, 'segment> ReadFilterResults<'input, 'segment> {
+impl<'input, 'table> ReadFilterResults<'input, 'table> {
     pub fn is_empty(&self) -> bool {
-        self.values.is_empty()
+        self.row_groups.is_empty()
+    }
+
+    /// Returns the schema associated with table result and therefore all of the
+    /// results for all of row groups in the table results.
+    pub fn schema(&self) -> &Vec<(ColumnName<'_>, LogicalDataType)> {
+        &self.schema
     }
 }
 
-impl<'input, 'segment> Display for ReadFilterResults<'input, 'segment> {
+impl<'a> Iterator for ReadFilterResults<'_, 'a> {
+    type Item = row_group::ReadFilterResult<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.is_empty() {
+            return None;
+        }
+
+        let row_group = self.row_groups.remove(0);
+        let result = row_group.read_filter(self.columns, self.predicates);
+        if result.is_empty() {
+            return self.next(); // try next row group
+        }
+
+        assert_eq!(result.schema(), self.schema()); // validate schema
+        Some(result)
+    }
+}
+
+// Helper type that can pretty print a set of results for `read_filter`.
+struct DisplayReadFilterResults<'a>(Vec<row_group::ReadFilterResult<'a>>);
+
+impl<'a> Display for DisplayReadFilterResults<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.0.is_empty() {
+            return Ok(());
+        }
+
+        let schema = self.0[0].schema();
         // header line.
-        for (i, k) in self.names.iter().enumerate() {
+        for (i, (k, _)) in schema.iter().enumerate() {
             write!(f, "{}", k)?;
 
-            if i < self.names.len() - 1 {
+            if i < schema.len() - 1 {
                 write!(f, ",")?;
             }
         }
         writeln!(f)?;
 
-        if self.is_empty() {
-            return Ok(());
-        }
-
         // Display all the results of each segment
-        for segment_values in &self.values {
+        for segment_values in &self.0 {
             segment_values.fmt(f)?;
         }
         Ok(())
@@ -661,12 +705,25 @@ mod test {
         table.add_row_group(segment);
 
         // Get all the results
-        let results = table.select(
-            &["time", "count", "region"],
-            &build_predicates(1, 31, vec![]),
-        );
+        let predicates = build_predicates(1, 31, vec![]);
+        let results = table.read_filter(&["time", "count", "region"], &predicates);
+
+        // check the column types
+        let exp_schema = vec![
+            ("time", LogicalDataType::Integer),
+            ("count", LogicalDataType::Unsigned),
+            ("region", LogicalDataType::String),
+        ];
+        assert_eq!(results.schema(), &exp_schema);
+
+        let mut all = vec![];
+        for result in results {
+            assert_eq!(result.schema(), &exp_schema);
+            all.push(result);
+        }
+
         assert_eq!(
-            format!("{}", &results),
+            format!("{}", DisplayReadFilterResults(all)),
             "time,count,region
 1,100,west
 2,101,west
@@ -680,18 +737,22 @@ mod test {
 ",
         );
 
-        // Apply a predicate `WHERE "region" != "south"`
-        let results = table.select(
-            &["time", "region"],
-            &build_predicates(
-                1,
-                25,
-                vec![("region", (Operator::NotEqual, Value::String("south")))],
-            ),
+        let predicates = &build_predicates(
+            1,
+            25,
+            vec![("region", (Operator::NotEqual, Value::String("south")))],
         );
 
+        // Apply a predicate `WHERE "region" != "south"`
+        let results = table.read_filter(&["time", "region"], &predicates);
+
+        let mut all = vec![];
+        for result in results {
+            all.push(result);
+        }
+
         assert_eq!(
-            format!("{}", &results),
+            format!("{}", DisplayReadFilterResults(all)),
             "time,region
 1,west
 2,west

@@ -71,7 +71,7 @@ impl Database {
         &mut self,
         partition_key: &str,
         chunk_id: u32,
-        table_name: String,
+        table_name: &str,
         table_data: RecordBatch,
     ) {
         // validate table data contains appropriate meta data.
@@ -98,12 +98,12 @@ impl Database {
         match self.partitions.entry(partition_key.to_owned()) {
             Entry::Occupied(mut e) => {
                 let partition = e.get_mut();
-                partition.upsert_chunk(chunk_id, table_name, row_group);
+                partition.upsert_chunk(chunk_id, table_name.to_owned(), row_group);
             }
             Entry::Vacant(e) => {
                 e.insert(Partition::new(
                     partition_key,
-                    Chunk::new(chunk_id, Table::new(table_name, row_group)),
+                    Chunk::new(chunk_id, Table::new(table_name.to_owned(), row_group)),
                 ));
             }
         };
@@ -168,27 +168,54 @@ impl Database {
             .sum()
     }
 
-    /// Executes selections against matching chunks, returning a single
-    /// record batch with all chunk results appended.
+    /// Returns rows for the specified columns in the provided table, for the
+    /// specified partition key and chunks within that partition.
     ///
-    /// Results may be filtered by (currently only) equality predicates, but can
-    /// be ranged by time, which should be represented as nanoseconds since the
-    /// epoch. Results are included if they satisfy the predicate and fall
-    /// with the [min, max) time range domain.
-    pub fn select(
+    /// Results may be filtered by conjunctive predicates.
+    /// Whilst the `ReadBuffer` will carry out the most optimal execution
+    /// possible by pruning columns, row groups and tables, it is assumed
+    /// that the caller has already provided an appropriately pruned
+    /// collection of chunks.
+    ///
+    /// `read_filter` return an iterator that will emit record batches for all
+    /// row groups help under the provided chunks.
+    ///
+    /// `read_filter` is lazy - it does not execute against the next chunk until
+    /// the results for the previous one have been emitted.
+    pub fn read_filter<'a>(
         &self,
-        table_name: &str,
-        time_range: (i64, i64),
-        predicates: &[Predicate<'_>],
-        select_columns: Vec<String>,
-    ) -> Option<RecordBatch> {
-        // Find all matching chunks using:
-        //   - time range
-        //   - measurement name.
-        //
-        // Execute against each chunk and append each result set into a
-        // single record batch.
-        todo!();
+        table_name: &'a str,
+        partition_key: &str,
+        chunk_ids: &[u32],
+        predicates: &'a [Predicate<'a>],
+        select_columns: &'a [ColumnName<'a>],
+    ) -> Result<ReadFilterResults<'a, '_>> {
+        match self.partitions.get(partition_key) {
+            Some(partition) => {
+                let mut chunks = vec![];
+                for chunk_id in chunk_ids {
+                    chunks.push(
+                        partition
+                            .chunks
+                            .get(chunk_id)
+                            .ok_or_else(|| Error::ChunkNotFound { id: *chunk_id })?,
+                    )
+                }
+
+                // TODO(edd): encapsulate execution of `read_filter` on each chunk
+                // into an anonymous function, rather than having to store all
+                // the input context arguments in the iterator state.
+                Ok(ReadFilterResults::new(
+                    chunks,
+                    table_name,
+                    predicates,
+                    select_columns,
+                ))
+            }
+            None => Err(Error::PartitionNotFound {
+                key: partition_key.to_owned(),
+            }),
+        }
     }
 
     /// Returns aggregates segmented by grouping keys for the specified
@@ -431,6 +458,78 @@ impl Partition {
     }
 }
 
+/// ReadFilterResults implements ...
+pub struct ReadFilterResults<'input, 'chunk> {
+    chunks: Vec<&'chunk Chunk>,
+    next_i: usize,
+    curr_table_results: Option<table::ReadFilterResults<'input, 'chunk>>,
+
+    table_name: &'input str,
+    predicates: &'input [Predicate<'input>],
+    select_columns: &'input [ColumnName<'input>],
+}
+
+impl<'input, 'chunk> ReadFilterResults<'input, 'chunk> {
+    fn new(
+        chunks: Vec<&'chunk Chunk>,
+        table_name: &'input str,
+        predicates: &'input [Predicate<'input>],
+        select_columns: &'input [ColumnName<'input>],
+    ) -> Self {
+        Self {
+            chunks,
+            next_i: 0,
+            curr_table_results: None,
+            table_name,
+            predicates,
+            select_columns,
+        }
+    }
+}
+
+impl<'input, 'chunk> Iterator for ReadFilterResults<'input, 'chunk> {
+    type Item = RecordBatch;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.next_i == self.chunks.len() {
+            return None;
+        }
+
+        // Try next chunk's table.
+        if self.curr_table_results.is_none() {
+            self.curr_table_results = self.chunks[self.next_i].read_filter(
+                self.table_name,
+                self.predicates,
+                &self.select_columns,
+            );
+        }
+
+        match &mut self.curr_table_results {
+            // Table potentially has some results.
+            Some(table_results) => {
+                // Table has found results in a row group.
+                if let Some(row_group_result) = table_results.next() {
+                    return Some(row_group_result.record_batch());
+                }
+
+                // no more results for row groups in the table. Try next chunk.
+                self.next_i += 1;
+                self.curr_table_results = None;
+                self.next()
+            }
+            // Table does not exist.
+            None => {
+                // Since chunk pruning is the caller's responsibility, I don't
+                // think the caller should request chunk data that does not have
+                // the right tables.
+                todo!(
+                    "What to do about this? Seems like this is an error on the part of the caller"
+                );
+            }
+        }
+    }
+}
+
 /// Generate a predicate for the time range [from, to).
 pub fn time_range_predicate<'a>(from: i64, to: i64) -> Vec<row_group::Predicate<'a>> {
     vec![
@@ -457,12 +556,16 @@ mod test {
     use std::sync::Arc;
 
     use arrow_deps::arrow::{
-        array::{ArrayRef, Float64Array, Int64Array, StringArray},
+        array::{
+            ArrayRef, BinaryArray, BooleanArray, Float64Array, Int64Array, StringArray, UInt64Array,
+        },
         datatypes::{
             DataType::{Float64, Int64, Utf8},
             Field, Schema,
         },
     };
+
+    use column::Values;
 
     use super::*;
 
@@ -503,7 +606,7 @@ mod test {
     #[test]
     fn database_update_partition() {
         let mut db = Database::new();
-        db.upsert_partition("hour_1", 22, "a_table".to_owned(), gen_recordbatch());
+        db.upsert_partition("hour_1", 22, "a_table", gen_recordbatch());
 
         assert_eq!(db.rows(), 3);
         assert_eq!(db.tables(), 1);
@@ -516,7 +619,7 @@ mod test {
 
         // Updating the chunk with another row group for the table just adds
         // that row group to the existing table.
-        db.upsert_partition("hour_1", 22, "a_table".to_owned(), gen_recordbatch());
+        db.upsert_partition("hour_1", 22, "a_table", gen_recordbatch());
         assert_eq!(db.rows(), 6);
         assert_eq!(db.tables(), 1); // still one table
         assert_eq!(db.row_groups(), 2);
@@ -528,7 +631,7 @@ mod test {
 
         // Adding the same data under another table would increase the table
         // count.
-        db.upsert_partition("hour_1", 22, "b_table".to_owned(), gen_recordbatch());
+        db.upsert_partition("hour_1", 22, "b_table", gen_recordbatch());
         assert_eq!(db.rows(), 9);
         assert_eq!(db.tables(), 2);
         assert_eq!(db.row_groups(), 3);
@@ -539,7 +642,7 @@ mod test {
         assert_eq!(partition.row_groups(), 3);
 
         // Adding the data under another chunk adds a new chunk.
-        db.upsert_partition("hour_1", 29, "a_table".to_owned(), gen_recordbatch());
+        db.upsert_partition("hour_1", 29, "a_table", gen_recordbatch());
         assert_eq!(db.rows(), 12);
         assert_eq!(db.tables(), 3); // two distinct tables but across two chunks.
         assert_eq!(db.row_groups(), 4);
@@ -575,25 +678,94 @@ mod test {
     }
 
     // Helper function to assert the contents of a column on a record batch.
-    fn assert_rb_column_equals(rb: &RecordBatch, col_name: &str, exp: &column::Values<'_>) {
+    fn assert_rb_column_equals(rb: &RecordBatch, col_name: &str, exp: &Values<'_>) {
         let got_column = rb.column(rb.schema().index_of(col_name).unwrap());
 
         match exp {
-            column::Values::String(exp_data) => {
+            Values::String(exp_data) => {
                 let arr: &StringArray = got_column.as_any().downcast_ref::<StringArray>().unwrap();
                 assert_eq!(&arr.iter().collect::<Vec<_>>(), exp_data);
             }
-            column::Values::I64(exp_data) => {
+            Values::I64(exp_data) => {
                 let arr: &Int64Array = got_column.as_any().downcast_ref::<Int64Array>().unwrap();
                 assert_eq!(arr.values(), exp_data);
             }
-            column::Values::U64(_) => {}
-            column::Values::F64(_) => {}
-            column::Values::I64N(_) => {}
-            column::Values::U64N(_) => {}
-            column::Values::F64N(_) => {}
-            column::Values::Bool(_) => {}
-            column::Values::ByteArray(_) => {}
+            Values::U64(exp_data) => {
+                let arr: &UInt64Array = got_column.as_any().downcast_ref::<UInt64Array>().unwrap();
+                assert_eq!(arr.values(), exp_data);
+            }
+            Values::F64(exp_data) => {
+                let arr: &Float64Array =
+                    got_column.as_any().downcast_ref::<Float64Array>().unwrap();
+                assert_eq!(arr.values(), exp_data);
+            }
+            Values::I64N(exp_data) => {
+                let arr: &Int64Array = got_column.as_any().downcast_ref::<Int64Array>().unwrap();
+                let got_data = (0..got_column.len())
+                    .map(|i| {
+                        if got_column.is_null(i) {
+                            None
+                        } else {
+                            Some(arr.value(i))
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(&got_data, exp_data);
+            }
+            Values::U64N(exp_data) => {
+                let arr: &UInt64Array = got_column.as_any().downcast_ref::<UInt64Array>().unwrap();
+                let got_data = (0..got_column.len())
+                    .map(|i| {
+                        if got_column.is_null(i) {
+                            None
+                        } else {
+                            Some(arr.value(i))
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(&got_data, exp_data);
+            }
+            Values::F64N(exp_data) => {
+                let arr: &Float64Array =
+                    got_column.as_any().downcast_ref::<Float64Array>().unwrap();
+                let got_data = (0..got_column.len())
+                    .map(|i| {
+                        if got_column.is_null(i) {
+                            None
+                        } else {
+                            Some(arr.value(i))
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(&got_data, exp_data);
+            }
+            Values::Bool(exp_data) => {
+                let arr: &BooleanArray =
+                    got_column.as_any().downcast_ref::<BooleanArray>().unwrap();
+                let got_data = (0..got_column.len())
+                    .map(|i| {
+                        if got_column.is_null(i) {
+                            None
+                        } else {
+                            Some(arr.value(i))
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(&got_data, exp_data);
+            }
+            Values::ByteArray(exp_data) => {
+                let arr: &BinaryArray = got_column.as_any().downcast_ref::<BinaryArray>().unwrap();
+                let got_data = (0..got_column.len())
+                    .map(|i| {
+                        if got_column.is_null(i) {
+                            None
+                        } else {
+                            Some(arr.value(i))
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(&got_data, exp_data);
+            }
         }
     }
 
@@ -601,36 +773,204 @@ mod test {
     fn table_names() {
         let mut db = Database::new();
 
-        db.upsert_partition("hour_1", 22, "Coolverine".to_owned(), gen_recordbatch());
+        db.upsert_partition("hour_1", 22, "Coolverine", gen_recordbatch());
         let data = db.table_names("hour_1", &[22], &[]).unwrap().unwrap();
-        assert_rb_column_equals(
-            &data,
-            "table",
-            &column::Values::String(vec![Some("Coolverine")]),
-        );
+        assert_rb_column_equals(&data, "table", &Values::String(vec![Some("Coolverine")]));
 
-        db.upsert_partition("hour_1", 22, "Coolverine".to_owned(), gen_recordbatch());
+        db.upsert_partition("hour_1", 22, "Coolverine", gen_recordbatch());
         let data = db.table_names("hour_1", &[22], &[]).unwrap().unwrap();
-        assert_rb_column_equals(
-            &data,
-            "table",
-            &column::Values::String(vec![Some("Coolverine")]),
-        );
+        assert_rb_column_equals(&data, "table", &Values::String(vec![Some("Coolverine")]));
 
-        db.upsert_partition("hour_1", 2, "Coolverine".to_owned(), gen_recordbatch());
+        db.upsert_partition("hour_1", 2, "Coolverine", gen_recordbatch());
         let data = db.table_names("hour_1", &[22], &[]).unwrap().unwrap();
-        assert_rb_column_equals(
-            &data,
-            "table",
-            &column::Values::String(vec![Some("Coolverine")]),
-        );
+        assert_rb_column_equals(&data, "table", &Values::String(vec![Some("Coolverine")]));
 
-        db.upsert_partition("hour_1", 2, "20 Size".to_owned(), gen_recordbatch());
+        db.upsert_partition("hour_1", 2, "20 Size", gen_recordbatch());
         let data = db.table_names("hour_1", &[22], &[]).unwrap().unwrap();
         assert_rb_column_equals(
             &data,
             "table",
-            &column::Values::String(vec![Some("20 Size"), Some("Coolverine")]),
+            &Values::String(vec![Some("20 Size"), Some("Coolverine")]),
         );
+    }
+
+    #[test]
+    fn read_filter_single_chunk() {
+        let mut db = Database::new();
+
+        // Add a bunch of row groups to a single table in a single chunk
+        for &i in &[100, 200, 300] {
+            let metadata = vec![
+                ("env".to_owned(), TAG_COLUMN_TYPE.to_owned()),
+                ("region".to_owned(), TAG_COLUMN_TYPE.to_owned()),
+                ("counter".to_owned(), FIELD_COLUMN_TYPE.to_owned()),
+                (
+                    row_group::TIME_COLUMN_NAME.to_owned(),
+                    TIME_COLUMN_TYPE.to_owned(),
+                ),
+            ]
+            .into_iter()
+            .collect::<HashMap<String, String>>();
+
+            let schema = Schema::new_with_metadata(
+                vec![
+                    ("env", Utf8),
+                    ("region", Utf8),
+                    ("counter", Float64),
+                    (row_group::TIME_COLUMN_NAME, Int64),
+                ]
+                .into_iter()
+                .map(|(name, typ)| Field::new(name, typ, false))
+                .collect(),
+                metadata,
+            );
+
+            let data: Vec<ArrayRef> = vec![
+                Arc::new(StringArray::from(vec!["us-west", "us-east", "us-west"])),
+                Arc::new(StringArray::from(vec!["west", "west", "east"])),
+                Arc::new(Float64Array::from(vec![1.2, 300.3, 4500.3])),
+                Arc::new(Int64Array::from(vec![i, 2 * i, 3 * i])),
+            ];
+
+            // Add a record batch to a single partition
+            let rb = RecordBatch::try_new(Arc::new(schema), data).unwrap();
+            db.upsert_partition("hour_1", 22, "Coolverine", rb);
+        }
+
+        // Build the following query:
+        //
+        //   SELECT * FROM "table_1"
+        //   WHERE "env" = 'us-west' AND
+        //   "time" >= 0 AND  "time" < 17
+        //
+        let mut predicates = time_range_predicate(100, 205); // filter on time
+        predicates.push((
+            "env",
+            (
+                column::cmp::Operator::Equal,
+                column::Value::String("us-west"),
+            ),
+        ));
+
+        let mut itr = db
+            .read_filter(
+                "Coolverine",
+                "hour_1",
+                &[22],
+                &predicates,
+                &["env", "region", "counter", "time"],
+            )
+            .unwrap();
+
+        let exp_env_values = Values::String(vec![Some("us-west")]);
+        let exp_region_values = Values::String(vec![Some("west")]);
+        let exp_counter_values = Values::F64(vec![1.2]);
+
+        let first_row_group = itr.next().unwrap();
+        println!("{:?}", first_row_group);
+        assert_rb_column_equals(&first_row_group, "env", &exp_env_values);
+        assert_rb_column_equals(&first_row_group, "region", &exp_region_values);
+        assert_rb_column_equals(&first_row_group, "counter", &exp_counter_values);
+        assert_rb_column_equals(&first_row_group, "time", &Values::I64(vec![100])); // first row from first record batch
+
+        let second_row_group = itr.next().unwrap();
+        println!("{:?}", second_row_group);
+        assert_rb_column_equals(&second_row_group, "env", &exp_env_values);
+        assert_rb_column_equals(&second_row_group, "region", &exp_region_values);
+        assert_rb_column_equals(&second_row_group, "counter", &exp_counter_values);
+        assert_rb_column_equals(&second_row_group, "time", &Values::I64(vec![200])); // first row from second record batch
+
+        // No more data
+        assert!(itr.next().is_none());
+    }
+
+    #[test]
+    fn read_filter_multiple_chunks() {
+        let mut db = Database::new();
+
+        // Add a bunch of row groups to a single table across multiple chunks
+        for &i in &[100, 200, 300] {
+            let metadata = vec![
+                ("env".to_owned(), TAG_COLUMN_TYPE.to_owned()),
+                ("region".to_owned(), TAG_COLUMN_TYPE.to_owned()),
+                ("counter".to_owned(), FIELD_COLUMN_TYPE.to_owned()),
+                (
+                    row_group::TIME_COLUMN_NAME.to_owned(),
+                    TIME_COLUMN_TYPE.to_owned(),
+                ),
+            ]
+            .into_iter()
+            .collect::<HashMap<String, String>>();
+
+            let schema = Schema::new_with_metadata(
+                vec![
+                    ("env", Utf8),
+                    ("region", Utf8),
+                    ("counter", Float64),
+                    (row_group::TIME_COLUMN_NAME, Int64),
+                ]
+                .into_iter()
+                .map(|(name, typ)| Field::new(name, typ, false))
+                .collect(),
+                metadata,
+            );
+
+            let data: Vec<ArrayRef> = vec![
+                Arc::new(StringArray::from(vec!["us-west", "us-east", "us-west"])),
+                Arc::new(StringArray::from(vec!["west", "west", "east"])),
+                Arc::new(Float64Array::from(vec![1.2, 300.3, 4500.3])),
+                Arc::new(Int64Array::from(vec![i, 2 * i, 3 * i])),
+            ];
+
+            // Add a record batch to a single partition
+            let rb = RecordBatch::try_new(Arc::new(schema), data).unwrap();
+
+            // The row group gets added to a different chunk each time.
+            db.upsert_partition("hour_1", i as u32, "Coolverine", rb);
+        }
+
+        // Build the following query:
+        //
+        //   SELECT * FROM "table_1"
+        //   WHERE "env" = 'us-west' AND
+        //   "time" >= 0 AND  "time" < 17
+        //
+        let mut predicates = time_range_predicate(100, 205); // filter on time
+        predicates.push((
+            "env",
+            (
+                column::cmp::Operator::Equal,
+                column::Value::String("us-west"),
+            ),
+        ));
+
+        let mut itr = db
+            .read_filter(
+                "Coolverine",
+                "hour_1",
+                &[100, 200, 300],
+                &predicates,
+                &["env", "region", "counter", "time"],
+            )
+            .unwrap();
+
+        let exp_env_values = Values::String(vec![Some("us-west")]);
+        let exp_region_values = Values::String(vec![Some("west")]);
+        let exp_counter_values = Values::F64(vec![1.2]);
+
+        let first_row_group = itr.next().unwrap();
+        assert_rb_column_equals(&first_row_group, "env", &exp_env_values);
+        assert_rb_column_equals(&first_row_group, "region", &exp_region_values);
+        assert_rb_column_equals(&first_row_group, "counter", &exp_counter_values);
+        assert_rb_column_equals(&first_row_group, "time", &Values::I64(vec![100])); // first row from first record batch
+
+        let second_row_group = itr.next().unwrap();
+        assert_rb_column_equals(&second_row_group, "env", &exp_env_values);
+        assert_rb_column_equals(&second_row_group, "region", &exp_region_values);
+        assert_rb_column_equals(&second_row_group, "counter", &exp_counter_values);
+        assert_rb_column_equals(&second_row_group, "time", &Values::I64(vec![200])); // first row from second record batch
+
+        // No matching data for chunk 3, so iteration ends.
+        assert!(itr.next().is_none());
     }
 }

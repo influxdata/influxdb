@@ -5,7 +5,9 @@ pub mod fixed_null;
 
 use std::collections::BTreeSet;
 use std::convert::TryFrom;
+use std::sync::Arc;
 
+use arrow::array;
 use croaring::Bitmap;
 
 use arrow_deps::{arrow, arrow::array::Array};
@@ -621,6 +623,19 @@ pub enum LogicalDataType {
     String,   // UTF-8 valid string
     Binary,   // Arbitrary collection of bytes
     Boolean,  //
+}
+
+impl LogicalDataType {
+    pub fn to_arrow_datatype(&self) -> arrow::datatypes::DataType {
+        match &self {
+            LogicalDataType::Integer => arrow::datatypes::DataType::Int64,
+            LogicalDataType::Unsigned => arrow::datatypes::DataType::UInt64,
+            LogicalDataType::Float => arrow::datatypes::DataType::Float64,
+            LogicalDataType::String => arrow::datatypes::DataType::Utf8,
+            LogicalDataType::Binary => arrow::datatypes::DataType::Binary,
+            LogicalDataType::Boolean => arrow::datatypes::DataType::Boolean,
+        }
+    }
 }
 
 #[derive(Default, Debug, PartialEq)]
@@ -2665,15 +2680,15 @@ pub enum Values<'a> {
 impl<'a> Values<'a> {
     pub fn len(&self) -> usize {
         match &self {
-            Values::String(c) => c.len(),
-            Values::I64(c) => c.len(),
-            Values::U64(c) => c.len(),
-            Values::F64(c) => c.len(),
-            Values::Bool(c) => c.len(),
-            Values::ByteArray(c) => c.len(),
-            Values::I64N(c) => c.len(),
-            Values::U64N(c) => c.len(),
-            Values::F64N(c) => c.len(),
+            Self::String(c) => c.len(),
+            Self::I64(c) => c.len(),
+            Self::U64(c) => c.len(),
+            Self::F64(c) => c.len(),
+            Self::Bool(c) => c.len(),
+            Self::ByteArray(c) => c.len(),
+            Self::I64N(c) => c.len(),
+            Self::U64N(c) => c.len(),
+            Self::F64N(c) => c.len(),
         }
     }
 
@@ -2683,33 +2698,48 @@ impl<'a> Values<'a> {
 
     pub fn value(&self, i: usize) -> Value<'a> {
         match &self {
-            Values::String(c) => match c[i] {
+            Self::String(c) => match c[i] {
                 Some(v) => Value::String(v),
                 None => Value::Null,
             },
-            Values::F64(c) => Value::Scalar(Scalar::F64(c[i])),
-            Values::I64(c) => Value::Scalar(Scalar::I64(c[i])),
-            Values::U64(c) => Value::Scalar(Scalar::U64(c[i])),
-            Values::Bool(c) => match c[i] {
+            Self::F64(c) => Value::Scalar(Scalar::F64(c[i])),
+            Self::I64(c) => Value::Scalar(Scalar::I64(c[i])),
+            Self::U64(c) => Value::Scalar(Scalar::U64(c[i])),
+            Self::Bool(c) => match c[i] {
                 Some(v) => Value::Boolean(v),
                 None => Value::Null,
             },
-            Values::ByteArray(c) => match c[i] {
+            Self::ByteArray(c) => match c[i] {
                 Some(v) => Value::ByteArray(v),
                 None => Value::Null,
             },
-            Values::I64N(c) => match c[i] {
+            Self::I64N(c) => match c[i] {
                 Some(v) => Value::Scalar(Scalar::I64(v)),
                 None => Value::Null,
             },
-            Values::U64N(c) => match c[i] {
+            Self::U64N(c) => match c[i] {
                 Some(v) => Value::Scalar(Scalar::U64(v)),
                 None => Value::Null,
             },
-            Values::F64N(c) => match c[i] {
+            Self::F64N(c) => match c[i] {
                 Some(v) => Value::Scalar(Scalar::F64(v)),
                 None => Value::Null,
             },
+        }
+    }
+
+    // Moves ownership of self into an Arrow array.
+    pub fn take_arrow_array(self) -> array::ArrayRef {
+        match self {
+            Values::String(values) => Arc::new(arrow::array::StringArray::from(values)),
+            Values::I64(values) => Arc::new(arrow::array::Int64Array::from(values)),
+            Values::U64(values) => Arc::new(arrow::array::UInt64Array::from(values)),
+            Values::F64(values) => Arc::new(arrow::array::Float64Array::from(values)),
+            Values::I64N(values) => Arc::new(arrow::array::Int64Array::from(values)),
+            Values::U64N(values) => Arc::new(arrow::array::UInt64Array::from(values)),
+            Values::F64N(values) => Arc::new(arrow::array::Float64Array::from(values)),
+            Values::Bool(values) => Arc::new(arrow::array::BooleanArray::from(values)),
+            Values::ByteArray(values) => Arc::new(arrow::array::BinaryArray::from(values)),
         }
     }
 }
