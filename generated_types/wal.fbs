@@ -56,15 +56,23 @@ table Delete {
 // Segment is a collection of ReplicatedWrites. It is the payload of a WAL
 // segment file.
 table Segment {
-  number: uint64;
+  // the segment number
+  id: uint64;
+  // the writer id of the server that persisted this segment
   writer_id: uint32;
-  writes: [ReplicatedWrite];
-  writers: [WriterSummary];
+  writes: [ReplicatedWriteData];
+}
+
+// ReplciatedWriteData is the raw bytes of an individual replicated write in a
+// segment.
+table ReplicatedWriteData {
+  // payload is the raw bytes of the replicated write
+  payload: [ubyte];
 }
 
 // WriterSummary contains the inormation for a writer that has writes in a Segment
 table WriterSummary {
-  writer_id: uint32;
+  writer_id: uint64;
   start_sequence: uint64;
   end_sequence: uint64;
   // if true, there are sequence numbers between start and end that were missing

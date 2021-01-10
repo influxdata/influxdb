@@ -4,16 +4,20 @@ use data_types::{
     data::ReplicatedWrite,
     database_rules::{WalBufferRollover, WriterId},
 };
+use generated_types::wal;
 use object_store::path::ObjectStorePath;
 
-use std::{collections::BTreeMap, convert::TryFrom, mem, sync::Arc};
+use std::{collections::BTreeMap, convert::TryFrom, io, mem, sync::Arc};
 
+use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
+use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use snafu::Snafu;
+use crc32fast::Hasher;
+use snafu::{OptionExt, ResultExt, Snafu};
 use tokio::sync::Mutex;
 use tracing::warn;
 
-#[derive(Debug, Snafu, PartialEq)]
+#[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Max size limit hit {}", size))]
     MaxSizeLimit { size: u64 },
@@ -39,6 +43,24 @@ pub enum Error {
 
     #[snafu(display("segment id must be between [1, 1,000,000,000)"))]
     SegmentIdOutOfBounds,
+
+    #[snafu(display("unable to compress segment id {}: {}", segment_id, source))]
+    UnableToCompressData {
+        segment_id: u64,
+        source: snap::Error,
+    },
+
+    #[snafu(display("unable to decompress segment data: {}", source))]
+    UnableToDecompressData { source: snap::Error },
+
+    #[snafu(display("unable to write checksum: {}", source))]
+    UnableToWriteChecksum { source: io::Error },
+
+    #[snafu(display("checksum mismatch for segment"))]
+    ChecksumMismatch,
+
+    #[snafu(display("the flatbuffers Segment is invalid"))]
+    InvalidFlatbuffersSegment,
 }
 
 #[allow(dead_code)]
@@ -301,6 +323,104 @@ impl Segment {
     pub async fn persisted_at(&self) -> Option<DateTime<Utc>> {
         let persisted = self.persisted.lock().await;
         *persisted
+    }
+
+    // converts the segment to its flatbuffer bytes
+    fn fb_bytes(&self, writer_id: u32) -> Vec<u8> {
+        let mut fbb = flatbuffers::FlatBufferBuilder::new_with_capacity(
+            usize::try_from(self.size).expect("unable to serialize segment of this size"),
+        );
+        let writes = self
+            .writes
+            .iter()
+            .map(|rw| {
+                let payload = fbb.create_vector_direct(&rw.data);
+                wal::ReplicatedWriteData::create(
+                    &mut fbb,
+                    &wal::ReplicatedWriteDataArgs {
+                        payload: Some(payload),
+                    },
+                )
+            })
+            .collect::<Vec<flatbuffers::WIPOffset<wal::ReplicatedWriteData<'_>>>>();
+        let writes = fbb.create_vector(&writes);
+
+        let segment = wal::Segment::create(
+            &mut fbb,
+            &wal::SegmentArgs {
+                id: self.id,
+                writer_id,
+                writes: Some(writes),
+            },
+        );
+
+        fbb.finish(segment, None);
+
+        let (mut data, idx) = fbb.collapse();
+        data.split_off(idx)
+    }
+
+    /// serialize the segment to the bytes to represent it in a file. This
+    /// compresses the flatbuffers payload and writes a crc32 checksum at
+    /// the end.
+    pub fn to_file_bytes(&self, writer_id: u32) -> Result<Bytes> {
+        let fb_bytes = self.fb_bytes(writer_id);
+
+        let mut encoder = snap::raw::Encoder::new();
+        let mut compressed_data =
+            encoder
+                .compress_vec(&fb_bytes)
+                .context(UnableToCompressData {
+                    segment_id: self.id,
+                })?;
+
+        let mut hasher = Hasher::new();
+        hasher.update(&compressed_data);
+        let checksum = hasher.finalize();
+
+        compressed_data
+            .write_u32::<LittleEndian>(checksum)
+            .context(UnableToWriteChecksum)?;
+
+        Ok(Bytes::from(compressed_data))
+    }
+
+    /// checks the crc32 for the compressed data, decompresses it and
+    /// deserializes it into a Segment struct.
+    pub fn from_file_bytes(data: &[u8]) -> Result<Self> {
+        if data.len() < std::mem::size_of::<u32>() {
+            return Err(Error::InvalidFlatbuffersSegment);
+        }
+
+        let checksum_start = data.len() - std::mem::size_of::<u32>();
+        let checksum = LittleEndian::read_u32(&data[checksum_start..]);
+        let data = &data[..checksum_start];
+
+        let mut hasher = Hasher::new();
+        hasher.update(&data);
+
+        if checksum != hasher.finalize() {
+            return Err(Error::ChecksumMismatch);
+        }
+
+        let mut decoder = snap::raw::Decoder::new();
+        let data = decoder
+            .decompress_vec(data)
+            .context(UnableToDecompressData)?;
+
+        let fb_segment = flatbuffers::get_root::<wal::Segment<'_>>(&data);
+        let mut segment = Self::new(fb_segment.id());
+
+        let writes = fb_segment.writes().context(InvalidFlatbuffersSegment)?;
+        for w in writes {
+            let data = w.payload().context(InvalidFlatbuffersSegment)?;
+            let rw = ReplicatedWrite {
+                data: data.to_vec(),
+            };
+            segment.append(rw)?;
+        }
+
+        Ok(segment)
     }
 }
 
@@ -685,12 +805,32 @@ mod tests {
         let segment_path = super::object_store_path_for_segment(&path, 0)
             .err()
             .unwrap();
-        assert_eq!(segment_path, Error::SegmentIdOutOfBounds);
+        matches!(segment_path, Error::SegmentIdOutOfBounds);
 
         let segment_path = super::object_store_path_for_segment(&path, 23_000_000_000)
             .err()
             .unwrap();
-        assert_eq!(segment_path, Error::SegmentIdOutOfBounds);
+        matches!(segment_path, Error::SegmentIdOutOfBounds);
+    }
+
+    #[test]
+    fn segment_serialize_deserialize() {
+        let id = 1;
+        let mut segment = Segment::new(id);
+        let writer_id = 2;
+        segment
+            .append(lp_to_replicated_write(writer_id, 0, "foo val=1 123"))
+            .unwrap();
+        segment
+            .append(lp_to_replicated_write(writer_id, 1, "foo val=2 124"))
+            .unwrap();
+
+        let data = segment.to_file_bytes(writer_id).unwrap();
+        let recovered_segment = Segment::from_file_bytes(&data).unwrap();
+
+        assert_eq!(segment.id, recovered_segment.id);
+        assert_eq!(segment.size, recovered_segment.size);
+        assert_eq!(segment.writes, recovered_segment.writes);
     }
 
     fn lp_to_replicated_write(writer_id: u32, sequence_number: u64, lp: &str) -> ReplicatedWrite {
