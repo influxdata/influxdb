@@ -116,7 +116,7 @@ pub trait PartitionChunk: Debug + Send + Sync {
 
     /// returns the Id of this chunk. Ids are unique within a
     /// particular partition.
-    fn id(&self) -> u64;
+    fn id(&self) -> u32;
 
     /// returns the partition metadata stats for every table in the partition
     fn table_stats(&self) -> Result<Vec<TableStats>, Self::Error>;

@@ -27,7 +27,7 @@ pub enum Error {
     ))]
     DropOpenChunk {
         partition_key: String,
-        chunk_id: u64,
+        chunk_id: u32,
     },
 
     #[snafu(display(
@@ -38,8 +38,8 @@ pub enum Error {
     ))]
     DropUnknownChunk {
         partition_key: String,
-        chunk_id: u64,
-        valid_chunk_ids: Vec<u64>,
+        chunk_id: u32,
+        valid_chunk_ids: Vec<u32>,
     },
 }
 
@@ -60,11 +60,11 @@ pub struct Partition {
     /// The ordereing is achieved with a BTreeMap. The ordering is
     /// used when `iter()` is used to iterate over chunks in their
     /// creation order
-    closed_chunks: BTreeMap<u64, Arc<Chunk>>,
+    closed_chunks: BTreeMap<u32, Arc<Chunk>>,
 
     /// Responsible for assigning ids to chunks. Eventually, this might
     /// need to start at a number other than 0.
-    id_generator: u64,
+    id_generator: u32,
 }
 
 impl Partition {
@@ -146,7 +146,7 @@ impl Partition {
     /// Drop the specified chunk for the partition, returning a reference to the
     /// chunk
     #[allow(dead_code)]
-    pub fn drop_chunk(&mut self, chunk_id: u64) -> Result<Arc<Chunk>> {
+    pub fn drop_chunk(&mut self, chunk_id: u32) -> Result<Arc<Chunk>> {
         self.closed_chunks.remove(&chunk_id).ok_or_else(|| {
             let partition_key = self.key.clone();
             if self.open_chunk.id() == chunk_id {
@@ -155,7 +155,7 @@ impl Partition {
                     chunk_id,
                 }
             } else {
-                let valid_chunk_ids: Vec<u64> = self.iter().map(|c| c.id()).collect();
+                let valid_chunk_ids: Vec<_> = self.iter().map(|c| c.id()).collect();
                 Error::DropUnknownChunk {
                     partition_key,
                     chunk_id,
@@ -190,7 +190,7 @@ pub struct PartitionChunkInfo {
 pub struct ChunkIter<'a> {
     partition: &'a Partition,
     visited_open: bool,
-    closed_iter: std::collections::btree_map::Iter<'a, u64, Arc<Chunk>>,
+    closed_iter: std::collections::btree_map::Iter<'a, u32, Arc<Chunk>>,
 }
 
 impl<'a> ChunkIter<'a> {
@@ -663,7 +663,7 @@ mod tests {
     }
 
     /// returns a list of all chunk ids in partition that are not empty
-    fn all_ids_with_data(partition: &Partition) -> Vec<u64> {
+    fn all_ids_with_data(partition: &Partition) -> Vec<u32> {
         partition
             .iter()
             .filter_map(|c| if c.is_empty() { None } else { Some(c.id()) })

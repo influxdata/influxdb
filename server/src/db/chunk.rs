@@ -24,7 +24,7 @@ pub enum DBChunk {
 impl PartitionChunk for DBChunk {
     type Error = Error;
 
-    fn id(&self) -> u64 {
+    fn id(&self) -> u32 {
         match self {
             Self::MutableBuffer(chunk) => chunk.id(),
             Self::ReadBuffer => unimplemented!("read buffer not implemented"),

@@ -55,7 +55,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug)]
 pub struct Chunk {
     /// The id for this chunk
-    pub id: u64,
+    pub id: u32,
 
     /// Time at which the first data was written into this chunk. Note
     /// this is not the same as the timestamps on the data itself
@@ -177,7 +177,7 @@ fn make_range_expr(range: &TimestampRange) -> Expr {
 }
 
 impl Chunk {
-    pub fn new(id: u64) -> Self {
+    pub fn new(id: u32) -> Self {
         Self {
             id,
             dictionary: Dictionary::new(),
@@ -334,7 +334,7 @@ impl Chunk {
     }
 
     /// return the ID of this chunk
-    pub fn id(&self) -> u64 {
+    pub fn id(&self) -> u32 {
         self.id
     }
 
@@ -416,7 +416,7 @@ impl Chunk {
 impl query::PartitionChunk for Chunk {
     type Error = Error;
 
-    fn id(&self) -> u64 {
+    fn id(&self) -> u32 {
         self.id
     }
 
