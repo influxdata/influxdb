@@ -184,8 +184,8 @@ impl Database {
     /// the results for the previous one have been emitted.
     pub fn read_filter<'a>(
         &self,
-        table_name: &'a str,
         partition_key: &str,
+        table_name: &'a str,
         chunk_ids: &[u32],
         predicates: &'a [Predicate<'a>],
         select_columns: &'a [ColumnName<'a>],
@@ -218,41 +218,63 @@ impl Database {
         }
     }
 
-    /// Returns aggregates segmented by grouping keys for the specified
-    /// measurement as record batches, with one record batch per matching
-    /// chunk.
+    /// Returns aggregates for each group specified by the values of the
+    /// grouping keys, limited to the specified partition key table name and
+    /// chunk ids.
     ///
-    /// The set of data to be aggregated may be filtered by (currently only)
-    /// equality predicates, but can be ranged by time, which should be
-    /// represented as nanoseconds since the epoch. Results are included if they
-    /// satisfy the predicate and fall with the [min, max) time range domain.
+    /// Results may be filtered by conjunctive predicates.
+    /// Whilst the `ReadBuffer` will carry out the most optimal execution
+    /// possible by pruning columns, row groups and tables, it is assumed
+    /// that the caller has already provided an appropriately pruned
+    /// collection of chunks.
     ///
-    /// Group keys are determined according to the provided group column names.
-    /// Currently only grouping by string (tag key) columns is supported.
-    ///
+    /// Currently, only grouping by string (tag key) columns is supported.
     /// Required aggregates are specified via a tuple comprising a column name
     /// and the type of aggregation required. Multiple aggregations can be
     /// applied to the same column.
-    pub fn aggregate(
+    ///
+    /// Because identical groups may exist across chunks `read_aggregate` will
+    /// first merge across the provided chunks before returning an iterator of
+    /// record batches, which will be lazily constructed.
+    pub fn read_aggregate(
         &self,
+        partition_key: &str,
         table_name: &str,
-        time_range: (i64, i64),
+        chunk_ids: &[u32],
         predicates: &[Predicate<'_>],
         group_columns: Vec<String>,
         aggregates: Vec<(ColumnName<'_>, AggregateType)>,
-    ) -> Option<RecordBatch> {
-        // Find all matching chunks using:
-        //   - time range
-        //   - measurement name.
-        //
-        // Execute query against each matching chunk and get result set.
-        // For each result set it may be possible for there to be duplicate
-        // group keys, e.g., due to back-filling. So chunk results may need
-        // to be merged together with the aggregates from identical group keys
-        // being resolved.
-        //
-        // Finally a record batch is returned.
-        todo!()
+    ) -> Result<()> {
+        // TODO - return type for iterator
+
+        match self.partitions.get(partition_key) {
+            Some(partition) => {
+                let mut chunks = vec![];
+                for chunk_id in chunk_ids {
+                    chunks.push(
+                        partition
+                            .chunks
+                            .get(chunk_id)
+                            .ok_or_else(|| Error::ChunkNotFound { id: *chunk_id })?,
+                    );
+                }
+
+                // Execute query against each chunk and get results.
+                // For each result set it may be possible for there to be
+                // duplicate group keys, e.g., due to
+                // back-filling. So chunk results may need to be
+                // merged together with the aggregates from identical group keys
+                // being resolved.
+
+                // Merge these results and then return an iterator that lets the
+                // caller stream through record batches. The number of record
+                // batches is an implementation detail of the `ReadBuffer`.
+                Ok(())
+            }
+            None => Err(Error::PartitionNotFound {
+                key: partition_key.to_owned(),
+            }),
+        }
     }
 
     /// Returns aggregates segmented by grouping keys and windowed by time.
