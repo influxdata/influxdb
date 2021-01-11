@@ -1,6 +1,6 @@
 # Cross-compiler Builds
 The scripts in this directory are used to build cross-compilers for InfluxDB from source.
-We build & cache these artifacts separately to speed up rebuilds of our CI [`Docker image`](../Dockerfile).
+We build & cache these artifacts separately to speed up cross-builds in CI.
 
 ## Building archives
 The build scripts are stand-alone, any required variables are defined as constants within
@@ -17,7 +17,4 @@ After building a new archive, follow these steps to add it to our CI image:
    * Cross-compilers for `musl-gcc` (i.e. ARM64) are hosted under `musl/<musl-version>/musl-cross/<musl-cross-make-version>/`
    * Cross-compilers for macOS `clang` are hosted under `osxcross/<osxcross-hash>/`
 4. Use the S3 console to upload the `.tar.gz` archive into the directory.
-5. Update our CI `Dockerfile` to point at the new archive
-   * If bumping to a new build of an existing cross-compiler, update the appropriate `ENV` definitions for the software version(s) and build time
-   * If adding a new cross-compiler, add `ENV` definitions for the software version(s) and build time, and a `RUN` command to download & extract
-     the new archive
+5. Update our CircleCI config to point at the new archive.

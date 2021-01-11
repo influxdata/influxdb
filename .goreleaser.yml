@@ -84,23 +84,17 @@ nfpms:
     license: MIT
 
 archives:
-  - id: influxdb2_client
+  - id: influx_only
     builds: ["influx"]
     format: tar.gz
     wrap_in_directory: true
-    format_overrides:
-      - goos: windows
-        format: zip
     name_template: "influxdb2_client_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
       - LICENSE
       - README.md
-  - id: influxdb2_single_binary
+  - id: influx_and_influxd
     format: tar.gz
     wrap_in_directory: true
-    format_overrides:
-      - goos: windows
-        format: zip
     name_template: "influxdb2-{{ .Version }}_{{ .Os }}_{{ .Arch }}"
     files:
       - LICENSE
@@ -158,7 +152,4 @@ signs:
 
 # Do not make github release
 release:
-  name_template: "v{{.Version}}"
-  prerelease: auto # when we go to GA remove this line
-  draft: false # This needs to be false, or the container image will not be published
-  disable: true # we keep the artifacts in S3 and link from the website
+  disable: true
