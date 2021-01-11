@@ -167,14 +167,12 @@ commands:
           command: |
             sudo apt-get update
             sudo apt-get install -y --no-install-recommends \
-              binfmt-support \
               cmake \
               gnupg \
               libssl-dev \
               libxml2-dev \
               llvm-dev \
               lzma-dev \
-              qemu-user-static \
               zlib1g-dev
       - run:
           name: Import GPG key
@@ -226,11 +224,12 @@ commands:
           name: Install Docker cross-build kit and emulators
           environment:
             DOCKER_BUILDX_VERSION: 0.5.1
-            DOCKER_BUILDX_CROSS_TARGETS: linux/amd64,linux/arm64
           command: |
+            set -euo pipefail
+
             # Install the QEMU emulators we need to cross-build.
-            docker run --rm --privileged tonistiigi/binfmt:latest --install ${DOCKER_BUILDX_CROSS_TARGETS}
-            docker run --rm --privileged multiarch/qemu-user-static:register --reset -p yes
+            docker run --rm --privileged tonistiigi/binfmt:latest --install arm64
+            docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 
             mkdir -p ${HOME}/.docker/cli-plugins
             curl -sfL -o ${HOME}/.docker/cli-plugins/docker-buildx \
@@ -240,7 +239,7 @@ commands:
             echo 'export DOCKER_CLI_EXPERIMENTAL=enabled' >> $BASH_ENV
 
             # Create a new buildx context using the freshly-installed emulators.
-            docker buildx create --name cross-builder --platform ${DOCKER_BUILDX_CROSS_TARGETS}
+            docker buildx create --name cross-builder --platform linux/amd64,linux/arm64
             docker buildx use --default cross-builder
             docker buildx inspect --bootstrap
       - run:
