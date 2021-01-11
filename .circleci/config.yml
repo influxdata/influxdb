@@ -79,10 +79,10 @@ workflows:
     triggers:
       - schedule:
           cron: "0 5 * * *"
-          filters:
-            branches:
-              only:
-                - master
+#          filters:
+#            branches:
+#              only:
+#                - master
     jobs:
       - godeps
       - jsdeps
