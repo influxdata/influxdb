@@ -9,6 +9,7 @@
 
 use clap::{crate_authors, crate_version, value_t, App, Arg, ArgMatches, SubCommand};
 use ingest::parquet::writer::CompressionLevel;
+use structopt::StructOpt;
 use tokio::runtime::Runtime;
 use tracing::{debug, error, info, warn};
 
@@ -127,8 +128,7 @@ Examples:
                 .subcommand(SubCommand::with_name("help").help("explain detailed configuration options"))
         )
          .subcommand(
-            SubCommand::with_name("server")
-                .about("Runs in server mode (default)")
+            commands::config::Config::clap(),
         )
         .arg(Arg::with_name("verbose").short("v").long("verbose").multiple(true).help(
             "Enables verbose logging (use 'vv' for even more verbosity). You can also set log level via \
@@ -156,8 +156,6 @@ async fn dispatch_args(matches: ArgMatches<'_>) {
     // 2. if `-v` (single instances of verbose), use DEFAULT_VERBOSE_LOG_LEVEL
     // 3. Otherwise use DEFAULT_LOG_LEVEL
     let logging_level = LoggingLevel::new(matches.occurrences_of("verbose"));
-
-    let ignore_config_file = matches.occurrences_of("ignore-config-file") > 0;
 
     match matches.subcommand() {
         ("convert", Some(sub_matches)) => {
@@ -201,19 +199,11 @@ async fn dispatch_args(matches: ArgMatches<'_>) {
                 }
             }
         }
-        ("config", Some(sub_matches)) => {
-            logging_level.setup_basic_logging();
-            match sub_matches.subcommand() {
-                ("show", _) => commands::config::show_config(ignore_config_file),
-                ("help", _) => commands::config::describe_config(ignore_config_file),
-                (command, _) => panic!("Unknown subcommand for config: {}", command),
-            }
-        }
         ("server", Some(_)) | (_, _) => {
             // Note don't set up basic logging here, different logging rules appy in server
             // mode
             println!("InfluxDB IOx server starting");
-            match commands::influxdb_ioxd::main(logging_level, ignore_config_file).await {
+            match commands::influxdb_ioxd::main(logging_level).await {
                 Ok(()) => eprintln!("Shutdown OK"),
                 Err(e) => {
                     error!("Server shutdown with error: {}", e);
