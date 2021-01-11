@@ -1112,7 +1112,7 @@ impl ReadFilterResult<'_> {
         let columns = self
             .data
             .into_iter()
-            .map(|values| values.take_arrow_array())
+            .map(arrow::array::ArrayRef::from)
             .collect::<Vec<_>>();
 
         // try_new only returns an error if the schema is invalid or the number

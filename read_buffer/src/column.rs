@@ -2727,10 +2727,12 @@ impl<'a> Values<'a> {
             },
         }
     }
+}
 
-    // Moves ownership of self into an Arrow array.
-    pub fn take_arrow_array(self) -> array::ArrayRef {
-        match self {
+/// Moves ownership of Values into an arrow `ArrayRef`.
+impl From<Values<'_>> for array::ArrayRef {
+    fn from(values: Values<'_>) -> Self {
+        match values {
             Values::String(values) => Arc::new(arrow::array::StringArray::from(values)),
             Values::I64(values) => Arc::new(arrow::array::Int64Array::from(values)),
             Values::U64(values) => Arc::new(arrow::array::UInt64Array::from(values)),
