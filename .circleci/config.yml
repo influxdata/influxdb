@@ -45,10 +45,10 @@ workflows:
       - deploy_nightly:
           requires:
             - build
-          filters:
-            branches:
-              only:
-                - master
+#          filters:
+#            branches:
+#              only:
+#                - master
       - litmus_integration:
           requires:
             - build
