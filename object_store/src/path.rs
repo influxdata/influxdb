@@ -217,7 +217,27 @@ impl DirsAndFileName {
             prefix.directories.iter(),
             |a, b| a == b,
         );
-        matches!(diff, None | Some(itertools::Diff::Shorter(..)))
+
+        use itertools::Diff;
+        match diff {
+            None => true,
+            Some(Diff::Shorter(..)) => true,
+            Some(Diff::FirstMismatch(_, mut remaining_self, mut remaining_prefix)) => {
+                let first_prefix = remaining_prefix
+                    .next()
+                    .expect("must have at least one mismatch to be in this case");
+
+                // There must not be any other remaining parts in the prefix
+                remaining_prefix.next().is_none()
+                // and the next item in self must start with the last item in the prefix
+                    && remaining_self
+                        .next()
+                        .expect("must be at least one value")
+                        .0
+                        .starts_with(&first_prefix.0)
+            }
+            _ => false,
+        }
     }
 
     /// Returns all directory and file name `PathParts` in `self` after the
@@ -549,7 +569,7 @@ mod tests {
     }
 
     #[test]
-    fn prefix_matches_full_dirs() {
+    fn prefix_matches() {
         let mut haystack = ObjectStorePath::default();
         haystack.push_all_dirs(&["foo/bar", "baz%2Ftest", "something"]);
 
@@ -590,22 +610,22 @@ mod tests {
             needle
         );
 
-        // partial dir prefix does NOT match, this may be surprising!
+        // partial dir prefix matches
         let mut needle = ObjectStorePath::default();
         needle.push_dir("f");
         assert!(
-            !haystack.prefix_matches(&needle),
-            "{:?} should not have started with {:?}",
+            haystack.prefix_matches(&needle),
+            "{:?} should have started with {:?}",
             haystack,
             needle
         );
 
-        // one dir and one partial dir does NOT match, this may be surprising!
+        // one dir and one partial dir matches
         let mut needle = ObjectStorePath::default();
         needle.push_all_dirs(&["foo/bar", "baz"]);
         assert!(
-            !haystack.prefix_matches(&needle),
-            "{:?} should not have started with {:?}",
+            haystack.prefix_matches(&needle),
+            "{:?} should have started with {:?}",
             haystack,
             needle
         );
