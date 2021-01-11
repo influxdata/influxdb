@@ -203,7 +203,7 @@ func (s *Service) isDBRPUnique(ctx context.Context, m influxdb.DBRPMappingV2) er
 func (s *Service) FindByID(ctx context.Context, orgID, id influxdb.ID) (*influxdb.DBRPMappingV2, error) {
 	encodedID, err := id.Encode()
 	if err != nil {
-		return nil, ErrInvalidDBRPID
+		return nil, ErrInvalidDBRPID(id.String(), err)
 	}
 
 	m := &influxdb.DBRPMappingV2{}
@@ -363,7 +363,7 @@ func (s *Service) Create(ctx context.Context, dbrp *influxdb.DBRPMappingV2) erro
 
 	encodedID, err := dbrp.ID.Encode()
 	if err != nil {
-		return ErrInvalidDBRPID
+		return ErrInvalidDBRPID(dbrp.ID.String(), err)
 	}
 
 	// OrganizationID has been validated by Validate
