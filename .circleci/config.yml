@@ -50,7 +50,7 @@ workflows:
 #                - master
       - deploy_nightly:
           requires:
-            - cross_build
+            - build
       - litmus_integration:
           requires:
             - build
