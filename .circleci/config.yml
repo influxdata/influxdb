@@ -167,6 +167,7 @@ commands:
           command: |
             sudo apt-get update
             sudo apt-get install -y --no-install-recommends \
+              binfmt-support \
               cmake \
               gnupg \
               libssl-dev \
@@ -227,19 +228,21 @@ commands:
             DOCKER_BUILDX_VERSION: 0.5.1
             DOCKER_BUILDX_CROSS_TARGETS: linux/amd64,linux/arm64
           command: |
+            # Install the QEMU emulators we need to cross-build.
+            docker run --rm --privileged tonistiigi/binfmt:latest --install ${DOCKER_BUILDX_CROSS_TARGETS}
+            docker run --rm --privileged multiarch/qemu-user-static:register --reset -p yes
+
             mkdir -p ${HOME}/.docker/cli-plugins
             curl -sfL -o ${HOME}/.docker/cli-plugins/docker-buildx \
               https://github.com/docker/buildx/releases/download/v${DOCKER_BUILDX_VERSION}/buildx-v${DOCKER_BUILDX_VERSION}.linux-amd64
             chmod a+x ${HOME}/.docker/cli-plugins/docker-buildx
             docker buildx install
-
-            # Install the QEMU emulators we need to cross-build.
-            docker run --rm --privileged tonistiigi/binfmt:latest --install ${DOCKER_BUILDX_CROSS_TARGETS}
-            docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+            echo 'export DOCKER_CLI_EXPERIMENTAL=enabled' >> $BASH_ENV
 
             # Create a new buildx context using the freshly-installed emulators.
             docker buildx create --name cross-builder --platform ${DOCKER_BUILDX_CROSS_TARGETS}
             docker buildx use --default cross-builder
+            docker buildx inspect --bootstrap
       - run:
           name: Install goreleaser
           environment:
