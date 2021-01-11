@@ -143,9 +143,6 @@ checktidy:
 checkgenerate:
 	./etc/checkgenerate.sh
 
-checkcommit:
-	# ./etc/circle-detect-committed-binaries.sh
-
 generate: $(SUBDIRS)
 
 test-js: node_modules
@@ -179,18 +176,6 @@ build: all
 
 pkg-config:
 	go build -o $(GOPATH)/bin/pkg-config github.com/influxdata/pkg-config
-
-# Parallelism for goreleaser must be set to 1 so it doesn't
-# attempt to invoke pkg-config, which invokes cargo,
-# for multiple targets at the same time.
-dist: pkg-config
-	goreleaser build -p 1 --skip-validate --rm-dist
-
-release: pkg-config
-	goreleaser release -p 1 --rm-dist
-
-nightly: pkg-config
-	goreleaser release -p 1 --skip-validate --rm-dist --config=.goreleaser-nightly.yml
 
 clean:
 	@for d in $(SUBDIRS); do $(MAKE) -C $$d clean; done
