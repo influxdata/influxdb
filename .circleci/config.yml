@@ -41,7 +41,8 @@ workflows:
             branches:
               only:
                 - /^(?!pull\/).*$/
-      - cross_build:
+#      - cross_build:
+      - deploy_nightly:
           requires:
             - build
           filters:
@@ -82,7 +83,7 @@ workflows:
           filters:
             branches:
               only:
-                - dm-release-jobs-add-emulators
+                - master
     jobs:
       - godeps
       - jsdeps
