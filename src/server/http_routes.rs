@@ -466,9 +466,8 @@ async fn create_database<M: ConnectionManager + Send + Sync + Debug + 'static>(
         .clone();
     let body = parse_body(req).await?;
 
-    let rules: DatabaseRules = serde_json::from_slice(body.as_ref())
-        .context(InvalidRequestBody)
-        .unwrap();
+    let rules: DatabaseRules = serde_json::from_slice(body.as_ref()).context(InvalidRequestBody)?;
+
     server
         .create_database(db_name, rules)
         .await
