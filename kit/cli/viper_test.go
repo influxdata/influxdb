@@ -121,6 +121,7 @@ func ExampleNewCommand() {
 		},
 	})
 
+	cmd.SetArgs([]string{})
 	if err := cmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 	}
@@ -253,4 +254,24 @@ func newConfigFile(t *testing.T, config interface{}) (string, func()) {
 	return testFile, func() {
 		os.RemoveAll(testDir)
 	}
+}
+
+func Test_RequiredFlag(t *testing.T) {
+	var testVar string
+	program := &Program{
+		Name: "test",
+		Opts: []Opt{
+			{
+				DestP:    &testVar,
+				Flag:     "foo",
+				Required: true,
+			},
+		},
+	}
+
+	cmd := NewCommand(viper.New(), program)
+	cmd.SetArgs([]string{})
+	err := cmd.Execute()
+	require.Error(t, err)
+	require.Equal(t, `required flag(s) "foo" not set`, err.Error())
 }
