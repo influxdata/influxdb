@@ -131,7 +131,9 @@ impl InMemory {
             .range((&prefix)..)
             .take_while(|(k, _)| k.prefix_matches(&prefix))
         {
-            let parts = k.parts_after_prefix(&prefix);
+            let parts = k
+                .parts_after_prefix(&prefix)
+                .expect("must have prefix if in range");
 
             if parts.len() >= 2 {
                 let mut full_prefix = prefix.clone();

@@ -98,11 +98,6 @@ impl ObjectStorePath {
             }
         }
     }
-
-    /// Returns delimiter-separated parts contained in `self` after `prefix`.
-    pub fn parts_after_prefix(&self, _prefix: &Self) -> &[PathPart] {
-        unimplemented!()
-    }
 }
 
 impl From<&'_ DirsAndFileName> for ObjectStorePath {
@@ -146,9 +141,7 @@ impl PathRepresentation {
     fn push_all_dirs<'a>(self, parts: impl AsRef<[&'a str]>) -> Self {
         let mut dirs_and_file_name: DirsAndFileName = self.into();
 
-        dirs_and_file_name
-            .directories
-            .extend(parts.as_ref().iter().map(|&v| v.into()));
+        dirs_and_file_name.push_all_dirs(parts);
 
         Self::Parts(dirs_and_file_name)
     }
@@ -227,8 +220,35 @@ impl DirsAndFileName {
         matches!(diff, None | Some(itertools::Diff::Shorter(..)))
     }
 
-    pub(crate) fn parts_after_prefix(&self, _prefix: &Self) -> &[PathPart] {
-        unimplemented!()
+    /// Returns all directory and file name `PathParts` in `self` after the
+    /// specified `prefix`. Ignores any `file_name` part of `prefix`.
+    /// Returns `None` if `self` dosen't start with `prefix`.
+    pub(crate) fn parts_after_prefix(&self, prefix: &Self) -> Option<Vec<PathPart>> {
+        let mut dirs_iter = self.directories.iter();
+        let mut prefix_dirs_iter = prefix.directories.iter();
+
+        let mut parts = vec![];
+
+        for dir in &mut dirs_iter {
+            let pre = prefix_dirs_iter.next();
+
+            match pre {
+                None => {
+                    parts.push(dir.to_owned());
+                    break;
+                }
+                Some(p) if p == dir => continue,
+                Some(_) => return None,
+            }
+        }
+
+        parts.extend(dirs_iter.cloned());
+
+        if let Some(file_name) = &self.file_name {
+            parts.push(file_name.to_owned());
+        }
+
+        Some(parts)
     }
 
     /// Add a part to the end of the path's directories, encoding any restricted
@@ -236,6 +256,12 @@ impl DirsAndFileName {
     fn push_dir(&mut self, part: impl Into<String>) {
         let part = part.into();
         self.directories.push((&*part).into());
+    }
+
+    /// Push a bunch of parts as directories in one go.
+    fn push_all_dirs<'a>(&mut self, parts: impl AsRef<[&'a str]>) {
+        self.directories
+            .extend(parts.as_ref().iter().map(|&v| v.into()));
     }
 
     /// Add a `PathPart` to the end of the path's directories.
@@ -670,5 +696,49 @@ mod tests {
 
         assert!(path_buf_parts.directories.is_empty());
         assert!(path_buf_parts.file_name.is_none());
+    }
+
+    #[test]
+    fn parts_after_prefix_behavior() {
+        let mut existing_path = DirsAndFileName::default();
+        existing_path.push_all_dirs(&["apple", "bear", "cow", "dog"]);
+        existing_path.file_name = Some("egg.json".into());
+
+        // Prefix with one directory
+        let mut prefix = DirsAndFileName::default();
+        prefix.push_dir("apple");
+        let expected_parts: Vec<PathPart> = vec!["bear", "cow", "dog", "egg.json"]
+            .into_iter()
+            .map(Into::into)
+            .collect();
+        let parts = existing_path.parts_after_prefix(&prefix).unwrap();
+        assert_eq!(parts, expected_parts);
+
+        // Prefix with two directories
+        let mut prefix = DirsAndFileName::default();
+        prefix.push_all_dirs(&["apple", "bear"]);
+        let expected_parts: Vec<PathPart> = vec!["cow", "dog", "egg.json"]
+            .into_iter()
+            .map(Into::into)
+            .collect();
+        let parts = existing_path.parts_after_prefix(&prefix).unwrap();
+        assert_eq!(parts, expected_parts);
+
+        // Not a prefix
+        let mut prefix = DirsAndFileName::default();
+        prefix.push_dir("cow");
+        assert!(existing_path.parts_after_prefix(&prefix).is_none());
+
+        // Prefix with a partial directory
+        let mut prefix = DirsAndFileName::default();
+        prefix.push_dir("ap");
+        assert!(existing_path.parts_after_prefix(&prefix).is_none());
+
+        // Prefix matches but there aren't any parts after it
+        let mut existing_path = DirsAndFileName::default();
+        existing_path.push_all_dirs(&["apple", "bear", "cow", "dog"]);
+        let prefix = existing_path.clone();
+        let parts = existing_path.parts_after_prefix(&prefix).unwrap();
+        assert!(parts.is_empty());
     }
 }
