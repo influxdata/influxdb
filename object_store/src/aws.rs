@@ -200,9 +200,8 @@ impl AmazonS3 {
         prefix: &'a ObjectStorePath,
         next_token: &Option<String>,
     ) -> Result<ListResult> {
-        dbg!(&prefix);
         let converted_prefix = CloudConverter::convert(prefix);
-        dbg!(&converted_prefix);
+
         let mut list_request = rusoto_s3::ListObjectsV2Request {
             bucket: self.bucket_name.clone(),
             prefix: Some(converted_prefix),
@@ -225,7 +224,7 @@ impl AmazonS3 {
         };
 
         let contents = resp.contents.unwrap_or_default();
-        dbg!(&contents);
+
         let objects: Vec<_> = contents
             .into_iter()
             .map(|object| {
@@ -255,8 +254,6 @@ impl AmazonS3 {
                 }
             })
             .collect();
-
-        dbg!(&resp.common_prefixes);
 
         let common_prefixes = resp
             .common_prefixes
