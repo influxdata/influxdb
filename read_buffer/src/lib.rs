@@ -188,7 +188,7 @@ impl Database {
         table_name: &'a str,
         chunk_ids: &[u32],
         predicates: &'a [Predicate<'a>],
-        select_columns: &'a [ColumnName<'a>],
+        select_columns: table::ColumnSelection<'a>,
     ) -> Result<ReadFilterResults<'a, '_>> {
         match self.partitions.get(partition_key) {
             Some(partition) => {
@@ -488,7 +488,7 @@ pub struct ReadFilterResults<'input, 'chunk> {
 
     table_name: &'input str,
     predicates: &'input [Predicate<'input>],
-    select_columns: &'input [ColumnName<'input>],
+    select_columns: table::ColumnSelection<'input>,
 }
 
 impl<'input, 'chunk> ReadFilterResults<'input, 'chunk> {
@@ -496,7 +496,7 @@ impl<'input, 'chunk> ReadFilterResults<'input, 'chunk> {
         chunks: Vec<&'chunk Chunk>,
         table_name: &'input str,
         predicates: &'input [Predicate<'input>],
-        select_columns: &'input [ColumnName<'input>],
+        select_columns: table::ColumnSelection<'input>,
     ) -> Self {
         Self {
             chunks,
@@ -876,11 +876,11 @@ mod test {
 
         let mut itr = db
             .read_filter(
-                "Coolverine",
                 "hour_1",
+                "Coolverine",
                 &[22],
                 &predicates,
-                &["env", "region", "counter", "time"],
+                table::ColumnSelection::All,
             )
             .unwrap();
 
@@ -968,11 +968,11 @@ mod test {
 
         let mut itr = db
             .read_filter(
-                "Coolverine",
                 "hour_1",
+                "Coolverine",
                 &[100, 200, 300],
                 &predicates,
-                &["env", "region", "counter", "time"],
+                table::ColumnSelection::Some(&["env", "region", "counter", "time"]),
             )
             .unwrap();
 

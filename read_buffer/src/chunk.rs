@@ -1,7 +1,7 @@
 use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
 use crate::row_group::{ColumnName, Predicate};
-use crate::table::{ReadFilterResults, ReadGroupResults, Table};
+use crate::table::{ColumnSelection, ReadFilterResults, ReadGroupResults, Table};
 use crate::{column::AggregateType, row_group::RowGroup};
 
 type TableName = String;
@@ -93,7 +93,7 @@ impl Chunk {
         &self,
         table_name: &str,
         predicates: &'a [Predicate<'a>],
-        select_columns: &'a [ColumnName<'a>],
+        select_columns: &ColumnSelection<'_>,
     ) -> Option<ReadFilterResults<'a, '_>> {
         match self.tables.get(table_name) {
             Some(table) => Some(table.read_filter(select_columns, predicates)),

@@ -2,8 +2,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Display;
 use std::slice::Iter;
 
-use arrow_deps::arrow;
-
 use crate::{
     column,
     column::LogicalDataType,
@@ -11,7 +9,7 @@ use crate::{
 };
 use crate::{
     column::{AggregateResult, AggregateType, OwnedValue, Scalar, Value},
-    row_group::{ReadFilterResult, ReadGroupResult},
+    row_group::ReadGroupResult,
 };
 
 /// A Table represents data for a single measurement.
@@ -145,7 +143,7 @@ impl Table {
     /// the predicate and fall with the [min, max) time range domain.
     pub fn read_filter<'input, 'table>(
         &'table self,
-        columns: &'input [ColumnName<'input>],
+        columns: &ColumnSelection<'_>,
         predicates: &'input [Predicate<'input>],
     ) -> ReadFilterResults<'input, 'table> {
         // identify row groups where time range and predicates match could match
@@ -153,10 +151,17 @@ impl Table {
         // and merge results.
         let rgs = self.filter_row_groups(predicates);
 
+        let schema = match columns {
+            ColumnSelection::All => self.meta.schema(),
+            ColumnSelection::Some(column_names) => self.meta.schema_for_column_names(column_names),
+        };
+
+        // temp I think I can remove `columns` and `predicates` from this..
+        let columns = schema.iter().map(|(name, _)| *name).collect::<Vec<_>>();
         ReadFilterResults {
             columns,
             predicates,
-            schema: self.meta.schema_for_column_names(columns),
+            schema,
             row_groups: rgs,
         }
     }
@@ -439,6 +444,7 @@ impl Table {
     }
 }
 
+// TODO(edd): reduce owned strings here by, e.g., using references as keys.
 struct MetaData {
     // The total size of the table in bytes.
     size: u64,
@@ -456,6 +462,8 @@ struct MetaData {
 
     // The `ReadBuffer` logical types associated with the columns in the table
     column_types: BTreeMap<String, column::LogicalDataType>,
+
+    column_names: Vec<String>,
 
     // The total time range of this table spanning all of the row groups within
     // the table.
@@ -480,19 +488,32 @@ impl MetaData {
                 .iter()
                 .map(|(k, v)| (k.clone(), *v))
                 .collect(),
+            column_names: rg.column_ranges().keys().cloned().collect(),
             time_range: Some(rg.time_range()),
         }
     }
 
     // Extract schema information for a set of columns.
-    fn schema_for_column_names<'a>(
-        &self,
-        names: &[ColumnName<'a>],
-    ) -> Vec<(&'a str, LogicalDataType)> {
+    fn schema_for_column_names(&self, names: &[ColumnName<'_>]) -> Vec<(&str, LogicalDataType)> {
         names
             .iter()
-            .map(|&name| (name, *self.column_types.get(name).unwrap()))
+            .map(|&name| {
+                let (k, v) = self.column_types.get_key_value(name).unwrap();
+                (k.as_str(), *v)
+            })
             .collect::<Vec<_>>()
+    }
+
+    // Extract schema information for a set of columns.
+    fn schema(&self) -> Vec<(&str, LogicalDataType)> {
+        self.column_types
+            .iter()
+            .map(|(k, v)| (k.as_str(), *v))
+            .collect::<Vec<_>>()
+    }
+
+    pub fn all_column_names(&self) -> Vec<&str> {
+        self.column_names.iter().map(|name| name.as_str()).collect()
     }
 
     pub fn update(&mut self, rg: &RowGroup) {
@@ -528,19 +549,26 @@ impl MetaData {
     }
 }
 
+/// A collection of columns, with a variant that implies all columns for the
+/// table should be included.
+pub enum ColumnSelection<'a> {
+    All,
+    Some(&'a [&'a str]),
+}
+
 /// Results of a `read_filter` execution on the table. Execution is lazy -
 /// row groups are only queried when `ReadFilterResults` is iterated.
 #[derive(Default)]
 pub struct ReadFilterResults<'input, 'table> {
     // schema of all columns in the query results
-    schema: Vec<(&'input str, LogicalDataType)>,
+    schema: Vec<(&'table str, LogicalDataType)>,
 
     // These row groups passed the predicates and need to be queried.
     row_groups: Vec<&'table RowGroup>,
 
     // TODO(edd): encapsulate these into a single executor function that just
     // executes on the next row group.
-    columns: &'input [ColumnName<'input>],
+    columns: Vec<ColumnName<'table>>,
     predicates: &'input [Predicate<'input>],
 }
 
@@ -565,7 +593,7 @@ impl<'a> Iterator for ReadFilterResults<'_, 'a> {
         }
 
         let row_group = self.row_groups.remove(0);
-        let result = row_group.read_filter(self.columns, self.predicates);
+        let result = row_group.read_filter(&self.columns, self.predicates);
         if result.is_empty() {
             return self.next(); // try next row group
         }
@@ -706,7 +734,10 @@ mod test {
 
         // Get all the results
         let predicates = build_predicates(1, 31, vec![]);
-        let results = table.read_filter(&["time", "count", "region"], &predicates);
+        let results = table.read_filter(
+            &ColumnSelection::Some(&["time", "count", "region"]),
+            &predicates,
+        );
 
         // check the column types
         let exp_schema = vec![
@@ -744,7 +775,7 @@ mod test {
         );
 
         // Apply a predicate `WHERE "region" != "south"`
-        let results = table.read_filter(&["time", "region"], &predicates);
+        let results = table.read_filter(&ColumnSelection::Some(&["time", "region"]), &predicates);
 
         let mut all = vec![];
         for result in results {
