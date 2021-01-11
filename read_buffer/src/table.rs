@@ -2,10 +2,14 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Display;
 use std::slice::Iter;
 
-use crate::row_group::{ColumnName, GroupKey, Predicate, RowGroup};
+use crate::{
+    column,
+    column::LogicalDataType,
+    row_group::{self, ColumnName, GroupKey, Predicate, RowGroup},
+};
 use crate::{
     column::{AggregateResult, AggregateType, OwnedValue, Scalar, Value},
-    row_group::{ReadFilterResult, ReadGroupResult},
+    row_group::ReadGroupResult,
 };
 
 /// A Table represents data for a single measurement.
@@ -94,6 +98,11 @@ impl Table {
         todo!()
     }
 
+    /// The logical data-type of each column in the `Table`'s schema.
+    pub fn column_logical_types(&self) -> &BTreeMap<String, column::LogicalDataType> {
+        &self.meta.column_types
+    }
+
     // Determines if schema contains all the provided column names.
     fn has_all_columns(&self, names: &[ColumnName<'_>]) -> bool {
         for &name in names {
@@ -105,7 +114,7 @@ impl Table {
     }
 
     // Identify set of row groups that may satisfy the predicates.
-    fn filter_row_groups(&self, predicates: &[Predicate<'_>]) -> Vec<&RowGroup> {
+    fn filter_row_groups<'input>(&self, predicates: &[Predicate<'input>]) -> Vec<&RowGroup> {
         let mut rgs = Vec::with_capacity(self.row_groups.len());
 
         'rowgroup: for rg in &self.row_groups {
@@ -123,39 +132,38 @@ impl Table {
         rgs
     }
 
-    /// Returns vectors of columnar data for the specified column
-    /// selections.
+    /// Select data for the specified column selections with the provided
+    /// predicates applied.
+    ///
+    /// All selection columns **must** exist within the schema.
     ///
     /// Results may be filtered by (currently only) conjunctive (AND)
     /// predicates, but can be ranged by time, which should be represented
     /// as nanoseconds since the epoch. Results are included if they satisfy
     /// the predicate and fall with the [min, max) time range domain.
-    pub fn select<'input>(
-        &self,
-        columns: &[ColumnName<'input>],
-        predicates: &[Predicate<'_>],
-    ) -> ReadFilterResults<'input, '_> {
-        // identify segments where time range and predicates match could match
-        // using segment meta data, and then execute against those segments and
-        // merge results.
-        let segments = self.filter_row_groups(predicates);
+    pub fn read_filter<'input, 'table>(
+        &'table self,
+        columns: &ColumnSelection<'_>,
+        predicates: &'input [Predicate<'input>],
+    ) -> ReadFilterResults<'input, 'table> {
+        // identify row groups where time range and predicates match could match
+        // using row group meta data, and then execute against those row groups
+        // and merge results.
+        let rgs = self.filter_row_groups(predicates);
 
-        let mut results = ReadFilterResults {
-            names: columns.to_vec(),
-            values: vec![],
+        let schema = match columns {
+            ColumnSelection::All => self.meta.schema(),
+            ColumnSelection::Some(column_names) => self.meta.schema_for_column_names(column_names),
         };
 
-        if segments.is_empty() {
-            return results;
+        // temp I think I can remove `columns` and `predicates` from this..
+        let columns = schema.iter().map(|(name, _)| *name).collect::<Vec<_>>();
+        ReadFilterResults {
+            columns,
+            predicates,
+            schema,
+            row_groups: rgs,
         }
-
-        for segment in segments {
-            results
-                .values
-                .push(segment.read_filter(columns, predicates));
-        }
-
-        results
     }
 
     /// Returns aggregates segmented by grouping keys.
@@ -436,6 +444,7 @@ impl Table {
     }
 }
 
+// TODO(edd): reduce owned strings here by, e.g., using references as keys.
 struct MetaData {
     // The total size of the table in bytes.
     size: u64,
@@ -451,6 +460,11 @@ struct MetaData {
     // possibly match based on the range of values a column has.
     column_ranges: BTreeMap<String, (OwnedValue, OwnedValue)>,
 
+    // The `ReadBuffer` logical types associated with the columns in the table
+    column_types: BTreeMap<String, column::LogicalDataType>,
+
+    column_names: Vec<String>,
+
     // The total time range of this table spanning all of the row groups within
     // the table.
     //
@@ -460,23 +474,56 @@ struct MetaData {
 }
 
 impl MetaData {
-    pub fn new(segment: &RowGroup) -> Self {
+    pub fn new(rg: &RowGroup) -> Self {
         Self {
-            size: segment.size(),
-            rows: u64::from(segment.rows()),
-            column_ranges: segment
+            size: rg.size(),
+            rows: u64::from(rg.rows()),
+            column_ranges: rg
                 .column_ranges()
                 .iter()
                 .map(|(k, v)| (k.to_string(), (v.0.clone(), v.1.clone())))
                 .collect(),
-            time_range: Some(segment.time_range()),
+            column_types: rg
+                .column_logical_types()
+                .iter()
+                .map(|(k, v)| (k.clone(), *v))
+                .collect(),
+            column_names: rg.column_ranges().keys().cloned().collect(),
+            time_range: Some(rg.time_range()),
         }
+    }
+
+    // Extract schema information for a set of columns.
+    fn schema_for_column_names(&self, names: &[ColumnName<'_>]) -> Vec<(&str, LogicalDataType)> {
+        names
+            .iter()
+            .map(|&name| {
+                let (k, v) = self.column_types.get_key_value(name).unwrap();
+                (k.as_str(), *v)
+            })
+            .collect::<Vec<_>>()
+    }
+
+    // Extract schema information for a set of columns.
+    fn schema(&self) -> Vec<(&str, LogicalDataType)> {
+        self.column_types
+            .iter()
+            .map(|(k, v)| (k.as_str(), *v))
+            .collect::<Vec<_>>()
+    }
+
+    pub fn all_column_names(&self) -> Vec<&str> {
+        self.column_names.iter().map(|name| name.as_str()).collect()
     }
 
     pub fn update(&mut self, rg: &RowGroup) {
         // update size, rows, column ranges, time range
         self.size += rg.size();
         self.rows += u64::from(rg.rows());
+
+        // The incoming row group must have the same schema as the existing row
+        // groups in the table.
+        assert_eq!(&self.column_types, rg.column_logical_types());
 
         assert_eq!(self.column_ranges.len(), rg.column_ranges().len());
         for (column_name, (column_range_min, column_range_max)) in rg.column_ranges() {
@@ -502,37 +549,82 @@ impl MetaData {
     }
 }
 
-/// Encapsulates results from tables with a structure that makes them easier
-/// to work with and display.
-pub struct ReadFilterResults<'input, 'segment> {
-    pub names: Vec<ColumnName<'input>>,
-    pub values: Vec<ReadFilterResult<'segment>>,
+/// A collection of columns, with a variant that implies all columns for the
+/// table should be included.
+pub enum ColumnSelection<'a> {
+    All,
+    Some(&'a [&'a str]),
 }
 
-impl<'input, 'segment> ReadFilterResults<'input, 'segment> {
+/// Results of a `read_filter` execution on the table. Execution is lazy -
+/// row groups are only queried when `ReadFilterResults` is iterated.
+#[derive(Default)]
+pub struct ReadFilterResults<'input, 'table> {
+    // schema of all columns in the query results
+    schema: Vec<(&'table str, LogicalDataType)>,
+
+    // These row groups passed the predicates and need to be queried.
+    row_groups: Vec<&'table RowGroup>,
+
+    // TODO(edd): encapsulate these into a single executor function that just
+    // executes on the next row group.
+    columns: Vec<ColumnName<'table>>,
+    predicates: &'input [Predicate<'input>],
+}
+
+impl<'input, 'table> ReadFilterResults<'input, 'table> {
     pub fn is_empty(&self) -> bool {
-        self.values.is_empty()
+        self.row_groups.is_empty()
+    }
+
+    /// Returns the schema associated with table result and therefore all of the
+    /// results for all of row groups in the table results.
+    pub fn schema(&self) -> &Vec<(ColumnName<'_>, LogicalDataType)> {
+        &self.schema
     }
 }
 
-impl<'input, 'segment> Display for ReadFilterResults<'input, 'segment> {
+impl<'a> Iterator for ReadFilterResults<'_, 'a> {
+    type Item = row_group::ReadFilterResult<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.is_empty() {
+            return None;
+        }
+
+        let row_group = self.row_groups.remove(0);
+        let result = row_group.read_filter(&self.columns, self.predicates);
+        if result.is_empty() {
+            return self.next(); // try next row group
+        }
+
+        assert_eq!(result.schema(), self.schema()); // validate schema
+        Some(result)
+    }
+}
+
+// Helper type that can pretty print a set of results for `read_filter`.
+struct DisplayReadFilterResults<'a>(Vec<row_group::ReadFilterResult<'a>>);
+
+impl<'a> Display for DisplayReadFilterResults<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.0.is_empty() {
+            return Ok(());
+        }
+
+        let schema = self.0[0].schema();
         // header line.
-        for (i, k) in self.names.iter().enumerate() {
+        for (i, (k, _)) in schema.iter().enumerate() {
             write!(f, "{}", k)?;
 
-            if i < self.names.len() - 1 {
+            if i < schema.len() - 1 {
                 write!(f, ",")?;
             }
         }
         writeln!(f)?;
 
-        if self.is_empty() {
-            return Ok(());
-        }
-
         // Display all the results of each segment
-        for segment_values in &self.values {
+        for segment_values in &self.0 {
             segment_values.fmt(f)?;
         }
         Ok(())
@@ -579,7 +671,7 @@ impl std::fmt::Display for ReadGroupResults<'_, '_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::column::{cmp::Operator, Column};
+    use crate::column::{cmp::Operator, Column, LogicalDataType};
     use crate::row_group::{ColumnType, TIME_COLUMN_NAME};
 
     fn build_predicates(
@@ -617,9 +709,17 @@ mod test {
         let fc = ColumnType::Field(Column::from(&[100_u64, 101, 200, 203, 203, 10][..]));
         columns.insert("count".to_string(), fc);
 
-        let segment = RowGroup::new(6, columns);
+        let rg = RowGroup::new(6, columns);
 
-        let mut table = Table::new("cpu".to_owned(), segment);
+        let mut table = Table::new("cpu".to_owned(), rg);
+        let exp_col_types = vec![
+            ("region".to_owned(), LogicalDataType::String),
+            ("count".to_owned(), LogicalDataType::Unsigned),
+            ("time".to_owned(), LogicalDataType::Integer),
+        ]
+        .into_iter()
+        .collect::<BTreeMap<_, _>>();
+        assert_eq!(table.column_logical_types(), &exp_col_types);
 
         // Build another segment.
         let mut columns = BTreeMap::new();
@@ -633,12 +733,28 @@ mod test {
         table.add_row_group(segment);
 
         // Get all the results
-        let results = table.select(
-            &["time", "count", "region"],
-            &build_predicates(1, 31, vec![]),
+        let predicates = build_predicates(1, 31, vec![]);
+        let results = table.read_filter(
+            &ColumnSelection::Some(&["time", "count", "region"]),
+            &predicates,
         );
+
+        // check the column types
+        let exp_schema = vec![
+            ("time", LogicalDataType::Integer),
+            ("count", LogicalDataType::Unsigned),
+            ("region", LogicalDataType::String),
+        ];
+        assert_eq!(results.schema(), &exp_schema);
+
+        let mut all = vec![];
+        for result in results {
+            assert_eq!(result.schema(), &exp_schema);
+            all.push(result);
+        }
+
         assert_eq!(
-            format!("{}", &results),
+            format!("{}", DisplayReadFilterResults(all)),
             "time,count,region
 1,100,west
 2,101,west
@@ -652,18 +768,22 @@ mod test {
 ",
         );
 
-        // Apply a predicate `WHERE "region" != "south"`
-        let results = table.select(
-            &["time", "region"],
-            &build_predicates(
-                1,
-                25,
-                vec![("region", (Operator::NotEqual, Value::String("south")))],
-            ),
+        let predicates = &build_predicates(
+            1,
+            25,
+            vec![("region", (Operator::NotEqual, Value::String("south")))],
         );
 
+        // Apply a predicate `WHERE "region" != "south"`
+        let results = table.read_filter(&ColumnSelection::Some(&["time", "region"]), &predicates);
+
+        let mut all = vec![];
+        for result in results {
+            all.push(result);
+        }
+
         assert_eq!(
-            format!("{}", &results),
+            format!("{}", DisplayReadFilterResults(all)),
             "time,region
 1,west
 2,west

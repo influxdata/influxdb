@@ -1,7 +1,7 @@
 use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
 use crate::row_group::{ColumnName, Predicate};
-use crate::table::{ReadFilterResults, ReadGroupResults, Table};
+use crate::table::{ColumnSelection, ReadFilterResults, ReadGroupResults, Table};
 use crate::{column::AggregateType, row_group::RowGroup};
 
 type TableName = String;
@@ -77,19 +77,28 @@ impl Chunk {
         };
     }
 
-    /// Returns data for the specified column selections on the specified table
-    /// name.
+    /// Returns an iterator of lazily executed `read_filter` operations on the
+    /// provided table for the specified column selections.
     ///
-    /// Results may be filtered by conjunctive predicates. Time predicates
-    /// should use as nanoseconds since the epoch.
-    pub fn select(
+    /// Results may be filtered by conjunctive predicates.
+    ///
+    /// `None` indicates that the table was not found on the chunk, whilst a
+    /// `ReadFilterResults` value that immediately yields `None` indicates that
+    /// there were no matching results.
+    ///
+    /// TODO(edd): Alternatively we could assert the caller must have done
+    /// appropriate pruning and that the table should always exist, meaning we
+    /// can blow up here and not need to return an option.
+    pub fn read_filter<'a>(
         &self,
         table_name: &str,
-        predicates: &[Predicate<'_>],
-        select_columns: &[ColumnName<'_>],
-    ) -> ReadFilterResults<'_, '_> {
-        // Lookup table by name and dispatch execution.
-        todo!();
+        predicates: &'a [Predicate<'a>],
+        select_columns: &ColumnSelection<'_>,
+    ) -> Option<ReadFilterResults<'a, '_>> {
+        match self.tables.get(table_name) {
+            Some(table) => Some(table.read_filter(select_columns, predicates)),
+            None => None,
+        }
     }
 
     /// Returns aggregates segmented by grouping keys for the specified

@@ -1,4 +1,4 @@
-use std::{borrow::Cow, collections::BTreeMap};
+use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
 
 use hashbrown::{hash_map, HashMap};
 use itertools::Itertools;
@@ -7,9 +7,9 @@ use arrow_deps::arrow;
 use arrow_deps::arrow::record_batch::RecordBatch;
 
 use crate::column::{
-    cmp::Operator, AggregateResult, AggregateType, Column, EncodedValues, OwnedValue, RowIDs,
-    RowIDsOption, Scalar, Value, Values, ValuesIterator, FIELD_COLUMN_TYPE, TAG_COLUMN_TYPE,
-    TIME_COLUMN_TYPE,
+    self, cmp::Operator, AggregateResult, AggregateType, Column, EncodedValues, LogicalDataType,
+    OwnedValue, RowIDs, RowIDsOption, Scalar, Value, Values, ValuesIterator, FIELD_COLUMN_TYPE,
+    TAG_COLUMN_TYPE, TIME_COLUMN_TYPE,
 };
 
 /// The name used for a timestamp column.
@@ -48,6 +48,7 @@ impl RowGroup {
                 ColumnType::Tag(c) => {
                     assert_eq!(c.num_rows(), rows);
 
+                    meta.column_types.insert(name.clone(), c.logical_datatype());
                     meta.column_ranges
                         .insert(name.clone(), c.column_range().unwrap());
                     all_columns_by_name.insert(name.clone(), all_columns.len());
@@ -57,6 +58,7 @@ impl RowGroup {
                 ColumnType::Field(c) => {
                     assert_eq!(c.num_rows(), rows);
 
+                    meta.column_types.insert(name.clone(), c.logical_datatype());
                     meta.column_ranges
                         .insert(name.clone(), c.column_range().unwrap());
                     all_columns_by_name.insert(name.clone(), all_columns.len());
@@ -75,6 +77,7 @@ impl RowGroup {
                         Some((_, _)) => unreachable!("unexpected types for time range"),
                     };
 
+                    meta.column_types.insert(name.clone(), c.logical_datatype());
                     meta.column_ranges
                         .insert(name.clone(), c.column_range().unwrap());
 
@@ -84,6 +87,12 @@ impl RowGroup {
                 }
             }
         }
+
+        // Meta data should have same columns for types and ranges.
+        assert_eq!(
+            meta.column_types.keys().collect::<Vec<_>>(),
+            meta.column_ranges.keys().collect::<Vec<_>>(),
+        );
 
         Self {
             meta,
@@ -109,6 +118,11 @@ impl RowGroup {
     /// The ranges on each column in the `RowGroup`.
     pub fn column_ranges(&self) -> &BTreeMap<String, (OwnedValue, OwnedValue)> {
         &self.meta.column_ranges
+    }
+
+    /// The logical data-type of each column.
+    pub fn column_logical_types(&self) -> &BTreeMap<String, column::LogicalDataType> {
+        &self.meta.column_types
     }
 
     // Returns a reference to a column from the column name.
@@ -157,32 +171,45 @@ impl RowGroup {
     /// predicates.
     ///
     /// Right now, predicates are conjunctive (AND).
+    ///
+    /// TODO(edd): this should probably return an Option and the caller can
+    /// filter None results.
     pub fn read_filter(
         &self,
         columns: &[ColumnName<'_>],
         predicates: &[Predicate<'_>],
     ) -> ReadFilterResult<'_> {
         let row_ids = self.row_ids_from_predicates(predicates);
-        ReadFilterResult(self.materialise_rows(columns, row_ids))
+
+        // ensure meta/data have same lifetime by using column names from row
+        // group rather than from input.
+        let (col_names, col_data) = self.materialise_rows(columns, row_ids);
+        let schema = self.meta.schema_for_column_names(&col_names);
+        ReadFilterResult {
+            schema,
+            data: col_data,
+        }
     }
 
     fn materialise_rows(
         &self,
         names: &[ColumnName<'_>],
         row_ids: RowIDsOption,
-    ) -> Vec<(ColumnName<'_>, Values<'_>)> {
-        let mut results = vec![];
+    ) -> (Vec<&str>, Vec<Values<'_>>) {
+        let mut col_names = Vec::with_capacity(names.len());
+        let mut col_data = Vec::with_capacity(names.len());
         match row_ids {
-            RowIDsOption::None(_) => results, // nothing to materialise
+            RowIDsOption::None(_) => (col_names, col_data), // nothing to materialise
             RowIDsOption::Some(row_ids) => {
                 // TODO(edd): causes an allocation. Implement a way to pass a
                 // pooled buffer to the croaring Bitmap API.
                 let row_ids = row_ids.to_vec();
                 for &name in names {
                     let (col_name, col) = self.column_name_and_column(name);
-                    results.push((col_name, col.values(row_ids.as_slice())));
+                    col_names.push(col_name);
+                    col_data.push(col.values(row_ids.as_slice()));
                 }
-                results
+                (col_names, col_data)
             }
 
             RowIDsOption::All(_) => {
@@ -193,9 +220,10 @@ impl RowGroup {
 
                 for &name in names {
                     let (col_name, col) = self.column_name_and_column(name);
-                    results.push((col_name, col.values(row_ids.as_slice())));
+                    col_names.push(col_name);
+                    col_data.push(col.values(row_ids.as_slice()));
                 }
-                results
+                (col_names, col_data)
             }
         }
     }
@@ -953,7 +981,7 @@ impl Ord for GroupKey<'_> {
 // A representation of a column name.
 pub type ColumnName<'a> = &'a str;
 
-/// The logical type that a column could have.
+/// The InfluxDB-specific semantic meaning of a column.
 pub enum ColumnType {
     Tag(Column),
     Field(Column),
@@ -986,6 +1014,9 @@ struct MetaData {
     // This can be used to skip the table entirely if a logical predicate can't
     // possibly match based on the range of values a column has.
     column_ranges: BTreeMap<String, (OwnedValue, OwnedValue)>,
+
+    // The logical column types for each column in the `RowGroup`.
+    column_types: BTreeMap<String, LogicalDataType>,
 
     // The total time range of this table spanning all of the `RowGroup`s within
     // the table.
@@ -1037,25 +1068,67 @@ impl MetaData {
             Operator::LTE => column_min <= value,
         }
     }
+
+    // Extract schema information for a set of columns.
+    fn schema_for_column_names<'a>(
+        &self,
+        names: &[ColumnName<'a>],
+    ) -> Vec<(&'a str, LogicalDataType)> {
+        names
+            .iter()
+            .map(|&name| (name, *self.column_types.get(name).unwrap()))
+            .collect::<Vec<_>>()
+    }
 }
 
 /// Encapsulates results from `RowGroup`s with a structure that makes them
 /// easier to work with and display.
-pub struct ReadFilterResult<'row_group>(pub Vec<(ColumnName<'row_group>, Values<'row_group>)>);
+pub struct ReadFilterResult<'row_group> {
+    schema: Vec<(ColumnName<'row_group>, LogicalDataType)>,
+    data: Vec<Values<'row_group>>,
+}
 
 impl ReadFilterResult<'_> {
     pub fn is_empty(&self) -> bool {
-        self.0.is_empty()
+        self.data.is_empty()
+    }
+
+    pub fn schema(&self) -> &Vec<(ColumnName<'_>, LogicalDataType)> {
+        &self.schema
+    }
+
+    /// Produces a `RecordBatch` from the results, giving up ownership to the
+    /// returned record batch.
+    pub fn record_batch(self) -> arrow::record_batch::RecordBatch {
+        let schema = arrow::datatypes::Schema::new(
+            self.schema()
+                .iter()
+                .map(|(col_name, col_typ)| {
+                    arrow::datatypes::Field::new(col_name, col_typ.to_arrow_datatype(), true)
+                })
+                .collect::<Vec<_>>(),
+        );
+
+        let columns = self
+            .data
+            .into_iter()
+            .map(arrow::array::ArrayRef::from)
+            .collect::<Vec<_>>();
+
+        // try_new only returns an error if the schema is invalid or the number
+        // of rows on columns differ. We have full control over both so there
+        // should never be an error to return...
+        arrow::record_batch::RecordBatch::try_new(Arc::new(schema), columns).unwrap()
     }
 }
 
 impl std::fmt::Debug for &ReadFilterResult<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // header line.
-        for (i, (k, _)) in self.0.iter().enumerate() {
+        for (i, (k, _)) in self.schema.iter().enumerate() {
             write!(f, "{}", k)?;
 
-            if i < self.0.len() - 1 {
+            if i < self.schema.len() - 1 {
                 write!(f, ",")?;
             }
         }
@@ -1072,26 +1145,24 @@ impl std::fmt::Display for &ReadFilterResult<'_> {
             return Ok(());
         }
 
-        let expected_rows = self.0[0].1.len();
+        let expected_rows = self.data[0].len();
         let mut rows = 0;
 
         let mut iter_map = self
-            .0
+            .data
             .iter()
-            .map(|(k, v)| (*k, ValuesIterator::new(v)))
-            .collect::<BTreeMap<&str, ValuesIterator<'_>>>();
+            .map(|v| ValuesIterator::new(v))
+            .collect::<Vec<_>>();
 
         while rows < expected_rows {
             if rows > 0 {
                 writeln!(f)?;
             }
 
-            for (i, (k, _)) in self.0.iter().enumerate() {
-                if let Some(itr) = iter_map.get_mut(k) {
-                    write!(f, "{}", itr.next().unwrap())?;
-                    if i < self.0.len() - 1 {
-                        write!(f, ",")?;
-                    }
+            for (i, (k, _)) in self.schema.iter().enumerate() {
+                write!(f, "{}", iter_map[i].next().unwrap())?;
+                if i < self.schema.len() - 1 {
+                    write!(f, ",")?;
                 }
             }
 
