@@ -43,15 +43,11 @@ workflows:
                 - /^(?!pull\/).*$/
       - cross_build:
           requires:
-            - godeps
-#            - build
-#          filters:
-#            branches:
-#              only:
-#                - master
-      - deploy_nightly:
-          requires:
-            - godeps
+            - build
+          filters:
+            branches:
+              only:
+                - master
       - litmus_integration:
           requires:
             - build
