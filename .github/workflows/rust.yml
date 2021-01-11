@@ -15,7 +15,7 @@
 # Cargo's build artefacts are cached to reduce the build time, see
 # https://github.com/actions/cache for more info.
 
-on: [push, pull_request]
+on: [pull_request]
 
 name: ci
 
@@ -38,7 +38,7 @@ jobs:
         with:
           path: target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-      
+
       # Build!
       - name: Run dev build
         uses: actions-rs/cargo@v1
