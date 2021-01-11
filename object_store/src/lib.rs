@@ -475,6 +475,23 @@ mod tests {
         assert_eq!(object.size, data.len());
         assert!(object.last_modified > time_before_creation);
 
+        // List with a prefix containing a partial "file name"
+        let mut prefix = ObjectStorePath::default();
+        prefix.push_all_dirs(&["mydb", "wal", "000", "000"]);
+        prefix.set_file_name("001");
+
+        let mut expected_location = ObjectStorePath::default();
+        expected_location.push_all_dirs(&["mydb", "wal", "000", "000"]);
+        expected_location.set_file_name("001.segment");
+
+        let result = storage.list_with_delimiter(&prefix).await.unwrap();
+        assert!(result.common_prefixes.is_empty());
+        assert_eq!(result.objects.len(), 1);
+
+        let object = &result.objects[0];
+
+        assert_eq!(object.location, expected_location);
+
         for f in &files {
             storage.delete(f).await.unwrap();
         }
