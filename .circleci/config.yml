@@ -34,15 +34,13 @@ workflows:
       - grace_daily:
           requires:
             - build
-          filters:
-            branches:
-              only: /^(?!pull\/).*$/
       - litmus_daily:
           requires:
             - build
           filters:
             branches:
-              only: /^(?!pull\/).*$/
+              only:
+                - /^(?!pull\/).*$/
       - cross_build:
           requires:
             - build
@@ -52,7 +50,7 @@ workflows:
                 - master
       - litmus_integration:
           requires:
-            - litmus_daily
+            - build
           filters:
             branches:
               only:
@@ -125,85 +123,147 @@ workflows:
           requires:
             - deploy_nightly
 
-  release:
-    jobs:
-      - godeps:
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-      - jsdeps:
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-      - gotest:
-          requires:
-            - godeps
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-      - golint:
-          requires:
-            - godeps
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-      - jstest:
-          requires:
-            - jsdeps
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-      - jslint:
-          requires:
-            - jsdeps
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-      - influxql_validation:
-          requires:
-            - godeps
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-      - influxql_integration:
-          requires:
-            - godeps
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-      - release:
-          requires:
-            - gotest
-            - golint
-            - jstest
-            - jslint
-            - influxql_validation
-            - influxql_integration
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-
 orbs:
   # Needed to install chrome for e2e testing.
   browser-tools: circleci/browser-tools@1.1
+
+commands:
+  # Install system dependencies needed to run a native build of influxd
+  install_core_deps:
+    steps:
+      - run:
+          name: Install system dependencies
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends \
+              bzr \
+              clang \
+              libprotobuf-dev \
+              pkg-config \
+              protobuf-compiler
+      - run:
+          name: Install Rust toolchain
+          command: |
+            curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y
+            echo 'export PATH=${HOME}/.cargo/bin:${PATH}' >> $BASH_ENV
+
+  # Run goreleaser to cross-build or cross-publish influxd
+  run_goreleaser:
+    parameters:
+      publish_release:
+        type: boolean
+    steps:
+      - run:
+          name: Set GOPATH
+          # Machine executors use a different GOPATH from the cimg/go Docker executors.
+          command: |
+            echo 'export GOPATH=/home/circleci/go' >> $BASH_ENV
+            echo 'export PATH=${GOPATH}/bin:${PATH}' >> $BASH_ENV
+      - run:
+          name: Install cross-build system dependencies
+          command: |
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends \
+              cmake \
+              gnupg \
+              libssl-dev \
+              libxml2-dev \
+              llvm-dev \
+              lzma-dev \
+              zlib1g-dev
+      - run:
+          name: Import GPG key
+          command: |
+            echo -e "$GPG_PRIVATE_KEY" > private.key
+            gpg --batch --import private.key
+      - run:
+          name: Install cross-compilers
+          environment:
+            MUSL_VERSION: 1.1.24
+            MUSL_BUILD_TIME: 20210108172549
+            MUSL_CROSS_MAKE_VERSION: 0.9.9
+            MUSL_CROSS_ARM64_BUILD_TIME: 20210108174735
+            OSXCROSS_VERSION: c2ad5e859d12a295c3f686a15bd7181a165bfa82
+            OSXCROSS_BUILD_TIME: 20210108174800
+          command: |
+            MUSL_ARCHIVE=musl-${MUSL_VERSION}-${MUSL_BUILD_TIME}.tar.gz
+            curl https://dl.influxdata.com/influxdb-ci/musl/${MUSL_VERSION}/${MUSL_ARCHIVE} -O && \
+              sudo tar xzf ${MUSL_ARCHIVE} -C /usr/local && \
+              rm ${MUSL_ARCHIVE}
+            echo 'export PATH=/usr/local/musl/bin:${PATH}' >> $BASH_ENV
+
+            MUSL_CROSS_ARM64_ARCHIVE=musl-${MUSL_VERSION}-cross-aarch64-${MUSL_CROSS_MAKE_VERSION}-${MUSL_CROSS_ARM64_BUILD_TIME}.tar.gz
+            curl https://dl.influxdata.com/influxdb-ci/musl/${MUSL_VERSION}/musl-cross/${MUSL_CROSS_MAKE_VERSION}/${MUSL_CROSS_ARM64_ARCHIVE} -O && \
+              sudo tar xzf ${MUSL_CROSS_ARM64_ARCHIVE} -C /usr/local && \
+              rm ${MUSL_CROSS_ARM64_ARCHIVE}
+            echo 'export PATH=/usr/local/musl-cross/bin:${PATH}' >> $BASH_ENV
+
+            OSXCROSS_ARCHIVE=osxcross-${OSXCROSS_VERSION}-${OSXCROSS_BUILD_TIME}.tar.gz
+            curl https://dl.influxdata.com/influxdb-ci/osxcross/${OSXCROSS_VERSION}/${OSXCROSS_ARCHIVE} -O && \
+              sudo tar xzf ${OSXCROSS_ARCHIVE} -C /usr/local && \
+              rm ${OSXCROSS_ARCHIVE}
+            echo 'export PATH=/usr/local/osxcross/target/bin:${PATH}' >> $BASH_ENV
+
+            mkdir -p ${GOPATH}/bin
+            cp scripts/ci/xcc.sh ${GOPATH}/bin/xcc
+            chmod a+x ${GOPATH}/bin/xcc
+      - run:
+          name: Install Rust cross-targets
+          command: |
+            rustup target add \
+              x86_64-unknown-linux-musl \
+              aarch64-unknown-linux-musl \
+              x86_64-apple-darwin
+            echo 'export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=/usr/local/musl/bin/musl-gcc' >> $BASH_ENV
+            echo 'export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=/usr/local/musl-cross/bin/aarch64-unknown-linux-musl-gcc' >> $BASH_ENV
+            echo 'export CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=/usr/local/osxcross/target/bin/x86_64-apple-darwin15-clang' >> $BASH_ENV
+      - run:
+          name: Install Docker cross-build kit and emulators
+          environment:
+            DOCKER_BUILDX_VERSION: 0.5.1
+          command: |
+            set -euo pipefail
+
+            # Install the QEMU emulators we need to cross-build.
+            docker run --rm --privileged tonistiigi/binfmt:latest --install arm64
+            docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+
+            mkdir -p ${HOME}/.docker/cli-plugins
+            curl -sfL -o ${HOME}/.docker/cli-plugins/docker-buildx \
+              https://github.com/docker/buildx/releases/download/v${DOCKER_BUILDX_VERSION}/buildx-v${DOCKER_BUILDX_VERSION}.linux-amd64
+            chmod a+x ${HOME}/.docker/cli-plugins/docker-buildx
+            docker buildx install
+            echo 'export DOCKER_CLI_EXPERIMENTAL=enabled' >> $BASH_ENV
+
+            # Create a new buildx context using the freshly-installed emulators.
+            docker buildx create --name cross-builder --platform linux/amd64,linux/arm64
+            docker buildx use --default cross-builder
+            docker buildx inspect --bootstrap
+      - run:
+          name: Install goreleaser
+          environment:
+            GORELEASER_VERSION: 0.152.0
+          command: |
+            curl -sfL -o goreleaser-install https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh && \
+              sh goreleaser-install -b ${GOPATH}/bin v${GORELEASER_VERSION} && \
+              rm goreleaser-install
+      - run:
+          name: Install pkg-config
+          command: make pkg-config
+      - unless:
+          condition: << parameters.publish_release >>
+          steps:
+            - run:
+                name: Build release
+                # `goreleaser release --skip-publish` builds Docker images, but doesn't push them.
+                # As opposed to `goreleaser build`, which stops before building Dockers.
+                command: goreleaser release --skip-publish -p 1 --rm-dist --skip-validate
+      - when:
+          condition: << parameters.publish_release >>
+          steps:
+            - run:
+                name: Publish release
+                command: goreleaser release -p 1 --rm-dist --skip-validate
 
 jobs:
 
@@ -213,7 +273,7 @@ jobs:
 
   jsdeps:
     docker:
-      - image: quay.io/influxdb/influxdb-circleci:latest
+      - image: cimg/go:1.15.6-node
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
@@ -238,7 +298,7 @@ jobs:
 
   jstest:
     docker:
-      - image: quay.io/influxdb/influxdb-circleci:latest
+      - image: cimg/go:1.15.6-node
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
@@ -267,7 +327,7 @@ jobs:
 
   jslint:
     docker:
-      - image: quay.io/influxdb/influxdb-circleci:latest
+      - image: cimg/go:1.15.6-node
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     parallelism: 8
     steps:
@@ -298,8 +358,7 @@ jobs:
 
   godeps:
     docker:
-      - image: quay.io/influxdb/influxdb-circleci:latest
-    resource_class: large
+      - image: cimg/go:1.15.6
     environment:
       GOCACHE: /tmp/go-cache
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -321,7 +380,7 @@ jobs:
 
   golint:
     docker:
-      - image: quay.io/influxdb/influxdb-circleci:latest
+      - image: cimg/go:1.15.6
     environment:
       GOCACHE: /tmp/go-cache
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -340,6 +399,7 @@ jobs:
             echo unexpected go version $gomodversiondiff
             exit 1
           fi
+      - install_core_deps
       - run: make vet
       - run: make checkfmt
       - run: make checktidy
@@ -349,7 +409,7 @@ jobs:
 
   gotest:
     docker:
-      - image: quay.io/influxdb/influxdb-circleci:latest
+      - image: cimg/go:1.15.6
     resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
@@ -363,12 +423,12 @@ jobs:
           keys:
             - influxdb-gotest-{{ .Branch }}-{{ .Revision }}
             - influxdb-gotest-{{ .Branch }}-
-            - influxdb-gotest-
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
             - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - run: mkdir -p $TEST_RESULTS
+      - install_core_deps
       - run:
           name: run parallel race tests
           command: |
@@ -388,7 +448,7 @@ jobs:
 
   influxql_validation:
     docker:
-      - image: quay.io/influxdb/influxdb-circleci:latest
+      - image: cimg/go:1.15.6
     resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
@@ -401,12 +461,12 @@ jobs:
           keys:
             - influxdb-iqlvalidation-{{ .Branch }}-{{ .Revision }}
             - influxdb-iqlvalidation-{{ .Branch }}-
-            - influxdb-iqlvalidation-
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
             - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - run: mkdir -p $TEST_RESULTS
+      - install_core_deps
       - run: make GO_TEST_CMD="gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml --" test-influxql-validation
       - save_cache:
           name: Save GOCACHE
@@ -421,7 +481,7 @@ jobs:
 
   influxql_integration:
     docker:
-      - image: quay.io/influxdb/influxdb-circleci:latest
+      - image: cimg/go:1.15.6
     resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
@@ -434,12 +494,12 @@ jobs:
           keys:
             - influxdb-iqlintegration-{{ .Branch }}-{{ .Revision }}
             - influxdb-iqlintegration-{{ .Branch }}-
-            - influxdb-iqlintegration-
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
             - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - run: mkdir -p $TEST_RESULTS
+      - install_core_deps
       - run: make GO_TEST_CMD="gotestsum --format standard-quiet --junitfile /tmp/test-results/gotestsum.xml --" test-influxql-integration
       - save_cache:
           name: Save GOCACHE
@@ -458,13 +518,13 @@ jobs:
 
   build:
     docker:
-      - image: quay.io/influxdb/influxdb-circleci:latest
+      - image: cimg/go:1.15.6-node
+    resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
     steps:
       - checkout
-      - run: make checkcommit
       - restore_cache:
           name: Restore GOPATH/pkg/mod
           keys:
@@ -474,11 +534,11 @@ jobs:
           keys:
             - influxdb-build-{{ .Branch }}-{{ .Revision }}
             - influxdb-build-{{ .Branch }}-
-            - influxdb-build-
       - restore_cache:
           name: Restore Yarn Cache
           keys:
             - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
+      - install_core_deps
       - run: make build
       - save_cache:
           name: Save GOCACHE
@@ -495,8 +555,9 @@ jobs:
             - etc/litmus_fail_notify.sh
 
   cross_build:
-    docker:
-      - image: quay.io/influxdb/influxdb-circleci:latest
+    machine:
+      image: ubuntu-2004:202010-01
+    resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
     steps:
@@ -512,17 +573,16 @@ jobs:
             - influxdb-cross-build-{{ .Branch }}-
             - influxdb-build-{{ .Branch }}-{{ .Revision }}
             - influxdb-build-{{ .Branch }}-
-            - influxdb-cross-build-
-            - influxdb-build-
       - restore_cache:
           name: Restore Yarn Cache
           keys:
             - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
-      - setup_remote_docker
       - run:
           name: Docker Login
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
-      - run: make dist
+      - install_core_deps
+      - run_goreleaser:
+          publish_release: false
       - save_cache:
           name: Save GOCACHE
           key: influxdb-cross-build-{{ .Branch }}-{{ .Revision }}
@@ -530,8 +590,9 @@ jobs:
             - /tmp/go-cache
 
   deploy_nightly:
-    docker:
-      - image: quay.io/influxdb/influxdb-circleci:latest
+    machine:
+      image: ubuntu-2004:202010-01
+    resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -545,22 +606,21 @@ jobs:
           name: Restore GOCACHE
           keys:
             - influxdb-nightly-{{ .Branch }}-{{ .Revision }}
+            - influxdb-cross-build-{{ .Branch }}-{{ .Revision }}
             - influxdb-nightly-{{ .Branch }}-
+            - influxdb-cross-build-{{ .Branch }}-
             - influxdb-build-{{ .Branch }}-{{ .Revision }}
             - influxdb-build-{{ .Branch }}-
-            - influxdb-nightly-
-            - influxdb-build-
       - restore_cache:
           name: Restore Yarn Cache
           keys:
             - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
-      - setup_remote_docker
       - run:
           name: Docker Login
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
-      - run:
-          name: Build nightly
-          command: make nightly
+      - install_core_deps
+      - run_goreleaser:
+          publish_release: true
       - save_cache:
           name: Save GOCACHE
           key: influxdb-nightly-{{ .Branch }}-{{ .Revision }}
@@ -572,56 +632,13 @@ jobs:
             - etc/litmus_success_notify.sh
             - etc/litmus_fail_notify.sh
 
-  release:
-    docker:
-      - image: quay.io/influxdb/influxdb-circleci:latest
-    environment:
-      GOCACHE: /tmp/go-cache
-    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
-    steps:
-      - checkout
-      - restore_cache:
-          name: Restore GOPATH/pkg/mod
-          keys:
-            - influxdb-gomod-sum-{{ checksum "go.sum" }}
-      - restore_cache:
-          name: Restore GOCACHE
-          keys:
-            - influxdb-release-{{ .Branch }}-{{ .Revision }}
-            - influxdb-release-{{ .Branch }}-
-            - influxdb-build-{{ .Branch }}-{{ .Revision }}
-            - influxdb-build-{{ .Branch }}-
-            - influxdb-release-
-            - influxdb-build-
-      - restore_cache:
-          name: Restore Yarn Cache
-          keys:
-            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
-      - setup_remote_docker
-      - run:
-          name: Docker Login
-          command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
-      - run:
-          name: import GPG key
-          command: |
-            echo -e "$GPG_PRIVATE_KEY" > private.key
-            gpg --batch --import private.key
-      - run:
-          name: Build release
-          command: make release
-      - save_cache:
-          name: Save GOCACHE
-          key: influxdb-release-{{ .Branch }}-{{ .Revision }}
-          paths:
-            - /tmp/go-cache
-
   #################################
   ### e2e/integration test jobs ###
   #################################
 
   e2e:
     docker:
-      - image: quay.io/influxdb/influxdb-circleci:latest
+      - image: cimg/go:1.15.6-browsers
     environment:
       GOCACHE: /tmp/go-cache
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
@@ -634,6 +651,7 @@ jobs:
           name: Restore Yarn Cache
           keys:
             - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
+      - run: sudo apt-get update && sudo apt-get install netcat-openbsd
       - run:
           command: ./bin/linux/influxd --store=memory --e2e-testing=true --feature-flags=communityTemplates=true
           background: true
