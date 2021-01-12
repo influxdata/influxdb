@@ -52,7 +52,7 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Chunk {
     /// The id for this chunk
     pub id: u32,

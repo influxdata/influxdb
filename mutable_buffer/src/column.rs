@@ -26,9 +26,9 @@ pub enum Error {
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug)]
 /// Stores the actual data for columns in a chunk along with summary
 /// statistics
+#[derive(Debug, Clone)]
 pub enum Column {
     F64(Vec<Option<f64>>, Statistics<f64>),
     I64(Vec<Option<i64>>, Statistics<i64>),

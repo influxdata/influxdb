@@ -136,7 +136,7 @@ pub enum Error {
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Table {
     /// Name of the table as a u32 in the chunk dictionary
     pub id: u32,

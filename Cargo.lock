@@ -3420,9 +3420,9 @@ checksum = "213701ba3370744dcd1a12960caa4843b3d68b4d1c0a5d575e0d65b2ee9d16c0"
 
 [[package]]
 name = "string-interner"
-version = "0.12.1"
+version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "969ae753ff8a0c6d71d6e3bd799e565be6a02fd68bbf70c252e1d084c8bd5764"
+checksum = "383196d1876517ee6f9f0864d1fc1070331b803335d3c6daaa04bbcccd823c08"
 dependencies = [
  "cfg-if 1.0.0",
  "hashbrown",
