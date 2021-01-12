@@ -32,26 +32,33 @@ workflows:
           requires:
             - godeps
             - jsdeps
+          filters:
+            branches:
+              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
+              ignore: /pull\/[0-9]+/
       - e2e:
           requires:
             - build
       - grace_daily:
           requires:
             - build
+          filters:
+            branches:
+              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
+              ignore: /pull\/[0-9]+/
       - litmus_daily:
           requires:
             - build
           filters:
             branches:
-              only:
-                - /^(?!pull\/).*$/
+              # Forked pull requests have CIRCLE_BRANCH set to pull/XXX
+              ignore: /pull\/[0-9]+/
       - litmus_integration:
           requires:
             - build
           filters:
             branches:
-              only:
-                - master
+              only: master
 
   hourly-e2e:
     triggers:
@@ -125,6 +132,36 @@ orbs:
   browser-tools: circleci/browser-tools@1.1
 
 commands:
+  # Log into quay.io, with a pre-check to ensure we aren't running from a forked PR.
+  quay_login:
+    steps:
+      - run:
+          name: Ensure not running from a fork
+          command: |
+            if [ -n "$CIRCLE_PR_NUMBER" ]; then
+              echo 'Error: build from fork detected, exiting!'
+              exit 1
+            fi
+      - run:
+          name: Log into Quay
+          command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
+
+  # Import our private GPG key, with a pre-check to ensure we aren't running from a forked PR.
+  gpg_import:
+    steps:
+      - run:
+          name: Ensure not running from a fork
+          command: |
+            if [ -n "$CIRCLE_PR_NUMBER" ]; then
+              echo 'Error: build from fork detected, exiting!'
+              exit 1
+            fi
+      - run:
+          name: Import GPG key
+          command: |
+            echo -e "$GPG_PRIVATE_KEY" > private.key
+            gpg --batch --import private.key
+
   # Install system dependencies needed to run a native build of influxd
   install_core_deps:
     steps:
@@ -212,11 +249,7 @@ commands:
               llvm-dev \
               lzma-dev \
               zlib1g-dev
-      - run:
-          name: Import GPG key
-          command: |
-            echo -e "$GPG_PRIVATE_KEY" > private.key
-            gpg --batch --import private.key
+      - gpg_import
       - run:
           name: Install cross-compilers
           environment:
@@ -594,9 +627,7 @@ jobs:
           name: Restore Yarn Cache
           keys:
             - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
-      - run:
-          name: Docker Login
-          command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
+      - quay_login
       - install_core_deps
       - run_goreleaser:
           publish_release: false
@@ -628,9 +659,7 @@ jobs:
           name: Restore Yarn Cache
           keys:
             - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
-      - run:
-          name: Docker Login
-          command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
+      - quay_login
       - install_core_deps
       - run_goreleaser:
           publish_release: true
@@ -683,7 +712,7 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/project
-      - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io
+      - quay_login
       - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e ONE_TEST=src/cloud/rest_api/smoke/test_smoke.py -e BINARYPATH=/Litmus/result/bin/linux/influxd -e BOLTPATH=/Litmus/result/influxd_test/influxd.bolt -e ENGINEPATH=/Litmus/result/influxd_test --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
       - run:
           name: Litmus Smoke Tests Success
@@ -705,7 +734,7 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/project
-      - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io
+      - quay_login
       - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e TEST_LIST=tests_lists/gateway_api_tests.list -e INFLUXPATH=/Litmus/result/bin/linux/influx -e BINARYPATH=/Litmus/result/bin/linux/influxd -e BOLTPATH=/tmp/influxd_test/influxd.bolt -e ENGINEPATH=/tmp/influxd_test --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
       - run:
           name: Litmus Integration Tests Success
@@ -726,7 +755,7 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/project
-      - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io
+      - quay_login
       - run: docker run --entrypoint "./run_litmus_tests_oss.sh" -e TEST_LIST=tests_lists/gateway_api_tests.list -e DOCKERIMAGE=true --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/Litmus/result quay.io/influxdb/litmus:latest
       - run:
           name: Litmus Nightly Tests Success
@@ -747,7 +776,7 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/project
-      - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io
+      - quay_login
       - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -e TEST_RESULTS=~/project quay.io/influxdb/grace:latest
       - store_artifacts:
           path: ~/project
@@ -759,7 +788,7 @@ jobs:
     steps:
       - attach_workspace:
           at: ~/project
-      - run: docker login -u=$QUAY_USER -p=$QUAY_PASS quay.io
+      - quay_login
       - run:
           command: ./bin/linux/influxd --store=memory --log-level=debug
           background: true
