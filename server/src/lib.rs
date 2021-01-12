@@ -135,6 +135,8 @@ pub enum Error {
     ErrorDeserializing { source: serde_json::Error },
     #[snafu(display("store error: {}", source))]
     StoreError { source: object_store::Error },
+    #[snafu(display("database already exists"))]
+    DatabaseAlreadyExists { db_name: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -209,7 +211,16 @@ impl<M: ConnectionManager> Server<M> {
         let db = Db::new(rules, mutable_buffer, read_buffer, wal_buffer, sequence);
 
         let mut config = self.config.write().await;
-        config.databases.insert(db_name, Arc::new(db));
+
+        // If the database already exists, do not overwrite it.
+        if config.databases.contains_key(&db_name) {
+            // TODO: update database configuration
+            return Err(Error::DatabaseAlreadyExists {
+                db_name: db_name.to_string(),
+            });
+        }
+
+        assert!(config.databases.insert(db_name, Arc::new(db)).is_none());
 
         Ok(())
     }
@@ -526,6 +537,36 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(resp, Error::IdNotSet));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn duplicate_database_name_rejected() -> Result {
+        // Covers #643
+
+        let manager = TestConnectionManager::new();
+        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let server = Server::new(manager, store);
+        server.set_id(1).await;
+
+        let name = "bananas";
+
+        // Create a database
+        server
+            .create_database(name, DatabaseRules::default())
+            .await
+            .expect("failed to create database");
+
+        // Then try and create another with the same name
+        let got = server
+            .create_database(name, DatabaseRules::default())
+            .await
+            .unwrap_err();
+
+        if !matches!(got, Error::DatabaseAlreadyExists {..}) {
+            panic!("expected already exists error");
+        }
 
         Ok(())
     }
