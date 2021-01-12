@@ -7,14 +7,18 @@ use data_types::{
 use generated_types::wal;
 use object_store::path::ObjectStorePath;
 
-use std::{collections::BTreeMap, convert::TryFrom, io, mem, sync::Arc};
+use std::{
+    collections::BTreeMap,
+    convert::TryFrom,
+    io, mem,
+    sync::{Arc, Mutex},
+};
 
 use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use crc32fast::Hasher;
 use snafu::{OptionExt, ResultExt, Snafu};
-use tokio::sync::Mutex;
 use tracing::warn;
 
 #[derive(Debug, Snafu)]
@@ -103,13 +107,13 @@ impl Buffer {
     /// by accepting the write, the oldest (first) of the closed segments
     /// will be dropped, if it is persisted. Otherwise, an error is returned.
     #[allow(dead_code)]
-    pub async fn append(&mut self, write: Arc<ReplicatedWrite>) -> Result<Option<Arc<Segment>>> {
+    pub fn append(&mut self, write: Arc<ReplicatedWrite>) -> Result<Option<Arc<Segment>>> {
         let write_size = u64::try_from(write.data.len())
             .expect("appended data must be less than a u64 in length");
 
         while self.current_size + write_size > self.max_size {
             let oldest_is_persisted = match self.closed_segments.get(0) {
-                Some(s) => s.persisted_at().await.is_some(),
+                Some(s) => s.persisted_at().is_some(),
                 None => false,
             };
 
@@ -323,14 +327,14 @@ impl Segment {
 
     /// sets the time this segment was persisted at
     #[allow(dead_code)]
-    pub async fn set_persisted_at(&self, time: DateTime<Utc>) {
-        let mut persisted = self.persisted.lock().await;
+    pub fn set_persisted_at(&self, time: DateTime<Utc>) {
+        let mut persisted = self.persisted.lock().expect("mutex poisoned");
         *persisted = Some(time);
     }
 
     /// returns the time this segment was persisted at or none if not set
-    pub async fn persisted_at(&self) -> Option<DateTime<Utc>> {
-        let persisted = self.persisted.lock().await;
+    pub fn persisted_at(&self) -> Option<DateTime<Utc>> {
+        let persisted = self.persisted.lock().expect("mutex poisoned");
         *persisted
     }
 
@@ -485,8 +489,8 @@ mod tests {
     use influxdb_line_protocol::parse_lines;
     use object_store::path::CloudConverter;
 
-    #[tokio::test]
-    async fn append_increments_current_size_and_uses_existing_segment() {
+    #[test]
+    fn append_increments_current_size_and_uses_existing_segment() {
         let max = 1 << 32;
         let segment = 1 << 16;
         let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
@@ -494,48 +498,48 @@ mod tests {
 
         let size = write.data.len() as u64;
         assert_eq!(0, buf.size());
-        let segment = buf.append(write).await.unwrap();
+        let segment = buf.append(write).unwrap();
         assert_eq!(size, buf.size());
         assert!(segment.is_none());
 
         let write = lp_to_replicated_write(1, 2, "cpu val=1 10");
-        let segment = buf.append(write).await.unwrap();
+        let segment = buf.append(write).unwrap();
         assert_eq!(size * 2, buf.size());
         assert!(segment.is_none());
     }
 
-    #[tokio::test]
-    async fn append_rolls_over_segment() {
+    #[test]
+    fn append_rolls_over_segment() {
         let max = 1 << 16;
         let segment = 1;
         let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
 
-        let segment = buf.append(write).await.unwrap();
+        let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
         assert_eq!(segment.id, 1);
 
         let write = lp_to_replicated_write(1, 2, "cpu val=1 10");
 
-        let segment = buf.append(write).await.unwrap();
+        let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
         assert_eq!(segment.id, 2);
     }
 
-    #[tokio::test]
-    async fn drops_persisted_segment_when_over_size() {
+    #[test]
+    fn drops_persisted_segment_when_over_size() {
         let max = 600;
         let segment = 1;
         let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
 
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
-        let segment = buf.append(write).await.unwrap().unwrap();
+        let segment = buf.append(write).unwrap().unwrap();
         assert_eq!(1, segment.id);
-        assert!(segment.persisted_at().await.is_none());
-        segment.set_persisted_at(Utc::now()).await;
+        assert!(segment.persisted_at().is_none());
+        segment.set_persisted_at(Utc::now());
 
         let write = lp_to_replicated_write(1, 2, "cpu val=1 10");
-        let segment = buf.append(write).await.unwrap();
+        let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
         assert_eq!(2, segment.id);
 
@@ -544,28 +548,28 @@ mod tests {
         assert_eq!(2, buf.closed_segments[1].id);
 
         let write = lp_to_replicated_write(1, 3, "cpu val=1 10");
-        let segment = buf.append(write).await.unwrap();
+        let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
         assert_eq!(3, segment.id);
-        assert!(segment.persisted_at().await.is_none());
+        assert!(segment.persisted_at().is_none());
 
         assert_eq!(2, buf.closed_segments.len());
         assert_eq!(2, buf.closed_segments[0].id);
         assert_eq!(3, buf.closed_segments[1].id);
     }
 
-    #[tokio::test]
-    async fn drops_old_segment_even_if_not_persisted() {
+    #[test]
+    fn drops_old_segment_even_if_not_persisted() {
         let max = 600;
         let segment = 1;
         let mut buf = Buffer::new(max, segment, WalBufferRollover::DropOldSegment, false);
 
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
-        let segment = buf.append(write).await.unwrap().unwrap();
+        let segment = buf.append(write).unwrap().unwrap();
         assert_eq!(1, segment.id);
 
         let write = lp_to_replicated_write(1, 2, "cpu val=1 10");
-        let segment = buf.append(write).await.unwrap();
+        let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
         assert_eq!(2, segment.id);
 
@@ -574,7 +578,7 @@ mod tests {
         assert_eq!(2, buf.closed_segments[1].id);
 
         let write = lp_to_replicated_write(1, 3, "cpu val=1 10");
-        let segment = buf.append(write).await.unwrap();
+        let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
         assert_eq!(3, segment.id);
 
@@ -583,18 +587,18 @@ mod tests {
         assert_eq!(3, buf.closed_segments[1].id);
     }
 
-    #[tokio::test]
-    async fn drops_incoming_write_if_oldest_segment_not_persisted() {
+    #[test]
+    fn drops_incoming_write_if_oldest_segment_not_persisted() {
         let max = 600;
         let segment = 1;
         let mut buf = Buffer::new(max, segment, WalBufferRollover::DropIncoming, false);
 
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
-        let segment = buf.append(write).await.unwrap().unwrap();
+        let segment = buf.append(write).unwrap().unwrap();
         assert_eq!(1, segment.id);
 
         let write = lp_to_replicated_write(1, 2, "cpu val=1 10");
-        let segment = buf.append(write).await.unwrap();
+        let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
         assert_eq!(2, segment.id);
 
@@ -603,7 +607,7 @@ mod tests {
         assert_eq!(2, buf.closed_segments[1].id);
 
         let write = lp_to_replicated_write(1, 3, "cpu val=1 10");
-        let segment = buf.append(write).await.unwrap();
+        let segment = buf.append(write).unwrap();
         assert!(segment.is_none());
 
         assert_eq!(2, buf.closed_segments.len());
@@ -611,18 +615,18 @@ mod tests {
         assert_eq!(2, buf.closed_segments[1].id);
     }
 
-    #[tokio::test]
-    async fn returns_error_if_oldest_segment_not_persisted() {
+    #[test]
+    fn returns_error_if_oldest_segment_not_persisted() {
         let max = 600;
         let segment = 1;
         let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
 
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
-        let segment = buf.append(write).await.unwrap().unwrap();
+        let segment = buf.append(write).unwrap().unwrap();
         assert_eq!(1, segment.id);
 
         let write = lp_to_replicated_write(1, 2, "cpu val=1 10");
-        let segment = buf.append(write).await.unwrap();
+        let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
         assert_eq!(2, segment.id);
 
@@ -631,39 +635,39 @@ mod tests {
         assert_eq!(2, buf.closed_segments[1].id);
 
         let write = lp_to_replicated_write(1, 3, "cpu val=1 10");
-        assert!(buf.append(write).await.is_err());
+        assert!(buf.append(write).is_err());
 
         assert_eq!(2, buf.closed_segments.len());
         assert_eq!(1, buf.closed_segments[0].id);
         assert_eq!(2, buf.closed_segments[1].id);
     }
 
-    #[tokio::test]
-    async fn all_writes_since() {
+    #[test]
+    fn all_writes_since() {
         let max = 1 << 63;
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
         let segment = (write.data.len() + 1) as u64;
         let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
 
-        let segment = buf.append(write).await.unwrap();
+        let segment = buf.append(write).unwrap();
         assert!(segment.is_none());
 
         let write = lp_to_replicated_write(2, 1, "cpu val=1 10");
-        let segment = buf.append(write).await.unwrap();
+        let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
         assert_eq!(1, segment.id);
 
         let write = lp_to_replicated_write(1, 2, "cpu val=1 10");
-        let segment = buf.append(write).await.unwrap();
+        let segment = buf.append(write).unwrap();
         assert!(segment.is_none());
 
         let write = lp_to_replicated_write(1, 3, "cpu val=1 10");
-        let segment = buf.append(write).await.unwrap();
+        let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
         assert_eq!(2, segment.id);
 
         let write = lp_to_replicated_write(2, 2, "cpu val=1 10");
-        let segment = buf.append(write).await.unwrap();
+        let segment = buf.append(write).unwrap();
         assert!(segment.is_none());
 
         let writes = buf.all_writes_since(WriterSequence { id: 0, sequence: 1 });
@@ -695,32 +699,32 @@ mod tests {
         assert_eq!(0, writes.len());
     }
 
-    #[tokio::test]
-    async fn writes_since() {
+    #[test]
+    fn writes_since() {
         let max = 1 << 63;
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
         let segment = (write.data.len() + 1) as u64;
         let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
 
-        let segment = buf.append(write).await.unwrap();
+        let segment = buf.append(write).unwrap();
         assert!(segment.is_none());
 
         let write = lp_to_replicated_write(2, 1, "cpu val=1 10");
-        let segment = buf.append(write).await.unwrap();
+        let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
         assert_eq!(1, segment.id);
 
         let write = lp_to_replicated_write(1, 2, "cpu val=1 10");
-        let segment = buf.append(write).await.unwrap();
+        let segment = buf.append(write).unwrap();
         assert!(segment.is_none());
 
         let write = lp_to_replicated_write(1, 3, "cpu val=1 10");
-        let segment = buf.append(write).await.unwrap();
+        let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
         assert_eq!(2, segment.id);
 
         let write = lp_to_replicated_write(2, 2, "cpu val=1 10");
-        let segment = buf.append(write).await.unwrap();
+        let segment = buf.append(write).unwrap();
         assert!(segment.is_none());
 
         let writes = buf.writes_since(WriterSequence { id: 0, sequence: 1 });
@@ -742,18 +746,18 @@ mod tests {
         assert!(writes[0].equal_to_writer_and_sequence(2, 2));
     }
 
-    #[tokio::test]
-    async fn returns_error_if_sequence_decreases() {
+    #[test]
+    fn returns_error_if_sequence_decreases() {
         let max = 1 << 63;
         let write = lp_to_replicated_write(1, 3, "cpu val=1 10");
         let segment = (write.data.len() + 1) as u64;
         let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
 
-        let segment = buf.append(write).await.unwrap();
+        let segment = buf.append(write).unwrap();
         assert!(segment.is_none());
 
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
-        assert!(buf.append(write).await.is_err());
+        assert!(buf.append(write).is_err());
     }
 
     #[test]

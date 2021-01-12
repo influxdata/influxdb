@@ -351,7 +351,7 @@ impl<M: ConnectionManager> Server<M> {
                 // succeed while a WAL buffer write fails, which would then
                 // return an error. A single lock is probably undesirable, but
                 // we need to figure out what semantics we want.
-                wal_buffer.append(write.clone()).await.context(WalError)?
+                wal_buffer.append(write.clone()).context(WalError)?
             };
 
             if let Some(segment) = segment {
