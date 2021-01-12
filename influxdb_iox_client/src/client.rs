@@ -1,3 +1,5 @@
+use std::num::NonZeroU32;
+
 use data_types::database_rules::DatabaseRules;
 use reqwest::{Method, Url};
 
@@ -115,6 +117,35 @@ impl Client {
         }
     }
 
+    /// Set the server's writer ID.
+    pub async fn set_writer_id(&self, id: NonZeroU32) -> Result<(), CreateDatabaseError> {
+        const SET_WRITER_PATH: &'static str = "iox/api/v1/id";
+
+        let url = self.url_for(SET_WRITER_PATH);
+
+        // TODO: move this into a shared type
+        #[derive(serde::Serialize)]
+        struct WriterIdBody {
+            id: u32,
+        };
+
+        let resp = self
+            .http
+            .request(Method::PUT, url)
+            .json(&WriterIdBody { id: id.get() })
+            .send()
+            .await;
+
+        match resp {
+            Ok(r) if r.status() == 200 => Ok(()),
+            Ok(r) => Err(RequestError::UnexpectedStatusCode {
+                code: r.status().as_u16(),
+            }
+            .into()),
+            Err(e) => Err(RequestError::HttpRequestError { source: e.into() }.into()),
+        }
+    }
+
     /// Build the request path for relative `path`.
     ///
     /// # Safety
@@ -187,6 +218,16 @@ mod tests {
         c.create_database(rand_name, &DatabaseRules::default())
             .await
             .expect("create database failed");
+    }
+
+    #[tokio::test]
+    async fn test_set_writer_id() {
+        let endpoint = maybe_skip_integration!();
+        let c = ClientBuilder::default().build(endpoint).unwrap();
+
+        c.set_writer_id(NonZeroU32::new(42).unwrap())
+            .await
+            .expect("set ID failed");
     }
 
     #[tokio::test]
