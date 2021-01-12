@@ -20,7 +20,7 @@ builds:
       - PKG_CONFIG=$GOPATH/bin/pkg-config
       - MACOSX_DEPLOYMENT_TARGET=10.11
     ldflags:
-      - -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if eq .Os "linux"}}-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"{{end}}
+      - -s -w -X main.version=nightly -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if eq .Os "linux"}}-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"{{end}}
     binary: influx
 
   - id: influxd
@@ -43,7 +43,7 @@ builds:
       - PKG_CONFIG=$GOPATH/bin/pkg-config
       - MACOSX_DEPLOYMENT_TARGET=10.11
     ldflags:
-      - -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if eq .Os "linux"}}-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"{{end}}
+      - -s -w -X main.version=nightly -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if eq .Os "linux"}}-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"{{end}}
     binary: influxd
     hooks:
       pre: make generate
@@ -74,9 +74,9 @@ nfpms:
       rpm:
         replacements:
           amd64: x86_64
-        file_name_template: "influxdb2-{{ .Version }}.{{ .Arch }}"
+        file_name_template: "influxdb2-nightly.{{ .Arch }}"
       deb:
-        file_name_template: "influxdb2_{{ .Version }}_{{ .Arch }}"
+        file_name_template: "influxdb2_nightly_{{ .Arch }}"
     vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com
@@ -84,24 +84,18 @@ nfpms:
     license: MIT
 
 archives:
-  - id: influxdb2_client
+  - id: influx_only
     builds: ["influx"]
     format: tar.gz
     wrap_in_directory: true
-    format_overrides:
-      - goos: windows
-        format: zip
-    name_template: "influxdb2_client_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "influxdb2_client_nightly_{{ .Os }}_{{ .Arch }}"
     files:
       - LICENSE
       - README.md
-  - id: influxdb2_single_binary
+  - id: influx_and_influxd
     format: tar.gz
     wrap_in_directory: true
-    format_overrides:
-      - goos: windows
-        format: zip
-    name_template: "influxdb2-{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "influxdb2_nightly_{{ .Os }}_{{ .Arch }}"
     files:
       - LICENSE
       - README.md
@@ -110,10 +104,10 @@ blobs:
   - provider: "s3"
     bucket: "dl.influxdata.com"
     region: "us-east-1"
-    folder: "influxdb/releases/"
+    folder: "platform/nightlies/"
 
 checksum:
-  name_template: "influxdb2_{{ .Version }}.sha256"
+  name_template: "influxdb2_nightly.sha256"
   algorithm: sha256
 
 dockers:
@@ -123,7 +117,7 @@ dockers:
       - influxd
       - influx
     image_templates:
-      - "quay.io/influxdb/influxdb-amd64:{{ .Tag }}"
+      - "quay.io/influxdb/influxdb-amd64:nightly"
     dockerfile: docker/influxd/Dockerfile
     extra_files:
       - docker/influxd/entrypoint.sh
@@ -136,7 +130,7 @@ dockers:
       - influxd
       - influx
     image_templates:
-      - "quay.io/influxdb/influxdb-arm64v8:{{ .Tag }}"
+      - "quay.io/influxdb/influxdb-arm64v8:nightly"
     dockerfile: docker/influxd/Dockerfile
     extra_files:
       - docker/influxd/entrypoint.sh
@@ -145,10 +139,10 @@ dockers:
     use_buildx: true
 
 docker_manifests:
-  - name_template: "quay.io/influxdb/influxdb:{{ .Tag }}"
+  - name_template: "quay.io/influxdb/influxdb:nightly"
     image_templates:
-      - "quay.io/influxdb/influxdb-amd64:{{ .Tag }}"
-      - "quay.io/influxdb/influxdb-arm64v8:{{ .Tag }}"
+      - "quay.io/influxdb/influxdb-amd64:nightly"
+      - "quay.io/influxdb/influxdb-arm64v8:nightly"
 
 signs:
   - signature: "${artifact}.asc"
@@ -158,7 +152,4 @@ signs:
 
 # Do not make github release
 release:
-  name_template: "v{{.Version}}"
-  prerelease: auto # when we go to GA remove this line
-  draft: false # This needs to be false, or the container image will not be published
-  disable: true # we keep the artifacts in S3 and link from the website
+  disable: true
