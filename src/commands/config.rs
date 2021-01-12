@@ -112,5 +112,10 @@ pub fn load_config() -> Config {
 
     // Load the Config struct - this pulls in any envs set by the user or
     // sourced above, and applies any defaults.
-    Config::from_args()
+    //
+    // Strip the "server" portion of the args so the generated Clap instance
+    // plays nicely with the subcommand bits in main.
+    let args = std::env::args().skip(1);
+
+    Config::from_iter(args)
 }
