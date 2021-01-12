@@ -60,6 +60,13 @@ Examples:
     influxdb_iox stats out.parquet
 "#;
 
+    // Source from the .env file (if any) to have the values display in the CLI
+    // help text.
+    //
+    // This is then loaded and validated properly when calling `load_config`
+    // later.
+    let _ = dotenv::dotenv();
+
     let matches = App::new(help)
         .version(crate_version!())
         .author(crate_authors!())
