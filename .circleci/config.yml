@@ -236,7 +236,7 @@ commands:
           name: Set up Docker cross-builder
           command: |
             # Uninstall any emulators provided by the system.
-            emulators=($(docker run --rm --privileged tonistiigi/binfmt:latest) | jq -r .emulators[])
+            emulators=($(docker run --rm --privileged tonistiigi/binfmt:latest | jq -r .emulators[]))
             for e in ${emulators[@]}; do
               docker run --rm --privileged tonistiigi/binfmt:latest --uninstall ${e}
             done
