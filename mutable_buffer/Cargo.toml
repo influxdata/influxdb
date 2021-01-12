@@ -4,6 +4,16 @@ version = "0.1.0"
 authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
 edition = "2018"
 
+
+# Note the long term goal is that this crate is standalone and not
+# dependent on the IOx Query Engine (even though this is not the case
+# now).
+#
+# The rationale for this is:
+#
+# 1. Keep the API clean (and concerns separated) and allow for potential future reuse outside of IOx
+# 2. Keep change/compile/link time down during development when working on just this crate
+
 [dependencies]
 
 arrow_deps = { path = "../arrow_deps" }
