@@ -218,22 +218,27 @@ commands:
             echo 'export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=/usr/local/musl-cross/bin/aarch64-unknown-linux-musl-gcc' >> $BASH_ENV
             echo 'export CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=/usr/local/osxcross/target/bin/x86_64-apple-darwin15-clang' >> $BASH_ENV
       - run:
-          name: Install Docker cross-build kit and emulators
-          environment:
-            DOCKER_BUILDX_VERSION: 0.5.1
+          name: Install updated Docker
           command: |
-            set -euo pipefail
+            export BUILDKIT_PROGRESS=plain
+            export DOCKER_BUILDKIT=1
+            export DOCKER_CLI_EXPERIMENTAL=enabled
+            echo 'export BUILDKIT_PROGRESS=plain' >> $BASH_ENV
+            echo 'export DOCKER_BUILDKIT=1' >> $BASH_ENV
+            echo 'export DOCKER_CLI_EXPERIMENTAL=enabled' >> $BASH_ENV
 
+            curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+            sudo add-apt-repository \
+              "deb [arch=amd64] https://download.docker.com/linux/ubuntu \
+              $(lsb_release -cs) \
+              stable"
+            sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+      - run:
+          name: Set up Docker cross-builder
+          command: |
             # Install the QEMU emulators we need to cross-build.
             docker run --rm --privileged tonistiigi/binfmt:latest --install arm64
             docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-
-            mkdir -p ${HOME}/.docker/cli-plugins
-            curl -sfL -o ${HOME}/.docker/cli-plugins/docker-buildx \
-              https://github.com/docker/buildx/releases/download/v${DOCKER_BUILDX_VERSION}/buildx-v${DOCKER_BUILDX_VERSION}.linux-amd64
-            chmod a+x ${HOME}/.docker/cli-plugins/docker-buildx
-            docker buildx install
-            echo 'export DOCKER_CLI_EXPERIMENTAL=enabled' >> $BASH_ENV
 
             # Create a new buildx context using the freshly-installed emulators.
             docker buildx create --name cross-builder --platform linux/amd64,linux/arm64
