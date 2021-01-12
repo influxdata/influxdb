@@ -28,6 +28,10 @@ workflows:
           requires:
             - godeps
             - jsdeps
+      - cross_build:
+          requires:
+            - godeps
+            - jsdeps
       - e2e:
           requires:
             - build
@@ -41,9 +45,6 @@ workflows:
             branches:
               only:
                 - /^(?!pull\/).*$/
-      - cross_build:
-          requires:
-            - build
       - litmus_integration:
           requires:
             - build
