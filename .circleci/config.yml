@@ -146,22 +146,6 @@ commands:
           name: Log into Quay
           command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
 
-  # Import our private GPG key, with a pre-check to ensure we aren't running from a forked PR.
-  gpg_import:
-    steps:
-      - run:
-          name: Ensure not running from a fork
-          command: |
-            if [ -n "$CIRCLE_PR_NUMBER" ]; then
-              echo 'Error: build from fork detected, exiting!'
-              exit 1
-            fi
-      - run:
-          name: Import GPG key
-          command: |
-            echo -e "$GPG_PRIVATE_KEY" > private.key
-            gpg --batch --import private.key
-
   # Install system dependencies needed to run a native build of influxd
   install_core_deps:
     steps:
@@ -187,6 +171,21 @@ commands:
       publish_release:
         type: boolean
     steps:
+      - when:
+          condition: << parameters.publish_release >>
+          steps:
+            - run:
+                name: Ensure not running from a fork
+                command: |
+                  if [ -n "$CIRCLE_PR_NUMBER" ]; then
+                    echo 'Error: release from fork detected, exiting!'
+                    exit 1
+                  fi
+            - run:
+                name: Import GPG key
+                command: |
+                  echo -e "$GPG_PRIVATE_KEY" > private.key
+                  gpg --batch --import private.key
       - run:
           name: Set GOPATH
           # Machine executors use a different GOPATH from the cimg/go Docker executors.
@@ -249,7 +248,6 @@ commands:
               llvm-dev \
               lzma-dev \
               zlib1g-dev
-      - gpg_import
       - run:
           name: Install cross-compilers
           environment:
@@ -309,7 +307,7 @@ commands:
                 name: Build release
                 # `goreleaser release --skip-publish` builds Docker images, but doesn't push them.
                 # As opposed to `goreleaser build`, which stops before building Dockers.
-                command: goreleaser --debug release --skip-publish -p 1 --rm-dist --skip-validate
+                command: goreleaser --debug release --skip-publish --skip-sign -p 1 --rm-dist --skip-validate
       - when:
           condition: << parameters.publish_release >>
           steps:
