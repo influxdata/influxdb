@@ -128,12 +128,6 @@ Examples:
                         .help("Include detailed information per file")
                 ),
         )
-        .subcommand(
-            SubCommand::with_name("config")
-                .about("Configuration display and manipulation")
-                .subcommand(SubCommand::with_name("show").help("show current configuration information"))
-                .subcommand(SubCommand::with_name("help").help("explain detailed configuration options"))
-        )
          .subcommand(
             commands::config::Config::clap(),
         )
@@ -143,9 +137,6 @@ Examples:
         ))
         .arg(Arg::with_name("num-threads").long("num-threads").takes_value(true).help(
             "Set the maximum number of threads to use. Defaults to the number of cores on the system",
-        ))
-        .arg(Arg::with_name("ignore-config-file").long("ignore-config-file").takes_value(false).help(
-            "If specified, ignores the default configuration file, if any. Configuration is read from the environment only",
         ))
         .get_matches();
 
