@@ -17,7 +17,7 @@ async-trait = "0.1"
 chrono = "0.4"
 flatbuffers = "0.6.1"
 snafu = "0.6.2"
-string-interner = "0.12.0"
+string-interner = "0.12.2"
 tokio = { version = "0.2", features = ["full"] }
 tracing = "0.1"
 

@@ -85,6 +85,12 @@ pub enum Error {
         source: DataFusionError,
     },
 
+    #[snafu(display("Error dropping chunk from partition '{}': {}", partition_key, source))]
+    DroppingChunk {
+        partition_key: String,
+        source: crate::partition::Error,
+    },
+
     #[snafu(display("replicated write from writer {} missing payload", writer))]
     MissingPayload { writer: u32 },
 }
@@ -169,6 +175,37 @@ impl MutableBufferDb {
         let partition = self.get_partition(partition_key).await;
         let mut partition = partition.write().await;
         Ok(partition.rollover_chunk())
+    }
+
+    /// Return the list of chunks, in order of id, for the specified
+    /// partition_key
+    pub async fn chunks(&self, partition_key: &str) -> Vec<Arc<Chunk>> {
+        self.get_partition(partition_key)
+            .await
+            .read()
+            .await
+            .chunks()
+    }
+
+    /// return the specified chunk from the partition
+    /// Returns None if no such chunk exists.
+    pub async fn get_chunk(&self, partition_key: &str, chunk_id: u32) -> Option<Arc<Chunk>> {
+        self.get_partition(partition_key)
+            .await
+            .read()
+            .await
+            .get_chunk(chunk_id)
+            .ok()
+    }
+
+    /// drop the the specified chunk from the partition
+    pub async fn drop_chunk(&self, partition_key: &str, chunk_id: u32) -> Result<Arc<Chunk>> {
+        self.get_partition(partition_key)
+            .await
+            .write()
+            .await
+            .drop_chunk(chunk_id)
+            .context(DroppingChunk { partition_key })
     }
 }
 
