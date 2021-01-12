@@ -48,7 +48,7 @@ impl ClientBuilder {
             .connect_timeout(self.connect_timeout)
             .timeout(self.timeout)
             .build()
-            .map_err(|e| Box::new(e))?;
+            .map_err(Box::new)?;
 
         // Construct a base URL.
         //

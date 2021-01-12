@@ -77,8 +77,7 @@ impl Client {
             Ok(r) if r.status() == 200 => Ok(()),
             Ok(r) => Err(RequestError::UnexpectedStatusCode {
                 code: r.status().as_u16(),
-            }
-            .into()),
+            }),
             Err(e) => Err(e.into()),
         }
     }
@@ -156,7 +155,7 @@ impl Client {
         //
         // Paths should be relative so the full base path is used.
         debug_assert_ne!(
-            path.chars().nth(0).unwrap(),
+            path.chars().next().unwrap(),
             '/',
             "should not join absolute paths to base URL"
         );
