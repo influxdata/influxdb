@@ -163,6 +163,7 @@ commands:
             sudo apt-get install -y --no-install-recommends \
               cmake \
               gnupg \
+              jq \
               libssl-dev \
               libxml2-dev \
               llvm-dev \
@@ -234,9 +235,14 @@ commands:
       - run:
           name: Set up Docker cross-builder
           command: |
+            # Uninstall any emulators provided by the system.
+            emulators=($(docker run --rm --privileged tonistiigi/binfmt:latest) | jq -r .emulators[])
+            for e in ${emulators[@]}; do
+              docker run --rm --privileged tonistiigi/binfmt:latest --uninstall ${e}
+            done
+
             # Install the QEMU emulators we need to cross-build.
             docker run --rm --privileged tonistiigi/binfmt:latest --install all
-            docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 
             # Create a new buildx context using the freshly-installed emulators.
             docker buildx create --name cross-builder
