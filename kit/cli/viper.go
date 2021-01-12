@@ -299,7 +299,6 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 			} else {
 				IDVar(flagset, destP, o.Flag, d, o.Desc)
 			}
-			mustBindPFlag(v, o.Flag, flagset)
 			if envVal != nil {
 				if s, err := cast.ToStringE(envVal); err == nil {
 					_ = (*destP).DecodeFromString(s)
@@ -316,7 +315,6 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 			} else {
 				LevelVar(flagset, destP, o.Flag, l, o.Desc)
 			}
-			mustBindPFlag(v, o.Flag, flagset)
 			if envVal != nil {
 				if s, err := cast.ToStringE(envVal); err == nil {
 					_ = (*destP).Set(s)
