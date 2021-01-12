@@ -565,7 +565,7 @@ jobs:
 
   cross_build:
     machine:
-      image: ubuntu-2004:202010-01
+      image: ubuntu-1604:202010-01
     resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
@@ -600,7 +600,7 @@ jobs:
 
   deploy_nightly:
     machine:
-      image: ubuntu-2004:202010-01
+      image: ubuntu-1604:202010-01
     resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
