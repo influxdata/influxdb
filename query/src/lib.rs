@@ -16,7 +16,6 @@ pub mod exec;
 pub mod frontend;
 pub mod func;
 pub mod group_by;
-pub mod id;
 pub mod predicate;
 pub mod util;
 

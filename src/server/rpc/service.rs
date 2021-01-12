@@ -1159,6 +1159,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::server::rpc::id::Id;
+
     use super::*;
     use arrow_deps::arrow::datatypes::DataType;
     use panic_logging::SendPanicsToTracing;
@@ -1167,7 +1169,6 @@ mod tests {
         exec::FieldListPlan,
         exec::SeriesSetPlans,
         group_by::{Aggregate as QueryAggregate, WindowDuration as QueryWindowDuration},
-        id::Id,
         test::ColumnNamesRequest,
         test::FieldColumnsRequest,
         test::QueryGroupsRequest,

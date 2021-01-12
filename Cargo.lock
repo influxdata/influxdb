@@ -2612,8 +2612,6 @@ dependencies = [
  "croaring",
  "data_types",
  "influxdb_line_protocol",
- "serde",
- "serde_urlencoded 0.6.1",
  "snafu",
  "sqlparser",
  "test_helpers",
