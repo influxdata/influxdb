@@ -179,7 +179,7 @@ impl<M: ConnectionManager> Server<M> {
     }
 
     /// Returns the current server ID, or an error if not yet set.
-    fn require_id(&self) -> Result<u32> {
+    pub fn require_id(&self) -> Result<u32> {
         match self.id.load(Ordering::Acquire) {
             SERVER_ID_NOT_SET => Err(Error::IdNotSet),
             v => Ok(v),
