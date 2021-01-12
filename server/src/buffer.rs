@@ -73,6 +73,7 @@ pub struct Buffer {
     max_size: u64,
     current_size: u64,
     segment_size: u64,
+    pub persist: bool,
     open_segment: Segment,
     closed_segments: Vec<Arc<Segment>>,
     rollover_behavior: WalBufferRollover,
@@ -80,10 +81,16 @@ pub struct Buffer {
 
 impl Buffer {
     #[allow(dead_code)]
-    pub fn new(max_size: u64, segment_size: u64, rollover_behavior: WalBufferRollover) -> Self {
+    pub fn new(
+        max_size: u64,
+        segment_size: u64,
+        rollover_behavior: WalBufferRollover,
+        persist: bool,
+    ) -> Self {
         Self {
             max_size,
             segment_size,
+            persist,
             rollover_behavior,
             open_segment: Segment::new(1),
             current_size: 0,
@@ -96,7 +103,7 @@ impl Buffer {
     /// by accepting the write, the oldest (first) of the closed segments
     /// will be dropped, if it is persisted. Otherwise, an error is returned.
     #[allow(dead_code)]
-    pub async fn append(&mut self, write: ReplicatedWrite) -> Result<Option<Arc<Segment>>> {
+    pub async fn append(&mut self, write: Arc<ReplicatedWrite>) -> Result<Option<Arc<Segment>>> {
         let write_size = u64::try_from(write.data.len())
             .expect("appended data must be less than a u64 in length");
 
@@ -238,11 +245,13 @@ impl Buffer {
     }
 }
 
+/// Segment is a collection of replicated writes that can be persisted to
+/// object store.
 #[derive(Debug)]
 pub struct Segment {
-    id: u64,
+    pub(crate) id: u64,
     size: u64,
-    writes: Vec<Arc<ReplicatedWrite>>,
+    pub writes: Vec<Arc<ReplicatedWrite>>,
     writers: BTreeMap<WriterId, WriterSummary>,
     // If set, this is the time at which this segment was persisted
     persisted: Mutex<Option<DateTime<Utc>>>,
@@ -263,7 +272,7 @@ impl Segment {
     // appends the write to the segment, keeping track of the summary information
     // about the writer
     #[allow(dead_code)]
-    fn append(&mut self, write: ReplicatedWrite) -> Result<()> {
+    fn append(&mut self, write: Arc<ReplicatedWrite>) -> Result<()> {
         let (writer_id, sequence_number) = write.writer_and_sequence();
         self.validate_and_update_sequence_summary(writer_id, sequence_number)?;
 
@@ -271,7 +280,7 @@ impl Segment {
         let size = u64::try_from(size).expect("appended data must be less than a u64 in length");
         self.size += size;
 
-        self.writes.push(Arc::new(write));
+        self.writes.push(write);
         Ok(())
     }
 
@@ -417,7 +426,7 @@ impl Segment {
             let rw = ReplicatedWrite {
                 data: data.to_vec(),
             };
-            segment.append(rw)?;
+            segment.append(Arc::new(rw))?;
         }
 
         Ok(segment)
@@ -480,7 +489,7 @@ mod tests {
     async fn append_increments_current_size_and_uses_existing_segment() {
         let max = 1 << 32;
         let segment = 1 << 16;
-        let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError);
+        let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
 
         let size = write.data.len() as u64;
@@ -499,7 +508,7 @@ mod tests {
     async fn append_rolls_over_segment() {
         let max = 1 << 16;
         let segment = 1;
-        let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError);
+        let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
 
         let segment = buf.append(write).await.unwrap();
@@ -517,7 +526,7 @@ mod tests {
     async fn drops_persisted_segment_when_over_size() {
         let max = 600;
         let segment = 1;
-        let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError);
+        let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
 
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
         let segment = buf.append(write).await.unwrap().unwrap();
@@ -549,7 +558,7 @@ mod tests {
     async fn drops_old_segment_even_if_not_persisted() {
         let max = 600;
         let segment = 1;
-        let mut buf = Buffer::new(max, segment, WalBufferRollover::DropOldSegment);
+        let mut buf = Buffer::new(max, segment, WalBufferRollover::DropOldSegment, false);
 
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
         let segment = buf.append(write).await.unwrap().unwrap();
@@ -578,7 +587,7 @@ mod tests {
     async fn drops_incoming_write_if_oldest_segment_not_persisted() {
         let max = 600;
         let segment = 1;
-        let mut buf = Buffer::new(max, segment, WalBufferRollover::DropIncoming);
+        let mut buf = Buffer::new(max, segment, WalBufferRollover::DropIncoming, false);
 
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
         let segment = buf.append(write).await.unwrap().unwrap();
@@ -606,7 +615,7 @@ mod tests {
     async fn returns_error_if_oldest_segment_not_persisted() {
         let max = 600;
         let segment = 1;
-        let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError);
+        let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
 
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
         let segment = buf.append(write).await.unwrap().unwrap();
@@ -634,7 +643,7 @@ mod tests {
         let max = 1 << 63;
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
         let segment = (write.data.len() + 1) as u64;
-        let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError);
+        let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
 
         let segment = buf.append(write).await.unwrap();
         assert!(segment.is_none());
@@ -691,7 +700,7 @@ mod tests {
         let max = 1 << 63;
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
         let segment = (write.data.len() + 1) as u64;
-        let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError);
+        let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
 
         let segment = buf.append(write).await.unwrap();
         assert!(segment.is_none());
@@ -738,7 +747,7 @@ mod tests {
         let max = 1 << 63;
         let write = lp_to_replicated_write(1, 3, "cpu val=1 10");
         let segment = (write.data.len() + 1) as u64;
-        let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError);
+        let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
 
         let segment = buf.append(write).await.unwrap();
         assert!(segment.is_none());
@@ -833,9 +842,18 @@ mod tests {
         assert_eq!(segment.writes, recovered_segment.writes);
     }
 
-    fn lp_to_replicated_write(writer_id: u32, sequence_number: u64, lp: &str) -> ReplicatedWrite {
+    fn lp_to_replicated_write(
+        writer_id: u32,
+        sequence_number: u64,
+        lp: &str,
+    ) -> Arc<ReplicatedWrite> {
         let lines: Vec<_> = parse_lines(lp).map(|l| l.unwrap()).collect();
         let rules = DatabaseRules::default();
-        lines_to_replicated_write(writer_id, sequence_number, &lines, &rules)
+        Arc::new(lines_to_replicated_write(
+            writer_id,
+            sequence_number,
+            &lines,
+            &rules,
+        ))
     }
 }

@@ -5,7 +5,7 @@ use std::{
     collections::BTreeMap,
     sync::{
         atomic::{AtomicU64, Ordering},
-        Arc,
+        Arc, Mutex,
     },
 };
 
@@ -71,7 +71,10 @@ pub struct Db {
     pub read_buffer: Arc<ReadBufferDb>,
 
     #[serde(skip)]
-    wal_buffer: Option<Buffer>,
+    /// The wal buffer holds replicated writes in an append in-memory
+    /// buffer. This buffer is used for sending data to subscribers
+    /// and to persist segments in object storage for recovery.
+    pub wal_buffer: Option<Mutex<Buffer>>,
 
     #[serde(skip)]
     sequence: AtomicU64,
@@ -84,6 +87,7 @@ impl Db {
         wal_buffer: Option<Buffer>,
         sequence: AtomicU64,
     ) -> Self {
+        let wal_buffer = wal_buffer.map(Mutex::new);
         Self {
             rules,
             mutable_buffer,

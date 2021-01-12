@@ -78,7 +78,7 @@ use std::{
     },
 };
 
-use crate::db::Db;
+use crate::{buffer::Buffer, db::Db};
 use data_types::{
     data::{lines_to_replicated_write, ReplicatedWrite},
     database_rules::{DatabaseRules, HostGroup, HostGroupId, MatchTables},
@@ -96,6 +96,7 @@ use futures::stream::TryStreamExt;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use tokio::sync::RwLock;
+use tracing::{error, info};
 
 type DatabaseError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
@@ -137,6 +138,8 @@ pub enum Error {
     StoreError { source: object_store::Error },
     #[snafu(display("database already exists"))]
     DatabaseAlreadyExists { db_name: String },
+    #[snafu(display("error appending to wal buffer: {}", source))]
+    WalError { source: buffer::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -207,7 +210,16 @@ impl<M: ConnectionManager> Server<M> {
         let read_buffer = Arc::new(ReadBufferDb::new());
 
         let sequence = AtomicU64::new(STARTING_SEQUENCE);
-        let wal_buffer = None;
+        let wal_buffer = if let Some(wal_config) = &rules.wal_buffer_config {
+            Some(Buffer::new(
+                wal_config.buffer_size,
+                wal_config.segment_size,
+                wal_config.buffer_rollover.clone(),
+                wal_config.store_segments,
+            ))
+        } else {
+            None
+        };
         let db = Db::new(rules, mutable_buffer, read_buffer, wal_buffer, sequence);
 
         let mut config = self.config.write().await;
@@ -323,6 +335,36 @@ impl<M: ConnectionManager> Server<M> {
                 .await
                 .map_err(|e| Box::new(e) as DatabaseError)
                 .context(UnknownDatabaseError {})?;
+        }
+
+        let write = Arc::new(write);
+
+        if let Some(wal_buffer) = &db.wal_buffer {
+            let persist;
+            let segment = {
+                let mut wal_buffer = wal_buffer.lock().expect("mutex poisoned");
+                persist = wal_buffer.persist;
+
+                // TODO: address this issue?
+                // the mutable buffer and the wal buffer have different locking mechanisms,
+                // which means that it's possible for a mutable buffer write to
+                // succeed while a WAL buffer write fails, which would then
+                // return an error. A single lock is probably undesirable, but
+                // we need to figure out what semantics we want.
+                wal_buffer.append(write.clone()).await.context(WalError)?
+            };
+
+            if let Some(segment) = segment {
+                if persist {
+                    let writer_id = self.require_id()?;
+                    let data = segment.to_file_bytes(writer_id).context(WalError)?;
+                    let store = self.store.clone();
+                    let location = database_object_store_path(writer_id, db_name);
+                    let location = buffer::object_store_path_for_segment(&location, segment.id)
+                        .context(WalError)?;
+                    persist_bytes(data, store, location);
+                }
+            }
         }
 
         for host_group_id in &db.rules.replication {
@@ -503,12 +545,50 @@ fn config_location(id: u32) -> ObjectStorePath {
     path
 }
 
+// base location in object store for a given database name
+fn database_object_store_path(writer_id: u32, database_name: &DatabaseName<'_>) -> ObjectStorePath {
+    let mut path = ObjectStorePath::default();
+    path.push(format!("{}", writer_id));
+    path.push(database_name.to_string());
+    path
+}
+
+const STORE_ERROR_PAUSE_SECONDS: u64 = 100;
+
+/// Spawns a tokio task that will continuously try to persist the bytes to the
+/// given object store location.
+fn persist_bytes(data: Bytes, store: Arc<ObjectStore>, location: ObjectStorePath) {
+    let len = data.len();
+    let mut stream_data = std::io::Result::Ok(data.clone());
+
+    tokio::task::spawn(async move {
+        while let Err(err) = store
+            .put(
+                &location,
+                futures::stream::once(async move { stream_data }),
+                len,
+            )
+            .await
+        {
+            error!("error writing bytes to store: {}", err);
+            tokio::time::delay_for(tokio::time::Duration::from_secs(STORE_ERROR_PAUSE_SECONDS))
+                .await;
+            stream_data = std::io::Result::Ok(data.clone());
+        }
+
+        info!("persisted data to {}", store.convert_path(&location));
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::buffer::Segment;
     use arrow_deps::{assert_table_eq, datafusion::physical_plan::collect};
     use async_trait::async_trait;
-    use data_types::database_rules::{MatchTables, Matcher, Subscription};
+    use data_types::database_rules::{
+        MatchTables, Matcher, Subscription, WalBufferConfig, WalBufferRollover,
+    };
     use futures::TryStreamExt;
     use influxdb_line_protocol::parse_lines;
     use object_store::{memory::InMemory, ObjectStoreIntegration};
@@ -828,6 +908,53 @@ partition_key:
         assert_eq!(*server_config, *recovered_config);
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn segment_persisted_on_rollover() {
+        let manager = TestConnectionManager::new();
+        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+
+        let server = Server::new(manager, store.clone());
+        server.set_id(1);
+        let db_name = "my_db";
+        let rules = DatabaseRules {
+            wal_buffer_config: Some(WalBufferConfig {
+                buffer_size: 500,
+                segment_size: 10,
+                buffer_rollover: WalBufferRollover::ReturnError,
+                store_segments: true,
+                close_segment_after: None,
+            }),
+            ..Default::default()
+        };
+        server.create_database(db_name, rules).await.unwrap();
+
+        let lines = parsed_lines("disk,host=a used=10.1 12");
+        server.write_lines(db_name, &lines).await.unwrap();
+
+        // write lines should have caused a segment rollover and persist, wait
+        tokio::task::yield_now().await;
+
+        let path = ObjectStorePath::from_cloud_unchecked("1/my_db/wal/000/000/001.segment");
+        let data = store
+            .get(&path)
+            .await
+            .unwrap()
+            .map_ok(|b| bytes::BytesMut::from(&b[..]))
+            .try_concat()
+            .await
+            .unwrap();
+
+        let segment = Segment::from_file_bytes(&data).unwrap();
+        assert_eq!(segment.writes.len(), 1);
+        let write = r#"
+writer:1, sequence:1, checksum:2741956553
+partition_key:
+  table:disk
+    host:a used:10.1 time:12
+"#;
+        assert_eq!(segment.writes[0].to_string(), write);
     }
 
     #[derive(Snafu, Debug, Clone)]
