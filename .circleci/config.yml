@@ -186,6 +186,9 @@ commands:
                 command: |
                   echo -e "$GPG_PRIVATE_KEY" > private.key
                   gpg --batch --import private.key
+            - run:
+                name: Log into Quay
+                command: docker login -u "$QUAY_USER" -p $QUAY_PASS quay.io
       - run:
           name: Set GOPATH
           # Machine executors use a different GOPATH from the cimg/go Docker executors.
@@ -625,7 +628,6 @@ jobs:
           name: Restore Yarn Cache
           keys:
             - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
-      - quay_login
       - install_core_deps
       - run_goreleaser:
           publish_release: false
