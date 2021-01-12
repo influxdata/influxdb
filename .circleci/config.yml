@@ -242,11 +242,11 @@ commands:
           name: Set up Docker cross-builder
           command: |
             # Install the QEMU emulators we need to cross-build.
-            docker run --rm --privileged tonistiigi/binfmt:latest --install arm64
+            docker run --rm --privileged tonistiigi/binfmt:latest --install all
             docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 
             # Create a new buildx context using the freshly-installed emulators.
-            docker buildx create --name cross-builder --platform linux/amd64,linux/arm64
+            docker buildx create --name cross-builder
             docker buildx use --default cross-builder
             docker buildx inspect --bootstrap
       - run:
