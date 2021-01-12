@@ -25,7 +25,7 @@ use futures::{self, StreamExt};
 use http::header::CONTENT_ENCODING;
 use hyper::{Body, Method, Request, Response, StatusCode};
 use routerify::{prelude::*, Middleware, RequestInfo, Router, RouterService};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use tracing::{debug, error, info};
 
@@ -221,6 +221,7 @@ where
         .get("/api/v2/read", read_handler::<M>)
         .put("/iox/api/v1/databases/:name", create_database_handler::<M>)
         .get("/iox/api/v1/databases/:name", get_database_handler::<M>)
+        .put("/iox/api/v1/id", set_writer_handler::<M>)
         .get("/api/v1/partitions", list_partitions_handler::<M>)
         .post("/api/v1/snapshot", snapshot_partition_handler::<M>)
         // Specify the error handler to handle any errors caused by
@@ -521,6 +522,54 @@ async fn get_database<M: ConnectionManager + Send + Sync + Debug + 'static>(
     Ok(response)
 }
 
+#[tracing::instrument(level = "debug")]
+async fn set_writer_handler<M>(req: Request<Body>) -> Result<Response<Body>, ApplicationError>
+where
+    M: ConnectionManager + Send + Sync + Debug + 'static,
+{
+    match set_writer::<M>(req).await {
+        Err(e) => {
+            error!(error = ?e, error_message = ?e.to_string(), "Error while handling request");
+
+            e.response()
+        }
+        res => res,
+    }
+}
+
+#[tracing::instrument(level = "debug")]
+async fn set_writer<M: ConnectionManager + Send + Sync + Debug + 'static>(
+    req: Request<Body>,
+) -> Result<Response<Body>, ApplicationError> {
+    let server = req
+        .data::<Arc<AppServer<M>>>()
+        .expect("server state")
+        .clone();
+
+    // Read the request body
+    let body = parse_body(req).await?;
+
+    // Parse the JSON body into a structure
+    #[derive(Serialize, Deserialize)]
+    struct WriterIdBody {
+        id: u32,
+    };
+    let req: WriterIdBody = serde_json::from_slice(body.as_ref()).context(InvalidRequestBody)?;
+
+    // Set the writer ID
+    server.set_id(req.id);
+
+    // Build a HTTP 200 response
+    let response = Response::builder()
+        .status(StatusCode::OK)
+        .body(Body::from(
+            serde_json::to_string(&req).expect("json encoding should not fail"),
+        ))
+        .expect("builder should be successful");
+
+    Ok(response)
+}
+
 // Route to test that the server is alive
 #[tracing::instrument(level = "debug")]
 async fn ping(req: Request<Body>) -> Result<Response<Body>, ApplicationError> {
@@ -706,7 +755,7 @@ mod tests {
             ConnectionManagerImpl {},
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
-        test_storage.set_id(1).await;
+        test_storage.set_id(1);
         let rules = DatabaseRules {
             store_locally: true,
             ..Default::default()
@@ -768,7 +817,7 @@ mod tests {
             ConnectionManagerImpl {},
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
-        test_storage.set_id(1).await;
+        test_storage.set_id(1);
         let rules = DatabaseRules {
             store_locally: true,
             ..Default::default()
@@ -818,12 +867,35 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn set_writer_id() {
+        let server = Arc::new(AppServer::new(
+            ConnectionManagerImpl {},
+            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
+        ));
+        server.set_id(1);
+        let server_url = test_server(server.clone());
+
+        let data = r#"{"id":42}"#;
+
+        let client = Client::new();
+        let response = client
+            .put(&format!("{}/iox/api/v1/id", server_url))
+            .body(data)
+            .send()
+            .await;
+
+        check_response("set_writer_id", response, StatusCode::OK, data).await;
+
+        assert_eq!(server.require_id().expect("should be set"), 42);
+    }
+
+    #[tokio::test]
     async fn create_database() {
         let server = Arc::new(AppServer::new(
             ConnectionManagerImpl {},
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
-        server.set_id(1).await;
+        server.set_id(1);
         let server_url = test_server(server.clone());
 
         let data = r#"{"store_locally": true}"#;
@@ -853,7 +925,7 @@ mod tests {
             ConnectionManagerImpl {},
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
-        server.set_id(1).await;
+        server.set_id(1);
         let server_url = test_server(server.clone());
 
         let rules = DatabaseRules {
