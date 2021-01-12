@@ -113,19 +113,17 @@ impl Table {
         true
     }
 
-    // Identify set of row groups that may satisfy the predicates.
-    fn filter_row_groups<'input>(&self, predicates: &[Predicate<'input>]) -> Vec<&RowGroup> {
+    // Identify set of row groups that might satisfy the predicate.
+    fn filter_row_groups(&self, predicate: &Predicate) -> Vec<&RowGroup> {
         let mut rgs = Vec::with_capacity(self.row_groups.len());
 
         'rowgroup: for rg in &self.row_groups {
-            // check all provided predicates
-            for (col_name, pred) in predicates {
-                if !rg.column_could_satisfy_predicate(col_name, pred) {
-                    continue 'rowgroup;
-                }
+            // check all expressions in predicate
+            if !rg.could_satisfy_conjunctive_binary_expressions(predicate.iter()) {
+                continue 'rowgroup;
             }
 
-            // segment could potentially satisfy all predicates
+            // row group could potentially satisfy predicate
             rgs.push(rg);
         }
 
@@ -141,15 +139,15 @@ impl Table {
     /// predicates, but can be ranged by time, which should be represented
     /// as nanoseconds since the epoch. Results are included if they satisfy
     /// the predicate and fall with the [min, max) time range domain.
-    pub fn read_filter<'input, 'table>(
-        &'table self,
+    pub fn read_filter<'a>(
+        &'a self,
         columns: &ColumnSelection<'_>,
-        predicates: &'input [Predicate<'input>],
-    ) -> ReadFilterResults<'input, 'table> {
+        predicate: &Predicate,
+    ) -> ReadFilterResults<'a> {
         // identify row groups where time range and predicates match could match
         // using row group meta data, and then execute against those row groups
         // and merge results.
-        let rgs = self.filter_row_groups(predicates);
+        let rgs = self.filter_row_groups(predicate);
 
         let schema = match columns {
             ColumnSelection::All => self.meta.schema(),
@@ -160,7 +158,7 @@ impl Table {
         let columns = schema.iter().map(|(name, _)| *name).collect::<Vec<_>>();
         ReadFilterResults {
             columns,
-            predicates,
+            predicate: predicate.clone(),
             schema,
             row_groups: rgs,
         }
@@ -181,7 +179,7 @@ impl Table {
     /// applied to the same column.
     pub fn aggregate<'input>(
         &self,
-        predicates: &[Predicate<'_>],
+        predicate: Predicate,
         group_columns: &'input [ColumnName<'input>],
         aggregates: &'input [(ColumnName<'input>, AggregateType)],
     ) -> ReadGroupResults<'input, '_> {
@@ -195,7 +193,12 @@ impl Table {
                     // found"
         }
 
-        if !self.has_all_columns(&predicates.iter().map(|(name, _)| *name).collect::<Vec<_>>()) {
+        if !self.has_all_columns(
+            &predicate
+                .iter()
+                .map(|expr| expr.column())
+                .collect::<Vec<_>>(),
+        ) {
             todo!() //TODO(edd): return an error here "predicate column x not
                     // found"
         }
@@ -204,16 +207,16 @@ impl Table {
         // using segment meta data, and then execute against those segments and
         // merge results.
         let mut results = ReadGroupResults::default();
-        let segments = self.filter_row_groups(predicates);
-        if segments.is_empty() {
+        let row_groups = self.filter_row_groups(&predicate);
+        if row_groups.is_empty() {
             results.groupby_columns = group_columns;
             results.aggregate_columns = aggregates;
             return results;
         }
 
-        results.values.reserve(segments.len());
-        for segment in segments {
-            let segment_result = segment.read_group(predicates, &group_columns, &aggregates);
+        results.values.reserve(row_groups.len());
+        for row_group in row_groups {
+            let segment_result = row_group.read_group(&predicate, &group_columns, &aggregates);
             results.values.push(segment_result);
         }
 
@@ -558,8 +561,7 @@ pub enum ColumnSelection<'a> {
 
 /// Results of a `read_filter` execution on the table. Execution is lazy -
 /// row groups are only queried when `ReadFilterResults` is iterated.
-#[derive(Default)]
-pub struct ReadFilterResults<'input, 'table> {
+pub struct ReadFilterResults<'table> {
     // schema of all columns in the query results
     schema: Vec<(&'table str, LogicalDataType)>,
 
@@ -569,10 +571,10 @@ pub struct ReadFilterResults<'input, 'table> {
     // TODO(edd): encapsulate these into a single executor function that just
     // executes on the next row group.
     columns: Vec<ColumnName<'table>>,
-    predicates: &'input [Predicate<'input>],
+    predicate: Predicate,
 }
 
-impl<'input, 'table> ReadFilterResults<'input, 'table> {
+impl<'table> ReadFilterResults<'table> {
     pub fn is_empty(&self) -> bool {
         self.row_groups.is_empty()
     }
@@ -584,7 +586,7 @@ impl<'input, 'table> ReadFilterResults<'input, 'table> {
     }
 }
 
-impl<'a> Iterator for ReadFilterResults<'_, 'a> {
+impl<'a> Iterator for ReadFilterResults<'a> {
     type Item = row_group::ReadFilterResult<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -593,7 +595,7 @@ impl<'a> Iterator for ReadFilterResults<'_, 'a> {
         }
 
         let row_group = self.row_groups.remove(0);
-        let result = row_group.read_filter(&self.columns, self.predicates);
+        let result = row_group.read_filter(&self.columns, &self.predicate);
         if result.is_empty() {
             return self.next(); // try next row group
         }
@@ -671,28 +673,8 @@ impl std::fmt::Display for ReadGroupResults<'_, '_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::column::{cmp::Operator, Column, LogicalDataType};
-    use crate::row_group::{ColumnType, TIME_COLUMN_NAME};
-
-    fn build_predicates(
-        from: i64,
-        to: i64,
-        column_predicates: Vec<Predicate<'_>>,
-    ) -> Vec<Predicate<'_>> {
-        let mut arr = vec![
-            (
-                TIME_COLUMN_NAME,
-                (Operator::GTE, Value::Scalar(Scalar::I64(from))),
-            ),
-            (
-                TIME_COLUMN_NAME,
-                (Operator::LT, Value::Scalar(Scalar::I64(to))),
-            ),
-        ];
-
-        arr.extend(column_predicates);
-        arr
-    }
+    use crate::column::{Column, LogicalDataType};
+    use crate::row_group::{BinaryExpr, ColumnType};
 
     #[test]
     fn select() {
@@ -733,10 +715,10 @@ mod test {
         table.add_row_group(segment);
 
         // Get all the results
-        let predicates = build_predicates(1, 31, vec![]);
+        let predicate = Predicate::with_time_range(&[], 1, 31);
         let results = table.read_filter(
             &ColumnSelection::Some(&["time", "count", "region"]),
-            &predicates,
+            &predicate,
         );
 
         // check the column types
@@ -768,14 +750,11 @@ mod test {
 ",
         );
 
-        let predicates = &build_predicates(
-            1,
-            25,
-            vec![("region", (Operator::NotEqual, Value::String("south")))],
-        );
+        let predicate =
+            Predicate::with_time_range(&[BinaryExpr::from(("region", "!=", "south"))], 1, 25);
 
         // Apply a predicate `WHERE "region" != "south"`
-        let results = table.read_filter(&ColumnSelection::Some(&["time", "region"]), &predicates);
+        let results = table.read_filter(&ColumnSelection::Some(&["time", "region"]), &predicate);
 
         let mut all = vec![];
         for result in results {
