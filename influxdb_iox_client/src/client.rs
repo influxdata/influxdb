@@ -65,7 +65,7 @@ impl std::default::Default for Client {
 impl Client {
     /// Ping the IOx server, checking for a HTTP 200 response.
     pub async fn ping(&self) -> Result<(), RequestError> {
-        const PING_PATH: &'static str = "ping";
+        const PING_PATH: &str = "ping";
 
         let resp = self
             .http
@@ -89,7 +89,7 @@ impl Client {
         name: impl AsRef<str>,
         rules: &DatabaseRules,
     ) -> Result<(), CreateDatabaseError> {
-        const DB_PATH: &'static str = "iox/api/v1/databases/";
+        const DB_PATH: &str = "iox/api/v1/databases/";
 
         let url = self.url_for(DB_PATH).join(name.as_ref()).map_err(|_| {
             CreateDatabaseError::InvalidName {
@@ -119,7 +119,7 @@ impl Client {
 
     /// Set the server's writer ID.
     pub async fn set_writer_id(&self, id: NonZeroU32) -> Result<(), CreateDatabaseError> {
-        const SET_WRITER_PATH: &'static str = "iox/api/v1/id";
+        const SET_WRITER_PATH: &str = "iox/api/v1/id";
 
         let url = self.url_for(SET_WRITER_PATH);
 
