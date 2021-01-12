@@ -5,8 +5,8 @@ use generated_types::{
     MeasurementTagValuesRequest, ReadFilterRequest, ReadGroupRequest, ReadSource,
     ReadWindowAggregateRequest, TagKeysRequest, TagValuesRequest,
 };
-use query::id::Id;
 
+use super::id::Id;
 use std::convert::TryInto;
 
 /// This trait implements extraction of information from all storage gRPC
