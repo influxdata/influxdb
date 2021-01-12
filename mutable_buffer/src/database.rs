@@ -18,10 +18,7 @@ use crate::{
 use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
-use arrow_deps::{
-    arrow::record_batch::RecordBatch,
-    datafusion::{error::DataFusionError, logical_plan::LogicalPlan},
-};
+use arrow_deps::datafusion::{error::DataFusionError, logical_plan::LogicalPlan};
 use data_types::data::ReplicatedWrite;
 
 use crate::dictionary::Error as DictionaryError;
@@ -160,31 +157,11 @@ impl MutableBufferDb {
         Ok(())
     }
 
-    async fn table_to_arrow(&self, table_name: &str, columns: &[&str]) -> Result<Vec<RecordBatch>> {
-        let mut batches = Vec::new();
-        for partition in self.partition_snapshot().await.into_iter() {
-            let partition = partition.read().await;
-            partition.table_to_arrow(&mut batches, table_name, columns)?
-        }
-
-        Ok(batches)
-    }
-
     /// Rolls over the active chunk in this partititon
     pub async fn rollover_partition(&self, partition_key: &str) -> Result<Arc<Chunk>> {
         let partition = self.get_partition(partition_key).await;
         let mut partition = partition.write().await;
         Ok(partition.rollover_chunk())
-    }
-
-    /// Return the list of chunks, in order of id, for the specified
-    /// partition_key
-    pub async fn chunks(&self, partition_key: &str) -> Vec<Arc<Chunk>> {
-        self.get_partition(partition_key)
-            .await
-            .read()
-            .await
-            .chunks()
     }
 
     /// return the specified chunk from the partition
@@ -212,6 +189,7 @@ impl MutableBufferDb {
 #[async_trait]
 impl Database for MutableBufferDb {
     type Error = Error;
+    type Chunk = Chunk;
 
     async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
         match write.write_buffer_batch() {
@@ -311,16 +289,6 @@ impl Database for MutableBufferDb {
         }
     }
 
-    /// Fetch the specified table names and columns as Arrow
-    /// RecordBatches. Columns are returned in the order specified.
-    async fn table_to_arrow(
-        &self,
-        table_name: &str,
-        columns: &[&str],
-    ) -> Result<Vec<RecordBatch>, Self::Error> {
-        self.table_to_arrow(table_name, columns).await
-    }
-
     /// Return the partition keys for data in this DB
     async fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
         let partitions = self.partitions.read().await;
@@ -341,6 +309,17 @@ impl Database for MutableBufferDb {
         self.accept(&mut filter, &mut visitor).await?;
         let names = visitor.into_inner().into_iter().collect();
         Ok(names)
+    }
+
+    /// Return the list of chunks, in order of id, for the specified
+    /// partition_key
+    async fn chunks(&self, partition_key: &str) -> Result<Vec<Arc<Chunk>>> {
+        Ok(self
+            .get_partition(partition_key)
+            .await
+            .read()
+            .await
+            .chunks())
     }
 }
 
@@ -1015,6 +994,7 @@ mod tests {
         arrow::{
             array::{Array, StringArray},
             datatypes::DataType,
+            record_batch::RecordBatch,
         },
         assert_table_eq,
         datafusion::{physical_plan::collect, prelude::*},
@@ -1118,8 +1098,14 @@ mod tests {
         .collect();
         write_lines(&db, &lines).await;
 
-        let chunks = db.table_to_arrow("cpu", &["region", "core"]).await?;
-        let columns = chunks[0].columns();
+        let partition_key = "1970-01-01T00";
+
+        let chunk = db.get_chunk(partition_key, 0).await.unwrap();
+        let mut batches = Vec::new();
+        chunk
+            .table_to_arrow(&mut batches, "cpu", &["region", "core"])
+            .unwrap();
+        let columns = batches[0].columns();
 
         assert_eq!(
             2,

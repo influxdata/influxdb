@@ -20,7 +20,7 @@ use data_types::{
 use influxdb_line_protocol::{parse_lines, ParsedLine};
 
 use async_trait::async_trait;
-use snafu::{OptionExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use std::{collections::BTreeMap, collections::BTreeSet, sync::Arc};
 
 use std::fmt::Write;
@@ -269,6 +269,7 @@ fn predicate_to_test_string(predicate: &Predicate) -> String {
 #[async_trait]
 impl Database for TestDatabase {
     type Error = TestError;
+    type Chunk = TestChunk;
 
     /// Adds the replicated write to this database
     async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
@@ -409,16 +410,6 @@ impl Database for TestDatabase {
             })
     }
 
-    /// Fetch the specified table names and columns as Arrow
-    /// RecordBatches. Columns are returned in the order specified.
-    async fn table_to_arrow(
-        &self,
-        _table_name: &str,
-        _columns: &[&str],
-    ) -> Result<Vec<RecordBatch>, Self::Error> {
-        unimplemented!()
-    }
-
     /// Return the partition keys for data in this DB
     async fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
         unimplemented!("partition_keys not yet for test database");
@@ -430,6 +421,10 @@ impl Database for TestDatabase {
         _partition_key: &str,
     ) -> Result<Vec<String>, Self::Error> {
         unimplemented!("table_names_for_partition not implemented for test database");
+    }
+
+    async fn chunks(&self, _partition_key: &str) -> Result<Vec<Arc<Self::Chunk>>, Self::Error> {
+        unimplemented!("query_chunks for test database");
     }
 }
 
@@ -550,5 +545,19 @@ impl TestLPWriter {
             .map_err(|e| TestError::DatabaseWrite {
                 source: Box::new(e),
             })
+    }
+
+    /// Writes line protocol formatted data in lp_data to `database`
+    pub async fn write_lp_string<D: Database>(
+        &mut self,
+        database: &D,
+        lp_data: &str,
+    ) -> Result<()> {
+        let lines = parse_lines(lp_data)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| Box::new(e) as _)
+            .context(DatabaseWrite)?;
+
+        self.write_lines(database, &lines).await
     }
 }
