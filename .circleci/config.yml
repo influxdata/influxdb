@@ -580,8 +580,6 @@ jobs:
           keys:
             - influxdb-cross-build-{{ .Branch }}-{{ .Revision }}
             - influxdb-cross-build-{{ .Branch }}-
-            - influxdb-build-{{ .Branch }}-{{ .Revision }}
-            - influxdb-build-{{ .Branch }}-
       - restore_cache:
           name: Restore Yarn Cache
           keys:
@@ -615,11 +613,7 @@ jobs:
           name: Restore GOCACHE
           keys:
             - influxdb-nightly-{{ .Branch }}-{{ .Revision }}
-            - influxdb-cross-build-{{ .Branch }}-{{ .Revision }}
             - influxdb-nightly-{{ .Branch }}-
-            - influxdb-cross-build-{{ .Branch }}-
-            - influxdb-build-{{ .Branch }}-{{ .Revision }}
-            - influxdb-build-{{ .Branch }}-
       - restore_cache:
           name: Restore Yarn Cache
           keys:
