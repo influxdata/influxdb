@@ -44,13 +44,6 @@ workflows:
       - cross_build:
           requires:
             - build
-#          filters:
-#            branches:
-#              only:
-#                - master
-      - deploy_nightly:
-          requires:
-            - cross_build
       - litmus_integration:
           requires:
             - build
