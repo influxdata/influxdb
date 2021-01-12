@@ -32,6 +32,10 @@ workflows:
           requires:
             - godeps
             - jsdeps
+      - deploy_nightly:
+          requires:
+            - godeps
+            - jsdeps
       - e2e:
           requires:
             - build
