@@ -237,6 +237,7 @@ commands:
               $(lsb_release -cs) \
               stable"
             sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+            sudo service docker restart
       - run:
           name: Set up Docker cross-builder
           command: |
