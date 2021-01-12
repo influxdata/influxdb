@@ -1,11 +1,6 @@
-FROM debian:stable-slim
-COPY influx influxd /usr/bin/
-
-EXPOSE 8086
+FROM debian:stable-slim AS dependency-base
 
 ENV DEBIAN_FRONTEND noninteractive
-
-COPY docker/influxd/entrypoint.sh /entrypoint.sh
 
 RUN apt-get update \
 	&& apt-get install -y \
@@ -14,6 +9,15 @@ RUN apt-get update \
 	&& apt-get clean autoclean \
 	&& apt-get autoremove --yes \
 	&& rm -rf /var/lib/{apt,dpkg,cache,log}
+
+# NOTE: We separate these two stages so we can run the above
+# quickly in CI, in case of flaky failure.
+FROM dependency-base
+
+EXPOSE 8086
+
+COPY influx influxd /usr/bin/
+COPY docker/influxd/entrypoint.sh /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["influxd"]
