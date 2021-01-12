@@ -706,7 +706,7 @@ mod tests {
             ConnectionManagerImpl {},
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
-        test_storage.set_id(1).await;
+        test_storage.set_id(1);
         let rules = DatabaseRules {
             store_locally: true,
             ..Default::default()
@@ -768,7 +768,7 @@ mod tests {
             ConnectionManagerImpl {},
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
-        test_storage.set_id(1).await;
+        test_storage.set_id(1);
         let rules = DatabaseRules {
             store_locally: true,
             ..Default::default()
@@ -823,7 +823,7 @@ mod tests {
             ConnectionManagerImpl {},
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
-        server.set_id(1).await;
+        server.set_id(1);
         let server_url = test_server(server.clone());
 
         let data = r#"{"store_locally": true}"#;
@@ -853,7 +853,7 @@ mod tests {
             ConnectionManagerImpl {},
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
-        server.set_id(1).await;
+        server.set_id(1);
         let server_url = test_server(server.clone());
 
         let rules = DatabaseRules {
