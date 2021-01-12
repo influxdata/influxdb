@@ -41,8 +41,8 @@ Examples:
     # Run the InfluxDB IOx server:
     influxdb_iox
 
-    # Display all current config settings
-    influxdb_iox config show
+    # Display all server settings
+    influxdb_iox server --help
 
     # Run the InfluxDB IOx server with extra verbose logging
     influxdb_iox -v

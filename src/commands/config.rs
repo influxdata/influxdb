@@ -30,7 +30,13 @@ lazy_static! {
     long_about = "Run the IOx server.\n\nThe configuration options below can be \
     set either with the command line flags or with the specified environment \
     variable. If there is a file named '.env' in the current working directory, \
-    it is sourced before loading the configuration."
+    it is sourced before loading the configuration.
+    
+Configuration is loaded from the following sources (highest precedence first):
+        - command line arguments
+        - user set environment variables
+        - .env file contents
+        - pre-configured default values"
 )]
 pub struct Config {
     /// This controls the IOx server logging level, as described in
