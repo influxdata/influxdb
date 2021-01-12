@@ -8,7 +8,6 @@ default-run = "influxdb_iox"
 [workspace]
 members = [
     "arrow_deps",
-    "config",
     "data_types",
     "generated_types",
     "influxdb_line_protocol",
@@ -35,7 +34,6 @@ debug = true
 
 [dependencies]
 arrow_deps = { path = "arrow_deps" }
-config = { path = "config" }
 data_types = { path = "data_types" }
 generated_types = { path = "generated_types" }
 influxdb_line_protocol = { path = "influxdb_line_protocol" }
@@ -81,6 +79,10 @@ opentelemetry-jaeger = { version = "0.9", features = ["tokio"] }
 http = "0.2.0"
 snafu = "0.6.9"
 flate2 = "1.0"
+structopt = "0.3.21"
+dotenv = "0.15.0"
+dirs = "3.0.1"
+lazy_static = "1.4.0"
 
 [dev-dependencies]
 assert_cmd = "1.0.0"
