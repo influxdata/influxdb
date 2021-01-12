@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -1693,6 +1694,45 @@ func TestMeasurementFieldSet_InvalidFormat(t *testing.T) {
 	_, err := tsdb.NewMeasurementFieldSet(path)
 	if err != tsdb.ErrUnknownFieldsFormat {
 		t.Fatalf("unexpected error: got %v, exp %v", err, tsdb.ErrUnknownFieldsFormat)
+	}
+}
+
+func TestMeasurementFieldSet_ConcurrentSave(t *testing.T) {
+	var iterations int64
+	dir, cleanup := MustTempDir()
+	defer cleanup()
+
+	if testing.Short() {
+		iterations = 50
+	} else {
+		iterations = 200
+	}
+
+	path := filepath.Join(dir, "fields.idx")
+	mf, err := tsdb.NewMeasurementFieldSet(path)
+	if err != nil {
+		t.Fatalf("NewMeasurementFieldSet error: %v", err)
+	}
+	var wg sync.WaitGroup
+
+	wg.Add(4)
+	go testFieldMaker(t, &wg, mf, "cpu", "cvalue", iterations)
+	go testFieldMaker(t, &wg, mf, "cpu", "cvalue", iterations)
+	go testFieldMaker(t, &wg, mf, "cpu", "cvalue", iterations)
+	go testFieldMaker(t, &wg, mf, "cpu", "cvalue", iterations)
+	wg.Wait()
+}
+
+func testFieldMaker(t *testing.T, wg *sync.WaitGroup, mf *tsdb.MeasurementFieldSet, measurement string, fieldName string, count int64) {
+	defer wg.Done()
+	fields := mf.CreateFieldsIfNotExists([]byte(measurement))
+	for ; count > 0; count -= 1 {
+		if err := fields.CreateFieldIfNotExists([]byte("value"+strconv.FormatInt(count, 10)), influxql.Float); err != nil {
+			t.Fatalf("create field error: %v", err)
+		}
+		if err := mf.Save(); err != nil {
+			t.Fatalf("save error: %v", err)
+		}
 	}
 }
 
