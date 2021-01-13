@@ -1159,6 +1159,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::server::rpc::id::ID;
+
     use super::*;
     use arrow_deps::arrow::datatypes::DataType;
     use panic_logging::SendPanicsToTracing;
@@ -1167,7 +1169,6 @@ mod tests {
         exec::FieldListPlan,
         exec::SeriesSetPlans,
         group_by::{Aggregate as QueryAggregate, WindowDuration as QueryWindowDuration},
-        id::Id,
         test::ColumnNamesRequest,
         test::FieldColumnsRequest,
         test::QueryGroupsRequest,
@@ -2250,9 +2251,9 @@ mod tests {
 
     impl OrgAndBucket {
         fn new(org_id: u64, bucket_id: u64) -> Self {
-            let org_id_str = Id::try_from(org_id).expect("org_id was valid").to_string();
+            let org_id_str = ID::try_from(org_id).expect("org_id was valid").to_string();
 
-            let bucket_id_str = Id::try_from(bucket_id)
+            let bucket_id_str = ID::try_from(bucket_id)
                 .expect("bucket_id was valid")
                 .to_string();
 

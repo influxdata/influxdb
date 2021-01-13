@@ -71,10 +71,9 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// This is the entry point for the IOx server -- it handles
 /// instantiating all state and getting things ready
-pub async fn main(logging_level: LoggingLevel, ignore_config_file: bool) -> Result<()> {
+pub async fn main(logging_level: LoggingLevel) -> Result<()> {
     // try to load the configuration before doing anything else
-    let verbose = false;
-    let config = load_config(verbose, ignore_config_file);
+    let config = load_config();
 
     let _drop_handle = logging_level.setup_logging(&config);
 
@@ -106,7 +105,7 @@ pub async fn main(logging_level: LoggingLevel, ignore_config_file: bool) -> Resu
     // if this ID isn't set the server won't be usable until this is set via an API
     // call
     if let Some(id) = config.writer_id {
-        app_server.set_id(id).await;
+        app_server.set_id(id);
     } else {
         warn!("server ID not set. ID must be set via the INFLUXDB_IOX_ID config or API before writing or querying data.");
     }

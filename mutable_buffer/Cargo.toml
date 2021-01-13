@@ -4,6 +4,16 @@ version = "0.1.0"
 authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
 edition = "2018"
 
+
+# Note the long term goal is that this crate is standalone and not
+# dependent on the IOx Query Engine (even though this is not the case
+# now).
+#
+# The rationale for this is:
+#
+# 1. Keep the API clean (and concerns separated) and allow for potential future reuse outside of IOx
+# 2. Keep change/compile/link time down during development when working on just this crate
+
 [dependencies]
 
 arrow_deps = { path = "../arrow_deps" }
@@ -17,7 +27,7 @@ async-trait = "0.1"
 chrono = "0.4"
 flatbuffers = "0.6.1"
 snafu = "0.6.2"
-string-interner = "0.12.0"
+string-interner = "0.12.2"
 tokio = { version = "0.2", features = ["full"] }
 tracing = "0.1"
 

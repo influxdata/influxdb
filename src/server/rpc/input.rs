@@ -5,8 +5,8 @@ use generated_types::{
     MeasurementTagValuesRequest, ReadFilterRequest, ReadGroupRequest, ReadSource,
     ReadWindowAggregateRequest, TagKeysRequest, TagValuesRequest,
 };
-use query::id::Id;
 
+use super::id::ID;
 use std::convert::TryInto;
 
 /// This trait implements extraction of information from all storage gRPC
@@ -30,7 +30,7 @@ pub trait GrpcInputs {
         })?)
     }
 
-    fn org_id(&self) -> Result<Id, Status> {
+    fn org_id(&self) -> Result<ID, Status> {
         Ok(self
             .read_source()?
             .org_id
@@ -39,7 +39,7 @@ pub trait GrpcInputs {
     }
 
     fn bucket_name(&self) -> Result<String, Status> {
-        let bucket: Id = self
+        let bucket: ID = self
             .read_source()?
             .bucket_id
             .try_into()

@@ -135,6 +135,8 @@ pub enum Error {
     ErrorDeserializing { source: serde_json::Error },
     #[snafu(display("store error: {}", source))]
     StoreError { source: object_store::Error },
+    #[snafu(display("database already exists"))]
+    DatabaseAlreadyExists { db_name: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -172,12 +174,12 @@ impl<M: ConnectionManager> Server<M> {
     /// path in object storage.
     ///
     /// A valid server ID Must be non-zero.
-    pub async fn set_id(&self, id: u32) {
+    pub fn set_id(&self, id: u32) {
         self.id.store(id, Ordering::Release)
     }
 
     /// Returns the current server ID, or an error if not yet set.
-    async fn require_id(&self) -> Result<u32> {
+    pub fn require_id(&self) -> Result<u32> {
         match self.id.load(Ordering::Acquire) {
             SERVER_ID_NOT_SET => Err(Error::IdNotSet),
             v => Ok(v),
@@ -192,7 +194,7 @@ impl<M: ConnectionManager> Server<M> {
         rules: DatabaseRules,
     ) -> Result<()> {
         // Return an error if this server hasn't yet been setup with an id
-        self.require_id().await?;
+        self.require_id()?;
 
         let db_name = DatabaseName::new(db_name.into()).context(InvalidDatabaseName)?;
 
@@ -209,7 +211,16 @@ impl<M: ConnectionManager> Server<M> {
         let db = Db::new(rules, mutable_buffer, read_buffer, wal_buffer, sequence);
 
         let mut config = self.config.write().await;
-        config.databases.insert(db_name, Arc::new(db));
+
+        // If the database already exists, do not overwrite it.
+        if config.databases.contains_key(&db_name) {
+            // TODO: update database configuration
+            return Err(Error::DatabaseAlreadyExists {
+                db_name: db_name.to_string(),
+            });
+        }
+
+        assert!(config.databases.insert(db_name, Arc::new(db)).is_none());
 
         Ok(())
     }
@@ -219,7 +230,7 @@ impl<M: ConnectionManager> Server<M> {
     /// manager can use to return a remote server to work with.
     pub async fn create_host_group(&mut self, id: HostGroupId, hosts: Vec<String>) -> Result<()> {
         // Return an error if this server hasn't yet been setup with an id
-        self.require_id().await?;
+        self.require_id()?;
 
         let mut config = self.config.write().await;
         config
@@ -233,7 +244,7 @@ impl<M: ConnectionManager> Server<M> {
     /// JSON file in the configured store under a directory /<writer
     /// ID/config.json
     pub async fn store_configuration(&self) -> Result<()> {
-        let id = self.require_id().await?;
+        let id = self.require_id()?;
 
         let config = self.config.read().await;
         let data = Bytes::from(serde_json::to_vec(&*config).context(ErrorSerializing)?);
@@ -281,7 +292,7 @@ impl<M: ConnectionManager> Server<M> {
     /// on the configuration of the `db`. This is step #1 from the crate
     /// level documentation.
     pub async fn write_lines(&self, db_name: &str, lines: &[ParsedLine<'_>]) -> Result<()> {
-        let id = self.require_id().await?;
+        let id = self.require_id()?;
 
         let db_name = DatabaseName::new(db_name).context(InvalidDatabaseName)?;
         // TODO: update server structure to not have to hold this lock to write to the
@@ -532,11 +543,41 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn duplicate_database_name_rejected() -> Result {
+        // Covers #643
+
+        let manager = TestConnectionManager::new();
+        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let server = Server::new(manager, store);
+        server.set_id(1);
+
+        let name = "bananas";
+
+        // Create a database
+        server
+            .create_database(name, DatabaseRules::default())
+            .await
+            .expect("failed to create database");
+
+        // Then try and create another with the same name
+        let got = server
+            .create_database(name, DatabaseRules::default())
+            .await
+            .unwrap_err();
+
+        if !matches!(got, Error::DatabaseAlreadyExists {..}) {
+            panic!("expected already exists error");
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn database_name_validation() -> Result {
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server = Server::new(manager, store);
-        server.set_id(1).await;
+        server.set_id(1);
 
         let reject: [&str; 5] = [
             "bananas!",
@@ -565,7 +606,7 @@ mod tests {
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server = Server::new(manager, store);
-        server.set_id(1).await;
+        server.set_id(1);
         let rules = DatabaseRules {
             store_locally: true,
             ..Default::default()
@@ -613,7 +654,7 @@ mod tests {
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
 
         let mut server = Server::new(manager, store);
-        server.set_id(1).await;
+        server.set_id(1);
         let host_group_id = "az1".to_string();
         let rules = DatabaseRules {
             replication: vec![host_group_id.clone()],
@@ -672,7 +713,7 @@ partition_key:
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
 
         let mut server = Server::new(manager, store);
-        server.set_id(1).await;
+        server.set_id(1);
         let host_group_id = "az1".to_string();
         let rules = DatabaseRules {
             subscriptions: vec![Subscription {
@@ -731,7 +772,7 @@ partition_key:
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
 
         let mut server = Server::new(manager, store);
-        server.set_id(1).await;
+        server.set_id(1);
         let host_group_id = "az1".to_string();
         let remote_id = "serverA";
         let rules = DatabaseRules {

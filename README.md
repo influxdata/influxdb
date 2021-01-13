@@ -115,18 +115,15 @@ InstalledDir: /Library/Developer/CommandLineTools/usr/bin
 
 ### Specifying Configuration
 
-IOx is designed for running in modern containerized environments. As
-such, it takes its configuration as enviroment variables.
+IOx is designed for running in modern containerized environments. As such, it
+takes its configuration as environment variables.
 
-You can see a list of the current configuration values by running `influxdb_iox config show`.
+You can see a list of the current configuration values by running `influxdb_iox
+--help`, as well as the specific subcommand config options such as `influxdb_iox
+server --help`.
 
-
-You can see a list of all available configuration items using the `influxdb_iox config help` 
-command.
-
-Should you desire specifying config via a file, you can do so using a `.env` formatted file in `$HOME/.influxdb_iox/config`. 
-Note that you can save the current config values by saving the output of 
-`influxdb_iox config show` into `$HOME/.influxdb_iox/config`
+Should you desire specifying config via a file, you can do so using a `.env`
+formatted file in the working directory.
 
 
 ### Compiling and Starting the Server

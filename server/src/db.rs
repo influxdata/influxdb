@@ -1,15 +1,18 @@
 //! This module contains the main IOx Database object which has the
 //! instances of the immutable buffer, read buffer, and object store
 
-use std::sync::{
-    atomic::{AtomicU64, Ordering},
-    Arc,
+use std::{
+    collections::BTreeMap,
+    sync::{
+        atomic::{AtomicU64, Ordering},
+        Arc,
+    },
 };
 
 use async_trait::async_trait;
 use data_types::{data::ReplicatedWrite, database_rules::DatabaseRules};
 use mutable_buffer::MutableBufferDb;
-use query::Database;
+use query::{Database, PartitionChunk};
 use read_buffer::Database as ReadBufferDb;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -103,6 +106,23 @@ impl Db {
         }
     }
 
+    // Return a list of all chunks in the mutable_buffer (that can
+    // potentially be migrated into the read buffer or object store)
+    pub async fn mutable_buffer_chunks(&self, partition_key: &str) -> Result<Vec<Arc<DBChunk>>> {
+        let chunks = if let Some(mutable_buffer) = self.mutable_buffer.as_ref() {
+            mutable_buffer
+                .chunks(partition_key)
+                .await
+                .context(MutableBufferRead)?
+                .into_iter()
+                .map(|c| Arc::new(DBChunk::MutableBuffer(c)))
+                .collect()
+        } else {
+            vec![]
+        };
+        Ok(chunks)
+    }
+
     /// Returns the next write sequence number
     pub fn next_sequence(&self) -> u64 {
         self.sequence.fetch_add(1, Ordering::SeqCst)
@@ -119,8 +139,25 @@ impl Eq for Db {}
 #[async_trait]
 impl Database for Db {
     type Error = Error;
+    type Chunk = DBChunk;
 
-    // Note that most of these functions will eventually be removed from
+    /// Return a covering set of chunks for a particular partition
+    async fn chunks(&self, partition_key: &str) -> Result<Vec<Arc<Self::Chunk>>, Self::Error> {
+        // return a coverting set of chunks. TODO include read buffer
+        // chunks and take them preferentially from the read buffer.
+        let mutable_chunk_iter = self.mutable_buffer_chunks(partition_key).await?.into_iter();
+
+        let chunks: BTreeMap<_, _> = mutable_chunk_iter
+            .map(|chunk| (chunk.id(), chunk))
+            .collect();
+
+        // inserting into the map will have removed any dupes
+        let chunks: Vec<_> = chunks.into_iter().map(|(_id, chunk)| chunk).collect();
+
+        Ok(chunks)
+    }
+
+    // Note that most of the functions below will eventually be removed from
     // this trait. For now, pass them directly on to the local store
 
     async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
@@ -202,19 +239,6 @@ impl Database for Db {
             .as_ref()
             .context(DatabaseNotReadable)?
             .query_groups(predicate, gby_agg)
-            .await
-            .context(MutableBufferRead)
-    }
-
-    async fn table_to_arrow(
-        &self,
-        table_name: &str,
-        columns: &[&str],
-    ) -> Result<Vec<arrow_deps::arrow::record_batch::RecordBatch>, Self::Error> {
-        self.mutable_buffer
-            .as_ref()
-            .context(DatabaseNotReadable)?
-            .table_to_arrow(table_name, columns)
             .await
             .context(MutableBufferRead)
     }

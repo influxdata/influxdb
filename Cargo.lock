@@ -552,16 +552,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "config"
-version = "0.1.0"
-dependencies = [
- "dirs 3.0.1",
- "dotenv",
- "snafu",
- "test_helpers",
-]
-
-[[package]]
 name = "const_fn"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1541,10 +1531,11 @@ dependencies = [
  "byteorder",
  "bytes",
  "clap",
- "config",
  "criterion",
  "csv",
  "data_types",
+ "dirs 3.0.1",
+ "dotenv",
  "env_logger",
  "flate2",
  "futures",
@@ -1556,6 +1547,7 @@ dependencies = [
  "influxdb_line_protocol",
  "influxdb_tsm",
  "ingest",
+ "lazy_static",
  "mem_qe",
  "mutable_buffer",
  "object_store",
@@ -1576,6 +1568,7 @@ dependencies = [
  "serde_urlencoded 0.7.0",
  "server",
  "snafu",
+ "structopt",
  "tempfile",
  "test_helpers",
  "tokio",
@@ -2619,8 +2612,6 @@ dependencies = [
  "croaring",
  "data_types",
  "influxdb_line_protocol",
- "serde",
- "serde_urlencoded 0.6.1",
  "snafu",
  "sqlparser",
  "test_helpers",
@@ -3429,9 +3420,9 @@ checksum = "213701ba3370744dcd1a12960caa4843b3d68b4d1c0a5d575e0d65b2ee9d16c0"
 
 [[package]]
 name = "string-interner"
-version = "0.12.1"
+version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "969ae753ff8a0c6d71d6e3bd799e565be6a02fd68bbf70c252e1d084c8bd5764"
+checksum = "383196d1876517ee6f9f0864d1fc1070331b803335d3c6daaa04bbcccd823c08"
 dependencies = [
  "cfg-if 1.0.0",
  "hashbrown",
@@ -3443,6 +3434,30 @@ name = "strsim"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ea5119cdb4c55b55d432abb513a0429384878c15dde60cc77b1c99de1a95a6a"
+
+[[package]]
+name = "structopt"
+version = "0.3.21"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5277acd7ee46e63e5168a80734c9f6ee81b1367a7d8772a2d765df2a3705d28c"
+dependencies = [
+ "clap",
+ "lazy_static",
+ "structopt-derive",
+]
+
+[[package]]
+name = "structopt-derive"
+version = "0.4.14"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5ba9cdfda491b814720b6b06e0cac513d922fc407582032e8706e9f137976f90"
+dependencies = [
+ "heck",
+ "proc-macro-error",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "subtle"

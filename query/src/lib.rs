@@ -16,7 +16,6 @@ pub mod exec;
 pub mod frontend;
 pub mod func;
 pub mod group_by;
-pub mod id;
 pub mod predicate;
 pub mod util;
 
@@ -34,18 +33,10 @@ use self::predicate::{Predicate, TimestampRange};
 #[async_trait]
 pub trait Database: Debug + Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
+    type Chunk: PartitionChunk;
 
-    /// Stores the replicated write in the write buffer and, if enabled, the
-    /// write ahead log.
+    /// Stores the replicated write into the database.
     async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error>;
-
-    /// Fetch the specified table names and columns as Arrow
-    /// RecordBatches. Columns are returned in the order specified.
-    async fn table_to_arrow(
-        &self,
-        table_name: &str,
-        columns: &[&str],
-    ) -> Result<Vec<RecordBatch>, Self::Error>;
 
     /// Return the partition keys for data in this DB
     async fn partition_keys(&self) -> Result<Vec<String>, Self::Error>;
@@ -56,9 +47,14 @@ pub trait Database: Debug + Send + Sync {
         partition_key: &str,
     ) -> Result<Vec<String>, Self::Error>;
 
+    /// Returns a covering set of chunks in the specified partition. A
+    /// covering set means that together the chunks make up a single
+    /// complete copy of the data being queried.
+    async fn chunks(&self, partition_key: &str) -> Result<Vec<Arc<Self::Chunk>>, Self::Error>;
+
     // ----------
-    // The functions below are slated for removal
-    // ---------
+    // The functions below are slated for removal (migration into a gRPC query
+    // frontend) ---------
 
     /// Returns a plan that lists the names of tables in this
     /// database that have at least one row that matches the
@@ -122,6 +118,7 @@ pub trait PartitionChunk: Debug + Send + Sync {
     fn table_stats(&self) -> Result<Vec<TableStats>, Self::Error>;
 
     /// converts the table to an Arrow RecordBatch and writes to dst
+    /// TODO turn this into a streaming interface
     fn table_to_arrow(
         &self,
         dst: &mut Vec<RecordBatch>,
