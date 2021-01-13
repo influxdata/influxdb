@@ -1748,9 +1748,8 @@ func (fs *MeasurementFieldSet) Save() (err error) {
 	// Is the MeasurementFieldSet empty?
 	isEmpty := false
 	// marshaled MeasurementFieldSet
-	var b []byte
 
-	err = func() error {
+	b, err := func() ([]byte, error) {
 		fs.mu.Lock()
 		defer fs.mu.Unlock()
 		fs.memoryVersion += 1
@@ -1759,14 +1758,13 @@ func (fs *MeasurementFieldSet) Save() (err error) {
 		if len(fs.fields) == 0 {
 			isEmpty = true
 			if err := os.RemoveAll(fs.path); err != nil {
-				return err
+				return nil, err
 			} else {
 				fs.writtenVersion = fs.memoryVersion
-				return nil
+				return nil, nil
 			}
 		}
-		b, err = fs.marshalMeasurementFieldSetNoLock()
-		return err
+		return fs.marshalMeasurementFieldSetNoLock()
 	}()
 
 	if err != nil {

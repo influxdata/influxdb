@@ -1738,7 +1738,7 @@ func TestMeasurementFieldSet_ConcurrentSave(t *testing.T) {
 		mf2 := mfs2.Fields([]byte(mt[i]))
 		for _, f := range fs {
 			if mf2.Field(f) == nil {
-				t.Fatalf("Created field not found on reload:ed MeasurementFieldSet %s", f)
+				t.Fatalf("Created field not found on reloaded MeasurementFieldSet %s", f)
 			}
 			if mf.Field(f) == nil {
 				t.Fatalf("Created field not found in original MeasureMentFieldSet: %s", f)
