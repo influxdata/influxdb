@@ -3,11 +3,9 @@ use std::num::NonZeroU32;
 use data_types::database_rules::DatabaseRules;
 use reqwest::{Method, Url};
 
-use crate::errors::RequestError;
-use crate::errors::{CreateDatabaseError, ServerErrorResponse};
+use crate::errors::{CreateDatabaseError, Error, ServerErrorResponse};
 
-// TODO: move DatabaseRules / WriterId into API client
-// TODO: move API errors? Definitely map API errors
+// TODO: move DatabaseRules / WriterId to the API client
 
 /// An IOx HTTP API client.
 ///
@@ -64,21 +62,18 @@ impl std::default::Default for Client {
 
 impl Client {
     /// Ping the IOx server, checking for a HTTP 200 response.
-    pub async fn ping(&self) -> Result<(), RequestError> {
+    pub async fn ping(&self) -> Result<(), Error> {
         const PING_PATH: &str = "ping";
 
-        let resp = self
+        let r = self
             .http
             .request(Method::GET, self.url_for(PING_PATH))
             .send()
-            .await;
+            .await?;
 
-        match resp {
-            Ok(r) if r.status() == 200 => Ok(()),
-            Ok(r) => Err(RequestError::UnexpectedStatusCode {
-                code: r.status().as_u16(),
-            }),
-            Err(e) => Err(e.into()),
+        match r {
+            r if r.status() == 200 => Ok(()),
+            r => Err(ServerErrorResponse::from_response(r).await.into()),
         }
     }
 
@@ -90,34 +85,27 @@ impl Client {
     ) -> Result<(), CreateDatabaseError> {
         const DB_PATH: &str = "iox/api/v1/databases/";
 
-        let url = self.url_for(DB_PATH).join(name.as_ref()).map_err(|_| {
-            CreateDatabaseError::InvalidName {
-                name: name.as_ref().to_string(),
-            }
-        })?;
+        let url = self
+            .url_for(DB_PATH)
+            .join(name.as_ref())
+            .map_err(|_| CreateDatabaseError::InvalidName)?;
 
-        let resp = self.http.request(Method::PUT, url).json(rules).send().await;
+        let r = self
+            .http
+            .request(Method::PUT, url)
+            .json(rules)
+            .send()
+            .await?;
 
-        // TODO: map response error to application error
-        //
-        // For example, an "invalid database name" error needs mapping to
-        // InvalidName
-
-        match resp {
-            Ok(r) if r.status() == 200 => Ok(()),
-            Ok(r) if r.status() == 400 => ServerErrorResponse::try_from_body(r)
-                .await
-                .map(|e| Err(RequestError::BadRequest { source: e }.into()))?,
-            Ok(r) => Err(RequestError::UnexpectedStatusCode {
-                code: r.status().as_u16(),
-            }
-            .into()),
-            Err(e) => Err(RequestError::HttpRequestError { source: e.into() }.into()),
+        // Filter out the good states, and convert all others into errors.
+        match r {
+            r if r.status() == 200 => Ok(()),
+            r => Err(ServerErrorResponse::from_response(r).await.into()),
         }
     }
 
     /// Set the server's writer ID.
-    pub async fn set_writer_id(&self, id: NonZeroU32) -> Result<(), CreateDatabaseError> {
+    pub async fn set_writer_id(&self, id: NonZeroU32) -> Result<(), Error> {
         const SET_WRITER_PATH: &str = "iox/api/v1/id";
 
         let url = self.url_for(SET_WRITER_PATH);
@@ -128,20 +116,16 @@ impl Client {
             id: u32,
         };
 
-        let resp = self
+        let r = self
             .http
             .request(Method::PUT, url)
             .json(&WriterIdBody { id: id.get() })
             .send()
-            .await;
+            .await?;
 
-        match resp {
-            Ok(r) if r.status() == 200 => Ok(()),
-            Ok(r) => Err(RequestError::UnexpectedStatusCode {
-                code: r.status().as_u16(),
-            }
-            .into()),
-            Err(e) => Err(RequestError::HttpRequestError { source: e.into() }.into()),
+        match r {
+            r if r.status() == 200 => Ok(()),
+            r => Err(ServerErrorResponse::from_response(r).await.into()),
         }
     }
 
@@ -204,6 +188,16 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_set_writer_id() {
+        let endpoint = maybe_skip_integration!();
+        let c = ClientBuilder::default().build(endpoint).unwrap();
+
+        c.set_writer_id(NonZeroU32::new(42).unwrap())
+            .await
+            .expect("set ID failed");
+    }
+
+    #[tokio::test]
     async fn test_create_database() {
         let endpoint = maybe_skip_integration!();
         let c = ClientBuilder::default().build(endpoint).unwrap();
@@ -220,13 +214,26 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_set_writer_id() {
+    async fn test_create_database_duplicate_name() {
         let endpoint = maybe_skip_integration!();
         let c = ClientBuilder::default().build(endpoint).unwrap();
 
-        c.set_writer_id(NonZeroU32::new(42).unwrap())
+        let rand_name: String = thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(10)
+            .map(char::from)
+            .collect();
+
+        c.create_database(rand_name.clone(), &DatabaseRules::default())
             .await
-            .expect("set ID failed");
+            .expect("create database failed");
+
+        let err = c
+            .create_database(rand_name, &DatabaseRules::default())
+            .await
+            .expect_err("create database failed");
+
+        assert!(matches!(dbg!(err), CreateDatabaseError::AlreadyExists))
     }
 
     #[tokio::test]
@@ -239,7 +246,7 @@ mod tests {
             .await
             .expect_err("expected request to fail");
 
-        assert!(matches!(err, CreateDatabaseError::Unknown{source: RequestError::BadRequest{..}}))
+        assert!(matches!(dbg!(err), CreateDatabaseError::InvalidName))
     }
 
     #[test]

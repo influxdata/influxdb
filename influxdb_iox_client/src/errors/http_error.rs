@@ -1,7 +1,7 @@
 /// A HTTP request error.
 ///
-/// This is returned when a HTTP request to the IOx server has failed.
-//
+/// This is a non-application level error returned when a HTTP request to the
+/// IOx server has failed.
 #[derive(Debug)]
 pub struct HttpError(reqwest::Error);
 
@@ -20,11 +20,12 @@ impl std::fmt::Display for HttpError {
 }
 
 impl std::error::Error for HttpError {
-    fn source(&self) -> Option<&(dyn snafu::Error + 'static)> {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         Some(&self.0)
     }
 }
 
+/// Convert errors from the underlying HTTP client into `HttpError` instances.
 impl From<reqwest::Error> for HttpError {
     fn from(v: reqwest::Error) -> Self {
         Self(v)

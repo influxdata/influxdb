@@ -10,7 +10,8 @@ edition = "2018"
 data_types = { path = "../data_types" }
 reqwest = { version = "0.10.10", features = ["gzip", "json"] } # Latest release using tokio 0.2
 serde = "1.0.118"
-snafu = "0.6.10"
+serde_json = "1.0.61"
+thiserror = "1.0.23"
 tokio = { version = "0.2", features = ["net", "tcp", "macros"] }
 
 [dev-dependencies]
