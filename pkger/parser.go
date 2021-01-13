@@ -861,7 +861,6 @@ func (p *Template) graphLabels() *parseErr {
 
 func (p *Template) graphChecks() *parseErr {
 	p.mChecks = make(map[string]*check)
-	// todo: what is the business goal wrt having unique names? (currently duplicates are allowed)
 	tracker := p.trackNames(false)
 
 	checkKinds := []struct {
@@ -953,7 +952,7 @@ func (p *Template) graphDashboards() *parseErr {
 		sort.Sort(dash.labels)
 
 		for i, cr := range o.Spec.slcResource(fieldDashCharts) {
-			ch, fails := p.parseChart(dash.MetaName(), i, cr)
+			ch, fails := p.parseChart(dash.MetaName(), i, cr, nil)
 			if fails != nil {
 				failures = append(failures,
 					objectValidationErr(fieldSpec, validationErr{
@@ -968,7 +967,30 @@ func (p *Template) graphDashboards() *parseErr {
 		}
 
 		p.mDashboards[dash.MetaName()] = dash
-		p.setRefs(dash.refs()...)
+
+		var refs []*references
+		o.Spec.references(fieldParams)
+		for _, pr := range o.Spec.slcResource(fieldParams) {
+			field := pr.stringShort(fieldKey)
+			if field == "" {
+				continue
+			}
+
+			ref := &references{EnvRef: "dashboards[" + dash.MetaName() + "].params." + field}
+
+			if def, ok := pr[fieldDefault]; ok {
+				ref.defaultVal = def
+			}
+			if valtype, ok := pr.string(fieldType); ok {
+				ref.valType = valtype
+			}
+
+			refs = append(refs, ref)
+		}
+
+		dash.params = refs
+		refs = append(refs, dash.queryRefs()...)
+		p.setRefs(refs...)
 
 		return append(failures, dash.valid()...)
 	})
@@ -1116,7 +1138,7 @@ func (p *Template) graphTasks() *parseErr {
 
 		prefix := fmt.Sprintf("tasks[%s].spec", t.MetaName())
 		params := o.Spec.slcResource(fieldParams)
-		task := o.Spec.slcResource("task")
+		task := o.Spec.slcResource(fieldTask)
 
 		var (
 			err      error
@@ -1434,7 +1456,7 @@ func (p *Template) setRefs(refs ...*references) {
 	}
 }
 
-func (p *Template) parseChart(dashMetaName string, chartIdx int, r Resource) (*chart, []validationErr) {
+func (p *Template) parseChart(dashMetaName string, chartIdx int, r Resource, dashParams []Resource) (*chart, []validationErr) {
 	ck, err := r.chartKind()
 	if err != nil {
 		return nil, []validationErr{{
@@ -1501,7 +1523,7 @@ func (p *Template) parseChart(dashMetaName string, chartIdx int, r Resource) (*c
 	if presentQueries, ok := r[fieldChartQueries].(queries); ok {
 		c.Queries = presentQueries
 	} else {
-		q, vErrs := p.parseChartQueries(dashMetaName, chartIdx, r.slcResource(fieldChartQueries))
+		q, vErrs := p.parseChartQueries(dashMetaName, chartIdx, r.slcResource(fieldChartQueries), dashParams)
 		if len(vErrs) > 0 {
 			failures = append(failures, validationErr{
 				Field:  "queries",
@@ -1580,18 +1602,24 @@ func (p *Template) parseChart(dashMetaName string, chartIdx int, r Resource) (*c
 	return &c, nil
 }
 
-func (p *Template) parseChartQueries(dashMetaName string, chartIdx int, resources []Resource) (queries, []validationErr) {
+func (p *Template) parseChartQueries(dashMetaName string, chartIdx int, resources, dashParams []Resource) (queries, []validationErr) {
 	var (
 		q     queries
 		vErrs []validationErr
 	)
 	for i, rq := range resources {
+		// since parseQuery turns the params into a map and we want any granular params to
+		// take priority, we need to start the slice with the more generic dashParams.
+		// todo: unique by param name (not full envRefKey??) or convert to chart param envRefKey/prefix??
+		params := dashParams
+		params = append(params, rq.slcResource(fieldParams)...)
+
 		source := rq.stringShort(fieldQuery)
 		if source == "" {
 			continue
 		}
 		prefix := fmt.Sprintf("dashboards[%s].spec.charts[%d].queries[%d]", dashMetaName, chartIdx, i)
-		qq, err := p.parseQuery(prefix, source, rq.slcResource(fieldParams), nil)
+		qq, err := p.parseQuery(prefix, source, params, nil)
 		if err != nil {
 			vErrs = append(vErrs, validationErr{
 				Field: "query",
@@ -1659,7 +1687,6 @@ func (p *Template) parseQuery(prefix, source string, params, task []Resource) (q
 		}
 	}
 
-	// override defaults here maybe?
 	for _, pr := range params {
 		field := pr.stringShort(fieldKey)
 		if field == "" {
