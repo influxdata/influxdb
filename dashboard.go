@@ -383,6 +383,7 @@ const (
 	ViewPropertyTypeXY                 = "xy"
 	ViewPropertyTypeMosaic             = "mosaic"
 	ViewPropertyTypeBand               = "band"
+	ViewPropertyTypeGeo                = "geo"
 )
 
 // ViewProperties is used to mark other structures as conforming to a View.
@@ -450,6 +451,12 @@ func UnmarshalViewPropertiesJSON(b []byte) (ViewProperties, error) {
 				return nil, err
 			}
 			vis = gv
+		case ViewPropertyTypeGeo:
+			var gvw GeoViewProperties
+			if err := json.Unmarshal(v.B, &gvw); err != nil {
+				return nil, err
+			}
+			vis = gvw
 		case ViewPropertyTypeTable:
 			var tv TableViewProperties
 			if err := json.Unmarshal(v.B, &tv); err != nil {
@@ -548,6 +555,14 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 			Shape: "chronograf-v2",
 
 			GaugeViewProperties: vis,
+		}
+	case GeoViewProperties:
+		s = struct {
+			Shape string `json:"shape"`
+			GeoViewProperties
+		}{
+			Shape:             "chronograf-v2",
+			GeoViewProperties: vis,
 		}
 	case XYViewProperties:
 		s = struct {
@@ -950,6 +965,49 @@ type GaugeViewProperties struct {
 	ShowNoteWhenEmpty bool             `json:"showNoteWhenEmpty"`
 }
 
+// Geographical coordinates
+type Datum struct {
+	Lat float64 `json:"lat"`
+	Lon float64 `json:"lon"`
+}
+
+// Single visualization layer properties of a chronograf map widget
+type GeoLayer struct {
+	Type           string `json:"type"`
+	RadiusField    string `json:"radiusField"`
+	ColorField     string `json:"colorField"`
+	IntensityField string `json:"intensityField"`
+	// circle layer properties
+	ViewColors         []ViewColor `json:"colors"`
+	Radius             int32       `json:"radius"`
+	Blur               int32       `json:"blur"`
+	RadiusDimension    Axis        `json:"radiusDimension,omitempty"`
+	ColorDimension     Axis        `json:"colorDimension,omitempty"`
+	IntensityDimension Axis        `json:"intensityDimension,omitempty"`
+	InterpolateColors  bool        `json:"interpolateColors"`
+	// track layer properties
+	TrackWidth   int32 `json:"trackWidth"`
+	Speed        int32 `json:"speed"`
+	RandomColors bool  `json:"randomColors"`
+	// point layer properties
+	IsClustered bool `json:"isClustered"`
+}
+
+// GeoViewProperties represents options for map view in Chronograf
+type GeoViewProperties struct {
+	Type                   string           `json:"type"`
+	Queries                []DashboardQuery `json:"queries"`
+	Center                 Datum            `json:"center"`
+	Zoom                   float64          `json:"zoom"`
+	MapStyle               string           `json:"mapStyle"`
+	AllowPanAndZoom        bool             `json:"allowPanAndZoom"`
+	DetectCoordinateFields bool             `json:"detectCoordinateFields"`
+	ViewColor              []ViewColor      `json:"colors"`
+	GeoLayers              []GeoLayer       `json:"layers"`
+	Note                   string           `json:"note"`
+	ShowNoteWhenEmpty      bool             `json:"showNoteWhenEmpty"`
+}
+
 // TableViewProperties represents options for table view in Chronograf
 type TableViewProperties struct {
 	Type              string           `json:"type"`
@@ -997,6 +1055,7 @@ func (HeatmapViewProperties) viewProperties()        {}
 func (ScatterViewProperties) viewProperties()        {}
 func (MosaicViewProperties) viewProperties()         {}
 func (GaugeViewProperties) viewProperties()          {}
+func (GeoViewProperties) viewProperties()            {}
 func (TableViewProperties) viewProperties()          {}
 func (MarkdownViewProperties) viewProperties()       {}
 func (LogViewProperties) viewProperties()            {}
@@ -1011,6 +1070,7 @@ func (v HeatmapViewProperties) GetType() string        { return v.Type }
 func (v ScatterViewProperties) GetType() string        { return v.Type }
 func (v MosaicViewProperties) GetType() string         { return v.Type }
 func (v GaugeViewProperties) GetType() string          { return v.Type }
+func (v GeoViewProperties) GetType() string            { return v.Type }
 func (v TableViewProperties) GetType() string          { return v.Type }
 func (v MarkdownViewProperties) GetType() string       { return v.Type }
 func (v LogViewProperties) GetType() string            { return v.Type }
