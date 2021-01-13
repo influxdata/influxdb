@@ -1,9 +1,8 @@
 //! Implementation of command line option for manipulating and showing server
 //! config
 
-use std::{io::ErrorKind, net::SocketAddr, path::PathBuf};
+use std::{net::SocketAddr, path::PathBuf};
 
-use dotenv::dotenv;
 use lazy_static::lazy_static;
 use structopt::StructOpt;
 
@@ -31,7 +30,7 @@ lazy_static! {
     set either with the command line flags or with the specified environment \
     variable. If there is a file named '.env' in the current working directory, \
     it is sourced before loading the configuration.
-    
+
 Configuration is loaded from the following sources (highest precedence first):
         - command line arguments
         - user set environment variables
@@ -49,6 +48,22 @@ pub struct Config {
     #[structopt(long = "--log", env = "RUST_LOG")]
     pub rust_log: Option<String>,
 
+    /// This sets logging up with a pre-configured set of convenient log levels.
+    ///
+    /// -v  means 'info' log levels
+    /// -vv means 'verbose' log level (with the exception of some particularly
+    /// low level libraries)
+    ///
+    /// This option is ignored if  --log / RUST_LOG are set
+    #[structopt(
+        short = "-v",
+        long = "--verbose",
+        multiple = true,
+        takes_value = false,
+        parse(from_occurrences)
+    )]
+    pub verbose_count: u64,
+
     /// The identifier for the server.
     ///
     /// Used for writing to object storage and as an identifier that is added to
@@ -60,16 +75,16 @@ pub struct Config {
 
     /// The address on which IOx will serve HTTP API requests.
     #[structopt(
-        long = "--api-bind", 
-        env = "INFLUXDB_IOX_BIND_ADDR", 
+        long = "--api-bind",
+        env = "INFLUXDB_IOX_BIND_ADDR",
         default_value = DEFAULT_API_BIND_ADDR,
     )]
     pub http_bind_address: SocketAddr,
 
     /// The address on which IOx will serve Storage gRPC API requests.
     #[structopt(
-        long = "--grpc-bind", 
-        env = "INFLUXDB_IOX_GRPC_BIND_ADDR", 
+        long = "--grpc-bind",
+        env = "INFLUXDB_IOX_GRPC_BIND_ADDR",
         default_value = DEFAULT_GRPC_BIND_ADDR,
     )]
     pub grpc_bind_address: SocketAddr,
@@ -82,40 +97,114 @@ pub struct Config {
     /// as SERVICE_ACCOUNT must be set.
     #[structopt(long = "--gcp-bucket", env = "INFLUXDB_IOX_GCP_BUCKET")]
     pub gcp_bucket: Option<String>,
+
+    /// If set, Jaeger traces are emitted to this host
+    /// using the OpenTelemetry tracer.
+    ///
+    /// NOTE: The OpenTelemetry agent CAN ONLY be
+    /// configured using environment variables. It CAN NOT be configured
+    /// using the command line at this time. Some useful variables:
+    ///
+    /// * OTEL_SERVICE_NAME: emitter service name (iox by default)
+    /// * OTEL_EXPORTER_JAEGER_AGENT_HOST: hostname/address of the collector
+    /// * OTEL_EXPORTER_JAEGER_AGENT_PORT: listening port of the collector.
+    ///
+    /// The entire list of variables can be found in
+    /// https://github.com/open-telemetry/opentelemetry-specification/blob/master/specification/sdk-environment-variables.md#jaeger-exporter
+    #[structopt(
+        long = "--oetl_exporter_jaeger_agent",
+        env = "OTEL_EXPORTER_JAEGER_AGENT_HOST"
+    )]
+    pub jaeger_host: Option<String>,
 }
 
-/// Load the config.
+/// Load the config if `server` was not specified on the command line
+/// (from environment variables and default)
 ///
 /// This pulls in config from the following sources, in order of precedence:
 ///
-///     - command line arguments
 ///     - user set environment variables
 ///     - .env file contents
 ///     - pre-configured default values
 pub fn load_config() -> Config {
-    // Source the .env file before initialising the Config struct - this sets
-    // any envs in the file, which the Config struct then uses.
-    //
-    // Precedence is given to existing env variables.
-    match dotenv() {
-        Ok(_) => {}
-        Err(dotenv::Error::Io(err)) if err.kind() == ErrorKind::NotFound => {
-            // Ignore this - a missing env file is not an error, defaults will
-            // be applied when initialising the Config struct.
-        }
-        Err(e) => {
-            eprintln!("FATAL Error loading config: {}", e);
-            eprintln!("Aborting");
-            std::process::exit(1);
-        }
-    };
-
     // Load the Config struct - this pulls in any envs set by the user or
     // sourced above, and applies any defaults.
     //
-    // Strip the "server" portion of the args so the generated Clap instance
-    // plays nicely with the subcommand bits in main.
-    let args = std::env::args().skip(1);
 
-    Config::from_iter(args)
+    //let args = std::env::args().filter(|arg| arg != "server");
+    Config::from_iter(strip_server(std::env::args()).iter())
+}
+
+/// Strip everything prior to the "server" portion of the args so the generated
+/// Clap instance plays nicely with the subcommand bits in main.
+fn strip_server(args: impl Iterator<Item = String>) -> Vec<String> {
+    let mut seen_server = false;
+    args.enumerate()
+        .filter_map(|(i, arg)| {
+            if i != 0 && !seen_server {
+                if arg == "server" {
+                    seen_server = true;
+                }
+                None
+            } else {
+                Some(arg)
+            }
+        })
+        .collect::<Vec<_>>()
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+    #[test]
+    fn test_strip_server() {
+        assert_eq!(
+            strip_server(to_vec(&["cmd",]).into_iter()),
+            to_vec(&["cmd"])
+        );
+        assert_eq!(
+            strip_server(to_vec(&["cmd", "-v"]).into_iter()),
+            to_vec(&["cmd"])
+        );
+        assert_eq!(
+            strip_server(to_vec(&["cmd", "-v", "server"]).into_iter()),
+            to_vec(&["cmd"])
+        );
+        assert_eq!(
+            strip_server(to_vec(&["cmd", "-v", "server", "-v"]).into_iter()),
+            to_vec(&["cmd", "-v"])
+        );
+        assert_eq!(
+            strip_server(to_vec(&["cmd", "-v", "server", "-vv"]).into_iter()),
+            to_vec(&["cmd", "-vv"])
+        );
+
+        // and it doesn't strip repeated instances of server
+        assert_eq!(
+            strip_server(to_vec(&["cmd", "-v", "server", "--gcp_path"]).into_iter()),
+            to_vec(&["cmd", "--gcp_path"])
+        );
+        assert_eq!(
+            strip_server(to_vec(&["cmd", "-v", "server", "--gcp_path", "server"]).into_iter()),
+            to_vec(&["cmd", "--gcp_path", "server"])
+        );
+
+        assert_eq!(
+            strip_server(to_vec(&["cmd", "-vv"]).into_iter()),
+            to_vec(&["cmd"])
+        );
+        assert_eq!(
+            strip_server(to_vec(&["cmd", "-vv", "server"]).into_iter()),
+            to_vec(&["cmd"])
+        );
+        assert_eq!(
+            strip_server(to_vec(&["cmd", "-vv", "server", "-vv"]).into_iter()),
+            to_vec(&["cmd", "-vv"])
+        );
+    }
+
+    fn to_vec(v: &[&str]) -> Vec<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
 }

@@ -32,6 +32,12 @@ impl LoggingLevel {
         }
     }
 
+    /// Return a LoggingLevel that represents the most verbose logging
+    /// of `self` and `other`
+    pub fn combine(self, other: Self) -> Self {
+        Self::new(std::cmp::max(self as u64, other as u64))
+    }
+
     /// set RUST_LOG to the level represented by self, unless RUST_LOG
     /// is already set
     fn set_rust_log_if_needed(&self, level: Option<String>) {
@@ -52,6 +58,8 @@ impl LoggingLevel {
                         "WARNING: Using RUST_LOG='{}' environment, ignoring -v command line",
                         lvl
                     );
+                } else {
+                    std::env::set_var("RUST_LOG", lvl);
                 }
             }
             None => {
