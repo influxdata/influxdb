@@ -3,9 +3,11 @@
 ### Docker
 
 #### ARM64
+
 This release extends the Docker builds hosted in `quay.io` to support the `linux/arm64` platform.
 
 #### 2.x nightly images
+
 Prior to this release, competing nightly builds caused the `nightly` Docker tag to contain outdated
 binaries. This conflict has been fixed, and the image tagged with `nightly` will now contain `2.x`
 binaries built from the `HEAD` of the `master` branch.
@@ -13,11 +15,17 @@ binaries built from the `HEAD` of the `master` branch.
 ### Breaking Changes
 
 #### inmem index option removed
+
 This release fully removes the `inmem` indexing option, along with the associated config options:
-* `max-series-per-database`
-* `max-values-per-tag`
+
+- `max-series-per-database`
+- `max-values-per-tag`
 
 Replacement `tsi1` indexes will be automatically generated on startup for shards that need it.
+
+### Features
+
+1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells
 
 ### Bug Fixes
 
@@ -47,10 +55,12 @@ This release includes our initial ARM64 preview build.
 ### Breaking Changes
 
 #### influxd upgrade
+
 Previously, `influxd upgrade` would attempt to write upgraded `config.toml` files into the same directory as the source
 `influxdb.conf` file. If this failed, a warning would be logged and `config.toml` would be written into the `HOME` directory.
 
 This release breaks this behavior in two ways:
+
 1. By default, `config.toml` is now written into the same directory as the Bolt DB and engine files (`~/.influxdbv2/`)
 2. If writing upgraded config fails, the `upgrade` process exits with an error instead of falling back to the `HOME` directory
 
@@ -58,7 +68,8 @@ Users can use the new `--v2-config-path` option to override the output path for 
 want to use the default.
 
 #### v2 packaging
-Based on community feedback, the v2 deb and rpm packaging has been improved to avoid confusion between versions.  The package
+
+Based on community feedback, the v2 deb and rpm packaging has been improved to avoid confusion between versions. The package
 name is now influxdb2 and conflicts with any previous influxdb package (including initial 2.0.0, 2.0.1, and 2.0.2 packages).
 Additionally, v2 specific path defaults are now defined and helper scripts are provided for `influxd upgrade` and cleanup cases.
 
@@ -318,6 +329,7 @@ need to update any InfluxDB CLI config profiles with the new port number.
 1. [19317](https://github.com/influxdata/influxdb/pull/19317): Add validation to Variable name creation for valid Flux identifiers.
 
 ### UI Improvements
+
 1. [19231](https://github.com/influxdata/influxdb/pull/19231): Alerts page filter inputs now have tab indices for keyboard navigation
 1. [19364](https://github.com/influxdata/influxdb/pull/19364): Errors in OSS are now properly printed to the console
 
