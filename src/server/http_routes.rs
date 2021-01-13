@@ -205,19 +205,19 @@ impl ApplicationError {
         use influxdb_iox_client::errors::ApiErrorCode;
 
         match self {
-            ApplicationError::DatabaseNameError { .. } => ApiErrorCode::DB_INVALID_NAME,
-            ApplicationError::DatabaseNotFound { .. } => ApiErrorCode::DB_NOT_FOUND,
+            Self::DatabaseNameError { .. } => ApiErrorCode::DB_INVALID_NAME,
+            Self::DatabaseNotFound { .. } => ApiErrorCode::DB_NOT_FOUND,
 
             // Some errors are wrapped
-            ApplicationError::ErrorCreatingDatabase {
+            Self::ErrorCreatingDatabase {
                 source: server::Error::InvalidDatabaseName { .. },
             } => ApiErrorCode::DB_INVALID_NAME,
 
-            ApplicationError::ErrorCreatingDatabase {
+            Self::ErrorCreatingDatabase {
                 source: server::Error::DatabaseNotFound { .. },
             } => ApiErrorCode::DB_NOT_FOUND,
 
-            ApplicationError::ErrorCreatingDatabase {
+            Self::ErrorCreatingDatabase {
                 source: server::Error::DatabaseAlreadyExists { .. },
             } => ApiErrorCode::DB_ALREADY_EXISTS,
 
