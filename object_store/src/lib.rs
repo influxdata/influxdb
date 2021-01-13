@@ -432,6 +432,7 @@ mod tests {
         let files: Vec<_> = [
             "mydb/wal/000/000/000.segment",
             "mydb/wal/000/000/001.segment",
+            "mydb/wal/000/000/002.segment",
             "mydb/wal/001/001/000.segment",
             "mydb/wal/foo.test",
             "mydb/data/whatevs",
@@ -526,6 +527,7 @@ mod tests {
             "test_file",
             "mydb/wal/000/000/000.segment",
             "mydb/wal/000/000/001.segment",
+            "mydb/wal/000/000/002.segment",
             "mydb/wal/001/001/000.segment",
             "mydb/wal/foo.test",
             "mydb/data/whatevs",
