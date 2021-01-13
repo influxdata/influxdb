@@ -3,8 +3,11 @@ use std::{borrow::Cow, collections::BTreeMap, convert::TryFrom, sync::Arc};
 use hashbrown::{hash_map, HashMap};
 use itertools::Itertools;
 
-use arrow_deps::arrow;
 use arrow_deps::arrow::record_batch::RecordBatch;
+use arrow_deps::{
+    arrow, datafusion::logical_plan::Expr as DfExpr,
+    datafusion::scalar::ScalarValue as DFScalarValue,
+};
 
 use crate::column::{
     self, cmp::Operator, AggregateResult, AggregateType, Column, EncodedValues, LogicalDataType,
@@ -917,7 +920,7 @@ fn unpack_u128_group_key(group_key_packed: u128, n: usize, mut dst: Vec<u32>) ->
     dst
 }
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, PartialEq)]
 pub struct Predicate(Vec<BinaryExpr>);
 
 impl Predicate {
@@ -942,12 +945,18 @@ impl Predicate {
         Self(time_exprs)
     }
 
+    /// A `Predicate` is empty if it has no expressions.
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
     pub fn iter(&self) -> std::slice::Iter<'_, BinaryExpr> {
         self.0.iter()
+    }
+
+    /// Returns a vector of all expressions on the predicate.
+    pub fn expressions(&self) -> Vec<&BinaryExpr> {
+        self.iter().collect::<Vec<_>>()
     }
 
     // Removes all expressions for specified column from the predicate and
@@ -982,7 +991,7 @@ impl Predicate {
 
 /// Supported literal values for expressions. These map to a sub-set of logical
 /// datatypes supported by the `ReadBuffer`.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Literal {
     String(String),
     Integer(i64),
@@ -991,9 +1000,39 @@ pub enum Literal {
     Boolean(bool),
 }
 
+impl<'a> TryFrom<&DFScalarValue> for Literal {
+    type Error = String;
+
+    fn try_from(value: &DFScalarValue) -> Result<Self, Self::Error> {
+        match value {
+            DFScalarValue::Boolean(v) => match v {
+                Some(v) => Ok(Self::Boolean(*v)),
+                None => Err("NULL literal not supported".to_owned()),
+            },
+            DFScalarValue::Float64(v) => match v {
+                Some(v) => Ok(Self::Float(*v)),
+                None => Err("NULL literal not supported".to_owned()),
+            },
+            DFScalarValue::Int64(v) => match v {
+                Some(v) => Ok(Self::Integer(*v)),
+                None => Err("NULL literal not supported".to_owned()),
+            },
+            DFScalarValue::UInt64(v) => match v {
+                Some(v) => Ok(Self::Unsigned(*v)),
+                None => Err("NULL literal not supported".to_owned()),
+            },
+            DFScalarValue::Utf8(v) => match v {
+                Some(v) => Ok(Self::String(v.clone())),
+                None => Err("NULL literal not supported".to_owned()),
+            },
+            _ => Err("scalar type not supported".to_owned()),
+        }
+    }
+}
+
 /// An expression that contains a column name on the left side, an operator, and
 /// a literal value on the right side.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct BinaryExpr {
     col: String,
     op: Operator,
@@ -1069,6 +1108,29 @@ binary_expr_from_impls! {
     (f64, Float),
     (u64, Unsigned),
     (bool, Boolean),
+}
+
+impl TryFrom<&DfExpr> for BinaryExpr {
+    type Error = String;
+
+    fn try_from(df_expr: &DfExpr) -> Result<Self, Self::Error> {
+        let (column_name, op, value) = match df_expr {
+            DfExpr::BinaryExpr { left, op, right } => (
+                match &**left {
+                    DfExpr::Column(name) => name,
+                    _ => return Err(format!("unsupported left expression {:?}", *left)),
+                },
+                Operator::try_from(op)?,
+                match &**right {
+                    DfExpr::Literal(scalar) => Literal::try_from(scalar)?,
+                    _ => return Err(format!("unsupported right expression {:?}", *right)),
+                },
+            ),
+            _ => return Err(format!("unsupported expression type {:?}", df_expr)),
+        };
+
+        Ok(Self::new(column_name, op, value))
+    }
 }
 
 // A GroupKey is an ordered collection of row values. The order determines which
