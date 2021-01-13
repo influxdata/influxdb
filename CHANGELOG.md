@@ -25,7 +25,8 @@ Replacement `tsi1` indexes will be automatically generated on startup for shards
 
 ### Features
 
-1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells
+1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells.
+1. [20473](https://github.com/influxdata/influxdb/pull/20473): Add `--overwrite-existing-v2` flag to `influxd upgrade` to overwrite existing files at output paths (instead of aborting).
 
 ### Bug Fixes
 
@@ -45,7 +46,6 @@ Replacement `tsi1` indexes will be automatically generated on startup for shards
 1. [20409](https://github.com/influxdata/influxdb/pull/20409): Improve messages in DBRP API validation errors.
 1. [20489](https://github.com/influxdata/influxdb/pull/20489): Improve error message when opening BoltDB with unsupported file system options.
 1. [20490](https://github.com/influxdata/influxdb/pull/20490): Fix silent failure to register CLI args as required.
-1. [20473](https://github.com/influxdata/influxdb/pull/20473): Don't fail on existing files at output paths when running `influxd upgrade --force`.
 
 ## v2.0.3 [2020-12-14]
 
