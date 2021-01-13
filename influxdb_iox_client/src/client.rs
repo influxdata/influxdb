@@ -170,7 +170,7 @@ mod tests {
             ) {
                 (true, _) => std::env::var("TEST_IOX_ENDPOINT").unwrap(),
                 (false, true) => {
-                    panic!("TEST_INTEGRATION is set, but TEST_IOX_ENDPOINT are not")
+                    panic!("TEST_INTEGRATION is set which requires running integration tests, but TEST_IOX_ENDPOINT is not")
                 }
                 _ => {
                     eprintln!("skipping integration test - set TEST_IOX_ENDPOINT to run");
