@@ -77,8 +77,7 @@ impl ObjectStorePath {
     }
 
     /// Returns true if the directories in `prefix` are the same as the starting
-    /// directories of `self`. Does not use filenames; does not match
-    /// partial directory names.
+    /// directories of `self`.
     pub fn prefix_matches(&self, prefix: &Self) -> bool {
         use PathRepresentation::*;
         match (&self.inner, &prefix.inner) {
@@ -220,8 +219,21 @@ impl DirsAndFileName {
 
         use itertools::Diff;
         match diff {
-            None => true,
-            Some(Diff::Shorter(..)) => true,
+            None => match (self.file_name.as_ref(), prefix.file_name.as_ref()) {
+                (Some(self_file), Some(prefix_file)) => self_file.0.starts_with(&prefix_file.0),
+                (Some(_self_file), None) => true,
+                (None, Some(_prefix_file)) => false,
+                (None, None) => true,
+            },
+            Some(Diff::Shorter(_, mut remaining_self)) => {
+                let next_dir = remaining_self
+                    .next()
+                    .expect("must have at least one mismatch to be in this case");
+                match prefix.file_name.as_ref() {
+                    Some(prefix_file) => next_dir.0.starts_with(&prefix_file.0),
+                    None => true,
+                }
+            }
             Some(Diff::FirstMismatch(_, mut remaining_self, mut remaining_prefix)) => {
                 let first_prefix = remaining_prefix
                     .next()
@@ -626,6 +638,59 @@ mod tests {
         assert!(
             haystack.prefix_matches(&needle),
             "{:?} should have started with {:?}",
+            haystack,
+            needle
+        );
+    }
+
+    #[test]
+    fn prefix_matches_with_file_name() {
+        let mut haystack = ObjectStorePath::default();
+        haystack.push_all_dirs(&["foo/bar", "baz%2Ftest", "something"]);
+
+        let mut needle = haystack.clone();
+
+        // All directories match and file name is a prefix
+        haystack.set_file_name("foo.segment");
+        needle.set_file_name("foo");
+
+        assert!(
+            haystack.prefix_matches(&needle),
+            "{:?} should have started with {:?}",
+            haystack,
+            needle
+        );
+
+        // All directories match but file name is not a prefix
+        needle.set_file_name("e");
+
+        assert!(
+            !haystack.prefix_matches(&needle),
+            "{:?} should not have started with {:?}",
+            haystack,
+            needle
+        );
+
+        // Not all directories match; file name is a prefix of the next directory; this
+        // matches
+        let mut needle = ObjectStorePath::default();
+        needle.push_all_dirs(&["foo/bar", "baz%2Ftest"]);
+        needle.set_file_name("s");
+
+        assert!(
+            haystack.prefix_matches(&needle),
+            "{:?} should have started with {:?}",
+            haystack,
+            needle
+        );
+
+        // Not all directories match; file name is NOT a prefix of the next directory;
+        // no match
+        needle.set_file_name("p");
+
+        assert!(
+            !haystack.prefix_matches(&needle),
+            "{:?} should not have started with {:?}",
             haystack,
             needle
         );
