@@ -498,7 +498,8 @@ impl RemoteServer for RemoteServerImpl {
 // location in the store for the configuration file
 fn config_location(id: u32) -> ObjectStorePath {
     let mut path = ObjectStorePath::default();
-    path.push_all(&[&id.to_string(), "config.json"]);
+    path.push_dir(id.to_string());
+    path.set_file_name("config.json");
     path
 }
 
@@ -789,7 +790,8 @@ partition_key:
         server.store_configuration().await.unwrap();
 
         let mut location = ObjectStorePath::default();
-        location.push_all(&["1", "config.json"]);
+        location.push_dir("1");
+        location.set_file_name("config.json");
 
         let read_data = server
             .store

@@ -685,10 +685,10 @@ async fn snapshot_partition<M: ConnectionManager + Send + Sync + Debug + 'static
     })?;
 
     let mut metadata_path = ObjectStorePath::default();
-    metadata_path.push(&db_name.to_string());
+    metadata_path.push_dir(&db_name.to_string());
     let mut data_path = metadata_path.clone();
-    metadata_path.push("meta");
-    data_path.push_all(&["data", &snapshot.partition]);
+    metadata_path.push_dir("meta");
+    data_path.push_all_dirs(&["data", &snapshot.partition]);
 
     let partition_key = &snapshot.partition;
     let chunk = db.rollover_partition(partition_key).await.unwrap();
