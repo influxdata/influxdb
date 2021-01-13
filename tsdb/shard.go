@@ -1743,11 +1743,35 @@ func (fs *MeasurementFieldSet) IsEmpty() bool {
 }
 
 func (fs *MeasurementFieldSet) Save() (err error) {
-	v, b, err := fs.marshalMeasurementFieldSet()
+	// current version
+	var v uint64
+	// Is the MeasurementFieldSet empty?
+	isEmpty := false
+	// marshaled MeasurementFieldSet
+	var b []byte
+
+	err = func() error {
+		fs.mu.Lock()
+		defer fs.mu.Unlock()
+		fs.memoryVersion += 1
+		v = fs.memoryVersion
+		// If no fields left, remove the fields index file
+		if len(fs.fields) == 0 {
+			isEmpty = true
+			if err := os.RemoveAll(fs.path); err != nil {
+				return err
+			} else {
+				fs.writtenVersion = fs.memoryVersion
+				return nil
+			}
+		}
+		b, err = fs.marshalMeasurementFieldSetNoLock()
+		return err
+	}()
+
 	if err != nil {
 		return err
-	}
-	if b == nil {
+	} else if isEmpty {
 		return nil
 	}
 
@@ -1800,22 +1824,7 @@ func (fs *MeasurementFieldSet) Save() (err error) {
 	return nil
 }
 
-func (fs *MeasurementFieldSet) marshalMeasurementFieldSet() (version uint64, marshalled []byte, err error) {
-	fs.mu.Lock()
-	defer fs.mu.Unlock()
-
-	fs.memoryVersion += 1
-
-	// No fields left, remove the fields index file
-	if len(fs.fields) == 0 {
-		if err := os.RemoveAll(fs.path); err != nil {
-			return version, nil, err
-		} else {
-			fs.writtenVersion = fs.memoryVersion
-			return fs.memoryVersion, nil, nil
-		}
-	}
-
+func (fs *MeasurementFieldSet) marshalMeasurementFieldSetNoLock() (marshalled []byte, err error) {
 	pb := internal.MeasurementFieldSet{
 		Measurements: make([]*internal.MeasurementFields, 0, len(fs.fields)),
 	}
@@ -1835,9 +1844,9 @@ func (fs *MeasurementFieldSet) marshalMeasurementFieldSet() (version uint64, mar
 	}
 	b, err := proto.Marshal(&pb)
 	if err != nil {
-		return fs.memoryVersion, nil, err
+		return nil, err
 	} else {
-		return fs.memoryVersion, b, nil
+		return b, nil
 	}
 }
 
