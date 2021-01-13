@@ -93,14 +93,16 @@ type optionsV2 struct {
 	enginePath     string
 	cqPath         string
 	configPath     string
-	userName       string
-	password       string
-	orgName        string
-	bucket         string
-	orgID          influxdb.ID
-	userID         influxdb.ID
-	token          string
-	retention      string
+	rmConflicts    bool
+
+	userName  string
+	password  string
+	orgName   string
+	bucket    string
+	orgID     influxdb.ID
+	userID    influxdb.ID
+	token     string
+	retention string
 }
 
 type options struct {
@@ -264,6 +266,12 @@ func NewCommand(v *viper.Viper) *cobra.Command {
 			Desc:    "skip the confirmation prompt",
 			Short:   'f',
 		},
+		{
+			DestP:   &options.target.rmConflicts,
+			Flag:    "overwrite-existing-v2",
+			Default: false,
+			Desc:    "if files are present at an output path, overwrite them instead of aborting the upgrade process",
+		},
 	}
 
 	cli.BindOptions(v, cmd, opts)
@@ -377,7 +385,7 @@ func runUpgradeE(cmd *cobra.Command, options *options, verbose bool) error {
 		return err
 	}
 	checkV2paths := options.target.validatePaths
-	if options.force {
+	if options.target.rmConflicts {
 		checkV2paths = options.target.clearPaths
 	}
 	if err := checkV2paths(); err != nil {
