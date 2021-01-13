@@ -517,33 +517,43 @@ func (o *optionsV1) validatePaths() error {
 func (o *optionsV2) validatePaths() error {
 	if o.configPath != "" {
 		if _, err := os.Stat(o.configPath); err == nil {
-			return fmt.Errorf("file present at target path for upgraded 2.x config file '%s'", o.configPath)
+			return fmt.Errorf("file present at target path for upgraded 2.x config file %q", o.configPath)
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("error checking for existing file at %q: %w", o.configPath, err)
 		}
 	}
 
 	if _, err := os.Stat(o.boltPath); err == nil {
-		return fmt.Errorf("file present at target path for upgraded 2.x bolt DB: '%s'", o.boltPath)
+		return fmt.Errorf("file present at target path for upgraded 2.x bolt DB: %q", o.boltPath)
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("error checking for existing file at %q: %w", o.boltPath, err)
 	}
 
 	if fi, err := os.Stat(o.enginePath); err == nil {
 		if !fi.IsDir() {
-			return fmt.Errorf("upgraded 2.x engine path '%s' is not a directory", o.enginePath)
+			return fmt.Errorf("upgraded 2.x engine path %q is not a directory", o.enginePath)
 		}
 		entries, err := ioutil.ReadDir(o.enginePath)
 		if err != nil {
-			return err
+			return fmt.Errorf("error checking contents of existing engine directory %q: %w", o.enginePath, err)
 		}
 		if len(entries) > 0 {
-			return fmt.Errorf("upgraded 2.x engine directory '%s' must be empty", o.enginePath)
+			return fmt.Errorf("upgraded 2.x engine directory %q must be empty", o.enginePath)
 		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("error checking for existing file at %q: %w", o.enginePath, err)
 	}
 
 	if _, err := os.Stat(o.cliConfigsPath); err == nil {
-		return fmt.Errorf("file present at target path for 2.x CLI configs '%s'", o.cliConfigsPath)
+		return fmt.Errorf("file present at target path for 2.x CLI configs %q", o.cliConfigsPath)
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("error checking for existing file at %q: %w", o.cliConfigsPath, err)
 	}
 
 	if _, err := os.Stat(o.cqPath); err == nil {
-		return fmt.Errorf("file present at target path for exported continuous queries '%s'", o.cqPath)
+		return fmt.Errorf("file present at target path for exported continuous queries %q", o.cqPath)
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("error checking for existing file at %q: %w", o.cqPath, err)
 	}
 
 	return nil
