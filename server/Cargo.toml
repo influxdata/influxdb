@@ -25,3 +25,6 @@ futures = "0.3.7"
 bytes = "0.5"
 chrono = "0.4"
 uuid = { version = "0.8", features = ["serde", "v4"]}
+flatbuffers = "0.6"
+crc32fast = "1.2.0"
+snap = "1.0.0"

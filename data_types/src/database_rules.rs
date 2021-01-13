@@ -117,25 +117,36 @@ pub struct WalBufferConfig {
     /// this size it will drop old segments to remain below this size, but
     /// still try to hold as much in memory as possible while remaining
     /// below this threshold
-    pub buffer_size: Option<u64>,
+    pub buffer_size: u64,
     /// WAL segments become read only after crossing over this size. Which means
     /// that segments will always be >= this size. When old segments are
     /// dropped from of memory, at least this much space will be freed from
     /// the buffer.
-    pub segment_size: Option<u64>,
+    pub segment_size: u64,
     /// What should happen if a write comes in that would exceed the WAL buffer
     /// size and the oldest segment that could be dropped hasn't yet been
     /// persisted to object storage. If the oldest segment has been
     /// persisted, then it will be dropped from the buffer so that new writes
     /// can be accepted. This option is only for defining the behavior of what
-    /// happens if that segment hasn't been persisted.
+    /// happens if that segment hasn't been persisted. If set to return an
+    /// error, new writes will be rejected until the oldest segment has been
+    /// persisted so that it can be cleared from memory. Alternatively, this
+    /// can be set so that old segments are dropped even if they haven't been
+    /// persisted. This setting is also useful for cases where persistence
+    /// isn't being used and this is only for in-memory buffering.
     pub buffer_rollover: WalBufferRollover,
+    /// If set to true, buffer segments will be written to object storage.
+    pub store_segments: bool,
+    /// If set, segments will be rolled over after this period of time even
+    /// if they haven't hit the size threshold. This allows them to be written
+    /// out to object storage as they must be immutable first.
+    pub close_segment_after: Option<std::time::Duration>,
 }
 
 /// WalBufferRollover defines the behavior of what should happen if a write
 /// comes in that would cause the buffer to exceed its max size AND the oldest
 /// segment can't be dropped because it has not yet been persisted.
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Copy)]
 pub enum WalBufferRollover {
     /// Drop the old segment even though it hasn't been persisted. This part of
     /// the WAl will be lost on this server.

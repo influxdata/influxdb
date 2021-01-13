@@ -27,7 +27,7 @@ pub fn type_description(value: wb::ColumnValue) -> &'static str {
 }
 
 /// A friendlier wrapper to help deal with the Flatbuffers write data
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct ReplicatedWrite {
     pub data: Vec<u8>,
 }
