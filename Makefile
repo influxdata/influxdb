@@ -19,13 +19,13 @@ export GOPATH=$(shell go env GOPATH)
 export GOOS=$(shell go env GOOS)
 export GOARCH=$(shell go env GOARCH)
 
-ifeq ($(GOARCH), amd64)
+ifneq (,$(filter $(GOARCH),amd64 s390x))
 	# Including the assets tag requires the UI to be built for compilation to succeed.
 	# Don't force it for running tests.
 	GO_TEST_TAGS :=
 	GO_BUILD_TAGS := assets
 else
-	# noasm needed to avoid a panic in Flux for non-amd64.
+	# noasm needed to avoid a panic in Flux for non-amd64, non-s390x.
 	GO_TEST_TAGS := noasm
 	GO_BUILD_TAGS := assets,noasm
 endif
