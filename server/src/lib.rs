@@ -539,8 +539,8 @@ fn config_location(id: u32) -> ObjectStorePath {
 // base location in object store for a given database name
 fn database_object_store_path(writer_id: u32, database_name: &DatabaseName<'_>) -> ObjectStorePath {
     let mut path = ObjectStorePath::default();
-    path.push(format!("{}", writer_id));
-    path.push(database_name.to_string());
+    path.push_dir(format!("{}", writer_id));
+    path.push_dir(database_name.to_string());
     path
 }
 

@@ -494,12 +494,12 @@ pub fn object_store_path_for_segment(
     let hundreds_place = segment_id - millions - thousands;
 
     let mut path = root_path.clone();
-    path.push_all(&[
+    path.push_all_dirs(&[
         WAL_DIR,
         &format!("{:03}", millions_place),
         &format!("{:03}", thousands_place),
-        &format!("{:03}{}", hundreds_place, SEGMENT_FILE_EXTENSION),
     ]);
+    path.set_file_name(format!("{:03}{}", hundreds_place, SEGMENT_FILE_EXTENSION));
 
     Ok(path)
 }
