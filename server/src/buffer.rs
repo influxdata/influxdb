@@ -9,16 +9,17 @@ use object_store::path::ObjectStorePath;
 
 use std::{
     collections::BTreeMap,
-    convert::TryFrom,
-    io, mem,
+    convert::{TryFrom, TryInto},
+    mem,
     sync::{Arc, Mutex},
 };
 
-use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
+//use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use crc32fast::Hasher;
-use snafu::{OptionExt, ResultExt, Snafu};
+use data_types::database_rules::WalBufferConfig;
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use tracing::warn;
 
 #[derive(Debug, Snafu)]
@@ -57,8 +58,10 @@ pub enum Error {
     #[snafu(display("unable to decompress segment data: {}", source))]
     UnableToDecompressData { source: snap::Error },
 
-    #[snafu(display("unable to write checksum: {}", source))]
-    UnableToWriteChecksum { source: io::Error },
+    #[snafu(display("unable to read checksum: {}", source))]
+    UnableToReadChecksum {
+        source: std::array::TryFromSliceError,
+    },
 
     #[snafu(display("checksum mismatch for segment"))]
     ChecksumMismatch,
@@ -249,6 +252,17 @@ impl Buffer {
     }
 }
 
+impl From<&WalBufferConfig> for Buffer {
+    fn from(config: &WalBufferConfig) -> Self {
+        Self::new(
+            config.buffer_size,
+            config.segment_size,
+            config.buffer_rollover,
+            config.store_segments,
+        )
+    }
+}
+
 /// Segment is a collection of replicated writes that can be persisted to
 /// object store.
 #[derive(Debug)]
@@ -268,6 +282,16 @@ impl Segment {
             id,
             size: 0,
             writes: vec![],
+            writers: BTreeMap::new(),
+            persisted: Mutex::new(None),
+        }
+    }
+
+    fn new_with_capacity(id: u64, capacity: usize) -> Self {
+        Self {
+            id,
+            size: 0,
+            writes: Vec::with_capacity(capacity),
             writers: BTreeMap::new(),
             persisted: Mutex::new(None),
         }
@@ -391,9 +415,7 @@ impl Segment {
         hasher.update(&compressed_data);
         let checksum = hasher.finalize();
 
-        compressed_data
-            .write_u32::<LittleEndian>(checksum)
-            .context(UnableToWriteChecksum)?;
+        compressed_data.extend_from_slice(&checksum.to_le_bytes());
 
         Ok(Bytes::from(compressed_data))
     }
@@ -405,9 +427,8 @@ impl Segment {
             return Err(Error::InvalidFlatbuffersSegment);
         }
 
-        let checksum_start = data.len() - std::mem::size_of::<u32>();
-        let checksum = LittleEndian::read_u32(&data[checksum_start..]);
-        let data = &data[..checksum_start];
+        let (data, checksum) = data.split_at(data.len() - std::mem::size_of::<u32>());
+        let checksum = u32::from_le_bytes(checksum.try_into().context(UnableToReadChecksum)?);
 
         let mut hasher = Hasher::new();
         hasher.update(&data);
@@ -422,9 +443,9 @@ impl Segment {
             .context(UnableToDecompressData)?;
 
         let fb_segment = flatbuffers::get_root::<wal::Segment<'_>>(&data);
-        let mut segment = Self::new(fb_segment.id());
 
         let writes = fb_segment.writes().context(InvalidFlatbuffersSegment)?;
+        let mut segment = Self::new_with_capacity(fb_segment.id(), writes.len());
         for w in writes {
             let data = w.payload().context(InvalidFlatbuffersSegment)?;
             let rw = ReplicatedWrite {
@@ -461,9 +482,10 @@ pub fn object_store_path_for_segment(
     root_path: &ObjectStorePath,
     segment_id: u64,
 ) -> Result<ObjectStorePath> {
-    if segment_id > MAX_SEGMENT_ID || segment_id == 0 {
-        return Err(Error::SegmentIdOutOfBounds);
-    }
+    ensure!(
+        segment_id < MAX_SEGMENT_ID && segment_id > 0,
+        SegmentIdOutOfBounds
+    );
 
     let millions_place = segment_id / 1_000_000;
     let millions = millions_place * 1_000_000;

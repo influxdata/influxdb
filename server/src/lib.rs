@@ -78,7 +78,7 @@ use std::{
     },
 };
 
-use crate::{buffer::Buffer, db::Db};
+use crate::db::Db;
 use data_types::{
     data::{lines_to_replicated_write, ReplicatedWrite},
     database_rules::{DatabaseRules, HostGroup, HostGroupId, MatchTables},
@@ -210,16 +210,7 @@ impl<M: ConnectionManager> Server<M> {
         let read_buffer = Arc::new(ReadBufferDb::new());
 
         let sequence = AtomicU64::new(STARTING_SEQUENCE);
-        let wal_buffer = if let Some(wal_config) = &rules.wal_buffer_config {
-            Some(Buffer::new(
-                wal_config.buffer_size,
-                wal_config.segment_size,
-                wal_config.buffer_rollover.clone(),
-                wal_config.store_segments,
-            ))
-        } else {
-            None
-        };
+        let wal_buffer = rules.wal_buffer_config.as_ref().map(Into::into);
         let db = Db::new(rules, mutable_buffer, read_buffer, wal_buffer, sequence);
 
         let mut config = self.config.write().await;
@@ -362,7 +353,7 @@ impl<M: ConnectionManager> Server<M> {
                     let location = database_object_store_path(writer_id, db_name);
                     let location = buffer::object_store_path_for_segment(&location, segment.id)
                         .context(WalError)?;
-                    persist_bytes(data, store, location);
+                    persist_bytes_in_background(data, store, location);
                 }
             }
         }
@@ -557,7 +548,7 @@ const STORE_ERROR_PAUSE_SECONDS: u64 = 100;
 
 /// Spawns a tokio task that will continuously try to persist the bytes to the
 /// given object store location.
-fn persist_bytes(data: Bytes, store: Arc<ObjectStore>, location: ObjectStorePath) {
+fn persist_bytes_in_background(data: Bytes, store: Arc<ObjectStore>, location: ObjectStorePath) {
     let len = data.len();
     let mut stream_data = std::io::Result::Ok(data.clone());
 

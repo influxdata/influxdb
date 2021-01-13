@@ -3212,7 +3212,6 @@ version = "0.1.0"
 dependencies = [
  "arrow_deps",
  "async-trait",
- "byteorder",
  "bytes",
  "chrono",
  "crc32fast",

@@ -128,7 +128,12 @@ pub struct WalBufferConfig {
     /// persisted to object storage. If the oldest segment has been
     /// persisted, then it will be dropped from the buffer so that new writes
     /// can be accepted. This option is only for defining the behavior of what
-    /// happens if that segment hasn't been persisted.
+    /// happens if that segment hasn't been persisted. If set to return an
+    /// error, new writes will be rejected until the oldest segment has been
+    /// persisted so that it can be cleared from memory. Alternatively, this
+    /// can be set so that old segments are dropped even if they haven't been
+    /// persisted. This setting is also useful for cases where persistence
+    /// isn't being used and this is only for in-memory buffering.
     pub buffer_rollover: WalBufferRollover,
     /// If set to true, buffer segments will be written to object storage.
     pub store_segments: bool,
@@ -141,7 +146,7 @@ pub struct WalBufferConfig {
 /// WalBufferRollover defines the behavior of what should happen if a write
 /// comes in that would cause the buffer to exceed its max size AND the oldest
 /// segment can't be dropped because it has not yet been persisted.
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Copy)]
 pub enum WalBufferRollover {
     /// Drop the old segment even though it hasn't been persisted. This part of
     /// the WAl will be lost on this server.
