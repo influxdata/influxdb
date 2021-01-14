@@ -236,9 +236,8 @@ impl Database {
     /// and the type of aggregation required. Multiple aggregations can be
     /// applied to the same column.
     ///
-    /// Because identical groups may exist across chunks `read_aggregate` will
-    /// first merge across the provided chunks before returning an iterator of
-    /// record batches, which will be lazily constructed.
+    /// This method might be deprecated in the future, replaced by a call to
+    /// `read_aggregate_window` with a `window` of `0`.
     pub fn read_aggregate(
         &self,
         partition_key: &str,
@@ -247,7 +246,7 @@ impl Database {
         predicate: Predicate,
         group_columns: ColumnSelection<'_>,
         aggregates: Vec<(ColumnName<'_>, AggregateType)>,
-    ) -> Result<ReadGroupResults> {
+    ) -> Result<ReadAggregateWindowResults> {
         match self.partitions.get(partition_key) {
             Some(partition) => {
                 let mut chunks = vec![];
@@ -267,7 +266,7 @@ impl Database {
                 // merged together with the aggregates from identical group keys
                 // being resolved.
 
-                Ok(ReadGroupResults {})
+                Ok(ReadAggregateWindowResults {})
             }
             None => Err(Error::PartitionNotFound {
                 key: partition_key.to_owned(),
@@ -275,45 +274,58 @@ impl Database {
         }
     }
 
-    /// Returns aggregates segmented by grouping keys and windowed by time.
+    /// Returns windowed aggregates for each group specified by the values of
+    /// the grouping keys and window, limited to the specified partition key
+    /// table name and chunk ids.
     ///
-    /// The set of data to be aggregated may be filtered by (currently only)
-    /// equality predicates, but can be ranged by time, which should be
-    /// represented as nanoseconds since the epoch. Results are included if they
-    /// satisfy the predicate and fall with the [min, max) time range domain.
+    /// Results may be filtered by conjunctive predicates.
+    /// Whilst the `ReadBuffer` will carry out the most optimal execution
+    /// possible by pruning columns, row groups and tables, it is assumed
+    /// that the caller has already provided an appropriately pruned
+    /// collection of chunks.
     ///
-    /// Group keys are determined according to the provided group column names
-    /// (`group_columns`). Currently only grouping by string (tag key) columns
-    /// is supported.
-    ///
+    /// Currently, only grouping by string (tag key) columns is supported.
     /// Required aggregates are specified via a tuple comprising a column name
     /// and the type of aggregation required. Multiple aggregations can be
     /// applied to the same column.
     ///
-    /// Results are grouped and windowed according to the `window` parameter,
-    /// which represents an interval in nanoseconds. For example, to window
-    /// results by one minute, window should be set to 600_000_000_000.
-    pub fn aggregate_window(
+    /// `window` should be a positive value indicating a duration in
+    /// nanoseconds.
+    pub fn read_aggregate_window(
         &self,
+        partition_key: &str,
         table_name: &str,
-        time_range: (i64, i64),
+        chunk_ids: &[u32],
         predicate: Predicate,
-        group_columns: Vec<String>,
+        group_columns: ColumnSelection<'_>,
         aggregates: Vec<(ColumnName<'_>, AggregateType)>,
-        window: i64,
-    ) -> Option<RecordBatch> {
-        // Find all matching chunks using:
-        //   - time range
-        //   - measurement name.
-        //
-        // Execute query against each matching chunk and get result set.
-        // For each result set it may be possible for there to be duplicate
-        // group keys, e.g., due to back-filling. So chunk results may need
-        // to be merged together with the aggregates from identical group keys
-        // being resolved.
-        //
-        // Finally a record batch is returned.
-        todo!()
+        window: u64,
+    ) -> Result<ReadAggregateWindowResults> {
+        match self.partitions.get(partition_key) {
+            Some(partition) => {
+                let mut chunks = vec![];
+                for chunk_id in chunk_ids {
+                    chunks.push(
+                        partition
+                            .chunks
+                            .get(chunk_id)
+                            .ok_or_else(|| Error::ChunkNotFound { id: *chunk_id })?,
+                    );
+                }
+
+                // Execute query against each chunk and get results.
+                // For each result set it may be possible for there to be
+                // duplicate group keys, e.g., due to
+                // back-filling. So chunk results may need to be
+                // merged together with the aggregates from identical group keys
+                // being resolved.
+
+                Ok(ReadAggregateWindowResults {})
+            }
+            None => Err(Error::PartitionNotFound {
+                key: partition_key.to_owned(),
+            }),
+        }
     }
 
     //
@@ -554,9 +566,23 @@ impl<'input, 'chunk> Iterator for ReadFilterResults<'input, 'chunk> {
 ///
 /// There may be some internal buffering and merging of results before a record
 /// batch can be emitted from the iterator.
-pub struct ReadGroupResults {}
+pub struct ReadAggregateResults {}
 
-impl Iterator for ReadGroupResults {
+impl Iterator for ReadAggregateResults {
+    type Item = RecordBatch;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        None
+    }
+}
+
+/// An iterable set of results for calls to `read_aggregate_window`.
+///
+/// There may be some internal buffering and merging of results before a record
+/// batch can be emitted from the iterator.
+pub struct ReadAggregateWindowResults {}
+
+impl Iterator for ReadAggregateWindowResults {
     type Item = RecordBatch;
 
     fn next(&mut self) -> Option<Self::Item> {
