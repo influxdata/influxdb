@@ -955,8 +955,8 @@ impl Predicate {
     }
 
     /// Returns a vector of all expressions on the predicate.
-    pub fn expressions(&self) -> Vec<&BinaryExpr> {
-        self.iter().collect::<Vec<_>>()
+    pub fn expressions(&self) -> &[BinaryExpr] {
+        &self.0
     }
 
     // Removes all expressions for specified column from the predicate and
