@@ -1,7 +1,7 @@
 //! This module contains the IOx implementation for using memory as the object
 //! store.
 use crate::{
-    path::{DirsAndFileName, ObjectStorePath},
+    path::{parsed::DirsAndFileName, ObjectStorePath},
     DataDoesNotMatchLength, ListResult, NoDataInMemory, ObjectMeta, Result,
     UnableToPutDataInMemory,
 };
