@@ -21,12 +21,11 @@ use arrow_deps::arrow::{
 use snafu::{ResultExt, Snafu};
 
 // Identifiers that are exported as part of the public API.
-pub use column::{FIELD_COLUMN_TYPE, TAG_COLUMN_TYPE, TIME_COLUMN_TYPE};
+pub use column::{AggregateType, FIELD_COLUMN_TYPE, TAG_COLUMN_TYPE, TIME_COLUMN_TYPE};
 pub use row_group::{BinaryExpr, Predicate};
 pub use table::ColumnSelection;
 
 use chunk::Chunk;
-use column::AggregateType;
 use row_group::{ColumnName, RowGroup};
 use table::Table;
 
@@ -246,11 +245,9 @@ impl Database {
         table_name: &str,
         chunk_ids: &[u32],
         predicate: Predicate,
-        group_columns: Vec<String>,
+        group_columns: ColumnSelection<'_>,
         aggregates: Vec<(ColumnName<'_>, AggregateType)>,
-    ) -> Result<()> {
-        // TODO - return type for iterator
-
+    ) -> Result<ReadGroupResults> {
         match self.partitions.get(partition_key) {
             Some(partition) => {
                 let mut chunks = vec![];
@@ -270,10 +267,7 @@ impl Database {
                 // merged together with the aggregates from identical group keys
                 // being resolved.
 
-                // Merge these results and then return an iterator that lets the
-                // caller stream through record batches. The number of record
-                // batches is an implementation detail of the `ReadBuffer`.
-                Ok(())
+                Ok(ReadGroupResults {})
             }
             None => Err(Error::PartitionNotFound {
                 key: partition_key.to_owned(),
@@ -553,6 +547,20 @@ impl<'input, 'chunk> Iterator for ReadFilterResults<'input, 'chunk> {
                 );
             }
         }
+    }
+}
+
+/// An iterable set of results for calls to `read_aggregate`.
+///
+/// There may be some internal buffering and merging of results before a record
+/// batch can be emitted from the iterator.
+pub struct ReadGroupResults {}
+
+impl Iterator for ReadGroupResults {
+    type Item = RecordBatch;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        None
     }
 }
 

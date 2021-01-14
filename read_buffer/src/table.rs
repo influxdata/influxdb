@@ -552,8 +552,10 @@ impl MetaData {
     }
 }
 
-/// A collection of columns, with a variant that implies all columns for the
-/// table should be included.
+/// A collection of columns to include in query results.
+///
+/// The `All` variant denotes that the caller wishes to include all table
+/// columns in the results.
 pub enum ColumnSelection<'a> {
     All,
     Some(&'a [&'a str]),
