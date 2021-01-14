@@ -425,7 +425,7 @@ impl FileConverter {
                     .map(|p| &p.0)
                     .collect();
                 if let Some(file_name) = &dirs_and_file_name.file_name {
-                    path.set_file_name(&file_name.0);
+                    path.push(&file_name.0);
                 }
                 path
             }

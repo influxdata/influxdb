@@ -3,15 +3,15 @@
 use crate::{
     path::{FileConverter, ObjectStorePath},
     DataDoesNotMatchLength, Result, UnableToCopyDataToFile, UnableToCreateDir, UnableToCreateFile,
-    UnableToDeleteFile, UnableToListDirectory, UnableToOpenFile, UnableToProcessEntry,
-    UnableToPutDataInMemory, UnableToReadBytes,
+    UnableToDeleteFile, UnableToOpenFile, UnableToPutDataInMemory, UnableToReadBytes,
 };
 use bytes::Bytes;
-use futures::{Stream, TryStreamExt};
+use futures::{stream, Stream, TryStreamExt};
 use snafu::{ensure, futures::TryStreamExt as _, OptionExt, ResultExt};
 use std::{io, path::PathBuf};
 use tokio::fs;
 use tokio_util::codec::{BytesCodec, FramedRead};
+use walkdir::WalkDir;
 
 /// Local filesystem storage suitable for testing or for opting out of using a
 /// cloud storage provider.
@@ -111,24 +111,26 @@ impl File {
         &'a self,
         prefix: Option<&'a ObjectStorePath>,
     ) -> Result<impl Stream<Item = Result<Vec<ObjectStorePath>>> + 'a> {
-        let dirs = fs::read_dir(FileConverter::convert(&self.root))
-            .await
-            .context(UnableToListDirectory {
-                path: format!("{:?}", self.root),
-            })?;
+        let root_path = FileConverter::convert(&self.root);
+        let walkdir = WalkDir::new(&root_path)
+            // Don't include the root directory itself
+            .min_depth(1);
 
-        let s = dirs
-            .context(UnableToProcessEntry)
-            .and_then(|entry| {
-                let file_path_buf: PathBuf = entry.file_name().into();
-                async move { Ok(ObjectStorePath::from_path_buf_unchecked(file_path_buf)) }
-            })
-            .try_filter(move |name| {
-                let matches = prefix.map_or(true, |p| name.prefix_matches(p));
-                async move { matches }
-            })
-            .map_ok(|name| vec![name]);
-        Ok(s)
+        let s = walkdir.into_iter().filter_map(move |result_dir_entry| {
+            result_dir_entry
+                .ok()
+                .filter(|dir_entry| dir_entry.file_type().is_file())
+                .map(|file| {
+                    let relative_path = file.path().strip_prefix(&root_path).expect(
+                        "Must start with root path because this came from walking the root",
+                    );
+                    ObjectStorePath::from_path_buf_unchecked(relative_path)
+                })
+                .filter(|name| prefix.map_or(true, |p| name.prefix_matches(p)))
+                .map(|name| Ok(vec![name]))
+        });
+
+        Ok(stream::iter(s))
     }
 }
 
@@ -145,7 +147,6 @@ mod tests {
     use futures::stream;
 
     #[tokio::test]
-    #[ignore]
     async fn file_test() -> Result<()> {
         let root = TempDir::new()?;
         let integration = ObjectStore::new_file(File::new(root.path()));
