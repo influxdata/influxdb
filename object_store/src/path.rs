@@ -330,7 +330,14 @@ impl From<PathRepresentation> for DirsAndFileName {
                     .collect();
 
                 let maybe_file_name = match parts.pop() {
-                    Some(file) if file.0.contains('.') => Some(file),
+                    Some(file)
+                        if !file.0.starts_with('.')
+                            && (file.0.ends_with(".json")
+                                || file.0.ends_with(".parquet")
+                                || file.0.ends_with(".segment")) =>
+                    {
+                        Some(file)
+                    }
                     Some(dir) => {
                         parts.push(dir);
                         None
