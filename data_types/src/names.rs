@@ -1,7 +1,4 @@
-pub mod http_routes;
-pub mod rpc;
-
-use data_types::{DatabaseName, DatabaseNameError};
+use crate::{DatabaseName, DatabaseNameError};
 use snafu::{ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
@@ -22,7 +19,7 @@ pub enum OrgBucketMappingError {
 /// This function ensures the mapping is unambiguous by requiring both `org` and
 /// `bucket` to not contain the `_` character in addition to the
 /// [`DatabaseName`] validation.
-pub(crate) fn org_and_bucket_to_database<'a, O: AsRef<str>, B: AsRef<str>>(
+pub fn org_and_bucket_to_database<'a, O: AsRef<str>, B: AsRef<str>>(
     org: O,
     bucket: B,
 ) -> Result<DatabaseName<'a>, OrgBucketMappingError> {

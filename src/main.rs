@@ -13,17 +13,15 @@ use structopt::StructOpt;
 use tokio::runtime::Runtime;
 use tracing::{debug, error, info, warn};
 
-pub mod server;
-
 mod commands {
     pub mod config;
     pub mod convert;
     pub mod file_meta;
-    pub mod influxdb_ioxd;
     mod input;
     pub mod logging;
     pub mod stats;
 }
+pub mod influxdb_ioxd;
 
 use commands::{config::Config, logging::LoggingLevel};
 
@@ -197,8 +195,7 @@ async fn dispatch_args(matches: ArgMatches<'_>) {
             // Note don't set up basic logging here, different logging rules appy in server
             // mode
             let res =
-                commands::influxdb_ioxd::main(logging_level, Some(Config::from_clap(sub_matches)))
-                    .await;
+                influxdb_ioxd::main(logging_level, Some(Config::from_clap(sub_matches))).await;
 
             if let Err(e) = res {
                 error!("Server shutdown with error: {}", e);
@@ -209,7 +206,7 @@ async fn dispatch_args(matches: ArgMatches<'_>) {
         (_, _) => {
             // Note don't set up basic logging here, different logging rules appy in server
             // mode
-            let res = commands::influxdb_ioxd::main(logging_level, None).await;
+            let res = influxdb_ioxd::main(logging_level, None).await;
             if let Err(e) = res {
                 error!("Server shutdown with error: {}", e);
                 std::process::exit(ReturnCode::ServerExitedAbnormally as _);

@@ -14,6 +14,7 @@ pub const TIME_COLUMN_NAME: &str = "time";
 pub mod data;
 pub mod database_rules;
 pub mod error;
+pub mod names;
 pub mod partition_metadata;
 pub mod table_schema;
 

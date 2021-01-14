@@ -5,8 +5,9 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::server::http_routes;
-use crate::server::rpc::service;
+pub mod http_routes;
+pub mod rpc;
+
 use server::{ConnectionManagerImpl as ConnectionManager, Server as AppServer};
 
 use hyper::Server;
@@ -16,7 +17,7 @@ use snafu::{ResultExt, Snafu};
 
 use panic_logging::SendPanicsToTracing;
 
-use super::{
+use crate::commands::{
     config::{load_config, Config},
     logging::LoggingLevel,
 };
@@ -65,9 +66,7 @@ pub enum Error {
     ServingHttp { source: hyper::error::Error },
 
     #[snafu(display("Error serving RPC: {}", source))]
-    ServingRPC {
-        source: crate::server::rpc::service::Error,
-    },
+    ServingRPC { source: self::rpc::service::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -127,7 +126,7 @@ pub async fn main(logging_level: LoggingLevel, config: Option<Config>) -> Result
         .await
         .context(StartListeningGrpc { grpc_bind_addr })?;
 
-    let grpc_server = service::make_server(socket, app_server.clone());
+    let grpc_server = self::rpc::service::make_server(socket, app_server.clone());
 
     info!(bind_address=?grpc_bind_addr, "gRPC server listening");
 

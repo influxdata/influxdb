@@ -9,11 +9,13 @@
 //! Long term, we expect to create IOx specific api in terms of
 //! database names and may remove this quasi /v2 API.
 
-use super::{org_and_bucket_to_database, OrgBucketMappingError};
-
 // Influx crates
 use arrow_deps::{arrow, datafusion::physical_plan::collect};
-use data_types::{database_rules::DatabaseRules, DatabaseName};
+use data_types::{
+    database_rules::DatabaseRules,
+    names::{org_and_bucket_to_database, OrgBucketMappingError},
+    DatabaseName,
+};
 use influxdb_line_protocol::parse_lines;
 use object_store::path::ObjectStorePath;
 use query::{frontend::sql::SQLQueryPlanner, Database, DatabaseStore};

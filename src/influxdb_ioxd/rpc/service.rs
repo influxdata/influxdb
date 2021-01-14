@@ -16,16 +16,13 @@ use generated_types::{
 
 use data_types::error::ErrorLogger;
 
-#[allow(unused_imports)]
-// For some reason rust thinks these imports are unused, but then
-// complains of unresolved imports if they are not imported.
-use generated_types::{node, Node};
 use query::exec::fieldlist::FieldList;
 use query::group_by::GroupByAndAggregate;
 
-use crate::server::org_and_bucket_to_database;
-use crate::server::rpc::expr::{self, AddRPCNode, Loggable, SpecialTagKeys};
-use crate::server::rpc::input::GrpcInputs;
+use super::expr::{self, AddRPCNode, Loggable, SpecialTagKeys};
+use super::input::GrpcInputs;
+use data_types::names::org_and_bucket_to_database;
+
 use data_types::DatabaseName;
 
 use query::{
@@ -110,13 +107,13 @@ pub enum Error {
     #[snafu(display("Error converting Predicate '{}: {}", rpc_predicate_string, source))]
     ConvertingPredicate {
         rpc_predicate_string: String,
-        source: crate::server::rpc::expr::Error,
+        source: super::expr::Error,
     },
 
     #[snafu(display("Error converting group type '{}':  {}", aggregate_string, source))]
     ConvertingReadGroupType {
         aggregate_string: String,
-        source: crate::server::rpc::expr::Error,
+        source: super::expr::Error,
     },
 
     #[snafu(display(
@@ -126,7 +123,7 @@ pub enum Error {
     ))]
     ConvertingReadGroupAggregate {
         aggregate_string: String,
-        source: crate::server::rpc::expr::Error,
+        source: super::expr::Error,
     },
 
     #[snafu(display(
@@ -136,7 +133,7 @@ pub enum Error {
     ))]
     ConvertingWindowAggregate {
         aggregate_string: String,
-        source: crate::server::rpc::expr::Error,
+        source: super::expr::Error,
     },
 
     #[snafu(display("Error computing series: {}", source))]
@@ -149,14 +146,10 @@ pub enum Error {
     ComputingGroupedSeriesSet { source: SeriesSetError },
 
     #[snafu(display("Error converting time series into gRPC response:  {}", source))]
-    ConvertingSeriesSet {
-        source: crate::server::rpc::data::Error,
-    },
+    ConvertingSeriesSet { source: super::data::Error },
 
     #[snafu(display("Converting field information series into gRPC response:  {}", source))]
-    ConvertingFieldList {
-        source: crate::server::rpc::data::Error,
-    },
+    ConvertingFieldList { source: super::data::Error },
 
     #[snafu(display("Error sending results via channel:  {}", source))]
     SendingResults {
@@ -1159,7 +1152,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::server::rpc::id::ID;
+    use super::super::id::ID;
 
     use super::*;
     use arrow_deps::arrow::datatypes::DataType;
@@ -1187,8 +1180,8 @@ mod tests {
     use futures::prelude::*;
 
     use generated_types::{
-        aggregate::AggregateType, i_ox_testing_client, read_response::frame, storage_client,
-        Aggregate as RPCAggregate, Duration as RPCDuration, ReadSource, Window as RPCWindow,
+        aggregate::AggregateType, i_ox_testing_client, node, read_response::frame, storage_client,
+        Aggregate as RPCAggregate, Duration as RPCDuration, Node, ReadSource, Window as RPCWindow,
     };
 
     use prost::Message;
@@ -1729,7 +1722,7 @@ mod tests {
         // Note we don't include the actual line / column in the
         // expected panic message to avoid needing to update the test
         // whenever the source code file changed.
-        let expected_error = "panicked at 'This is a test panic', src/server/rpc/service.rs";
+        let expected_error = "panicked at 'This is a test panic', src/influxdb_ioxd/rpc/service.rs";
         assert!(
             captured_logs.contains(expected_error),
             "Logs did not contain expected panic message '{}'. They were\n{}",
