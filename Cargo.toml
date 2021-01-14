@@ -24,6 +24,7 @@ members = [
     "server",
     "test_helpers",
     "wal",
+    "influxdb_iox_client",
 ]
 
 [profile.release]
@@ -36,6 +37,7 @@ debug = true
 arrow_deps = { path = "arrow_deps" }
 data_types = { path = "data_types" }
 generated_types = { path = "generated_types" }
+influxdb_iox_client = { path = "influxdb_iox_client" }
 influxdb_line_protocol = { path = "influxdb_line_protocol" }
 influxdb_tsm = { path = "influxdb_tsm" }
 ingest = { path = "ingest" }

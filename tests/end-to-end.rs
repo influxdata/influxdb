@@ -444,7 +444,7 @@ async fn test_http_error_messages(client: &influxdb2_client::Client) -> Result<(
         .await
         .expect_err("Should have errored");
 
-    let expected_error = "HTTP request returned an error: 400 Bad Request, `{\"error\":\"Error parsing line protocol: A generic parsing error occurred: TakeWhile1\"}`";
+    let expected_error = "HTTP request returned an error: 400 Bad Request, `{\"error\":\"Error parsing line protocol: A generic parsing error occurred: TakeWhile1\",\"error_code\":100}`";
     assert_eq!(result.to_string(), expected_error);
 
     Ok(())

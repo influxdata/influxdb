@@ -194,8 +194,37 @@ impl ApplicationError {
     }
 
     fn body(&self) -> Body {
-        let json = serde_json::json!({"error": self.to_string()}).to_string();
+        let json =
+            serde_json::json!({"error": self.to_string(), "error_code": self.api_error_code()})
+                .to_string();
         Body::from(json)
+    }
+
+    /// Map the error type into an API error code.
+    fn api_error_code(&self) -> u32 {
+        use influxdb_iox_client::errors::ApiErrorCode;
+
+        match self {
+            Self::DatabaseNameError { .. } => ApiErrorCode::DB_INVALID_NAME,
+            Self::DatabaseNotFound { .. } => ApiErrorCode::DB_NOT_FOUND,
+
+            // Some errors are wrapped
+            Self::ErrorCreatingDatabase {
+                source: server::Error::InvalidDatabaseName { .. },
+            } => ApiErrorCode::DB_INVALID_NAME,
+
+            Self::ErrorCreatingDatabase {
+                source: server::Error::DatabaseNotFound { .. },
+            } => ApiErrorCode::DB_NOT_FOUND,
+
+            Self::ErrorCreatingDatabase {
+                source: server::Error::DatabaseAlreadyExists { .. },
+            } => ApiErrorCode::DB_ALREADY_EXISTS,
+
+            // A "catch all" error code
+            _ => ApiErrorCode::UNKNOWN,
+        }
+        .into()
     }
 }
 
