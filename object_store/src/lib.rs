@@ -154,7 +154,9 @@ impl ObjectStore {
             AmazonS3(_) | GoogleCloudStorage(_) | InMemory(_) | MicrosoftAzure(_) => {
                 path::cloud::CloudConverter::convert(path)
             }
-            File(_) => path::FileConverter::convert(path).display().to_string(),
+            File(_) => path::file::FileConverter::convert(path)
+                .display()
+                .to_string(),
         }
     }
 }

@@ -7,6 +7,9 @@ use std::{mem, path::PathBuf};
 /// Paths that came from or are to be used in cloud-based object storage
 pub mod cloud;
 
+/// Paths that come from or are to be used in file-based object storage
+pub mod file;
+
 /// Maximally processed storage-independent paths.
 pub mod parsed;
 use parsed::DirsAndFileName;
@@ -204,36 +207,6 @@ impl PartialEq for PathRepresentation {
                 let self_parts: DirsAndFileName = self.to_owned().into();
                 let other_parts: DirsAndFileName = other.to_owned().into();
                 self_parts == other_parts
-            }
-        }
-    }
-}
-
-/// Converts `ObjectStorePath`s to `String`s that are appropriate for use as
-/// locations in filesystem storage.
-#[derive(Debug, Clone, Copy)]
-pub struct FileConverter {}
-
-impl FileConverter {
-    /// Creates a filesystem `PathBuf` location by using the standard library's
-    /// `PathBuf` building implementation appropriate for the current
-    /// platform.
-    pub fn convert(object_store_path: &ObjectStorePath) -> PathBuf {
-        match &object_store_path.inner {
-            PathRepresentation::RawCloud(_path) => {
-                todo!("convert");
-            }
-            PathRepresentation::RawPathBuf(path) => path.to_owned(),
-            PathRepresentation::Parts(dirs_and_file_name) => {
-                let mut path: PathBuf = dirs_and_file_name
-                    .directories
-                    .iter()
-                    .map(|p| &p.0)
-                    .collect();
-                if let Some(file_name) = &dirs_and_file_name.file_name {
-                    path.push(&file_name.0);
-                }
-                path
             }
         }
     }
