@@ -1,11 +1,14 @@
 package main
 
 import (
+	"compress/gzip"
+	_ "compress/gzip"
 	"context"
 	"encoding/csv"
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net/http"
 	"net/url"
 	"os"
@@ -52,6 +55,8 @@ type writeFlagsBuilder struct {
 	Encoding                   string
 	ErrorsFile                 string
 	RateLimit                  string
+	Compressed                 bool
+	ErrorThreshold             uint64
 }
 
 func newWriteFlagsBuilder(svcFn buildWriteSvcFn, f *globalFlags, opt genericCLIOpts) *writeFlagsBuilder {
@@ -127,6 +132,8 @@ func (b *writeFlagsBuilder) cmd() *cobra.Command {
 	cmd.PersistentFlags().StringVar(&b.Encoding, "encoding", "UTF-8", "Character encoding of input files or stdin")
 	cmd.PersistentFlags().StringVar(&b.ErrorsFile, "errors-file", "", "The path to the file to write rejected rows to")
 	cmd.PersistentFlags().StringVar(&b.RateLimit, "rate-limit", "", "Throttles write, examples: \"5 MB / 5 min\" , \"17kBs\". \"\" (default) disables throttling.")
+	cmd.PersistentFlags().BoolVar(&b.Compressed, "compressed", false, "Indicates that the file is compressed")
+	cmd.PersistentFlags().Uint64Var(&b.ErrorThreshold, "error-threshold", math.MaxUint64, "Error threshold for halting")
 
 	cmdDryRun := b.newCmd("dryrun", b.writeDryrunE, false)
 	cmdDryRun.Args = cobra.MaximumNArgs(1)
@@ -179,12 +186,17 @@ func (b *writeFlagsBuilder) createLineReader(ctx context.Context, cmd *cobra.Com
 	// add files
 	if len(files) > 0 {
 		for _, file := range files {
+			var r io.Reader
 			f, err := os.Open(file)
 			if err != nil {
 				return nil, csv2lp.MultiCloser(closers...), fmt.Errorf("failed to open %q: %v", file, err)
 			}
 			closers = append(closers, f)
-			readers = append(readers, decode(f), strings.NewReader("\n"))
+
+			if r, err = b.decompressIfNecessary(f, &closers, file); err != nil {
+				return nil, csv2lp.MultiCloser(closers...), err
+			}
+			readers = append(readers, decode(r), strings.NewReader("\n"))
 			if len(b.Format) == 0 && strings.HasSuffix(file, ".csv") {
 				b.Format = inputFormatCsv
 			}
@@ -211,7 +223,14 @@ func (b *writeFlagsBuilder) createLineReader(ctx context.Context, cmd *cobra.Com
 			if resp.StatusCode/100 != 2 {
 				return nil, csv2lp.MultiCloser(closers...), fmt.Errorf("failed to open %q: response status_code=%d", addr, resp.StatusCode)
 			}
-			readers = append(readers, decode(resp.Body), strings.NewReader("\n"))
+
+			var r io.Reader
+			if r, err = b.decompressIfNecessary(resp.Body, &closers, addr); err != nil {
+				return nil, csv2lp.MultiCloser(closers...), err
+			} else {
+				r = resp.Body
+			}
+			readers = append(readers, decode(r), strings.NewReader("\n"))
 			if len(b.Format) == 0 &&
 				(strings.HasSuffix(u.Path, ".csv") || strings.HasPrefix(resp.Header.Get("Content-Type"), "text/csv")) {
 				b.Format = inputFormatCsv
@@ -228,7 +247,11 @@ func (b *writeFlagsBuilder) createLineReader(ctx context.Context, cmd *cobra.Com
 		}
 	case args[0] == "-":
 		// "-" also means stdin
-		readers = append(readers, decode(cmd.InOrStdin()))
+		var r io.Reader
+		if r, err = b.decompressIfNecessary(cmd.InOrStdin(), &closers, "stdin"); err != nil {
+			return nil, csv2lp.MultiCloser(closers...), err
+		}
+		readers = append(readers, decode(r))
 	default:
 		readers = append(readers, strings.NewReader(args[0]))
 	}
@@ -293,6 +316,19 @@ func (b *writeFlagsBuilder) createLineReader(ctx context.Context, cmd *cobra.Com
 	}
 
 	return r, csv2lp.MultiCloser(closers...), nil
+}
+
+func (b *writeFlagsBuilder) decompressIfNecessary(r io.Reader, closers *[]io.Closer, name string) (io.Reader, error) {
+	if b.Compressed {
+		if rcz, err := gzip.NewReader(r); err != nil {
+			return nil, fmt.Errorf("failed to decompress %q: %v", name, err)
+		} else {
+			*closers = append(*closers, rcz)
+			return rcz, nil
+		}
+	} else {
+		return r, nil
+	}
 }
 
 func (b *writeFlagsBuilder) writeRunE(cmd *cobra.Command, args []string) error {
