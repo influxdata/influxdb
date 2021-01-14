@@ -784,6 +784,46 @@ mod tests {
     }
 
     #[test]
+    fn path_buf_to_dirs_and_file_name_conversion() {
+        // Last section ending in `.json` is a file name
+        let path_buf = PathRepresentation::RawPathBuf("/one/two/blah.json".into());
+        let path_buf_parts: DirsAndFileName = path_buf.into();
+        assert_eq!(path_buf_parts.directories.len(), 3);
+        assert_eq!(path_buf_parts.file_name.unwrap().0, "blah.json");
+
+        // Last section ending in `.segment` is a file name
+        let path_buf = PathRepresentation::RawPathBuf("/one/two/blah.segment".into());
+        let path_buf_parts: DirsAndFileName = path_buf.into();
+        assert_eq!(path_buf_parts.directories.len(), 3);
+        assert_eq!(path_buf_parts.file_name.unwrap().0, "blah.segment");
+
+        // Last section ending in `.parquet` is a file name
+        let path_buf = PathRepresentation::RawPathBuf("/one/two/blah.parquet".into());
+        let path_buf_parts: DirsAndFileName = path_buf.into();
+        assert_eq!(path_buf_parts.directories.len(), 3);
+        assert_eq!(path_buf_parts.file_name.unwrap().0, "blah.parquet");
+
+        // Last section ending in `.txt` is NOT a file name; we don't recognize that
+        // extension
+        let path_buf = PathRepresentation::RawPathBuf("/one/two/blah.txt".into());
+        let path_buf_parts: DirsAndFileName = path_buf.into();
+        assert_eq!(path_buf_parts.directories.len(), 4);
+        assert!(path_buf_parts.file_name.is_none());
+
+        // Last section containing a `.` isn't a file name
+        let path_buf = PathRepresentation::RawPathBuf("/one/two/blah.blah".into());
+        let path_buf_parts: DirsAndFileName = path_buf.into();
+        assert_eq!(path_buf_parts.directories.len(), 4);
+        assert!(path_buf_parts.file_name.is_none());
+
+        // Last section starting with a `.` isn't a file name (macos temp dirs do this)
+        let path_buf = PathRepresentation::RawPathBuf("/one/two/.blah".into());
+        let path_buf_parts: DirsAndFileName = path_buf.into();
+        assert_eq!(path_buf_parts.directories.len(), 4);
+        assert!(path_buf_parts.file_name.is_none());
+    }
+
+    #[test]
     fn parts_after_prefix_behavior() {
         let mut existing_path = DirsAndFileName::default();
         existing_path.push_all_dirs(&["apple", "bear", "cow", "dog"]);
