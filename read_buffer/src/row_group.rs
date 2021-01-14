@@ -975,11 +975,6 @@ impl Predicate {
     }
 
     // Returns true if the Predicate contains two time expressions.
-    //
-    // TODO(edd):
-    //    * validation on datatypes (time column expressions should be i64)
-    //    * validation on whether expressions can be reduced to a no-op (e.g., t >
-    //      10 AND t < 10)
     fn contains_time_range(&self) -> bool {
         self.0
             .iter()
