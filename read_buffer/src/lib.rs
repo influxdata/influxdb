@@ -291,6 +291,34 @@ impl Database {
         })
     }
 
+    ///
+    /// NOTE: this is going to contain a specialised execution path for
+    /// essentially doing:
+    ///
+    /// SELECT DISTINCT(column_name) WHERE XYZ
+    ///
+    /// In the future the `ReadBuffer` should just proobably just add this
+    /// special execution to read_filter queries with `DISTINCT` expressions
+    /// on the selector columns.
+    ///
+    /// Returns the distinct set of tag values (column values) for each provided
+    /// column, which *must* be considered a tag key.
+    ///
+    /// As a special case, if `tag_keys` is empty then all distinct values for
+    /// all columns (tag keys) are returned for the provided chunks.
+    pub fn tag_values(
+        &self,
+        partition_key: &str,
+        table_name: &str,
+        chunk_ids: &[u32],
+        predicate: Predicate,
+        select_columns: ColumnSelection<'_>,
+    ) -> Result<TagValuesResults> {
+        Err(Error::UnsupportedOperation {
+            msg: "`tag_values` call not yet hooked up".to_owned(),
+        })
+    }
+
     //
     // ---- Schema API queries
     //
@@ -358,25 +386,6 @@ impl Database {
         Err(Error::UnsupportedOperation {
             msg: "`column_names` call not yet hooked up".to_owned(),
         })
-    }
-
-    /// Returns the distinct set of tag values (column values) for each provided
-    /// tag key, where each returned value lives in a row matching the provided
-    /// optional predicates and time range.
-    ///
-    /// As a special case, if `tag_keys` is empty then all distinct values for
-    /// all columns (tag keys) are returned for the chunk.
-    pub fn tag_values(
-        &self,
-        table_name: &str,
-        time_range: (i64, i64),
-        predicate: Predicate,
-        tag_keys: &[String],
-    ) -> Option<RecordBatch> {
-        // Find the measurement name on the chunk and dispatch query to the
-        // table for that measurement if the chunk's time range overlaps the
-        // requested time range.
-        todo!();
     }
 }
 
@@ -558,10 +567,24 @@ impl Iterator for ReadAggregateResults {
 /// An iterable set of results for calls to `read_aggregate_window`.
 ///
 /// There may be some internal buffering and merging of results before a record
-/// batch can be emitted from the iterator.
+/// batch is emitted from the iterator.
 pub struct ReadAggregateWindowResults {}
 
 impl Iterator for ReadAggregateWindowResults {
+    type Item = RecordBatch;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        None
+    }
+}
+
+/// An iterable set of results for calls to `tag_values`.
+///
+/// There may be some internal buffering and merging of results before a record
+/// batch is emitted from the iterator.
+pub struct TagValuesResults {}
+
+impl Iterator for TagValuesResults {
     type Item = RecordBatch;
 
     fn next(&mut self) -> Option<Self::Item> {
