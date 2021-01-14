@@ -7,9 +7,8 @@ use rand::Rng;
 use rand_distr::{Distribution, Normal};
 
 use packers::{sorter, Packers};
-
-use read_buffer::column::{AggregateType, Column};
-use read_buffer::row_group::{ColumnType, Predicate, RowGroup};
+use read_buffer::benchmarks::{Column, ColumnType, RowGroup};
+use read_buffer::{AggregateType, Predicate};
 
 const ONE_MS: i64 = 1_000_000;
 

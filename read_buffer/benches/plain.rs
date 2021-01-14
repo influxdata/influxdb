@@ -4,8 +4,8 @@ use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Through
 use rand::prelude::*;
 
 use arrow_deps::arrow::datatypes::*;
-use read_buffer::column::fixed::Fixed;
-use read_buffer::column::fixed_null::FixedNull;
+use read_buffer::benchmarks::Fixed;
+use read_buffer::benchmarks::FixedNull;
 
 const ROWS: [usize; 5] = [10, 100, 1_000, 10_000, 60_000];
 const CHUNKS: [Chunks; 4] = [

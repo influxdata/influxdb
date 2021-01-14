@@ -1017,3 +1017,17 @@ mod test {
         assert!(itr.next().is_none());
     }
 }
+
+/// THIS MODULE SHOULD ONLY BE IMPORTED FOR BENCHMARKS.
+///
+/// This module lets us expose internal parts of the crate so that we can use
+/// libraries like criterion for benchmarking.
+///
+/// It should not be imported into any non-testing or benchmarking crates.
+pub mod benchmarks {
+    pub use crate::column::{
+        cmp::Operator, dictionary, fixed::Fixed, fixed_null::FixedNull, Column, RowIDs,
+    };
+
+    pub use crate::row_group::{ColumnType, RowGroup};
+}
