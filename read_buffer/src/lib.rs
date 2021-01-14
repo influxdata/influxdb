@@ -253,7 +253,7 @@ impl Database {
         predicate: Predicate,
         group_columns: ColumnSelection<'_>,
         aggregates: Vec<(ColumnName<'_>, AggregateType)>,
-    ) -> Result<ReadAggregateWindowResults> {
+    ) -> Result<ReadAggregateResults> {
         Err(Error::UnsupportedOperation {
             msg: "`read_aggregate` not yet implemented".to_owned(),
         })
@@ -276,7 +276,7 @@ impl Database {
     ///
     /// `window` should be a positive value indicating a duration in
     /// nanoseconds.
-    pub fn read_aggregate_window(
+    pub fn read_window_aggregate(
         &self,
         partition_key: &str,
         table_name: &str,
@@ -285,7 +285,7 @@ impl Database {
         group_columns: ColumnSelection<'_>,
         aggregates: Vec<(ColumnName<'_>, AggregateType)>,
         window: u64,
-    ) -> Result<ReadAggregateWindowResults> {
+    ) -> Result<ReadWindowAggregateResults> {
         Err(Error::UnsupportedOperation {
             msg: "`read_aggregate_window` not yet implemented".to_owned(),
         })
@@ -297,7 +297,7 @@ impl Database {
     ///
     /// SELECT DISTINCT(column_name) WHERE XYZ
     ///
-    /// In the future the `ReadBuffer` should just proobably just add this
+    /// In the future the `ReadBuffer` should just probably just add this
     /// special execution to read_filter queries with `DISTINCT` expressions
     /// on the selector columns.
     ///
@@ -564,13 +564,13 @@ impl Iterator for ReadAggregateResults {
     }
 }
 
-/// An iterable set of results for calls to `read_aggregate_window`.
+/// An iterable set of results for calls to `read_window_aggregate`.
 ///
 /// There may be some internal buffering and merging of results before a record
 /// batch is emitted from the iterator.
-pub struct ReadAggregateWindowResults {}
+pub struct ReadWindowAggregateResults {}
 
-impl Iterator for ReadAggregateWindowResults {
+impl Iterator for ReadWindowAggregateResults {
     type Item = RecordBatch;
 
     fn next(&mut self) -> Option<Self::Item> {
