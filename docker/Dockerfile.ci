@@ -16,7 +16,6 @@ RUN apt-get update \
   && mkdir -p /usr/share/man/man1 \
   && apt-get install -y \
     git make clang cmake llvm \
-    jq \
     --no-install-recommends \
   && git clone -b v1.12.0 -- https://github.com/google/flatbuffers.git /usr/local/src/flatbuffers \
   && cmake -S /usr/local/src/flatbuffers -B /usr/local/src/flatbuffers \
@@ -40,6 +39,7 @@ RUN apt-get update \
     git locales sudo openssh-client ca-certificates tar gzip parallel \
     unzip zip bzip2 gnupg curl make pkg-config libssl-dev \
     musl musl-dev musl-tools clang llvm \
+    jq \
     --no-install-recommends \
   && apt-get clean autoclean \
 	&& apt-get autoremove --yes \
