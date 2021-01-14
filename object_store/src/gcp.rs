@@ -1,7 +1,7 @@
 //! This module contains the IOx implementation for using Google Cloud Storage
 //! as the object store.
 use crate::{
-    path::{CloudConverter, ObjectStorePath},
+    path::{cloud::CloudConverter, ObjectStorePath},
     DataDoesNotMatchLength, Result, UnableToDeleteDataFromGcs, UnableToDeleteDataFromGcs2,
     UnableToGetDataFromGcs, UnableToGetDataFromGcs2, UnableToListDataFromGcs,
     UnableToListDataFromGcs2, UnableToPutDataToGcs,
