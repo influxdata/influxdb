@@ -29,6 +29,10 @@ use chunk::Chunk;
 use row_group::{ColumnName, RowGroup};
 use table::Table;
 
+/// The name of the column containing table names returned by a call to
+/// `table_names`.
+pub const TABLE_NAMES_COLUMN_NAME: &str = "table";
+
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("arrow conversion error: {}", source))]
@@ -41,6 +45,9 @@ pub enum Error {
 
     #[snafu(display("chunk id does not exist: {}", id))]
     ChunkNotFound { id: u32 },
+
+    #[snafu(display("unsupported operation: {}", msg))]
+    UnsupportedOperation { msg: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -247,31 +254,9 @@ impl Database {
         group_columns: ColumnSelection<'_>,
         aggregates: Vec<(ColumnName<'_>, AggregateType)>,
     ) -> Result<ReadAggregateWindowResults> {
-        match self.partitions.get(partition_key) {
-            Some(partition) => {
-                let mut chunks = vec![];
-                for chunk_id in chunk_ids {
-                    chunks.push(
-                        partition
-                            .chunks
-                            .get(chunk_id)
-                            .ok_or_else(|| Error::ChunkNotFound { id: *chunk_id })?,
-                    );
-                }
-
-                // Execute query against each chunk and get results.
-                // For each result set it may be possible for there to be
-                // duplicate group keys, e.g., due to
-                // back-filling. So chunk results may need to be
-                // merged together with the aggregates from identical group keys
-                // being resolved.
-
-                Ok(ReadAggregateWindowResults {})
-            }
-            None => Err(Error::PartitionNotFound {
-                key: partition_key.to_owned(),
-            }),
-        }
+        Err(Error::UnsupportedOperation {
+            msg: "`read_aggregate` not yet implemented".to_owned(),
+        })
     }
 
     /// Returns windowed aggregates for each group specified by the values of
@@ -301,31 +286,9 @@ impl Database {
         aggregates: Vec<(ColumnName<'_>, AggregateType)>,
         window: u64,
     ) -> Result<ReadAggregateWindowResults> {
-        match self.partitions.get(partition_key) {
-            Some(partition) => {
-                let mut chunks = vec![];
-                for chunk_id in chunk_ids {
-                    chunks.push(
-                        partition
-                            .chunks
-                            .get(chunk_id)
-                            .ok_or_else(|| Error::ChunkNotFound { id: *chunk_id })?,
-                    );
-                }
-
-                // Execute query against each chunk and get results.
-                // For each result set it may be possible for there to be
-                // duplicate group keys, e.g., due to
-                // back-filling. So chunk results may need to be
-                // merged together with the aggregates from identical group keys
-                // being resolved.
-
-                Ok(ReadAggregateWindowResults {})
-            }
-            None => Err(Error::PartitionNotFound {
-                key: partition_key.to_owned(),
-            }),
-        }
+        Err(Error::UnsupportedOperation {
+            msg: "`read_aggregate_window` not yet implemented".to_owned(),
+        })
     }
 
     //
@@ -341,7 +304,13 @@ impl Database {
         partition_key: &str,
         chunk_ids: &[u32],
         predicate: Predicate,
-    ) -> Result<Option<RecordBatch>> {
+    ) -> Result<RecordBatch> {
+        if !predicate.is_empty() {
+            return Err(Error::UnsupportedOperation {
+                msg: "predicate support on `table_names` not implemented".to_owned(),
+            });
+        }
+
         let partition = self
             .partitions
             .get(partition_key)
@@ -349,18 +318,14 @@ impl Database {
                 key: partition_key.to_owned(),
             })?;
 
+        let chunks = partition.chunks_by_ids(chunk_ids)?;
         let mut intersection = BTreeSet::new();
-        let chunk_table_names = partition
-            .chunks
-            .values()
+        let chunk_table_names = chunks
+            .iter()
             .map(|chunk| chunk.table_names(&predicate))
             .for_each(|mut names| intersection.append(&mut names));
 
-        if intersection.is_empty() {
-            return Ok(None);
-        }
-
-        let schema = Schema::new(vec![Field::new("table", Utf8, false)]);
+        let schema = Schema::new(vec![Field::new(TABLE_NAMES_COLUMN_NAME, Utf8, false)]);
         let columns: Vec<ArrayRef> = vec![Arc::new(StringArray::from(
             intersection
                 .iter()
@@ -369,7 +334,7 @@ impl Database {
         ))];
 
         match RecordBatch::try_new(Arc::new(schema), columns).context(ArrowError {}) {
-            Ok(rb) => Ok(Some(rb)),
+            Ok(rb) => Ok(rb),
             Err(e) => Err(e),
         }
     }
@@ -471,6 +436,18 @@ impl Partition {
                 e.insert(Chunk::new(chunk_id, Table::new(table_name, row_group)));
             }
         };
+    }
+
+    fn chunks_by_ids(&self, ids: &[u32]) -> Result<Vec<&Chunk>> {
+        let mut chunks = vec![];
+        for chunk_id in ids {
+            chunks.push(
+                self.chunks
+                    .get(chunk_id)
+                    .ok_or_else(|| Error::ChunkNotFound { id: *chunk_id })?,
+            );
+        }
+        Ok(chunks)
     }
 
     /// Determines the total number of tables under all chunks within the
@@ -815,28 +792,24 @@ mod test {
         db.upsert_partition("hour_1", 22, "Coolverine", gen_recordbatch());
         let data = db
             .table_names("hour_1", &[22], Predicate::default())
-            .unwrap()
             .unwrap();
         assert_rb_column_equals(&data, "table", &Values::String(vec![Some("Coolverine")]));
 
         db.upsert_partition("hour_1", 22, "Coolverine", gen_recordbatch());
         let data = db
             .table_names("hour_1", &[22], Predicate::default())
-            .unwrap()
             .unwrap();
         assert_rb_column_equals(&data, "table", &Values::String(vec![Some("Coolverine")]));
 
         db.upsert_partition("hour_1", 2, "Coolverine", gen_recordbatch());
         let data = db
             .table_names("hour_1", &[22], Predicate::default())
-            .unwrap()
             .unwrap();
         assert_rb_column_equals(&data, "table", &Values::String(vec![Some("Coolverine")]));
 
         db.upsert_partition("hour_1", 2, "20 Size", gen_recordbatch());
         let data = db
             .table_names("hour_1", &[22], Predicate::default())
-            .unwrap()
             .unwrap();
         assert_rb_column_equals(
             &data,

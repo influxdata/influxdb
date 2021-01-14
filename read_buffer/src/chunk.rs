@@ -131,10 +131,6 @@ impl Chunk {
     /// Returns the distinct set of table names that contain data that satisfies
     /// the time range and predicates.
     pub fn table_names(&self, predicate: &Predicate) -> BTreeSet<&String> {
-        if !predicate.is_empty() {
-            unimplemented!("Predicate support on `table_names` is not yet implemented");
-        }
-
         self.tables.keys().collect::<BTreeSet<&String>>()
     }
 
