@@ -1,4 +1,4 @@
-use super::{ObjectStorePath, PathRepresentation, DELIMITER};
+use super::{ObjectStorePath, PathPart, PathRepresentation, DELIMITER};
 
 use itertools::Itertools;
 
@@ -20,14 +20,14 @@ impl CloudConverter {
                 let mut path = dirs_and_file_name
                     .directories
                     .iter()
-                    .map(|p| &p.0)
+                    .map(PathPart::encoded)
                     .join(DELIMITER);
 
                 if !path.is_empty() {
                     path.push_str(DELIMITER);
                 }
                 if let Some(file_name) = &dirs_and_file_name.file_name {
-                    path.push_str(&file_name.0);
+                    path.push_str(file_name.encoded());
                 }
                 path
             }

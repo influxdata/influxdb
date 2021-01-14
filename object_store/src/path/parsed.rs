@@ -17,7 +17,9 @@ impl DirsAndFileName {
         use itertools::Diff;
         match diff {
             None => match (self.file_name.as_ref(), prefix.file_name.as_ref()) {
-                (Some(self_file), Some(prefix_file)) => self_file.0.starts_with(&prefix_file.0),
+                (Some(self_file), Some(prefix_file)) => {
+                    self_file.encoded().starts_with(prefix_file.encoded())
+                }
                 (Some(_self_file), None) => true,
                 (None, Some(_prefix_file)) => false,
                 (None, None) => true,
@@ -27,7 +29,7 @@ impl DirsAndFileName {
                     .next()
                     .expect("must have at least one mismatch to be in this case");
                 match prefix.file_name.as_ref() {
-                    Some(prefix_file) => next_dir.0.starts_with(&prefix_file.0),
+                    Some(prefix_file) => next_dir.encoded().starts_with(prefix_file.encoded()),
                     None => true,
                 }
             }
@@ -42,8 +44,8 @@ impl DirsAndFileName {
                     && remaining_self
                         .next()
                         .expect("must be at least one value")
-                        .0
-                        .starts_with(&first_prefix.0)
+                        .encoded()
+                        .starts_with(first_prefix.encoded())
             }
             _ => false,
         }
@@ -103,12 +105,12 @@ impl From<PathRepresentation> for DirsAndFileName {
     fn from(path_rep: PathRepresentation) -> Self {
         match path_rep {
             PathRepresentation::RawCloud(path) => {
-                let mut parts: Vec<_> = path
+                let mut parts: Vec<PathPart> = path
                     .split_terminator(DELIMITER)
                     .map(|s| PathPart(s.to_string()))
                     .collect();
                 let maybe_file_name = match parts.pop() {
-                    Some(file) if file.0.contains('.') => Some(file),
+                    Some(file) if file.encoded().contains('.') => Some(file),
                     Some(dir) => {
                         parts.push(dir);
                         None
@@ -121,17 +123,17 @@ impl From<PathRepresentation> for DirsAndFileName {
                 }
             }
             PathRepresentation::RawPathBuf(path) => {
-                let mut parts: Vec<_> = path
+                let mut parts: Vec<PathPart> = path
                     .iter()
                     .flat_map(|s| s.to_os_string().into_string().map(PathPart))
                     .collect();
 
                 let maybe_file_name = match parts.pop() {
                     Some(file)
-                        if !file.0.starts_with('.')
-                            && (file.0.ends_with(".json")
-                                || file.0.ends_with(".parquet")
-                                || file.0.ends_with(".segment")) =>
+                        if !file.encoded().starts_with('.')
+                            && (file.encoded().ends_with(".json")
+                                || file.encoded().ends_with(".parquet")
+                                || file.encoded().ends_with(".segment")) =>
                     {
                         Some(file)
                     }

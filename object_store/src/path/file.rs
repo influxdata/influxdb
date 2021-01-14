@@ -1,4 +1,4 @@
-use super::{ObjectStorePath, PathRepresentation};
+use super::{ObjectStorePath, PathPart, PathRepresentation};
 
 use std::path::PathBuf;
 
@@ -21,10 +21,10 @@ impl FileConverter {
                 let mut path: PathBuf = dirs_and_file_name
                     .directories
                     .iter()
-                    .map(|p| &p.0)
+                    .map(PathPart::encoded)
                     .collect();
                 if let Some(file_name) = &dirs_and_file_name.file_name {
-                    path.push(&file_name.0);
+                    path.push(file_name.encoded());
                 }
                 path
             }
