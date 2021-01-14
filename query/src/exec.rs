@@ -253,7 +253,7 @@ impl Executor {
     }
 
     /// Executes the embedded plans, each as separate tasks, sending
-    /// the resulting `SeriesSet`s one by one to the `tx` chanel.
+    /// the resulting `SeriesSet`s one by one to the `tx` channel.
     ///
     /// The SeriesSets are guaranteed to come back ordered by table_name
     ///
@@ -344,7 +344,7 @@ impl Executor {
     }
 
     /// Executes `plan` and return the resulting FieldList
-    pub async fn to_fieldlist(&self, plan: FieldListPlan) -> Result<FieldList> {
+    pub async fn to_field_list(&self, plan: FieldListPlan) -> Result<FieldList> {
         match plan {
             FieldListPlan::Known(res) => res,
             FieldListPlan::Plans(plans) => {

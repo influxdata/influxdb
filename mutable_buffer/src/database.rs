@@ -1730,7 +1730,7 @@ mod tests {
             .expect("Created field_columns plan successfully");
 
         let fieldlists = executor
-            .to_fieldlist(plan)
+            .to_field_list(plan)
             .await
             .expect("Running fieldlist plan");
         assert!(fieldlists.fields.is_empty());
@@ -1747,7 +1747,7 @@ mod tests {
             .expect("Created field_columns plan successfully");
 
         let actual = executor
-            .to_fieldlist(plan)
+            .to_field_list(plan)
             .await
             .expect("Running fieldlist plan");
 
@@ -1811,7 +1811,7 @@ mod tests {
             .expect("Created field_columns plan successfully");
 
         let actual = executor
-            .to_fieldlist(plan)
+            .to_field_list(plan)
             .await
             .expect("Running fieldlist plan");
 

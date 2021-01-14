@@ -1120,7 +1120,7 @@ where
 
     let executor = db_store.executor();
 
-    let fieldlist_plan =
+    let field_list_plan =
         db.field_column_names(predicate)
             .await
             .map_err(|e| Error::ListingFields {
@@ -1128,16 +1128,16 @@ where
                 source: Box::new(e),
             })?;
 
-    let fieldlist =
+    let field_list =
         executor
-            .to_fieldlist(fieldlist_plan)
+            .to_field_list(field_list_plan)
             .await
             .map_err(|e| Error::ListingFields {
                 db_name: db_name.to_string(),
                 source: Box::new(e),
             })?;
 
-    Ok(fieldlist)
+    Ok(field_list)
 }
 
 /// Instantiate a server listening on the specified address
