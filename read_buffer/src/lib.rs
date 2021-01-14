@@ -23,7 +23,8 @@ use snafu::{ResultExt, Snafu};
 use chunk::Chunk;
 use column::AggregateType;
 pub use column::{FIELD_COLUMN_TYPE, TAG_COLUMN_TYPE, TIME_COLUMN_TYPE};
-use row_group::{ColumnName, Predicate, RowGroup};
+pub use row_group::Predicate;
+use row_group::{ColumnName, RowGroup};
 use table::Table;
 
 #[derive(Debug, Snafu)]
@@ -187,7 +188,7 @@ impl Database {
         partition_key: &str,
         table_name: &'a str,
         chunk_ids: &[u32],
-        predicates: &'a [Predicate<'a>],
+        predicate: Predicate,
         select_columns: table::ColumnSelection<'a>,
     ) -> Result<ReadFilterResults<'a, '_>> {
         match self.partitions.get(partition_key) {
@@ -208,7 +209,7 @@ impl Database {
                 Ok(ReadFilterResults::new(
                     chunks,
                     table_name,
-                    predicates,
+                    predicate,
                     select_columns,
                 ))
             }
@@ -241,7 +242,7 @@ impl Database {
         partition_key: &str,
         table_name: &str,
         chunk_ids: &[u32],
-        predicates: &[Predicate<'_>],
+        predicate: Predicate,
         group_columns: Vec<String>,
         aggregates: Vec<(ColumnName<'_>, AggregateType)>,
     ) -> Result<()> {
@@ -299,7 +300,7 @@ impl Database {
         &self,
         table_name: &str,
         time_range: (i64, i64),
-        predicates: &[Predicate<'_>],
+        predicate: Predicate,
         group_columns: Vec<String>,
         aggregates: Vec<(ColumnName<'_>, AggregateType)>,
         window: i64,
@@ -330,7 +331,7 @@ impl Database {
         &self,
         partition_key: &str,
         chunk_ids: &[u32],
-        predicates: &[Predicate<'_>],
+        predicate: Predicate,
     ) -> Result<Option<RecordBatch>> {
         let partition = self
             .partitions
@@ -343,7 +344,7 @@ impl Database {
         let chunk_table_names = partition
             .chunks
             .values()
-            .map(|chunk| chunk.table_names(predicates))
+            .map(|chunk| chunk.table_names(&predicate))
             .for_each(|mut names| intersection.append(&mut names));
 
         if intersection.is_empty() {
@@ -370,7 +371,7 @@ impl Database {
         &self,
         table_name: &str,
         time_range: (i64, i64),
-        predicates: &[Predicate<'_>],
+        predicate: Predicate,
     ) -> Option<RecordBatch> {
         // Find all matching chunks using:
         //   - time range
@@ -393,7 +394,7 @@ impl Database {
         &self,
         table_name: &str,
         time_range: (i64, i64),
-        predicates: &[Predicate<'_>],
+        predicate: Predicate,
         tag_keys: &[String],
     ) -> Option<RecordBatch> {
         // Find the measurement name on the chunk and dispatch query to the
@@ -484,10 +485,10 @@ impl Partition {
 pub struct ReadFilterResults<'input, 'chunk> {
     chunks: Vec<&'chunk Chunk>,
     next_i: usize,
-    curr_table_results: Option<table::ReadFilterResults<'input, 'chunk>>,
+    curr_table_results: Option<table::ReadFilterResults<'chunk>>,
 
     table_name: &'input str,
-    predicates: &'input [Predicate<'input>],
+    predicate: Predicate,
     select_columns: table::ColumnSelection<'input>,
 }
 
@@ -495,7 +496,7 @@ impl<'input, 'chunk> ReadFilterResults<'input, 'chunk> {
     fn new(
         chunks: Vec<&'chunk Chunk>,
         table_name: &'input str,
-        predicates: &'input [Predicate<'input>],
+        predicate: Predicate,
         select_columns: table::ColumnSelection<'input>,
     ) -> Self {
         Self {
@@ -503,7 +504,7 @@ impl<'input, 'chunk> ReadFilterResults<'input, 'chunk> {
             next_i: 0,
             curr_table_results: None,
             table_name,
-            predicates,
+            predicate,
             select_columns,
         }
     }
@@ -521,7 +522,7 @@ impl<'input, 'chunk> Iterator for ReadFilterResults<'input, 'chunk> {
         if self.curr_table_results.is_none() {
             self.curr_table_results = self.chunks[self.next_i].read_filter(
                 self.table_name,
-                self.predicates,
+                &self.predicate,
                 &self.select_columns,
             );
         }
@@ -552,26 +553,6 @@ impl<'input, 'chunk> Iterator for ReadFilterResults<'input, 'chunk> {
     }
 }
 
-/// Generate a predicate for the time range [from, to).
-pub fn time_range_predicate<'a>(from: i64, to: i64) -> Vec<row_group::Predicate<'a>> {
-    vec![
-        (
-            row_group::TIME_COLUMN_NAME,
-            (
-                column::cmp::Operator::GTE,
-                column::Value::Scalar(column::Scalar::I64(from)),
-            ),
-        ),
-        (
-            row_group::TIME_COLUMN_NAME,
-            (
-                column::cmp::Operator::LT,
-                column::Value::Scalar(column::Scalar::I64(to)),
-            ),
-        ),
-    ]
-}
-
 #[cfg(test)]
 mod test {
     use std::collections::HashMap;
@@ -587,9 +568,8 @@ mod test {
         },
     };
 
-    use column::Values;
-
     use super::*;
+    use column::Values;
 
     // helper to make the `database_update_chunk` test simpler to read.
     fn gen_recordbatch() -> RecordBatch {
@@ -796,19 +776,31 @@ mod test {
         let mut db = Database::new();
 
         db.upsert_partition("hour_1", 22, "Coolverine", gen_recordbatch());
-        let data = db.table_names("hour_1", &[22], &[]).unwrap().unwrap();
+        let data = db
+            .table_names("hour_1", &[22], Predicate::default())
+            .unwrap()
+            .unwrap();
         assert_rb_column_equals(&data, "table", &Values::String(vec![Some("Coolverine")]));
 
         db.upsert_partition("hour_1", 22, "Coolverine", gen_recordbatch());
-        let data = db.table_names("hour_1", &[22], &[]).unwrap().unwrap();
+        let data = db
+            .table_names("hour_1", &[22], Predicate::default())
+            .unwrap()
+            .unwrap();
         assert_rb_column_equals(&data, "table", &Values::String(vec![Some("Coolverine")]));
 
         db.upsert_partition("hour_1", 2, "Coolverine", gen_recordbatch());
-        let data = db.table_names("hour_1", &[22], &[]).unwrap().unwrap();
+        let data = db
+            .table_names("hour_1", &[22], Predicate::default())
+            .unwrap()
+            .unwrap();
         assert_rb_column_equals(&data, "table", &Values::String(vec![Some("Coolverine")]));
 
         db.upsert_partition("hour_1", 2, "20 Size", gen_recordbatch());
-        let data = db.table_names("hour_1", &[22], &[]).unwrap().unwrap();
+        let data = db
+            .table_names("hour_1", &[22], Predicate::default())
+            .unwrap()
+            .unwrap();
         assert_rb_column_equals(
             &data,
             "table",
@@ -863,23 +855,20 @@ mod test {
         //
         //   SELECT * FROM "table_1"
         //   WHERE "env" = 'us-west' AND
-        //   "time" >= 0 AND  "time" < 17
+        //   "time" >= 100 AND  "time" < 205
         //
-        let mut predicates = time_range_predicate(100, 205); // filter on time
-        predicates.push((
-            "env",
-            (
-                column::cmp::Operator::Equal,
-                column::Value::String("us-west"),
-            ),
-        ));
+        let predicate = Predicate::with_time_range(
+            &[row_group::BinaryExpr::from(("env", "=", "us-west"))],
+            100,
+            205,
+        ); // filter on time
 
         let mut itr = db
             .read_filter(
                 "hour_1",
                 "Coolverine",
                 &[22],
-                &predicates,
+                predicate,
                 table::ColumnSelection::All,
             )
             .unwrap();
@@ -955,23 +944,20 @@ mod test {
         //
         //   SELECT * FROM "table_1"
         //   WHERE "env" = 'us-west' AND
-        //   "time" >= 0 AND  "time" < 17
+        //   "time" >= 100 AND  "time" < 205
         //
-        let mut predicates = time_range_predicate(100, 205); // filter on time
-        predicates.push((
-            "env",
-            (
-                column::cmp::Operator::Equal,
-                column::Value::String("us-west"),
-            ),
-        ));
+        let predicate = Predicate::with_time_range(
+            &[row_group::BinaryExpr::from(("env", "=", "us-west"))],
+            100,
+            205,
+        ); // filter on time
 
         let mut itr = db
             .read_filter(
                 "hour_1",
                 "Coolverine",
                 &[100, 200, 300],
-                &predicates,
+                predicate,
                 table::ColumnSelection::Some(&["env", "region", "counter", "time"]),
             )
             .unwrap();

@@ -2646,6 +2646,15 @@ macro_rules! scalar_from_impls {
                     Self::Scalar(Scalar::$variant(v))
                 }
             }
+
+            impl From<Option<$type>> for Value<'_> {
+                fn from(v: Option<$type>) -> Self {
+                    match v {
+                        Some(v) => Self::Scalar(Scalar::$variant(v)),
+                        None => Self::Null,
+                    }
+                }
+            }
         )*
     };
 }
@@ -2653,7 +2662,7 @@ macro_rules! scalar_from_impls {
 scalar_from_impls! {
     (I64, i64),
     (U64, u64),
-    (F64,f64),
+    (F64, f64),
 }
 
 /// Each variant is a typed vector of materialised values for a column.

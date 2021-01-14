@@ -89,14 +89,14 @@ impl Chunk {
     /// TODO(edd): Alternatively we could assert the caller must have done
     /// appropriate pruning and that the table should always exist, meaning we
     /// can blow up here and not need to return an option.
-    pub fn read_filter<'a>(
+    pub fn read_filter(
         &self,
         table_name: &str,
-        predicates: &'a [Predicate<'a>],
+        predicate: &Predicate,
         select_columns: &ColumnSelection<'_>,
-    ) -> Option<ReadFilterResults<'a, '_>> {
+    ) -> Option<ReadFilterResults<'_>> {
         match self.tables.get(table_name) {
-            Some(table) => Some(table.read_filter(select_columns, predicates)),
+            Some(table) => Some(table.read_filter(select_columns, predicate)),
             None => None,
         }
     }
@@ -116,7 +116,7 @@ impl Chunk {
     pub fn aggregate(
         &self,
         table_name: &str,
-        predicates: &[Predicate<'_>],
+        predicate: Predicate,
         group_columns: Vec<ColumnName<'_>>,
         aggregates: Vec<(ColumnName<'_>, AggregateType)>,
     ) -> ReadGroupResults<'_, '_> {
@@ -130,8 +130,8 @@ impl Chunk {
 
     /// Returns the distinct set of table names that contain data that satisfies
     /// the time range and predicates.
-    pub fn table_names(&self, predicates: &[Predicate<'_>]) -> BTreeSet<&String> {
-        if !predicates.is_empty() {
+    pub fn table_names(&self, predicate: &Predicate) -> BTreeSet<&String> {
+        if !predicate.is_empty() {
             unimplemented!("Predicate support on `table_names` is not yet implemented");
         }
 
@@ -143,7 +143,7 @@ impl Chunk {
     pub fn tag_keys(
         &self,
         table_name: String,
-        predicates: &[Predicate<'_>],
+        predicate: Predicate,
         found_keys: &BTreeSet<ColumnName<'_>>,
     ) -> BTreeSet<ColumnName<'_>> {
         // Lookup table by name and dispatch execution if the table's time range
@@ -161,7 +161,7 @@ impl Chunk {
     pub fn tag_values(
         &self,
         table_name: String,
-        predicates: &[Predicate<'_>],
+        predicate: Predicate,
         tag_keys: &[ColumnName<'_>],
         found_tag_values: &BTreeMap<ColumnName<'_>, BTreeSet<&String>>,
     ) -> BTreeMap<ColumnName<'_>, BTreeSet<&String>> {
