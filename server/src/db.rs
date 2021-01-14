@@ -279,7 +279,7 @@ pub fn to_read_buffer_predicate(predicate: &Predicate) -> Result<read_buffer::Pr
     match predicate
         .exprs
         .iter()
-        .map(read_buffer::row_group::BinaryExpr::try_from)
+        .map(read_buffer::BinaryExpr::try_from)
         .collect::<Result<Vec<_>, _>>()
     {
         Ok(exprs) => {
@@ -306,7 +306,7 @@ pub mod test {
     use arrow_deps::datafusion::scalar::ScalarValue;
 
     use query::predicate::PredicateBuilder;
-    use read_buffer::row_group::BinaryExpr as RBBinaryExpr;
+    use read_buffer::BinaryExpr as RBBinaryExpr;
     use read_buffer::Predicate as RBPredicate;
 
     #[test]

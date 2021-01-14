@@ -3,8 +3,8 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(unused_variables)]
 pub(crate) mod chunk;
-pub mod column;
-pub mod row_group;
+pub(crate) mod column;
+pub(crate) mod row_group;
 pub(crate) mod table;
 
 use std::{
@@ -20,10 +20,13 @@ use arrow_deps::arrow::{
 };
 use snafu::{ResultExt, Snafu};
 
+// Identifiers that are exported as part of the public API.
+pub use column::{FIELD_COLUMN_TYPE, TAG_COLUMN_TYPE, TIME_COLUMN_TYPE};
+pub use row_group::{BinaryExpr, Predicate};
+pub use table::ColumnSelection;
+
 use chunk::Chunk;
 use column::AggregateType;
-pub use column::{FIELD_COLUMN_TYPE, TAG_COLUMN_TYPE, TIME_COLUMN_TYPE};
-pub use row_group::Predicate;
 use row_group::{ColumnName, RowGroup};
 use table::Table;
 
@@ -189,7 +192,7 @@ impl Database {
         table_name: &'a str,
         chunk_ids: &[u32],
         predicate: Predicate,
-        select_columns: table::ColumnSelection<'a>,
+        select_columns: ColumnSelection<'a>,
     ) -> Result<ReadFilterResults<'a, '_>> {
         match self.partitions.get(partition_key) {
             Some(partition) => {
