@@ -16,7 +16,10 @@ use snafu::{ResultExt, Snafu};
 
 use panic_logging::SendPanicsToTracing;
 
-use super::{config::load_config, logging::LoggingLevel};
+use super::{
+    config::{load_config, Config},
+    logging::LoggingLevel,
+};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -69,11 +72,18 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// This is the entry point for the IOx server -- it handles
-/// instantiating all state and getting things ready
-pub async fn main(logging_level: LoggingLevel) -> Result<()> {
-    // try to load the configuration before doing anything else
-    let config = load_config();
+/// This is the entry point for the IOx server. `config` represents
+/// command line arguments, if any
+///
+/// The logging_level passed in is the global setting (e.g. if -v or
+/// -vv was passed in before 'server')
+pub async fn main(logging_level: LoggingLevel, config: Option<Config>) -> Result<()> {
+    // load config from environment if no command line
+    let config = config.unwrap_or_else(load_config);
+
+    // Handle the case if -v/-vv is specified both before and after the server
+    // command
+    let logging_level = logging_level.combine(LoggingLevel::new(config.verbose_count));
 
     let _drop_handle = logging_level.setup_logging(&config);
 

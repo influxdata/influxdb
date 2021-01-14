@@ -1,10 +1,13 @@
-use std::{borrow::Cow, collections::BTreeMap, sync::Arc};
+use std::{borrow::Cow, collections::BTreeMap, convert::TryFrom, sync::Arc};
 
 use hashbrown::{hash_map, HashMap};
 use itertools::Itertools;
 
-use arrow_deps::arrow;
 use arrow_deps::arrow::record_batch::RecordBatch;
+use arrow_deps::{
+    arrow, datafusion::logical_plan::Expr as DfExpr,
+    datafusion::scalar::ScalarValue as DFScalarValue,
+};
 
 use crate::column::{
     self, cmp::Operator, AggregateResult, AggregateType, Column, EncodedValues, LogicalDataType,
@@ -152,32 +155,31 @@ impl RowGroup {
         self.meta.time_range
     }
 
-    /// Efficiently determine if the provided predicate might be satisfied by
-    /// the provided column.
-    pub fn column_could_satisfy_predicate(
+    /// Efficiently determines if the provided set of binary expressions could
+    /// all be satisfied by the `RowGroup` when conjunctively applied.
+    pub fn could_satisfy_conjunctive_binary_expressions<'a>(
         &self,
-        column_name: ColumnName<'_>,
-        predicate: &(Operator, Value<'_>),
+        exprs: impl IntoIterator<Item = &'a BinaryExpr>,
     ) -> bool {
-        self.meta
-            .read_group_could_satisfy_predicate(column_name, predicate)
+        // Returns false if ANY expression cannot possibly be satisfied.
+        exprs
+            .into_iter()
+            .all(|expr| self.meta.column_could_satisfy_binary_expr(expr))
     }
 
     //
     // Methods for reading the `RowGroup`
     //
 
-    /// Returns a set of materialised column values that satisfy a set of
-    /// predicates.
-    ///
-    /// Right now, predicates are conjunctive (AND).
+    /// Returns a set of materialised column values that optionally satisfy a
+    /// predicate.
     ///
     /// TODO(edd): this should probably return an Option and the caller can
     /// filter None results.
     pub fn read_filter(
         &self,
         columns: &[ColumnName<'_>],
-        predicates: &[Predicate<'_>],
+        predicates: &Predicate,
     ) -> ReadFilterResult<'_> {
         let row_ids = self.row_ids_from_predicates(predicates);
 
@@ -228,10 +230,8 @@ impl RowGroup {
         }
     }
 
-    // Determines the set of row ids that satisfy the provided predicates. If
-    // `predicates` contains two predicates on the time column they are
-    // special-cased.
-    fn row_ids_from_predicates(&self, predicates: &[Predicate<'_>]) -> RowIDsOption {
+    // Determines the set of row ids that satisfy the provided predicate.
+    fn row_ids_from_predicates(&self, predicate: &Predicate) -> RowIDsOption {
         // TODO(edd): perf - potentially pool this so we can re-use it once rows
         // have been materialised and it's no longer needed. Initialise a bitmap
         // RowIDs because it's like that set operations will be necessary.
@@ -243,21 +243,21 @@ impl RowGroup {
         // for subsequent calls _to_ the `RowGroup`.
         let mut dst = RowIDs::new_bitmap();
 
-        let mut predicates = Cow::Borrowed(predicates);
-        // If there is a time-range in the predicates (two time predicates),
+        let mut predicate = Cow::Borrowed(predicate);
+
+        // If there is a time-range in the predicate (two time expressions),
         // then execute an optimised version that will use a range based
-        // predicate on the time column.
-        if predicates
-            .iter()
-            .filter(|(col, _)| *col == TIME_COLUMN_NAME)
-            .count()
-            // Check if we have two predicates on the time column, i.e., a time
-            // range.
-            == 2
-        {
-            // Apply optimised filtering to time column
-            let time_pred_row_ids =
-                self.row_ids_from_predicates_with_time_range(predicates.as_ref(), dst);
+        // filter on the time column, effectively avoiding a scan and
+        // intersection.
+        if predicate.contains_time_range() {
+            predicate = predicate.to_owned(); // We need to modify the predicate
+
+            let time_range = predicate
+                .to_mut()
+                .remove_expr_by_column_name(TIME_COLUMN_NAME);
+
+            // removes time expression from predicate
+            let time_pred_row_ids = self.row_ids_from_time_range(&time_range, dst);
             match time_pred_row_ids {
                 // No matching rows based on time range
                 RowIDsOption::None(_) => return time_pred_row_ids,
@@ -275,23 +275,18 @@ impl RowGroup {
                     dst = row_ids // hand buffer back
                 }
             }
-
-            // remove time predicates so they're not processed again
-            let mut filtered_predicates = predicates.to_vec();
-            filtered_predicates.retain(|(col, _)| *col != TIME_COLUMN_NAME);
-            predicates = Cow::Owned(filtered_predicates);
         }
 
-        for (name, (op, value)) in predicates.iter() {
+        for expr in predicate.iter() {
             // N.B column should always exist because validation of predicates
             // should happen at the `Table` level.
-            let (col_name, col) = self.column_name_and_column(name);
+            let (col_name, col) = self.column_name_and_column(expr.column());
 
             // Explanation of how this buffer pattern works. The idea is that
             // the buffer should be returned to the caller so it can be re-used
             // on other columns. Each call to `row_ids_filter` returns the
             // buffer back enabling it to be re-used.
-            match col.row_ids_filter(op, value, dst) {
+            match col.row_ids_filter(&expr.op, &expr.literal_as_value(), dst) {
                 // No rows will be returned for the `RowGroup` because this
                 // column does not match any rows.
                 RowIDsOption::None(_dst) => return RowIDsOption::None(_dst),
@@ -324,22 +319,11 @@ impl RowGroup {
 
     // An optimised function for applying two comparison predicates to a time
     // column at once.
-    fn row_ids_from_predicates_with_time_range(
-        &self,
-        predicates: &[Predicate<'_>],
-        dst: RowIDs,
-    ) -> RowIDsOption {
-        // find the time range predicates and execute a specialised range based
-        // row id lookup.
-        let time_predicates = predicates
-            .iter()
-            .filter(|(col_name, _)| col_name == &TIME_COLUMN_NAME)
-            .collect::<Vec<_>>();
-        assert!(time_predicates.len() == 2);
-
+    fn row_ids_from_time_range(&self, time_range: &[BinaryExpr], dst: RowIDs) -> RowIDsOption {
+        assert_eq!(time_range.len(), 2);
         self.time_column().row_ids_filter_range(
-            &time_predicates[0].1, // min time
-            &time_predicates[1].1, // max time
+            &(time_range[0].op, time_range[0].literal_as_value()), // min time
+            &(time_range[1].op, time_range[1].literal_as_value()), // max time
             dst,
         )
     }
@@ -354,7 +338,7 @@ impl RowGroup {
     /// where multiple `RowGroup` results may need to be merged.
     pub fn read_group(
         &self,
-        predicates: &[Predicate<'_>],
+        predicate: &Predicate,
         group_columns: &[ColumnName<'_>],
         aggregates: &[(ColumnName<'_>, AggregateType)],
     ) -> ReadGroupResult<'_> {
@@ -388,14 +372,14 @@ impl RowGroup {
                 .properties()
                 .has_pre_computed_row_ids
         });
-        if predicates.is_empty() && all_group_cols_pre_computed {
+        if predicate.is_empty() && all_group_cols_pre_computed {
             self.read_group_all_rows_all_rle(&mut result);
             return result;
         }
 
         // There are predicates. The next stage is apply them and determine the
         // intermediate set of row ids.
-        let row_ids = self.row_ids_from_predicates(predicates);
+        let row_ids = self.row_ids_from_predicates(predicate);
         let filter_row_ids = match row_ids {
             RowIDsOption::None(_) => {
                 return result;
@@ -830,7 +814,7 @@ impl RowGroup {
     // can be calculated by reading the rows in order.
     fn read_group_sorted_stream(
         &self,
-        predicates: &[Predicate<'_>],
+        predicates: &Predicate,
         group_column: ColumnName<'_>,
         aggregates: &[(ColumnName<'_>, AggregateType)],
     ) {
@@ -936,7 +920,213 @@ fn unpack_u128_group_key(group_key_packed: u128, n: usize, mut dst: Vec<u32>) ->
     dst
 }
 
-pub type Predicate<'a> = (ColumnName<'a>, (Operator, Value<'a>));
+#[derive(Clone, Default, Debug, PartialEq)]
+pub struct Predicate(Vec<BinaryExpr>);
+
+impl Predicate {
+    pub fn new(expr: Vec<BinaryExpr>) -> Self {
+        Self(expr)
+    }
+
+    /// Constructs a `Predicate` based on the provided collection of expressions
+    /// and explicit time bounds.
+    ///
+    /// The `from` and `to` values will be converted into appropriate
+    /// expressions, which result in the `Predicate` expressing the following:
+    ///
+    /// time >= from AND time < to
+    pub fn with_time_range(exprs: &[BinaryExpr], from: i64, to: i64) -> Self {
+        let mut time_exprs = vec![
+            BinaryExpr::from((TIME_COLUMN_NAME, ">=", from)),
+            BinaryExpr::from((TIME_COLUMN_NAME, "<", to)),
+        ];
+
+        time_exprs.extend_from_slice(exprs);
+        Self(time_exprs)
+    }
+
+    /// A `Predicate` is empty if it has no expressions.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub fn iter(&self) -> std::slice::Iter<'_, BinaryExpr> {
+        self.0.iter()
+    }
+
+    /// Returns a vector of all expressions on the predicate.
+    pub fn expressions(&self) -> &[BinaryExpr] {
+        &self.0
+    }
+
+    // Removes all expressions for specified column from the predicate and
+    // returns them.
+    //
+    // The current use-case for this to separate processing the time column on
+    // its own using an optimised filtering function (because the time column is
+    // very likely to have two expressions in the predicate).
+    fn remove_expr_by_column_name(&mut self, name: ColumnName<'_>) -> Vec<BinaryExpr> {
+        let mut exprs = vec![];
+        while let Some(i) = self.0.iter().position(|expr| expr.col == name) {
+            exprs.push(self.0.remove(i));
+        }
+
+        exprs
+    }
+
+    // Returns true if the Predicate contains two time expressions.
+    fn contains_time_range(&self) -> bool {
+        self.0
+            .iter()
+            .filter(|expr| expr.col == TIME_COLUMN_NAME)
+            .count()
+            == 2
+    }
+}
+
+/// Supported literal values for expressions. These map to a sub-set of logical
+/// datatypes supported by the `ReadBuffer`.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Literal {
+    String(String),
+    Integer(i64),
+    Unsigned(u64),
+    Float(f64),
+    Boolean(bool),
+}
+
+impl<'a> TryFrom<&DFScalarValue> for Literal {
+    type Error = String;
+
+    fn try_from(value: &DFScalarValue) -> Result<Self, Self::Error> {
+        match value {
+            DFScalarValue::Boolean(v) => match v {
+                Some(v) => Ok(Self::Boolean(*v)),
+                None => Err("NULL literal not supported".to_owned()),
+            },
+            DFScalarValue::Float64(v) => match v {
+                Some(v) => Ok(Self::Float(*v)),
+                None => Err("NULL literal not supported".to_owned()),
+            },
+            DFScalarValue::Int64(v) => match v {
+                Some(v) => Ok(Self::Integer(*v)),
+                None => Err("NULL literal not supported".to_owned()),
+            },
+            DFScalarValue::UInt64(v) => match v {
+                Some(v) => Ok(Self::Unsigned(*v)),
+                None => Err("NULL literal not supported".to_owned()),
+            },
+            DFScalarValue::Utf8(v) => match v {
+                Some(v) => Ok(Self::String(v.clone())),
+                None => Err("NULL literal not supported".to_owned()),
+            },
+            _ => Err("scalar type not supported".to_owned()),
+        }
+    }
+}
+
+/// An expression that contains a column name on the left side, an operator, and
+/// a literal value on the right side.
+#[derive(Clone, Debug, PartialEq)]
+pub struct BinaryExpr {
+    col: String,
+    op: Operator,
+    value: Literal,
+}
+
+impl BinaryExpr {
+    pub fn new(column_name: impl Into<String>, op: Operator, value: Literal) -> Self {
+        Self {
+            col: column_name.into(),
+            op,
+            value,
+        }
+    }
+
+    pub fn column(&self) -> ColumnName<'_> {
+        self.col.as_str()
+    }
+
+    pub fn op(&self) -> Operator {
+        self.op
+    }
+
+    pub fn literal(&self) -> &Literal {
+        &self.value
+    }
+
+    fn literal_as_value(&self) -> Value<'_> {
+        match self.literal() {
+            Literal::String(v) => Value::String(v),
+            Literal::Integer(v) => Value::Scalar(Scalar::I64(*v)),
+            Literal::Unsigned(v) => Value::Scalar(Scalar::U64(*v)),
+            Literal::Float(v) => Value::Scalar(Scalar::F64(*v)),
+            Literal::Boolean(v) => Value::Boolean(*v),
+        }
+    }
+}
+
+impl From<(&str, &str, &str)> for BinaryExpr {
+    fn from(expr: (&str, &str, &str)) -> Self {
+        Self::new(
+            expr.0,
+            Operator::try_from(expr.1).unwrap(),
+            Literal::String(expr.2.to_owned()),
+        )
+    }
+}
+
+// These From implementations are useful for expressing expressions easily in
+// tests by allowing for example:
+//
+//    BinaryExpr::from("region", ">=", "east")
+//    BinaryExpr::from("counter", "=", 321.3)
+macro_rules! binary_expr_from_impls {
+    ($(($type:ident, $variant:ident),)*) => {
+        $(
+            impl From<(&str, &str, $type)> for BinaryExpr {
+                fn from(expr: (&str, &str, $type)) -> Self {
+                    Self::new(
+                        expr.0,
+                        Operator::try_from(expr.1).unwrap(),
+                        Literal::$variant(expr.2.to_owned()),
+                    )
+                }
+            }
+        )*
+    };
+}
+
+binary_expr_from_impls! {
+    (String, String),
+    (i64, Integer),
+    (f64, Float),
+    (u64, Unsigned),
+    (bool, Boolean),
+}
+
+impl TryFrom<&DfExpr> for BinaryExpr {
+    type Error = String;
+
+    fn try_from(df_expr: &DfExpr) -> Result<Self, Self::Error> {
+        let (column_name, op, value) = match df_expr {
+            DfExpr::BinaryExpr { left, op, right } => (
+                match &**left {
+                    DfExpr::Column(name) => name,
+                    _ => return Err(format!("unsupported left expression {:?}", *left)),
+                },
+                Operator::try_from(op)?,
+                match &**right {
+                    DfExpr::Literal(scalar) => Literal::try_from(scalar)?,
+                    _ => return Err(format!("unsupported right expression {:?}", *right)),
+                },
+            ),
+            _ => return Err(format!("unsupported expression type {:?}", df_expr)),
+        };
+
+        Ok(Self::new(column_name, op, value))
+    }
+}
 
 // A GroupKey is an ordered collection of row values. The order determines which
 // columns the values originated from.
@@ -1027,21 +1217,17 @@ struct MetaData {
 }
 
 impl MetaData {
-    // helper function to determine if the provided predicate could be satisfied
-    // by the `RowGroup`. If this function returns `false` then there is no
-    // point attempting to read data from the `RowGroup`.
+    // helper function to determine if the provided binary expression could be
+    // satisfied in the `RowGroup`, If this function returns `false` then there
+    // no rows in the `RowGroup` would ever match the expression.
     //
-    pub fn read_group_could_satisfy_predicate(
-        &self,
-        column_name: ColumnName<'_>,
-        predicate: &(Operator, Value<'_>),
-    ) -> bool {
-        let (column_min, column_max) = match self.column_ranges.get(column_name) {
+    pub fn column_could_satisfy_binary_expr(&self, expr: &BinaryExpr) -> bool {
+        let (column_min, column_max) = match self.column_ranges.get(expr.column()) {
             Some(range) => range,
             None => return false, // column doesn't exist.
         };
 
-        let (op, value) = predicate;
+        let (op, value) = (expr.op(), &expr.literal_as_value());
         match op {
             // If the column range covers the value then it could contain that
             // value.
@@ -1264,31 +1450,14 @@ impl std::fmt::Display for &ReadGroupResult<'_> {
     }
 }
 
-/// helper function useful for tests and benchmarks. Creates a time-range
-/// predicate in the domain `[from, to)`.
-pub fn build_predicates_with_time(
-    from: i64,
-    to: i64,
-    others: Vec<Predicate<'_>>,
-) -> Vec<Predicate<'_>> {
-    let mut arr = vec![
-        (
-            TIME_COLUMN_NAME,
-            (Operator::GTE, Value::Scalar(Scalar::I64(from))),
-        ),
-        (
-            TIME_COLUMN_NAME,
-            (Operator::LT, Value::Scalar(Scalar::I64(to))),
-        ),
-    ];
-
-    arr.extend(others);
-    arr
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
+
+    // Helper function that creates a predicate from a single expression
+    fn col_pred(expr: BinaryExpr) -> Predicate {
+        Predicate::new(vec![expr])
+    }
 
     #[test]
     fn row_ids_from_predicates() {
@@ -1302,59 +1471,58 @@ mod test {
         let row_group = RowGroup::new(6, columns);
 
         // Closed partially covering "time range" predicate
-        let row_ids =
-            row_group.row_ids_from_predicates(&build_predicates_with_time(200, 600, vec![]));
+        let row_ids = row_group.row_ids_from_predicates(&Predicate::with_time_range(&[], 200, 600));
         assert_eq!(row_ids.unwrap().to_vec(), vec![1, 2, 4, 5]);
 
         // Fully covering "time range" predicate
-        let row_ids =
-            row_group.row_ids_from_predicates(&build_predicates_with_time(10, 601, vec![]));
+        let row_ids = row_group.row_ids_from_predicates(&Predicate::with_time_range(&[], 10, 601));
         assert!(matches!(row_ids, RowIDsOption::All(_)));
 
         // Open ended "time range" predicate
-        let row_ids = row_group.row_ids_from_predicates(&[(
+        let row_ids = row_group.row_ids_from_predicates(&col_pred(BinaryExpr::from((
             TIME_COLUMN_NAME,
-            (Operator::GTE, Value::Scalar(Scalar::I64(300))),
-        )]);
+            ">=",
+            300_i64,
+        ))));
         assert_eq!(row_ids.unwrap().to_vec(), vec![2, 3, 4, 5]);
 
         // Closed partially covering "time range" predicate and other column
         // predicate
-        let row_ids = row_group.row_ids_from_predicates(&build_predicates_with_time(
+        let row_ids = row_group.row_ids_from_predicates(&Predicate::with_time_range(
+            &[BinaryExpr::from(("region", "=", "south"))],
             200,
             600,
-            vec![("region", (Operator::Equal, Value::String("south")))],
         ));
         assert_eq!(row_ids.unwrap().to_vec(), vec![4]);
 
         // Fully covering "time range" predicate and other column predicate
-        let row_ids = row_group.row_ids_from_predicates(&build_predicates_with_time(
+        let row_ids = row_group.row_ids_from_predicates(&Predicate::with_time_range(
+            &[BinaryExpr::from(("region", "=", "west"))],
             10,
             601,
-            vec![("region", (Operator::Equal, Value::String("west")))],
         ));
         assert_eq!(row_ids.unwrap().to_vec(), vec![0, 1, 3]);
 
         // "time range" predicate and other column predicate that doesn't match
-        let row_ids = row_group.row_ids_from_predicates(&build_predicates_with_time(
+        let row_ids = row_group.row_ids_from_predicates(&Predicate::with_time_range(
+            &[BinaryExpr::from(("region", "=", "nope"))],
             200,
             600,
-            vec![("region", (Operator::Equal, Value::String("nope")))],
         ));
         assert!(matches!(row_ids, RowIDsOption::None(_)));
 
         // Just a column predicate
-        let row_ids = row_group
-            .row_ids_from_predicates(&[("region", (Operator::Equal, Value::String("east")))]);
+        let row_ids =
+            row_group.row_ids_from_predicates(&col_pred(BinaryExpr::from(("region", "=", "east"))));
         assert_eq!(row_ids.unwrap().to_vec(), vec![2]);
 
         // Predicate can matches all the rows
         let row_ids = row_group
-            .row_ids_from_predicates(&[("region", (Operator::NotEqual, Value::String("abba")))]);
+            .row_ids_from_predicates(&col_pred(BinaryExpr::from(("region", "!=", "abba"))));
         assert!(matches!(row_ids, RowIDsOption::All(_)));
 
         // No predicates
-        let row_ids = row_group.row_ids_from_predicates(&[]);
+        let row_ids = row_group.row_ids_from_predicates(&Predicate::default());
         assert!(matches!(row_ids, RowIDsOption::All(_)));
     }
 
@@ -1382,7 +1550,7 @@ mod test {
         let cases = vec![
             (
                 vec!["count", "region", "time"],
-                build_predicates_with_time(1, 6, vec![]),
+                Predicate::with_time_range(&[], 1, 6),
                 "count,region,time
 100,west,1
 101,west,2
@@ -1393,14 +1561,14 @@ mod test {
             ),
             (
                 vec!["time", "region", "method"],
-                build_predicates_with_time(-19, 2, vec![]),
+                Predicate::with_time_range(&[], -19, 2),
                 "time,region,method
 1,west,GET
 ",
             ),
             (
                 vec!["time"],
-                build_predicates_with_time(0, 3, vec![]),
+                Predicate::with_time_range(&[], 0, 3),
                 "time
 1
 2
@@ -1408,7 +1576,7 @@ mod test {
             ),
             (
                 vec!["method"],
-                build_predicates_with_time(0, 3, vec![]),
+                Predicate::with_time_range(&[], 0, 3),
                 "method
 GET
 POST
@@ -1416,11 +1584,7 @@ POST
             ),
             (
                 vec!["count", "method", "time"],
-                build_predicates_with_time(
-                    0,
-                    6,
-                    vec![("method", (Operator::Equal, Value::String("POST")))],
-                ),
+                Predicate::with_time_range(&[BinaryExpr::from(("method", "=", "POST"))], 0, 6),
                 "count,method,time
 101,POST,2
 200,POST,3
@@ -1429,11 +1593,7 @@ POST
             ),
             (
                 vec!["region", "time"],
-                build_predicates_with_time(
-                    0,
-                    6,
-                    vec![("method", (Operator::Equal, Value::String("POST")))],
-                ),
+                Predicate::with_time_range(&[BinaryExpr::from(("method", "=", "POST"))], 0, 6),
                 "region,time
 west,2
 east,3
@@ -1450,7 +1610,7 @@ west,4
         // test no matching rows
         let results = row_group.read_filter(
             &["method", "region", "time"],
-            &build_predicates_with_time(-19, 1, vec![]),
+            &Predicate::with_time_range(&[], -19, 1),
         );
         let expected = "";
         assert!(results.is_empty());
@@ -1517,7 +1677,7 @@ west,4
     fn read_group_hash_u128_key(row_group: &RowGroup) {
         let cases = vec![
             (
-                build_predicates_with_time(0, 7, vec![]), // all time but without explicit pred
+                Predicate::with_time_range(&[], 0, 7), // all time but without explicit pred
                 vec!["region", "method"],
                 vec![("counter", AggregateType::Sum)],
                 "region,method,counter_sum
@@ -1529,7 +1689,7 @@ west,POST,304
 ",
             ),
             (
-                build_predicates_with_time(2, 6, vec![]), // all time but without explicit pred
+                Predicate::with_time_range(&[], 2, 6), // all time but without explicit pred
                 vec!["env", "region"],
                 vec![
                     ("counter", AggregateType::Sum),
@@ -1542,7 +1702,7 @@ stag,east,200,1
 ",
             ),
             (
-                build_predicates_with_time(-1, 10, vec![]),
+                Predicate::with_time_range(&[], -1, 10),
                 vec!["region", "env"],
                 vec![("method", AggregateType::Min)], // Yep, you can aggregate any column.
                 "region,env,method_min
@@ -1555,11 +1715,7 @@ west,prod,GET
             // This case is identical to above but has an explicit `region >
             // "north"` predicate.
             (
-                build_predicates_with_time(
-                    -1,
-                    10,
-                    vec![("region", (Operator::GT, Value::String("north")))],
-                ),
+                Predicate::with_time_range(&[BinaryExpr::from(("region", ">", "north"))], -1, 10),
                 vec!["region", "env"],
                 vec![("method", AggregateType::Min)], // Yep, you can aggregate any column.
                 "region,env,method_min
@@ -1568,7 +1724,7 @@ west,prod,GET
 ",
             ),
             (
-                build_predicates_with_time(-1, 10, vec![]),
+                Predicate::with_time_range(&[], -1, 10),
                 vec!["region", "env", "method"],
                 vec![("time", AggregateType::Max)], // Yep, you can aggregate any column.
                 "region,env,method,time_max
@@ -1592,7 +1748,7 @@ west,prod,POST,4
     // ensure that the `read_group_hash_with_vec_key` path is exercised.
     fn read_group_hash_vec_key(row_group: &RowGroup) {
         let cases = vec![(
-            build_predicates_with_time(0, 7, vec![]), // all time but with explicit pred
+            Predicate::with_time_range(&[], 0, 7), // all time but with explicit pred
             vec!["region", "method", "env", "letters", "numbers"],
             vec![("counter", AggregateType::Sum)],
             "region,method,env,letters,numbers,counter_sum
@@ -1615,7 +1771,7 @@ west,POST,prod,Bravo,two,203
     // the read_group path where grouping is on a single column.
     fn read_group_single_groupby_column(row_group: &RowGroup) {
         let cases = vec![(
-            build_predicates_with_time(0, 7, vec![]), // all time but with explicit pred
+            Predicate::with_time_range(&[], 0, 7), // all time but with explicit pred
             vec!["method"],
             vec![("counter", AggregateType::Sum)],
             "method,counter_sum
@@ -1635,7 +1791,7 @@ PUT,203
     fn read_group_all_rows_all_rle(row_group: &RowGroup) {
         let cases = vec![
             (
-                vec![],
+                Predicate::default(),
                 vec!["region", "method"],
                 vec![("counter", AggregateType::Sum)],
                 "region,method,counter_sum
@@ -1647,7 +1803,7 @@ west,POST,304
 ",
             ),
             (
-                vec![],
+                Predicate::default(),
                 vec!["region", "method", "env"],
                 vec![("counter", AggregateType::Sum)],
                 "region,method,env,counter_sum
@@ -1659,7 +1815,7 @@ west,POST,prod,304
 ",
             ),
             (
-                vec![],
+                Predicate::default(),
                 vec!["env"],
                 vec![("counter", AggregateType::Count)],
                 "env,counter_count
@@ -1669,7 +1825,7 @@ stag,1
 ",
             ),
             (
-                vec![],
+                Predicate::default(),
                 vec!["region", "method"],
                 vec![
                     ("counter", AggregateType::Sum),
@@ -1711,78 +1867,38 @@ west,POST,304,101,203
         let row_group = RowGroup::new(6, columns);
 
         let cases = vec![
-            ("az", &(Operator::Equal, Value::String("west")), false), // no az column
-            ("region", &(Operator::Equal, Value::String("west")), true), /* region column does
-                                                                       * contain "west" */
-            ("region", &(Operator::Equal, Value::String("over")), true), /* region column might
-                                                                          * contain "over" */
-            ("region", &(Operator::Equal, Value::String("abc")), false), /* region column can't
-                                                                          * contain "abc" */
-            ("region", &(Operator::Equal, Value::String("zoo")), false), /* region column can't
-                                                                          * contain "zoo" */
-            (
-                "region",
-                &(Operator::NotEqual, Value::String("hello")),
-                true,
-            ), // region column might not contain "hello"
-            ("method", &(Operator::NotEqual, Value::String("GET")), false), /* method must only
-                                                                             * contain "GET" */
-            ("region", &(Operator::GT, Value::String("abc")), true), /* region column might
-                                                                      * contain something >
-                                                                      * "abc" */
-            ("region", &(Operator::GT, Value::String("north")), true), /* region column might
-                                                                        * contain something >
-                                                                        * "north" */
-            ("region", &(Operator::GT, Value::String("west")), false), /* region column can't
-                                                                        * contain something >
-                                                                        * "west" */
-            ("region", &(Operator::GTE, Value::String("abc")), true), /* region column might
-                                                                       * contain something ≥
-                                                                       * "abc" */
-            ("region", &(Operator::GTE, Value::String("east")), true), /* region column might
-                                                                        * contain something ≥
-                                                                        * "east" */
-            ("region", &(Operator::GTE, Value::String("west")), true), /* region column might
-                                                                        * contain something ≥
-                                                                        * "west" */
-            ("region", &(Operator::GTE, Value::String("zoo")), false), /* region column can't
-                                                                        * contain something ≥
-                                                                        * "zoo" */
-            ("region", &(Operator::LT, Value::String("foo")), true), /* region column might
-                                                                      * contain something <
-                                                                      * "foo" */
-            ("region", &(Operator::LT, Value::String("north")), true), /* region column might
-                                                                        * contain something <
-                                                                        * "north" */
-            ("region", &(Operator::LT, Value::String("south")), true), /* region column might
-                                                                        * contain something <
-                                                                        * "south" */
-            ("region", &(Operator::LT, Value::String("east")), false), /* region column can't
-                                                                        * contain something <
-                                                                        * "east" */
-            ("region", &(Operator::LT, Value::String("abc")), false), /* region column can't
-                                                                       * contain something <
-                                                                       * "abc" */
-            ("region", &(Operator::LTE, Value::String("east")), true), /* region column might
-                                                                        * contain something ≤
-                                                                        * "east" */
-            ("region", &(Operator::LTE, Value::String("north")), true), /* region column might
-                                                                         * contain something ≤
-                                                                         * "north" */
-            ("region", &(Operator::LTE, Value::String("south")), true), /* region column might
-                                                                         * contain something ≤
-                                                                         * "south" */
-            ("region", &(Operator::LTE, Value::String("abc")), false), /* region column can't
-                                                                        * contain something ≤
-                                                                        * "abc" */
+            (("az", "=", "west"), false),      // no az column
+            (("region", "=", "west"), true),   // region column does contain "west"
+            (("region", "=", "over"), true),   // region column might contain "over"
+            (("region", "=", "abc"), false),   // region column can't contain "abc"
+            (("region", "=", "zoo"), false),   // region column can't contain "zoo"
+            (("region", "!=", "hello"), true), // region column might not contain "hello"
+            (("method", "!=", "GET"), false),  // method must only contain "GET"
+            (("region", ">", "abc"), true),    // region column might contain something > "abc"
+            (("region", ">", "north"), true),  // region column might contain something > "north"
+            (("region", ">", "west"), false),  // region column can't contain something > "west"
+            (("region", ">=", "abc"), true),   // region column might contain something ≥ "abc"
+            (("region", ">=", "east"), true),  // region column might contain something ≥ "east"
+            (("region", ">=", "west"), true),  // region column might contain something ≥ "west"
+            (("region", ">=", "zoo"), false),  // region column can't contain something ≥ "zoo"
+            (("region", "<", "foo"), true),    // region column might contain something < "foo"
+            (("region", "<", "north"), true),  // region column might contain something < "north"
+            (("region", "<", "south"), true),  // region column might contain something < "south"
+            (("region", "<", "east"), false),  // region column can't contain something < "east"
+            (("region", "<", "abc"), false),   // region column can't contain something < "abc"
+            (("region", "<=", "east"), true),  // region column might contain something ≤ "east"
+            (("region", "<=", "north"), true), // region column might contain something ≤ "north"
+            (("region", "<=", "south"), true), // region column might contain something ≤ "south"
+            (("region", "<=", "abc"), false),  // region column can't contain something ≤ "abc"
         ];
 
-        for (column_name, predicate, exp) in cases {
+        for ((col, op, value), exp) in cases {
+            let predicate = Predicate::new(vec![BinaryExpr::from((col, op, value))]);
+
             assert_eq!(
-                row_group.column_could_satisfy_predicate(column_name, predicate),
+                row_group.could_satisfy_conjunctive_binary_expressions(predicate.iter()),
                 exp,
-                "({:?}, {:?}) failed",
-                column_name,
+                "{:?} failed",
                 predicate
             );
         }

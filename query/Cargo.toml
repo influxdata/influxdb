@@ -8,6 +8,16 @@ description = "IOx Query Interface and Executor"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
+# This create is designed to be independent of the rest of the IOx
+# server and specific storage systems such as Mutable Buffer and Read Buffer.
+#
+# The rationale for this is to:
+#
+# 1. Keep change/compile/link time down during development when working on just this crate
+# 2. Allow for query logic testing without bringing in all the storage systems.
+
+
+
 [dependencies]
 snafu = "0.6.2"
 async-trait = "0.1"

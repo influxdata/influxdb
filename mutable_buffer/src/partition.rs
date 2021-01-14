@@ -1,6 +1,5 @@
 //! Holds one or more Chunks.
 
-use arrow_deps::arrow::record_batch::RecordBatch;
 use generated_types::wal as wb;
 use std::{collections::BTreeMap, sync::Arc};
 
@@ -107,20 +106,6 @@ impl Partition {
             .with_context(|| WritingChunkData {
                 partition_key: entry.partition_key().unwrap(),
             })
-    }
-
-    /// Convert the table specified in this chunk into some number of
-    /// record batches, appended to dst
-    pub fn table_to_arrow(
-        &self,
-        dst: &mut Vec<RecordBatch>,
-        table_name: &str,
-        columns: &[&str],
-    ) -> crate::chunk::Result<()> {
-        for chunk in self.iter() {
-            chunk.table_to_arrow(dst, table_name, columns)?
-        }
-        Ok(())
     }
 
     /// Return the list of chunks, in order of id, in this
@@ -831,9 +816,11 @@ mod tests {
     fn dump_table(partition: &Partition, table_name: &str) -> Vec<RecordBatch> {
         let mut dst = vec![];
         let requested_columns = []; // empty ==> request all columns
-        partition
-            .table_to_arrow(&mut dst, table_name, &requested_columns)
-            .unwrap();
+        for chunk in partition.chunks() {
+            chunk
+                .table_to_arrow(&mut dst, table_name, &requested_columns)
+                .unwrap();
+        }
 
         // Now, sort dest
         dst.into_iter().map(sort_record_batch).collect()

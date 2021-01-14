@@ -10,3 +10,4 @@ not intended to be general user facing documentation
 * How InfluxDB IOx manages the lifecycle of time series data: [data_management.md](data_management.md)
 * Thoughts on parquet encoding and compression for timeseries data: [encoding_thoughts.md](encoding_thoughts.md)
 * Thoughts on using multiple cores: [multi_core_tasks.md](multi_core_tasks.md)
+* [Query Engine Docs](../query/README.md)

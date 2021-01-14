@@ -124,7 +124,7 @@ impl File {
                 async move { Ok(ObjectStorePath::from_path_buf_unchecked(file_path_buf)) }
             })
             .try_filter(move |name| {
-                let matches = prefix.map_or(true, |p| name.starts_with(p));
+                let matches = prefix.map_or(true, |p| name.prefix_matches(p));
                 async move { matches }
             })
             .map_ok(|name| vec![name]);
@@ -181,7 +181,7 @@ mod tests {
 
         let data = Bytes::from("arbitrary data");
         let mut location = ObjectStorePath::default();
-        location.push_all(&["nested", "file", "test_file"]);
+        location.push_all_dirs(&["nested", "file", "test_file"]);
 
         let stream_data = std::io::Result::Ok(data.clone());
         storage

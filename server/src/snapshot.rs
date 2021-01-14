@@ -156,7 +156,7 @@ where
 
             let mut location = self.data_path.clone();
             let file_name = format!("{}.parquet", table_name);
-            location.push(&file_name);
+            location.set_file_name(&file_name);
             self.write_batches(batches, &location).await?;
             self.mark_table_finished(pos);
 
@@ -167,7 +167,7 @@ where
 
         let mut partition_meta_path = self.metadata_path.clone();
         let key = format!("{}.json", &self.partition_meta.key);
-        partition_meta_path.push(&key);
+        partition_meta_path.set_file_name(&key);
         let json_data = serde_json::to_vec(&self.partition_meta).context(JsonGenerationError)?;
         let data = Bytes::from(json_data);
         let len = data.len();
@@ -363,10 +363,10 @@ mem,host=A,region=west used=45 1
         let chunk = Arc::new(chunk);
         let (tx, rx) = tokio::sync::oneshot::channel();
         let mut metadata_path = ObjectStorePath::default();
-        metadata_path.push("meta");
+        metadata_path.push_dir("meta");
 
         let mut data_path = ObjectStorePath::default();
-        data_path.push("data");
+        data_path.push_dir("data");
 
         let snapshot = snapshot_chunk(
             metadata_path.clone(),
@@ -381,7 +381,7 @@ mem,host=A,region=west used=45 1
         rx.await.unwrap();
 
         let mut location = metadata_path;
-        location.push("testaroo.json");
+        location.set_file_name("testaroo.json");
 
         let summary = store
             .get(&location)
@@ -416,10 +416,10 @@ mem,host=A,region=west used=45 1
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let chunk = Arc::new(ChunkWB::new(11));
         let mut metadata_path = ObjectStorePath::default();
-        metadata_path.push("meta");
+        metadata_path.push_dir("meta");
 
         let mut data_path = ObjectStorePath::default();
-        data_path.push("data");
+        data_path.push_dir("data");
 
         let snapshot = Snapshot::new("testaroo", metadata_path, data_path, store, chunk, tables);
 

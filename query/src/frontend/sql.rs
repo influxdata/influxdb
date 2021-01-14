@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use snafu::{ResultExt, Snafu};
 
-use crate::{exec::Executor, Database};
+use crate::{exec::Executor, Database, PartitionChunk};
 use arrow_deps::datafusion::{
     datasource::MemTable, error::DataFusionError, physical_plan::ExecutionPlan,
 };
@@ -35,6 +35,9 @@ pub enum Error {
         table: String,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
+
+    #[snafu(display("No rows found in table {} while executing '{}'", table, query))]
+    InternalNoRowsInTable { table: String, query: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -58,25 +61,38 @@ impl SQLQueryPlanner {
         // figure out the table names that appear in the sql
         let table_names = table_names(query)?;
 
+        let partition_keys = database.partition_keys().await.unwrap();
+
         // Register a table provider for each table so DataFusion
         // knows what the schema of that table is and how to obtain
         // its data when needed.
-        for table in table_names {
+        for table in &table_names {
+            let mut data = Vec::new();
+            for partition_key in &partition_keys {
+                for chunk in database.chunks(partition_key).await.unwrap() {
+                    chunk
+                        .table_to_arrow(&mut data, &table, &[])
+                        .map_err(|e| Box::new(e) as _)
+                        .context(InternalTableConversion { table })?
+                }
+            }
+
             // TODO: make our own struct that implements
             // TableProvider, type so we can take advantage of
             // datafusion predicate and selection pushdown. For now,
             // use a Memtable provider (which requires materializing
             // the entire table here)
-            let data = database.table_to_arrow(&table, &[]).await.map_err(|e| {
-                Error::InternalTableConversion {
-                    table: table.clone(),
-                    source: Box::new(e),
-                }
-            })?;
+
+            // if the table was reported to exist, it should not be empty (eventually we
+            // should get the schema and table data separtely)
+            if data.is_empty() {
+                return InternalNoRowsInTable { table, query }.fail();
+            }
+
             let schema = data[0].schema().clone();
             let provider = Box::new(
                 MemTable::try_new(schema, vec![data])
-                    .context(InternalMemTableCreation { table: &table })?,
+                    .context(InternalMemTableCreation { table })?,
             );
 
             ctx.inner_mut().register_table(&table, provider);

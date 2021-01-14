@@ -1,13 +1,13 @@
 //! Entrypoint of InfluxDB IOx binary
 #![deny(rust_2018_idioms)]
 #![warn(
-    missing_copy_implementations,
     missing_debug_implementations,
     clippy::explicit_iter_loop,
     clippy::use_self
 )]
 
 use clap::{crate_authors, crate_version, value_t, App, Arg, ArgMatches, SubCommand};
+use dotenv::dotenv;
 use ingest::parquet::writer::CompressionLevel;
 use structopt::StructOpt;
 use tokio::runtime::Runtime;
@@ -25,7 +25,7 @@ mod commands {
     pub mod stats;
 }
 
-use commands::logging::LoggingLevel;
+use commands::{config::Config, logging::LoggingLevel};
 
 enum ReturnCode {
     ConversionFailed = 1,
@@ -59,13 +59,8 @@ Examples:
     # Dumps storage statistics about out.parquet to stdout
     influxdb_iox stats out.parquet
 "#;
-
-    // Source from the .env file (if any) to have the values display in the CLI
-    // help text.
-    //
-    // This is then loaded and validated properly when calling `load_config`
-    // later.
-    let _ = dotenv::dotenv();
+    // load all environment variables from .env before doing anything
+    load_dotenv();
 
     let matches = App::new(help)
         .version(crate_version!())
@@ -197,16 +192,27 @@ async fn dispatch_args(matches: ArgMatches<'_>) {
                 }
             }
         }
-        ("server", Some(_)) | (_, _) => {
+        // Handle the case where the user explicitly specified the server command
+        ("server", Some(sub_matches)) => {
             // Note don't set up basic logging here, different logging rules appy in server
             // mode
-            println!("InfluxDB IOx server starting");
-            match commands::influxdb_ioxd::main(logging_level).await {
-                Ok(()) => eprintln!("Shutdown OK"),
-                Err(e) => {
-                    error!("Server shutdown with error: {}", e);
-                    std::process::exit(ReturnCode::ServerExitedAbnormally as _);
-                }
+            let res =
+                commands::influxdb_ioxd::main(logging_level, Some(Config::from_clap(sub_matches)))
+                    .await;
+
+            if let Err(e) = res {
+                error!("Server shutdown with error: {}", e);
+                std::process::exit(ReturnCode::ServerExitedAbnormally as _);
+            }
+        }
+        // handle the case where the user didn't specify a command
+        (_, _) => {
+            // Note don't set up basic logging here, different logging rules appy in server
+            // mode
+            let res = commands::influxdb_ioxd::main(logging_level, None).await;
+            if let Err(e) = res {
+                error!("Server shutdown with error: {}", e);
+                std::process::exit(ReturnCode::ServerExitedAbnormally as _);
             }
         }
     }
@@ -256,4 +262,23 @@ fn get_runtime(num_threads: Option<&str>) -> Result<Runtime, std::io::Error> {
             }
         }
     }
+}
+
+/// Source the .env file before initialising the Config struct - this sets
+/// any envs in the file, which the Config struct then uses.
+///
+/// Precedence is given to existing env variables.
+fn load_dotenv() {
+    match dotenv() {
+        Ok(_) => {}
+        Err(dotenv::Error::Io(err)) if err.kind() == std::io::ErrorKind::NotFound => {
+            // Ignore this - a missing env file is not an error, defaults will
+            // be applied when initialising the Config struct.
+        }
+        Err(e) => {
+            eprintln!("FATAL Error loading config from: {}", e);
+            eprintln!("Aborting");
+            std::process::exit(1);
+        }
+    };
 }
