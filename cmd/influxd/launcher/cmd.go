@@ -92,7 +92,8 @@ func cmdRunE(ctx context.Context, o *InfluxdOpts) func() error {
 		}
 		<-runCtx.Done()
 
-		// Attempt clean shutdown.
+		// Tear down the launcher, allowing it a few seconds to finish any
+		// in-progress requests.
 		shutdownCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
 		return l.Shutdown(shutdownCtx)
