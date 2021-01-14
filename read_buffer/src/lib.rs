@@ -296,7 +296,7 @@ impl Database {
     //
 
     /// Returns the distinct set of table names that contain data that satisfies
-    /// the time range and predicates.
+    /// the provided predicate.
     ///
     /// TODO(edd): Implement predicate support.
     pub fn table_names(
@@ -339,14 +339,14 @@ impl Database {
         }
     }
 
-    /// Returns the distinct set of tag keys (column names) matching the
-    /// provided optional predicates and time range.
-    pub fn tag_keys(
+    /// Returns the distinct set of column names (tag keys) that satisfy the
+    /// provided predicate.
+    pub fn column_names(
         &self,
-        table_name: &str,
-        time_range: (i64, i64),
+        partition_key: &str,
+        chunk_ids: &[u32],
         predicate: Predicate,
-    ) -> Option<RecordBatch> {
+    ) -> Result<RecordBatch> {
         // Find all matching chunks using:
         //   - time range
         //   - measurement name.
@@ -355,7 +355,9 @@ impl Database {
         // a chunk allows the caller to provide already found tag keys
         // (column names). This allows the execution to skip entire chunks,
         // tables or segments if there are no new columns to be found there...
-        todo!();
+        Err(Error::UnsupportedOperation {
+            msg: "`column_names` call not yet hooked up".to_owned(),
+        })
     }
 
     /// Returns the distinct set of tag values (column values) for each provided
