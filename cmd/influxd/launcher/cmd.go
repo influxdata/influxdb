@@ -31,6 +31,7 @@ const (
 // The `run` subcommand is set as the default to execute.
 func NewInfluxdCommand(ctx context.Context, v *viper.Viper) *cobra.Command {
 	o := newOpts(v)
+	cliOpts := o.bindCliOpts()
 
 	prog := cli.Program{
 		Name: "influxd",
@@ -45,9 +46,10 @@ func NewInfluxdCommand(ctx context.Context, v *viper.Viper) *cobra.Command {
 	}
 	for _, c := range []*cobra.Command{cmd, runCmd} {
 		setCmdDescriptions(c)
-		o.bindCliOpts(c)
+		cli.BindOptions(o.Viper, c, cliOpts)
 	}
 	cmd.AddCommand(runCmd)
+	cmd.AddCommand(NewInfluxdPrintConfigCommand(v, cliOpts))
 
 	return cmd
 }
@@ -182,9 +184,10 @@ func newOpts(viper *viper.Viper) *InfluxdOpts {
 	}
 }
 
-// bindCliOpts configures a cobra command to set server options based on CLI args.
-func (o *InfluxdOpts) bindCliOpts(cmd *cobra.Command) {
-	opts := []cli.Opt{
+// bindCliOpts returns a list of options which can be added to a cobra command
+// in order to set options over the CLI.
+func (o *InfluxdOpts) bindCliOpts() []cli.Opt {
+	return []cli.Opt{
 		{
 			DestP:   &o.LogLevel,
 			Flag:    "log-level",
@@ -470,6 +473,4 @@ func (o *InfluxdOpts) bindCliOpts(cmd *cobra.Command) {
 			Desc:  "The maximum number of group by time bucket a SELECT can create. A value of zero will max the maximum number of buckets unlimited.",
 		},
 	}
-
-	cli.BindOptions(o.Viper, cmd, opts)
 }
