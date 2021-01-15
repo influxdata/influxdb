@@ -20,6 +20,10 @@ This release fully removes the `inmem` indexing option, along with the associate
 
 Replacement `tsi1` indexes will be automatically generated on startup for shards that need it.
 
+### Features
+
+1. [20473](https://github.com/influxdata/influxdb/pull/20473): Add `--overwrite-existing-v2` flag to `influxd upgrade` to overwrite existing files at output paths (instead of aborting).
+
 ### Bug Fixes
 
 1. [20351](https://github.com/influxdata/influxdb/pull/20351): Ensure `influxdb` service sees default env variables when running under `init.d`.
