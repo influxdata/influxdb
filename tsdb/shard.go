@@ -12,6 +12,7 @@ import (
 	"regexp"
 	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -716,11 +717,7 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error
 		}
 	}
 
-	if len(fieldsToCreate) > 0 {
-		return engine.MeasurementFieldSet().Save()
-	}
-
-	return nil
+	return engine.MeasurementFieldSet().Save()
 }
 
 // DeleteSeriesRange deletes all values from for seriesKeys between min and max (inclusive)
@@ -1643,16 +1640,20 @@ func (m *MeasurementFields) ForEachField(fn func(name string, typ influxql.DataT
 type MeasurementFieldSet struct {
 	mu     sync.RWMutex
 	fields map[string]*MeasurementFields
-
 	// path is the location to persist field sets
 	path string
+	// ephemeral counters for updating the file on disk
+	memoryVersion  uint64
+	writtenVersion uint64
 }
 
 // NewMeasurementFieldSet returns a new instance of MeasurementFieldSet.
 func NewMeasurementFieldSet(path string) (*MeasurementFieldSet, error) {
 	fs := &MeasurementFieldSet{
-		fields: make(map[string]*MeasurementFields),
-		path:   path,
+		fields:         make(map[string]*MeasurementFields),
+		path:           path,
+		memoryVersion:  0,
+		writtenVersion: 0,
 	}
 
 	// If there is a load error, return the error and an empty set so
@@ -1737,21 +1738,41 @@ func (fs *MeasurementFieldSet) IsEmpty() bool {
 	return len(fs.fields) == 0
 }
 
-func (fs *MeasurementFieldSet) Save() error {
-	fs.mu.Lock()
-	defer fs.mu.Unlock()
+func (fs *MeasurementFieldSet) Save() (err error) {
+	// current version
+	var v uint64
+	// Is the MeasurementFieldSet empty?
+	isEmpty := false
+	// marshaled MeasurementFieldSet
 
-	return fs.saveNoLock()
-}
+	b, err := func() ([]byte, error) {
+		fs.mu.Lock()
+		defer fs.mu.Unlock()
+		fs.memoryVersion += 1
+		v = fs.memoryVersion
+		// If no fields left, remove the fields index file
+		if len(fs.fields) == 0 {
+			isEmpty = true
+			if err := os.RemoveAll(fs.path); err != nil {
+				return nil, err
+			} else {
+				fs.writtenVersion = fs.memoryVersion
+				return nil, nil
+			}
+		}
+		return fs.marshalMeasurementFieldSetNoLock()
+	}()
 
-func (fs *MeasurementFieldSet) saveNoLock() error {
-	// No fields left, remove the fields index file
-	if len(fs.fields) == 0 {
-		return os.RemoveAll(fs.path)
+	if err != nil {
+		return err
+	} else if isEmpty {
+		return nil
 	}
 
 	// Write the new index to a temp file and rename when it's sync'd
-	path := fs.path + ".tmp"
+	// if it is still the most recent memoryVersion of the MeasurementFields
+	path := fs.path + "." + strconv.FormatUint(v, 10) + ".tmp"
+
 	fd, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_EXCL|os.O_SYNC, 0666)
 	if err != nil {
 		return err
@@ -1759,28 +1780,6 @@ func (fs *MeasurementFieldSet) saveNoLock() error {
 	defer os.RemoveAll(path)
 
 	if _, err := fd.Write(fieldsIndexMagicNumber); err != nil {
-		return err
-	}
-
-	pb := internal.MeasurementFieldSet{
-		Measurements: make([]*internal.MeasurementFields, 0, len(fs.fields)),
-	}
-	for name, mf := range fs.fields {
-		fs := &internal.MeasurementFields{
-			Name:   []byte(name),
-			Fields: make([]*internal.Field, 0, mf.FieldN()),
-		}
-
-		mf.ForEachField(func(field string, typ influxql.DataType) bool {
-			fs.Fields = append(fs.Fields, &internal.Field{Name: []byte(field), Type: int32(typ)})
-			return true
-		})
-
-		pb.Measurements = append(pb.Measurements, fs)
-	}
-
-	b, err := proto.Marshal(&pb)
-	if err != nil {
 		return err
 	}
 
@@ -1797,11 +1796,52 @@ func (fs *MeasurementFieldSet) saveNoLock() error {
 		return err
 	}
 
+	fs.mu.Lock()
+	defer fs.mu.Unlock()
+
+	// Check if a later modification and save of fields has superseded ours
+	// If so, we are successfully done! We were beaten by a later call
+	// to this function
+	if fs.writtenVersion > v {
+		return nil
+	}
+
 	if err := file.RenameFile(path, fs.path); err != nil {
 		return err
 	}
 
-	return file.SyncDir(filepath.Dir(fs.path))
+	if err = file.SyncDir(filepath.Dir(fs.path)); err != nil {
+		return err
+	}
+	// Update the written version to the current version
+	fs.writtenVersion = v
+	return nil
+}
+
+func (fs *MeasurementFieldSet) marshalMeasurementFieldSetNoLock() (marshalled []byte, err error) {
+	pb := internal.MeasurementFieldSet{
+		Measurements: make([]*internal.MeasurementFields, 0, len(fs.fields)),
+	}
+
+	for name, mf := range fs.fields {
+		imf := &internal.MeasurementFields{
+			Name:   []byte(name),
+			Fields: make([]*internal.Field, 0, mf.FieldN()),
+		}
+
+		mf.ForEachField(func(field string, typ influxql.DataType) bool {
+			imf.Fields = append(imf.Fields, &internal.Field{Name: []byte(field), Type: int32(typ)})
+			return true
+		})
+
+		pb.Measurements = append(pb.Measurements, imf)
+	}
+	b, err := proto.Marshal(&pb)
+	if err != nil {
+		return nil, err
+	} else {
+		return b, nil
+	}
 }
 
 func (fs *MeasurementFieldSet) load() error {
