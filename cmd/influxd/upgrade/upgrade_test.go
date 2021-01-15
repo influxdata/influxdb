@@ -41,21 +41,24 @@ func TestPathValidations(t *testing.T) {
 		enginePath:     enginePath,
 	}
 
-	err = validatePaths(sourceOpts, targetOpts)
+	err = sourceOpts.validatePaths()
 	require.NotNil(t, err, "Must fail")
 	assert.Contains(t, err.Error(), "1.x DB dir")
 
 	err = os.MkdirAll(filepath.Join(v1Dir, "meta"), 0777)
 	require.Nil(t, err)
 
-	err = validatePaths(sourceOpts, targetOpts)
+	err = sourceOpts.validatePaths()
 	require.NotNil(t, err, "Must fail")
 	assert.Contains(t, err.Error(), "1.x meta.db")
 
 	err = ioutil.WriteFile(filepath.Join(v1Dir, "meta", "meta.db"), []byte{1}, 0777)
 	require.Nil(t, err)
 
-	err = validatePaths(sourceOpts, targetOpts)
+	err = sourceOpts.validatePaths()
+	require.Nil(t, err)
+
+	err = targetOpts.validatePaths()
 	require.NotNil(t, err, "Must fail")
 	assert.Contains(t, err.Error(), "2.x engine")
 
@@ -65,9 +68,49 @@ func TestPathValidations(t *testing.T) {
 	err = ioutil.WriteFile(configsPath, []byte{1}, 0777)
 	require.Nil(t, err)
 
-	err = validatePaths(sourceOpts, targetOpts)
+	err = targetOpts.validatePaths()
 	require.NotNil(t, err, "Must fail")
 	assert.Contains(t, err.Error(), "2.x CLI configs")
+}
+
+func TestClearTargetPaths(t *testing.T) {
+	tmpdir, err := ioutil.TempDir("", "")
+	require.NoError(t, err)
+
+	defer os.RemoveAll(tmpdir)
+
+	v2Dir := filepath.Join(tmpdir, "v2db")
+	boltPath := filepath.Join(v2Dir, bolt.DefaultFilename)
+	configsPath := filepath.Join(v2Dir, "configs")
+	enginePath := filepath.Join(v2Dir, "engine")
+	cqPath := filepath.Join(v2Dir, "cqs")
+	configPath := filepath.Join(v2Dir, "config")
+
+	err = os.MkdirAll(filepath.Join(enginePath, "db"), 0777)
+	require.NoError(t, err)
+	err = ioutil.WriteFile(boltPath, []byte{1}, 0777)
+	require.NoError(t, err)
+	err = ioutil.WriteFile(configsPath, []byte{1}, 0777)
+	require.NoError(t, err)
+	err = ioutil.WriteFile(cqPath, []byte{1}, 0777)
+	require.NoError(t, err)
+	err = ioutil.WriteFile(configPath, []byte{1}, 0777)
+	require.NoError(t, err)
+
+	targetOpts := &optionsV2{
+		boltPath:       boltPath,
+		cliConfigsPath: configsPath,
+		enginePath:     enginePath,
+		configPath:     configPath,
+		cqPath:         cqPath,
+	}
+
+	err = targetOpts.validatePaths()
+	require.Error(t, err)
+	err = targetOpts.clearPaths()
+	require.NoError(t, err)
+	err = targetOpts.validatePaths()
+	require.NoError(t, err)
 }
 
 func TestDbURL(t *testing.T) {

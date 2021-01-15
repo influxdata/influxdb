@@ -93,14 +93,16 @@ type optionsV2 struct {
 	enginePath     string
 	cqPath         string
 	configPath     string
-	userName       string
-	password       string
-	orgName        string
-	bucket         string
-	orgID          influxdb.ID
-	userID         influxdb.ID
-	token          string
-	retention      string
+	rmConflicts    bool
+
+	userName  string
+	password  string
+	orgName   string
+	bucket    string
+	orgID     influxdb.ID
+	userID    influxdb.ID
+	token     string
+	retention string
 }
 
 type options struct {
@@ -264,6 +266,12 @@ func NewCommand(v *viper.Viper) *cobra.Command {
 			Desc:    "skip the confirmation prompt",
 			Short:   'f',
 		},
+		{
+			DestP:   &options.target.rmConflicts,
+			Flag:    "overwrite-existing-v2",
+			Default: false,
+			Desc:    "if files are present at an output path, overwrite them instead of aborting the upgrade process",
+		},
 	}
 
 	cli.BindOptions(v, cmd, opts)
@@ -373,8 +381,14 @@ func runUpgradeE(cmd *cobra.Command, options *options, verbose bool) error {
 		options.source.dbURL = (&configV1{}).dbURL()
 	}
 
-	err = validatePaths(&options.source, &options.target)
-	if err != nil {
+	if err := options.source.validatePaths(); err != nil {
+		return err
+	}
+	checkV2paths := options.target.validatePaths
+	if options.target.rmConflicts {
+		checkV2paths = options.target.clearPaths
+	}
+	if err := checkV2paths(); err != nil {
 		return err
 	}
 
@@ -478,54 +492,95 @@ func runUpgradeE(cmd *cobra.Command, options *options, verbose bool) error {
 	return nil
 }
 
-// validatePaths ensures that all filesystem paths provided as input
-// are usable by the upgrade command
-func validatePaths(sourceOpts *optionsV1, targetOpts *optionsV2) error {
-	if sourceOpts.dbDir != "" {
-		fi, err := os.Stat(sourceOpts.dbDir)
+// validatePaths ensures that all paths pointing to V1 inputs are usable by the upgrade command.
+func (o *optionsV1) validatePaths() error {
+	if o.dbDir != "" {
+		fi, err := os.Stat(o.dbDir)
 		if err != nil {
-			return fmt.Errorf("1.x DB dir '%s' does not exist", sourceOpts.dbDir)
+			return fmt.Errorf("1.x DB dir '%s' does not exist", o.dbDir)
 		}
 		if !fi.IsDir() {
-			return fmt.Errorf("1.x DB dir '%s' is not a directory", sourceOpts.dbDir)
+			return fmt.Errorf("1.x DB dir '%s' is not a directory", o.dbDir)
 		}
 	}
 
-	metaDb := filepath.Join(sourceOpts.metaDir, "meta.db")
+	metaDb := filepath.Join(o.metaDir, "meta.db")
 	_, err := os.Stat(metaDb)
 	if err != nil {
 		return fmt.Errorf("1.x meta.db '%s' does not exist", metaDb)
 	}
 
-	if targetOpts.configPath != "" {
-		if _, err := os.Stat(targetOpts.configPath); err == nil {
-			return fmt.Errorf("file present at target path for upgraded 2.x config file '%s'", targetOpts.configPath)
+	return nil
+}
+
+// validatePaths ensures that none of the paths pointing to V2 outputs refer to existing files.
+func (o *optionsV2) validatePaths() error {
+	if o.configPath != "" {
+		if _, err := os.Stat(o.configPath); err == nil {
+			return fmt.Errorf("file present at target path for upgraded 2.x config file %q", o.configPath)
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("error checking for existing file at %q: %w", o.configPath, err)
 		}
 	}
 
-	if _, err = os.Stat(targetOpts.boltPath); err == nil {
-		return fmt.Errorf("file present at target path for upgraded 2.x bolt DB: '%s'", targetOpts.boltPath)
+	if _, err := os.Stat(o.boltPath); err == nil {
+		return fmt.Errorf("file present at target path for upgraded 2.x bolt DB: %q", o.boltPath)
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("error checking for existing file at %q: %w", o.boltPath, err)
 	}
 
-	if fi, err := os.Stat(targetOpts.enginePath); err == nil {
+	if fi, err := os.Stat(o.enginePath); err == nil {
 		if !fi.IsDir() {
-			return fmt.Errorf("upgraded 2.x engine path '%s' is not a directory", targetOpts.enginePath)
+			return fmt.Errorf("upgraded 2.x engine path %q is not a directory", o.enginePath)
 		}
-		entries, err := ioutil.ReadDir(targetOpts.enginePath)
+		entries, err := ioutil.ReadDir(o.enginePath)
 		if err != nil {
-			return err
+			return fmt.Errorf("error checking contents of existing engine directory %q: %w", o.enginePath, err)
 		}
 		if len(entries) > 0 {
-			return fmt.Errorf("upgraded 2.x engine directory '%s' must be empty", targetOpts.enginePath)
+			return fmt.Errorf("upgraded 2.x engine directory %q must be empty", o.enginePath)
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("error checking for existing file at %q: %w", o.enginePath, err)
+	}
+
+	if _, err := os.Stat(o.cliConfigsPath); err == nil {
+		return fmt.Errorf("file present at target path for 2.x CLI configs %q", o.cliConfigsPath)
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("error checking for existing file at %q: %w", o.cliConfigsPath, err)
+	}
+
+	if _, err := os.Stat(o.cqPath); err == nil {
+		return fmt.Errorf("file present at target path for exported continuous queries %q", o.cqPath)
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("error checking for existing file at %q: %w", o.cqPath, err)
+	}
+
+	return nil
+}
+
+// clearPaths deletes any files already present at the specified V2 output paths.
+func (o *optionsV2) clearPaths() error {
+	if o.configPath != "" {
+		if err := os.RemoveAll(o.configPath); err != nil {
+			return fmt.Errorf("couldn't delete existing file at %q: %w", o.configPath, err)
 		}
 	}
 
-	if _, err = os.Stat(targetOpts.cliConfigsPath); err == nil {
-		return fmt.Errorf("file present at target path for 2.x CLI configs '%s'", targetOpts.cliConfigsPath)
+	if err := os.RemoveAll(o.boltPath); err != nil {
+		return fmt.Errorf("couldn't delete existing file at %q: %w", o.boltPath, err)
 	}
 
-	if _, err = os.Stat(targetOpts.cqPath); err == nil {
-		return fmt.Errorf("file present at target path for exported continuous queries '%s'", targetOpts.cqPath)
+	if err := os.RemoveAll(o.enginePath); err != nil {
+		return fmt.Errorf("couldn't delete existing file at %q: %w", o.enginePath, err)
+	}
+
+	if err := os.RemoveAll(o.cliConfigsPath); err != nil {
+		return fmt.Errorf("couldn't delete existing file at %q: %w", o.cliConfigsPath, err)
+	}
+
+	if err := os.RemoveAll(o.cqPath); err != nil {
+		return fmt.Errorf("couldn't delete existing file at %q: %w", o.cqPath, err)
 	}
 
 	return nil
