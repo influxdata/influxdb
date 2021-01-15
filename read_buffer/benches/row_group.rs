@@ -150,7 +150,7 @@ fn benchmark_read_group_vary_cardinality(
             &expected_cardinality,
             |b, expected_cardinality| {
                 b.iter(|| {
-                    let result = row_group.read_group(
+                    let result = row_group.read_aggregate(
                         predicate,
                         group_cols.as_slice(),
                         &[("duration", AggregateType::Count)],
@@ -192,7 +192,7 @@ fn benchmark_read_group_vary_rows(
             )),
             |b| {
                 b.iter(|| {
-                    let result = row_group.read_group(
+                    let result = row_group.read_aggregate(
                         predicate,
                         group_columns.0.as_slice(),
                         &[("duration", AggregateType::Count)],
@@ -231,7 +231,7 @@ fn benchmark_read_group_vary_group_cols(
             &group_cols,
             |b, group_cols| {
                 b.iter(|| {
-                    let result = row_group.read_group(
+                    let result = row_group.read_aggregate(
                         predicates,
                         group_cols.as_slice(),
                         &[("duration", AggregateType::Count)],

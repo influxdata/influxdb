@@ -333,15 +333,16 @@ impl RowGroup {
         )
     }
 
-    /// Returns a set of group keys and aggregated column data associated with
-    /// them. `read_group` currently only supports grouping on columns that have
-    /// integer encoded representations - typically "tag columns".
+    /// Materialises a collection of data in group columns and aggregate
+    /// columns, optionally filtered by the provided predicate.
     ///
-    /// Right now, predicates are treated conjunctive (AND) predicates.
-    /// `read_group` does not guarantee any sort order. Ordering of results
-    /// should be handled high up in the `Table` section of the Read Buffer,
-    /// where multiple `RowGroup` results may need to be merged.
-    pub fn read_group(
+    /// Collectively, row-wise values in the group columns comprise a "group
+    /// key", and each value in the same row for the aggregate columns contains
+    /// aggregate values for those group keys.
+    ///
+    /// Note: `read_aggregate` currently only supports "tag" columns.
+    /// Note: `read_aggregate` does not order results.
+    pub fn read_aggregate(
         &self,
         predicate: &Predicate,
         group_columns: &[ColumnName<'_>],
@@ -1745,7 +1746,7 @@ west,prod,POST,4
         ];
 
         for (predicate, group_cols, aggs, expected) in cases {
-            let mut results = row_group.read_group(&predicate, &group_cols, &aggs);
+            let mut results = row_group.read_aggregate(&predicate, &group_cols, &aggs);
             results.sort();
             assert_eq!(format!("{:?}", &results), expected);
         }
@@ -1769,7 +1770,7 @@ west,POST,prod,Bravo,two,203
         )];
 
         for (predicate, group_cols, aggs, expected) in cases {
-            let mut results = row_group.read_group(&predicate, &group_cols, &aggs);
+            let mut results = row_group.read_aggregate(&predicate, &group_cols, &aggs);
             results.sort();
             assert_eq!(format!("{:?}", &results), expected);
         }
@@ -1789,7 +1790,7 @@ PUT,203
         )];
 
         for (predicate, group_cols, aggs, expected) in cases {
-            let mut results = row_group.read_group(&predicate, &group_cols, &aggs);
+            let mut results = row_group.read_aggregate(&predicate, &group_cols, &aggs);
             results.sort();
             assert_eq!(format!("{:?}", &results), expected);
         }
@@ -1850,7 +1851,7 @@ west,POST,304,101,203
         ];
 
         for (predicate, group_cols, aggs, expected) in cases {
-            let results = row_group.read_group(&predicate, &group_cols, &aggs);
+            let results = row_group.read_aggregate(&predicate, &group_cols, &aggs);
             assert_eq!(format!("{:?}", &results), expected);
         }
     }

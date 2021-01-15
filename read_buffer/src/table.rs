@@ -216,7 +216,7 @@ impl Table {
 
         results.values.reserve(row_groups.len());
         for row_group in row_groups {
-            let segment_result = row_group.read_group(&predicate, &group_columns, &aggregates);
+            let segment_result = row_group.read_aggregate(&predicate, &group_columns, &aggregates);
             results.values.push(segment_result);
         }
 
