@@ -3,6 +3,7 @@ use std::fmt::Display;
 use std::slice::Iter;
 
 use crate::column::{AggregateResult, AggregateType, OwnedValue, Scalar, Value};
+use crate::schema::ResultSchema;
 use crate::{
     column,
     column::LogicalDataType,
@@ -100,16 +101,6 @@ impl Table {
         &self.meta.column_types
     }
 
-    // Determines if schema contains all the provided column names.
-    fn has_all_columns(&self, names: &[ColumnName<'_>]) -> bool {
-        for &name in names {
-            if !self.meta.column_ranges.contains_key(name) {
-                return false;
-            }
-        }
-        true
-    }
-
     // Identify set of row groups that might satisfy the predicate.
     fn filter_row_groups(&self, predicate: &Predicate) -> Vec<&RowGroup> {
         let mut rgs = Vec::with_capacity(self.row_groups.len());
@@ -178,48 +169,23 @@ impl Table {
         predicate: Predicate,
         group_columns: &'input [ColumnName<'input>],
         aggregates: &'input [(ColumnName<'input>, AggregateType)],
-    ) -> ReadAggregateResults<'input, '_> {
-        if !self.has_all_columns(&group_columns) {
-            todo!() //TODO(edd): return an error here "group key column x not
-                    //found"
+    ) -> ReadAggregateResults<'_> {
+        // Filter out any column names that we do not have data for.
+        let schema = ResultSchema {
+            group_columns: self.meta.schema_for_column_names(group_columns),
+            aggregate_columns: self.meta.schema_for_aggregate_column_names(aggregates),
+            ..ResultSchema::default()
+        };
+
+        // TODO(edd): for now punt on predicate pruning but need to figure it out.
+        let row_groups = self.filter_row_groups(&predicate);
+
+        // return the iterator to build the results.
+        ReadAggregateResults {
+            schema,
+            predicate,
+            row_groups,
         }
-
-        if !self.has_all_columns(&aggregates.iter().map(|(name, _)| *name).collect::<Vec<_>>()) {
-            todo!() //TODO(edd): return an error here "aggregate column x not
-                    // found"
-        }
-
-        if !self.has_all_columns(
-            &predicate
-                .iter()
-                .map(|expr| expr.column())
-                .collect::<Vec<_>>(),
-        ) {
-            todo!() //TODO(edd): return an error here "predicate column x not
-                    // found"
-        }
-
-        todo!()
-        // identify row groups where time range and predicates match could match
-        // using row group meta data, and then execute against those row groups
-        // and merge results.
-        // let mut results = ReadAggregateResults::default();
-        // let row_groups = self.filter_row_groups(&predicate);
-        // if row_groups.is_empty() {
-        //     results.group_columns = group_columns;
-        //     results.aggregates = aggregates;
-        //     return results;
-        // }
-
-        // results.values.reserve(row_groups.len());
-        // for row_group in row_groups {
-        //     let segment_result = row_group.read_aggregate(&predicate,
-        // &group_columns, &aggregates);     results.values.
-        // push(segment_result); }
-
-        // results.group_columns = group_columns;
-        // results.aggregates = aggregates;
-        // results
     }
 
     /// Returns aggregates segmented by grouping keys and windowed by time.
@@ -493,18 +459,36 @@ impl MetaData {
         }
     }
 
-    // Extract schema information for a set of columns.
+    // Extract schema information for a set of columns. If a column name does
+    // not exist within the `Table` schema it is ignored and not present within
+    // the resulting schema information.
     fn schema_for_column_names(&self, names: &[ColumnName<'_>]) -> Vec<(String, LogicalDataType)> {
         names
             .iter()
-            .map(|&name| {
-                let (k, v) = self.column_types.get_key_value(name).unwrap();
-                (k.clone(), *v)
+            .filter_map(|&name| match self.column_types.get_key_value(name) {
+                Some((name, data_type)) => Some((name.clone(), *data_type)),
+                None => None,
             })
             .collect::<Vec<_>>()
     }
 
-    // Extract schema information for a set of columns.
+    // As `schema_for_column_names` but also embeds the provided aggregate type.
+    fn schema_for_aggregate_column_names(
+        &self,
+        names: &[(ColumnName<'_>, AggregateType)],
+    ) -> Vec<(String, AggregateType, LogicalDataType)> {
+        names
+            .iter()
+            .filter_map(
+                |(name, agg_type)| match self.column_types.get_key_value(*name) {
+                    Some((name, data_type)) => Some((name.clone(), *agg_type, *data_type)),
+                    None => None,
+                },
+            )
+            .collect::<Vec<_>>()
+    }
+
+    // Extract all schema information for the `Table`.
     fn schema(&self) -> Vec<(String, LogicalDataType)> {
         self.column_types
             .iter()
@@ -640,16 +624,77 @@ impl<'a> Display for DisplayReadFilterResults<'a> {
 }
 
 #[derive(Default)]
-pub struct ReadAggregateResults<'input, 'row_group> {
-    // segment-wise result sets containing grouped values and aggregates
-    row_groups: Vec<&'row_group RowGroup>,
+pub struct ReadAggregateResults<'table> {
+    // schema information for the results
+    schema: ResultSchema,
 
     // the predicate to apply to each row group.
     predicate: Predicate,
-    // column-wise collection of columns being grouped by
-    group_columns: &'input [ColumnName<'input>],
-    // column-wise collection of columns being aggregated on
-    aggregates: &'input [(ColumnName<'input>, AggregateType)],
+
+    // row groups that will be executed against
+    row_groups: Vec<&'table RowGroup>,
+}
+
+impl<'a> ReadAggregateResults<'a> {
+    /// Returns the schema associated with table result and therefore all of
+    /// results from row groups.
+    pub fn schema(&self) -> &ResultSchema {
+        &self.schema
+    }
+}
+
+/// Implements an iterator on the Table's results for `read_aggregate`. This
+/// iterator will execute against one or more row groups, merging each row group
+/// result into the last before returning a final set of results.
+///
+/// Given that, it's expected that this iterator will only iterate once, but
+/// perhaps in the future we will break the work up and send intermediate
+/// results back.
+impl<'a> Iterator for ReadAggregateResults<'a> {
+    type Item = row_group::ReadAggregateResult<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.row_groups.is_empty() {
+            return None;
+        }
+
+        let merged_results = self.row_groups.remove(0).read_aggregate(
+            &self.predicate,
+            &self.schema.group_column_names_iter().collect::<Vec<_>>(),
+            &self
+                .schema
+                .aggregate_columns
+                .iter()
+                .map(|(name, agg_type, _)| (name.as_str(), *agg_type))
+                .collect::<Vec<_>>(),
+        );
+        assert_eq!(merged_results.schema(), self.schema()); // validate schema
+
+        // Execute against remaining row groups, merging each into the merged
+        // set.
+        for row_group in &self.row_groups {
+            let result = row_group.read_aggregate(
+                &self.predicate,
+                &self.schema.group_column_names_iter().collect::<Vec<_>>(),
+                &self
+                    .schema
+                    .aggregate_columns
+                    .iter()
+                    .map(|(name, agg_type, _)| (name.as_str(), *agg_type))
+                    .collect::<Vec<_>>(),
+            );
+
+            if result.is_empty() {
+                continue;
+            }
+            assert_eq!(result.schema(), self.schema()); // validate schema
+
+            // merge result into on-going results.
+            todo!();
+        }
+
+        Some(merged_results)
+    }
 }
 
 // Helper type that can pretty print a set of results for `read_aggregate`.

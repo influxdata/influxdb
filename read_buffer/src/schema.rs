@@ -8,7 +8,7 @@ use crate::{column::LogicalDataType, AggregateType};
 /// This schema is useful for helping with displaying information in tests and
 /// decorating Arrow record batches when results are converted before leaving
 /// the read buffer.
-#[derive(Default)]
+#[derive(Default, PartialEq, Debug)]
 pub struct ResultSchema {
     pub select_columns: Vec<(String, LogicalDataType)>,
     pub group_columns: Vec<(String, LogicalDataType)>,

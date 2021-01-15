@@ -119,7 +119,7 @@ impl Chunk {
         predicate: Predicate,
         group_columns: Vec<ColumnName<'_>>,
         aggregates: Vec<(ColumnName<'_>, AggregateType)>,
-    ) -> ReadAggregateResults<'_, '_> {
+    ) -> ReadAggregateResults<'_> {
         // Lookup table by name and dispatch execution.
         todo!()
     }
