@@ -2,14 +2,11 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Display;
 use std::slice::Iter;
 
+use crate::column::{AggregateResult, AggregateType, OwnedValue, Scalar, Value};
 use crate::{
     column,
     column::LogicalDataType,
     row_group::{self, ColumnName, GroupKey, Predicate, RowGroup},
-};
-use crate::{
-    column::{AggregateResult, AggregateType, OwnedValue, Scalar, Value},
-    row_group::ReadGroupResult,
 };
 
 /// A Table represents data for a single measurement.
@@ -155,7 +152,10 @@ impl Table {
         };
 
         // temp I think I can remove `columns` and `predicates` from this..
-        let columns = schema.iter().map(|(name, _)| *name).collect::<Vec<_>>();
+        let columns = schema
+            .iter()
+            .map(|(name, _)| name.to_string())
+            .collect::<Vec<_>>();
         ReadFilterResults {
             columns,
             predicate: predicate.clone(),
@@ -199,26 +199,27 @@ impl Table {
                     // found"
         }
 
+        todo!()
         // identify row groups where time range and predicates match could match
-        // using row group meta data, and then execute against those row groups and
-        // merge results.
-        let mut results = ReadAggregateResults::default();
-        let row_groups = self.filter_row_groups(&predicate);
-        if row_groups.is_empty() {
-            results.groupby_columns = group_columns;
-            results.aggregate_columns = aggregates;
-            return results;
-        }
+        // using row group meta data, and then execute against those row groups
+        // and merge results.
+        // let mut results = ReadAggregateResults::default();
+        // let row_groups = self.filter_row_groups(&predicate);
+        // if row_groups.is_empty() {
+        //     results.group_columns = group_columns;
+        //     results.aggregates = aggregates;
+        //     return results;
+        // }
 
-        results.values.reserve(row_groups.len());
-        for row_group in row_groups {
-            let segment_result = row_group.read_aggregate(&predicate, &group_columns, &aggregates);
-            results.values.push(segment_result);
-        }
+        // results.values.reserve(row_groups.len());
+        // for row_group in row_groups {
+        //     let segment_result = row_group.read_aggregate(&predicate,
+        // &group_columns, &aggregates);     results.values.
+        // push(segment_result); }
 
-        results.groupby_columns = group_columns;
-        results.aggregate_columns = aggregates;
-        results
+        // results.group_columns = group_columns;
+        // results.aggregates = aggregates;
+        // results
     }
 
     /// Returns aggregates segmented by grouping keys and windowed by time.
@@ -493,21 +494,21 @@ impl MetaData {
     }
 
     // Extract schema information for a set of columns.
-    fn schema_for_column_names(&self, names: &[ColumnName<'_>]) -> Vec<(&str, LogicalDataType)> {
+    fn schema_for_column_names(&self, names: &[ColumnName<'_>]) -> Vec<(String, LogicalDataType)> {
         names
             .iter()
             .map(|&name| {
                 let (k, v) = self.column_types.get_key_value(name).unwrap();
-                (k.as_str(), *v)
+                (k.clone(), *v)
             })
             .collect::<Vec<_>>()
     }
 
     // Extract schema information for a set of columns.
-    fn schema(&self) -> Vec<(&str, LogicalDataType)> {
+    fn schema(&self) -> Vec<(String, LogicalDataType)> {
         self.column_types
             .iter()
-            .map(|(k, v)| (k.as_str(), *v))
+            .map(|(k, v)| (k.clone(), *v))
             .collect::<Vec<_>>()
     }
 
@@ -561,14 +562,14 @@ pub enum ColumnSelection<'a> {
 /// row groups are only queried when `ReadFilterResults` is iterated.
 pub struct ReadFilterResults<'table> {
     // schema of all columns in the query results
-    schema: Vec<(&'table str, LogicalDataType)>,
+    schema: Vec<(String, LogicalDataType)>,
 
     // These row groups passed the predicates and need to be queried.
     row_groups: Vec<&'table RowGroup>,
 
     // TODO(edd): encapsulate these into a single executor function that just
     // executes on the next row group.
-    columns: Vec<ColumnName<'table>>,
+    columns: Vec<String>,
     predicate: Predicate,
 }
 
@@ -579,7 +580,7 @@ impl<'table> ReadFilterResults<'table> {
 
     /// Returns the schema associated with table result and therefore all of the
     /// results for all of row groups in the table results.
-    pub fn schema(&self) -> &Vec<(ColumnName<'_>, LogicalDataType)> {
+    pub fn schema(&self) -> &Vec<(String, LogicalDataType)> {
         &self.schema
     }
 }
@@ -593,7 +594,14 @@ impl<'a> Iterator for ReadFilterResults<'a> {
         }
 
         let row_group = self.row_groups.remove(0);
-        let result = row_group.read_filter(&self.columns, &self.predicate);
+        let result = row_group.read_filter(
+            &self
+                .columns
+                .iter()
+                .map(|name| name.as_str())
+                .collect::<Vec<_>>(),
+            &self.predicate,
+        );
         if result.is_empty() {
             return self.next(); // try next row group
         }
@@ -623,47 +631,58 @@ impl<'a> Display for DisplayReadFilterResults<'a> {
         }
         writeln!(f)?;
 
-        // Display all the results of each segment
-        for segment_values in &self.0 {
-            segment_values.fmt(f)?;
+        // Display all the results of each row group
+        for row_group in &self.0 {
+            row_group.fmt(f)?;
         }
         Ok(())
     }
 }
 
 #[derive(Default)]
-pub struct ReadAggregateResults<'input, 'segment> {
-    // column-wise collection of columns being grouped by
-    groupby_columns: &'input [ColumnName<'input>],
-
-    // column-wise collection of columns being aggregated on
-    aggregate_columns: &'input [(ColumnName<'input>, AggregateType)],
-
+pub struct ReadAggregateResults<'input, 'row_group> {
     // segment-wise result sets containing grouped values and aggregates
-    values: Vec<ReadGroupResult<'segment>>,
+    row_groups: Vec<&'row_group RowGroup>,
+
+    // the predicate to apply to each row group.
+    predicate: Predicate,
+    // column-wise collection of columns being grouped by
+    group_columns: &'input [ColumnName<'input>],
+    // column-wise collection of columns being aggregated on
+    aggregates: &'input [(ColumnName<'input>, AggregateType)],
 }
 
-impl std::fmt::Display for ReadAggregateResults<'_, '_> {
+// Helper type that can pretty print a set of results for `read_aggregate`.
+struct DisplayReadAggregateResults<'a>(Vec<row_group::ReadAggregateResult<'a>>);
+
+impl std::fmt::Display for DisplayReadAggregateResults<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // header line - display group columns first
-        for (i, name) in self.groupby_columns.iter().enumerate() {
-            write!(f, "{},", name)?;
-        }
+        // if self.0.is_empty() {
+        //     return Ok(());
+        // }
 
-        // then display aggregate columns
-        for (i, (col_name, col_agg)) in self.aggregate_columns.iter().enumerate() {
-            write!(f, "{}_{}", col_name, col_agg)?;
+        // let
 
-            if i < self.aggregate_columns.len() - 1 {
-                write!(f, ",")?;
-            }
-        }
-        writeln!(f)?;
+        // let schema = self.0[0].schema();
+        // // header line - display group columns first
+        // for (i, name) in self.group_columns.iter().enumerate() {
+        //     write!(f, "{},", name)?;
+        // }
 
-        // Display all the results of each segment
-        for segment_values in &self.values {
-            segment_values.fmt(f)?;
-        }
+        // // then display aggregate columns
+        // for (i, (col_name, col_agg)) in self.aggregates.iter().enumerate() {
+        //     write!(f, "{}_{}", col_name, col_agg)?;
+
+        //     if i < self.aggregates.len() - 1 {
+        //         write!(f, ",")?;
+        //     }
+        // }
+        // writeln!(f)?;
+
+        // // Display all the results of each segment
+        // for segment_values in &self.values {
+        //     segment_values.fmt(f)?;
+        // }
         Ok(())
     }
 }
@@ -721,9 +740,9 @@ mod test {
 
         // check the column types
         let exp_schema = vec![
-            ("time", LogicalDataType::Integer),
-            ("count", LogicalDataType::Unsigned),
-            ("region", LogicalDataType::String),
+            ("time".to_owned(), LogicalDataType::Integer),
+            ("count".to_owned(), LogicalDataType::Unsigned),
+            ("region".to_owned(), LogicalDataType::String),
         ];
         assert_eq!(results.schema(), &exp_schema);
 

@@ -5,6 +5,7 @@
 pub(crate) mod chunk;
 pub(crate) mod column;
 pub(crate) mod row_group;
+mod schema;
 pub(crate) mod table;
 
 use std::{
