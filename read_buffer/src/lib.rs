@@ -47,6 +47,9 @@ pub enum Error {
     #[snafu(display("chunk id does not exist: {}", id))]
     ChunkNotFound { id: u32 },
 
+    #[snafu(display("table does not exist: {}", name))]
+    TableNotFound { name: String },
+
     #[snafu(display("unsupported operation: {}", msg))]
     UnsupportedOperation { msg: String },
 }
