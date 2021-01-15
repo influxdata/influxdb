@@ -1,10 +1,12 @@
 //! Provide storage statistics for parquet files
-use arrow_deps::parquet::{
-    self,
-    file::reader::{FileReader, SerializedFileReader},
-    schema,
+use arrow_deps::{
+    arrow::datatypes::DataType,
+    parquet::{
+        self,
+        file::reader::{FileReader, SerializedFileReader},
+        schema,
+    },
 };
-use data_types::table_schema::DataType;
 use snafu::ResultExt;
 
 use super::{
@@ -24,9 +26,9 @@ pub fn data_type_from_parquet_type(parquet_type: parquet::basic::Type) -> DataTy
 
     match parquet_type {
         BOOLEAN => DataType::Boolean,
-        INT64 => DataType::Integer,
-        DOUBLE => DataType::Float,
-        BYTE_ARRAY => DataType::String,
+        INT64 => DataType::Int64,
+        DOUBLE => DataType::Float64,
+        BYTE_ARRAY => DataType::Utf8,
         _ => {
             unimplemented!("Unsupported parquet datatype: {:?}", parquet_type);
         }

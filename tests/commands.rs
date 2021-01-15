@@ -387,7 +387,7 @@ fn stats_temperature_parquet() {
         .stdout(predicate::str::contains("Storage statistics:"))
         .stdout(predicate::str::contains(
             r#"Column Stats 'state' [1]
-  Total rows: 6.00  (6), DataType: String, Compression: {"Enc: Dictionary, Comp: GZIP"}
+  Total rows: 6.00  (6), DataType: Utf8, Compression: {"Enc: Dictionary, Comp: GZIP"}
   Compressed/Uncompressed Bytes : 90.00      / 52.00      (      90 /       52) 120.0000 bits per row
 "#))
         .stdout(predicate::str::contains(

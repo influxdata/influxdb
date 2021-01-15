@@ -31,7 +31,7 @@ where
         message: "Creating parquet reader",
     })?;
 
-    let mut stats_builders = BTreeMap::new();
+    let mut stats_builders: BTreeMap<String, ColumnStatsBuilder> = BTreeMap::new();
 
     let parquet_metadata = reader.metadata();
     for (rg_idx, rg_metadata) in parquet_metadata.row_groups().iter().enumerate() {
@@ -43,12 +43,12 @@ where
 
         for (cc_idx, cc_metadata) in rg_metadata.columns().iter().enumerate() {
             let col_path = cc_metadata.column_path();
-            let builder = stats_builders.entry(col_path.string()).or_insert_with(|| {
-                let data_type = data_type_from_parquet_type(cc_metadata.column_type());
-                ColumnStatsBuilder::new(col_path.string(), cc_idx, data_type)
-            });
-
-            builder
+            let builder = stats_builders
+                .remove(&col_path.string())
+                .unwrap_or_else(|| {
+                    let data_type = data_type_from_parquet_type(cc_metadata.column_type());
+                    ColumnStatsBuilder::new(col_path.string(), cc_idx, data_type)
+                })
                 .compression(&format!(
                     "Enc: {}, Comp: {}",
                     encoding_display(&cc_metadata.encodings()),
@@ -72,6 +72,9 @@ where
                         .try_into()
                         .expect("positive uncompressed size"),
                 );
+
+            // put the builder back in the map
+            stats_builders.insert(col_path.string(), builder);
         }
     }
 

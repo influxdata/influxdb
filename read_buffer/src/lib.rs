@@ -21,7 +21,7 @@ use arrow_deps::arrow::{
 use snafu::{ResultExt, Snafu};
 
 // Identifiers that are exported as part of the public API.
-pub use column::{AggregateType, FIELD_COLUMN_TYPE, TAG_COLUMN_TYPE, TIME_COLUMN_TYPE};
+pub use column::AggregateType;
 pub use row_group::{BinaryExpr, Predicate};
 pub use table::ColumnSelection;
 
@@ -88,15 +88,6 @@ impl Database {
         let schema = table_data.schema();
         if schema.fields().len() != schema.metadata().len() {
             todo!("return error with missing column types for fields")
-        }
-
-        // ensure that a valid column type is specified for each column in
-        // the record batch.
-        for (col_name, col_type) in schema.metadata() {
-            match col_type.as_str() {
-                TAG_COLUMN_TYPE | FIELD_COLUMN_TYPE | TIME_COLUMN_TYPE => continue,
-                _ => todo!("return error with incorrect column type specified"),
-            }
         }
 
         let row_group = RowGroup::from(table_data);
@@ -594,46 +585,28 @@ impl Iterator for TagValuesResults {
 
 #[cfg(test)]
 mod test {
-    use std::collections::HashMap;
+    use super::*;
     use std::sync::Arc;
 
     use arrow_deps::arrow::{
         array::{
             ArrayRef, BinaryArray, BooleanArray, Float64Array, Int64Array, StringArray, UInt64Array,
         },
-        datatypes::{
-            DataType::{Float64, Int64, Utf8},
-            Field, Schema,
-        },
+        datatypes::DataType::Float64,
     };
 
-    use super::*;
     use column::Values;
+    use data_types::schema::builder::SchemaBuilder;
 
     // helper to make the `database_update_chunk` test simpler to read.
     fn gen_recordbatch() -> RecordBatch {
-        let metadata = vec![
-            ("region".to_owned(), TAG_COLUMN_TYPE.to_owned()),
-            ("counter".to_owned(), FIELD_COLUMN_TYPE.to_owned()),
-            (
-                row_group::TIME_COLUMN_NAME.to_owned(),
-                TIME_COLUMN_TYPE.to_owned(),
-            ),
-        ]
-        .into_iter()
-        .collect::<HashMap<String, String>>();
-
-        let schema = Schema::new_with_metadata(
-            vec![
-                ("region", Utf8),
-                ("counter", Float64),
-                (row_group::TIME_COLUMN_NAME, Int64),
-            ]
-            .into_iter()
-            .map(|(name, typ)| Field::new(name, typ, false))
-            .collect(),
-            metadata,
-        );
+        let schema = SchemaBuilder::new()
+            .non_null_tag("region")
+            .non_null_field("counter", Float64)
+            .timestamp()
+            .build()
+            .unwrap()
+            .into();
 
         let data: Vec<ArrayRef> = vec![
             Arc::new(StringArray::from(vec!["west", "west", "east"])),
@@ -641,7 +614,7 @@ mod test {
             Arc::new(Int64Array::from(vec![11111111, 222222, 3333])),
         ];
 
-        RecordBatch::try_new(Arc::new(schema), data).unwrap()
+        RecordBatch::try_new(schema, data).unwrap()
     }
 
     #[test]
@@ -849,30 +822,13 @@ mod test {
 
         // Add a bunch of row groups to a single table in a single chunk
         for &i in &[100, 200, 300] {
-            let metadata = vec![
-                ("env".to_owned(), TAG_COLUMN_TYPE.to_owned()),
-                ("region".to_owned(), TAG_COLUMN_TYPE.to_owned()),
-                ("counter".to_owned(), FIELD_COLUMN_TYPE.to_owned()),
-                (
-                    row_group::TIME_COLUMN_NAME.to_owned(),
-                    TIME_COLUMN_TYPE.to_owned(),
-                ),
-            ]
-            .into_iter()
-            .collect::<HashMap<String, String>>();
-
-            let schema = Schema::new_with_metadata(
-                vec![
-                    ("env", Utf8),
-                    ("region", Utf8),
-                    ("counter", Float64),
-                    (row_group::TIME_COLUMN_NAME, Int64),
-                ]
-                .into_iter()
-                .map(|(name, typ)| Field::new(name, typ, false))
-                .collect(),
-                metadata,
-            );
+            let schema = SchemaBuilder::new()
+                .non_null_tag("env")
+                .non_null_tag("region")
+                .non_null_field("counter", Float64)
+                .timestamp()
+                .build()
+                .unwrap();
 
             let data: Vec<ArrayRef> = vec![
                 Arc::new(StringArray::from(vec!["us-west", "us-east", "us-west"])),
@@ -882,7 +838,7 @@ mod test {
             ];
 
             // Add a record batch to a single partition
-            let rb = RecordBatch::try_new(Arc::new(schema), data).unwrap();
+            let rb = RecordBatch::try_new(schema.into(), data).unwrap();
             db.upsert_partition("hour_1", 22, "Coolverine", rb);
         }
 
@@ -936,30 +892,13 @@ mod test {
 
         // Add a bunch of row groups to a single table across multiple chunks
         for &i in &[100, 200, 300] {
-            let metadata = vec![
-                ("env".to_owned(), TAG_COLUMN_TYPE.to_owned()),
-                ("region".to_owned(), TAG_COLUMN_TYPE.to_owned()),
-                ("counter".to_owned(), FIELD_COLUMN_TYPE.to_owned()),
-                (
-                    row_group::TIME_COLUMN_NAME.to_owned(),
-                    TIME_COLUMN_TYPE.to_owned(),
-                ),
-            ]
-            .into_iter()
-            .collect::<HashMap<String, String>>();
-
-            let schema = Schema::new_with_metadata(
-                vec![
-                    ("env", Utf8),
-                    ("region", Utf8),
-                    ("counter", Float64),
-                    (row_group::TIME_COLUMN_NAME, Int64),
-                ]
-                .into_iter()
-                .map(|(name, typ)| Field::new(name, typ, false))
-                .collect(),
-                metadata,
-            );
+            let schema = SchemaBuilder::new()
+                .non_null_tag("env")
+                .non_null_tag("region")
+                .non_null_field("counter", Float64)
+                .timestamp()
+                .build()
+                .unwrap();
 
             let data: Vec<ArrayRef> = vec![
                 Arc::new(StringArray::from(vec!["us-west", "us-east", "us-west"])),
@@ -969,7 +908,7 @@ mod test {
             ];
 
             // Add a record batch to a single partition
-            let rb = RecordBatch::try_new(Arc::new(schema), data).unwrap();
+            let rb = RecordBatch::try_new(schema.into(), data).unwrap();
 
             // The row group gets added to a different chunk each time.
             db.upsert_partition("hour_1", i as u32, "Coolverine", rb);

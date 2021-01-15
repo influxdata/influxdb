@@ -23,11 +23,6 @@ use either::Either;
 // compression is worth the memory and compute costs to work on it.
 pub const TEMP_CARDINALITY_DICTIONARY_ENCODING_LIMIT: usize = 100_000;
 
-/// Stringified names for different column
-pub const TAG_COLUMN_TYPE: &str = "tag";
-pub const FIELD_COLUMN_TYPE: &str = "field";
-pub const TIME_COLUMN_TYPE: &str = "timestamp";
-
 /// The possible logical types that column values can have. All values in a
 /// column have the same physical type.
 pub enum Column {

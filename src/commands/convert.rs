@@ -1,11 +1,11 @@
-use data_types::table_schema::Schema;
+use data_types::schema::Schema;
 use influxdb_line_protocol::parse_lines;
 use ingest::{
     parquet::writer::{CompressionLevel, Error as ParquetWriterError, IOxParquetTableWriter},
     ConversionSettings, Error as IngestError, LineProtocolConverter, TSMFileConverter,
 };
 use packers::{Error as TableError, IOxTableWriter, IOxTableWriterSource};
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     convert::TryInto,
     fs,
@@ -17,7 +17,46 @@ use tracing::{debug, info, warn};
 
 use crate::commands::input::{FileType, InputReader};
 
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display("Error reading {} ({})", name.display(), source))]
+    UnableToReadInput {
+        name: PathBuf,
+        source: std::io::Error,
+    },
+
+    #[snafu(display(
+        "Cannot write multiple measurements to a single file. Saw new measurement named {}",
+        new_measurement_name
+    ))]
+    MultipleMeasurementsToSingleFile { new_measurement_name: String },
+
+    #[snafu(display("Internal error: measurement name not specified in schema",))]
+    InternalMeasurementNotSpecified {},
+
+    #[snafu(display("Error creating a parquet table writer {}", source))]
+    UnableToCreateParquetTableWriter { source: ParquetWriterError },
+
+    #[snafu(display("Conversion from Parquet format is not implemented"))]
+    ParquetNotImplemented,
+
+    #[snafu(display("Error writing remaining lines {}", source))]
+    UnableToWriteGoodLines { source: IngestError },
+
+    #[snafu(display("Error opening input {}", source))]
+    OpenInput { source: super::input::Error },
+
+    #[snafu(display("Error while closing the table writer {}", source))]
+    UnableToCloseTableWriter { source: IngestError },
+}
+
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+impl From<Error> for TableError {
+    fn from(source: Error) -> Self {
+        Self::from_other(source)
+    }
+}
 
 /// Creates  `IOxParquetTableWriter` suitable for writing to a single file
 #[derive(Debug)]
@@ -32,12 +71,16 @@ struct ParquetFileWriterSource {
 impl IOxTableWriterSource for ParquetFileWriterSource {
     // Returns a `IOxTableWriter suitable for writing data from packers.
     fn next_writer(&mut self, schema: &Schema) -> Result<Box<dyn IOxTableWriter>, TableError> {
+        let measurement = schema
+            .measurement()
+            .cloned()
+            .context(InternalMeasurementNotSpecified)?;
+
         if self.made_file {
             return MultipleMeasurementsToSingleFile {
-                new_measurement_name: schema.measurement(),
+                new_measurement_name: measurement,
             }
-            .fail()
-            .map_err(TableError::from_other);
+            .fail()?;
         }
 
         let output_file = fs::File::create(&self.output_filename).map_err(|e| {
@@ -48,13 +91,11 @@ impl IOxTableWriterSource for ParquetFileWriterSource {
         })?;
         info!(
             "Writing output for measurement {} to {} ...",
-            schema.measurement(),
-            self.output_filename
+            measurement, self.output_filename
         );
 
         let writer = IOxParquetTableWriter::new(schema, self.compression_level, output_file)
-            .context(UnableToCreateParquetTableWriter)
-            .map_err(TableError::from_other)?;
+            .context(UnableToCreateParquetTableWriter)?;
         self.made_file = true;
         Ok(Box::new(writer))
     }
@@ -75,7 +116,10 @@ impl IOxTableWriterSource for ParquetDirectoryWriterSource {
     fn next_writer(&mut self, schema: &Schema) -> Result<Box<dyn IOxTableWriter>, TableError> {
         let mut output_file_path: PathBuf = self.output_dir_path.clone();
 
-        output_file_path.push(schema.measurement());
+        let measurement = schema
+            .measurement()
+            .context(InternalMeasurementNotSpecified)?;
+        output_file_path.push(measurement);
         output_file_path.set_extension("parquet");
 
         let output_file = fs::File::create(&output_file_path).map_err(|e| {
@@ -86,8 +130,7 @@ impl IOxTableWriterSource for ParquetDirectoryWriterSource {
         })?;
         info!(
             "Writing output for measurement {} to {:?} ...",
-            schema.measurement(),
-            output_file_path
+            measurement, output_file_path
         );
 
         let writer = IOxParquetTableWriter::new(schema, self.compression_level, output_file)
@@ -273,34 +316,4 @@ fn convert_tsm_to_parquet(
     converter
         .convert(vec![(index_stream, index_stream_size)], vec![block_stream])
         .context(UnableToCloseTableWriter)
-}
-
-#[derive(Debug, Snafu)]
-pub enum Error {
-    #[snafu(display("Error reading {} ({})", name.display(), source))]
-    UnableToReadInput {
-        name: PathBuf,
-        source: std::io::Error,
-    },
-
-    #[snafu(display(
-        "Cannot write multiple measurements to a single file. Saw new measurement named {}",
-        new_measurement_name
-    ))]
-    MultipleMeasurementsToSingleFile { new_measurement_name: String },
-
-    #[snafu(display("Error creating a parquet table writer {}", source))]
-    UnableToCreateParquetTableWriter { source: ParquetWriterError },
-
-    #[snafu(display("Conversion from Parquet format is not implemented"))]
-    ParquetNotImplemented,
-
-    #[snafu(display("Error writing remaining lines {}", source))]
-    UnableToWriteGoodLines { source: IngestError },
-
-    #[snafu(display("Error opening input {}", source))]
-    OpenInput { source: super::input::Error },
-
-    #[snafu(display("Error while closing the table writer {}", source))]
-    UnableToCloseTableWriter { source: IngestError },
 }

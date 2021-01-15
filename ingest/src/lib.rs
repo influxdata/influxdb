@@ -10,7 +10,10 @@
     clippy::use_self
 )]
 
-use data_types::table_schema::{DataType, Schema, SchemaBuilder};
+use data_types::{
+    schema::{builder::InfluxSchemaBuilder, InfluxFieldType, Schema},
+    TIME_COLUMN_NAME,
+};
 use influxdb_line_protocol::{FieldValue, ParsedLine};
 use influxdb_tsm::{
     mapper::{ColumnData, MeasurementTable, TSMMeasurementMapper},
@@ -69,9 +72,10 @@ pub enum Error {
     #[snafu(display(r#"Conversion needs at least one line of data"#))]
     NeedsAtLeastOneLine,
 
-    // Only a single line protocol measurement field is currently supported
-    #[snafu(display(r#"More than one measurement not yet supported: Saw new measurement {}, had been using measurement {}"#, actual, expected))]
-    OnlyOneMeasurementSupported { expected: String, actual: String },
+    #[snafu(display(r#"Error building schema: {}"#, source))]
+    BuildingSchema {
+        source: data_types::schema::builder::Error,
+    },
 
     #[snafu(display(r#"Error writing to TableWriter: {}"#, source))]
     Writing { source: TableError },
@@ -89,6 +93,12 @@ pub enum Error {
     // TODO clean this error up
     #[snafu(display(r#"could not find column"#))]
     CouldNotFindColumn,
+}
+
+impl From<data_types::schema::builder::Error> for Error {
+    fn from(source: data_types::schema::builder::Error) -> Self {
+        Self::BuildingSchema { source }
+    }
 }
 
 /// Handles buffering `ParsedLine` objects and deducing a schema from that
@@ -284,37 +294,29 @@ impl<'a> MeasurementSampler<'a> {
     fn deduce_schema_from_sample(&mut self) -> Result<Schema, Error> {
         ensure!(!self.schema_sample.is_empty(), NeedsAtLeastOneLine);
 
-        let mut builder = SchemaBuilder::new(self.schema_sample[0].series.measurement.as_str());
+        let mut builder = InfluxSchemaBuilder::new();
 
         for line in &self.schema_sample {
             let series = &line.series;
-
-            let measurement_name = builder.get_measurement_name();
-            ensure!(
-                series.measurement == measurement_name,
-                OnlyOneMeasurementSupported {
-                    actual: measurement_name,
-                    expected: &series.measurement,
-                }
-            );
+            builder = builder.saw_measurement(&series.measurement)?;
 
             if let Some(tag_set) = &series.tag_set {
                 for (tag_name, _) in tag_set {
-                    builder = builder.tag(tag_name.as_str());
+                    builder = builder.saw_tag(tag_name.as_str());
                 }
             }
             for (field_name, field_value) in &line.field_set {
                 let field_type = match field_value {
-                    FieldValue::F64(_) => DataType::Float,
-                    FieldValue::I64(_) => DataType::Integer,
-                    FieldValue::String(_) => DataType::String,
-                    FieldValue::Boolean(_) => DataType::Boolean,
+                    FieldValue::F64(_) => InfluxFieldType::Float,
+                    FieldValue::I64(_) => InfluxFieldType::Integer,
+                    FieldValue::String(_) => InfluxFieldType::String,
+                    FieldValue::Boolean(_) => InfluxFieldType::Boolean,
                 };
-                builder = builder.field(field_name.as_str(), field_type);
+                builder = builder.saw_influx_field(field_name.as_str(), field_type);
             }
         }
 
-        Ok(builder.build())
+        builder.build().context(BuildingSchema)
     }
 }
 
@@ -412,16 +414,15 @@ impl<'a> PackersForRow<'a> {
 /// TODO: improve performance by reusing the the Vec<Packer> rather
 /// than always making new ones
 fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
-    let col_defs = schema.get_col_defs();
-    let mut packers: Vec<_> = col_defs
+    let mut packers: Vec<_> = schema
         .iter()
         .enumerate()
-        .map(|(idx, col_def)| {
-            debug!("  Column definition [{}] = {:?}", idx, col_def);
+        .map(|(idx, (influxdb_column_type, _))| {
+            debug!("  Column definition [{}] = {:?}", idx, influxdb_column_type);
 
             // Initialise a Packer<T> for the matching data type wrapped in a
             // Packers enum variant to allow it to live in a vector.
-            let mut packer = Packers::from(col_def.data_type);
+            let mut packer = Packers::from(influxdb_column_type.unwrap());
             packer.reserve_exact(lines.len());
             packer
         })
@@ -429,21 +430,19 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
 
     // map col_name -> PackerForRow;
     // Use a String as a key (rather than &String) so we can look up via str
-    let mut packer_map: BTreeMap<_, _> = col_defs
-        .iter()
-        .map(|x| x.name.clone())
-        .zip(packers.iter_mut().map(|packer| PackersForRow::new(packer)))
+    let mut packer_map: BTreeMap<_, _> = packers
+        .iter_mut()
+        .enumerate()
+        .map(|(i, packer)| (schema.field(i).1.name().clone(), PackersForRow::new(packer)))
         .collect();
 
     for line in lines {
-        let timestamp_col_name = schema.timestamp();
-
         let series = &line.series;
 
         assert_eq!(
-            series.measurement,
-            schema.measurement(),
-            "Different measurements detected. Expected {} found {}",
+            Some(series.measurement.as_str()),
+            schema.measurement().map(|s| s.as_str()),
+            "Different measurements detected. Expected {:?} found {}",
             schema.measurement(),
             series.measurement
         );
@@ -489,7 +488,7 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
             }
         }
 
-        if let Some(packer_for_row) = packer_map.get_mut(timestamp_col_name) {
+        if let Some(packer_for_row) = packer_map.get_mut(TIME_COLUMN_NAME) {
             // The Rust implementation of the parquet writer doesn't support
             // Nanosecond precision for timestamps yet, so we downconvert them here
             // to microseconds
@@ -501,7 +500,7 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
                 .i64_packer_mut()
                 .push_option(timestamp_micros)
         } else {
-            panic!("No {} field present in schema...", timestamp_col_name);
+            panic!("No {} field present in schema...", TIME_COLUMN_NAME);
         }
 
         // Now, go over all packers and add missing values if needed
@@ -816,7 +815,7 @@ impl TSMFileConverter {
         mut block_reader: impl BlockDecoder,
         m: &mut MeasurementTable,
     ) -> Result<(Schema, Vec<Packers>), Error> {
-        let mut builder = SchemaBuilder::new(&m.name);
+        let mut builder = data_types::schema::builder::SchemaBuilder::new().measurement(&m.name);
         let mut packed_columns: Vec<Packers> = Vec::new();
 
         let mut tks = Vec::new();
@@ -828,21 +827,22 @@ impl TSMFileConverter {
 
         let mut fks = Vec::new();
         for (field_key, block_type) in m.field_columns().to_owned() {
-            builder = builder.field(&field_key, to_data_type(&block_type));
+            builder = builder.influx_field(&field_key, to_data_type(&block_type));
             fks.push((field_key.clone(), block_type));
             packed_columns.push(Packers::from(block_type));
         }
 
         // Account for timestamp
+        let builder = builder.timestamp();
         packed_columns.push(Packers::Integer(Packer::new()));
 
-        let schema = builder.build();
+        let schema = builder.build()?;
 
         // get mapping between named columns and packer indexes.
         let name_packer = schema
-            .get_col_defs()
             .iter()
-            .map(|c| (c.name.clone(), c.index as usize))
+            .enumerate()
+            .map(|(idx, (_, arrow_field))| (arrow_field.name().clone(), idx))
             .collect::<BTreeMap<String, usize>>();
 
         // Process the measurement to build out a table.
@@ -876,7 +876,7 @@ impl TSMFileConverter {
 
                 // Process the timestamp column.
                 let ts_idx = name_packer
-                    .get(schema.timestamp())
+                    .get(TIME_COLUMN_NAME)
                     .context(CouldNotFindTsColumn)
                     .map_err(|e| TSMError {
                         description: e.to_string(),
@@ -1073,13 +1073,13 @@ impl TSMFileConverter {
     }
 }
 
-fn to_data_type(value: &BlockType) -> DataType {
+fn to_data_type(value: &BlockType) -> InfluxFieldType {
     match value {
-        BlockType::Float => DataType::Float,
-        BlockType::Integer => DataType::Integer,
-        BlockType::Bool => DataType::Boolean,
-        BlockType::Str => DataType::String,
-        BlockType::Unsigned => DataType::Integer,
+        BlockType::Float => InfluxFieldType::Float,
+        BlockType::Integer => InfluxFieldType::Integer,
+        BlockType::Bool => InfluxFieldType::Boolean,
+        BlockType::Str => InfluxFieldType::String,
+        BlockType::Unsigned => InfluxFieldType::Integer,
     }
 }
 
@@ -1094,7 +1094,7 @@ impl std::fmt::Debug for TSMFileConverter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types::table_schema::ColumnDefinition;
+    use data_types::{assert_column_eq, schema::InfluxColumnType};
     use influxdb_tsm::{
         reader::{BlockData, MockBlockDecoder},
         Block,
@@ -1205,7 +1205,7 @@ mod tests {
 
     impl IOxTableWriterSource for NoOpWriterSource {
         fn next_writer(&mut self, schema: &Schema) -> Result<Box<dyn IOxTableWriter>, TableError> {
-            let measurement_name = schema.measurement();
+            let measurement_name = schema.measurement().unwrap();
             log_event(
                 &self.log,
                 format!("Created writer for measurement {}", measurement_name),
@@ -1285,24 +1285,18 @@ mod tests {
             .deduce_schema_from_sample()
             .expect("Successful schema conversion");
 
-        assert_eq!(schema.measurement(), "cpu");
+        assert_eq!(schema.measurement().unwrap(), "cpu");
 
-        let cols = schema.get_col_defs();
-        println!("Converted to {:#?}", cols);
-        assert_eq!(cols.len(), 4);
-        assert_eq!(cols[0], ColumnDefinition::new("host", 0, DataType::String));
-        assert_eq!(
-            cols[1],
-            ColumnDefinition::new("region", 1, DataType::String)
+        println!("Converted to {:#?}", schema);
+        assert_column_eq!(schema, 0, InfluxColumnType::Tag, "host");
+        assert_column_eq!(schema, 1, InfluxColumnType::Tag, "region");
+        assert_column_eq!(
+            schema,
+            2,
+            InfluxColumnType::Field(InfluxFieldType::Integer),
+            "usage_system"
         );
-        assert_eq!(
-            cols[2],
-            ColumnDefinition::new("usage_system", 2, DataType::Integer)
-        );
-        assert_eq!(
-            cols[3],
-            ColumnDefinition::new("time", 3, DataType::Timestamp)
-        );
+        assert_column_eq!(schema, 3, InfluxColumnType::Timestamp, "time");
     }
 
     #[test]
@@ -1316,24 +1310,18 @@ mod tests {
         let schema = sampler
             .deduce_schema_from_sample()
             .expect("Successful schema conversion");
-        assert_eq!(schema.measurement(), "cpu");
+        assert_eq!(schema.measurement().unwrap(), "cpu");
 
-        let cols = schema.get_col_defs();
-        println!("Converted to {:#?}", cols);
-        assert_eq!(cols.len(), 4);
-        assert_eq!(cols[0], ColumnDefinition::new("host", 0, DataType::String));
-        assert_eq!(
-            cols[1],
-            ColumnDefinition::new("region", 1, DataType::String)
+        println!("Converted to {:#?}", schema);
+        assert_column_eq!(schema, 0, InfluxColumnType::Tag, "host");
+        assert_column_eq!(schema, 1, InfluxColumnType::Tag, "region");
+        assert_column_eq!(
+            schema,
+            2,
+            InfluxColumnType::Field(InfluxFieldType::Integer),
+            "usage_system"
         );
-        assert_eq!(
-            cols[2],
-            ColumnDefinition::new("usage_system", 2, DataType::Integer)
-        );
-        assert_eq!(
-            cols[3],
-            ColumnDefinition::new("time", 3, DataType::Timestamp)
-        );
+        assert_column_eq!(schema, 3, InfluxColumnType::Timestamp, "time");
     }
 
     #[test]
@@ -1349,29 +1337,25 @@ mod tests {
         let schema = sampler
             .deduce_schema_from_sample()
             .expect("Successful schema conversion");
-        assert_eq!(schema.measurement(), "cpu");
+        assert_eq!(schema.measurement().unwrap(), "cpu");
 
         // then both field names appear in the resulting schema
-        let cols = schema.get_col_defs();
-        println!("Converted to {:#?}", cols);
-        assert_eq!(cols.len(), 5);
-        assert_eq!(cols[0], ColumnDefinition::new("host", 0, DataType::String));
-        assert_eq!(
-            cols[1],
-            ColumnDefinition::new("region", 1, DataType::String)
+        println!("Converted to {:#?}", schema);
+        assert_column_eq!(schema, 0, InfluxColumnType::Tag, "host");
+        assert_column_eq!(schema, 1, InfluxColumnType::Tag, "region");
+        assert_column_eq!(
+            schema,
+            2,
+            InfluxColumnType::Field(InfluxFieldType::Integer),
+            "usage_system"
         );
-        assert_eq!(
-            cols[2],
-            ColumnDefinition::new("usage_system", 2, DataType::Integer)
+        assert_column_eq!(
+            schema,
+            3,
+            InfluxColumnType::Field(InfluxFieldType::Float),
+            "usage_user"
         );
-        assert_eq!(
-            cols[3],
-            ColumnDefinition::new("usage_user", 3, DataType::Float)
-        );
-        assert_eq!(
-            cols[4],
-            ColumnDefinition::new("time", 4, DataType::Timestamp)
-        );
+        assert_column_eq!(schema, 4, InfluxColumnType::Timestamp, "time");
     }
 
     #[test]
@@ -1387,25 +1371,19 @@ mod tests {
         let schema = sampler
             .deduce_schema_from_sample()
             .expect("Successful schema conversion");
-        assert_eq!(schema.measurement(), "cpu");
+        assert_eq!(schema.measurement().unwrap(), "cpu");
 
         // Then both tag names appear in the resulting schema
-        let cols = schema.get_col_defs();
-        println!("Converted to {:#?}", cols);
-        assert_eq!(cols.len(), 4);
-        assert_eq!(cols[0], ColumnDefinition::new("host", 0, DataType::String));
-        assert_eq!(
-            cols[1],
-            ColumnDefinition::new("fail_group", 1, DataType::String)
+        println!("Converted to {:#?}", schema);
+        assert_column_eq!(schema, 0, InfluxColumnType::Tag, "host");
+        assert_column_eq!(schema, 1, InfluxColumnType::Tag, "fail_group");
+        assert_column_eq!(
+            schema,
+            2,
+            InfluxColumnType::Field(InfluxFieldType::Integer),
+            "usage_system"
         );
-        assert_eq!(
-            cols[2],
-            ColumnDefinition::new("usage_system", 2, DataType::Integer)
-        );
-        assert_eq!(
-            cols[3],
-            ColumnDefinition::new("time", 3, DataType::Timestamp)
-        );
+        assert_column_eq!(schema, 3, InfluxColumnType::Timestamp, "time");
     }
 
     #[test]
@@ -1422,22 +1400,20 @@ mod tests {
         let schema = sampler
             .deduce_schema_from_sample()
             .expect("Successful schema conversion");
-        assert_eq!(schema.measurement(), "cpu");
+        assert_eq!(schema.measurement().unwrap(), "cpu");
 
         // Then the first field type appears in the resulting schema (TBD is this what
         // we want??)
-        let cols = schema.get_col_defs();
-        println!("Converted to {:#?}", cols);
-        assert_eq!(cols.len(), 3);
-        assert_eq!(cols[0], ColumnDefinition::new("host", 0, DataType::String));
-        assert_eq!(
-            cols[1],
-            ColumnDefinition::new("usage_system", 1, DataType::Integer)
+        println!("Converted to {:#?}", schema);
+
+        assert_column_eq!(schema, 0, InfluxColumnType::Tag, "host");
+        assert_column_eq!(
+            schema,
+            1,
+            InfluxColumnType::Field(InfluxFieldType::Integer),
+            "usage_system"
         );
-        assert_eq!(
-            cols[2],
-            ColumnDefinition::new("time", 2, DataType::Timestamp)
-        );
+        assert_column_eq!(schema, 2, InfluxColumnType::Timestamp, "time");
     }
 
     #[test]
@@ -1453,10 +1429,7 @@ mod tests {
         let schema_result = sampler.deduce_schema_from_sample();
 
         // Then the converter does not support it
-        assert!(matches!(
-            schema_result,
-            Err(Error::OnlyOneMeasurementSupported { .. })
-        ));
+        assert_eq!(schema_result.unwrap_err().to_string(), "Error building schema: Multiple measurement names not supported. Old measurement 'cpu', new measurement 'vcpu'");
     }
 
     // --- Tests for MeasurementWriter
@@ -1472,9 +1445,12 @@ mod tests {
         let log = Arc::new(Mutex::new(WriterLog::new()));
         let table_writer = Box::new(NoOpWriter::new(log.clone(), String::from("cpu")));
 
-        let schema = SchemaBuilder::new("cpu")
-            .field("usage_system", DataType::Integer)
-            .build();
+        let schema = InfluxSchemaBuilder::new()
+            .saw_measurement("cpu")
+            .unwrap()
+            .saw_influx_field("usage_system", InfluxFieldType::Integer)
+            .build()
+            .unwrap();
 
         let mut writer = MeasurementWriter::new(get_writer_settings(), schema, table_writer);
         assert_eq!(writer.write_buffer.capacity(), 2);
@@ -1551,26 +1527,34 @@ mod tests {
         let schema = parse_data_into_sampler()?.deduce_schema_from_sample()?;
 
         // Then the correct schema is extracted
-        let cols = schema.get_col_defs();
-        println!("Converted to {:#?}", cols);
-        assert_eq!(cols.len(), 6);
-        assert_eq!(cols[0], ColumnDefinition::new("tag1", 0, DataType::String));
-        assert_eq!(
-            cols[1],
-            ColumnDefinition::new("int_field", 1, DataType::Integer)
+        println!("Converted to {:#?}", schema);
+
+        assert_column_eq!(schema, 0, InfluxColumnType::Tag, "tag1");
+        assert_column_eq!(
+            schema,
+            1,
+            InfluxColumnType::Field(InfluxFieldType::Integer),
+            "int_field"
         );
-        assert_eq!(
-            cols[2],
-            ColumnDefinition::new("float_field", 2, DataType::Float)
+        assert_column_eq!(
+            schema,
+            2,
+            InfluxColumnType::Field(InfluxFieldType::Float),
+            "float_field"
         );
-        assert_eq!(
-            cols[3],
-            ColumnDefinition::new("str_field", 3, DataType::String)
+        assert_column_eq!(
+            schema,
+            3,
+            InfluxColumnType::Field(InfluxFieldType::String),
+            "str_field"
         );
-        assert_eq!(
-            cols[4],
-            ColumnDefinition::new("bool_field", 4, DataType::Boolean)
+        assert_column_eq!(
+            schema,
+            4,
+            InfluxColumnType::Field(InfluxFieldType::Boolean),
+            "bool_field"
         );
+        assert_column_eq!(schema, 5, InfluxColumnType::Timestamp, "time");
 
         Ok(())
     }
@@ -1895,17 +1879,29 @@ mod tests {
         let decoder = MockBlockDecoder::new(block_map);
         let (schema, packers) = TSMFileConverter::process_measurement_table(decoder, &mut table)?;
 
-        let expected_defs = vec![
-            ColumnDefinition::new("az", 0, DataType::String),
-            ColumnDefinition::new("region", 1, DataType::String),
-            ColumnDefinition::new("server", 2, DataType::String),
-            ColumnDefinition::new("temp", 3, DataType::Float),
-            ColumnDefinition::new("voltage", 4, DataType::Float),
-            ColumnDefinition::new("watts", 5, DataType::Integer),
-            ColumnDefinition::new("time", 6, DataType::Timestamp),
-        ];
+        assert_column_eq!(schema, 0, InfluxColumnType::Tag, "az");
+        assert_column_eq!(schema, 1, InfluxColumnType::Tag, "region");
+        assert_column_eq!(schema, 2, InfluxColumnType::Tag, "server");
+        assert_column_eq!(
+            schema,
+            3,
+            InfluxColumnType::Field(InfluxFieldType::Float),
+            "temp"
+        );
+        assert_column_eq!(
+            schema,
+            4,
+            InfluxColumnType::Field(InfluxFieldType::Float),
+            "voltage"
+        );
+        assert_column_eq!(
+            schema,
+            5,
+            InfluxColumnType::Field(InfluxFieldType::Integer),
+            "watts"
+        );
+        assert_column_eq!(schema, 6, InfluxColumnType::Timestamp, "time");
 
-        assert_eq!(schema.get_col_defs(), expected_defs);
         // az column
         assert_eq!(
             packers[0],

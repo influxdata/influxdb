@@ -9,6 +9,7 @@ use arrow_deps::parquet::{
     },
     schema::types::{ColumnPath, Type},
 };
+use data_types::schema::{InfluxColumnType, InfluxFieldType, Schema};
 use parquet::file::writer::ParquetWriter;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
@@ -17,7 +18,7 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
-use tracing::debug;
+use tracing::{debug, log::warn};
 
 use super::metadata::parquet_schema_as_string;
 use packers::{Error as TableError, IOxTableWriter, Packers};
@@ -38,6 +39,9 @@ pub enum Error {
         compression_level
     ))]
     UnknownCompressionLevel { compression_level: String },
+
+    #[snafu(display(r#"Unsupported datatype for parquet writing: {:?}"#, data_type,))]
+    UnsupportedDataType { data_type: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -93,17 +97,19 @@ where
     ///
     /// ```
     /// # use std::fs;
-    /// # use data_types::table_schema;
-    /// # use data_types::table_schema::DataType;
+    /// # use data_types::schema::{builder::SchemaBuilder, InfluxFieldType};
     /// # use packers::IOxTableWriter;
     /// # use packers::{Packer, Packers};
     /// # use ingest::parquet::writer::{IOxParquetTableWriter, CompressionLevel};
     /// # use arrow_deps::parquet::data_type::ByteArray;
     ///
-    /// let schema = table_schema::SchemaBuilder::new("measurement_name")
+    /// let schema = SchemaBuilder::new()
+    ///      .measurement("measurement_name")
     ///      .tag("tag1")
-    ///      .field("field1", table_schema::DataType::Integer)
-    ///      .build();
+    ///      .influx_field("field1", InfluxFieldType::Integer)
+    ///      .timestamp()
+    ///      .build()
+    ///      .unwrap();
     ///
     /// let mut packers: Vec<Packers> = vec![
     ///     Packers::Bytes(Packer::new()),  // 0: tag1
@@ -135,7 +141,7 @@ where
     /// # std::fs::remove_file(output_file_name);
     /// ```
     pub fn new(
-        schema: &data_types::table_schema::Schema,
+        schema: &Schema,
         compression_level: CompressionLevel,
         writer: W,
     ) -> Result<Self, Error> {
@@ -280,24 +286,30 @@ where
 }
 
 // Converts from line protocol `Schema` to the equivalent parquet schema `Type`.
-fn convert_to_parquet_schema(
-    schema: &data_types::table_schema::Schema,
-) -> Result<Arc<parquet::schema::types::Type>, Error> {
+fn convert_to_parquet_schema(schema: &Schema) -> Result<Arc<parquet::schema::types::Type>, Error> {
     let mut parquet_columns = Vec::new();
 
-    let col_defs = schema.get_col_defs();
-    for col_def in col_defs {
-        debug!("Determining parquet schema for column {:?}", col_def);
-        let (physical_type, logical_type) = match col_def.data_type {
-            data_types::table_schema::DataType::Boolean => (PhysicalType::BOOLEAN, None),
-            data_types::table_schema::DataType::Float => (PhysicalType::DOUBLE, None),
-            data_types::table_schema::DataType::Integer => {
+    for (i, (influxdb_column_type, field)) in schema.iter().enumerate() {
+        debug!(
+            "Determining parquet schema for column[{}] {:?} -> {:?}",
+            i, influxdb_column_type, field
+        );
+        let (physical_type, logical_type) = match influxdb_column_type {
+            Some(InfluxColumnType::Tag) => (PhysicalType::BYTE_ARRAY, Some(LogicalType::UTF8)),
+            Some(InfluxColumnType::Field(InfluxFieldType::Boolean)) => {
+                (PhysicalType::BOOLEAN, None)
+            }
+            Some(InfluxColumnType::Field(InfluxFieldType::Float)) => (PhysicalType::DOUBLE, None),
+            Some(InfluxColumnType::Field(InfluxFieldType::Integer)) => {
                 (PhysicalType::INT64, Some(LogicalType::UINT_64))
             }
-            data_types::table_schema::DataType::String => {
+            Some(InfluxColumnType::Field(InfluxFieldType::UInteger)) => {
+                (PhysicalType::INT64, Some(LogicalType::UINT_64))
+            }
+            Some(InfluxColumnType::Field(InfluxFieldType::String)) => {
                 (PhysicalType::BYTE_ARRAY, Some(LogicalType::UTF8))
             }
-            data_types::table_schema::DataType::Timestamp => {
+            Some(InfluxColumnType::Timestamp) => {
                 // At the time of writing, the underlying rust parquet
                 // library doesn't support nanosecond timestamp
                 // precisions yet
@@ -313,10 +325,16 @@ fn convert_to_parquet_schema(
                 // Thus store timestampts using microsecond precision instead of nanosecond
                 (PhysicalType::INT64, Some(LogicalType::TIMESTAMP_MICROS))
             }
+            None => {
+                return UnsupportedDataType {
+                    data_type: format!("Arrow type: {:?}", field.data_type()),
+                }
+                .fail();
+            }
         };
 
         // All fields are optional
-        let mut parquet_column_builder = Type::primitive_type_builder(&col_def.name, physical_type)
+        let mut parquet_column_builder = Type::primitive_type_builder(field.name(), physical_type)
             .with_repetition(Repetition::OPTIONAL);
 
         if let Some(t) = logical_type {
@@ -331,13 +349,14 @@ fn convert_to_parquet_schema(
         debug!(
             "Using parquet type {} for column {:?}",
             parquet_schema_as_string(&parquet_column_type),
-            col_def
+            field.name()
         );
 
         parquet_columns.push(Arc::new(parquet_column_type));
     }
 
-    let parquet_schema = Type::group_type_builder(&schema.measurement())
+    let measurement = schema.measurement().unwrap();
+    let parquet_schema = Type::group_type_builder(measurement)
         .with_fields(&mut parquet_columns)
         .build()
         .context(ParquetLibraryError {
@@ -348,7 +367,7 @@ fn convert_to_parquet_schema(
 }
 
 fn set_integer_encoding(
-    data_type: data_types::table_schema::DataType,
+    influxdb_column_type: InfluxColumnType,
     compression_level: CompressionLevel,
     col_path: ColumnPath,
     builder: WriterPropertiesBuilder,
@@ -357,7 +376,7 @@ fn set_integer_encoding(
         CompressionLevel::Maximum => {
             debug!(
                 "Setting encoding of {:?} col {} to DELTA_BINARY_PACKED (Maximum)",
-                data_type, col_path
+                influxdb_column_type, col_path
             );
             builder
                 .set_column_encoding(col_path.clone(), Encoding::DELTA_BINARY_PACKED)
@@ -366,7 +385,7 @@ fn set_integer_encoding(
         CompressionLevel::Compatibility => {
             debug!(
                 "Setting encoding of {:?} col {} to PLAIN/RLE (Compatibility)",
-                data_type, col_path
+                influxdb_column_type, col_path
             );
             builder
                 .set_column_encoding(col_path.clone(), Encoding::PLAIN)
@@ -378,7 +397,7 @@ fn set_integer_encoding(
 /// Create the parquet writer properties (which defines the encoding
 /// and compression for each column) for a given schema.
 fn create_writer_props(
-    schema: &data_types::table_schema::Schema,
+    schema: &Schema,
     compression_level: CompressionLevel,
 ) -> Arc<WriterProperties> {
     let mut builder = WriterProperties::builder();
@@ -397,52 +416,75 @@ fn create_writer_props(
     // dictionary encoding overrides all other encodings. Thus, we
     // must explicitly disable dictionary encoding when another
     // encoding is desired.
-    let col_defs = schema.get_col_defs();
-    for col_def in col_defs {
-        // locates the column definition in the schema
-        let col_path = ColumnPath::from(col_def.name.clone());
+    for (i, (influxdb_column_type, field)) in schema.iter().enumerate() {
+        let column_name = field.name().clone();
+        let col_path: ColumnPath = column_name.into();
 
-        match col_def.data_type {
-            data_type @ data_types::table_schema::DataType::Boolean => {
+        match influxdb_column_type {
+            Some(InfluxColumnType::Field(InfluxFieldType::Boolean)) => {
                 debug!(
                     "Setting encoding of {:?} col {} to RLE",
-                    data_type, col_path
+                    influxdb_column_type, i
                 );
                 builder = builder
                     .set_column_encoding(col_path.clone(), Encoding::RLE)
                     .set_column_dictionary_enabled(col_path, false);
             }
-            data_type @ data_types::table_schema::DataType::Integer => {
-                builder = set_integer_encoding(data_type, compression_level, col_path, builder)
+            Some(InfluxColumnType::Field(InfluxFieldType::Integer)) => {
+                builder = set_integer_encoding(
+                    influxdb_column_type.unwrap(),
+                    compression_level,
+                    col_path,
+                    builder,
+                )
             }
-            data_type @ data_types::table_schema::DataType::Float => {
+            Some(InfluxColumnType::Field(InfluxFieldType::UInteger)) => {
+                builder = set_integer_encoding(
+                    influxdb_column_type.unwrap(),
+                    compression_level,
+                    col_path,
+                    builder,
+                )
+            }
+            Some(InfluxColumnType::Field(InfluxFieldType::Float)) => {
                 debug!(
                     "Setting encoding of {:?} col {} to PLAIN",
-                    data_type, col_path
+                    influxdb_column_type, col_path
                 );
                 builder = builder
                     .set_column_encoding(col_path.clone(), Encoding::PLAIN)
                     .set_column_dictionary_enabled(col_path, false);
             }
-            // tag values are often very much repeated
-            data_type @ data_types::table_schema::DataType::String if schema.is_tag(&col_def) => {
-                debug!(
-                    "Setting encoding of tag val {:?} col {} to dictionary",
-                    data_type, col_path
-                );
-                builder = builder.set_column_dictionary_enabled(col_path, true);
-            }
-            data_type @ data_types::table_schema::DataType::String => {
+            Some(InfluxColumnType::Field(InfluxFieldType::String)) => {
                 debug!(
                     "Setting encoding of non-tag val {:?} col {} to DELTA_LENGTH_BYTE_ARRAY",
-                    data_type, col_path
+                    influxdb_column_type, col_path
                 );
                 builder = builder
                     .set_column_encoding(col_path.clone(), Encoding::DELTA_LENGTH_BYTE_ARRAY)
                     .set_column_dictionary_enabled(col_path, false);
             }
-            data_type @ data_types::table_schema::DataType::Timestamp => {
-                builder = set_integer_encoding(data_type, compression_level, col_path, builder)
+            // tag values are often very much repeated
+            Some(InfluxColumnType::Tag) => {
+                debug!(
+                    "Setting encoding of tag val {:?} col {} to dictionary",
+                    influxdb_column_type, col_path
+                );
+                builder = builder.set_column_dictionary_enabled(col_path, true);
+            }
+            Some(InfluxColumnType::Timestamp) => {
+                builder = set_integer_encoding(
+                    influxdb_column_type.unwrap(),
+                    compression_level,
+                    col_path,
+                    builder,
+                )
+            }
+            None => {
+                warn!(
+                    "Using default parquet encoding for column {} which has no LP annotations",
+                    field.name()
+                )
             }
         };
     }
@@ -461,6 +503,8 @@ fn create_writer_props(
 
 #[cfg(test)]
 mod tests {
+    use data_types::schema::builder::SchemaBuilder;
+
     use super::*;
 
     // Collapses multiple spaces into a single space, and removes trailing
@@ -487,13 +531,16 @@ mod tests {
 
     #[test]
     fn test_convert_to_parquet_schema() {
-        let schema = data_types::table_schema::SchemaBuilder::new("measurement_name")
+        let schema = SchemaBuilder::new()
+            .measurement("measurement_name")
             .tag("tag1")
-            .field("string_field", data_types::table_schema::DataType::String)
-            .field("float_field", data_types::table_schema::DataType::Float)
-            .field("int_field", data_types::table_schema::DataType::Integer)
-            .field("bool_field", data_types::table_schema::DataType::Boolean)
-            .build();
+            .influx_field("string_field", InfluxFieldType::String)
+            .influx_field("float_field", InfluxFieldType::Float)
+            .influx_field("int_field", InfluxFieldType::Integer)
+            .influx_field("bool_field", InfluxFieldType::Boolean)
+            .timestamp()
+            .build()
+            .unwrap();
 
         let parquet_schema = convert_to_parquet_schema(&schema).expect("conversion successful");
         let parquet_schema_string = normalize_spaces(&parquet_schema_as_string(&parquet_schema));
@@ -511,14 +558,17 @@ mod tests {
         assert_eq!(parquet_schema_string, expected_schema_string);
     }
 
-    fn make_test_schema() -> data_types::table_schema::Schema {
-        data_types::table_schema::SchemaBuilder::new("measurement_name")
+    fn make_test_schema() -> Schema {
+        SchemaBuilder::new()
+            .measurement("measurement_name")
             .tag("tag1")
-            .field("string_field", data_types::table_schema::DataType::String)
-            .field("float_field", data_types::table_schema::DataType::Float)
-            .field("int_field", data_types::table_schema::DataType::Integer)
-            .field("bool_field", data_types::table_schema::DataType::Boolean)
+            .influx_field("string_field", InfluxFieldType::String)
+            .influx_field("float_field", InfluxFieldType::Float)
+            .influx_field("int_field", InfluxFieldType::Integer)
+            .influx_field("bool_field", InfluxFieldType::Boolean)
+            .timestamp()
             .build()
+            .unwrap()
     }
 
     #[test]

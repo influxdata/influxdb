@@ -862,6 +862,7 @@ dependencies = [
 name = "data_types"
 version = "0.1.0"
 dependencies = [
+ "arrow_deps",
  "chrono",
  "crc32fast",
  "criterion",
