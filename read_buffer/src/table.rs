@@ -164,25 +164,21 @@ impl Table {
         }
     }
 
-    /// Returns aggregates segmented by grouping keys.
+    /// Returns an iterable collection of data in group columns and aggregate
+    /// columns, optionally filtered by the provided predicate. Results are
+    /// merged across all row groups within the table.
     ///
-    /// The set of data to be aggregated may be filtered by (currently only)
-    /// equality predicates, but can be ranged by time, which should be
-    /// represented as nanoseconds since the epoch. Results are included if they
-    /// satisfy the predicate and fall with the [min, max) time range domain.
+    /// Collectively, row-wise values in the group columns comprise a "group
+    /// key", and each value in the same row for the aggregate columns contains
+    /// aggregate values for those group keys.
     ///
-    /// Group keys are determined according to the provided group column names.
-    /// Currently only grouping by string (tag key) columns is supported.
-    ///
-    /// Required aggregates are specified via a tuple comprising a column name
-    /// and the type of aggregation required. Multiple aggregations can be
-    /// applied to the same column.
-    pub fn aggregate<'input>(
+    /// Note: `read_aggregate` currently only supports "tag" columns.
+    pub fn read_aggregate<'input>(
         &self,
         predicate: Predicate,
         group_columns: &'input [ColumnName<'input>],
         aggregates: &'input [(ColumnName<'input>, AggregateType)],
-    ) -> ReadGroupResults<'input, '_> {
+    ) -> ReadAggregateResults<'input, '_> {
         if !self.has_all_columns(&group_columns) {
             todo!() //TODO(edd): return an error here "group key column x not
                     //found"
@@ -203,10 +199,10 @@ impl Table {
                     // found"
         }
 
-        // identify segments where time range and predicates match could match
-        // using segment meta data, and then execute against those segments and
+        // identify row groups where time range and predicates match could match
+        // using row group meta data, and then execute against those row groups and
         // merge results.
-        let mut results = ReadGroupResults::default();
+        let mut results = ReadAggregateResults::default();
         let row_groups = self.filter_row_groups(&predicate);
         if row_groups.is_empty() {
             results.groupby_columns = group_columns;
@@ -636,7 +632,7 @@ impl<'a> Display for DisplayReadFilterResults<'a> {
 }
 
 #[derive(Default)]
-pub struct ReadGroupResults<'input, 'segment> {
+pub struct ReadAggregateResults<'input, 'segment> {
     // column-wise collection of columns being grouped by
     groupby_columns: &'input [ColumnName<'input>],
 
@@ -647,7 +643,7 @@ pub struct ReadGroupResults<'input, 'segment> {
     values: Vec<ReadGroupResult<'segment>>,
 }
 
-impl std::fmt::Display for ReadGroupResults<'_, '_> {
+impl std::fmt::Display for ReadAggregateResults<'_, '_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // header line - display group columns first
         for (i, name) in self.groupby_columns.iter().enumerate() {

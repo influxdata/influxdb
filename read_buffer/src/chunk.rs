@@ -1,7 +1,7 @@
 use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
 use crate::row_group::{ColumnName, Predicate};
-use crate::table::{ColumnSelection, ReadFilterResults, ReadGroupResults, Table};
+use crate::table::{ColumnSelection, ReadAggregateResults, ReadFilterResults, Table};
 use crate::{column::AggregateType, row_group::RowGroup};
 
 type TableName = String;
@@ -119,7 +119,7 @@ impl Chunk {
         predicate: Predicate,
         group_columns: Vec<ColumnName<'_>>,
         aggregates: Vec<(ColumnName<'_>, AggregateType)>,
-    ) -> ReadGroupResults<'_, '_> {
+    ) -> ReadAggregateResults<'_, '_> {
         // Lookup table by name and dispatch execution.
         todo!()
     }
