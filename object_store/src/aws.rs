@@ -1,7 +1,7 @@
 //! This module contains the IOx implementation for using S3 as the object
 //! store.
 use crate::{
-    path::{CloudConverter, ObjectStorePath, DELIMITER},
+    path::{cloud::CloudConverter, ObjectStorePath, DELIMITER},
     Error, ListResult, NoDataFromS3, ObjectMeta, Result, UnableToDeleteDataFromS3,
     UnableToGetDataFromS3, UnableToGetPieceOfDataFromS3, UnableToPutDataToS3,
 };

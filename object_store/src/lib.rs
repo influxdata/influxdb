@@ -152,9 +152,11 @@ impl ObjectStore {
         use ObjectStoreIntegration::*;
         match &self.0 {
             AmazonS3(_) | GoogleCloudStorage(_) | InMemory(_) | MicrosoftAzure(_) => {
-                path::CloudConverter::convert(path)
+                path::cloud::CloudConverter::convert(path)
             }
-            File(_) => path::FileConverter::convert(path).display().to_string(),
+            File(_) => path::file::FileConverter::convert(path)
+                .display()
+                .to_string(),
         }
     }
 }

@@ -509,7 +509,7 @@ mod tests {
     use super::*;
     use data_types::{data::lines_to_replicated_write, database_rules::DatabaseRules};
     use influxdb_line_protocol::parse_lines;
-    use object_store::path::CloudConverter;
+    use object_store::path::cloud::CloudConverter;
 
     #[test]
     fn append_increments_current_size_and_uses_existing_segment() {
