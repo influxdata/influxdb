@@ -834,7 +834,7 @@ mod test {
 
         db.upsert_partition("hour_1", 2, "20 Size", gen_recordbatch());
         let data = db
-            .table_names("hour_1", &[22], Predicate::default())
+            .table_names("hour_1", &[2, 22], Predicate::default())
             .unwrap();
         assert_rb_column_equals(
             &data,
