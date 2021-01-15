@@ -3,7 +3,7 @@ use rand::distributions::Alphanumeric;
 use rand::prelude::*;
 use rand::Rng;
 
-use read_buffer::{column::cmp::Operator, column::dictionary, column::RowIDs};
+use read_buffer::benchmarks::{dictionary, Operator, RowIDs};
 
 const ROWS: [usize; 3] = [100_000, 1_000_000, 10_000_000];
 const LOCATIONS: [Location; 3] = [Location::Start, Location::Middle, Location::End];
