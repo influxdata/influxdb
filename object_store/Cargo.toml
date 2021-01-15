@@ -23,6 +23,7 @@ tokio = { version = "0.2", features = ["full"] }
 
 # Filesystem integration
 tokio-util = "0.3.1"
+walkdir = "2"
 
 # Microsoft Azure Blob storage integration
 azure_sdk_core = "0.43.7"
