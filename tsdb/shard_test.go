@@ -415,7 +415,7 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 			}
 
 			_ = sh.WritePoints(points[:500])
-			if f, err := sh.CreateSnapshot(); err == nil {
+			if f, err := sh.CreateSnapshot(false); err == nil {
 				os.RemoveAll(f)
 			}
 
@@ -431,7 +431,7 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 			}
 
 			_ = sh.WritePoints(points[500:])
-			if f, err := sh.CreateSnapshot(); err == nil {
+			if f, err := sh.CreateSnapshot(false); err == nil {
 				os.RemoveAll(f)
 			}
 		}
