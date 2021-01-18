@@ -1,6 +1,7 @@
-use std::fmt::Display;
+use std::{convert::TryFrom, fmt::Display};
 
 use arrow_deps::arrow;
+use data_types::schema::InfluxFieldType;
 
 /// A schema that is used to track the names and semantics of columns returned
 /// in results out of various operations on a row group.
@@ -77,6 +78,26 @@ impl Display for ResultSchema {
     }
 }
 
+impl TryFrom<&ResultSchema> for data_types::schema::Schema {
+    type Error = data_types::schema::builder::Error;
+
+    fn try_from(rs: &ResultSchema) -> Result<Self, Self::Error> {
+        let mut builder = data_types::schema::builder::SchemaBuilder::new();
+        for (col_type, data_type) in &rs.select_columns {
+            match col_type {
+                ColumnType::Tag(name) => builder = builder.tag(name.as_str()),
+                ColumnType::Field(name) => {
+                    builder = builder.influx_field(name.as_str(), data_type.into())
+                }
+                ColumnType::Timestamp(_) => builder = builder.timestamp(),
+                ColumnType::Other(name) => builder = builder.field(name.as_str(), data_type.into()),
+            }
+        }
+
+        builder.build()
+    }
+}
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 /// The logical data-type for a column.
 pub enum LogicalDataType {
@@ -88,15 +109,30 @@ pub enum LogicalDataType {
     Boolean,  //
 }
 
-impl LogicalDataType {
-    pub fn to_arrow_datatype(&self) -> arrow::datatypes::DataType {
-        match &self {
+impl From<&LogicalDataType> for arrow::datatypes::DataType {
+    fn from(logical_type: &LogicalDataType) -> Self {
+        match logical_type {
             LogicalDataType::Integer => arrow::datatypes::DataType::Int64,
             LogicalDataType::Unsigned => arrow::datatypes::DataType::UInt64,
             LogicalDataType::Float => arrow::datatypes::DataType::Float64,
             LogicalDataType::String => arrow::datatypes::DataType::Utf8,
             LogicalDataType::Binary => arrow::datatypes::DataType::Binary,
             LogicalDataType::Boolean => arrow::datatypes::DataType::Boolean,
+        }
+    }
+}
+
+impl From<&LogicalDataType> for InfluxFieldType {
+    fn from(logical_type: &LogicalDataType) -> Self {
+        match logical_type {
+            LogicalDataType::Integer => InfluxFieldType::Integer,
+            LogicalDataType::Unsigned => InfluxFieldType::UInteger,
+            LogicalDataType::Float => InfluxFieldType::Float,
+            LogicalDataType::String => InfluxFieldType::String,
+            LogicalDataType::Binary => {
+                unimplemented!("binary data type cannot be represented as InfluxFieldType")
+            }
+            LogicalDataType::Boolean => InfluxFieldType::Boolean,
         }
     }
 }
@@ -136,7 +172,7 @@ impl std::fmt::Display for AggregateType {
 
 /// Describes the semantic meaning of the column in a set of results. That is,
 /// whether the column is a "tag", "field", "timestamp", or "other".
-#[derive(PartialEq, Debug, PartialOrd)]
+#[derive(PartialEq, Debug, PartialOrd, Clone)]
 pub enum ColumnType {
     Tag(String),
     Field(String),
