@@ -2,14 +2,12 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Display;
 use std::slice::Iter;
 
+use crate::column::{AggregateResult, AggregateType, OwnedValue, Scalar, Value};
+use crate::schema::ResultSchema;
 use crate::{
     column,
     column::LogicalDataType,
     row_group::{self, ColumnName, GroupKey, Predicate, RowGroup},
-};
-use crate::{
-    column::{AggregateResult, AggregateType, OwnedValue, Scalar, Value},
-    row_group::ReadGroupResult,
 };
 
 /// A Table represents data for a single measurement.
@@ -103,16 +101,6 @@ impl Table {
         &self.meta.column_types
     }
 
-    // Determines if schema contains all the provided column names.
-    fn has_all_columns(&self, names: &[ColumnName<'_>]) -> bool {
-        for &name in names {
-            if !self.meta.column_ranges.contains_key(name) {
-                return false;
-            }
-        }
-        true
-    }
-
     // Identify set of row groups that might satisfy the predicate.
     fn filter_row_groups(&self, predicate: &Predicate) -> Vec<&RowGroup> {
         let mut rgs = Vec::with_capacity(self.row_groups.len());
@@ -155,7 +143,10 @@ impl Table {
         };
 
         // temp I think I can remove `columns` and `predicates` from this..
-        let columns = schema.iter().map(|(name, _)| *name).collect::<Vec<_>>();
+        let columns = schema
+            .iter()
+            .map(|(name, _)| name.to_string())
+            .collect::<Vec<_>>();
         ReadFilterResults {
             columns,
             predicate: predicate.clone(),
@@ -164,65 +155,37 @@ impl Table {
         }
     }
 
-    /// Returns aggregates segmented by grouping keys.
+    /// Returns an iterable collection of data in group columns and aggregate
+    /// columns, optionally filtered by the provided predicate. Results are
+    /// merged across all row groups within the table.
     ///
-    /// The set of data to be aggregated may be filtered by (currently only)
-    /// equality predicates, but can be ranged by time, which should be
-    /// represented as nanoseconds since the epoch. Results are included if they
-    /// satisfy the predicate and fall with the [min, max) time range domain.
+    /// Collectively, row-wise values in the group columns comprise a "group
+    /// key", and each value in the same row for the aggregate columns contains
+    /// aggregate values for those group keys.
     ///
-    /// Group keys are determined according to the provided group column names.
-    /// Currently only grouping by string (tag key) columns is supported.
-    ///
-    /// Required aggregates are specified via a tuple comprising a column name
-    /// and the type of aggregation required. Multiple aggregations can be
-    /// applied to the same column.
-    pub fn aggregate<'input>(
+    /// Note: `read_aggregate` currently only supports "tag" columns.
+    pub fn read_aggregate<'input>(
         &self,
         predicate: Predicate,
         group_columns: &'input [ColumnName<'input>],
         aggregates: &'input [(ColumnName<'input>, AggregateType)],
-    ) -> ReadGroupResults<'input, '_> {
-        if !self.has_all_columns(&group_columns) {
-            todo!() //TODO(edd): return an error here "group key column x not
-                    //found"
-        }
+    ) -> ReadAggregateResults<'_> {
+        // Filter out any column names that we do not have data for.
+        let schema = ResultSchema {
+            group_columns: self.meta.schema_for_column_names(group_columns),
+            aggregate_columns: self.meta.schema_for_aggregate_column_names(aggregates),
+            ..ResultSchema::default()
+        };
 
-        if !self.has_all_columns(&aggregates.iter().map(|(name, _)| *name).collect::<Vec<_>>()) {
-            todo!() //TODO(edd): return an error here "aggregate column x not
-                    // found"
-        }
-
-        if !self.has_all_columns(
-            &predicate
-                .iter()
-                .map(|expr| expr.column())
-                .collect::<Vec<_>>(),
-        ) {
-            todo!() //TODO(edd): return an error here "predicate column x not
-                    // found"
-        }
-
-        // identify segments where time range and predicates match could match
-        // using segment meta data, and then execute against those segments and
-        // merge results.
-        let mut results = ReadGroupResults::default();
+        // TODO(edd): for now punt on predicate pruning but need to figure it out.
         let row_groups = self.filter_row_groups(&predicate);
-        if row_groups.is_empty() {
-            results.groupby_columns = group_columns;
-            results.aggregate_columns = aggregates;
-            return results;
-        }
 
-        results.values.reserve(row_groups.len());
-        for row_group in row_groups {
-            let segment_result = row_group.read_group(&predicate, &group_columns, &aggregates);
-            results.values.push(segment_result);
+        // return the iterator to build the results.
+        ReadAggregateResults {
+            schema,
+            predicate,
+            row_groups,
         }
-
-        results.groupby_columns = group_columns;
-        results.aggregate_columns = aggregates;
-        results
     }
 
     /// Returns aggregates segmented by grouping keys and windowed by time.
@@ -496,22 +459,40 @@ impl MetaData {
         }
     }
 
-    // Extract schema information for a set of columns.
-    fn schema_for_column_names(&self, names: &[ColumnName<'_>]) -> Vec<(&str, LogicalDataType)> {
+    // Extract schema information for a set of columns. If a column name does
+    // not exist within the `Table` schema it is ignored and not present within
+    // the resulting schema information.
+    fn schema_for_column_names(&self, names: &[ColumnName<'_>]) -> Vec<(String, LogicalDataType)> {
         names
             .iter()
-            .map(|&name| {
-                let (k, v) = self.column_types.get_key_value(name).unwrap();
-                (k.as_str(), *v)
+            .filter_map(|&name| match self.column_types.get_key_value(name) {
+                Some((name, data_type)) => Some((name.clone(), *data_type)),
+                None => None,
             })
             .collect::<Vec<_>>()
     }
 
-    // Extract schema information for a set of columns.
-    fn schema(&self) -> Vec<(&str, LogicalDataType)> {
+    // As `schema_for_column_names` but also embeds the provided aggregate type.
+    fn schema_for_aggregate_column_names(
+        &self,
+        names: &[(ColumnName<'_>, AggregateType)],
+    ) -> Vec<(String, AggregateType, LogicalDataType)> {
+        names
+            .iter()
+            .filter_map(
+                |(name, agg_type)| match self.column_types.get_key_value(*name) {
+                    Some((name, data_type)) => Some((name.clone(), *agg_type, *data_type)),
+                    None => None,
+                },
+            )
+            .collect::<Vec<_>>()
+    }
+
+    // Extract all schema information for the `Table`.
+    fn schema(&self) -> Vec<(String, LogicalDataType)> {
         self.column_types
             .iter()
-            .map(|(k, v)| (k.as_str(), *v))
+            .map(|(k, v)| (k.clone(), *v))
             .collect::<Vec<_>>()
     }
 
@@ -565,14 +546,14 @@ pub enum ColumnSelection<'a> {
 /// row groups are only queried when `ReadFilterResults` is iterated.
 pub struct ReadFilterResults<'table> {
     // schema of all columns in the query results
-    schema: Vec<(&'table str, LogicalDataType)>,
+    schema: Vec<(String, LogicalDataType)>,
 
     // These row groups passed the predicates and need to be queried.
     row_groups: Vec<&'table RowGroup>,
 
     // TODO(edd): encapsulate these into a single executor function that just
     // executes on the next row group.
-    columns: Vec<ColumnName<'table>>,
+    columns: Vec<String>,
     predicate: Predicate,
 }
 
@@ -583,7 +564,7 @@ impl<'table> ReadFilterResults<'table> {
 
     /// Returns the schema associated with table result and therefore all of the
     /// results for all of row groups in the table results.
-    pub fn schema(&self) -> &Vec<(ColumnName<'_>, LogicalDataType)> {
+    pub fn schema(&self) -> &Vec<(String, LogicalDataType)> {
         &self.schema
     }
 }
@@ -597,7 +578,14 @@ impl<'a> Iterator for ReadFilterResults<'a> {
         }
 
         let row_group = self.row_groups.remove(0);
-        let result = row_group.read_filter(&self.columns, &self.predicate);
+        let result = row_group.read_filter(
+            &self
+                .columns
+                .iter()
+                .map(|name| name.as_str())
+                .collect::<Vec<_>>(),
+            &self.predicate,
+        );
         if result.is_empty() {
             return self.next(); // try next row group
         }
@@ -627,47 +615,108 @@ impl<'a> Display for DisplayReadFilterResults<'a> {
         }
         writeln!(f)?;
 
-        // Display all the results of each segment
-        for segment_values in &self.0 {
-            segment_values.fmt(f)?;
+        // Display all the results of each row group
+        for row_group in &self.0 {
+            row_group.fmt(f)?;
         }
         Ok(())
     }
 }
 
 #[derive(Default)]
-pub struct ReadGroupResults<'input, 'segment> {
-    // column-wise collection of columns being grouped by
-    groupby_columns: &'input [ColumnName<'input>],
+pub struct ReadAggregateResults<'table> {
+    // schema information for the results
+    schema: ResultSchema,
 
-    // column-wise collection of columns being aggregated on
-    aggregate_columns: &'input [(ColumnName<'input>, AggregateType)],
+    // the predicate to apply to each row group.
+    predicate: Predicate,
 
-    // segment-wise result sets containing grouped values and aggregates
-    values: Vec<ReadGroupResult<'segment>>,
+    // row groups that will be executed against
+    row_groups: Vec<&'table RowGroup>,
 }
 
-impl std::fmt::Display for ReadGroupResults<'_, '_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // header line - display group columns first
-        for (i, name) in self.groupby_columns.iter().enumerate() {
-            write!(f, "{},", name)?;
+impl<'a> ReadAggregateResults<'a> {
+    /// Returns the schema associated with table result and therefore all of
+    /// results from row groups.
+    pub fn schema(&self) -> &ResultSchema {
+        &self.schema
+    }
+}
+
+/// Implements an iterator on the Table's results for `read_aggregate`. This
+/// iterator will execute against one or more row groups, merging each row group
+/// result into the last before returning a final set of results.
+///
+/// Merging in this context means unioning all group keys in multiple sets of
+/// results, and aggregating together aggregates for duplicate group keys.
+///
+/// Given that, it's expected that this iterator will only iterate once, but
+/// perhaps in the future we will break the work up and send intermediate
+/// results back.
+impl<'a> Iterator for ReadAggregateResults<'a> {
+    type Item = row_group::ReadAggregateResult<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.row_groups.is_empty() {
+            return None;
         }
 
-        // then display aggregate columns
-        for (i, (col_name, col_agg)) in self.aggregate_columns.iter().enumerate() {
-            write!(f, "{}_{}", col_name, col_agg)?;
+        let merged_results = self.row_groups.remove(0).read_aggregate(
+            &self.predicate,
+            &self.schema.group_column_names_iter().collect::<Vec<_>>(),
+            &self
+                .schema
+                .aggregate_columns
+                .iter()
+                .map(|(name, agg_type, _)| (name.as_str(), *agg_type))
+                .collect::<Vec<_>>(),
+        );
+        assert_eq!(merged_results.schema(), self.schema()); // validate schema
 
-            if i < self.aggregate_columns.len() - 1 {
-                write!(f, ",")?;
+        // Execute against remaining row groups, merging each into the merged
+        // set.
+        for row_group in &self.row_groups {
+            let result = row_group.read_aggregate(
+                &self.predicate,
+                &self.schema.group_column_names_iter().collect::<Vec<_>>(),
+                &self
+                    .schema
+                    .aggregate_columns
+                    .iter()
+                    .map(|(name, agg_type, _)| (name.as_str(), *agg_type))
+                    .collect::<Vec<_>>(),
+            );
+
+            if result.is_empty() {
+                continue;
             }
-        }
-        writeln!(f)?;
+            assert_eq!(result.schema(), self.schema()); // validate schema
 
-        // Display all the results of each segment
-        for segment_values in &self.values {
-            segment_values.fmt(f)?;
+            // merge result into on-going results.
+            todo!();
         }
+
+        Some(merged_results)
+    }
+}
+
+// Helper type that can pretty print a set of results for `read_aggregate`.
+struct DisplayReadAggregateResults<'a>(Vec<row_group::ReadAggregateResult<'a>>);
+
+impl std::fmt::Display for DisplayReadAggregateResults<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if self.0.is_empty() {
+            return Ok(());
+        }
+
+        // write out the schema of the first result as the table header
+        std::fmt::Display::fmt(&self.0[0].schema(), f)?;
+
+        // write out each row group result
+        for row_group in self.0.iter() {
+            std::fmt::Display::fmt(&row_group, f)?;
+        }
+
         Ok(())
     }
 }
@@ -676,7 +725,7 @@ impl std::fmt::Display for ReadGroupResults<'_, '_> {
 mod test {
     use super::*;
     use crate::column::{Column, LogicalDataType};
-    use crate::row_group::{BinaryExpr, ColumnType};
+    use crate::row_group::{BinaryExpr, ColumnType, ReadAggregateResult};
 
     #[test]
     fn select() {
@@ -725,9 +774,9 @@ mod test {
 
         // check the column types
         let exp_schema = vec![
-            ("time", LogicalDataType::Integer),
-            ("count", LogicalDataType::Unsigned),
-            ("region", LogicalDataType::String),
+            ("time".to_owned(), LogicalDataType::Integer),
+            ("count".to_owned(), LogicalDataType::Unsigned),
+            ("region".to_owned(), LogicalDataType::String),
         ];
         assert_eq!(results.schema(), &exp_schema);
 
@@ -773,6 +822,53 @@ mod test {
 6,north
 20,north
 ",
+        );
+    }
+
+    #[test]
+    fn read_group_result() {
+        let results = DisplayReadAggregateResults(vec![
+            ReadAggregateResult {
+                schema: ResultSchema {
+                    select_columns: vec![],
+                    group_columns: vec![
+                        ("region".to_owned(), LogicalDataType::String),
+                        ("host".to_owned(), LogicalDataType::String),
+                    ],
+                    aggregate_columns: vec![(
+                        "temp".to_owned(),
+                        AggregateType::Sum,
+                        LogicalDataType::Integer,
+                    )],
+                },
+                group_keys: vec![vec![Value::String("east"), Value::String("host-a")].into()],
+                aggregates: vec![vec![AggregateResult::Sum(Scalar::I64(10))]],
+            },
+            ReadAggregateResult {
+                schema: ResultSchema {
+                    select_columns: vec![],
+                    group_columns: vec![
+                        ("region".to_owned(), LogicalDataType::String),
+                        ("host".to_owned(), LogicalDataType::String),
+                    ],
+                    aggregate_columns: vec![(
+                        "temp".to_owned(),
+                        AggregateType::Sum,
+                        LogicalDataType::Integer,
+                    )],
+                },
+                group_keys: vec![vec![Value::String("west"), Value::String("host-b")].into()],
+                aggregates: vec![vec![AggregateResult::Sum(Scalar::I64(100))]],
+            },
+        ]);
+
+        //Display implementation
+        assert_eq!(
+            format!("{}", &results),
+            "region,host,temp_sum
+east,host-a,10
+west,host-b,100
+"
         );
     }
 }

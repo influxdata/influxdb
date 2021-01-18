@@ -2204,7 +2204,7 @@ impl From<&arrow::array::Float64Array> for Column {
 
 /// These variants describe supported aggregates that can applied to columnar
 /// data.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Debug)]
 pub enum AggregateType {
     Count,
     First,
@@ -2246,9 +2246,6 @@ pub enum AggregateResult<'a> {
     // Only numerical columns with scalar values can be summed. NULL values do
     // not contribute to the sum, but if all rows are NULL then the sum is
     // itself NULL (represented by `None`).
-    //
-    // TODO(edd): I might explicitly add a Null variant to the Scalar enum like
-    // we have with Value...
     Sum(Scalar),
 
     // The minimum value in the column data.

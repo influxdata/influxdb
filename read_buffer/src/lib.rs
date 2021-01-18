@@ -5,6 +5,7 @@
 pub(crate) mod chunk;
 pub(crate) mod column;
 pub(crate) mod row_group;
+mod schema;
 pub(crate) mod table;
 
 use std::{
@@ -45,6 +46,9 @@ pub enum Error {
 
     #[snafu(display("chunk id does not exist: {}", id))]
     ChunkNotFound { id: u32 },
+
+    #[snafu(display("table does not exist: {}", table_name))]
+    TableNotFound { table_name: String },
 
     #[snafu(display("unsupported operation: {}", msg))]
     UnsupportedOperation { msg: String },

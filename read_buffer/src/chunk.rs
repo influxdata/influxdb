@@ -1,7 +1,9 @@
 use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
 use crate::row_group::{ColumnName, Predicate};
-use crate::table::{ColumnSelection, ReadFilterResults, ReadGroupResults, Table};
+use crate::table;
+use crate::table::{ColumnSelection, Table};
+use crate::Error;
 use crate::{column::AggregateType, row_group::RowGroup};
 
 type TableName = String;
@@ -94,34 +96,34 @@ impl Chunk {
         table_name: &str,
         predicate: &Predicate,
         select_columns: &ColumnSelection<'_>,
-    ) -> Option<ReadFilterResults<'_>> {
+    ) -> Option<table::ReadFilterResults<'_>> {
         match self.tables.get(table_name) {
             Some(table) => Some(table.read_filter(select_columns, predicate)),
             None => None,
         }
     }
 
-    /// Returns aggregates segmented by grouping keys for the specified
-    /// table name.
+    /// Returns an iterable collection of data in group columns and aggregate
+    /// columns, optionally filtered by the provided predicate. Results are
+    /// merged across all row groups within the returned table.
     ///
-    /// The set of data to be aggregated may be filtered by optional conjunctive
-    /// predicates.
-    ///
-    /// Group keys are determined according to the provided group column names.
-    /// Currently only grouping by string (tag key) columns is supported.
-    ///
-    /// Required aggregates are specified via a tuple comprising a column name
-    /// and the type of aggregation required. Multiple aggregations can be
-    /// applied to the same column.
-    pub fn aggregate(
+    /// Note: `read_aggregate` currently only supports grouping on "tag"
+    /// columns.
+    pub fn read_aggregate(
         &self,
         table_name: &str,
         predicate: Predicate,
         group_columns: Vec<ColumnName<'_>>,
         aggregates: Vec<(ColumnName<'_>, AggregateType)>,
-    ) -> ReadGroupResults<'_, '_> {
+    ) -> Result<table::ReadAggregateResults<'_>, Error> {
         // Lookup table by name and dispatch execution.
-        todo!()
+        match self.tables.get(table_name) {
+            Some(table) => Ok(table.read_aggregate(predicate, &group_columns, &aggregates)),
+            None => crate::TableNotFound {
+                table_name: table_name.to_owned(),
+            }
+            .fail(),
+        }
     }
 
     //

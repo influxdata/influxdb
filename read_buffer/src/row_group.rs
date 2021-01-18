@@ -5,20 +5,20 @@ use std::{
     sync::Arc,
 };
 
-use data_types::schema::{InfluxColumnType, Schema};
 use hashbrown::{hash_map, HashMap};
 use itertools::Itertools;
-
-use arrow_deps::arrow::record_batch::RecordBatch;
-use arrow_deps::{
-    arrow, datafusion::logical_plan::Expr as DfExpr,
-    datafusion::scalar::ScalarValue as DFScalarValue,
-};
 
 use crate::column::{
     self, cmp::Operator, AggregateResult, AggregateType, Column, EncodedValues, LogicalDataType,
     OwnedValue, RowIDs, RowIDsOption, Scalar, Value, Values, ValuesIterator,
 };
+use crate::schema::ResultSchema;
+use arrow_deps::arrow::record_batch::RecordBatch;
+use arrow_deps::{
+    arrow, datafusion::logical_plan::Expr as DfExpr,
+    datafusion::scalar::ScalarValue as DFScalarValue,
+};
+use data_types::schema::{InfluxColumnType, Schema};
 
 /// The name used for a timestamp column.
 pub const TIME_COLUMN_NAME: &str = data_types::TIME_COLUMN_NAME;
@@ -333,46 +333,36 @@ impl RowGroup {
         )
     }
 
-    /// Returns a set of group keys and aggregated column data associated with
-    /// them. `read_group` currently only supports grouping on columns that have
-    /// integer encoded representations - typically "tag columns".
+    /// Materialises a collection of data in group columns and aggregate
+    /// columns, optionally filtered by the provided predicate.
     ///
-    /// Right now, predicates are treated conjunctive (AND) predicates.
-    /// `read_group` does not guarantee any sort order. Ordering of results
-    /// should be handled high up in the `Table` section of the Read Buffer,
-    /// where multiple `RowGroup` results may need to be merged.
-    pub fn read_group(
+    /// Collectively, row-wise values in the group columns comprise a "group
+    /// key", and each value in the same row for the aggregate columns contains
+    /// aggregate values for those group keys.
+    ///
+    /// Note: `read_aggregate` currently only supports "tag" columns.
+    /// Note: `read_aggregate` does not order results.
+    pub fn read_aggregate(
         &self,
         predicate: &Predicate,
         group_columns: &[ColumnName<'_>],
         aggregates: &[(ColumnName<'_>, AggregateType)],
-    ) -> ReadGroupResult<'_> {
-        // `ReadGroupResult`s should have the same lifetime as self.
-        // Alternatively ReadGroupResult could not store references to input
-        // data and put the responsibility on the caller to tie result data and
-        // input data together, but the convenience seems useful for now.
-        let mut result = ReadGroupResult {
-            group_columns: group_columns
-                .iter()
-                .map(|name| {
-                    let (column_name, col) = self.column_name_and_column(name);
-                    column_name
-                })
-                .collect::<Vec<_>>(),
-            aggregate_columns: aggregates
-                .iter()
-                .map(|(name, typ)| {
-                    let (column_name, col) = self.column_name_and_column(name);
-                    (column_name, *typ)
-                })
-                .collect::<Vec<_>>(),
-            ..ReadGroupResult::default()
+    ) -> ReadAggregateResult<'_> {
+        let schema = ResultSchema {
+            select_columns: vec![],
+            group_columns: self.meta.schema_for_column_names(group_columns),
+            aggregate_columns: self.meta.schema_for_aggregate_column_names(aggregates),
+        };
+
+        let mut result = ReadAggregateResult {
+            schema,
+            ..ReadAggregateResult::default()
         };
 
         // Handle case where there are no predicates and all the columns being
         // grouped support constant-time expression of the row_ids belonging to
         // each grouped value.
-        let all_group_cols_pre_computed = result.group_columns.iter().all(|name| {
+        let all_group_cols_pre_computed = result.schema.group_column_names_iter().all(|name| {
             self.column_by_name(name)
                 .properties()
                 .has_pre_computed_row_ids
@@ -393,15 +383,15 @@ impl RowGroup {
             RowIDsOption::All(row_ids) => None,
         };
 
-        let group_cols_num = result.group_columns.len();
-        let agg_cols_num = result.aggregate_columns.len();
+        let group_cols_num = result.schema.group_columns.len();
+        let agg_cols_num = result.schema.aggregate_columns.len();
 
         // materialise all *encoded* values for each column we are grouping on.
         // These will not be the logical (typically string) values, but will be
         // vectors of integers representing the physical values.
         let groupby_encoded_ids: Vec<_> = result
-            .group_columns
-            .iter()
+            .schema
+            .group_column_names_iter()
             .map(|name| {
                 let col = self.column_by_name(name);
                 let mut encoded_values_buf =
@@ -425,7 +415,7 @@ impl RowGroup {
 
         // Materialise values in aggregate columns.
         let mut aggregate_columns_data = Vec::with_capacity(agg_cols_num);
-        for (name, agg_type) in &result.aggregate_columns {
+        for (name, agg_type, _) in &result.schema.aggregate_columns {
             let col = self.column_by_name(name);
 
             // TODO(edd): this materialises a column per aggregate. If there are
@@ -468,14 +458,14 @@ impl RowGroup {
     // read_group_hash accepts a set of conjunctive predicates.
     fn read_group_with_hashing<'a>(
         &'a self,
-        dst: &mut ReadGroupResult<'a>,
+        dst: &mut ReadAggregateResult<'a>,
         groupby_encoded_ids: &[Vec<u32>],
         aggregate_columns_data: Vec<Values<'a>>,
     ) {
         // An optimised approach to building the hashmap of group keys using a
         // single 128-bit integer as the group key. If grouping is on more than
         // four columns then a fallback to using an vector as a key will happen.
-        if dst.group_columns.len() <= 4 {
+        if dst.schema.group_columns.len() <= 4 {
             self.read_group_hash_with_u128_key(dst, &groupby_encoded_ids, &aggregate_columns_data);
             return;
         }
@@ -488,7 +478,7 @@ impl RowGroup {
     // hash map.
     fn read_group_hash_with_vec_key<'a>(
         &'a self,
-        dst: &mut ReadGroupResult<'a>,
+        dst: &mut ReadAggregateResult<'a>,
         groupby_encoded_ids: &[Vec<u32>],
         aggregate_columns_data: &[Values<'a>],
     ) {
@@ -499,7 +489,7 @@ impl RowGroup {
 
         // key_buf will be used as a temporary buffer for group keys, which are
         // themselves integers.
-        let mut key_buf = vec![0; dst.group_columns.len()];
+        let mut key_buf = vec![0; dst.schema.group_columns.len()];
 
         for row in 0..total_rows {
             // update the group key buffer with the group key for this row
@@ -517,8 +507,8 @@ impl RowGroup {
                 }
                 // group key does not exist, so create it.
                 hash_map::RawEntryMut::Vacant(entry) => {
-                    let mut group_key_aggs = Vec::with_capacity(dst.aggregate_columns.len());
-                    for (_, agg_type) in &dst.aggregate_columns {
+                    let mut group_key_aggs = Vec::with_capacity(dst.schema.aggregate_columns.len());
+                    for (_, agg_type, _) in &dst.schema.aggregate_columns {
                         group_key_aggs.push(AggregateResult::from(agg_type));
                     }
 
@@ -534,8 +524,8 @@ impl RowGroup {
         // Finally, build results set. Each encoded group key needs to be
         // materialised into a logical group key
         let columns = dst
-            .group_columns
-            .iter()
+            .schema
+            .group_column_names_iter()
             .map(|name| self.column_by_name(name))
             .collect::<Vec<_>>();
         let mut group_key_vec: Vec<GroupKey<'_>> = Vec::with_capacity(groups.len());
@@ -566,13 +556,13 @@ impl RowGroup {
     // which is significantly more performant than using a `Vec<u32>`.
     fn read_group_hash_with_u128_key<'a>(
         &'a self,
-        dst: &mut ReadGroupResult<'a>,
+        dst: &mut ReadAggregateResult<'a>,
         groupby_encoded_ids: &[Vec<u32>],
         aggregate_columns_data: &[Values<'a>],
     ) {
         let total_rows = groupby_encoded_ids[0].len();
         assert!(groupby_encoded_ids.iter().all(|x| x.len() == total_rows));
-        assert!(dst.group_columns.len() <= 4);
+        assert!(dst.schema.group_columns.len() <= 4);
 
         // Now begin building the group keys.
         let mut groups: HashMap<u128, Vec<AggregateResult<'_>>> = HashMap::default();
@@ -595,8 +585,8 @@ impl RowGroup {
                 }
                 // group key does not exist, so create it.
                 hash_map::RawEntryMut::Vacant(entry) => {
-                    let mut group_key_aggs = Vec::with_capacity(dst.aggregate_columns.len());
-                    for (_, agg_type) in &dst.aggregate_columns {
+                    let mut group_key_aggs = Vec::with_capacity(dst.schema.aggregate_columns.len());
+                    for (_, agg_type, _) in &dst.schema.aggregate_columns {
                         group_key_aggs.push(AggregateResult::from(agg_type));
                     }
 
@@ -612,8 +602,8 @@ impl RowGroup {
         // Finally, build results set. Each encoded group key needs to be
         // materialised into a logical group key
         let columns = dst
-            .group_columns
-            .iter()
+            .schema
+            .group_column_names_iter()
             .map(|name| self.column_by_name(name))
             .collect::<Vec<_>>();
         let mut group_key_vec: Vec<GroupKey<'_>> = Vec::with_capacity(groups.len());
@@ -643,22 +633,23 @@ impl RowGroup {
     //
     // In this case all the grouping columns pre-computed bitsets for each
     // distinct value.
-    fn read_group_all_rows_all_rle<'a>(&'a self, dst: &mut ReadGroupResult<'a>) {
+    fn read_group_all_rows_all_rle<'a>(&'a self, dst: &mut ReadAggregateResult<'a>) {
         let group_columns = dst
-            .group_columns
-            .iter()
+            .schema
+            .group_column_names_iter()
             .map(|name| self.column_by_name(name))
             .collect::<Vec<_>>();
 
         let aggregate_columns_typ = dst
+            .schema
             .aggregate_columns
             .iter()
-            .map(|(name, typ)| (self.column_by_name(name), *typ))
+            .map(|(name, typ, _)| (self.column_by_name(name), *typ))
             .collect::<Vec<_>>();
 
         let encoded_groups = dst
-            .group_columns
-            .iter()
+            .schema
+            .group_column_names_iter()
             .map(|name| self.column_by_name(name).grouped_row_ids().unwrap_left())
             .collect::<Vec<_>>();
 
@@ -668,8 +659,8 @@ impl RowGroup {
         //
         // For example, we have two columns like:
         //
-        //    [0, 1, 1, 2, 2, 3, 4] // column encodes the values as integers [3,
-        //    3, 3, 3, 4, 2, 1] // column encodes the values as integers
+        //    [0, 1, 1, 2, 2, 3, 4] // column encodes the values as integers
+        //    [3, 3, 3, 3, 4, 2, 1] // column encodes the values as integers
         //
         // The columns have these distinct values:
         //
@@ -677,9 +668,9 @@ impl RowGroup {
         //
         // We will produce the following "group key" candidates:
         //
-        //    [0, 1], [0, 2], [0, 3], [0, 4] [1, 1], [1, 2], [1, 3], [1, 4] [2,
-        //    1], [2, 2], [2, 3], [2, 4] [3, 1], [3, 2], [3, 3], [3, 4] [4, 1],
-        //    [4, 2], [4, 3], [4, 4]
+        //    [0, 1], [0, 2], [0, 3], [0, 4] [1, 1], [1, 2], [1, 3], [1, 4]
+        //    [2, 1], [2, 2], [2, 3], [2, 4] [3, 1], [3, 2], [3, 3], [3, 4]
+        //    [4, 1], [4, 2], [4, 3], [4, 4]
         //
         // Based on the columns we can see that we only have data for the
         // following group keys:
@@ -756,12 +747,12 @@ impl RowGroup {
     // in constant time.
     fn read_group_single_group_column<'a>(
         &'a self,
-        dst: &mut ReadGroupResult<'a>,
+        dst: &mut ReadAggregateResult<'a>,
         groupby_encoded_ids: &[u32],
         aggregate_columns_data: Vec<Values<'a>>,
     ) {
-        let column = self.column_by_name(dst.group_columns[0]);
-        assert_eq!(dst.group_columns.len(), aggregate_columns_data.len());
+        let column = self.column_by_name(dst.schema.group_column_names_iter().next().unwrap());
+        assert_eq!(dst.schema.group_columns.len(), aggregate_columns_data.len());
         let total_rows = groupby_encoded_ids.len();
 
         // Allocate a vector to hold aggregates that can be updated as rows are
@@ -782,9 +773,10 @@ impl RowGroup {
                 }
                 None => {
                     let mut group_key_aggs = dst
+                        .schema
                         .aggregate_columns
                         .iter()
-                        .map(|(_, agg_type)| AggregateResult::from(agg_type))
+                        .map(|(_, agg_type, _)| AggregateResult::from(agg_type))
                         .collect::<Vec<_>>();
 
                     for (i, values) in aggregate_columns_data.iter().enumerate() {
@@ -1140,6 +1132,12 @@ impl TryFrom<&DfExpr> for BinaryExpr {
 #[derive(PartialEq, PartialOrd, Clone)]
 pub struct GroupKey<'row_group>(Vec<Value<'row_group>>);
 
+impl<'a> From<Vec<Value<'a>>> for GroupKey<'a> {
+    fn from(values: Vec<Value<'a>>) -> Self {
+        Self(values)
+    }
+}
+
 impl Eq for GroupKey<'_> {}
 
 // Implementing the `Ord` trait on `GroupKey` means that collections of group
@@ -1263,13 +1261,27 @@ impl MetaData {
     }
 
     // Extract schema information for a set of columns.
-    fn schema_for_column_names<'a>(
-        &self,
-        names: &[ColumnName<'a>],
-    ) -> Vec<(&'a str, LogicalDataType)> {
+    fn schema_for_column_names(&self, names: &[ColumnName<'_>]) -> Vec<(String, LogicalDataType)> {
         names
             .iter()
-            .map(|&name| (name, *self.column_types.get(name).unwrap()))
+            .map(|&name| (name.to_owned(), *self.column_types.get(name).unwrap()))
+            .collect::<Vec<_>>()
+    }
+
+    // Extract the schema information for a set of aggregate columns
+    fn schema_for_aggregate_column_names(
+        &self,
+        columns: &[(ColumnName<'_>, AggregateType)],
+    ) -> Vec<(String, AggregateType, LogicalDataType)> {
+        columns
+            .iter()
+            .map(|(name, agg_type)| {
+                (
+                    name.to_string(),
+                    *agg_type,
+                    *self.column_types.get(*name).unwrap(),
+                )
+            })
             .collect::<Vec<_>>()
     }
 }
@@ -1277,7 +1289,8 @@ impl MetaData {
 /// Encapsulates results from `RowGroup`s with a structure that makes them
 /// easier to work with and display.
 pub struct ReadFilterResult<'row_group> {
-    schema: Vec<(ColumnName<'row_group>, LogicalDataType)>,
+    /// tuples of the form (column_name, data_type)
+    schema: Vec<(String, LogicalDataType)>,
     data: Vec<Values<'row_group>>,
 }
 
@@ -1286,7 +1299,7 @@ impl ReadFilterResult<'_> {
         self.data.is_empty()
     }
 
-    pub fn schema(&self) -> &Vec<(ColumnName<'_>, LogicalDataType)> {
+    pub fn schema(&self) -> &Vec<(String, LogicalDataType)> {
         &self.schema
     }
 
@@ -1366,25 +1379,26 @@ impl std::fmt::Display for &ReadFilterResult<'_> {
 }
 
 #[derive(Default)]
-pub struct ReadGroupResult<'row_group> {
-    // columns that are being grouped on.
-    group_columns: Vec<ColumnName<'row_group>>,
-
-    // columns that are being aggregated
-    aggregate_columns: Vec<(ColumnName<'row_group>, AggregateType)>,
+pub struct ReadAggregateResult<'row_group> {
+    // a schema describing the columns in the results and their types.
+    pub(crate) schema: ResultSchema,
 
     // row-wise collection of group keys. Each group key contains column-wise
     // values for each of the groupby_columns.
-    group_keys: Vec<GroupKey<'row_group>>,
+    pub(crate) group_keys: Vec<GroupKey<'row_group>>,
 
     // row-wise collection of aggregates. Each aggregate contains column-wise
     // values for each of the aggregate_columns.
-    aggregates: Vec<Vec<AggregateResult<'row_group>>>,
+    pub(crate) aggregates: Vec<Vec<AggregateResult<'row_group>>>,
 }
 
-impl ReadGroupResult<'_> {
+impl ReadAggregateResult<'_> {
     pub fn is_empty(&self) -> bool {
         self.group_keys.is_empty()
+    }
+
+    pub fn schema(&self) -> &ResultSchema {
+        &self.schema
     }
 
     // The number of distinct group keys in the result.
@@ -1405,29 +1419,21 @@ impl ReadGroupResult<'_> {
     }
 }
 
-impl std::fmt::Debug for &ReadGroupResult<'_> {
+/// The Debug implementation emits both the schema and the column data for the
+/// results.
+impl std::fmt::Debug for &ReadAggregateResult<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // group column names
-        for k in &self.group_columns {
-            write!(f, "{},", k)?;
-        }
-
-        // aggregate column names
-        for (i, (k, typ)) in self.aggregate_columns.iter().enumerate() {
-            write!(f, "{}_{}", k, typ)?;
-
-            if i < self.aggregate_columns.len() - 1 {
-                write!(f, ",")?;
-            }
-        }
-        writeln!(f)?;
+        // Display the schema
+        std::fmt::Display::fmt(&self.schema(), f)?;
 
         // Display the rest of the values.
         std::fmt::Display::fmt(&self, f)
     }
 }
 
-impl std::fmt::Display for &ReadGroupResult<'_> {
+/// The Display implementation emits all of the column data for the results, but
+/// omits the schema.
+impl std::fmt::Display for &ReadAggregateResult<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.is_empty() {
             return Ok(());
@@ -1745,7 +1751,7 @@ west,prod,POST,4
         ];
 
         for (predicate, group_cols, aggs, expected) in cases {
-            let mut results = row_group.read_group(&predicate, &group_cols, &aggs);
+            let mut results = row_group.read_aggregate(&predicate, &group_cols, &aggs);
             results.sort();
             assert_eq!(format!("{:?}", &results), expected);
         }
@@ -1769,7 +1775,7 @@ west,POST,prod,Bravo,two,203
         )];
 
         for (predicate, group_cols, aggs, expected) in cases {
-            let mut results = row_group.read_group(&predicate, &group_cols, &aggs);
+            let mut results = row_group.read_aggregate(&predicate, &group_cols, &aggs);
             results.sort();
             assert_eq!(format!("{:?}", &results), expected);
         }
@@ -1789,7 +1795,7 @@ PUT,203
         )];
 
         for (predicate, group_cols, aggs, expected) in cases {
-            let mut results = row_group.read_group(&predicate, &group_cols, &aggs);
+            let mut results = row_group.read_aggregate(&predicate, &group_cols, &aggs);
             results.sort();
             assert_eq!(format!("{:?}", &results), expected);
         }
@@ -1850,7 +1856,7 @@ west,POST,304,101,203
         ];
 
         for (predicate, group_cols, aggs, expected) in cases {
-            let results = row_group.read_group(&predicate, &group_cols, &aggs);
+            let results = row_group.read_aggregate(&predicate, &group_cols, &aggs);
             assert_eq!(format!("{:?}", &results), expected);
         }
     }
@@ -1941,15 +1947,26 @@ west,POST,304,101,203
 
     #[test]
     fn read_group_result() {
-        let group_columns = vec!["region", "host"];
-        let aggregate_columns = vec![
-            ("temp", AggregateType::Sum),
-            ("voltage", AggregateType::Count),
-        ];
-
-        let result = ReadGroupResult {
-            group_columns,
-            aggregate_columns,
+        let result = ReadAggregateResult {
+            schema: ResultSchema {
+                select_columns: vec![],
+                group_columns: vec![
+                    ("region".to_owned(), LogicalDataType::String),
+                    ("host".to_owned(), LogicalDataType::String),
+                ],
+                aggregate_columns: vec![
+                    (
+                        "temp".to_owned(),
+                        AggregateType::Sum,
+                        LogicalDataType::Integer,
+                    ),
+                    (
+                        "voltage".to_owned(),
+                        AggregateType::Count,
+                        LogicalDataType::Unsigned,
+                    ),
+                ],
+            },
             group_keys: vec![
                 GroupKey(vec![Value::String("east"), Value::String("host-a")]),
                 GroupKey(vec![Value::String("east"), Value::String("host-b")]),
