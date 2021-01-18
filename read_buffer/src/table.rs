@@ -2,7 +2,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Display;
 use std::slice::Iter;
 
-use crate::column::{AggregateResult, OwnedValue, Scalar, Value};
+use crate::column::{AggregateResult, Scalar, Value};
 use crate::row_group::{self, ColumnName, GroupKey, Predicate, RowGroup};
 use crate::schema::{AggregateType, ColumnType, LogicalDataType, ResultSchema};
 
@@ -36,14 +36,14 @@ impl Table {
     pub fn new(name: String, rg: RowGroup) -> Self {
         Self {
             name,
-            meta: MetaData::new(&rg),
+            meta: MetaData::new(rg.metadata()),
             row_groups: vec![rg],
         }
     }
 
     /// Add a new row group to this table.
     pub fn add_row_group(&mut self, rg: RowGroup) {
-        self.meta.update(&rg);
+        self.meta.update(rg.metadata());
         self.row_groups.push(rg);
     }
 
@@ -85,16 +85,6 @@ impl Table {
     /// The time range of all row groups within this table.
     pub fn time_range(&self) -> Option<(i64, i64)> {
         self.meta.time_range
-    }
-
-    /// The ranges on each column in the table (across all row groups).
-    pub fn column_ranges(&self) -> BTreeMap<String, (OwnedValue, OwnedValue)> {
-        todo!()
-    }
-
-    /// The logical data-type of each column in the `Table`'s schema.
-    pub fn column_logical_types(&self) -> &BTreeMap<String, LogicalDataType> {
-        &self.meta.column_data_types
     }
 
     // Identify set of row groups that might satisfy the predicate.
@@ -415,18 +405,9 @@ struct MetaData {
     rows: u64,
 
     // The distinct set of columns for this table (all of these columns will
-    // appear in all of the table's row groups) and the range of values for
-    // each of those columns.
-    //
-    // This can be used to skip the table entirely if a logical predicate can't
-    // possibly match based on the range of values a column has.
-    column_ranges: BTreeMap<String, (OwnedValue, OwnedValue)>,
-
-    // The semantic type of all columns in the table.
-    column_types: BTreeMap<String, crate::schema::ColumnType>,
-
-    // The logical data type of all columns in the table.
-    column_data_types: BTreeMap<String, LogicalDataType>,
+    // appear in all of the table's row groups) and meta data about those
+    // columns including their schema and range.
+    columns: BTreeMap<String, row_group::ColumnMeta>,
 
     column_names: Vec<String>,
 
@@ -439,15 +420,13 @@ struct MetaData {
 }
 
 impl MetaData {
-    pub fn new(rg: &RowGroup) -> Self {
+    pub fn new(meta: &row_group::MetaData) -> Self {
         Self {
-            size: rg.size(),
-            rows: u64::from(rg.rows()),
-            column_ranges: rg.column_ranges().clone(),
-            column_types: rg.column_types().clone(),
-            column_data_types: rg.column_logical_types().clone(),
-            column_names: rg.column_ranges().keys().cloned().collect(),
-            time_range: Some(rg.time_range()),
+            size: meta.size,
+            rows: meta.rows as u64,
+            columns: meta.columns.clone(),
+            column_names: meta.columns.keys().cloned().collect(),
+            time_range: Some(meta.time_range),
         }
     }
 
@@ -460,11 +439,8 @@ impl MetaData {
     ) -> Vec<(ColumnType, LogicalDataType)> {
         names
             .iter()
-            .filter_map(|&name| match self.column_types.get(name) {
-                Some(column_type) => Some((
-                    column_type.clone(),
-                    *self.column_data_types.get(name).unwrap(),
-                )),
+            .filter_map(|&name| match self.columns.get(name) {
+                Some(schema) => Some((schema.typ.clone(), schema.logical_data_type)),
                 None => None,
             })
             .collect::<Vec<_>>()
@@ -472,14 +448,9 @@ impl MetaData {
 
     // As `schema_for_column_names` but for all columns in the table.
     fn schema_for_all_columns(&self) -> Vec<(ColumnType, LogicalDataType)> {
-        self.column_types
+        self.columns
             .iter()
-            .map(|(name, column_type)| {
-                (
-                    column_type.clone(),
-                    *self.column_data_types.get(name).unwrap(),
-                )
-            })
+            .map(|(name, schema)| (schema.typ.clone(), schema.logical_data_type))
             .collect::<Vec<_>>()
     }
 
@@ -490,12 +461,8 @@ impl MetaData {
     ) -> Vec<(ColumnType, AggregateType, LogicalDataType)> {
         names
             .iter()
-            .filter_map(|(name, agg_type)| match self.column_types.get(*name) {
-                Some(column_type) => Some((
-                    column_type.clone(),
-                    *agg_type,
-                    *self.column_data_types.get(*name).unwrap(),
-                )),
+            .filter_map(|(name, agg_type)| match self.columns.get(*name) {
+                Some(schema) => Some((schema.typ.clone(), *agg_type, schema.logical_data_type)),
                 None => None,
             })
             .collect::<Vec<_>>()
@@ -505,28 +472,39 @@ impl MetaData {
         self.column_names.iter().map(|name| name.as_str()).collect()
     }
 
-    pub fn update(&mut self, rg: &RowGroup) {
+    pub fn update(&mut self, meta: &row_group::MetaData) {
         // update size, rows, column ranges, time range
-        self.size += rg.size();
-        self.rows += u64::from(rg.rows());
+        self.size += meta.size;
+        self.rows += meta.rows as u64;
 
         // The incoming row group must have exactly the same schema as the
         // existing row groups in the table.
-        assert_eq!(&self.column_types, rg.column_types());
-        assert_eq!(&self.column_data_types, rg.column_logical_types());
+        assert_eq!(&self.columns, &meta.columns);
 
-        assert_eq!(self.column_ranges.len(), rg.column_ranges().len());
-        for (column_name, (column_range_min, column_range_max)) in rg.column_ranges() {
-            let mut curr_range = self
-                .column_ranges
+        // Update the table schema using the incoming row group schema
+        for (column_name, column_meta) in &meta.columns {
+            let (column_range_min, column_range_max) = &column_meta.range;
+            let mut curr_range = &mut self
+                .columns
                 .get_mut(&column_name.to_string())
-                .unwrap();
+                .unwrap()
+                .range;
             if column_range_min < &curr_range.0 {
                 curr_range.0 = column_range_min.clone();
             }
 
             if column_range_max > &curr_range.1 {
                 curr_range.1 = column_range_max.clone();
+            }
+
+            match self.time_range {
+                Some(time_range) => {
+                    self.time_range = Some((
+                        time_range.0.min(meta.time_range.0),
+                        time_range.1.max(meta.time_range.1),
+                    ));
+                }
+                None => panic!("cannot call `update` on empty Metadata"),
             }
         }
     }
@@ -611,6 +589,7 @@ impl<'a> Display for DisplayReadFilterResults<'a> {
 
         // write out the schema of the first result as the table header
         std::fmt::Display::fmt(&self.0[0].schema(), f)?;
+        writeln!(f)?;
 
         // write out each row group result
         for row_group in self.0.iter() {
@@ -729,11 +708,77 @@ impl std::fmt::Display for DisplayReadAggregateResults<'_> {
 
 #[cfg(test)]
 mod test {
+    use row_group::ColumnMeta;
+
     use super::*;
-    use crate::column::Column;
+    use crate::column::{self, Column};
     use crate::row_group::{BinaryExpr, ColumnType, ReadAggregateResult};
     use crate::schema;
     use crate::schema::LogicalDataType;
+
+    #[test]
+    fn meta_data_update() {
+        let rg_meta = row_group::MetaData {
+            size: 100,
+            rows: 2000,
+            columns: vec![(
+                "region".to_owned(),
+                ColumnMeta {
+                    typ: schema::ColumnType::Tag("region".to_owned()),
+                    logical_data_type: schema::LogicalDataType::String,
+                    range: (
+                        column::OwnedValue::String("north".to_owned()),
+                        column::OwnedValue::String("south".to_owned()),
+                    ),
+                },
+            )]
+            .into_iter()
+            .collect::<BTreeMap<_, _>>(),
+            time_range: (10, 3000),
+        };
+
+        let mut meta = MetaData::new(&rg_meta);
+        assert_eq!(meta.rows, 2000);
+        assert_eq!(meta.size, 100);
+        assert_eq!(meta.time_range, Some((10, 3000)));
+        assert_eq!(
+            meta.columns.get("region").unwrap().range,
+            (
+                column::OwnedValue::String("north".to_owned()),
+                column::OwnedValue::String("south".to_owned())
+            )
+        );
+
+        meta.update(&row_group::MetaData {
+            size: 300,
+            rows: 1500,
+            columns: vec![(
+                "region".to_owned(),
+                ColumnMeta {
+                    typ: schema::ColumnType::Tag("region".to_owned()),
+                    logical_data_type: schema::LogicalDataType::String,
+                    range: (
+                        column::OwnedValue::String("east".to_owned()),
+                        column::OwnedValue::String("north".to_owned()),
+                    ),
+                },
+            )]
+            .into_iter()
+            .collect::<BTreeMap<_, _>>(),
+            time_range: (10, 3500),
+        });
+
+        assert_eq!(meta.rows, 3500);
+        assert_eq!(meta.size, 400);
+        assert_eq!(meta.time_range, Some((10, 3500)));
+        assert_eq!(
+            meta.columns.get("region").unwrap().range,
+            (
+                column::OwnedValue::String("east".to_owned()),
+                column::OwnedValue::String("south".to_owned())
+            )
+        );
+    }
 
     #[test]
     fn select() {
@@ -754,13 +799,21 @@ mod test {
 
         let mut table = Table::new("cpu".to_owned(), rg);
         let exp_col_types = vec![
-            ("region".to_owned(), LogicalDataType::String),
-            ("count".to_owned(), LogicalDataType::Unsigned),
-            ("time".to_owned(), LogicalDataType::Integer),
+            ("region", LogicalDataType::String),
+            ("count", LogicalDataType::Unsigned),
+            ("time", LogicalDataType::Integer),
         ]
         .into_iter()
         .collect::<BTreeMap<_, _>>();
-        assert_eq!(table.column_logical_types(), &exp_col_types);
+        assert_eq!(
+            table
+                .meta
+                .columns
+                .iter()
+                .map(|(k, v)| (k.as_str(), v.logical_data_type))
+                .collect::<BTreeMap<_, _>>(),
+            exp_col_types
+        );
 
         // Build another segment.
         let mut columns = BTreeMap::new();

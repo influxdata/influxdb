@@ -52,24 +52,25 @@ impl RowGroup {
                 ColumnType::Tag(c) => {
                     assert_eq!(c.num_rows(), rows);
 
-                    meta.column_ranges
-                        .insert(name.clone(), c.column_range().unwrap());
-                    meta.column_data_types
-                        .insert(name.clone(), c.logical_datatype());
-                    meta.column_types
-                        .insert(name.clone(), schema::ColumnType::Tag(name.clone()));
+                    meta.add_column(
+                        &name,
+                        schema::ColumnType::Tag(name.clone()),
+                        c.logical_datatype(),
+                        c.column_range().unwrap(),
+                    );
+
                     all_columns_by_name.insert(name.clone(), all_columns.len());
                     all_columns.push(c);
                 }
                 ColumnType::Field(c) => {
                     assert_eq!(c.num_rows(), rows);
 
-                    meta.column_ranges
-                        .insert(name.clone(), c.column_range().unwrap());
-                    meta.column_data_types
-                        .insert(name.clone(), c.logical_datatype());
-                    meta.column_types
-                        .insert(name.clone(), schema::ColumnType::Field(name.clone()));
+                    meta.add_column(
+                        &name,
+                        schema::ColumnType::Field(name.clone()),
+                        c.logical_datatype(),
+                        c.column_range().unwrap(),
+                    );
                     all_columns_by_name.insert(name.clone(), all_columns.len());
                     all_columns.push(c);
                 }
@@ -85,12 +86,12 @@ impl RowGroup {
                         Some((_, _)) => unreachable!("unexpected types for time range"),
                     };
 
-                    meta.column_ranges
-                        .insert(name.clone(), c.column_range().unwrap());
-                    meta.column_data_types
-                        .insert(name.clone(), c.logical_datatype());
-                    meta.column_types
-                        .insert(name.clone(), schema::ColumnType::Timestamp(name.clone()));
+                    meta.add_column(
+                        &name,
+                        schema::ColumnType::Timestamp(name.clone()),
+                        c.logical_datatype(),
+                        c.column_range().unwrap(),
+                    );
 
                     all_columns_by_name.insert(name.clone(), all_columns.len());
                     time_column = Some(all_columns.len());
@@ -100,10 +101,7 @@ impl RowGroup {
         }
 
         // Meta data should have same columns for types and ranges.
-        assert_eq!(
-            meta.column_data_types.keys().collect::<Vec<_>>(),
-            meta.column_ranges.keys().collect::<Vec<_>>(),
-        );
+        assert_eq!(meta.columns.keys().len(), all_columns.len());
 
         Self {
             meta,
@@ -124,19 +122,9 @@ impl RowGroup {
         self.meta.rows
     }
 
-    /// The ranges on each column in the `RowGroup`.
-    pub fn column_ranges(&self) -> &BTreeMap<String, (OwnedValue, OwnedValue)> {
-        &self.meta.column_ranges
-    }
-
-    /// The semantic types of each column.
-    pub fn column_types(&self) -> &BTreeMap<String, crate::schema::ColumnType> {
-        &self.meta.column_types
-    }
-
-    /// The logical data-types of each column.
-    pub fn column_logical_types(&self) -> &BTreeMap<String, LogicalDataType> {
-        &self.meta.column_data_types
+    // The row group's meta data.
+    pub fn metadata(&self) -> &MetaData {
+        &self.meta
     }
 
     // Returns a reference to a column from the column name.
@@ -1203,13 +1191,28 @@ impl ColumnType {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct ColumnMeta {
+    pub typ: crate::schema::ColumnType,
+    pub logical_data_type: LogicalDataType,
+    pub range: (OwnedValue, OwnedValue),
+}
+
+// column metadata is equivalent for two columns if their logical type and
+// semantic type are equivalent.
+impl PartialEq for ColumnMeta {
+    fn eq(&self, other: &Self) -> bool {
+        self.typ == other.typ && self.logical_data_type == other.logical_data_type
+    }
+}
+
 #[derive(Default, Debug)]
-struct MetaData {
+pub struct MetaData {
     // The total size of the table in bytes.
-    size: u64,
+    pub size: u64,
 
     // The total number of rows in the table.
-    rows: u32,
+    pub rows: u32,
 
     // The distinct set of columns for this `RowGroup` (all of these columns
     // will appear in all of the `Table`'s `RowGroup`s) and the range of values
@@ -1217,20 +1220,14 @@ struct MetaData {
     //
     // This can be used to skip the table entirely if a logical predicate can't
     // possibly match based on the range of values a column has.
-    column_ranges: BTreeMap<String, (OwnedValue, OwnedValue)>,
-
-    // The semantic type of the columns in the row group
-    column_types: BTreeMap<String, crate::schema::ColumnType>,
-
-    // The logical data type of the columns in the row group.
-    column_data_types: BTreeMap<String, LogicalDataType>,
+    pub columns: BTreeMap<String, ColumnMeta>,
 
     // The total time range of this table spanning all of the `RowGroup`s within
     // the table.
     //
     // This can be used to skip the table entirely if the time range for a query
     // falls outside of this range.
-    time_range: (i64, i64),
+    pub time_range: (i64, i64),
 }
 
 impl MetaData {
@@ -1239,8 +1236,8 @@ impl MetaData {
     // no rows in the `RowGroup` would ever match the expression.
     //
     pub fn column_could_satisfy_binary_expr(&self, expr: &BinaryExpr) -> bool {
-        let (column_min, column_max) = match self.column_ranges.get(expr.column()) {
-            Some(range) => range,
+        let (column_min, column_max) = match self.columns.get(expr.column()) {
+            Some(schema) => &schema.range,
             None => return false, // column doesn't exist.
         };
 
@@ -1272,6 +1269,23 @@ impl MetaData {
         }
     }
 
+    pub fn add_column(
+        &mut self,
+        name: &str,
+        col_type: schema::ColumnType,
+        logical_data_type: LogicalDataType,
+        range: (OwnedValue, OwnedValue),
+    ) {
+        self.columns.insert(
+            name.to_owned(),
+            ColumnMeta {
+                typ: col_type,
+                logical_data_type,
+                range,
+            },
+        );
+    }
+
     // Extract schema information for a set of columns.
     fn schema_for_column_names(
         &self,
@@ -1280,9 +1294,8 @@ impl MetaData {
         names
             .iter()
             .map(|&name| {
-                let col_type = self.column_types.get(name).unwrap();
-                let data_type = self.column_data_types.get(name).unwrap();
-                (col_type.clone(), *data_type)
+                let schema = self.columns.get(name).unwrap();
+                (schema.typ.clone(), schema.logical_data_type)
             })
             .collect::<Vec<_>>()
     }
@@ -1295,10 +1308,8 @@ impl MetaData {
         columns
             .iter()
             .map(|(name, agg_type)| {
-                let col_type = self.column_types.get(*name).unwrap();
-                let data_type = self.column_data_types.get(*name).unwrap();
-
-                (col_type.clone(), *agg_type, *data_type)
+                let schema = self.columns.get(*name).unwrap();
+                (schema.typ.clone(), *agg_type, schema.logical_data_type)
             })
             .collect::<Vec<_>>()
     }
@@ -1347,6 +1358,7 @@ impl std::fmt::Debug for &ReadFilterResult<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Display the header
         std::fmt::Display::fmt(self.schema(), f)?;
+        writeln!(f)?;
 
         // Display the rest of the values.
         std::fmt::Display::fmt(&self, f)
@@ -2036,5 +2048,39 @@ west,host-c,21,1
 west,host-d,11,9
 "
         );
+    }
+
+    #[test]
+    fn column_meta_equal() {
+        let col1 = ColumnMeta {
+            typ: schema::ColumnType::Tag("region".to_owned()),
+            logical_data_type: schema::LogicalDataType::String,
+            range: (
+                OwnedValue::String("east".to_owned()),
+                OwnedValue::String("west".to_owned()),
+            ),
+        };
+
+        let col2 = ColumnMeta {
+            typ: schema::ColumnType::Tag("region".to_owned()),
+            logical_data_type: schema::LogicalDataType::String,
+            range: (
+                OwnedValue::String("north".to_owned()),
+                OwnedValue::String("west".to_owned()),
+            ),
+        };
+
+        let col3 = ColumnMeta {
+            typ: schema::ColumnType::Tag("host".to_owned()),
+            logical_data_type: schema::LogicalDataType::String,
+            range: (
+                OwnedValue::String("east".to_owned()),
+                OwnedValue::String("west".to_owned()),
+            ),
+        };
+
+        assert_eq!(col1, col2);
+        assert_ne!(col1, col3);
+        assert_ne!(col2, col3);
     }
 }
