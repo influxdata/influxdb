@@ -9,10 +9,10 @@ use hashbrown::{hash_map, HashMap};
 use itertools::Itertools;
 
 use crate::column::{
-    self, cmp::Operator, AggregateResult, AggregateType, Column, EncodedValues, LogicalDataType,
-    OwnedValue, RowIDs, RowIDsOption, Scalar, Value, Values, ValuesIterator,
+    cmp::Operator, AggregateResult, AggregateType, Column, EncodedValues, OwnedValue, RowIDs,
+    RowIDsOption, Scalar, Value, Values, ValuesIterator,
 };
-use crate::schema::ResultSchema;
+use crate::schema::{LogicalDataType, ResultSchema};
 use arrow_deps::arrow::record_batch::RecordBatch;
 use arrow_deps::{
     arrow, datafusion::logical_plan::Expr as DfExpr,
@@ -129,7 +129,7 @@ impl RowGroup {
     }
 
     /// The logical data-type of each column.
-    pub fn column_logical_types(&self) -> &BTreeMap<String, column::LogicalDataType> {
+    pub fn column_logical_types(&self) -> &BTreeMap<String, LogicalDataType> {
         &self.meta.column_types
     }
 

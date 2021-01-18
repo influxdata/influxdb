@@ -3,12 +3,8 @@ use std::fmt::Display;
 use std::slice::Iter;
 
 use crate::column::{AggregateResult, AggregateType, OwnedValue, Scalar, Value};
-use crate::schema::ResultSchema;
-use crate::{
-    column,
-    column::LogicalDataType,
-    row_group::{self, ColumnName, GroupKey, Predicate, RowGroup},
-};
+use crate::row_group::{self, ColumnName, GroupKey, Predicate, RowGroup};
+use crate::schema::{LogicalDataType, ResultSchema};
 
 /// A Table represents data for a single measurement.
 ///
@@ -97,7 +93,7 @@ impl Table {
     }
 
     /// The logical data-type of each column in the `Table`'s schema.
-    pub fn column_logical_types(&self) -> &BTreeMap<String, column::LogicalDataType> {
+    pub fn column_logical_types(&self) -> &BTreeMap<String, LogicalDataType> {
         &self.meta.column_types
     }
 
@@ -427,7 +423,7 @@ struct MetaData {
     column_ranges: BTreeMap<String, (OwnedValue, OwnedValue)>,
 
     // The `ReadBuffer` logical types associated with the columns in the table
-    column_types: BTreeMap<String, column::LogicalDataType>,
+    column_types: BTreeMap<String, LogicalDataType>,
 
     column_names: Vec<String>,
 
@@ -724,8 +720,9 @@ impl std::fmt::Display for DisplayReadAggregateResults<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::column::{Column, LogicalDataType};
+    use crate::column::Column;
     use crate::row_group::{BinaryExpr, ColumnType, ReadAggregateResult};
+    use crate::schema::LogicalDataType;
 
     #[test]
     fn select() {

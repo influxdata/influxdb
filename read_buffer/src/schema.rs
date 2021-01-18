@@ -1,6 +1,8 @@
 use std::fmt::Display;
 
-use crate::{column::LogicalDataType, AggregateType};
+use arrow_deps::arrow;
+
+use crate::AggregateType;
 
 /// A schema that is used to track the names and semantics of columns returned
 /// in results out of various operations on a row group.
@@ -59,5 +61,29 @@ impl Display for ResultSchema {
             }
         }
         writeln!(f)
+    }
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+/// The logical data-type for a column.
+pub enum LogicalDataType {
+    Integer,  // Signed integer
+    Unsigned, // Unsigned integer
+    Float,    //
+    String,   // UTF-8 valid string
+    Binary,   // Arbitrary collection of bytes
+    Boolean,  //
+}
+
+impl LogicalDataType {
+    pub fn to_arrow_datatype(&self) -> arrow::datatypes::DataType {
+        match &self {
+            LogicalDataType::Integer => arrow::datatypes::DataType::Int64,
+            LogicalDataType::Unsigned => arrow::datatypes::DataType::UInt64,
+            LogicalDataType::Float => arrow::datatypes::DataType::Float64,
+            LogicalDataType::String => arrow::datatypes::DataType::Utf8,
+            LogicalDataType::Binary => arrow::datatypes::DataType::Binary,
+            LogicalDataType::Boolean => arrow::datatypes::DataType::Boolean,
+        }
     }
 }
