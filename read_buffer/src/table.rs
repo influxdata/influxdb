@@ -705,32 +705,18 @@ struct DisplayReadAggregateResults<'a>(Vec<row_group::ReadAggregateResult<'a>>);
 
 impl std::fmt::Display for DisplayReadAggregateResults<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // if self.0.is_empty() {
-        //     return Ok(());
-        // }
+        if self.0.is_empty() {
+            return Ok(());
+        }
 
-        // let
+        // write out the schema of the first result as the table header
+        std::fmt::Display::fmt(&self.0[0].schema(), f)?;
 
-        // let schema = self.0[0].schema();
-        // // header line - display group columns first
-        // for (i, name) in self.group_columns.iter().enumerate() {
-        //     write!(f, "{},", name)?;
-        // }
+        // write out each row group result
+        for row_group in self.0.iter() {
+            std::fmt::Display::fmt(&row_group, f)?;
+        }
 
-        // // then display aggregate columns
-        // for (i, (col_name, col_agg)) in self.aggregates.iter().enumerate() {
-        //     write!(f, "{}_{}", col_name, col_agg)?;
-
-        //     if i < self.aggregates.len() - 1 {
-        //         write!(f, ",")?;
-        //     }
-        // }
-        // writeln!(f)?;
-
-        // // Display all the results of each segment
-        // for segment_values in &self.values {
-        //     segment_values.fmt(f)?;
-        // }
         Ok(())
     }
 }
@@ -739,7 +725,7 @@ impl std::fmt::Display for DisplayReadAggregateResults<'_> {
 mod test {
     use super::*;
     use crate::column::{Column, LogicalDataType};
-    use crate::row_group::{BinaryExpr, ColumnType};
+    use crate::row_group::{BinaryExpr, ColumnType, ReadAggregateResult};
 
     #[test]
     fn select() {
@@ -836,6 +822,53 @@ mod test {
 6,north
 20,north
 ",
+        );
+    }
+
+    #[test]
+    fn read_group_result() {
+        let results = DisplayReadAggregateResults(vec![
+            ReadAggregateResult {
+                schema: ResultSchema {
+                    select_columns: vec![],
+                    group_columns: vec![
+                        ("region".to_owned(), LogicalDataType::String),
+                        ("host".to_owned(), LogicalDataType::String),
+                    ],
+                    aggregate_columns: vec![(
+                        "temp".to_owned(),
+                        AggregateType::Sum,
+                        LogicalDataType::Integer,
+                    )],
+                },
+                group_keys: vec![vec![Value::String("east"), Value::String("host-a")].into()],
+                aggregates: vec![vec![AggregateResult::Sum(Scalar::I64(10))]],
+            },
+            ReadAggregateResult {
+                schema: ResultSchema {
+                    select_columns: vec![],
+                    group_columns: vec![
+                        ("region".to_owned(), LogicalDataType::String),
+                        ("host".to_owned(), LogicalDataType::String),
+                    ],
+                    aggregate_columns: vec![(
+                        "temp".to_owned(),
+                        AggregateType::Sum,
+                        LogicalDataType::Integer,
+                    )],
+                },
+                group_keys: vec![vec![Value::String("west"), Value::String("host-b")].into()],
+                aggregates: vec![vec![AggregateResult::Sum(Scalar::I64(100))]],
+            },
+        ]);
+
+        //Display implementation
+        assert_eq!(
+            format!("{}", &results),
+            "region,host,temp_sum
+east,host-a,10
+west,host-b,100
+"
         );
     }
 }

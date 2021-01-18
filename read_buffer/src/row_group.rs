@@ -1132,6 +1132,12 @@ impl TryFrom<&DfExpr> for BinaryExpr {
 #[derive(PartialEq, PartialOrd, Clone)]
 pub struct GroupKey<'row_group>(Vec<Value<'row_group>>);
 
+impl<'a> From<Vec<Value<'a>>> for GroupKey<'a> {
+    fn from(values: Vec<Value<'a>>) -> Self {
+        Self(values)
+    }
+}
+
 impl Eq for GroupKey<'_> {}
 
 // Implementing the `Ord` trait on `GroupKey` means that collections of group
@@ -1375,15 +1381,15 @@ impl std::fmt::Display for &ReadFilterResult<'_> {
 #[derive(Default)]
 pub struct ReadAggregateResult<'row_group> {
     // a schema describing the columns in the results and their types.
-    schema: ResultSchema,
+    pub(crate) schema: ResultSchema,
 
     // row-wise collection of group keys. Each group key contains column-wise
     // values for each of the groupby_columns.
-    group_keys: Vec<GroupKey<'row_group>>,
+    pub(crate) group_keys: Vec<GroupKey<'row_group>>,
 
     // row-wise collection of aggregates. Each aggregate contains column-wise
     // values for each of the aggregate_columns.
-    aggregates: Vec<Vec<AggregateResult<'row_group>>>,
+    pub(crate) aggregates: Vec<Vec<AggregateResult<'row_group>>>,
 }
 
 impl ReadAggregateResult<'_> {
