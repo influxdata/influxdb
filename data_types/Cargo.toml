@@ -7,6 +7,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+arrow_deps = { path = "../arrow_deps" }
 snafu = "0.6"
 serde = "1.0"
 generated_types = { path = "../generated_types" }

@@ -1,7 +1,7 @@
 //! This module contains the IOx implementation for using Azure Blob storage as
 //! the object store.
 use crate::{
-    path::{CloudConverter, ObjectStorePath},
+    path::{cloud::CloudConverter, ObjectStorePath},
     DataDoesNotMatchLength, Result, UnableToDeleteDataFromAzure, UnableToGetDataFromAzure,
     UnableToListDataFromAzure, UnableToPutDataToAzure,
 };

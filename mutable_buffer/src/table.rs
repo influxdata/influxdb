@@ -16,14 +16,16 @@ use crate::{
     column::Column,
     dictionary::{Dictionary, Error as DictionaryError},
 };
-use data_types::{partition_metadata::Column as ColumnStats, TIME_COLUMN_NAME};
+use data_types::{
+    partition_metadata::Column as ColumnStats, schema::builder::SchemaBuilder, TIME_COLUMN_NAME,
+};
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use arrow_deps::{
     arrow,
     arrow::{
         array::{ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder},
-        datatypes::{DataType as ArrowDataType, Field as ArrowField, Schema as ArrowSchema},
+        datatypes::DataType as ArrowDataType,
         record_batch::RecordBatch,
     },
     datafusion::{
@@ -95,6 +97,11 @@ pub enum Error {
 
     #[snafu(display("arrow conversion error: {}", source))]
     ArrowError { source: arrow::error::ArrowError },
+
+    #[snafu(display("Internal error converting schema: {}", source))]
+    InternalSchema {
+        source: data_types::schema::builder::Error,
+    },
 
     #[snafu(display(
         "No index entry found for column {} with id {}",
@@ -862,13 +869,13 @@ impl Table {
         chunk: &Chunk,
         requested_columns_with_index: &[(&str, usize)],
     ) -> Result<RecordBatch> {
-        let mut fields = Vec::with_capacity(requested_columns_with_index.len());
+        let mut schema_builder = SchemaBuilder::new();
         let mut columns: Vec<ArrayRef> = Vec::with_capacity(requested_columns_with_index.len());
 
         for &(column_name, column_index) in requested_columns_with_index.iter() {
             let arrow_col: ArrayRef = match &self.columns[column_index] {
                 Column::String(vals, _) => {
-                    fields.push(ArrowField::new(column_name, ArrowDataType::Utf8, true));
+                    schema_builder = schema_builder.field(column_name, ArrowDataType::Utf8);
                     let mut builder = StringBuilder::with_capacity(vals.len(), vals.len() * 10);
 
                     for v in vals {
@@ -882,7 +889,7 @@ impl Table {
                     Arc::new(builder.finish())
                 }
                 Column::Tag(vals, _) => {
-                    fields.push(ArrowField::new(column_name, ArrowDataType::Utf8, true));
+                    schema_builder = schema_builder.tag(column_name);
                     let mut builder = StringBuilder::with_capacity(vals.len(), vals.len() * 10);
 
                     for v in vals {
@@ -904,7 +911,7 @@ impl Table {
                     Arc::new(builder.finish())
                 }
                 Column::F64(vals, _) => {
-                    fields.push(ArrowField::new(column_name, ArrowDataType::Float64, true));
+                    schema_builder = schema_builder.field(column_name, ArrowDataType::Float64);
                     let mut builder = Float64Builder::new(vals.len());
 
                     for v in vals {
@@ -914,7 +921,7 @@ impl Table {
                     Arc::new(builder.finish())
                 }
                 Column::I64(vals, _) => {
-                    fields.push(ArrowField::new(column_name, ArrowDataType::Int64, true));
+                    schema_builder = schema_builder.field(column_name, ArrowDataType::Int64);
                     let mut builder = Int64Builder::new(vals.len());
 
                     for v in vals {
@@ -924,7 +931,7 @@ impl Table {
                     Arc::new(builder.finish())
                 }
                 Column::Bool(vals, _) => {
-                    fields.push(ArrowField::new(column_name, ArrowDataType::Boolean, true));
+                    schema_builder = schema_builder.field(column_name, ArrowDataType::Boolean);
                     let mut builder = BooleanBuilder::new(vals.len());
 
                     for v in vals {
@@ -938,9 +945,9 @@ impl Table {
             columns.push(arrow_col);
         }
 
-        let schema = ArrowSchema::new(fields);
+        let schema = schema_builder.build().context(InternalSchema)?.into();
 
-        RecordBatch::try_new(Arc::new(schema), columns).context(ArrowError {})
+        RecordBatch::try_new(schema, columns).context(ArrowError {})
     }
 
     /// returns true if any row in this table could possible match the

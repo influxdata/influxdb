@@ -10,6 +10,7 @@ use std::iter;
 use std::slice::Chunks;
 
 use arrow_deps::parquet::data_type::ByteArray;
+use data_types::schema::{InfluxColumnType, InfluxFieldType};
 use std::default::Default;
 
 // NOTE: See https://blog.twitter.com/engineering/en_us/a/2013/dremel-made-simple-with-parquet.html
@@ -31,7 +32,7 @@ macro_rules! typed_packer_accessors {
                 if let Self::$variant(p) = self {
                     p
                 } else {
-                    panic!(concat!("packer is not a ", stringify!($variant)));
+                    panic!(concat!("packer is not a ", stringify!($variant), " is {:?}"), self);
                 }
             }
 
@@ -39,7 +40,7 @@ macro_rules! typed_packer_accessors {
                 if let Self::$variant(p) = self {
                     p
                 } else {
-                    panic!(concat!("packer is not a ", stringify!($variant)));
+                    panic!(concat!("packer is not a ", stringify!($variant), " is {:?}"), self);
                 }
             }
         )*
@@ -191,14 +192,24 @@ impl std::convert::From<Vec<Option<String>>> for Packers {
     }
 }
 
-impl std::convert::From<data_types::table_schema::DataType> for Packers {
-    fn from(t: data_types::table_schema::DataType) -> Self {
+impl std::convert::From<InfluxColumnType> for Packers {
+    fn from(t: InfluxColumnType) -> Self {
         match t {
-            data_types::table_schema::DataType::Float => Self::Float(Packer::<f64>::new()),
-            data_types::table_schema::DataType::Integer => Self::Integer(Packer::<i64>::new()),
-            data_types::table_schema::DataType::String => Self::Bytes(Packer::<ByteArray>::new()),
-            data_types::table_schema::DataType::Boolean => Self::Boolean(Packer::<bool>::new()),
-            data_types::table_schema::DataType::Timestamp => Self::Integer(Packer::<i64>::new()),
+            InfluxColumnType::Tag => Self::Bytes(Packer::<ByteArray>::new()),
+            InfluxColumnType::Field(InfluxFieldType::Float) => Self::Float(Packer::<f64>::new()),
+            InfluxColumnType::Field(InfluxFieldType::Integer) => {
+                Self::Integer(Packer::<i64>::new())
+            }
+            InfluxColumnType::Field(InfluxFieldType::UInteger) => {
+                unimplemented!();
+            }
+            InfluxColumnType::Field(InfluxFieldType::String) => {
+                Self::Bytes(Packer::<ByteArray>::new())
+            }
+            InfluxColumnType::Field(InfluxFieldType::Boolean) => {
+                Self::Boolean(Packer::<bool>::new())
+            }
+            InfluxColumnType::Timestamp => Self::Integer(Packer::<i64>::new()),
         }
     }
 }

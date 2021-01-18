@@ -1,5 +1,11 @@
-use std::{borrow::Cow, collections::BTreeMap, convert::TryFrom, sync::Arc};
+use std::{
+    borrow::Cow,
+    collections::BTreeMap,
+    convert::{TryFrom, TryInto},
+    sync::Arc,
+};
 
+use data_types::schema::{InfluxColumnType, Schema};
 use hashbrown::{hash_map, HashMap};
 use itertools::Itertools;
 
@@ -11,8 +17,7 @@ use arrow_deps::{
 
 use crate::column::{
     self, cmp::Operator, AggregateResult, AggregateType, Column, EncodedValues, LogicalDataType,
-    OwnedValue, RowIDs, RowIDsOption, Scalar, Value, Values, ValuesIterator, FIELD_COLUMN_TYPE,
-    TAG_COLUMN_TYPE, TIME_COLUMN_TYPE,
+    OwnedValue, RowIDs, RowIDsOption, Scalar, Value, Values, ValuesIterator,
 };
 
 /// The name used for a timestamp column.
@@ -831,15 +836,19 @@ impl RowGroup {
 impl From<RecordBatch> for RowGroup {
     fn from(rb: RecordBatch) -> Self {
         let rows = rb.num_rows();
-        let schema = rb.schema();
+        // TODO proper error handling here if the input schema is bad
+        let schema: Schema = rb
+            .schema()
+            .try_into()
+            .expect("Valid timeseries schema when creating row group");
 
         let mut columns = BTreeMap::new();
-        for (i, col_data) in rb.columns().iter().enumerate() {
-            let col_name = schema.field(i).name();
+        for (i, arrow_column) in rb.columns().iter().enumerate() {
+            let (lp_type, field) = schema.field(i);
+            let col_name = field.name();
 
-            match rb.schema().metadata().get(col_name).unwrap().as_str() {
-                TAG_COLUMN_TYPE => {
-                    let arrow_column = rb.column(i);
+            match lp_type {
+                Some(InfluxColumnType::Tag) => {
                     assert_eq!(arrow_column.data_type(), &arrow::datatypes::DataType::Utf8);
                     let arr: &arrow::array::StringArray = arrow_column
                         .as_any()
@@ -850,8 +859,7 @@ impl From<RecordBatch> for RowGroup {
 
                     columns.insert(col_name.to_owned(), ColumnType::Tag(column_data));
                 }
-                FIELD_COLUMN_TYPE => {
-                    let arrow_column = rb.column(i);
+                Some(InfluxColumnType::Field(_)) => {
                     let column_data = match arrow_column.data_type() {
                         arrow::datatypes::DataType::Int64 => Column::from(
                             arrow_column
@@ -879,10 +887,9 @@ impl From<RecordBatch> for RowGroup {
 
                     columns.insert(col_name.to_owned(), ColumnType::Field(column_data));
                 }
-                TIME_COLUMN_TYPE => {
+                Some(InfluxColumnType::Timestamp) => {
                     assert_eq!(col_name, TIME_COLUMN_NAME);
 
-                    let arrow_column = rb.column(i);
                     let column_data = Column::from(match arrow_column.data_type() {
                         arrow::datatypes::DataType::Int64 => arrow_column
                             .as_any()

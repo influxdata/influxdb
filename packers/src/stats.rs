@@ -1,7 +1,8 @@
 //! Structures for computing and reporting on storage statistics
-use data_types::table_schema::DataType;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
+
+use arrow_deps::arrow::datatypes::DataType;
 
 fn format_size(sz: u64) -> String {
     human_format::Formatter::new().format(sz as f64)
@@ -68,10 +69,10 @@ impl fmt::Display for ColumnStats {
 ///
 /// # Example:
 /// ```
-/// use data_types::table_schema::DataType;
+/// use arrow_deps::arrow::datatypes::DataType;
 /// use packers::stats::ColumnStatsBuilder;
 ///
-/// let stats = ColumnStatsBuilder::new("My Column", 3, DataType::Float)
+/// let stats = ColumnStatsBuilder::new("My Column", 3, DataType::Float64)
 ///    .compression("GZIP")
 ///    .add_rows(3)
 ///    .compression("SNAPPY")
@@ -108,7 +109,7 @@ impl ColumnStatsBuilder {
     /// Add a compression description to this column. As there may be
     /// several all compression descriptions that apply to any single column,
     /// the builder tracks a list of descriptions.
-    pub fn compression(&mut self, compression: &str) -> &mut Self {
+    pub fn compression(mut self, compression: &str) -> Self {
         if !self.compression_descriptions.contains(compression) {
             self.compression_descriptions.insert(compression.into());
         }
@@ -116,25 +117,25 @@ impl ColumnStatsBuilder {
     }
 
     /// Adds `row_count` to the running row count
-    pub fn add_rows(&mut self, row_count: u64) -> &mut Self {
+    pub fn add_rows(mut self, row_count: u64) -> Self {
         self.num_rows += row_count;
         self
     }
 
     /// Adds `byte_count` to the running compressed byte count
-    pub fn add_compressed_bytes(&mut self, byte_count: u64) -> &mut Self {
+    pub fn add_compressed_bytes(mut self, byte_count: u64) -> Self {
         self.num_compressed_bytes += byte_count;
         self
     }
 
     /// Adds `byte_count` to the running uncompressed byte count
-    pub fn add_uncompressed_bytes(&mut self, byte_count: u64) -> &mut Self {
+    pub fn add_uncompressed_bytes(mut self, byte_count: u64) -> Self {
         self.num_uncompressed_bytes += byte_count;
         self
     }
 
     /// Create the resulting ColumnStats
-    pub fn build(&self) -> ColumnStats {
+    pub fn build(self) -> ColumnStats {
         ColumnStats {
             column_name: self.column_name.clone(),
             column_index: self.column_index,
@@ -291,21 +292,21 @@ mod test {
                 num_rows: 0,
                 num_compressed_bytes: 0,
                 num_uncompressed_bytes: 0,
-                data_type: DataType::Float,
+                data_type: DataType::Float64,
             }
         }
     }
 
     #[test]
     fn col_stats_builder_create() {
-        let stats = ColumnStatsBuilder::new("My Column", 7, DataType::Integer).build();
+        let stats = ColumnStatsBuilder::new("My Column", 7, DataType::Int64).build();
 
         assert_eq!(
             stats,
             ColumnStats {
                 column_index: 7,
                 column_name: String::from("My Column"),
-                data_type: DataType::Integer,
+                data_type: DataType::Int64,
                 ..Default::default()
             }
         );
@@ -313,7 +314,7 @@ mod test {
 
     #[test]
     fn col_stats_builder_compression() {
-        let stats = ColumnStatsBuilder::new("My Column", 3, DataType::Float)
+        let stats = ColumnStatsBuilder::new("My Column", 3, DataType::Float64)
             .compression("GZIP")
             .compression("DEFLATE")
             .compression("GZIP")
@@ -332,7 +333,7 @@ mod test {
 
     #[test]
     fn col_stats_builder_add_rows() {
-        let stats = ColumnStatsBuilder::new("My Column", 3, DataType::Float)
+        let stats = ColumnStatsBuilder::new("My Column", 3, DataType::Float64)
             .add_rows(7)
             .add_rows(3)
             .build();
@@ -350,7 +351,7 @@ mod test {
 
     #[test]
     fn col_stats_builder_add_compressed_bytes() {
-        let stats = ColumnStatsBuilder::new("My Column", 3, DataType::Float)
+        let stats = ColumnStatsBuilder::new("My Column", 3, DataType::Float64)
             .add_compressed_bytes(7)
             .add_compressed_bytes(3)
             .build();
@@ -368,7 +369,7 @@ mod test {
 
     #[test]
     fn col_stats_builder_add_uncompressed_bytes() {
-        let stats = ColumnStatsBuilder::new("My Column", 3, DataType::Float)
+        let stats = ColumnStatsBuilder::new("My Column", 3, DataType::Float64)
             .add_uncompressed_bytes(7)
             .add_uncompressed_bytes(3)
             .build();
@@ -393,12 +394,12 @@ mod test {
             num_rows: 123456789,
             num_compressed_bytes: 1234122,
             num_uncompressed_bytes: 5588833,
-            data_type: DataType::Float,
+            data_type: DataType::Float64,
         };
         assert_eq!(
             format!("{}", stats),
             r#"Column Stats 'The Column' [11]
-  Total rows: 123.46 M (123456789), DataType: Float, Compression: Maximum
+  Total rows: 123.46 M (123456789), DataType: Float64, Compression: Maximum
   Compressed/Uncompressed Bytes : 1.23 M     / 5.59 M     ( 1234122 /  5588833) 0.0800 bits per row"#
         );
     }
@@ -412,7 +413,7 @@ mod test {
             num_rows: 123456789,
             num_compressed_bytes: 1234122,
             num_uncompressed_bytes: 5588833,
-            data_type: DataType::Float,
+            data_type: DataType::Float64,
         };
 
         let stats2 = ColumnStats {
@@ -422,7 +423,7 @@ mod test {
             num_rows: 1,
             num_compressed_bytes: 2,
             num_uncompressed_bytes: 3,
-            data_type: DataType::Float,
+            data_type: DataType::Float64,
         };
 
         stats1.merge(&stats2);
@@ -435,7 +436,7 @@ mod test {
                 num_rows: 123456790,
                 num_compressed_bytes: 1234124,
                 num_uncompressed_bytes: 5588836,
-                data_type: DataType::Float,
+                data_type: DataType::Float64,
             }
         );
 
@@ -460,7 +461,7 @@ mod test {
                 num_rows: 2,
                 num_compressed_bytes: 3,
                 num_uncompressed_bytes: 4,
-                data_type: DataType::Float,
+                data_type: DataType::Float64,
             })
             .add_column(ColumnStats {
                 column_index: 11,
@@ -469,7 +470,7 @@ mod test {
                 num_rows: 2,
                 num_compressed_bytes: 30,
                 num_uncompressed_bytes: 40,
-                data_type: DataType::Float,
+                data_type: DataType::Float64,
             })
             .build();
 
@@ -537,7 +538,7 @@ mod test {
                         num_rows: 12,
                         num_compressed_bytes: 0,
                         num_uncompressed_bytes: 0,
-                        data_type: DataType::Float,
+                        data_type: DataType::Float64,
                     },
                     ColumnStats {
                         column_index: 0,
@@ -546,7 +547,7 @@ mod test {
                         num_rows: 13,
                         num_compressed_bytes: 0,
                         num_uncompressed_bytes: 0,
-                        data_type: DataType::Float,
+                        data_type: DataType::Float64,
                     },
                 ],
             }
