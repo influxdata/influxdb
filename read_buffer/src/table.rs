@@ -133,18 +133,18 @@ impl Table {
         // and merge results.
         let rgs = self.filter_row_groups(predicate);
 
-        let schema = match columns {
-            ColumnSelection::All => self.meta.schema_for_all_columns(),
-            ColumnSelection::Some(column_names) => self.meta.schema_for_column_names(column_names),
+        let schema = ResultSchema {
+            select_columns: match columns {
+                ColumnSelection::All => self.meta.schema_for_all_columns(),
+                ColumnSelection::Some(column_names) => {
+                    self.meta.schema_for_column_names(column_names)
+                }
+            },
+            ..ResultSchema::default()
         };
 
-        // temp I think I can remove `columns` and `predicates` from this..
-        let columns = schema
-            .iter()
-            .map(|(name, _)| name.to_string())
-            .collect::<Vec<_>>();
+        // temp I think I can remove `predicates` from the results
         ReadFilterResults {
-            columns,
             predicate: predicate.clone(),
             schema,
             row_groups: rgs,
@@ -444,7 +444,7 @@ impl MetaData {
             size: rg.size(),
             rows: u64::from(rg.rows()),
             column_ranges: rg.column_ranges().clone(),
-            column_types: *rg.column_types().clone(),
+            column_types: rg.column_types().clone(),
             column_data_types: rg.column_logical_types().clone(),
             column_names: rg.column_ranges().keys().cloned().collect(),
             time_range: Some(rg.time_range()),
@@ -462,7 +462,7 @@ impl MetaData {
             .iter()
             .filter_map(|&name| match self.column_types.get(name) {
                 Some(column_type) => Some((
-                    *column_type.clone(),
+                    column_type.clone(),
                     *self.column_data_types.get(name).unwrap(),
                 )),
                 None => None,
@@ -476,7 +476,7 @@ impl MetaData {
             .iter()
             .map(|(name, column_type)| {
                 (
-                    *column_type.clone(),
+                    column_type.clone(),
                     *self.column_data_types.get(name).unwrap(),
                 )
             })
@@ -492,7 +492,7 @@ impl MetaData {
             .iter()
             .filter_map(|(name, agg_type)| match self.column_types.get(*name) {
                 Some(column_type) => Some((
-                    *column_type.clone(),
+                    column_type.clone(),
                     *agg_type,
                     *self.column_data_types.get(*name).unwrap(),
                 )),
@@ -552,14 +552,13 @@ pub enum ColumnSelection<'a> {
 /// row groups are only queried when `ReadFilterResults` is iterated.
 pub struct ReadFilterResults<'table> {
     // schema of all columns in the query results
-    schema: Vec<(String, LogicalDataType)>,
+    schema: ResultSchema,
 
     // These row groups passed the predicates and need to be queried.
     row_groups: Vec<&'table RowGroup>,
 
-    // TODO(edd): encapsulate these into a single executor function that just
+    // TODO(edd): encapsulate this into a single executor function that just
     // executes on the next row group.
-    columns: Vec<String>,
     predicate: Predicate,
 }
 
@@ -570,7 +569,7 @@ impl<'table> ReadFilterResults<'table> {
 
     /// Returns the schema associated with table result and therefore all of the
     /// results for all of row groups in the table results.
-    pub fn schema(&self) -> &Vec<(String, LogicalDataType)> {
+    pub fn schema(&self) -> &ResultSchema {
         &self.schema
     }
 }
@@ -586,8 +585,8 @@ impl<'a> Iterator for ReadFilterResults<'a> {
         let row_group = self.row_groups.remove(0);
         let result = row_group.read_filter(
             &self
-                .columns
-                .iter()
+                .schema()
+                .select_column_names_iter()
                 .map(|name| name.as_str())
                 .collect::<Vec<_>>(),
             &self.predicate,
@@ -610,21 +609,14 @@ impl<'a> Display for DisplayReadFilterResults<'a> {
             return Ok(());
         }
 
-        let schema = self.0[0].schema();
-        // header line.
-        for (i, (k, _)) in schema.iter().enumerate() {
-            write!(f, "{}", k)?;
+        // write out the schema of the first result as the table header
+        std::fmt::Display::fmt(&self.0[0].schema(), f)?;
 
-            if i < schema.len() - 1 {
-                write!(f, ",")?;
-            }
+        // write out each row group result
+        for row_group in self.0.iter() {
+            std::fmt::Display::fmt(&row_group, f)?;
         }
-        writeln!(f)?;
 
-        // Display all the results of each row group
-        for row_group in &self.0 {
-            row_group.fmt(f)?;
-        }
         Ok(())
     }
 }
@@ -789,11 +781,24 @@ mod test {
         );
 
         // check the column types
-        let exp_schema = vec![
-            ("time".to_owned(), LogicalDataType::Integer),
-            ("count".to_owned(), LogicalDataType::Unsigned),
-            ("region".to_owned(), LogicalDataType::String),
-        ];
+        let exp_schema = ResultSchema {
+            select_columns: vec![
+                (
+                    schema::ColumnType::Timestamp("time".to_owned()),
+                    LogicalDataType::Integer,
+                ),
+                (
+                    schema::ColumnType::Field("count".to_owned()),
+                    LogicalDataType::Unsigned,
+                ),
+                (
+                    schema::ColumnType::Tag("region".to_owned()),
+                    LogicalDataType::String,
+                ),
+            ],
+            ..ResultSchema::default()
+        };
+
         assert_eq!(results.schema(), &exp_schema);
 
         let mut all = vec![];

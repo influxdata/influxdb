@@ -2,7 +2,6 @@ use std::{
     borrow::Cow,
     collections::BTreeMap,
     convert::{TryFrom, TryInto},
-    sync::Arc,
 };
 
 use hashbrown::{hash_map, HashMap};
@@ -12,6 +11,7 @@ use crate::column::{
     cmp::Operator, AggregateResult, Column, EncodedValues, OwnedValue, RowIDs, RowIDsOption,
     Scalar, Value, Values, ValuesIterator,
 };
+use crate::schema;
 use crate::schema::{AggregateType, LogicalDataType, ResultSchema};
 use arrow_deps::arrow::record_batch::RecordBatch;
 use arrow_deps::{
@@ -52,20 +52,24 @@ impl RowGroup {
                 ColumnType::Tag(c) => {
                     assert_eq!(c.num_rows(), rows);
 
-                    meta.column_data_types
-                        .insert(name.clone(), c.logical_datatype());
                     meta.column_ranges
                         .insert(name.clone(), c.column_range().unwrap());
+                    meta.column_data_types
+                        .insert(name.clone(), c.logical_datatype());
+                    meta.column_types
+                        .insert(name.clone(), schema::ColumnType::Tag(name.clone()));
                     all_columns_by_name.insert(name.clone(), all_columns.len());
                     all_columns.push(c);
                 }
                 ColumnType::Field(c) => {
                     assert_eq!(c.num_rows(), rows);
 
-                    meta.column_data_types
-                        .insert(name.clone(), c.logical_datatype());
                     meta.column_ranges
                         .insert(name.clone(), c.column_range().unwrap());
+                    meta.column_data_types
+                        .insert(name.clone(), c.logical_datatype());
+                    meta.column_types
+                        .insert(name.clone(), schema::ColumnType::Field(name.clone()));
                     all_columns_by_name.insert(name.clone(), all_columns.len());
                     all_columns.push(c);
                 }
@@ -81,10 +85,12 @@ impl RowGroup {
                         Some((_, _)) => unreachable!("unexpected types for time range"),
                     };
 
-                    meta.column_data_types
-                        .insert(name.clone(), c.logical_datatype());
                     meta.column_ranges
                         .insert(name.clone(), c.column_range().unwrap());
+                    meta.column_data_types
+                        .insert(name.clone(), c.logical_datatype());
+                    meta.column_types
+                        .insert(name.clone(), schema::ColumnType::Timestamp(name.clone()));
 
                     all_columns_by_name.insert(name.clone(), all_columns.len());
                     time_column = Some(all_columns.len());
@@ -186,37 +192,37 @@ impl RowGroup {
         columns: &[ColumnName<'_>],
         predicates: &Predicate,
     ) -> ReadFilterResult<'_> {
-        let row_ids = self.row_ids_from_predicates(predicates);
+        let select_columns = self.meta.schema_for_column_names(&columns);
+        assert_eq!(select_columns.len(), columns.len());
 
-        // ensure meta/data have same lifetime by using column names from row
-        // group rather than from input.
-        let (col_names, col_data) = self.materialise_rows(columns, row_ids);
-        let schema = self.meta.schema_for_column_names(&col_names);
+        let schema = ResultSchema {
+            select_columns,
+            group_columns: vec![],
+            aggregate_columns: vec![],
+        };
+
+        // apply predicates to determine candidate rows.
+        let row_ids = self.row_ids_from_predicates(predicates);
+        let col_data = self.materialise_rows(columns, row_ids);
         ReadFilterResult {
             schema,
             data: col_data,
         }
     }
 
-    fn materialise_rows(
-        &self,
-        names: &[ColumnName<'_>],
-        row_ids: RowIDsOption,
-    ) -> (Vec<&str>, Vec<Values<'_>>) {
-        let mut col_names = Vec::with_capacity(names.len());
+    fn materialise_rows(&self, names: &[ColumnName<'_>], row_ids: RowIDsOption) -> Vec<Values<'_>> {
         let mut col_data = Vec::with_capacity(names.len());
         match row_ids {
-            RowIDsOption::None(_) => (col_names, col_data), // nothing to materialise
+            RowIDsOption::None(_) => col_data, // nothing to materialise
             RowIDsOption::Some(row_ids) => {
                 // TODO(edd): causes an allocation. Implement a way to pass a
                 // pooled buffer to the croaring Bitmap API.
                 let row_ids = row_ids.to_vec();
                 for &name in names {
-                    let (col_name, col) = self.column_name_and_column(name);
-                    col_names.push(col_name);
+                    let (_, col) = self.column_name_and_column(name);
                     col_data.push(col.values(row_ids.as_slice()));
                 }
-                (col_names, col_data)
+                col_data
             }
 
             RowIDsOption::All(_) => {
@@ -226,11 +232,10 @@ impl RowGroup {
                 let row_ids = (0..self.rows()).collect::<Vec<_>>();
 
                 for &name in names {
-                    let (col_name, col) = self.column_name_and_column(name);
-                    col_names.push(col_name);
+                    let (_, col) = self.column_name_and_column(name);
                     col_data.push(col.values(row_ids.as_slice()));
                 }
-                (col_names, col_data)
+                col_data
             }
         }
     }
@@ -1277,7 +1282,7 @@ impl MetaData {
             .map(|&name| {
                 let col_type = self.column_types.get(name).unwrap();
                 let data_type = self.column_data_types.get(name).unwrap();
-                (*col_type.clone(), *data_type)
+                (col_type.clone(), *data_type)
             })
             .collect::<Vec<_>>()
     }
@@ -1293,7 +1298,7 @@ impl MetaData {
                 let col_type = self.column_types.get(*name).unwrap();
                 let data_type = self.column_data_types.get(*name).unwrap();
 
-                (*col_type.clone(), *agg_type, *data_type)
+                (col_type.clone(), *agg_type, *data_type)
             })
             .collect::<Vec<_>>()
     }
@@ -1302,8 +1307,7 @@ impl MetaData {
 /// Encapsulates results from `RowGroup`s with a structure that makes them
 /// easier to work with and display.
 pub struct ReadFilterResult<'row_group> {
-    /// tuples of the form (column_name, data_type)
-    schema: Vec<(String, LogicalDataType)>,
+    schema: ResultSchema,
     data: Vec<Values<'row_group>>,
 }
 
@@ -1312,23 +1316,20 @@ impl ReadFilterResult<'_> {
         self.data.is_empty()
     }
 
-    pub fn schema(&self) -> &Vec<(String, LogicalDataType)> {
+    pub fn schema(&self) -> &ResultSchema {
         &self.schema
     }
+}
 
-    /// Produces a `RecordBatch` from the results, giving up ownership to the
-    /// returned record batch.
-    pub fn record_batch(self) -> arrow::record_batch::RecordBatch {
-        let schema = arrow::datatypes::Schema::new(
-            self.schema()
-                .iter()
-                .map(|(col_name, col_typ)| {
-                    arrow::datatypes::Field::new(col_name, col_typ.to_arrow_datatype(), true)
-                })
-                .collect::<Vec<_>>(),
-        );
+impl TryFrom<ReadFilterResult<'_>> for RecordBatch {
+    type Error = crate::Error;
 
-        let columns = self
+    fn try_from(result: ReadFilterResult<'_>) -> Result<Self, Self::Error> {
+        let schema = data_types::schema::Schema::try_from(result.schema())
+            .map_err(|source| crate::Error::SchemaError { source })?;
+        let arrow_schema: arrow_deps::arrow::datatypes::SchemaRef = schema.into();
+
+        let columns = result
             .data
             .into_iter()
             .map(arrow::array::ArrayRef::from)
@@ -1337,21 +1338,15 @@ impl ReadFilterResult<'_> {
         // try_new only returns an error if the schema is invalid or the number
         // of rows on columns differ. We have full control over both so there
         // should never be an error to return...
-        arrow::record_batch::RecordBatch::try_new(Arc::new(schema), columns).unwrap()
+        arrow::record_batch::RecordBatch::try_new(arrow_schema, columns)
+            .map_err(|source| crate::Error::ArrowError { source })
     }
 }
 
 impl std::fmt::Debug for &ReadFilterResult<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // header line.
-        for (i, (k, _)) in self.schema.iter().enumerate() {
-            write!(f, "{}", k)?;
-
-            if i < self.schema.len() - 1 {
-                write!(f, ",")?;
-            }
-        }
-        writeln!(f)?;
+        // Display the header
+        std::fmt::Display::fmt(self.schema(), f)?;
 
         // Display the rest of the values.
         std::fmt::Display::fmt(&self, f)
@@ -1373,14 +1368,15 @@ impl std::fmt::Display for &ReadFilterResult<'_> {
             .map(|v| ValuesIterator::new(v))
             .collect::<Vec<_>>();
 
+        let columns = iter_map.len();
         while rows < expected_rows {
             if rows > 0 {
                 writeln!(f)?;
             }
 
-            for (i, (k, _)) in self.schema.iter().enumerate() {
-                write!(f, "{}", iter_map[i].next().unwrap())?;
-                if i < self.schema.len() - 1 {
+            for (i, data) in iter_map.iter_mut().enumerate() {
+                write!(f, "{}", data.next().unwrap())?;
+                if i < columns - 1 {
                     write!(f, ",")?;
                 }
             }

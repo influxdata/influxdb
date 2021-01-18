@@ -10,6 +10,7 @@ pub(crate) mod table;
 
 use std::{
     collections::{btree_map::Entry, BTreeMap, BTreeSet},
+    convert::TryInto,
     fmt,
     sync::Arc,
 };
@@ -52,6 +53,11 @@ pub enum Error {
 
     #[snafu(display("unsupported operation: {}", msg))]
     UnsupportedOperation { msg: String },
+
+    #[snafu(display("schema conversion error: {}", source))]
+    SchemaError {
+        source: data_types::schema::builder::Error,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -524,7 +530,10 @@ impl<'input, 'chunk> Iterator for ReadFilterResults<'input, 'chunk> {
             Some(table_results) => {
                 // Table has found results in a row group.
                 if let Some(row_group_result) = table_results.next() {
-                    return Some(row_group_result.record_batch());
+                    // it should not be possible for the conversion to record
+                    // batch to fail here
+                    let rb = row_group_result.try_into();
+                    return Some(rb.unwrap());
                 }
 
                 // no more results for row groups in the table. Try next chunk.
