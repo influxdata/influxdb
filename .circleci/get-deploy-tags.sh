@@ -19,7 +19,7 @@ set -euo pipefail
 
 DOCKER_IMAGE_TAG=${1}
 DOCKER_IMAGE="quay.io/influxdb/fusion"
-APP_NAME="iox"
+APP_NAME="IOx"
 
 DOCKER_IMAGE_INFO="$(docker images "${DOCKER_IMAGE}" --format '{{.Tag}} {{.Digest}}') | grep "${DOCKER_IMAGE_TAG}""
 
