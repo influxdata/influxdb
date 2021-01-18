@@ -920,16 +920,17 @@ func (e *Engine) Free() error {
 func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 	var err error
 	var path string
+L:
 	for i := 0; i < 3; i++ {
 		path, err = e.CreateSnapshot()
-		if err != nil {
-			switch err {
-			case ErrSnapshotInProgress:
-				backoff := time.Duration(math.Pow(32, float64(i))) * time.Millisecond
-				time.Sleep(backoff)
-			default:
-				return err
-			}
+		switch err {
+		case nil:
+			break L
+		case ErrSnapshotInProgress:
+			backoff := time.Duration(math.Pow(32, float64(i))) * time.Millisecond
+			time.Sleep(backoff)
+		default:
+			return err
 		}
 	}
 	if err == ErrSnapshotInProgress {
