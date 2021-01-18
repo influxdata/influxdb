@@ -32,8 +32,6 @@ pub struct RowGroup {
 
     columns: Vec<Column>,
     all_columns_by_name: BTreeMap<String, usize>,
-    tag_columns_by_name: BTreeMap<String, usize>,
-    field_columns_by_name: BTreeMap<String, usize>,
     time_column: usize,
 }
 
@@ -46,8 +44,6 @@ impl RowGroup {
 
         let mut all_columns = vec![];
         let mut all_columns_by_name = BTreeMap::new();
-        let mut tag_columns_by_name = BTreeMap::new();
-        let mut field_columns_by_name = BTreeMap::new();
         let mut time_column = None;
 
         for (name, ct) in columns {
@@ -61,7 +57,6 @@ impl RowGroup {
                     meta.column_ranges
                         .insert(name.clone(), c.column_range().unwrap());
                     all_columns_by_name.insert(name.clone(), all_columns.len());
-                    tag_columns_by_name.insert(name, all_columns.len());
                     all_columns.push(c);
                 }
                 ColumnType::Field(c) => {
@@ -72,7 +67,6 @@ impl RowGroup {
                     meta.column_ranges
                         .insert(name.clone(), c.column_range().unwrap());
                     all_columns_by_name.insert(name.clone(), all_columns.len());
-                    field_columns_by_name.insert(name, all_columns.len());
                     all_columns.push(c);
                 }
                 ColumnType::Time(c) => {
@@ -109,8 +103,6 @@ impl RowGroup {
             meta,
             columns: all_columns,
             all_columns_by_name,
-            tag_columns_by_name,
-            field_columns_by_name,
             time_column: time_column.unwrap(),
         }
     }
