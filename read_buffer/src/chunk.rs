@@ -119,9 +119,9 @@ impl Chunk {
         // Lookup table by name and dispatch execution.
         match self.tables.get(table_name) {
             Some(table) => Ok(table.read_aggregate(predicate, &group_columns, &aggregates)),
-            None => Err(Error::TableNotFound {
-                name: table_name.to_owned(),
-            }),
+            None => TableNotFound {
+                name: table_name,
+            }.fail(),
         }
     }
 
