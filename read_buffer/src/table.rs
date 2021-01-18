@@ -647,6 +647,9 @@ impl<'a> ReadAggregateResults<'a> {
 /// iterator will execute against one or more row groups, merging each row group
 /// result into the last before returning a final set of results.
 ///
+/// Merging in this context means unioning all group keys in multiple sets of
+/// results, and aggregating together aggregates for duplicate group keys.
+///
 /// Given that, it's expected that this iterator will only iterate once, but
 /// perhaps in the future we will break the work up and send intermediate
 /// results back.
