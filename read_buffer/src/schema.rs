@@ -10,24 +10,39 @@ use arrow_deps::arrow;
 /// the read buffer.
 #[derive(Default, PartialEq, Debug)]
 pub struct ResultSchema {
-    pub select_columns: Vec<(String, LogicalDataType)>,
-    pub group_columns: Vec<(String, LogicalDataType)>,
-    pub aggregate_columns: Vec<(String, AggregateType, LogicalDataType)>,
+    pub select_columns: Vec<(ColumnType, LogicalDataType)>,
+    pub group_columns: Vec<(ColumnType, LogicalDataType)>,
+    pub aggregate_columns: Vec<(ColumnType, AggregateType, LogicalDataType)>,
 }
 
 impl ResultSchema {
-    pub fn select_column_names_iter(&self) -> impl Iterator<Item = &str> {
-        self.select_columns.iter().map(|(name, _)| name.as_str())
+    pub fn select_column_names_iter(&self) -> impl Iterator<Item = &String> {
+        self.select_columns.iter().map(|(name, _)| match name {
+            ColumnType::Tag(name) => name,
+            ColumnType::Field(name) => name,
+            ColumnType::Timestamp(name) => name,
+            ColumnType::Other(name) => name,
+        })
     }
 
-    pub fn group_column_names_iter(&self) -> impl Iterator<Item = &str> {
-        self.group_columns.iter().map(|(name, _)| name.as_str())
+    pub fn group_column_names_iter(&self) -> impl Iterator<Item = &String> {
+        self.group_columns.iter().map(|(name, _)| match name {
+            ColumnType::Tag(name) => name,
+            ColumnType::Field(name) => name,
+            ColumnType::Timestamp(name) => name,
+            ColumnType::Other(name) => name,
+        })
     }
 
-    pub fn aggregate_column_names_iter(&self) -> impl Iterator<Item = &str> {
+    pub fn aggregate_column_names_iter(&self) -> impl Iterator<Item = &String> {
         self.aggregate_columns
             .iter()
-            .map(|(name, _, _)| name.as_str())
+            .map(|(name, _, _)| match name {
+                ColumnType::Tag(name) => name,
+                ColumnType::Field(name) => name,
+                ColumnType::Timestamp(name) => name,
+                ColumnType::Other(name) => name,
+            })
     }
 }
 
@@ -114,6 +129,42 @@ impl std::fmt::Display for AggregateType {
                 AggregateType::Min => "min",
                 AggregateType::Max => "max",
                 AggregateType::Sum => "sum",
+            }
+        )
+    }
+}
+
+/// Describes the semantic meaning of the column in a set of results. That is,
+/// whether the column is a "tag", "field", "timestamp", or "other".
+#[derive(PartialEq, Debug, PartialOrd)]
+pub enum ColumnType {
+    Tag(String),
+    Field(String),
+    Timestamp(String),
+    Other(String),
+}
+
+impl ColumnType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ColumnType::Tag(name) => name.as_str(),
+            ColumnType::Field(name) => name.as_str(),
+            ColumnType::Timestamp(name) => name.as_str(),
+            ColumnType::Other(name) => name.as_str(),
+        }
+    }
+}
+
+impl Display for ColumnType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                ColumnType::Tag(name) => name,
+                ColumnType::Field(name) => name,
+                ColumnType::Timestamp(name) => name,
+                ColumnType::Other(name) => name,
             }
         )
     }

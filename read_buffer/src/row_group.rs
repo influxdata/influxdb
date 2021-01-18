@@ -56,7 +56,8 @@ impl RowGroup {
                 ColumnType::Tag(c) => {
                     assert_eq!(c.num_rows(), rows);
 
-                    meta.column_types.insert(name.clone(), c.logical_datatype());
+                    meta.column_data_types
+                        .insert(name.clone(), c.logical_datatype());
                     meta.column_ranges
                         .insert(name.clone(), c.column_range().unwrap());
                     all_columns_by_name.insert(name.clone(), all_columns.len());
@@ -66,7 +67,8 @@ impl RowGroup {
                 ColumnType::Field(c) => {
                     assert_eq!(c.num_rows(), rows);
 
-                    meta.column_types.insert(name.clone(), c.logical_datatype());
+                    meta.column_data_types
+                        .insert(name.clone(), c.logical_datatype());
                     meta.column_ranges
                         .insert(name.clone(), c.column_range().unwrap());
                     all_columns_by_name.insert(name.clone(), all_columns.len());
@@ -85,7 +87,8 @@ impl RowGroup {
                         Some((_, _)) => unreachable!("unexpected types for time range"),
                     };
 
-                    meta.column_types.insert(name.clone(), c.logical_datatype());
+                    meta.column_data_types
+                        .insert(name.clone(), c.logical_datatype());
                     meta.column_ranges
                         .insert(name.clone(), c.column_range().unwrap());
 
@@ -98,7 +101,7 @@ impl RowGroup {
 
         // Meta data should have same columns for types and ranges.
         assert_eq!(
-            meta.column_types.keys().collect::<Vec<_>>(),
+            meta.column_data_types.keys().collect::<Vec<_>>(),
             meta.column_ranges.keys().collect::<Vec<_>>(),
         );
 
@@ -128,9 +131,14 @@ impl RowGroup {
         &self.meta.column_ranges
     }
 
-    /// The logical data-type of each column.
-    pub fn column_logical_types(&self) -> &BTreeMap<String, LogicalDataType> {
+    /// The semantic types of each column.
+    pub fn column_types(&self) -> &BTreeMap<String, crate::schema::ColumnType> {
         &self.meta.column_types
+    }
+
+    /// The logical data-types of each column.
+    pub fn column_logical_types(&self) -> &BTreeMap<String, LogicalDataType> {
+        &self.meta.column_data_types
     }
 
     // Returns a reference to a column from the column name.
@@ -415,8 +423,8 @@ impl RowGroup {
 
         // Materialise values in aggregate columns.
         let mut aggregate_columns_data = Vec::with_capacity(agg_cols_num);
-        for (name, agg_type, _) in &result.schema.aggregate_columns {
-            let col = self.column_by_name(name);
+        for (col_type, agg_type, _) in &result.schema.aggregate_columns {
+            let col = self.column_by_name(col_type.as_str());
 
             // TODO(edd): this materialises a column per aggregate. If there are
             // multiple aggregates for the same column then this will
@@ -644,13 +652,17 @@ impl RowGroup {
             .schema
             .aggregate_columns
             .iter()
-            .map(|(name, typ, _)| (self.column_by_name(name), *typ))
+            .map(|(col_type, agg_type, _)| (self.column_by_name(col_type.as_str()), *agg_type))
             .collect::<Vec<_>>();
 
         let encoded_groups = dst
             .schema
             .group_column_names_iter()
-            .map(|name| self.column_by_name(name).grouped_row_ids().unwrap_left())
+            .map(|col_type| {
+                self.column_by_name(col_type.as_str())
+                    .grouped_row_ids()
+                    .unwrap_left()
+            })
             .collect::<Vec<_>>();
 
         // multi_cartesian_product will create the cartesian product of all
@@ -1210,8 +1222,11 @@ struct MetaData {
     // possibly match based on the range of values a column has.
     column_ranges: BTreeMap<String, (OwnedValue, OwnedValue)>,
 
-    // The logical column types for each column in the `RowGroup`.
-    column_types: BTreeMap<String, LogicalDataType>,
+    // The semantic type of the columns in the row group
+    column_types: BTreeMap<String, crate::schema::ColumnType>,
+
+    // The logical data type of the columns in the row group.
+    column_data_types: BTreeMap<String, LogicalDataType>,
 
     // The total time range of this table spanning all of the `RowGroup`s within
     // the table.
@@ -1261,10 +1276,17 @@ impl MetaData {
     }
 
     // Extract schema information for a set of columns.
-    fn schema_for_column_names(&self, names: &[ColumnName<'_>]) -> Vec<(String, LogicalDataType)> {
+    fn schema_for_column_names(
+        &self,
+        names: &[ColumnName<'_>],
+    ) -> Vec<(crate::schema::ColumnType, LogicalDataType)> {
         names
             .iter()
-            .map(|&name| (name.to_owned(), *self.column_types.get(name).unwrap()))
+            .map(|&name| {
+                let col_type = self.column_types.get(name).unwrap();
+                let data_type = self.column_data_types.get(name).unwrap();
+                (*col_type.clone(), *data_type)
+            })
             .collect::<Vec<_>>()
     }
 
@@ -1272,15 +1294,14 @@ impl MetaData {
     fn schema_for_aggregate_column_names(
         &self,
         columns: &[(ColumnName<'_>, AggregateType)],
-    ) -> Vec<(String, AggregateType, LogicalDataType)> {
+    ) -> Vec<(crate::schema::ColumnType, AggregateType, LogicalDataType)> {
         columns
             .iter()
             .map(|(name, agg_type)| {
-                (
-                    name.to_string(),
-                    *agg_type,
-                    *self.column_types.get(*name).unwrap(),
-                )
+                let col_type = self.column_types.get(*name).unwrap();
+                let data_type = self.column_data_types.get(*name).unwrap();
+
+                (*col_type.clone(), *agg_type, *data_type)
             })
             .collect::<Vec<_>>()
     }
@@ -1466,6 +1487,7 @@ impl std::fmt::Display for &ReadAggregateResult<'_> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::schema;
 
     // Helper function that creates a predicate from a single expression
     fn col_pred(expr: BinaryExpr) -> Predicate {
@@ -1951,17 +1973,23 @@ west,POST,304,101,203
             schema: ResultSchema {
                 select_columns: vec![],
                 group_columns: vec![
-                    ("region".to_owned(), LogicalDataType::String),
-                    ("host".to_owned(), LogicalDataType::String),
+                    (
+                        schema::ColumnType::Tag("region".to_owned()),
+                        LogicalDataType::String,
+                    ),
+                    (
+                        schema::ColumnType::Tag("host".to_owned()),
+                        LogicalDataType::String,
+                    ),
                 ],
                 aggregate_columns: vec![
                     (
-                        "temp".to_owned(),
+                        schema::ColumnType::Field("temp".to_owned()),
                         AggregateType::Sum,
                         LogicalDataType::Integer,
                     ),
                     (
-                        "voltage".to_owned(),
+                        schema::ColumnType::Field("voltage".to_owned()),
                         AggregateType::Count,
                         LogicalDataType::Unsigned,
                     ),

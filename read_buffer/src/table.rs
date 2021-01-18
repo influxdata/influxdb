@@ -4,7 +4,7 @@ use std::slice::Iter;
 
 use crate::column::{AggregateResult, OwnedValue, Scalar, Value};
 use crate::row_group::{self, ColumnName, GroupKey, Predicate, RowGroup};
-use crate::schema::{AggregateType, LogicalDataType, ResultSchema};
+use crate::schema::{AggregateType, ColumnType, LogicalDataType, ResultSchema};
 
 /// A Table represents data for a single measurement.
 ///
@@ -94,7 +94,7 @@ impl Table {
 
     /// The logical data-type of each column in the `Table`'s schema.
     pub fn column_logical_types(&self) -> &BTreeMap<String, LogicalDataType> {
-        &self.meta.column_types
+        &self.meta.column_data_types
     }
 
     // Identify set of row groups that might satisfy the predicate.
@@ -134,7 +134,7 @@ impl Table {
         let rgs = self.filter_row_groups(predicate);
 
         let schema = match columns {
-            ColumnSelection::All => self.meta.schema(),
+            ColumnSelection::All => self.meta.schema_for_all_columns(),
             ColumnSelection::Some(column_names) => self.meta.schema_for_column_names(column_names),
         };
 
@@ -422,8 +422,11 @@ struct MetaData {
     // possibly match based on the range of values a column has.
     column_ranges: BTreeMap<String, (OwnedValue, OwnedValue)>,
 
-    // The `ReadBuffer` logical types associated with the columns in the table
-    column_types: BTreeMap<String, LogicalDataType>,
+    // The semantic type of all columns in the table.
+    column_types: BTreeMap<String, crate::schema::ColumnType>,
+
+    // The logical data type of all columns in the table.
+    column_data_types: BTreeMap<String, LogicalDataType>,
 
     column_names: Vec<String>,
 
@@ -440,16 +443,9 @@ impl MetaData {
         Self {
             size: rg.size(),
             rows: u64::from(rg.rows()),
-            column_ranges: rg
-                .column_ranges()
-                .iter()
-                .map(|(k, v)| (k.to_string(), (v.0.clone(), v.1.clone())))
-                .collect(),
-            column_types: rg
-                .column_logical_types()
-                .iter()
-                .map(|(k, v)| (k.clone(), *v))
-                .collect(),
+            column_ranges: rg.column_ranges().clone(),
+            column_types: *rg.column_types().clone(),
+            column_data_types: rg.column_logical_types().clone(),
             column_names: rg.column_ranges().keys().cloned().collect(),
             time_range: Some(rg.time_range()),
         }
@@ -458,12 +454,31 @@ impl MetaData {
     // Extract schema information for a set of columns. If a column name does
     // not exist within the `Table` schema it is ignored and not present within
     // the resulting schema information.
-    fn schema_for_column_names(&self, names: &[ColumnName<'_>]) -> Vec<(String, LogicalDataType)> {
+    fn schema_for_column_names(
+        &self,
+        names: &[ColumnName<'_>],
+    ) -> Vec<(ColumnType, LogicalDataType)> {
         names
             .iter()
-            .filter_map(|&name| match self.column_types.get_key_value(name) {
-                Some((name, data_type)) => Some((name.clone(), *data_type)),
+            .filter_map(|&name| match self.column_types.get(name) {
+                Some(column_type) => Some((
+                    *column_type.clone(),
+                    *self.column_data_types.get(name).unwrap(),
+                )),
                 None => None,
+            })
+            .collect::<Vec<_>>()
+    }
+
+    // As `schema_for_column_names` but for all columns in the table.
+    fn schema_for_all_columns(&self) -> Vec<(ColumnType, LogicalDataType)> {
+        self.column_types
+            .iter()
+            .map(|(name, column_type)| {
+                (
+                    *column_type.clone(),
+                    *self.column_data_types.get(name).unwrap(),
+                )
             })
             .collect::<Vec<_>>()
     }
@@ -472,23 +487,17 @@ impl MetaData {
     fn schema_for_aggregate_column_names(
         &self,
         names: &[(ColumnName<'_>, AggregateType)],
-    ) -> Vec<(String, AggregateType, LogicalDataType)> {
+    ) -> Vec<(ColumnType, AggregateType, LogicalDataType)> {
         names
             .iter()
-            .filter_map(
-                |(name, agg_type)| match self.column_types.get_key_value(*name) {
-                    Some((name, data_type)) => Some((name.clone(), *agg_type, *data_type)),
-                    None => None,
-                },
-            )
-            .collect::<Vec<_>>()
-    }
-
-    // Extract all schema information for the `Table`.
-    fn schema(&self) -> Vec<(String, LogicalDataType)> {
-        self.column_types
-            .iter()
-            .map(|(k, v)| (k.clone(), *v))
+            .filter_map(|(name, agg_type)| match self.column_types.get(*name) {
+                Some(column_type) => Some((
+                    *column_type.clone(),
+                    *agg_type,
+                    *self.column_data_types.get(*name).unwrap(),
+                )),
+                None => None,
+            })
             .collect::<Vec<_>>()
     }
 
@@ -501,9 +510,10 @@ impl MetaData {
         self.size += rg.size();
         self.rows += u64::from(rg.rows());
 
-        // The incoming row group must have the same schema as the existing row
-        // groups in the table.
-        assert_eq!(&self.column_types, rg.column_logical_types());
+        // The incoming row group must have exactly the same schema as the
+        // existing row groups in the table.
+        assert_eq!(&self.column_types, rg.column_types());
+        assert_eq!(&self.column_data_types, rg.column_logical_types());
 
         assert_eq!(self.column_ranges.len(), rg.column_ranges().len());
         for (column_name, (column_range_min, column_range_max)) in rg.column_ranges() {
@@ -659,7 +669,11 @@ impl<'a> Iterator for ReadAggregateResults<'a> {
 
         let merged_results = self.row_groups.remove(0).read_aggregate(
             &self.predicate,
-            &self.schema.group_column_names_iter().collect::<Vec<_>>(),
+            &self
+                .schema
+                .group_column_names_iter()
+                .map(|s| s.as_str())
+                .collect::<Vec<_>>(),
             &self
                 .schema
                 .aggregate_columns
@@ -674,7 +688,11 @@ impl<'a> Iterator for ReadAggregateResults<'a> {
         for row_group in &self.row_groups {
             let result = row_group.read_aggregate(
                 &self.predicate,
-                &self.schema.group_column_names_iter().collect::<Vec<_>>(),
+                &self
+                    .schema
+                    .group_column_names_iter()
+                    .map(|s| s.as_str())
+                    .collect::<Vec<_>>(),
                 &self
                     .schema
                     .aggregate_columns
@@ -722,6 +740,7 @@ mod test {
     use super::*;
     use crate::column::Column;
     use crate::row_group::{BinaryExpr, ColumnType, ReadAggregateResult};
+    use crate::schema;
     use crate::schema::LogicalDataType;
 
     #[test]
@@ -829,11 +848,17 @@ mod test {
                 schema: ResultSchema {
                     select_columns: vec![],
                     group_columns: vec![
-                        ("region".to_owned(), LogicalDataType::String),
-                        ("host".to_owned(), LogicalDataType::String),
+                        (
+                            schema::ColumnType::Tag("region".to_owned()),
+                            LogicalDataType::String,
+                        ),
+                        (
+                            schema::ColumnType::Tag("host".to_owned()),
+                            LogicalDataType::String,
+                        ),
                     ],
                     aggregate_columns: vec![(
-                        "temp".to_owned(),
+                        schema::ColumnType::Tag("temp".to_owned()),
                         AggregateType::Sum,
                         LogicalDataType::Integer,
                     )],
@@ -845,11 +870,17 @@ mod test {
                 schema: ResultSchema {
                     select_columns: vec![],
                     group_columns: vec![
-                        ("region".to_owned(), LogicalDataType::String),
-                        ("host".to_owned(), LogicalDataType::String),
+                        (
+                            schema::ColumnType::Tag("region".to_owned()),
+                            LogicalDataType::String,
+                        ),
+                        (
+                            schema::ColumnType::Tag("host".to_owned()),
+                            LogicalDataType::String,
+                        ),
                     ],
                     aggregate_columns: vec![(
-                        "temp".to_owned(),
+                        schema::ColumnType::Tag("temp".to_owned()),
                         AggregateType::Sum,
                         LogicalDataType::Integer,
                     )],
