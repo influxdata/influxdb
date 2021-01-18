@@ -53,11 +53,6 @@ pub enum Error {
 
     #[snafu(display("unsupported operation: {}", msg))]
     UnsupportedOperation { msg: String },
-
-    #[snafu(display("schema conversion error: {}", source))]
-    SchemaError {
-        source: data_types::schema::builder::Error,
-    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

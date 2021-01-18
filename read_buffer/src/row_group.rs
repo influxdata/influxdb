@@ -6,6 +6,7 @@ use std::{
 
 use hashbrown::{hash_map, HashMap};
 use itertools::Itertools;
+use snafu::Snafu;
 
 use crate::column::{
     cmp::Operator, AggregateResult, Column, EncodedValues, OwnedValue, RowIDs, RowIDsOption,
@@ -22,6 +23,21 @@ use data_types::schema::{InfluxColumnType, Schema};
 
 /// The name used for a timestamp column.
 pub const TIME_COLUMN_NAME: &str = data_types::TIME_COLUMN_NAME;
+
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display("arrow conversion error: {}", source))]
+    ArrowError {
+        source: arrow_deps::arrow::error::ArrowError,
+    },
+
+    #[snafu(display("schema conversion error: {}", source))]
+    SchemaError {
+        source: data_types::schema::builder::Error,
+    },
+}
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// A `RowGroup` is an immutable horizontal chunk of a single `Table`. By
 /// definition it has the same schema as all the other read groups in the table.
@@ -1333,11 +1349,11 @@ impl ReadFilterResult<'_> {
 }
 
 impl TryFrom<ReadFilterResult<'_>> for RecordBatch {
-    type Error = crate::Error;
+    type Error = Error;
 
     fn try_from(result: ReadFilterResult<'_>) -> Result<Self, Self::Error> {
         let schema = data_types::schema::Schema::try_from(result.schema())
-            .map_err(|source| crate::Error::SchemaError { source })?;
+            .map_err(|source| Error::SchemaError { source })?;
         let arrow_schema: arrow_deps::arrow::datatypes::SchemaRef = schema.into();
 
         let columns = result
@@ -1350,7 +1366,7 @@ impl TryFrom<ReadFilterResult<'_>> for RecordBatch {
         // of rows on columns differ. We have full control over both so there
         // should never be an error to return...
         arrow::record_batch::RecordBatch::try_new(arrow_schema, columns)
-            .map_err(|source| crate::Error::ArrowError { source })
+            .map_err(|source| Error::ArrowError { source })
     }
 }
 
