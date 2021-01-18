@@ -2,9 +2,9 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Display;
 use std::slice::Iter;
 
-use crate::column::{AggregateResult, AggregateType, OwnedValue, Scalar, Value};
+use crate::column::{AggregateResult, OwnedValue, Scalar, Value};
 use crate::row_group::{self, ColumnName, GroupKey, Predicate, RowGroup};
-use crate::schema::{LogicalDataType, ResultSchema};
+use crate::schema::{AggregateType, LogicalDataType, ResultSchema};
 
 /// A Table represents data for a single measurement.
 ///

@@ -2,8 +2,6 @@ use std::fmt::Display;
 
 use arrow_deps::arrow;
 
-use crate::AggregateType;
-
 /// A schema that is used to track the names and semantics of columns returned
 /// in results out of various operations on a row group.
 ///
@@ -85,5 +83,38 @@ impl LogicalDataType {
             LogicalDataType::Binary => arrow::datatypes::DataType::Binary,
             LogicalDataType::Boolean => arrow::datatypes::DataType::Boolean,
         }
+    }
+}
+
+/// These variants describe supported aggregates that can applied to columnar
+/// data in the Read Buffer.
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum AggregateType {
+    Count,
+    First,
+    Last,
+    Min,
+    Max,
+    Sum,
+    /* TODO - support:
+     * Distinct - (edd): not sure this counts as an aggregations. Seems more like a special
+     * filter. CountDistinct
+     * Percentile */
+}
+
+impl std::fmt::Display for AggregateType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                AggregateType::Count => "count",
+                AggregateType::First => "first",
+                AggregateType::Last => "last",
+                AggregateType::Min => "min",
+                AggregateType::Max => "max",
+                AggregateType::Sum => "sum",
+            }
+        )
     }
 }

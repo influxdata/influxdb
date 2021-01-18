@@ -13,7 +13,7 @@ use either::Either;
 
 use arrow_deps::{arrow, arrow::array::Array};
 
-use crate::schema::LogicalDataType;
+use crate::schema::{AggregateType, LogicalDataType};
 
 // Edd's totally made up magic constant. This determines whether we would use
 // a run-length encoded dictionary encoding or just a plain dictionary encoding.
@@ -2177,39 +2177,6 @@ impl From<&arrow::array::Float64Array> for Column {
         }
 
         todo!("figure out how to run off of a borrowed arrow array");
-    }
-}
-
-/// These variants describe supported aggregates that can applied to columnar
-/// data.
-#[derive(Copy, Clone, PartialEq, Debug)]
-pub enum AggregateType {
-    Count,
-    First,
-    Last,
-    Min,
-    Max,
-    Sum,
-    /* TODO - support:
-     * Distinct - (edd): not sure this counts as an aggregations. Seems more like a special
-     * filter. CountDistinct
-     * Percentile */
-}
-
-impl std::fmt::Display for AggregateType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                AggregateType::Count => "count",
-                AggregateType::First => "first",
-                AggregateType::Last => "last",
-                AggregateType::Min => "min",
-                AggregateType::Max => "max",
-                AggregateType::Sum => "sum",
-            }
-        )
     }
 }
 

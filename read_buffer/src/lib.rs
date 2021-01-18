@@ -22,8 +22,8 @@ use arrow_deps::arrow::{
 use snafu::{ResultExt, Snafu};
 
 // Identifiers that are exported as part of the public API.
-pub use column::AggregateType;
 pub use row_group::{BinaryExpr, Predicate};
+pub use schema::*;
 pub use table::ColumnSelection;
 
 use chunk::Chunk;

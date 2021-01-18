@@ -1,10 +1,11 @@
 use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
+use crate::row_group::RowGroup;
 use crate::row_group::{ColumnName, Predicate};
+use crate::schema::AggregateType;
 use crate::table;
 use crate::table::{ColumnSelection, Table};
 use crate::Error;
-use crate::{column::AggregateType, row_group::RowGroup};
 
 type TableName = String;
 

@@ -9,10 +9,10 @@ use hashbrown::{hash_map, HashMap};
 use itertools::Itertools;
 
 use crate::column::{
-    cmp::Operator, AggregateResult, AggregateType, Column, EncodedValues, OwnedValue, RowIDs,
-    RowIDsOption, Scalar, Value, Values, ValuesIterator,
+    cmp::Operator, AggregateResult, Column, EncodedValues, OwnedValue, RowIDs, RowIDsOption,
+    Scalar, Value, Values, ValuesIterator,
 };
-use crate::schema::{LogicalDataType, ResultSchema};
+use crate::schema::{AggregateType, LogicalDataType, ResultSchema};
 use arrow_deps::arrow::record_batch::RecordBatch;
 use arrow_deps::{
     arrow, datafusion::logical_plan::Expr as DfExpr,
