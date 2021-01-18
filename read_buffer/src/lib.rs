@@ -20,7 +20,7 @@ use arrow_deps::arrow::{
     datatypes::{DataType::Utf8, Field, Schema},
     record_batch::RecordBatch,
 };
-use snafu::{ResultExt, Snafu};
+use snafu::{ensure, ResultExt, Snafu};
 
 // Identifiers that are exported as part of the public API.
 pub use row_group::{BinaryExpr, Predicate};
@@ -205,6 +205,18 @@ impl Database {
             Some(partition) => {
                 let mut chunks = vec![];
                 for chunk_id in chunk_ids {
+                    let chunk = partition
+                        .chunks
+                        .get(chunk_id)
+                        .ok_or_else(|| Error::ChunkNotFound { id: *chunk_id })?;
+
+                    ensure!(
+                        chunk.has_table(table_name),
+                        TableNotFound {
+                            table_name: table_name.to_owned(),
+                        }
+                    );
+
                     chunks.push(
                         partition
                             .chunks
@@ -518,10 +530,10 @@ impl<'input, 'chunk> Iterator for ReadFilterResults<'input, 'chunk> {
 
         // Try next chunk's table.
         if self.curr_table_results.is_none() {
-            self.curr_table_results = self.chunks[self.next_i].read_filter(
-                self.table_name,
-                &self.predicate,
-                &self.select_columns,
+            self.curr_table_results = Some(
+                self.chunks[self.next_i]
+                    .read_filter(self.table_name, &self.predicate, &self.select_columns)
+                    .unwrap(),
             );
         }
 
