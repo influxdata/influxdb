@@ -1283,6 +1283,7 @@ impl MetaData {
 /// Encapsulates results from `RowGroup`s with a structure that makes them
 /// easier to work with and display.
 pub struct ReadFilterResult<'row_group> {
+    /// tuples of the form (column_name, data_type)
     schema: Vec<(String, LogicalDataType)>,
     data: Vec<Values<'row_group>>,
 }
