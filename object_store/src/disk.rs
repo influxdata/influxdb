@@ -34,6 +34,11 @@ impl File {
         FileConverter::convert(&path)
     }
 
+    /// Return a new location path appropriate for this object storage
+    pub fn new_path(&self) -> ObjectStorePath {
+        ObjectStorePath::default()
+    }
+
     /// Save the provided bytes to the specified location.
     pub async fn put<S>(&self, location: &ObjectStorePath, bytes: S, length: usize) -> Result<()>
     where
@@ -161,7 +166,8 @@ mod tests {
         let integration = ObjectStore::new_file(File::new(root.path()));
 
         let bytes = stream::once(async { Ok(Bytes::from("hello world")) });
-        let location = ObjectStorePath::from_path_buf_unchecked("junk");
+        let mut location = integration.new_path();
+        location.set_file_name("junk");
         let res = integration.put(&location, bytes, 0).await;
 
         assert!(matches!(
@@ -178,14 +184,14 @@ mod tests {
     #[tokio::test]
     async fn creates_dir_if_not_present() -> Result<()> {
         let root = TempDir::new()?;
-        let storage = ObjectStore::new_file(File::new(root.path()));
+        let integration = ObjectStore::new_file(File::new(root.path()));
 
         let data = Bytes::from("arbitrary data");
-        let mut location = ObjectStorePath::default();
+        let mut location = integration.new_path();
         location.push_all_dirs(&["nested", "file", "test_file"]);
 
         let stream_data = std::io::Result::Ok(data.clone());
-        storage
+        integration
             .put(
                 &location,
                 futures::stream::once(async move { stream_data }),
@@ -193,7 +199,7 @@ mod tests {
             )
             .await?;
 
-        let read_data = storage
+        let read_data = integration
             .get(&location)
             .await?
             .map_ok(|b| bytes::BytesMut::from(&b[..]))

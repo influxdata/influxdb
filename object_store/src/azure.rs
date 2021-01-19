@@ -65,6 +65,11 @@ impl MicrosoftAzure {
         Self::new(account, master_key, container_name)
     }
 
+    /// Return a new location path appropriate for this object storage
+    pub fn new_path(&self) -> ObjectStorePath {
+        ObjectStorePath::default()
+    }
+
     /// Save the provided bytes to the specified location.
     pub async fn put<S>(&self, location: &ObjectStorePath, bytes: S, length: usize) -> Result<()>
     where

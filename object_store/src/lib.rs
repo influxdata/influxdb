@@ -65,6 +65,18 @@ impl ObjectStore {
         Self(ObjectStoreIntegration::MicrosoftAzure(Box::new(azure)))
     }
 
+    /// Return a new location path appropriate for this object storage
+    pub fn new_path(&self) -> ObjectStorePath {
+        use ObjectStoreIntegration::*;
+        match &self.0 {
+            AmazonS3(s3) => s3.new_path(),
+            GoogleCloudStorage(gcs) => gcs.new_path(),
+            InMemory(in_mem) => in_mem.new_path(),
+            File(file) => file.new_path(),
+            MicrosoftAzure(azure) => azure.new_path(),
+        }
+    }
+
     /// Save the provided bytes to the specified location.
     pub async fn put<S>(&self, location: &ObjectStorePath, bytes: S, length: usize) -> Result<()>
     where
@@ -368,7 +380,7 @@ mod tests {
         );
 
         let data = Bytes::from("arbitrary data");
-        let mut location = ObjectStorePath::default();
+        let mut location = storage.new_path();
         location.push_dir("test_dir");
         location.set_file_name("test_file.json");
 
@@ -386,13 +398,13 @@ mod tests {
         assert_eq!(content_list, &[location.clone()]);
 
         // List everything starting with a prefix that should return results
-        let mut prefix = ObjectStorePath::default();
+        let mut prefix = storage.new_path();
         prefix.push_dir("test_dir");
         let content_list = flatten_list_stream(storage, Some(&prefix)).await?;
         assert_eq!(content_list, &[location.clone()]);
 
         // List everything starting with a prefix that shouldn't return results
-        let mut prefix = ObjectStorePath::default();
+        let mut prefix = storage.new_path();
         prefix.push_dir("something");
         let content_list = flatten_list_stream(storage, Some(&prefix)).await?;
         assert!(content_list.is_empty());
@@ -447,7 +459,7 @@ mod tests {
                 .unwrap();
         }
 
-        let mut prefix = ObjectStorePath::default();
+        let mut prefix = storage.new_path();
         prefix.push_all_dirs(&["mydb", "wal"]);
 
         let mut expected_000 = prefix.clone();
@@ -469,11 +481,11 @@ mod tests {
         assert!(object.last_modified > time_before_creation);
 
         // List with a prefix containing a partial "file name"
-        let mut prefix = ObjectStorePath::default();
+        let mut prefix = storage.new_path();
         prefix.push_all_dirs(&["mydb", "wal", "000", "000"]);
         prefix.set_file_name("001");
 
-        let mut expected_location = ObjectStorePath::default();
+        let mut expected_location = storage.new_path();
         expected_location.push_all_dirs(&["mydb", "wal", "000", "000"]);
         expected_location.set_file_name("001.segment");
 
@@ -499,8 +511,11 @@ mod tests {
         storage: &ObjectStore,
         location: Option<ObjectStorePath>,
     ) -> Result<Bytes> {
-        let location = location
-            .unwrap_or_else(|| ObjectStorePath::from_cloud_unchecked("this_file_should_not_exist"));
+        let location = location.unwrap_or_else(|| {
+            let mut loc = storage.new_path();
+            loc.set_file_name("this_file_should_not_exist");
+            loc
+        });
 
         let content_list = flatten_list_stream(storage, Some(&location)).await?;
         assert!(content_list.is_empty());

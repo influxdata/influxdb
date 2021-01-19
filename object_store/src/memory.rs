@@ -36,6 +36,11 @@ impl InMemory {
         }
     }
 
+    /// Return a new location path appropriate for this object storage
+    pub fn new_path(&self) -> ObjectStorePath {
+        ObjectStorePath::default()
+    }
+
     /// Save the provided bytes to the specified location.
     pub async fn put<S>(&self, location: &ObjectStorePath, bytes: S, length: usize) -> Result<()>
     where
@@ -186,7 +191,8 @@ mod tests {
         let integration = ObjectStore::new_in_memory(InMemory::new());
 
         let bytes = stream::once(async { Ok(Bytes::from("hello world")) });
-        let location = ObjectStorePath::from_cloud_unchecked("junk");
+        let mut location = integration.new_path();
+        location.set_file_name("junk");
         let res = integration.put(&location, bytes, 0).await;
 
         assert!(matches!(

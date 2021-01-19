@@ -221,7 +221,7 @@ impl<M: ConnectionManager> Server<M> {
     fn root_path(&self) -> Result<ObjectStorePath> {
         let id = self.require_id()?;
 
-        let mut path = ObjectStorePath::default();
+        let mut path = self.store.new_path();
         path.push_dir(format!("{}", id));
         Ok(path)
     }
@@ -610,11 +610,13 @@ mod tests {
             .await
             .expect("failed to create database");
 
+        let mut rules_path = store.new_path();
+        rules_path.push_all_dirs(&["1", name]);
+        rules_path.set_file_name("rules.json");
+
         let read_data = server
             .store
-            .get(&ObjectStorePath::from_cloud_unchecked(
-                "1/bananas/rules.json",
-            ))
+            .get(&rules_path)
             .await
             .unwrap()
             .map_ok(|b| bytes::BytesMut::from(&b[..]))
@@ -633,10 +635,7 @@ mod tests {
             .await
             .expect("failed to create 2nd db");
 
-        store
-            .list_with_delimiter(&ObjectStorePath::from_cloud_unchecked(""))
-            .await
-            .unwrap();
+        store.list_with_delimiter(&store.new_path()).await.unwrap();
 
         let manager = TestConnectionManager::new();
         let server2 = Server::new(manager, store);
@@ -895,7 +894,10 @@ partition_key:
         // write lines should have caused a segment rollover and persist, wait
         tokio::task::yield_now().await;
 
-        let path = ObjectStorePath::from_cloud_unchecked("1/my_db/wal/000/000/001.segment");
+        let mut path = store.new_path();
+        path.push_all_dirs(&["1", "my_db", "wal", "000", "000"]);
+        path.set_file_name("001.segment");
+
         let data = store
             .get(&path)
             .await

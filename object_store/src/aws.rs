@@ -54,6 +54,11 @@ impl AmazonS3 {
         }
     }
 
+    /// Return a new location path appropriate for this object storage
+    pub fn new_path(&self) -> ObjectStorePath {
+        ObjectStorePath::default()
+    }
+
     /// Save the provided bytes to the specified location.
     pub async fn put<S>(&self, location: &ObjectStorePath, bytes: S, length: usize) -> Result<()>
     where
@@ -309,7 +314,6 @@ impl Error {
 #[cfg(test)]
 mod tests {
     use crate::{
-        path::ObjectStorePath,
         tests::{get_nonexistent_object, list_with_delimiter, put_get_delete_list},
         AmazonS3, Error, ObjectStore,
     };
@@ -417,9 +421,10 @@ mod tests {
         let (_, bucket_name) = region_and_bucket_name()?;
         let region = rusoto_core::Region::UsWest1;
         let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
-        let location_name = ObjectStorePath::from_cloud_unchecked(NON_EXISTENT_NAME);
+        let mut location = integration.new_path();
+        location.set_file_name(NON_EXISTENT_NAME);
 
-        let err = get_nonexistent_object(&integration, Some(location_name))
+        let err = get_nonexistent_object(&integration, Some(location))
             .await
             .unwrap_err();
         if let Some(Error::UnableToListDataFromS3 { source, bucket }) =
@@ -439,9 +444,10 @@ mod tests {
         maybe_skip_integration!();
         let (region, bucket_name) = region_and_bucket_name()?;
         let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
-        let location_name = ObjectStorePath::from_cloud_unchecked(NON_EXISTENT_NAME);
+        let mut location = integration.new_path();
+        location.set_file_name(NON_EXISTENT_NAME);
 
-        let err = get_nonexistent_object(&integration, Some(location_name))
+        let err = get_nonexistent_object(&integration, Some(location))
             .await
             .unwrap_err();
         if let Some(Error::UnableToGetDataFromS3 {
@@ -469,9 +475,10 @@ mod tests {
         let (region, _) = region_and_bucket_name()?;
         let bucket_name = NON_EXISTENT_NAME;
         let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, bucket_name));
-        let location_name = ObjectStorePath::from_cloud_unchecked(NON_EXISTENT_NAME);
+        let mut location = integration.new_path();
+        location.set_file_name(NON_EXISTENT_NAME);
 
-        let err = get_nonexistent_object(&integration, Some(location_name))
+        let err = get_nonexistent_object(&integration, Some(location))
             .await
             .unwrap_err();
         if let Some(Error::UnableToListDataFromS3 { source, bucket }) =
@@ -496,13 +503,14 @@ mod tests {
         let (_, bucket_name) = region_and_bucket_name()?;
         let region = rusoto_core::Region::UsWest1;
         let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
-        let location_name = ObjectStorePath::from_cloud_unchecked(NON_EXISTENT_NAME);
+        let mut location = integration.new_path();
+        location.set_file_name(NON_EXISTENT_NAME);
         let data = Bytes::from("arbitrary data");
         let stream_data = std::io::Result::Ok(data.clone());
 
         let err = integration
             .put(
-                &location_name,
+                &location,
                 futures::stream::once(async move { stream_data }),
                 data.len(),
             )
@@ -531,13 +539,14 @@ mod tests {
         let (region, _) = region_and_bucket_name()?;
         let bucket_name = NON_EXISTENT_NAME;
         let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, bucket_name));
-        let location_name = ObjectStorePath::from_cloud_unchecked(NON_EXISTENT_NAME);
+        let mut location = integration.new_path();
+        location.set_file_name(NON_EXISTENT_NAME);
         let data = Bytes::from("arbitrary data");
         let stream_data = std::io::Result::Ok(data.clone());
 
         let err = integration
             .put(
-                &location_name,
+                &location,
                 futures::stream::once(async move { stream_data }),
                 data.len(),
             )
@@ -565,9 +574,10 @@ mod tests {
         maybe_skip_integration!();
         let (region, bucket_name) = region_and_bucket_name()?;
         let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
-        let location_name = ObjectStorePath::from_cloud_unchecked(NON_EXISTENT_NAME);
+        let mut location = integration.new_path();
+        location.set_file_name(NON_EXISTENT_NAME);
 
-        let result = integration.delete(&location_name).await;
+        let result = integration.delete(&location).await;
 
         assert!(result.is_ok());
 
@@ -581,9 +591,10 @@ mod tests {
         let (_, bucket_name) = region_and_bucket_name()?;
         let region = rusoto_core::Region::UsWest1;
         let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
-        let location_name = ObjectStorePath::from_cloud_unchecked(NON_EXISTENT_NAME);
+        let mut location = integration.new_path();
+        location.set_file_name(NON_EXISTENT_NAME);
 
-        let err = integration.delete(&location_name).await.unwrap_err();
+        let err = integration.delete(&location).await.unwrap_err();
         if let Error::UnableToDeleteDataFromS3 {
             source,
             bucket,
@@ -606,9 +617,10 @@ mod tests {
         let (region, _) = region_and_bucket_name()?;
         let bucket_name = NON_EXISTENT_NAME;
         let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, bucket_name));
-        let location_name = ObjectStorePath::from_cloud_unchecked(NON_EXISTENT_NAME);
+        let mut location = integration.new_path();
+        location.set_file_name(NON_EXISTENT_NAME);
 
-        let err = integration.delete(&location_name).await.unwrap_err();
+        let err = integration.delete(&location).await.unwrap_err();
         if let Error::UnableToDeleteDataFromS3 {
             source,
             bucket,

@@ -24,6 +24,11 @@ impl GoogleCloudStorage {
         }
     }
 
+    /// Return a new location path appropriate for this object storage
+    pub fn new_path(&self) -> ObjectStorePath {
+        ObjectStorePath::default()
+    }
+
     /// Save the provided bytes to the specified location.
     pub async fn put<S>(&self, location: &ObjectStorePath, bytes: S, length: usize) -> Result<()>
     where
@@ -142,7 +147,6 @@ impl GoogleCloudStorage {
 #[cfg(test)]
 mod test {
     use crate::{
-        path::ObjectStorePath,
         tests::{get_nonexistent_object, put_get_delete_list},
         Error, GoogleCloudStorage, ObjectStore,
     };
@@ -196,11 +200,13 @@ mod test {
     async fn gcs_test_get_nonexistent_location() -> Result<()> {
         maybe_skip_integration!();
         let bucket_name = bucket_name()?;
-        let location_name = ObjectStorePath::from_cloud_unchecked(NON_EXISTENT_NAME);
         let integration =
             ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(&bucket_name));
 
-        let result = get_nonexistent_object(&integration, Some(location_name)).await?;
+        let mut location = integration.new_path();
+        location.set_file_name(NON_EXISTENT_NAME);
+
+        let result = get_nonexistent_object(&integration, Some(location)).await?;
 
         assert_eq!(
             result,
@@ -217,11 +223,13 @@ mod test {
     async fn gcs_test_get_nonexistent_bucket() -> Result<()> {
         maybe_skip_integration!();
         let bucket_name = NON_EXISTENT_NAME;
-        let location_name = ObjectStorePath::from_cloud_unchecked(NON_EXISTENT_NAME);
         let integration =
             ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(bucket_name));
 
-        let result = get_nonexistent_object(&integration, Some(location_name)).await?;
+        let mut location = integration.new_path();
+        location.set_file_name(NON_EXISTENT_NAME);
+
+        let result = get_nonexistent_object(&integration, Some(location)).await?;
 
         assert_eq!(result, Bytes::from("Not Found"));
 
@@ -232,11 +240,13 @@ mod test {
     async fn gcs_test_delete_nonexistent_location() -> Result<()> {
         maybe_skip_integration!();
         let bucket_name = bucket_name()?;
-        let location_name = ObjectStorePath::from_cloud_unchecked(NON_EXISTENT_NAME);
         let integration =
             ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(&bucket_name));
 
-        let err = integration.delete(&location_name).await.unwrap_err();
+        let mut location = integration.new_path();
+        location.set_file_name(NON_EXISTENT_NAME);
+
+        let err = integration.delete(&location).await.unwrap_err();
 
         if let Error::UnableToDeleteDataFromGcs {
             source,
@@ -258,11 +268,13 @@ mod test {
     async fn gcs_test_delete_nonexistent_bucket() -> Result<()> {
         maybe_skip_integration!();
         let bucket_name = NON_EXISTENT_NAME;
-        let location_name = ObjectStorePath::from_cloud_unchecked(NON_EXISTENT_NAME);
         let integration =
             ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(bucket_name));
 
-        let err = integration.delete(&location_name).await.unwrap_err();
+        let mut location = integration.new_path();
+        location.set_file_name(NON_EXISTENT_NAME);
+
+        let err = integration.delete(&location).await.unwrap_err();
 
         if let Error::UnableToDeleteDataFromGcs {
             source,
@@ -284,15 +296,18 @@ mod test {
     async fn gcs_test_put_nonexistent_bucket() -> Result<()> {
         maybe_skip_integration!();
         let bucket_name = NON_EXISTENT_NAME;
-        let location_name = ObjectStorePath::from_cloud_unchecked(NON_EXISTENT_NAME);
         let integration =
             ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(bucket_name));
+
+        let mut location = integration.new_path();
+        location.set_file_name(NON_EXISTENT_NAME);
+
         let data = Bytes::from("arbitrary data");
         let stream_data = std::io::Result::Ok(data.clone());
 
         let result = integration
             .put(
-                &location_name,
+                &location,
                 futures::stream::once(async move { stream_data }),
                 data.len(),
             )

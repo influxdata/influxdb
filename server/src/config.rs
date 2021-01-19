@@ -137,6 +137,7 @@ impl<'a> Drop for CreateDatabaseHandle<'a> {
 mod test {
     use super::*;
     use object_store::path::cloud::CloudConverter;
+    use object_store::{memory::InMemory, ObjectStore};
 
     #[test]
     fn create_db() {
@@ -157,7 +158,9 @@ mod test {
 
     #[test]
     fn object_store_path_for_database_config() {
-        let path = ObjectStorePath::from_cloud_unchecked("1");
+        let storage = ObjectStore::new_in_memory(InMemory::new());
+        let mut path = storage.new_path();
+        path.push_dir("1");
         let name = DatabaseName::new("foo").unwrap();
         let rules_path = super::object_store_path_for_database_config(&path, &name);
         let rules_path = CloudConverter::convert(&rules_path);

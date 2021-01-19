@@ -362,7 +362,7 @@ impl Segment {
         store: Arc<ObjectStore>,
     ) -> Result<()> {
         let data = self.to_file_bytes(writer_id)?;
-        let location = database_object_store_path(writer_id, db_name);
+        let location = database_object_store_path(writer_id, db_name, &store);
         let location = object_store_path_for_segment(&location, self.id)?;
 
         let len = data.len();
@@ -534,8 +534,12 @@ fn object_store_path_for_segment(
 }
 
 // base location in object store for a given database name
-fn database_object_store_path(writer_id: u32, database_name: &DatabaseName<'_>) -> ObjectStorePath {
-    let mut path = ObjectStorePath::default();
+fn database_object_store_path(
+    writer_id: u32,
+    database_name: &DatabaseName<'_>,
+    store: &ObjectStore,
+) -> ObjectStorePath {
+    let mut path = store.new_path();
     path.push_dir(format!("{}", writer_id));
     path.push_dir(database_name.to_string());
     path
@@ -546,6 +550,7 @@ mod tests {
     use super::*;
     use data_types::{data::lines_to_replicated_write, database_rules::DatabaseRules};
     use influxdb_line_protocol::parse_lines;
+    use object_store::memory::InMemory;
 
     #[test]
     fn append_increments_current_size_and_uses_existing_segment() {
@@ -853,7 +858,8 @@ mod tests {
 
     #[test]
     fn valid_object_store_path_for_segment() {
-        let mut base_path = ObjectStorePath::default();
+        let storage = ObjectStore::new_in_memory(InMemory::new());
+        let mut base_path = storage.new_path();
         base_path.push_all_dirs(&["1", "mydb"]);
 
         let segment_path = object_store_path_for_segment(&base_path, 23).unwrap();
@@ -877,7 +883,8 @@ mod tests {
 
     #[test]
     fn object_store_path_for_segment_out_of_bounds() {
-        let mut base_path = ObjectStorePath::default();
+        let storage = ObjectStore::new_in_memory(InMemory::new());
+        let mut base_path = storage.new_path();
         base_path.push_all_dirs(&["1", "mydb"]);
 
         let segment_path = object_store_path_for_segment(&base_path, 0).err().unwrap();
