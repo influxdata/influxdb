@@ -20,7 +20,7 @@ use arrow_deps::arrow::{
     datatypes::{DataType::Utf8, Field, Schema},
     record_batch::RecordBatch,
 };
-use snafu::{ensure, ResultExt, Snafu};
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 // Identifiers that are exported as part of the public API.
 pub use row_group::{BinaryExpr, Predicate};
@@ -203,14 +203,9 @@ impl Database {
                     let chunk = partition
                         .chunks
                         .get(chunk_id)
-                        .ok_or_else(|| Error::ChunkNotFound { id: *chunk_id })?;
+                        .context(ChunkNotFound { id: *chunk_id })?;
 
-                    ensure!(
-                        chunk.has_table(table_name),
-                        TableNotFound {
-                            table_name: table_name.to_owned(),
-                        }
-                    );
+                    ensure!(chunk.has_table(table_name), TableNotFound { table_name });
 
                     chunks.push(
                         partition
