@@ -1,10 +1,11 @@
 use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
+use crate::row_group::RowGroup;
 use crate::row_group::{ColumnName, Predicate};
+use crate::schema::AggregateType;
 use crate::table;
 use crate::table::{ColumnSelection, Table};
 use crate::Error;
-use crate::{column::AggregateType, row_group::RowGroup};
 
 type TableName = String;
 
@@ -58,6 +59,11 @@ impl Chunk {
         self.tables.len()
     }
 
+    /// Returns true if the chunk contains data for this table.
+    pub fn has_table(&self, table_name: &str) -> bool {
+        self.tables.contains_key(table_name)
+    }
+
     /// Returns true if there are no tables under this chunk.
     pub fn is_empty(&self) -> bool {
         self.tables() == 0
@@ -96,10 +102,14 @@ impl Chunk {
         table_name: &str,
         predicate: &Predicate,
         select_columns: &ColumnSelection<'_>,
-    ) -> Option<table::ReadFilterResults<'_>> {
+    ) -> Result<table::ReadFilterResults<'_>, Error> {
+        // Lookup table by name and dispatch execution.
         match self.tables.get(table_name) {
-            Some(table) => Some(table.read_filter(select_columns, predicate)),
-            None => None,
+            Some(table) => Ok(table.read_filter(select_columns, predicate)),
+            None => crate::TableNotFound {
+                table_name: table_name.to_owned(),
+            }
+            .fail(),
         }
     }
 

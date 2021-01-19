@@ -10,6 +10,7 @@ pub(crate) mod table;
 
 use std::{
     collections::{btree_map::Entry, BTreeMap, BTreeSet},
+    convert::TryInto,
     fmt,
     sync::Arc,
 };
@@ -19,11 +20,11 @@ use arrow_deps::arrow::{
     datatypes::{DataType::Utf8, Field, Schema},
     record_batch::RecordBatch,
 };
-use snafu::{ResultExt, Snafu};
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 // Identifiers that are exported as part of the public API.
-pub use column::AggregateType;
 pub use row_group::{BinaryExpr, Predicate};
+pub use schema::*;
 pub use table::ColumnSelection;
 
 use chunk::Chunk;
@@ -199,6 +200,13 @@ impl Database {
             Some(partition) => {
                 let mut chunks = vec![];
                 for chunk_id in chunk_ids {
+                    let chunk = partition
+                        .chunks
+                        .get(chunk_id)
+                        .context(ChunkNotFound { id: *chunk_id })?;
+
+                    ensure!(chunk.has_table(table_name), TableNotFound { table_name });
+
                     chunks.push(
                         partition
                             .chunks
@@ -512,10 +520,10 @@ impl<'input, 'chunk> Iterator for ReadFilterResults<'input, 'chunk> {
 
         // Try next chunk's table.
         if self.curr_table_results.is_none() {
-            self.curr_table_results = self.chunks[self.next_i].read_filter(
-                self.table_name,
-                &self.predicate,
-                &self.select_columns,
+            self.curr_table_results = Some(
+                self.chunks[self.next_i]
+                    .read_filter(self.table_name, &self.predicate, &self.select_columns)
+                    .unwrap(),
             );
         }
 
@@ -524,7 +532,10 @@ impl<'input, 'chunk> Iterator for ReadFilterResults<'input, 'chunk> {
             Some(table_results) => {
                 // Table has found results in a row group.
                 if let Some(row_group_result) = table_results.next() {
-                    return Some(row_group_result.record_batch());
+                    // it should not be possible for the conversion to record
+                    // batch to fail here
+                    let rb = row_group_result.try_into();
+                    return Some(rb.unwrap());
                 }
 
                 // no more results for row groups in the table. Try next chunk.
