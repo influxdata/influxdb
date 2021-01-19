@@ -313,13 +313,12 @@ impl Database for MutableBufferDb {
 
     /// Return the list of chunks, in order of id, for the specified
     /// partition_key
-    async fn chunks(&self, partition_key: &str) -> Result<Vec<Arc<Chunk>>> {
-        Ok(self
-            .get_partition(partition_key)
+    async fn chunks(&self, partition_key: &str) -> Vec<Arc<Chunk>> {
+        self.get_partition(partition_key)
             .await
             .read()
             .await
-            .chunks())
+            .chunks()
     }
 }
 

@@ -28,3 +28,6 @@ uuid = { version = "0.8", features = ["serde", "v4"]}
 flatbuffers = "0.6"
 crc32fast = "1.2.0"
 snap = "1.0.0"
+
+[dev-dependencies]
+test_helpers = { path = "../test_helpers" }

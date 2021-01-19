@@ -144,8 +144,17 @@ impl Database {
     }
 
     // Lists all partition keys with data for this database.
-    pub fn partition_keys(&mut self) -> Vec<&String> {
-        self.partitions.keys().collect::<Vec<_>>()
+    pub fn partition_keys(&self) -> Vec<&String> {
+        self.partitions.keys().collect()
+    }
+
+    /// Lists all chunk ids in the given partition key. Returns empty
+    /// `Vec` if no partition with the given key exists
+    pub fn chunk_ids(&self, partition_key: &str) -> Vec<u32> {
+        self.partitions
+            .get(partition_key)
+            .map(|partition| partition.chunk_ids())
+            .unwrap_or_default()
     }
 
     pub fn size(&self) -> u64 {
@@ -452,6 +461,11 @@ impl Partition {
         };
     }
 
+    /// Return the chunk ids stored in this partition, in order of id
+    fn chunk_ids(&self) -> Vec<u32> {
+        self.chunks.keys().cloned().collect()
+    }
+
     fn chunks_by_ids(&self, ids: &[u32]) -> Result<Vec<&Chunk>> {
         let mut chunks = vec![];
         for chunk_id in ids {
@@ -490,6 +504,19 @@ pub struct ReadFilterResults<'input, 'chunk> {
     table_name: &'input str,
     predicate: Predicate,
     select_columns: table::ColumnSelection<'input>,
+}
+
+impl<'input, 'chunk> fmt::Debug for ReadFilterResults<'input, 'chunk> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ReadFilterResults")
+            .field("chunks.len", &self.chunks.len())
+            .field("next_i", &self.next_i)
+            .field("curr_table_results", &"<OPAQUE>")
+            .field("table_name", &self.table_name)
+            .field("predicate", &self.predicate)
+            .field("select_columns", &self.select_columns)
+            .finish()
+    }
 }
 
 impl<'input, 'chunk> ReadFilterResults<'input, 'chunk> {

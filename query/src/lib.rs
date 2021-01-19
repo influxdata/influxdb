@@ -50,7 +50,7 @@ pub trait Database: Debug + Send + Sync {
     /// Returns a covering set of chunks in the specified partition. A
     /// covering set means that together the chunks make up a single
     /// complete copy of the data being queried.
-    async fn chunks(&self, partition_key: &str) -> Result<Vec<Arc<Self::Chunk>>, Self::Error>;
+    async fn chunks(&self, partition_key: &str) -> Vec<Arc<Self::Chunk>>;
 
     // ----------
     // The functions below are slated for removal (migration into a gRPC query

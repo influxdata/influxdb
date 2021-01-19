@@ -69,7 +69,7 @@ impl SQLQueryPlanner {
         for table in &table_names {
             let mut data = Vec::new();
             for partition_key in &partition_keys {
-                for chunk in database.chunks(partition_key).await.unwrap() {
+                for chunk in database.chunks(partition_key).await {
                     chunk
                         .table_to_arrow(&mut data, &table, &[])
                         .map_err(|e| Box::new(e) as _)

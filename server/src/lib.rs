@@ -661,7 +661,7 @@ mod tests {
         let planner = SQLQueryPlanner::default();
         let executor = server.executor();
         let physical_plan = planner
-            .query(buff.as_ref(), "select * from cpu", executor.as_ref())
+            .query(buff, "select * from cpu", executor.as_ref())
             .await
             .unwrap();
 

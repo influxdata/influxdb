@@ -921,7 +921,11 @@ impl Table {
                     Arc::new(builder.finish())
                 }
                 Column::I64(vals, _) => {
-                    schema_builder = schema_builder.field(column_name, ArrowDataType::Int64);
+                    schema_builder = if column_name == TIME_COLUMN_NAME {
+                        schema_builder.timestamp()
+                    } else {
+                        schema_builder.field(column_name, ArrowDataType::Int64)
+                    };
                     let mut builder = Int64Builder::new(vals.len());
 
                     for v in vals {

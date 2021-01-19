@@ -522,6 +522,7 @@ impl MetaData {
 ///
 /// The `All` variant denotes that the caller wishes to include all table
 /// columns in the results.
+#[derive(Debug)]
 pub enum ColumnSelection<'a> {
     All,
     Some(&'a [&'a str]),

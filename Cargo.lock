@@ -3298,6 +3298,7 @@ dependencies = [
  "serde_json",
  "snafu",
  "snap",
+ "test_helpers",
  "tokio",
  "tracing",
  "uuid",
