@@ -31,6 +31,7 @@ require (
 	github.com/prometheus/prometheus v0.0.0-20200609090129-a6600f564e3c
 	github.com/retailnext/hllpp v1.0.1-0.20180308014038-101a6d2f8b52
 	github.com/spf13/cast v1.3.0
+	github.com/stretchr/testify v1.5.1
 	github.com/tinylib/msgp v1.1.0
 	github.com/willf/bitset v1.1.9 // indirect
 	github.com/xlab/treeprint v0.0.0-20180616005107-d6fb6747feb6
