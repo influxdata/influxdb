@@ -319,7 +319,6 @@ func (i *influxDBv2) close() error {
 var fluxInitialized bool
 
 func runUpgradeE(cmd *cobra.Command, options *options, verbose bool) error {
-	ctx := context.Background()
 	config := zap.NewProductionConfig()
 
 	config.Level = zap.NewAtomicLevelAt(options.logLevel)
@@ -338,11 +337,19 @@ func runUpgradeE(cmd *cobra.Command, options *options, verbose bool) error {
 		log.Warn("--verbose is deprecated, use --log-level=debug instead")
 	}
 
+	ui := &input.UI{Writer: cmd.OutOrStdout(), Reader: cmd.InOrStdin()}
+
 	// This command is executed multiple times by test code. Initialization can happen only once.
 	if !fluxInitialized {
 		fluxinit.FluxInit()
 		fluxInitialized = true
 	}
+
+	return runUpgrade(ui, options, log)
+}
+
+func runUpgrade(ui *input.UI, options *options, log *zap.Logger) error {
+	ctx := context.Background()
 
 	if options.source.configFile != "" && options.source.dbDir != "" {
 		return errors.New("only one of --v1-dir or --config-file may be specified")
@@ -361,8 +368,9 @@ func runUpgradeE(cmd *cobra.Command, options *options, verbose bool) error {
 		}
 	}
 
-	var v1Config *configV1
+	v1Config := &configV1{}
 	var genericV1ops *map[string]interface{}
+	var err error
 
 	if options.source.configFile != "" {
 		// If config is present, use it to set data paths.
@@ -373,14 +381,13 @@ func runUpgradeE(cmd *cobra.Command, options *options, verbose bool) error {
 		options.source.metaDir = v1Config.Meta.Dir
 		options.source.dataDir = v1Config.Data.Dir
 		options.source.walDir = v1Config.Data.WALDir
-		options.source.dbURL = v1Config.dbURL()
 	} else {
 		// Otherwise, assume a standard directory layout
 		// and the default port on localhost.
 		options.source.populateDirs()
-		options.source.dbURL = (&configV1{}).dbURL()
 	}
 
+	options.source.dbURL = v1Config.dbURL()
 	if err := options.source.validatePaths(); err != nil {
 		return err
 	}
@@ -435,11 +442,6 @@ func runUpgradeE(cmd *cobra.Command, options *options, verbose bool) error {
 
 	if !canOnboard {
 		return errors.New("InfluxDB has been already set up")
-	}
-
-	ui := &input.UI{
-		Writer: cmd.OutOrStdout(),
-		Reader: cmd.InOrStdin(),
 	}
 
 	req, err := onboardingRequest(ui, options)
