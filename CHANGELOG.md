@@ -49,6 +49,7 @@ Replacement `tsi1` indexes will be automatically generated on startup for shards
 1. [20522](https://github.com/influxdata/influxdb/pull/20522): Fix loading config when INFLUXD_CONFIG_PATH points to a `.yml` file.
 1. [20527](https://github.com/influxdata/influxdb/pull/20527): Don't leak .tmp files while backing up shards.
 1. [20527](https://github.com/influxdata/influxdb/pull/20527): Allow backups to complete while a snapshot is in progress.
+1. [20539](https://github.com/influxdata/influxdb/pull/20539): Prevent extra output row from GROUP BY crossing DST boundary.
 
 ## v2.0.3 [2020-12-14]
 
