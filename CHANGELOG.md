@@ -47,6 +47,8 @@ Replacement `tsi1` indexes will be automatically generated on startup for shards
 1. [20489](https://github.com/influxdata/influxdb/pull/20489): Improve error message when opening BoltDB with unsupported file system options.
 1. [20490](https://github.com/influxdata/influxdb/pull/20490): Fix silent failure to register CLI args as required.
 1. [20522](https://github.com/influxdata/influxdb/pull/20522): Fix loading config when INFLUXD_CONFIG_PATH points to a `.yml` file.
+1. [20527](https://github.com/influxdata/influxdb/pull/20527): Don't leak .tmp files while backing up shards.
+1. [20527](https://github.com/influxdata/influxdb/pull/20527): Allow backups to complete while a snapshot is in progress.
 
 ## v2.0.3 [2020-12-14]
 
