@@ -256,7 +256,6 @@ pub struct Subscription {
 /// against the row to determine if it matches the write rule.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct Matcher {
-    #[serde(flatten)]
     pub tables: MatchTables,
     // TODO: make this work with query::Predicate
     #[serde(skip_serializing_if = "Option::is_none")]

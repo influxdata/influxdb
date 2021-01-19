@@ -53,6 +53,8 @@ pub enum Error {
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+const STARTING_SEQUENCE: u64 = 1;
+
 #[derive(Debug, Serialize, Deserialize)]
 /// This is the main IOx Database object. It is the root object of any
 /// specific InfluxDB IOx instance
@@ -86,7 +88,6 @@ impl Db {
         mutable_buffer: Option<Arc<MutableBufferDb>>,
         read_buffer: Arc<ReadBufferDb>,
         wal_buffer: Option<Buffer>,
-        sequence: AtomicU64,
     ) -> Self {
         let wal_buffer = wal_buffer.map(Mutex::new);
         Self {
@@ -94,7 +95,7 @@ impl Db {
             mutable_buffer,
             read_buffer,
             wal_buffer,
-            sequence,
+            sequence: AtomicU64::new(STARTING_SEQUENCE),
         }
     }
 
