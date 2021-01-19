@@ -42,7 +42,7 @@ Replacement `tsi1` indexes will be automatically generated on startup for shards
 1. [20472](https://github.com/influxdata/influxdb/pull/20472): Add confirmation step w/ file sizes before copying data files in `influxd upgrade`.
 1. [20538](https://github.com/influxdata/influxdb/pull/20538): Don't leak .tmp files while backing up shards.
 1. [20538](https://github.com/influxdata/influxdb/pull/20538): Allow backups to complete while a snapshot is in progress.
-1. [20490](https://github.com/influxdata/influxdb/pull/20490): Fix silent failure to register CLI args as required.
+1. [20536](https://github.com/influxdata/influxdb/pull/20536): Fix silent failure to register CLI args as required.
 
 ## v2.0.3 [2020-12-14]
 ----------------------
