@@ -207,7 +207,7 @@ func TestUpgradeRealDB(t *testing.T) {
 	ui := &input.UI{Writer: &bytes.Buffer{}, Reader: &bytes.Buffer{}}
 
 	log := zaptest.NewLogger(t)
-	err = runUpgrade(ui, opts, log)
+	err = runUpgradeE(ctx, ui, opts, log)
 	require.NoError(t, err)
 
 	v2, err := newInfluxDBv2(ctx, v2opts, log)
