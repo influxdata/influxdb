@@ -211,6 +211,12 @@ type SeriesIDIterator interface {
 	Close() error
 }
 
+// SeriesKeyIterator represents an iterator over a list of SeriesKeys
+type SeriesKeyIterator interface {
+	Next() ([]byte, error)
+	Close() error
+}
+
 // SeriesIDSetIterator represents an iterator that can produce a SeriesIDSet.
 type SeriesIDSetIterator interface {
 	SeriesIDIterator
@@ -2293,6 +2299,93 @@ func (is IndexSet) measurementSeriesByExprIterator(name []byte, expr influxql.Ex
 		return nil, err
 	}
 	return FilterUndeletedSeriesIDIterator(is.SeriesFile, itr), nil
+}
+
+type measurementSeriesKeyByExprIterator struct {
+	ids      SeriesIDIterator
+	is       IndexSet
+	auth     query.Authorizer
+	once     sync.Once
+	releaser func()
+}
+
+func (itr *measurementSeriesKeyByExprIterator) Next() ([]byte, error) {
+	if itr == nil {
+		return nil, nil
+	}
+	for {
+		e, err := itr.ids.Next()
+		if err != nil {
+			return nil, err
+		} else if e.SeriesID == 0 {
+			return nil, nil
+		}
+
+		seriesKey := itr.is.SeriesFile.SeriesKey(e.SeriesID)
+		if len(seriesKey) == 0 {
+			continue
+		}
+
+		name, tags := ParseSeriesKey(seriesKey)
+
+		// Check leftover filters. All fields that might be filtered default to zero values
+		if e.Expr != nil {
+			if v, ok := e.Expr.(*influxql.BooleanLiteral); ok {
+				if !v.Val {
+					continue
+				}
+			} else {
+				values := make(map[string]interface{}, len(tags))
+				for _, t := range tags {
+					values[string(t.Key)] = string(t.Value)
+				}
+				if !influxql.EvalBool(e.Expr, values) {
+					continue
+				}
+			}
+		}
+
+		if itr.auth != nil && !itr.auth.AuthorizeSeriesRead(itr.is.Database(), name, tags) {
+			continue
+		}
+
+		out := models.MakeKey(name, tags)
+		// ensure nil is only returned when we are done (or for errors)
+		if out == nil {
+			out = []byte{}
+		}
+		return out, nil
+	}
+}
+
+func (itr *measurementSeriesKeyByExprIterator) Close() error {
+	if itr == nil {
+		return nil
+	}
+	itr.once.Do(itr.releaser)
+	return itr.ids.Close()
+}
+
+// MeasurementSeriesKeyByExprIterator iterates through series, filtered by an expression on the tags.
+// Any non-tag expressions will be filtered as if the field had the zero value.
+func (is IndexSet) MeasurementSeriesKeyByExprIterator(name []byte, expr influxql.Expr, auth query.Authorizer) (SeriesKeyIterator, error) {
+	release := is.SeriesFile.Retain()
+	// Create iterator for all matching series.
+	ids, err := is.measurementSeriesByExprIterator(name, expr)
+	if err != nil {
+		release()
+		return nil, err
+	}
+	if ids == nil {
+		release()
+		return nil, nil
+	}
+	return &measurementSeriesKeyByExprIterator{
+		ids:      ids,
+		releaser: release,
+		auth:     auth,
+		is:       is,
+	}, nil
 }
 
 // MeasurementSeriesKeysByExpr returns a list of series keys matching expr.

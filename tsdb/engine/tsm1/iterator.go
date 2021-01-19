@@ -3,6 +3,7 @@ package tsm1
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/pkg/metrics"
@@ -215,4 +216,74 @@ func newInstrumentedIterator(ctx context.Context, itr query.Iterator) query.Iter
 	default:
 		panic(fmt.Sprintf("unsupported instrumented iterator type: %T", itr))
 	}
+}
+
+type seriesIterator struct {
+	cur   tsdb.SeriesKeyIterator
+	point query.StringPoint // reusable buffer
+
+	statsLock sync.Mutex
+	stats     query.IteratorStats
+	statsBuf  query.IteratorStats
+}
+
+func newSeriesIterator(name string, cur tsdb.SeriesKeyIterator) *seriesIterator {
+	itr := &seriesIterator{
+		cur: cur,
+		point: query.StringPoint{
+			Name: name,
+			Tags: query.NewTags(nil),
+		},
+	}
+	itr.stats = itr.statsBuf
+	return itr
+}
+
+// Next returns the next point from the iterator.
+func (itr *seriesIterator) Next() (*query.StringPoint, error) {
+	for {
+		// Read from the main cursor
+		b, err := itr.cur.Next()
+		if err != nil {
+			itr.copyStats()
+			return nil, err
+		}
+		itr.point.Value = string(b)
+
+		// Exit if we have no more points or we are outside our time range.
+		if b == nil {
+			itr.copyStats()
+			return nil, nil
+		}
+		// Track points returned.
+		itr.statsBuf.PointN++
+		itr.statsBuf.SeriesN++
+
+		// Copy buffer to stats periodically.
+		if itr.statsBuf.PointN%statsBufferCopyIntervalN == 0 {
+			itr.copyStats()
+		}
+
+		return &itr.point, nil
+	}
+}
+
+// copyStats copies from the itr stats buffer to the stats under lock.
+func (itr *seriesIterator) copyStats() {
+	itr.statsLock.Lock()
+	itr.stats = itr.statsBuf
+	itr.statsLock.Unlock()
+}
+
+// Stats returns stats on the points processed.
+func (itr *seriesIterator) Stats() query.IteratorStats {
+	itr.statsLock.Lock()
+	stats := itr.stats
+	itr.statsLock.Unlock()
+	return stats
+}
+
+// Close closes the iterator.
+func (itr *seriesIterator) Close() error {
+	return itr.cur.Close()
 }

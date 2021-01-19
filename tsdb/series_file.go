@@ -266,7 +266,7 @@ func (f *SeriesFile) SeriesCount() uint64 {
 	return n
 }
 
-// SeriesIterator returns an iterator over all the series.
+// SeriesIDIterator returns an iterator over all the series.
 func (f *SeriesFile) SeriesIDIterator() SeriesIDIterator {
 	var ids []uint64
 	for _, p := range f.partitions {
