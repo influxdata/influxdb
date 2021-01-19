@@ -218,7 +218,7 @@ impl<M: ConnectionManager> Server<M> {
     }
 
     // base location in object store for this writer
-    fn root_path(&self) -> Result<ObjectStorePath> {
+    fn root_path(&self) -> Result<object_store::path::Path> {
         let id = self.require_id()?;
 
         let mut path = self.store.new_path();
@@ -528,11 +528,11 @@ impl RemoteServer for RemoteServerImpl {
 
 // get bytes from the location in object store
 async fn get_store_bytes(
-    location: &ObjectStorePath,
+    location: &object_store::path::Path,
     store: &ObjectStore,
 ) -> Result<bytes::BytesMut> {
     let b = store
-        .get(&location)
+        .get(location)
         .await
         .context(StoreError)?
         .map_ok(|b| bytes::BytesMut::from(&b[..]))
@@ -555,7 +555,7 @@ mod tests {
     };
     use futures::TryStreamExt;
     use influxdb_line_protocol::parse_lines;
-    use object_store::memory::InMemory;
+    use object_store::{memory::InMemory, path::ObjectStorePath};
     use query::frontend::sql::SQLQueryPlanner;
     use snafu::Snafu;
     use std::collections::BTreeMap;
@@ -610,7 +610,7 @@ mod tests {
             .await
             .expect("failed to create database");
 
-        let mut rules_path = store.new_path();
+        let mut rules_path = server.store.new_path();
         rules_path.push_all_dirs(&["1", name]);
         rules_path.set_file_name("rules.json");
 

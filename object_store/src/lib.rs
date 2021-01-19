@@ -31,7 +31,7 @@ use path::ObjectStorePath;
 
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use futures::{Stream, StreamExt, TryStreamExt};
+use futures::{Stream, StreamExt, TryFutureExt, TryStreamExt};
 use snafu::Snafu;
 use std::{io, path::PathBuf};
 
@@ -66,59 +66,76 @@ impl ObjectStore {
     }
 
     /// Return a new location path appropriate for this object storage
-    pub fn new_path(&self) -> ObjectStorePath {
+    pub fn new_path(&self) -> path::Path {
         use ObjectStoreIntegration::*;
         match &self.0 {
             AmazonS3(s3) => s3.new_path(),
             GoogleCloudStorage(gcs) => gcs.new_path(),
-            InMemory(in_mem) => in_mem.new_path(),
+            InMemory(in_mem) => path::Path {
+                inner: path::PathRepresentation::Parts(in_mem.new_path()),
+            },
             File(file) => file.new_path(),
             MicrosoftAzure(azure) => azure.new_path(),
         }
     }
 
     /// Save the provided bytes to the specified location.
-    pub async fn put<S>(&self, location: &ObjectStorePath, bytes: S, length: usize) -> Result<()>
+    pub async fn put<S>(&self, location: &path::Path, bytes: S, length: usize) -> Result<()>
     where
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
         use ObjectStoreIntegration::*;
-        match &self.0 {
-            AmazonS3(s3) => s3.put(location, bytes, length).await?,
-            GoogleCloudStorage(gcs) => gcs.put(location, bytes, length).await?,
-            InMemory(in_mem) => in_mem.put(location, bytes, length).await?,
-            File(file) => file.put(location, bytes, length).await?,
-            MicrosoftAzure(azure) => azure.put(location, bytes, length).await?,
+        match (&self.0, location) {
+            (AmazonS3(s3), _) => s3.put(location, bytes, length).await?,
+            (GoogleCloudStorage(gcs), _) => gcs.put(location, bytes, length).await?,
+            (
+                InMemory(in_mem),
+                path::Path {
+                    inner: path::PathRepresentation::Parts(location),
+                },
+            ) => in_mem.put(location, bytes, length).await?,
+            (File(file), _) => file.put(location, bytes, length).await?,
+            (MicrosoftAzure(azure), _) => azure.put(location, bytes, length).await?,
+            _ => unreachable!(),
         }
 
         Ok(())
     }
 
     /// Return the bytes that are stored at the specified location.
-    pub async fn get(
-        &self,
-        location: &ObjectStorePath,
-    ) -> Result<impl Stream<Item = Result<Bytes>>> {
+    pub async fn get(&self, location: &path::Path) -> Result<impl Stream<Item = Result<Bytes>>> {
         use ObjectStoreIntegration::*;
-        Ok(match &self.0 {
-            AmazonS3(s3) => s3.get(location).await?.boxed(),
-            GoogleCloudStorage(gcs) => gcs.get(location).await?.boxed(),
-            InMemory(in_mem) => in_mem.get(location).await?.boxed(),
-            File(file) => file.get(location).await?.boxed(),
-            MicrosoftAzure(azure) => azure.get(location).await?.boxed(),
+        Ok(match (&self.0, location) {
+            (AmazonS3(s3), _) => s3.get(location).await?.boxed(),
+            (GoogleCloudStorage(gcs), _) => gcs.get(location).await?.boxed(),
+            (
+                InMemory(in_mem),
+                path::Path {
+                    inner: path::PathRepresentation::Parts(location),
+                },
+            ) => in_mem.get(location).await?.boxed(),
+            (File(file), _) => file.get(location).await?.boxed(),
+            (MicrosoftAzure(azure), _) => azure.get(location).await?.boxed(),
+            _ => unreachable!(),
         }
         .err_into())
     }
 
     /// Delete the object at the specified location.
-    pub async fn delete(&self, location: &ObjectStorePath) -> Result<()> {
+    pub async fn delete(&self, location: &path::Path) -> Result<()> {
         use ObjectStoreIntegration::*;
-        match &self.0 {
-            AmazonS3(s3) => s3.delete(location).await?,
-            GoogleCloudStorage(gcs) => gcs.delete(location).await?,
-            InMemory(in_mem) => in_mem.delete(location).await?,
-            File(file) => file.delete(location).await?,
-            MicrosoftAzure(azure) => azure.delete(location).await?,
+        match (&self.0, location) {
+            (AmazonS3(s3), _) => s3.delete(location).await?,
+            (GoogleCloudStorage(gcs), _) => gcs.delete(location).await?,
+            (
+                InMemory(in_mem),
+                path::Path {
+                    inner: path::PathRepresentation::Parts(location),
+                },
+            ) => in_mem.delete(location).await?,
+            (File(file), _) => file.delete(location).await?,
+            (MicrosoftAzure(azure), _) => azure.delete(location).await?,
+            _ => unreachable!(),
         }
 
         Ok(())
@@ -127,15 +144,32 @@ impl ObjectStore {
     /// List all the objects with the given prefix.
     pub async fn list<'a>(
         &'a self,
-        prefix: Option<&'a ObjectStorePath>,
-    ) -> Result<impl Stream<Item = Result<Vec<ObjectStorePath>>> + 'a> {
+        prefix: Option<&'a path::Path>,
+    ) -> Result<impl Stream<Item = Result<Vec<path::Path>>> + 'a> {
         use ObjectStoreIntegration::*;
-        Ok(match &self.0 {
-            AmazonS3(s3) => s3.list(prefix).await?.boxed(),
-            GoogleCloudStorage(gcs) => gcs.list(prefix).await?.boxed(),
-            InMemory(in_mem) => in_mem.list(prefix).await?.boxed(),
-            File(file) => file.list(prefix).await?.boxed(),
-            MicrosoftAzure(azure) => azure.list(prefix).await?.boxed(),
+        Ok(match (&self.0, prefix) {
+            (AmazonS3(s3), _) => s3.list(prefix).await?.boxed(),
+            (GoogleCloudStorage(gcs), _) => gcs.list(prefix).await?.boxed(),
+
+            (
+                InMemory(in_mem),
+                Some(path::Path {
+                    inner: path::PathRepresentation::Parts(dirs_and_file_name),
+                }),
+            ) => in_mem
+                .list(Some(dirs_and_file_name))
+                .await?
+                .map_ok(|s| s.into_iter().map(Into::into).collect())
+                .boxed(),
+            (InMemory(in_mem), None) => in_mem
+                .list(None)
+                .await?
+                .map_ok(|s| s.into_iter().map(Into::into).collect())
+                .boxed(),
+
+            (File(file), _) => file.list(prefix).await?.boxed(),
+            (MicrosoftAzure(azure), _) => azure.list(prefix).await?.boxed(),
+            _ => unreachable!(),
         }
         .err_into())
     }
@@ -145,30 +179,26 @@ impl ObjectStore {
     /// metadata.
     pub async fn list_with_delimiter<'a>(
         &'a self,
-        prefix: &'a ObjectStorePath,
-    ) -> Result<ListResult> {
+        prefix: &'a path::Path,
+    ) -> Result<ListResult<path::Path>> {
         use ObjectStoreIntegration::*;
-        match &self.0 {
-            AmazonS3(s3) => s3.list_with_delimiter(prefix, &None).await,
-            GoogleCloudStorage(_gcs) => unimplemented!(),
-            InMemory(in_mem) => in_mem.list_with_delimiter(prefix, &None).await,
-            File(_file) => unimplemented!(),
-            MicrosoftAzure(_azure) => unimplemented!(),
-        }
-    }
-
-    /// Convert an `ObjectStorePath` to a `String` according to the appropriate
-    /// implementation. Suitable for printing; not suitable for sending to
-    /// APIs
-    pub fn convert_path(&self, path: &ObjectStorePath) -> String {
-        use ObjectStoreIntegration::*;
-        match &self.0 {
-            AmazonS3(_) | GoogleCloudStorage(_) | InMemory(_) | MicrosoftAzure(_) => {
-                path::cloud::CloudConverter::convert(path)
+        match (&self.0, prefix) {
+            (AmazonS3(s3), _) => s3.list_with_delimiter(prefix, &None).await,
+            (GoogleCloudStorage(_gcs), _) => unimplemented!(),
+            (
+                InMemory(in_mem),
+                path::Path {
+                    inner: path::PathRepresentation::Parts(dirs_and_file_name),
+                },
+            ) => {
+                in_mem
+                    .list_with_delimiter(dirs_and_file_name)
+                    .map_ok(|list_result| list_result.map_paths(Into::into))
+                    .await
             }
-            File(_) => path::file::FileConverter::convert(path)
-                .display()
-                .to_string(),
+            (InMemory(_), _) => unreachable!(),
+            (File(_file), _) => unimplemented!(),
+            (MicrosoftAzure(_azure), _) => unimplemented!(),
         }
     }
 }
@@ -192,24 +222,62 @@ pub enum ObjectStoreIntegration {
 /// token for the next set of results. Individual results sets are limited to
 /// 1,000 objects.
 #[derive(Debug)]
-pub struct ListResult {
+pub struct ListResult<P: ObjectStorePath> {
     /// Token passed to the API for the next page of list results.
     pub next_token: Option<String>,
     /// Prefixes that are common (like directories)
-    pub common_prefixes: Vec<ObjectStorePath>,
+    pub common_prefixes: Vec<P>,
     /// Object metadata for the listing
-    pub objects: Vec<ObjectMeta>,
+    pub objects: Vec<ObjectMeta<P>>,
+}
+
+impl<P: ObjectStorePath> ListResult<P> {
+    fn map_paths<Q: ObjectStorePath, C>(self, c: C) -> ListResult<Q>
+    where
+        C: Fn(P) -> Q,
+    {
+        let Self {
+            next_token,
+            common_prefixes,
+            objects,
+        } = self;
+
+        ListResult {
+            next_token,
+            common_prefixes: common_prefixes.into_iter().map(&c).collect(),
+            objects: objects.into_iter().map(|o| o.map_paths(&c)).collect(),
+        }
+    }
 }
 
 /// The metadata that describes an object.
 #[derive(Debug)]
-pub struct ObjectMeta {
+pub struct ObjectMeta<P: ObjectStorePath> {
     /// The full path to the object
-    pub location: ObjectStorePath,
+    pub location: P,
     /// The last modified time
     pub last_modified: DateTime<Utc>,
     /// The size in bytes of the object
     pub size: usize,
+}
+
+impl<P: ObjectStorePath> ObjectMeta<P> {
+    fn map_paths<Q: ObjectStorePath, C>(self, c: C) -> ObjectMeta<Q>
+    where
+        C: Fn(P) -> Q,
+    {
+        let Self {
+            location,
+            last_modified,
+            size,
+        } = self;
+
+        ObjectMeta {
+            location: c(location),
+            last_modified,
+            size,
+        }
+    }
 }
 
 /// A specialized `Result` for object store-related errors
@@ -358,8 +426,8 @@ mod tests {
 
     async fn flatten_list_stream(
         storage: &ObjectStore,
-        prefix: Option<&ObjectStorePath>,
-    ) -> Result<Vec<ObjectStorePath>> {
+        prefix: Option<&path::Path>,
+    ) -> Result<Vec<path::Path>> {
         storage
             .list(prefix)
             .await?
@@ -442,7 +510,7 @@ mod tests {
             "mydb/data/whatevs",
         ]
         .iter()
-        .map(|&s| ObjectStorePath::from_cloud_unchecked(s))
+        .map(|&s| path::Path::from_cloud_unchecked(s))
         .collect();
 
         let time_before_creation = Utc::now();
@@ -509,7 +577,7 @@ mod tests {
 
     pub(crate) async fn get_nonexistent_object(
         storage: &ObjectStore,
-        location: Option<ObjectStorePath>,
+        location: Option<path::Path>,
     ) -> Result<Bytes> {
         let location = location.unwrap_or_else(|| {
             let mut loc = storage.new_path();
@@ -540,7 +608,7 @@ mod tests {
             "mydb/data/whatevs",
         ]
         .iter()
-        .map(|&s| ObjectStorePath::from_cloud_unchecked(s))
+        .map(|&s| path::Path::from_cloud_unchecked(s))
         .collect();
 
         for f in &files {

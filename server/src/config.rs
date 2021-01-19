@@ -87,10 +87,10 @@ impl Config {
     }
 }
 
-pub fn object_store_path_for_database_config(
-    root: &ObjectStorePath,
+pub fn object_store_path_for_database_config<P: ObjectStorePath>(
+    root: &P,
     name: &DatabaseName<'_>,
-) -> ObjectStorePath {
+) -> P {
     let mut path = root.clone();
     path.push_dir(name.to_string());
     path.set_file_name(DB_RULES_FILE_NAME);
@@ -136,7 +136,6 @@ impl<'a> Drop for CreateDatabaseHandle<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use object_store::path::cloud::CloudConverter;
     use object_store::{memory::InMemory, ObjectStore};
 
     #[test]
@@ -159,12 +158,16 @@ mod test {
     #[test]
     fn object_store_path_for_database_config() {
         let storage = ObjectStore::new_in_memory(InMemory::new());
-        let mut path = storage.new_path();
-        path.push_dir("1");
-        let name = DatabaseName::new("foo").unwrap();
-        let rules_path = super::object_store_path_for_database_config(&path, &name);
-        let rules_path = CloudConverter::convert(&rules_path);
+        let mut base_path = storage.new_path();
+        base_path.push_dir("1");
 
-        assert_eq!(rules_path, "1/foo/rules.json");
+        let name = DatabaseName::new("foo").unwrap();
+        let rules_path = super::object_store_path_for_database_config(&base_path, &name);
+
+        let mut expected_path = base_path.clone();
+        expected_path.push_dir("foo");
+        expected_path.set_file_name("rules.json");
+
+        assert_eq!(rules_path, expected_path);
     }
 }

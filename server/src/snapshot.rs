@@ -64,8 +64,8 @@ where
 {
     pub id: Uuid,
     pub partition_meta: PartitionMeta,
-    pub metadata_path: ObjectStorePath,
-    pub data_path: ObjectStorePath,
+    pub metadata_path: object_store::path::Path,
+    pub data_path: object_store::path::Path,
     store: Arc<ObjectStore>,
     partition: Arc<T>,
     status: Mutex<Status>,
@@ -77,8 +77,8 @@ where
 {
     fn new(
         partition_key: impl Into<String>,
-        metadata_path: ObjectStorePath,
-        data_path: ObjectStorePath,
+        metadata_path: object_store::path::Path,
+        data_path: object_store::path::Path,
         store: Arc<ObjectStore>,
         partition: Arc<T>,
         tables: Vec<Table>,
@@ -102,10 +102,6 @@ where
             partition,
             status: Mutex::new(status),
         }
-    }
-
-    fn data_path(&self) -> String {
-        self.store.convert_path(&self.data_path)
     }
 
     // returns the position of the next table
@@ -198,7 +194,7 @@ where
     async fn write_batches(
         &self,
         batches: Vec<RecordBatch>,
-        file_name: &ObjectStorePath,
+        file_name: &object_store::path::Path,
     ) -> Result<()> {
         let mem_writer = MemWriter::default();
         {
@@ -250,8 +246,8 @@ pub struct Status {
 }
 
 pub fn snapshot_chunk<T>(
-    metadata_path: ObjectStorePath,
-    data_path: ObjectStorePath,
+    metadata_path: object_store::path::Path,
+    data_path: object_store::path::Path,
     store: Arc<ObjectStore>,
     partition_key: &str,
     chunk: Arc<T>,
@@ -281,7 +277,7 @@ where
         info!(
             "starting snapshot of {} to {}",
             &snapshot.partition_meta.key,
-            &snapshot.data_path()
+            &snapshot.data_path.display()
         );
         if let Err(e) = snapshot.run(notify).await {
             error!("error running snapshot: {:?}", e);

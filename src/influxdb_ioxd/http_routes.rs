@@ -694,6 +694,8 @@ where
 async fn snapshot_partition<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
+    use object_store::path::ObjectStorePath;
+
     let server = req
         .data::<Arc<AppServer<M>>>()
         .expect("server state")

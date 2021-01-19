@@ -1,9 +1,45 @@
 use super::{ObjectStorePath, PathPart, PathRepresentation, DELIMITER};
 
+use itertools::Itertools;
+
+/// A path stored as a collection of 0 or more directories and 0 or 1 file name
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Default)]
-pub(crate) struct DirsAndFileName {
+pub struct DirsAndFileName {
     pub(crate) directories: Vec<PathPart>,
     pub(crate) file_name: Option<PathPart>,
+}
+
+impl ObjectStorePath for DirsAndFileName {
+    fn set_file_name(&mut self, part: impl Into<String>) {
+        let part = part.into();
+        self.file_name = Some((&*part).into());
+    }
+
+    fn push_dir(&mut self, part: impl Into<String>) {
+        let part = part.into();
+        self.directories.push((&*part).into());
+    }
+
+    fn push_all_dirs<'a>(&mut self, parts: impl AsRef<[&'a str]>) {
+        self.directories
+            .extend(parts.as_ref().iter().map(|&v| v.into()));
+    }
+
+    fn display(&self) -> String {
+        let mut s = self
+            .directories
+            .iter()
+            .map(PathPart::encoded)
+            .join(DELIMITER);
+
+        if !s.is_empty() {
+            s.push_str(DELIMITER);
+        }
+        if let Some(file_name) = &self.file_name {
+            s.push_str(file_name.encoded());
+        }
+        s
+    }
 }
 
 impl DirsAndFileName {
@@ -82,19 +118,6 @@ impl DirsAndFileName {
         Some(parts)
     }
 
-    /// Add a part to the end of the path's directories, encoding any restricted
-    /// characters.
-    pub(crate) fn push_dir(&mut self, part: impl Into<String>) {
-        let part = part.into();
-        self.directories.push((&*part).into());
-    }
-
-    /// Push a bunch of parts as directories in one go.
-    pub(crate) fn push_all_dirs<'a>(&mut self, parts: impl AsRef<[&'a str]>) {
-        self.directories
-            .extend(parts.as_ref().iter().map(|&v| v.into()));
-    }
-
     /// Add a `PathPart` to the end of the path's directories.
     pub(crate) fn push_part_as_dir(&mut self, part: &PathPart) {
         self.directories.push(part.to_owned());
@@ -153,14 +176,14 @@ impl From<PathRepresentation> for DirsAndFileName {
     }
 }
 
-impl From<&'_ ObjectStorePath> for DirsAndFileName {
-    fn from(other: &'_ ObjectStorePath) -> Self {
+impl From<&'_ crate::path::Path> for DirsAndFileName {
+    fn from(other: &'_ crate::path::Path) -> Self {
         other.clone().into()
     }
 }
 
-impl From<ObjectStorePath> for DirsAndFileName {
-    fn from(other: ObjectStorePath) -> Self {
+impl From<crate::path::Path> for DirsAndFileName {
+    fn from(other: crate::path::Path) -> Self {
         other.inner.into()
     }
 }

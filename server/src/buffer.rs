@@ -385,7 +385,7 @@ impl Segment {
                 stream_data = std::io::Result::Ok(data.clone());
             }
 
-            info!("persisted data to {}", store.convert_path(&location));
+            info!("persisted data to {}", location.display());
         });
 
         Ok(())
@@ -507,10 +507,7 @@ const SEGMENT_FILE_EXTENSION: &str = ".segment";
 
 /// Builds the path for a given segment id, given the root object store path.
 /// The path should be where the root of the database is (e.g. 1/my_db/).
-fn object_store_path_for_segment(
-    root_path: &ObjectStorePath,
-    segment_id: u64,
-) -> Result<ObjectStorePath> {
+fn object_store_path_for_segment<P: ObjectStorePath>(root_path: &P, segment_id: u64) -> Result<P> {
     ensure!(
         segment_id < MAX_SEGMENT_ID && segment_id > 0,
         SegmentIdOutOfBounds
@@ -538,7 +535,7 @@ fn database_object_store_path(
     writer_id: u32,
     database_name: &DatabaseName<'_>,
     store: &ObjectStore,
-) -> ObjectStorePath {
+) -> object_store::path::Path {
     let mut path = store.new_path();
     path.push_dir(format!("{}", writer_id));
     path.push_dir(database_name.to_string());

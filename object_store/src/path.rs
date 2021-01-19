@@ -22,14 +22,52 @@ use parts::PathPart;
 /// It allows IOx to be completely decoupled from the underlying object store
 /// implementations.
 ///
-/// Deliberately does not implement `Display` or `ToString`! Use one of the
-/// converters.
-#[derive(Default, Clone, PartialEq, Eq, Debug)]
-pub struct ObjectStorePath {
-    inner: PathRepresentation,
+/// Deliberately does not implement `Display` or `ToString`!
+pub trait ObjectStorePath:
+    std::fmt::Debug + Clone + PartialEq + Eq + Send + Sync + 'static
+{
+    /// Set the file name of this path
+    fn set_file_name(&mut self, part: impl Into<String>);
+
+    /// Add a part to the end of the path's directories, encoding any restricted
+    /// characters.
+    fn push_dir(&mut self, part: impl Into<String>);
+
+    /// Push a bunch of parts as directories in one go.
+    fn push_all_dirs<'a>(&mut self, parts: impl AsRef<[&'a str]>);
+
+    /// Like `std::path::Path::display, converts an `ObjectStorePath` to a
+    /// `String` suitable for printing; not suitable for sending to
+    /// APIs.
+    fn display(&self) -> String;
 }
 
-impl ObjectStorePath {
+/// Temporary
+#[derive(Default, Clone, PartialEq, Eq, Debug)]
+pub struct Path {
+    /// Temporary
+    pub inner: PathRepresentation,
+}
+
+impl ObjectStorePath for Path {
+    fn set_file_name(&mut self, part: impl Into<String>) {
+        self.inner = mem::take(&mut self.inner).set_file_name(part);
+    }
+
+    fn push_dir(&mut self, part: impl Into<String>) {
+        self.inner = mem::take(&mut self.inner).push_dir(part);
+    }
+
+    fn push_all_dirs<'a>(&mut self, parts: impl AsRef<[&'a str]>) {
+        self.inner = mem::take(&mut self.inner).push_all_dirs(parts);
+    }
+
+    fn display(&self) -> String {
+        self.inner.display()
+    }
+}
+
+impl Path {
     /// For use when receiving a path from an object store API directly, not
     /// when building a path. Assumes DELIMITER is the separator.
     ///
@@ -53,19 +91,9 @@ impl ObjectStorePath {
         }
     }
 
-    /// Add a part to the end of the path, encoding any restricted characters.
-    pub fn push_dir(&mut self, part: impl Into<String>) {
-        self.inner = mem::take(&mut self.inner).push_dir(part);
-    }
-
     /// Add a `PathPart` to the end of the path.
     pub fn push_part_as_dir(&mut self, part: &PathPart) {
         self.inner = mem::take(&mut self.inner).push_part_as_dir(part);
-    }
-
-    /// Set the file name of this path
-    pub fn set_file_name(&mut self, part: impl Into<String>) {
-        self.inner = mem::take(&mut self.inner).set_file_name(part);
     }
 
     /// Add the parts of `ObjectStorePath` to the end of the path. Notably does
@@ -75,11 +103,6 @@ impl ObjectStorePath {
     /// will be assigned to `self`.
     pub fn push_path(&mut self, path: &Self) {
         self.inner = mem::take(&mut self.inner).push_path(path)
-    }
-
-    /// Push a bunch of parts as directories in one go.
-    pub fn push_all_dirs<'a>(&mut self, parts: impl AsRef<[&'a str]>) {
-        self.inner = mem::take(&mut self.inner).push_all_dirs(parts);
     }
 
     /// Pops a part from the path and returns it, or `None` if it's empty.
@@ -110,13 +133,13 @@ impl ObjectStorePath {
     }
 }
 
-impl From<&'_ DirsAndFileName> for ObjectStorePath {
+impl From<&'_ DirsAndFileName> for Path {
     fn from(other: &'_ DirsAndFileName) -> Self {
         other.clone().into()
     }
 }
 
-impl From<DirsAndFileName> for ObjectStorePath {
+impl From<DirsAndFileName> for Path {
     fn from(other: DirsAndFileName) -> Self {
         Self {
             inner: PathRepresentation::Parts(other),
@@ -124,10 +147,14 @@ impl From<DirsAndFileName> for ObjectStorePath {
     }
 }
 
+/// Temporary
 #[derive(Clone, Eq, Debug)]
-enum PathRepresentation {
+pub enum PathRepresentation {
+    /// Will be transformed into a CloudPath type
     RawCloud(String),
+    /// Will be transformed into a FilePath type
     RawPathBuf(PathBuf),
+    /// Will be able to be used directly
     Parts(DirsAndFileName),
 }
 
@@ -169,7 +196,7 @@ impl PathRepresentation {
     /// root. If `self` has a file name, that will be removed, then the
     /// directories of `path` will be appended, then any file name of `path`
     /// will be assigned to `self`.
-    fn push_path(self, path: &ObjectStorePath) -> Self {
+    fn push_path(self, path: &Path) -> Self {
         let DirsAndFileName {
             directories: path_dirs,
             file_name: path_file_name,
@@ -189,6 +216,14 @@ impl PathRepresentation {
 
         dirs_and_file_name.file_name = Some((&*part).into());
         Self::Parts(dirs_and_file_name)
+    }
+
+    fn display(&self) -> String {
+        match self {
+            Self::Parts(dirs_and_file_name) => dirs_and_file_name.display(),
+            Self::RawCloud(path) => path.to_owned(),
+            Self::RawPathBuf(path_buf) => path_buf.display().to_string(),
+        }
     }
 }
 
@@ -235,7 +270,7 @@ mod tests {
 
     #[test]
     fn prefix_matches() {
-        let mut haystack = ObjectStorePath::default();
+        let mut haystack = Path::default();
         haystack.push_all_dirs(&["foo/bar", "baz%2Ftest", "something"]);
 
         // self starts with self
@@ -257,7 +292,7 @@ mod tests {
         );
 
         // one dir prefix matches
-        let mut needle = ObjectStorePath::default();
+        let mut needle = Path::default();
         needle.push_dir("foo/bar");
         assert!(
             haystack.prefix_matches(&needle),
@@ -276,7 +311,7 @@ mod tests {
         );
 
         // partial dir prefix matches
-        let mut needle = ObjectStorePath::default();
+        let mut needle = Path::default();
         needle.push_dir("f");
         assert!(
             haystack.prefix_matches(&needle),
@@ -286,7 +321,7 @@ mod tests {
         );
 
         // one dir and one partial dir matches
-        let mut needle = ObjectStorePath::default();
+        let mut needle = Path::default();
         needle.push_all_dirs(&["foo/bar", "baz"]);
         assert!(
             haystack.prefix_matches(&needle),
@@ -298,7 +333,7 @@ mod tests {
 
     #[test]
     fn prefix_matches_with_file_name() {
-        let mut haystack = ObjectStorePath::default();
+        let mut haystack = Path::default();
         haystack.push_all_dirs(&["foo/bar", "baz%2Ftest", "something"]);
 
         let mut needle = haystack.clone();
@@ -326,7 +361,7 @@ mod tests {
 
         // Not all directories match; file name is a prefix of the next directory; this
         // matches
-        let mut needle = ObjectStorePath::default();
+        let mut needle = Path::default();
         needle.push_all_dirs(&["foo/bar", "baz%2Ftest"]);
         needle.set_file_name("s");
 
@@ -352,30 +387,30 @@ mod tests {
     #[test]
     fn convert_raw_before_partial_eq() {
         // dir and file_name
-        let cloud = ObjectStorePath::from_cloud_unchecked("test_dir/test_file.json");
-        let mut built = ObjectStorePath::default();
+        let cloud = Path::from_cloud_unchecked("test_dir/test_file.json");
+        let mut built = Path::default();
         built.push_dir("test_dir");
         built.set_file_name("test_file.json");
 
         assert_eq!(built, cloud);
 
         // dir, no file_name
-        let cloud = ObjectStorePath::from_cloud_unchecked("test_dir");
-        let mut built = ObjectStorePath::default();
+        let cloud = Path::from_cloud_unchecked("test_dir");
+        let mut built = Path::default();
         built.push_dir("test_dir");
 
         assert_eq!(built, cloud);
 
         // file_name, no dir
-        let cloud = ObjectStorePath::from_cloud_unchecked("test_file.json");
-        let mut built = ObjectStorePath::default();
+        let cloud = Path::from_cloud_unchecked("test_file.json");
+        let mut built = Path::default();
         built.set_file_name("test_file.json");
 
         assert_eq!(built, cloud);
 
         // empty
-        let cloud = ObjectStorePath::from_cloud_unchecked("");
-        let built = ObjectStorePath::default();
+        let cloud = Path::from_cloud_unchecked("");
+        let built = Path::default();
 
         assert_eq!(built, cloud);
     }

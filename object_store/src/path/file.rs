@@ -1,4 +1,4 @@
-use super::{ObjectStorePath, PathPart, PathRepresentation};
+use super::{PathPart, PathRepresentation};
 
 use std::path::PathBuf;
 
@@ -11,8 +11,8 @@ impl FileConverter {
     /// Creates a filesystem `PathBuf` location by using the standard library's
     /// `PathBuf` building implementation appropriate for the current
     /// platform.
-    pub fn convert(object_store_path: &ObjectStorePath) -> PathBuf {
-        match &object_store_path.inner {
+    pub fn convert(object_store_path: &PathRepresentation) -> PathBuf {
+        match object_store_path {
             PathRepresentation::RawCloud(_path) => {
                 todo!("convert");
             }

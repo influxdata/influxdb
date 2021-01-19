@@ -1,9 +1,8 @@
 //! This module contains the IOx implementation for using memory as the object
 //! store.
 use crate::{
-    path::{parsed::DirsAndFileName, ObjectStorePath},
-    DataDoesNotMatchLength, ListResult, NoDataInMemory, ObjectMeta, Result,
-    UnableToPutDataInMemory,
+    path::parsed::DirsAndFileName, DataDoesNotMatchLength, ListResult, NoDataInMemory, ObjectMeta,
+    Result, UnableToPutDataInMemory,
 };
 use bytes::Bytes;
 use chrono::Utc;
@@ -37,12 +36,12 @@ impl InMemory {
     }
 
     /// Return a new location path appropriate for this object storage
-    pub fn new_path(&self) -> ObjectStorePath {
-        ObjectStorePath::default()
+    pub fn new_path(&self) -> DirsAndFileName {
+        DirsAndFileName::default()
     }
 
     /// Save the provided bytes to the specified location.
-    pub async fn put<S>(&self, location: &ObjectStorePath, bytes: S, length: usize) -> Result<()>
+    pub async fn put<S>(&self, location: &DirsAndFileName, bytes: S, length: usize) -> Result<()>
     where
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
@@ -62,21 +61,23 @@ impl InMemory {
 
         let content = content.freeze();
 
-        self.storage.write().await.insert(location.into(), content);
+        self.storage
+            .write()
+            .await
+            .insert(location.to_owned(), content);
         Ok(())
     }
 
     /// Return the bytes that are stored at the specified location.
     pub async fn get(
         &self,
-        location: &ObjectStorePath,
+        location: &DirsAndFileName,
     ) -> Result<impl Stream<Item = Result<Bytes>>> {
-        let location = location.into();
         let data = self
             .storage
             .read()
             .await
-            .get(&location)
+            .get(location)
             .cloned()
             .context(NoDataInMemory)?;
 
@@ -84,28 +85,26 @@ impl InMemory {
     }
 
     /// Delete the object at the specified location.
-    pub async fn delete(&self, location: &ObjectStorePath) -> Result<()> {
-        self.storage.write().await.remove(&location.into());
+    pub async fn delete(&self, location: &DirsAndFileName) -> Result<()> {
+        self.storage.write().await.remove(location);
         Ok(())
     }
 
     /// List all the objects with the given prefix.
     pub async fn list<'a>(
         &'a self,
-        prefix: Option<&'a ObjectStorePath>,
-    ) -> Result<impl Stream<Item = Result<Vec<ObjectStorePath>>> + 'a> {
-        let prefix = prefix.map(Into::into);
-
+        prefix: Option<&'a DirsAndFileName>,
+    ) -> Result<impl Stream<Item = Result<Vec<DirsAndFileName>>> + 'a> {
         let list = if let Some(prefix) = &prefix {
             self.storage
                 .read()
                 .await
                 .keys()
                 .filter(|k| k.prefix_matches(prefix))
-                .map(Into::into)
+                .cloned()
                 .collect()
         } else {
-            self.storage.read().await.keys().map(Into::into).collect()
+            self.storage.read().await.keys().cloned().collect()
         };
 
         Ok(futures::stream::once(async move { Ok(list) }))
@@ -118,13 +117,10 @@ impl InMemory {
     /// limitations.
     pub async fn list_with_delimiter<'a>(
         &'a self,
-        prefix: &'a ObjectStorePath,
-        _next_token: &Option<String>,
-    ) -> Result<ListResult> {
+        prefix: &'a DirsAndFileName,
+    ) -> Result<ListResult<DirsAndFileName>> {
         let mut common_prefixes = BTreeSet::new();
         let last_modified = Utc::now();
-
-        let prefix: DirsAndFileName = prefix.into();
 
         // Only objects in this base level should be returned in the
         // response. Otherwise, we just collect the common prefixes.
@@ -133,20 +129,20 @@ impl InMemory {
             .storage
             .read()
             .await
-            .range((&prefix)..)
-            .take_while(|(k, _)| k.prefix_matches(&prefix))
+            .range((prefix)..)
+            .take_while(|(k, _)| k.prefix_matches(prefix))
         {
             let parts = k
-                .parts_after_prefix(&prefix)
+                .parts_after_prefix(prefix)
                 .expect("must have prefix if in range");
 
             if parts.len() >= 2 {
-                let mut full_prefix = prefix.clone();
+                let mut full_prefix = prefix.to_owned();
                 full_prefix.push_part_as_dir(&parts[0]);
                 common_prefixes.insert(full_prefix);
             } else {
                 let object = ObjectMeta {
-                    location: k.into(),
+                    location: k.to_owned(),
                     last_modified,
                     size: v.len(),
                 };
@@ -156,7 +152,7 @@ impl InMemory {
 
         Ok(ListResult {
             objects,
-            common_prefixes: common_prefixes.into_iter().map(Into::into).collect(),
+            common_prefixes: common_prefixes.into_iter().collect(),
             next_token: None,
         })
     }
@@ -171,7 +167,7 @@ mod tests {
 
     use crate::{
         tests::{list_with_delimiter, put_get_delete_list},
-        Error, ObjectStore,
+        Error, ObjectStore, ObjectStorePath,
     };
     use futures::stream;
 

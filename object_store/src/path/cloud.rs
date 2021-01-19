@@ -1,17 +1,17 @@
-use super::{ObjectStorePath, PathPart, PathRepresentation, DELIMITER};
+use super::{PathPart, PathRepresentation, DELIMITER};
 
 use itertools::Itertools;
 
-/// Converts `ObjectStorePath`s to `String`s that are appropriate for use as
+/// Converts `PathRepresentation`s to `String`s that are appropriate for use as
 /// locations in cloud storage.
 #[derive(Debug, Clone, Copy)]
 pub struct CloudConverter {}
 
 impl CloudConverter {
-    /// Creates a cloud storage location by joining this `ObjectStorePath`'s
+    /// Creates a cloud storage location by joining this `PathRepresentation`'s
     /// parts with `DELIMITER`
-    pub fn convert(object_store_path: &ObjectStorePath) -> String {
-        match &object_store_path.inner {
+    pub fn convert(object_store_path: &PathRepresentation) -> String {
+        match object_store_path {
             PathRepresentation::RawCloud(path) => path.to_owned(),
             PathRepresentation::RawPathBuf(_path) => {
                 todo!("convert");
@@ -44,8 +44,8 @@ mod tests {
         // Use case: a file named `test_file.json` exists in object storage and it
         // should be returned for a search on prefix `test`, so the prefix path
         // should not get a trailing delimiter automatically added
-        let mut prefix = ObjectStorePath::default();
-        prefix.set_file_name("test");
+        let prefix = PathRepresentation::default();
+        let prefix = prefix.set_file_name("test");
 
         let converted = CloudConverter::convert(&prefix);
         assert_eq!(converted, "test");
@@ -56,8 +56,8 @@ mod tests {
         // Use case: files exist in object storage named `foo/bar.json` and
         // `foo_test.json`. A search for the prefix `foo/` should return
         // `foo/bar.json` but not `foo_test.json'.
-        let mut prefix = ObjectStorePath::default();
-        prefix.push_dir("test");
+        let prefix = PathRepresentation::default();
+        let prefix = prefix.push_dir("test");
 
         let converted = CloudConverter::convert(&prefix);
         assert_eq!(converted, "test/");
@@ -65,9 +65,9 @@ mod tests {
 
     #[test]
     fn push_encodes() {
-        let mut location = ObjectStorePath::default();
-        location.push_dir("foo/bar");
-        location.push_dir("baz%2Ftest");
+        let location = PathRepresentation::default();
+        let location = location.push_dir("foo/bar");
+        let location = location.push_dir("baz%2Ftest");
 
         let converted = CloudConverter::convert(&location);
         assert_eq!(converted, "foo%2Fbar/baz%252Ftest/");
@@ -75,8 +75,8 @@ mod tests {
 
     #[test]
     fn push_all_encodes() {
-        let mut location = ObjectStorePath::default();
-        location.push_all_dirs(&["foo/bar", "baz%2Ftest"]);
+        let location = PathRepresentation::default();
+        let location = location.push_all_dirs(&["foo/bar", "baz%2Ftest"]);
 
         let converted = CloudConverter::convert(&location);
         assert_eq!(converted, "foo%2Fbar/baz%252Ftest/");
