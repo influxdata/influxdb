@@ -15,7 +15,6 @@ import (
 	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/dbrp"
-	"github.com/influxdata/influxdb/v2/fluxinit"
 	"github.com/influxdata/influxdb/v2/internal/fs"
 	"github.com/influxdata/influxdb/v2/kit/cli"
 	"github.com/influxdata/influxdb/v2/kit/metric"
@@ -112,14 +111,15 @@ type options struct {
 	// flags for target InfluxDB
 	target optionsV2
 
-	// logging
-	logLevel zapcore.Level
-	logPath  string
-
 	force bool
 }
 
-func NewCommand(v *viper.Viper) *cobra.Command {
+type logOptions struct {
+	logLevel zapcore.Level
+	logPath  string
+}
+
+func NewCommand(ctx context.Context, v *viper.Viper) *cobra.Command {
 
 	// target flags
 	v2dir, err := fs.InfluxDir()
@@ -129,6 +129,7 @@ func NewCommand(v *viper.Viper) *cobra.Command {
 
 	// DEPRECATED in favor of log-level=debug, but left for backwards-compatibility
 	verbose := false
+	logOptions := &logOptions{}
 	options := &options{}
 
 	cmd := &cobra.Command{
@@ -148,7 +149,12 @@ func NewCommand(v *viper.Viper) *cobra.Command {
     Target 2.x database dir is specified by the --engine-path option. If changed, the bolt path should be changed as well.
 `,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runUpgradeE(cmd, options, verbose)
+			logger, err := buildLogger(logOptions, verbose)
+			if err != nil {
+				return err
+			}
+			ui := &input.UI{Writer: cmd.OutOrStdout(), Reader: cmd.InOrStdin()}
+			return runUpgradeE(ctx, ui, options, logger)
 		},
 		Args: cobra.NoArgs,
 	}
@@ -248,13 +254,13 @@ func NewCommand(v *viper.Viper) *cobra.Command {
 			Desc:    "optional: Custom path where upgraded 2.x config should be written",
 		},
 		{
-			DestP:   &options.logLevel,
+			DestP:   &logOptions.logLevel,
 			Flag:    "log-level",
 			Default: zapcore.InfoLevel,
 			Desc:    "supported log levels are debug, info, warn and error",
 		},
 		{
-			DestP:   &options.logPath,
+			DestP:   &logOptions.logPath,
 			Flag:    "log-path",
 			Default: filepath.Join(homeOrAnyDir(), "upgrade.log"),
 			Desc:    "optional: custom log file path",
@@ -316,10 +322,7 @@ func (i *influxDBv2) close() error {
 	return nil
 }
 
-var fluxInitialized bool
-
-func runUpgradeE(cmd *cobra.Command, options *options, verbose bool) error {
-	ctx := context.Background()
+func buildLogger(options *logOptions, verbose bool) (*zap.Logger, error) {
 	config := zap.NewProductionConfig()
 
 	config.Level = zap.NewAtomicLevelAt(options.logLevel)
@@ -332,18 +335,15 @@ func runUpgradeE(cmd *cobra.Command, options *options, verbose bool) error {
 
 	log, err := config.Build()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if verbose {
 		log.Warn("--verbose is deprecated, use --log-level=debug instead")
 	}
+	return log, nil
+}
 
-	// This command is executed multiple times by test code. Initialization can happen only once.
-	if !fluxInitialized {
-		fluxinit.FluxInit()
-		fluxInitialized = true
-	}
-
+func runUpgradeE(ctx context.Context, ui *input.UI, options *options, log *zap.Logger) error {
 	if options.source.configFile != "" && options.source.dbDir != "" {
 		return errors.New("only one of --v1-dir or --config-file may be specified")
 	}
@@ -361,8 +361,9 @@ func runUpgradeE(cmd *cobra.Command, options *options, verbose bool) error {
 		}
 	}
 
-	var v1Config *configV1
+	v1Config := &configV1{}
 	var genericV1ops *map[string]interface{}
+	var err error
 
 	if options.source.configFile != "" {
 		// If config is present, use it to set data paths.
@@ -373,14 +374,13 @@ func runUpgradeE(cmd *cobra.Command, options *options, verbose bool) error {
 		options.source.metaDir = v1Config.Meta.Dir
 		options.source.dataDir = v1Config.Data.Dir
 		options.source.walDir = v1Config.Data.WALDir
-		options.source.dbURL = v1Config.dbURL()
 	} else {
 		// Otherwise, assume a standard directory layout
 		// and the default port on localhost.
 		options.source.populateDirs()
-		options.source.dbURL = (&configV1{}).dbURL()
 	}
 
+	options.source.dbURL = v1Config.dbURL()
 	if err := options.source.validatePaths(); err != nil {
 		return err
 	}
@@ -435,11 +435,6 @@ func runUpgradeE(cmd *cobra.Command, options *options, verbose bool) error {
 
 	if !canOnboard {
 		return errors.New("InfluxDB has been already set up")
-	}
-
-	ui := &input.UI{
-		Writer: cmd.OutOrStdout(),
-		Reader: cmd.InOrStdin(),
 	}
 
 	req, err := onboardingRequest(ui, options)
