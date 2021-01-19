@@ -93,7 +93,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::TryStreamExt;
 use snafu::{OptionExt, ResultExt, Snafu};
-use tracing::{error, info};
+use tracing::error;
 
 type DatabaseError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
@@ -138,6 +138,8 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+const STORE_ERROR_PAUSE_SECONDS: u64 = 100;
 
 /// `Server` is the container struct for how servers store data internally, as
 /// well as how they communicate with other servers. Each server will have one
@@ -186,7 +188,7 @@ impl<M: ConnectionManager> Server<M> {
         mut rules: DatabaseRules,
     ) -> Result<()> {
         // Return an error if this server hasn't yet been setup with an id
-        let id = self.require_id()?;
+        self.require_id()?;
 
         let name = db_name.into();
         let db_name = DatabaseName::new(name.clone()).context(InvalidDatabaseName)?;
@@ -197,10 +199,8 @@ impl<M: ConnectionManager> Server<M> {
         let data =
             Bytes::from(serde_json::to_vec(&db_reservation.db.rules).context(ErrorSerializing)?);
         let len = data.len();
-        let location = object_store_path_for_database_config(
-            &server_object_store_path(id),
-            &db_reservation.name,
-        );
+        let location =
+            object_store_path_for_database_config(&self.root_path()?, &db_reservation.name);
 
         let stream_data = std::io::Result::Ok(data);
         self.store
@@ -217,19 +217,25 @@ impl<M: ConnectionManager> Server<M> {
         Ok(())
     }
 
+    // base location in object store for this writer
+    fn root_path(&self) -> Result<ObjectStorePath> {
+        let id = self.require_id()?;
+
+        let mut path = ObjectStorePath::default();
+        path.push_dir(format!("{}", id));
+        Ok(path)
+    }
+
     /// Loads the database configurations based on the databases in the
     /// object store. Any databases in the config already won't be
     /// replaced.
     pub async fn load_database_configs(&self) -> Result<()> {
-        let id = self.require_id()?;
-        let root_path = server_object_store_path(id);
-
         // get the database names from the object store prefixes
         // TODO: update object store to pull back all common prefixes by
         //       following the next tokens.
         let list_result = self
             .store
-            .list_with_delimiter(&root_path)
+            .list_with_delimiter(&self.root_path()?)
             .await
             .context(StoreError)?;
 
@@ -345,12 +351,10 @@ impl<M: ConnectionManager> Server<M> {
             if let Some(segment) = segment {
                 if persist {
                     let writer_id = self.require_id()?;
-                    let data = segment.to_file_bytes(writer_id).context(WalError)?;
                     let store = self.store.clone();
-                    let location = database_object_store_path(writer_id, db_name);
-                    let location = buffer::object_store_path_for_segment(&location, segment.id)
+                    segment
+                        .persist_bytes_in_background(writer_id, db_name, store)
                         .context(WalError)?;
-                    persist_bytes_in_background(data, store, location);
                 }
             }
         }
@@ -520,44 +524,6 @@ impl RemoteServer for RemoteServerImpl {
     ) -> Result<(), Self::Error> {
         unimplemented!()
     }
-}
-
-// base location in object store for a given database name
-fn database_object_store_path(writer_id: u32, database_name: &DatabaseName<'_>) -> ObjectStorePath {
-    let mut path = ObjectStorePath::default();
-    path.push_dir(format!("{}", writer_id));
-    path.push_dir(database_name.to_string());
-    path
-}
-
-fn server_object_store_path(writer_id: u32) -> ObjectStorePath {
-    ObjectStorePath::from_cloud_unchecked(format!("{}", writer_id))
-}
-
-const STORE_ERROR_PAUSE_SECONDS: u64 = 100;
-
-/// Spawns a tokio task that will continuously try to persist the bytes to the
-/// given object store location.
-fn persist_bytes_in_background(data: Bytes, store: Arc<ObjectStore>, location: ObjectStorePath) {
-    let len = data.len();
-    let mut stream_data = std::io::Result::Ok(data.clone());
-
-    tokio::task::spawn(async move {
-        while let Err(err) = store
-            .put(
-                &location,
-                futures::stream::once(async move { stream_data }),
-                len,
-            )
-            .await
-        {
-            error!("error writing bytes to store: {}", err);
-            tokio::time::sleep(tokio::time::Duration::from_secs(STORE_ERROR_PAUSE_SECONDS)).await;
-            stream_data = std::io::Result::Ok(data.clone());
-        }
-
-        info!("persisted data to {}", store.convert_path(&location));
-    });
 }
 
 // get bytes from the location in object store
