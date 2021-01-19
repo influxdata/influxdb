@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/BurntSushi/toml"
+	"github.com/dustin/go-humanize"
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/bolt"
@@ -263,6 +264,9 @@ func TestUpgradeRealDB(t *testing.T) {
 		}
 	}
 	assert.NoDirExists(t, filepath.Join(enginePath, "data", "_internal"))
+
+	// Ensure retention policy from the setup request passed through to the bucket.
+	require.Equal(t, humanize.Week, tl.Bucket.RetentionPeriod)
 
 	dbChecks := []struct {
 		dbname    string
