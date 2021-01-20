@@ -130,32 +130,7 @@ impl From<PathRepresentation> for DirsAndFileName {
             PathRepresentation::AmazonS3(path)
             | PathRepresentation::GoogleCloudStorage(path)
             | PathRepresentation::MicrosoftAzure(path) => path.into(),
-            PathRepresentation::RawPathBuf(path) => {
-                let mut parts: Vec<PathPart> = path
-                    .iter()
-                    .flat_map(|s| s.to_os_string().into_string().map(PathPart))
-                    .collect();
-
-                let maybe_file_name = match parts.pop() {
-                    Some(file)
-                        if !file.encoded().starts_with('.')
-                            && (file.encoded().ends_with(".json")
-                                || file.encoded().ends_with(".parquet")
-                                || file.encoded().ends_with(".segment")) =>
-                    {
-                        Some(file)
-                    }
-                    Some(dir) => {
-                        parts.push(dir);
-                        None
-                    }
-                    None => None,
-                };
-                Self {
-                    directories: parts,
-                    file_name: maybe_file_name,
-                }
-            }
+            PathRepresentation::File(path) => path.into(),
             PathRepresentation::Parts(dirs_and_file_name) => dirs_and_file_name,
         }
     }

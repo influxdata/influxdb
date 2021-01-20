@@ -78,7 +78,9 @@ impl ObjectStore {
             InMemory(in_mem) => path::Path {
                 inner: path::PathRepresentation::Parts(in_mem.new_path()),
             },
-            File(file) => file.new_path(),
+            File(file) => path::Path {
+                inner: path::PathRepresentation::File(file.new_path()),
+            },
             MicrosoftAzure(azure) => path::Path {
                 inner: path::PathRepresentation::MicrosoftAzure(azure.new_path()),
             },
@@ -111,7 +113,12 @@ impl ObjectStore {
                     inner: PathRepresentation::Parts(location),
                 },
             ) => in_mem.put(location, bytes, length).await?,
-            (File(file), _) => file.put(location, bytes, length).await?,
+            (
+                File(file),
+                path::Path {
+                    inner: PathRepresentation::File(location),
+                },
+            ) => file.put(location, bytes, length).await?,
             (
                 MicrosoftAzure(azure),
                 path::Path {
@@ -147,7 +154,12 @@ impl ObjectStore {
                     inner: PathRepresentation::Parts(location),
                 },
             ) => in_mem.get(location).await?.boxed(),
-            (File(file), _) => file.get(location).await?.boxed(),
+            (
+                File(file),
+                path::Path {
+                    inner: PathRepresentation::File(location),
+                },
+            ) => file.get(location).await?.boxed(),
             (
                 MicrosoftAzure(azure),
                 path::Path {
@@ -182,7 +194,12 @@ impl ObjectStore {
                     inner: PathRepresentation::Parts(location),
                 },
             ) => in_mem.delete(location).await?,
-            (File(file), _) => file.delete(location).await?,
+            (
+                File(file),
+                path::Path {
+                    inner: PathRepresentation::File(location),
+                },
+            ) => file.delete(location).await?,
             (
                 MicrosoftAzure(azure),
                 path::Path {
@@ -274,7 +291,33 @@ impl ObjectStore {
                 .map_ok(|s| s.into_iter().map(Into::into).collect())
                 .boxed(),
 
-            (File(file), _) => file.list(prefix).await?.boxed(),
+            (
+                File(file),
+                Some(path::Path {
+                    inner: PathRepresentation::File(prefix),
+                }),
+            ) => file
+                .list(Some(prefix))
+                .await?
+                .map_ok(|s| {
+                    s.into_iter()
+                        .map(|p| path::Path {
+                            inner: PathRepresentation::File(p),
+                        })
+                        .collect()
+                })
+                .boxed(),
+            (File(file), None) => file
+                .list(None)
+                .await?
+                .map_ok(|s| {
+                    s.into_iter()
+                        .map(|p| path::Path {
+                            inner: PathRepresentation::File(p),
+                        })
+                        .collect()
+                })
+                .boxed(),
             (
                 MicrosoftAzure(azure),
                 Some(path::Path {

@@ -1,7 +1,7 @@
 //! This module contains code for abstracting object locations that work
 //! across different backing implementations and platforms.
 
-use std::{mem, path::PathBuf};
+use std::mem;
 
 /// Paths that came from or are to be used in cloud-based object storage
 pub mod cloud;
@@ -9,6 +9,7 @@ use cloud::CloudPath;
 
 /// Paths that come from or are to be used in file-based object storage
 pub mod file;
+use file::FilePath;
 
 /// Maximally processed storage-independent paths.
 pub mod parsed;
@@ -69,18 +70,6 @@ impl ObjectStorePath for Path {
 }
 
 impl Path {
-    /// For use when receiving a path from a filesystem directly, not
-    /// when building a path. Uses the standard library's path splitting
-    /// implementation to separate into parts.
-    ///
-    /// TODO: This should only be available to file storage
-    pub fn from_path_buf_unchecked(path: impl Into<PathBuf>) -> Self {
-        let path = path.into();
-        Self {
-            inner: PathRepresentation::RawPathBuf(path),
-        }
-    }
-
     /// Add a `PathPart` to the end of the path.
     pub fn push_part_as_dir(&mut self, part: &PathPart) {
         self.inner = mem::take(&mut self.inner).push_part_as_dir(part);
@@ -146,9 +135,9 @@ pub enum PathRepresentation {
     GoogleCloudStorage(CloudPath),
     /// Microsoft Azure Blob storage
     MicrosoftAzure(CloudPath),
+    /// Local file system storage
+    File(FilePath),
 
-    /// Will be transformed into a FilePath type
-    RawPathBuf(PathBuf),
     /// Will be able to be used directly
     Parts(DirsAndFileName),
 }
@@ -217,9 +206,9 @@ impl PathRepresentation {
         match self {
             Self::Parts(dirs_and_file_name) => dirs_and_file_name.display(),
             Self::AmazonS3(path) | Self::GoogleCloudStorage(path) | Self::MicrosoftAzure(path) => {
-                path.display().to_string()
+                path.display()
             }
-            Self::RawPathBuf(path_buf) => path_buf.display().to_string(),
+            Self::File(path) => path.display(),
         }
     }
 }
@@ -379,82 +368,6 @@ mod tests {
             haystack,
             needle
         );
-    }
-
-    #[test]
-    fn path_rep_conversions() {
-        // dir and file name
-        let path_buf = PathRepresentation::RawPathBuf("foo/bar/blah.json".into());
-        let path_buf_parts: DirsAndFileName = path_buf.into();
-
-        let mut expected_parts = DirsAndFileName::default();
-        expected_parts.push_dir("foo");
-        expected_parts.push_dir("bar");
-        expected_parts.file_name = Some("blah.json".into());
-
-        assert_eq!(path_buf_parts, expected_parts);
-
-        // dir, no file name
-        let path_buf = PathRepresentation::RawPathBuf("foo/bar".into());
-        let path_buf_parts: DirsAndFileName = path_buf.into();
-
-        expected_parts.file_name = None;
-
-        assert_eq!(path_buf_parts, expected_parts);
-
-        // no dir, file name
-        let path_buf = PathRepresentation::RawPathBuf("blah.json".into());
-        let path_buf_parts: DirsAndFileName = path_buf.into();
-
-        assert!(path_buf_parts.directories.is_empty());
-        assert_eq!(path_buf_parts.file_name.unwrap().encoded(), "blah.json");
-
-        // empty
-        let path_buf = PathRepresentation::RawPathBuf("".into());
-        let path_buf_parts: DirsAndFileName = path_buf.into();
-
-        assert!(path_buf_parts.directories.is_empty());
-        assert!(path_buf_parts.file_name.is_none());
-    }
-
-    #[test]
-    fn path_buf_to_dirs_and_file_name_conversion() {
-        // Last section ending in `.json` is a file name
-        let path_buf = PathRepresentation::RawPathBuf("/one/two/blah.json".into());
-        let path_buf_parts: DirsAndFileName = path_buf.into();
-        assert_eq!(path_buf_parts.directories.len(), 3);
-        assert_eq!(path_buf_parts.file_name.unwrap().0, "blah.json");
-
-        // Last section ending in `.segment` is a file name
-        let path_buf = PathRepresentation::RawPathBuf("/one/two/blah.segment".into());
-        let path_buf_parts: DirsAndFileName = path_buf.into();
-        assert_eq!(path_buf_parts.directories.len(), 3);
-        assert_eq!(path_buf_parts.file_name.unwrap().0, "blah.segment");
-
-        // Last section ending in `.parquet` is a file name
-        let path_buf = PathRepresentation::RawPathBuf("/one/two/blah.parquet".into());
-        let path_buf_parts: DirsAndFileName = path_buf.into();
-        assert_eq!(path_buf_parts.directories.len(), 3);
-        assert_eq!(path_buf_parts.file_name.unwrap().0, "blah.parquet");
-
-        // Last section ending in `.txt` is NOT a file name; we don't recognize that
-        // extension
-        let path_buf = PathRepresentation::RawPathBuf("/one/two/blah.txt".into());
-        let path_buf_parts: DirsAndFileName = path_buf.into();
-        assert_eq!(path_buf_parts.directories.len(), 4);
-        assert!(path_buf_parts.file_name.is_none());
-
-        // Last section containing a `.` isn't a file name
-        let path_buf = PathRepresentation::RawPathBuf("/one/two/blah.blah".into());
-        let path_buf_parts: DirsAndFileName = path_buf.into();
-        assert_eq!(path_buf_parts.directories.len(), 4);
-        assert!(path_buf_parts.file_name.is_none());
-
-        // Last section starting with a `.` isn't a file name (macos temp dirs do this)
-        let path_buf = PathRepresentation::RawPathBuf("/one/two/.blah".into());
-        let path_buf_parts: DirsAndFileName = path_buf.into();
-        assert_eq!(path_buf_parts.directories.len(), 4);
-        assert!(path_buf_parts.file_name.is_none());
     }
 
     #[test]

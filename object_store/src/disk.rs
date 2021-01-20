@@ -1,7 +1,7 @@
 //! This module contains the IOx implementation for using local disk as the
 //! object store.
 use crate::{
-    path::file::FileConverter, DataDoesNotMatchLength, Result, UnableToCopyDataToFile,
+    path::file::FilePath, DataDoesNotMatchLength, Result, UnableToCopyDataToFile,
     UnableToCreateDir, UnableToCreateFile, UnableToDeleteFile, UnableToOpenFile,
     UnableToPutDataInMemory, UnableToReadBytes,
 };
@@ -17,30 +17,30 @@ use walkdir::WalkDir;
 /// cloud storage provider.
 #[derive(Debug)]
 pub struct File {
-    root: crate::path::Path,
+    root: FilePath,
 }
 
 impl File {
     /// Create new filesystem storage.
     pub fn new(root: impl Into<PathBuf>) -> Self {
         Self {
-            root: crate::path::Path::from_path_buf_unchecked(root),
+            root: FilePath::raw(root),
         }
     }
 
-    fn path(&self, location: &crate::path::Path) -> PathBuf {
+    fn path(&self, location: &FilePath) -> PathBuf {
         let mut path = self.root.clone();
         path.push_path(location);
-        FileConverter::convert(&path.inner)
+        path.to_raw()
     }
 
     /// Return a new location path appropriate for this object storage
-    pub fn new_path(&self) -> crate::path::Path {
-        crate::path::Path::default()
+    pub fn new_path(&self) -> FilePath {
+        FilePath::default()
     }
 
     /// Save the provided bytes to the specified location.
-    pub async fn put<S>(&self, location: &crate::path::Path, bytes: S, length: usize) -> Result<()>
+    pub async fn put<S>(&self, location: &FilePath, bytes: S, length: usize) -> Result<()>
     where
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
@@ -86,10 +86,7 @@ impl File {
     }
 
     /// Return the bytes that are stored at the specified location.
-    pub async fn get(
-        &self,
-        location: &crate::path::Path,
-    ) -> Result<impl Stream<Item = Result<Bytes>>> {
+    pub async fn get(&self, location: &FilePath) -> Result<impl Stream<Item = Result<Bytes>>> {
         let path = self.path(location);
 
         let file = fs::File::open(&path)
@@ -103,7 +100,7 @@ impl File {
     }
 
     /// Delete the object at the specified location.
-    pub async fn delete(&self, location: &crate::path::Path) -> Result<()> {
+    pub async fn delete(&self, location: &FilePath) -> Result<()> {
         let path = self.path(location);
         fs::remove_file(&path)
             .await
@@ -114,9 +111,9 @@ impl File {
     /// List all the objects with the given prefix.
     pub async fn list<'a>(
         &'a self,
-        prefix: Option<&'a crate::path::Path>,
-    ) -> Result<impl Stream<Item = Result<Vec<crate::path::Path>>> + 'a> {
-        let root_path = FileConverter::convert(&self.root.inner);
+        prefix: Option<&'a FilePath>,
+    ) -> Result<impl Stream<Item = Result<Vec<FilePath>>> + 'a> {
+        let root_path = self.root.to_raw();
         let walkdir = WalkDir::new(&root_path)
             // Don't include the root directory itself
             .min_depth(1);
@@ -129,7 +126,7 @@ impl File {
                     let relative_path = file.path().strip_prefix(&root_path).expect(
                         "Must start with root path because this came from walking the root",
                     );
-                    crate::path::Path::from_path_buf_unchecked(relative_path)
+                    FilePath::raw(relative_path)
                 })
                 .filter(|name| prefix.map_or(true, |p| name.prefix_matches(p)))
                 .map(|name| Ok(vec![name]))
