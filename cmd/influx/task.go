@@ -224,8 +224,8 @@ type taskRerunFailedFlags struct {
 }
 
 func (t *cmdTaskBuilder) taskRerunFailedCmd() *cobra.Command {
-	cmd := t.opts.newCmd("rerun_failed", t.taskRerunFailedF, true)
-	cmd.Short = "Find and Rerun failed runs/tasks"
+	cmd := t.opts.newCmd("rerun-failed", t.taskRerunFailedF, true)
+	cmd.Short = "Find and Rerun failed runs"
 	cmd.Aliases = []string{"rrf"}
 
 	t.org.register(t.opts.viper, cmd, false)
