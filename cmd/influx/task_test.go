@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/spf13/cobra"
@@ -62,26 +63,11 @@ func TestCmdTask(t *testing.T) {
 				}
 
 				errMsg := fmt.Errorf("unexpected task;\n\twant= %+v\n\tgot=  %+v", expectedTsk, task)
-
-				// todo: compare fields for expected to actual (aka "tmpTsk") using go-cmp pkg
-				if expectedTsk.Type != tmpTsk.Type {
-					return nil, errMsg
-				} else if expectedTsk.Flux != tmpTsk.Flux {
-					return nil, errMsg
-				} else if expectedTsk.Status != tmpTsk.Status {
-					return nil, errMsg
-				} else if expectedTsk.Description != tmpTsk.Description {
-					return nil, errMsg
-				} else if expectedTsk.Organization != tmpTsk.Organization {
-					return nil, errMsg
-				} else if expectedTsk.OrganizationID != tmpTsk.OrganizationID {
-					return nil, errMsg
-				} else if expectedTsk.OwnerID != tmpTsk.OwnerID {
+				if !cmp.Equal(expectedTsk, tmpTsk) {
 					return nil, errMsg
 				} else {
 					return &expectedTsk, nil
 				}
-
 			}
 
 			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
@@ -107,22 +93,5 @@ func TestCmdTask(t *testing.T) {
 		}
 
 	}) // end t.Run create
-
-	//t.Run("RerunFailed", func(t *testing.T) {
-	//	//	/*
-	//	//		Need to:
-	//	//		1. create a mock task backend
-	//	//		2. create a task
-	//	//		3. have it fail couple times
-	//	//		4. run testrerun
-	//	//
-	//	//		how to output a cobra.Command?
-	//	//	*/
-	//	tests := struct {
-	//		name         string
-	//		expectedTask influxdb.Task
-	//	}{}
-	//
-	//}) //end t.Run RerunFailed
 
 }
