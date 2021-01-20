@@ -61,8 +61,8 @@ func NewCommand(v *viper.Viper, p *Program) *cobra.Command {
 	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 
 	if configPath := v.GetString("CONFIG_PATH"); configPath != "" {
-		switch path.Ext(configPath) {
-		case ".json", ".toml", ".yaml", "yml":
+		switch strings.ToLower(path.Ext(configPath)) {
+		case ".json", ".toml", ".yaml", ".yml":
 			v.SetConfigFile(configPath)
 		case "":
 			v.AddConfigPath(configPath)
