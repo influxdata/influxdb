@@ -2,6 +2,7 @@ package influxql
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/influxdata/influxdb/v2"
 )
@@ -10,11 +11,15 @@ type EncodingFormat int
 
 func (f *EncodingFormat) UnmarshalJSON(bytes []byte) error {
 	var s string
-	if err := json.Unmarshal(bytes, &s); err != nil {
+	var err error
+
+	if err = json.Unmarshal(bytes, &s); err != nil {
 		return err
 	}
 
-	*f = EncodingFormatFromMimeType(s)
+	if *f, err = EncodingFormatFromMimeType(s); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -31,25 +36,25 @@ const (
 
 // Returns closed encoding format from the specified mime type.
 // The default is JSON if no exact match is found.
-func EncodingFormatFromMimeType(s string) EncodingFormat {
+func EncodingFormatFromMimeType(s string) (EncodingFormat, error) {
 	switch s {
 	case "application/csv", "text/csv":
-		return EncodingFormatCSV
+		return EncodingFormatCSV, nil
 	case "text/plain":
-		return EncodingFormatTable
+       return EncodingFormatTable, nil
 	case "application/x-msgpack":
-		return EncodingFormatMessagePack
-	case "application/json":
-		fallthrough
+		return EncodingFormatMessagePack, nil
+	case "", "*/*", "application/json":
+		return EncodingFormatJSON, nil
 	default:
-		return EncodingFormatJSON
+		return -1, fmt.Errorf("invalid InfluxQL encoding format: %s", s)
 	}
 }
 
 func (f EncodingFormat) ContentType() string {
 	switch f {
 	case EncodingFormatCSV:
-		return "text/csv"
+		return "application/csv"
 	case EncodingFormatTable:
 		return "text/plain"
 	case EncodingFormatMessagePack:
