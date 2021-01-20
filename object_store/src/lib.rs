@@ -291,8 +291,8 @@ pub enum ObjectStoreIntegration {
 }
 
 /// Result of a list call that includes objects, prefixes (directories) and a
-/// token for the next set of results. Individual results sets are limited to
-/// 1,000 objects.
+/// token for the next set of results. Individual result sets may be limited to
+/// 1,000 objects based on the underlying object storage's limitations.
 #[derive(Debug)]
 pub struct ListResult<P: ObjectStorePath> {
     /// Token passed to the API for the next page of list results.
@@ -305,6 +305,9 @@ pub struct ListResult<P: ObjectStorePath> {
 
 #[allow(clippy::use_self)] // https://github.com/rust-lang/rust-clippy/issues/3410
 impl<P: ObjectStorePath> ListResult<P> {
+    /// `c` is a function that can turn one type that implements an
+    /// `ObjectStorePath` to another type that also implements
+    /// `ObjectStorePath`.
     fn map_paths<Q: ObjectStorePath, C>(self, c: C) -> ListResult<Q>
     where
         C: Fn(P) -> Q,
@@ -336,6 +339,9 @@ pub struct ObjectMeta<P: ObjectStorePath> {
 
 #[allow(clippy::use_self)] // https://github.com/rust-lang/rust-clippy/issues/3410
 impl<P: ObjectStorePath> ObjectMeta<P> {
+    /// `c` is a function that can turn one type that implements an
+    /// `ObjectStorePath` to another type that also implements
+    /// `ObjectStorePath`.
     fn map_paths<Q: ObjectStorePath, C>(self, c: C) -> ObjectMeta<Q>
     where
         C: Fn(P) -> Q,
