@@ -872,7 +872,7 @@ mod tests {
         assert_eq!(segment_path, expected_segment_path);
 
         let segment_path = object_store_path_for_segment(&base_path, 45_010_105).unwrap();
-        let mut expected_segment_path = base_path.clone();
+        let mut expected_segment_path = base_path;
         expected_segment_path.push_all_dirs(&["wal", "045", "010"]);
         expected_segment_path.set_file_name("105.segment");
         assert_eq!(segment_path, expected_segment_path);

@@ -303,6 +303,7 @@ pub struct ListResult<P: ObjectStorePath> {
     pub objects: Vec<ObjectMeta<P>>,
 }
 
+#[allow(clippy::use_self)] // https://github.com/rust-lang/rust-clippy/issues/3410
 impl<P: ObjectStorePath> ListResult<P> {
     fn map_paths<Q: ObjectStorePath, C>(self, c: C) -> ListResult<Q>
     where
@@ -333,6 +334,7 @@ pub struct ObjectMeta<P: ObjectStorePath> {
     pub size: usize,
 }
 
+#[allow(clippy::use_self)] // https://github.com/rust-lang/rust-clippy/issues/3410
 impl<P: ObjectStorePath> ObjectMeta<P> {
     fn map_paths<Q: ObjectStorePath, C>(self, c: C) -> ObjectMeta<Q>
     where
