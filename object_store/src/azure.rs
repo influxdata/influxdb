@@ -1,7 +1,7 @@
 //! This module contains the IOx implementation for using Azure Blob storage as
 //! the object store.
 use crate::{
-    path::cloud::CloudConverter, DataDoesNotMatchLength, Result, UnableToDeleteDataFromAzure,
+    path::cloud::CloudPath, DataDoesNotMatchLength, Result, UnableToDeleteDataFromAzure,
     UnableToGetDataFromAzure, UnableToListDataFromAzure, UnableToPutDataToAzure,
 };
 use azure_core::HttpClient;
@@ -65,16 +65,16 @@ impl MicrosoftAzure {
     }
 
     /// Return a new location path appropriate for this object storage
-    pub fn new_path(&self) -> crate::path::Path {
-        crate::path::Path::default()
+    pub fn new_path(&self) -> CloudPath {
+        CloudPath::default()
     }
 
     /// Save the provided bytes to the specified location.
-    pub async fn put<S>(&self, location: &crate::path::Path, bytes: S, length: usize) -> Result<()>
+    pub async fn put<S>(&self, location: &CloudPath, bytes: S, length: usize) -> Result<()>
     where
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
-        let location = CloudConverter::convert(&location.inner);
+        let location = location.to_raw();
         let temporary_non_streaming = bytes
             .map_ok(|b| bytes::BytesMut::from(&b[..]))
             .try_concat()
@@ -102,12 +102,9 @@ impl MicrosoftAzure {
     }
 
     /// Return the bytes that are stored at the specified location.
-    pub async fn get(
-        &self,
-        location: &crate::path::Path,
-    ) -> Result<impl Stream<Item = Result<Bytes>>> {
+    pub async fn get(&self, location: &CloudPath) -> Result<impl Stream<Item = Result<Bytes>>> {
         let container_client = self.container_client.clone();
-        let location = CloudConverter::convert(&location.inner);
+        let location = location.to_raw();
         Ok(async move {
             container_client
                 .as_blob_client(&location)
@@ -123,8 +120,8 @@ impl MicrosoftAzure {
     }
 
     /// Delete the object at the specified location.
-    pub async fn delete(&self, location: &crate::path::Path) -> Result<()> {
-        let location = CloudConverter::convert(&location.inner);
+    pub async fn delete(&self, location: &CloudPath) -> Result<()> {
+        let location = location.to_raw();
         self.container_client
             .as_blob_client(&location)
             .delete()
@@ -141,8 +138,8 @@ impl MicrosoftAzure {
     /// List all the objects with the given prefix.
     pub async fn list<'a>(
         &'a self,
-        prefix: Option<&'a crate::path::Path>,
-    ) -> Result<impl Stream<Item = Result<Vec<crate::path::Path>>> + 'a> {
+        prefix: Option<&'a CloudPath>,
+    ) -> Result<impl Stream<Item = Result<Vec<CloudPath>>> + 'a> {
         #[derive(Clone)]
         enum ListState {
             Start,
@@ -153,7 +150,7 @@ impl MicrosoftAzure {
         Ok(stream::unfold(ListState::Start, move |state| async move {
             let mut request = self.container_client.list_blobs();
 
-            let prefix = prefix.map(|p| CloudConverter::convert(&p.inner));
+            let prefix = prefix.map(|p| p.to_raw());
             if let Some(ref p) = prefix {
                 request = request.prefix(p as &str);
             }
@@ -183,7 +180,7 @@ impl MicrosoftAzure {
                 .incomplete_vector
                 .vector
                 .into_iter()
-                .map(|blob| crate::path::Path::from_cloud_unchecked(blob.name))
+                .map(|blob| CloudPath::raw(blob.name))
                 .collect();
 
             Some((Ok(names), next_state))

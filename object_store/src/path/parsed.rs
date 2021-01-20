@@ -127,24 +127,9 @@ impl DirsAndFileName {
 impl From<PathRepresentation> for DirsAndFileName {
     fn from(path_rep: PathRepresentation) -> Self {
         match path_rep {
-            PathRepresentation::RawCloud(path) => {
-                let mut parts: Vec<PathPart> = path
-                    .split_terminator(DELIMITER)
-                    .map(|s| PathPart(s.to_string()))
-                    .collect();
-                let maybe_file_name = match parts.pop() {
-                    Some(file) if file.encoded().contains('.') => Some(file),
-                    Some(dir) => {
-                        parts.push(dir);
-                        None
-                    }
-                    None => None,
-                };
-                Self {
-                    directories: parts,
-                    file_name: maybe_file_name,
-                }
-            }
+            PathRepresentation::AmazonS3(path)
+            | PathRepresentation::GoogleCloudStorage(path)
+            | PathRepresentation::MicrosoftAzure(path) => path.into(),
             PathRepresentation::RawPathBuf(path) => {
                 let mut parts: Vec<PathPart> = path
                     .iter()

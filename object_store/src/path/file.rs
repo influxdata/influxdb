@@ -13,9 +13,6 @@ impl FileConverter {
     /// platform.
     pub fn convert(object_store_path: &PathRepresentation) -> PathBuf {
         match object_store_path {
-            PathRepresentation::RawCloud(_path) => {
-                todo!("convert");
-            }
             PathRepresentation::RawPathBuf(path) => path.to_owned(),
             PathRepresentation::Parts(dirs_and_file_name) => {
                 let mut path: PathBuf = dirs_and_file_name
@@ -28,6 +25,7 @@ impl FileConverter {
                 }
                 path
             }
+            _ => unreachable!(),
         }
     }
 }

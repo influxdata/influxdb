@@ -1,7 +1,7 @@
 //! This module contains the IOx implementation for using Google Cloud Storage
 //! as the object store.
 use crate::{
-    path::cloud::CloudConverter, DataDoesNotMatchLength, Result, UnableToDeleteDataFromGcs,
+    path::cloud::CloudPath, DataDoesNotMatchLength, Result, UnableToDeleteDataFromGcs,
     UnableToGetDataFromGcs, UnableToListDataFromGcs, UnableToListDataFromGcs2,
     UnableToPutDataToGcs,
 };
@@ -25,12 +25,12 @@ impl GoogleCloudStorage {
     }
 
     /// Return a new location path appropriate for this object storage
-    pub fn new_path(&self) -> crate::path::Path {
-        crate::path::Path::default()
+    pub fn new_path(&self) -> CloudPath {
+        CloudPath::default()
     }
 
     /// Save the provided bytes to the specified location.
-    pub async fn put<S>(&self, location: &crate::path::Path, bytes: S, length: usize) -> Result<()>
+    pub async fn put<S>(&self, location: &CloudPath, bytes: S, length: usize) -> Result<()>
     where
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
@@ -49,7 +49,7 @@ impl GoogleCloudStorage {
             }
         );
 
-        let location = CloudConverter::convert(&location.inner);
+        let location = location.to_raw();
         let location_copy = location.clone();
         let bucket_name = self.bucket_name.clone();
 
@@ -69,11 +69,8 @@ impl GoogleCloudStorage {
     }
 
     /// Return the bytes that are stored at the specified location.
-    pub async fn get(
-        &self,
-        location: &crate::path::Path,
-    ) -> Result<impl Stream<Item = Result<Bytes>>> {
-        let location = CloudConverter::convert(&location.inner);
+    pub async fn get(&self, location: &CloudPath) -> Result<impl Stream<Item = Result<Bytes>>> {
+        let location = location.to_raw();
         let location_copy = location.clone();
         let bucket_name = self.bucket_name.clone();
 
@@ -88,8 +85,8 @@ impl GoogleCloudStorage {
     }
 
     /// Delete the object at the specified location.
-    pub async fn delete(&self, location: &crate::path::Path) -> Result<()> {
-        let location = CloudConverter::convert(&location.inner);
+    pub async fn delete(&self, location: &CloudPath) -> Result<()> {
+        let location = location.to_raw();
         let location_copy = location.clone();
         let bucket_name = self.bucket_name.clone();
 
@@ -106,11 +103,11 @@ impl GoogleCloudStorage {
     /// List all the objects with the given prefix.
     pub async fn list<'a>(
         &'a self,
-        prefix: Option<&'a crate::path::Path>,
-    ) -> Result<impl Stream<Item = Result<Vec<crate::path::Path>>> + 'a> {
+        prefix: Option<&'a CloudPath>,
+    ) -> Result<impl Stream<Item = Result<Vec<CloudPath>>> + 'a> {
         let objects = match prefix {
             Some(prefix) => {
-                let cloud_prefix = CloudConverter::convert(&prefix.inner);
+                let cloud_prefix = prefix.to_raw();
                 let list = cloud_storage::Object::list_prefix(&self.bucket_name, &cloud_prefix)
                     .await
                     .context(UnableToListDataFromGcs {
@@ -133,7 +130,7 @@ impl GoogleCloudStorage {
         let objects = objects
             .map_ok(|list| {
                 list.into_iter()
-                    .map(|o| crate::path::Path::from_cloud_unchecked(o.name))
+                    .map(|o| CloudPath::raw(o.name))
                     .collect::<Vec<_>>()
             })
             .context(UnableToListDataFromGcs2 {

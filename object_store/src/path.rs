@@ -5,6 +5,7 @@ use std::{mem, path::PathBuf};
 
 /// Paths that came from or are to be used in cloud-based object storage
 pub mod cloud;
+use cloud::CloudPath;
 
 /// Paths that come from or are to be used in file-based object storage
 pub mod file;
@@ -68,17 +69,6 @@ impl ObjectStorePath for Path {
 }
 
 impl Path {
-    /// For use when receiving a path from an object store API directly, not
-    /// when building a path. Assumes DELIMITER is the separator.
-    ///
-    /// TODO: This should only be available to cloud storage
-    pub fn from_cloud_unchecked(path: impl Into<String>) -> Self {
-        let path = path.into();
-        Self {
-            inner: PathRepresentation::RawCloud(path),
-        }
-    }
-
     /// For use when receiving a path from a filesystem directly, not
     /// when building a path. Uses the standard library's path splitting
     /// implementation to separate into parts.
@@ -147,11 +137,16 @@ impl From<DirsAndFileName> for Path {
     }
 }
 
-/// Temporary
+/// Defines which object stores use which path logic.
 #[derive(Clone, Eq, Debug)]
 pub enum PathRepresentation {
-    /// Will be transformed into a CloudPath type
-    RawCloud(String),
+    /// Amazon storage
+    AmazonS3(CloudPath),
+    /// GCP storage
+    GoogleCloudStorage(CloudPath),
+    /// Microsoft Azure Blob storage
+    MicrosoftAzure(CloudPath),
+
     /// Will be transformed into a FilePath type
     RawPathBuf(PathBuf),
     /// Will be able to be used directly
@@ -221,7 +216,9 @@ impl PathRepresentation {
     fn display(&self) -> String {
         match self {
             Self::Parts(dirs_and_file_name) => dirs_and_file_name.display(),
-            Self::RawCloud(path) => path.to_owned(),
+            Self::AmazonS3(path) | Self::GoogleCloudStorage(path) | Self::MicrosoftAzure(path) => {
+                path.display().to_string()
+            }
             Self::RawPathBuf(path_buf) => path_buf.display().to_string(),
         }
     }
@@ -385,42 +382,8 @@ mod tests {
     }
 
     #[test]
-    fn convert_raw_before_partial_eq() {
-        // dir and file_name
-        let cloud = Path::from_cloud_unchecked("test_dir/test_file.json");
-        let mut built = Path::default();
-        built.push_dir("test_dir");
-        built.set_file_name("test_file.json");
-
-        assert_eq!(built, cloud);
-
-        // dir, no file_name
-        let cloud = Path::from_cloud_unchecked("test_dir");
-        let mut built = Path::default();
-        built.push_dir("test_dir");
-
-        assert_eq!(built, cloud);
-
-        // file_name, no dir
-        let cloud = Path::from_cloud_unchecked("test_file.json");
-        let mut built = Path::default();
-        built.set_file_name("test_file.json");
-
-        assert_eq!(built, cloud);
-
-        // empty
-        let cloud = Path::from_cloud_unchecked("");
-        let built = Path::default();
-
-        assert_eq!(built, cloud);
-    }
-
-    #[test]
     fn path_rep_conversions() {
         // dir and file name
-        let cloud = PathRepresentation::RawCloud("foo/bar/blah.json".into());
-        let cloud_parts: DirsAndFileName = cloud.into();
-
         let path_buf = PathRepresentation::RawPathBuf("foo/bar/blah.json".into());
         let path_buf_parts: DirsAndFileName = path_buf.into();
 
@@ -429,43 +392,26 @@ mod tests {
         expected_parts.push_dir("bar");
         expected_parts.file_name = Some("blah.json".into());
 
-        assert_eq!(cloud_parts, expected_parts);
         assert_eq!(path_buf_parts, expected_parts);
 
         // dir, no file name
-        let cloud = PathRepresentation::RawCloud("foo/bar".into());
-        let cloud_parts: DirsAndFileName = cloud.into();
-
         let path_buf = PathRepresentation::RawPathBuf("foo/bar".into());
         let path_buf_parts: DirsAndFileName = path_buf.into();
 
         expected_parts.file_name = None;
 
-        assert_eq!(cloud_parts, expected_parts);
         assert_eq!(path_buf_parts, expected_parts);
 
         // no dir, file name
-        let cloud = PathRepresentation::RawCloud("blah.json".into());
-        let cloud_parts: DirsAndFileName = cloud.into();
-
         let path_buf = PathRepresentation::RawPathBuf("blah.json".into());
         let path_buf_parts: DirsAndFileName = path_buf.into();
-
-        assert!(cloud_parts.directories.is_empty());
-        assert_eq!(cloud_parts.file_name.unwrap().encoded(), "blah.json");
 
         assert!(path_buf_parts.directories.is_empty());
         assert_eq!(path_buf_parts.file_name.unwrap().encoded(), "blah.json");
 
         // empty
-        let cloud = PathRepresentation::RawCloud("".into());
-        let cloud_parts: DirsAndFileName = cloud.into();
-
         let path_buf = PathRepresentation::RawPathBuf("".into());
         let path_buf_parts: DirsAndFileName = path_buf.into();
-
-        assert!(cloud_parts.directories.is_empty());
-        assert!(cloud_parts.file_name.is_none());
 
         assert!(path_buf_parts.directories.is_empty());
         assert!(path_buf_parts.file_name.is_none());

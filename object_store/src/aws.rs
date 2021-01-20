@@ -1,7 +1,7 @@
 //! This module contains the IOx implementation for using S3 as the object
 //! store.
 use crate::{
-    path::{cloud::CloudConverter, DELIMITER},
+    path::{cloud::CloudPath, DELIMITER},
     Error, ListResult, NoDataFromS3, ObjectMeta, Result, UnableToDeleteDataFromS3,
     UnableToGetDataFromS3, UnableToGetPieceOfDataFromS3, UnableToPutDataToS3,
 };
@@ -55,12 +55,12 @@ impl AmazonS3 {
     }
 
     /// Return a new location path appropriate for this object storage
-    pub fn new_path(&self) -> crate::path::Path {
-        crate::path::Path::default()
+    pub fn new_path(&self) -> CloudPath {
+        CloudPath::default()
     }
 
     /// Save the provided bytes to the specified location.
-    pub async fn put<S>(&self, location: &crate::path::Path, bytes: S, length: usize) -> Result<()>
+    pub async fn put<S>(&self, location: &CloudPath, bytes: S, length: usize) -> Result<()>
     where
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
@@ -68,7 +68,7 @@ impl AmazonS3 {
 
         let put_request = rusoto_s3::PutObjectRequest {
             bucket: self.bucket_name.clone(),
-            key: CloudConverter::convert(&location.inner),
+            key: location.to_raw(),
             body: Some(bytes),
             ..Default::default()
         };
@@ -78,17 +78,14 @@ impl AmazonS3 {
             .await
             .context(UnableToPutDataToS3 {
                 bucket: &self.bucket_name,
-                location: CloudConverter::convert(&location.inner),
+                location: location.to_raw(),
             })?;
         Ok(())
     }
 
     /// Return the bytes that are stored at the specified location.
-    pub async fn get(
-        &self,
-        location: &crate::path::Path,
-    ) -> Result<impl Stream<Item = Result<Bytes>>> {
-        let key = CloudConverter::convert(&location.inner);
+    pub async fn get(&self, location: &CloudPath) -> Result<impl Stream<Item = Result<Bytes>>> {
+        let key = location.to_raw();
         let get_request = rusoto_s3::GetObjectRequest {
             bucket: self.bucket_name.clone(),
             key: key.clone(),
@@ -115,8 +112,8 @@ impl AmazonS3 {
     }
 
     /// Delete the object at the specified location.
-    pub async fn delete(&self, location: &crate::path::Path) -> Result<()> {
-        let key = CloudConverter::convert(&location.inner);
+    pub async fn delete(&self, location: &CloudPath) -> Result<()> {
+        let key = location.to_raw();
         let delete_request = rusoto_s3::DeleteObjectRequest {
             bucket: self.bucket_name.clone(),
             key: key.clone(),
@@ -136,8 +133,8 @@ impl AmazonS3 {
     /// List all the objects with the given prefix.
     pub async fn list<'a>(
         &'a self,
-        prefix: Option<&'a crate::path::Path>,
-    ) -> Result<impl Stream<Item = Result<Vec<crate::path::Path>>> + 'a> {
+        prefix: Option<&'a CloudPath>,
+    ) -> Result<impl Stream<Item = Result<Vec<CloudPath>>> + 'a> {
         #[derive(Clone)]
         enum ListState {
             Start,
@@ -149,7 +146,7 @@ impl AmazonS3 {
         Ok(stream::unfold(ListState::Start, move |state| async move {
             let mut list_request = rusoto_s3::ListObjectsV2Request {
                 bucket: self.bucket_name.clone(),
-                prefix: prefix.map(|p| CloudConverter::convert(&p.inner)),
+                prefix: prefix.map(|p| p.to_raw()),
                 ..Default::default()
             };
 
@@ -181,7 +178,7 @@ impl AmazonS3 {
             let contents = resp.contents.unwrap_or_default();
             let names = contents
                 .into_iter()
-                .flat_map(|object| object.key.map(crate::path::Path::from_cloud_unchecked))
+                .flat_map(|object| object.key.map(CloudPath::raw))
                 .collect();
 
             // The AWS response contains a field named `is_truncated` as well as
@@ -202,10 +199,10 @@ impl AmazonS3 {
     /// common prefixes (directories) in addition to object metadata.
     pub async fn list_with_delimiter<'a>(
         &'a self,
-        prefix: &'a crate::path::Path,
+        prefix: &'a CloudPath,
         next_token: &Option<String>,
-    ) -> Result<ListResult<crate::path::Path>> {
-        let converted_prefix = CloudConverter::convert(&prefix.inner);
+    ) -> Result<ListResult<CloudPath>> {
+        let converted_prefix = prefix.to_raw();
 
         let mut list_request = rusoto_s3::ListObjectsV2Request {
             bucket: self.bucket_name.clone(),
@@ -233,9 +230,8 @@ impl AmazonS3 {
         let objects: Vec<_> = contents
             .into_iter()
             .map(|object| {
-                let location = crate::path::Path::from_cloud_unchecked(
-                    object.key.expect("object doesn't exist without a key"),
-                );
+                let location =
+                    CloudPath::raw(object.key.expect("object doesn't exist without a key"));
                 let last_modified = match object.last_modified {
                     Some(lm) => {
                         DateTime::parse_from_rfc3339(&lm)
@@ -264,11 +260,7 @@ impl AmazonS3 {
             .common_prefixes
             .unwrap_or_default()
             .into_iter()
-            .map(|p| {
-                crate::path::Path::from_cloud_unchecked(
-                    p.prefix.expect("can't have a prefix without a value"),
-                )
-            })
+            .map(|p| CloudPath::raw(p.prefix.expect("can't have a prefix without a value")))
             .collect();
 
         let result = ListResult {
