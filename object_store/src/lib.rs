@@ -68,45 +68,6 @@ pub trait ObjectStoreApi: Send + Sync + 'static {
     async fn list_with_delimiter(&self, prefix: &Self::Path) -> Result<ListResult<Self::Path>>;
 }
 
-#[async_trait]
-impl<T> ObjectStoreApi for T
-where
-    T: std::ops::Deref + Send + Sync + 'static,
-    T::Target: ObjectStoreApi,
-{
-    type Path = <T::Target as ObjectStoreApi>::Path;
-
-    fn new_path(&self) -> Self::Path {
-        unimplemented!()
-    }
-
-    async fn put<S>(&self, location: &Self::Path, bytes: S, length: usize) -> Result<()>
-    where
-        S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
-    {
-        T::put(self, location, bytes, length).await
-    }
-
-    async fn get(&self, location: &Self::Path) -> Result<BoxStream<'static, Result<Bytes>>> {
-        T::get(self, location).await
-    }
-
-    async fn delete(&self, location: &Self::Path) -> Result<()> {
-        T::delete(self, location).await
-    }
-
-    async fn list<'a>(
-        &'a self,
-        prefix: Option<&'a Self::Path>,
-    ) -> Result<BoxStream<'a, Result<Vec<Self::Path>>>> {
-        T::list(self, prefix).await
-    }
-
-    async fn list_with_delimiter(&self, prefix: &Self::Path) -> Result<ListResult<Self::Path>> {
-        T::list_with_delimiter(self, prefix).await
-    }
-}
-
 /// Universal interface to multiple object store services.
 #[derive(Debug)]
 pub struct ObjectStore(pub ObjectStoreIntegration);
