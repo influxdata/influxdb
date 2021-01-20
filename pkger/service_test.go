@@ -2348,6 +2348,40 @@ func TestService(t *testing.T) {
 							},
 						},
 						{
+							name:    "geo",
+							newName: "new name",
+							expectedView: influxdb.View{
+								ViewContents: influxdb.ViewContents{
+									Name: "view name",
+								},
+								Properties: influxdb.GeoViewProperties{
+									Type:    influxdb.ViewPropertyTypeGeo,
+									Queries: []influxdb.DashboardQuery{newQuery()},
+									Center:  influxdb.Datum{Lat: 10, Lon: -4},
+									Zoom:    4,
+									GeoLayers: []influxdb.GeoLayer{{
+										Type:           "circleMap",
+										RadiusField:    "radius",
+										IntensityField: "count",
+										Radius:         5,
+										Blur:           1,
+										RadiusDimension: influxdb.Axis{
+											Prefix: "$",
+											Suffix: "%",
+										},
+										InterpolateColors: false,
+										TrackWidth:        4,
+										Speed:             1,
+										RandomColors:      false,
+										IsClustered:       false,
+										ViewColors:        newColors("min", "max"),
+									}},
+									Note:              "a note",
+									ShowNoteWhenEmpty: true,
+								},
+							},
+						},
+						{
 							name:    "heatmap",
 							newName: "new name",
 							expectedView: influxdb.View{

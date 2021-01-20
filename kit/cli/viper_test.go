@@ -10,10 +10,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/BurntSushi/toml"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
+	"gopkg.in/yaml.v3"
 )
 
 type customFlag bool
@@ -138,16 +140,14 @@ func ExampleNewCommand() {
 }
 
 func Test_NewProgram(t *testing.T) {
-	testFilePath, cleanup := newConfigFile(t, map[string]string{
+	config := map[string]string{
 		// config values should be same as flags
 		"foo":         "bar",
 		"shoe-fly":    "yadon",
 		"number":      "2147483647",
 		"long-number": "9223372036854775807",
 		"log-level":   "debug",
-	})
-	defer cleanup()
-	defer setEnvVar("TEST_CONFIG_PATH", testFilePath)()
+	}
 
 	tests := []struct {
 		name      string
@@ -178,56 +178,67 @@ func Test_NewProgram(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		fn := func(t *testing.T) {
-			if tt.envVarVal != "" {
-				defer setEnvVar("TEST_FOO", tt.envVarVal)()
+		for _, writer := range configWriters {
+			fn := func(t *testing.T) {
+				testDir, err := ioutil.TempDir("", "")
+				require.NoError(t, err)
+				defer os.RemoveAll(testDir)
+
+				confFile, err := writer.writeFn(testDir, config)
+				require.NoError(t, err)
+
+				defer setEnvVar("TEST_CONFIG_PATH", confFile)()
+
+				if tt.envVarVal != "" {
+					defer setEnvVar("TEST_FOO", tt.envVarVal)()
+				}
+
+				var testVar string
+				var testFly string
+				var testNumber int32
+				var testLongNumber int64
+				var logLevel zapcore.Level
+				program := &Program{
+					Name: "test",
+					Opts: []Opt{
+						{
+							DestP:    &testVar,
+							Flag:     "foo",
+							Required: true,
+						},
+						{
+							DestP: &testFly,
+							Flag:  "shoe-fly",
+						},
+						{
+							DestP: &testNumber,
+							Flag:  "number",
+						},
+						{
+							DestP: &testLongNumber,
+							Flag:  "long-number",
+						},
+						{
+							DestP: &logLevel,
+							Flag:  "log-level",
+						},
+					},
+					Run: func() error { return nil },
+				}
+
+				cmd := NewCommand(viper.New(), program)
+				cmd.SetArgs(append([]string{}, tt.args...))
+				require.NoError(t, cmd.Execute())
+
+				require.Equal(t, tt.expected, testVar)
+				assert.Equal(t, "yadon", testFly)
+				assert.Equal(t, int32(math.MaxInt32), testNumber)
+				assert.Equal(t, int64(math.MaxInt64), testLongNumber)
+				assert.Equal(t, zapcore.DebugLevel, logLevel)
 			}
 
-			var testVar string
-			var testFly string
-			var testNumber int32
-			var testLongNumber int64
-			var logLevel zapcore.Level
-			program := &Program{
-				Name: "test",
-				Opts: []Opt{
-					{
-						DestP:    &testVar,
-						Flag:     "foo",
-						Required: true,
-					},
-					{
-						DestP: &testFly,
-						Flag:  "shoe-fly",
-					},
-					{
-						DestP: &testNumber,
-						Flag:  "number",
-					},
-					{
-						DestP: &testLongNumber,
-						Flag:  "long-number",
-					},
-					{
-						DestP: &logLevel,
-						Flag:  "log-level",
-					},
-				},
-				Run: func() error { return nil },
-			}
-
-			cmd := NewCommand(viper.New(), program)
-			cmd.SetArgs(append([]string{}, tt.args...))
-			require.NoError(t, cmd.Execute())
-
-			require.Equal(t, tt.expected, testVar)
-			assert.Equal(t, "yadon", testFly)
-			assert.Equal(t, int32(math.MaxInt32), testNumber)
-			assert.Equal(t, int64(math.MaxInt64), testLongNumber)
-			assert.Equal(t, zapcore.DebugLevel, logLevel)
+			t.Run(fmt.Sprintf("%s_%s", tt.name, writer.ext), fn)
 		}
-
-		t.Run(tt.name, fn)
 	}
 }
 
@@ -239,20 +250,59 @@ func setEnvVar(key, val string) func() {
 	}
 }
 
-func newConfigFile(t *testing.T, config interface{}) (string, func()) {
-	t.Helper()
+type configWriter func(dir string, config interface{}) (string, error)
+type labeledWriter struct {
+	ext     string
+	writeFn configWriter
+}
 
-	testDir, err := ioutil.TempDir("", "")
-	require.NoError(t, err)
+var configWriters = []labeledWriter{
+	{ext: "json", writeFn: writeJsonConfig},
+	{ext: "toml", writeFn: writeTomlConfig},
+	{ext: "yml", writeFn: yamlConfigWriter(true)},
+	{ext: "yaml", writeFn: yamlConfigWriter(false)},
+}
 
+func writeJsonConfig(dir string, config interface{}) (string, error) {
 	b, err := json.Marshal(config)
-	require.NoError(t, err)
+	if err != nil {
+		return "", err
+	}
+	confFile := path.Join(dir, "config.json")
+	if err := ioutil.WriteFile(confFile, b, os.ModePerm); err != nil {
+		return "", err
+	}
+	return confFile, nil
+}
 
-	testFile := path.Join(testDir, "config.json")
-	require.NoError(t, ioutil.WriteFile(testFile, b, os.ModePerm))
+func writeTomlConfig(dir string, config interface{}) (string, error) {
+	confFile := path.Join(dir, "config.toml")
+	w, err := os.OpenFile(confFile, os.O_CREATE|os.O_EXCL|os.O_WRONLY, os.ModePerm)
+	if err != nil {
+		return "", err
+	}
+	if err := toml.NewEncoder(w).Encode(config); err != nil {
+		return "", err
+	}
+	return confFile, nil
+}
 
-	return testFile, func() {
-		os.RemoveAll(testDir)
+func yamlConfigWriter(shortExt bool) configWriter {
+	fileName := "config.yaml"
+	if shortExt {
+		fileName = "config.yml"
+	}
+
+	return func(dir string, config interface{}) (string, error) {
+		confFile := path.Join(dir, fileName)
+		w, err := os.OpenFile(confFile, os.O_CREATE|os.O_EXCL|os.O_WRONLY, os.ModePerm)
+		if err != nil {
+			return "", err
+		}
+		if err := yaml.NewEncoder(w).Encode(config); err != nil {
+			return "", err
+		}
+		return confFile, nil
 	}
 }
 
@@ -274,4 +324,99 @@ func Test_RequiredFlag(t *testing.T) {
 	err := cmd.Execute()
 	require.Error(t, err)
 	require.Equal(t, `required flag(s) "foo" not set`, err.Error())
+}
+
+func Test_ConfigPrecedence(t *testing.T) {
+	jsonConfig := map[string]interface{}{"log-level": zapcore.DebugLevel}
+	tomlConfig := map[string]interface{}{"log-level": zapcore.InfoLevel}
+	yamlConfig := map[string]interface{}{"log-level": zapcore.WarnLevel}
+	ymlConfig := map[string]interface{}{"log-level": zapcore.ErrorLevel}
+
+	tests := []struct {
+		name          string
+		writeJson     bool
+		writeToml     bool
+		writeYaml     bool
+		writeYml      bool
+		expectedLevel zapcore.Level
+	}{
+		{
+			name:          "JSON is used if present",
+			writeJson:     true,
+			writeToml:     true,
+			writeYaml:     true,
+			writeYml:      true,
+			expectedLevel: zapcore.DebugLevel,
+		},
+		{
+			name:          "TOML is used if no JSON present",
+			writeJson:     false,
+			writeToml:     true,
+			writeYaml:     true,
+			writeYml:      true,
+			expectedLevel: zapcore.InfoLevel,
+		},
+		{
+			name:          "YAML is used if no JSON or TOML present",
+			writeJson:     false,
+			writeToml:     false,
+			writeYaml:     true,
+			writeYml:      true,
+			expectedLevel: zapcore.WarnLevel,
+		},
+		{
+			name:          "YML is used if no other option present",
+			writeJson:     false,
+			writeToml:     false,
+			writeYaml:     false,
+			writeYml:      true,
+			expectedLevel: zapcore.ErrorLevel,
+		},
+	}
+
+	for _, tt := range tests {
+		fn := func(t *testing.T) {
+			testDir, err := ioutil.TempDir("", "")
+			require.NoError(t, err)
+			defer os.RemoveAll(testDir)
+			defer setEnvVar("TEST_CONFIG_PATH", testDir)()
+
+			if tt.writeJson {
+				_, err := writeJsonConfig(testDir, jsonConfig)
+				require.NoError(t, err)
+			}
+			if tt.writeToml {
+				_, err := writeTomlConfig(testDir, tomlConfig)
+				require.NoError(t, err)
+			}
+			if tt.writeYaml {
+				_, err := yamlConfigWriter(false)(testDir, yamlConfig)
+				require.NoError(t, err)
+			}
+			if tt.writeYml {
+				_, err := yamlConfigWriter(true)(testDir, ymlConfig)
+				require.NoError(t, err)
+			}
+
+			var logLevel zapcore.Level
+			program := &Program{
+				Name: "test",
+				Opts: []Opt{
+					{
+						DestP: &logLevel,
+						Flag:  "log-level",
+					},
+				},
+				Run: func() error { return nil },
+			}
+
+			cmd := NewCommand(viper.New(), program)
+			cmd.SetArgs([]string{})
+			require.NoError(t, cmd.Execute())
+
+			require.Equal(t, tt.expectedLevel, logLevel)
+		}
+
+		t.Run(tt.name, fn)
+	}
 }

@@ -14,6 +14,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/cli"
 	"github.com/influxdata/influxdb/v2/kit/signals"
 	influxlogger "github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/nats"
 	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/vault"
@@ -31,6 +32,7 @@ const (
 // The `run` subcommand is set as the default to execute.
 func NewInfluxdCommand(ctx context.Context, v *viper.Viper) *cobra.Command {
 	o := newOpts(v)
+	cliOpts := o.bindCliOpts()
 
 	prog := cli.Program{
 		Name: "influxd",
@@ -45,9 +47,10 @@ func NewInfluxdCommand(ctx context.Context, v *viper.Viper) *cobra.Command {
 	}
 	for _, c := range []*cobra.Command{cmd, runCmd} {
 		setCmdDescriptions(c)
-		o.bindCliOpts(c)
+		cli.BindOptions(o.Viper, c, cliOpts)
 	}
 	cmd.AddCommand(runCmd)
+	cmd.AddCommand(NewInfluxdPrintConfigCommand(v, cliOpts))
 
 	return cmd
 }
@@ -125,6 +128,8 @@ type InfluxdOpts struct {
 	SessionLength        int // in minutes
 	SessionRenewDisabled bool
 
+	NatsPort int
+
 	NoTasks      bool
 	FeatureFlags map[string]string
 
@@ -169,6 +174,8 @@ func newOpts(viper *viper.Viper) *InfluxdOpts {
 		StoreType:   BoltStore,
 		SecretStore: BoltStore,
 
+		NatsPort: nats.RandomPort,
+
 		NoTasks: false,
 
 		ConcurrencyQuota:                10,
@@ -182,9 +189,10 @@ func newOpts(viper *viper.Viper) *InfluxdOpts {
 	}
 }
 
-// bindCliOpts configures a cobra command to set server options based on CLI args.
-func (o *InfluxdOpts) bindCliOpts(cmd *cobra.Command) {
-	opts := []cli.Opt{
+// bindCliOpts returns a list of options which can be added to a cobra command
+// in order to set options over the CLI.
+func (o *InfluxdOpts) bindCliOpts() []cli.Opt {
+	return []cli.Opt{
 		{
 			DestP:   &o.LogLevel,
 			Flag:    "log-level",
@@ -469,7 +477,13 @@ func (o *InfluxdOpts) bindCliOpts(cmd *cobra.Command) {
 			Flag:  "influxql-max-select-buckets",
 			Desc:  "The maximum number of group by time bucket a SELECT can create. A value of zero will max the maximum number of buckets unlimited.",
 		},
-	}
 
-	cli.BindOptions(o.Viper, cmd, opts)
+		// NATS config
+		{
+			DestP:   &o.NatsPort,
+			Flag:    "nats-port",
+			Desc:    fmt.Sprintf("Port that should be bound by the NATS streaming server. A value of %d will cause a random port to be selected.", nats.RandomPort),
+			Default: o.NatsPort,
+		},
+	}
 }

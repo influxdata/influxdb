@@ -15,7 +15,6 @@ import (
 	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/dbrp"
-	"github.com/influxdata/influxdb/v2/fluxinit"
 	"github.com/influxdata/influxdb/v2/internal/fs"
 	"github.com/influxdata/influxdb/v2/kit/cli"
 	"github.com/influxdata/influxdb/v2/kit/metric"
@@ -93,14 +92,16 @@ type optionsV2 struct {
 	enginePath     string
 	cqPath         string
 	configPath     string
-	userName       string
-	password       string
-	orgName        string
-	bucket         string
-	orgID          influxdb.ID
-	userID         influxdb.ID
-	token          string
-	retention      string
+	rmConflicts    bool
+
+	userName  string
+	password  string
+	orgName   string
+	bucket    string
+	orgID     influxdb.ID
+	userID    influxdb.ID
+	token     string
+	retention string
 }
 
 type options struct {
@@ -110,14 +111,15 @@ type options struct {
 	// flags for target InfluxDB
 	target optionsV2
 
-	// logging
-	logLevel zapcore.Level
-	logPath  string
-
 	force bool
 }
 
-func NewCommand(v *viper.Viper) *cobra.Command {
+type logOptions struct {
+	logLevel zapcore.Level
+	logPath  string
+}
+
+func NewCommand(ctx context.Context, v *viper.Viper) *cobra.Command {
 
 	// target flags
 	v2dir, err := fs.InfluxDir()
@@ -127,6 +129,7 @@ func NewCommand(v *viper.Viper) *cobra.Command {
 
 	// DEPRECATED in favor of log-level=debug, but left for backwards-compatibility
 	verbose := false
+	logOptions := &logOptions{}
 	options := &options{}
 
 	cmd := &cobra.Command{
@@ -146,7 +149,12 @@ func NewCommand(v *viper.Viper) *cobra.Command {
     Target 2.x database dir is specified by the --engine-path option. If changed, the bolt path should be changed as well.
 `,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			return runUpgradeE(cmd, options, verbose)
+			logger, err := buildLogger(logOptions, verbose)
+			if err != nil {
+				return err
+			}
+			ui := &input.UI{Writer: cmd.OutOrStdout(), Reader: cmd.InOrStdin()}
+			return runUpgradeE(ctx, ui, options, logger)
 		},
 		Args: cobra.NoArgs,
 	}
@@ -246,13 +254,13 @@ func NewCommand(v *viper.Viper) *cobra.Command {
 			Desc:    "optional: Custom path where upgraded 2.x config should be written",
 		},
 		{
-			DestP:   &options.logLevel,
+			DestP:   &logOptions.logLevel,
 			Flag:    "log-level",
 			Default: zapcore.InfoLevel,
 			Desc:    "supported log levels are debug, info, warn and error",
 		},
 		{
-			DestP:   &options.logPath,
+			DestP:   &logOptions.logPath,
 			Flag:    "log-path",
 			Default: filepath.Join(homeOrAnyDir(), "upgrade.log"),
 			Desc:    "optional: custom log file path",
@@ -263,6 +271,12 @@ func NewCommand(v *viper.Viper) *cobra.Command {
 			Default: false,
 			Desc:    "skip the confirmation prompt",
 			Short:   'f',
+		},
+		{
+			DestP:   &options.target.rmConflicts,
+			Flag:    "overwrite-existing-v2",
+			Default: false,
+			Desc:    "if files are present at an output path, overwrite them instead of aborting the upgrade process",
 		},
 	}
 
@@ -308,10 +322,7 @@ func (i *influxDBv2) close() error {
 	return nil
 }
 
-var fluxInitialized bool
-
-func runUpgradeE(cmd *cobra.Command, options *options, verbose bool) error {
-	ctx := context.Background()
+func buildLogger(options *logOptions, verbose bool) (*zap.Logger, error) {
 	config := zap.NewProductionConfig()
 
 	config.Level = zap.NewAtomicLevelAt(options.logLevel)
@@ -324,18 +335,15 @@ func runUpgradeE(cmd *cobra.Command, options *options, verbose bool) error {
 
 	log, err := config.Build()
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if verbose {
 		log.Warn("--verbose is deprecated, use --log-level=debug instead")
 	}
+	return log, nil
+}
 
-	// This command is executed multiple times by test code. Initialization can happen only once.
-	if !fluxInitialized {
-		fluxinit.FluxInit()
-		fluxInitialized = true
-	}
-
+func runUpgradeE(ctx context.Context, ui *input.UI, options *options, log *zap.Logger) error {
 	if options.source.configFile != "" && options.source.dbDir != "" {
 		return errors.New("only one of --v1-dir or --config-file may be specified")
 	}
@@ -353,8 +361,9 @@ func runUpgradeE(cmd *cobra.Command, options *options, verbose bool) error {
 		}
 	}
 
-	var v1Config *configV1
+	v1Config := &configV1{}
 	var genericV1ops *map[string]interface{}
+	var err error
 
 	if options.source.configFile != "" {
 		// If config is present, use it to set data paths.
@@ -365,16 +374,21 @@ func runUpgradeE(cmd *cobra.Command, options *options, verbose bool) error {
 		options.source.metaDir = v1Config.Meta.Dir
 		options.source.dataDir = v1Config.Data.Dir
 		options.source.walDir = v1Config.Data.WALDir
-		options.source.dbURL = v1Config.dbURL()
 	} else {
 		// Otherwise, assume a standard directory layout
 		// and the default port on localhost.
 		options.source.populateDirs()
-		options.source.dbURL = (&configV1{}).dbURL()
 	}
 
-	err = validatePaths(&options.source, &options.target)
-	if err != nil {
+	options.source.dbURL = v1Config.dbURL()
+	if err := options.source.validatePaths(); err != nil {
+		return err
+	}
+	checkV2paths := options.target.validatePaths
+	if options.target.rmConflicts {
+		checkV2paths = options.target.clearPaths
+	}
+	if err := checkV2paths(); err != nil {
 		return err
 	}
 
@@ -421,11 +435,6 @@ func runUpgradeE(cmd *cobra.Command, options *options, verbose bool) error {
 
 	if !canOnboard {
 		return errors.New("InfluxDB has been already set up")
-	}
-
-	ui := &input.UI{
-		Writer: cmd.OutOrStdout(),
-		Reader: cmd.InOrStdin(),
 	}
 
 	req, err := onboardingRequest(ui, options)
@@ -478,54 +487,95 @@ func runUpgradeE(cmd *cobra.Command, options *options, verbose bool) error {
 	return nil
 }
 
-// validatePaths ensures that all filesystem paths provided as input
-// are usable by the upgrade command
-func validatePaths(sourceOpts *optionsV1, targetOpts *optionsV2) error {
-	if sourceOpts.dbDir != "" {
-		fi, err := os.Stat(sourceOpts.dbDir)
+// validatePaths ensures that all paths pointing to V1 inputs are usable by the upgrade command.
+func (o *optionsV1) validatePaths() error {
+	if o.dbDir != "" {
+		fi, err := os.Stat(o.dbDir)
 		if err != nil {
-			return fmt.Errorf("1.x DB dir '%s' does not exist", sourceOpts.dbDir)
+			return fmt.Errorf("1.x DB dir '%s' does not exist", o.dbDir)
 		}
 		if !fi.IsDir() {
-			return fmt.Errorf("1.x DB dir '%s' is not a directory", sourceOpts.dbDir)
+			return fmt.Errorf("1.x DB dir '%s' is not a directory", o.dbDir)
 		}
 	}
 
-	metaDb := filepath.Join(sourceOpts.metaDir, "meta.db")
+	metaDb := filepath.Join(o.metaDir, "meta.db")
 	_, err := os.Stat(metaDb)
 	if err != nil {
 		return fmt.Errorf("1.x meta.db '%s' does not exist", metaDb)
 	}
 
-	if targetOpts.configPath != "" {
-		if _, err := os.Stat(targetOpts.configPath); err == nil {
-			return fmt.Errorf("file present at target path for upgraded 2.x config file '%s'", targetOpts.configPath)
+	return nil
+}
+
+// validatePaths ensures that none of the paths pointing to V2 outputs refer to existing files.
+func (o *optionsV2) validatePaths() error {
+	if o.configPath != "" {
+		if _, err := os.Stat(o.configPath); err == nil {
+			return fmt.Errorf("file present at target path for upgraded 2.x config file %q", o.configPath)
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("error checking for existing file at %q: %w", o.configPath, err)
 		}
 	}
 
-	if _, err = os.Stat(targetOpts.boltPath); err == nil {
-		return fmt.Errorf("file present at target path for upgraded 2.x bolt DB: '%s'", targetOpts.boltPath)
+	if _, err := os.Stat(o.boltPath); err == nil {
+		return fmt.Errorf("file present at target path for upgraded 2.x bolt DB: %q", o.boltPath)
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("error checking for existing file at %q: %w", o.boltPath, err)
 	}
 
-	if fi, err := os.Stat(targetOpts.enginePath); err == nil {
+	if fi, err := os.Stat(o.enginePath); err == nil {
 		if !fi.IsDir() {
-			return fmt.Errorf("upgraded 2.x engine path '%s' is not a directory", targetOpts.enginePath)
+			return fmt.Errorf("upgraded 2.x engine path %q is not a directory", o.enginePath)
 		}
-		entries, err := ioutil.ReadDir(targetOpts.enginePath)
+		entries, err := ioutil.ReadDir(o.enginePath)
 		if err != nil {
-			return err
+			return fmt.Errorf("error checking contents of existing engine directory %q: %w", o.enginePath, err)
 		}
 		if len(entries) > 0 {
-			return fmt.Errorf("upgraded 2.x engine directory '%s' must be empty", targetOpts.enginePath)
+			return fmt.Errorf("upgraded 2.x engine directory %q must be empty", o.enginePath)
+		}
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("error checking for existing file at %q: %w", o.enginePath, err)
+	}
+
+	if _, err := os.Stat(o.cliConfigsPath); err == nil {
+		return fmt.Errorf("file present at target path for 2.x CLI configs %q", o.cliConfigsPath)
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("error checking for existing file at %q: %w", o.cliConfigsPath, err)
+	}
+
+	if _, err := os.Stat(o.cqPath); err == nil {
+		return fmt.Errorf("file present at target path for exported continuous queries %q", o.cqPath)
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("error checking for existing file at %q: %w", o.cqPath, err)
+	}
+
+	return nil
+}
+
+// clearPaths deletes any files already present at the specified V2 output paths.
+func (o *optionsV2) clearPaths() error {
+	if o.configPath != "" {
+		if err := os.RemoveAll(o.configPath); err != nil {
+			return fmt.Errorf("couldn't delete existing file at %q: %w", o.configPath, err)
 		}
 	}
 
-	if _, err = os.Stat(targetOpts.cliConfigsPath); err == nil {
-		return fmt.Errorf("file present at target path for 2.x CLI configs '%s'", targetOpts.cliConfigsPath)
+	if err := os.RemoveAll(o.boltPath); err != nil {
+		return fmt.Errorf("couldn't delete existing file at %q: %w", o.boltPath, err)
 	}
 
-	if _, err = os.Stat(targetOpts.cqPath); err == nil {
-		return fmt.Errorf("file present at target path for exported continuous queries '%s'", targetOpts.cqPath)
+	if err := os.RemoveAll(o.enginePath); err != nil {
+		return fmt.Errorf("couldn't delete existing file at %q: %w", o.enginePath, err)
+	}
+
+	if err := os.RemoveAll(o.cliConfigsPath); err != nil {
+		return fmt.Errorf("couldn't delete existing file at %q: %w", o.cliConfigsPath, err)
+	}
+
+	if err := os.RemoveAll(o.cqPath); err != nil {
+		return fmt.Errorf("couldn't delete existing file at %q: %w", o.cqPath, err)
 	}
 
 	return nil

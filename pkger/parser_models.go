@@ -423,6 +423,7 @@ type chartKind string
 const (
 	chartKindUnknown            chartKind = ""
 	chartKindGauge              chartKind = "gauge"
+	chartKindGeo                chartKind = "geo"
 	chartKindHeatMap            chartKind = "heatmap"
 	chartKindHistogram          chartKind = "histogram"
 	chartKindMarkdown           chartKind = "markdown"
@@ -437,7 +438,7 @@ const (
 
 func (c chartKind) ok() bool {
 	switch c {
-	case chartKindGauge, chartKindHeatMap, chartKindHistogram,
+	case chartKindGauge, chartKindGeo, chartKindHeatMap, chartKindHistogram,
 		chartKindMarkdown, chartKindMosaic, chartKindScatter,
 		chartKindSingleStat, chartKindSingleStatPlusLine, chartKindTable,
 		chartKindXY, chartKindBand:
@@ -572,6 +573,13 @@ const (
 	fieldChartLegendColorizeRows         = "legendColorizeRows"
 	fieldChartLegendOpacity              = "legendOpacity"
 	fieldChartLegendOrientationThreshold = "legendOrientationThreshold"
+	fieldChartGeoCenterLon               = "lon"
+	fieldChartGeoCenterLat               = "lat"
+	fieldChartGeoZoom                    = "zoom"
+	fieldChartGeoMapStyle                = "mapStyle"
+	fieldChartGeoAllowPanAndZoom         = "allowPanAndZoom"
+	fieldChartGeoDetectCoordinateFields  = "detectCoordinateFields"
+	fieldChartGeoLayers                  = "geoLayers"
 )
 
 type chart struct {
@@ -614,6 +622,12 @@ type chart struct {
 	LegendColorizeRows         bool
 	LegendOpacity              float64
 	LegendOrientationThreshold int
+	Zoom                       float64
+	Center                     center
+	MapStyle                   string
+	AllowPanAndZoom            bool
+	DetectCoordinateFields     bool
+	GeoLayers                  geoLayers
 }
 
 func (c *chart) properties() influxdb.ViewProperties {
@@ -633,6 +647,20 @@ func (c *chart) properties() influxdb.ViewProperties {
 			},
 			Note:              c.Note,
 			ShowNoteWhenEmpty: c.NoteOnEmpty,
+		}
+	case chartKindGeo:
+		return influxdb.GeoViewProperties{
+			Type:                   influxdb.ViewPropertyTypeGeo,
+			Queries:                c.Queries.influxDashQueries(),
+			Center:                 influxdb.Datum{Lat: c.Center.Lat, Lon: c.Center.Lon},
+			Zoom:                   c.Zoom,
+			MapStyle:               c.MapStyle,
+			AllowPanAndZoom:        c.AllowPanAndZoom,
+			DetectCoordinateFields: c.DetectCoordinateFields,
+			ViewColor:              c.Colors.influxViewColors(),
+			GeoLayers:              c.GeoLayers.influxGeoLayers(),
+			Note:                   c.Note,
+			ShowNoteWhenEmpty:      c.NoteOnEmpty,
 		}
 	case chartKindHeatMap:
 		return influxdb.HeatmapViewProperties{
@@ -989,6 +1017,82 @@ type fieldOption struct {
 	Visible     bool
 }
 
+type center struct {
+	Lat float64
+	Lon float64
+}
+
+type geoLayer struct {
+	Type               string
+	RadiusField        string
+	ColorField         string
+	IntensityField     string
+	ViewColors         colors
+	Radius             int32
+	Blur               int32
+	RadiusDimension    *axis
+	ColorDimension     *axis
+	IntensityDimension *axis
+	InterpolateColors  bool
+	TrackWidth         int32
+	Speed              int32
+	RandomColors       bool
+	IsClustered        bool
+}
+
+const (
+	fieldChartGeoLayerType               = "layerType"
+	fieldChartGeoLayerRadiusField        = "radiusField"
+	fieldChartGeoLayerIntensityField     = "intensityField"
+	fieldChartGeoLayerColorField         = "colorField"
+	fieldChartGeoLayerViewColors         = "viewColors"
+	fieldChartGeoLayerRadius             = "radius"
+	fieldChartGeoLayerBlur               = "blur"
+	fieldChartGeoLayerRadiusDimension    = "radiusDimension"
+	fieldChartGeoLayerColorDimension     = "colorDimension"
+	fieldChartGeoLayerIntensityDimension = "intensityDimension"
+	fieldChartGeoLayerInterpolateColors  = "interpolateColors"
+	fieldChartGeoLayerTrackWidth         = "trackWidth"
+	fieldChartGeoLayerSpeed              = "speed"
+	fieldChartGeoLayerRandomColors       = "randomColors"
+	fieldChartGeoLayerIsClustered        = "isClustered"
+)
+
+type geoLayers []*geoLayer
+
+func (l geoLayers) influxGeoLayers() []influxdb.GeoLayer {
+	var iGeoLayers []influxdb.GeoLayer
+	for _, ll := range l {
+		geoLayer := influxdb.GeoLayer{
+			Type:              ll.Type,
+			RadiusField:       ll.RadiusField,
+			ColorField:        ll.ColorField,
+			IntensityField:    ll.IntensityField,
+			Radius:            ll.Radius,
+			Blur:              ll.Blur,
+			InterpolateColors: ll.InterpolateColors,
+			TrackWidth:        ll.TrackWidth,
+			Speed:             ll.Speed,
+			RandomColors:      ll.RandomColors,
+			IsClustered:       ll.IsClustered,
+		}
+		if ll.RadiusDimension != nil {
+			geoLayer.RadiusDimension = influxAxis(*ll.RadiusDimension, true)
+		}
+		if ll.ColorDimension != nil {
+			geoLayer.ColorDimension = influxAxis(*ll.ColorDimension, true)
+		}
+		if ll.IntensityDimension != nil {
+			geoLayer.IntensityDimension = influxAxis(*ll.IntensityDimension, true)
+		}
+		if ll.ViewColors != nil {
+			geoLayer.ViewColors = ll.ViewColors.influxViewColors()
+		}
+		iGeoLayers = append(iGeoLayers, geoLayer)
+	}
+	return iGeoLayers
+}
+
 const (
 	fieldChartTableOptionVerticalTimeAxis = "verticalTimeAxis"
 	fieldChartTableOptionSortBy           = "sortBy"
@@ -1228,17 +1332,25 @@ func (a axes) get(name string) axis {
 	return axis{}
 }
 
+func influxAxis(ax axis, nilBounds bool) influxdb.Axis {
+	bounds := []string{}
+	if nilBounds {
+		bounds = nil
+	}
+	return influxdb.Axis{
+		Bounds: bounds,
+		Label:  ax.Label,
+		Prefix: ax.Prefix,
+		Suffix: ax.Suffix,
+		Base:   ax.Base,
+		Scale:  ax.Scale,
+	}
+}
+
 func (a axes) influxAxes() map[string]influxdb.Axis {
 	m := make(map[string]influxdb.Axis)
 	for _, ax := range a {
-		m[ax.Name] = influxdb.Axis{
-			Bounds: []string{},
-			Label:  ax.Label,
-			Prefix: ax.Prefix,
-			Suffix: ax.Suffix,
-			Base:   ax.Base,
-			Scale:  ax.Scale,
-		}
+		m[ax.Name] = influxAxis(ax, false)
 	}
 	return m
 }

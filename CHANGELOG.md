@@ -3,9 +3,11 @@
 ### Docker
 
 #### ARM64
+
 This release extends the Docker builds hosted in `quay.io` to support the `linux/arm64` platform.
 
 #### 2.x nightly images
+
 Prior to this release, competing nightly builds caused the `nightly` Docker tag to contain outdated
 binaries. This conflict has been fixed, and the image tagged with `nightly` will now contain `2.x`
 binaries built from the `HEAD` of the `master` branch.
@@ -13,11 +15,20 @@ binaries built from the `HEAD` of the `master` branch.
 ### Breaking Changes
 
 #### inmem index option removed
+
 This release fully removes the `inmem` indexing option, along with the associated config options:
-* `max-series-per-database`
-* `max-values-per-tag`
+
+- `max-series-per-database`
+- `max-values-per-tag`
 
 Replacement `tsi1` indexes will be automatically generated on startup for shards that need it.
+
+### Features
+
+1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells.
+1. [20473](https://github.com/influxdata/influxdb/pull/20473): Add `--overwrite-existing-v2` flag to `influxd upgrade` to overwrite existing files at output paths (instead of aborting).
+1. [20524](https://github.com/influxdata/influxdb/pull/20524): Add `influxd print-config` command to support automated config inspection.
+1. [20561](https://github.com/influxdata/influxdb/pull/20561): Add `nats-port` config option for `influxd` server.
 
 ### Bug Fixes
 
@@ -37,6 +48,11 @@ Replacement `tsi1` indexes will be automatically generated on startup for shards
 1. [20409](https://github.com/influxdata/influxdb/pull/20409): Improve messages in DBRP API validation errors.
 1. [20489](https://github.com/influxdata/influxdb/pull/20489): Improve error message when opening BoltDB with unsupported file system options.
 1. [20490](https://github.com/influxdata/influxdb/pull/20490): Fix silent failure to register CLI args as required.
+1. [20522](https://github.com/influxdata/influxdb/pull/20522): Fix loading config when INFLUXD_CONFIG_PATH points to a `.yml` file.
+1. [20527](https://github.com/influxdata/influxdb/pull/20527): Don't leak .tmp files while backing up shards.
+1. [20527](https://github.com/influxdata/influxdb/pull/20527): Allow backups to complete while a snapshot is in progress.
+1. [20539](https://github.com/influxdata/influxdb/pull/20539): Prevent extra output row from GROUP BY crossing DST boundary.
+1. [20548](https://github.com/influxdata/influxdb/pull/20548): Prevent panic in `influxd upgrade` when V1 users exist and no V1 config is given.
 
 ## v2.0.3 [2020-12-14]
 
@@ -47,10 +63,12 @@ This release includes our initial ARM64 preview build.
 ### Breaking Changes
 
 #### influxd upgrade
+
 Previously, `influxd upgrade` would attempt to write upgraded `config.toml` files into the same directory as the source
 `influxdb.conf` file. If this failed, a warning would be logged and `config.toml` would be written into the `HOME` directory.
 
 This release breaks this behavior in two ways:
+
 1. By default, `config.toml` is now written into the same directory as the Bolt DB and engine files (`~/.influxdbv2/`)
 2. If writing upgraded config fails, the `upgrade` process exits with an error instead of falling back to the `HOME` directory
 
@@ -58,7 +76,8 @@ Users can use the new `--v2-config-path` option to override the output path for 
 want to use the default.
 
 #### v2 packaging
-Based on community feedback, the v2 deb and rpm packaging has been improved to avoid confusion between versions.  The package
+
+Based on community feedback, the v2 deb and rpm packaging has been improved to avoid confusion between versions. The package
 name is now influxdb2 and conflicts with any previous influxdb package (including initial 2.0.0, 2.0.1, and 2.0.2 packages).
 Additionally, v2 specific path defaults are now defined and helper scripts are provided for `influxd upgrade` and cleanup cases.
 
@@ -318,6 +337,7 @@ need to update any InfluxDB CLI config profiles with the new port number.
 1. [19317](https://github.com/influxdata/influxdb/pull/19317): Add validation to Variable name creation for valid Flux identifiers.
 
 ### UI Improvements
+
 1. [19231](https://github.com/influxdata/influxdb/pull/19231): Alerts page filter inputs now have tab indices for keyboard navigation
 1. [19364](https://github.com/influxdata/influxdb/pull/19364): Errors in OSS are now properly printed to the console
 
