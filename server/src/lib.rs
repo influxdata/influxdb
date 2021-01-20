@@ -86,7 +86,7 @@ use data_types::{
     {DatabaseName, DatabaseNameError},
 };
 use influxdb_line_protocol::ParsedLine;
-use object_store::{path::ObjectStorePath, ObjectStore};
+use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use query::{exec::Executor, Database, DatabaseStore};
 
 use async_trait::async_trait;

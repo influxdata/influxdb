@@ -6,7 +6,7 @@ use data_types::{
     DatabaseName,
 };
 use generated_types::wal;
-use object_store::{path::ObjectStorePath, ObjectStore};
+use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 
 use std::{
     collections::BTreeMap,

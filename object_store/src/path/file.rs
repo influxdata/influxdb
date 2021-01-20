@@ -38,7 +38,9 @@ impl FilePath {
         }
     }
 
-    /// Creates a file location by converting into a `PathBuf`
+    /// Creates a filesystem `PathBuf` location by using the standard library's
+    /// `PathBuf` building implementation appropriate for the current
+    /// platform.
     pub fn to_raw(&self) -> PathBuf {
         use FilePathRepresentation::*;
 
@@ -57,6 +59,7 @@ impl FilePath {
             }
         }
     }
+
     /// Add the parts of `path` to the end of this path. Notably does
     /// *not* behave as `PathBuf::push` does: there is no way to replace the
     /// root. If `self` has a file name, that will be removed, then the
@@ -159,6 +162,7 @@ impl FilePathRepresentation {
 
         Self::Parsed(dirs_and_file_name)
     }
+
     fn prefix_matches(&self, prefix: &Self) -> bool {
         use FilePathRepresentation::*;
         match (self, prefix) {
@@ -250,6 +254,7 @@ mod tests {
         let parts: DirsAndFileName = file_path.into();
         assert_eq!(parts.directories.len(), 4);
         assert!(parts.file_name.is_none());
+
         // Last section containing a `.` isn't a file name
         let path_buf: PathBuf = "/one/two/blah.blah".into();
         let file_path = FilePath::raw(path_buf);
@@ -264,6 +269,7 @@ mod tests {
         assert_eq!(parts.directories.len(), 4);
         assert!(parts.file_name.is_none());
     }
+
     #[test]
     fn conversions() {
         // dir and file name
@@ -299,6 +305,7 @@ mod tests {
         let path_buf: PathBuf = "".into();
         let file_path = FilePath::raw(path_buf);
         let parts: DirsAndFileName = file_path.into();
+
         assert!(parts.directories.is_empty());
         assert!(parts.file_name.is_none());
     }

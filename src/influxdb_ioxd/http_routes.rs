@@ -17,6 +17,7 @@ use data_types::{
     DatabaseName,
 };
 use influxdb_line_protocol::parse_lines;
+use object_store::ObjectStoreApi;
 use query::{frontend::sql::SQLQueryPlanner, Database, DatabaseStore};
 use server::{ConnectionManager, Server as AppServer};
 

@@ -2,12 +2,16 @@
 //! store.
 use crate::{
     path::{cloud::CloudPath, DELIMITER},
-    Error, ListResult, NoDataFromS3, ObjectMeta, Result, UnableToDeleteDataFromS3,
+    Error, ListResult, NoDataFromS3, ObjectMeta, ObjectStoreApi, Result, UnableToDeleteDataFromS3,
     UnableToGetDataFromS3, UnableToGetPieceOfDataFromS3, UnableToPutDataToS3,
 };
+use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
-use futures::{stream, Stream, TryStreamExt};
+use futures::{
+    stream::{self, BoxStream},
+    Stream, StreamExt, TryStreamExt,
+};
 use rusoto_core::ByteStream;
 use rusoto_credential::ChainProvider;
 use rusoto_s3::S3;
@@ -30,37 +34,15 @@ impl fmt::Debug for AmazonS3 {
     }
 }
 
-impl AmazonS3 {
-    /// Configure a connection to Amazon S3 in the specified Amazon region and
-    /// bucket. Uses [`rusoto_credential::ChainProvider`][cp] to check for
-    /// credentials in:
-    ///
-    /// 1. Environment variables: `AWS_ACCESS_KEY_ID` and
-    ///    `AWS_SECRET_ACCESS_KEY`
-    /// 2. `credential_process` command in the AWS config file, usually located
-    ///    at `~/.aws/config`.
-    /// 3. AWS credentials file. Usually located at `~/.aws/credentials`.
-    /// 4. IAM instance profile. Will only work if running on an EC2 instance
-    ///    with an instance profile/role.
-    ///
-    /// [cp]: https://docs.rs/rusoto_credential/0.43.0/rusoto_credential/struct.ChainProvider.html
-    pub fn new(region: rusoto_core::Region, bucket_name: impl Into<String>) -> Self {
-        let http_client = rusoto_core::request::HttpClient::new()
-            .expect("Current implementation of rusoto_core has no way for this to fail");
-        let credentials_provider = ChainProvider::new();
-        Self {
-            client: rusoto_s3::S3Client::new_with(http_client, credentials_provider, region),
-            bucket_name: bucket_name.into(),
-        }
-    }
+#[async_trait]
+impl ObjectStoreApi for AmazonS3 {
+    type Path = CloudPath;
 
-    /// Return a new location path appropriate for this object storage
-    pub fn new_path(&self) -> CloudPath {
+    fn new_path(&self) -> Self::Path {
         CloudPath::default()
     }
 
-    /// Save the provided bytes to the specified location.
-    pub async fn put<S>(&self, location: &CloudPath, bytes: S, length: usize) -> Result<()>
+    async fn put<S>(&self, location: &Self::Path, bytes: S, length: usize) -> Result<()>
     where
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
@@ -83,8 +65,7 @@ impl AmazonS3 {
         Ok(())
     }
 
-    /// Return the bytes that are stored at the specified location.
-    pub async fn get(&self, location: &CloudPath) -> Result<impl Stream<Item = Result<Bytes>>> {
+    async fn get(&self, location: &Self::Path) -> Result<BoxStream<'static, Result<Bytes>>> {
         let key = location.to_raw();
         let get_request = rusoto_s3::GetObjectRequest {
             bucket: self.bucket_name.clone(),
@@ -108,11 +89,11 @@ impl AmazonS3 {
                 bucket: self.bucket_name.to_owned(),
                 location: key,
             })
-            .err_into())
+            .err_into()
+            .boxed())
     }
 
-    /// Delete the object at the specified location.
-    pub async fn delete(&self, location: &CloudPath) -> Result<()> {
+    async fn delete(&self, location: &Self::Path) -> Result<()> {
         let key = location.to_raw();
         let delete_request = rusoto_s3::DeleteObjectRequest {
             bucket: self.bucket_name.clone(),
@@ -130,11 +111,10 @@ impl AmazonS3 {
         Ok(())
     }
 
-    /// List all the objects with the given prefix.
-    pub async fn list<'a>(
+    async fn list<'a>(
         &'a self,
-        prefix: Option<&'a CloudPath>,
-    ) -> Result<impl Stream<Item = Result<Vec<CloudPath>>> + 'a> {
+        prefix: Option<&'a Self::Path>,
+    ) -> Result<BoxStream<'a, Result<Vec<Self::Path>>>> {
         #[derive(Clone)]
         enum ListState {
             Start,
@@ -192,12 +172,43 @@ impl AmazonS3 {
             };
 
             Some((Ok(names), next_state))
-        }))
+        })
+        .boxed())
+    }
+
+    async fn list_with_delimiter(&self, prefix: &Self::Path) -> Result<ListResult<Self::Path>> {
+        self.list_with_delimiter_and_token(prefix, &None).await
+    }
+}
+
+impl AmazonS3 {
+    /// Configure a connection to Amazon S3 in the specified Amazon region and
+    /// bucket. Uses [`rusoto_credential::ChainProvider`][cp] to check for
+    /// credentials in:
+    ///
+    /// 1. Environment variables: `AWS_ACCESS_KEY_ID` and
+    ///    `AWS_SECRET_ACCESS_KEY`
+    /// 2. `credential_process` command in the AWS config file, usually located
+    ///    at `~/.aws/config`.
+    /// 3. AWS credentials file. Usually located at `~/.aws/credentials`.
+    /// 4. IAM instance profile. Will only work if running on an EC2 instance
+    ///    with an instance profile/role.
+    ///
+    /// [cp]: https://docs.rs/rusoto_credential/0.43.0/rusoto_credential/struct.ChainProvider.html
+    pub fn new(region: rusoto_core::Region, bucket_name: impl Into<String>) -> Self {
+        let http_client = rusoto_core::request::HttpClient::new()
+            .expect("Current implementation of rusoto_core has no way for this to fail");
+        let credentials_provider = ChainProvider::new();
+        Self {
+            client: rusoto_s3::S3Client::new_with(http_client, credentials_provider, region),
+            bucket_name: bucket_name.into(),
+        }
     }
 
     /// List objects with the given prefix and a set delimiter of `/`. Returns
-    /// common prefixes (directories) in addition to object metadata.
-    pub async fn list_with_delimiter<'a>(
+    /// common prefixes (directories) in addition to object metadata. Optionally
+    /// takes a continuation token for paging.
+    pub async fn list_with_delimiter_and_token<'a>(
         &'a self,
         prefix: &'a CloudPath,
         next_token: &Option<String>,
@@ -307,7 +318,7 @@ impl Error {
 mod tests {
     use crate::{
         tests::{get_nonexistent_object, list_with_delimiter, put_get_delete_list},
-        AmazonS3, Error, ObjectStore, ObjectStorePath,
+        AmazonS3, Error, ObjectStoreApi, ObjectStorePath,
     };
     use bytes::Bytes;
     use std::env;
@@ -398,7 +409,7 @@ mod tests {
         maybe_skip_integration!();
         let (region, bucket_name) = region_and_bucket_name()?;
 
-        let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
+        let integration = AmazonS3::new(region, &bucket_name);
         check_credentials(put_get_delete_list(&integration).await)?;
 
         check_credentials(list_with_delimiter(&integration).await).unwrap();
@@ -412,7 +423,7 @@ mod tests {
         // Assumes environment variables do not provide credentials to AWS US West 1
         let (_, bucket_name) = region_and_bucket_name()?;
         let region = rusoto_core::Region::UsWest1;
-        let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
+        let integration = AmazonS3::new(region, &bucket_name);
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
 
@@ -435,7 +446,7 @@ mod tests {
     async fn s3_test_get_nonexistent_location() -> Result<()> {
         maybe_skip_integration!();
         let (region, bucket_name) = region_and_bucket_name()?;
-        let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
+        let integration = AmazonS3::new(region, &bucket_name);
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
 
@@ -466,7 +477,7 @@ mod tests {
         maybe_skip_integration!();
         let (region, _) = region_and_bucket_name()?;
         let bucket_name = NON_EXISTENT_NAME;
-        let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, bucket_name));
+        let integration = AmazonS3::new(region, bucket_name);
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
 
@@ -494,7 +505,7 @@ mod tests {
         // Assumes environment variables do not provide credentials to AWS US West 1
         let (_, bucket_name) = region_and_bucket_name()?;
         let region = rusoto_core::Region::UsWest1;
-        let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
+        let integration = AmazonS3::new(region, &bucket_name);
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
         let data = Bytes::from("arbitrary data");
@@ -530,7 +541,7 @@ mod tests {
         maybe_skip_integration!();
         let (region, _) = region_and_bucket_name()?;
         let bucket_name = NON_EXISTENT_NAME;
-        let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, bucket_name));
+        let integration = AmazonS3::new(region, bucket_name);
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
         let data = Bytes::from("arbitrary data");
@@ -565,7 +576,7 @@ mod tests {
     async fn s3_test_delete_nonexistent_location() -> Result<()> {
         maybe_skip_integration!();
         let (region, bucket_name) = region_and_bucket_name()?;
-        let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
+        let integration = AmazonS3::new(region, &bucket_name);
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
 
@@ -582,7 +593,7 @@ mod tests {
         // Assumes environment variables do not provide credentials to AWS US West 1
         let (_, bucket_name) = region_and_bucket_name()?;
         let region = rusoto_core::Region::UsWest1;
-        let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, &bucket_name));
+        let integration = AmazonS3::new(region, &bucket_name);
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
 
@@ -608,7 +619,7 @@ mod tests {
         maybe_skip_integration!();
         let (region, _) = region_and_bucket_name()?;
         let bucket_name = NON_EXISTENT_NAME;
-        let integration = ObjectStore::new_amazon_s3(AmazonS3::new(region, bucket_name));
+        let integration = AmazonS3::new(region, bucket_name);
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
 

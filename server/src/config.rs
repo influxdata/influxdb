@@ -136,7 +136,7 @@ impl<'a> Drop for CreateDatabaseHandle<'a> {
 #[cfg(test)]
 mod test {
     use super::*;
-    use object_store::{memory::InMemory, ObjectStore};
+    use object_store::{memory::InMemory, ObjectStore, ObjectStoreApi};
 
     #[test]
     fn create_db() {

@@ -1,4 +1,4 @@
-use super::{ObjectStorePath, PathPart, PathRepresentation, DELIMITER};
+use super::{ObjectStorePath, PathPart, DELIMITER};
 
 use itertools::Itertools;
 
@@ -124,33 +124,53 @@ impl DirsAndFileName {
     }
 }
 
-impl From<PathRepresentation> for DirsAndFileName {
-    fn from(path_rep: PathRepresentation) -> Self {
-        match path_rep {
-            PathRepresentation::AmazonS3(path)
-            | PathRepresentation::GoogleCloudStorage(path)
-            | PathRepresentation::MicrosoftAzure(path) => path.into(),
-            PathRepresentation::File(path) => path.into(),
-            PathRepresentation::Parts(dirs_and_file_name) => dirs_and_file_name,
-        }
-    }
-}
-
-impl From<&'_ crate::path::Path> for DirsAndFileName {
-    fn from(other: &'_ crate::path::Path) -> Self {
-        other.clone().into()
-    }
-}
-
-impl From<crate::path::Path> for DirsAndFileName {
-    fn from(other: crate::path::Path) -> Self {
-        other.inner.into()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parts_after_prefix_behavior() {
+        let mut existing_path = DirsAndFileName::default();
+        existing_path.push_all_dirs(&["apple", "bear", "cow", "dog"]);
+        existing_path.file_name = Some("egg.json".into());
+
+        // Prefix with one directory
+        let mut prefix = DirsAndFileName::default();
+        prefix.push_dir("apple");
+        let expected_parts: Vec<PathPart> = vec!["bear", "cow", "dog", "egg.json"]
+            .into_iter()
+            .map(Into::into)
+            .collect();
+        let parts = existing_path.parts_after_prefix(&prefix).unwrap();
+        assert_eq!(parts, expected_parts);
+
+        // Prefix with two directories
+        let mut prefix = DirsAndFileName::default();
+        prefix.push_all_dirs(&["apple", "bear"]);
+        let expected_parts: Vec<PathPart> = vec!["cow", "dog", "egg.json"]
+            .into_iter()
+            .map(Into::into)
+            .collect();
+        let parts = existing_path.parts_after_prefix(&prefix).unwrap();
+        assert_eq!(parts, expected_parts);
+
+        // Not a prefix
+        let mut prefix = DirsAndFileName::default();
+        prefix.push_dir("cow");
+        assert!(existing_path.parts_after_prefix(&prefix).is_none());
+
+        // Prefix with a partial directory
+        let mut prefix = DirsAndFileName::default();
+        prefix.push_dir("ap");
+        assert!(existing_path.parts_after_prefix(&prefix).is_none());
+
+        // Prefix matches but there aren't any parts after it
+        let mut existing_path = DirsAndFileName::default();
+        existing_path.push_all_dirs(&["apple", "bear", "cow", "dog"]);
+        let prefix = existing_path.clone();
+        let parts = existing_path.parts_after_prefix(&prefix).unwrap();
+        assert!(parts.is_empty());
+    }
 
     #[test]
     fn prefix_matches() {
@@ -266,49 +286,5 @@ mod tests {
             haystack,
             needle
         );
-    }
-
-    #[test]
-    fn parts_after_prefix_behavior() {
-        let mut existing_path = DirsAndFileName::default();
-        existing_path.push_all_dirs(&["apple", "bear", "cow", "dog"]);
-        existing_path.file_name = Some("egg.json".into());
-
-        // Prefix with one directory
-        let mut prefix = DirsAndFileName::default();
-        prefix.push_dir("apple");
-        let expected_parts: Vec<PathPart> = vec!["bear", "cow", "dog", "egg.json"]
-            .into_iter()
-            .map(Into::into)
-            .collect();
-        let parts = existing_path.parts_after_prefix(&prefix).unwrap();
-        assert_eq!(parts, expected_parts);
-
-        // Prefix with two directories
-        let mut prefix = DirsAndFileName::default();
-        prefix.push_all_dirs(&["apple", "bear"]);
-        let expected_parts: Vec<PathPart> = vec!["cow", "dog", "egg.json"]
-            .into_iter()
-            .map(Into::into)
-            .collect();
-        let parts = existing_path.parts_after_prefix(&prefix).unwrap();
-        assert_eq!(parts, expected_parts);
-
-        // Not a prefix
-        let mut prefix = DirsAndFileName::default();
-        prefix.push_dir("cow");
-        assert!(existing_path.parts_after_prefix(&prefix).is_none());
-
-        // Prefix with a partial directory
-        let mut prefix = DirsAndFileName::default();
-        prefix.push_dir("ap");
-        assert!(existing_path.parts_after_prefix(&prefix).is_none());
-
-        // Prefix matches but there aren't any parts after it
-        let mut existing_path = DirsAndFileName::default();
-        existing_path.push_all_dirs(&["apple", "bear", "cow", "dog"]);
-        let prefix = existing_path.clone();
-        let parts = existing_path.parts_after_prefix(&prefix).unwrap();
-        assert!(parts.is_empty());
     }
 }

@@ -2,11 +2,12 @@
 //! store.
 use crate::{
     path::parsed::DirsAndFileName, DataDoesNotMatchLength, ListResult, NoDataInMemory, ObjectMeta,
-    Result, UnableToPutDataInMemory,
+    ObjectStoreApi, Result, UnableToPutDataInMemory,
 };
+use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::Utc;
-use futures::{Stream, TryStreamExt};
+use futures::{stream::BoxStream, Stream, StreamExt, TryStreamExt};
 use snafu::{ensure, OptionExt, ResultExt};
 use std::collections::BTreeSet;
 use std::{collections::BTreeMap, io};
@@ -19,29 +20,15 @@ pub struct InMemory {
     storage: RwLock<BTreeMap<DirsAndFileName, Bytes>>,
 }
 
-impl InMemory {
-    /// Create new in-memory storage.
-    pub fn new() -> Self {
-        Self::default()
-    }
+#[async_trait]
+impl ObjectStoreApi for InMemory {
+    type Path = DirsAndFileName;
 
-    /// Creates a clone of the store
-    pub async fn clone(&self) -> Self {
-        let storage = self.storage.read().await;
-        let storage = storage.clone();
-
-        Self {
-            storage: RwLock::new(storage),
-        }
-    }
-
-    /// Return a new location path appropriate for this object storage
-    pub fn new_path(&self) -> DirsAndFileName {
+    fn new_path(&self) -> Self::Path {
         DirsAndFileName::default()
     }
 
-    /// Save the provided bytes to the specified location.
-    pub async fn put<S>(&self, location: &DirsAndFileName, bytes: S, length: usize) -> Result<()>
+    async fn put<S>(&self, location: &Self::Path, bytes: S, length: usize) -> Result<()>
     where
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
@@ -68,11 +55,7 @@ impl InMemory {
         Ok(())
     }
 
-    /// Return the bytes that are stored at the specified location.
-    pub async fn get(
-        &self,
-        location: &DirsAndFileName,
-    ) -> Result<impl Stream<Item = Result<Bytes>>> {
+    async fn get(&self, location: &Self::Path) -> Result<BoxStream<'static, Result<Bytes>>> {
         let data = self
             .storage
             .read()
@@ -81,20 +64,18 @@ impl InMemory {
             .cloned()
             .context(NoDataInMemory)?;
 
-        Ok(futures::stream::once(async move { Ok(data) }))
+        Ok(futures::stream::once(async move { Ok(data) }).boxed())
     }
 
-    /// Delete the object at the specified location.
-    pub async fn delete(&self, location: &DirsAndFileName) -> Result<()> {
-        self.storage.write().await.remove(location);
+    async fn delete(&self, location: &Self::Path) -> Result<()> {
+        self.storage.write().await.remove(&location);
         Ok(())
     }
 
-    /// List all the objects with the given prefix.
-    pub async fn list<'a>(
+    async fn list<'a>(
         &'a self,
-        prefix: Option<&'a DirsAndFileName>,
-    ) -> Result<impl Stream<Item = Result<Vec<DirsAndFileName>>> + 'a> {
+        prefix: Option<&'a Self::Path>,
+    ) -> Result<BoxStream<'a, Result<Vec<Self::Path>>>> {
         let list = if let Some(prefix) = &prefix {
             self.storage
                 .read()
@@ -107,18 +88,13 @@ impl InMemory {
             self.storage.read().await.keys().cloned().collect()
         };
 
-        Ok(futures::stream::once(async move { Ok(list) }))
+        Ok(futures::stream::once(async move { Ok(list) }).boxed())
     }
 
-    /// List objects with the given prefix and a set delimiter of `/`. Returns
-    /// common prefixes (directories) in addition to object metadata. The
-    /// memory implementation returns all results, as opposed to the cloud
+    /// The memory implementation returns all results, as opposed to the cloud
     /// versions which limit their results to 1k or more because of API
     /// limitations.
-    pub async fn list_with_delimiter<'a>(
-        &'a self,
-        prefix: &'a DirsAndFileName,
-    ) -> Result<ListResult<DirsAndFileName>> {
+    async fn list_with_delimiter(&self, prefix: &Self::Path) -> Result<ListResult<Self::Path>> {
         let mut common_prefixes = BTreeSet::new();
         let last_modified = Utc::now();
 
@@ -158,6 +134,23 @@ impl InMemory {
     }
 }
 
+impl InMemory {
+    /// Create new in-memory storage.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Creates a clone of the store
+    pub async fn clone(&self) -> Self {
+        let storage = self.storage.read().await;
+        let storage = storage.clone();
+
+        Self {
+            storage: RwLock::new(storage),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -167,13 +160,13 @@ mod tests {
 
     use crate::{
         tests::{list_with_delimiter, put_get_delete_list},
-        Error, ObjectStore, ObjectStorePath,
+        Error, ObjectStoreApi, ObjectStorePath,
     };
     use futures::stream;
 
     #[tokio::test]
     async fn in_memory_test() -> Result<()> {
-        let integration = ObjectStore::new_in_memory(InMemory::new());
+        let integration = InMemory::new();
 
         put_get_delete_list(&integration).await?;
 
@@ -184,7 +177,7 @@ mod tests {
 
     #[tokio::test]
     async fn length_mismatch_is_an_error() -> Result<()> {
-        let integration = ObjectStore::new_in_memory(InMemory::new());
+        let integration = InMemory::new();
 
         let bytes = stream::once(async { Ok(Bytes::from("hello world")) });
         let mut location = integration.new_path();

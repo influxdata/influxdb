@@ -1,12 +1,16 @@
 //! This module contains the IOx implementation for using local disk as the
 //! object store.
 use crate::{
-    path::file::FilePath, DataDoesNotMatchLength, Result, UnableToCopyDataToFile,
-    UnableToCreateDir, UnableToCreateFile, UnableToDeleteFile, UnableToOpenFile,
-    UnableToPutDataInMemory, UnableToReadBytes,
+    path::file::FilePath, DataDoesNotMatchLength, ListResult, ObjectStoreApi, Result,
+    UnableToCopyDataToFile, UnableToCreateDir, UnableToCreateFile, UnableToDeleteFile,
+    UnableToOpenFile, UnableToPutDataInMemory, UnableToReadBytes,
 };
+use async_trait::async_trait;
 use bytes::Bytes;
-use futures::{stream, Stream, TryStreamExt};
+use futures::{
+    stream::{self, BoxStream},
+    Stream, StreamExt, TryStreamExt,
+};
 use snafu::{ensure, futures::TryStreamExt as _, OptionExt, ResultExt};
 use std::{io, path::PathBuf};
 use tokio::fs;
@@ -20,27 +24,15 @@ pub struct File {
     root: FilePath,
 }
 
-impl File {
-    /// Create new filesystem storage.
-    pub fn new(root: impl Into<PathBuf>) -> Self {
-        Self {
-            root: FilePath::raw(root),
-        }
-    }
+#[async_trait]
+impl ObjectStoreApi for File {
+    type Path = FilePath;
 
-    fn path(&self, location: &FilePath) -> PathBuf {
-        let mut path = self.root.clone();
-        path.push_path(location);
-        path.to_raw()
-    }
-
-    /// Return a new location path appropriate for this object storage
-    pub fn new_path(&self) -> FilePath {
+    fn new_path(&self) -> Self::Path {
         FilePath::default()
     }
 
-    /// Save the provided bytes to the specified location.
-    pub async fn put<S>(&self, location: &FilePath, bytes: S, length: usize) -> Result<()>
+    async fn put<S>(&self, location: &Self::Path, bytes: S, length: usize) -> Result<()>
     where
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
@@ -85,8 +77,7 @@ impl File {
         Ok(())
     }
 
-    /// Return the bytes that are stored at the specified location.
-    pub async fn get(&self, location: &FilePath) -> Result<impl Stream<Item = Result<Bytes>>> {
+    async fn get(&self, location: &Self::Path) -> Result<BoxStream<'static, Result<Bytes>>> {
         let path = self.path(location);
 
         let file = fs::File::open(&path)
@@ -96,11 +87,10 @@ impl File {
         let s = FramedRead::new(file, BytesCodec::new())
             .map_ok(|b| b.freeze())
             .context(UnableToReadBytes { path });
-        Ok(s)
+        Ok(s.boxed())
     }
 
-    /// Delete the object at the specified location.
-    pub async fn delete(&self, location: &FilePath) -> Result<()> {
+    async fn delete(&self, location: &Self::Path) -> Result<()> {
         let path = self.path(location);
         fs::remove_file(&path)
             .await
@@ -108,11 +98,10 @@ impl File {
         Ok(())
     }
 
-    /// List all the objects with the given prefix.
-    pub async fn list<'a>(
+    async fn list<'a>(
         &'a self,
-        prefix: Option<&'a FilePath>,
-    ) -> Result<impl Stream<Item = Result<Vec<FilePath>>> + 'a> {
+        prefix: Option<&'a Self::Path>,
+    ) -> Result<BoxStream<'a, Result<Vec<Self::Path>>>> {
         let root_path = self.root.to_raw();
         let walkdir = WalkDir::new(&root_path)
             // Don't include the root directory itself
@@ -132,7 +121,26 @@ impl File {
                 .map(|name| Ok(vec![name]))
         });
 
-        Ok(stream::iter(s))
+        Ok(stream::iter(s).boxed())
+    }
+
+    async fn list_with_delimiter(&self, _prefix: &Self::Path) -> Result<ListResult<Self::Path>> {
+        unimplemented!()
+    }
+}
+
+impl File {
+    /// Create new filesystem storage.
+    pub fn new(root: impl Into<PathBuf>) -> Self {
+        Self {
+            root: FilePath::raw(root),
+        }
+    }
+
+    fn path(&self, location: &FilePath) -> PathBuf {
+        let mut path = self.root.clone();
+        path.push_path(location);
+        path.to_raw()
     }
 }
 
@@ -145,13 +153,13 @@ mod tests {
 
     use tempfile::TempDir;
 
-    use crate::{tests::put_get_delete_list, Error, ObjectStore, ObjectStorePath};
+    use crate::{tests::put_get_delete_list, Error, ObjectStoreApi, ObjectStorePath};
     use futures::stream;
 
     #[tokio::test]
     async fn file_test() -> Result<()> {
         let root = TempDir::new()?;
-        let integration = ObjectStore::new_file(File::new(root.path()));
+        let integration = File::new(root.path());
 
         put_get_delete_list(&integration).await?;
         Ok(())
@@ -160,7 +168,7 @@ mod tests {
     #[tokio::test]
     async fn length_mismatch_is_an_error() -> Result<()> {
         let root = TempDir::new()?;
-        let integration = ObjectStore::new_file(File::new(root.path()));
+        let integration = File::new(root.path());
 
         let bytes = stream::once(async { Ok(Bytes::from("hello world")) });
         let mut location = integration.new_path();
@@ -181,7 +189,7 @@ mod tests {
     #[tokio::test]
     async fn creates_dir_if_not_present() -> Result<()> {
         let root = TempDir::new()?;
-        let integration = ObjectStore::new_file(File::new(root.path()));
+        let integration = File::new(root.path());
 
         let data = Bytes::from("arbitrary data");
         let mut location = integration.new_path();

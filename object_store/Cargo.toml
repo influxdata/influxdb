@@ -5,6 +5,7 @@ authors = ["Paul Dix <paul@pauldix.net>"]
 edition = "2018"
 
 [dependencies]
+async-trait = "0.1.42"
 bytes = "1.0"
 chrono = "0.4"
 futures = "0.3.5"

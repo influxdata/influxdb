@@ -8,7 +8,7 @@ use data_types::{
     partition_metadata::{Partition as PartitionMeta, Table},
     selection::Selection,
 };
-use object_store::{path::ObjectStorePath, ObjectStore};
+use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use query::PartitionChunk;
 
 use std::io::{Cursor, Seek, SeekFrom, Write};
