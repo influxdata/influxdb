@@ -18,7 +18,7 @@ pub enum DatabaseNameError {
     LengthConstraint { name: String },
 
     #[snafu(display(
-        "Database name {} contains invalid characters (allowed: alphanumeric, _ and -)",
+        "Database name {} contains invalid characters (allowed: alphanumeric, _,  -, and %)",
         name
     ))]
     BadChars { name: String },
@@ -65,14 +65,16 @@ impl<'a> DatabaseName<'a> {
         // above.
         if !name
             .chars()
-            .all(|c| c.is_alphanumeric() || c == '_' || c == '-')
+            .all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '%')
         {
-            return Err(DatabaseNameError::BadChars {
-                name: name.to_string(),
-            });
+            return BadChars { name }.fail();
         }
 
         Ok(Self(name))
+    }
+
+    pub fn as_str(&self) -> &str {
+        self.0.as_ref()
     }
 }
 
@@ -102,7 +104,7 @@ impl<'a> std::ops::Deref for DatabaseName<'a> {
     type Target = str;
 
     fn deref(&self) -> &Self::Target {
-        self.0.as_ref()
+        self.as_str()
     }
 }
 

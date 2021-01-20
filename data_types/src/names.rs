@@ -1,4 +1,7 @@
+use std::borrow::Cow;
+
 use crate::{DatabaseName, DatabaseNameError};
+use percent_encoding::{utf8_percent_encode, NON_ALPHANUMERIC};
 use snafu::{ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
@@ -25,16 +28,8 @@ pub fn org_and_bucket_to_database<'a, O: AsRef<str>, B: AsRef<str>>(
 ) -> Result<DatabaseName<'a>, OrgBucketMappingError> {
     const SEPARATOR: char = '_';
 
-    // Ensure neither the org, nor the bucket contain the separator character.
-    if org.as_ref().chars().any(|c| c == SEPARATOR)
-        || bucket.as_ref().chars().any(|c| c == SEPARATOR)
-    {
-        return InvalidBucketOrgName {
-            bucket_name: bucket.as_ref(),
-            org: org.as_ref(),
-        }
-        .fail();
-    }
+    let org: Cow<'_, str> = utf8_percent_encode(org.as_ref(), NON_ALPHANUMERIC).into();
+    let bucket: Cow<'_, str> = utf8_percent_encode(bucket.as_ref(), NON_ALPHANUMERIC).into();
 
     let db_name = format!("{}{}{}", org.as_ref(), SEPARATOR, bucket.as_ref());
 
@@ -49,21 +44,39 @@ mod tests {
     fn test_org_bucket_map_db_ok() {
         let got = org_and_bucket_to_database("org", "bucket").expect("failed on valid DB mapping");
 
-        assert_eq!(&*got, "org_bucket");
+        assert_eq!(got.as_str(), "org_bucket");
     }
 
     #[test]
     fn test_org_bucket_map_db_contains_underscore() {
-        let err = org_and_bucket_to_database("my_org", "bucket").unwrap_err();
-        assert!(matches!(err, OrgBucketMappingError::InvalidBucketOrgName {..}));
+        let got = org_and_bucket_to_database("my_org", "bucket").unwrap();
+        assert_eq!(got.as_str(), "my%5Forg_bucket");
 
-        let err = org_and_bucket_to_database("org", "my_bucket").unwrap_err();
-        assert!(matches!(err, OrgBucketMappingError::InvalidBucketOrgName {..}));
+        let got = org_and_bucket_to_database("org", "my_bucket").unwrap();
+        assert_eq!(got.as_str(), "org_my%5Fbucket");
+
+        let got = org_and_bucket_to_database("org", "my__bucket").unwrap();
+        assert_eq!(got.as_str(), "org_my%5F%5Fbucket");
+
+        let got = org_and_bucket_to_database("my_org", "my_bucket").unwrap();
+        assert_eq!(got.as_str(), "my%5Forg_my%5Fbucket");
     }
 
     #[test]
-    fn test_bad_database_name() {
-        let err = org_and_bucket_to_database("org!", "bucket?").unwrap_err();
-        assert!(matches!(err, OrgBucketMappingError::InvalidDatabaseName {..}));
+    fn test_org_bucket_map_db_contains_underscore_and_percent() {
+        let got = org_and_bucket_to_database("my%5Forg", "bucket").unwrap();
+        assert_eq!(got.as_str(), "my%255Forg_bucket");
+
+        let got = org_and_bucket_to_database("my%5Forg_", "bucket").unwrap();
+        assert_eq!(got.as_str(), "my%255Forg%5F_bucket");
+    }
+
+    #[test]
+    fn test_bad_database_name_is_encoded() {
+        let got = org_and_bucket_to_database("org", "bucket?").unwrap();
+        assert_eq!(got.as_str(), "org_bucket%3F");
+
+        let got = org_and_bucket_to_database("org!", "bucket").unwrap();
+        assert_eq!(got.as_str(), "org%21_bucket");
     }
 }
