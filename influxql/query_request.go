@@ -31,7 +31,6 @@ const (
 	EncodingFormatJSON EncodingFormat = iota
 	EncodingFormatCSV
 	EncodingFormatMessagePack
-	EncodingFormatTable
 )
 
 // Returns closed encoding format from the specified mime type.
@@ -40,8 +39,6 @@ func EncodingFormatFromMimeType(s string) (EncodingFormat, error) {
 	switch s {
 	case "application/csv", "text/csv":
 		return EncodingFormatCSV, nil
-	case "text/plain":
-       return EncodingFormatTable, nil
 	case "application/x-msgpack":
 		return EncodingFormatMessagePack, nil
 	case "", "*/*", "application/json":
@@ -55,12 +52,8 @@ func (f EncodingFormat) ContentType() string {
 	switch f {
 	case EncodingFormatCSV:
 		return "application/csv"
-	case EncodingFormatTable:
-		return "text/plain"
 	case EncodingFormatMessagePack:
 		return "application/x-msgpack"
-	case EncodingFormatJSON:
-		fallthrough
 	default:
 		return "application/json"
 	}

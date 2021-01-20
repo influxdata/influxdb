@@ -6,13 +6,8 @@ import (
 	"context"
 	"encoding/csv"
 	"encoding/json"
-	"fmt"
 	"io"
-	"reflect"
-	"sort"
 	"strconv"
-	"strings"
-	"text/tabwriter"
 	"time"
 
 	"github.com/influxdata/influxdb/v2/influxql"
@@ -33,8 +28,6 @@ func NewResponseWriter(encoding influxql.EncodingFormat) ResponseWriter {
 	switch encoding {
 	case influxql.EncodingFormatCSV:
 		return &csvFormatter{statementID: -1}
-	case influxql.EncodingFormatTable:
-		return &textFormatter{}
 	case influxql.EncodingFormatMessagePack:
 		return &msgpFormatter{}
 	case influxql.EncodingFormatJSON:
@@ -296,144 +289,4 @@ func stringsEqual(a, b []string) bool {
 		}
 	}
 	return true
-}
-
-func tagsEqual(prev, current map[string]string) bool {
-	return reflect.DeepEqual(prev, current)
-}
-
-func columnsEqual(prev, current []string) bool {
-	return reflect.DeepEqual(prev, current)
-}
-
-func headersEqual(prev, current models.Row) bool {
-	if prev.Name != current.Name {
-		return false
-	}
-	return tagsEqual(prev.Tags, current.Tags) && columnsEqual(prev.Columns, current.Columns)
-}
-
-type textFormatter struct{}
-
-func (f *textFormatter) WriteResponse(ctx context.Context, w io.Writer, resp Response) (err error) {
-	span, _ := tracing.StartSpanFromContext(ctx)
-	defer span.Finish()
-
-	if err := resp.Error(); err != nil {
-		fmt.Fprintln(w, err.Error())
-		return nil
-	}
-	// Create a tabbed writer for each result as they won't always line up
-	writer := new(tabwriter.Writer)
-	writer.Init(w, 0, 8, 1, ' ', 0)
-
-	var previousHeaders models.Row
-	for i, result := range resp.Results {
-		// Print out all messages first
-		for _, m := range result.Messages {
-			fmt.Fprintf(w, "%s: %s.\n", m.Level, m.Text)
-		}
-		// Check to see if the headers are the same as the previous row.  If so, suppress them in the output
-		suppressHeaders := len(result.Series) > 0 && headersEqual(previousHeaders, *result.Series[0])
-		if !suppressHeaders && len(result.Series) > 0 {
-			previousHeaders = models.Row{
-				Name:    result.Series[0].Name,
-				Tags:    result.Series[0].Tags,
-				Columns: result.Series[0].Columns,
-			}
-		}
-
-		// If we are suppressing headers, don't output the extra line return. If we
-		// aren't suppressing headers, then we put out line returns between results
-		// (not before the first result, and not after the last result).
-		if !suppressHeaders && i > 0 {
-			fmt.Fprintln(writer, "")
-		}
-
-		rows := f.formatResults(result.Series, "\t", suppressHeaders)
-		for _, r := range rows {
-			fmt.Fprintln(writer, r)
-		}
-
-	}
-	_ = writer.Flush()
-	return nil
-}
-
-func (f *textFormatter) formatResults(result models.Rows, separator string, suppressHeaders bool) []string {
-	var rows []string
-	// Create a tabbed writer for each result as they won't always line up
-	for i, row := range result {
-		// gather tags
-		var tags []string
-		for k, v := range row.Tags {
-			tags = append(tags, fmt.Sprintf("%s=%s", k, v))
-			sort.Strings(tags)
-		}
-
-		var columnNames []string
-
-		columnNames = append(columnNames, row.Columns...)
-
-		// Output a line separator if we have more than one set or results and format is column
-		if i > 0 && !suppressHeaders {
-			rows = append(rows, "")
-		}
-
-		// If we are column format, we break out the name/tag to separate lines
-		if !suppressHeaders {
-			if row.Name != "" {
-				n := fmt.Sprintf("name: %s", row.Name)
-				rows = append(rows, n)
-			}
-			if len(tags) > 0 {
-				t := fmt.Sprintf("tags: %s", strings.Join(tags, ", "))
-				rows = append(rows, t)
-			}
-		}
-
-		if !suppressHeaders {
-			rows = append(rows, strings.Join(columnNames, separator))
-		}
-
-		// if format is column, write dashes under each column
-		if !suppressHeaders {
-			var lines []string
-			for _, columnName := range columnNames {
-				lines = append(lines, strings.Repeat("-", len(columnName)))
-			}
-			rows = append(rows, strings.Join(lines, separator))
-		}
-
-		for _, v := range row.Values {
-			var values []string
-
-			for _, vv := range v {
-				values = append(values, interfaceToString(vv))
-			}
-			rows = append(rows, strings.Join(values, separator))
-		}
-	}
-	return rows
-}
-
-func interfaceToString(v interface{}) string {
-	switch t := v.(type) {
-	case nil:
-		return ""
-	case bool:
-		return fmt.Sprintf("%v", v)
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
-		return fmt.Sprintf("%d", t)
-	case float32:
-		// Default for floats via `fmt.Sprintf("%v", t)` is to represent them in scientific notation.
-		// We want to represent them as they are, with the least digits as possible (prec: -1).
-		return strconv.FormatFloat(float64(t), 'f', -1, 32)
-	case float64:
-		// Default for floats via `fmt.Sprintf("%v", t)` is to represent them in scientific notation.
-		// We want to represent them as they are, with the least digits as possible (prec: -1).
-		return strconv.FormatFloat(t, 'f', -1, 64)
-	default:
-		return fmt.Sprintf("%v", t)
-	}
 }
