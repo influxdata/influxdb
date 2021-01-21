@@ -41,5 +41,6 @@ jq --null-input --sort-keys \
 		($appKey): {
 		Tag: ($imgPrefix + ":" + $td[0]),
 		Digest: ($imgPrefix + "@" + $td[1]),
-		}
+		},
+		PublishedAt: (now | todateiso8601)
 	}'
