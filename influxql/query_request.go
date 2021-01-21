@@ -41,7 +41,7 @@ func EncodingFormatFromMimeType(s string) EncodingFormat {
 		return EncodingFormatTextCSV
 	case "application/x-msgpack":
 		return EncodingFormatMessagePack
-	case "application/json":
+	case "", "*/*", "application/json":
 		return EncodingFormatJSON
 	default:
 		return EncodingFormatUnknown
