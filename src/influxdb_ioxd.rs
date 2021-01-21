@@ -1,4 +1,4 @@
-use tracing::{info, warn};
+use tracing::{error, info, warn};
 
 use std::fs;
 use std::net::SocketAddr;
@@ -97,14 +97,16 @@ pub async fn main(logging_level: LoggingLevel, config: Option<Config>) -> Result
 
     let db_dir = &config.database_directory;
 
-    fs::create_dir_all(db_dir).context(CreatingDatabaseDirectory { path: db_dir })?;
-
     let object_store = if let Some(bucket_name) = &config.gcp_bucket {
         info!("Using GCP bucket {} for storage", bucket_name);
         ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(bucket_name))
-    } else {
+    } else if let Some(db_dir) = db_dir {
         info!("Using local dir {:?} for storage", db_dir);
+        fs::create_dir_all(db_dir).context(CreatingDatabaseDirectory { path: db_dir })?;
         ObjectStore::new_file(object_store::disk::File::new(&db_dir))
+    } else {
+        warn!("NO PERSISTENCE: using memory for object storage");
+        ObjectStore::new_in_memory(object_store::memory::InMemory::new())
     };
     let object_storage = Arc::new(object_store);
 
@@ -115,6 +117,12 @@ pub async fn main(logging_level: LoggingLevel, config: Option<Config>) -> Result
     // call
     if let Some(id) = config.writer_id {
         app_server.set_id(id);
+        if let Err(e) = app_server.load_database_configs().await {
+            error!(
+                "unable to load database configurations from object storage: {}",
+                e
+            )
+        }
     } else {
         warn!("server ID not set. ID must be set via the INFLUXDB_IOX_ID config or API before writing or querying data.");
     }

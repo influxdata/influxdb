@@ -90,8 +90,8 @@ pub struct Config {
     pub grpc_bind_address: SocketAddr,
 
     /// The location InfluxDB IOx will use to store files locally.
-    #[structopt(long = "--data-dir", env = "INFLUXDB_IOX_DB_DIR", default_value = &DEFAULT_DATA_DIR)]
-    pub database_directory: PathBuf,
+    #[structopt(long = "--data-dir", env = "INFLUXDB_IOX_DB_DIR")]
+    pub database_directory: Option<PathBuf>,
 
     /// If using Google Cloud Storage for the object store, this item, as well
     /// as SERVICE_ACCOUNT must be set.
