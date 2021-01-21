@@ -570,6 +570,7 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 		}{
 			Shape:             "chronograf-v2",
 			GeoViewProperties: vis,
+		}
 	case GaugeMiniViewProperties:
 		s = struct {
 			Shape string `json:"shape"`
@@ -1021,6 +1022,8 @@ type GeoViewProperties struct {
 	GeoLayers              []GeoLayer       `json:"layers"`
 	Note                   string           `json:"note"`
 	ShowNoteWhenEmpty      bool             `json:"showNoteWhenEmpty"`
+}
+
 type GaugeMiniBarsDefinitions struct {
 	GroupByColumns map[string]bool `json:"groupByColumns"`
 	Bars           [](struct {

@@ -439,7 +439,6 @@ const (
 
 func (c chartKind) ok() bool {
 	switch c {
-	case chartKindGauge, chartKindGeo, chartKindHeatMap, chartKindHistogram,
 	case chartKindGauge, chartKindGeo, chartKindGaugeMini, chartKindHeatMap, 
     chartKindHistogram, chartKindMarkdown, chartKindMosaic, chartKindScatter,
 		chartKindSingleStat, chartKindSingleStatPlusLine, chartKindTable,
