@@ -142,15 +142,7 @@ func (h *InfluxqlHandler) handleInfluxqldQuery(w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	encodingFormat, err := influxql.EncodingFormatFromMimeType(r.Header.Get("Accept"))
-	if err != nil {
-		h.HandleHTTPError(ctx, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  err.Error(),
-		}, w)
-		return
-	}
-	w.Header().Set("Content-Type", encodingFormat.ContentType())
+	encodingFormat := influxql.EncodingFormatFromMimeType(r.Header.Get("Accept"))
 
 	req := &influxql.QueryRequest{
 		DB:             r.FormValue("db"),
@@ -165,6 +157,7 @@ func (h *InfluxqlHandler) handleInfluxqldQuery(w http.ResponseWriter, r *http.Re
 		Chunked:        chunked,
 		ChunkSize:      chunkSize,
 	}
+	w.Header().Set("Content-Type", encodingFormat.ContentType())
 
 	var respSize int64
 	cw := iocounter.Writer{Writer: w}
