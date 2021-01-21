@@ -142,7 +142,13 @@ func (h *InfluxqlHandler) handleInfluxqldQuery(w http.ResponseWriter, r *http.Re
 		}
 	}
 
-	encodingFormat := influxql.EncodingFormatFromMimeType(r.Header.Get("Accept"))
+	formatString := r.Header.Get("Accept")
+	encodingFormat := influxql.EncodingFormatFromMimeType(formatString)
+	if encodingFormat == influxql.EncodingFormatUnknown {
+		h.Logger.Warn("request included unknown format in Accept header, using application/json", zap.String("format", formatString))
+		encodingFormat = influxql.EncodingFormatJSON
+	}
+	w.Header().Set("Content-Type", encodingFormat.ContentType())
 
 	req := &influxql.QueryRequest{
 		DB:             r.FormValue("db"),
@@ -157,7 +163,6 @@ func (h *InfluxqlHandler) handleInfluxqldQuery(w http.ResponseWriter, r *http.Re
 		Chunked:        chunked,
 		ChunkSize:      chunkSize,
 	}
-	w.Header().Set("Content-Type", encodingFormat.ContentType())
 
 	var respSize int64
 	cw := iocounter.Writer{Writer: w}
