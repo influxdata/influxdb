@@ -167,12 +167,10 @@ paths:
           content:
             application/csv:
               schema:
-                type: string
-                example: >
-                  name,tags,time,test_field,test_tag
-                  test_measurement,,1603740794286107366,1,tag_value
-                  test_measurement,,1603740870053205649,2,tag_value
-                  test_measurement,,1603741221085428881,3,tag_value
+                $ref: "#/components/schemas/InfluxQLCSVResponse"
+            text/csv:
+              schema:
+                $ref: "#/components/schemas/InfluxQLCSVResponse"
             application/json:
               schema:
                 $ref: "#/components/schemas/InfluxQLResponse"
@@ -248,6 +246,14 @@ components:
                       items:
                         type: array
                         items: {}
+    InfluxQLCSVResponse:
+      type: string
+      example: >
+        name,tags,time,test_field,test_tag
+        test_measurement,,1603740794286107366,1,tag_value
+        test_measurement,,1603740870053205649,2,tag_value
+        test_measurement,,1603741221085428881,3,tag_value
+
     Error:
       properties:
         code:

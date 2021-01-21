@@ -26,7 +26,7 @@ type ResponseWriter interface {
 // in the request that wraps the ResponseWriter.
 func NewResponseWriter(encoding influxql.EncodingFormat) ResponseWriter {
 	switch encoding {
-	case influxql.EncodingFormatCSV:
+	case influxql.EncodingFormatAppCSV, influxql.EncodingFormatTextCSV:
 		return &csvFormatter{statementID: -1}
 	case influxql.EncodingFormatMessagePack:
 		return &msgpFormatter{}

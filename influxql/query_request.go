@@ -29,7 +29,8 @@ func (f EncodingFormat) MarshalJSON() ([]byte, error) {
 
 const (
 	EncodingFormatJSON EncodingFormat = iota
-	EncodingFormatCSV
+	EncodingFormatTextCSV
+	EncodingFormatAppCSV
 	EncodingFormatMessagePack
 )
 
@@ -37,8 +38,10 @@ const (
 // The default is JSON if no exact match is found.
 func EncodingFormatFromMimeType(s string) (EncodingFormat, error) {
 	switch s {
-	case "application/csv", "text/csv":
-		return EncodingFormatCSV, nil
+	case "application/csv":
+		return EncodingFormatAppCSV, nil
+	case "text/csv":
+		return EncodingFormatTextCSV, nil
 	case "application/x-msgpack":
 		return EncodingFormatMessagePack, nil
 	case "", "*/*", "application/json":
@@ -50,8 +53,10 @@ func EncodingFormatFromMimeType(s string) (EncodingFormat, error) {
 
 func (f EncodingFormat) ContentType() string {
 	switch f {
-	case EncodingFormatCSV:
+	case EncodingFormatAppCSV:
 		return "application/csv"
+	case EncodingFormatTextCSV:
+		return "text/csv"
 	case EncodingFormatMessagePack:
 		return "application/x-msgpack"
 	default:
