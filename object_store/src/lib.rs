@@ -33,7 +33,7 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::{Stream, StreamExt, TryStreamExt};
 use snafu::Snafu;
-use std::{io, path::PathBuf, unimplemented};
+use std::{io, path::PathBuf};
 
 /// Universal interface to multiple object store services.
 #[derive(Debug)]

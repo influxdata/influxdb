@@ -287,9 +287,7 @@ mod tests {
     use super::*;
     use influxdb_line_protocol::parse_lines;
 
-    #[allow(dead_code)]
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
-    #[allow(dead_code)]
     type Result<T = (), E = TestError> = std::result::Result<T, E>;
 
     #[test]

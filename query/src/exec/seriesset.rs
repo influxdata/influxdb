@@ -64,7 +64,6 @@ pub enum Error {
     JoinError { source: tokio::task::JoinError },
 }
 
-#[allow(dead_code)]
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug)]

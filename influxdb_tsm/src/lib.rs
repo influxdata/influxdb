@@ -46,7 +46,6 @@ impl TryFrom<u8> for BlockType {
 
 /// `Block` holds information about location and time range of a block of data.
 #[derive(Debug, Copy, Clone, PartialEq)]
-#[allow(dead_code)]
 pub struct Block {
     pub min_time: i64,
     pub max_time: i64,
@@ -77,8 +76,8 @@ const MAX_BLOCK_VALUES: usize = 1000;
 /// organization and bucket identifiers.
 pub struct InfluxID(u64);
 
-#[allow(dead_code)]
 impl InfluxID {
+    #[allow(dead_code)]
     fn new_str(s: &str) -> Result<Self, TSMError> {
         let v = u64::from_str_radix(s, 16).map_err(|e| TSMError {
             description: e.to_string(),
