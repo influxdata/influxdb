@@ -999,7 +999,7 @@ mod tests {
         datafusion::{physical_plan::collect, prelude::*},
     };
     use influxdb_line_protocol::{parse_lines, ParsedLine};
-    use test_helpers::str_pair_vec_to_vec;
+    use test_helpers::{assert_contains, str_pair_vec_to_vec};
     use tokio::sync::mpsc;
 
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -1659,9 +1659,6 @@ mod tests {
     }
 
     #[tokio::test]
-    #[should_panic(
-        expected = "Unsupported binary operator in expression: #state NotEq Utf8(\"MA\")"
-    )]
     async fn test_query_series_pred_neq() {
         let db = MutableBufferDb::new("column_namedb");
 
@@ -1679,8 +1676,12 @@ mod tests {
             .add_expr(col("state").not_eq(lit("MA")))
             .build();
 
-        // Should panic as the neq path isn't implemented yet
-        db.query_series(predicate).await.unwrap();
+        // Should err as the neq path isn't implemented yet
+        let err = db.query_series(predicate).await.unwrap_err();
+        assert_contains!(
+            err.to_string(),
+            "Operator NotEq not yet supported in IOx MutableBuffer"
+        );
     }
 
     #[tokio::test]

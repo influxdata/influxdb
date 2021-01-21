@@ -38,8 +38,11 @@ jq --null-input --sort-keys \
 	--arg imgPrefix "${DOCKER_IMAGE}" \
 	--arg appKey "$APP_NAME" \
 	'$tagDigest | split(" ") as $td | {
-		($appKey): {
-		Tag: ($imgPrefix + ":" + $td[0]),
-		Digest: ($imgPrefix + "@" + $td[1]),
-		}
+		Images: {
+			($appKey): {
+				Tag: ($imgPrefix + ":" + $td[0]),
+				Digest: ($imgPrefix + "@" + $td[1]),
+			},
+		},
+		PublishedAt: (now | todateiso8601)
 	}'

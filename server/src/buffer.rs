@@ -70,7 +70,6 @@ pub enum Error {
     InvalidFlatbuffersSegment,
 }
 
-#[allow(dead_code)]
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// An in-memory buffer of a write ahead log. It is split up into segments,
@@ -87,7 +86,6 @@ pub struct Buffer {
 }
 
 impl Buffer {
-    #[allow(dead_code)]
     pub fn new(
         max_size: u64,
         segment_size: u64,
@@ -109,7 +107,6 @@ impl Buffer {
     /// has been closed out. If the max size of the buffer would be exceeded
     /// by accepting the write, the oldest (first) of the closed segments
     /// will be dropped, if it is persisted. Otherwise, an error is returned.
-    #[allow(dead_code)]
     pub fn append(&mut self, write: Arc<ReplicatedWrite>) -> Result<Option<Arc<Segment>>> {
         let write_size = u64::try_from(write.data.len())
             .expect("appended data must be less than a u64 in length");
@@ -167,7 +164,6 @@ impl Buffer {
     }
 
     /// Returns the current size of the buffer.
-    #[allow(dead_code)]
     pub fn size(&self) -> u64 {
         self.current_size
     }
@@ -177,7 +173,6 @@ impl Buffer {
     /// given writer ID and sequence are to identify from what point to
     /// replay writes. If no write matches the given writer ID and sequence
     /// number, all replicated writes within the buffer will be returned.
-    #[allow(dead_code)]
     pub fn all_writes_since(&self, since: WriterSequence) -> Vec<Arc<ReplicatedWrite>> {
         let mut writes = Vec::new();
 
@@ -209,7 +204,6 @@ impl Buffer {
     /// onward. This returns only writes from the passed in writer ID. If no
     /// write matches the given writer ID and sequence number, all
     /// replicated writes within the buffer for that writer will be returned.
-    #[allow(dead_code)]
     pub fn writes_since(&self, since: WriterSequence) -> Vec<Arc<ReplicatedWrite>> {
         let mut writes = Vec::new();
 
@@ -244,7 +238,6 @@ impl Buffer {
     }
 
     // Removes the oldest segment present in the buffer, returning its id
-    #[allow(dead_code)]
     fn remove_oldest_segment(&mut self) -> u64 {
         let removed_segment = self.closed_segments.remove(0);
         self.current_size -= removed_segment.size;
@@ -276,7 +269,6 @@ pub struct Segment {
 }
 
 impl Segment {
-    #[allow(dead_code)]
     fn new(id: u64) -> Self {
         Self {
             id,
@@ -299,7 +291,6 @@ impl Segment {
 
     // appends the write to the segment, keeping track of the summary information
     // about the writer
-    #[allow(dead_code)]
     fn append(&mut self, write: Arc<ReplicatedWrite>) -> Result<()> {
         let (writer_id, sequence_number) = write.writer_and_sequence();
         self.validate_and_update_sequence_summary(writer_id, sequence_number)?;
@@ -350,7 +341,6 @@ impl Segment {
     }
 
     /// sets the time this segment was persisted at
-    #[allow(dead_code)]
     pub fn set_persisted_at(&self, time: DateTime<Utc>) {
         let mut persisted = self.persisted.lock().expect("mutex poisoned");
         *persisted = Some(time);
