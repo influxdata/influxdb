@@ -1,12 +1,16 @@
 //! Represents a Chunk of data (a collection of tables and their data within
 //! some chunk) in the mutable store.
+use arrow_deps::datafusion::error::Result as ArrowResult;
 use arrow_deps::{
     arrow::record_batch::RecordBatch,
     datafusion::{
-        logical_plan::Expr, logical_plan::Operator, optimizer::utils::expr_to_column_names,
+        error::DataFusionError,
+        logical_plan::{Expr, ExpressionVisitor, Operator, Recursion},
+        optimizer::utils::expr_to_column_names,
         prelude::*,
     },
 };
+
 use chrono::{DateTime, Utc};
 use generated_types::wal as wb;
 use std::collections::{BTreeSet, HashMap, HashSet};
@@ -14,7 +18,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use data_types::{partition_metadata::Table as TableStats, TIME_COLUMN_NAME};
 use query::{
     predicate::{Predicate, TimestampRange},
-    util::{visit_expression, AndExprBuilder, ExpressionVisitor},
+    util::AndExprBuilder,
 };
 
 use crate::dictionary::{Dictionary, Error as DictionaryError};
@@ -35,6 +39,9 @@ pub enum Error {
         table_name: String,
         source: crate::table::Error,
     },
+
+    #[snafu(display("Unsupported predicate. Mutable buffer does not support: {}", source))]
+    UnsupportedPredicate { source: DataFusionError },
 
     #[snafu(display("Table ID {} not found in dictionary of chunk {}", table, chunk))]
     TableIdNotFoundInDictionary {
@@ -251,7 +258,7 @@ impl Chunk {
         let mut visitor = SupportVisitor {};
         let mut predicate_columns: HashSet<String> = HashSet::new();
         for expr in &chunk_exprs {
-            visit_expression(expr, &mut visitor);
+            visitor = expr.accept(visitor).context(UnsupportedPredicate)?;
             expr_to_column_names(&expr, &mut predicate_columns).unwrap();
         }
 
@@ -439,10 +446,10 @@ impl query::PartitionChunk for Chunk {
 struct SupportVisitor {}
 
 impl ExpressionVisitor for SupportVisitor {
-    fn pre_visit(&mut self, expr: &Expr) {
+    fn pre_visit(self, expr: &Expr) -> ArrowResult<Recursion<Self>> {
         match expr {
-            Expr::Literal(..) => {}
-            Expr::Column(..) => {}
+            Expr::Literal(..) => Ok(Recursion::Continue(self)),
+            Expr::Column(..) => Ok(Recursion::Continue(self)),
             Expr::BinaryExpr { op, .. } => {
                 match op {
                     Operator::Eq
@@ -455,17 +462,20 @@ impl ExpressionVisitor for SupportVisitor {
                     | Operator::Multiply
                     | Operator::Divide
                     | Operator::And
-                    | Operator::Or => {}
+                    | Operator::Or => Ok(Recursion::Continue(self)),
                     // Unsupported (need to think about ramifications)
                     Operator::NotEq | Operator::Modulus | Operator::Like | Operator::NotLike => {
-                        panic!("Unsupported binary operator in expression: {:?}", expr)
+                        Err(DataFusionError::NotImplemented(format!(
+                            "Operator {:?} not yet supported in IOx MutableBuffer",
+                            op
+                        )))
                     }
                 }
             }
-            _ => panic!(
+            _ => Err(DataFusionError::NotImplemented(format!(
                 "Unsupported expression in mutable_buffer database: {:?}",
                 expr
-            ),
+            ))),
         }
     }
 }

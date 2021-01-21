@@ -11,10 +11,10 @@ description = "Apache Arrow / Parquet / DataFusion dependencies for InfluxDB IOx
 [dependencies]
 # We are using development version of arrow/parquet/datafusion and the dependencies are at the same rev
 
-# The version can be found here: https://github.com/apache/arrow/commit/c46fd102678fd22b9781642437ad8821f907d9db
+# The version can be found here: https://github.com/apache/arrow/commit/84126d5d70e9f05f82616e9a8506b53fe1df4a22
 #
-arrow = { git = "https://github.com/apache/arrow.git", rev = "c46fd102678fd22b9781642437ad8821f907d9db" , features = ["simd"] }
-datafusion = { git = "https://github.com/apache/arrow.git", rev = "c46fd102678fd22b9781642437ad8821f907d9db" }
+arrow = { git = "https://github.com/apache/arrow.git", rev = "84126d5d70e9f05f82616e9a8506b53fe1df4a22" , features = ["simd"] }
+datafusion = { git = "https://github.com/apache/arrow.git", rev = "84126d5d70e9f05f82616e9a8506b53fe1df4a22" }
 # Turn off the "arrow" feature; it currently has a bug that causes the crate to rebuild every time
 # and we're not currently using it anyway
-parquet = { git = "https://github.com/apache/arrow.git", rev = "c46fd102678fd22b9781642437ad8821f907d9db", default-features = false, features = ["snap", "brotli", "flate2", "lz4", "zstd"] }
+parquet = { git = "https://github.com/apache/arrow.git", rev = "84126d5d70e9f05f82616e9a8506b53fe1df4a22", default-features = false, features = ["snap", "brotli", "flate2", "lz4", "zstd"] }

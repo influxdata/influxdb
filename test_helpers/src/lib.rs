@@ -87,7 +87,11 @@ pub fn enable_logging() {
 
 #[macro_export]
 /// A macro to assert that one string is contained within another with
-/// a nice error message if they are not. Is a macro so test error
+/// a nice error message if they are not.
+///
+/// Usage: `assert_contains!(actual, expected)`
+///
+/// Is a macro so test error
 /// messages are on the same line as the failure;
 ///
 /// Both arguments must be convertable into Strings (Into<String>)
