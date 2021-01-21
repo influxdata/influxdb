@@ -615,15 +615,13 @@ mod tests {
         let server = Server::new(manager, store);
         server.set_id(1);
 
-        let reject: [&str; 5] = [
-            "bananas!",
-            r#""bananas\"are\"great"#,
-            "bananas:good",
-            "bananas/cavendish",
-            "bananas\n",
+        let reject = vec![
+            "bananas\t",
+            "bananas\"are\u{0099}\"great",
+            "bananas\nfoster",
         ];
 
-        for &name in &reject {
+        for name in reject {
             let rules = DatabaseRules {
                 store_locally: true,
                 ..Default::default()

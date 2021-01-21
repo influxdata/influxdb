@@ -18,10 +18,12 @@ pub enum DatabaseNameError {
     LengthConstraint { name: String },
 
     #[snafu(display(
-        "Database name {} contains invalid characters (allowed: alphanumeric, _,  -, and %)",
-        name
+        "Database name '{}' contains invalid character. Character number {} is a control which is not allowed.", name, bad_char_offset
     ))]
-    BadChars { name: String },
+    BadChars {
+        bad_char_offset: usize,
+        name: String,
+    },
 }
 
 /// A correctly formed database name.
@@ -63,12 +65,13 @@ impl<'a> DatabaseName<'a> {
         //
         // NOTE: If changing these characters, please update the error message
         // above.
-        if !name
-            .chars()
-            .all(|c| c.is_alphanumeric() || c == '_' || c == '-' || c == '%')
-        {
-            return BadChars { name }.fail();
-        }
+        if let Some(bad_char_offset) = name.chars().position(|c| c.is_control()) {
+            return BadChars {
+                bad_char_offset,
+                name,
+            }
+            .fail();
+        };
 
         Ok(Self(name))
     }
@@ -118,6 +121,7 @@ impl<'a> std::fmt::Display for DatabaseName<'a> {
 mod tests {
     use super::*;
     use std::convert::TryFrom;
+    use test_helpers::assert_contains;
 
     #[test]
     fn test_deref() {
@@ -148,8 +152,32 @@ mod tests {
     }
 
     #[test]
-    fn test_bad_chars() {
-        let got = DatabaseName::new("example!").unwrap_err();
-        assert!(matches!(got, DatabaseNameError::BadChars { name: _n }));
+    fn test_bad_chars_null() {
+        let got = DatabaseName::new("example\x00").unwrap_err();
+        assert_contains!(got.to_string() , "Database name 'example\x00' contains invalid character. Character number 7 is a control which is not allowed.");
+    }
+
+    #[test]
+    fn test_bad_chars_high_control() {
+        let got = DatabaseName::new("\u{007f}example").unwrap_err();
+        assert_contains!(got.to_string() , "Database name '\u{007f}example' contains invalid character. Character number 0 is a control which is not allowed.");
+    }
+
+    #[test]
+    fn test_bad_chars_tab() {
+        let got = DatabaseName::new("example\tdb").unwrap_err();
+        assert_contains!(got.to_string() , "Database name 'example\tdb' contains invalid character. Character number 7 is a control which is not allowed.");
+    }
+
+    #[test]
+    fn test_bad_chars_newline() {
+        let got = DatabaseName::new("my_example\ndb").unwrap_err();
+        assert_contains!(got.to_string() , "Database name 'my_example\ndb' contains invalid character. Character number 10 is a control which is not allowed.");
+    }
+
+    #[test]
+    fn test_ok_chars() {
+        let db = DatabaseName::new("my-example-db_with_underscores and spaces").unwrap();
+        assert_eq!(&*db, "my-example-db_with_underscores and spaces");
     }
 }

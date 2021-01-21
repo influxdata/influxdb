@@ -892,6 +892,7 @@ dependencies = [
  "percent-encoding",
  "serde",
  "snafu",
+ "test_helpers",
  "tracing",
 ]
 
