@@ -10,7 +10,22 @@ use super::{
     expr::{self, AddRPCNode, Loggable, SpecialTagKeys},
     input::GrpcInputs,
 };
-use data_types::{error::ErrorLogger, names::org_and_bucket_to_database, DatabaseName};
+use arrow_deps::{
+    arrow,
+    arrow_flight::{
+        self,
+        flight_service_server::{FlightService, FlightServiceServer},
+        Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
+        HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
+    },
+    datafusion::physical_plan::collect,
+};
+use data_types::{
+    error::ErrorLogger,
+    names::{org_and_bucket_to_database, OrgBucketMappingError},
+    DatabaseName,
+};
+use futures::Stream;
 use generated_types::{
     i_ox_testing_server::{IOxTesting, IOxTestingServer},
     storage_server::{Storage, StorageServer},
@@ -23,16 +38,17 @@ use generated_types::{
 use query::{
     exec::fieldlist::FieldList,
     exec::seriesset::{Error as SeriesSetError, SeriesSetItem},
-    frontend::influxrpc::InfluxRPCPlanner,
+    frontend::{influxrpc::InfluxRPCPlanner, sql::SQLQueryPlanner},
     group_by::GroupByAndAggregate,
     predicate::PredicateBuilder,
     Database, DatabaseStore,
 };
+use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
-use std::{collections::HashMap, sync::Arc};
+use std::{collections::HashMap, pin::Pin, sync::Arc};
 use tokio::{net::TcpListener, sync::mpsc};
 use tokio_stream::wrappers::{ReceiverStream, TcpListenerStream};
-use tonic::Status;
+use tonic::{Request, Response, Status, Streaming};
 use tracing::{error, info, warn};
 
 #[derive(Debug, Snafu)]
@@ -157,6 +173,30 @@ pub enum Error {
 
     #[snafu(display("Operation not yet implemented:  {}", operation))]
     NotYetImplemented { operation: String },
+
+    #[snafu(display("Invalid ticket. Error: {:?} Ticket: {:?}", source, ticket))]
+    InvalidTicket {
+        source: std::string::FromUtf8Error,
+        ticket: Vec<u8>,
+    },
+
+    #[snafu(display("Invalid query, could not parse '{}': {}", query, source))]
+    InvalidQuery {
+        query: String,
+        source: serde_json::Error,
+    },
+
+    #[snafu(display("Internal error mapping org & bucket: {}", source))]
+    BucketMappingError { source: OrgBucketMappingError },
+
+    #[snafu(display("Bucket {} not found in org {}", bucket, org))]
+    BucketNotFound { org: String, bucket: String },
+
+    #[snafu(display("Internal error reading points from database {}:  {}", db_name, source))]
+    Query {
+        db_name: String,
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -203,6 +243,11 @@ impl Error {
             Self::SendingResults { .. } => Status::internal(self.to_string()),
             Self::InternalHintsFieldNotSupported { .. } => Status::internal(self.to_string()),
             Self::NotYetImplemented { .. } => Status::internal(self.to_string()),
+            Self::InvalidTicket { .. } => Status::invalid_argument(self.to_string()),
+            Self::InvalidQuery { .. } => Status::invalid_argument(self.to_string()),
+            Self::BucketMappingError { .. } => Status::internal(self.to_string()),
+            Self::BucketNotFound { .. } => Status::not_found(self.to_string()),
+            Self::Query { .. } => Status::internal(self.to_string()),
         }
     }
 }
@@ -746,6 +791,151 @@ where
     }
 }
 
+type TonicStream<T> = Pin<Box<dyn Stream<Item = Result<T, Status>> + Send + Sync + 'static>>;
+
+#[derive(Deserialize, Debug)]
+/// Body of the `Ticket` serialized and sent to the do_get endpoint; this should
+/// be shared with the read API probably...
+struct ReadInfo {
+    org: String,
+    bucket: String,
+    sql_query: String,
+}
+
+#[tonic::async_trait]
+impl<T> FlightService for GrpcService<T>
+where
+    T: DatabaseStore + 'static,
+{
+    type HandshakeStream = TonicStream<HandshakeResponse>;
+    type ListFlightsStream = TonicStream<FlightInfo>;
+    type DoGetStream = TonicStream<FlightData>;
+    type DoPutStream = TonicStream<PutResult>;
+    type DoActionStream = TonicStream<arrow_flight::Result>;
+    type ListActionsStream = TonicStream<ActionType>;
+    type DoExchangeStream = TonicStream<FlightData>;
+
+    async fn get_schema(
+        &self,
+        _request: Request<FlightDescriptor>,
+    ) -> Result<Response<SchemaResult>, Status> {
+        Err(Status::unimplemented("Not yet implemented"))
+    }
+
+    async fn do_get(
+        &self,
+        request: Request<Ticket>,
+    ) -> Result<Response<Self::DoGetStream>, Status> {
+        let ticket = request.into_inner();
+        let json_str = String::from_utf8(ticket.ticket.to_vec()).context(InvalidTicket {
+            ticket: ticket.ticket,
+        })?;
+
+        let read_info: ReadInfo =
+            serde_json::from_str(&json_str).context(InvalidQuery { query: &json_str })?;
+
+        let db_name = org_and_bucket_to_database(&read_info.org, &read_info.bucket)
+            .context(BucketMappingError)?;
+        let db = self.db_store.db(&db_name).await.context(BucketNotFound {
+            org: read_info.org.clone(),
+            bucket: read_info.bucket.clone(),
+        })?;
+
+        let planner = SQLQueryPlanner::default();
+        let executor = self.db_store.executor();
+
+        let physical_plan = planner
+            .query(&*db, &read_info.sql_query, &executor)
+            .await
+            .unwrap();
+
+        // execute the query
+        let results = collect(physical_plan.clone())
+            .await
+            .map_err(|e| Box::new(e) as _)
+            .context(Query { db_name })?;
+        if results.is_empty() {
+            return Err(Status::internal("There were no results from ticket"));
+        }
+
+        let options = arrow::ipc::writer::IpcWriteOptions::default();
+        let schema = physical_plan.schema();
+        let schema_flight_data =
+            arrow_flight::utils::flight_data_from_arrow_schema(schema.as_ref(), &options);
+
+        let mut flights: Vec<Result<FlightData, Status>> = vec![Ok(schema_flight_data)];
+
+        let mut batches: Vec<Result<FlightData, Status>> = results
+            .iter()
+            .flat_map(|batch| {
+                let (flight_dictionaries, flight_batch) =
+                    arrow_flight::utils::flight_data_from_arrow_batch(batch, &options);
+                flight_dictionaries
+                    .into_iter()
+                    .chain(std::iter::once(flight_batch))
+                    .map(Ok)
+            })
+            .collect();
+
+        // append batch vector to schema vector, so that the first message sent is the
+        // schema
+        flights.append(&mut batches);
+
+        let output = futures::stream::iter(flights);
+
+        Ok(Response::new(Box::pin(output) as Self::DoGetStream))
+    }
+
+    async fn handshake(
+        &self,
+        _request: Request<Streaming<HandshakeRequest>>,
+    ) -> Result<Response<Self::HandshakeStream>, Status> {
+        Err(Status::unimplemented("Not yet implemented"))
+    }
+
+    async fn list_flights(
+        &self,
+        _request: Request<Criteria>,
+    ) -> Result<Response<Self::ListFlightsStream>, Status> {
+        Err(Status::unimplemented("Not yet implemented"))
+    }
+
+    async fn get_flight_info(
+        &self,
+        _request: Request<FlightDescriptor>,
+    ) -> Result<Response<FlightInfo>, Status> {
+        Err(Status::unimplemented("Not yet implemented"))
+    }
+
+    async fn do_put(
+        &self,
+        _request: Request<Streaming<FlightData>>,
+    ) -> Result<Response<Self::DoPutStream>, Status> {
+        Err(Status::unimplemented("Not yet implemented"))
+    }
+
+    async fn do_action(
+        &self,
+        _request: Request<Action>,
+    ) -> Result<Response<Self::DoActionStream>, Status> {
+        Err(Status::unimplemented("Not yet implemented"))
+    }
+
+    async fn list_actions(
+        &self,
+        _request: Request<Empty>,
+    ) -> Result<Response<Self::ListActionsStream>, Status> {
+        Err(Status::unimplemented("Not yet implemented"))
+    }
+
+    async fn do_exchange(
+        &self,
+        _request: Request<Streaming<FlightData>>,
+    ) -> Result<Response<Self::DoExchangeStream>, Status> {
+        Err(Status::unimplemented("Not yet implemented"))
+    }
+}
+
 trait SetRange {
     /// sets the timestamp range to range, if present
     fn set_range(self, range: Option<TimestampRange>) -> Self;
@@ -1139,6 +1329,7 @@ where
     tonic::transport::Server::builder()
         .add_service(IOxTestingServer::new(GrpcService::new(storage.clone())))
         .add_service(StorageServer::new(GrpcService::new(storage.clone())))
+        .add_service(FlightServiceServer::new(GrpcService::new(storage)))
         .serve_with_incoming(stream)
         .await
         .context(ServerError {})

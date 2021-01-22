@@ -62,6 +62,7 @@ async fn read_and_write_data() {
 
         read_api::test(&http_client, &scenario, sql_query, &expected_read_data).await;
         grpc_api::test(&mut storage_client, &scenario).await;
+        flight_api::test(&scenario, sql_query, &expected_read_data).await;
     }
 
     // These tests manage their own data
