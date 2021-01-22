@@ -3,11 +3,9 @@ tests:
     billing:
       point_count: 1
     result: |
-      name: m0
-      time        f0 f1 t0
-      ----        -- -- --
-      30000000000 0  10 tv0
-      40000000000 1  20 tv1
+      name,tags,time,f0,f1,t0
+      m0,,30000000000,0,10,tv0
+      m0,,40000000000,1,20,tv1
 
 dataset: |
   m0,t0=tv0 f0=0i,f1=10i 30000000000

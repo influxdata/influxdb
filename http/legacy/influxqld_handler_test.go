@@ -15,6 +15,7 @@ import (
 	imock "github.com/influxdata/influxdb/v2/influxql/mock"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
+	"go.uber.org/zap/zaptest"
 )
 
 var cmpOpts = []cmp.Option{
@@ -41,8 +42,6 @@ var cmpOpts = []cmp.Option{
 }
 
 func TestInfluxQLdHandler_HandleQuery(t *testing.T) {
-	t.Skip("almost good to go, only unexpected content types")
-
 	ctx := context.Background()
 
 	type fields struct {
@@ -61,7 +60,6 @@ func TestInfluxQLdHandler_HandleQuery(t *testing.T) {
 		wantCode   int
 		wantHeader http.Header
 		wantBody   []byte
-		wantLogs   []string
 	}{
 		{
 			name: "no token causes http error",
@@ -189,15 +187,14 @@ func TestInfluxQLdHandler_HandleQuery(t *testing.T) {
 				},
 			},
 			args: args{
-				r: WithHeader(httptest.NewRequest("POST", "/query", nil).WithContext(ctx), "Accept", "text/csv"),
+				r: WithHeader(httptest.NewRequest("POST", "/query", nil).WithContext(ctx), "Accept", "application/foo"),
 				w: httptest.NewRecorder(),
 			},
 			wantBody: []byte("good"),
 			wantCode: http.StatusOK,
 			wantHeader: http.Header{
-				"Content-Type": {"text/csv"},
+				"Content-Type": {"application/json"},
 			},
-			wantLogs: []string{"text/csv"},
 		},
 		{
 			name:    "good query",
@@ -235,6 +232,7 @@ func TestInfluxQLdHandler_HandleQuery(t *testing.T) {
 			}
 
 			h := NewInfluxQLHandler(b, HandlerConfig{})
+			h.Logger = zaptest.NewLogger(t)
 
 			if tt.context != nil {
 				tt.args.r = tt.args.r.WithContext(tt.context)
@@ -255,7 +253,6 @@ func TestInfluxQLdHandler_HandleQuery(t *testing.T) {
 			if got, want := tt.args.w.Body.Bytes(), tt.wantBody; !cmp.Equal(got, want) {
 				t.Errorf("HandleQuery() body = got(-)/want(+) %s", cmp.Diff(string(got), string(want)))
 			}
-
 		})
 	}
 }
