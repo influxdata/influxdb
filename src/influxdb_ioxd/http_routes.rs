@@ -961,7 +961,7 @@ mod tests {
 
         let database_name = "foo_bar";
         let rules = DatabaseRules {
-            name: database_name.to_string(),
+            name: database_name.to_owned(),
             store_locally: true,
             ..Default::default()
         };

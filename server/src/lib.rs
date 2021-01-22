@@ -183,14 +183,13 @@ impl<M: ConnectionManager> Server<M> {
     pub async fn create_database(
         &self,
         db_name: impl Into<String>,
-        rules: DatabaseRules,
+        mut rules: DatabaseRules,
     ) -> Result<()> {
         // Return an error if this server hasn't yet been setup with an id
         let id = self.require_id()?;
 
         let name = db_name.into();
         let db_name = DatabaseName::new(name.clone()).context(InvalidDatabaseName)?;
-        let mut rules = rules;
         rules.name = name;
 
         let db_reservation = self.config.create_db(db_name, rules)?;
@@ -565,7 +564,7 @@ fn persist_bytes_in_background(data: Bytes, store: Arc<ObjectStore>, location: O
 // get bytes from the location in object store
 async fn get_store_bytes(
     location: &ObjectStorePath,
-    store: &Arc<ObjectStore>,
+    store: &ObjectStore,
 ) -> Result<bytes::BytesMut> {
     let b = store
         .get(&location)
@@ -669,13 +668,10 @@ mod tests {
             .await
             .expect("failed to create 2nd db");
 
-        println!(
-            "prefixes = {:?}",
-            store
-                .list_with_delimiter(&ObjectStorePath::from_cloud_unchecked(""))
-                .await
-                .unwrap()
-        );
+        store
+            .list_with_delimiter(&ObjectStorePath::from_cloud_unchecked(""))
+            .await
+            .unwrap();
 
         let manager = TestConnectionManager::new();
         let server2 = Server::new(manager, store);
