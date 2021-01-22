@@ -2182,7 +2182,7 @@ impl From<&arrow::array::Float64Array> for Column {
 
 /// These variants hold aggregates, which are the results of applying aggregates
 /// to column data.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum AggregateResult<'a> {
     // Any type of column can have rows counted. NULL values do not contribute
     // to the count. If all rows are NULL then count will be `0`.
@@ -2299,6 +2299,25 @@ impl<'a> AggregateResult<'a> {
                 (_, _) => unreachable!("not a possible variant combination"),
             },
             _ => unimplemented!("First and Last aggregates not implemented yet"),
+        }
+    }
+
+    /// Merge `other` into `self`
+    pub fn merge(&mut self, other: &AggregateResult<'a>) {
+        match (self, other) {
+            (AggregateResult::Count(this), AggregateResult::Count(that)) => *this += *that,
+            (AggregateResult::Sum(this), AggregateResult::Sum(that)) => *this += that,
+            (AggregateResult::Min(this), AggregateResult::Min(that)) => {
+                if *this > *that {
+                    *this = *that;
+                }
+            }
+            (AggregateResult::Max(this), AggregateResult::Max(that)) => {
+                if *this < *that {
+                    *this = *that;
+                }
+            }
+            (a, b) => unimplemented!("merging {:?} into {:?} not yet implemented", b, a),
         }
     }
 }

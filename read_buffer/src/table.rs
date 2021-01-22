@@ -640,7 +640,7 @@ impl<'a> Iterator for ReadAggregateResults<'a> {
             return None;
         }
 
-        let merged_results = self.row_groups.remove(0).read_aggregate(
+        let merged_results = self.row_groups.get(0).unwrap().read_aggregate(
             &self.predicate,
             &self
                 .schema
@@ -658,7 +658,7 @@ impl<'a> Iterator for ReadAggregateResults<'a> {
 
         // Execute against remaining row groups, merging each into the merged
         // set.
-        for row_group in &self.row_groups {
+        for row_group in self.row_groups.iter().skip(1) {
             let result = row_group.read_aggregate(
                 &self.predicate,
                 &self
@@ -903,53 +903,59 @@ mod test {
 
     #[test]
     fn read_group_result() {
-        let results = DisplayReadAggregateResults(vec![
-            ReadAggregateResult {
-                schema: ResultSchema {
-                    select_columns: vec![],
-                    group_columns: vec![
-                        (
-                            schema::ColumnType::Tag("region".to_owned()),
-                            LogicalDataType::String,
-                        ),
-                        (
-                            schema::ColumnType::Tag("host".to_owned()),
-                            LogicalDataType::String,
-                        ),
-                    ],
-                    aggregate_columns: vec![(
-                        schema::ColumnType::Tag("temp".to_owned()),
-                        AggregateType::Sum,
-                        LogicalDataType::Integer,
-                    )],
-                },
-                group_keys: vec![vec![Value::String("east"), Value::String("host-a")].into()],
-                aggregates: vec![vec![AggregateResult::Sum(Scalar::I64(10))]],
+        let mut result_a = ReadAggregateResult {
+            schema: ResultSchema {
+                select_columns: vec![],
+                group_columns: vec![
+                    (
+                        schema::ColumnType::Tag("region".to_owned()),
+                        LogicalDataType::String,
+                    ),
+                    (
+                        schema::ColumnType::Tag("host".to_owned()),
+                        LogicalDataType::String,
+                    ),
+                ],
+                aggregate_columns: vec![(
+                    schema::ColumnType::Tag("temp".to_owned()),
+                    AggregateType::Sum,
+                    LogicalDataType::Integer,
+                )],
             },
-            ReadAggregateResult {
-                schema: ResultSchema {
-                    select_columns: vec![],
-                    group_columns: vec![
-                        (
-                            schema::ColumnType::Tag("region".to_owned()),
-                            LogicalDataType::String,
-                        ),
-                        (
-                            schema::ColumnType::Tag("host".to_owned()),
-                            LogicalDataType::String,
-                        ),
-                    ],
-                    aggregate_columns: vec![(
-                        schema::ColumnType::Tag("temp".to_owned()),
-                        AggregateType::Sum,
-                        LogicalDataType::Integer,
-                    )],
-                },
-                group_keys: vec![vec![Value::String("west"), Value::String("host-b")].into()],
-                aggregates: vec![vec![AggregateResult::Sum(Scalar::I64(100))]],
-            },
-        ]);
+            ..ReadAggregateResult::default()
+        };
+        result_a.add_row(
+            vec![Value::String("east"), Value::String("host-a")],
+            vec![AggregateResult::Sum(Scalar::I64(10))],
+        );
 
+        let mut result_b = ReadAggregateResult {
+            schema: ResultSchema {
+                select_columns: vec![],
+                group_columns: vec![
+                    (
+                        schema::ColumnType::Tag("region".to_owned()),
+                        LogicalDataType::String,
+                    ),
+                    (
+                        schema::ColumnType::Tag("host".to_owned()),
+                        LogicalDataType::String,
+                    ),
+                ],
+                aggregate_columns: vec![(
+                    schema::ColumnType::Tag("temp".to_owned()),
+                    AggregateType::Sum,
+                    LogicalDataType::Integer,
+                )],
+            },
+            ..Default::default()
+        };
+        result_b.add_row(
+            vec![Value::String("west"), Value::String("host-b")],
+            vec![AggregateResult::Sum(Scalar::I64(100))],
+        );
+
+        let results = DisplayReadAggregateResults(vec![result_a, result_b]);
         //Display implementation
         assert_eq!(
             format!("{}", &results),

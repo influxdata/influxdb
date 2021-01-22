@@ -9,7 +9,7 @@ use data_types::schema::InfluxFieldType;
 /// This schema is useful for helping with displaying information in tests and
 /// decorating Arrow record batches when results are converted before leaving
 /// the read buffer.
-#[derive(Default, PartialEq, Debug)]
+#[derive(Default, PartialEq, Debug, Clone)]
 pub struct ResultSchema {
     pub select_columns: Vec<(ColumnType, LogicalDataType)>,
     pub group_columns: Vec<(ColumnType, LogicalDataType)>,
