@@ -53,6 +53,9 @@ pub enum Error {
 
     #[snafu(display("unsupported operation: {}", msg))]
     UnsupportedOperation { msg: String },
+
+    #[snafu(display("unsupported aggregate: {}", agg))]
+    UnsupportedAggregate { agg: AggregateType },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -283,6 +286,15 @@ impl Database {
                             .get(chunk_id)
                             .ok_or_else(|| Error::ChunkNotFound { id: *chunk_id })?,
                     )
+                }
+
+                for (_, agg) in &aggregates {
+                    match agg {
+                        AggregateType::First | AggregateType::Last => {
+                            return Err(Error::UnsupportedAggregate { agg: *agg });
+                        }
+                        _ => {}
+                    }
                 }
 
                 Ok(ReadAggregateResults::new(
