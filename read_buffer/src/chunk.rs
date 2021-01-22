@@ -117,23 +117,21 @@ impl Chunk {
     /// columns, optionally filtered by the provided predicate. Results are
     /// merged across all row groups within the returned table.
     ///
+    /// Returns `None` if the table no longer exists within the chunk.
+    ///
     /// Note: `read_aggregate` currently only supports grouping on "tag"
     /// columns.
     pub fn read_aggregate(
         &self,
         table_name: &str,
         predicate: Predicate,
-        group_columns: Vec<ColumnName<'_>>,
-        aggregates: Vec<(ColumnName<'_>, AggregateType)>,
-    ) -> Result<table::ReadAggregateResults<'_>, Error> {
+        group_columns: &ColumnSelection<'_>,
+        aggregates: &[(ColumnName<'_>, AggregateType)],
+    ) -> Option<table::ReadAggregateResults<'_>> {
         // Lookup table by name and dispatch execution.
-        match self.tables.get(table_name) {
-            Some(table) => Ok(table.read_aggregate(predicate, &group_columns, &aggregates)),
-            None => crate::TableNotFound {
-                table_name: table_name.to_owned(),
-            }
-            .fail(),
-        }
+        self.tables
+            .get(table_name)
+            .and_then(|table| Some(table.read_aggregate(predicate, group_columns, aggregates)))
     }
 
     //

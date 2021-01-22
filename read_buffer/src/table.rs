@@ -153,17 +153,21 @@ impl Table {
     pub fn read_aggregate<'input>(
         &self,
         predicate: Predicate,
-        group_columns: &'input [ColumnName<'input>],
+        group_columns: &'input ColumnSelection<'_>,
         aggregates: &'input [(ColumnName<'input>, AggregateType)],
     ) -> ReadAggregateResults<'_> {
         // Filter out any column names that we do not have data for.
         let schema = ResultSchema {
-            group_columns: self.meta.schema_for_column_names(group_columns),
+            group_columns: match group_columns {
+                ColumnSelection::All => self.meta.schema_for_all_columns(),
+                ColumnSelection::Some(column_names) => {
+                    self.meta.schema_for_column_names(column_names)
+                }
+            },
             aggregate_columns: self.meta.schema_for_aggregate_column_names(aggregates),
             ..ResultSchema::default()
         };
 
-        // TODO(edd): for now punt on predicate pruning but need to figure it out.
         let row_groups = self.filter_row_groups(&predicate);
 
         // return the iterator to build the results.
@@ -171,6 +175,7 @@ impl Table {
             schema,
             predicate,
             row_groups,
+            ..Default::default()
         }
     }
 
@@ -610,8 +615,11 @@ pub struct ReadAggregateResults<'table> {
     // the predicate to apply to each row group.
     predicate: Predicate,
 
-    // row groups that will be executed against
+    // row groups that will be executed against. The columns to group on and the
+    // aggregates to produce are determined by the `schema`.
     row_groups: Vec<&'table RowGroup>,
+
+    drained: bool, // currently this iterator only yields once.
 }
 
 impl<'a> ReadAggregateResults<'a> {
@@ -636,11 +644,11 @@ impl<'a> Iterator for ReadAggregateResults<'a> {
     type Item = row_group::ReadAggregateResult<'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.row_groups.is_empty() {
+        if self.row_groups.is_empty() || self.drained {
             return None;
         }
 
-        let merged_results = self.row_groups.get(0).unwrap().read_aggregate(
+        let mut merged_results = self.row_groups.get(0).unwrap().read_aggregate(
             &self.predicate,
             &self
                 .schema
@@ -680,9 +688,10 @@ impl<'a> Iterator for ReadAggregateResults<'a> {
             assert_eq!(result.schema(), self.schema()); // validate schema
 
             // merge result into on-going results.
-            todo!();
+            merged_results = merged_results.merge(result);
         }
 
+        self.drained = true;
         Some(merged_results)
     }
 }
