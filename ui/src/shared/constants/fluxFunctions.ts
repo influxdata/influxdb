@@ -1,5 +1,4 @@
 import { FluxToolbarFunction } from 'src/types/shared'
-import { NONE } from './queryFillOptions'
 
 export const FROM: FluxToolbarFunction = {
   name: 'from',
@@ -3558,7 +3557,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Returns the larger of x or y.',
     example: 'max(x: r.x_value, y: r.y_value)',
     category: 'Transformations',
-    link: NONE
+    link: ''
   },
   MEAN,
   {
@@ -3606,11 +3605,11 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc: 'Returns the less of x or y.',
     example: 'min(x: r.x_value, y: r.y_value)',
     category: 'Transformations',
-    link: NONE
+    link: ''
   },
   {
     name: 'mode',
-    args: [
+    args: [ 
       {
         name: 'column',
         desc: 'The column to use to compute the mode. Defaults to `"_value"`.',
