@@ -176,7 +176,7 @@ func validate(t *testing.T, gf *TestSuite) {
 				QueryParams([2]string{"q", test.Query}).
 				QueryParams([2]string{"epoch", "ns"}).
 				Header("Content-Type", "application/vnd.influxql").
-				Header("Accept", "text/plain").
+				Header("Accept", "application/csv").
 				RespFn(func(resp *http.Response) error {
 					b, err := ioutil.ReadAll(resp.Body)
 					assert.NoError(t, err)
