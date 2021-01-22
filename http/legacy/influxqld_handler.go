@@ -142,11 +142,15 @@ func (h *InfluxqlHandler) handleInfluxqldQuery(w http.ResponseWriter, r *http.Re
 		}
 	}
 
+	formatString := r.Header.Get("Accept")
+	encodingFormat := influxql.EncodingFormatFromMimeType(formatString)
+	w.Header().Set("Content-Type", encodingFormat.ContentType())
+
 	req := &influxql.QueryRequest{
 		DB:             r.FormValue("db"),
 		RP:             r.FormValue("rp"),
 		Epoch:          r.FormValue("epoch"),
-		EncodingFormat: influxql.EncodingFormatFromMimeType(r.Header.Get("Accept")),
+		EncodingFormat: encodingFormat,
 		OrganizationID: o.ID,
 		Query:          query,
 		Params:         params,

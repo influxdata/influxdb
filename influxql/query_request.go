@@ -10,6 +10,7 @@ type EncodingFormat int
 
 func (f *EncodingFormat) UnmarshalJSON(bytes []byte) error {
 	var s string
+
 	if err := json.Unmarshal(bytes, &s); err != nil {
 		return err
 	}
@@ -24,23 +25,21 @@ func (f EncodingFormat) MarshalJSON() ([]byte, error) {
 
 const (
 	EncodingFormatJSON EncodingFormat = iota
-	EncodingFormatCSV
+	EncodingFormatTextCSV
+	EncodingFormatAppCSV
 	EncodingFormatMessagePack
-	EncodingFormatTable
 )
 
 // Returns closed encoding format from the specified mime type.
 // The default is JSON if no exact match is found.
 func EncodingFormatFromMimeType(s string) EncodingFormat {
 	switch s {
-	case "application/csv", "text/csv":
-		return EncodingFormatCSV
-	case "text/plain":
-		return EncodingFormatTable
+	case "application/csv":
+		return EncodingFormatAppCSV
+	case "text/csv":
+		return EncodingFormatTextCSV
 	case "application/x-msgpack":
 		return EncodingFormatMessagePack
-	case "application/json":
-		fallthrough
 	default:
 		return EncodingFormatJSON
 	}
@@ -48,14 +47,12 @@ func EncodingFormatFromMimeType(s string) EncodingFormat {
 
 func (f EncodingFormat) ContentType() string {
 	switch f {
-	case EncodingFormatCSV:
+	case EncodingFormatAppCSV:
+		return "application/csv"
+	case EncodingFormatTextCSV:
 		return "text/csv"
-	case EncodingFormatTable:
-		return "text/plain"
 	case EncodingFormatMessagePack:
 		return "application/x-msgpack"
-	case EncodingFormatJSON:
-		fallthrough
 	default:
 		return "application/json"
 	}
