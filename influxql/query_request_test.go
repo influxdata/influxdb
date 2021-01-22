@@ -17,7 +17,7 @@ func TestEncodingFormatFromMimeType(t *testing.T) {
 		{s: "application/json", exp: EncodingFormatJSON},
 		{s: "*/*", exp: EncodingFormatJSON},
 		{s: "", exp: EncodingFormatJSON},
-		{s: "application/other", exp: EncodingFormatUnknown},
+		{s: "application/other", exp: EncodingFormatJSON},
 	}
 	for _, tt := range tests {
 		t.Run(tt.s, func(t *testing.T) {

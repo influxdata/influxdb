@@ -28,7 +28,6 @@ const (
 	EncodingFormatTextCSV
 	EncodingFormatAppCSV
 	EncodingFormatMessagePack
-	EncodingFormatUnknown
 )
 
 // Returns closed encoding format from the specified mime type.
@@ -41,10 +40,8 @@ func EncodingFormatFromMimeType(s string) EncodingFormat {
 		return EncodingFormatTextCSV
 	case "application/x-msgpack":
 		return EncodingFormatMessagePack
-	case "", "*/*", "application/json":
-		return EncodingFormatJSON
 	default:
-		return EncodingFormatUnknown
+		return EncodingFormatJSON
 	}
 }
 
