@@ -59,8 +59,8 @@ async fn read_and_write_data() {
     let bucket_id = u64::from_str_radix(bucket_id_str, 16).unwrap();
     let database_name = org_and_bucket_to_database(org_id_str, bucket_id_str).unwrap();
 
-    let client = reqwest::Client::new();
-    let client2 = influxdb2_client::Client::new(HTTP_BASE, TOKEN);
+    let http_client = reqwest::Client::new();
+    let influxdb2 = influxdb2_client::Client::new(HTTP_BASE, TOKEN);
 
     let rules = DatabaseRules {
         store_locally: true,
@@ -68,7 +68,7 @@ async fn read_and_write_data() {
     };
     let data = serde_json::to_vec(&rules).unwrap();
 
-    client
+    http_client
         .put(&format!(
             "{}/iox/api/v1/databases/{}",
             HTTP_BASE, &database_name
@@ -148,7 +148,7 @@ async fn read_and_write_data() {
             .build()
             .unwrap(),
     ];
-    write_data(&client2, org_id_str, bucket_id_str, points)
+    write_data(&influxdb2, org_id_str, bucket_id_str, points)
         .await
         .unwrap();
 
@@ -168,7 +168,7 @@ async fn read_and_write_data() {
     );
 
     let text = read_data_as_sql(
-        &client,
+        &http_client,
         "/read",
         org_id_str,
         bucket_id_str,
@@ -302,7 +302,7 @@ async fn read_and_write_data() {
     assert_eq!(values, vec!["server01"]);
 
     // Begin tests for read_group rpc call
-    load_read_group_data(&client2, org_id_str, bucket_id_str).await;
+    load_read_group_data(&influxdb2, org_id_str, bucket_id_str).await;
     test_read_group_none_agg(&mut storage_client, &read_source).await;
     test_read_group_none_agg_with_predicate(&mut storage_client, &read_source).await;
     test_read_group_sum_agg(&mut storage_client, &read_source).await;
@@ -408,11 +408,11 @@ async fn read_and_write_data() {
     assert_eq!(field.r#type, DataType::Float as i32);
     assert_eq!(field.timestamp, ns_since_epoch + 4);
 
-    test_http_error_messages(&client2).await.unwrap();
+    test_http_error_messages(&influxdb2).await.unwrap();
 
     test_read_window_aggregate(
         &mut storage_client,
-        &client2,
+        &influxdb2,
         &read_source,
         org_id_str,
         bucket_id_str,
