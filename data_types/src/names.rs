@@ -6,13 +6,6 @@ use snafu::{ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
 pub enum OrgBucketMappingError {
-    #[snafu(display(
-        "Internal error accessing org {}, bucket {}: the '_' character is reserved",
-        org,
-        bucket_name,
-    ))]
-    InvalidBucketOrgName { org: String, bucket_name: String },
-
     #[snafu(display("Invalid database name: {}", source))]
     InvalidDatabaseName { source: DatabaseNameError },
 }
