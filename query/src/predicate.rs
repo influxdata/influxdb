@@ -175,3 +175,32 @@ impl PredicateBuilder {
         self.inner
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_timestamp_range_contains() {
+        let range = TimestampRange::new(100, 200);
+        assert!(!range.contains(99));
+        assert!(range.contains(100));
+        assert!(range.contains(101));
+        assert!(range.contains(199));
+        assert!(!range.contains(200));
+        assert!(!range.contains(201));
+    }
+
+    #[test]
+    fn test_timestamp_range_contains_opt() {
+        let range = TimestampRange::new(100, 200);
+        assert!(!range.contains_opt(Some(99)));
+        assert!(range.contains_opt(Some(100)));
+        assert!(range.contains_opt(Some(101)));
+        assert!(range.contains_opt(Some(199)));
+        assert!(!range.contains_opt(Some(200)));
+        assert!(!range.contains_opt(Some(201)));
+
+        assert!(!range.contains_opt(None));
+    }
+}
