@@ -131,7 +131,7 @@ impl Chunk {
         // Lookup table by name and dispatch execution.
         self.tables
             .get(table_name)
-            .and_then(|table| Some(table.read_aggregate(predicate, group_columns, aggregates)))
+            .map(|table| table.read_aggregate(predicate, group_columns, aggregates))
     }
 
     //

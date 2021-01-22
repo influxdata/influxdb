@@ -1,6 +1,5 @@
 use std::{convert::TryFrom, fmt::Display};
 
-use arrow::array;
 use arrow_deps::arrow;
 use data_types::schema::InfluxFieldType;
 
@@ -151,21 +150,6 @@ pub enum LogicalDataType {
     String,   // UTF-8 valid string
     Binary,   // Arbitrary collection of bytes
     Boolean,  //
-}
-
-impl LogicalDataType {
-    /// Returns an Arrow array builder for the `LogicalDataType` with
-    /// `capacity`.
-    pub fn arrow_builder(&self, capacity: usize) -> Box<dyn array::ArrayBuilder> {
-        match &self {
-            LogicalDataType::Integer => Box::new(array::Int64Builder::new(capacity)),
-            LogicalDataType::Unsigned => Box::new(array::UInt64Builder::new(capacity)),
-            LogicalDataType::Float => Box::new(array::Float64Builder::new(capacity)),
-            LogicalDataType::String => Box::new(array::StringBuilder::new(capacity)),
-            LogicalDataType::Binary => Box::new(array::BinaryBuilder::new(capacity)),
-            LogicalDataType::Boolean => Box::new(array::BooleanBuilder::new(capacity)),
-        }
-    }
 }
 
 impl From<&LogicalDataType> for arrow::datatypes::DataType {

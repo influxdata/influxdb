@@ -2712,14 +2712,6 @@ impl Value<'_> {
         panic!("cannot unwrap Value to Scalar");
     }
 
-    pub fn try_as_scalar(&self) -> Option<&Scalar> {
-        match &self {
-            Value::Null => None,
-            Value::Scalar(s) => Some(s),
-            _ => panic!("cannot unwrap Value to Scalar"),
-        }
-    }
-
     pub fn string(&self) -> &str {
         if let Self::String(s) = self {
             return s;
