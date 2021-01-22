@@ -32,7 +32,6 @@ use generated_types::{
 };
 use prost::Message;
 use std::convert::TryInto;
-use std::fs;
 use std::process::{Child, Command};
 use std::str;
 use std::time::{Duration, SystemTime};
@@ -181,11 +180,6 @@ async fn read_and_write_data() {
         "Actual:\n{:#?}\nExpected:\n{:#?}",
         text, expected_read_data
     );
-
-    // Make an invalid organization WAL dir to test that the server ignores it
-    // instead of crashing
-    let invalid_org_dir = server.dir.path().join("not-an-org-id");
-    fs::create_dir(invalid_org_dir).unwrap();
 
     let mut storage_client = StorageClient::connect(GRPC_URL_BASE).await.unwrap();
 
