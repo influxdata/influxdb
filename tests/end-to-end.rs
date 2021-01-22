@@ -18,7 +18,7 @@
 // - Stopping the server after all relevant tests are run
 
 use assert_cmd::prelude::*;
-use data_types::database_rules::DatabaseRules;
+use data_types::{database_rules::DatabaseRules, names::org_and_bucket_to_database};
 use futures::prelude::*;
 use generated_types::{
     aggregate::AggregateType,
@@ -97,6 +97,7 @@ async fn read_and_write_data() {
     let org_id = u64::from_str_radix(org_id_str, 16).unwrap();
     let bucket_id_str = "1111000011110000";
     let bucket_id = u64::from_str_radix(bucket_id_str, 16).unwrap();
+    let database_name = org_and_bucket_to_database(org_id_str, bucket_id_str).unwrap();
 
     let client = reqwest::Client::new();
     let client2 = influxdb2_client::Client::new(HTTP_BASE, TOKEN);
@@ -106,8 +107,6 @@ async fn read_and_write_data() {
         ..Default::default()
     };
     let data = serde_json::to_vec(&rules).unwrap();
-
-    let database_name = format!("{}_{}", org_id_str, bucket_id_str);
 
     client
         .put(&format!(
