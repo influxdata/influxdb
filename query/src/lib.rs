@@ -41,12 +41,6 @@ pub trait Database: Debug + Send + Sync {
     /// Return the partition keys for data in this DB
     async fn partition_keys(&self) -> Result<Vec<String>, Self::Error>;
 
-    /// Return the table names that are in a given partition key
-    async fn table_names_for_partition(
-        &self,
-        partition_key: &str,
-    ) -> Result<Vec<String>, Self::Error>;
-
     /// Returns a covering set of chunks in the specified partition. A
     /// covering set means that together the chunks make up a single
     /// complete copy of the data being queried.

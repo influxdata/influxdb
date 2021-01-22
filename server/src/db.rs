@@ -367,18 +367,6 @@ impl Database for Db {
             .await
             .context(MutableBufferRead)
     }
-
-    async fn table_names_for_partition(
-        &self,
-        partition_key: &str,
-    ) -> Result<Vec<String>, Self::Error> {
-        self.mutable_buffer
-            .as_ref()
-            .context(DatabaseNotReadable)?
-            .table_names_for_partition(partition_key)
-            .await
-            .context(MutableBufferRead)
-    }
 }
 
 #[cfg(test)]

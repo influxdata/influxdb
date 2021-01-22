@@ -415,14 +415,6 @@ impl Database for TestDatabase {
         unimplemented!("partition_keys not yet for test database");
     }
 
-    /// Return the table names that are in a given partition key
-    async fn table_names_for_partition(
-        &self,
-        _partition_key: &str,
-    ) -> Result<Vec<String>, Self::Error> {
-        unimplemented!("table_names_for_partition not implemented for test database");
-    }
-
     async fn chunks(&self, _partition_key: &str) -> Vec<Arc<Self::Chunk>> {
         unimplemented!("query_chunks for test database");
     }

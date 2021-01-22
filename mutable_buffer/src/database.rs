@@ -1,4 +1,5 @@
 use generated_types::wal;
+use query::group_by::Aggregate;
 use query::group_by::GroupByAndAggregate;
 use query::group_by::WindowDuration;
 use query::{
@@ -6,7 +7,6 @@ use query::{
     predicate::Predicate,
     Database,
 };
-use query::{group_by::Aggregate, predicate::PredicateBuilder};
 
 use crate::column::Column;
 use crate::table::Table;
@@ -294,21 +294,6 @@ impl Database for MutableBufferDb {
         let partitions = self.partitions.read().await;
         let keys = partitions.keys().cloned().collect();
         Ok(keys)
-    }
-
-    /// Return all table names that are in a given partition key
-    async fn table_names_for_partition(
-        &self,
-        partition_key: &str,
-    ) -> Result<Vec<String>, Self::Error> {
-        let predicate = PredicateBuilder::default()
-            .partition_key(partition_key)
-            .build();
-        let mut filter = ChunkTableFilter::new(predicate);
-        let mut visitor = TableNameVisitor::new();
-        self.accept(&mut filter, &mut visitor).await?;
-        let names = visitor.into_inner().into_iter().collect();
-        Ok(names)
     }
 
     /// Return the list of chunks, in order of id, for the specified
