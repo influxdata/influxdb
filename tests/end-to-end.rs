@@ -48,46 +48,6 @@ const TOKEN: &str = "InfluxDB IOx doesn't have authentication yet";
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T, E = Error> = std::result::Result<T, E>;
 
-async fn read_data_as_sql(
-    client: &reqwest::Client,
-    path: &str,
-    org_id: &str,
-    bucket_id: &str,
-    sql_query: &str,
-) -> Vec<String> {
-    let url = format!("{}{}", API_BASE, path);
-    let lines = client
-        .get(&url)
-        .query(&[
-            ("bucket", bucket_id),
-            ("org", org_id),
-            ("sql_query", sql_query),
-        ])
-        .send()
-        .await
-        .unwrap()
-        .text()
-        .await
-        .unwrap()
-        .trim()
-        .split('\n')
-        .map(str::to_string)
-        .collect();
-    lines
-}
-
-async fn write_data(
-    client: &influxdb2_client::Client,
-    org_id: &str,
-    bucket_id: &str,
-    points: Vec<influxdb2_client::DataPoint>,
-) -> Result<()> {
-    client
-        .write(org_id, bucket_id, stream::iter(points))
-        .await?;
-    Ok(())
-}
-
 #[tokio::test]
 async fn read_and_write_data() {
     let server = TestServer::new().unwrap();
@@ -458,6 +418,46 @@ async fn read_and_write_data() {
         bucket_id_str,
     )
     .await;
+}
+
+async fn read_data_as_sql(
+    client: &reqwest::Client,
+    path: &str,
+    org_id: &str,
+    bucket_id: &str,
+    sql_query: &str,
+) -> Vec<String> {
+    let url = format!("{}{}", API_BASE, path);
+    let lines = client
+        .get(&url)
+        .query(&[
+            ("bucket", bucket_id),
+            ("org", org_id),
+            ("sql_query", sql_query),
+        ])
+        .send()
+        .await
+        .unwrap()
+        .text()
+        .await
+        .unwrap()
+        .trim()
+        .split('\n')
+        .map(str::to_string)
+        .collect();
+    lines
+}
+
+async fn write_data(
+    client: &influxdb2_client::Client,
+    org_id: &str,
+    bucket_id: &str,
+    points: Vec<influxdb2_client::DataPoint>,
+) -> Result<()> {
+    client
+        .write(org_id, bucket_id, stream::iter(points))
+        .await?;
+    Ok(())
 }
 
 // Don't make a separate #test function so that we can reuse the same
