@@ -1,4 +1,5 @@
-import {FluxToolbarFunction} from 'src/types/shared'
+import { FluxToolbarFunction } from 'src/types/shared'
+import { NONE } from './queryFillOptions'
 
 export const FROM: FluxToolbarFunction = {
   name: 'from',
@@ -3190,48 +3191,6 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/minf/',
   },
   {
-    name: 'math.mMax',
-    args: [
-      {
-        name: 'x',
-        desc: 'The X value used in the operation.',
-        type: 'Float',
-      },
-      {
-        name: 'y',
-        desc: 'The Y value used in the operation.',
-        type: 'Float',
-      },
-    ],
-    package: 'math',
-    desc: 'Returns the larger of x or y.',
-    example: 'math.mMax(x: r.x_value, y: r.y_value)',
-    category: 'Transformations',
-    link:
-      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/mmax/',
-  },
-  {
-    name: 'math.mMin',
-    args: [
-      {
-        name: 'x',
-        desc: 'The X value used in the operation.',
-        type: 'Float',
-      },
-      {
-        name: 'y',
-        desc: 'The Y value used in the operation.',
-        type: 'Float',
-      },
-    ],
-    package: 'math',
-    desc: 'Returns the smaller of x or y.',
-    example: 'math.mMin(x: r.x_value, y: r.y_value)',
-    category: 'Transformations',
-    link:
-      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/math/mmin/',
-  },
-  {
     name: 'math.mod',
     args: [
       {
@@ -3581,6 +3540,26 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     link:
       'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/built-in/transformations/selectors/max/',
   },
+  {
+    name: 'max_two_num',
+    args: [
+      {
+        name: 'x',
+        desc: 'The X value used in the operation.',
+        type: 'Float',
+      },
+      {
+        name: 'y',
+        desc: 'The Y value used in the operation.',
+        type: 'Float',
+      },
+    ],
+    package: '',
+    desc: 'Returns the larger of x or y.',
+    example: 'max(x: r.x_value, y: r.y_value)',
+    category: 'Transformations',
+    link: NONE
+  },
   MEAN,
   {
     name: 'median',
@@ -3608,6 +3587,26 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Selectors',
     link:
       'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/built-in/transformations/selectors/min/',
+  },
+  {
+    name: 'min_two_num',
+    args: [
+      {
+        name: 'x',
+        desc: 'The X value used in the operation.',
+        type: 'Float',
+      },
+      {
+        name: 'y',
+        desc: 'The Y value used in the operation.',
+        type: 'Float',
+      },
+    ],
+    package: '',
+    desc: 'Returns the less of x or y.',
+    example: 'min(x: r.x_value, y: r.y_value)',
+    category: 'Transformations',
+    link: NONE
   },
   {
     name: 'mode',
