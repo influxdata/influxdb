@@ -49,7 +49,7 @@ impl LoggingLevel {
         const DEFAULT_VERBOSE_LOG_LEVEL: &str = "info";
 
         // Default log level is warn level for all components
-        const DEFAULT_LOG_LEVEL: &str = "warn";
+        const DEFAULT_LOG_LEVEL: &str = "info";
 
         match level {
             Some(lvl) => {
