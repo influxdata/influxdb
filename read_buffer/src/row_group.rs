@@ -3,11 +3,13 @@ use std::{
     cmp::Ordering,
     collections::BTreeMap,
     convert::{TryFrom, TryInto},
+    sync::Arc,
 };
 
+use arrow::array;
 use hashbrown::{hash_map, HashMap};
 use itertools::Itertools;
-use snafu::Snafu;
+use snafu::{ResultExt, Snafu};
 
 use crate::column::{
     cmp::Operator, AggregateResult, Column, EncodedValues, OwnedValue, RowIDs, RowIDsOption,
@@ -36,6 +38,9 @@ pub enum Error {
     SchemaError {
         source: data_types::schema::builder::Error,
     },
+
+    #[snafu(display("unsupported operation: {}", msg))]
+    UnsupportedOperation { msg: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -202,8 +207,7 @@ impl RowGroup {
 
         let schema = ResultSchema {
             select_columns,
-            group_columns: vec![],
-            aggregate_columns: vec![],
+            ..Default::default()
         };
 
         // apply predicates to determine candidate rows.
@@ -765,8 +769,8 @@ impl RowGroup {
         groupby_encoded_ids: &[u32],
         aggregate_columns_data: Vec<Values<'a>>,
     ) {
+        assert_eq!(dst.schema().group_columns.len(), 1);
         let column = self.column_by_name(dst.schema.group_column_names_iter().next().unwrap());
-        assert_eq!(dst.schema.group_columns.len(), aggregate_columns_data.len());
         let total_rows = groupby_encoded_ids.len();
 
         // Allocate a vector to hold aggregates that can be updated as rows are
@@ -1146,6 +1150,12 @@ impl TryFrom<&DfExpr> for BinaryExpr {
 #[derive(PartialEq, PartialOrd, Clone)]
 pub struct GroupKey<'row_group>(Vec<Value<'row_group>>);
 
+impl GroupKey<'_> {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+}
+
 impl<'a> From<Vec<Value<'a>>> for GroupKey<'a> {
     fn from(values: Vec<Value<'a>>) -> Self {
         Self(values)
@@ -1191,10 +1201,23 @@ impl Ord for GroupKey<'_> {
 pub struct AggregateResults<'row_group>(Vec<AggregateResult<'row_group>>);
 
 impl<'row_group> AggregateResults<'row_group> {
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
     fn merge(&mut self, other: &AggregateResults<'row_group>) {
         for (i, agg) in self.0.iter_mut().enumerate() {
             agg.merge(&other.0[i]);
         }
+    }
+}
+
+impl<'a> IntoIterator for AggregateResults<'a> {
+    type Item = AggregateResult<'a>;
+    type IntoIter = std::vec::IntoIter<Self::Item>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
     }
 }
 
@@ -1468,7 +1491,7 @@ impl<'row_group> ReadAggregateResult<'row_group> {
 
     /// Merges `other` and self, returning a new set of results.
     ///
-    /// NOTE: This is slow! Not
+    /// NOTE: This is slow! Not expected to be the final type of implementation
     pub fn merge(
         mut self,
         mut other: ReadAggregateResult<'row_group>,
@@ -1561,6 +1584,114 @@ impl<'row_group> ReadAggregateResult<'row_group> {
     ) {
         self.group_keys.push(GroupKey(group_key));
         self.aggregates.push(AggregateResults(aggregates));
+    }
+}
+
+impl TryFrom<ReadAggregateResult<'_>> for RecordBatch {
+    type Error = Error;
+
+    fn try_from(result: ReadAggregateResult<'_>) -> Result<Self, Self::Error> {
+        let schema = data_types::schema::Schema::try_from(result.schema())
+            .map_err(|source| Error::SchemaError { source })?;
+        let arrow_schema: arrow_deps::arrow::datatypes::SchemaRef = schema.into();
+
+        // Build the columns for the group keys. This involves pivoting the
+        // row-wise group keys into column-wise data.
+        let mut group_column_builders = (0..result.schema.group_columns.len())
+            .map(|_| {
+                arrow::array::StringBuilder::with_capacity(
+                    result.cardinality(),
+                    result.cardinality() * 8, // arbitrarily picked for now
+                )
+            })
+            .collect::<Vec<_>>();
+
+        // build each column for a group key value row by row.
+        for gk in result.group_keys.iter() {
+            for (i, v) in gk.0.iter().enumerate() {
+                group_column_builders[i]
+                    .append_value(v.string())
+                    .map_err(|source| Error::ArrowError { source })?;
+            }
+        }
+
+        // Add the group columns to the set of column data for the record batch.
+        let mut columns: Vec<Arc<dyn arrow::array::Array>> =
+            Vec::with_capacity(result.schema.len());
+        for col in group_column_builders.iter_mut() {
+            columns.push(Arc::new(col.finish()));
+        }
+
+        // For the aggregate columns, build one column at a time, repeatedly
+        // iterating rows until all columns have been built.
+        //
+        // TODO(edd): I don't like this *at all*. I'm going to refactor the way
+        // aggregates are produced.
+        for (i, (_, agg_type, data_type)) in result.schema.aggregate_columns.iter().enumerate() {
+            match data_type {
+                LogicalDataType::Integer => {
+                    let mut builder = array::Int64Builder::new(result.cardinality());
+                    for agg_row in &result.aggregates {
+                        builder
+                            .append_option(agg_row.0[i].try_as_i64_scalar())
+                            .context(ArrowError)?;
+                    }
+                    columns.push(Arc::new(builder.finish()));
+                }
+                LogicalDataType::Unsigned => {
+                    let mut builder = array::UInt64Builder::new(result.cardinality());
+                    for agg_row in &result.aggregates {
+                        builder
+                            .append_option(agg_row.0[i].try_as_u64_scalar())
+                            .context(ArrowError)?;
+                    }
+                    columns.push(Arc::new(builder.finish()));
+                }
+                LogicalDataType::Float => {
+                    let mut builder = array::Float64Builder::new(result.cardinality());
+                    for agg_row in &result.aggregates {
+                        builder
+                            .append_option(agg_row.0[i].try_as_f64_scalar())
+                            .context(ArrowError)?;
+                    }
+                    columns.push(Arc::new(builder.finish()));
+                }
+                LogicalDataType::String => {
+                    let mut builder = array::StringBuilder::new(result.cardinality());
+                    for agg_row in &result.aggregates {
+                        match agg_row.0[i].try_as_str() {
+                            Some(s) => builder.append_value(s).context(ArrowError)?,
+                            None => builder.append_null().context(ArrowError)?,
+                        }
+                    }
+                    columns.push(Arc::new(builder.finish()));
+                }
+                LogicalDataType::Binary => {
+                    let mut builder = array::BinaryBuilder::new(result.cardinality());
+                    for agg_row in &result.aggregates {
+                        match agg_row.0[i].try_as_bytes() {
+                            Some(s) => builder.append_value(s).context(ArrowError)?,
+                            None => builder.append_null().context(ArrowError)?,
+                        }
+                    }
+                    columns.push(Arc::new(builder.finish()));
+                }
+                LogicalDataType::Boolean => {
+                    let mut builder = array::BooleanBuilder::new(result.cardinality());
+                    for agg_row in &result.aggregates {
+                        builder
+                            .append_option(agg_row.0[i].try_as_bool())
+                            .context(ArrowError)?;
+                    }
+                    columns.push(Arc::new(builder.finish()));
+                }
+            }
+        }
+
+        // try_new only returns an error if the schema is invalid or the number
+        // of rows on columns differ. We have full control over both so there
+        // should never be an error to return...
+        arrow::record_batch::RecordBatch::try_new(arrow_schema, columns).context(ArrowError)
     }
 }
 

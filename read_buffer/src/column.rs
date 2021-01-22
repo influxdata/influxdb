@@ -2320,6 +2320,156 @@ impl<'a> AggregateResult<'a> {
             (a, b) => unimplemented!("merging {:?} into {:?} not yet implemented", b, a),
         }
     }
+
+    pub fn try_as_str(&self) -> Option<&str> {
+        match &self {
+            AggregateResult::Min(v) => match v {
+                Value::Null => None,
+                Value::String(s) => Some(s),
+                v => panic!("cannot convert {:?} to &str", v),
+            },
+            AggregateResult::Max(v) => match v {
+                Value::Null => None,
+                Value::String(s) => Some(s),
+                v => panic!("cannot convert {:?} to &str", v),
+            },
+            AggregateResult::First(_) => panic!("cannot convert first tuple to &str"),
+            AggregateResult::Last(_) => panic!("cannot convert last tuple to &str"),
+            AggregateResult::Sum(v) => panic!("cannot convert {:?} to &str", v),
+            AggregateResult::Count(_) => panic!("cannot convert count to &str"),
+        }
+    }
+
+    pub fn try_as_bytes(&self) -> Option<&[u8]> {
+        match &self {
+            AggregateResult::Min(v) => match v {
+                Value::Null => None,
+                Value::ByteArray(s) => Some(s),
+                v => panic!("cannot convert {:?} to &[u8]", v),
+            },
+            AggregateResult::Max(v) => match v {
+                Value::Null => None,
+                Value::ByteArray(s) => Some(s),
+                v => panic!("cannot convert {:?} to &[u8]", v),
+            },
+            AggregateResult::First(_) => panic!("cannot convert first tuple to &[u8]"),
+            AggregateResult::Last(_) => panic!("cannot convert last tuple to &[u8]"),
+            AggregateResult::Sum(v) => panic!("cannot convert {:?} to &[u8]", v),
+            AggregateResult::Count(_) => panic!("cannot convert count to &[u8]"),
+        }
+    }
+
+    pub fn try_as_bool(&self) -> Option<bool> {
+        match &self {
+            AggregateResult::Min(v) => match v {
+                Value::Null => None,
+                Value::Boolean(s) => Some(*s),
+                v => panic!("cannot convert {:?} to bool", v),
+            },
+            AggregateResult::Max(v) => match v {
+                Value::Null => None,
+                Value::Boolean(s) => Some(*s),
+                v => panic!("cannot convert {:?} to bool", v),
+            },
+            AggregateResult::First(_) => panic!("cannot convert first tuple to bool"),
+            AggregateResult::Last(_) => panic!("cannot convert last tuple to bool"),
+            AggregateResult::Sum(v) => panic!("cannot convert {:?} to bool", v),
+            AggregateResult::Count(_) => panic!("cannot convert count to bool"),
+        }
+    }
+
+    pub fn try_as_i64_scalar(&self) -> Option<i64> {
+        match &self {
+            AggregateResult::Sum(v) => match v {
+                Scalar::Null => None,
+                Scalar::I64(v) => Some(*v),
+                v => panic!("cannot convert {:?} to i64", v),
+            },
+            AggregateResult::Min(v) => match v {
+                Value::Null => None,
+                Value::Scalar(s) => match s {
+                    Scalar::Null => None,
+                    Scalar::I64(v) => Some(*v),
+                    v => panic!("cannot convert {:?} to u64", v),
+                },
+                v => panic!("cannot convert {:?} to i64", v),
+            },
+            AggregateResult::Max(v) => match v {
+                Value::Null => None,
+                Value::Scalar(s) => match s {
+                    Scalar::Null => None,
+                    Scalar::I64(v) => Some(*v),
+                    v => panic!("cannot convert {:?} to u64", v),
+                },
+                v => panic!("cannot convert {:?} to i64", v),
+            },
+            AggregateResult::First(_) => panic!("cannot convert first tuple to scalar"),
+            AggregateResult::Last(_) => panic!("cannot convert last tuple to scalar"),
+            AggregateResult::Count(_) => panic!("cannot represent count as i64"),
+        }
+    }
+
+    pub fn try_as_u64_scalar(&self) -> Option<u64> {
+        match &self {
+            AggregateResult::Sum(v) => match v {
+                Scalar::Null => None,
+                Scalar::U64(v) => Some(*v),
+                v => panic!("cannot convert {:?} to u64", v),
+            },
+            AggregateResult::Count(c) => Some(*c),
+            AggregateResult::Min(v) => match v {
+                Value::Null => None,
+                Value::Scalar(s) => match s {
+                    Scalar::Null => None,
+                    Scalar::U64(v) => Some(*v),
+                    v => panic!("cannot convert {:?} to u64", v),
+                },
+                v => panic!("cannot convert {:?} to u64", v),
+            },
+            AggregateResult::Max(v) => match v {
+                Value::Null => None,
+                Value::Scalar(s) => match s {
+                    Scalar::Null => None,
+                    Scalar::U64(v) => Some(*v),
+                    v => panic!("cannot convert {:?} to u64", v),
+                },
+                v => panic!("cannot convert {:?} to u64", v),
+            },
+            AggregateResult::First(_) => panic!("cannot convert first tuple to scalar"),
+            AggregateResult::Last(_) => panic!("cannot convert last tuple to scalar"),
+        }
+    }
+
+    pub fn try_as_f64_scalar(&self) -> Option<f64> {
+        match &self {
+            AggregateResult::Sum(v) => match v {
+                Scalar::Null => None,
+                Scalar::F64(v) => Some(*v),
+                v => panic!("cannot convert {:?} to f64", v),
+            },
+            AggregateResult::Min(v) => match v {
+                Value::Null => None,
+                Value::Scalar(s) => match s {
+                    Scalar::Null => None,
+                    Scalar::F64(v) => Some(*v),
+                    v => panic!("cannot convert {:?} to f64", v),
+                },
+                v => panic!("cannot convert {:?} to f64", v),
+            },
+            AggregateResult::Max(v) => match v {
+                Value::Null => None,
+                Value::Scalar(s) => match s {
+                    Scalar::Null => None,
+                    Scalar::F64(v) => Some(*v),
+                    v => panic!("cannot convert {:?} to f64", v),
+                },
+                v => panic!("cannot convert {:?} to f64", v),
+            },
+            AggregateResult::First(_) => panic!("cannot convert first tuple to scalar"),
+            AggregateResult::Last(_) => panic!("cannot convert last tuple to scalar"),
+            AggregateResult::Count(_) => panic!("cannot represent count as f64"),
+        }
+    }
 }
 
 impl From<&AggregateType> for AggregateResult<'_> {
@@ -2380,7 +2530,7 @@ macro_rules! typed_scalar_converters {
                     Self::I64(v) => $type::try_from(*v).ok(),
                     Self::U64(v) => $type::try_from(*v).ok(),
                     Self::F64(v) => panic!("cannot convert Self::F64"),
-                    Self::Null => panic!("cannot convert Scalar::Null"),
+                    Self::Null => None,
                 }
             }
         )*
@@ -2560,6 +2710,14 @@ impl Value<'_> {
             return s;
         }
         panic!("cannot unwrap Value to Scalar");
+    }
+
+    pub fn try_as_scalar(&self) -> Option<&Scalar> {
+        match &self {
+            Value::Null => None,
+            Value::Scalar(s) => Some(s),
+            _ => panic!("cannot unwrap Value to Scalar"),
+        }
     }
 
     pub fn string(&self) -> &str {

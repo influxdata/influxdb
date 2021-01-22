@@ -1,5 +1,6 @@
 use std::{convert::TryFrom, fmt::Display};
 
+use arrow::array;
 use arrow_deps::arrow;
 use data_types::schema::InfluxFieldType;
 
@@ -45,6 +46,24 @@ impl ResultSchema {
                 ColumnType::Other(name) => name,
             })
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn len(&self) -> usize {
+        self.select_columns.len() + self.group_columns.len() + self.aggregate_columns.len()
+    }
+
+    // How to display the name for a column that was constructed as an aggregate
+    // result.
+    //
+    // TODO(edd): support multiple instances of the same aggregation on the same
+    // column? E.g., `temp_sum_1`, `temp_sum_2` etc??
+    fn aggregate_result_column_name(&self, i: usize) -> String {
+        let (col_type, agg_type, _) = self.aggregate_columns.get(i).unwrap();
+        format!("{}_{}", col_type, agg_type)
+    }
 }
 
 /// Effectively emits a header line for a CSV-like table.
@@ -67,8 +86,8 @@ impl Display for ResultSchema {
         }
 
         // finally, emit the aggregate columns
-        for (i, (col_name, col_agg, _)) in self.aggregate_columns.iter().enumerate() {
-            write!(f, "{}_{}", col_name, col_agg)?;
+        for (i, _) in self.aggregate_columns.iter().enumerate() {
+            write!(f, "{}", self.aggregate_result_column_name(i))?;
 
             if i < self.aggregate_columns.len() - 1 {
                 write!(f, ",")?;
@@ -94,6 +113,31 @@ impl TryFrom<&ResultSchema> for data_types::schema::Schema {
             }
         }
 
+        for (col_type, data_type) in &rs.group_columns {
+            match col_type {
+                ColumnType::Tag(name) => builder = builder.tag(name.as_str()),
+                ColumnType::Field(name) => {
+                    builder = builder.influx_field(name.as_str(), data_type.into())
+                }
+                ColumnType::Timestamp(_) => builder = builder.timestamp(),
+                ColumnType::Other(name) => builder = builder.field(name.as_str(), data_type.into()),
+            }
+        }
+
+        for (i, (col_type, _, data_type)) in rs.aggregate_columns.iter().enumerate() {
+            let col_name = rs.aggregate_result_column_name(i);
+
+            match col_type {
+                ColumnType::Field(_) => {
+                    builder = builder.influx_field(col_name.as_str(), data_type.into())
+                }
+                ColumnType::Other(_) => {
+                    builder = builder.field(col_name.as_str(), data_type.into())
+                }
+                ct => unreachable!("not possible to aggregate {:?} columns", ct),
+            }
+        }
+
         builder.build()
     }
 }
@@ -107,6 +151,21 @@ pub enum LogicalDataType {
     String,   // UTF-8 valid string
     Binary,   // Arbitrary collection of bytes
     Boolean,  //
+}
+
+impl LogicalDataType {
+    /// Returns an Arrow array builder for the `LogicalDataType` with
+    /// `capacity`.
+    pub fn arrow_builder(&self, capacity: usize) -> Box<dyn array::ArrayBuilder> {
+        match &self {
+            LogicalDataType::Integer => Box::new(array::Int64Builder::new(capacity)),
+            LogicalDataType::Unsigned => Box::new(array::UInt64Builder::new(capacity)),
+            LogicalDataType::Float => Box::new(array::Float64Builder::new(capacity)),
+            LogicalDataType::String => Box::new(array::StringBuilder::new(capacity)),
+            LogicalDataType::Binary => Box::new(array::BinaryBuilder::new(capacity)),
+            LogicalDataType::Boolean => Box::new(array::BooleanBuilder::new(capacity)),
+        }
+    }
 }
 
 impl From<&LogicalDataType> for arrow::datatypes::DataType {
