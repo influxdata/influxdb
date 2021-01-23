@@ -77,6 +77,7 @@ type bucket struct {
 	Name                string          `json:"name"`
 	RetentionPolicyName string          `json:"rp,omitempty"` // This to support v1 sources
 	RetentionRules      []retentionRule `json:"retentionRules"`
+	ShardGroupDuration  int64           `json:"shardGroupDuration"`
 	influxdb.CRUDLog
 }
 
@@ -150,6 +151,7 @@ func newBucket(pb *influxdb.Bucket) *bucket {
 		Description:         pb.Description,
 		RetentionPolicyName: pb.RetentionPolicyName,
 		RetentionRules:      rules,
+		ShardGroupDuration:  int64(pb.ShardGroupDuration),
 		CRUDLog:             pb.CRUDLog,
 	}
 }
@@ -285,6 +287,7 @@ type postBucketRequest struct {
 	Description         string          `json:"description"`
 	RetentionPolicyName string          `json:"rp,omitempty"` // This to support v1 sources
 	RetentionRules      []retentionRule `json:"retentionRules"`
+	ShardGroupDuration  int64           `json:"shardGroupDuration"`
 }
 
 func (b *postBucketRequest) OK() error {
@@ -322,6 +325,7 @@ func (b postBucketRequest) toInfluxDB() *influxdb.Bucket {
 		Type:                influxdb.BucketTypeUser,
 		RetentionPolicyName: b.RetentionPolicyName,
 		RetentionPeriod:     dur,
+		ShardGroupDuration:  time.Duration(b.ShardGroupDuration),
 	}
 }
 

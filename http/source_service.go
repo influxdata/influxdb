@@ -321,6 +321,7 @@ type bucket struct {
 	Name                string          `json:"name"`
 	RetentionPolicyName string          `json:"rp,omitempty"` // This to support v1 sources
 	RetentionRules      []retentionRule `json:"retentionRules"`
+	ShardGroupDuration  int64           `json:"shardGroupDuration"`
 	influxdb.CRUDLog
 }
 
@@ -346,6 +347,7 @@ func newBucket(pb *influxdb.Bucket) *bucket {
 		Description:         pb.Description,
 		RetentionPolicyName: pb.RetentionPolicyName,
 		RetentionRules:      rules,
+		ShardGroupDuration:  int64(pb.ShardGroupDuration),
 		CRUDLog:             pb.CRUDLog,
 	}
 }
