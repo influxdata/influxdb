@@ -54,6 +54,8 @@ Replacement `tsi1` indexes will be automatically generated on startup for shards
 1. [20527](https://github.com/influxdata/influxdb/pull/20527): Allow backups to complete while a snapshot is in progress.
 1. [20539](https://github.com/influxdata/influxdb/pull/20539): Prevent extra output row from GROUP BY crossing DST boundary.
 1. [20548](https://github.com/influxdata/influxdb/pull/20548): Prevent panic in `influxd upgrade` when V1 users exist and no V1 config is given.
+1. [20565](https://github.com/influxdata/influxdb/pull/20565): Set correct Content-Type on v1 query responses.
+1. [20565](https://github.com/influxdata/influxdb/pull/20565): Update V1 API spec to document all valid Accept headers and matching Content-Types.
 
 ## v2.0.3 [2020-12-14]
 

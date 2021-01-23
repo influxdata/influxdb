@@ -64,7 +64,7 @@
           "type": "string"
         },
         "result": {
-          "description": "The expected results in table format",
+          "description": "The expected results in CSV format",
           "type": "string"
         }
       }
