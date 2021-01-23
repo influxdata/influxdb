@@ -263,8 +263,9 @@ func (e *Engine) CreateBucket(ctx context.Context, b *influxdb.Bucket) (err erro
 	defer span.Finish()
 
 	spec := meta.RetentionPolicySpec{
-		Name:     meta.DefaultRetentionPolicyName,
-		Duration: &b.RetentionPeriod,
+		Name:               meta.DefaultRetentionPolicyName,
+		Duration:           &b.RetentionPeriod,
+		ShardGroupDuration: b.ShardGroupDuration,
 	}
 
 	if _, err = e.metaClient.CreateDatabaseWithRetentionPolicy(b.ID.String(), &spec); err != nil {

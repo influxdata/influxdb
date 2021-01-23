@@ -36,6 +36,7 @@ type Bucket struct {
 	Description         string        `json:"description"`
 	RetentionPolicyName string        `json:"rp,omitempty"` // This to support v1 sources
 	RetentionPeriod     time.Duration `json:"retentionPeriod"`
+	ShardGroupDuration  time.Duration `json:"shardGroupDuration"`
 	CRUDLog
 }
 
