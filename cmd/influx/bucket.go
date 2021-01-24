@@ -23,13 +23,14 @@ type cmdBucketBuilder struct {
 
 	svcFn bucketSVCsFn
 
-	id          string
-	hideHeaders bool
-	json        bool
-	name        string
-	description string
-	org         organization
-	retention   string
+	id                 string
+	hideHeaders        bool
+	json               bool
+	name               string
+	description        string
+	org                organization
+	retention          string
+	shardGroupDuration string
 }
 
 func newCmdBucketBuilder(svcsFn bucketSVCsFn, f *globalFlags, opts genericCLIOpts) *cmdBucketBuilder {
@@ -73,6 +74,7 @@ func (b *cmdBucketBuilder) cmdCreate() *cobra.Command {
 
 	cmd.Flags().StringVarP(&b.description, "description", "d", "", "Description of bucket that will be created")
 	cmd.Flags().StringVarP(&b.retention, "retention", "r", "", "Duration bucket will retain data. 0 is infinite. Default is 0.")
+	cmd.Flags().StringVarP(&b.shardGroupDuration, "shardGroupDuration", "", "", "Shard group duration used internally in storage. Default is 7 days")
 	b.org.register(b.viper, cmd, false)
 	b.registerPrintFlags(cmd)
 
@@ -94,10 +96,16 @@ func (b *cmdBucketBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 		return err
 	}
 
+	shardGroupDuration, err := internal.RawDurationToTimeDuration(b.shardGroupDuration)
+	if err != nil {
+		return err
+	}
+
 	bkt := &influxdb.Bucket{
-		Name:            b.name,
-		Description:     b.description,
-		RetentionPeriod: dur,
+		Name:               b.name,
+		Description:        b.description,
+		RetentionPeriod:    dur,
+		ShardGroupDuration: shardGroupDuration,
 	}
 	bkt.OrgID, err = b.org.getID(orgSVC)
 	if err != nil {
