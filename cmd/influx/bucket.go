@@ -328,7 +328,7 @@ func (b *cmdBucketBuilder) printBuckets(printOpt bucketPrintOpt) error {
 
 	w.HideHeaders(b.hideHeaders)
 
-	headers := []string{"ID", "Name", "Retention", "Organization ID"}
+	headers := []string{"ID", "Name", "Retention", "Shard group duration", "Organization ID"}
 	if printOpt.deleted {
 		headers = append(headers, "Deleted")
 	}
@@ -340,10 +340,11 @@ func (b *cmdBucketBuilder) printBuckets(printOpt bucketPrintOpt) error {
 
 	for _, bkt := range printOpt.buckets {
 		m := map[string]interface{}{
-			"ID":              bkt.ID.String(),
-			"Name":            bkt.Name,
-			"Retention":       bkt.RetentionPeriod,
-			"Organization ID": bkt.OrgID.String(),
+			"ID":                   bkt.ID.String(),
+			"Name":                 bkt.Name,
+			"Retention":            bkt.RetentionPeriod,
+			"Shard group duration": bkt.ShardGroupDuration,
+			"Organization ID":      bkt.OrgID.String(),
 		}
 		if printOpt.deleted {
 			m["Deleted"] = true
