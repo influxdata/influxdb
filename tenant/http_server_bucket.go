@@ -125,6 +125,7 @@ func (b *bucket) toInfluxDB() (*influxdb.Bucket, error) {
 		Name:                b.Name,
 		RetentionPolicyName: b.RetentionPolicyName,
 		RetentionPeriod:     d,
+		ShardGroupDuration:  time.Duration(b.ShardGroupDuration),
 		CRUDLog:             b.CRUDLog,
 	}, nil
 }
