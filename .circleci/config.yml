@@ -777,7 +777,7 @@ jobs:
       - attach_workspace:
           at: ~/project
       - quay_login
-      - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -e TEST_RESULTS=~/project quay.io/influxdb/grace:latest
+      - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/grace/test-results/grace-results quay.io/influxdb/grace:latest
       - store_artifacts:
           path: ~/project
       - store_test_results:
