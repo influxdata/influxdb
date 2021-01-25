@@ -90,8 +90,13 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub enum StringSetPlan {
     // If the results are known without having to run an actual datafusion plan
     Known(Result<StringSetRef>),
-    // A datafusion plan(s) to execute. Each plan must produce
-    // RecordBatches with exactly one String column
+    /// A DataFusion plan(s) to execute. Each plan must produce
+    /// RecordBatches with exactly one String column, though the
+    /// the values produced by the plan may be repeated
+    ///
+    /// TODO: it would be cool to have a single datafusion LogicalPlan
+    /// that merged all the results together. However, no such Union
+    /// node exists at the time of writing, so we do the unioning in IOx
     Plan(Vec<LogicalPlan>),
 }
 

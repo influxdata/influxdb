@@ -1,6 +1,7 @@
-//! This module contains a Timeseries specific Predicate structure for
-//! IOXxthat can select and filter Fields and Tags, designed to be
-//! compatible with InfluxDB
+//! This module contains a unified Predicate structure for IOx qieries
+//! that can select and filter Fields and Tags from the InfluxDB data
+//! mode as well as for arbitrary other predicates that are expressed
+//! by DataFusion's `Expr` type.
 
 use std::collections::BTreeSet;
 
@@ -8,7 +9,8 @@ use arrow_deps::datafusion::logical_plan::Expr;
 
 /// Specifies a continuous range of nanosecond timestamps. Timestamp
 /// predicates are so common and critical to performance of timeseries
-/// databases in general, and IOx in particular, that they are handled specially
+/// databases in general, and IOx in particular, that they are handled
+/// specially
 #[derive(Clone, PartialEq, Copy, Debug)]
 pub struct TimestampRange {
     /// Start defines the inclusive lower bound.
@@ -42,7 +44,7 @@ impl TimestampRange {
 /// distinguishes between some types of columns (tags and fields), and
 /// likewise the semantics of this structure has some types of
 /// restrictions that only apply to certain types of columns.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct Predicate {
     /// Optional table restriction. If present, restricts the results
     /// to only tables whose names are in `table_names`

@@ -1,2 +1,2 @@
-pub mod influxdb;
+pub mod influxrpc;
 pub mod sql;

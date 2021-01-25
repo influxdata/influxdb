@@ -16,8 +16,8 @@ use generated_types::{
 
 use data_types::error::ErrorLogger;
 
-use query::exec::fieldlist::FieldList;
 use query::group_by::GroupByAndAggregate;
+use query::{exec::fieldlist::FieldList, frontend::influxrpc::InfluxRPCPlanner};
 
 use super::expr::{self, AddRPCNode, Loggable, SpecialTagKeys};
 use super::input::GrpcInputs;
@@ -788,27 +788,27 @@ where
     T: DatabaseStore,
 {
     let predicate = PredicateBuilder::default().set_range(range).build();
+    let db_name = db_name.as_ref();
 
-    let plan = db_store
+    let db = db_store
         .db(&db_name)
         .await
-        .context(DatabaseNotFound { db_name: &*db_name })?
-        .table_names(predicate)
-        .await
-        .map_err(|e| Error::ListingTables {
-            db_name: db_name.to_string(),
-            source: Box::new(e),
-        })?;
+        .context(DatabaseNotFound { db_name })?;
 
+    let planner = InfluxRPCPlanner::new();
+
+    let plan = planner
+        .table_names(db.as_ref(), predicate)
+        .await
+        .map_err(|e| Box::new(e) as _)
+        .context(ListingTables { db_name })?;
     let executor = db_store.executor();
 
     let table_names = executor
         .to_string_set(plan)
         .await
-        .map_err(|e| Error::ListingTables {
-            db_name: db_name.to_string(),
-            source: Box::new(e),
-        })?;
+        .map_err(|e| Box::new(e) as _)
+        .context(ListingTables { db_name })?;
 
     // Map the resulting collection of Strings into a Vec<Vec<u8>>for return
     let values: Vec<Vec<u8>> = table_names
@@ -1166,7 +1166,7 @@ mod tests {
         test::FieldColumnsRequest,
         test::QueryGroupsRequest,
         test::TestDatabaseStore,
-        test::{ColumnValuesRequest, QuerySeriesRequest},
+        test::{ColumnValuesRequest, QuerySeriesRequest, TestChunk},
     };
     use std::{
         convert::TryFrom,
@@ -1216,18 +1216,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_storage_rpc_measurement_names() -> Result<(), tonic::Status> {
+    async fn test_storage_rpc_measurement_names() {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let lp_data = "h2o,state=CA temp=50.4 100\n\
-                       o2,state=MA temp=50.4 200";
+        let chunk = TestChunk::new(0).with_table("h2o").with_table("o2");
+
         fixture
             .test_storage
-            .add_lp_string(&db_info.db_name, lp_data)
+            .db_or_create(&db_info.db_name)
+            .await
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk))
             .await;
 
         let source = Some(StorageClientWrapper::read_source(
@@ -1243,7 +1246,11 @@ mod tests {
             predicate: None,
         };
 
-        let actual_measurements = fixture.storage_client.measurement_names(request).await?;
+        let actual_measurements = fixture
+            .storage_client
+            .measurement_names(request)
+            .await
+            .unwrap();
         let expected_measurements = to_string_vec(&["h2o", "o2"]);
         assert_eq!(actual_measurements, expected_measurements);
 
@@ -1258,11 +1265,36 @@ mod tests {
             predicate: None,
         };
 
-        let actual_measurements = fixture.storage_client.measurement_names(request).await?;
-        let expected_measurements = to_string_vec(&["o2"]);
+        let actual_measurements = fixture
+            .storage_client
+            .measurement_names(request)
+            .await
+            .unwrap();
+        let expected_measurements = to_string_vec(&["h2o", "o2"]);
         assert_eq!(actual_measurements, expected_measurements);
 
-        Ok(())
+        // also ensure the plumbing is hooked correctly and that the predicate made it
+        // down to the chunk
+        let actual_predicate = fixture
+            .test_storage
+            .db_or_create(&db_info.db_name)
+            .await
+            .expect("getting db")
+            .get_chunk("my_partition_key", 0)
+            .await
+            .and_then(|chunk| chunk.table_names_predicate());
+
+        let expected_predicate = Some(
+            PredicateBuilder::default()
+                .timestamp_range(150, 200)
+                .build(),
+        );
+
+        assert_eq!(
+            actual_predicate, expected_predicate,
+            "\nActual: {:?}\nExpected: {:?}",
+            actual_predicate, expected_predicate
+        );
     }
 
     /// test the plumbing of the RPC layer for tag_keys -- specifically that
@@ -1499,11 +1531,14 @@ mod tests {
             tag_key: [0].into(),
         };
 
-        let lp_data = "h2o,state=CA temp=50.4 1000\n\
-                       o2,state=MA temp=50.4 2000";
+        let chunk = TestChunk::new(0).with_table("h2o");
+
         fixture
             .test_storage
-            .add_lp_string(&db_info.db_name, lp_data)
+            .db_or_create(&db_info.db_name)
+            .await
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk))
             .await;
 
         let tag_values = vec!["h2o"];

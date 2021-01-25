@@ -8,5 +8,7 @@ pub use arrow;
 pub use datafusion;
 pub use parquet;
 
+pub mod util;
+
 /// This has a collection of testing helper functions
 pub mod test_util;

@@ -12,14 +12,9 @@ use std::{
     collections::{btree_map::Entry, BTreeMap, BTreeSet},
     convert::TryInto,
     fmt,
-    sync::Arc,
 };
 
-use arrow_deps::arrow::{
-    array::{ArrayRef, StringArray},
-    datatypes::{DataType::Utf8, Field, Schema},
-    record_batch::RecordBatch,
-};
+use arrow_deps::{arrow::record_batch::RecordBatch, util::str_iter_to_batch};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 // Identifiers that are exported as part of the public API.
@@ -397,24 +392,17 @@ impl Database {
             })?;
 
         let chunks = partition.chunks_by_ids(chunk_ids)?;
-        let mut intersection = BTreeSet::new();
-        let chunk_table_names = chunks
+        let names = chunks
             .iter()
-            .map(|chunk| chunk.table_names(&predicate))
-            .for_each(|mut names| intersection.append(&mut names));
+            .fold(BTreeSet::new(), |mut names, chunk| {
+                names.append(&mut chunk.table_names(&predicate));
+                names
+            })
+            // have a BTreeSet here, convert to an iterator of Some(&str)
+            .into_iter()
+            .map(Some);
 
-        let schema = Schema::new(vec![Field::new(TABLE_NAMES_COLUMN_NAME, Utf8, false)]);
-        let columns: Vec<ArrayRef> = vec![Arc::new(StringArray::from(
-            intersection
-                .iter()
-                .map(|s| s.as_str())
-                .collect::<Vec<&str>>(),
-        ))];
-
-        match RecordBatch::try_new(Arc::new(schema), columns).context(ArrowError {}) {
-            Ok(rb) => Ok(rb),
-            Err(e) => Err(e),
-        }
+        str_iter_to_batch(TABLE_NAMES_COLUMN_NAME, names).context(ArrowError)
     }
 
     /// Returns the distinct set of column names (tag keys) that satisfy the

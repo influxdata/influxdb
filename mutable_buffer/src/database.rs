@@ -205,13 +205,6 @@ impl Database for MutableBufferDb {
         Ok(())
     }
 
-    async fn table_names(&self, predicate: Predicate) -> Result<StringSetPlan, Self::Error> {
-        let mut filter = ChunkTableFilter::new(predicate);
-        let mut visitor = TableNameVisitor::new();
-        self.accept(&mut filter, &mut visitor).await?;
-        Ok(visitor.into_inner().into())
-    }
-
     // return all column names in this database, while applying optional predicates
     async fn tag_column_names(&self, predicate: Predicate) -> Result<StringSetPlan, Self::Error> {
         let has_exprs = predicate.has_exprs();
@@ -618,41 +611,6 @@ impl Visitor for NameVisitor {
     }
 }
 
-/// Return all table names in this database, while applying a
-/// general purpose predicates
-struct TableNameVisitor {
-    table_names: BTreeSet<String>,
-}
-
-impl TableNameVisitor {
-    fn new() -> Self {
-        Self {
-            table_names: BTreeSet::new(),
-        }
-    }
-    fn into_inner(self) -> BTreeSet<String> {
-        let Self { table_names } = self;
-        table_names
-    }
-}
-
-impl Visitor for TableNameVisitor {
-    fn pre_visit_table(
-        &mut self,
-        table: &Table,
-        chunk: &Chunk,
-        _filter: &mut ChunkTableFilter,
-    ) -> Result<()> {
-        // If the table has rows that could match the filter, add it
-        // the table name should always have an encoded value in the dictionary
-        let table_name = chunk.dictionary.lookup_id(table.id).unwrap();
-        if !self.table_names.contains(table_name) {
-            self.table_names.insert(table_name.to_string());
-        }
-        Ok(())
-    }
-}
-
 /// Return all column names in this database, while applying a
 /// general purpose predicates
 struct NamePredVisitor {
@@ -992,77 +950,6 @@ mod tests {
 
     fn to_set(v: &[&str]) -> BTreeSet<String> {
         v.iter().map(|s| s.to_string()).collect::<BTreeSet<_>>()
-    }
-
-    // query the table names, with optional range predicate
-    async fn table_names(db: &MutableBufferDb, predicate: Predicate) -> Result<StringSet> {
-        let plan = db.table_names(predicate).await?;
-        let executor = Executor::default();
-        let s = executor.to_string_set(plan).await?;
-
-        // unwrap it (for easy test comparisons)
-        let s = Arc::try_unwrap(s).expect("only one reference to the set in the test");
-        Ok(s)
-    }
-
-    #[tokio::test]
-    async fn list_table_names() -> Result {
-        let db = MutableBufferDb::new("mydb");
-
-        // no tables initially
-        assert_eq!(
-            table_names(&db, Predicate::default()).await?,
-            BTreeSet::new()
-        );
-
-        // write two different tables
-        let lines: Vec<_> =
-            parse_lines("cpu,region=west user=23.2 10\ndisk,region=east bytes=99i 11")
-                .map(|l| l.unwrap())
-                .collect();
-        write_lines(&db, &lines).await;
-
-        // Now, we should see the two tables
-        assert_eq!(
-            table_names(&db, Predicate::default()).await?,
-            to_set(&["cpu", "disk"])
-        );
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn list_table_names_timestamps() -> Result {
-        let db = MutableBufferDb::new("mydb");
-
-        // write two different tables at the following times:
-        // cpu: 100 and 150
-        // disk: 200
-        let lines: Vec<_> =
-            parse_lines("cpu,region=west user=23.2 100\ncpu,region=west user=21.0 150\ndisk,region=east bytes=99i 200")
-                .map(|l| l.unwrap())
-                .collect();
-        write_lines(&db, &lines).await;
-
-        // Cover all times
-        let predicate = PredicateBuilder::default().timestamp_range(0, 201).build();
-        assert_eq!(table_names(&db, predicate).await?, to_set(&["cpu", "disk"]));
-
-        // Right before disk
-        let predicate = PredicateBuilder::default().timestamp_range(0, 200).build();
-        assert_eq!(table_names(&db, predicate).await?, to_set(&["cpu"]));
-
-        // only one point of cpu
-        let predicate = PredicateBuilder::default().timestamp_range(50, 101).build();
-        assert_eq!(table_names(&db, predicate).await?, to_set(&["cpu"]));
-
-        // no ranges
-        let predicate = PredicateBuilder::default()
-            .timestamp_range(250, 350)
-            .build();
-        assert_eq!(table_names(&db, predicate).await?, to_set(&[]));
-
-        Ok(())
     }
 
     #[tokio::test]
