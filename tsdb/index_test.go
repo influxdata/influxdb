@@ -12,12 +12,12 @@ import (
 
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/internal"
-	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/slices"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/influxdata/influxql"
+	"go.uber.org/zap/zaptest"
 )
 
 // Ensure iterator can merge multiple iterators together.
@@ -60,7 +60,7 @@ func TestIndexSet_MeasurementNamesByExpr(t *testing.T) {
 	// Setup indexes
 	indexes := map[string]*Index{}
 	for _, name := range tsdb.RegisteredIndexes() {
-		idx := MustOpenNewIndex(name)
+		idx := MustOpenNewIndex(t, name)
 		idx.AddSeries("cpu", map[string]string{"region": "east"})
 		idx.AddSeries("cpu", map[string]string{"region": "west", "secret": "foo"})
 		idx.AddSeries("disk", map[string]string{"secret": "foo"})
@@ -140,7 +140,7 @@ func TestIndexSet_MeasurementNamesByPredicate(t *testing.T) {
 	// Setup indexes
 	indexes := map[string]*Index{}
 	for _, name := range tsdb.RegisteredIndexes() {
-		idx := MustOpenNewIndex(name)
+		idx := MustOpenNewIndex(t, name)
 		idx.AddSeries("cpu", map[string]string{"region": "east"})
 		idx.AddSeries("cpu", map[string]string{"region": "west", "secret": "foo"})
 		idx.AddSeries("disk", map[string]string{"secret": "foo"})
@@ -271,7 +271,7 @@ func TestIndex_Sketches(t *testing.T) {
 	}
 
 	test := func(t *testing.T, index string) error {
-		idx := MustNewIndex(index)
+		idx := MustNewIndex(t, index)
 		if index, ok := idx.Index.(*tsi1.Index); ok {
 			// Override the log file max size to force a log file compaction sooner.
 			// This way, we will test the sketches are correct when they have been
@@ -359,7 +359,9 @@ var DisableTSICache = func() EngineOption {
 // everything under the same root directory so it can be cleanly removed on Close.
 //
 // The index will not be opened.
-func MustNewIndex(index string, eopts ...EngineOption) *Index {
+func MustNewIndex(tb testing.TB, index string, eopts ...EngineOption) *Index {
+	tb.Helper()
+
 	opts := tsdb.NewEngineOptions()
 	opts.IndexVersion = index
 
@@ -386,10 +388,7 @@ func MustNewIndex(index string, eopts ...EngineOption) *Index {
 	if err != nil {
 		panic(err)
 	}
-
-	if testing.Verbose() {
-		i.WithLogger(logger.New(os.Stderr))
-	}
+	i.WithLogger(zaptest.NewLogger(tb))
 
 	idx := &Index{
 		Index:     i,
@@ -402,8 +401,10 @@ func MustNewIndex(index string, eopts ...EngineOption) *Index {
 
 // MustOpenNewIndex will initialize a new index using the provide type and opens
 // it.
-func MustOpenNewIndex(index string, opts ...EngineOption) *Index {
-	idx := MustNewIndex(index, opts...)
+func MustOpenNewIndex(tb testing.TB, index string, opts ...EngineOption) *Index {
+	tb.Helper()
+
+	idx := MustNewIndex(tb, index, opts...)
 	idx.MustOpen()
 	return idx
 }
@@ -532,7 +533,7 @@ func BenchmarkIndexSet_TagSets(b *testing.B) {
 	b.Run("1M series", func(b *testing.B) {
 		b.ReportAllocs()
 		for _, indexType := range tsdb.RegisteredIndexes() {
-			idx := MustOpenNewIndex(indexType)
+			idx := MustOpenNewIndex(b, indexType)
 			setup(idx)
 
 			name := []byte("m4")
@@ -612,9 +613,9 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 	runBenchmark := func(b *testing.B, index string, queryN int, useTSICache bool) {
 		var idx *Index
 		if !useTSICache {
-			idx = MustOpenNewIndex(index, DisableTSICache())
+			idx = MustOpenNewIndex(b, index, DisableTSICache())
 		} else {
-			idx = MustOpenNewIndex(index)
+			idx = MustOpenNewIndex(b, index)
 		}
 
 		var wg sync.WaitGroup
@@ -674,7 +675,7 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 			}
 
 			// Re-open everything
-			idx = MustOpenNewIndex(index)
+			idx = MustOpenNewIndex(b, index)
 			wg.Add(1)
 			begin = make(chan struct{})
 			once = sync.Once{}
