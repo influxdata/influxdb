@@ -305,9 +305,9 @@ impl Database {
                     aggregates,
                 ))
             }
-            None => Err(Error::PartitionNotFound {
-                key: partition_key.to_owned(),
-            }),
+            None => PartitionNotFound {
+                key: partition_key,
+            }.fail(),
         }
     }
 
