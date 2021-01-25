@@ -32,6 +32,10 @@ rand = "0.7.3"
 rand_distr = "0.3.0"
 
 [[bench]]
+name = "database"
+harness = false
+
+[[bench]]
 name = "fixed"
 harness = false
 
