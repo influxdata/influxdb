@@ -1206,6 +1206,7 @@ impl<'row_group> AggregateResults<'row_group> {
     }
 
     fn merge(&mut self, other: &AggregateResults<'row_group>) {
+        assert_eq!(self.0.len(), other.len());
         for (i, agg) in self.0.iter_mut().enumerate() {
             agg.merge(&other.0[i]);
         }
