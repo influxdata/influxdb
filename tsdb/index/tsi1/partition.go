@@ -449,7 +449,7 @@ func (p *Partition) RetainFileSet() (*FileSet, error) {
 }
 
 func (p *Partition) retainFileSet() *FileSet {
-	fs := p.fileSet
+	fs := p.fileSet.Clone()
 	fs.Retain()
 	return fs
 }
