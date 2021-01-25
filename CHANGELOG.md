@@ -25,8 +25,8 @@ Replacement `tsi1` indexes will be automatically generated on startup for shards
 1. [20537](https://github.com/influxdata/influxdb/pull/20537): Add `--overwrite-existing-v2` flag to `influxd upgrade` to overwrite existing files at output paths (instead of aborting).
 1. [20616](https://github.com/influxdata/influxdb/pull/20616): Update telegraf plugins list in UI to include Beat, Intel PowerStats, and Rienmann.
 1. [20550](https://github.com/influxdata/influxdb/pull/20550): Add `influxd print-config` command to support automated config inspection.
-1. [20561](https://github.com/influxdata/influxdb/pull/20561): Add `nats-port` config option for `influxd` server.
-1. [20564](https://github.com/influxdata/influxdb/pull/20564): Add `nats-max-payload-bytes` config option for `influxd` server.
+1. [20591](https://github.com/influxdata/influxdb/pull/20591): Add `nats-port` config option for `influxd` server.
+1. [20591](https://github.com/influxdata/influxdb/pull/20591): Add `nats-max-payload-bytes` config option for `influxd` server.
 
 ### Bug Fixes
 
