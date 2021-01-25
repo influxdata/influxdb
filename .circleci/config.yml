@@ -786,12 +786,7 @@ jobs:
           at: ~/project
       - quay_login
       - run: mkdir -p ~/project/results
-      - run: >
-          docker run --net host
-            -v /var/run/docker.sock:/var/run/docker.sock
-            -v ~/project/results:/grace/test-results/grace-results
-            -e TEST_RESULTS=~/project/results
-            quay.io/influxdb/grace:latest
+      - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project/results:/grace/test-results/grace-results -e TEST_RESULTS=~/project/results quay.io/influxdb/grace:latest
       - store_artifacts:
           path: ~/project/results
       - store_test_results:
@@ -807,11 +802,7 @@ jobs:
           command: ./bin/linux/influxd --store=memory --log-level=debug
           background: true
       - run: mkdir -p ~/project/results
-      - run: >
-          docker run --net host
-            -v /var/run/docker.sock:/var/run/docker.sock
-            -v ~/project/results:/grace/test-results/grace-results
-            quay.io/influxdb/grace:daily
+      - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project/results:/grace/test-results/grace-results quay.io/influxdb/grace:daily
       - store_artifacts:
           path: ~/project/results
       - store_test_results:
