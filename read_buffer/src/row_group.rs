@@ -176,16 +176,45 @@ impl RowGroup {
         self.meta.time_range
     }
 
-    /// Efficiently determines if the provided set of binary expressions could
-    /// all be satisfied by the `RowGroup` when conjunctively applied.
+    /// Efficiently determines if the row group _might_ satisfy all of the
+    /// provided binary expressions, when conjunctively applied.
+    ///
+    /// `false` indicates that one or more of the expressions would not match
+    /// any rows in the row group.
     pub fn could_satisfy_conjunctive_binary_expressions<'a>(
         &self,
         exprs: impl IntoIterator<Item = &'a BinaryExpr>,
     ) -> bool {
-        // Returns false if ANY expression cannot possibly be satisfied.
+        // if a single expression returns `false` then the whole operation
+        // returns `false` because the expressions are conjunctively applied.
         exprs
             .into_iter()
             .all(|expr| self.meta.column_could_satisfy_binary_expr(expr))
+    }
+
+    /// Determines if the row group contains one or more rows that satisfy all
+    /// of the provided binary expressions, when conjunctively applied.
+    ///
+    /// `satisfies_predicate` currently constructs a set of row ids for all rows
+    /// that satisfy the predicate, but does not materialise any values. There
+    /// are some optimisation opportunities here, but I don't think they're at
+    /// all worth it at the moment.
+    ///
+    /// They could be:
+    ///  * for predicates with single expression just find a matching value in
+    ///    the column;
+    ///  * in some cases perhaps work row by row rather than column by column.
+    pub fn satisfies_predicate(&self, predicate: &Predicate) -> bool {
+        if !self.could_satisfy_conjunctive_binary_expressions(predicate.iter()) {
+            return false;
+        }
+
+        // return false if there were no rows ids returned that satisfy the
+        // predicate.
+        !matches!(
+            self.row_ids_from_predicate(predicate),
+            RowIDsOption::None(_)
+        )
     }
 
     //
@@ -211,7 +240,7 @@ impl RowGroup {
         };
 
         // apply predicates to determine candidate rows.
-        let row_ids = self.row_ids_from_predicates(predicates);
+        let row_ids = self.row_ids_from_predicate(predicates);
         let col_data = self.materialise_rows(columns, row_ids);
         ReadFilterResult {
             schema,
@@ -250,7 +279,7 @@ impl RowGroup {
     }
 
     // Determines the set of row ids that satisfy the provided predicate.
-    fn row_ids_from_predicates(&self, predicate: &Predicate) -> RowIDsOption {
+    fn row_ids_from_predicate(&self, predicate: &Predicate) -> RowIDsOption {
         // TODO(edd): perf - potentially pool this so we can re-use it once rows
         // have been materialised and it's no longer needed. Initialise a bitmap
         // RowIDs because it's like that set operations will be necessary.
@@ -388,7 +417,7 @@ impl RowGroup {
 
         // There are predicates. The next stage is apply them and determine the
         // intermediate set of row ids.
-        let row_ids = self.row_ids_from_predicates(predicate);
+        let row_ids = self.row_ids_from_predicate(predicate);
         let filter_row_ids = match row_ids {
             RowIDsOption::None(_) => {
                 return result;
@@ -1771,15 +1800,15 @@ mod test {
         let row_group = RowGroup::new(6, columns);
 
         // Closed partially covering "time range" predicate
-        let row_ids = row_group.row_ids_from_predicates(&Predicate::with_time_range(&[], 200, 600));
+        let row_ids = row_group.row_ids_from_predicate(&Predicate::with_time_range(&[], 200, 600));
         assert_eq!(row_ids.unwrap().to_vec(), vec![1, 2, 4, 5]);
 
         // Fully covering "time range" predicate
-        let row_ids = row_group.row_ids_from_predicates(&Predicate::with_time_range(&[], 10, 601));
+        let row_ids = row_group.row_ids_from_predicate(&Predicate::with_time_range(&[], 10, 601));
         assert!(matches!(row_ids, RowIDsOption::All(_)));
 
         // Open ended "time range" predicate
-        let row_ids = row_group.row_ids_from_predicates(&col_pred(BinaryExpr::from((
+        let row_ids = row_group.row_ids_from_predicate(&col_pred(BinaryExpr::from((
             TIME_COLUMN_NAME,
             ">=",
             300_i64,
@@ -1788,7 +1817,7 @@ mod test {
 
         // Closed partially covering "time range" predicate and other column
         // predicate
-        let row_ids = row_group.row_ids_from_predicates(&Predicate::with_time_range(
+        let row_ids = row_group.row_ids_from_predicate(&Predicate::with_time_range(
             &[BinaryExpr::from(("region", "=", "south"))],
             200,
             600,
@@ -1796,7 +1825,7 @@ mod test {
         assert_eq!(row_ids.unwrap().to_vec(), vec![4]);
 
         // Fully covering "time range" predicate and other column predicate
-        let row_ids = row_group.row_ids_from_predicates(&Predicate::with_time_range(
+        let row_ids = row_group.row_ids_from_predicate(&Predicate::with_time_range(
             &[BinaryExpr::from(("region", "=", "west"))],
             10,
             601,
@@ -1804,7 +1833,7 @@ mod test {
         assert_eq!(row_ids.unwrap().to_vec(), vec![0, 1, 3]);
 
         // "time range" predicate and other column predicate that doesn't match
-        let row_ids = row_group.row_ids_from_predicates(&Predicate::with_time_range(
+        let row_ids = row_group.row_ids_from_predicate(&Predicate::with_time_range(
             &[BinaryExpr::from(("region", "=", "nope"))],
             200,
             600,
@@ -1813,16 +1842,16 @@ mod test {
 
         // Just a column predicate
         let row_ids =
-            row_group.row_ids_from_predicates(&col_pred(BinaryExpr::from(("region", "=", "east"))));
+            row_group.row_ids_from_predicate(&col_pred(BinaryExpr::from(("region", "=", "east"))));
         assert_eq!(row_ids.unwrap().to_vec(), vec![2]);
 
         // Predicate can matches all the rows
-        let row_ids = row_group
-            .row_ids_from_predicates(&col_pred(BinaryExpr::from(("region", "!=", "abba"))));
+        let row_ids =
+            row_group.row_ids_from_predicate(&col_pred(BinaryExpr::from(("region", "!=", "abba"))));
         assert!(matches!(row_ids, RowIDsOption::All(_)));
 
         // No predicates
-        let row_ids = row_group.row_ids_from_predicates(&Predicate::default());
+        let row_ids = row_group.row_ids_from_predicate(&Predicate::default());
         assert!(matches!(row_ids, RowIDsOption::All(_)));
     }
 
@@ -2202,6 +2231,67 @@ west,POST,304,101,203
                 predicate
             );
         }
+    }
+
+    #[test]
+    fn row_group_satisfies_predicate() {
+        let mut columns = BTreeMap::new();
+        let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
+        columns.insert("time".to_string(), tc);
+
+        let rc = ColumnType::Tag(Column::from(
+            &["west", "west", "east", "west", "south", "north"][..],
+        ));
+        columns.insert("region".to_string(), rc);
+
+        let mc = ColumnType::Tag(Column::from(
+            &["GET", "GET", "GET", "GET", "GET", "GET"][..],
+        ));
+        columns.insert("method".to_string(), mc);
+
+        let row_group = RowGroup::new(6, columns);
+
+        let mut predicate = Predicate::default();
+        assert_eq!(row_group.satisfies_predicate(&predicate), true);
+
+        predicate = Predicate::new(vec![BinaryExpr::from(("region", "=", "east"))]);
+        assert_eq!(row_group.satisfies_predicate(&predicate), true);
+
+        // all expressions satisfied in data
+        predicate = Predicate::new(vec![
+            BinaryExpr::from(("region", "=", "east")),
+            BinaryExpr::from(("method", "!=", "POST")),
+        ]);
+        assert_eq!(row_group.satisfies_predicate(&predicate), true);
+
+        // all expressions satisfied in data by all rows
+        predicate = Predicate::new(vec![BinaryExpr::from(("method", "=", "GET"))]);
+        assert_eq!(row_group.satisfies_predicate(&predicate), true);
+
+        // one expression satisfied in data but other ruled out via column pruning.
+        predicate = Predicate::new(vec![
+            BinaryExpr::from(("region", "=", "east")),
+            BinaryExpr::from(("method", ">", "GET")),
+        ]);
+        assert_eq!(row_group.satisfies_predicate(&predicate), false);
+
+        // all expressions rules out via column pruning.
+        predicate = Predicate::new(vec![
+            BinaryExpr::from(("region", ">", "west")),
+            BinaryExpr::from(("method", ">", "GET")),
+        ]);
+        assert_eq!(row_group.satisfies_predicate(&predicate), false);
+
+        // column does not exist
+        predicate = Predicate::new(vec![BinaryExpr::from(("track", "=", "Jeanette"))]);
+        assert_eq!(row_group.satisfies_predicate(&predicate), false);
+
+        // one column satisfies expression but other column does not exist
+        predicate = Predicate::new(vec![
+            BinaryExpr::from(("region", "=", "south")),
+            BinaryExpr::from(("track", "=", "Jeanette")),
+        ]);
+        assert_eq!(row_group.satisfies_predicate(&predicate), false);
     }
 
     #[test]
