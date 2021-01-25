@@ -168,23 +168,6 @@ func exportRunE(flags *exportFlags) error {
 
 	dataDir := filepath.Join(flags.enginePath, "data", flags.bucketID.String())
 	walDir := filepath.Join(flags.enginePath, "wal", flags.bucketID.String())
-	logger.Info("exporting data", zap.String("tsm_dir", dataDir), zap.String("wal_dir", dataDir))
-
-	// TSM is stored under `<engine>/data/<bucket-id>/<rp>/<shard-id>/*.tsm`
-	tsmPattern := filepath.Join(dataDir, "*", "*", fmt.Sprintf("*.%s", tsm1.TSMFileExtension))
-	logger.Debug("searching for TSM files", zap.String("file_pattern", tsmPattern))
-	tsmFiles, err := filepath.Glob(tsmPattern)
-	if err != nil {
-		return err
-	}
-
-	// WAL is stored under `<engine>/wal/<bucket-id>/<rp>/<shard-id>/*.wal`
-	walPattern := filepath.Join(walDir, "*", "*", fmt.Sprintf("*.%s", tsm1.WALFileExtension))
-	logger.Debug("searching for WAL files", zap.String("file_pattern", walPattern))
-	walFiles, err := filepath.Glob(walPattern)
-	if err != nil {
-		return err
-	}
 
 	f, err := os.Create(flags.outputPath)
 	if err != nil {
@@ -205,11 +188,11 @@ func exportRunE(flags *exportFlags) error {
 		w = gzw
 	}
 
-	if err := exportTSMs(tsmFiles, filters, w, logger); err != nil {
+	if err := exportTSMs(dataDir, filters, w, logger); err != nil {
 		return err
 	}
 
-	if err := exportWALs(walFiles, filters, w, logger); err != nil {
+	if err := exportWALs(walDir, filters, w, logger); err != nil {
 		return err
 	}
 
@@ -217,10 +200,19 @@ func exportRunE(flags *exportFlags) error {
 	return nil
 }
 
-func exportTSMs(tsmFiles []string, filters *exportFilters, out io.Writer, log *zap.Logger) error {
-	log.Info("exporting TSM files", zap.Int("file_count", len(tsmFiles)))
+func exportTSMs(tsmDir string, filters *exportFilters, out io.Writer, log *zap.Logger) error {
+	// TSM is stored under `<engine>/data/<bucket-id>/<rp>/<shard-id>/*.tsm`
+	tsmPattern := filepath.Join(tsmDir, "*", "*", fmt.Sprintf("*.%s", tsm1.TSMFileExtension))
+	log.Debug("searching for TSM files", zap.String("file_pattern", tsmPattern))
+	tsmFiles, err := filepath.Glob(tsmPattern)
+	if err != nil {
+		return err
+	}
 
-	// Ensure we export in the same order that the files were written.
+	log.Info("exporting TSM files", zap.String("tsm_dir", tsmDir), zap.Int("file_count", len(tsmFiles)))
+
+	// Ensure we export in the same order that the TSM file store would process the files.
+	// See FileStore.Open() in tsm1/file_store.go
 	sort.Strings(tsmFiles)
 
 	for _, f := range tsmFiles {
@@ -278,7 +270,7 @@ func exportTSM(tsmFile string, filters *exportFilters, out io.Writer, log *zap.L
 		}
 		field = escape.Bytes(field)
 
-		if err := writeValues(key, field, values, filters, out); err != nil {
+		if err := writeValues(key, field, values, filters, out, log); err != nil {
 			return err
 		}
 	}
@@ -286,7 +278,15 @@ func exportTSM(tsmFile string, filters *exportFilters, out io.Writer, log *zap.L
 	return nil
 }
 
-func exportWALs(walFiles []string, filters *exportFilters, out io.Writer, log *zap.Logger) error {
+func exportWALs(walDir string, filters *exportFilters, out io.Writer, log *zap.Logger) error {
+	// WAL is stored under `<engine>/wal/<bucket-id>/<rp>/<shard-id>/*.wal`
+	walPattern := filepath.Join(walDir, "*", "*", fmt.Sprintf("*.%s", tsm1.WALFileExtension))
+	log.Debug("searching for WAL files", zap.String("file_pattern", walPattern))
+	walFiles, err := filepath.Glob(walPattern)
+	if err != nil {
+		return err
+	}
+
 	// N.B. WAL files might contain tombstone markers that haven't been sync'd down into TSM yet.
 	// We can't really deal with them when working at this low level, so we warn the user if we encounter one.
 	var tombstoneWarnOnce sync.Once
@@ -296,7 +296,11 @@ func exportWALs(walFiles []string, filters *exportFilters, out io.Writer, log *z
 		})
 	}
 
-	log.Info("exporting WAL files", zap.Int("file_count", len(walFiles)))
+	// Ensure we export in the same order that the TSM WAL would process the files.
+	// See segmentFileNames in tsm1/wal.go
+	sort.Strings(walFiles)
+
+	log.Info("exporting WAL files", zap.String("wal_dir", walDir), zap.Int("file_count", len(walFiles)))
 	for _, f := range walFiles {
 		if err := exportWAL(f, filters, out, log, warnTombstone); err != nil {
 			return err
@@ -350,7 +354,7 @@ func exportWAL(walFile string, filters *exportFilters, out io.Writer, log *zap.L
 					}
 				}
 				field = escape.Bytes(field)
-				if err := writeValues(key, field, values, filters, out); err != nil {
+				if err := writeValues(key, field, values, filters, out, log); err != nil {
 					return err
 				}
 			}
@@ -360,7 +364,7 @@ func exportWAL(walFile string, filters *exportFilters, out io.Writer, log *zap.L
 	return nil
 }
 
-func writeValues(key []byte, field []byte, values []tsm1.Value, filters *exportFilters, out io.Writer) error {
+func writeValues(key []byte, field []byte, values []tsm1.Value, filters *exportFilters, out io.Writer, log *zap.Logger) error {
 	buf := []byte(fmt.Sprintf("%s %s=", key, field))
 	prefixLen := len(buf)
 
@@ -390,8 +394,14 @@ func writeValues(key []byte, field []byte, values []tsm1.Value, filters *exportF
 			buf = append(buf, models.EscapeStringField(v)...)
 			buf = append(buf, '"')
 		default:
-			// This shouldn't be possible, but we'll format it anyway.
-			buf = append(buf, fmt.Sprintf("%v", v)...)
+			// This shouldn't be possible.
+			log.Error(
+				"ignoring value with unsupported type",
+				zap.ByteString("key", key),
+				zap.ByteString("field", field),
+				zap.String("value", value.String()),
+			)
+			continue
 		}
 
 		// Now buf has "<series_key> <field>=<value>".
