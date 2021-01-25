@@ -9689,24 +9689,6 @@ components:
         showNoteWhenEmpty:
           description: If true, will display note when empty
           type: boolean
-        barsDefinitions:
-          type: object
-          properties:
-            groupByColumns:
-              type: array
-              items:
-                type: string
-            bars:
-              type: array
-              items:
-                type: object
-                properties:
-                  barDef:
-                    type: array
-                    items:
-                      type: string
-                  label:
-                    type: string
         mode:
           type: string
           enum: [progress, bullet]
@@ -9735,6 +9717,8 @@ components:
           type: number
         labelMainFontColor:
           type: string
+        labelBarsEnabled:
+          type: boolean
         labelBarsFontSize:
           type: number
         labelBarsFontColor:
