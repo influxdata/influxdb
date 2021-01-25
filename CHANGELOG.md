@@ -55,6 +55,7 @@ Replacement `tsi1` indexes will be automatically generated on startup for shards
 1. [20558](https://github.com/influxdata/influxdb/pull/20558): Prevent panic in `influxd upgrade` when V1 users exist and no V1 config is given.
 1. [20592](https://github.com/influxdata/influxdb/pull/20592): Set correct Content-Type on v1 query responses.
 1. [20592](https://github.com/influxdata/influxdb/pull/20592): Update V1 API spec to document all valid Accept headers and matching Content-Types.
+1. [20578](https://github.com/influxdata/influxdb/pull/20578): Respect the --skip-verify flag when running `influx query`.
 
 ## v2.0.3 [2020-12-14]
 ----------------------
