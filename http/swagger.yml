@@ -7269,6 +7269,10 @@ components:
           readOnly: true
         retentionRules:
           $ref: "#/components/schemas/RetentionRules"
+        shardGroupDuration:
+          type: integer
+          format: int64
+          description: shard duration measured in nanoseconds
         labels:
           $ref: "#/components/schemas/Labels"
       required: [name, retentionRules]
