@@ -53,6 +53,9 @@ pub enum Error {
 
     #[snafu(display("unsupported operation: {}", msg))]
     UnsupportedOperation { msg: String },
+
+    #[snafu(display("unsupported aggregate: {}", agg))]
+    UnsupportedAggregate { agg: AggregateType },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -257,18 +260,53 @@ impl Database {
     ///
     /// This method might be deprecated in the future, replaced by a call to
     /// `read_aggregate_window` with a `window` of `0`.
-    pub fn read_aggregate(
+    pub fn read_aggregate<'input>(
         &self,
         partition_key: &str,
-        table_name: &str,
+        table_name: &'input str,
         chunk_ids: &[u32],
         predicate: Predicate,
-        group_columns: ColumnSelection<'_>,
-        aggregates: Vec<(ColumnName<'_>, AggregateType)>,
-    ) -> Result<ReadAggregateResults> {
-        Err(Error::UnsupportedOperation {
-            msg: "`read_aggregate` not yet implemented".to_owned(),
-        })
+        group_columns: ColumnSelection<'input>,
+        aggregates: Vec<(ColumnName<'input>, AggregateType)>,
+    ) -> Result<ReadAggregateResults<'input, '_>> {
+        match self.partitions.get(partition_key) {
+            Some(partition) => {
+                let mut chunks = vec![];
+                for chunk_id in chunk_ids {
+                    let chunk = partition
+                        .chunks
+                        .get(chunk_id)
+                        .context(ChunkNotFound { id: *chunk_id })?;
+
+                    ensure!(chunk.has_table(table_name), TableNotFound { table_name });
+
+                    chunks.push(
+                        partition
+                            .chunks
+                            .get(chunk_id)
+                            .ok_or_else(|| Error::ChunkNotFound { id: *chunk_id })?,
+                    )
+                }
+
+                for (_, agg) in &aggregates {
+                    match agg {
+                        AggregateType::First | AggregateType::Last => {
+                            return Err(Error::UnsupportedAggregate { agg: *agg });
+                        }
+                        _ => {}
+                    }
+                }
+
+                Ok(ReadAggregateResults::new(
+                    chunks,
+                    table_name,
+                    predicate,
+                    group_columns,
+                    aggregates,
+                ))
+            }
+            None => PartitionNotFound { key: partition_key }.fail(),
+        }
     }
 
     /// Returns windowed aggregates for each group specified by the values of
@@ -585,15 +623,68 @@ impl<'input, 'chunk> Iterator for ReadFilterResults<'input, 'chunk> {
 
 /// An iterable set of results for calls to `read_aggregate`.
 ///
-/// There may be some internal buffering and merging of results before a record
-/// batch can be emitted from the iterator.
-pub struct ReadAggregateResults {}
+/// The iterator lazily executes against each chunk on a call to `next`.
+/// Currently all row group results inside the chunk's table are merged before
+/// this iterator returns a record batch. Therefore the caller can expect at
+/// most one record batch to be yielded for each chunk.
+pub struct ReadAggregateResults<'input, 'chunk> {
+    chunks: Vec<&'chunk Chunk>,
+    next_i: usize,
 
-impl Iterator for ReadAggregateResults {
+    table_name: &'input str,
+    predicate: Predicate,
+    group_columns: table::ColumnSelection<'input>,
+    aggregates: Vec<(ColumnName<'input>, AggregateType)>,
+}
+
+impl<'input, 'chunk> ReadAggregateResults<'input, 'chunk> {
+    fn new(
+        chunks: Vec<&'chunk Chunk>,
+        table_name: &'input str,
+        predicate: Predicate,
+        group_columns: table::ColumnSelection<'input>,
+        aggregates: Vec<(ColumnName<'input>, AggregateType)>,
+    ) -> Self {
+        Self {
+            chunks,
+            next_i: 0,
+            table_name,
+            predicate,
+            group_columns,
+            aggregates,
+        }
+    }
+}
+
+impl<'input, 'chunk> Iterator for ReadAggregateResults<'input, 'chunk> {
     type Item = RecordBatch;
 
     fn next(&mut self) -> Option<Self::Item> {
-        None
+        if self.next_i == self.chunks.len() {
+            return None;
+        }
+
+        let curr_i = self.next_i;
+        self.next_i += 1;
+
+        // execute against next chunk
+        match &mut self.chunks[curr_i].read_aggregate(
+            self.table_name,
+            self.predicate.clone(),
+            &self.group_columns,
+            &self.aggregates,
+        ) {
+            Some(results_itr) => {
+                let mut row_group_results = results_itr.collect::<Vec<_>>();
+                // table current emits at most one merged result.
+                match row_group_results.len() {
+                    0 => self.next(), // no results try next chunk's table
+                    1 => Some(row_group_results.remove(0).try_into().unwrap()),
+                    _ => panic!("currently expect at most one result"),
+                }
+            }
+            None => self.next(), // try next chunk
+        }
     }
 }
 
@@ -634,7 +725,7 @@ mod test {
         array::{
             ArrayRef, BinaryArray, BooleanArray, Float64Array, Int64Array, StringArray, UInt64Array,
         },
-        datatypes::DataType::Float64,
+        datatypes::DataType::{Float64, UInt64},
     };
 
     use column::Values;
@@ -996,6 +1087,76 @@ mod test {
 
         // No matching data for chunk 3, so iteration ends.
         assert!(itr.next().is_none());
+    }
+
+    #[test]
+    fn read_aggregate_multiple_row_groups() {
+        let mut db = Database::new();
+
+        // Add a bunch of row groups to a single table in a single chunks
+        for &i in &[100, 200, 300] {
+            let schema = SchemaBuilder::new()
+                .non_null_tag("env")
+                .non_null_tag("region")
+                .non_null_field("temp", Float64)
+                .non_null_field("counter", UInt64)
+                .timestamp()
+                .build()
+                .unwrap();
+
+            let data: Vec<ArrayRef> = vec![
+                Arc::new(StringArray::from(vec!["prod", "dev", "prod"])),
+                Arc::new(StringArray::from(vec!["west", "west", "east"])),
+                Arc::new(Float64Array::from(vec![10.0, 30000.0, 4500.0])),
+                Arc::new(UInt64Array::from(vec![1000, 3000, 5000])),
+                Arc::new(Int64Array::from(vec![i, 20 * i, 30 * i])),
+            ];
+
+            // Add a record batch to a single partition
+            let rb = RecordBatch::try_new(schema.into(), data).unwrap();
+            println!("rb {:?} {:?}", i, &rb);
+            // The row group gets added to the same chunk each time.
+            db.upsert_partition("hour_1", 1, "table1", rb);
+        }
+
+        // Build the following query:
+        //
+        //   SELECT SUM("temp"), MIN("temp"), SUM("counter"), COUNT("counter")
+        //   FROM "table_1"
+        //   GROUP BY "region"
+        //
+
+        let itr = db
+            .read_aggregate(
+                "hour_1",
+                "table1",
+                &[1],
+                Predicate::default(),
+                table::ColumnSelection::Some(&["region"]),
+                vec![
+                    ("temp", AggregateType::Sum),
+                    ("temp", AggregateType::Min),
+                    ("temp", AggregateType::Max),
+                    ("counter", AggregateType::Sum),
+                    ("counter", AggregateType::Count),
+                ],
+            )
+            .unwrap();
+        let result = itr.collect::<Vec<RecordBatch>>();
+        assert_eq!(result.len(), 1);
+        let result = &result[0];
+
+        assert_rb_column_equals(
+            &result,
+            "region",
+            &Values::String(vec![Some("east"), Some("west")]),
+        );
+
+        assert_rb_column_equals(&result, "temp_sum", &Values::F64(vec![13500.0, 90030.0]));
+        assert_rb_column_equals(&result, "temp_min", &Values::F64(vec![4500.0, 10.0]));
+        assert_rb_column_equals(&result, "temp_max", &Values::F64(vec![4500.0, 30000.0]));
+        assert_rb_column_equals(&result, "counter_sum", &Values::U64(vec![15000, 12000]));
+        assert_rb_column_equals(&result, "counter_count", &Values::U64(vec![3, 6]));
     }
 }
 
