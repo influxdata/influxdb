@@ -4219,6 +4219,198 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
       'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/built-in/transformations/selectors/sample/',
   },
   {
+    name: 'schema.fieldKeys',
+    args: [
+      {
+        name: 'bucket',
+        desc: 'The bucket to list field keys from.',
+        type: 'String',
+      },
+      {
+        name: 'predicate',
+        desc:
+          'Predicate function that filters field keys. Defaults is (r) => true.',
+        type: 'Function',
+      },
+      {
+        name: 'start',
+        desc: 'The oldest time to include in results. Defaults is `-30d`.',
+        type: 'Duration | Time',
+      },
+    ],
+    package: 'influxdata/influxdb/schema',
+    desc: 'Returns a list of fields in a bucket.',
+    example: 'schema.fieldKeys(bucket: "example-bucket")',
+    category: 'Inputs',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/influxdb-schema/measurementfieldkeys/',
+  },
+  {
+    name: 'schema.fieldsAsCols',
+    args: [],
+    package: 'influxdata/influxdb/schema',
+    desc: 'Aligns fields within each input table that have the same timestamp.',
+    example: 'schema.fieldsAsCols()',
+    category: 'Transformations',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/influxdb-schema/fieldsascols/',
+  },
+  {
+    name: 'schema.measurementFieldKeys',
+    args: [
+      {
+        name: 'bucket',
+        desc: 'The bucket to list field keys from.',
+        type: 'String',
+      },
+      {
+        name: 'measurement',
+        desc: 'The measurement to list field keys from.',
+        type: 'String',
+      },
+      {
+        name: 'start',
+        desc: 'The oldest time to include in results. Defaults is `-30d`.',
+        type: 'Duration | Time',
+      },
+    ],
+    package: 'influxdata/influxdb/schema',
+    desc: 'Returns a list of fields in a measurement.',
+    example:
+      'schema.measurementFieldKeys(bucket: "example-bucket", measurement: "example-measurement")',
+    category: 'Inputs',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/influxdb-schema/measurementfieldkeys/',
+  },
+  {
+    name: 'schema.measurementTagKeys',
+    args: [
+      {
+        name: 'bucket',
+        desc:
+          'The bucket from which to return tag keys for a specific measurement.',
+        type: 'String',
+      },
+      {
+        name: 'measurement',
+        desc: 'The measurement from which to return tag keys.',
+        type: 'String',
+      },
+    ],
+    package: 'influxdata/influxdb/schema',
+    desc: 'Returns a list of tag keys for a specific measurement.',
+    example:
+      'schema.measurementTagKeys(bucket: "example-bucket", measurement: "mem")',
+    category: 'Inputs',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/influxdb-schema/measurementtagkeys/',
+  },
+  {
+    name: 'schema.measurementTagValues',
+    args: [
+      {
+        name: 'bucket',
+        desc:
+          'The bucket from which to return tag keys for a specific measurement.',
+        type: 'String',
+      },
+      {
+        name: 'measurement',
+        desc: 'The measurement from which to return tag values.',
+        type: 'String',
+      },
+      {
+        name: 'tag',
+        desc: 'The tag from which to return all unique values.',
+        type: 'String',
+      },
+    ],
+    package: 'influxdata/influxdb/schema',
+    desc: 'Returns a list of tag values for a specific measurement.',
+    example:
+      'schema.measurementTagValues(bucket: "example-bucket", measurement: "mem", tag: "host")',
+    category: 'Inputs',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/influxdb-schema/measurementtagvalues/',
+  },
+  {
+    name: 'schema.measurements',
+    args: [
+      {
+        name: 'bucket',
+        desc: 'The bucket from which to list measurements.',
+        type: 'String',
+      },
+    ],
+    package: 'influxdata/influxdb/schema',
+    desc: 'Returns a list of measurements in a specific bucket.',
+    example: 'schema.measurements(bucket: "example-bucket")',
+    category: 'Inputs',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/influxdb-schema/measurements/',
+  },
+  {
+    name: 'schema.tagKeys',
+    args: [
+      {
+        name: 'bucket',
+        desc: 'The bucket from which to list tag keys.',
+        type: 'String',
+      },
+      {
+        name: 'predicate',
+        desc:
+          'The predicate function that filters tag keys. Defaults to `(r) => true.`',
+        type: 'Function',
+      },
+      {
+        name: 'start',
+        desc:
+          'Specifies the oldest time to be included in the results. Defaults to `-30d`.',
+        type: 'Duration | Time',
+      },
+    ],
+    package: 'influxdata/influxdb/schema',
+    desc: 'Returns a list of tag keys for all series that match the predicate.',
+    example: 'schema.tagKeys(bucket: "example-bucket")',
+    category: 'Inputs',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/influxdb-schema/tagkeys/',
+  },
+  {
+    name: 'schema.tagValues',
+    args: [
+      {
+        name: 'bucket',
+        desc: 'The bucket from which to list tag values.',
+        type: 'String',
+      },
+      {
+        name: 'tag',
+        desc: 'The tag for which to return unique values.',
+        type: 'String',
+      },
+      {
+        name: 'predicate',
+        desc:
+          'The predicate function that filters tag values. Defaults to `(r) => true.`',
+        type: 'Function',
+      },
+      {
+        name: 'start',
+        desc:
+          'Specifies the oldest time to be included in the results. Defaults to `-30d`.',
+        type: 'Duration | Time',
+      },
+    ],
+    package: 'influxdata/influxdb/schema',
+    desc: 'Returns a list of unique values for a given tag.',
+    example: 'schema.tagValues(bucket: "example-bucket", tag: "example-tag")',
+    category: 'Inputs',
+    link:
+      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/influxdb-schema/tagvalues/',
+  },
+  {
     name: 'secrets.get',
     args: [
       {
@@ -5645,198 +5837,6 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     category: 'Selectors',
     link:
       'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/built-in/transformations/selectors/unique/',
-  },
-  {
-    name: 'v1.fieldKeys',
-    args: [
-      {
-        name: 'bucket',
-        desc: 'The bucket to list field keys from.',
-        type: 'String',
-      },
-      {
-        name: 'predicate',
-        desc:
-          'Predicate function that filters field keys. Defaults is (r) => true.',
-        type: 'Function',
-      },
-      {
-        name: 'start',
-        desc: 'The oldest time to include in results. Defaults is `-30d`.',
-        type: 'Duration | Time',
-      },
-    ],
-    package: 'influxdata/influxdb/v1',
-    desc: 'Returns a list of fields in a bucket.',
-    example: 'v1.fieldKeys(bucket: "example-bucket")',
-    category: 'Inputs',
-    link:
-      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/influxdb-v1/measurementfieldkeys/',
-  },
-  {
-    name: 'v1.fieldsAsCols',
-    args: [],
-    package: 'influxdata/influxdb/v1',
-    desc: 'Aligns fields within each input table that have the same timestamp.',
-    example: 'v1.fieldsAsCols()',
-    category: 'Transformations',
-    link:
-      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/influxdb-v1/fieldsascols/',
-  },
-  {
-    name: 'v1.measurementFieldKeys',
-    args: [
-      {
-        name: 'bucket',
-        desc: 'The bucket to list field keys from.',
-        type: 'String',
-      },
-      {
-        name: 'measurement',
-        desc: 'The measurement to list field keys from.',
-        type: 'String',
-      },
-      {
-        name: 'start',
-        desc: 'The oldest time to include in results. Defaults is `-30d`.',
-        type: 'Duration | Time',
-      },
-    ],
-    package: 'influxdata/influxdb/v1',
-    desc: 'Returns a list of fields in a measurement.',
-    example:
-      'v1.measurementFieldKeys(bucket: "example-bucket", measurement: "example-measurement")',
-    category: 'Inputs',
-    link:
-      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/influxdb-v1/measurementfieldkeys/',
-  },
-  {
-    name: 'v1.measurementTagKeys',
-    args: [
-      {
-        name: 'bucket',
-        desc:
-          'The bucket from which to return tag keys for a specific measurement.',
-        type: 'String',
-      },
-      {
-        name: 'measurement',
-        desc: 'The measurement from which to return tag keys.',
-        type: 'String',
-      },
-    ],
-    package: 'influxdata/influxdb/v1',
-    desc: 'Returns a list of tag keys for a specific measurement.',
-    example:
-      'v1.measurementTagKeys(bucket: "example-bucket", measurement: "mem")',
-    category: 'Inputs',
-    link:
-      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/influxdb-v1/measurementtagkeys/',
-  },
-  {
-    name: 'v1.measurementTagValues',
-    args: [
-      {
-        name: 'bucket',
-        desc:
-          'The bucket from which to return tag keys for a specific measurement.',
-        type: 'String',
-      },
-      {
-        name: 'measurement',
-        desc: 'The measurement from which to return tag values.',
-        type: 'String',
-      },
-      {
-        name: 'tag',
-        desc: 'The tag from which to return all unique values.',
-        type: 'String',
-      },
-    ],
-    package: 'influxdata/influxdb/v1',
-    desc: 'Returns a list of tag values for a specific measurement.',
-    example:
-      'v1.measurementTagValues(bucket: "example-bucket", measurement: "mem", tag: "host")',
-    category: 'Inputs',
-    link:
-      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/influxdb-v1/measurementtagvalues/',
-  },
-  {
-    name: 'v1.measurements',
-    args: [
-      {
-        name: 'bucket',
-        desc: 'The bucket from which to list measurements.',
-        type: 'String',
-      },
-    ],
-    package: 'influxdata/influxdb/v1',
-    desc: 'Returns a list of measurements in a specific bucket.',
-    example: 'v1.measurements(bucket: "example-bucket")',
-    category: 'Inputs',
-    link:
-      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/influxdb-v1/measurements/',
-  },
-  {
-    name: 'v1.tagKeys',
-    args: [
-      {
-        name: 'bucket',
-        desc: 'The bucket from which to list tag keys.',
-        type: 'String',
-      },
-      {
-        name: 'predicate',
-        desc:
-          'The predicate function that filters tag keys. Defaults to `(r) => true.`',
-        type: 'Function',
-      },
-      {
-        name: 'start',
-        desc:
-          'Specifies the oldest time to be included in the results. Defaults to `-30d`.',
-        type: 'Duration | Time',
-      },
-    ],
-    package: 'influxdata/influxdb/v1',
-    desc: 'Returns a list of tag keys for all series that match the predicate.',
-    example: 'v1.tagKeys(bucket: "example-bucket")',
-    category: 'Inputs',
-    link:
-      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/influxdb-v1/tagkeys/',
-  },
-  {
-    name: 'v1.tagValues',
-    args: [
-      {
-        name: 'bucket',
-        desc: 'The bucket from which to list tag values.',
-        type: 'String',
-      },
-      {
-        name: 'tag',
-        desc: 'The tag for which to return unique values.',
-        type: 'String',
-      },
-      {
-        name: 'predicate',
-        desc:
-          'The predicate function that filters tag values. Defaults to `(r) => true.`',
-        type: 'Function',
-      },
-      {
-        name: 'start',
-        desc:
-          'Specifies the oldest time to be included in the results. Defaults to `-30d`.',
-        type: 'Duration | Time',
-      },
-    ],
-    package: 'influxdata/influxdb/v1',
-    desc: 'Returns a list of unique values for a given tag.',
-    example: 'v1.tagValues(bucket: "example-bucket", tag: "example-tag")',
-    category: 'Inputs',
-    link:
-      'https://docs.influxdata.com/influxdb/v2.0/reference/flux/stdlib/influxdb-v1/tagvalues/',
   },
   {
     name: 'window',
