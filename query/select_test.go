@@ -17,6 +17,27 @@ import (
 // Second represents a helper for type converting durations.
 const Second = int64(time.Second)
 
+func randomFloatSlice(seed int64, length int) []float64 {
+	r := rand.New(rand.NewSource(seed))
+	out := make([]float64, 0, length)
+	for i := 0; i < 3000; i++ {
+		out = append(out, r.Float64())
+	}
+	return out
+}
+
+func floatIterator(fSlice []float64, name, tags string, startTime, step int64) *FloatIterator {
+	p := make([]query.FloatPoint, 0, len(fSlice))
+	currentTime := startTime
+	for _, f := range fSlice {
+		p = append(p, query.FloatPoint{Name: name, Tags: ParseTags(tags), Time: currentTime, Value: f})
+		currentTime += step
+	}
+	return &FloatIterator{
+		Points: p,
+	}
+}
+
 func TestSelect(t *testing.T) {
 	for _, tt := range []struct {
 		name   string
@@ -53,6 +74,30 @@ func TestSelect(t *testing.T) {
 				{Time: 10 * Second, Series: query.Series{Name: "cpu", Tags: ParseTags("host=A")}, Values: []interface{}{float64(2)}},
 				{Time: 30 * Second, Series: query.Series{Name: "cpu", Tags: ParseTags("host=A")}, Values: []interface{}{float64(100)}},
 				{Time: 0 * Second, Series: query.Series{Name: "cpu", Tags: ParseTags("host=B")}, Values: []interface{}{float64(10)}},
+			},
+		},
+		{
+			name: "count_hll",
+			q:    `SELECT count_hll(sum_hll(value)) FROM cpu WHERE time >= '1970-01-01T00:00:00Z' AND time < '1970-01-02T00:00:00Z' GROUP BY time(10s), host fill(none)`,
+			typ:  influxql.Float,
+			itrs: []query.Iterator{
+				floatIterator(randomFloatSlice(42, 2000), "cpu", "region=west,host=A", 0*Second, 1),
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 0 * Second, Value: 20},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 11 * Second, Value: 3},
+					{Name: "cpu", Tags: ParseTags("region=east,host=A"), Time: 31 * Second, Value: 100},
+				}},
+				floatIterator(randomFloatSlice(42, 3000)[1000:], "cpu", "region=south,host=A", 0*Second, 1),
+				&FloatIterator{Points: []query.FloatPoint{
+					{Name: "cpu", Tags: ParseTags("region=east,host=B"), Time: 0 * Second, Value: 20},
+				}},
+			},
+			rows: []query.Row{
+				// Note that for the first aggregate there are 2000 points in each series, but only 3000 unique points, 2994 ≈ 3000
+				{Time: 0 * Second, Series: query.Series{Name: "cpu", Tags: ParseTags("host=A")}, Values: []interface{}{uint64(2994)}},
+				{Time: 10 * Second, Series: query.Series{Name: "cpu", Tags: ParseTags("host=A")}, Values: []interface{}{uint64(1)}},
+				{Time: 30 * Second, Series: query.Series{Name: "cpu", Tags: ParseTags("host=A")}, Values: []interface{}{uint64(1)}},
+				{Time: 0 * Second, Series: query.Series{Name: "cpu", Tags: ParseTags("host=B")}, Values: []interface{}{uint64(1)}},
 			},
 		},
 		{
