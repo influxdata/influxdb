@@ -305,9 +305,7 @@ impl Database {
                     aggregates,
                 ))
             }
-            None => PartitionNotFound {
-                key: partition_key,
-            }.fail(),
+            None => PartitionNotFound { key: partition_key }.fail(),
         }
     }
 
@@ -1138,6 +1136,7 @@ mod test {
                 vec![
                     ("temp", AggregateType::Sum),
                     ("temp", AggregateType::Min),
+                    ("temp", AggregateType::Max),
                     ("counter", AggregateType::Sum),
                     ("counter", AggregateType::Count),
                 ],
@@ -1155,6 +1154,7 @@ mod test {
 
         assert_rb_column_equals(&result, "temp_sum", &Values::F64(vec![13500.0, 90030.0]));
         assert_rb_column_equals(&result, "temp_min", &Values::F64(vec![4500.0, 10.0]));
+        assert_rb_column_equals(&result, "temp_max", &Values::F64(vec![4500.0, 30000.0]));
         assert_rb_column_equals(&result, "counter_sum", &Values::U64(vec![15000, 12000]));
         assert_rb_column_equals(&result, "counter_count", &Values::U64(vec![3, 6]));
     }
