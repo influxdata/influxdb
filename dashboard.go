@@ -1024,14 +1024,6 @@ type GeoViewProperties struct {
 	ShowNoteWhenEmpty      bool             `json:"showNoteWhenEmpty"`
 }
 
-type GaugeMiniBarsDefinitions struct {
-	GroupByColumns map[string]bool `json:"groupByColumns"`
-	Bars           [](struct {
-		BarDef map[string]string `json:"barDef"`
-		Label  string            `json:"label"`
-	}) `json:"bars"`
-}
-
 type FormatStatValueOptions struct {
 	DecimalPlaces DecimalPlaces `json:"decimalPlaces"`
 	Prefix        string        `json:"prefix"`
@@ -1046,7 +1038,6 @@ type GaugeMiniViewProperties struct {
 	Note              string           `json:"note"`
 	ShowNoteWhenEmpty bool             `json:"showNoteWhenEmpty"`
 
-	BarsDefinitions GaugeMiniBarsDefinitions `json:"barsDefinitions"`
 	Mode            string                   `json:"mode"`
 	TextMode        string                   `json:"textMode"`
 
@@ -1064,6 +1055,7 @@ type GaugeMiniViewProperties struct {
 	LabelMainFontSize  float64 `json:"labelMainFontSize"`
 	LabelMainFontColor string  `json:"labelMainFontColor"`
 
+	LabelBarsEnabled   bool    `json:"labelBarsEnabled"`
 	LabelBarsFontSize  float64 `json:"labelBarsFontSize"`
 	LabelBarsFontColor string  `json:"labelBarsFontColor"`
 
