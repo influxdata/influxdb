@@ -605,18 +605,130 @@ mod test_influxrpc {
 
     use super::test_util::make_db;
 
+    /// Creates and loads several database scenarios using the db_setup
+    /// function.
+    ///
+    /// runs table_names(predicate) and compares it to the expected
+    /// output
+    macro_rules! run_table_names_test_case {
+        ($DB_SETUP:expr, $PREDICATE:expr, $EXPECTED_NAMES:expr) => {
+            let predicate = $PREDICATE;
+            for scenario in $DB_SETUP.make().await {
+                let DBScenario { scenario_name, db } = scenario;
+                println!("Running scenario '{}'", scenario_name);
+                println!("Predicate: '{:#?}'", predicate);
+                let planner = InfluxRPCPlanner::new();
+                let executor = Executor::new();
+
+                let plan = planner
+                    .table_names(&db, predicate.clone())
+                    .await
+                    .expect("built plan successfully");
+                let names = executor
+                    .to_string_set(plan)
+                    .await
+                    .expect("converted plan to strings successfully");
+
+                let expected_names = $EXPECTED_NAMES;
+                assert_eq!(
+                    names,
+                    to_stringset(&expected_names),
+                    "Error in  scenario '{}'\n\nexpected:\n{:?}\nactual:\n{:?}",
+                    scenario_name,
+                    expected_names,
+                    names
+                );
+            }
+        };
+    }
+
+    #[tokio::test]
+    async fn list_table_names_no_data_no_pred() {
+        run_table_names_test_case!(NoData {}, empty_predicate(), vec![]);
+    }
+
+    #[tokio::test]
+    async fn list_table_names_no_data_pred() {
+        run_table_names_test_case!(TwoMeasurements {}, empty_predicate(), vec!["cpu", "disk"]);
+    }
+
+    #[tokio::test]
+    async fn list_table_names_data_pred_0_201() {
+        run_table_names_test_case!(TwoMeasurements {}, tsp(0, 201), vec!["cpu", "disk"]);
+    }
+
+    #[tokio::test]
+    async fn list_table_names_data_pred_0_200() {
+        run_table_names_test_case!(TwoMeasurements {}, tsp(0, 200), vec!["cpu"]);
+    }
+
+    #[tokio::test]
+    async fn list_table_names_data_pred_50_101() {
+        run_table_names_test_case!(TwoMeasurements {}, tsp(50, 101), vec!["cpu"]);
+    }
+
+    #[tokio::test]
+    async fn list_table_names_data_pred_250_300() {
+        run_table_names_test_case!(TwoMeasurements {}, tsp(250, 300), vec![]);
+    }
+
+    /// Holds a database and a description with a particular test setup
+    struct DBScenario {
+        scenario_name: String,
+        db: Db,
+    }
+
     #[async_trait]
     trait DBSetup {
-        // Create the database
-        async fn make(&self) -> Db;
+        // Create several scenarios, scenario has the same data, but
+        // different physical arrangement
+        async fn make(&self) -> Vec<DBScenario>;
     }
 
     /// No data
     struct NoData {}
     #[async_trait]
     impl DBSetup for NoData {
-        async fn make(&self) -> Db {
-            make_db()
+        async fn make(&self) -> Vec<DBScenario> {
+            let partition_key = "1970-01-01T00";
+            let db = make_db();
+            let scenario1 = DBScenario {
+                scenario_name: "New, Empty Database".into(),
+                db,
+            };
+
+            // listing partitions (which may create an entry in a map)
+            // in an empty database
+            let db = make_db();
+            assert_eq!(db.mutable_buffer_chunks(partition_key).await.len(), 1); // only open chunk
+            assert_eq!(db.read_buffer_chunks(partition_key).await.len(), 0);
+            let scenario2 = DBScenario {
+                scenario_name: "New, Empty Database after partitions are listed".into(),
+                db,
+            };
+
+            // a scenario where the database has had data loaded and then deleted
+            let db = make_db();
+            let data = "cpu,region=west user=23.2 100";
+            let mut writer = TestLPWriter::default();
+            writer.write_lp_string(&db, data).await.unwrap();
+            // move data out of open chunk
+            assert_eq!(db.rollover_partition(partition_key).await.unwrap().id(), 0);
+            // drop it
+            db.drop_mutable_buffer_chunk(partition_key, 0)
+                .await
+                .unwrap();
+
+            assert_eq!(db.mutable_buffer_chunks(partition_key).await.len(), 1);
+
+            assert_eq!(db.read_buffer_chunks(partition_key).await.len(), 0); // only open chunk
+
+            let scenario3 = DBScenario {
+                scenario_name: "Empty Database after drop chunk".into(),
+                db,
+            };
+
+            vec![scenario1, scenario2, scenario3]
         }
     }
 
@@ -624,7 +736,7 @@ mod test_influxrpc {
     struct TwoMeasurements {}
     #[async_trait]
     impl DBSetup for TwoMeasurements {
-        async fn make(&self) -> Db {
+        async fn make(&self) -> Vec<DBScenario> {
             let db = make_db();
             let data = "cpu,region=west user=23.2 100\n\
                         cpu,region=west user=21.0 150\n\
@@ -633,124 +745,26 @@ mod test_influxrpc {
             let mut writer = TestLPWriter::default();
 
             writer.write_lp_string(&db, data).await.unwrap();
-            db
+            vec![
+                DBScenario {
+                    scenario_name: "Data in open chunk of mutable buffer".into(),
+                    db,
+                }, // todo add a scenario where the database has had data loaded and then deleted
+            ]
         }
     }
 
-    #[tokio::test]
-    async fn list_table_names() {
-        let empty_predicate = Predicate::default();
+    // No predicate at all
+    fn empty_predicate() -> Predicate {
+        Predicate::default()
+    }
 
-        let ts_pred_0_201 = PredicateBuilder::default().timestamp_range(0, 201).build();
-
-        let ts_pred_0_200 = PredicateBuilder::default().timestamp_range(0, 200).build();
-
-        let ts_pred_50_101 = PredicateBuilder::default().timestamp_range(50, 101).build();
-
-        let ts_pred_250_300 = PredicateBuilder::default()
-            .timestamp_range(250, 300)
-            .build();
-
-        let no_data = Box::new(NoData {}) as Box<dyn DBSetup>;
-        let two_measurements = Box::new(TwoMeasurements {}) as Box<dyn DBSetup>;
-
-        let cases = vec![
-            (
-                "list_table_names_no_data_no_pred",
-                &no_data,
-                &empty_predicate,
-                vec![],
-            ),
-            (
-                "list_table_names_no_data_pred",
-                &two_measurements,
-                &empty_predicate,
-                vec!["cpu", "disk"],
-            ),
-            (
-                "list_table_names_data_pred_0_201",
-                &two_measurements,
-                &ts_pred_0_201,
-                vec!["cpu", "disk"],
-            ),
-            (
-                "list_table_names_data_pred_0_200",
-                &two_measurements,
-                &ts_pred_0_200,
-                vec!["cpu"],
-            ),
-            (
-                "list_table_names_data_pred_50_101",
-                &two_measurements,
-                &ts_pred_50_101,
-                vec!["cpu"],
-            ),
-            (
-                "list_table_names_data_pred_250_300",
-                &two_measurements,
-                &ts_pred_250_300,
-                vec![],
-            ),
-            /* cases with multiple chunks in mutable buffer */
-
-            /* cases with chunks in the read buffer */
-
-            /* cases with chunks in both immutbale and read buffer */
-        ];
-
-        // Run all cases before reporting errors
-        let mut results = Vec::new();
-
-        for (testcase_name, db_setup, predicate, expected_names) in cases {
-            results.push(
-                run_table_names_test_case(testcase_name, db_setup, predicate, expected_names).await,
-            )
-        }
-
-        // Collect up any errors
-        let errors: Vec<String> = results
-            .into_iter()
-            .filter_map(|res| if let Err(e) = res { Some(e) } else { None })
-            .collect();
-
-        assert!(errors.is_empty(), "Errors:\n{}", errors.join("\n"));
+    // make a single timestamp predicate between r1 and r2
+    fn tsp(r1: i64, r2: i64) -> Predicate {
+        PredicateBuilder::default().timestamp_range(r1, r2).build()
     }
 
     fn to_stringset(v: &[&str]) -> StringSetRef {
         v.into_stringset().unwrap()
-    }
-
-    // Creates and loads a database using the db)_setup function in
-    // data, sets up the data using the `db_setup` function, and then
-    // runs table_names(predicate) and compares it to the expected
-    // output
-    ///
-    /// If the test passes returns Ok(()) otherwise returns an error message
-    #[allow(clippy::borrowed_box)]
-    async fn run_table_names_test_case(
-        testcase_name: &str,
-        db_setup: &Box<dyn DBSetup>,
-        predicate: &Predicate,
-        expected_names: Vec<&str>,
-    ) -> Result<(), String> {
-        let db = db_setup.make().await;
-
-        let planner = InfluxRPCPlanner::new();
-        let executor = Executor::new();
-
-        let plan = planner.table_names(&db, predicate.clone()).await.unwrap();
-        let names = executor.to_string_set(plan).await.unwrap();
-
-        if names == to_stringset(&expected_names) {
-            Ok(())
-        } else {
-            let msg = format!(
-                "Error in test case '{}', expected:\n{:?}, actual:\n{:?}",
-                testcase_name, expected_names, names
-            );
-            println!("msg: {}", msg);
-
-            Err(msg)
-        }
     }
 }

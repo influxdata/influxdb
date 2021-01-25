@@ -148,16 +148,20 @@ impl PartitionChunk for DBChunk {
     async fn table_names(&self, predicate: &Predicate) -> Result<LogicalPlan, Self::Error> {
         match self {
             Self::MutableBuffer { chunk } => {
-                let chunk_predicate = chunk
-                    .compile_predicate(predicate)
-                    .context(MutableBufferChunk)?;
+                let names: Vec<Option<&str>> = if chunk.is_empty() {
+                    Vec::new()
+                } else {
+                    let chunk_predicate = chunk
+                        .compile_predicate(predicate)
+                        .context(MutableBufferChunk)?;
 
-                let names: Vec<Option<&str>> = chunk
-                    .table_names(&chunk_predicate)
-                    .context(MutableBufferChunk)?
-                    .into_iter()
-                    .map(Some)
-                    .collect();
+                    chunk
+                        .table_names(&chunk_predicate)
+                        .context(MutableBufferChunk)?
+                        .into_iter()
+                        .map(Some)
+                        .collect()
+                };
 
                 let batch = str_iter_to_batch("tables", names).context(ArrowConversion)?;
 

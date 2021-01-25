@@ -64,7 +64,8 @@ impl InfluxRPCPlanner {
 
         for key in partition_keys {
             // TODO prune partitions somehow
-            for chunk in &database.chunks(&key).await {
+            let chunks = database.chunks(&key).await;
+            for chunk in chunks {
                 if chunk.might_pass_predicate(&predicate) {
                     let plan = chunk
                         .table_names(&predicate)

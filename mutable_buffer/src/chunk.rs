@@ -66,6 +66,9 @@ pub enum Error {
     #[snafu(display("Table {} not found in chunk {}", table, chunk))]
     TableNotFoundInChunk { table: u32, chunk: u64 },
 
+    #[snafu(display("Time Column was not not found in chunk {}", chunk))]
+    TimeColumnNotFoundInChunk { chunk: u64, source: DictionaryError },
+
     #[snafu(display("Attempt to write table batch without a name"))]
     TableWriteWithoutName,
 }
@@ -287,7 +290,7 @@ impl Chunk {
         let time_column_id = self
             .dictionary
             .lookup_value(TIME_COLUMN_NAME)
-            .expect("time is in the chunk dictionary");
+            .context(TimeColumnNotFoundInChunk { chunk: self.id() })?;
 
         let range = predicate.range;
 
