@@ -1,6 +1,6 @@
 //! Represents a Chunk of data (a collection of tables and their data within
 //! some chunk) in the mutable store.
-use arrow_deps::datafusion::error::Result as ArrowResult;
+use arrow_deps::datafusion::{error::Result as ArrowResult, logical_plan::LogicalPlan};
 use arrow_deps::{
     arrow::record_batch::RecordBatch,
     datafusion::{
@@ -24,6 +24,7 @@ use query::{
 use crate::dictionary::{Dictionary, Error as DictionaryError};
 use crate::table::Table;
 
+use async_trait::async_trait;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
@@ -40,12 +41,24 @@ pub enum Error {
         source: crate::table::Error,
     },
 
+    #[snafu(display("Error checking predicate in table {}: {}", table_id, source))]
+    PredicateCheck {
+        table_id: u32,
+        source: crate::table::Error,
+    },
+
+    #[snafu(display(
+        "Unsupported predicate when mutable buffer table names. Found a general expression: {:?}",
+        exprs
+    ))]
+    PredicateNotYetSupported { exprs: Vec<Expr> },
+
     #[snafu(display("Unsupported predicate. Mutable buffer does not support: {}", source))]
     UnsupportedPredicate { source: DataFusionError },
 
-    #[snafu(display("Table ID {} not found in dictionary of chunk {}", table, chunk))]
+    #[snafu(display("Table ID {} not found in dictionary of chunk {}", table_id, chunk))]
     TableIdNotFoundInDictionary {
-        table: u32,
+        table_id: u32,
         chunk: u64,
         source: DictionaryError,
     },
@@ -235,6 +248,35 @@ impl Chunk {
         self.time_closed = Some(Utc::now())
     }
 
+    /// Return all the names of the tables names in this chunk that match
+    /// chunk predicate
+    pub fn table_names(&self, chunk_predicate: &ChunkPredicate) -> Result<Vec<&str>> {
+        // we don't support arbitrary expressions in chunk predicate yet
+        if !chunk_predicate.chunk_exprs.is_empty() {
+            return PredicateNotYetSupported {
+                exprs: chunk_predicate.chunk_exprs.clone(),
+            }
+            .fail();
+        }
+
+        self.tables
+            .iter()
+            .filter_map(|(&table_id, table)| {
+                // could match is good enough for this metadata query
+                match table.could_match_predicate(chunk_predicate) {
+                    Ok(true) => Some(self.dictionary.lookup_id(table_id).context(
+                        TableIdNotFoundInDictionary {
+                            table_id,
+                            chunk: self.id,
+                        },
+                    )),
+                    Ok(false) => None,
+                    Err(e) => Some(Err(e).context(PredicateCheck { table_id })),
+                }
+            })
+            .collect()
+    }
+
     /// Translates `predicate` into per-chunk ids that can be
     /// directly evaluated against tables in this chunk
     pub fn compile_predicate(&self, predicate: &Predicate) -> Result<ChunkPredicate> {
@@ -367,14 +409,14 @@ impl Chunk {
     pub fn table_stats(&self) -> Result<Vec<TableStats>> {
         let mut stats = Vec::with_capacity(self.tables.len());
 
-        for (id, table) in &self.tables {
-            let name = self
-                .dictionary
-                .lookup_id(*id)
-                .context(TableIdNotFoundInDictionary {
-                    table: *id,
-                    chunk: self.id,
-                })?;
+        for (&table_id, table) in &self.tables {
+            let name =
+                self.dictionary
+                    .lookup_id(table_id)
+                    .context(TableIdNotFoundInDictionary {
+                        table_id,
+                        chunk: self.id,
+                    })?;
 
             let columns = table.stats();
 
@@ -420,6 +462,10 @@ impl Chunk {
     }
 }
 
+#[async_trait]
+// The long term plan is for the mutable buffer to not implement the
+// query api directly so this trait implementation will eventually be
+// removed.
 impl query::PartitionChunk for Chunk {
     type Error = Error;
 
@@ -438,6 +484,10 @@ impl query::PartitionChunk for Chunk {
         columns: &[&str],
     ) -> Result<(), Self::Error> {
         self.table_to_arrow(dst, table_name, columns)
+    }
+
+    async fn table_names(&self, _predicate: &Predicate) -> Result<LogicalPlan, Self::Error> {
+        unimplemented!("please use table_names function directly")
     }
 }
 

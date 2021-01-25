@@ -1,5 +1,12 @@
 //! This module contains DataFusion utility functions and helpers
-use arrow_deps::datafusion::logical_plan::{binary_expr, Expr, Operator};
+
+use arrow_deps::{
+    arrow::record_batch::RecordBatch,
+    datafusion::{
+        error::DataFusionError,
+        logical_plan::{binary_expr, Expr, LogicalPlan, LogicalPlanBuilder, Operator},
+    },
+};
 
 /// Creates a single expression representing the conjunction (aka
 /// AND'ing) together of a set of expressions
@@ -44,4 +51,12 @@ impl AndExprBuilder {
     pub fn build(self) -> Option<Expr> {
         self.cur_expr
     }
+}
+
+/// Create a logical plan that produces the record batch
+pub fn make_scan_plan(batch: RecordBatch) -> std::result::Result<LogicalPlan, DataFusionError> {
+    let schema = batch.schema();
+    let partitions = vec![vec![batch]];
+    let projection = None; // scan all columns
+    LogicalPlanBuilder::scan_memory(partitions, schema, projection)?.build()
 }

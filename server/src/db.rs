@@ -1,5 +1,5 @@
 //! This module contains the main IOx Database object which has the
-//! instances of the immutable buffer, read buffer, and object store
+//! instances of the mutable buffer, read buffer, and object store
 
 use std::{
     collections::BTreeMap,
@@ -285,18 +285,6 @@ impl Database for Db {
             .context(MutableBufferWrite)
     }
 
-    async fn table_names(
-        &self,
-        predicate: query::predicate::Predicate,
-    ) -> Result<query::exec::StringSetPlan, Self::Error> {
-        self.mutable_buffer
-            .as_ref()
-            .context(DatabaseNotReadable)?
-            .table_names(predicate)
-            .await
-            .context(MutableBufferRead)
-    }
-
     async fn tag_column_names(
         &self,
         predicate: query::predicate::Predicate,
@@ -370,19 +358,10 @@ impl Database for Db {
 }
 
 #[cfg(test)]
-mod tests {
-    use arrow_deps::{
-        arrow::record_batch::RecordBatch, assert_table_eq, datafusion::physical_plan::collect,
-    };
-    use query::{
-        exec::Executor, frontend::sql::SQLQueryPlanner, test::TestLPWriter, PartitionChunk,
-    };
-    use test_helpers::assert_contains;
-
+mod test_util {
     use super::*;
-
     /// Create a Database with a local store
-    fn make_db() -> Db {
+    pub fn make_db() -> Db {
         let name = "test_db";
         Db::new(
             DatabaseRules::default(),
@@ -391,6 +370,20 @@ mod tests {
             None, // wal buffer
         )
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::test_util::make_db;
+    use super::*;
+
+    use arrow_deps::{
+        arrow::record_batch::RecordBatch, assert_table_eq, datafusion::physical_plan::collect,
+    };
+    use query::{
+        exec::Executor, frontend::sql::SQLQueryPlanner, test::TestLPWriter, PartitionChunk,
+    };
+    use test_helpers::assert_contains;
 
     #[tokio::test]
     async fn write_no_mutable_buffer() {
@@ -550,7 +543,7 @@ mod tests {
         let mb_chunk = db.rollover_partition("1970-01-01T00").await.unwrap();
         assert_eq!(mb_chunk.id(), 0);
 
-        // add a new chunk in immutable buffer, and move chunk1 (but
+        // add a new chunk in mutable buffer, and move chunk1 (but
         // not chunk 0) to read buffer
         writer.write_lp_string(&db, "cpu bar=1 30").await.unwrap();
         let mb_chunk = db.rollover_partition("1970-01-01T00").await.unwrap();
@@ -594,5 +587,170 @@ mod tests {
             .collect();
         chunk_ids.sort_unstable();
         chunk_ids
+    }
+}
+
+#[cfg(test)]
+mod test_influxrpc {
+    use super::*;
+    use query::{
+        exec::{
+            stringset::{IntoStringSet, StringSetRef},
+            Executor,
+        },
+        frontend::influxrpc::InfluxRPCPlanner,
+        predicate::{Predicate, PredicateBuilder},
+        test::TestLPWriter,
+    };
+
+    use super::test_util::make_db;
+
+    #[async_trait]
+    trait DBSetup {
+        // Create the database
+        async fn make(&self) -> Db;
+    }
+
+    /// No data
+    struct NoData {}
+    #[async_trait]
+    impl DBSetup for NoData {
+        async fn make(&self) -> Db {
+            make_db()
+        }
+    }
+
+    /// Two measurements data in a single mutable buffer chunk
+    struct TwoMeasurements {}
+    #[async_trait]
+    impl DBSetup for TwoMeasurements {
+        async fn make(&self) -> Db {
+            let db = make_db();
+            let data = "cpu,region=west user=23.2 100\n\
+                        cpu,region=west user=21.0 150\n\
+                        disk,region=east bytes=99i 200";
+
+            let mut writer = TestLPWriter::default();
+
+            writer.write_lp_string(&db, data).await.unwrap();
+            db
+        }
+    }
+
+    #[tokio::test]
+    async fn list_table_names() {
+        let empty_predicate = Predicate::default();
+
+        let ts_pred_0_201 = PredicateBuilder::default().timestamp_range(0, 201).build();
+
+        let ts_pred_0_200 = PredicateBuilder::default().timestamp_range(0, 200).build();
+
+        let ts_pred_50_101 = PredicateBuilder::default().timestamp_range(50, 101).build();
+
+        let ts_pred_250_300 = PredicateBuilder::default()
+            .timestamp_range(250, 300)
+            .build();
+
+        let no_data = Box::new(NoData {}) as Box<dyn DBSetup>;
+        let two_measurements = Box::new(TwoMeasurements {}) as Box<dyn DBSetup>;
+
+        let cases = vec![
+            (
+                "list_table_names_no_data_no_pred",
+                &no_data,
+                &empty_predicate,
+                vec![],
+            ),
+            (
+                "list_table_names_no_data_pred",
+                &two_measurements,
+                &empty_predicate,
+                vec!["cpu", "disk"],
+            ),
+            (
+                "list_table_names_data_pred_0_201",
+                &two_measurements,
+                &ts_pred_0_201,
+                vec!["cpu", "disk"],
+            ),
+            (
+                "list_table_names_data_pred_0_200",
+                &two_measurements,
+                &ts_pred_0_200,
+                vec!["cpu"],
+            ),
+            (
+                "list_table_names_data_pred_50_101",
+                &two_measurements,
+                &ts_pred_50_101,
+                vec!["cpu"],
+            ),
+            (
+                "list_table_names_data_pred_250_300",
+                &two_measurements,
+                &ts_pred_250_300,
+                vec![],
+            ),
+            /* cases with multiple chunks in mutable buffer */
+
+            /* cases with chunks in the read buffer */
+
+            /* cases with chunks in both immutbale and read buffer */
+        ];
+
+        // Run all cases before reporting errors
+        let mut results = Vec::new();
+
+        for (testcase_name, db_setup, predicate, expected_names) in cases {
+            results.push(
+                run_table_names_test_case(testcase_name, db_setup, predicate, expected_names).await,
+            )
+        }
+
+        // Collect up any errors
+        let errors: Vec<String> = results
+            .into_iter()
+            .filter_map(|res| if let Err(e) = res { Some(e) } else { None })
+            .collect();
+
+        assert!(errors.is_empty(), "Errors:\n{}", errors.join("\n"));
+    }
+
+    fn to_stringset(v: &[&str]) -> StringSetRef {
+        v.into_stringset().unwrap()
+    }
+
+    // Creates and loads a database using the db)_setup function in
+    // data, sets up the data using the `db_setup` function, and then
+    // runs table_names(predicate) and compares it to the expected
+    // output
+    ///
+    /// If the test passes returns Ok(()) otherwise returns an error message
+    #[allow(clippy::borrowed_box)]
+    async fn run_table_names_test_case(
+        testcase_name: &str,
+        db_setup: &Box<dyn DBSetup>,
+        predicate: &Predicate,
+        expected_names: Vec<&str>,
+    ) -> Result<(), String> {
+        let db = db_setup.make().await;
+
+        let planner = InfluxRPCPlanner::new();
+        let executor = Executor::new();
+
+        let plan = planner.table_names(&db, predicate.clone()).await.unwrap();
+        let names = executor.to_string_set(plan).await.unwrap();
+
+        if names == to_stringset(&expected_names) {
+            Ok(())
+        } else {
+            let msg = format!(
+                "Error in test case '{}', expected:\n{:?}, actual:\n{:?}",
+                testcase_name, expected_names, names
+            );
+            println!("msg: {}", msg);
+
+            Err(msg)
+        }
     }
 }

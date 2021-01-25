@@ -1,16 +1,19 @@
 //! This module provides a reference implementaton of `query::DatabaseSource`
 //! and `query::Database` for use in testing.
 
-use arrow_deps::arrow::record_batch::RecordBatch;
+use arrow_deps::{
+    arrow::record_batch::RecordBatch, datafusion::logical_plan::LogicalPlan,
+    util::str_iter_to_batch,
+};
 
-use crate::{exec::Executor, group_by::GroupByAndAggregate};
+use crate::{exec::Executor, group_by::GroupByAndAggregate, util::make_scan_plan};
 use crate::{
     exec::FieldListPlan,
     exec::{
         stringset::{StringSet, StringSetRef},
         SeriesSetPlans, StringSetPlan,
     },
-    Database, DatabaseStore, PartitionChunk, Predicate, TimestampRange,
+    Database, DatabaseStore, PartitionChunk, Predicate,
 };
 
 use data_types::{
@@ -29,6 +32,11 @@ use tokio::sync::Mutex;
 
 #[derive(Debug, Default)]
 pub struct TestDatabase {
+    /// Partitions which have been saved to this test database
+    /// Key is partition name
+    /// Value is map of chunk_id to chunk
+    partitions: Mutex<BTreeMap<String, BTreeMap<u32, Arc<TestChunk>>>>,
+
     /// Lines which have been written to this database, in order
     saved_lines: Mutex<Vec<String>>,
 
@@ -154,6 +162,24 @@ impl TestDatabase {
         }
     }
 
+    /// Add a test chunk to the database
+    pub async fn add_chunk(&self, partition_key: &str, chunk: Arc<TestChunk>) {
+        let mut partitions = self.partitions.lock().await;
+        let chunks = partitions
+            .entry(partition_key.to_string())
+            .or_insert_with(BTreeMap::new);
+        chunks.insert(chunk.id(), chunk);
+    }
+
+    /// Get the specified chunk
+    pub async fn get_chunk(&self, partition_key: &str, id: u32) -> Option<Arc<TestChunk>> {
+        self.partitions
+            .lock()
+            .await
+            .get(partition_key)
+            .and_then(|p| p.get(&id).cloned())
+    }
+
     /// Set the list of column names that will be returned on a call to
     /// column_names
     pub async fn set_column_names(&self, column_names: Vec<String>) {
@@ -214,16 +240,6 @@ impl TestDatabase {
 }
 
 /// returns true if this line is within the range of the timestamp
-fn line_in_range(line: &ParsedLine<'_>, range: Option<&TimestampRange>) -> bool {
-    match range {
-        Some(range) => {
-            let timestamp = line.timestamp.expect("had a timestamp on line");
-            range.start <= timestamp && timestamp <= range.end
-        }
-        None => true,
-    }
-}
-
 fn set_to_string(s: &BTreeSet<String>) -> String {
     s.iter().cloned().collect::<Vec<_>>().join(", ")
 }
@@ -275,24 +291,6 @@ impl Database for TestDatabase {
     async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
         self.replicated_writes.lock().await.push(write.clone());
         Ok(())
-    }
-
-    /// Return all table names that are saved in this database
-    async fn table_names(&self, predicate: Predicate) -> Result<StringSetPlan, Self::Error> {
-        let saved_lines = self.saved_lines.lock().await;
-
-        let names = parse_lines(&saved_lines.join("\n"))
-            .filter_map(|line| {
-                let line = line.expect("Correctly parsed saved line");
-                if line_in_range(&line, predicate.range.as_ref()) {
-                    Some(line.series.measurement.to_string())
-                } else {
-                    None
-                }
-            })
-            .collect::<StringSet>();
-
-        Ok(names.into())
     }
 
     /// Return the mocked out column names, recording the request
@@ -412,22 +410,62 @@ impl Database for TestDatabase {
 
     /// Return the partition keys for data in this DB
     async fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
-        unimplemented!("partition_keys not yet for test database");
+        let partitions = self.partitions.lock().await;
+        let keys = partitions.keys().cloned().collect();
+        Ok(keys)
     }
 
-    async fn chunks(&self, _partition_key: &str) -> Vec<Arc<Self::Chunk>> {
-        unimplemented!("query_chunks for test database");
+    async fn chunks(&self, partition_key: &str) -> Vec<Arc<Self::Chunk>> {
+        let partitions = self.partitions.lock().await;
+        if let Some(chunks) = partitions.get(partition_key) {
+            chunks.values().cloned().collect()
+        } else {
+            vec![]
+        }
     }
 }
 
-#[derive(Debug)]
-pub struct TestChunk {}
+#[derive(Debug, Default)]
+pub struct TestChunk {
+    pub id: u32,
 
+    /// Table names to return back
+    pub table_names: Vec<String>,
+
+    /// A copy of the captured predicate passed
+    pub table_names_predicate: std::sync::Mutex<Option<Predicate>>,
+}
+
+impl TestChunk {
+    pub fn new(id: u32) -> Self {
+        Self {
+            id,
+            ..Default::default()
+        }
+    }
+
+    pub fn with_table(mut self, name: impl Into<String>) -> Self {
+        self.table_names.push(name.into());
+        self
+    }
+
+    /// Get a copy of any predicate passed to table_names
+    pub fn table_names_predicate(&self) -> Option<Predicate> {
+        self.table_names_predicate
+            .lock()
+            .expect("mutex poisoned")
+            .as_ref()
+            //.map(|v| v.clone())
+            .cloned()
+    }
+}
+
+#[async_trait]
 impl PartitionChunk for TestChunk {
     type Error = TestError;
 
     fn id(&self) -> u32 {
-        unimplemented!()
+        self.id
     }
 
     fn table_stats(&self) -> Result<Vec<data_types::partition_metadata::Table>, Self::Error> {
@@ -441,6 +479,18 @@ impl PartitionChunk for TestChunk {
         _columns: &[&str],
     ) -> Result<(), Self::Error> {
         unimplemented!()
+    }
+
+    async fn table_names(&self, predicate: &Predicate) -> Result<LogicalPlan, Self::Error> {
+        // save the predicate
+        self.table_names_predicate
+            .lock()
+            .expect("mutex poisoned")
+            .replace(predicate.clone());
+
+        let names = self.table_names.iter().map(Some);
+        let batch = str_iter_to_batch("tables", names).unwrap();
+        Ok(make_scan_plan(batch).unwrap())
     }
 }
 

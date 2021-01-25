@@ -1,10 +1,19 @@
-use query::{predicate::PredicateBuilder, PartitionChunk};
+use arrow_deps::{
+    arrow::record_batch::RecordBatch, datafusion::logical_plan::LogicalPlan,
+    util::str_iter_to_batch,
+};
+use query::{
+    predicate::{Predicate, PredicateBuilder},
+    util::make_scan_plan,
+    PartitionChunk,
+};
 use read_buffer::{ColumnSelection, Database as ReadBufferDb};
 use snafu::{ResultExt, Snafu};
 
 use std::sync::{Arc, RwLock};
 
 use super::pred::to_read_buffer_predicate;
+use async_trait::async_trait;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -18,6 +27,16 @@ pub enum Error {
 
     #[snafu(display("Internal Predicate Conversion Error: {}", source))]
     InternalPredicateConversion { source: super::pred::Error },
+
+    #[snafu(display("internal error creating plan: {}", source))]
+    InternalPlanCreation {
+        source: arrow_deps::datafusion::error::DataFusionError,
+    },
+
+    #[snafu(display("arrow conversion error: {}", source))]
+    ArrowConversion {
+        source: arrow_deps::arrow::error::ArrowError,
+    },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -57,6 +76,7 @@ impl DBChunk {
     }
 }
 
+#[async_trait]
 impl PartitionChunk for DBChunk {
     type Error = Error;
 
@@ -78,7 +98,7 @@ impl PartitionChunk for DBChunk {
 
     fn table_to_arrow(
         &self,
-        dst: &mut Vec<arrow_deps::arrow::record_batch::RecordBatch>,
+        dst: &mut Vec<RecordBatch>,
         table_name: &str,
         columns: &[&str],
     ) -> Result<(), Self::Error> {
@@ -123,5 +143,32 @@ impl PartitionChunk for DBChunk {
             Self::ParquetFile => unimplemented!("parquet file not implemented"),
         }
         Ok(())
+    }
+
+    async fn table_names(&self, predicate: &Predicate) -> Result<LogicalPlan, Self::Error> {
+        match self {
+            Self::MutableBuffer { chunk } => {
+                let chunk_predicate = chunk
+                    .compile_predicate(predicate)
+                    .context(MutableBufferChunk)?;
+
+                let names: Vec<Option<&str>> = chunk
+                    .table_names(&chunk_predicate)
+                    .context(MutableBufferChunk)?
+                    .into_iter()
+                    .map(Some)
+                    .collect();
+
+                let batch = str_iter_to_batch("tables", names).context(ArrowConversion)?;
+
+                make_scan_plan(batch).context(InternalPlanCreation)
+            }
+            Self::ReadBuffer { .. } => {
+                unimplemented!("read buffer file not implemented")
+            }
+            Self::ParquetFile => {
+                unimplemented!("parquet file not implemented")
+            }
+        }
     }
 }

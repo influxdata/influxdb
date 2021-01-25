@@ -46,6 +46,13 @@ pub trait IntoStringSet {
     fn into_stringset(self) -> Result<StringSetRef>;
 }
 
+impl IntoStringSet for &[&str] {
+    fn into_stringset(self) -> Result<StringSetRef> {
+        let set: StringSet = self.iter().map(|s| s.to_string()).collect();
+        Ok(Arc::new(set))
+    }
+}
+
 /// Converts record batches into StringSets.
 impl IntoStringSet for Vec<RecordBatch> {
     fn into_stringset(self) -> Result<StringSetRef> {
