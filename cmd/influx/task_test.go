@@ -31,6 +31,7 @@ func TestCmdTask(t *testing.T) {
 
 		//	checking cmd line tool gives all data needed for TaskService to actually create a Task
 
+		// todo: add more test cases
 		tests := []struct {
 			name         string
 			expectedTask influxdb.Task
@@ -93,5 +94,7 @@ func TestCmdTask(t *testing.T) {
 		}
 
 	}) // end t.Run create
+
+	// todo: add tests for task subcommands
 
 }
