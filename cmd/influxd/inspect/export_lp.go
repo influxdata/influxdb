@@ -166,9 +166,6 @@ func exportRunE(flags *exportFlags) error {
 		return err
 	}
 
-	dataDir := filepath.Join(flags.enginePath, "data", flags.bucketID.String())
-	walDir := filepath.Join(flags.enginePath, "wal", flags.bucketID.String())
-
 	f, err := os.Create(flags.outputPath)
 	if err != nil {
 		return err
@@ -188,11 +185,11 @@ func exportRunE(flags *exportFlags) error {
 		w = gzw
 	}
 
-	if err := exportTSMs(dataDir, filters, w, logger); err != nil {
+	if err := exportTSMs(flags.enginePath, flags.bucketID, filters, w, logger); err != nil {
 		return err
 	}
 
-	if err := exportWALs(walDir, filters, w, logger); err != nil {
+	if err := exportWALs(flags.enginePath, flags.bucketID, filters, w, logger); err != nil {
 		return err
 	}
 
@@ -200,8 +197,10 @@ func exportRunE(flags *exportFlags) error {
 	return nil
 }
 
-func exportTSMs(tsmDir string, filters *exportFilters, out io.Writer, log *zap.Logger) error {
+// exportTSMs finds, reads, and exports all data stored in TSM files for a bucket that matches a set of filters.
+func exportTSMs(engineDir string, bucketID influxdb.ID, filters *exportFilters, out io.Writer, log *zap.Logger) error {
 	// TSM is stored under `<engine>/data/<bucket-id>/<rp>/<shard-id>/*.tsm`
+	tsmDir := filepath.Join(engineDir, "data", bucketID.String())
 	tsmPattern := filepath.Join(tsmDir, "*", "*", fmt.Sprintf("*.%s", tsm1.TSMFileExtension))
 	log.Debug("searching for TSM files", zap.String("file_pattern", tsmPattern))
 	tsmFiles, err := filepath.Glob(tsmPattern)
@@ -278,8 +277,13 @@ func exportTSM(tsmFile string, filters *exportFilters, out io.Writer, log *zap.L
 	return nil
 }
 
-func exportWALs(walDir string, filters *exportFilters, out io.Writer, log *zap.Logger) error {
+// exportTSMs finds, reads, and exports all data stored in WAL files for a bucket that matches a set of filters.
+//
+// N.B. exported lines can include some duplicates from a matching call to exportTSMs on the same engine/bucket.
+// This is OK since writes are idempotent.
+func exportWALs(engineDir string, bucketID influxdb.ID, filters *exportFilters, out io.Writer, log *zap.Logger) error {
 	// WAL is stored under `<engine>/wal/<bucket-id>/<rp>/<shard-id>/*.wal`
+	walDir := filepath.Join(engineDir, "wal", bucketID.String())
 	walPattern := filepath.Join(walDir, "*", "*", fmt.Sprintf("*.%s", tsm1.WALFileExtension))
 	log.Debug("searching for WAL files", zap.String("file_pattern", walPattern))
 	walFiles, err := filepath.Glob(walPattern)
