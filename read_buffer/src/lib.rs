@@ -395,7 +395,7 @@ impl Database {
         let names = chunks
             .iter()
             .fold(BTreeSet::new(), |mut names, chunk| {
-                names.append(&mut chunk.table_names(&predicate));
+                names.append(&mut chunk.table_names(&predicate, &BTreeSet::new()));
                 names
             })
             // have a BTreeSet here, convert to an iterator of Some(&str)

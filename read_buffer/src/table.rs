@@ -33,9 +33,9 @@ pub struct Table {
 
 impl Table {
     /// Create a new table with the provided row_group.
-    pub fn new(name: String, rg: RowGroup) -> Self {
+    pub fn new(name: impl Into<String>, rg: RowGroup) -> Self {
         Self {
-            name,
+            name: name.into(),
             meta: MetaData::new(rg.metadata()),
             row_groups: vec![rg],
         }
@@ -398,6 +398,49 @@ impl Table {
         // the tag key down in an attempt to reduce execution against columns
         // that only have values that have already been found.
         todo!();
+    }
+
+    /// Determines if this table could satisfy the provided predicate.
+    ///
+    /// `false` is proof that no row within this table would match the
+    /// predicate, whilst `true` indicates one or more rows *might* match the
+    /// predicate.
+    fn could_satisfy_predicate(&self, predicate: &Predicate) -> bool {
+        // if the table doesn't have a column for one of the predicate's
+        // expressions then the table cannot satisfy the predicate.
+        if !predicate
+            .iter()
+            .all(|expr| self.meta.columns.contains_key(expr.column()))
+        {
+            return false;
+        }
+
+        // If there is a single row group in the table that could satisfy the
+        // predicate then the table itself could satisfy the predicate so return
+        // true. If none of the row groups could match then return false.
+        let exprs = predicate.expressions();
+        self.row_groups
+            .iter()
+            .any(|row_group| row_group.could_satisfy_conjunctive_binary_expressions(exprs))
+    }
+
+    /// Determines if this table contains one or more rows that satisfy the
+    /// predicate.
+    pub fn satisfies_predicate(&self, predicate: &Predicate) -> bool {
+        // if the table doesn't have a column for one of the predicate's
+        // expressions then the table cannot satisfy the predicate.
+        if !predicate
+            .iter()
+            .all(|expr| self.meta.columns.contains_key(expr.column()))
+        {
+            return false;
+        }
+
+        // apply the predicate to all row groups. Each row group will do its own
+        // column pruning based on its column ranges.
+        self.row_groups
+            .iter()
+            .any(|row_group| row_group.satisfies_predicate(predicate))
     }
 }
 
