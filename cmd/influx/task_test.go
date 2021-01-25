@@ -28,9 +28,9 @@ func TestCmdTask(t *testing.T) {
 	}
 
 	t.Run("create", func(t *testing.T) {
-		/*
-			checking cmd line tool gives all data needed for TaskService to actually create a Task
-		*/
+
+		//	checking cmd line tool gives all data needed for TaskService to actually create a Task
+
 		tests := []struct {
 			name         string
 			expectedTask influxdb.Task
