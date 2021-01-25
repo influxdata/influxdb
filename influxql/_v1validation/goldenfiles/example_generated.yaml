@@ -5,10 +5,8 @@ description: |
 tests:
   - query: "select sum(f0) from m0"
     result: |
-      name: m0
-      time sum
-      ---- ---
-      0    10
+      name,tags,time,sum
+      m0,,0,10
 
 generated:
   start: "1000000000000"

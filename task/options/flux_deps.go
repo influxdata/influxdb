@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -37,6 +38,7 @@ func (secretService) LoadSecret(ctx context.Context, k string) (string, error) {
 type urlValidator struct{}
 
 func (urlValidator) Validate(*url.URL) error { return nil }
+func (urlValidator) ValidateIP(net.IP) error { return nil }
 
 type fileSystem struct{}
 
