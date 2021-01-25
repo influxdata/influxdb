@@ -19,6 +19,10 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// subscribers, and querying data for a single database.
 #[derive(Debug, Serialize, Deserialize, Default, Eq, PartialEq, Clone)]
 pub struct DatabaseRules {
+    /// The unencoded name of the database. This gets put in by the create
+    /// database call, so an empty default is fine.
+    #[serde(default)]
+    pub name: String,
     /// Template that generates a partition key for each row inserted into the
     /// db
     #[serde(default)]

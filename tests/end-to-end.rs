@@ -893,7 +893,6 @@ impl TestServer {
             .unwrap()
             // Can enable for debbugging
             //.arg("-vv")
-            .env("INFLUXDB_IOX_DB_DIR", dir.path())
             .env("INFLUXDB_IOX_ID", "1")
             .spawn()
             .unwrap();

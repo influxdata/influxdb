@@ -959,13 +959,14 @@ mod tests {
         server.set_id(1);
         let server_url = test_server(server.clone());
 
+        let database_name = "foo_bar";
         let rules = DatabaseRules {
+            name: database_name.to_owned(),
             store_locally: true,
             ..Default::default()
         };
         let data = serde_json::to_string(&rules).unwrap();
 
-        let database_name = "foo_bar";
         server.create_database(database_name, rules).await.unwrap();
 
         let client = Client::new();
