@@ -70,11 +70,12 @@ impl Chunk {
     }
 
     /// Add a row_group to a table in the chunk, updating all Chunk meta data.
-    pub fn upsert_table(&mut self, table_name: String, row_group: RowGroup) {
+    pub fn upsert_table(&mut self, table_name: impl Into<String>, row_group: RowGroup) {
         // update meta data
         self.meta.update(&row_group);
+        let table_name = table_name.into();
 
-        match self.tables.entry(table_name.to_owned()) {
+        match self.tables.entry(table_name.clone()) {
             Entry::Occupied(mut e) => {
                 let table = e.get_mut();
                 table.add_row_group(row_group);
@@ -138,10 +139,38 @@ impl Chunk {
     // ---- Schema API queries
     //
 
-    /// Returns the distinct set of table names that contain data that satisfies
-    /// the time range and predicates.
-    pub fn table_names(&self, predicate: &Predicate) -> BTreeSet<&String> {
-        self.tables.keys().collect::<BTreeSet<&String>>()
+    /// Returns the distinct set of table names that contain data satisfying the
+    /// provided predicate.
+    ///
+    /// `exclude_table_names` can be used to provide a set of table names to
+    /// skip, typically because they're already included in results from other
+    /// chunks.
+    pub fn table_names(
+        &self,
+        predicate: &Predicate,
+        skip_table_names: &BTreeSet<&String>,
+    ) -> BTreeSet<&String> {
+        if predicate.is_empty() {
+            return self
+                .tables
+                .keys()
+                .filter(|&name| !skip_table_names.contains(name))
+                .collect::<BTreeSet<_>>();
+        }
+
+        self.tables
+            .iter()
+            .filter_map(|(name, table)| {
+                if skip_table_names.contains(name) {
+                    return None;
+                }
+
+                match table.satisfies_predicate(predicate) {
+                    true => Some(name),
+                    false => None,
+                }
+            })
+            .collect::<BTreeSet<_>>()
     }
 
     /// Returns the distinct set of tag keys (column names) matching the
@@ -226,5 +255,131 @@ impl MetaData {
     pub fn invalidate(&mut self) {
         // Update size, rows, time_range by linearly scanning all tables.
         todo!()
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::collections::BTreeMap;
+
+    use super::*;
+    use crate::row_group::{ColumnType, RowGroup};
+    use crate::{column::Column, BinaryExpr};
+
+    #[test]
+    fn table_names() {
+        let columns = vec![
+            (
+                "time",
+                ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..])),
+            ),
+            (
+                "region",
+                ColumnType::Tag(Column::from(
+                    &["west", "west", "east", "west", "south", "north"][..],
+                )),
+            ),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_owned(), v))
+        .collect::<BTreeMap<_, _>>();
+        let rg = RowGroup::new(6, columns);
+        let table = Table::new("table_1", rg);
+        let mut chunk = Chunk::new(22, table);
+
+        // All table names returned when no predicate.
+        let table_names = chunk.table_names(&Predicate::default(), &BTreeSet::new());
+        assert_eq!(
+            table_names
+                .iter()
+                .map(|v| v.as_str())
+                .collect::<Vec<&str>>(),
+            vec!["table_1"]
+        );
+
+        // All table names returned if no predicate and not in skip list
+        let table_names = chunk.table_names(
+            &Predicate::default(),
+            &["table_2".to_owned()].iter().collect::<BTreeSet<&String>>(),
+        );
+        assert_eq!(
+            table_names
+                .iter()
+                .map(|v| v.as_str())
+                .collect::<Vec<&str>>(),
+            vec!["table_1"]
+        );
+
+        // Table name not returned if it is in skip list
+        let table_names = chunk.table_names(
+            &Predicate::default(),
+            &["table_1".to_owned()].iter().collect::<BTreeSet<&String>>(),
+        );
+        assert!(table_names.is_empty());
+
+        // table returned when predicate matches
+        let table_names = chunk.table_names(
+            &Predicate::new(vec![BinaryExpr::from(("region", ">=", "west"))]),
+            &BTreeSet::new(),
+        );
+        assert_eq!(
+            table_names
+                .iter()
+                .map(|v| v.as_str())
+                .collect::<Vec<&str>>(),
+            vec!["table_1"]
+        );
+
+        // table not returned when predicate doesn't match
+        let table_names = chunk.table_names(
+            &Predicate::new(vec![BinaryExpr::from(("region", ">", "west"))]),
+            &BTreeSet::new(),
+        );
+        assert!(table_names.is_empty());
+
+        // create another table with different timestamps.
+        let columns = vec![
+            (
+                "time",
+                ColumnType::Time(Column::from(&[100_i64, 200, 300, 400, 500, 600][..])),
+            ),
+            (
+                "region",
+                ColumnType::Tag(Column::from(
+                    &["west", "west", "east", "west", "south", "north"][..],
+                )),
+            ),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_owned(), v))
+        .collect::<BTreeMap<_, _>>();
+        let rg = RowGroup::new(6, columns);
+        chunk.upsert_table("table_2", rg);
+
+        // all tables returned when predicate matches both
+        let table_names = chunk.table_names(
+            &Predicate::new(vec![BinaryExpr::from(("region", "!=", "north-north-east"))]),
+            &BTreeSet::new(),
+        );
+        assert_eq!(
+            table_names
+                .iter()
+                .map(|v| v.as_str())
+                .collect::<Vec<&str>>(),
+            vec!["table_1", "table_2"]
+        );
+
+        // only one table returned when one table matches predicate
+        let table_names = chunk.table_names(
+            &Predicate::new(vec![BinaryExpr::from(("time", ">", 300_i64))]),
+            &BTreeSet::new(),
+        );
+        assert_eq!(
+            table_names
+                .iter()
+                .map(|v| v.as_str())
+                .collect::<Vec<&str>>(),
+            vec!["table_2"]
+        );
     }
 }

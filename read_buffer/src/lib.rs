@@ -378,12 +378,6 @@ impl Database {
         chunk_ids: &[u32],
         predicate: Predicate,
     ) -> Result<RecordBatch> {
-        if !predicate.is_empty() {
-            return Err(Error::UnsupportedOperation {
-                msg: "predicate support on `table_names` not implemented".to_owned(),
-            });
-        }
-
         let partition = self
             .partitions
             .get(partition_key)
@@ -395,7 +389,10 @@ impl Database {
         let names = chunks
             .iter()
             .fold(BTreeSet::new(), |mut names, chunk| {
-                names.append(&mut chunk.table_names(&predicate));
+                // notice that `names` is pushed into the chunk `table_name`
+                // implementation. This ensure we don't process more tables than
+                // we need to.
+                names.append(&mut chunk.table_names(&predicate, &names));
                 names
             })
             // have a BTreeSet here, convert to an iterator of Some(&str)
@@ -907,24 +904,25 @@ mod test {
     #[test]
     fn table_names() {
         let mut db = Database::new();
+        let res_col = TABLE_NAMES_COLUMN_NAME;
 
         db.upsert_partition("hour_1", 22, "Coolverine", gen_recordbatch());
         let data = db
             .table_names("hour_1", &[22], Predicate::default())
             .unwrap();
-        assert_rb_column_equals(&data, "table", &Values::String(vec![Some("Coolverine")]));
+        assert_rb_column_equals(&data, res_col, &Values::String(vec![Some("Coolverine")]));
 
         db.upsert_partition("hour_1", 22, "Coolverine", gen_recordbatch());
         let data = db
             .table_names("hour_1", &[22], Predicate::default())
             .unwrap();
-        assert_rb_column_equals(&data, "table", &Values::String(vec![Some("Coolverine")]));
+        assert_rb_column_equals(&data, res_col, &Values::String(vec![Some("Coolverine")]));
 
         db.upsert_partition("hour_1", 2, "Coolverine", gen_recordbatch());
         let data = db
             .table_names("hour_1", &[22], Predicate::default())
             .unwrap();
-        assert_rb_column_equals(&data, "table", &Values::String(vec![Some("Coolverine")]));
+        assert_rb_column_equals(&data, res_col, &Values::String(vec![Some("Coolverine")]));
 
         db.upsert_partition("hour_1", 2, "20 Size", gen_recordbatch());
         let data = db
@@ -932,7 +930,20 @@ mod test {
             .unwrap();
         assert_rb_column_equals(
             &data,
-            "table",
+            res_col,
+            &Values::String(vec![Some("20 Size"), Some("Coolverine")]),
+        );
+
+        let data = db
+            .table_names(
+                "hour_1",
+                &[2, 22],
+                Predicate::new(vec![BinaryExpr::from(("region", ">", "north"))]),
+            )
+            .unwrap();
+        assert_rb_column_equals(
+            &data,
+            res_col,
             &Values::String(vec![Some("20 Size"), Some("Coolverine")]),
         );
     }
