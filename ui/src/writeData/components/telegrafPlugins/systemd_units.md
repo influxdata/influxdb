@@ -1,7 +1,7 @@
 # systemd Units Input Plugin
 
 The systemd_units plugin gathers systemd unit status on Linux. It relies on
-`systemctl list-units --all --type=service` to collect data on service status.
+`systemctl list-units --all --plain --type=service` to collect data on service status.
 
 The results are tagged with the unit name and provide enumerated fields for
 loaded, active and running fields, indicating the unit health.

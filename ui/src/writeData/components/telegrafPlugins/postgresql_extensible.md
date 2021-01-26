@@ -52,12 +52,17 @@ The example below has two queries are specified, with the following parameters:
   # defined tags. The values in these columns must be of a string-type,
   # a number-type or a blob-type.
   #
+  # The timestamp field is used to override the data points timestamp value. By
+  # default, all rows inserted with current time. By setting a timestamp column,
+  # the row will be inserted with that column's value. 
+  #
   # Structure :
   # [[inputs.postgresql_extensible.query]]
   #   sqlquery string
   #   version string
   #   withdbname boolean
   #   tagvalue string (coma separated)
+  #   timestamp string
   [[inputs.postgresql_extensible.query]]
     sqlquery="SELECT * FROM pg_stat_database where datname"
     version=901
