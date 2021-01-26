@@ -13,6 +13,12 @@ use crate::column::{AggregateResult, Scalar, Value};
 use crate::row_group::{self, ColumnName, GroupKey, Predicate, RowGroup};
 use crate::schema::{AggregateType, ColumnType, LogicalDataType, ResultSchema};
 
+// Tie data and meta-data together so that they can be wrapped in RWLock.
+struct RowGroupData {
+    meta: MetaData,
+    data: Vec<Rc<RowGroup>>,
+}
+
 /// A Table represents data for a single measurement.
 ///
 /// Tables contain potentially many collections of rows in the form of row
@@ -35,7 +41,7 @@ pub struct Table {
     // Metadata about the table's segments
     meta: MetaData,
 
-    row_groups: RwLock<Vec<Rc<RowGroup>>>,
+    row_groups: RwLock<RowGroupData>,
 }
 
 impl Table {
@@ -44,19 +50,27 @@ impl Table {
         Self {
             name: name.into(),
             meta: MetaData::new(rg.metadata()),
-            row_groups: RwLock::new(vec![Rc::new(rg)]),
+            row_groups: RwLock::new(RowGroupData {
+                meta: MetaData::new(rg.metadata()),
+                data: vec![Rc::new(rg)],
+            }),
         }
     }
 
     /// Add a new row group to this table.
     pub fn add_row_group(&mut self, rg: RowGroup) {
+        let mut row_groups = self.row_groups.write().unwrap();
+
         self.meta.update(rg.metadata());
-        self.row_groups.write().unwrap().push(Rc::new(rg));
+        row_groups.data.push(Rc::new(rg));
     }
 
     /// Remove the row group at `position` from table.
-    pub fn drop_segment(&mut self, position: usize) {
-        todo!();
+    pub fn drop_row_group(&mut self, position: usize) {
+        let mut row_groups = self.row_groups.write().unwrap();
+        row_groups.data.remove(position); // removes row group data
+        row_groups.meta = MetaData::from(&row_groups.data); // rebuild table
+                                                            // meta data
     }
 
     /// The name of the table (equivalent to measurement or table name).
@@ -66,12 +80,12 @@ impl Table {
 
     /// Determines if this table contains no row groups.
     pub fn is_empty(&self) -> bool {
-        self.row_groups.read().unwrap().is_empty()
+        self.row_groups.read().unwrap().data.is_empty()
     }
 
     /// The total number of row groups within this table.
     pub fn len(&self) -> usize {
-        self.row_groups.read().unwrap().len()
+        self.row_groups.read().unwrap().data.len()
     }
 
     /// The total size of the table in bytes.
@@ -93,7 +107,7 @@ impl Table {
     fn filter_row_groups(&self, predicate: &Predicate) -> Vec<Rc<RowGroup>> {
         let mut rgs = Vec::with_capacity(self.len());
 
-        'rowgroup: for rg in self.row_groups.read().unwrap().iter() {
+        'rowgroup: for rg in self.row_groups.read().unwrap().data.iter() {
             // check all expressions in predicate
             if !rg.could_satisfy_conjunctive_binary_expressions(predicate.iter()) {
                 continue 'rowgroup;
@@ -420,6 +434,7 @@ impl Table {
         self.row_groups
             .read()
             .unwrap()
+            .data
             .iter()
             .any(|row_group| row_group.could_satisfy_conjunctive_binary_expressions(exprs))
     }
@@ -441,6 +456,7 @@ impl Table {
         self.row_groups
             .read()
             .unwrap()
+            .data
             .iter()
             .any(|row_group| row_group.satisfies_predicate(predicate))
     }
@@ -559,11 +575,10 @@ impl MetaData {
             }
         }
     }
+}
 
-    // invalidate should be called when a segment is removed that impacts the
-    // meta data.
-    pub fn invalidate(&mut self) {
-        // Update size, rows, time_range by inspecting each segment's metadata
+impl From<&Vec<Rc<RowGroup>>> for MetaData {
+    fn from(_: &Vec<Rc<RowGroup>>) -> Self {
         todo!()
     }
 }

@@ -10,7 +10,6 @@ pub(crate) mod table;
 
 use std::{
     collections::{btree_map::Entry, BTreeMap, BTreeSet},
-    convert::TryInto,
     fmt,
 };
 
