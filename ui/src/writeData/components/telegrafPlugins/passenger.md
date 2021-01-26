@@ -15,9 +15,6 @@ manage your series cardinality:
   `tagexclude` to remove the `pid` and `process_group_id` tags.
 - Write to a database with an appropriate
   [retention policy](https://docs.influxdata.com/influxdb/latest/guides/downsampling_and_retention/).
-- Limit series cardinality in your database using the
-  [`max-series-per-database`](https://docs.influxdata.com/influxdb/latest/administration/config/#max-series-per-database-1000000) and
-  [`max-values-per-tag`](https://docs.influxdata.com/influxdb/latest/administration/config/#max-values-per-tag-100000) settings.
 - Consider using the
   [Time Series Index](https://docs.influxdata.com/influxdb/latest/concepts/time-series-index/).
 - Monitor your databases
