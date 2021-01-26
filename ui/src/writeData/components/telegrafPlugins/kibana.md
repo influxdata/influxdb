@@ -53,3 +53,18 @@ The `kibana` plugin queries the [Kibana][] API to obtain the service status.
 ```
 kibana,host=myhost,name=my-kibana,source=localhost:5601,status=green,version=6.5.4 concurrent_connections=8i,heap_max_bytes=447778816i,heap_total_bytes=447778816i,heap_used_bytes=380603352i,requests_per_sec=1,response_time_avg_ms=57.6,response_time_max_ms=220i,status_code=1i,uptime_ms=6717489805i 1534864502000000000
 ```
+
+## Run example environment
+
+Requires the following tools:
+
+* [Docker](https://docs.docker.com/get-docker/)
+* [Docker Compose](https://docs.docker.com/compose/install/)
+
+From the root of this project execute the following script: `./plugins/inputs/kibana/test_environment/run_test_env.sh`
+
+This will build the latest Telegraf and then start up Kibana and Elasticsearch, Telegraf will begin monitoring Kibana's status and write its results to the file `/tmp/metrics.out` in the Telegraf container.
+
+Then you can attach to the telegraf container to inspect the file `/tmp/metrics.out` to see if the status is being reported.
+
+The Visual Studio Code [Remote - Containers](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers) extension provides an easy user interface to attach to the running container.

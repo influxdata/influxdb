@@ -35,7 +35,7 @@ and use the old zookeeper connection method.
   # insecure_skip_verify = false
 
   ## SASL authentication credentials.  These settings should typically be used
-  ## with TLS encryption enabled using the "enable_tls" option.
+  ## with TLS encryption enabled
   # sasl_username = "kafka"
   # sasl_password = "secret"
 
@@ -62,6 +62,14 @@ and use the old zookeeper connection method.
   ## Name of the consumer group.
   # consumer_group = "telegraf_metrics_consumers"
 
+  ## Compression codec represents the various compression codecs recognized by
+  ## Kafka in messages.
+  ##  0 : None
+  ##  1 : Gzip
+  ##  2 : Snappy
+  ##  3 : LZ4
+  ##  4 : ZSTD
+  # compression_codec = 0
   ## Initial offset position; one of "oldest" or "newest".
   # offset = "oldest"
 

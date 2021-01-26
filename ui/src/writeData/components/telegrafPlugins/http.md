@@ -34,6 +34,9 @@ The HTTP input plugin collects metrics from one or more HTTP(S) endpoints.  The 
   # username = "username"
   # password = "pa$$word"
 
+  ## HTTP Proxy support
+  # http_proxy_url = ""
+
   ## Optional TLS Config
   # tls_ca = "/etc/telegraf/ca.pem"
   # tls_cert = "/etc/telegraf/cert.pem"

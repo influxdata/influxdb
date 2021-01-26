@@ -63,6 +63,8 @@ This input plugin checks HTTP/HTTPS connections.
   # tls_key = "/etc/telegraf/key.pem"
   ## Use TLS but skip chain & host verification
   # insecure_skip_verify = false
+  ## Use the given name as the SNI server name on each URL
+  # tls_server_name = ""
 
   ## HTTP Request Headers (all values must be strings)
   # [inputs.http_response.headers]
@@ -91,7 +93,7 @@ This input plugin checks HTTP/HTTPS connections.
     - response_string_match (int, 0 = mismatch / body read error, 1 = match)
     - response_status_code_match (int, 0 = mismatch, 1 = match)
     - http_response_code (int, response status code)
-	- result_type (string, deprecated in 1.6: use `result` tag and `result_code` field)
+    - result_type (string, deprecated in 1.6: use `result` tag and `result_code` field)
     - result_code (int, [see below](#result--result_code))
 
 #### `result` / `result_code`

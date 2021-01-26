@@ -52,6 +52,8 @@ You'll need to escape the `\` within the `telegraf.conf` like this: `C:\\Program
     - `clocks_current_sm` (integer, MHz)
     - `clocks_current_memory` (integer, MHz)
     - `clocks_current_video` (integer, MHz)
+    - `driver_version` (string)
+    - `cuda_version` (string)
 
 ### Sample Query
 
