@@ -155,7 +155,7 @@ impl Table {
         predicate: Predicate,
         group_columns: &'input Selection<'_>,
         aggregates: &'input [(ColumnName<'input>, AggregateType)],
-    ) -> ReadAggregateResults<'_> {
+    ) -> ReadAggregateResults {
         // Filter out any column names that we do not have data for.
         let schema = ResultSchema {
             group_columns: match group_columns {
@@ -172,7 +172,7 @@ impl Table {
         ReadAggregateResults {
             schema,
             predicate,
-            // TODO
+            row_groups,
             ..Default::default()
         }
     }
@@ -644,7 +644,7 @@ impl<'a> Display for DisplayReadFilterResults<'a> {
 }
 
 #[derive(Default)]
-pub struct ReadAggregateResults<'table> {
+pub struct ReadAggregateResults {
     // schema information for the results
     schema: ResultSchema,
 
@@ -653,12 +653,12 @@ pub struct ReadAggregateResults<'table> {
 
     // row groups that will be executed against. The columns to group on and the
     // aggregates to produce are determined by the `schema`.
-    row_groups: Vec<&'table RowGroup>,
+    row_groups: Vec<Rc<RowGroup>>,
 
     drained: bool, // currently this iterator only yields once.
 }
 
-impl<'a> ReadAggregateResults<'a> {
+impl ReadAggregateResults {
     /// Returns the schema associated with table result and therefore all of
     /// results from row groups.
     pub fn schema(&self) -> &ResultSchema {
@@ -676,8 +676,8 @@ impl<'a> ReadAggregateResults<'a> {
 /// Given that, it's expected that this iterator will only iterate once, but
 /// perhaps in the future we will break the work up and send intermediate
 /// results back.
-impl<'a> Iterator for ReadAggregateResults<'a> {
-    type Item = row_group::ReadAggregateResult<'a>;
+impl Iterator for ReadAggregateResults {
+    type Item = RecordBatch;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.row_groups.is_empty() || self.drained {
@@ -728,7 +728,7 @@ impl<'a> Iterator for ReadAggregateResults<'a> {
         }
 
         self.drained = true;
-        Some(merged_results)
+        Some(merged_results.try_into().unwrap())
     }
 }
 

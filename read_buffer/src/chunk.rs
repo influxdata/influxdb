@@ -130,7 +130,7 @@ impl Chunk {
         predicate: Predicate,
         group_columns: &Selection<'_>,
         aggregates: &[(ColumnName<'_>, AggregateType)],
-    ) -> Option<table::ReadAggregateResults<'_>> {
+    ) -> Option<table::ReadAggregateResults> {
         // Lookup table by name and dispatch execution.
         self.tables
             .get(table_name)

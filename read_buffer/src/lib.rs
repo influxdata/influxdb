@@ -666,7 +666,7 @@ impl<'input, 'chunk> Iterator for ReadAggregateResults<'input, 'chunk> {
                 // table current emits at most one merged result.
                 match row_group_results.len() {
                     0 => self.next(), // no results try next chunk's table
-                    1 => Some(row_group_results.remove(0).try_into().unwrap()),
+                    1 => Some(row_group_results.remove(0)),
                     _ => panic!("currently expect at most one result"),
                 }
             }
