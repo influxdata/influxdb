@@ -522,7 +522,7 @@ impl Partition {
 pub struct ReadFilterResults<'input, 'chunk> {
     chunks: Vec<&'chunk Chunk>,
     next_i: usize,
-    curr_table_results: Option<table::ReadFilterResults<'chunk>>,
+    curr_table_results: Option<table::ReadFilterResults>,
 
     table_name: &'input str,
     predicate: Predicate,
@@ -581,11 +581,13 @@ impl<'input, 'chunk> Iterator for ReadFilterResults<'input, 'chunk> {
             // Table potentially has some results.
             Some(table_results) => {
                 // Table has found results in a row group.
+
                 if let Some(row_group_result) = table_results.next() {
                     // it should not be possible for the conversion to record
                     // batch to fail here
-                    let rb = row_group_result.try_into();
-                    return Some(rb.unwrap());
+                    return Some(row_group_result);
+                    // let rb = row_group_result.try_into();
+                    // return Some(rb.unwrap());
                 }
 
                 // no more results for row groups in the table. Try next chunk.

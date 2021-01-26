@@ -105,7 +105,7 @@ impl Chunk {
         table_name: &str,
         predicate: &Predicate,
         select_columns: &Selection<'_>,
-    ) -> Result<table::ReadFilterResults<'_>, Error> {
+    ) -> Result<table::ReadFilterResults, Error> {
         // Lookup table by name and dispatch execution.
         match self.tables.get(table_name) {
             Some(table) => Ok(table.read_filter(select_columns, predicate)),
