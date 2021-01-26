@@ -22,8 +22,11 @@ pub enum Error {
         source: mutable_buffer::chunk::Error,
     },
 
-    #[snafu(display("Read Buffer Chunk Error: {}", source))]
-    ReadBufferChunk { source: read_buffer::Error },
+    #[snafu(display("Read Buffer Error in chunk {}: {}", chunk_id, source))]
+    ReadBufferChunk {
+        source: read_buffer::Error,
+        chunk_id: u32,
+    },
 
     #[snafu(display("Internal Predicate Conversion Error: {}", source))]
     InternalPredicateConversion { source: super::pred::Error },
@@ -113,9 +116,10 @@ impl PartitionChunk for DBChunk {
                 partition_key,
                 chunk_id,
             } => {
+                let chunk_id = *chunk_id;
                 // Translate the predicates to ReadBuffer style
                 let predicate = PredicateBuilder::default().build();
-                let predicate =
+                let rb_predicate =
                     to_read_buffer_predicate(&predicate).context(InternalPredicateConversion)?;
 
                 // translate column selection
@@ -131,11 +135,11 @@ impl PartitionChunk for DBChunk {
                     .read_filter(
                         partition_key,
                         table_name,
-                        &[*chunk_id],
-                        predicate,
+                        &[chunk_id],
+                        rb_predicate,
                         column_selection,
                     )
-                    .context(ReadBufferChunk)?;
+                    .context(ReadBufferChunk { chunk_id })?;
 
                 // copy the RecordBatches into dst
                 dst.extend(read_result);
@@ -167,8 +171,21 @@ impl PartitionChunk for DBChunk {
 
                 make_scan_plan(batch).context(InternalPlanCreation)
             }
-            Self::ReadBuffer { .. } => {
-                unimplemented!("read buffer file not implemented")
+            Self::ReadBuffer {
+                db,
+                partition_key,
+                chunk_id,
+            } => {
+                let chunk_id = *chunk_id;
+
+                let rb_predicate =
+                    to_read_buffer_predicate(&predicate).context(InternalPredicateConversion)?;
+
+                let db = db.read().unwrap();
+                let batch = db
+                    .table_names(partition_key, &[chunk_id], rb_predicate)
+                    .context(ReadBufferChunk { chunk_id })?;
+                make_scan_plan(batch).context(InternalPlanCreation)
             }
             Self::ParquetFile => {
                 unimplemented!("parquet file not implemented")
