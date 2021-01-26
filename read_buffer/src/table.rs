@@ -1,6 +1,10 @@
-use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Display;
 use std::slice::Iter;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    rc::Rc,
+    sync::RwLock,
+};
 
 use data_types::selection::Selection;
 
@@ -30,7 +34,7 @@ pub struct Table {
     // Metadata about the table's segments
     meta: MetaData,
 
-    row_groups: Vec<RowGroup>,
+    row_groups: RwLock<Vec<Rc<RowGroup>>>,
 }
 
 impl Table {
@@ -39,24 +43,19 @@ impl Table {
         Self {
             name: name.into(),
             meta: MetaData::new(rg.metadata()),
-            row_groups: vec![rg],
+            row_groups: RwLock::new(vec![Rc::new(rg)]),
         }
     }
 
     /// Add a new row group to this table.
     pub fn add_row_group(&mut self, rg: RowGroup) {
         self.meta.update(rg.metadata());
-        self.row_groups.push(rg);
+        self.row_groups.write().unwrap().push(Rc::new(rg));
     }
 
     /// Remove the row group at `position` from table.
     pub fn drop_segment(&mut self, position: usize) {
         todo!();
-    }
-
-    /// Iterate over all row groups for the table.
-    pub fn iter(&mut self) -> Iter<'_, RowGroup> {
-        self.row_groups.iter()
     }
 
     /// The name of the table (equivalent to measurement or table name).
@@ -66,12 +65,12 @@ impl Table {
 
     /// Determines if this table contains no row groups.
     pub fn is_empty(&self) -> bool {
-        self.row_groups.is_empty()
+        self.row_groups.read().unwrap().is_empty()
     }
 
     /// The total number of row groups within this table.
     pub fn len(&self) -> usize {
-        self.row_groups.len()
+        self.row_groups.read().unwrap().len()
     }
 
     /// The total size of the table in bytes.
@@ -90,10 +89,10 @@ impl Table {
     }
 
     // Identify set of row groups that might satisfy the predicate.
-    fn filter_row_groups(&self, predicate: &Predicate) -> Vec<&RowGroup> {
-        let mut rgs = Vec::with_capacity(self.row_groups.len());
+    fn filter_row_groups(&self, predicate: &Predicate) -> Vec<&Rc<RowGroup>> {
+        let mut rgs = Vec::with_capacity(self.len());
 
-        'rowgroup: for rg in &self.row_groups {
+        'rowgroup: for rg in self.row_groups.read().unwrap().iter() {
             // check all expressions in predicate
             if !rg.could_satisfy_conjunctive_binary_expressions(predicate.iter()) {
                 continue 'rowgroup;
@@ -172,7 +171,7 @@ impl Table {
         ReadAggregateResults {
             schema,
             predicate,
-            row_groups,
+            // TODO
             ..Default::default()
         }
     }
@@ -418,6 +417,8 @@ impl Table {
         // true. If none of the row groups could match then return false.
         let exprs = predicate.expressions();
         self.row_groups
+            .read()
+            .unwrap()
             .iter()
             .any(|row_group| row_group.could_satisfy_conjunctive_binary_expressions(exprs))
     }
@@ -437,6 +438,8 @@ impl Table {
         // apply the predicate to all row groups. Each row group will do its own
         // column pruning based on its column ranges.
         self.row_groups
+            .read()
+            .unwrap()
             .iter()
             .any(|row_group| row_group.satisfies_predicate(predicate))
     }
