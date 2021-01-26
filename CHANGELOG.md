@@ -31,6 +31,7 @@ Replacement `tsi1` indexes will be automatically generated on startup for shards
 1. [20561](https://github.com/influxdata/influxdb/pull/20561): Add `nats-port` config option for `influxd` server.
 1. [20564](https://github.com/influxdata/influxdb/pull/20564): Add `nats-max-payload-bytes` config option for `influxd` server.
 1. [20467](https://github.com/influxdata/influxdb/pull/20467): Add `influxd inspect export-lp` command to extract data in line-protocol format.
+1. [20604](https://github.com/influxdata/influxdb/pull/20604): Update telegraf plugins list in UI to include Beat, Intel PowerStats, and Rienmann.
 
 ### Bug Fixes
 
