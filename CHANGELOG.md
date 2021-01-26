@@ -59,6 +59,7 @@ Replacement `tsi1` indexes will be automatically generated on startup for shards
 1. [20565](https://github.com/influxdata/influxdb/pull/20565): Set correct Content-Type on v1 query responses.
 1. [20565](https://github.com/influxdata/influxdb/pull/20565): Update V1 API spec to document all valid Accept headers and matching Content-Types.
 1. [20578](https://github.com/influxdata/influxdb/pull/20578): Respect the --skip-verify flag when running `influx query`.
+1. [20495](https://github.com/influxdata/influxdb/pull/20495): Update Flux functions list in UI to reflect that `v1` package was renamed to `schema`.
 
 ## v2.0.3 [2020-12-14]
 
