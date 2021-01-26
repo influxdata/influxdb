@@ -11,8 +11,8 @@ Telegraf minimum version: Telegraf 1.16.0
   ## API connection configuration. The API token was introduced in Proxmox v6.2. Required permissions for user and token: PVEAuditor role on /.
   base_url = "https://localhost:8006/api2/json"
   api_token = "USER@REALM!TOKENID=UUID"
-  ## Optional node name config
-  # node_name = "localhost"
+  ## Node name, defaults to OS hostname
+  # node_name = ""
 
   ## Optional TLS Config
   # tls_ca = "/etc/telegraf/ca.pem"

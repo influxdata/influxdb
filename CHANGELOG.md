@@ -31,6 +31,7 @@ Replacement `tsi1` indexes will be automatically generated on startup for shards
 1. [20561](https://github.com/influxdata/influxdb/pull/20561): Add `nats-port` config option for `influxd` server.
 1. [20564](https://github.com/influxdata/influxdb/pull/20564): Add `nats-max-payload-bytes` config option for `influxd` server.
 1. [20467](https://github.com/influxdata/influxdb/pull/20467): Add `influxd inspect export-lp` command to extract data in line-protocol format.
+1. [20604](https://github.com/influxdata/influxdb/pull/20604): Update telegraf plugins list in UI to include Beat, Intel PowerStats, and Rienmann.
 
 ### Bug Fixes
 
@@ -58,6 +59,7 @@ Replacement `tsi1` indexes will be automatically generated on startup for shards
 1. [20565](https://github.com/influxdata/influxdb/pull/20565): Set correct Content-Type on v1 query responses.
 1. [20565](https://github.com/influxdata/influxdb/pull/20565): Update V1 API spec to document all valid Accept headers and matching Content-Types.
 1. [20578](https://github.com/influxdata/influxdb/pull/20578): Respect the --skip-verify flag when running `influx query`.
+1. [20495](https://github.com/influxdata/influxdb/pull/20495): Update Flux functions list in UI to reflect that `v1` package was renamed to `schema`.
 
 ## v2.0.3 [2020-12-14]
 

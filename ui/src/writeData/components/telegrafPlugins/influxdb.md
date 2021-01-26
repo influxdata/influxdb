@@ -1,6 +1,8 @@
 # InfluxDB Input Plugin
 
-The InfluxDB plugin will collect metrics on the given InfluxDB servers.
+The InfluxDB plugin will collect metrics on the given InfluxDB servers. Read our 
+[documentation](https://docs.influxdata.com/platform/monitoring/influxdata-platform/tools/measurements-internal/) 
+for detailed information about `influxdb` metrics. 
 
 This plugin can also gather metrics from endpoints that expose
 InfluxDB-formatted endpoints. See below for more information.
@@ -41,7 +43,13 @@ InfluxDB-formatted endpoints. See below for more information.
 
 - influxdb
   - n_shards: The total number of shards in the specified database.
+- influxdb_ae _(Enterprise Only)_ : Statistics related to the Anti-Entropy (AE) engine in InfluxDB Enterprise clusters.
+- influxdb_cluster _(Enterprise Only)_ : Statistics related to the clustering features of the data nodes in InfluxDB Enterprise clusters.
+- influxdb_cq: The metrics related to continuous queries (CQs).
 - influxdb_database: The database metrics are being collected from.
+- influxdb_hh _(Enterprise Only)_ : Events resulting in new hinted handoff (HH) processors in InfluxDB Enterprise clusters.
+- influxdb_hh_database _(Enterprise Only)_ : Aggregates all hinted handoff queues for a single database and node.
+- influxdb_hh_processor _(Enterprise Only)_ : Statistics stored for a single queue (shard).
 - influxdb_httpd: The URL to listen for network requests. By default, `http://localhost:8086/debug/var`.
 - influxdb_measurement: The measurement that metrics are collected from.
 - influxdb_memstats: Statistics about the memory allocator in the specified database.
@@ -71,9 +79,14 @@ InfluxDB-formatted endpoints. See below for more information.
   - mspan_sys: The bytes of memory obtained from the OS for mspan.
   - mcache_inuse: The bytes of allocated mcache structures.
   - last_gc: Time the last garbage collection finished, as nanoseconds since 1970 (the UNIX epoch).
+- influxdb_queryExecutor: Query Executor metrics of the InfluxDB engine.
+- influxdb_rpc _(Enterprise Only)_ : Statistics are related to the use of RPC calls within InfluxDB Enterprise clusters.
+- influxdb_runtime: The shard metrics are collected from.
 - influxdb_shard: The shard metrics are collected from.
 - influxdb_subscriber: The InfluxDB subscription that metrics are collected from.
 - influxdb_tsm1_cache: The TSM cache that metrics are collected from.
+- influxdb_tsm1_engine: The TSM storage engine that metrics are collected from.
+- influxdb_tsm1_filestore: The TSM file store that metrics are collected from.
 - influxdb_tsm1_wal: The TSM Write Ahead Log (WAL) that metrics are collected from.
 - influxdb_write: The total writes to the specified database.
 

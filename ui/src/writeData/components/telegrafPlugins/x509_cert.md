@@ -15,7 +15,9 @@ file or network connection.
   ## Timeout for SSL connection
   # timeout = "5s"
 
-  ## Pass a different name into the TLS request (Server Name Indication)
+  ## Pass a different name into the TLS request (Server Name Indication).
+  ## This is synonymous with tls_server_name, and only one of the two
+  ## options may be specified at one time.
   ##   example: server_name = "myhost.example.org"
   # server_name = "myhost.example.org"
 
@@ -23,6 +25,7 @@ file or network connection.
   # tls_ca = "/etc/telegraf/ca.pem"
   # tls_cert = "/etc/telegraf/cert.pem"
   # tls_key = "/etc/telegraf/key.pem"
+  # tls_server_name = "myhost.example.org"
 ```
 
 
