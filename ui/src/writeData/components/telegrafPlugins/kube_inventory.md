@@ -189,9 +189,11 @@ subjects:
     - node_name
   - fields:
     - capacity_cpu_cores
+    - capacity_millicpu_cores
     - capacity_memory_bytes
     - capacity_pods
     - allocatable_cpu_cores
+    - allocatable_millicpu_cores
     - allocatable_memory_bytes
     - allocatable_pods
 
@@ -220,16 +222,18 @@ subjects:
     - node_name
     - pod_name
     - node_selector (\*varies)
+    - phase
     - state
     - readiness
   - fields:
     - restarts_total
     - state_code
     - state_reason
+    - phase_reason
     - terminated_reason (string, deprecated in 1.15: use `state_reason` instead)
-    - resource_requests_cpu_units
+    - resource_requests_millicpu_units
     - resource_requests_memory_bytes
-    - resource_limits_cpu_units
+    - resource_limits_millicpu_units
     - resource_limits_memory_bytes
 
 - kubernetes_service
@@ -297,7 +301,7 @@ kubernetes_persistentvolume,phase=Released,pv_name=pvc-aaaaaaaa-bbbb-cccc-1111-2
 kubernetes_persistentvolumeclaim,namespace=default,phase=Bound,pvc_name=data-etcd-0,selector_select1=s1,storageclass=ebs-1-retain phase_type=0i 1547597615000000000
 kubernetes_pod,namespace=default,node_name=ip-172-17-0-2.internal,pod_name=tick1 last_transition_time=1547578322000000000i,ready="false" 1547597616000000000
 kubernetes_service,cluster_ip=172.29.61.80,namespace=redis-cache-0001,port_name=redis,port_protocol=TCP,selector_app=myapp,selector_io.kompose.service=redis,selector_role=slave,service_name=redis-slave created=1588690034000000000i,generation=0i,port=6379i,target_port=0i 1547597616000000000
-kubernetes_pod_container,container_name=telegraf,namespace=default,node_name=ip-172-17-0-2.internal,node_selector_node-role.kubernetes.io/compute=true,pod_name=tick1,state=running,readiness=ready resource_requests_cpu_units=0.1,resource_limits_memory_bytes=524288000,resource_limits_cpu_units=0.5,restarts_total=0i,state_code=0i,state_reason="",resource_requests_memory_bytes=524288000 1547597616000000000
+kubernetes_pod_container,container_name=telegraf,namespace=default,node_name=ip-172-17-0-2.internal,node_selector_node-role.kubernetes.io/compute=true,pod_name=tick1,phase=Running,state=running,readiness=ready resource_requests_cpu_units=0.1,resource_limits_memory_bytes=524288000,resource_limits_cpu_units=0.5,restarts_total=0i,state_code=0i,state_reason="",phase_reason="",resource_requests_memory_bytes=524288000 1547597616000000000
 kubernetes_statefulset,namespace=default,selector_select1=s1,statefulset_name=etcd replicas_updated=3i,spec_replicas=3i,observed_generation=1i,created=1544101669000000000i,generation=1i,replicas=3i,replicas_current=3i,replicas_ready=3i 1547597616000000000
 ```
 
