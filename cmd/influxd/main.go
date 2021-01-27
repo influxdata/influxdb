@@ -36,7 +36,7 @@ func main() {
 	rootCmd := launcher.NewInfluxdCommand(ctx, v)
 	// upgrade binds options to env variables, so it must be added after rootCmd is initialized
 	rootCmd.AddCommand(upgrade.NewCommand(ctx, v))
-	rootCmd.AddCommand(inspect.NewCommand())
+	rootCmd.AddCommand(inspect.NewCommand(v))
 	rootCmd.AddCommand(versionCmd())
 
 	rootCmd.SilenceUsage = true
