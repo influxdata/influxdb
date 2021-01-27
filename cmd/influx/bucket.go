@@ -340,11 +340,11 @@ func (b *cmdBucketBuilder) printBuckets(printOpt bucketPrintOpt) error {
 
 	for _, bkt := range printOpt.buckets {
 		m := map[string]interface{}{
-			"ID":                   bkt.ID.String(),
-			"Name":                 bkt.Name,
-			"Retention":            bkt.RetentionPeriod,
-			"Shard duration": bkt.ShardGroupDuration,
-			"Organization ID":      bkt.OrgID.String(),
+			"ID":              bkt.ID.String(),
+			"Name":            bkt.Name,
+			"Retention":       bkt.RetentionPeriod,
+			"Shard duration":  bkt.ShardGroupDuration,
+			"Organization ID": bkt.OrgID.String(),
 		}
 		if printOpt.deleted {
 			m["Deleted"] = true
