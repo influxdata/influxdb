@@ -74,7 +74,7 @@ func (b *cmdBucketBuilder) cmdCreate() *cobra.Command {
 
 	cmd.Flags().StringVarP(&b.description, "description", "d", "", "Description of bucket that will be created")
 	cmd.Flags().StringVarP(&b.retention, "retention", "r", "", "Duration bucket will retain data. 0 is infinite. Default is 0.")
-	cmd.Flags().StringVarP(&b.shardGroupDuration, "shardGroupDuration", "", "", "Shard group duration used internally in storage. Default is 7 days")
+	cmd.Flags().StringVarP(&b.shardGroupDuration, "shardDuration", "", "", "Shard group duration used internally in storage. Default is 7 days")
 	b.org.register(b.viper, cmd, false)
 	b.registerPrintFlags(cmd)
 
@@ -328,7 +328,7 @@ func (b *cmdBucketBuilder) printBuckets(printOpt bucketPrintOpt) error {
 
 	w.HideHeaders(b.hideHeaders)
 
-	headers := []string{"ID", "Name", "Retention", "Shard group duration", "Organization ID"}
+	headers := []string{"ID", "Name", "Retention", "Shard duration", "Organization ID"}
 	if printOpt.deleted {
 		headers = append(headers, "Deleted")
 	}
@@ -343,7 +343,7 @@ func (b *cmdBucketBuilder) printBuckets(printOpt bucketPrintOpt) error {
 			"ID":                   bkt.ID.String(),
 			"Name":                 bkt.Name,
 			"Retention":            bkt.RetentionPeriod,
-			"Shard group duration": bkt.ShardGroupDuration,
+			"Shard duration": bkt.ShardGroupDuration,
 			"Organization ID":      bkt.OrgID.String(),
 		}
 		if printOpt.deleted {
