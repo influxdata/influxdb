@@ -52,11 +52,15 @@ async fn read_and_write_data() {
     let server = TestServer::new().unwrap();
     server.wait_until_ready().await;
 
-    let org_id_str = "0000111100001111";
-    let org_id = u64::from_str_radix(org_id_str, 16).unwrap();
-    let bucket_id_str = "1111000011110000";
-    let bucket_id = u64::from_str_radix(bucket_id_str, 16).unwrap();
-    let database_name = org_and_bucket_to_database(org_id_str, bucket_id_str).unwrap();
+    let scenario = Scenario {
+        org_id_str: "0000111100001111".into(),
+        bucket_id_str: "1111000011110000".into(),
+    };
+
+    let org_id = u64::from_str_radix(&scenario.org_id_str, 16).unwrap();
+    let bucket_id = u64::from_str_radix(&scenario.bucket_id_str, 16).unwrap();
+    let database_name =
+        org_and_bucket_to_database(&scenario.org_id_str, &scenario.bucket_id_str).unwrap();
 
     let http_client = reqwest::Client::new();
     let influxdb2 = influxdb2_client::Client::new(HTTP_BASE, TOKEN);
@@ -64,29 +68,19 @@ async fn read_and_write_data() {
     create_database(&http_client, &database_name).await;
 
     let ns_since_epoch = ns_since_epoch();
-    let expected_read_data = load_data(&influxdb2, org_id_str, bucket_id_str, ns_since_epoch).await;
+    let expected_read_data = load_data(&influxdb2, &scenario, ns_since_epoch).await;
     let sql_query = "select * from cpu_load_short";
 
-    test_read_api(
-        &http_client,
-        org_id_str,
-        bucket_id_str,
-        sql_query,
-        &expected_read_data,
-    )
-    .await;
+    test_read_api(&http_client, &scenario, sql_query, &expected_read_data).await;
 
-    test_grpc_api(
-        &influxdb2,
-        org_id_str,
-        org_id,
-        bucket_id_str,
-        bucket_id,
-        ns_since_epoch,
-    )
-    .await;
+    test_grpc_api(&influxdb2, &scenario, org_id, bucket_id, ns_since_epoch).await;
 
     test_http_error_messages(&influxdb2).await.unwrap();
+}
+
+struct Scenario {
+    org_id_str: String,
+    bucket_id_str: String,
 }
 
 async fn create_database(client: &reqwest::Client, database_name: &str) {
@@ -118,8 +112,7 @@ fn ns_since_epoch() -> i64 {
 
 async fn load_data(
     influxdb2: &influxdb2_client::Client,
-    org_id_str: &str,
-    bucket_id_str: &str,
+    scenario: &Scenario,
     ns_since_epoch: i64,
 ) -> Vec<String> {
     // TODO: make a more extensible way to manage data for tests, such as in
@@ -184,9 +177,7 @@ async fn load_data(
             .build()
             .unwrap(),
     ];
-    write_data(&influxdb2, org_id_str, bucket_id_str, points)
-        .await
-        .unwrap();
+    write_data(&influxdb2, scenario, points).await.unwrap();
 
     substitute_nanos(
         ns_since_epoch,
@@ -206,12 +197,11 @@ async fn load_data(
 
 async fn test_read_api(
     client: &reqwest::Client,
-    org_id_str: &str,
-    bucket_id_str: &str,
+    scenario: &Scenario,
     sql_query: &str,
     expected_read_data: &[String],
 ) {
-    let text = read_data_as_sql(&client, "/read", org_id_str, bucket_id_str, sql_query).await;
+    let text = read_data_as_sql(&client, "/read", scenario, sql_query).await;
 
     assert_eq!(
         text, expected_read_data,
@@ -222,9 +212,8 @@ async fn test_read_api(
 
 async fn test_grpc_api(
     influxdb2: &influxdb2_client::Client,
-    org_id_str: &str,
+    scenario: &Scenario,
     org_id: u64,
-    bucket_id_str: &str,
     bucket_id: u64,
     ns_since_epoch: i64,
 ) {
@@ -343,7 +332,7 @@ async fn test_grpc_api(
     assert_eq!(values, vec!["server01"]);
 
     // Begin tests for read_group rpc call
-    load_read_group_data(&influxdb2, org_id_str, bucket_id_str).await;
+    load_read_group_data(&influxdb2, scenario).await;
     test_read_group_none_agg(&mut storage_client, &read_source).await;
     test_read_group_none_agg_with_predicate(&mut storage_client, &read_source).await;
     test_read_group_sum_agg(&mut storage_client, &read_source).await;
@@ -449,29 +438,21 @@ async fn test_grpc_api(
     assert_eq!(field.r#type, DataType::Float as i32);
     assert_eq!(field.timestamp, ns_since_epoch + 4);
 
-    test_read_window_aggregate(
-        &mut storage_client,
-        &influxdb2,
-        &read_source,
-        org_id_str,
-        bucket_id_str,
-    )
-    .await;
+    test_read_window_aggregate(&mut storage_client, &influxdb2, &read_source, scenario).await;
 }
 
 async fn read_data_as_sql(
     client: &reqwest::Client,
     path: &str,
-    org_id: &str,
-    bucket_id: &str,
+    scenario: &Scenario,
     sql_query: &str,
 ) -> Vec<String> {
     let url = format!("{}{}", API_BASE, path);
     let lines = client
         .get(&url)
         .query(&[
-            ("bucket", bucket_id),
-            ("org", org_id),
+            ("bucket", scenario.bucket_id_str.as_str()),
+            ("org", scenario.org_id_str.as_str()),
             ("sql_query", sql_query),
         ])
         .send()
@@ -489,12 +470,15 @@ async fn read_data_as_sql(
 
 async fn write_data(
     client: &influxdb2_client::Client,
-    org_id: &str,
-    bucket_id: &str,
+    scenario: &Scenario,
     points: Vec<influxdb2_client::DataPoint>,
 ) -> Result<()> {
     client
-        .write(org_id, bucket_id, stream::iter(points))
+        .write(
+            &scenario.org_id_str,
+            &scenario.bucket_id_str,
+            stream::iter(points),
+        )
         .await?;
     Ok(())
 }
@@ -519,8 +503,7 @@ async fn test_read_window_aggregate(
     storage_client: &mut StorageClient<tonic::transport::Channel>,
     client: &influxdb2_client::Client,
     read_source: &std::option::Option<prost_types::Any>,
-    org_id: &str,
-    bucket_id: &str,
+    scenario: &Scenario,
 ) {
     let line_protocol = vec![
         "h2o,state=MA,city=Boston temp=70.0 100",
@@ -542,7 +525,7 @@ async fn test_read_window_aggregate(
     .join("\n");
 
     client
-        .write_line_protocol(org_id, bucket_id, line_protocol)
+        .write_line_protocol(&scenario.org_id_str, &scenario.bucket_id_str, line_protocol)
         .await
         .expect("Wrote h20 line protocol");
 
@@ -591,7 +574,7 @@ async fn test_read_window_aggregate(
     );
 }
 
-async fn load_read_group_data(client: &influxdb2_client::Client, org_id: &str, bucket_id: &str) {
+async fn load_read_group_data(client: &influxdb2_client::Client, scenario: &Scenario) {
     let line_protocol = vec![
         "cpu,cpu=cpu1,host=foo  usage_user=71.0,usage_system=10.0 1000",
         "cpu,cpu=cpu1,host=foo  usage_user=72.0,usage_system=11.0 2000",
@@ -605,7 +588,7 @@ async fn load_read_group_data(client: &influxdb2_client::Client, org_id: &str, b
     .join("\n");
 
     client
-        .write_line_protocol(org_id, bucket_id, line_protocol)
+        .write_line_protocol(&scenario.org_id_str, &scenario.bucket_id_str, line_protocol)
         .await
         .expect("Wrote cpu line protocol data");
 }
