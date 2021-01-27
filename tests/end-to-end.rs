@@ -52,10 +52,9 @@ async fn read_and_write_data() {
     let server = TestServer::new().unwrap();
     server.wait_until_ready().await;
 
-    let scenario = Scenario {
-        org_id_str: "0000111100001111".into(),
-        bucket_id_str: "1111000011110000".into(),
-    };
+    let scenario = Scenario::default()
+        .set_org_id("0000111100001111")
+        .set_bucket_id("1111000011110000");
 
     let org_id = u64::from_str_radix(&scenario.org_id_str, 16).unwrap();
     let bucket_id = u64::from_str_radix(&scenario.bucket_id_str, 16).unwrap();
@@ -78,9 +77,22 @@ async fn read_and_write_data() {
     test_http_error_messages(&influxdb2).await.unwrap();
 }
 
+#[derive(Default, Debug)]
 struct Scenario {
     org_id_str: String,
     bucket_id_str: String,
+}
+
+impl Scenario {
+    fn set_org_id(mut self, org_id: impl Into<String>) -> Self {
+        self.org_id_str = org_id.into();
+        self
+    }
+
+    fn set_bucket_id(mut self, bucket_id: impl Into<String>) -> Self {
+        self.bucket_id_str = bucket_id.into();
+        self
+    }
 }
 
 async fn create_database(client: &reqwest::Client, database_name: &str) {
