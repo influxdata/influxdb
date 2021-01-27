@@ -30,10 +30,12 @@ func main() {
 
 	influxdb.SetBuildInfo(version, commit, date)
 
+	ctx := context.Background()
 	v := viper.New()
-	rootCmd := launcher.NewInfluxdCommand(context.Background(), v)
+
+	rootCmd := launcher.NewInfluxdCommand(ctx, v)
 	// upgrade binds options to env variables, so it must be added after rootCmd is initialized
-	rootCmd.AddCommand(upgrade.NewCommand(v))
+	rootCmd.AddCommand(upgrade.NewCommand(ctx, v))
 	rootCmd.AddCommand(inspect.NewCommand())
 	rootCmd.AddCommand(versionCmd())
 
