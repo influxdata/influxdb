@@ -18,7 +18,7 @@
 // - Stopping the server after all relevant tests are run
 
 use assert_cmd::prelude::*;
-use data_types::{database_rules::DatabaseRules, names::org_and_bucket_to_database};
+use data_types::{database_rules::DatabaseRules, names::org_and_bucket_to_database, DatabaseName};
 use futures::prelude::*;
 use generated_types::{
     aggregate::AggregateType,
@@ -56,15 +56,10 @@ async fn read_and_write_data() {
         .set_org_id("0000111100001111")
         .set_bucket_id("1111000011110000");
 
-    let org_id = u64::from_str_radix(&scenario.org_id_str, 16).unwrap();
-    let bucket_id = u64::from_str_radix(&scenario.bucket_id_str, 16).unwrap();
-    let database_name =
-        org_and_bucket_to_database(&scenario.org_id_str, &scenario.bucket_id_str).unwrap();
-
     let http_client = reqwest::Client::new();
     let influxdb2 = influxdb2_client::Client::new(HTTP_BASE, TOKEN);
 
-    create_database(&http_client, &database_name).await;
+    create_database(&http_client, &scenario.database_name()).await;
 
     let ns_since_epoch = ns_since_epoch();
     let expected_read_data = load_data(&influxdb2, &scenario, ns_since_epoch).await;
@@ -72,7 +67,7 @@ async fn read_and_write_data() {
 
     test_read_api(&http_client, &scenario, sql_query, &expected_read_data).await;
 
-    test_grpc_api(&influxdb2, &scenario, org_id, bucket_id, ns_since_epoch).await;
+    test_grpc_api(&influxdb2, &scenario, ns_since_epoch).await;
 
     test_http_error_messages(&influxdb2).await.unwrap();
 }
@@ -92,6 +87,26 @@ impl Scenario {
     fn set_bucket_id(mut self, bucket_id: impl Into<String>) -> Self {
         self.bucket_id_str = bucket_id.into();
         self
+    }
+
+    fn org_id_str(&self) -> &str {
+        &self.org_id_str
+    }
+
+    fn bucket_id_str(&self) -> &str {
+        &self.bucket_id_str
+    }
+
+    fn org_id(&self) -> u64 {
+        u64::from_str_radix(&self.org_id_str, 16).unwrap()
+    }
+
+    fn bucket_id(&self) -> u64 {
+        u64::from_str_radix(&self.bucket_id_str, 16).unwrap()
+    }
+
+    fn database_name(&self) -> DatabaseName<'_> {
+        org_and_bucket_to_database(&self.org_id_str, &self.bucket_id_str).unwrap()
     }
 }
 
@@ -225,8 +240,6 @@ async fn test_read_api(
 async fn test_grpc_api(
     influxdb2: &influxdb2_client::Client,
     scenario: &Scenario,
-    org_id: u64,
-    bucket_id: u64,
     ns_since_epoch: i64,
 ) {
     let mut storage_client = StorageClient::connect(GRPC_URL_BASE).await.unwrap();
@@ -243,8 +256,8 @@ async fn test_grpc_api(
 
     let partition_id = u64::from(u32::MAX);
     let read_source = ReadSource {
-        org_id,
-        bucket_id,
+        org_id: scenario.org_id(),
+        bucket_id: scenario.bucket_id(),
         partition_id,
     };
     let mut d = Vec::new();
@@ -463,8 +476,8 @@ async fn read_data_as_sql(
     let lines = client
         .get(&url)
         .query(&[
-            ("bucket", scenario.bucket_id_str.as_str()),
-            ("org", scenario.org_id_str.as_str()),
+            ("bucket", scenario.bucket_id_str()),
+            ("org", scenario.org_id_str()),
             ("sql_query", sql_query),
         ])
         .send()
@@ -487,8 +500,8 @@ async fn write_data(
 ) -> Result<()> {
     client
         .write(
-            &scenario.org_id_str,
-            &scenario.bucket_id_str,
+            scenario.org_id_str(),
+            scenario.bucket_id_str(),
             stream::iter(points),
         )
         .await?;
@@ -537,7 +550,11 @@ async fn test_read_window_aggregate(
     .join("\n");
 
     client
-        .write_line_protocol(&scenario.org_id_str, &scenario.bucket_id_str, line_protocol)
+        .write_line_protocol(
+            scenario.org_id_str(),
+            scenario.bucket_id_str(),
+            line_protocol,
+        )
         .await
         .expect("Wrote h20 line protocol");
 
@@ -600,7 +617,11 @@ async fn load_read_group_data(client: &influxdb2_client::Client, scenario: &Scen
     .join("\n");
 
     client
-        .write_line_protocol(&scenario.org_id_str, &scenario.bucket_id_str, line_protocol)
+        .write_line_protocol(
+            scenario.org_id_str(),
+            scenario.bucket_id_str(),
+            line_protocol,
+        )
         .await
         .expect("Wrote cpu line protocol data");
 }
