@@ -20,7 +20,7 @@
 use assert_cmd::prelude::*;
 use data_types::{database_rules::DatabaseRules, names::org_and_bucket_to_database, DatabaseName};
 use futures::prelude::*;
-use generated_types::{storage_client::StorageClient, ReadSource};
+use generated_types::{storage_client::StorageClient, ReadSource, TimestampRange};
 use prost::Message;
 use std::convert::TryInto;
 use std::process::{Child, Command};
@@ -148,6 +148,13 @@ impl Scenario {
         };
 
         Some(read_source)
+    }
+
+    fn timestamp_range(&self) -> Option<TimestampRange> {
+        Some(TimestampRange {
+            start: self.ns_since_epoch(),
+            end: self.ns_since_epoch() + 10,
+        })
     }
 }
 

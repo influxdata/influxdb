@@ -15,7 +15,18 @@ use test_helpers::tag_key_bytes_to_strings;
 use tonic::transport::Channel;
 
 pub async fn test(storage_client: &mut StorageClient<Channel>, scenario: &Scenario) {
-    // Validate that capabilities rpc endpoint is hooked up
+    capabilities_endpoint(storage_client).await;
+    read_filter_endpoint(storage_client, scenario).await;
+    tag_keys_endpoint(storage_client, scenario).await;
+    tag_values_endpoint(storage_client, scenario).await;
+    measurement_names_endpoint(storage_client, scenario).await;
+    measurement_tag_keys_endpoint(storage_client, scenario).await;
+    measurement_tag_values_endpoint(storage_client, scenario).await;
+    measurement_fields_endpoint(storage_client, scenario).await;
+}
+
+/// Validate that capabilities rpc endpoint is hooked up
+async fn capabilities_endpoint(storage_client: &mut StorageClient<Channel>) {
     let capabilities_response = storage_client.capabilities(()).await.unwrap();
     let capabilities_response = capabilities_response.into_inner();
     assert_eq!(
@@ -24,22 +35,19 @@ pub async fn test(storage_client: &mut StorageClient<Channel>, scenario: &Scenar
         "Response: {:?}",
         capabilities_response
     );
+}
 
+async fn read_filter_endpoint(storage_client: &mut StorageClient<Channel>, scenario: &Scenario) {
     let read_source = scenario.read_source();
-
-    let range = TimestampRange {
-        start: scenario.ns_since_epoch(),
-        end: scenario.ns_since_epoch() + 10,
-    };
-    let range = Some(range);
+    let range = scenario.timestamp_range();
 
     let predicate = make_tag_predicate("host", "server01");
     let predicate = Some(predicate);
 
     let read_filter_request = tonic::Request::new(ReadFilterRequest {
-        read_source: read_source.clone(),
-        range: range.clone(),
-        predicate: predicate.clone(),
+        read_source,
+        range,
+        predicate,
     });
     let read_response = storage_client
         .read_filter(read_filter_request)
@@ -75,11 +83,18 @@ pub async fn test(storage_client: &mut StorageClient<Channel>, scenario: &Scenar
         expected_frames.join("\n"),
         actual_frames.join("\n")
     );
+}
+
+async fn tag_keys_endpoint(storage_client: &mut StorageClient<Channel>, scenario: &Scenario) {
+    let read_source = scenario.read_source();
+    let range = scenario.timestamp_range();
+    let predicate = make_tag_predicate("host", "server01");
+    let predicate = Some(predicate);
 
     let tag_keys_request = tonic::Request::new(TagKeysRequest {
-        tags_source: read_source.clone(),
-        range: range.clone(),
-        predicate: predicate.clone(),
+        tags_source: read_source,
+        range,
+        predicate,
     });
 
     let tag_keys_response = storage_client.tag_keys(tag_keys_request).await.unwrap();
@@ -92,11 +107,18 @@ pub async fn test(storage_client: &mut StorageClient<Channel>, scenario: &Scenar
         .collect();
 
     assert_eq!(keys, vec!["_m(0x00)", "host", "name", "region", "_f(0xff)"]);
+}
+
+async fn tag_values_endpoint(storage_client: &mut StorageClient<Channel>, scenario: &Scenario) {
+    let read_source = scenario.read_source();
+    let range = scenario.timestamp_range();
+    let predicate = make_tag_predicate("host", "server01");
+    let predicate = Some(predicate);
 
     let tag_values_request = tonic::Request::new(TagValuesRequest {
-        tags_source: read_source.clone(),
-        range: range.clone(),
-        predicate: predicate.clone(),
+        tags_source: read_source,
+        range,
+        predicate,
         tag_key: b"host".to_vec(),
     });
 
@@ -114,10 +136,18 @@ pub async fn test(storage_client: &mut StorageClient<Channel>, scenario: &Scenar
         .collect();
 
     assert_eq!(values, vec!["server01"]);
+}
+
+async fn measurement_names_endpoint(
+    storage_client: &mut StorageClient<Channel>,
+    scenario: &Scenario,
+) {
+    let read_source = scenario.read_source();
+    let range = scenario.timestamp_range();
 
     let measurement_names_request = tonic::Request::new(MeasurementNamesRequest {
-        source: read_source.clone(),
-        range: range.clone(),
+        source: read_source,
+        range,
         predicate: None,
     });
 
@@ -138,12 +168,23 @@ pub async fn test(storage_client: &mut StorageClient<Channel>, scenario: &Scenar
         values,
         vec!["attributes", "cpu_load_short", "status", "swap", "system"]
     );
+}
+
+async fn measurement_tag_keys_endpoint(
+    storage_client: &mut StorageClient<Channel>,
+    scenario: &Scenario,
+) {
+    let read_source = scenario.read_source();
+    let range = scenario.timestamp_range();
+
+    let predicate = make_tag_predicate("host", "server01");
+    let predicate = Some(predicate);
 
     let measurement_tag_keys_request = tonic::Request::new(MeasurementTagKeysRequest {
-        source: read_source.clone(),
+        source: read_source,
         measurement: String::from("cpu_load_short"),
-        range: range.clone(),
-        predicate: predicate.clone(),
+        range,
+        predicate,
     });
 
     let measurement_tag_keys_response = storage_client
@@ -163,13 +204,24 @@ pub async fn test(storage_client: &mut StorageClient<Channel>, scenario: &Scenar
         .collect();
 
     assert_eq!(values, vec!["_m(0x00)", "host", "region", "_f(0xff)"]);
+}
+
+async fn measurement_tag_values_endpoint(
+    storage_client: &mut StorageClient<Channel>,
+    scenario: &Scenario,
+) {
+    let read_source = scenario.read_source();
+    let range = scenario.timestamp_range();
+
+    let predicate = make_tag_predicate("host", "server01");
+    let predicate = Some(predicate);
 
     let measurement_tag_values_request = tonic::Request::new(MeasurementTagValuesRequest {
-        source: read_source.clone(),
+        source: read_source,
         measurement: String::from("cpu_load_short"),
         tag_key: String::from("host"),
-        range: range.clone(),
-        predicate: predicate.clone(),
+        range,
+        predicate,
     });
 
     let measurement_tag_values_response = storage_client
@@ -189,12 +241,23 @@ pub async fn test(storage_client: &mut StorageClient<Channel>, scenario: &Scenar
         .collect();
 
     assert_eq!(values, vec!["server01"]);
+}
+
+async fn measurement_fields_endpoint(
+    storage_client: &mut StorageClient<Channel>,
+    scenario: &Scenario,
+) {
+    let read_source = scenario.read_source();
+    let range = scenario.timestamp_range();
+
+    let predicate = make_tag_predicate("host", "server01");
+    let predicate = Some(predicate);
 
     let measurement_fields_request = tonic::Request::new(MeasurementFieldsRequest {
-        source: read_source.clone(),
+        source: read_source,
         measurement: String::from("cpu_load_short"),
-        range: range.clone(),
-        predicate: predicate.clone(),
+        range,
+        predicate,
     });
 
     let measurement_fields_response = storage_client
