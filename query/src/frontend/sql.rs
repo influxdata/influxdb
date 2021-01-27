@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use snafu::{ResultExt, Snafu};
 
-use crate::{exec::Executor, Database, PartitionChunk};
+use crate::{exec::Executor, selection::Selection, Database, PartitionChunk};
 use arrow_deps::datafusion::{
     datasource::MemTable, error::DataFusionError, physical_plan::ExecutionPlan,
 };
@@ -71,7 +71,7 @@ impl SQLQueryPlanner {
             for partition_key in &partition_keys {
                 for chunk in database.chunks(partition_key).await {
                     chunk
-                        .table_to_arrow(&mut data, &table, &[])
+                        .table_to_arrow(&mut data, &table, Selection::All)
                         .map_err(|e| Box::new(e) as _)
                         .context(InternalTableConversion { table })?
                 }

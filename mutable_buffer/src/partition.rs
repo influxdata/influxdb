@@ -252,6 +252,8 @@ impl<'a> Iterator for ChunkIter<'a> {
 
 #[cfg(test)]
 mod tests {
+    use crate::chunk::ChunkSelection;
+
     use super::*;
     use chrono::Utc;
     use data_types::data::split_lines_into_write_entry_partitions;
@@ -815,10 +817,10 @@ mod tests {
 
     fn dump_table(partition: &Partition, table_name: &str) -> Vec<RecordBatch> {
         let mut dst = vec![];
-        let requested_columns = []; // empty ==> request all columns
         for chunk in partition.chunks() {
+            let selection = ChunkSelection::All;
             chunk
-                .table_to_arrow(&mut dst, table_name, &requested_columns)
+                .table_to_arrow(&mut dst, table_name, selection)
                 .unwrap();
         }
 
@@ -827,10 +829,10 @@ mod tests {
     }
 
     fn dump_chunk_table(chunk: &Chunk, table_name: &str) -> Vec<RecordBatch> {
-        let requested_columns = []; // empty ==> request all columns
         let mut dst = vec![];
+        let selection = ChunkSelection::All;
         chunk
-            .table_to_arrow(&mut dst, table_name, &requested_columns)
+            .table_to_arrow(&mut dst, table_name, selection)
             .unwrap();
         dst.into_iter().map(sort_record_batch).collect()
     }

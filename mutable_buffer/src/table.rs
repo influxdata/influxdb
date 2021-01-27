@@ -11,7 +11,7 @@ use std::{collections::BTreeSet, collections::HashMap, sync::Arc};
 
 use crate::{
     chunk::ChunkIdSet,
-    chunk::{Chunk, ChunkPredicate},
+    chunk::{Chunk, ChunkPredicate, ChunkSelection},
     column,
     column::Column,
     dictionary::{Dictionary, Error as DictionaryError},
@@ -282,7 +282,7 @@ impl Table {
         let time_column_id = chunk_predicate.time_column_id;
 
         // figure out the tag columns
-        let requested_columns_with_index = self
+        let cols = self
             .column_id_to_index
             .iter()
             .filter_map(|(&column_id, &column_index)| {
@@ -297,15 +297,19 @@ impl Table {
                 if need_column {
                     // the id came out of our map, so it should always be valid
                     let column_name = chunk.dictionary.lookup_id(column_id).unwrap();
-                    Some((column_name, column_index))
+                    Some(ColSelection {
+                        column_name,
+                        column_index,
+                    })
                 } else {
                     None
                 }
             })
-            .collect::<Vec<_>>();
+            .collect();
+        let selection = TableColSelection { cols };
 
         // TODO avoid materializing here
-        let data = self.to_arrow_impl(chunk, &requested_columns_with_index)?;
+        let data = self.to_arrow_impl(chunk, &selection)?;
 
         let schema = data.schema();
 
@@ -321,11 +325,12 @@ impl Table {
             plan_builder
         } else {
             // Create expressions for all columns except time
-            let select_exprs = requested_columns_with_index
+            let select_exprs = selection
+                .cols
                 .iter()
-                .filter_map(|&(column_name, _)| {
-                    if column_name != TIME_COLUMN_NAME {
-                        Some(col(column_name))
+                .filter_map(|col_selection| {
+                    if col_selection.column_name != TIME_COLUMN_NAME {
+                        Some(col(col_selection.column_name))
                     } else {
                         None
                     }
@@ -460,7 +465,8 @@ impl Table {
     ) -> Result<LogicalPlanBuilder> {
         // TODO avoid materializing all the columns here (ideally
         // DataFusion can prune some of them out)
-        let data = self.all_to_arrow(chunk)?;
+        let selection = self.all_columns_selection(chunk)?;
+        let data = self.to_arrow_impl(chunk, &selection)?;
 
         let schema = data.schema();
 
@@ -791,20 +797,7 @@ impl Table {
         field_columns
     }
 
-    /// Converts this table to an arrow record batch.
-    ///
-    /// If requested_columns is empty (`[]`), retrieve all columns in
-    /// the table
-    pub fn to_arrow(&self, chunk: &Chunk, requested_columns: &[&str]) -> Result<RecordBatch> {
-        if requested_columns.is_empty() {
-            self.all_to_arrow(chunk)
-        } else {
-            let columns_with_index = self.column_names_with_index(chunk, requested_columns)?;
-
-            self.to_arrow_impl(chunk, &columns_with_index)
-        }
-    }
-
+    /// Return the index of the column named `column_name`
     fn column_index(&self, chunk: &Chunk, column_name: &str) -> Result<usize> {
         let column_id =
             chunk
@@ -824,25 +817,10 @@ impl Table {
             })
     }
 
-    /// Returns (name, index) pairs for all named columns
-    fn column_names_with_index<'a>(
-        &self,
-        chunk: &Chunk,
-        columns: &[&'a str],
-    ) -> Result<Vec<(&'a str, usize)>> {
-        columns
-            .iter()
-            .map(|&column_name| {
-                let column_index = self.column_index(chunk, column_name)?;
-
-                Ok((column_name, column_index))
-            })
-            .collect()
-    }
-
-    /// Convert all columns to an arrow record batch
-    pub fn all_to_arrow(&self, chunk: &Chunk) -> Result<RecordBatch> {
-        let mut requested_columns_with_index = self
+    /// Returns the column selection for all the columns in this table, orderd
+    /// by table name
+    fn all_columns_selection<'a>(&self, chunk: &'a Chunk) -> Result<TableColSelection<'a>> {
+        let cols = self
             .column_id_to_index
             .iter()
             .map(|(&column_id, &column_index)| {
@@ -852,27 +830,65 @@ impl Table {
                         chunk: chunk.id,
                     },
                 )?;
-                Ok((column_name, column_index))
+                Ok(ColSelection {
+                    column_name,
+                    column_index,
+                })
             })
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<Result<_>>()?;
 
-        requested_columns_with_index.sort_by(|(a, _), (b, _)| a.cmp(b));
+        let selection = TableColSelection { cols };
 
-        self.to_arrow_impl(chunk, &requested_columns_with_index)
+        // sort so the columns always come out in a predictable name
+        Ok(selection.sort_by_name())
+    }
+
+    /// Returns a column selection for just the specified columns
+    fn specific_columns_selection<'a>(
+        &self,
+        chunk: &'a Chunk,
+        columns: &'a [&'a str],
+    ) -> Result<TableColSelection<'a>> {
+        let cols = columns
+            .iter()
+            .map(|&column_name| {
+                let column_index = self.column_index(chunk, column_name)?;
+
+                Ok(ColSelection {
+                    column_name,
+                    column_index,
+                })
+            })
+            .collect::<Result<_>>()?;
+
+        Ok(TableColSelection { cols })
+    }
+
+    /// Converts this table to an arrow record batch.
+    pub fn to_arrow(&self, chunk: &Chunk, selection: ChunkSelection<'_>) -> Result<RecordBatch> {
+        // translate chunk selection into name/indexes:
+        let selection = match selection {
+            ChunkSelection::All => self.all_columns_selection(chunk),
+            ChunkSelection::Some(cols) => self.specific_columns_selection(chunk, cols),
+        }?;
+        self.to_arrow_impl(chunk, &selection)
     }
 
     /// Converts this table to an arrow record batch,
     ///
     /// requested columns with index are tuples of column_name, column_index
-    pub fn to_arrow_impl(
+    fn to_arrow_impl(
         &self,
         chunk: &Chunk,
-        requested_columns_with_index: &[(&str, usize)],
+        selection: &TableColSelection<'_>,
     ) -> Result<RecordBatch> {
         let mut schema_builder = SchemaBuilder::new();
-        let mut columns: Vec<ArrayRef> = Vec::with_capacity(requested_columns_with_index.len());
+        let mut columns: Vec<ArrayRef> = Vec::with_capacity(selection.cols.len());
 
-        for &(column_name, column_index) in requested_columns_with_index.iter() {
+        for col in &selection.cols {
+            let column_name = col.column_name;
+            let column_index = col.column_index;
+
             let arrow_col: ArrayRef = match &self.columns[column_index] {
                 Column::String(vals, _) => {
                     schema_builder = schema_builder.field(column_name, ArrowDataType::Utf8);
@@ -1268,6 +1284,25 @@ fn make_selector_expr(
     Ok(uda
         .call(vec![col(field_name), col(TIME_COLUMN_NAME)])
         .alias(column_name))
+}
+
+struct ColSelection<'a> {
+    column_name: &'a str,
+    column_index: usize,
+}
+
+/// Represets a set of column_name, column_index pairs
+/// for a specific selection
+struct TableColSelection<'a> {
+    cols: Vec<ColSelection<'a>>,
+}
+
+impl<'a> TableColSelection<'a> {
+    /// Sorts the columns by name
+    fn sort_by_name(mut self) -> Self {
+        self.cols.sort_by(|a, b| a.column_name.cmp(b.column_name));
+        self
+    }
 }
 
 #[cfg(test)]

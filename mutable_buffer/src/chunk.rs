@@ -18,6 +18,7 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use data_types::{partition_metadata::Table as TableStats, TIME_COLUMN_NAME};
 use query::{
     predicate::{Predicate, TimestampRange},
+    selection::Selection,
     util::AndExprBuilder,
 };
 
@@ -396,12 +397,12 @@ impl Chunk {
         &self,
         dst: &mut Vec<RecordBatch>,
         table_name: &str,
-        columns: &[&str],
+        selection: ChunkSelection<'_>,
     ) -> Result<()> {
         if let Some(table) = self.table(table_name)? {
             dst.push(
                 table
-                    .to_arrow(&self, columns)
+                    .to_arrow(&self, selection)
                     .context(NamedTableError { table_name })?,
             );
         }
@@ -484,13 +485,33 @@ impl query::PartitionChunk for Chunk {
         &self,
         dst: &mut Vec<RecordBatch>,
         table_name: &str,
-        columns: &[&str],
+        selection: Selection<'_>,
     ) -> Result<(), Self::Error> {
-        self.table_to_arrow(dst, table_name, columns)
+        let selection = to_mutable_buffer_selection(selection);
+        self.table_to_arrow(dst, table_name, selection)
     }
 
     async fn table_names(&self, _predicate: &Predicate) -> Result<LogicalPlan, Self::Error> {
         unimplemented!("please use table_names function directly")
+    }
+}
+
+/// Represents selecting a set of columns from tables in a chunk
+#[derive(Debug)]
+pub enum ChunkSelection<'a> {
+    /// Return all columns (e.g. SELECT *)
+    All,
+
+    /// Return only the named columns
+    Some(&'a [&'a str]),
+}
+
+// TODO remove this code (in favor of what is in Db.rs) when we have
+// removed the dependency on query from this crate
+pub fn to_mutable_buffer_selection(selection: Selection<'_>) -> ChunkSelection<'_> {
+    match selection {
+        Selection::All => ChunkSelection::All,
+        Selection::Some(cols) => ChunkSelection::Some(cols),
     }
 }
 

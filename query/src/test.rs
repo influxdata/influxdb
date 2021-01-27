@@ -6,7 +6,9 @@ use arrow_deps::{
     util::str_iter_to_batch,
 };
 
-use crate::{exec::Executor, group_by::GroupByAndAggregate, util::make_scan_plan};
+use crate::{
+    exec::Executor, group_by::GroupByAndAggregate, selection::Selection, util::make_scan_plan,
+};
 use crate::{
     exec::FieldListPlan,
     exec::{
@@ -476,7 +478,7 @@ impl PartitionChunk for TestChunk {
         &self,
         _dst: &mut Vec<RecordBatch>,
         _table_name: &str,
-        _columns: &[&str],
+        _selection: Selection<'_>,
     ) -> Result<(), Self::Error> {
         unimplemented!()
     }

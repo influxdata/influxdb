@@ -17,10 +17,10 @@ pub mod frontend;
 pub mod func;
 pub mod group_by;
 pub mod predicate;
+pub mod selection;
 pub mod util;
 
-use self::group_by::GroupByAndAggregate;
-use self::predicate::Predicate;
+use self::{group_by::GroupByAndAggregate, predicate::Predicate, selection::Selection};
 
 /// A `Database` is the main trait implemented by the IOx subsystems
 /// that store actual data.
@@ -134,7 +134,7 @@ pub trait PartitionChunk: Debug + Send + Sync {
         &self,
         dst: &mut Vec<RecordBatch>,
         table_name: &str,
-        columns: &[&str],
+        selection: Selection<'_>,
     ) -> Result<(), Self::Error>;
 }
 

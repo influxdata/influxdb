@@ -4,15 +4,20 @@ use arrow_deps::{
 };
 use query::{
     predicate::{Predicate, PredicateBuilder},
+    selection::Selection,
     util::make_scan_plan,
     PartitionChunk,
 };
-use read_buffer::{ColumnSelection, Database as ReadBufferDb};
+use read_buffer::Database as ReadBufferDb;
 use snafu::{ResultExt, Snafu};
 
 use std::sync::{Arc, RwLock};
 
-use super::pred::to_read_buffer_predicate;
+use super::{
+    pred::to_read_buffer_predicate,
+    selection::{to_mutable_buffer_selection, to_read_buffer_selection},
+};
+
 use async_trait::async_trait;
 
 #[derive(Debug, Snafu)]
@@ -103,12 +108,13 @@ impl PartitionChunk for DBChunk {
         &self,
         dst: &mut Vec<RecordBatch>,
         table_name: &str,
-        columns: &[&str],
+        selection: Selection<'_>,
     ) -> Result<(), Self::Error> {
         match self {
             Self::MutableBuffer { chunk } => {
+                let mb_selection = to_mutable_buffer_selection(selection);
                 chunk
-                    .table_to_arrow(dst, table_name, columns)
+                    .table_to_arrow(dst, table_name, mb_selection)
                     .context(MutableBufferChunk)?;
             }
             Self::ReadBuffer {
@@ -117,17 +123,11 @@ impl PartitionChunk for DBChunk {
                 chunk_id,
             } => {
                 let chunk_id = *chunk_id;
-                // Translate the predicates to ReadBuffer style
+                // Translate the predicate and selection to ReadBuffer style
                 let predicate = PredicateBuilder::default().build();
                 let rb_predicate =
                     to_read_buffer_predicate(&predicate).context(InternalPredicateConversion)?;
-
-                // translate column selection
-                let column_selection = if columns.is_empty() {
-                    ColumnSelection::All
-                } else {
-                    ColumnSelection::Some(columns)
-                };
+                let rb_selection = to_read_buffer_selection(selection);
 
                 // run the query
                 let db = db.read().unwrap();
@@ -137,7 +137,7 @@ impl PartitionChunk for DBChunk {
                         table_name,
                         &[chunk_id],
                         rb_predicate,
-                        column_selection,
+                        rb_selection,
                     )
                     .context(ReadBufferChunk { chunk_id })?;
 

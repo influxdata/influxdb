@@ -919,6 +919,8 @@ impl Visitor for WindowGroupsVisitor {
 
 #[cfg(test)]
 mod tests {
+    use crate::chunk::ChunkSelection;
+
     use super::*;
     use query::{
         exec::fieldlist::{Field, FieldList},
@@ -973,8 +975,9 @@ mod tests {
 
         let chunk = db.get_chunk(partition_key, 0).await.unwrap();
         let mut batches = Vec::new();
+        let selection = ChunkSelection::Some(&["region", "core"]);
         chunk
-            .table_to_arrow(&mut batches, "cpu", &["region", "core"])
+            .table_to_arrow(&mut batches, "cpu", selection)
             .unwrap();
         let columns = batches[0].columns();
 

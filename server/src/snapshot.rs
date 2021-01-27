@@ -6,7 +6,7 @@ use arrow_deps::{
 };
 use data_types::partition_metadata::{Partition as PartitionMeta, Table};
 use object_store::{path::ObjectStorePath, ObjectStore};
-use query::PartitionChunk;
+use query::{selection::Selection, PartitionChunk};
 
 use std::io::{Cursor, Seek, SeekFrom, Write};
 use std::sync::{Arc, Mutex};
@@ -150,7 +150,7 @@ where
         while let Some((pos, table_name)) = self.next_table() {
             let mut batches = Vec::new();
             self.partition
-                .table_to_arrow(&mut batches, table_name, &[])
+                .table_to_arrow(&mut batches, table_name, Selection::All)
                 .map_err(|e| Box::new(e) as _)
                 .context(PartitionError)?;
 
