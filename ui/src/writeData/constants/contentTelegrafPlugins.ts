@@ -14,6 +14,7 @@ import auroraMarkdown from 'src/writeData/components/telegrafPlugins/aurora.md'
 import azure_storage_queueMarkdown from 'src/writeData/components/telegrafPlugins/azure_storage_queue.md'
 import bcacheMarkdown from 'src/writeData/components/telegrafPlugins/bcache.md'
 import beanstalkdMarkdown from 'src/writeData/components/telegrafPlugins/beanstalkd.md'
+import beatMarkdown from 'src/writeData/components/telegrafPlugins/beat.md'
 import bindMarkdown from 'src/writeData/components/telegrafPlugins/bind.md'
 import bondMarkdown from 'src/writeData/components/telegrafPlugins/bond.md'
 import burrowMarkdown from 'src/writeData/components/telegrafPlugins/burrow.md'
@@ -66,6 +67,7 @@ import icinga2Markdown from 'src/writeData/components/telegrafPlugins/icinga2.md
 import infinibandMarkdown from 'src/writeData/components/telegrafPlugins/infiniband.md'
 import influxdb_listenerMarkdown from 'src/writeData/components/telegrafPlugins/influxdb_listener.md'
 import influxdb_v2_listenerMarkdown from 'src/writeData/components/telegrafPlugins/influxdb_v2_listener.md'
+import intel_powerstatMarkdown from 'src/writeData/components/telegrafPlugins/intel_powerstat.md'
 import intel_rdtMarkdown from 'src/writeData/components/telegrafPlugins/intel_rdt.md'
 import influxdbMarkdown from 'src/writeData/components/telegrafPlugins/influxdb.md'
 import internalMarkdown from 'src/writeData/components/telegrafPlugins/internal.md'
@@ -149,6 +151,7 @@ import redfishMarkdown from 'src/writeData/components/telegrafPlugins/redfish.md
 import redisMarkdown from 'src/writeData/components/telegrafPlugins/redis.md'
 import rethinkdbMarkdown from 'src/writeData/components/telegrafPlugins/rethinkdb.md'
 import riakMarkdown from 'src/writeData/components/telegrafPlugins/riak.md'
+import riemann_listenerMarkdown from 'src/writeData/components/telegrafPlugins/riemann_listener.md'
 import salesforceMarkdown from 'src/writeData/components/telegrafPlugins/salesforce.md'
 import sensorsMarkdown from 'src/writeData/components/telegrafPlugins/sensors.md'
 import sflowMarkdown from 'src/writeData/components/telegrafPlugins/sflow.md'
@@ -200,6 +203,7 @@ import auroraLogo from 'src/writeData/graphics/aurora.svg'
 import azure_storage_queueLogo from 'src/writeData/graphics/azure_storage_queue.svg'
 import bcacheLogo from 'src/writeData/graphics/bcache.svg'
 import beanstalkdLogo from 'src/writeData/graphics/beanstalkd.svg'
+import beatLogo from 'src/writeData/graphics/beat.svg'
 import bindLogo from 'src/writeData/graphics/bind.svg'
 import bondLogo from 'src/writeData/graphics/bond.svg'
 import burrowLogo from 'src/writeData/graphics/burrow.svg'
@@ -252,6 +256,7 @@ import icinga2Logo from 'src/writeData/graphics/icinga2.svg'
 import infinibandLogo from 'src/writeData/graphics/infiniband.svg'
 import influxdb_listenerLogo from 'src/writeData/graphics/influxdb_listener.svg'
 import influxdb_v2_listenerLogo from 'src/writeData/graphics/influxdb_v2_listener.svg'
+import intel_powerstatLogo from 'src/writeData/graphics/intel_powerstat.svg'
 import intel_rdtLogo from 'src/writeData/graphics/intel_rdt.svg'
 import influxdbLogo from 'src/writeData/graphics/influxdb.svg'
 import internalLogo from 'src/writeData/graphics/internal.svg'
@@ -335,6 +340,7 @@ import redfishLogo from 'src/writeData/graphics/redfish.svg'
 import redisLogo from 'src/writeData/graphics/redis.svg'
 import rethinkdbLogo from 'src/writeData/graphics/rethinkdb.svg'
 import riakLogo from 'src/writeData/graphics/riak.svg'
+import riemann_listenerLogo from 'src/writeData/graphics/riemann_listener.svg'
 import salesforceLogo from 'src/writeData/graphics/salesforce.svg'
 import sensorsLogo from 'src/writeData/graphics/sensors.svg'
 import sflowLogo from 'src/writeData/graphics/sflow.svg'
@@ -439,6 +445,13 @@ export const WRITE_DATA_TELEGRAF_PLUGINS: WriteDataItem[] = [
     url: `${TELEGRAF_PLUGINS}/beanstalkd`,
     markdown: beanstalkdMarkdown,
     image: beanstalkdLogo,
+  },
+  {
+    id: 'beat',
+    name: 'Beat Plugin',
+    url: `${TELEGRAF_PLUGINS}/beat`,
+    markdown: beatMarkdown,
+    image: beatLogo,
   },
   {
     id: 'bind',
@@ -810,6 +823,13 @@ export const WRITE_DATA_TELEGRAF_PLUGINS: WriteDataItem[] = [
     url: `${TELEGRAF_PLUGINS}/influxdb_v2_listener`,
     markdown: influxdb_v2_listenerMarkdown,
     image: influxdb_v2_listenerLogo,
+  },
+  {
+    id: 'intel_powerstat',
+    name: 'Intel PowerStat',
+    url: `${TELEGRAF_PLUGINS}/intel_powerstat`,
+    markdown: intel_powerstatMarkdown,
+    image: intel_powerstatLogo,
   },
   {
     id: 'intel_rdt',
@@ -1384,6 +1404,13 @@ export const WRITE_DATA_TELEGRAF_PLUGINS: WriteDataItem[] = [
     url: `${TELEGRAF_PLUGINS}/riak`,
     markdown: riakMarkdown,
     image: riakLogo,
+  },
+  {
+    id: 'riemann_listener',
+    name: 'Riemann Listener',
+    url: `${TELEGRAF_PLUGINS}/riemann_listener`,
+    markdown: riemann_listenerMarkdown,
+    image: riemann_listenerLogo,
   },
   {
     id: 'salesforce',

@@ -128,6 +128,7 @@ Minimum Version of Monit tested with is 5.16.
     - hostname
     - port_number
     - request
+    - response_time
     - protocol
     - type
 
@@ -232,4 +233,5 @@ monit_file,monitoring_mode=active,monitoring_status=monitored,pending_action=non
 monit_process,monitoring_mode=active,monitoring_status=monitored,pending_action=none,platform_name=Linux,service=rsyslog,source=xyzzy.local,status=running,version=5.20.0 children=0i,cpu_percent=0,cpu_percent_total=0,mem_kb=3148i,mem_kb_total=3148i,mem_percent=0.2,mem_percent_total=0.2,monitoring_mode_code=0i,monitoring_status_code=1i,parent_pid=1i,pending_action_code=0i,pid=318i,status_code=0i,threads=4i 1579735047000000000
 monit_program,monitoring_mode=active,monitoring_status=initializing,pending_action=none,platform_name=Linux,service=echo,source=xyzzy.local,status=running,version=5.20.0 monitoring_mode_code=0i,monitoring_status_code=2i,pending_action_code=0i,program_started=0i,program_status=0i,status_code=0i 1579735047000000000
 monit_system,monitoring_mode=active,monitoring_status=monitored,pending_action=none,platform_name=Linux,service=debian-stretch-monit.virt,source=xyzzy.local,status=running,version=5.20.0 cpu_load_avg_15m=0,cpu_load_avg_1m=0,cpu_load_avg_5m=0,cpu_system=0,cpu_user=0,cpu_wait=0,mem_kb=42852i,mem_percent=2.1,monitoring_mode_code=0i,monitoring_status_code=1i,pending_action_code=0i,status_code=0i,swap_kb=0,swap_percent=0 1579735047000000000
+monit_remote_host,dc=new-12,host=palladium,monitoring_mode=active,monitoring_status=monitored,pending_action=none,platform_name=Linux,rack=rack-0,service=blog.kalvad.com,source=palladium,status=running,version=5.27.0 monitoring_status_code=1i,monitoring_mode_code=0i,response_time=0.664412,type="TCP",pending_action_code=0i,remote_hostname="blog.kalvad.com",port_number=443i,request="/",protocol="HTTP",status_code=0i 1599138990000000000
 ```
