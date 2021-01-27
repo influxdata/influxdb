@@ -14,9 +14,11 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/cli"
 	"github.com/influxdata/influxdb/v2/kit/signals"
 	influxlogger "github.com/influxdata/influxdb/v2/logger"
+	"github.com/influxdata/influxdb/v2/nats"
 	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/vault"
+	natsserver "github.com/nats-io/gnatsd/server"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap/zapcore"
@@ -127,6 +129,9 @@ type InfluxdOpts struct {
 	SessionLength        int // in minutes
 	SessionRenewDisabled bool
 
+	NatsPort            int
+	NatsMaxPayloadBytes int
+
 	NoTasks      bool
 	FeatureFlags map[string]string
 
@@ -170,6 +175,9 @@ func newOpts(viper *viper.Viper) *InfluxdOpts {
 
 		StoreType:   BoltStore,
 		SecretStore: BoltStore,
+
+		NatsPort:            nats.RandomPort,
+		NatsMaxPayloadBytes: natsserver.MAX_PAYLOAD_SIZE,
 
 		NoTasks: false,
 
@@ -471,6 +479,20 @@ func (o *InfluxdOpts) bindCliOpts() []cli.Opt {
 			DestP: &o.CoordinatorConfig.MaxSelectBucketsN,
 			Flag:  "influxql-max-select-buckets",
 			Desc:  "The maximum number of group by time bucket a SELECT can create. A value of zero will max the maximum number of buckets unlimited.",
+		},
+
+		// NATS config
+		{
+			DestP:   &o.NatsPort,
+			Flag:    "nats-port",
+			Desc:    fmt.Sprintf("Port that should be bound by the NATS streaming server. A value of %d will cause a random port to be selected.", nats.RandomPort),
+			Default: o.NatsPort,
+		},
+		{
+			DestP:   &o.NatsMaxPayloadBytes,
+			Flag:    "nats-max-payload-bytes",
+			Desc:    "The maximum number of bytes allowed in a NATS message payload.",
+			Default: o.NatsMaxPayloadBytes,
 		},
 	}
 }

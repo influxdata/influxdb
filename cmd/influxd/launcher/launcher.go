@@ -572,13 +572,15 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 
 	// NATS streaming server
 	natsOpts := nats.NewDefaultServerOptions()
-	natsOpts.Port = nats.RandomPort
+	natsOpts.Port = opts.NatsPort
+	natsOpts.MaxPayload = opts.NatsMaxPayloadBytes
 	m.natsServer = nats.NewServer(&natsOpts)
 	if err := m.natsServer.Open(); err != nil {
 		m.log.Error("Failed to start nats streaming server", zap.Error(err))
 		return err
 	}
-	m.natsPort = natsOpts.Port // updated with random port
+	// If a random port was used, the opts will be updated to include the selected value.
+	m.natsPort = natsOpts.Port
 	publisher := nats.NewAsyncPublisher(m.log, fmt.Sprintf("nats-publisher-%d", m.natsPort), m.NatsURL())
 	if err := publisher.Open(); err != nil {
 		m.log.Error("Failed to connect to streaming server", zap.Error(err))
