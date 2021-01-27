@@ -85,7 +85,7 @@ impl SchemaBuilder {
         let arrow_type: ArrowDataType = influxdb_field_type.into();
         self.add_column(
             column_name,
-            false,
+            true,
             Some(InfluxColumnType::Field(influxdb_field_type)),
             arrow_type,
         )
@@ -381,6 +381,22 @@ mod test {
         assert_eq!(influxdb_column_type, None);
 
         assert_eq!(s.len(), 2);
+    }
+
+    #[test]
+    fn test_builder_influx_field() {
+        let s = SchemaBuilder::new()
+            .influx_field("the_influx_field", InfluxFieldType::Float)
+            .build()
+            .unwrap();
+
+        let (influxdb_column_type, field) = s.field(0);
+        assert_eq!(field.name(), "the_influx_field");
+        assert_eq!(field.data_type(), &ArrowDataType::Float64);
+        assert_eq!(field.is_nullable(), true);
+        assert_eq!(influxdb_column_type, Some(Field(Float)));
+
+        assert_eq!(s.len(), 1);
     }
 
     #[test]
