@@ -8,10 +8,8 @@ tests:
   - name: "no_aggregate"
     query: "select f1 from m0 where f0 > 1 AND time >= 30000000000 AND time <= 50000000000"
     result: |
-      name: m0
-      time        f1
-      ----        --
-      50000000000 30
+      name,tags,time,f1
+      m0,,50000000000,30
 
   - name: "aggregate"
     description: |
@@ -19,10 +17,8 @@ tests:
 
     query: "SELECT sum(f1) FROM m0 WHERE f0 >= 1"
     result: |
-      name: m0
-      time sum
-      ---- ---
-      0    50
+      name,tags,time,sum
+      m0,,0,50
 
 dataset: |
   m0,t0=tv0 f0=0i,f1=10i 30000000000

@@ -1,11 +1,9 @@
 tests:
   - query: "select host, inactive from mem where time >=30000000000 AND time < 50000000000"
     result: |
-      name: mem
-      time        host    inactive
-      ----        ----    --------
-      30000000000 gianarb 3460194304
-      40000000000 gianarb 3454791680
+      name,tags,time,host,inactive
+      mem,,30000000000,gianarb,3460194304
+      mem,,40000000000,gianarb,3454791680
 
 dataset: |
   mem,host=gianarb page_tables=39534592i,vmalloc_chunk=0i,write_back_tmp=0i,dirty=884736i,high_total=0i,available=11992494080i,used=3284553728i,active=7172775936i,huge_pages_free=0i,swap_total=8589930496i,vmalloc_used=38604800i,free=4928421888i,commit_limit=16853958656i,committed_as=12584218624i,mapped=939278336i,vmalloc_total=35184372087808i,write_back=0i,buffered=989163520i,wired=0i,low_free=0i,huge_page_size=2097152i,swap_cached=120016896i,swap_free=8445227008i,inactive=3461185536i,slab=542363648i,high_free=0i,shared=903233536i,sreclaimable=449650688i,total=16528056320i,cached=7325917184i,available_percent=72.55840522208482,sunreclaim=92712960i,used_percent=19.87259520664557,huge_pages_total=0i,low_total=0i 0

@@ -74,6 +74,7 @@ func (q *Query) Execute(ctx context.Context, t *testing.T, db string, c *tests.C
 		QueryParams(params...).
 		Header("Accept", "application/json").
 		RespFn(func(resp *http.Response) error {
+			require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 			b, err := ioutil.ReadAll(resp.Body)
 			q.got = strings.TrimSpace(string(b))
 			return err
