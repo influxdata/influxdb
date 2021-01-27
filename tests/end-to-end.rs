@@ -129,6 +129,24 @@ impl Scenario {
     fn ns_since_epoch(&self) -> i64 {
         self.ns_since_epoch
     }
+
+    fn read_source(&self) -> Option<prost_types::Any> {
+        let partition_id = u64::from(u32::MAX);
+        let read_source = ReadSource {
+            org_id: self.org_id(),
+            bucket_id: self.bucket_id(),
+            partition_id,
+        };
+
+        let mut d = Vec::new();
+        read_source.encode(&mut d).unwrap();
+        let read_source = prost_types::Any {
+            type_url: "/TODO".to_string(),
+            value: d,
+        };
+
+        Some(read_source)
+    }
 }
 
 async fn create_database(client: &reqwest::Client, database_name: &str) {
@@ -258,19 +276,7 @@ async fn test_grpc_api(influxdb2: &influxdb2_client::Client, scenario: &Scenario
         capabilities_response
     );
 
-    let partition_id = u64::from(u32::MAX);
-    let read_source = ReadSource {
-        org_id: scenario.org_id(),
-        bucket_id: scenario.bucket_id(),
-        partition_id,
-    };
-    let mut d = Vec::new();
-    read_source.encode(&mut d).unwrap();
-    let read_source = prost_types::Any {
-        type_url: "/TODO".to_string(),
-        value: d,
-    };
-    let read_source = Some(read_source);
+    let read_source = scenario.read_source();
 
     let range = TimestampRange {
         start: scenario.ns_since_epoch(),
