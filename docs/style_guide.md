@@ -165,6 +165,47 @@ input_reader
     })?;
 ```
 
+*Hint for `Box<dyn::std::error::Error>` in Snafu*:
+
+If your error contains a trait object (e.g. `Box<dyn std::error::Error + Send + Sync>`), in order to use  `context()` you need to wrap the error in a `Box` :
+
+```rust
+#[derive(Debug, Snafu)]
+pub enum Error {
+
+    #[snafu(display("gRPC planner got error listing partition keys: {}", source))]
+    ListingPartitions {
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+}
+
+...
+
+  // Wrap error in a box prior to calling context()
+database
+  .partition_keys()
+  .await
+  .map_err(|e| Box::new(e) as _)
+  .context(ListingPartitions)?;
+
+```
+
+Note the `as _` in the `map_err` call. Without it, you may get an error such as:
+
+```
+error[E0271]: type mismatch resolving `<ListingPartitions as IntoError<influxrpc::Error>>::Source == Box<<D as Database>::Error>`
+  --> query/src/frontend/influxrpc.rs:63:14
+   |
+63 |             .context(ListingPartitions)?;
+   |              ^^^^^^^ expected trait object `dyn snafu::Error`, found associated type
+   |
+   = note: expected struct `Box<(dyn snafu::Error + Send + Sync + 'static)>`
+              found struct `Box<<D as Database>::Error>`
+   = help: consider constraining the associated type `<D as Database>::Error` to `(dyn snafu::Error + Send + Sync + 'static)`
+   = note: for more information, visit https://doc.rust-lang.org/book/ch19-03-advanced-traits.html
+```
+
+
 ### Each error cause in a module should have a distinct Error enum
 
 Specific error types are preferred over a generic error with a `message` or `kind` field.
