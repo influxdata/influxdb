@@ -23,7 +23,7 @@ Replacement `tsi1` indexes will be automatically generated on startup for shards
 ### Features
 
 1. [20537](https://github.com/influxdata/influxdb/pull/20537): Add `--overwrite-existing-v2` flag to `influxd upgrade` to overwrite existing files at output paths (instead of aborting).
-1. [20604](https://github.com/influxdata/influxdb/pull/20604): Update telegraf plugins list in UI to include Beat, Intel PowerStats, and Rienmann.
+1. [20616](https://github.com/influxdata/influxdb/pull/20616): Update telegraf plugins list in UI to include Beat, Intel PowerStats, and Rienmann.
 
 ### Bug Fixes
 
