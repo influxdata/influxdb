@@ -61,21 +61,38 @@ async fn read_and_write_data() {
 
     create_database(&http_client, &scenario.database_name()).await;
 
-    let ns_since_epoch = ns_since_epoch();
-    let expected_read_data = load_data(&influxdb2, &scenario, ns_since_epoch).await;
+    let expected_read_data = load_data(&influxdb2, &scenario).await;
     let sql_query = "select * from cpu_load_short";
 
     test_read_api(&http_client, &scenario, sql_query, &expected_read_data).await;
 
-    test_grpc_api(&influxdb2, &scenario, ns_since_epoch).await;
+    test_grpc_api(&influxdb2, &scenario).await;
 
     test_http_error_messages(&influxdb2).await.unwrap();
 }
 
-#[derive(Default, Debug)]
+#[derive(Debug)]
 struct Scenario {
     org_id_str: String,
     bucket_id_str: String,
+    ns_since_epoch: i64,
+}
+
+impl Default for Scenario {
+    fn default() -> Self {
+        let ns_since_epoch = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("System time should have been after the epoch")
+            .as_nanos()
+            .try_into()
+            .expect("Unable to represent system time");
+
+        Self {
+            ns_since_epoch,
+            org_id_str: Default::default(),
+            bucket_id_str: Default::default(),
+        }
+    }
 }
 
 impl Scenario {
@@ -108,6 +125,10 @@ impl Scenario {
     fn database_name(&self) -> DatabaseName<'_> {
         org_and_bucket_to_database(&self.org_id_str, &self.bucket_id_str).unwrap()
     }
+
+    fn ns_since_epoch(&self) -> i64 {
+        self.ns_since_epoch
+    }
 }
 
 async fn create_database(client: &reqwest::Client, database_name: &str) {
@@ -128,20 +149,7 @@ async fn create_database(client: &reqwest::Client, database_name: &str) {
         .unwrap();
 }
 
-fn ns_since_epoch() -> i64 {
-    SystemTime::now()
-        .duration_since(SystemTime::UNIX_EPOCH)
-        .expect("System time should have been after the epoch")
-        .as_nanos()
-        .try_into()
-        .expect("Unable to represent system time")
-}
-
-async fn load_data(
-    influxdb2: &influxdb2_client::Client,
-    scenario: &Scenario,
-    ns_since_epoch: i64,
-) -> Vec<String> {
+async fn load_data(influxdb2: &influxdb2_client::Client, scenario: &Scenario) -> Vec<String> {
     // TODO: make a more extensible way to manage data for tests, such as in
     // external fixture files or with factories.
     let points = vec![
@@ -149,40 +157,40 @@ async fn load_data(
             .tag("host", "server01")
             .tag("region", "us-west")
             .field("value", 0.64)
-            .timestamp(ns_since_epoch)
+            .timestamp(scenario.ns_since_epoch())
             .build()
             .unwrap(),
         influxdb2_client::DataPoint::builder("cpu_load_short")
             .tag("host", "server01")
             .field("value", 27.99)
-            .timestamp(ns_since_epoch + 1)
+            .timestamp(scenario.ns_since_epoch() + 1)
             .build()
             .unwrap(),
         influxdb2_client::DataPoint::builder("cpu_load_short")
             .tag("host", "server02")
             .tag("region", "us-west")
             .field("value", 3.89)
-            .timestamp(ns_since_epoch + 2)
+            .timestamp(scenario.ns_since_epoch() + 2)
             .build()
             .unwrap(),
         influxdb2_client::DataPoint::builder("cpu_load_short")
             .tag("host", "server01")
             .tag("region", "us-east")
             .field("value", 1234567.891011)
-            .timestamp(ns_since_epoch + 3)
+            .timestamp(scenario.ns_since_epoch() + 3)
             .build()
             .unwrap(),
         influxdb2_client::DataPoint::builder("cpu_load_short")
             .tag("host", "server01")
             .tag("region", "us-west")
             .field("value", 0.000003)
-            .timestamp(ns_since_epoch + 4)
+            .timestamp(scenario.ns_since_epoch() + 4)
             .build()
             .unwrap(),
         influxdb2_client::DataPoint::builder("system")
             .tag("host", "server03")
             .field("uptime", 1303385)
-            .timestamp(ns_since_epoch + 5)
+            .timestamp(scenario.ns_since_epoch() + 5)
             .build()
             .unwrap(),
         influxdb2_client::DataPoint::builder("swap")
@@ -190,24 +198,24 @@ async fn load_data(
             .tag("name", "disk0")
             .field("in", 3)
             .field("out", 4)
-            .timestamp(ns_since_epoch + 6)
+            .timestamp(scenario.ns_since_epoch() + 6)
             .build()
             .unwrap(),
         influxdb2_client::DataPoint::builder("status")
             .field("active", true)
-            .timestamp(ns_since_epoch + 7)
+            .timestamp(scenario.ns_since_epoch() + 7)
             .build()
             .unwrap(),
         influxdb2_client::DataPoint::builder("attributes")
             .field("color", "blue")
-            .timestamp(ns_since_epoch + 8)
+            .timestamp(scenario.ns_since_epoch() + 8)
             .build()
             .unwrap(),
     ];
     write_data(&influxdb2, scenario, points).await.unwrap();
 
     substitute_nanos(
-        ns_since_epoch,
+        scenario.ns_since_epoch(),
         &[
             "+----------+---------+---------------------+----------------+",
             "| host     | region  | time                | value          |",
@@ -237,11 +245,7 @@ async fn test_read_api(
     );
 }
 
-async fn test_grpc_api(
-    influxdb2: &influxdb2_client::Client,
-    scenario: &Scenario,
-    ns_since_epoch: i64,
-) {
+async fn test_grpc_api(influxdb2: &influxdb2_client::Client, scenario: &Scenario) {
     let mut storage_client = StorageClient::connect(GRPC_URL_BASE).await.unwrap();
 
     // Validate that capabilities rpc endpoint is hooked up
@@ -269,8 +273,8 @@ async fn test_grpc_api(
     let read_source = Some(read_source);
 
     let range = TimestampRange {
-        start: ns_since_epoch,
-        end: ns_since_epoch + 10,
+        start: scenario.ns_since_epoch(),
+        end: scenario.ns_since_epoch() + 10,
     };
     let range = Some(range);
 
@@ -294,7 +298,7 @@ async fn test_grpc_api(
         .flat_map(|f| f.data)
         .collect();
 
-    let expected_frames = substitute_nanos(ns_since_epoch, &[
+    let expected_frames = substitute_nanos(scenario.ns_since_epoch(), &[
         "SeriesFrame, tags: _field=value,_measurement=cpu_load_short,host=server01,region=, type: 0",
         "FloatPointsFrame, timestamps: [ns1], values: \"27.99\"",
         "SeriesFrame, tags: _field=value,_measurement=cpu_load_short,host=server01,region=us-east, type: 0",
@@ -461,7 +465,7 @@ async fn test_grpc_api(
     let field = &fields[0];
     assert_eq!(field.key, "value");
     assert_eq!(field.r#type, DataType::Float as i32);
-    assert_eq!(field.timestamp, ns_since_epoch + 4);
+    assert_eq!(field.timestamp, scenario.ns_since_epoch() + 4);
 
     test_read_window_aggregate(&mut storage_client, &influxdb2, &read_source, scenario).await;
 }
