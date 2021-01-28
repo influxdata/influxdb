@@ -424,7 +424,7 @@ func runUpgradeE(ctx context.Context, ui *input.UI, options *options, log *zap.L
 
 	defer func() {
 		if err := v2.close(); err != nil {
-			log.Error("Failed to close 2.0 services.", zap.Error(err))
+			log.Error("Failed to close 2.0 services", zap.Error(err))
 		}
 	}()
 
@@ -460,11 +460,11 @@ func runUpgradeE(ctx context.Context, ui *input.UI, options *options, log *zap.L
 		//remove all files
 		log.Info("Database upgrade error, removing data")
 		if e := os.Remove(options.target.boltPath); e != nil {
-			log.Error("Unable to remove bolt database.", zap.Error(e))
+			log.Error("Unable to remove bolt database", zap.Error(e))
 		}
 
 		if e := os.RemoveAll(options.target.enginePath); e != nil {
-			log.Error("Unable to remove time series data.", zap.Error(e))
+			log.Error("Unable to remove time series data", zap.Error(e))
 		}
 		return err
 	}
@@ -475,7 +475,7 @@ func runUpgradeE(ctx context.Context, ui *input.UI, options *options, log *zap.L
 	}
 	if usersUpgraded > 0 && !v1Config.Http.AuthEnabled {
 		log.Warn(
-			"V1 users were upgraded, but V1 auth was not enabled. Existing clients will fail authentication against V2 if using invalid credentials.",
+			"1.x users were upgraded, but 1.x auth was not enabled. Existing clients will fail authentication against 2.x if using invalid credentials",
 		)
 	}
 
