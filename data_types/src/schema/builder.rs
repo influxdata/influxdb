@@ -26,9 +26,13 @@ pub enum Error {
     },
 
     #[snafu(display("Error validating schema: {}", source))]
-    ValidatingSchema {
-        source: Box<dyn std::error::Error + 'static + Send + Sync>,
-    },
+    ValidatingSchema { source: super::Error },
+
+    #[snafu(display("Error while merging schemas: {}", source))]
+    MergingSchemas { source: super::Error },
+
+    #[snafu(display("No schemas found when building merged schema",))]
+    NoSchemas {},
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -167,7 +171,6 @@ impl SchemaBuilder {
         } = self;
 
         Schema::new_from_parts(measurement, fields, tag_cols, field_cols, time_col)
-            .map_err(|e| Box::new(e) as _)
             .context(ValidatingSchema)
     }
 
@@ -297,6 +300,51 @@ impl InfluxSchemaBuilder {
 
         // and now timestamp
         builder.timestamp().build()
+    }
+}
+
+/// Schema Merger
+///
+/// The usecase for merging schemas is when different chunks have
+/// different schemas. This struct can be used to build a combined
+/// schema by mergeing Schemas together according to the following
+/// rules:
+///
+/// 1. New columns may be added in subsequent schema, but the types of
+///    the columns (including any metadata) must be the same
+///
+/// 2. The measurement names must be consistent: one or both can be
+///    `None`, or they can both be  are `Some(name`)
+#[derive(Debug, Default)]
+pub struct SchemaMerger {
+    inner: Option<Schema>,
+}
+
+impl SchemaMerger {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Appends the schema to the merged schema being built,
+    /// validating that no columns are added.
+    ///
+    /// O(n^2) in the number of fields (columns)
+    pub fn merge(mut self, new_schema: Schema) -> Result<Self> {
+        self.inner = match self.inner.take() {
+            None => Some(new_schema),
+            Some(existing_schema) => {
+                let merged_schema = existing_schema
+                    .try_merge(new_schema)
+                    .context(MergingSchemas)?;
+                Some(merged_schema)
+            }
+        };
+        Ok(self)
+    }
+
+    /// Returns the schema that was built, consuming the builder
+    pub fn build(self) -> Result<Schema> {
+        self.inner.map(Ok).unwrap_or_else(|| NoSchemas {}.fail())
     }
 }
 
@@ -517,5 +565,41 @@ mod test {
         assert_column_eq!(s, 1, Timestamp, "time");
 
         assert_eq!(s.len(), 2);
+    }
+
+    #[test]
+    fn test_merge_schema_empty() {
+        let merged_schema_error = SchemaMerger::new().build().unwrap_err();
+
+        assert_eq!(
+            merged_schema_error.to_string(),
+            "No schemas found when building merged schema"
+        );
+    }
+
+    #[test]
+    fn test_merge_same_schema() {
+        let schema1 = SchemaBuilder::new()
+            .tag("the_tag")
+            .influx_field("int_field", Integer)
+            .build()
+            .unwrap();
+
+        let schema2 = SchemaBuilder::new()
+            .tag("the_tag")
+            .influx_field("int_field", Integer)
+            .build()
+            .unwrap();
+
+        let merged_schema = SchemaMerger::new()
+            .merge(schema1.clone())
+            .unwrap()
+            .merge(schema2.clone())
+            .unwrap()
+            .build()
+            .unwrap();
+
+        assert_eq!(merged_schema, schema1);
+        assert_eq!(merged_schema, schema2);
     }
 }
