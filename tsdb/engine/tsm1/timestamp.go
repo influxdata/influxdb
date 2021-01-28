@@ -47,6 +47,8 @@ const (
 	timeCompressedPackedSimple = 1
 	// timeCompressedRLE is a run-length encoding format
 	timeCompressedRLE = 2
+	// timeCompressedFromZero is based on timeCompressedPackedSimple, and the deltas are starting from 0
+	timeCompressedFromZero = 3
 )
 
 // TimeEncoder encodes time.Time to byte slices.
@@ -82,11 +84,11 @@ func (e *encoder) Write(t int64) {
 	e.ts = append(e.ts, uint64(t))
 }
 
-func (e *encoder) reduce() (max, divisor uint64, rle bool, deltas []uint64) {
+func (e *encoder) reduce() (max, min, divisor uint64, rle bool, deltas []uint64) {
 	// Compute the deltas in place to avoid allocating another slice
 	deltas = e.ts
 	// Starting values for a max and divisor
-	max, divisor = 0, 1e12
+	max, min, divisor = 0, 0xFFFFFFFFFFFFFFFF, 1e12
 
 	// Indicates whether the the deltas can be run-length encoded
 	rle = true
@@ -102,6 +104,9 @@ func (e *encoder) reduce() (max, divisor uint64, rle bool, deltas []uint64) {
 
 		if v > max {
 			max = v
+		}
+		if v < min {
+			min = v
 		}
 
 		// If our value is divisible by 10, break.  Otherwise, try the next smallest divisor.
@@ -123,7 +128,7 @@ func (e *encoder) Bytes() ([]byte, error) {
 
 	// Maximum and largest common divisor.  rle is true if dts (the delta timestamps),
 	// are all the same.
-	max, div, rle, dts := e.reduce()
+	max, min, div, rle, dts := e.reduce()
 
 	// The deltas are all the same, so we can run-length encode them
 	if rle && len(e.ts) > 1 {
@@ -135,20 +140,20 @@ func (e *encoder) Bytes() ([]byte, error) {
 		return e.encodeRaw()
 	}
 
-	return e.encodePacked(div, dts)
+	return e.encodePacked(div, min, dts)
 }
 
-func (e *encoder) encodePacked(div uint64, dts []uint64) ([]byte, error) {
+func (e *encoder) encodePacked(div, min uint64, dts []uint64) ([]byte, error) {
 	// Only apply the divisor if it's greater than 1 since division is expensive.
 	if div > 1 {
 		for _, v := range dts[1:] {
-			if err := e.enc.Write(v / div); err != nil {
+			if err := e.enc.Write((v - min) / div); err != nil {
 				return nil, err
 			}
 		}
 	} else {
 		for _, v := range dts[1:] {
-			if err := e.enc.Write(v); err != nil {
+			if err := e.enc.Write(v - min); err != nil {
 				return nil, err
 			}
 		}
@@ -160,22 +165,25 @@ func (e *encoder) encodePacked(div uint64, dts []uint64) ([]byte, error) {
 		return nil, err
 	}
 
-	sz := 8 + 1 + len(deltas)
+	sz := 8 + 8 + 1 + len(deltas)
 	if cap(e.bytes) < sz {
 		e.bytes = make([]byte, sz)
 	}
 	b := e.bytes[:sz]
 
 	// 4 high bits used for the encoding type
-	b[0] = byte(timeCompressedPackedSimple) << 4
+	b[0] = byte(timeCompressedFromZero) << 4
 	// 4 low bits are the log10 divisor
 	b[0] |= byte(math.Log10(float64(div)))
 
-	// The first delta value
+	// The first timestamp
 	binary.BigEndian.PutUint64(b[1:9], uint64(dts[0]))
 
-	copy(b[9:], deltas)
-	return b[:9+len(deltas)], nil
+	// The minimum delta value
+	binary.BigEndian.PutUint64(b[9:17], min)
+
+	copy(b[17:], deltas)
+	return b[:17+len(deltas)], nil
 }
 
 func (e *encoder) encodeRaw() ([]byte, error) {
@@ -287,6 +295,8 @@ func (d *TimeDecoder) decode(b []byte) {
 		d.decodeRLE(b)
 	case timeCompressedPackedSimple:
 		d.decodePacked(b)
+	case timeCompressedFromZero:
+		d.decodeFromZeroPacked(b)
 	default:
 		d.err = fmt.Errorf("unknown encoding: %v", d.encoding)
 	}
@@ -308,6 +318,44 @@ func (d *TimeDecoder) decodePacked(b []byte) {
 
 	for d.dec.Next() {
 		deltas = append(deltas, d.dec.Read())
+	}
+
+	// Compute the prefix sum and scale the deltas back up
+	last := deltas[0]
+	if div > 1 {
+		for i := 1; i < len(deltas); i++ {
+			dgap := deltas[i] * div
+			deltas[i] = last + dgap
+			last = deltas[i]
+		}
+	} else {
+		for i := 1; i < len(deltas); i++ {
+			deltas[i] += last
+			last = deltas[i]
+		}
+	}
+
+	d.i = 0
+	d.ts = deltas
+}
+
+func (d *TimeDecoder) decodeFromZeroPacked(b []byte) {
+	if len(b) < 17 {
+		d.err = fmt.Errorf("TimeDecoder: not enough data to decode packed timestamps")
+		return
+	}
+	div := uint64(math.Pow10(int(b[0] & 0xF)))
+	first := uint64(binary.BigEndian.Uint64(b[1:9]))
+	min := uint64(binary.BigEndian.Uint64(b[9:17]))
+
+	d.dec.SetBytes(b[17:])
+
+	d.i = 0
+	deltas := d.ts[:0]
+	deltas = append(deltas, first)
+
+	for d.dec.Next() {
+		deltas = append(deltas, d.dec.Read()+min)
 	}
 
 	// Compute the prefix sum and scale the deltas back up
@@ -407,6 +455,10 @@ func CountTimestamps(b []byte) int {
 	case timeCompressedPackedSimple:
 		// First 9 bytes are the starting timestamp and scaling factor, skip over them
 		count, _ := simple8b.CountBytes(b[9:])
+		return count + 1 // +1 is for the first uncompressed timestamp, starting timestamp in b[1:9]
+	case timeCompressedFromZero:
+		// First 17 bytes are the starting timestamp and minimum delta value and scaling factor, skip over them
+		count, _ := simple8b.CountBytes(b[17:])
 		return count + 1 // +1 is for the first uncompressed timestamp, starting timestamp in b[1:9]
 	default:
 		return 0

@@ -67,7 +67,7 @@ func Test_TimeEncoder_One(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if got := b[0] >> 4; got != timeCompressedPackedSimple {
+	if got := b[0] >> 4; got != timeCompressedFromZero {
 		t.Fatalf("Wrong encoding used: expected uncompressed, got %v", got)
 	}
 
@@ -132,7 +132,7 @@ func Test_TimeEncoder_Three(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if got := b[0] >> 4; got != timeCompressedPackedSimple {
+	if got := b[0] >> 4; got != timeCompressedFromZero {
 		t.Fatalf("Wrong encoding used: expected rle, got %v", got)
 	}
 
@@ -514,7 +514,7 @@ func TestTimeEncoder_Count_Simple8(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if got := b[0] >> 4; got != timeCompressedPackedSimple {
+	if got := b[0] >> 4; got != timeCompressedFromZero {
 		t.Fatalf("Wrong encoding used: expected rle, got %v", got)
 	}
 
