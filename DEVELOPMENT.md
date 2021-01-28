@@ -54,6 +54,7 @@ To get started with Influx, you'll need to install these tools if you don't alre
 1. [Install go](https://golang.org/doc/install)
 1. [Install nodejs](https://nodejs.org/en/download/package-manager/)
 1. [Install yarn](https://yarnpkg.com/lang/en/docs/install/)
+1. [Install flux](https://github.com/influxdata/flux) and make sure it is in your PATH
 
 Yarn is a package manager for nodejs and an alternative to npm.
 
