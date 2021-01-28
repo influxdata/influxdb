@@ -110,6 +110,11 @@ impl Table {
         self.table_data.read().unwrap().meta.size
     }
 
+    // Returns the total number of row groups in this table.
+    pub fn row_groups(&self) -> usize {
+        self.table_data.read().unwrap().data.len()
+    }
+
     /// The number of rows in this table.
     pub fn rows(&self) -> u64 {
         self.table_data.read().unwrap().meta.rows
