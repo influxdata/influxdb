@@ -85,7 +85,7 @@ func Test_AuthMux_Logout_DeletesSessionCookie(t *testing.T) {
 	tsURL, _ := url.Parse(ts.URL)
 
 	hc.Jar.SetCookies(tsURL, []*http.Cookie{
-		&http.Cookie{
+		{
 			Name:  DefaultCookieName,
 			Value: "",
 		},
