@@ -51,6 +51,9 @@ pub enum Error {
 
     #[snafu(display("unsupported aggregate: {}", agg))]
     UnsupportedAggregate { agg: AggregateType },
+
+    #[snafu(display("error processing chunk: {}", source))]
+    ChunkError { source: chunk::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -268,10 +271,10 @@ impl Database {
                     // Get all relevant row groups for this chunk's table. This
                     // is cheap because it doesn't execute the read operation,
                     // but just gets references to the needed to data to do so.
-                    match chunk.read_filter(table_name, &predicate, &select_columns) {
-                        Ok(table_results) => chunk_table_results.push(table_results),
-                        Err(e) => return Err(e),
-                    }
+                    let chunk_result = chunk
+                        .read_filter(table_name, &predicate, &select_columns)
+                        .context(ChunkError)?;
+                    chunk_table_results.push(chunk_result);
                 }
 
                 Ok(ReadFilterResults::new(chunk_table_results))

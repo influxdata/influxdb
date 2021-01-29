@@ -4,30 +4,23 @@ use std::{
 };
 
 use data_types::selection::Selection;
+use snafu::Snafu;
 
 use crate::row_group::RowGroup;
 use crate::row_group::{ColumnName, Predicate};
 use crate::schema::AggregateType;
 use crate::table;
 use crate::table::Table;
-use crate::Error;
 
 type TableName = String;
 
-// Tie data and meta-data together so that they can be wrapped in RWLock.
-struct TableData {
-    size: u64, // size in bytes of the chunk
-    rows: u64, // Total number of rows across all tables
-
-    // Total number of row groups across all tables in the chunk.
-    row_groups: usize,
-
-    // The set of tables within this chunk. Each table is identified by a
-    // measurement name. Whilst tables most contain immutable row-group data,
-    // they need to be mutable because they can have immutable data added or
-    // removed, causing changes to their meta-data.
-    data: BTreeMap<TableName, RwLock<Table>>,
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display("table '{}' does not exist", table_name))]
+    TableNotFound { table_name: String },
 }
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// A `Chunk` comprises a collection of `Tables` where every table must have a
 /// unique identifier (name).
@@ -61,6 +54,19 @@ pub struct Chunk {
     chunk_data: RwLock<TableData>,
 }
 
+// Tie data and meta-data together so that they can be wrapped in RWLock.
+struct TableData {
+    size: u64, // size in bytes of the chunk
+    rows: u64, // Total number of rows across all tables
+
+    // Total number of row groups across all tables in the chunk.
+    row_groups: usize,
+
+    // The set of tables within this chunk. Each table is identified by a
+    // measurement name.
+    data: BTreeMap<TableName, Table>,
+}
+
 impl Chunk {
     pub fn new(id: u32, table: Table) -> Self {
         Self {
@@ -69,9 +75,7 @@ impl Chunk {
                 size: table.size(),
                 rows: table.rows(),
                 row_groups: table.row_groups(),
-                data: vec![(table.name().to_owned(), RwLock::new(table))]
-                    .into_iter()
-                    .collect(),
+                data: vec![(table.name().to_owned(), table)].into_iter().collect(),
             }),
         }
     }
@@ -128,15 +132,15 @@ impl Chunk {
         chunk_data.row_groups += 1;
 
         match chunk_data.data.entry(table_name.clone()) {
-            Entry::Occupied(table_entry) => {
-                let table = table_entry.get();
+            Entry::Occupied(mut table_entry) => {
+                let table = table_entry.get_mut();
                 // lock the table (even though we have locked the chunk there
                 // could be in flight queries to the table by design).
-                table.write().unwrap().add_row_group(row_group);
+                table.add_row_group(row_group);
             }
             Entry::Vacant(table_entry) => {
                 // add a new table to this chunk.
-                table_entry.insert(RwLock::new(Table::new(table_name, row_group)));
+                table_entry.insert(Table::new(table_name, row_group));
             }
         };
     }
@@ -151,9 +155,9 @@ impl Chunk {
 
         // Remove table and update chunk meta-data if table exists.
         if let Some(table) = chunk_data.data.remove(name) {
-            chunk_data.size -= table.read().unwrap().size();
-            chunk_data.rows -= table.read().unwrap().rows();
-            chunk_data.row_groups -= table.read().unwrap().row_groups();
+            chunk_data.size -= table.size();
+            chunk_data.rows -= table.rows();
+            chunk_data.row_groups -= table.row_groups();
         }
     }
 
@@ -168,17 +172,15 @@ impl Chunk {
         predicate: &Predicate,
         select_columns: &Selection<'_>,
     ) -> Result<table::ReadFilterResults, Error> {
-        // Get reference to table from chunk if it exists.
-        let tables = self.chunk_data.read().unwrap();
-        let table = match tables.data.get(table_name) {
-            Some(table) => table.read().unwrap(),
-            None => {
-                return crate::TableNotFound {
-                    table_name: table_name.to_owned(),
-                }
-                .fail()
-            }
-        };
+        // read lock on chunk.
+        let chunk_data = self.chunk_data.read().unwrap();
+
+        let table = chunk_data
+            .data
+            .get(table_name)
+            .ok_or(Error::TableNotFound {
+                table_name: table_name.to_owned(),
+            })?;
 
         Ok(table.read_filter(select_columns, predicate))
     }
@@ -198,18 +200,16 @@ impl Chunk {
         group_columns: &Selection<'_>,
         aggregates: &[(ColumnName<'_>, AggregateType)],
     ) -> Option<table::ReadAggregateResults> {
+        // read lock on chunk.
+        let chunk_data = self.chunk_data.read().unwrap();
+
         // Lookup table by name and dispatch execution.
-        self.chunk_data
-            .read()
-            .unwrap()
+        //
+        // TODO(edd): this should return an error
+        chunk_data
             .data
             .get(table_name)
-            .map(|table| {
-                table
-                    .read()
-                    .unwrap()
-                    .read_aggregate(predicate, group_columns, aggregates)
-            })
+            .map(|table| table.read_aggregate(predicate, group_columns, aggregates))
     }
 
     //
@@ -227,11 +227,11 @@ impl Chunk {
         predicate: &Predicate,
         skip_table_names: &BTreeSet<String>,
     ) -> BTreeSet<String> {
+        // read lock on chunk.
+        let chunk_data = self.chunk_data.read().unwrap();
+
         if predicate.is_empty() {
-            return self
-                .chunk_data
-                .read()
-                .unwrap()
+            return chunk_data
                 .data
                 .keys()
                 .filter(|&name| !skip_table_names.contains(name))
@@ -243,9 +243,7 @@ impl Chunk {
         // for the duration of determining if its table satisfies the predicate.
         // This may be expensive in pathological cases. This can be improved
         // by releasing the lock before doing the execution.
-        self.chunk_data
-            .read()
-            .unwrap()
+        chunk_data
             .data
             .iter()
             .filter_map(|(name, table)| {
@@ -253,7 +251,7 @@ impl Chunk {
                     return None;
                 }
 
-                match table.read().unwrap().satisfies_predicate(predicate) {
+                match table.satisfies_predicate(predicate) {
                     true => Some(name.to_owned()),
                     false => None,
                 }
