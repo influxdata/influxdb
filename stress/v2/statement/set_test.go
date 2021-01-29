@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/influxdata/influxdb/stress/v2/stress_client"
+	stressClient "github.com/influxdata/influxdb/stress/v2/stress_client"
 )
 
 func TestSetSetID(t *testing.T) {

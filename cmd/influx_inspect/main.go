@@ -3,10 +3,11 @@ package main
 
 import (
 	"fmt"
-	"github.com/influxdata/influxdb/cmd/influx_inspect/reportdisk"
 	"io"
 	"log"
 	"os"
+
+	"github.com/influxdata/influxdb/cmd/influx_inspect/reportdisk"
 
 	"github.com/influxdata/influxdb/cmd"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/buildtsi"

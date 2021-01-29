@@ -3,12 +3,13 @@ package reporthelper
 
 import (
 	"fmt"
-	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 	"os"
 	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
 func IsShardDir(dir string) error {

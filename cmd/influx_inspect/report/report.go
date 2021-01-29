@@ -4,7 +4,6 @@ package report
 import (
 	"flag"
 	"fmt"
-	"github.com/influxdata/influxdb/pkg/reporthelper"
 	"io"
 	"math"
 	"os"
@@ -14,6 +13,8 @@ import (
 	"strings"
 	"text/tabwriter"
 	"time"
+
+	"github.com/influxdata/influxdb/pkg/reporthelper"
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
