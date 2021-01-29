@@ -2,7 +2,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     convert::TryInto,
     fmt::Display,
-    rc::Rc,
+    sync::Arc,
     sync::RwLock,
 };
 
@@ -55,15 +55,15 @@ pub struct Table {
     //
     //    * A read lock is needed for all read operations over table data (row groups). However,
     //      the read lock is only held for as long as it takes to shallow-clone the table data (via
-    //      Rcs) that are required for the read. The expensive process of performing the read
+    //      Arcs) that are required for the read. The expensive process of performing the read
     //      operation is done in a lock-free manner.
     table_data: RwLock<RowGroupData>,
 }
 
 // Tie data and meta-data together so that they can be wrapped in RWLock.
 struct RowGroupData {
-    meta: Rc<MetaData>,
-    data: Vec<Rc<RowGroup>>,
+    meta: Arc<MetaData>,
+    data: Vec<Arc<RowGroup>>,
 }
 
 impl Table {
@@ -72,8 +72,8 @@ impl Table {
         Self {
             name: name.into(),
             table_data: RwLock::new(RowGroupData {
-                meta: Rc::new(MetaData::new(rg.metadata())),
-                data: vec![Rc::new(rg)],
+                meta: Arc::new(MetaData::new(rg.metadata())),
+                data: vec![Arc::new(rg)],
             }),
         }
     }
@@ -82,14 +82,14 @@ impl Table {
     pub fn add_row_group(&mut self, rg: RowGroup) {
         let mut row_groups = self.table_data.write().unwrap();
 
-        // `meta` can't be modified whilst protected by an Rc so create a new one.
-        row_groups.meta = Rc::new(MetaData::update_with(
-            MetaData::clone(&row_groups.meta), // clone meta-data not Rc
+        // `meta` can't be modified whilst protected by an Arc so create a new one.
+        row_groups.meta = Arc::new(MetaData::update_with(
+            MetaData::clone(&row_groups.meta), // clone meta-data not Arc
             rg.metadata(),
         ));
 
         // Add the new row group data to the table.
-        row_groups.data.push(Rc::new(rg));
+        row_groups.data.push(Arc::new(rg));
     }
 
     /// Remove the row group at `position` from table, returning an error if the
@@ -106,7 +106,7 @@ impl Table {
             .fail();
         }
         row_groups.data.remove(position); // removes row group data
-        row_groups.meta = Rc::new(MetaData::from(&row_groups.data)); // rebuild meta
+        row_groups.meta = Arc::new(MetaData::from(&row_groups.data)); // rebuild meta
 
         Ok(())
     }
@@ -147,8 +147,8 @@ impl Table {
     }
 
     // Returns an immutable reference to the table's current meta data.
-    fn meta(&self) -> Rc<MetaData> {
-        Rc::clone(&self.table_data.read().unwrap().meta)
+    fn meta(&self) -> Arc<MetaData> {
+        Arc::clone(&self.table_data.read().unwrap().meta)
     }
 
     // Identify set of row groups that might satisfy the predicate.
@@ -158,7 +158,7 @@ impl Table {
     //
     // N.B the table read lock is only held as long as it takes to determine
     // with meta data whether each row group may satisfy the predicate.
-    fn filter_row_groups(&self, predicate: &Predicate) -> (Rc<MetaData>, Vec<Rc<RowGroup>>) {
+    fn filter_row_groups(&self, predicate: &Predicate) -> (Arc<MetaData>, Vec<Arc<RowGroup>>) {
         let table_data = self.table_data.read().unwrap();
         let mut row_groups = Vec::with_capacity(table_data.data.len());
 
@@ -169,10 +169,10 @@ impl Table {
             }
 
             // row group could potentially satisfy predicate
-            row_groups.push(Rc::clone(&rg));
+            row_groups.push(Arc::clone(&rg));
         }
 
-        (Rc::clone(&table_data.meta), row_groups)
+        (Arc::clone(&table_data.meta), row_groups)
     }
 
     /// Select data for the specified column selections with the provided
@@ -475,8 +475,7 @@ impl Table {
         // Get a snapshot of the table data under a read lock.
         let (meta, row_groups) = {
             let table_data = self.table_data.read().unwrap();
-            // TODO(edd): assuming `to_vec` calls Rc::clone?
-            (Rc::clone(&table_data.meta), table_data.data.to_vec())
+            (Arc::clone(&table_data.meta), table_data.data.to_vec())
         };
 
         // if the table doesn't have a column for one of the predicate's
@@ -503,7 +502,7 @@ impl Table {
         // Get a snapshot of the table data under a read lock.
         let (meta, row_groups) = {
             let table_data = self.table_data.read().unwrap();
-            (Rc::clone(&table_data.meta), table_data.data.to_vec())
+            (Arc::clone(&table_data.meta), table_data.data.to_vec())
         };
 
         // if the table doesn't have a column for one of the predicate's
@@ -651,8 +650,8 @@ impl MetaData {
 
 // Builds new table meta-data from a collection of row groups. Useful for
 // rebuilding state when a row group has been removed from the table.
-impl From<&Vec<Rc<RowGroup>>> for MetaData {
-    fn from(row_groups: &Vec<Rc<RowGroup>>) -> Self {
+impl From<&Vec<Arc<RowGroup>>> for MetaData {
+    fn from(row_groups: &Vec<Arc<RowGroup>>) -> Self {
         if row_groups.is_empty() {
             panic!("row groups required for meta data construction");
         }
@@ -673,7 +672,7 @@ pub struct ReadFilterResults {
     schema: ResultSchema,
 
     // These row groups passed the predicates and need to be queried.
-    row_groups: Vec<Rc<RowGroup>>,
+    row_groups: Vec<Arc<RowGroup>>,
 
     // TODO(edd): encapsulate this into a single executor function that just
     // executes on the next row group.
@@ -773,7 +772,7 @@ pub struct ReadAggregateResults {
 
     // row groups that will be executed against. The columns to group on and the
     // aggregates to produce are determined by the `schema`.
-    row_groups: Vec<Rc<RowGroup>>,
+    row_groups: Vec<Arc<RowGroup>>,
 
     drained: bool, // currently this iterator only yields once.
 }

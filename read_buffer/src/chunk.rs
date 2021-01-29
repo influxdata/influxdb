@@ -43,7 +43,7 @@ pub struct Chunk {
     //
     //    * A read lock is needed for all read operations over chunk data (tables). However, the
     //      read lock is only taken for as long as it takes to determine which table data is needed
-    //      to perform the read, shallow-clone that data (via Rcs), and construct an iterator for
+    //      to perform the read, shallow-clone that data (via Arcs), and construct an iterator for
     //      executing that operation. Once the iterator is returned to the caller, the lock is
     //      freed. Therefore, read execution against the chunk is mostly lock-free.
     //
