@@ -1,23 +1,26 @@
-use std::fmt::Display;
 use std::{
     collections::{BTreeMap, BTreeSet},
     convert::TryInto,
+    fmt::Display,
     rc::Rc,
     sync::RwLock,
 };
 
 use arrow_deps::arrow::record_batch::RecordBatch;
 use data_types::selection::Selection;
+use snafu::Snafu;
 
 use crate::column::{AggregateResult, Scalar, Value};
 use crate::row_group::{self, ColumnName, GroupKey, Predicate, RowGroup};
 use crate::schema::{AggregateType, ColumnType, LogicalDataType, ResultSchema};
 
-// Tie data and meta-data together so that they can be wrapped in RWLock.
-struct RowGroupData {
-    meta: Rc<MetaData>,
-    data: Vec<Rc<RowGroup>>,
+#[derive(Debug, Snafu)]
+pub enum Error {
+    #[snafu(display("table error: {}", msg))]
+    TableOperationError { msg: String },
 }
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// A Table represents data for a single measurement.
 ///
@@ -57,6 +60,12 @@ pub struct Table {
     table_data: RwLock<RowGroupData>,
 }
 
+// Tie data and meta-data together so that they can be wrapped in RWLock.
+struct RowGroupData {
+    meta: Rc<MetaData>,
+    data: Vec<Rc<RowGroup>>,
+}
+
 impl Table {
     /// Create a new table with the provided row_group.
     pub fn new(name: impl Into<String>, rg: RowGroup) -> Self {
@@ -83,11 +92,23 @@ impl Table {
         row_groups.data.push(Rc::new(rg));
     }
 
-    /// Remove the row group at `position` from table.
-    pub fn drop_row_group(&mut self, position: usize) {
+    /// Remove the row group at `position` from table, returning an error if the
+    /// caller has attempted to drop the last row group.
+    ///
+    /// To drop the last row group from the table, the caller should instead
+    /// drop the table.
+    pub fn drop_row_group(&mut self, position: usize) -> Result<()> {
         let mut row_groups = self.table_data.write().unwrap();
+        if row_groups.data.len() == 1 {
+            return TableOperationError {
+                msg: "cannot drop last row group; drop table instead",
+            }
+            .fail();
+        }
         row_groups.data.remove(position); // removes row group data
         row_groups.meta = Rc::new(MetaData::from(&row_groups.data)); // rebuild meta
+
+        Ok(())
     }
 
     /// The name of the table (equivalent to measurement or table name).
@@ -628,9 +649,20 @@ impl MetaData {
     }
 }
 
+// Builds new table meta-data from a collection of row groups. Useful for
+// rebuilding state when a row group has been removed from the table.
 impl From<&Vec<Rc<RowGroup>>> for MetaData {
-    fn from(_: &Vec<Rc<RowGroup>>) -> Self {
-        todo!()
+    fn from(row_groups: &Vec<Rc<RowGroup>>) -> Self {
+        if row_groups.is_empty() {
+            panic!("row groups required for meta data construction");
+        }
+
+        let mut meta = Self::new(row_groups[0].metadata());
+        for row_group in row_groups.iter().skip(1) {
+            meta = Self::update_with(meta, row_group.metadata());
+        }
+
+        meta
     }
 }
 
@@ -925,6 +957,52 @@ mod test {
                 column::OwnedValue::String("south".to_owned())
             )
         );
+    }
+
+    #[test]
+    fn add_remove_row_groups() {
+        let mut columns = BTreeMap::new();
+        let tc = ColumnType::Time(Column::from(&[0_i64, 2, 3][..]));
+        columns.insert("time".to_string(), tc);
+
+        let rg = RowGroup::new(3, columns);
+        let mut table = Table::new("cpu".to_owned(), rg);
+
+        assert_eq!(table.rows(), 3);
+
+        // add another row group
+        let mut columns = BTreeMap::new();
+        let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5][..]));
+        columns.insert("time".to_string(), tc);
+        let rg = RowGroup::new(5, columns);
+        table.add_row_group(rg);
+
+        assert_eq!(table.rows(), 8);
+        assert_eq!(table.meta().time_range, Some((0, 5)));
+        assert_eq!(
+            table.meta().columns.get("time").unwrap().range,
+            (
+                column::OwnedValue::Scalar(column::Scalar::I64(0)),
+                column::OwnedValue::Scalar(column::Scalar::I64(5))
+            )
+        );
+
+        // remove the first row group
+        table.drop_row_group(0).unwrap();
+        assert_eq!(table.rows(), 5);
+        assert_eq!(table.meta().time_range, Some((1, 5)));
+        assert_eq!(
+            table.meta().columns.get("time").unwrap().range,
+            (
+                column::OwnedValue::Scalar(column::Scalar::I64(1)),
+                column::OwnedValue::Scalar(column::Scalar::I64(5))
+            )
+        );
+
+        // attempt to remove the last row group.
+        table
+            .drop_row_group(0)
+            .expect_err("drop_row_group should have returned an error");
     }
 
     #[test]
