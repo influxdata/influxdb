@@ -230,7 +230,7 @@ func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 
 	// TODO(jsternberg): Use a real authorizer.
 	auth := query.OpenAuthorizer
-	keys, err := s.TSDBStore.TagKeys(auth, shardIDs, expr)
+	keys, err := s.TSDBStore.TagKeys(ctx, auth, shardIDs, expr)
 	if err != nil {
 		return nil, err
 	}
@@ -326,7 +326,7 @@ func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 
 	// TODO(jsternberg): Use a real authorizer.
 	auth := query.OpenAuthorizer
-	values, err := s.TSDBStore.TagValues(auth, shardIDs, expr)
+	values, err := s.TSDBStore.TagValues(ctx, auth, shardIDs, expr)
 	if err != nil {
 		return nil, err
 	}
@@ -385,7 +385,7 @@ func (s *Store) MeasurementNames(ctx context.Context, req *MeasurementNamesReque
 
 	// TODO(jsternberg): Use a real authorizer.
 	auth := query.OpenAuthorizer
-	values, err := s.TSDBStore.MeasurementNames(auth, database, expr)
+	values, err := s.TSDBStore.MeasurementNames(ctx, auth, database, expr)
 	if err != nil {
 		return nil, err
 	}
