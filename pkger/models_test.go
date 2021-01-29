@@ -83,7 +83,7 @@ func TestTemplate(t *testing.T) {
 				Color:       "blurple",
 				associationMapping: associationMapping{
 					mappings: map[assocMapKey][]assocMapVal{
-						assocMapKey{
+						{
 							resType: influxdb.BucketsResourceType,
 							name:    bucket1.Name(),
 						}: {{

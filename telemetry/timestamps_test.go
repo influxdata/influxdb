@@ -15,7 +15,7 @@ func goodMetricWithTime() *dto.MetricFamily {
 		Name: proto.String("good"),
 		Type: dto.MetricType_COUNTER.Enum(),
 		Metric: []*dto.Metric{
-			&dto.Metric{
+			{
 				Label: []*dto.LabelPair{pr.L("n1", "v1")},
 				Counter: &dto.Counter{
 					Value: proto.Float64(1.0),
