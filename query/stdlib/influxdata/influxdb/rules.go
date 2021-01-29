@@ -31,8 +31,6 @@ func init() {
 		PushDownBareAggregateRule{},
 		GroupWindowAggregateTransposeRule{},
 		// PushDownGroupAggregateRule{},
-		SwitchFillImplRule{},
-		SwitchSchemaMutationImplRule{},
 	)
 	plan.RegisterLogicalRules(
 		MergeFiltersRule{},
@@ -1062,47 +1060,6 @@ func canPushGroupedAggregate(ctx context.Context, pn plan.Node) bool {
 		return agg.Column == execute.DefaultValueColLabel
 	}
 	return false
-}
-
-type SwitchFillImplRule struct{}
-
-func (SwitchFillImplRule) Name() string {
-	return "SwitchFillImplRule"
-}
-
-func (SwitchFillImplRule) Pattern() plan.Pattern {
-	return plan.Pat(universe.FillKind, plan.Any())
-}
-
-func (r SwitchFillImplRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
-	if !feature.MemoryOptimizedFill().Enabled(ctx) {
-		spec := pn.ProcedureSpec().Copy()
-		universe.UseDeprecatedImpl(spec)
-		if err := pn.ReplaceSpec(spec); err != nil {
-			return nil, false, err
-		}
-	}
-	return pn, false, nil
-}
-
-type SwitchSchemaMutationImplRule struct{}
-
-func (SwitchSchemaMutationImplRule) Name() string {
-	return "SwitchSchemaMutationImplRule"
-}
-
-func (SwitchSchemaMutationImplRule) Pattern() plan.Pattern {
-	return plan.Pat(universe.SchemaMutationKind, plan.Any())
-}
-
-func (r SwitchSchemaMutationImplRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
-	spec, ok := pn.ProcedureSpec().(*universe.DualImplProcedureSpec)
-	if !ok || spec.UseDeprecated {
-		return pn, false, nil
-	}
-
-	spec.UseDeprecated = !feature.MemoryOptimizedSchemaMutation().Enabled(ctx)
-	return pn, spec.UseDeprecated, nil
 }
 
 func asSchemaMutationProcedureSpec(spec plan.ProcedureSpec) *universe.SchemaMutationProcedureSpec {
