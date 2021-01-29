@@ -11,10 +11,14 @@ import PackageDescription
 let package = Package(
     name: "MyPackage",
     dependencies: [
-        .package(url: "https://github.com/influxdata/influxdb-client-swift", from: "VERSION.STRING.HERE"),
+        .package(name: "influxdb-client-swift", url: "https://github.com/influxdata/influxdb-client-swift", from: "0.1.0"),
     ],
     targets: [
-        .target(name: "MyModule", dependencies: ["InfluxDBSwift"])
+        .target(name: "MyModule", dependencies: [
+          .product(name: "InfluxDBSwift", package: "influxdb-client-swift"),
+          // or InfluxDBSwiftApis for management API
+          .product(name: "InfluxDBSwiftApis", package: "influxdb-client-swift")
+        ])
     ]
 )
 ```
