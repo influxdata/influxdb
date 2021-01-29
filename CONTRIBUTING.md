@@ -228,9 +228,10 @@ goimports -w ./
 go vet ./...
 ```
 
-To install go vet, run the following command:
+To install these tools, run the following commands:
 ```
 go get golang.org/x/tools/cmd/vet
+go get golang.org/x/tools/cmd/goimports
 ```
 
 NOTE: If you have not installed mercurial, the above command will fail.  See [Revision Control Systems](#revision-control-systems) above.
