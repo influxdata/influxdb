@@ -134,8 +134,6 @@ impl Chunk {
         match chunk_data.data.entry(table_name.clone()) {
             Entry::Occupied(mut table_entry) => {
                 let table = table_entry.get_mut();
-                // lock the table (even though we have locked the chunk there
-                // could be in flight queries to the table by design).
                 table.add_row_group(row_group);
             }
             Entry::Vacant(table_entry) => {

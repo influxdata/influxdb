@@ -214,21 +214,6 @@ impl Database {
             .sum()
     }
 
-    // Internal functions useful for testing.
-
-    // // Get a reference to a single chunk. Panics if it or the partition doesn't
-    // // exist.
-    // fn chunk(&self, partition_key: &str, chunk_id: u32) -> &Chunk {
-    //     &self
-    //         .data
-    //         .read()
-    //         .unwrap()
-    //         .partitions
-    //         .get(partition_key)
-    //         .unwrap()
-    //         .chunk(chunk_id)
-    // }
-
     /// Returns rows for the specified columns in the provided table, for the
     /// specified partition key and chunks within that partition.
     ///
@@ -270,7 +255,8 @@ impl Database {
 
                     // Get all relevant row groups for this chunk's table. This
                     // is cheap because it doesn't execute the read operation,
-                    // but just gets references to the needed to data to do so.
+                    // but just gets pointers to the necessary data for
+                    // execution.
                     let chunk_result = chunk
                         .read_filter(table_name, &predicate, &select_columns)
                         .context(ChunkError)?;
@@ -584,25 +570,6 @@ impl Partition {
         self.data.read().unwrap().chunks.keys().cloned().collect()
     }
 
-    // fn chunks_by_ids(&self, ids: &[u32]) -> Result<Vec<&Chunk>> {
-    //     let chunks = &self.data.read().unwrap().chunks;
-
-    //     let mut filtered_chunks = vec![];
-    //     for chunk_id in ids {
-    //         filtered_chunks.push(
-    //             chunks
-    //                 .get(chunk_id)
-    //                 .ok_or_else(|| Error::ChunkNotFound { id: *chunk_id })?,
-    //         );
-    //     }
-    //     Ok(filtered_chunks)
-    // }
-
-    // Returns the chunk or panics. Useful for internal testing.
-    // fn chunk(&self, id: u32) -> &Chunk {
-    //     self.data.read().unwrap().chunks.get(&id).unwrap()
-    // }
-
     /// Determines the total number of tables under all chunks within the
     /// partition. Useful for tests but not something that is highly performant.
     fn tables(&self) -> usize {
@@ -639,15 +606,13 @@ pub struct ReadFilterResults {
 
 impl fmt::Debug for ReadFilterResults {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        todo!()
-        // f.debug_struct("ReadFilterResults")
-        //     .field("chunks.len", &self.chunks.len())
-        //     .field("next_i", &self.next_i)
-        //     .field("curr_table_results", &"<OPAQUE>")
-        //     .field("table_name", &self.table_name)
-        //     .field("predicate", &self.predicate)
-        //     .field("select_columns", &self.select_columns)
-        //     .finish()
+        f.debug_struct("ReadFilterResults")
+            .field(
+                "all_chunks_table_results.len",
+                &self.all_chunks_table_results.len(),
+            )
+            .field("next_chunk", &self.next_chunk)
+            .finish()
     }
 }
 
