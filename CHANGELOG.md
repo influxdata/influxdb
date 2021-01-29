@@ -28,6 +28,7 @@ Replacement `tsi1` indexes will be automatically generated on startup for shards
 1. [20591](https://github.com/influxdata/influxdb/pull/20591): Add `nats-port` config option for `influxd` server.
 1. [20591](https://github.com/influxdata/influxdb/pull/20591): Add `nats-max-payload-bytes` config option for `influxd` server.
 1. [20608](https://github.com/influxdata/influxdb/pull/20608): Add `influxd inspect export-lp` command to extract data in line-protocol format.
+1. [20650](https://github.com/influxdata/influxdb/pull/20650): Promote schema and fill query optimizations to default behavior.
 
 ### Bug Fixes
 
