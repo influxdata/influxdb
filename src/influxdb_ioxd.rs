@@ -49,7 +49,7 @@ pub enum Error {
     ))]
     StartListeningHttp {
         bind_addr: SocketAddr,
-        source: hyper::error::Error,
+        source: hyper::Error,
     },
 
     #[snafu(display(
@@ -63,7 +63,7 @@ pub enum Error {
     },
 
     #[snafu(display("Error serving HTTP: {}", source))]
-    ServingHttp { source: hyper::error::Error },
+    ServingHttp { source: hyper::Error },
 
     #[snafu(display("Error serving RPC: {}", source))]
     ServingRPC { source: self::rpc::service::Error },

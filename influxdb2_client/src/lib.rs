@@ -58,7 +58,7 @@
 //! }
 //! ```
 
-use bytes::buf::ext::BufMutExt;
+use bytes::BufMut;
 use futures::{Stream, StreamExt};
 use reqwest::{Body, Method};
 use serde::Serialize;

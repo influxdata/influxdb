@@ -133,7 +133,7 @@ Examples:
         ))
         .get_matches();
 
-    let mut tokio_runtime = get_runtime(matches.value_of("num-threads"))?;
+    let tokio_runtime = get_runtime(matches.value_of("num-threads"))?;
     tokio_runtime.block_on(dispatch_args(matches));
 
     info!("InfluxDB IOx server shutting down");
@@ -250,11 +250,10 @@ fn get_runtime(num_threads: Option<&str>) -> Result<Runtime, std::io::Error> {
                     );
                     Err(std::io::Error::new(kind, msg))
                 }
-                1 => Builder::new().basic_scheduler().enable_all().build(),
-                _ => Builder::new()
-                    .threaded_scheduler()
+                1 => Builder::new_current_thread().enable_all().build(),
+                _ => Builder::new_multi_thread()
                     .enable_all()
-                    .core_threads(n)
+                    .worker_threads(n)
                     .build(),
             }
         }

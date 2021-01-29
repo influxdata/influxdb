@@ -9,9 +9,9 @@ edition = "2018"
 [dependencies]
 flatbuffers = "0.6.1"
 futures = "0.3.1"
-prost = "0.6.1"
-prost-types = "0.6.1"
-tonic = "0.3.1"
+prost = "0.7"
+prost-types = "0.7"
+tonic = "0.4"
 
 [build-dependencies]
-tonic-build = "0.3.1"
+tonic-build = "0.4"

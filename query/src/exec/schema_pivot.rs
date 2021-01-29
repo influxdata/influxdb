@@ -43,7 +43,7 @@ use arrow_deps::{
     },
 };
 
-use tokio::stream::StreamExt;
+use tokio_stream::StreamExt;
 
 pub use arrow_deps::datafusion::error::{DataFusionError as Error, Result};
 

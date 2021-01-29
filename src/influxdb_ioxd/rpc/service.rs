@@ -18,6 +18,7 @@ use data_types::error::ErrorLogger;
 
 use query::group_by::GroupByAndAggregate;
 use query::{exec::fieldlist::FieldList, frontend::influxrpc::InfluxRPCPlanner};
+use tokio_stream::wrappers::{ReceiverStream, TcpListenerStream};
 
 use super::expr::{self, AddRPCNode, Loggable, SpecialTagKeys};
 use super::input::GrpcInputs;
@@ -250,7 +251,7 @@ impl<T> Storage for GrpcService<T>
 where
     T: DatabaseStore + 'static,
 {
-    type ReadFilterStream = mpsc::Receiver<Result<ReadResponse, Status>>;
+    type ReadFilterStream = ReceiverStream<Result<ReadResponse, Status>>;
 
     async fn read_filter(
         &self,
@@ -279,10 +280,10 @@ where
             .await
             .map_err(|e| e.to_status())?;
 
-        Ok(tonic::Response::new(rx))
+        Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 
-    type ReadGroupStream = mpsc::Receiver<Result<ReadResponse, Status>>;
+    type ReadGroupStream = ReceiverStream<Result<ReadResponse, Status>>;
 
     async fn read_group(
         &self,
@@ -337,10 +338,10 @@ where
         .await
         .map_err(|e| e.to_status())?;
 
-        Ok(tonic::Response::new(rx))
+        Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 
-    type ReadWindowAggregateStream = mpsc::Receiver<Result<ReadResponse, Status>>;
+    type ReadWindowAggregateStream = ReceiverStream<Result<ReadResponse, Status>>;
 
     async fn read_window_aggregate(
         &self,
@@ -387,16 +388,16 @@ where
         .await
         .map_err(|e| e.to_status())?;
 
-        Ok(tonic::Response::new(rx))
+        Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 
-    type TagKeysStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
+    type TagKeysStream = ReceiverStream<Result<StringValuesResponse, Status>>;
 
     async fn tag_keys(
         &self,
         req: tonic::Request<TagKeysRequest>,
     ) -> Result<tonic::Response<Self::TagKeysStream>, Status> {
-        let (mut tx, rx) = mpsc::channel(4);
+        let (tx, rx) = mpsc::channel(4);
 
         let tag_keys_request = req.into_inner();
 
@@ -431,16 +432,16 @@ where
             .await
             .expect("sending tag_keys response to server");
 
-        Ok(tonic::Response::new(rx))
+        Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 
-    type TagValuesStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
+    type TagValuesStream = ReceiverStream<Result<StringValuesResponse, Status>>;
 
     async fn tag_values(
         &self,
         req: tonic::Request<TagValuesRequest>,
     ) -> Result<tonic::Response<Self::TagValuesStream>, Status> {
-        let (mut tx, rx) = mpsc::channel(4);
+        let (tx, rx) = mpsc::channel(4);
 
         let tag_values_request = req.into_inner();
 
@@ -515,10 +516,10 @@ where
             .await
             .expect("sending tag_values response to server");
 
-        Ok(tonic::Response::new(rx))
+        Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 
-    type ReadSeriesCardinalityStream = mpsc::Receiver<Result<Int64ValuesResponse, Status>>;
+    type ReadSeriesCardinalityStream = ReceiverStream<Result<Int64ValuesResponse, Status>>;
 
     async fn read_series_cardinality(
         &self,
@@ -563,13 +564,13 @@ where
         Ok(tonic::Response::new(caps))
     }
 
-    type MeasurementNamesStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
+    type MeasurementNamesStream = ReceiverStream<Result<StringValuesResponse, Status>>;
 
     async fn measurement_names(
         &self,
         req: tonic::Request<MeasurementNamesRequest>,
     ) -> Result<tonic::Response<Self::MeasurementNamesStream>, Status> {
-        let (mut tx, rx) = mpsc::channel(4);
+        let (tx, rx) = mpsc::channel(4);
 
         let measurement_names_request = req.into_inner();
 
@@ -607,16 +608,16 @@ where
             .await
             .expect("sending measurement names response to server");
 
-        Ok(tonic::Response::new(rx))
+        Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 
-    type MeasurementTagKeysStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
+    type MeasurementTagKeysStream = ReceiverStream<Result<StringValuesResponse, Status>>;
 
     async fn measurement_tag_keys(
         &self,
         req: tonic::Request<MeasurementTagKeysRequest>,
     ) -> Result<tonic::Response<Self::MeasurementTagKeysStream>, Status> {
-        let (mut tx, rx) = mpsc::channel(4);
+        let (tx, rx) = mpsc::channel(4);
 
         let measurement_tag_keys_request = req.into_inner();
 
@@ -653,16 +654,16 @@ where
             .await
             .expect("sending measurement_tag_keys response to server");
 
-        Ok(tonic::Response::new(rx))
+        Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 
-    type MeasurementTagValuesStream = mpsc::Receiver<Result<StringValuesResponse, Status>>;
+    type MeasurementTagValuesStream = ReceiverStream<Result<StringValuesResponse, Status>>;
 
     async fn measurement_tag_values(
         &self,
         req: tonic::Request<MeasurementTagValuesRequest>,
     ) -> Result<tonic::Response<Self::MeasurementTagValuesStream>, Status> {
-        let (mut tx, rx) = mpsc::channel(4);
+        let (tx, rx) = mpsc::channel(4);
 
         let measurement_tag_values_request = req.into_inner();
 
@@ -699,16 +700,16 @@ where
             .await
             .expect("sending measurement_tag_values response to server");
 
-        Ok(tonic::Response::new(rx))
+        Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 
-    type MeasurementFieldsStream = mpsc::Receiver<Result<MeasurementFieldsResponse, Status>>;
+    type MeasurementFieldsStream = ReceiverStream<Result<MeasurementFieldsResponse, Status>>;
 
     async fn measurement_fields(
         &self,
         req: tonic::Request<MeasurementFieldsRequest>,
     ) -> Result<tonic::Response<Self::MeasurementFieldsStream>, Status> {
-        let (mut tx, rx) = mpsc::channel(4);
+        let (tx, rx) = mpsc::channel(4);
 
         let measurement_fields_request = req.into_inner();
 
@@ -749,7 +750,7 @@ where
             .await
             .expect("sending measurement_fields response to server");
 
-        Ok(tonic::Response::new(rx))
+        Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
 }
 
@@ -1003,7 +1004,7 @@ where
 /// and sends them to tx
 async fn convert_series_set(
     mut rx: mpsc::Receiver<Result<SeriesSetItem, SeriesSetError>>,
-    mut tx: mpsc::Sender<Result<ReadResponse, Status>>,
+    tx: mpsc::Sender<Result<ReadResponse, Status>>,
 ) -> Result<()> {
     while let Some(series_set) = rx.recv().await {
         let response = series_set
@@ -1141,10 +1142,12 @@ pub async fn make_server<T>(socket: TcpListener, storage: Arc<T>) -> Result<()>
 where
     T: DatabaseStore + 'static,
 {
+    let stream = TcpListenerStream::new(socket);
+
     tonic::transport::Server::builder()
         .add_service(IOxTestingServer::new(GrpcService::new(storage.clone())))
         .add_service(StorageServer::new(GrpcService::new(storage.clone())))
-        .serve_with_incoming(socket)
+        .serve_with_incoming(stream)
         .await
         .context(ServerError {})
         .log_if_error("Running Tonic Server")
@@ -1721,7 +1724,7 @@ mod tests {
         // message ends up in the log system
 
         // Normally, the global panic logger is set at program start
-        let f = SendPanicsToTracing::new();
+        let _f = SendPanicsToTracing::new();
 
         // capture all tracing messages
         let tracing_capture = TracingCapture::new();
@@ -1739,20 +1742,16 @@ mod tests {
                 panic!("Unexpected success: {:?}", response);
             }
             Err(status) => {
-                assert_eq!(status.code(), Code::Unknown);
+                assert_eq!(status.code(), Code::Cancelled);
                 assert!(
-                    status.message().contains("transport error"),
-                    "could not find 'transport error' in '{}'",
+                    status.message().contains("stream no longer needed"),
+                    "could not find 'stream no longer needed' in '{}'",
                     status.message()
                 );
             }
         };
 
-        // Ensure that the logs captured the panic (and drop f
-        // beforehand -- if assert fails, it panics and during that
-        // panic `f` gets dropped causing a nasty error message)
-        drop(f);
-
+        // Ensure that the logs captured the panic
         let captured_logs = tracing_capture.to_string();
         // Note we don't include the actual line / column in the
         // expected panic message to avoid needing to update the test

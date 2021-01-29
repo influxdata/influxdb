@@ -27,8 +27,8 @@ use arrow_deps::{
     datafusion::physical_plan::SendableRecordBatchStream,
 };
 use snafu::{ResultExt, Snafu};
-use tokio::stream::StreamExt;
 use tokio::sync::mpsc::{self, error::SendError};
+use tokio_stream::StreamExt;
 
 use croaring::bitmap::Bitmap;
 

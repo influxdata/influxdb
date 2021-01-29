@@ -108,7 +108,7 @@ pub enum ApplicationError {
     },
 
     #[snafu(display("Error reading request body: {}", source))]
-    ReadingBody { source: hyper::error::Error },
+    ReadingBody { source: hyper::Error },
 
     #[snafu(display("Error reading request body as utf8: {}", source))]
     ReadingBodyAsUtf8 { source: std::str::Utf8Error },

@@ -57,6 +57,11 @@ impl fmt::Debug for SendPanicsToTracing {
 
 impl Drop for SendPanicsToTracing {
     fn drop(&mut self) {
+        if std::thread::panicking() {
+            warn!("Can't reset old panic hook as we are currently panicking");
+            return;
+        }
+
         if let Some(old_panic_hook) = self.old_panic_hook.take() {
             // since `old_panic_hook` is an `Arc` - at this point it
             // should have two references -- the captured closure as

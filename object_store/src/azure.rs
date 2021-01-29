@@ -5,8 +5,13 @@ use crate::{
     DataDoesNotMatchLength, Result, UnableToDeleteDataFromAzure, UnableToGetDataFromAzure,
     UnableToListDataFromAzure, UnableToPutDataToAzure,
 };
-use azure_sdk_core::prelude::*;
-use azure_sdk_storage_blob::prelude::*;
+use azure_core::HttpClient;
+use azure_storage::{
+    clients::{
+        AsBlobClient, AsContainerClient, AsStorageClient, ContainerClient, StorageAccountClient,
+    },
+    DeleteSnapshotsMethod,
+};
 use bytes::Bytes;
 use futures::{stream, FutureExt, Stream, TryStreamExt};
 use snafu::{ensure, ResultExt};
@@ -16,7 +21,7 @@ use std::sync::Arc;
 /// Configuration for connecting to [Microsoft Azure Blob Storage](https://azure.microsoft.com/en-us/services/storage/blobs/).
 #[derive(Debug)]
 pub struct MicrosoftAzure {
-    client: Arc<azure_sdk_storage_core::key_client::KeyClient>,
+    container_client: Arc<ContainerClient>,
     container_name: String,
 }
 
@@ -27,12 +32,21 @@ impl MicrosoftAzure {
     /// The credentials `account` and `master_key` must provide access to the
     /// store.
     pub fn new(account: String, master_key: String, container_name: impl Into<String>) -> Self {
+        // From https://github.com/Azure/azure-sdk-for-rust/blob/master/sdk/storage/examples/blob_00.rs#L29
+        let http_client: Arc<Box<dyn HttpClient>> = Arc::new(Box::new(reqwest::Client::new()));
+
+        let storage_account_client =
+            StorageAccountClient::new_access_key(http_client.clone(), &account, &master_key);
+
+        let storage_client = storage_account_client.as_storage_client();
+
+        let container_name = container_name.into();
+
+        let container_client = storage_client.as_container_client(&container_name);
+
         Self {
-            client: Arc::new(azure_sdk_storage_core::client::with_access_key(
-                &account,
-                &master_key,
-            )),
-            container_name: container_name.into(),
+            container_client,
+            container_name,
         }
     }
 
@@ -71,12 +85,10 @@ impl MicrosoftAzure {
             }
         );
 
-        self.client
-            .put_block_blob()
-            .with_container_name(&self.container_name)
-            .with_blob_name(&location)
-            .with_body(&temporary_non_streaming)
-            .finalize()
+        self.container_client
+            .as_blob_client(&location)
+            .put_block_blob(&temporary_non_streaming)
+            .execute()
             .await
             .context(UnableToPutDataToAzure {
                 location: location.to_owned(),
@@ -90,15 +102,13 @@ impl MicrosoftAzure {
         &self,
         location: &ObjectStorePath,
     ) -> Result<impl Stream<Item = Result<Bytes>>> {
-        let client = self.client.clone();
-        let container_name = self.container_name.clone();
+        let container_client = self.container_client.clone();
         let location = CloudConverter::convert(&location);
         Ok(async move {
-            client
-                .get_blob()
-                .with_container_name(&container_name)
-                .with_blob_name(&location)
-                .finalize()
+            container_client
+                .as_blob_client(&location)
+                .get()
+                .execute()
                 .await
                 .map(|blob| blob.data.into())
                 .context(UnableToGetDataFromAzure {
@@ -111,12 +121,11 @@ impl MicrosoftAzure {
     /// Delete the object at the specified location.
     pub async fn delete(&self, location: &ObjectStorePath) -> Result<()> {
         let location = CloudConverter::convert(&location);
-        self.client
-            .delete_blob()
-            .with_container_name(&self.container_name)
-            .with_blob_name(&location)
-            .with_delete_snapshots_method(DeleteSnapshotsMethod::Include)
-            .finalize()
+        self.container_client
+            .as_blob_client(&location)
+            .delete()
+            .delete_snapshots_method(DeleteSnapshotsMethod::Include)
+            .execute()
             .await
             .context(UnableToDeleteDataFromAzure {
                 location: location.to_owned(),
@@ -138,19 +147,16 @@ impl MicrosoftAzure {
         }
 
         Ok(stream::unfold(ListState::Start, move |state| async move {
-            let mut request = self
-                .client
-                .list_blobs()
-                .with_container_name(&self.container_name);
+            let mut request = self.container_client.list_blobs();
 
             let prefix = prefix.map(CloudConverter::convert);
             if let Some(ref p) = prefix {
-                request = request.with_prefix(p);
+                request = request.prefix(p as &str);
             }
 
             match state {
-                ListState::HasMore(ref token) => {
-                    request = request.with_next_marker(token);
+                ListState::HasMore(ref marker) => {
+                    request = request.next_marker(marker as &str);
                 }
                 ListState::Done => {
                     return None;
@@ -158,13 +164,13 @@ impl MicrosoftAzure {
                 ListState::Start => {}
             }
 
-            let resp = match request.finalize().await.context(UnableToListDataFromAzure) {
+            let resp = match request.execute().await.context(UnableToListDataFromAzure) {
                 Ok(resp) => resp,
                 Err(err) => return Some((Err(err), state)),
             };
 
-            let next_state = if let Some(token) = resp.incomplete_vector.token() {
-                ListState::HasMore(token.to_string())
+            let next_state = if let Some(marker) = resp.incomplete_vector.next_marker() {
+                ListState::HasMore(marker.as_str().to_string())
             } else {
                 ListState::Done
             };

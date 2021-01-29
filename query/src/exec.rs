@@ -270,7 +270,7 @@ impl Executor {
     pub async fn to_series_set(
         &self,
         series_set_plans: SeriesSetPlans,
-        mut tx: mpsc::Sender<Result<SeriesSetItem, SeriesSetError>>,
+        tx: mpsc::Sender<Result<SeriesSetItem, SeriesSetError>>,
     ) -> Result<()> {
         let SeriesSetPlans { mut plans } = series_set_plans;
 

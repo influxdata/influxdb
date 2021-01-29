@@ -2,13 +2,12 @@
 //! as the object store.
 use crate::{
     path::{cloud::CloudConverter, ObjectStorePath},
-    DataDoesNotMatchLength, Result, UnableToDeleteDataFromGcs, UnableToDeleteDataFromGcs2,
-    UnableToGetDataFromGcs, UnableToGetDataFromGcs2, UnableToListDataFromGcs,
-    UnableToListDataFromGcs2, UnableToPutDataToGcs,
+    DataDoesNotMatchLength, Result, UnableToDeleteDataFromGcs, UnableToGetDataFromGcs,
+    UnableToListDataFromGcs, UnableToListDataFromGcs2, UnableToPutDataToGcs,
 };
 use bytes::Bytes;
-use futures::{Stream, TryStreamExt};
-use snafu::{ensure, ResultExt};
+use futures::{stream, Stream, StreamExt, TryStreamExt};
+use snafu::{ensure, futures::TryStreamExt as _, ResultExt};
 use std::io;
 
 /// Configuration for connecting to [Google Cloud Storage](https://cloud.google.com/storage/).
@@ -49,14 +48,12 @@ impl GoogleCloudStorage {
         let location_copy = location.clone();
         let bucket_name = self.bucket_name.clone();
 
-        let _ = tokio::task::spawn_blocking(move || {
-            cloud_storage::Object::create(
-                &bucket_name,
-                &temporary_non_streaming,
-                &location_copy,
-                "application/octet-stream",
-            )
-        })
+        cloud_storage::Object::create(
+            &bucket_name,
+            temporary_non_streaming,
+            &location_copy,
+            "application/octet-stream",
+        )
         .await
         .context(UnableToPutDataToGcs {
             bucket: &self.bucket_name,
@@ -75,18 +72,12 @@ impl GoogleCloudStorage {
         let location_copy = location.clone();
         let bucket_name = self.bucket_name.clone();
 
-        let bytes = tokio::task::spawn_blocking(move || {
-            cloud_storage::Object::download(&bucket_name, &location_copy)
-        })
-        .await
-        .context(UnableToGetDataFromGcs {
-            bucket: &self.bucket_name,
-            location: location.clone(),
-        })?
-        .context(UnableToGetDataFromGcs2 {
-            bucket: &self.bucket_name,
-            location,
-        })?;
+        let bytes = cloud_storage::Object::download(&bucket_name, &location_copy)
+            .await
+            .context(UnableToGetDataFromGcs {
+                bucket: &self.bucket_name,
+                location,
+            })?;
 
         Ok(futures::stream::once(async move { Ok(bytes.into()) }))
     }
@@ -97,18 +88,12 @@ impl GoogleCloudStorage {
         let location_copy = location.clone();
         let bucket_name = self.bucket_name.clone();
 
-        tokio::task::spawn_blocking(move || {
-            cloud_storage::Object::delete(&bucket_name, &location_copy)
-        })
-        .await
-        .context(UnableToDeleteDataFromGcs {
-            bucket: &self.bucket_name,
-            location: location.clone(),
-        })?
-        .context(UnableToDeleteDataFromGcs2 {
-            bucket: &self.bucket_name,
-            location,
-        })?;
+        cloud_storage::Object::delete(&bucket_name, &location_copy)
+            .await
+            .context(UnableToDeleteDataFromGcs {
+                bucket: &self.bucket_name,
+                location: location.clone(),
+            })?;
 
         Ok(())
     }
@@ -118,27 +103,39 @@ impl GoogleCloudStorage {
         &'a self,
         prefix: Option<&'a ObjectStorePath>,
     ) -> Result<impl Stream<Item = Result<Vec<ObjectStorePath>>> + 'a> {
-        let bucket_name = self.bucket_name.clone();
-        let prefix = prefix.map(CloudConverter::convert);
+        let objects = match prefix {
+            Some(prefix) => {
+                let cloud_prefix = CloudConverter::convert(prefix);
+                let list = cloud_storage::Object::list_prefix(&self.bucket_name, &cloud_prefix)
+                    .await
+                    .context(UnableToListDataFromGcs {
+                        bucket: &self.bucket_name,
+                    })?;
 
-        let objects = tokio::task::spawn_blocking(move || match prefix {
-            Some(prefix) => cloud_storage::Object::list_prefix(&bucket_name, &prefix),
-            None => cloud_storage::Object::list(&bucket_name),
-        })
-        .await
-        .context(UnableToListDataFromGcs {
-            bucket: &self.bucket_name,
-        })?
-        .context(UnableToListDataFromGcs2 {
-            bucket: &self.bucket_name,
-        })?;
+                // TODO: Remove collect when the path no longer needs
+                // to be converted into an owned object that would be
+                // dropped too early.
+                stream::iter(list.collect::<Vec<_>>().await).left_stream()
+            }
+            None => cloud_storage::Object::list(&self.bucket_name)
+                .await
+                .context(UnableToListDataFromGcs {
+                    bucket: &self.bucket_name,
+                })?
+                .right_stream(),
+        };
 
-        Ok(futures::stream::once(async move {
-            Ok(objects
-                .into_iter()
-                .map(|o| ObjectStorePath::from_cloud_unchecked(o.name))
-                .collect())
-        }))
+        let objects = objects
+            .map_ok(|list| {
+                list.into_iter()
+                    .map(|o| ObjectStorePath::from_cloud_unchecked(o.name))
+                    .collect::<Vec<ObjectStorePath>>()
+            })
+            .context(UnableToListDataFromGcs2 {
+                bucket: &self.bucket_name,
+            });
+
+        Ok(objects)
     }
 }
 
@@ -241,7 +238,7 @@ mod test {
 
         let err = integration.delete(&location_name).await.unwrap_err();
 
-        if let Error::UnableToDeleteDataFromGcs2 {
+        if let Error::UnableToDeleteDataFromGcs {
             source,
             bucket,
             location,
@@ -267,7 +264,7 @@ mod test {
 
         let err = integration.delete(&location_name).await.unwrap_err();
 
-        if let Error::UnableToDeleteDataFromGcs2 {
+        if let Error::UnableToDeleteDataFromGcs {
             source,
             bucket,
             location,

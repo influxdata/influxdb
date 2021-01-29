@@ -5,30 +5,31 @@ authors = ["Paul Dix <paul@pauldix.net>"]
 edition = "2018"
 
 [dependencies]
-bytes = "0.5.4"
+bytes = "1.0"
 chrono = "0.4"
 futures = "0.3.5"
 itertools = "0.9.0"
 percent-encoding = "2.1"
 snafu = { version = "0.6.10", features = ["futures"] }
+tokio = { version = "1.0", features=["macros"] }
+reqwest = "0.11"
 
 # Amazon S3 integration
-rusoto_core = "0.44.0"
-rusoto_credential = "0.44.0"
-rusoto_s3 = "0.44.0"
+rusoto_core = "0.46.0"
+rusoto_credential = "0.46.0"
+rusoto_s3 = "0.46.0"
 
 # Google Cloud Storage integration
-cloud-storage = { version = "0.4.0" }
-tokio = { version = "0.2", features = ["full"] }
+cloud-storage = { version = "0.7.0" }
 
 # Filesystem integration
-tokio-util = "0.3.1"
+tokio-util = "0.6.2"
 walkdir = "2"
 
 # Microsoft Azure Blob storage integration
-azure_sdk_core = "0.43.7"
-azure_sdk_storage_blob = "0.45.3"
-azure_sdk_storage_core = "0.44.4"
+# In order to support tokio 1.0 needed to pull in unreleased azure sdk
+azure_core = {git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "5ecad7216e1f04c5ff41e7de4667f006664c8cca"}
+azure_storage = {git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "5ecad7216e1f04c5ff41e7de4667f006664c8cca", default-features = false, features=["table", "blob"]}
 
 [dev-dependencies]
 tempfile = "3.1.0"

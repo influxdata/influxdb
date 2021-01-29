@@ -51,10 +51,15 @@ read_buffer = { path = "read_buffer" }
 server = { path = "server" }
 wal = { path = "wal" }
 
-bytes = "0.5.4"
-hyper = "0.13"
-routerify = "1.1"
-tokio = { version = "0.2", features = ["full"] }
+bytes = "1.0"
+hyper = "0.14"
+
+# Forked to upgrade hyper and tokio
+routerify = { git = "https://github.com/influxdata/routerify", rev = "bfe198e" }
+
+tokio = { version = "1.0", features=["macros", "rt-multi-thread"] }
+tokio-stream = {version = "0.1.2", features=["net"]}
+
 
 clap = "2.33.1"
 futures = "0.3.1"
@@ -65,18 +70,18 @@ serde = { version = "1.0", features = ["derive"] }
 csv = "1.1"
 byteorder = "1.3.4"
 
-tonic = "0.3.1"
-prost = "0.6.1"
-prost-types = "0.6.1"
+tonic = "0.4.0"
+prost = "0.7"
+prost-types = "0.7"
 env_logger = "0.7.1"
 tracing = { version = "0.1", features = ["release_max_level_debug"] }
 tracing-futures="0.2.4"
 
 # OpenTelemetry sinks for tracing
 tracing-subscriber = "0.2.15"
-tracing-opentelemetry = "0.9.0"
-opentelemetry = { version = "0.10", default-features = false, features = ["trace", "tokio"] }
-opentelemetry-jaeger = { version = "0.9", features = ["tokio"] }
+tracing-opentelemetry = "0.11.0"
+opentelemetry = { version = "0.12", default-features = false, features = ["trace", "tokio-support"] }
+opentelemetry-jaeger = { version = "0.11", features = ["tokio"] }
 
 http = "0.2.0"
 snafu = "0.6.9"
@@ -94,7 +99,7 @@ hex = "0.4.2"
 influxdb2_client = { path = "influxdb2_client" }
 flate2 = "1.0"
 rand = "0.7.2"
-reqwest = "0.10.1"
+reqwest = "0.11"
 predicates = "1.0.4"
 tempfile = "3.1.0"
 
