@@ -17,6 +17,7 @@ pub mod error;
 pub mod names;
 pub mod partition_metadata;
 pub mod schema;
+pub mod selection;
 
 mod database_name;
 pub use database_name::*;

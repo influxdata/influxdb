@@ -252,11 +252,9 @@ impl<'a> Iterator for ChunkIter<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::chunk::ChunkSelection;
-
     use super::*;
     use chrono::Utc;
-    use data_types::data::split_lines_into_write_entry_partitions;
+    use data_types::{data::split_lines_into_write_entry_partitions, selection::Selection};
 
     use arrow_deps::{
         arrow::record_batch::RecordBatch, assert_table_eq, test_util::sort_record_batch,
@@ -818,7 +816,7 @@ mod tests {
     fn dump_table(partition: &Partition, table_name: &str) -> Vec<RecordBatch> {
         let mut dst = vec![];
         for chunk in partition.chunks() {
-            let selection = ChunkSelection::All;
+            let selection = Selection::All;
             chunk
                 .table_to_arrow(&mut dst, table_name, selection)
                 .unwrap();
@@ -830,7 +828,7 @@ mod tests {
 
     fn dump_chunk_table(chunk: &Chunk, table_name: &str) -> Vec<RecordBatch> {
         let mut dst = vec![];
-        let selection = ChunkSelection::All;
+        let selection = Selection::All;
         chunk
             .table_to_arrow(&mut dst, table_name, selection)
             .unwrap();

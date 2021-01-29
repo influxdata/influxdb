@@ -11,13 +11,14 @@ use std::{collections::BTreeSet, collections::HashMap, sync::Arc};
 
 use crate::{
     chunk::ChunkIdSet,
-    chunk::{Chunk, ChunkPredicate, ChunkSelection},
+    chunk::{Chunk, ChunkPredicate},
     column,
     column::Column,
     dictionary::{Dictionary, Error as DictionaryError},
 };
 use data_types::{
-    partition_metadata::Column as ColumnStats, schema::builder::SchemaBuilder, TIME_COLUMN_NAME,
+    partition_metadata::Column as ColumnStats, schema::builder::SchemaBuilder,
+    selection::Selection, TIME_COLUMN_NAME,
 };
 use snafu::{OptionExt, ResultExt, Snafu};
 
@@ -865,11 +866,11 @@ impl Table {
     }
 
     /// Converts this table to an arrow record batch.
-    pub fn to_arrow(&self, chunk: &Chunk, selection: ChunkSelection<'_>) -> Result<RecordBatch> {
+    pub fn to_arrow(&self, chunk: &Chunk, selection: Selection<'_>) -> Result<RecordBatch> {
         // translate chunk selection into name/indexes:
         let selection = match selection {
-            ChunkSelection::All => self.all_columns_selection(chunk),
-            ChunkSelection::Some(cols) => self.specific_columns_selection(chunk, cols),
+            Selection::All => self.all_columns_selection(chunk),
+            Selection::Some(cols) => self.specific_columns_selection(chunk, cols),
         }?;
         self.to_arrow_impl(chunk, &selection)
     }

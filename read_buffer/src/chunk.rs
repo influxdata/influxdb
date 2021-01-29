@@ -1,10 +1,12 @@
 use std::collections::{btree_map::Entry, BTreeMap, BTreeSet};
 
+use data_types::selection::Selection;
+
 use crate::row_group::RowGroup;
 use crate::row_group::{ColumnName, Predicate};
 use crate::schema::AggregateType;
 use crate::table;
-use crate::table::{ColumnSelection, Table};
+use crate::table::Table;
 use crate::Error;
 
 type TableName = String;
@@ -102,7 +104,7 @@ impl Chunk {
         &self,
         table_name: &str,
         predicate: &Predicate,
-        select_columns: &ColumnSelection<'_>,
+        select_columns: &Selection<'_>,
     ) -> Result<table::ReadFilterResults<'_>, Error> {
         // Lookup table by name and dispatch execution.
         match self.tables.get(table_name) {
@@ -126,7 +128,7 @@ impl Chunk {
         &self,
         table_name: &str,
         predicate: Predicate,
-        group_columns: &ColumnSelection<'_>,
+        group_columns: &Selection<'_>,
         aggregates: &[(ColumnName<'_>, AggregateType)],
     ) -> Option<table::ReadAggregateResults<'_>> {
         // Lookup table by name and dispatch execution.

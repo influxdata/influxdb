@@ -15,12 +15,12 @@ use std::{
 };
 
 use arrow_deps::{arrow::record_batch::RecordBatch, util::str_iter_to_batch};
+use data_types::selection::Selection;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 // Identifiers that are exported as part of the public API.
 pub use row_group::{BinaryExpr, Predicate};
 pub use schema::*;
-pub use table::ColumnSelection;
 
 use chunk::Chunk;
 use row_group::{ColumnName, RowGroup};
@@ -201,7 +201,7 @@ impl Database {
         table_name: &'a str,
         chunk_ids: &[u32],
         predicate: Predicate,
-        select_columns: ColumnSelection<'a>,
+        select_columns: Selection<'a>,
     ) -> Result<ReadFilterResults<'a, '_>> {
         match self.partitions.get(partition_key) {
             Some(partition) => {
@@ -261,7 +261,7 @@ impl Database {
         table_name: &'input str,
         chunk_ids: &[u32],
         predicate: Predicate,
-        group_columns: ColumnSelection<'input>,
+        group_columns: Selection<'input>,
         aggregates: Vec<(ColumnName<'input>, AggregateType)>,
     ) -> Result<ReadAggregateResults<'input, '_>> {
         match self.partitions.get(partition_key) {
@@ -327,7 +327,7 @@ impl Database {
         table_name: &str,
         chunk_ids: &[u32],
         predicate: Predicate,
-        group_columns: ColumnSelection<'_>,
+        group_columns: Selection<'_>,
         aggregates: Vec<(ColumnName<'_>, AggregateType)>,
         window: u64,
     ) -> Result<ReadWindowAggregateResults> {
@@ -357,7 +357,7 @@ impl Database {
         table_name: &str,
         chunk_ids: &[u32],
         predicate: Predicate,
-        select_columns: ColumnSelection<'_>,
+        select_columns: Selection<'_>,
     ) -> Result<TagValuesResults> {
         Err(Error::UnsupportedOperation {
             msg: "`tag_values` call not yet hooked up".to_owned(),
@@ -526,7 +526,7 @@ pub struct ReadFilterResults<'input, 'chunk> {
 
     table_name: &'input str,
     predicate: Predicate,
-    select_columns: table::ColumnSelection<'input>,
+    select_columns: Selection<'input>,
 }
 
 impl<'input, 'chunk> fmt::Debug for ReadFilterResults<'input, 'chunk> {
@@ -547,7 +547,7 @@ impl<'input, 'chunk> ReadFilterResults<'input, 'chunk> {
         chunks: Vec<&'chunk Chunk>,
         table_name: &'input str,
         predicate: Predicate,
-        select_columns: table::ColumnSelection<'input>,
+        select_columns: Selection<'input>,
     ) -> Self {
         Self {
             chunks,
@@ -618,7 +618,7 @@ pub struct ReadAggregateResults<'input, 'chunk> {
 
     table_name: &'input str,
     predicate: Predicate,
-    group_columns: table::ColumnSelection<'input>,
+    group_columns: Selection<'input>,
     aggregates: Vec<(ColumnName<'input>, AggregateType)>,
 }
 
@@ -627,7 +627,7 @@ impl<'input, 'chunk> ReadAggregateResults<'input, 'chunk> {
         chunks: Vec<&'chunk Chunk>,
         table_name: &'input str,
         predicate: Predicate,
-        group_columns: table::ColumnSelection<'input>,
+        group_columns: Selection<'input>,
         aggregates: Vec<(ColumnName<'input>, AggregateType)>,
     ) -> Self {
         Self {
@@ -987,13 +987,7 @@ mod test {
         ); // filter on time
 
         let mut itr = db
-            .read_filter(
-                "hour_1",
-                "Coolverine",
-                &[22],
-                predicate,
-                table::ColumnSelection::All,
-            )
+            .read_filter("hour_1", "Coolverine", &[22], predicate, Selection::All)
             .unwrap();
 
         let exp_env_values = Values::String(vec![Some("us-west")]);
@@ -1064,7 +1058,7 @@ mod test {
                 "Coolverine",
                 &[100, 200, 300],
                 predicate,
-                table::ColumnSelection::Some(&["env", "region", "counter", "time"]),
+                Selection::Some(&["env", "region", "counter", "time"]),
             )
             .unwrap();
 
@@ -1131,7 +1125,7 @@ mod test {
                 "table1",
                 &[1],
                 Predicate::default(),
-                table::ColumnSelection::Some(&["region"]),
+                Selection::Some(&["region"]),
                 vec![
                     ("temp", AggregateType::Sum),
                     ("temp", AggregateType::Min),

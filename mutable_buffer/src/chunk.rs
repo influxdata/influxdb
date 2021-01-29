@@ -1,11 +1,10 @@
 //! Represents a Chunk of data (a collection of tables and their data within
 //! some chunk) in the mutable store.
-use arrow_deps::datafusion::{error::Result as ArrowResult, logical_plan::LogicalPlan};
 use arrow_deps::{
     arrow::record_batch::RecordBatch,
     datafusion::{
-        error::DataFusionError,
-        logical_plan::{Expr, ExpressionVisitor, Operator, Recursion},
+        error::{DataFusionError, Result as DatafusionResult},
+        logical_plan::{Expr, ExpressionVisitor, LogicalPlan, Operator, Recursion},
         optimizer::utils::expr_to_column_names,
         prelude::*,
     },
@@ -15,10 +14,10 @@ use chrono::{DateTime, Utc};
 use generated_types::wal as wb;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use data_types::{partition_metadata::Table as TableStats, TIME_COLUMN_NAME};
+use data_types::{partition_metadata::Table as TableStats, selection::Selection, TIME_COLUMN_NAME};
+
 use query::{
     predicate::{Predicate, TimestampRange},
-    selection::Selection,
     util::AndExprBuilder,
 };
 
@@ -397,7 +396,7 @@ impl Chunk {
         &self,
         dst: &mut Vec<RecordBatch>,
         table_name: &str,
-        selection: ChunkSelection<'_>,
+        selection: Selection<'_>,
     ) -> Result<()> {
         if let Some(table) = self.table(table_name)? {
             dst.push(
@@ -487,7 +486,6 @@ impl query::PartitionChunk for Chunk {
         table_name: &str,
         selection: Selection<'_>,
     ) -> Result<(), Self::Error> {
-        let selection = to_mutable_buffer_selection(selection);
         self.table_to_arrow(dst, table_name, selection)
     }
 
@@ -496,31 +494,12 @@ impl query::PartitionChunk for Chunk {
     }
 }
 
-/// Represents selecting a set of columns from tables in a chunk
-#[derive(Debug)]
-pub enum ChunkSelection<'a> {
-    /// Return all columns (e.g. SELECT *)
-    All,
-
-    /// Return only the named columns
-    Some(&'a [&'a str]),
-}
-
-// TODO remove this code (in favor of what is in Db.rs) when we have
-// removed the dependency on query from this crate
-pub fn to_mutable_buffer_selection(selection: Selection<'_>) -> ChunkSelection<'_> {
-    match selection {
-        Selection::All => ChunkSelection::All,
-        Selection::Some(cols) => ChunkSelection::Some(cols),
-    }
-}
-
 /// Used to figure out if we know how to deal with this kind of
 /// predicate in the write buffer
 struct SupportVisitor {}
 
 impl ExpressionVisitor for SupportVisitor {
-    fn pre_visit(self, expr: &Expr) -> ArrowResult<Recursion<Self>> {
+    fn pre_visit(self, expr: &Expr) -> DatafusionResult<Recursion<Self>> {
         match expr {
             Expr::Literal(..) => Ok(Recursion::Continue(self)),
             Expr::Column(..) => Ok(Recursion::Continue(self)),

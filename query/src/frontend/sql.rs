@@ -2,10 +2,11 @@ use std::sync::Arc;
 
 use snafu::{ResultExt, Snafu};
 
-use crate::{exec::Executor, selection::Selection, Database, PartitionChunk};
+use crate::{exec::Executor, Database, PartitionChunk};
 use arrow_deps::datafusion::{
     datasource::MemTable, error::DataFusionError, physical_plan::ExecutionPlan,
 };
+use data_types::selection::Selection;
 
 #[derive(Debug, Snafu)]
 pub enum Error {

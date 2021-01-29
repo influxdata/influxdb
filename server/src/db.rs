@@ -10,8 +10,8 @@ use std::{
 };
 
 use async_trait::async_trait;
-use data_types::{data::ReplicatedWrite, database_rules::DatabaseRules};
-use mutable_buffer::{chunk::ChunkSelection, MutableBufferDb};
+use data_types::{data::ReplicatedWrite, database_rules::DatabaseRules, selection::Selection};
+use mutable_buffer::MutableBufferDb;
 use query::{Database, PartitionChunk};
 use read_buffer::Database as ReadBufferDb;
 use serde::{Deserialize, Serialize};
@@ -22,7 +22,6 @@ use crate::buffer::Buffer;
 mod chunk;
 use chunk::DBChunk;
 pub mod pred;
-pub mod selection;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -219,7 +218,7 @@ impl Db {
         let mut batches = Vec::new();
         for stats in mb_chunk.table_stats().unwrap() {
             mb_chunk
-                .table_to_arrow(&mut batches, &stats.name, ChunkSelection::All)
+                .table_to_arrow(&mut batches, &stats.name, Selection::All)
                 .unwrap();
             for batch in batches.drain(..) {
                 // As implemented now, taking this write lock will wait

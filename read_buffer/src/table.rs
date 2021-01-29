@@ -2,6 +2,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Display;
 use std::slice::Iter;
 
+use data_types::selection::Selection;
+
 use crate::column::{AggregateResult, Scalar, Value};
 use crate::row_group::{self, ColumnName, GroupKey, Predicate, RowGroup};
 use crate::schema::{AggregateType, ColumnType, LogicalDataType, ResultSchema};
@@ -115,7 +117,7 @@ impl Table {
     /// the predicate and fall with the [min, max) time range domain.
     pub fn read_filter<'a>(
         &'a self,
-        columns: &ColumnSelection<'_>,
+        columns: &Selection<'_>,
         predicate: &Predicate,
     ) -> ReadFilterResults<'a> {
         // identify row groups where time range and predicates match could match
@@ -125,10 +127,8 @@ impl Table {
 
         let schema = ResultSchema {
             select_columns: match columns {
-                ColumnSelection::All => self.meta.schema_for_all_columns(),
-                ColumnSelection::Some(column_names) => {
-                    self.meta.schema_for_column_names(column_names)
-                }
+                Selection::All => self.meta.schema_for_all_columns(),
+                Selection::Some(column_names) => self.meta.schema_for_column_names(column_names),
             },
             ..ResultSchema::default()
         };
@@ -153,16 +153,14 @@ impl Table {
     pub fn read_aggregate<'input>(
         &self,
         predicate: Predicate,
-        group_columns: &'input ColumnSelection<'_>,
+        group_columns: &'input Selection<'_>,
         aggregates: &'input [(ColumnName<'input>, AggregateType)],
     ) -> ReadAggregateResults<'_> {
         // Filter out any column names that we do not have data for.
         let schema = ResultSchema {
             group_columns: match group_columns {
-                ColumnSelection::All => self.meta.schema_for_all_columns(),
-                ColumnSelection::Some(column_names) => {
-                    self.meta.schema_for_column_names(column_names)
-                }
+                Selection::All => self.meta.schema_for_all_columns(),
+                Selection::Some(column_names) => self.meta.schema_for_column_names(column_names),
             },
             aggregate_columns: self.meta.schema_for_aggregate_column_names(aggregates),
             ..ResultSchema::default()
@@ -566,16 +564,6 @@ impl MetaData {
     }
 }
 
-/// A collection of columns to include in query results.
-///
-/// The `All` variant denotes that the caller wishes to include all table
-/// columns in the results.
-#[derive(Debug)]
-pub enum ColumnSelection<'a> {
-    All,
-    Some(&'a [&'a str]),
-}
-
 /// Results of a `read_filter` execution on the table. Execution is lazy -
 /// row groups are only queried when `ReadFilterResults` is iterated.
 pub struct ReadFilterResults<'table> {
@@ -882,10 +870,7 @@ mod test {
 
         // Get all the results
         let predicate = Predicate::with_time_range(&[], 1, 31);
-        let results = table.read_filter(
-            &ColumnSelection::Some(&["time", "count", "region"]),
-            &predicate,
-        );
+        let results = table.read_filter(&Selection::Some(&["time", "count", "region"]), &predicate);
 
         // check the column types
         let exp_schema = ResultSchema {
@@ -933,7 +918,7 @@ mod test {
             Predicate::with_time_range(&[BinaryExpr::from(("region", "!=", "south"))], 1, 25);
 
         // Apply a predicate `WHERE "region" != "south"`
-        let results = table.read_filter(&ColumnSelection::Some(&["time", "region"]), &predicate);
+        let results = table.read_filter(&Selection::Some(&["time", "region"]), &predicate);
 
         let mut all = vec![];
         for result in results {

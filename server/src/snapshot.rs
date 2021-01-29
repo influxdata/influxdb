@@ -4,9 +4,12 @@ use arrow_deps::{
     arrow::record_batch::RecordBatch,
     parquet::{self, arrow::ArrowWriter, file::writer::TryClone},
 };
-use data_types::partition_metadata::{Partition as PartitionMeta, Table};
+use data_types::{
+    partition_metadata::{Partition as PartitionMeta, Table},
+    selection::Selection,
+};
 use object_store::{path::ObjectStorePath, ObjectStore};
-use query::{selection::Selection, PartitionChunk};
+use query::PartitionChunk;
 
 use std::io::{Cursor, Seek, SeekFrom, Write};
 use std::sync::{Arc, Mutex};

@@ -7,7 +7,9 @@
 
 use arrow_deps::{arrow::record_batch::RecordBatch, datafusion::logical_plan::LogicalPlan};
 use async_trait::async_trait;
-use data_types::{data::ReplicatedWrite, partition_metadata::Table as TableStats};
+use data_types::{
+    data::ReplicatedWrite, partition_metadata::Table as TableStats, selection::Selection,
+};
 use exec::{Executor, FieldListPlan, SeriesSetPlans, StringSetPlan};
 
 use std::{fmt::Debug, sync::Arc};
@@ -17,10 +19,9 @@ pub mod frontend;
 pub mod func;
 pub mod group_by;
 pub mod predicate;
-pub mod selection;
 pub mod util;
 
-use self::{group_by::GroupByAndAggregate, predicate::Predicate, selection::Selection};
+use self::{group_by::GroupByAndAggregate, predicate::Predicate};
 
 /// A `Database` is the main trait implemented by the IOx subsystems
 /// that store actual data.

@@ -6,9 +6,7 @@ use arrow_deps::{
     util::str_iter_to_batch,
 };
 
-use crate::{
-    exec::Executor, group_by::GroupByAndAggregate, selection::Selection, util::make_scan_plan,
-};
+use crate::{exec::Executor, group_by::GroupByAndAggregate, util::make_scan_plan};
 use crate::{
     exec::FieldListPlan,
     exec::{
@@ -21,6 +19,7 @@ use crate::{
 use data_types::{
     data::{lines_to_replicated_write, ReplicatedWrite},
     database_rules::{DatabaseRules, PartitionTemplate, TemplatePart},
+    selection::Selection,
 };
 use influxdb_line_protocol::{parse_lines, ParsedLine};
 
