@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"sync"
@@ -95,7 +96,7 @@ func TestConcurrentServer_TagValues(t *testing.T) {
 				ids = append(ids, si.ID)
 			}
 		}
-		srv.TSDBStore.TagValues(nil, ids, cond)
+		srv.TSDBStore.TagValues(context.Background(), nil, ids, cond)
 	}
 
 	var f3 = func() { s.DropDatabase("db0") }
@@ -133,7 +134,7 @@ func TestConcurrentServer_ShowMeasurements(t *testing.T) {
 		if !ok {
 			t.Fatal("Not a local server")
 		}
-		srv.TSDBStore.MeasurementNames(query.OpenAuthorizer, "db0", nil)
+		srv.TSDBStore.MeasurementNames(context.Background(), query.OpenAuthorizer, "db0", nil)
 	}
 
 	runTest(10*time.Second, f1, f2)

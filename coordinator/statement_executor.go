@@ -180,11 +180,11 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx *query
 	case *influxql.ShowMeasurementsStatement:
 		return e.executeShowMeasurementsStatement(stmt, ctx)
 	case *influxql.ShowMeasurementCardinalityStatement:
-		rows, err = e.executeShowMeasurementCardinalityStatement(stmt)
+		rows, err = e.executeShowMeasurementCardinalityStatement(stmt, ctx)
 	case *influxql.ShowRetentionPoliciesStatement:
 		rows, err = e.executeShowRetentionPoliciesStatement(stmt)
 	case *influxql.ShowSeriesCardinalityStatement:
-		rows, err = e.executeShowSeriesCardinalityStatement(stmt)
+		rows, err = e.executeShowSeriesCardinalityStatement(stmt, ctx)
 	case *influxql.ShowShardsStatement:
 		rows, err = e.executeShowShardsStatement(stmt)
 	case *influxql.ShowShardGroupsStatement:
@@ -719,7 +719,7 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(q *influxql.ShowMea
 		return ErrDatabaseNameRequired
 	}
 
-	names, err := e.TSDBStore.MeasurementNames(ctx.Authorizer, q.Database, q.Condition)
+	names, err := e.TSDBStore.MeasurementNames(ctx.Context, ctx.Authorizer, q.Database, q.Condition)
 	if err != nil || len(names) == 0 {
 		return ctx.Send(&query.Result{
 			Err: err,
@@ -758,12 +758,12 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(q *influxql.ShowMea
 	})
 }
 
-func (e *StatementExecutor) executeShowMeasurementCardinalityStatement(stmt *influxql.ShowMeasurementCardinalityStatement) (models.Rows, error) {
+func (e *StatementExecutor) executeShowMeasurementCardinalityStatement(stmt *influxql.ShowMeasurementCardinalityStatement, ctx *query.ExecutionContext) (models.Rows, error) {
 	if stmt.Database == "" {
 		return nil, ErrDatabaseNameRequired
 	}
 
-	n, err := e.TSDBStore.MeasurementsCardinality(stmt.Database)
+	n, err := e.TSDBStore.MeasurementsCardinality(ctx.Context, stmt.Database)
 	if err != nil {
 		return nil, err
 	}
@@ -829,12 +829,12 @@ func (e *StatementExecutor) executeShowShardsStatement(stmt *influxql.ShowShards
 	return rows, nil
 }
 
-func (e *StatementExecutor) executeShowSeriesCardinalityStatement(stmt *influxql.ShowSeriesCardinalityStatement) (models.Rows, error) {
+func (e *StatementExecutor) executeShowSeriesCardinalityStatement(stmt *influxql.ShowSeriesCardinalityStatement, ctx *query.ExecutionContext) (models.Rows, error) {
 	if stmt.Database == "" {
 		return nil, ErrDatabaseNameRequired
 	}
 
-	n, err := e.TSDBStore.SeriesCardinality(stmt.Database)
+	n, err := e.TSDBStore.SeriesCardinality(ctx.Context, stmt.Database)
 	if err != nil {
 		return nil, err
 	}
@@ -966,7 +966,7 @@ func (e *StatementExecutor) executeShowTagKeys(q *influxql.ShowTagKeysStatement,
 		}
 	}
 
-	tagKeys, err := e.TSDBStore.TagKeys(ctx.Authorizer, shardIDs, cond)
+	tagKeys, err := e.TSDBStore.TagKeys(ctx.Context, ctx.Authorizer, shardIDs, cond)
 	if err != nil {
 		return ctx.Send(&query.Result{
 			Err: err,
@@ -1053,7 +1053,7 @@ func (e *StatementExecutor) executeShowTagValues(q *influxql.ShowTagValuesStatem
 		}
 	}
 
-	tagValues, err := e.TSDBStore.TagValues(ctx.Authorizer, shardIDs, cond)
+	tagValues, err := e.TSDBStore.TagValues(ctx.Context, ctx.Authorizer, shardIDs, cond)
 	if err != nil {
 		return ctx.Send(&query.Result{Err: err})
 	}
@@ -1374,12 +1374,12 @@ type TSDBStore interface {
 	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
 	DeleteShard(id uint64) error
 
-	MeasurementNames(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
-	TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
-	TagValues(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
+	MeasurementNames(ctx context.Context, auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
+	TagKeys(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
+	TagValues(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
 
-	SeriesCardinality(database string) (int64, error)
-	MeasurementsCardinality(database string) (int64, error)
+	SeriesCardinality(ctx context.Context, database string) (int64, error)
+	MeasurementsCardinality(ctx context.Context, database string) (int64, error)
 }
 
 var _ TSDBStore = LocalTSDBStore{}
