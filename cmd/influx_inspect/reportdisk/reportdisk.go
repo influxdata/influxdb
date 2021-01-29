@@ -14,7 +14,6 @@ import (
 
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/pkg/reporthelper"
-
 	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 

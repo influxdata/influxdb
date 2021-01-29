@@ -7,8 +7,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/influxdata/influxdb/cmd/influx_inspect/reportdisk"
-
 	"github.com/influxdata/influxdb/cmd"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/buildtsi"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/deletetsm"
@@ -18,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx_inspect/export"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/help"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/report"
+	"github.com/influxdata/influxdb/cmd/influx_inspect/reportdisk"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/reporttsi"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/verify/seriesfile"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/verify/tombstone"
