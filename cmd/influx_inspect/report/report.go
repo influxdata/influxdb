@@ -4,6 +4,7 @@ package report
 import (
 	"flag"
 	"fmt"
+	"github.com/influxdata/influxdb/pkg/reporthelper"
 	"io"
 	"math"
 	"os"
@@ -60,7 +61,7 @@ func (cmd *Command) Run(args ...string) error {
 
 	cmd.dir = fs.Arg(0)
 
-	err := cmd.isShardDir(cmd.dir)
+	err := reporthelper.IsShardDir(cmd.dir)
 	if cmd.detailed && err != nil {
 		return fmt.Errorf("-detailed only supported for shard dirs")
 	}
@@ -79,8 +80,8 @@ func (cmd *Command) Run(args ...string) error {
 
 	minTime, maxTime := int64(math.MaxInt64), int64(math.MinInt64)
 	var fileCount int
-	if err := cmd.walkShardDirs(cmd.dir, func(db, rp, id, path string) error {
-		if cmd.pattern != "" && strings.Contains(path, cmd.pattern) {
+	if err := reporthelper.WalkShardDirs(cmd.dir, func(db, rp, id, path string) error {
+		if cmd.pattern != "" && !strings.Contains(path, cmd.pattern) {
 			return nil
 		}
 
@@ -216,64 +217,6 @@ func sortKeys(vals map[string]counter) (keys []string) {
 	sort.Strings(keys)
 
 	return keys
-}
-
-func (cmd *Command) isShardDir(dir string) error {
-	name := filepath.Base(dir)
-	if id, err := strconv.Atoi(name); err != nil || id < 1 {
-		return fmt.Errorf("not a valid shard dir: %v", dir)
-	}
-
-	return nil
-}
-
-func (cmd *Command) walkShardDirs(root string, fn func(db, rp, id, path string) error) error {
-	type location struct {
-		db, rp, id, path string
-	}
-
-	var dirs []location
-	if err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if info.IsDir() {
-			return nil
-		}
-
-		if filepath.Ext(info.Name()) == "."+tsm1.TSMFileExtension {
-			shardDir := filepath.Dir(path)
-
-			if err := cmd.isShardDir(shardDir); err != nil {
-				return err
-			}
-			absPath, err := filepath.Abs(path)
-			if err != nil {
-				return err
-			}
-			parts := strings.Split(absPath, string(filepath.Separator))
-			db, rp, id := parts[len(parts)-4], parts[len(parts)-3], parts[len(parts)-2]
-			dirs = append(dirs, location{db: db, rp: rp, id: id, path: path})
-			return nil
-		}
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	sort.Slice(dirs, func(i, j int) bool {
-		a, _ := strconv.Atoi(dirs[i].id)
-		b, _ := strconv.Atoi(dirs[j].id)
-		return a < b
-	})
-
-	for _, shard := range dirs {
-		if err := fn(shard.db, shard.rp, shard.id, shard.path); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
 // printUsage prints the usage message to STDERR.
