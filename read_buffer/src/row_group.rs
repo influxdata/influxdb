@@ -1270,6 +1270,16 @@ impl ColumnType {
             ColumnType::Time(c) => c.size(),
         }
     }
+
+    /// Helper function to construct a `Tag` column from a slice of `&str`
+    pub fn create_tag(values: &[&str]) -> Self {
+        Self::Tag(Column::from(values))
+    }
+
+    /// Helper function to construct a `Time` column from a slice of `i64`
+    pub fn create_time(values: &[i64]) -> Self {
+        Self::Time(Column::from(values))
+    }
 }
 
 #[derive(Debug, Clone)]
