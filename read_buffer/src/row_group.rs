@@ -1517,11 +1517,16 @@ impl<'row_group> ReadAggregateResult<'row_group> {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.group_keys.is_empty()
+        self.aggregates.is_empty()
     }
 
     pub fn schema(&self) -> &ResultSchema {
         &self.schema
+    }
+
+    // The number of rows in the result.
+    pub fn rows(&self) -> usize {
+        self.aggregates.len()
     }
 
     // The number of distinct group keys in the result.
@@ -1764,15 +1769,18 @@ impl std::fmt::Display for &ReadAggregateResult<'_> {
             return Ok(());
         }
 
-        let expected_rows = self.group_keys.len();
+        // There may or may not be group keys
+        let expected_rows = self.aggregates.len();
         for row in 0..expected_rows {
             if row > 0 {
                 writeln!(f)?;
             }
 
             // write row for group by columns
-            for value in self.group_keys[row].0.iter() {
-                write!(f, "{},", value)?;
+            if !self.group_keys.is_empty() {
+                for value in self.group_keys[row].0.iter() {
+                    write!(f, "{},", value)?;
+                }
             }
 
             // write row for aggregate columns
@@ -2334,7 +2342,7 @@ west,POST,304,101,203
 
     #[test]
     fn read_group_result_display() {
-        let result = ReadAggregateResult {
+        let mut result = ReadAggregateResult {
             schema: ResultSchema {
                 select_columns: vec![],
                 group_columns: vec![
@@ -2412,6 +2420,33 @@ east,host-b,20,4
 west,host-a,25,3
 west,host-c,21,1
 west,host-d,11,9
+"
+        );
+
+        // results don't have to have group keys.
+        result.schema.group_columns = vec![];
+        result.group_keys = vec![];
+
+        // Debug implementation
+        assert_eq!(
+            format!("{:?}", &result),
+            "temp_sum,voltage_count
+10,3
+20,4
+25,3
+21,1
+11,9
+"
+        );
+
+        // Display implementation
+        assert_eq!(
+            format!("{}", &result),
+            "10,3
+20,4
+25,3
+21,1
+11,9
 "
         );
     }
