@@ -54,7 +54,7 @@ func (cmd *Command) Run(args ...string) error {
 
 	shardSizes := ShardSizes{}
 	if err := reporthelper.WalkShardDirs(cmd.dir, func(db, rp, id, path string) error {
-		if cmd.pattern != "" && strings.Contains(path, cmd.pattern) {
+		if cmd.pattern != "" && !strings.Contains(path, cmd.pattern) {
 			return nil
 		}
 
@@ -76,7 +76,7 @@ func (cmd *Command) Run(args ...string) error {
 		progress := NewProgressReporter(cmd.Stderr)
 
 		if err := reporthelper.WalkShardDirs(cmd.dir, func(db, rp, id, path string) error {
-			if cmd.pattern != "" && strings.Contains(path, cmd.pattern) {
+			if cmd.pattern != "" && !strings.Contains(path, cmd.pattern) {
 				return nil
 			}
 			file, err := os.OpenFile(path, os.O_RDONLY, 0600)
