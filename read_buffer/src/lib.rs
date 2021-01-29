@@ -128,29 +128,24 @@ impl Database {
     pub fn drop_partition(&mut self, partition_key: &str) -> Result<()> {
         let mut partition_data = self.data.write().unwrap();
 
-        match partition_data.partitions.remove(partition_key) {
-            Some(partition) => {
-                partition_data.size -= partition.size();
-                partition_data.rows -= partition.rows();
-                Ok(())
-            }
-            None => Err(Error::PartitionNotFound {
-                key: partition_key.to_owned(),
-            }),
-        }
+        let partition = partition_data
+            .partitions
+            .remove(partition_key)
+            .context(PartitionNotFound { key: partition_key })?;
+
+        partition_data.size -= partition.size();
+        partition_data.rows -= partition.rows();
+        Ok(())
     }
 
     /// Remove all row groups and tables for the specified chunks and partition.
     pub fn drop_chunk(&mut self, partition_key: &str, chunk_id: u32) -> Result<()> {
         let mut partition_data = self.data.write().unwrap();
 
-        let partition =
-            partition_data
-                .partitions
-                .get_mut(partition_key)
-                .ok_or(Error::PartitionNotFound {
-                    key: partition_key.to_owned(),
-                })?;
+        let partition = partition_data
+            .partitions
+            .get_mut(partition_key)
+            .context(PartitionNotFound { key: partition_key })?;
 
         partition.drop_chunk(chunk_id).map(|chunk| {
             partition_data.size -= chunk.size();
@@ -301,45 +296,42 @@ impl Database {
         let partition_data = self.data.read().unwrap();
         let mut chunk_table_results = vec![];
 
-        match partition_data.partitions.get(partition_key) {
-            Some(partition) => {
-                for chunk_id in chunk_ids {
-                    // Get read lock on partition's chunks.
-                    let chunk_data = partition.data.read().unwrap();
+        let partition = partition_data
+            .partitions
+            .get(partition_key)
+            .context(PartitionNotFound { key: partition_key })?;
 
-                    let chunk = chunk_data
-                        .chunks
-                        .get(chunk_id)
-                        .context(ChunkNotFound { id: *chunk_id })?;
+        for chunk_id in chunk_ids {
+            // Get read lock on partition's chunks.
+            let chunk_data = partition.data.read().unwrap();
 
-                    ensure!(chunk.has_table(table_name), TableNotFound { table_name });
+            let chunk = chunk_data
+                .chunks
+                .get(chunk_id)
+                .context(ChunkNotFound { id: *chunk_id })?;
 
-                    // Get all relevant row groups for this chunk's table. This
-                    // is cheap because it doesn't execute the read operation,
-                    // but just gets references to the needed to data to do so.
-                    if let Some(table_results) = chunk.read_aggregate(
-                        table_name,
-                        predicate.clone(),
-                        &group_columns,
-                        &aggregates,
-                    ) {
-                        chunk_table_results.push(table_results);
-                    }
-                }
+            ensure!(chunk.has_table(table_name), TableNotFound { table_name });
 
-                for (_, agg) in &aggregates {
-                    match agg {
-                        AggregateType::First | AggregateType::Last => {
-                            return Err(Error::UnsupportedAggregate { agg: *agg });
-                        }
-                        _ => {}
-                    }
-                }
-
-                Ok(ReadAggregateResults::new(chunk_table_results))
+            // Get all relevant row groups for this chunk's table. This
+            // is cheap because it doesn't execute the read operation,
+            // but just gets references to the needed to data to do so.
+            if let Some(table_results) =
+                chunk.read_aggregate(table_name, predicate.clone(), &group_columns, &aggregates)
+            {
+                chunk_table_results.push(table_results);
             }
-            None => PartitionNotFound { key: partition_key }.fail(),
         }
+
+        for (_, agg) in &aggregates {
+            match agg {
+                AggregateType::First | AggregateType::Last => {
+                    return Err(Error::UnsupportedAggregate { agg: *agg });
+                }
+                _ => {}
+            }
+        }
+
+        Ok(ReadAggregateResults::new(chunk_table_results))
     }
 
     /// Returns windowed aggregates for each group specified by the values of
@@ -418,13 +410,12 @@ impl Database {
     ) -> Result<RecordBatch> {
         let partition_data = self.data.read().unwrap();
 
-        let partition =
-            partition_data
-                .partitions
-                .get(partition_key)
-                .ok_or(Error::PartitionNotFound {
-                    key: partition_key.to_owned(),
-                })?;
+        let partition = partition_data
+            .partitions
+            .get(partition_key)
+            .ok_or_else(|| Error::PartitionNotFound {
+                key: partition_key.to_owned(),
+            })?;
 
         let chunk_data = partition.data.read().unwrap();
         let mut filtered_chunks = vec![];
@@ -554,15 +545,15 @@ impl Partition {
     fn drop_chunk(&mut self, chunk_id: u32) -> Result<Chunk> {
         let mut chunk_data = self.data.write().unwrap();
 
-        match chunk_data.chunks.remove(&chunk_id) {
-            Some(chunk) => {
-                chunk_data.size -= chunk.size();
-                chunk_data.rows -= chunk.rows();
-                chunk_data.row_groups -= chunk.row_groups();
-                Ok(chunk)
-            }
-            None => Err(Error::ChunkNotFound { id: chunk_id }),
-        }
+        let chunk = chunk_data
+            .chunks
+            .remove(&chunk_id)
+            .context(ChunkNotFound { id: chunk_id })?;
+
+        chunk_data.size -= chunk.size();
+        chunk_data.rows -= chunk.rows();
+        chunk_data.row_groups -= chunk.row_groups();
+        Ok(chunk)
     }
 
     /// Return the chunk ids stored in this partition, in order of id

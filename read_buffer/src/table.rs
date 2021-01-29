@@ -8,7 +8,7 @@ use std::{
 
 use arrow_deps::arrow::record_batch::RecordBatch;
 use data_types::selection::Selection;
-use snafu::Snafu;
+use snafu::{ensure, Snafu};
 
 use crate::column::{AggregateResult, Scalar, Value};
 use crate::row_group::{self, ColumnName, GroupKey, Predicate, RowGroup};
@@ -16,8 +16,8 @@ use crate::schema::{AggregateType, ColumnType, LogicalDataType, ResultSchema};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("table error: {}", msg))]
-    TableOperationError { msg: String },
+    #[snafu(display("cannot drop last row group in table; drop table"))]
+    EmptyTableError {},
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -99,12 +99,10 @@ impl Table {
     /// drop the table.
     pub fn drop_row_group(&mut self, position: usize) -> Result<()> {
         let mut row_groups = self.table_data.write().unwrap();
-        if row_groups.data.len() == 1 {
-            return TableOperationError {
-                msg: "cannot drop last row group; drop table instead",
-            }
-            .fail();
-        }
+
+        // Tables must always have at least one row group.
+        ensure!(row_groups.data.len() > 1, EmptyTableError);
+
         row_groups.data.remove(position); // removes row group data
         row_groups.meta = Arc::new(MetaData::from(&row_groups.data)); // rebuild meta
 
@@ -146,6 +144,7 @@ impl Table {
         self.table_data.read().unwrap().meta.time_range
     }
 
+    // Helper function used in tests.
     // Returns an immutable reference to the table's current meta data.
     fn meta(&self) -> Arc<MetaData> {
         Arc::clone(&self.table_data.read().unwrap().meta)
@@ -701,15 +700,9 @@ impl ReadFilterResults {
 
         self.row_groups
             .iter()
-            .filter_map(|row_group| {
-                let result = row_group.read_filter(select_columns, &self.predicate);
-                if result.is_empty() {
-                    None
-                } else {
-                    Some(result)
-                }
-            })
-            .collect::<Vec<_>>()
+            .map(|row_group| row_group.read_filter(select_columns, &self.predicate))
+            .filter(|result| !result.is_empty())
+            .collect()
     }
 }
 

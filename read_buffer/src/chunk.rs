@@ -307,10 +307,10 @@ mod test {
         // Create a Chunk from a Table.
         let columns = vec![(
             "time".to_owned(),
-            ColumnType::create_time(&[1_i64, 2, 3, 4, 5, 6][..]),
+            ColumnType::create_time(&[1_i64, 2, 3, 4, 5, 6]),
         )]
         .into_iter()
-        .collect::<BTreeMap<_, _>>();
+        .collect();
         let rg = RowGroup::new(6, columns);
         let table = Table::new("table_1", rg);
         let mut chunk = Chunk::new(22, table);
@@ -320,10 +320,10 @@ mod test {
         assert_eq!(chunk.tables(), 1);
 
         // Add a row group to the same table in the Chunk.
-        let columns = vec![("time", ColumnType::create_time(&[-2_i64, 2, 8][..]))]
+        let columns = vec![("time", ColumnType::create_time(&[-2_i64, 2, 8]))]
             .into_iter()
             .map(|(k, v)| (k.to_owned(), v))
-            .collect::<BTreeMap<_, _>>();
+            .collect();
         let rg = RowGroup::new(3, columns);
         chunk.upsert_table("table_1", rg);
 
@@ -332,10 +332,10 @@ mod test {
         assert_eq!(chunk.tables(), 1);
 
         // Add a row group to another table in the Chunk.
-        let columns = vec![("time", ColumnType::create_time(&[-3_i64, 2][..]))]
+        let columns = vec![("time", ColumnType::create_time(&[-3_i64, 2]))]
             .into_iter()
             .map(|(k, v)| (k.to_owned(), v))
-            .collect::<BTreeMap<_, _>>();
+            .collect();
         let rg = RowGroup::new(2, columns);
         chunk.upsert_table("table_2", rg);
 
@@ -365,10 +365,10 @@ mod test {
     #[test]
     fn table_names() {
         let columns = vec![
-            ("time", ColumnType::create_time(&[1_i64, 2, 3, 4, 5, 6][..])),
+            ("time", ColumnType::create_time(&[1_i64, 2, 3, 4, 5, 6])),
             (
                 "region",
-                ColumnType::create_tag(&["west", "west", "east", "west", "south", "north"][..]),
+                ColumnType::create_tag(&["west", "west", "east", "west", "south", "north"]),
             ),
         ]
         .into_iter()
@@ -391,10 +391,7 @@ mod test {
         // All table names returned if no predicate and not in skip list
         let table_names = chunk.table_names(
             &Predicate::default(),
-            &["table_2".to_owned()]
-                .iter()
-                .cloned()
-                .collect::<BTreeSet<String>>(),
+            &["table_2".to_owned()].iter().cloned().collect(),
         );
         assert_eq!(
             table_names
@@ -407,10 +404,7 @@ mod test {
         // Table name not returned if it is in skip list
         let table_names = chunk.table_names(
             &Predicate::default(),
-            &["table_1".to_owned()]
-                .iter()
-                .cloned()
-                .collect::<BTreeSet<String>>(),
+            &["table_1".to_owned()].iter().cloned().collect(),
         );
         assert!(table_names.is_empty());
 
