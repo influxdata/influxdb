@@ -1,6 +1,7 @@
 package run
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"io"
@@ -540,14 +541,16 @@ func (s *Server) reportServer() {
 
 	for _, db := range dbs {
 		name := db.Name
-		n, err := s.TSDBStore.SeriesCardinality(name)
+		// Use the context.Background() to avoid timing out on this.
+		n, err := s.TSDBStore.SeriesCardinality(context.Background(), name)
 		if err != nil {
 			s.Logger.Error(fmt.Sprintf("Unable to get series cardinality for database %s: %v", name, err))
 		} else {
 			numSeries += n
 		}
 
-		n, err = s.TSDBStore.MeasurementsCardinality(name)
+		// Use the context.Background() to avoid timing out on this.
+		n, err = s.TSDBStore.MeasurementsCardinality(context.Background(), name)
 		if err != nil {
 			s.Logger.Error(fmt.Sprintf("Unable to get measurement cardinality for database %s: %v", name, err))
 		} else {
