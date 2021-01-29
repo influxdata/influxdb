@@ -81,7 +81,7 @@ func (cmd *Command) Run(args ...string) error {
 	minTime, maxTime := int64(math.MaxInt64), int64(math.MinInt64)
 	var fileCount int
 	if err := reporthelper.WalkShardDirs(cmd.dir, func(db, rp, id, path string) error {
-		if cmd.pattern != "" && strings.Contains(path, cmd.pattern) {
+		if cmd.pattern != "" && !strings.Contains(path, cmd.pattern) {
 			return nil
 		}
 
