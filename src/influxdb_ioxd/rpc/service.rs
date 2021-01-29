@@ -2,8 +2,15 @@
 //! implemented in terms of the `query::Database` and
 //! `query::DatabaseStore`
 
-use std::{collections::HashMap, sync::Arc};
-
+use super::{
+    data::{
+        fieldlist_to_measurement_fields_response, series_set_item_to_read_response,
+        tag_keys_to_byte_vecs,
+    },
+    expr::{self, AddRPCNode, Loggable, SpecialTagKeys},
+    input::GrpcInputs,
+};
+use data_types::{error::ErrorLogger, names::org_and_bucket_to_database, DatabaseName};
 use generated_types::{
     i_ox_testing_server::{IOxTesting, IOxTestingServer},
     storage_server::{Storage, StorageServer},
@@ -13,35 +20,20 @@ use generated_types::{
     ReadSeriesCardinalityRequest, ReadWindowAggregateRequest, StringValuesResponse, TagKeysRequest,
     TagValuesRequest, TestErrorRequest, TestErrorResponse, TimestampRange,
 };
-
-use data_types::error::ErrorLogger;
-
-use query::group_by::GroupByAndAggregate;
-use query::{exec::fieldlist::FieldList, frontend::influxrpc::InfluxRPCPlanner};
-use tokio_stream::wrappers::{ReceiverStream, TcpListenerStream};
-
-use super::expr::{self, AddRPCNode, Loggable, SpecialTagKeys};
-use super::input::GrpcInputs;
-use data_types::names::org_and_bucket_to_database;
-
-use data_types::DatabaseName;
-
 use query::{
+    exec::fieldlist::FieldList,
     exec::seriesset::{Error as SeriesSetError, SeriesSetItem},
+    frontend::influxrpc::InfluxRPCPlanner,
+    group_by::GroupByAndAggregate,
     predicate::PredicateBuilder,
     Database, DatabaseStore,
 };
-
 use snafu::{OptionExt, ResultExt, Snafu};
-
+use std::{collections::HashMap, sync::Arc};
 use tokio::{net::TcpListener, sync::mpsc};
+use tokio_stream::wrappers::{ReceiverStream, TcpListenerStream};
 use tonic::Status;
 use tracing::{error, info, warn};
-
-use super::data::{
-    fieldlist_to_measurement_fields_response, series_set_item_to_read_response,
-    tag_keys_to_byte_vecs,
-};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
