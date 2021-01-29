@@ -452,14 +452,14 @@ mod tests {
             "+-----+------+",
         ];
         let batches = run_query(&db, "select * from cpu").await;
-        assert_table_eq!(expected, &batches);
+        assert_table_eq!(&expected, &batches);
 
         // And expect that we still get the same thing when data is rolled over again
         let chunk = db.rollover_partition("1970-01-01T00").await.unwrap();
         assert_eq!(chunk.id(), 1);
 
         let batches = run_query(&db, "select * from cpu").await;
-        assert_table_eq!(expected, &batches);
+        assert_table_eq!(&expected, &batches);
     }
 
     #[tokio::test]
@@ -495,7 +495,7 @@ mod tests {
             "+-----+------+",
         ];
         let batches = run_query(&db, "select * from cpu").await;
-        assert_table_eq!(expected, &batches);
+        assert_table_eq!(&expected, &batches);
 
         // now, drop the mutable buffer chunk and results should still be the same
         db.drop_mutable_buffer_chunk(partition_key, mb_chunk.id())
@@ -506,7 +506,7 @@ mod tests {
         assert_eq!(read_buffer_chunk_ids(&db, partition_key).await, vec![0]);
 
         let batches = run_query(&db, "select * from cpu").await;
-        assert_table_eq!(expected, &batches);
+        assert_table_eq!(&expected, &batches);
 
         // drop, the chunk from the read buffer
         db.drop_read_buffer_chunk(partition_key, mb_chunk.id())

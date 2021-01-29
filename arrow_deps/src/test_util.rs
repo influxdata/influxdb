@@ -14,7 +14,8 @@ use crate::arrow::compute::kernels::sort::{lexsort, SortColumn, SortOptions};
 #[macro_export]
 macro_rules! assert_table_eq {
     ($EXPECTED_LINES: expr, $CHUNKS: expr) => {
-        let expected_lines: Vec<String> = $EXPECTED_LINES.iter().map(|&s| s.into()).collect();
+        let expected_lines: Vec<String> =
+            $EXPECTED_LINES.into_iter().map(|s| s.to_string()).collect();
 
         let formatted = arrow_deps::arrow::util::pretty::pretty_format_batches($CHUNKS).unwrap();
 
