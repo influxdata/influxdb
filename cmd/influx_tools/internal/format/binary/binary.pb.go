@@ -21,14 +21,19 @@
 */
 package binary
 
-import proto "github.com/gogo/protobuf/proto"
-import fmt "fmt"
-import math "math"
-import _ "github.com/gogo/protobuf/gogoproto"
+import (
+	fmt "fmt"
 
-import time "time"
+	proto "github.com/gogo/protobuf/proto"
 
-import io "io"
+	math "math"
+
+	_ "github.com/gogo/protobuf/gogoproto"
+
+	time "time"
+
+	io "io"
+)
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal

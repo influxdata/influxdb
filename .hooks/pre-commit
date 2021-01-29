@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-fmtcount=`git ls-files | grep '.go$' | xargs gofmt -l 2>&1 | wc -l`
+fmtcount=`git ls-files | grep '.go$' | xargs goimports -l 2>&1 | wc -l`
 if [ $fmtcount -gt 0 ]; then
-    echo "Some files aren't formatted, please run 'go fmt ./...' to format your source code before committing"
+    echo "Some files aren't formatted, please run 'goimports -w ./' to format your source code before committing"
     exit 1
 fi
 

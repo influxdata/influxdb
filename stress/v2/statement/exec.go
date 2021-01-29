@@ -3,7 +3,7 @@ package statement
 import (
 	"time"
 
-	"github.com/influxdata/influxdb/stress/v2/stress_client"
+	stressClient "github.com/influxdata/influxdb/stress/v2/stress_client"
 )
 
 // ExecStatement run outside scripts. This functionality is not built out

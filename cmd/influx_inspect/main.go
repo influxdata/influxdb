@@ -3,7 +3,6 @@ package main
 
 import (
 	"fmt"
-	"github.com/influxdata/influxdb/cmd/influx_inspect/reportdisk"
 	"io"
 	"log"
 	"os"
@@ -17,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx_inspect/export"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/help"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/report"
+	"github.com/influxdata/influxdb/cmd/influx_inspect/reportdisk"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/reporttsi"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/verify/seriesfile"
 	"github.com/influxdata/influxdb/cmd/influx_inspect/verify/tombstone"

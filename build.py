@@ -184,10 +184,10 @@ def run_tests(race, parallel, timeout, no_vet, junit=False):
     logging.info("Fetching module dependencies...")
     run("go mod download")
 
-    logging.info("Ensuring code is properly formatted with go fmt...")
-    out = run("go fmt ./...")
+    logging.info("Ensuring code is properly formatted with goimports ...")
+    out = run("go run golang.org/x/tools/cmd/goimports -l ./")
     if len(out) > 0:
-        logging.error("Code not formatted. Please use 'go fmt ./...' to fix formatting errors.")
+        logging.error("Code not formatted. Please use 'goimports -w ./' to fix formatting errors.")
         logging.error("{}".format(out))
         return False
     if not no_vet:
