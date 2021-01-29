@@ -224,7 +224,7 @@ In case the commit is rejected because it's not formatted you can run
 the following to format the code:
 
 ```
-go fmt ./...
+goimports -w ./
 go vet ./...
 ```
 

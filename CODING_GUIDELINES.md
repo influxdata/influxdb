@@ -2,7 +2,7 @@ _This document is currently in draft form._
 
 # Background
 
-The goal of this guide is to capture some Do and Don'ts of Go code for the InfluxDB database. When it comes to Go, writing good code is often achieved with the help of tools like `go fmt` and `go vet`. However there are still some practices not enforceable by any tools. This guide lists some specific practices to follow when writing code for the database.
+The goal of this guide is to capture some Do and Don'ts of Go code for the InfluxDB database. When it comes to Go, writing good code is often achieved with the help of tools like `goimports` and `go vet`. However there are still some practices not enforceable by any tools. This guide lists some specific practices to follow when writing code for the database.
 
 *Like everything, one needs to use good judgment.* There will always be times when it doesn't make sense to follow a guideline outlined in this document. If that case arises, be ready to justify your choices.
 
