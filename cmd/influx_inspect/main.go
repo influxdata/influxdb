@@ -3,6 +3,7 @@ package main
 
 import (
 	"fmt"
+	"github.com/influxdata/influxdb/cmd/influx_inspect/reportdisk"
 	"io"
 	"log"
 	"os"
@@ -95,6 +96,11 @@ func (m *Main) Run(args ...string) error {
 		}
 	case "report":
 		name := report.NewCommand()
+		if err := name.Run(args...); err != nil {
+			return fmt.Errorf("report: %s", err)
+		}
+	case "report-disk":
+		name := reportdisk.NewCommand()
 		if err := name.Run(args...); err != nil {
 			return fmt.Errorf("report: %s", err)
 		}
