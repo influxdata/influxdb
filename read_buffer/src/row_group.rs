@@ -874,7 +874,7 @@ impl RowGroup {
     }
 
     // Applies aggregates on multiple columns with an optional predicate.
-    fn aggregate_columns(&self, predicate: &Predicate, dst: &mut ReadAggregateResult<'_>) {
+    fn aggregate_columns<'a>(&'a self, predicate: &Predicate, dst: &mut ReadAggregateResult<'a>) {
         let aggregate_columns = dst
             .schema
             .aggregate_columns
@@ -910,6 +910,12 @@ impl RowGroup {
                 }
                 AggregateType::Sum => {
                     aggregate_row.push(AggregateResult::Sum(col.sum(&row_ids)));
+                }
+                AggregateType::Min => {
+                    aggregate_row.push(AggregateResult::Min(col.min(&row_ids)));
+                }
+                AggregateType::Max => {
+                    aggregate_row.push(AggregateResult::Max(col.max(&row_ids)));
                 }
                 _ => todo!(),
             }

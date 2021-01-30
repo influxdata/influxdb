@@ -1156,7 +1156,7 @@ mod test {
         //
         //   QUERY:
         //
-        //   SELECT SUM("counter"), COUNT("counter")
+        //   SELECT SUM("counter"), COUNT("counter"), MIN("counter"), MAX("counter")
         //   FROM "table_1"
         //   WHERE "time" <= 130
         //
@@ -1171,6 +1171,8 @@ mod test {
                 vec![
                     ("counter", AggregateType::Count),
                     ("counter", AggregateType::Sum),
+                    ("counter", AggregateType::Min),
+                    ("counter", AggregateType::Max),
                 ],
             )
             .unwrap();
@@ -1180,6 +1182,8 @@ mod test {
 
         assert_rb_column_equals(&result, "counter_count", &Values::U64(vec![3]));
         assert_rb_column_equals(&result, "counter_sum", &Values::U64(vec![9000]));
+        assert_rb_column_equals(&result, "counter_min", &Values::U64(vec![1000]));
+        assert_rb_column_equals(&result, "counter_max", &Values::U64(vec![5000]));
 
         //
         // With group keys
