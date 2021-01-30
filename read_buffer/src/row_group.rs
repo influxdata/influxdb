@@ -402,6 +402,14 @@ impl RowGroup {
             ..ReadAggregateResult::default()
         };
 
+        // Pure column aggregates - no grouping.
+        if group_columns.is_empty() {
+            self.aggregate_columns(predicate, &mut result);
+            return result;
+        }
+
+        // All of the below assume grouping by columns.
+
         // Handle case where there are no predicates and all the columns being
         // grouped support constant-time expression of the row_ids belonging to
         // each grouped value.
@@ -864,6 +872,44 @@ impl RowGroup {
     ) {
         todo!()
     }
+
+    // Applies aggregates on multiple columns with an optional predicate.
+    fn aggregate_columns(&self, predicate: &Predicate, dst: &mut ReadAggregateResult<'_>) {
+        let aggregate_columns = dst
+            .schema
+            .aggregate_columns
+            .iter()
+            .map(|(col_type, agg_type, _)| (self.column_by_name(col_type.as_str()), *agg_type))
+            .collect::<Vec<_>>();
+
+        let row_ids = match predicate.is_empty() {
+            true => {
+                // TODO(edd): PERF - teach each column encoding how to produce
+                // an aggregate for all its rows without needed
+                // to see the entire set of row ids. Currently
+                // column encodings aggregate based on the slice
+                // of row ids they see.
+                (0..self.rows()).into_iter().collect::<Vec<u32>>()
+            }
+            false => match self.row_ids_from_predicate(predicate) {
+                RowIDsOption::Some(row_ids) => row_ids.to_vec(),
+                RowIDsOption::None(_) => vec![],
+                RowIDsOption::All(row_ids) => row_ids.to_vec(),
+            },
+        };
+
+        for (col, agg_type) in aggregate_columns {
+            match agg_type {
+                AggregateType::Count => {
+                    dst.aggregates
+                        .push(AggregateResults(vec![AggregateResult::Count(
+                            col.count(&row_ids) as u64,
+                        )]));
+                }
+                _ => todo!(),
+            }
+        }
+    }
 }
 
 /// Initialise a `RowGroup` from an Arrow RecordBatch.
@@ -1226,7 +1272,7 @@ impl Ord for GroupKey<'_> {
     }
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct AggregateResults<'row_group>(Vec<AggregateResult<'row_group>>);
 
 impl<'row_group> AggregateResults<'row_group> {
@@ -1534,6 +1580,16 @@ impl<'row_group> ReadAggregateResult<'row_group> {
         self.group_keys.len()
     }
 
+    // Is this result for a grouped aggregate?
+    pub fn is_grouped_aggregate(&self) -> bool {
+        !self.group_keys.is_empty()
+    }
+
+    // Whether or not the rows in the results are sorted by group keys or not.
+    pub fn group_keys_sorted(&self) -> bool {
+        self.group_keys.is_empty() || self.group_keys_sorted
+    }
+
     /// Merges `other` and self, returning a new set of results.
     ///
     /// NOTE: This is slow! Not expected to be the final type of implementation
@@ -1543,25 +1599,33 @@ impl<'row_group> ReadAggregateResult<'row_group> {
     ) -> ReadAggregateResult<'row_group> {
         assert_eq!(self.schema(), other.schema());
 
+        if self.is_empty() {
+            return other;
+        } else if other.is_empty() {
+            return self;
+        }
+
         // `read_aggregate` uses a variety of ways to generate results. It is
         // not safe to assume any particular ordering, so we will sort self and
         // other and do a merge.
-        if !self.group_keys_sorted {
+        if !self.group_keys_sorted() {
             self.sort();
         }
 
-        if !other.group_keys_sorted {
+        if !other.group_keys_sorted() {
             other.sort();
         }
 
-        let self_len = self.cardinality();
-        let other_len = other.cardinality();
+        let self_group_keys = self.cardinality();
+        let other_group_keys = other.cardinality();
+        let self_len = self.rows();
+        let other_len = other.rows();
         let mut result = Self::with_capacity(self.schema, self_len.max(other_len));
 
         let mut i: usize = 0;
         let mut j: usize = 0;
         while i < self_len || j < other_len {
-            if i >= self.group_keys.len() {
+            if i >= self_len {
                 // drained self, add the rest of other
                 result
                     .group_keys
@@ -1570,7 +1634,7 @@ impl<'row_group> ReadAggregateResult<'row_group> {
                     .aggregates
                     .extend(other.aggregates.iter().skip(j).cloned());
                 return result;
-            } else if j >= other.group_keys.len() {
+            } else if j >= other_len {
                 // drained other, add the rest of self
                 result
                     .group_keys
@@ -1581,7 +1645,15 @@ impl<'row_group> ReadAggregateResult<'row_group> {
                 return result;
             }
 
-            // compare the group keys
+            // just merge the aggregate if there are no group keys
+            if self_group_keys == 0 {
+                assert!((self_len == other_len) && self_len == 1); // there should be a single aggregate row
+                self.aggregates[i].merge(&other.aggregates[j]);
+                result.aggregates.push(self.aggregates[i].clone());
+                return result;
+            }
+
+            // there are group keys so merge them.
             match self.group_keys[i].cmp(&other.group_keys[j]) {
                 Ordering::Less => {
                     result.group_keys.push(self.group_keys[i].clone());
