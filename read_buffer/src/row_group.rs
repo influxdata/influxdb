@@ -894,21 +894,27 @@ impl RowGroup {
             false => match self.row_ids_from_predicate(predicate) {
                 RowIDsOption::Some(row_ids) => row_ids.to_vec(),
                 RowIDsOption::None(_) => vec![],
-                RowIDsOption::All(row_ids) => row_ids.to_vec(),
+                RowIDsOption::All(row_ids) => {
+                    // see above comment.
+                    (0..self.rows()).into_iter().collect::<Vec<u32>>()
+                }
             },
         };
 
+        // the single row that will store the aggregate column values.
+        let mut aggregate_row = vec![];
         for (col, agg_type) in aggregate_columns {
             match agg_type {
                 AggregateType::Count => {
-                    dst.aggregates
-                        .push(AggregateResults(vec![AggregateResult::Count(
-                            col.count(&row_ids) as u64,
-                        )]));
+                    aggregate_row.push(AggregateResult::Count(col.count(&row_ids) as u64));
+                }
+                AggregateType::Sum => {
+                    aggregate_row.push(AggregateResult::Sum(col.sum(&row_ids)));
                 }
                 _ => todo!(),
             }
         }
+        dst.aggregates.push(AggregateResults(aggregate_row)); // write the row
     }
 }
 
