@@ -1497,13 +1497,6 @@ impl From<arrow::array::StringArray> for Column {
     }
 }
 
-impl From<&arrow::array::StringArray> for Column {
-    fn from(arr: &arrow::array::StringArray) -> Self {
-        let data = StringEncoding::from_arrow_string_array(arr);
-        Column::String(StringEncoding::meta_from_data(&data), data)
-    }
-}
-
 impl From<&[Option<&str>]> for Column {
     fn from(arr: &[Option<&str>]) -> Self {
         let data = StringEncoding::from_opt_strs(arr);
@@ -1640,16 +1633,6 @@ impl From<arrow::array::UInt64Array> for Column {
         // TODO(edd): currently fixed null only supports 64-bit logical/physical
         // types. Need to add support for storing as smaller physical types.
         Column::Unsigned(meta, IntegerEncoding::U64U64N(data))
-    }
-}
-
-impl From<&arrow::array::UInt64Array> for Column {
-    fn from(arr: &arrow::array::UInt64Array) -> Self {
-        if arr.null_count() == 0 {
-            return Self::from(arr.values());
-        }
-
-        todo!("figure out how to run off of a borrowed arrow array");
     }
 }
 
@@ -1928,16 +1911,6 @@ impl From<arrow::array::Int64Array> for Column {
     }
 }
 
-impl From<&arrow::array::Int64Array> for Column {
-    fn from(arr: &arrow::array::Int64Array) -> Self {
-        if arr.null_count() == 0 {
-            return Self::from(arr.values());
-        }
-
-        todo!("figure out how to run off of a borrowed arrow array");
-    }
-}
-
 /// Converts a slice of i32 values into the most compact fixed-width physical
 /// encoding. Whilst `i32` isn't a supported logical type it is still possible
 /// to store these values as logically `i64` values with `i32`, `i16`, `u16`,
@@ -2167,16 +2140,6 @@ impl From<arrow::array::Float64Array> for Column {
         // TODO(edd): currently fixed null only supports 64-bit logical/physical
         // types. Need to add support for storing as smaller physical types.
         Column::Float(meta, FloatEncoding::FixedNull64(data))
-    }
-}
-
-impl From<&arrow::array::Float64Array> for Column {
-    fn from(arr: &arrow::array::Float64Array) -> Self {
-        if arr.null_count() == 0 {
-            return Self::from(arr.values());
-        }
-
-        todo!("figure out how to run off of a borrowed arrow array");
     }
 }
 

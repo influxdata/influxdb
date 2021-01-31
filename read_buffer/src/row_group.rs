@@ -947,12 +947,8 @@ impl From<RecordBatch> for RowGroup {
             match lp_type {
                 Some(InfluxColumnType::Tag) => {
                     assert_eq!(arrow_column.data_type(), &arrow::datatypes::DataType::Utf8);
-                    let arr: &arrow::array::StringArray = arrow_column
-                        .as_any()
-                        .downcast_ref::<arrow::array::StringArray>()
-                        .unwrap();
-
-                    let column_data = Column::from(arr);
+                    let column_data =
+                        Column::from(arrow::array::StringArray::from(arrow_column.data()));
 
                     columns.insert(col_name.to_owned(), ColumnType::Tag(column_data));
                 }
@@ -978,13 +974,8 @@ impl From<RecordBatch> for RowGroup {
                 Some(InfluxColumnType::Timestamp) => {
                     assert_eq!(col_name, TIME_COLUMN_NAME);
 
-                    let column_data = Column::from(match arrow_column.data_type() {
-                        arrow::datatypes::DataType::Int64 => arrow_column
-                            .as_any()
-                            .downcast_ref::<arrow::array::Int64Array>()
-                            .unwrap(),
-                        dt => panic!("{:?} column with {:?} must have type i64", col_name, dt),
-                    });
+                    let column_data =
+                        Column::from(arrow::array::Int64Array::from(arrow_column.data()));
 
                     columns.insert(col_name.to_owned(), ColumnType::Time(column_data));
                 }
