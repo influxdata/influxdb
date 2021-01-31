@@ -917,7 +917,7 @@ impl RowGroup {
                 AggregateType::Max => {
                     aggregate_row.push(AggregateResult::Max(col.max(&row_ids)));
                 }
-                _ => todo!(),
+                _ => unimplemented!("Other aggregates are not yet supported"),
             }
         }
         dst.aggregates.push(AggregateResults(aggregate_row)); // write the row
