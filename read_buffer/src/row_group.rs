@@ -958,24 +958,15 @@ impl From<RecordBatch> for RowGroup {
                 }
                 Some(InfluxColumnType::Field(_)) => {
                     let column_data = match arrow_column.data_type() {
-                        arrow::datatypes::DataType::Int64 => Column::from(
-                            arrow_column
-                                .as_any()
-                                .downcast_ref::<arrow::array::Int64Array>()
-                                .unwrap(),
-                        ),
-                        arrow::datatypes::DataType::Float64 => Column::from(
-                            arrow_column
-                                .as_any()
-                                .downcast_ref::<arrow::array::Float64Array>()
-                                .unwrap(),
-                        ),
-                        arrow::datatypes::DataType::UInt64 => Column::from(
-                            arrow_column
-                                .as_any()
-                                .downcast_ref::<arrow::array::UInt64Array>()
-                                .unwrap(),
-                        ),
+                        arrow::datatypes::DataType::Int64 => {
+                            Column::from(arrow::array::Int64Array::from(arrow_column.data()))
+                        }
+                        arrow::datatypes::DataType::Float64 => {
+                            Column::from(arrow::array::Float64Array::from(arrow_column.data()))
+                        }
+                        arrow::datatypes::DataType::UInt64 => {
+                            Column::from(arrow::array::UInt64Array::from(arrow_column.data()))
+                        }
                         dt => unimplemented!(
                             "data type {:?} currently not supported for field columns",
                             dt
