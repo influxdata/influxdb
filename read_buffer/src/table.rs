@@ -1142,12 +1142,12 @@ mod test {
 
         // Build another row group.
         let mut columns = BTreeMap::new();
-        columns.insert("time".to_string(), ColumnType::create_time(&[2, 3, 4]));
+        columns.insert("time".to_string(), ColumnType::create_time(&[2, 3]));
         columns.insert(
             "region".to_string(),
-            ColumnType::create_tag(&["north", "north", "north"]),
+            ColumnType::create_tag(&["north", "north"]),
         );
-        let rg = RowGroup::new(3, columns);
+        let rg = RowGroup::new(2, columns);
         table.add_row_group(rg);
 
         // no predicate aggregate
@@ -1177,7 +1177,7 @@ mod test {
 
         assert_eq!(
             DisplayReadAggregateResults(vec![results.next_merged_result().unwrap()]).to_string(),
-            "time_count,time_sum\n6,609\n",
+            "time_count,time_sum\n5,605\n",
         );
         assert!(matches!(results.next_merged_result(), None));
 
