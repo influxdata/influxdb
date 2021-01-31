@@ -1,3 +1,4 @@
+pub mod bool;
 pub mod cmp;
 pub mod dictionary;
 pub mod fixed;
