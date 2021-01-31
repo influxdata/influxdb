@@ -68,18 +68,18 @@ impl ResultSchema {
 /// Effectively emits a header line for a CSV-like table.
 impl Display for ResultSchema {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        // do we need to emit the group by and aggregate columns?
-        let has_group_and_agg = !self.group_columns.is_empty();
+        // do we need to emit the group by or aggregate columns?
+        let has_agg_columns = !self.aggregate_columns.is_empty();
 
         for (i, (name, _)) in self.select_columns.iter().enumerate() {
-            if has_group_and_agg || i < self.select_columns.len() - 1 {
+            if has_agg_columns || i < self.select_columns.len() - 1 {
                 write!(f, "{},", name)?;
-            } else if !has_group_and_agg {
+            } else if !has_agg_columns {
                 return write!(f, "{}", name); // last value in header row
             }
         }
 
-        // write out group by columns
+        // write out group by columns, if any
         for (i, (name, _)) in self.group_columns.iter().enumerate() {
             write!(f, "{},", name)?;
         }

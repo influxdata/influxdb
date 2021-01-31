@@ -1126,7 +1126,77 @@ mod test {
     }
 
     #[test]
-    fn read_group_result() {
+    fn read_aggregate_no_groups() {
+        // Build first row group.
+        let mut columns = BTreeMap::new();
+        columns.insert(
+            "time".to_string(),
+            ColumnType::create_time(&[100, 200, 300]),
+        );
+        columns.insert(
+            "region".to_string(),
+            ColumnType::create_tag(&["west", "west", "east"]),
+        );
+        let rg = RowGroup::new(3, columns);
+        let mut table = Table::new("cpu", rg);
+
+        // Build another row group.
+        let mut columns = BTreeMap::new();
+        columns.insert("time".to_string(), ColumnType::create_time(&[2, 3]));
+        columns.insert(
+            "region".to_string(),
+            ColumnType::create_tag(&["north", "north"]),
+        );
+        let rg = RowGroup::new(2, columns);
+        table.add_row_group(rg);
+
+        // no predicate aggregate
+        let mut results = table.read_aggregate(
+            Predicate::default(),
+            &Selection::Some(&[]),
+            &[("time", AggregateType::Count), ("time", AggregateType::Sum)],
+        );
+
+        // check the column result schema
+        let exp_schema = ResultSchema {
+            aggregate_columns: vec![
+                (
+                    schema::ColumnType::Timestamp("time".to_owned()),
+                    AggregateType::Count,
+                    LogicalDataType::Integer,
+                ),
+                (
+                    schema::ColumnType::Timestamp("time".to_owned()),
+                    AggregateType::Sum,
+                    LogicalDataType::Integer,
+                ),
+            ],
+            ..ResultSchema::default()
+        };
+        assert_eq!(results.schema(), &exp_schema);
+
+        assert_eq!(
+            DisplayReadAggregateResults(vec![results.next_merged_result().unwrap()]).to_string(),
+            "time_count,time_sum\n5,605\n",
+        );
+        assert!(matches!(results.next_merged_result(), None));
+
+        // apply a predicate
+        let mut results = table.read_aggregate(
+            Predicate::new(vec![BinaryExpr::from(("region", "=", "west"))]),
+            &Selection::Some(&[]),
+            &[("time", AggregateType::Count), ("time", AggregateType::Sum)],
+        );
+
+        assert_eq!(
+            DisplayReadAggregateResults(vec![results.next_merged_result().unwrap()]).to_string(),
+            "time_count,time_sum\n2,300\n",
+        );
+        assert!(matches!(results.next_merged_result(), None));
+    }
+
+    #[test]
+    fn read_aggregate_result_display() {
         let mut result_a = ReadAggregateResult {
             schema: ResultSchema {
                 select_columns: vec![],

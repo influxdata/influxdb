@@ -402,6 +402,14 @@ impl RowGroup {
             ..ReadAggregateResult::default()
         };
 
+        // Pure column aggregates - no grouping.
+        if group_columns.is_empty() {
+            self.aggregate_columns(predicate, &mut result);
+            return result;
+        }
+
+        // All of the below assume grouping by columns.
+
         // Handle case where there are no predicates and all the columns being
         // grouped support constant-time expression of the row_ids belonging to
         // each grouped value.
@@ -864,6 +872,56 @@ impl RowGroup {
     ) {
         todo!()
     }
+
+    // Applies aggregates on multiple columns with an optional predicate.
+    fn aggregate_columns<'a>(&'a self, predicate: &Predicate, dst: &mut ReadAggregateResult<'a>) {
+        let aggregate_columns = dst
+            .schema
+            .aggregate_columns
+            .iter()
+            .map(|(col_type, agg_type, _)| (self.column_by_name(col_type.as_str()), *agg_type))
+            .collect::<Vec<_>>();
+
+        let row_ids = match predicate.is_empty() {
+            true => {
+                // TODO(edd): PERF - teach each column encoding how to produce
+                // an aggregate for all its rows without needed
+                // to see the entire set of row ids. Currently
+                // column encodings aggregate based on the slice
+                // of row ids they see.
+                (0..self.rows()).into_iter().collect::<Vec<u32>>()
+            }
+            false => match self.row_ids_from_predicate(predicate) {
+                RowIDsOption::Some(row_ids) => row_ids.to_vec(),
+                RowIDsOption::None(_) => vec![],
+                RowIDsOption::All(row_ids) => {
+                    // see above comment.
+                    (0..self.rows()).into_iter().collect::<Vec<u32>>()
+                }
+            },
+        };
+
+        // the single row that will store the aggregate column values.
+        let mut aggregate_row = vec![];
+        for (col, agg_type) in aggregate_columns {
+            match agg_type {
+                AggregateType::Count => {
+                    aggregate_row.push(AggregateResult::Count(col.count(&row_ids) as u64));
+                }
+                AggregateType::Sum => {
+                    aggregate_row.push(AggregateResult::Sum(col.sum(&row_ids)));
+                }
+                AggregateType::Min => {
+                    aggregate_row.push(AggregateResult::Min(col.min(&row_ids)));
+                }
+                AggregateType::Max => {
+                    aggregate_row.push(AggregateResult::Max(col.max(&row_ids)));
+                }
+                _ => unimplemented!("Other aggregates are not yet supported"),
+            }
+        }
+        dst.aggregates.push(AggregateResults(aggregate_row)); // write the row
+    }
 }
 
 /// Initialise a `RowGroup` from an Arrow RecordBatch.
@@ -1226,7 +1284,7 @@ impl Ord for GroupKey<'_> {
     }
 }
 
-#[derive(PartialEq, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct AggregateResults<'row_group>(Vec<AggregateResult<'row_group>>);
 
 impl<'row_group> AggregateResults<'row_group> {
@@ -1517,16 +1575,31 @@ impl<'row_group> ReadAggregateResult<'row_group> {
     }
 
     pub fn is_empty(&self) -> bool {
-        self.group_keys.is_empty()
+        self.aggregates.is_empty()
     }
 
     pub fn schema(&self) -> &ResultSchema {
         &self.schema
     }
 
+    // The number of rows in the result.
+    pub fn rows(&self) -> usize {
+        self.aggregates.len()
+    }
+
     // The number of distinct group keys in the result.
     pub fn cardinality(&self) -> usize {
         self.group_keys.len()
+    }
+
+    // Is this result for a grouped aggregate?
+    pub fn is_grouped_aggregate(&self) -> bool {
+        !self.group_keys.is_empty()
+    }
+
+    // Whether or not the rows in the results are sorted by group keys or not.
+    pub fn group_keys_sorted(&self) -> bool {
+        self.group_keys.is_empty() || self.group_keys_sorted
     }
 
     /// Merges `other` and self, returning a new set of results.
@@ -1538,25 +1611,33 @@ impl<'row_group> ReadAggregateResult<'row_group> {
     ) -> ReadAggregateResult<'row_group> {
         assert_eq!(self.schema(), other.schema());
 
+        if self.is_empty() {
+            return other;
+        } else if other.is_empty() {
+            return self;
+        }
+
         // `read_aggregate` uses a variety of ways to generate results. It is
         // not safe to assume any particular ordering, so we will sort self and
         // other and do a merge.
-        if !self.group_keys_sorted {
+        if !self.group_keys_sorted() {
             self.sort();
         }
 
-        if !other.group_keys_sorted {
+        if !other.group_keys_sorted() {
             other.sort();
         }
 
-        let self_len = self.cardinality();
-        let other_len = other.cardinality();
+        let self_group_keys = self.cardinality();
+        let other_group_keys = other.cardinality();
+        let self_len = self.rows();
+        let other_len = other.rows();
         let mut result = Self::with_capacity(self.schema, self_len.max(other_len));
 
         let mut i: usize = 0;
         let mut j: usize = 0;
         while i < self_len || j < other_len {
-            if i >= self.group_keys.len() {
+            if i >= self_len {
                 // drained self, add the rest of other
                 result
                     .group_keys
@@ -1565,7 +1646,7 @@ impl<'row_group> ReadAggregateResult<'row_group> {
                     .aggregates
                     .extend(other.aggregates.iter().skip(j).cloned());
                 return result;
-            } else if j >= other.group_keys.len() {
+            } else if j >= other_len {
                 // drained other, add the rest of self
                 result
                     .group_keys
@@ -1576,7 +1657,15 @@ impl<'row_group> ReadAggregateResult<'row_group> {
                 return result;
             }
 
-            // compare the group keys
+            // just merge the aggregate if there are no group keys
+            if self_group_keys == 0 {
+                assert!((self_len == other_len) && self_len == 1); // there should be a single aggregate row
+                self.aggregates[i].merge(&other.aggregates[j]);
+                result.aggregates.push(self.aggregates[i].clone());
+                return result;
+            }
+
+            // there are group keys so merge them.
             match self.group_keys[i].cmp(&other.group_keys[j]) {
                 Ordering::Less => {
                     result.group_keys.push(self.group_keys[i].clone());
@@ -1764,15 +1853,18 @@ impl std::fmt::Display for &ReadAggregateResult<'_> {
             return Ok(());
         }
 
-        let expected_rows = self.group_keys.len();
+        // There may or may not be group keys
+        let expected_rows = self.aggregates.len();
         for row in 0..expected_rows {
             if row > 0 {
                 writeln!(f)?;
             }
 
             // write row for group by columns
-            for value in self.group_keys[row].0.iter() {
-                write!(f, "{},", value)?;
+            if !self.group_keys.is_empty() {
+                for value in self.group_keys[row].0.iter() {
+                    write!(f, "{},", value)?;
+                }
             }
 
             // write row for aggregate columns
@@ -2334,7 +2426,7 @@ west,POST,304,101,203
 
     #[test]
     fn read_group_result_display() {
-        let result = ReadAggregateResult {
+        let mut result = ReadAggregateResult {
             schema: ResultSchema {
                 select_columns: vec![],
                 group_columns: vec![
@@ -2412,6 +2504,33 @@ east,host-b,20,4
 west,host-a,25,3
 west,host-c,21,1
 west,host-d,11,9
+"
+        );
+
+        // results don't have to have group keys.
+        result.schema.group_columns = vec![];
+        result.group_keys = vec![];
+
+        // Debug implementation
+        assert_eq!(
+            format!("{:?}", &result),
+            "temp_sum,voltage_count
+10,3
+20,4
+25,3
+21,1
+11,9
+"
+        );
+
+        // Display implementation
+        assert_eq!(
+            format!("{}", &result),
+            "10,3
+20,4
+25,3
+21,1
+11,9
 "
         );
     }

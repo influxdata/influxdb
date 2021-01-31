@@ -292,6 +292,15 @@ impl Database {
         group_columns: Selection<'input>,
         aggregates: Vec<(ColumnName<'input>, AggregateType)>,
     ) -> Result<ReadAggregateResults> {
+        for (_, agg) in &aggregates {
+            match agg {
+                AggregateType::First | AggregateType::Last => {
+                    return Err(Error::UnsupportedAggregate { agg: *agg });
+                }
+                _ => {}
+            }
+        }
+
         // get read lock on database
         let partition_data = self.data.read().unwrap();
         let mut chunk_table_results = vec![];
@@ -319,15 +328,6 @@ impl Database {
                 chunk.read_aggregate(table_name, predicate.clone(), &group_columns, &aggregates)
             {
                 chunk_table_results.push(table_results);
-            }
-        }
-
-        for (_, agg) in &aggregates {
-            match agg {
-                AggregateType::First | AggregateType::Last => {
-                    return Err(Error::UnsupportedAggregate { agg: *agg });
-                }
-                _ => {}
             }
         }
 
@@ -1123,7 +1123,7 @@ mod test {
     }
 
     #[test]
-    fn read_aggregate_multiple_row_groups() {
+    fn read_aggregate() {
         let mut db = Database::new();
 
         // Add a bunch of row groups to a single table in a single chunks
@@ -1142,17 +1142,53 @@ mod test {
                 Arc::new(StringArray::from(vec!["west", "west", "east"])),
                 Arc::new(Float64Array::from(vec![10.0, 30000.0, 4500.0])),
                 Arc::new(UInt64Array::from(vec![1000, 3000, 5000])),
-                Arc::new(Int64Array::from(vec![i, 20 * i, 30 * i])),
+                Arc::new(Int64Array::from(vec![i, 20 + i, 30 + i])),
             ];
 
             // Add a record batch to a single partition
             let rb = RecordBatch::try_new(schema.into(), data).unwrap();
-            println!("rb {:?} {:?}", i, &rb);
             // The row group gets added to the same chunk each time.
             db.upsert_partition("hour_1", 1, "table1", rb);
         }
 
-        // Build the following query:
+        //
+        // Simple Aggregates - no group keys.
+        //
+        //   QUERY:
+        //
+        //   SELECT SUM("counter"), COUNT("counter"), MIN("counter"), MAX("counter")
+        //   FROM "table_1"
+        //   WHERE "time" <= 130
+        //
+
+        let itr = db
+            .read_aggregate(
+                "hour_1",
+                "table1",
+                &[1],
+                Predicate::new(vec![BinaryExpr::from(("time", "<=", 130_i64))]),
+                Selection::Some(&[]),
+                vec![
+                    ("counter", AggregateType::Count),
+                    ("counter", AggregateType::Sum),
+                    ("counter", AggregateType::Min),
+                    ("counter", AggregateType::Max),
+                ],
+            )
+            .unwrap();
+        let result = itr.collect::<Vec<RecordBatch>>();
+        assert_eq!(result.len(), 1);
+        let result = &result[0];
+
+        assert_rb_column_equals(&result, "counter_count", &Values::U64(vec![3]));
+        assert_rb_column_equals(&result, "counter_sum", &Values::U64(vec![9000]));
+        assert_rb_column_equals(&result, "counter_min", &Values::U64(vec![1000]));
+        assert_rb_column_equals(&result, "counter_max", &Values::U64(vec![5000]));
+
+        //
+        // With group keys
+        //
+        //   QUERY:
         //
         //   SELECT SUM("temp"), MIN("temp"), SUM("counter"), COUNT("counter")
         //   FROM "table_1"
