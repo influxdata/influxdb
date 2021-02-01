@@ -611,8 +611,20 @@ impl Column {
     // Methods for inspecting
     //
 
+    /// Determines if this column contains any NULL values.
+    pub fn contains_null(&self) -> bool {
+        match &self {
+            Column::String(_, data) => data.contains_null(),
+            Column::Float(_, data) => data.contains_null(),
+            Column::Integer(_, data) => data.contains_null(),
+            Column::Unsigned(_, data) => data.contains_null(),
+            Column::Bool(_, data) => data.contains_null(),
+            Column::ByteArray(_, _) => todo!(),
+        }
+    }
+
     /// Determines if the column has a non-null value at any of the provided
-    /// rows.
+    /// row ids.
     pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
         match &self {
             Column::String(_, data) => data.has_non_null_value(row_ids),
@@ -620,6 +632,18 @@ impl Column {
             Column::Integer(_, data) => data.has_non_null_value(row_ids),
             Column::Unsigned(_, data) => data.has_non_null_value(row_ids),
             Column::Bool(_, data) => data.has_non_null_value(row_ids),
+            Column::ByteArray(_, _) => todo!(),
+        }
+    }
+
+    /// Determines if the column has a non-null value on any row.
+    pub fn has_any_non_null_value(&self) -> bool {
+        match &self {
+            Column::String(_, data) => data.has_any_non_null_value(),
+            Column::Float(_, data) => data.has_any_non_null_value(),
+            Column::Integer(_, data) => data.has_any_non_null_value(),
+            Column::Unsigned(_, data) => data.has_any_non_null_value(),
+            Column::Bool(_, data) => data.has_any_non_null_value(),
             Column::ByteArray(_, _) => todo!(),
         }
     }
@@ -733,6 +757,14 @@ impl StringEncoding {
         match self {
             StringEncoding::RLEDictionary(enc) => enc.contains_null(),
             StringEncoding::Dictionary(enc) => enc.contains_null(),
+        }
+    }
+
+    /// Determines if the column contains a non-null value
+    pub fn has_any_non_null_value(&self) -> bool {
+        match &self {
+            Self::RLEDictionary(c) => c.has_any_non_null_value(),
+            Self::Dictionary(c) => c.has_any_non_null_value(),
         }
     }
 
@@ -1111,13 +1143,22 @@ impl IntegerEncoding {
         }
     }
 
+    /// Determines if the column contains a non-null value.
+    pub fn has_any_non_null_value(&self) -> bool {
+        match self {
+            IntegerEncoding::I64I64N(enc) => enc.has_any_non_null_value(),
+            IntegerEncoding::U64U64N(enc) => enc.has_any_non_null_value(),
+            _ => true,
+        }
+    }
+
     /// Determines if the column contains a non-null value at one of the
     /// provided rows.
     pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
         match self {
             IntegerEncoding::I64I64N(enc) => enc.has_non_null_value(row_ids),
             IntegerEncoding::U64U64N(enc) => enc.has_non_null_value(row_ids),
-            _ => false,
+            _ => !row_ids.is_empty(), // all rows will be non-null
         }
     }
 
@@ -1429,11 +1470,19 @@ impl FloatEncoding {
         }
     }
 
+    /// Determines if the column contains a non-null value.
+    pub fn has_any_non_null_value(&self) -> bool {
+        match self {
+            Self::Fixed64(_) => true,
+            Self::FixedNull64(enc) => enc.has_any_non_null_value(),
+        }
+    }
+
     /// Determines if the column contains a non-null value at one of the
     /// provided rows.
     pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
         match self {
-            Self::Fixed64(_) => false,
+            Self::Fixed64(_) => !row_ids.is_empty(), // all rows will be non-null
             Self::FixedNull64(enc) => enc.has_non_null_value(row_ids),
         }
     }
@@ -1548,6 +1597,13 @@ impl BooleanEncoding {
     pub fn contains_null(&self) -> bool {
         match self {
             BooleanEncoding::BooleanNull(enc) => enc.contains_null(),
+        }
+    }
+
+    /// Determines if the column contains a non-null value.
+    pub fn has_any_non_null_value(&self) -> bool {
+        match self {
+            Self::BooleanNull(enc) => enc.has_any_non_null_value(),
         }
     }
 
@@ -3964,5 +4020,25 @@ mod test {
 
         res.update(Value::Scalar(Scalar::Null));
         assert!(matches!(res, AggregateResult::Sum(Scalar::I64(15))));
+    }
+
+    #[test]
+    fn has_non_null_value() {
+        // Check each column type is wired up. Actual logic is tested in encoders.
+
+        let col = Column::from(&[Some("Knocked Down"), None][..]);
+        assert!(col.has_non_null_value(&[0, 1]));
+
+        let col = Column::from(&[100_u64][..]);
+        assert!(col.has_non_null_value(&[0]));
+
+        let col = Column::from(&[100_i64][..]);
+        assert!(col.has_non_null_value(&[0]));
+
+        let col = Column::from(&[22.6][..]);
+        assert!(col.has_non_null_value(&[0]));
+
+        let col = Column::from(arrow::array::BooleanArray::from(vec![true]));
+        assert!(col.has_non_null_value(&[0]));
     }
 }
