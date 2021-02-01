@@ -99,6 +99,8 @@ where
         Err(tonic::Status::unimplemented("Not yet implemented"))
     }
 
+    // TODO: Stream results back directly by using `execute` instead of `collect`
+    // https://docs.rs/datafusion/3.0.0/datafusion/physical_plan/trait.ExecutionPlan.html#tymethod.execute
     async fn do_get(
         &self,
         request: Request<Ticket>,
