@@ -937,7 +937,7 @@ impl From<RecordBatch> for RowGroup {
         let schema: Schema = rb
             .schema()
             .try_into()
-            .expect("Valid timeseries schema when creating row group");
+            .expect("Valid time-series schema when creating row group");
 
         let mut columns = BTreeMap::new();
         for (i, arrow_column) in rb.columns().iter().enumerate() {
@@ -962,6 +962,9 @@ impl From<RecordBatch> for RowGroup {
                         }
                         arrow::datatypes::DataType::UInt64 => {
                             Column::from(arrow::array::UInt64Array::from(arrow_column.data()))
+                        }
+                        arrow::datatypes::DataType::Boolean => {
+                            Column::from(arrow::array::BooleanArray::from(arrow_column.data()))
                         }
                         dt => unimplemented!(
                             "data type {:?} currently not supported for field columns",
@@ -1440,7 +1443,19 @@ impl MetaData {
             .iter()
             .map(|(name, agg_type)| {
                 let schema = self.columns.get(*name).unwrap();
-                (schema.typ.clone(), *agg_type, schema.logical_data_type)
+
+                // TODO(edd): this check happens because an aggregate does
+                // not have to have the same physical type as the logical
+                // type of the column it is aggregating on. An example of
+                // this is Count. I'm going to fix this by associated data
+                // types with the aggregate itself.
+                let physical_data_type = if let AggregateType::Count = agg_type {
+                    LogicalDataType::Unsigned
+                } else {
+                    schema.logical_data_type
+                };
+
+                (schema.typ.clone(), *agg_type, physical_data_type)
             })
             .collect::<Vec<_>>()
     }

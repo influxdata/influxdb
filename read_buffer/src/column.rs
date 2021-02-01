@@ -1,3 +1,4 @@
+pub mod bool;
 pub mod cmp;
 pub mod dictionary;
 pub mod fixed;
@@ -36,20 +37,16 @@ pub enum Column {
 
     // A column of signed integers, which may be encoded with a different
     // physical type to the logical type.
-    //
-    // TODO - meta stored at highest precision, but returning correct logical
-    // type probably needs some thought.
     Integer(MetaData<i64>, IntegerEncoding),
 
     // A column of unsigned integers, which may be encoded with a different
     // physical type to the logical type.
-    //
-    // TODO - meta stored at highest precision, but returning correct logical
-    // type probably needs some thought.
-    Unsigned(MetaData<u64>, IntegerEncoding), // TODO - 64-bit unsigned integers
+    Unsigned(MetaData<u64>, IntegerEncoding),
+
+    // A column of boolean values.
+    Bool(MetaData<bool>, BooleanEncoding),
 
     // These are TODO
-    Bool,                                         // TODO - booleans
     ByteArray(MetaData<Vec<u8>>, StringEncoding), // TODO - arbitrary bytes
 }
 
@@ -63,7 +60,7 @@ impl Column {
             Column::Float(meta, _) => meta.rows,
             Column::Integer(meta, _) => meta.rows,
             Column::Unsigned(meta, _) => meta.rows,
-            Column::Bool => todo!(),
+            Column::Bool(meta, _) => meta.rows,
             Column::ByteArray(meta, _) => meta.rows,
         }
     }
@@ -75,7 +72,7 @@ impl Column {
             Column::Float(_, _) => LogicalDataType::Float,
             Column::Integer(_, _) => LogicalDataType::Integer,
             Column::Unsigned(_, _) => LogicalDataType::Unsigned,
-            Column::Bool => LogicalDataType::Boolean,
+            Column::Bool(_, _) => LogicalDataType::Boolean,
             Column::ByteArray(_, _) => LogicalDataType::Binary,
         }
     }
@@ -115,7 +112,10 @@ impl Column {
                 )),
                 None => None,
             },
-            Column::Bool => todo!(),
+            Column::Bool(meta, _) => match meta.range {
+                Some(range) => Some((OwnedValue::Boolean(range.0), OwnedValue::Boolean(range.1))),
+                None => None,
+            },
             Column::ByteArray(_, _) => todo!(),
         }
     }
@@ -126,7 +126,7 @@ impl Column {
             Column::Float(meta, _) => &meta.properties,
             Column::Integer(meta, _) => &meta.properties,
             Column::Unsigned(meta, _) => &meta.properties,
-            Column::Bool => todo!(),
+            Column::Bool(meta, _) => &meta.properties,
             Column::ByteArray(meta, _) => &meta.properties,
         }
     }
@@ -159,7 +159,7 @@ impl Column {
             Column::Float(_, data) => data.value(row_id),
             Column::Integer(_, data) => data.value(row_id),
             Column::Unsigned(_, data) => data.value(row_id),
-            Column::Bool => todo!(),
+            Column::Bool(_, data) => data.value(row_id),
             Column::ByteArray(_, _) => todo!(),
         }
     }
@@ -180,7 +180,7 @@ impl Column {
             Column::Float(_, data) => data.values(row_ids),
             Column::Integer(_, data) => data.values(row_ids),
             Column::Unsigned(_, data) => data.values(row_ids),
-            Column::Bool => todo!(),
+            Column::Bool(_, data) => data.values(row_ids),
             Column::ByteArray(_, _) => todo!(),
         }
     }
@@ -192,7 +192,7 @@ impl Column {
             Column::Float(_, data) => data.all_values(),
             Column::Integer(_, data) => data.all_values(),
             Column::Unsigned(_, data) => data.all_values(),
-            Column::Bool => todo!(),
+            Column::Bool(_, data) => data.all_values(),
             Column::ByteArray(_, _) => todo!(),
         }
     }
@@ -299,7 +299,7 @@ impl Column {
             Column::Float(_, data) => data.row_ids_filter(op, value.scalar(), dst),
             Column::Integer(_, data) => data.row_ids_filter(op, value.scalar(), dst),
             Column::Unsigned(_, data) => data.row_ids_filter(op, value.scalar(), dst),
-            Column::Bool => todo!(),
+            Column::Bool(_, data) => data.row_ids_filter(op, value.bool(), dst),
             Column::ByteArray(_, data) => todo!(),
         };
 
@@ -358,7 +358,7 @@ impl Column {
             Column::Unsigned(_, data) => {
                 data.row_ids_filter_range((&low.0, low.1.scalar()), (&high.0, high.1.scalar()), dst)
             }
-            Column::Bool => todo!(),
+            Column::Bool(_, data) => unimplemented!("filter_range not supported on boolean column"),
             Column::ByteArray(_, data) => todo!(),
         };
 
@@ -411,7 +411,9 @@ impl Column {
         PredicateMatch::SomeMaybe
     }
 
-    // Helper method to determine if the column possibly contains this value
+    // Helper method to determine if the column possibly contains this value.
+    //
+    // TODO(edd): currently this only handles non-null values.
     fn might_contain_value(&self, value: &Value<'_>) -> bool {
         match &self {
             Column::String(meta, _) => {
@@ -441,13 +443,19 @@ impl Column {
                 .scalar()
                 .try_as_u64()
                 .map_or_else(|| false, |v| meta.might_contain_value(v)),
-            Column::Bool => todo!(),
+            Column::Bool(meta, _) => match value {
+                Value::Null => false,
+                Value::Boolean(b) => meta.might_contain_value(*b),
+                v => panic!("cannot compare boolean to {:?}", v),
+            },
             Column::ByteArray(meta, _) => todo!(),
         }
     }
 
     // Helper method to determine if the predicate matches all the values in
     // the column.
+    //
+    // TODO(edd): this doesn't handle matching on NULL yet.
     fn predicate_matches_all_values(&self, op: &cmp::Operator, value: &Value<'_>) -> bool {
         match &self {
             Column::String(meta, data) => {
@@ -498,7 +506,17 @@ impl Column {
                     .try_as_u64()
                     .map_or_else(|| false, |v| meta.might_match_all_values(op, v))
             }
-            Column::Bool => todo!(),
+            Column::Bool(meta, data) => {
+                if data.contains_null() {
+                    return false;
+                }
+
+                match value {
+                    Value::Null => false,
+                    Value::Boolean(b) => meta.might_match_all_values(op, *b),
+                    v => panic!("cannot compare on boolean column using {:?}", v),
+                }
+            }
             Column::ByteArray(meta, _) => todo!(),
         }
     }
@@ -522,7 +540,7 @@ impl Column {
             Column::Float(meta, data) => meta.match_no_values(op, value.scalar().as_f64()),
             Column::Integer(meta, data) => meta.match_no_values(op, value.scalar().as_i64()),
             Column::Unsigned(meta, data) => meta.match_no_values(op, value.scalar().as_u64()),
-            Column::Bool => todo!(),
+            Column::Bool(meta, data) => meta.match_no_values(op, value.bool()),
             Column::ByteArray(meta, _) => todo!(),
         }
     }
@@ -540,7 +558,7 @@ impl Column {
             Column::Float(_, data) => data.min(row_ids),
             Column::Integer(_, data) => data.min(row_ids),
             Column::Unsigned(_, data) => data.min(row_ids),
-            Column::Bool => todo!(),
+            Column::Bool(_, data) => data.min(row_ids),
             Column::ByteArray(_, _) => todo!(),
         }
     }
@@ -554,7 +572,7 @@ impl Column {
             Column::Float(_, data) => data.max(row_ids),
             Column::Integer(_, data) => data.max(row_ids),
             Column::Unsigned(_, data) => data.max(row_ids),
-            Column::Bool => todo!(),
+            Column::Bool(_, data) => data.max(row_ids),
             Column::ByteArray(_, _) => todo!(),
         }
     }
@@ -584,7 +602,7 @@ impl Column {
             Column::Float(_, data) => data.count(row_ids),
             Column::Integer(_, data) => data.count(row_ids),
             Column::Unsigned(_, data) => data.count(row_ids),
-            Column::Bool => todo!(),
+            Column::Bool(_, data) => data.count(row_ids),
             Column::ByteArray(_, _) => todo!(),
         }
     }
@@ -1378,9 +1396,10 @@ pub enum FloatEncoding {
 impl FloatEncoding {
     /// Determines if the column contains a NULL value.
     pub fn contains_null(&self) -> bool {
-        // TODO(edd): when adding the nullable columns then ask the nullable
-        // encoding if it has any null values.
-        false
+        match self {
+            Self::Fixed64(_) => false,
+            Self::FixedNull64(enc) => enc.contains_null(),
+        }
     }
 
     /// Returns the logical value found at the provided row id.
@@ -1479,6 +1498,83 @@ impl FloatEncoding {
         match &self {
             FloatEncoding::Fixed64(c) => c.count(row_ids),
             FloatEncoding::FixedNull64(c) => c.count(row_ids),
+        }
+    }
+}
+
+/// Encodings for boolean values.
+pub enum BooleanEncoding {
+    BooleanNull(bool::Bool),
+}
+
+impl BooleanEncoding {
+    /// Determines if the column contains a NULL value.
+    pub fn contains_null(&self) -> bool {
+        match self {
+            BooleanEncoding::BooleanNull(enc) => enc.contains_null(),
+        }
+    }
+
+    /// Returns the logical value found at the provided row id.
+    pub fn value(&self, row_id: u32) -> Value<'_> {
+        match &self {
+            Self::BooleanNull(c) => match c.value(row_id) {
+                Some(v) => Value::Boolean(v),
+                None => Value::Null,
+            },
+        }
+    }
+
+    /// Returns the logical values found at the provided row ids.
+    ///
+    /// TODO(edd): perf - pooling of destination vectors.
+    pub fn values(&self, row_ids: &[u32]) -> Values<'_> {
+        match &self {
+            Self::BooleanNull(c) => Values::Bool(c.values(row_ids, vec![])),
+        }
+    }
+
+    /// Returns all logical values in the column.
+    ///
+    /// TODO(edd): perf - pooling of destination vectors.
+    pub fn all_values(&self) -> Values<'_> {
+        match &self {
+            Self::BooleanNull(c) => Values::Bool(c.all_values(vec![])),
+        }
+    }
+
+    /// Returns the row ids that satisfy the provided predicate.
+    ///
+    /// Note: it is the caller's responsibility to ensure that the provided
+    /// `Scalar` value will fit within the physical type of the encoded column.
+    /// `row_ids_filter` will panic if this invariant is broken.
+    pub fn row_ids_filter(&self, op: &cmp::Operator, value: bool, dst: RowIDs) -> RowIDs {
+        match &self {
+            Self::BooleanNull(c) => c.row_ids_filter(value, op, dst),
+        }
+    }
+
+    pub fn min(&self, row_ids: &[u32]) -> Value<'_> {
+        match &self {
+            Self::BooleanNull(c) => match c.min(row_ids) {
+                Some(v) => Value::Boolean(v),
+                None => Value::Null,
+            },
+        }
+    }
+
+    pub fn max(&self, row_ids: &[u32]) -> Value<'_> {
+        match &self {
+            Self::BooleanNull(c) => match c.max(row_ids) {
+                Some(v) => Value::Boolean(v),
+                None => Value::Null,
+            },
+        }
+    }
+
+    pub fn count(&self, row_ids: &[u32]) -> u32 {
+        match &self {
+            Self::BooleanNull(c) => c.count(row_ids),
         }
     }
 }
@@ -1859,9 +1955,55 @@ impl From<arrow::array::Float64Array> for Column {
             ..MetaData::default()
         };
 
-        // TODO(edd): currently fixed null only supports 64-bit logical/physical
-        // types. Need to add support for storing as smaller physical types.
         Column::Float(meta, FloatEncoding::FixedNull64(data))
+    }
+}
+
+impl From<arrow::array::BooleanArray> for Column {
+    fn from(arr: arrow::array::BooleanArray) -> Self {
+        // determine min and max values.
+        let mut min: Option<bool> = None;
+        let mut max: Option<bool> = None;
+
+        for i in 0..arr.len() {
+            if arr.is_null(i) {
+                continue;
+            }
+
+            let v = arr.value(i);
+            match min {
+                Some(m) => {
+                    if !v & m {
+                        min = Some(v);
+                    }
+                }
+                None => min = Some(v),
+            };
+
+            match max {
+                Some(m) => {
+                    if v & !m {
+                        max = Some(v)
+                    }
+                }
+                None => max = Some(v),
+            };
+        }
+
+        let range = match (min, max) {
+            (None, None) => None,
+            (Some(min), Some(max)) => Some((min, max)),
+            _ => unreachable!("min/max must both be Some or None"),
+        };
+
+        let data = bool::Bool::from(arr);
+        let meta = MetaData {
+            size: data.size(),
+            rows: data.num_rows(),
+            range,
+            ..MetaData::default()
+        };
+        Column::Bool(meta, BooleanEncoding::BooleanNull(data))
     }
 }
 
@@ -2402,6 +2544,13 @@ impl Value<'_> {
             return s;
         }
         panic!("cannot unwrap Value to String");
+    }
+
+    pub fn bool(&self) -> bool {
+        if let Self::Boolean(b) = self {
+            return *b;
+        }
+        panic!("cannot unwrap Value to Scalar");
     }
 }
 
