@@ -263,6 +263,10 @@ func executeWithOptions(t testing.TB, l *launcher.TestLauncher, bucketOpt *ast.O
 
 	// Use testing.inspect call to get all of diff, want, and got
 	inspectCalls := stdlib.TestingInspectCalls(pkg)
+	if len(inspectCalls.Body) == 0 {
+		t.Skip("no tests found")
+		return nil
+	}
 	pkg.Files = append(pkg.Files, inspectCalls)
 
 	bs, err := json.Marshal(pkg)
