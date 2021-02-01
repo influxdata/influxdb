@@ -2,15 +2,17 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/internal"
 	"github.com/influxdata/influxdb/v2/http"
+	ilogger "github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/spf13/cobra"
 	"github.com/tcnksm/go-input"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type userSVCsFn func() (cmdUserDeps, error)
@@ -34,12 +36,10 @@ type cmdUserBuilder struct {
 
 	svcFn userSVCsFn
 
-	hideHeaders bool
-	id          string
-	json        bool
-	name        string
-	password    string
-	org         organization
+	id       string
+	name     string
+	password string
+	org      organization
 }
 
 func newCmdUserBuilder(svcsFn userSVCsFn, f *globalFlags, opt genericCLIOpts) *cmdUserBuilder {
@@ -174,6 +174,23 @@ func (b *cmdUserBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 		return err
 	}
 
+	if b.password != "" && len(b.password) < internal.MinPasswordLen {
+		return internal.ErrPasswordIsTooShort
+	}
+
+	conf := &ilogger.Config{
+		Level:  zapcore.WarnLevel,
+		Format: "logfmt",
+	}
+	if b.json {
+		conf.Format = "json"
+	}
+
+	log, err := conf.New(b.errW)
+	if err != nil {
+		return err
+	}
+
 	dep, err := b.svcFn()
 	if err != nil {
 		return err
@@ -187,35 +204,46 @@ func (b *cmdUserBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 		return err
 	}
 
-	orgID, err := b.org.getID(dep.orgSvc)
-	if err != nil {
+	var setPassErr error
+	if b.password != "" {
+		setPassErr = dep.passSVC.SetPassword(ctx, user.ID, b.password)
+	} else {
+		log.Warn("No initial password set on user, use `influx user password`", zap.String("user", b.name))
+	}
+
+	orgID, setOrgErr := b.org.getID(dep.orgSvc)
+	if setOrgErr == nil {
+		setOrgErr = dep.urmSVC.CreateUserResourceMapping(context.Background(), &influxdb.UserResourceMapping{
+			UserID:       user.ID,
+			UserType:     influxdb.Member,
+			ResourceType: influxdb.OrgsResourceType,
+			ResourceID:   orgID,
+		})
+	}
+
+	if setPassErr != nil {
+		log.Error(
+			"Failed setting initial password on user, use `influx user password` to retry",
+			zap.String("user", b.name),
+			zap.Error(setPassErr),
+		)
+	}
+	if setOrgErr != nil {
+		log.Error(
+			"Failed setting org membership for user, use `influx org members add` to retry",
+			zap.String("user", b.name),
+			zap.Error(setOrgErr),
+		)
+	}
+
+	if err := b.printUser(userPrintOpts{user: user}); err != nil {
 		return err
 	}
 
-	pass := b.password
-	if orgID == 0 && pass == "" {
-		return b.printUser(userPrintOpts{user: user})
+	if setPassErr != nil || setOrgErr != nil {
+		return fmt.Errorf("user %q created, but additional setup failed (see logs for details)", b.name)
 	}
-
-	if pass != "" && orgID == 0 {
-		return errors.New("an org id is required when providing a user password")
-	}
-
-	err = dep.urmSVC.CreateUserResourceMapping(context.Background(), &influxdb.UserResourceMapping{
-		UserID:       user.ID,
-		UserType:     influxdb.Member,
-		ResourceType: influxdb.OrgsResourceType,
-		ResourceID:   orgID,
-	})
-	if err != nil {
-		return err
-	}
-
-	if err := dep.passSVC.SetPassword(ctx, user.ID, pass); err != nil {
-		return err
-	}
-
-	return b.printUser(userPrintOpts{user: user})
+	return nil
 }
 
 func (b *cmdUserBuilder) cmdFind() *cobra.Command {
