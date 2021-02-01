@@ -53,7 +53,7 @@ where
 
 #[derive(Debug)]
 pub struct GrpcService<T: DatabaseStore> {
-    db_store: Arc<T>,
+    pub db_store: Arc<T>,
 }
 
 impl<T> GrpcService<T>

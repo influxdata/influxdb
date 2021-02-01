@@ -5,6 +5,7 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+mod flight;
 pub mod http_routes;
 pub mod rpc;
 
