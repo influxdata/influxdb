@@ -8,7 +8,8 @@
 use arrow_deps::{arrow::record_batch::RecordBatch, datafusion::logical_plan::LogicalPlan};
 use async_trait::async_trait;
 use data_types::{
-    data::ReplicatedWrite, partition_metadata::Table as TableStats, selection::Selection,
+    data::ReplicatedWrite, partition_metadata::Table as TableStats, schema::Schema,
+    selection::Selection,
 };
 use exec::{Executor, FieldListPlan, SeriesSetPlans, StringSetPlan};
 
@@ -118,6 +119,9 @@ pub trait PartitionChunk: Debug + Send + Sync {
         true
     }
 
+    /// Returns true if this chunk contains data for the specified table
+    async fn has_table(&self, table_name: &str) -> bool;
+
     /// Returns a datafusion plan that produces
     /// a single string column representing the names
     /// of the tables that have at least one row that matches the
@@ -128,6 +132,14 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// the responsibility of the caller to deduplicate them if
     /// desired.
     async fn table_names(&self, predicate: &Predicate) -> Result<LogicalPlan, Self::Error>;
+
+    /// Returns the Schema for a table in this chunk, with the
+    /// specified column selection
+    async fn table_schema(
+        &self,
+        table_name: &str,
+        selection: Selection<'_>,
+    ) -> Result<Schema, Self::Error>;
 
     /// converts the table to an Arrow RecordBatch and writes to dst
     /// TODO turn this into a streaming interface

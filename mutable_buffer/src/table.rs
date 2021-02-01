@@ -17,8 +17,10 @@ use crate::{
     dictionary::{Dictionary, Error as DictionaryError},
 };
 use data_types::{
-    partition_metadata::Column as ColumnStats, schema::builder::SchemaBuilder,
-    selection::Selection, TIME_COLUMN_NAME,
+    partition_metadata::Column as ColumnStats,
+    schema::{builder::SchemaBuilder, Schema},
+    selection::Selection,
+    TIME_COLUMN_NAME,
 };
 use snafu::{OptionExt, ResultExt, Snafu};
 
@@ -875,6 +877,49 @@ impl Table {
         self.to_arrow_impl(chunk, &selection)
     }
 
+    pub fn schema(&self, chunk: &Chunk, selection: Selection<'_>) -> Result<Schema> {
+        // translate chunk selection into name/indexes:
+        let selection = match selection {
+            Selection::All => self.all_columns_selection(chunk),
+            Selection::Some(cols) => self.specific_columns_selection(chunk, cols),
+        }?;
+        self.schema_impl(&selection)
+    }
+
+    /// Returns the Schema of this table
+    fn schema_impl(&self, selection: &TableColSelection<'_>) -> Result<Schema> {
+        let schema_builder =
+            selection
+                .cols
+                .iter()
+                .fold(SchemaBuilder::new(), |schema_builder, col| {
+                    let column_name = col.column_name;
+                    let column_index = col.column_index;
+
+                    match &self.columns[column_index] {
+                        Column::String(_, _) => {
+                            schema_builder.field(column_name, ArrowDataType::Utf8)
+                        }
+                        Column::Tag(_, _) => schema_builder.tag(column_name),
+                        Column::F64(_, _) => {
+                            schema_builder.field(column_name, ArrowDataType::Float64)
+                        }
+                        Column::I64(_, _) => {
+                            if column_name == TIME_COLUMN_NAME {
+                                schema_builder.timestamp()
+                            } else {
+                                schema_builder.field(column_name, ArrowDataType::Int64)
+                            }
+                        }
+                        Column::Bool(_, _) => {
+                            schema_builder.field(column_name, ArrowDataType::Boolean)
+                        }
+                    }
+                });
+
+        schema_builder.build().context(InternalSchema)
+    }
+
     /// Converts this table to an arrow record batch,
     ///
     /// requested columns with index are tuples of column_name, column_index
@@ -883,90 +928,79 @@ impl Table {
         chunk: &Chunk,
         selection: &TableColSelection<'_>,
     ) -> Result<RecordBatch> {
-        let mut schema_builder = SchemaBuilder::new();
-        let mut columns: Vec<ArrayRef> = Vec::with_capacity(selection.cols.len());
+        let columns = selection
+            .cols
+            .iter()
+            .map(|col| {
+                let column_index = col.column_index;
+                let array = match &self.columns[column_index] {
+                    Column::String(vals, _) => {
+                        let mut builder = StringBuilder::with_capacity(vals.len(), vals.len() * 10);
 
-        for col in &selection.cols {
-            let column_name = col.column_name;
-            let column_index = col.column_index;
-
-            let arrow_col: ArrayRef = match &self.columns[column_index] {
-                Column::String(vals, _) => {
-                    schema_builder = schema_builder.field(column_name, ArrowDataType::Utf8);
-                    let mut builder = StringBuilder::with_capacity(vals.len(), vals.len() * 10);
-
-                    for v in vals {
-                        match v {
-                            None => builder.append_null(),
-                            Some(s) => builder.append_value(s),
-                        }
-                        .context(ArrowError {})?;
-                    }
-
-                    Arc::new(builder.finish())
-                }
-                Column::Tag(vals, _) => {
-                    schema_builder = schema_builder.tag(column_name);
-                    let mut builder = StringBuilder::with_capacity(vals.len(), vals.len() * 10);
-
-                    for v in vals {
-                        match v {
-                            None => builder.append_null(),
-                            Some(value_id) => {
-                                let tag_value = chunk.dictionary.lookup_id(*value_id).context(
-                                    TagValueIdNotFoundInDictionary {
-                                        value: *value_id,
-                                        chunk: chunk.id,
-                                    },
-                                )?;
-                                builder.append_value(tag_value)
+                        for v in vals {
+                            match v {
+                                None => builder.append_null(),
+                                Some(s) => builder.append_value(s),
                             }
+                            .context(ArrowError {})?;
                         }
-                        .context(ArrowError {})?;
+
+                        Arc::new(builder.finish()) as ArrayRef
                     }
+                    Column::Tag(vals, _) => {
+                        let mut builder = StringBuilder::with_capacity(vals.len(), vals.len() * 10);
 
-                    Arc::new(builder.finish())
-                }
-                Column::F64(vals, _) => {
-                    schema_builder = schema_builder.field(column_name, ArrowDataType::Float64);
-                    let mut builder = Float64Builder::new(vals.len());
+                        for v in vals {
+                            match v {
+                                None => builder.append_null(),
+                                Some(value_id) => {
+                                    let tag_value = chunk.dictionary.lookup_id(*value_id).context(
+                                        TagValueIdNotFoundInDictionary {
+                                            value: *value_id,
+                                            chunk: chunk.id,
+                                        },
+                                    )?;
+                                    builder.append_value(tag_value)
+                                }
+                            }
+                            .context(ArrowError {})?;
+                        }
 
-                    for v in vals {
-                        builder.append_option(*v).context(ArrowError {})?;
+                        Arc::new(builder.finish()) as ArrayRef
                     }
+                    Column::F64(vals, _) => {
+                        let mut builder = Float64Builder::new(vals.len());
 
-                    Arc::new(builder.finish())
-                }
-                Column::I64(vals, _) => {
-                    schema_builder = if column_name == TIME_COLUMN_NAME {
-                        schema_builder.timestamp()
-                    } else {
-                        schema_builder.field(column_name, ArrowDataType::Int64)
-                    };
-                    let mut builder = Int64Builder::new(vals.len());
+                        for v in vals {
+                            builder.append_option(*v).context(ArrowError {})?;
+                        }
 
-                    for v in vals {
-                        builder.append_option(*v).context(ArrowError {})?;
+                        Arc::new(builder.finish()) as ArrayRef
                     }
+                    Column::I64(vals, _) => {
+                        let mut builder = Int64Builder::new(vals.len());
 
-                    Arc::new(builder.finish())
-                }
-                Column::Bool(vals, _) => {
-                    schema_builder = schema_builder.field(column_name, ArrowDataType::Boolean);
-                    let mut builder = BooleanBuilder::new(vals.len());
+                        for v in vals {
+                            builder.append_option(*v).context(ArrowError {})?;
+                        }
 
-                    for v in vals {
-                        builder.append_option(*v).context(ArrowError {})?;
+                        Arc::new(builder.finish()) as ArrayRef
                     }
+                    Column::Bool(vals, _) => {
+                        let mut builder = BooleanBuilder::new(vals.len());
 
-                    Arc::new(builder.finish())
-                }
-            };
+                        for v in vals {
+                            builder.append_option(*v).context(ArrowError {})?;
+                        }
 
-            columns.push(arrow_col);
-        }
+                        Arc::new(builder.finish()) as ArrayRef
+                    }
+                };
+                Ok(array)
+            })
+            .collect::<Result<_>>()?;
 
-        let schema = schema_builder.build().context(InternalSchema)?.into();
+        let schema = self.schema_impl(selection)?.into();
 
         RecordBatch::try_new(schema, columns).context(ArrowError {})
     }
@@ -1436,6 +1470,62 @@ mod tests {
         let mut set = BTreeSet::new();
         set.insert(1337);
         assert!(!table.matches_column_name_predicate(Some(&set)));
+    }
+
+    #[test]
+    fn test_to_arrow_schema_all() {
+        let mut chunk = Chunk::new(42);
+        let dictionary = &mut chunk.dictionary;
+        let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
+
+        let lp_lines = vec![
+            "h2o,state=MA,city=Boston float_field=70.4,int_field=8i,bool_field=t,string_field=\"foo\" 100",
+        ];
+
+        write_lines_to_table(&mut table, dictionary, lp_lines);
+
+        let selection = Selection::All;
+        let actual_schema = table.schema(&chunk, selection).unwrap();
+        let expected_schema = SchemaBuilder::new()
+            .field("bool_field", ArrowDataType::Boolean)
+            .tag("city")
+            .field("float_field", ArrowDataType::Float64)
+            .field("int_field", ArrowDataType::Int64)
+            .tag("state")
+            .field("string_field", ArrowDataType::Utf8)
+            .timestamp()
+            .build()
+            .unwrap();
+
+        assert_eq!(
+            expected_schema, actual_schema,
+            "Expected:\n{:#?}\nActual:\n{:#?}\n",
+            expected_schema, actual_schema
+        );
+    }
+
+    #[test]
+    fn test_to_arrow_schema_subset() {
+        let mut chunk = Chunk::new(42);
+        let dictionary = &mut chunk.dictionary;
+        let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
+
+        let lp_lines = vec!["h2o,state=MA,city=Boston float_field=70.4 100"];
+
+        write_lines_to_table(&mut table, dictionary, lp_lines);
+
+        let selection = Selection::Some(&["float_field"]);
+        let actual_schema = table.schema(&chunk, selection).unwrap();
+        let expected_schema = SchemaBuilder::new()
+            .field("float_field", ArrowDataType::Float64)
+            .build()
+            .unwrap();
+
+        assert_eq!(
+            expected_schema, actual_schema,
+            "Expected:\n{:#?}\nActual:\n{:#?}\n",
+            expected_schema, actual_schema
+        );
     }
 
     #[tokio::test]

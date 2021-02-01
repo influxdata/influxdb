@@ -394,6 +394,35 @@ impl Schema {
             Err(schema_arc) => schema_arc.as_ref().clone(),
         }
     }
+
+    /// Resort order of our columns lexographically by name
+    pub fn sort_fields_by_name(self) -> Self {
+        // pairs of (orig_index, field_ref)
+        let mut sorted_fields: Vec<(usize, &ArrowField)> =
+            self.inner.fields().iter().enumerate().collect();
+        sorted_fields.sort_by(|a, b| a.1.name().cmp(b.1.name()));
+
+        let is_sorted = sorted_fields
+            .iter()
+            .enumerate()
+            .all(|(index, pair)| index == pair.0);
+
+        if is_sorted {
+            self
+        } else {
+            // No way at present to destructure an existing Schema so
+            // we have to copy :(
+            let new_fields: Vec<ArrowField> =
+                sorted_fields.iter().map(|pair| pair.1).cloned().collect();
+
+            let new_meta = self.inner.metadata().clone();
+            let new_schema = ArrowSchema::new_with_metadata(new_fields, new_meta);
+
+            Self {
+                inner: Arc::new(new_schema),
+            }
+        }
+    }
 }
 
 /// Valid types for InfluxDB data model, as defined in [the documentation]
@@ -989,5 +1018,48 @@ mod test {
         let merged_schema_error = schema1.try_merge(schema2).unwrap_err();
 
         assert_eq!(merged_schema_error.to_string(), "Schema Merge Error: Incompatible nullability for 'int_field'. Existing field can not be null, new field can be null");
+    }
+
+    #[test]
+    fn test_sort_fields_by_name_already_sorted() {
+        let schema = SchemaBuilder::new()
+            .field("field_a", ArrowDataType::Int64)
+            .field("field_b", ArrowDataType::Int64)
+            .field("field_c", ArrowDataType::Int64)
+            .build()
+            .unwrap();
+
+        let sorted_schema = schema.clone().sort_fields_by_name();
+
+        assert_eq!(
+            schema, sorted_schema,
+            "\nExpected:\n{:#?}\nActual:\n{:#?}",
+            schema, sorted_schema
+        );
+    }
+
+    #[test]
+    fn test_sort_fields_by_name() {
+        let schema = SchemaBuilder::new()
+            .field("field_b", ArrowDataType::Int64)
+            .field("field_a", ArrowDataType::Int64)
+            .field("field_c", ArrowDataType::Int64)
+            .build()
+            .unwrap();
+
+        let sorted_schema = schema.sort_fields_by_name();
+
+        let expected_schema = SchemaBuilder::new()
+            .field("field_a", ArrowDataType::Int64)
+            .field("field_b", ArrowDataType::Int64)
+            .field("field_c", ArrowDataType::Int64)
+            .build()
+            .unwrap();
+
+        assert_eq!(
+            expected_schema, sorted_schema,
+            "\nExpected:\n{:#?}\nActual:\n{:#?}",
+            expected_schema, sorted_schema
+        );
     }
 }

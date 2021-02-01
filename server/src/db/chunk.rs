@@ -2,7 +2,7 @@ use arrow_deps::{
     arrow::record_batch::RecordBatch, datafusion::logical_plan::LogicalPlan,
     util::str_iter_to_batch,
 };
-use data_types::selection::Selection;
+use data_types::{schema::Schema, selection::Selection};
 use query::{
     predicate::{Predicate, PredicateBuilder},
     util::make_scan_plan,
@@ -184,6 +184,72 @@ impl PartitionChunk for DBChunk {
             }
             Self::ParquetFile => {
                 unimplemented!("parquet file not implemented")
+            }
+        }
+    }
+
+    async fn table_schema(
+        &self,
+        table_name: &str,
+        selection: Selection<'_>,
+    ) -> Result<Schema, Self::Error> {
+        match self {
+            DBChunk::MutableBuffer { chunk } => chunk
+                .table_schema(table_name, selection)
+                .context(MutableBufferChunk),
+            DBChunk::ReadBuffer {
+                db,
+                partition_key,
+                chunk_id,
+            } => {
+                let chunk_id = *chunk_id;
+                let db = db.read().unwrap();
+
+                // TODO: Andrew -- I think technically this reordering
+                // should be happening inside the read buffer, but
+                // we'll see when we get to read_filter as the same
+                // issue will appear when actually reading columns
+                // back
+                let needs_sort = matches!(selection, Selection::All);
+
+                // For now, since read_filter is evaluated lazily,
+                // "run" a query with no predicates simply to get back the
+                // schema
+                let predicate = read_buffer::Predicate::default();
+                let mut schema = db
+                    .read_filter(partition_key, table_name, &[chunk_id], predicate, selection)
+                    .context(ReadBufferChunk { chunk_id })?
+                    .schema()
+                    .context(ReadBufferChunk { chunk_id })?;
+
+                // Ensure the order of the output columns is as
+                // specified
+                if needs_sort {
+                    schema = schema.sort_fields_by_name()
+                }
+
+                Ok(schema)
+            }
+            DBChunk::ParquetFile => {
+                unimplemented!("parquet file not implemented for table schema")
+            }
+        }
+    }
+
+    async fn has_table(&self, table_name: &str) -> bool {
+        match self {
+            DBChunk::MutableBuffer { chunk } => chunk.has_table(table_name).await,
+            DBChunk::ReadBuffer {
+                db,
+                partition_key,
+                chunk_id,
+            } => {
+                let chunk_id = *chunk_id;
+                let db = db.read().unwrap();
+                db.has_table(partition_key, table_name, &[chunk_id])
+            }
+            DBChunk::ParquetFile => {
+                unimplemented!("parquet file not implemented for has_table")
             }
         }
     }

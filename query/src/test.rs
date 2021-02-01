@@ -19,6 +19,7 @@ use crate::{
 use data_types::{
     data::{lines_to_replicated_write, ReplicatedWrite},
     database_rules::{DatabaseRules, PartitionTemplate, TemplatePart},
+    schema::Schema,
     selection::Selection,
 };
 use influxdb_line_protocol::{parse_lines, ParsedLine};
@@ -492,6 +493,18 @@ impl PartitionChunk for TestChunk {
         let names = self.table_names.iter().map(Some);
         let batch = str_iter_to_batch("tables", names).unwrap();
         Ok(make_scan_plan(batch).unwrap())
+    }
+
+    async fn table_schema(
+        &self,
+        _table_name: &str,
+        _selection: Selection<'_>,
+    ) -> Result<Schema, Self::Error> {
+        unimplemented!()
+    }
+
+    async fn has_table(&self, _table_name: &str) -> bool {
+        unimplemented!()
     }
 }
 

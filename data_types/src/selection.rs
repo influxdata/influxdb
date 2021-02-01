@@ -1,4 +1,4 @@
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 /// A collection of columns to include in query results.
 ///
 /// The `All` variant denotes that the caller wishes to include all table

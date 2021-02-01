@@ -10,12 +10,16 @@ pub(crate) mod table;
 
 use std::{
     collections::{btree_map::Entry, BTreeMap, BTreeSet},
+    convert::TryInto,
     fmt,
     sync::RwLock,
 };
 
 use arrow_deps::{arrow::record_batch::RecordBatch, util::str_iter_to_batch};
-use data_types::selection::Selection;
+use data_types::{
+    schema::{builder::SchemaMerger, Schema},
+    selection::Selection,
+};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 // Identifiers that are exported as part of the public API.
@@ -35,6 +39,12 @@ pub enum Error {
     #[snafu(display("arrow conversion error: {}", source))]
     ArrowError {
         source: arrow_deps::arrow::error::ArrowError,
+    },
+
+    // TODO add more context / helpful error here
+    #[snafu(display("Error building unioned read buffer schema for chunks: {}", source))]
+    BuildingSchema {
+        source: data_types::schema::builder::Error,
     },
 
     #[snafu(display("partition key does not exist: {}", key))]
@@ -207,6 +217,17 @@ impl Database {
             .values()
             .map(|chunk| chunk.row_groups())
             .sum()
+    }
+
+    /// returns true if the table exists in at least one of the specified chunks
+    pub fn has_table(&self, partition_key: &str, table_name: &str, chunk_ids: &[u32]) -> bool {
+        let partition_data = self.data.read().unwrap();
+
+        if let Some(partition) = partition_data.partitions.get(partition_key) {
+            partition.has_table(table_name, chunk_ids)
+        } else {
+            false
+        }
     }
 
     /// Returns rows for the specified columns in the provided table, for the
@@ -573,6 +594,16 @@ impl Partition {
             .sum()
     }
 
+    /// returns true if the table exists in this chunk
+    pub fn has_table(&self, table_name: &str, chunk_ids: &[u32]) -> bool {
+        let chunk_data = self.data.read().unwrap();
+
+        chunk_ids
+            .iter()
+            .filter_map(|chunk_id| chunk_data.chunks.get(chunk_id))
+            .any(|chunk| chunk.has_table(table_name))
+    }
+
     /// Determines the total number of row groups under all tables under all
     /// chunks, within the partition.
     pub fn row_groups(&self) -> usize {
@@ -613,6 +644,25 @@ impl ReadFilterResults {
             all_chunks_table_results: results,
             next_chunk: 0,
         }
+    }
+
+    /// Return the union of the schemas that this result will produce,
+    /// or an Error if they are not compatible
+    pub fn schema(&self) -> Result<Schema> {
+        let builder = self.all_chunks_table_results.iter().try_fold(
+            SchemaMerger::new(),
+            |builder, table_result| {
+                let table_schema = table_result.schema();
+
+                let schema: Schema = table_schema.try_into().context(BuildingSchema)?;
+
+                let builder = builder.merge(schema).context(BuildingSchema)?;
+
+                Ok(builder)
+            },
+        )?;
+
+        builder.build().context(BuildingSchema)
     }
 }
 
