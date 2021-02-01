@@ -262,7 +262,7 @@ func (sh *TempShard) MustWritePointsString(s string) {
 		panic(err)
 	}
 
-	if err := sh.WritePoints(a); err != nil {
+	if err := sh.WritePoints(a, nil); err != nil {
 		panic(err)
 	}
 }

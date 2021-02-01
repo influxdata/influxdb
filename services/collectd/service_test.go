@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/toml"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 func TestService_OpenClose(t *testing.T) {
@@ -113,7 +114,7 @@ func TestService_CreatesDatabase(t *testing.T) {
 
 	s := NewTestService(1, time.Second, "split")
 
-	s.WritePointsFn = func(string, string, models.ConsistencyLevel, []models.Point) error {
+	s.WritePointsFn = func(string, string, models.ConsistencyLevel, []models.Point, tsdb.StatsTracker) error {
 		return nil
 	}
 
@@ -198,7 +199,7 @@ func TestService_BatchSize(t *testing.T) {
 			s := NewTestService(batchSize, time.Second, "split")
 
 			pointCh := make(chan models.Point)
-			s.WritePointsFn = func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+			s.WritePointsFn = func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point, tracker tsdb.StatsTracker) error {
 				if len(points) != batchSize {
 					t.Errorf("\n\texp = %d\n\tgot = %d\n", batchSize, len(points))
 				}
@@ -269,7 +270,7 @@ func TestService_ParseMultiValuePlugin(t *testing.T) {
 	s := NewTestService(1, time.Second, "join")
 
 	pointCh := make(chan models.Point, 1000)
-	s.WritePointsFn = func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+	s.WritePointsFn = func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point, tracker tsdb.StatsTracker) error {
 		for _, p := range points {
 			pointCh <- p
 		}
@@ -331,7 +332,7 @@ func TestService_BatchDuration(t *testing.T) {
 	s := NewTestService(5000, 250*time.Millisecond, "split")
 
 	pointCh := make(chan models.Point, 1000)
-	s.WritePointsFn = func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+	s.WritePointsFn = func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point, tracker tsdb.StatsTracker) error {
 		for _, p := range points {
 			pointCh <- p
 		}
@@ -390,7 +391,7 @@ type TestService struct {
 	Service       *Service
 	Config        Config
 	MetaClient    *internal.MetaClientMock
-	WritePointsFn func(string, string, models.ConsistencyLevel, []models.Point) error
+	WritePointsFn func(string, string, models.ConsistencyLevel, []models.Point, tsdb.StatsTracker) error
 }
 
 func NewTestService(batchSize int, batchDuration time.Duration, parseOpt string) *TestService {
@@ -427,8 +428,8 @@ func NewTestService(batchSize int, batchDuration time.Duration, parseOpt string)
 	return s
 }
 
-func (w *TestService) WritePointsPrivileged(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
-	return w.WritePointsFn(database, retentionPolicy, consistencyLevel, points)
+func (w *TestService) WritePointsPrivileged(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point, tracker tsdb.StatsTracker) error {
+	return w.WritePointsFn(database, retentionPolicy, consistencyLevel, points, tracker)
 }
 
 func check(err error) {

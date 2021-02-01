@@ -496,27 +496,11 @@ type FieldCreate struct {
 	Field       *Field
 }
 
-// WritePoints() is a thin wrapper for WritePointsWithContext().
-func (s *Shard) WritePoints(points []models.Point) error {
-	return s.WritePointsWithContext(context.Background(), points)
-}
+type StatsTracker func(points, values int64)
 
-type ConetextKey int
-
-const (
-	StatPointsWritten = ConetextKey(iota)
-	StatValuesWritten
-)
-
-// WritePointsWithContext() will write the raw data points and any new metadata
+// WritePoints() will write the raw data points and any new metadata
 // to the index in the shard.
-//
-// If a context key of type ConetextKey is passed in, WritePointsWithContext()
-// will store points written stats into the int64 pointer associated with
-// StatPointsWritten and the number of values written in the int64 pointer
-// stored in the StatValuesWritten context values.
-//
-func (s *Shard) WritePointsWithContext(ctx context.Context, points []models.Point) error {
+func (s *Shard) WritePoints(points []models.Point, tracker StatsTracker) error {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -544,44 +528,23 @@ func (s *Shard) WritePointsWithContext(ctx context.Context, points []models.Poin
 		return err
 	}
 
-	// see if our engine is capable of WritePointsWithContext
-	type contextWriter interface {
-		WritePointsWithContext(context.Context, []models.Point) error
+	engineTracker := func(points, values int64) {
+		if tracker != nil {
+			// notify outer tracker (e.g. http service)
+			tracker(points, values)
+		}
+		atomic.AddInt64(&s.stats.WritePointsOK, points)
+		atomic.AddInt64(&s.stats.WriteValuesOK, values)
 	}
-	switch eng := engine.(type) {
-	case contextWriter:
-		if err := eng.WritePointsWithContext(ctx, points); err != nil {
-			atomic.AddInt64(&s.stats.WritePointsErr, int64(len(points)))
-			atomic.AddInt64(&s.stats.WriteReqErr, 1)
-			return fmt.Errorf("engine: %s", err)
-		}
-	default:
-		// Write to the engine.
-		if err := engine.WritePoints(points); err != nil {
-			atomic.AddInt64(&s.stats.WritePointsErr, int64(len(points)))
-			atomic.AddInt64(&s.stats.WriteReqErr, 1)
-			return fmt.Errorf("engine: %s", err)
-		}
+	// Write to the engine.
+	if err := engine.WritePoints(points, engineTracker); err != nil {
+		atomic.AddInt64(&s.stats.WritePointsErr, int64(len(points)))
+		atomic.AddInt64(&s.stats.WriteReqErr, 1)
+		return fmt.Errorf("engine: %s", err)
 	}
 
 	// increment the number OK write requests
 	atomic.AddInt64(&s.stats.WriteReqOK, 1)
-
-	// Increment the number of points written.  If was a StatPointsWritten
-	// request is sent to this function via a context, use the value that the
-	// engine reported.  otherwise, use the length of our points slice.
-	if npoints, ok := ctx.Value(StatPointsWritten).(*int64); ok {
-		// use engine counted points
-		atomic.AddInt64(&s.stats.WritePointsOK, *npoints)
-	} else {
-		// fallback to assuming that len(points) is accurate
-		atomic.AddInt64(&s.stats.WritePointsOK, int64(len(points)))
-	}
-
-	// Increment the number of values stored if available
-	if nvalues, ok := ctx.Value(StatValuesWritten).(*int64); ok {
-		atomic.AddInt64(&s.stats.WriteValuesOK, *nvalues)
-	}
 
 	return writeError
 }

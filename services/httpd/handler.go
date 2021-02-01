@@ -13,14 +13,13 @@ import (
 	"log"
 	"math"
 	"net/http"
+	httppprof "net/http/pprof"
 	"os"
 	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync/atomic"
 	"time"
-
-	httppprof "net/http/pprof"
 
 	"github.com/bmizerany/pat"
 	"github.com/dgrijalva/jwt-go/v4"
@@ -29,7 +28,6 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb"
-	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
@@ -115,7 +113,7 @@ type Handler struct {
 	}
 
 	PointsWriter interface {
-		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
+		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point, tracker tsdb.StatsTracker) error
 	}
 
 	Store Store
@@ -975,31 +973,12 @@ func (h *Handler) serveWrite(database, retentionPolicy, precision string, w http
 		}
 	}
 
-	type pointsWriterWithContext interface {
-		WritePointsWithContext(context.Context, string, string, models.ConsistencyLevel, meta.User, []models.Point) error
+	tracker := func(points, values int64) {
+		// only track values for now
+		atomic.AddInt64(&h.stats.ValuesWrittenOK, values)
 	}
 
-	writePoints := func() error {
-		switch pw := h.PointsWriter.(type) {
-		case pointsWriterWithContext:
-			var npoints, nvalues int64
-			ctx := context.WithValue(context.Background(), coordinator.StatPointsWritten, &npoints)
-			ctx = context.WithValue(ctx, coordinator.StatValuesWritten, &nvalues)
-
-			// for now, just store the number of values used.
-			err := pw.WritePointsWithContext(ctx, database, retentionPolicy, consistency, user, points)
-			atomic.AddInt64(&h.stats.ValuesWrittenOK, nvalues)
-			if err != nil {
-				return err
-			}
-			return nil
-		default:
-			return h.PointsWriter.WritePoints(database, retentionPolicy, consistency, user, points)
-		}
-	}
-
-	// Write points.
-	if err := writePoints(); influxdb.IsClientError(err) {
+	if err := h.PointsWriter.WritePoints(database, retentionPolicy, consistency, user, points, tracker); influxdb.IsClientError(err) {
 		atomic.AddInt64(&h.stats.PointsWrittenFail, int64(len(points)))
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
@@ -1008,6 +987,8 @@ func (h *Handler) serveWrite(database, retentionPolicy, precision string, w http
 		h.httpError(w, err.Error(), http.StatusForbidden)
 		return
 	} else if werr, ok := err.(tsdb.PartialWriteError); ok {
+		// Note - we don't always collect all the errors before returning from the call,
+		// so PointsWrittenOK might overestimate and ValuesWrittenOK might underestimate
 		atomic.AddInt64(&h.stats.PointsWrittenOK, int64(len(points)-werr.Dropped))
 		atomic.AddInt64(&h.stats.PointsWrittenDropped, int64(werr.Dropped))
 		h.httpError(w, werr.Error(), http.StatusBadRequest)
@@ -1208,8 +1189,8 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 		}
 	}
 
-	// Write points.
-	if err := h.PointsWriter.WritePoints(database, r.URL.Query().Get("rp"), consistency, user, points); influxdb.IsClientError(err) {
+	// Write points - without stats tracking.
+	if err := h.PointsWriter.WritePoints(database, r.URL.Query().Get("rp"), consistency, user, points, nil); influxdb.IsClientError(err) {
 		atomic.AddInt64(&h.stats.PointsWrittenFail, int64(len(points)))
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return

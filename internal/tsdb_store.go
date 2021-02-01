@@ -46,7 +46,7 @@ type TSDBStoreMock struct {
 	TagKeysFn                 func(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
 	TagValuesFn               func(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
 	WithLoggerFn              func(log *zap.Logger)
-	WriteToShardFn            func(shardID uint64, points []models.Point) error
+	WriteToShardFn            func(shardID uint64, points []models.Point, tracker tsdb.StatsTracker) error
 }
 
 func (s *TSDBStoreMock) BackupShard(id uint64, since time.Time, w io.Writer) error {
@@ -146,6 +146,6 @@ func (s *TSDBStoreMock) TagValues(auth query.Authorizer, shardIDs []uint64, cond
 func (s *TSDBStoreMock) WithLogger(log *zap.Logger) {
 	s.WithLoggerFn(log)
 }
-func (s *TSDBStoreMock) WriteToShard(shardID uint64, points []models.Point) error {
-	return s.WriteToShardFn(shardID, points)
+func (s *TSDBStoreMock) WriteToShard(shardID uint64, points []models.Point, tracker tsdb.StatsTracker) error {
+	return s.WriteToShardFn(shardID, points, tracker)
 }

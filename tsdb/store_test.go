@@ -1222,7 +1222,7 @@ func TestStore_Cardinality_Limit_On_InMem_Index(t *testing.T) {
 		from := shardID * pointsPerShard
 		to := from + pointsPerShard
 
-		if err := store.Store.WriteToShard(uint64(shardID), points[from:to]); err != nil {
+		if err := store.Store.WriteToShard(uint64(shardID), points[from:to], nil); err != nil {
 			if !strings.Contains(err.Error(), "partial write: max-series-per-database limit exceeded:") {
 				t.Fatal(err)
 			}
@@ -2124,7 +2124,7 @@ func BenchmarkStore_SeriesCardinality_100_Shards(b *testing.B) {
 				b.Fatalf("create shard: %s", err)
 			}
 
-			err := store.WriteToShard(uint64(shardID), []models.Point{models.MustNewPoint("cpu", nil, map[string]interface{}{"value": 1.0}, time.Now())})
+			err := store.WriteToShard(uint64(shardID), []models.Point{models.MustNewPoint("cpu", nil, map[string]interface{}{"value": 1.0}, time.Now())}, nil)
 			if err != nil {
 				b.Fatalf("write: %s", err)
 			}
@@ -2394,7 +2394,7 @@ func (s *Store) MustWriteToShardString(shardID int, data ...string) {
 		points = append(points, a...)
 	}
 
-	if err := s.WriteToShard(uint64(shardID), points); err != nil {
+	if err := s.WriteToShard(uint64(shardID), points, nil); err != nil {
 		panic(err)
 	}
 }
@@ -2414,7 +2414,7 @@ func (s *Store) BatchWrite(shardID int, points []models.Point) error {
 			break
 		}
 
-		if err := s.WriteToShard(uint64(shardID), points[start:end]); err != nil {
+		if err := s.WriteToShard(uint64(shardID), points[start:end], nil); err != nil {
 			return err
 		}
 		start = end

@@ -781,7 +781,7 @@ func TestHandler_PromWrite(t *testing.T) {
 	}
 
 	var called bool
-	h.PointsWriter.WritePointsFn = func(db, rp string, _ models.ConsistencyLevel, _ meta.User, points []models.Point) error {
+	h.PointsWriter.WritePointsFn = func(db, rp string, _ models.ConsistencyLevel, _ meta.User, points []models.Point, tracker tsdb.StatsTracker) error {
 		called = true
 
 		if got, exp := len(points), 3; got != exp {
@@ -870,7 +870,7 @@ func TestHandler_PromWrite_Dropped(t *testing.T) {
 	}
 
 	var called bool
-	h.PointsWriter.WritePointsFn = func(db, rp string, _ models.ConsistencyLevel, _ meta.User, points []models.Point) error {
+	h.PointsWriter.WritePointsFn = func(db, rp string, _ models.ConsistencyLevel, _ meta.User, points []models.Point, tracker tsdb.StatsTracker) error {
 		called = true
 
 		if got, exp := len(points), 3; got != exp {
@@ -954,7 +954,7 @@ func TestHandler_PromWrite_Error(t *testing.T) {
 	}
 
 	var called bool
-	h.PointsWriter.WritePointsFn = func(db, rp string, _ models.ConsistencyLevel, _ meta.User, points []models.Point) error {
+	h.PointsWriter.WritePointsFn = func(db, rp string, _ models.ConsistencyLevel, _ meta.User, points []models.Point, tracker tsdb.StatsTracker) error {
 		called = true
 		return nil
 	}
@@ -1603,7 +1603,7 @@ func TestHandler_Write_SuppressLog(t *testing.T) {
 	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
 		return &meta.DatabaseInfo{}
 	}
-	h.PointsWriter.WritePointsFn = func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error {
+	h.PointsWriter.WritePointsFn = func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point, tracker tsdb.StatsTracker) error {
 		return nil
 	}
 
@@ -1653,7 +1653,7 @@ func TestHandler_Write_NegativeMaxBodySize(t *testing.T) {
 		return &meta.DatabaseInfo{}
 	}
 	called := false
-	h.PointsWriter.WritePointsFn = func(_, _ string, _ models.ConsistencyLevel, _ meta.User, _ []models.Point) error {
+	h.PointsWriter.WritePointsFn = func(_, _ string, _ models.ConsistencyLevel, _ meta.User, _ []models.Point, _ tsdb.StatsTracker) error {
 		called = true
 		return nil
 	}
@@ -1674,7 +1674,7 @@ func TestHandler_Write_V1_Precision(t *testing.T) {
 	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
 		return &meta.DatabaseInfo{}
 	}
-	h.PointsWriter.WritePointsFn = func(_, _ string, _ models.ConsistencyLevel, _ meta.User, _ []models.Point) error {
+	h.PointsWriter.WritePointsFn = func(_, _ string, _ models.ConsistencyLevel, _ meta.User, _ []models.Point, _ tsdb.StatsTracker) error {
 		return nil
 	}
 
@@ -1714,7 +1714,7 @@ func TestHandler_Write_V2_Precision(t *testing.T) {
 	h.MetaClient.DatabaseFn = func(name string) *meta.DatabaseInfo {
 		return &meta.DatabaseInfo{}
 	}
-	h.PointsWriter.WritePointsFn = func(_, _ string, _ models.ConsistencyLevel, _ meta.User, _ []models.Point) error {
+	h.PointsWriter.WritePointsFn = func(_, _ string, _ models.ConsistencyLevel, _ meta.User, _ []models.Point, _ tsdb.StatsTracker) error {
 		return nil
 	}
 
@@ -2201,11 +2201,11 @@ func (a *HandlerQueryAuthorizer) AuthorizeQuery(u meta.User, query *influxql.Que
 }
 
 type HandlerPointsWriter struct {
-	WritePointsFn func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
+	WritePointsFn func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point, tracker tsdb.StatsTracker) error
 }
 
-func (h *HandlerPointsWriter) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error {
-	return h.WritePointsFn(database, retentionPolicy, consistencyLevel, user, points)
+func (h *HandlerPointsWriter) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point, tracker tsdb.StatsTracker) error {
+	return h.WritePointsFn(database, retentionPolicy, consistencyLevel, user, points, tracker)
 }
 
 // MustNewRequest returns a new HTTP request. Panic on error.
