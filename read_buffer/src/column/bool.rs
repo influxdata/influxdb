@@ -3,6 +3,7 @@ use std::cmp::Ordering;
 use std::fmt::Debug;
 
 use arrow_deps::arrow::array::{Array, BooleanArray};
+use cmp::Operator;
 
 use crate::column::{cmp, RowIDs};
 
@@ -192,10 +193,9 @@ impl Bool {
     /// The equivalent of `IS NULL` is not currently supported via this method.
     pub fn row_ids_filter(&self, value: bool, op: &cmp::Operator, dst: RowIDs) -> RowIDs {
         match op {
-            cmp::Operator::GT => self.row_ids_cmp_order(value, Self::ord_from_op(&op), dst),
-            cmp::Operator::GTE => self.row_ids_cmp_order(value, Self::ord_from_op(&op), dst),
-            cmp::Operator::LT => self.row_ids_cmp_order(value, Self::ord_from_op(&op), dst),
-            cmp::Operator::LTE => self.row_ids_cmp_order(value, Self::ord_from_op(&op), dst),
+            cmp::Operator::GT | cmp::Operator::GTE | cmp::Operator::LT | cmp::Operator::LTE => {
+                self.row_ids_cmp_order(value, Self::ord_from_op(&op), dst)
+            }
             _ => self.row_ids_equal(value, op, dst),
         }
     }
@@ -215,13 +215,13 @@ impl Bool {
     // For performance reasons ranges of matching values are collected up and
     // added in bulk to the bitmap.
     fn row_ids_equal(&self, value: bool, op: &cmp::Operator, mut dst: RowIDs) -> RowIDs {
+        // Only supports equal and not equal operations.
+        assert!(matches!(op, Operator::Equal) | matches!(op, Operator::NotEqual));
+
         dst.clear();
 
-        let desired =  if let cmp::Operator::Equal = op {
-            true // == operator
-        } else {
-            false // != operator
-        };
+        // true for == and false for !=
+        let desired = matches!(op, cmp::Operator::Equal);
 
         let mut found = false;
         let mut count = 0;
@@ -367,7 +367,7 @@ mod test {
         let v = Bool::from(&[false, true, false][..]);
         assert_eq!(v.last(&[0, 1, 2]), Some(false));
         assert_eq!(v.last(&[1, 2]), Some(false));
-        assert_eq!(v.last(&[0, 2]), Some(false));
+        assert_eq!(v.last(&[0, 1]), Some(true));
     }
 
     #[test]
