@@ -203,46 +203,36 @@ func (b *cmdUserBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 	if err := dep.userSVC.CreateUser(ctx, user); err != nil {
 		return err
 	}
-
-	var setPassErr error
-	if b.password != "" {
-		setPassErr = dep.passSVC.SetPassword(ctx, user.ID, b.password)
-	} else {
-		log.Warn("No initial password set on user, use `influx user password`", zap.String("user", b.name))
+	if err := b.printUser(userPrintOpts{user: user}); err != nil {
+		return err
 	}
 
-	orgID, setOrgErr := b.org.getID(dep.orgSvc)
-	if setOrgErr == nil {
-		setOrgErr = dep.urmSVC.CreateUserResourceMapping(context.Background(), &influxdb.UserResourceMapping{
+	orgID, err := b.org.getID(dep.orgSvc)
+	if orgID != 0 && err == nil {
+		err = dep.urmSVC.CreateUserResourceMapping(context.Background(), &influxdb.UserResourceMapping{
 			UserID:       user.ID,
 			UserType:     influxdb.Member,
 			ResourceType: influxdb.OrgsResourceType,
 			ResourceID:   orgID,
 		})
+	} else {
+		log.Warn("Initial org membership not set for user, use `influx org members add` to set it", zap.String("user", b.name))
+	}
+	if err != nil {
+		if b.password != "" {
+			log.Warn("Hit error before attempting to set password, use `influx user password` to retry", zap.String("user", b.name))
+		}
+		return fmt.Errorf("failed adding user %q to org %q, use `influx org members add` to retry: %w", b.name, orgID, err)
 	}
 
-	if setPassErr != nil {
-		log.Error(
-			"Failed setting initial password on user, use `influx user password` to retry",
-			zap.String("user", b.name),
-			zap.Error(setPassErr),
-		)
-	}
-	if setOrgErr != nil {
-		log.Error(
-			"Failed setting org membership for user, use `influx org members add` to retry",
-			zap.String("user", b.name),
-			zap.Error(setOrgErr),
-		)
+	if b.password != "" {
+		if err := dep.passSVC.SetPassword(ctx, user.ID, b.password); err != nil {
+			return fmt.Errorf("failed setting password for user %q, use `influx user password` to retry", b.name)
+		}
+	} else {
+		log.Warn("Initial password not set for user, use `influx user password` to set it", zap.String("user", b.name))
 	}
 
-	if err := b.printUser(userPrintOpts{user: user}); err != nil {
-		return err
-	}
-
-	if setPassErr != nil || setOrgErr != nil {
-		return fmt.Errorf("user %q created, but additional setup failed (see logs for details)", b.name)
-	}
 	return nil
 }
 
