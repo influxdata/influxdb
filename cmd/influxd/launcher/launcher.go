@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/dependencies/testing"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/authorizer"
@@ -423,6 +424,11 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		return err
 	}
 
+	dependencyList := []flux.Dependency{deps}
+	if opts.Testing {
+		dependencyList = append(dependencyList, testing.FrameworkConfig{})
+	}
+
 	m.queryController, err = control.New(control.Config{
 		ConcurrencyQuota:                opts.ConcurrencyQuota,
 		InitialMemoryBytesQuotaPerQuery: opts.InitialMemoryBytesQuotaPerQuery,
@@ -430,7 +436,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		MaxMemoryBytes:                  opts.MaxMemoryBytes,
 		QueueSize:                       opts.QueueSize,
 		Logger:                          m.log.With(zap.String("service", "storage-reads")),
-		ExecutorDependencies:            []flux.Dependency{deps},
+		ExecutorDependencies:            dependencyList,
 	})
 	if err != nil {
 		m.log.Error("Failed to create query controller", zap.Error(err))
