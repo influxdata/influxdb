@@ -217,12 +217,11 @@ impl Bool {
     fn row_ids_equal(&self, value: bool, op: &cmp::Operator, mut dst: RowIDs) -> RowIDs {
         dst.clear();
 
-        let desired;
-        if let cmp::Operator::Equal = op {
-            desired = true; // == operator
+        let desired =  if let cmp::Operator::Equal = op {
+            true // == operator
         } else {
-            desired = false; // != operator
-        }
+            false // != operator
+        };
 
         let mut found = false;
         let mut count = 0;
