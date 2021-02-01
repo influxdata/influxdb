@@ -1955,9 +1955,55 @@ impl From<arrow::array::Float64Array> for Column {
             ..MetaData::default()
         };
 
-        // TODO(edd): currently fixed null only supports 64-bit logical/physical
-        // types. Need to add support for storing as smaller physical types.
         Column::Float(meta, FloatEncoding::FixedNull64(data))
+    }
+}
+
+impl From<arrow::array::BooleanArray> for Column {
+    fn from(arr: arrow::array::BooleanArray) -> Self {
+        // determine min and max values.
+        let mut min: Option<bool> = None;
+        let mut max: Option<bool> = None;
+
+        for i in 0..arr.len() {
+            if arr.is_null(i) {
+                continue;
+            }
+
+            let v = arr.value(i);
+            match min {
+                Some(m) => {
+                    if !v & m {
+                        min = Some(v);
+                    }
+                }
+                None => min = Some(v),
+            };
+
+            match max {
+                Some(m) => {
+                    if v & !m {
+                        max = Some(v)
+                    }
+                }
+                None => max = Some(v),
+            };
+        }
+
+        let range = match (min, max) {
+            (None, None) => None,
+            (Some(min), Some(max)) => Some((min, max)),
+            _ => unreachable!("min/max must both be Some or None"),
+        };
+
+        let data = bool::Bool::from(arr);
+        let meta = MetaData {
+            size: data.size(),
+            rows: data.num_rows(),
+            range,
+            ..MetaData::default()
+        };
+        Column::Bool(meta, BooleanEncoding::BooleanNull(data))
     }
 }
 

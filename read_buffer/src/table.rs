@@ -635,9 +635,20 @@ impl MetaData {
         names
             .iter()
             .filter_map(|(name, agg_type)| {
-                self.columns
-                    .get(*name)
-                    .map(|schema| (schema.typ.clone(), *agg_type, schema.logical_data_type))
+                self.columns.get(*name).map(|schema| {
+                    // TODO(edd): this check happens because an aggregate does
+                    // not have to have the same physical type as the logical
+                    // type of the column it is aggregating on. An example of
+                    // this is Count. I'm going to fix this by associated data
+                    // types with the aggregate itself.
+                    let physical_data_type = if let AggregateType::Count = agg_type {
+                        LogicalDataType::Unsigned
+                    } else {
+                        schema.logical_data_type
+                    };
+
+                    (schema.typ.clone(), *agg_type, physical_data_type)
+                })
             })
             .collect::<Vec<_>>()
     }
@@ -1163,7 +1174,7 @@ mod test {
                 (
                     schema::ColumnType::Timestamp("time".to_owned()),
                     AggregateType::Count,
-                    LogicalDataType::Integer,
+                    LogicalDataType::Unsigned,
                 ),
                 (
                     schema::ColumnType::Timestamp("time".to_owned()),

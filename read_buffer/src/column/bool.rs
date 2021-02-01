@@ -39,7 +39,7 @@ impl Bool {
     /// is really an "accurate" estimation. It doesn't include for example the
     /// size of the `Plain` struct receiver.
     pub fn size(&self) -> u64 {
-        unimplemented!("not yet implemented")
+        0
     }
 
     //
