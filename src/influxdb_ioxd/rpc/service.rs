@@ -13,10 +13,9 @@ use super::{
 use arrow_deps::{
     arrow,
     arrow_flight::{
-        self,
-        flight_service_server::{FlightService, FlightServiceServer},
-        Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
-        HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
+        self, flight_service_server::FlightService, Action, ActionType, Criteria, Empty,
+        FlightData, FlightDescriptor, FlightInfo, HandshakeRequest, HandshakeResponse, PutResult,
+        SchemaResult, Ticket,
     },
     datafusion::physical_plan::collect,
 };
@@ -27,13 +26,12 @@ use data_types::{
 };
 use futures::Stream;
 use generated_types::{
-    i_ox_testing_server::{IOxTesting, IOxTestingServer},
-    storage_server::{Storage, StorageServer},
-    CapabilitiesResponse, Capability, Int64ValuesResponse, MeasurementFieldsRequest,
-    MeasurementFieldsResponse, MeasurementNamesRequest, MeasurementTagKeysRequest,
-    MeasurementTagValuesRequest, Predicate, ReadFilterRequest, ReadGroupRequest, ReadResponse,
-    ReadSeriesCardinalityRequest, ReadWindowAggregateRequest, StringValuesResponse, TagKeysRequest,
-    TagValuesRequest, TestErrorRequest, TestErrorResponse, TimestampRange,
+    i_ox_testing_server::IOxTesting, storage_server::Storage, CapabilitiesResponse, Capability,
+    Int64ValuesResponse, MeasurementFieldsRequest, MeasurementFieldsResponse,
+    MeasurementNamesRequest, MeasurementTagKeysRequest, MeasurementTagValuesRequest, Predicate,
+    ReadFilterRequest, ReadGroupRequest, ReadResponse, ReadSeriesCardinalityRequest,
+    ReadWindowAggregateRequest, StringValuesResponse, TagKeysRequest, TagValuesRequest,
+    TestErrorRequest, TestErrorResponse, TimestampRange,
 };
 use query::{
     exec::fieldlist::FieldList,
@@ -46,16 +44,13 @@ use query::{
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{collections::HashMap, pin::Pin, sync::Arc};
-use tokio::{net::TcpListener, sync::mpsc};
-use tokio_stream::wrappers::{ReceiverStream, TcpListenerStream};
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
 use tonic::{Request, Response, Status, Streaming};
 use tracing::{error, info, warn};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("gRPC server error:  {}", source))]
-    ServerError { source: tonic::transport::Error },
-
     #[snafu(display("Database not found: {}", db_name))]
     DatabaseNotFound { db_name: String },
 
@@ -215,7 +210,6 @@ impl Error {
     /// status
     fn to_status(&self) -> tonic::Status {
         match &self {
-            Self::ServerError { .. } => Status::internal(self.to_string()),
             Self::DatabaseNotFound { .. } => Status::not_found(self.to_string()),
             Self::ListingTables { .. } => Status::internal(self.to_string()),
             Self::ListingColumns { .. } => {
@@ -1314,26 +1308,6 @@ where
             })?;
 
     Ok(field_list)
-}
-
-/// Instantiate a server listening on the specified address
-/// implementing the IOx and Storage gRPC interfaces, the
-/// underlying hyper server instance. Resolves when the server has
-/// shutdown.
-pub async fn make_server<T>(socket: TcpListener, storage: Arc<T>) -> Result<()>
-where
-    T: DatabaseStore + 'static,
-{
-    let stream = TcpListenerStream::new(socket);
-
-    tonic::transport::Server::builder()
-        .add_service(IOxTestingServer::new(GrpcService::new(storage.clone())))
-        .add_service(StorageServer::new(GrpcService::new(storage.clone())))
-        .add_service(FlightServiceServer::new(GrpcService::new(storage)))
-        .serve_with_incoming(stream)
-        .await
-        .context(ServerError {})
-        .log_if_error("Running Tonic Server")
 }
 
 #[cfg(test)]
@@ -2789,7 +2763,7 @@ mod tests {
 
             println!("Starting InfluxDB IOx rpc test server on {:?}", bind_addr);
 
-            let server = make_server(socket, test_storage.clone());
+            let server = super::super::make_server(socket, test_storage.clone());
             tokio::task::spawn(server);
 
             let iox_client = connect_to_server::<IOxTestingClient>(bind_addr)

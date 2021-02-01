@@ -66,7 +66,7 @@ pub enum Error {
     ServingHttp { source: hyper::Error },
 
     #[snafu(display("Error serving RPC: {}", source))]
-    ServingRPC { source: self::rpc::service::Error },
+    ServingRPC { source: self::rpc::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -134,7 +134,7 @@ pub async fn main(logging_level: LoggingLevel, config: Option<Config>) -> Result
         .await
         .context(StartListeningGrpc { grpc_bind_addr })?;
 
-    let grpc_server = self::rpc::service::make_server(socket, app_server.clone());
+    let grpc_server = self::rpc::make_server(socket, app_server.clone());
 
     info!(bind_address=?grpc_bind_addr, "gRPC server listening");
 
