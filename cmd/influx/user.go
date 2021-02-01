@@ -180,7 +180,7 @@ func (b *cmdUserBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 
 	conf := &ilogger.Config{
 		Level:  zapcore.WarnLevel,
-		Format: "logfmt",
+		Format: "auto",
 	}
 	if b.json {
 		conf.Format = "json"
@@ -208,21 +208,19 @@ func (b *cmdUserBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 	}
 
 	orgID, err := b.org.getID(dep.orgSvc)
-	if orgID != 0 && err == nil {
+	if err == nil {
 		err = dep.urmSVC.CreateUserResourceMapping(context.Background(), &influxdb.UserResourceMapping{
 			UserID:       user.ID,
 			UserType:     influxdb.Member,
 			ResourceType: influxdb.OrgsResourceType,
 			ResourceID:   orgID,
 		})
-	} else {
-		log.Warn("Initial org membership not set for user, use `influx org members add` to set it", zap.String("user", b.name))
 	}
 	if err != nil {
 		if b.password != "" {
 			log.Warn("Hit error before attempting to set password, use `influx user password` to retry", zap.String("user", b.name))
 		}
-		return fmt.Errorf("failed adding user %q to org %q, use `influx org members add` to retry: %w", b.name, orgID, err)
+		return fmt.Errorf("failed setting org membership for user %q, use `influx org members add` to retry: %w", b.name, err)
 	}
 
 	if b.password != "" {
