@@ -455,7 +455,7 @@ impl Column {
     // Helper method to determine if the predicate matches all the values in
     // the column.
     //
-    // TODO(edd): this doesn't handle matching on NULL yet.
+    // TODO(edd): this doesn't handle operators that compare to a NULL value yet.
     fn predicate_matches_all_values(&self, op: &cmp::Operator, value: &Value<'_>) -> bool {
         match &self {
             Column::String(meta, data) => {
@@ -614,7 +614,14 @@ impl Column {
     /// Determines if the column has a non-null value at any of the provided
     /// rows.
     pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
-        todo!()
+        match &self {
+            Column::String(_, data) => data.has_non_null_value(row_ids),
+            Column::Float(_, data) => data.has_non_null_value(row_ids),
+            Column::Integer(_, data) => data.has_non_null_value(row_ids),
+            Column::Unsigned(_, data) => data.has_non_null_value(row_ids),
+            Column::Bool(_, data) => data.has_non_null_value(row_ids),
+            Column::ByteArray(_, _) => todo!(),
+        }
     }
 
     /// Determines if the column contains other values than those provided in
@@ -723,9 +730,18 @@ pub enum StringEncoding {
 impl StringEncoding {
     /// Determines if the column contains a NULL value.
     pub fn contains_null(&self) -> bool {
+        match self {
+            StringEncoding::RLEDictionary(enc) => enc.contains_null(),
+            StringEncoding::Dictionary(enc) => enc.contains_null(),
+        }
+    }
+
+    /// Determines if the column contains a non-null value at one of the
+    /// provided rows.
+    pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
         match &self {
-            Self::RLEDictionary(c) => c.contains_null(),
-            Self::Dictionary(c) => c.contains_null(),
+            Self::RLEDictionary(c) => c.has_non_null_value(row_ids),
+            Self::Dictionary(c) => c.has_non_null_value(row_ids),
         }
     }
 
@@ -1088,10 +1104,21 @@ pub enum IntegerEncoding {
 impl IntegerEncoding {
     /// Determines if the column contains a NULL value.
     pub fn contains_null(&self) -> bool {
-        if let Self::I64I64N(c) = &self {
-            return c.contains_null();
+        match self {
+            IntegerEncoding::I64I64N(enc) => enc.contains_null(),
+            IntegerEncoding::U64U64N(enc) => enc.contains_null(),
+            _ => false,
         }
-        false
+    }
+
+    /// Determines if the column contains a non-null value at one of the
+    /// provided rows.
+    pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
+        match self {
+            IntegerEncoding::I64I64N(enc) => enc.has_non_null_value(row_ids),
+            IntegerEncoding::U64U64N(enc) => enc.has_non_null_value(row_ids),
+            _ => false,
+        }
     }
 
     /// Returns the logical value found at the provided row id.
@@ -1397,8 +1424,17 @@ impl FloatEncoding {
     /// Determines if the column contains a NULL value.
     pub fn contains_null(&self) -> bool {
         match self {
+            FloatEncoding::Fixed64(_) => false,
+            FloatEncoding::FixedNull64(enc) => enc.contains_null(),
+        }
+    }
+
+    /// Determines if the column contains a non-null value at one of the
+    /// provided rows.
+    pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
+        match self {
             Self::Fixed64(_) => false,
-            Self::FixedNull64(enc) => enc.contains_null(),
+            Self::FixedNull64(enc) => enc.has_non_null_value(row_ids),
         }
     }
 
@@ -1512,6 +1548,14 @@ impl BooleanEncoding {
     pub fn contains_null(&self) -> bool {
         match self {
             BooleanEncoding::BooleanNull(enc) => enc.contains_null(),
+        }
+    }
+
+    /// Determines if the column contains a non-null value at one of the
+    /// provided rows.
+    pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
+        match self {
+            Self::BooleanNull(enc) => enc.has_non_null_value(row_ids),
         }
     }
 
