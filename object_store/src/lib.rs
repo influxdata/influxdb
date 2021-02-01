@@ -595,7 +595,7 @@ mod tests {
             "mydb/wal/000/000/001.segment",
             "mydb/wal/000/000/002.segment",
             "mydb/wal/001/001/000.segment",
-            "mydb/wal/foo.test",
+            "mydb/wal/foo.json",
             "mydb/data/whatevs",
         ]
         .iter()
@@ -624,7 +624,7 @@ mod tests {
         let mut expected_001 = prefix.clone();
         expected_001.push_dir("001");
         let mut expected_location = prefix.clone();
-        expected_location.set_file_name("foo.test");
+        expected_location.set_file_name("foo.json");
 
         let result = storage.list_with_delimiter(&prefix).await.unwrap();
 
@@ -710,7 +710,7 @@ mod tests {
             "mydb/wal/000/000/001.segment",
             "mydb/wal/000/000/002.segment",
             "mydb/wal/001/001/000.segment",
-            "mydb/wal/foo.test",
+            "mydb/wal/foo.json",
             "mydb/data/whatevs",
         ]
         .iter()
