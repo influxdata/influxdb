@@ -3,7 +3,6 @@ package main
 import (
 	"bufio"
 	"bytes"
-	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
@@ -16,6 +15,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/pkg/csv2lp"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
@@ -75,7 +76,7 @@ func createTempFile(suffix string, contents []byte) string {
 func Test_writeFlags_dump(t *testing.T) {
 	restoreLogging, log := overrideLogging()
 	defer restoreLogging()
-	flags := writeFlagsType{}
+	flags := writeFlagsBuilder{}
 	flags.dump([]string{})
 	// no dump without --debug
 	require.Empty(t, log.String())
@@ -112,7 +113,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 	var tests = []struct {
 		name string
 		// input
-		flags     writeFlagsType
+		flags     writeFlagsBuilder
 		stdIn     io.Reader
 		arguments []string
 		// output
@@ -123,7 +124,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 	}{
 		{
 			name: "read data from CSV file + transform to line protocol",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				Files: []string{csvFile1},
 			},
 			firstLineCorrection: 0, // no changes
@@ -133,7 +134,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		},
 		{
 			name: "read CSV data from --header and --file + transform to line protocol",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				Headers: []string{"x,_measurement,y,z"},
 				Files:   []string{csvFile1},
 			},
@@ -145,7 +146,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		},
 		{
 			name: "read CSV data from --header and @file argument with 1st row in file skipped + transform to line protocol",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				Headers:    []string{"x,_measurement,y,z"},
 				SkipHeader: 1,
 			},
@@ -157,7 +158,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		},
 		{
 			name: "read CSV data from --header and @file argument with 1st row in file skipped + transform to line protocol",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				Headers:    []string{"x,_measurement,y,z"},
 				SkipHeader: 1,
 			},
@@ -169,7 +170,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		},
 		{
 			name: "read CSV data from stdin + transform to line protocol",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				Format: inputFormatCsv,
 			},
 			stdIn: strings.NewReader(stdInContents),
@@ -179,7 +180,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		},
 		{
 			name: "read CSV data from stdin using '-' argument + transform to line protocol",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				Format: inputFormatCsv,
 			},
 			stdIn:     strings.NewReader(stdInContents),
@@ -190,7 +191,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		},
 		{
 			name: "read CSV data from 1st argument + transform to line protocol",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				Format: inputFormatCsv,
 			},
 			arguments: []string{stdInContents},
@@ -200,7 +201,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		},
 		{
 			name: "read data from .csv URL + transform to line protocol",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				URLs: []string{(server.URL + "/a.csv?data=" + url.QueryEscape(fileContents))},
 			},
 			lines: []string{
@@ -209,7 +210,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		},
 		{
 			name: "read data from .csv URL + change header line + transform to line protocol",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				URLs:       []string{(server.URL + "/a.csv?data=" + url.QueryEscape(fileContents))},
 				Headers:    []string{"k,j,_measurement,i"},
 				SkipHeader: 1,
@@ -220,7 +221,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		},
 		{
 			name: "read data from having text/csv URL resource + transform to line protocol",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				URLs: []string{(server.URL + "/a?Content-Type=text/csv&data=" + url.QueryEscape(fileContents))},
 			},
 			lines: []string{
@@ -229,7 +230,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		},
 		{
 			name: "read line protocol data from URL",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				URLs: []string{(server.URL + "/a?data=" + url.QueryEscape(fileContents))},
 			},
 			lines:  strings.Split(fileContents, "\n"),
@@ -237,7 +238,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		},
 		{
 			name: "read data from CSV file + transform to line protocol + throttle read to 1MB/min",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				Files:     []string{csvFile1},
 				RateLimit: "1MBs",
 			},
@@ -279,48 +280,48 @@ func Test_writeFlags_createLineReader_errors(t *testing.T) {
 	var tests = []struct {
 		name string
 		// input
-		flags writeFlagsType
+		flags writeFlagsBuilder
 		// output
 		message string
 	}{
 		{
 			name: "unsupported format",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				Format: "wiki",
 			},
 			message: "unsupported",
 		},
 		{
 			name: "unsupported encoding",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				Encoding: "green",
 			},
 			message: "https://www.iana.org/assignments/character-sets/character-sets.xhtml", // hint to available values
 		},
 		{
 			name: "file not found",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				Files: []string{csvFile1 + "x"},
 			},
 			message: csvFile1,
 		},
 		{
 			name: "unsupported URL",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				URLs: []string{"wit://whatever"},
 			},
 			message: "wit://whatever",
 		},
 		{
 			name: "invalid URL",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				URLs: []string{"http://test%zy"}, // 2 hex digits after % expected
 			},
 			message: "http://test%zy",
 		},
 		{
 			name: "URL with 500 status code",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				URLs: []string{server.URL},
 			},
 			message: server.URL,
@@ -338,8 +339,7 @@ func Test_writeFlags_createLineReader_errors(t *testing.T) {
 	}
 }
 
-// Test_fluxWriteDryrunF tests dryrun functionality
-func Test_fluxWriteDryrunF(t *testing.T) {
+func Test_writeDryrunE(t *testing.T) {
 	t.Run("process and transform csv data without problems to stdout", func(t *testing.T) {
 		stdInContents := "i,j,_measurement,k\nstdin1,stdin2,stdin3,stdin4"
 		out := bytes.Buffer{}
@@ -371,42 +371,8 @@ func Test_fluxWriteDryrunF(t *testing.T) {
 	})
 }
 
-// Test_fluxWriteF tests validation and processing of input flags in fluxWriteF
-func Test_fluxWriteF(t *testing.T) {
-	var lineData []byte // stores line data that the client writes
-	// use a test HTTP server to mock response
-	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		// consume and remember request contents
-		var requestData io.Reader = req.Body
-		if h := req.Header["Content-Encoding"]; len(h) > 0 && strings.Contains(h[0], "gzip") {
-			gzipReader, err := gzip.NewReader(req.Body)
-			if err != nil {
-				log.Fatal("Unable to create gzip reader", err)
-				return
-			}
-			requestData = gzipReader
-		}
-		lineData, _ = ioutil.ReadAll(requestData)
-		rw.Write([]byte(`OK`))
-	}))
-	defer server.Close()
-	// setup flags to point to test server
-	prevHost := flags.host
-	prevToken := flags.token
-	defer func() {
-		flags.host = prevHost
-		flags.token = prevToken
-	}()
-	useTestServer := func() {
-		httpClient = nil
-		lineData = lineData[:0]
-		flags.token = "myToken"
-		flags.host = server.URL
-	}
-
+func Test_writeRunE(t *testing.T) {
 	t.Run("validates that --org or --org-id must be specified", func(t *testing.T) {
-		t.Skip(`this test is hard coded to global variables and one small tweak causes a lot of downstream test failures changes else, skipping for now`)
-		useTestServer()
 		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
 		command.SetArgs([]string{"--format", "csv"})
 		err := command.Execute()
@@ -414,7 +380,6 @@ func Test_fluxWriteF(t *testing.T) {
 	})
 
 	t.Run("validates that either --bucket or --bucket-id must be specified", func(t *testing.T) {
-		useTestServer()
 		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
 		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket", "my-bucket", "--bucket-id", "my-bucket"})
 		err := command.Execute()
@@ -422,25 +387,13 @@ func Test_fluxWriteF(t *testing.T) {
 	})
 
 	t.Run("validates --precision", func(t *testing.T) {
-		useTestServer()
 		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
 		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket", "my-bucket", "--precision", "pikosec"})
 		err := command.Execute()
 		require.Contains(t, fmt.Sprintf("%s", err), "precision") // invalid precision
 	})
 
-	t.Run("validates --host must be supplied", func(t *testing.T) {
-		t.Skip(`this test is hard coded to global variables and one small tweak causes a lot of downstream test failures changes else, skipping for now`)
-		useTestServer()
-		flags.host = ""
-		command := cmdWrite(&flags, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
-		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket", "my-bucket"})
-		err := command.Execute()
-		require.Contains(t, fmt.Sprintf("%s", err), "host")
-	})
-
 	t.Run("validates decoding of bucket-id", func(t *testing.T) {
-		useTestServer()
 		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
 		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket-id", "my-bucket"})
 		err := command.Execute()
@@ -448,42 +401,13 @@ func Test_fluxWriteF(t *testing.T) {
 	})
 
 	t.Run("validates decoding of org-id", func(t *testing.T) {
-		useTestServer()
 		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
 		command.SetArgs([]string{"--format", "csv", "--org-id", "my-org", "--bucket", "my-bucket"})
 		err := command.Execute()
 		require.Contains(t, fmt.Sprintf("%s", err), "org-id")
 	})
 
-	t.Run("validates error when failed to retrieve buckets", func(t *testing.T) {
-		useTestServer()
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
-		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket", "my-error-bucket"})
-		require.Nil(t, command.Execute())
-	})
-
-	// validation: no such bucket found
-	t.Run("validates no such bucket found", func(t *testing.T) {
-		useTestServer()
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
-		command.SetArgs([]string{"--format", "csv", "--org", "my-empty-org", "--bucket", "my-bucket"})
-		require.Nil(t, command.Execute())
-	})
-
-	// validation: no such bucket-id found
-	t.Run("validates no such bucket-id found", func(t *testing.T) {
-		t.Skip(`this test is hard coded to global variables and one small tweak causes a lot of downstream test failures changes else, skipping for now`)
-		useTestServer()
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
-		// note: my-empty-org parameter causes the test server to return no buckets
-		command.SetArgs([]string{"--format", "csv", "--org", "my-empty-org", "--bucket-id", "4f14589c26df8286"})
-		err := command.Execute()
-		require.Contains(t, fmt.Sprintf("%s", err), "id")
-	})
-
 	t.Run("validates unsupported line reader format", func(t *testing.T) {
-		t.Skip(`this test is hard coded to global variables and one small tweak causes a lot of downstream test failures changes else, skipping for now`)
-		useTestServer()
 		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
 		command.SetArgs([]string{"--format", "csvx", "--org", "my-org", "--bucket-id", "4f14589c26df8286"})
 		err := command.Execute()
@@ -491,8 +415,6 @@ func Test_fluxWriteF(t *testing.T) {
 	})
 
 	t.Run("validates error during data read", func(t *testing.T) {
-		t.Skip(`this test is hard coded to global variables and one small tweak causes a lot of downstream test failures changes else, skipping for now`)
-		useTestServer()
 		command := cmdWrite(&globalFlags{}, genericCLIOpts{
 			in:    strings.NewReader("a,b\nc,d"),
 			w:     ioutil.Discard,
@@ -502,18 +424,54 @@ func Test_fluxWriteF(t *testing.T) {
 		require.Contains(t, fmt.Sprintf("%s", err), "measurement") // no measurement found in CSV data
 	})
 
-	t.Run("read data from CSV and send lp", func(t *testing.T) {
-		t.Skip(`this test is hard coded to global variables and one small tweak causes a lot of downstream test failures changes else, skipping for now`)
+	t.Run("read and send LP", func(t *testing.T) {
+		lineData := bytes.Buffer{}
+		writeSvc := &mock.WriteService{
+			WriteToF: func(_ context.Context, _ influxdb.BucketFilter, reader io.Reader) error {
+				if _, err := lineData.ReadFrom(reader); err != nil {
+					return err
+				}
+				return nil
+			},
+		}
+		svcBuilder := func(*writeFlagsBuilder) influxdb.WriteService { return writeSvc }
+
 		// read data from CSV transformation, send them to server and validate the created protocol line
-		useTestServer()
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{
+		cliOpts := genericCLIOpts{
+			in:    strings.NewReader("stdin3 i=stdin1,j=stdin2,k=stdin4"),
+			w:     ioutil.Discard,
+			viper: viper.New(),
+		}
+		command := newWriteFlagsBuilder(svcBuilder, &globalFlags{}, cliOpts).cmd()
+		command.SetArgs([]string{"--org", "my-org", "--bucket-id", "4f14589c26df8286"})
+		err := command.Execute()
+		require.NoError(t, err)
+		require.Equal(t, "stdin3 i=stdin1,j=stdin2,k=stdin4", strings.Trim(lineData.String(), "\n"))
+	})
+
+	t.Run("read data from CSV and send lp", func(t *testing.T) {
+		lineData := bytes.Buffer{}
+		writeSvc := &mock.WriteService{
+			WriteToF: func(_ context.Context, _ influxdb.BucketFilter, reader io.Reader) error {
+				if _, err := lineData.ReadFrom(reader); err != nil {
+					return err
+				}
+				return nil
+			},
+		}
+		svcBuilder := func(*writeFlagsBuilder) influxdb.WriteService { return writeSvc }
+
+		// read data from CSV transformation, send them to server and validate the created protocol line
+		cliOpts := genericCLIOpts{
 			in:    strings.NewReader("i,j,_measurement,k\nstdin1,stdin2,stdin3,stdin4"),
 			w:     ioutil.Discard,
-			viper: viper.New()})
+			viper: viper.New(),
+		}
+		command := newWriteFlagsBuilder(svcBuilder, &globalFlags{}, cliOpts).cmd()
 		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket-id", "4f14589c26df8286"})
 		err := command.Execute()
-		require.Nil(t, err)
-		require.Equal(t, "stdin3 i=stdin1,j=stdin2,k=stdin4", strings.Trim(string(lineData), "\n"))
+		require.NoError(t, err)
+		require.Equal(t, "stdin3 i=stdin1,j=stdin2,k=stdin4", strings.Trim(lineData.String(), "\n"))
 	})
 }
 
