@@ -2,7 +2,7 @@
 
 use tracing_subscriber::{prelude::*, EnvFilter};
 
-use super::config::Config;
+use super::config::{Config, LogFormat};
 
 /// Handles setting up logging levels
 #[derive(Debug)]
@@ -106,20 +106,32 @@ impl LoggingLevel {
                 (None, None)
             };
 
-        // Configure the logger to write to stderr
-        let logger = tracing_subscriber::fmt::layer().with_writer(std::io::stderr);
-
         // Register the chain of event subscribers:
         //
         //      - Jaeger tracing emitter
         //      - Env filter (using RUST_LOG as the filter env)
-        //      - A stdout logger
+        //      - A stderr logger
         //
-        tracing_subscriber::registry()
+        let subscriber = tracing_subscriber::registry()
             .with(opentelemetry)
-            .with(EnvFilter::from_default_env())
-            .with(logger)
-            .init();
+            // filter messages to only those specified by RUST_LOG environment
+            .with(EnvFilter::from_default_env());
+
+        // Configure the logger to write to stderr and install it
+        let output_stream = std::io::stderr;
+
+        let log_format = config.log_format.as_ref().cloned().unwrap_or_default();
+
+        match log_format {
+            LogFormat::Rust => {
+                let logger = tracing_subscriber::fmt::layer().with_writer(output_stream);
+                subscriber.with(logger).init();
+            }
+            LogFormat::LogFmt => {
+                let logger = logfmt::LogFmtLayer::new(output_stream);
+                subscriber.with(logger).init();
+            }
+        };
 
         drop_handle
     }

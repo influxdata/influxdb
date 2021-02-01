@@ -48,6 +48,13 @@ pub struct Config {
     #[structopt(long = "--log", env = "RUST_LOG")]
     pub rust_log: Option<String>,
 
+    /// Log message format. Can be one of:
+    ///
+    /// "rust" (default)
+    /// "logfmt" (logfmt/Heroku style - https://brandur.org/logfmt)
+    #[structopt(long = "--log_format", env = "INFLUXDB_IOX_LOG_FORMAT")]
+    pub log_format: Option<LogFormat>,
+
     /// This sets logging up with a pre-configured set of convenient log levels.
     ///
     /// -v  means 'info' log levels
@@ -151,6 +158,48 @@ fn strip_server(args: impl Iterator<Item = String>) -> Vec<String> {
             }
         })
         .collect::<Vec<_>>()
+}
+
+/// How to format output logging messages
+#[derive(Debug, Clone, Copy)]
+pub enum LogFormat {
+    /// Default formatted logging
+    ///
+    /// Example:
+    /// ```
+    /// level=warn msg="NO PERSISTENCE: using memory for object storage" target="influxdb_iox::influxdb_ioxd"
+    /// ```
+    Rust,
+
+    /// Use the (somwhat pretentiously named) Heroku / logfmt formatted output
+    /// format
+    ///
+    /// Example:
+    /// ```
+    /// Jan 31 13:19:39.059  WARN influxdb_iox::influxdb_ioxd: NO PERSISTENCE: using memory for object storage
+    /// ```
+    LogFmt,
+}
+
+impl Default for LogFormat {
+    fn default() -> Self {
+        Self::Rust
+    }
+}
+
+impl std::str::FromStr for LogFormat {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_ascii_lowercase().as_str() {
+            "rust" => Ok(Self::Rust),
+            "logfmt" => Ok(Self::LogFmt),
+            _ => Err(format!(
+                "Invalid log format '{}'. Valid options: rust, logfmt",
+                s
+            )),
+        }
+    }
 }
 
 #[cfg(test)]
