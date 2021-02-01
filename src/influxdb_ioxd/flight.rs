@@ -42,6 +42,12 @@ pub enum Error {
         db_name: String,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
+
+    #[snafu(display("Error planning query {}: {}", query, source))]
+    PlanningSQLQuery {
+        query: String,
+        source: query::frontend::sql::Error,
+    },
 }
 
 impl From<Error> for tonic::Status {
@@ -64,6 +70,7 @@ impl Error {
             Self::BucketMappingError { .. } => Status::internal(self.to_string()),
             Self::BucketNotFound { .. } => Status::not_found(self.to_string()),
             Self::Query { .. } => Status::internal(self.to_string()),
+            Self::PlanningSQLQuery { .. } => Status::invalid_argument(self.to_string()),
         }
     }
 }
@@ -126,7 +133,9 @@ where
         let physical_plan = planner
             .query(&*db, &read_info.sql_query, &executor)
             .await
-            .unwrap();
+            .context(PlanningSQLQuery {
+                query: &read_info.sql_query,
+            })?;
 
         // execute the query
         let results = collect(physical_plan.clone())
