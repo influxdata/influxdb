@@ -1497,13 +1497,6 @@ impl From<arrow::array::StringArray> for Column {
     }
 }
 
-impl From<&arrow::array::StringArray> for Column {
-    fn from(arr: &arrow::array::StringArray) -> Self {
-        let data = StringEncoding::from_arrow_string_array(arr);
-        Column::String(StringEncoding::meta_from_data(&data), data)
-    }
-}
-
 impl From<&[Option<&str>]> for Column {
     fn from(arr: &[Option<&str>]) -> Self {
         let data = StringEncoding::from_opt_strs(arr);
@@ -1640,140 +1633,6 @@ impl From<arrow::array::UInt64Array> for Column {
         // TODO(edd): currently fixed null only supports 64-bit logical/physical
         // types. Need to add support for storing as smaller physical types.
         Column::Unsigned(meta, IntegerEncoding::U64U64N(data))
-    }
-}
-
-impl From<&arrow::array::UInt64Array> for Column {
-    fn from(arr: &arrow::array::UInt64Array) -> Self {
-        if arr.null_count() == 0 {
-            return Self::from(arr.values());
-        }
-
-        todo!("figure out how to run off of a borrowed arrow array");
-    }
-}
-
-/// Converts a slice of u32 values into the most compact fixed-width physical
-/// encoding. Whilst `u32` isn't a supported logical type it is still possible
-/// to store these values as logically `u64` values with `u32`, `u16`, `u8`
-/// physical representations.
-impl From<&[u32]> for Column {
-    fn from(arr: &[u32]) -> Self {
-        // determine min and max values.
-        let mut min = arr[0];
-        let mut max = arr[0];
-        for &v in arr.iter().skip(1) {
-            min = min.min(v);
-            max = max.max(v);
-        }
-
-        // This match is carefully ordered. It prioritises smaller physical
-        // datatypes that can safely represent the provided logical data type.
-        match (min, max) {
-            // encode as u8 values
-            (min, max) if max <= u8::MAX as u32 => {
-                let data = fixed::Fixed::<u8>::from(arr);
-                let meta = MetaData::<u64> {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range: Some((min as u64, max as u64)),
-                    ..MetaData::default()
-                };
-                Column::Unsigned(meta, IntegerEncoding::U64U8(data))
-            }
-            // encode as u16 values
-            (min, max) if max <= u16::MAX as u32 => {
-                let data = fixed::Fixed::<u16>::from(arr);
-                let meta = MetaData::<u64> {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range: Some((min as u64, max as u64)),
-                    ..MetaData::default()
-                };
-                Column::Unsigned(meta, IntegerEncoding::U64U16(data))
-            }
-            // encode as u32 values
-            (_, _) => {
-                let data = fixed::Fixed::<u32>::from(arr);
-                let meta = MetaData::<u64> {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range: Some((min as u64, max as u64)),
-                    ..MetaData::default()
-                };
-                Column::Unsigned(meta, IntegerEncoding::U64U32(data))
-            }
-        }
-    }
-}
-
-/// Converts a slice of `u16` values into the most compact fixed-width physical
-/// encoding. Whilst `u16` isn't a supported logical type it is still possible
-/// to store these values as logically `u64` values with `u16` or `u8` physical
-/// representations.
-impl From<&[u16]> for Column {
-    fn from(arr: &[u16]) -> Self {
-        // determine min and max values.
-        let mut min = arr[0];
-        let mut max = arr[0];
-        for &v in arr.iter().skip(1) {
-            min = min.min(v);
-            max = max.max(v);
-        }
-
-        // This match is carefully ordered. It prioritises smaller physical
-        // datatypes that can safely represent the provided logical data type.
-        match (min, max) {
-            // encode as u8 values
-            (min, max) if max <= u8::MAX as u16 => {
-                let data = fixed::Fixed::<u8>::from(arr);
-                let meta = MetaData::<u64> {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range: Some((min as u64, max as u64)),
-                    ..MetaData::default()
-                };
-                Column::Unsigned(meta, IntegerEncoding::U64U8(data))
-            }
-            // encode as u16 values
-            (_, _) => {
-                let data = fixed::Fixed::<u16>::from(arr);
-                let meta = MetaData::<u64> {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range: Some((min as u64, max as u64)),
-                    ..MetaData::default()
-                };
-                Column::Unsigned(meta, IntegerEncoding::U64U16(data))
-            }
-        }
-    }
-}
-
-/// Converts a slice of `u8` values into the most compact fixed-width physical
-/// encoding. Whilst `u8` isn't a supported logical type it is still possible
-/// to store these values as logically `u64` values with a `u8` physical
-/// representation.
-impl From<&[u8]> for Column {
-    fn from(arr: &[u8]) -> Self {
-        // determine min and max values.
-        let mut min = arr[0];
-        let mut max = arr[0];
-        for &v in arr.iter().skip(1) {
-            min = min.min(v);
-            max = max.max(v);
-        }
-
-        // This match is carefully ordered. It prioritises smaller physical
-        // datatypes that can safely represent the provided logical data type.
-        let data = fixed::Fixed::<u8>::from(arr);
-        let meta = MetaData::<u64> {
-            size: data.size(),
-            rows: data.num_rows(),
-            range: Some((min as u64, max as u64)),
-            ..MetaData::default()
-        };
-        Column::Unsigned(meta, IntegerEncoding::U64U8(data))
     }
 }
 
@@ -1928,170 +1787,6 @@ impl From<arrow::array::Int64Array> for Column {
     }
 }
 
-impl From<&arrow::array::Int64Array> for Column {
-    fn from(arr: &arrow::array::Int64Array) -> Self {
-        if arr.null_count() == 0 {
-            return Self::from(arr.values());
-        }
-
-        todo!("figure out how to run off of a borrowed arrow array");
-    }
-}
-
-/// Converts a slice of i32 values into the most compact fixed-width physical
-/// encoding. Whilst `i32` isn't a supported logical type it is still possible
-/// to store these values as logically `i64` values with `i32`, `i16`, `u16`,
-/// `u8` or `i8` physical representations.
-impl From<&[i32]> for Column {
-    fn from(arr: &[i32]) -> Self {
-        // determine min and max values.
-        let mut min = arr[0];
-        let mut max = arr[0];
-        for &v in arr.iter().skip(1) {
-            min = min.min(v);
-            max = max.max(v);
-        }
-
-        // This match is carefully ordered. It prioritises smaller physical
-        // datatypes that can safely represent the provided logical data type.
-        match (min, max) {
-            // encode as u8 values
-            (min, max) if min >= 0 && max <= u8::MAX as i32 => {
-                let data = fixed::Fixed::<u8>::from(arr);
-                let meta = MetaData {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range: Some((min as i64, max as i64)),
-                    ..MetaData::default()
-                };
-                Column::Integer(meta, IntegerEncoding::I64U8(data))
-            }
-            // encode as i8 values
-            (min, max) if min >= i8::MIN as i32 && max <= i8::MAX as i32 => {
-                let data = fixed::Fixed::<i8>::from(arr);
-                let meta = MetaData {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range: Some((min as i64, max as i64)),
-                    ..MetaData::default()
-                };
-                Column::Integer(meta, IntegerEncoding::I64I8(data))
-            }
-            // encode as u16 values
-            (min, max) if min >= 0 && max <= u16::MAX as i32 => {
-                let data = fixed::Fixed::<u16>::from(arr);
-                let meta = MetaData {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range: Some((min as i64, max as i64)),
-                    ..MetaData::default()
-                };
-                Column::Integer(meta, IntegerEncoding::I64U16(data))
-            }
-            // encode as i16 values
-            (min, max) if min >= i16::MIN as i32 && max <= i16::MAX as i32 => {
-                let data = fixed::Fixed::<i16>::from(arr);
-                let meta = MetaData {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range: Some((min as i64, max as i64)),
-                    ..MetaData::default()
-                };
-                Column::Integer(meta, IntegerEncoding::I64I16(data))
-            }
-            // otherwise, encode with the same physical type (i32)
-            (_, _) => {
-                let data = fixed::Fixed::<i32>::from(arr);
-                let meta = MetaData {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range: Some((min as i64, max as i64)),
-                    ..MetaData::default()
-                };
-                Column::Integer(meta, IntegerEncoding::I64I32(data))
-            }
-        }
-    }
-}
-
-/// Converts a slice of i16 values into the most compact fixed-width physical
-/// encoding. Whilst `i16` isn't a supported logical type it is still possible
-/// to store these values as logically `i64` values with `i16`, `u8` or `i8`
-/// physical representations.
-impl From<&[i16]> for Column {
-    fn from(arr: &[i16]) -> Self {
-        // determine min and max values.
-        let mut min = arr[0];
-        let mut max = arr[0];
-        for &v in arr.iter().skip(1) {
-            min = min.min(v);
-            max = max.max(v);
-        }
-
-        // This match is carefully ordered. It prioritises smaller physical
-        // datatypes that can safely represent the provided logical data type.
-        match (min, max) {
-            // encode as i8 values
-            (min, max) if min >= i8::MIN as i16 && max <= i8::MAX as i16 => {
-                let data = fixed::Fixed::<i8>::from(arr);
-                let meta = MetaData {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range: Some((min as i64, max as i64)),
-                    ..MetaData::default()
-                };
-                Column::Integer(meta, IntegerEncoding::I64I8(data))
-            }
-            // encode as u8 values
-            (min, max) if min >= 0 && max <= u8::MAX as i16 => {
-                let data = fixed::Fixed::<u8>::from(arr);
-                let meta = MetaData {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range: Some((min as i64, max as i64)),
-                    ..MetaData::default()
-                };
-                Column::Integer(meta, IntegerEncoding::I64U8(data))
-            }
-            // otherwise, encode with the same physical type (i16)
-            (_, _) => {
-                let data = fixed::Fixed::<i16>::from(arr);
-                let meta = MetaData {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range: Some((min as i64, max as i64)),
-                    ..MetaData::default()
-                };
-                Column::Integer(meta, IntegerEncoding::I64I16(data))
-            }
-        }
-    }
-}
-
-/// Converts a slice of `i8` values into a `Column`. Whilst `i8` isn't a
-/// supported logical type it is still possible to store these values as
-/// logically `i64` values with an `i8` physical representations.
-impl From<&[i8]> for Column {
-    fn from(arr: &[i8]) -> Self {
-        // determine min and max values.
-        let mut min = arr[0];
-        let mut max = arr[0];
-        for &v in arr.iter().skip(1) {
-            min = min.min(v);
-            max = max.max(v);
-        }
-
-        let data = fixed::Fixed::<i8>::from(arr);
-        let meta = MetaData {
-            size: data.size(),
-            rows: data.num_rows(),
-            range: Some((min as i64, max as i64)),
-            ..MetaData::default()
-        };
-        Column::Integer(meta, IntegerEncoding::I64I8(data))
-    }
-}
-
 /// Converts a slice of `f64` values into a fixed-width column encoding.
 impl From<&[f64]> for Column {
     fn from(arr: &[f64]) -> Self {
@@ -2167,16 +1862,6 @@ impl From<arrow::array::Float64Array> for Column {
         // TODO(edd): currently fixed null only supports 64-bit logical/physical
         // types. Need to add support for storing as smaller physical types.
         Column::Float(meta, FloatEncoding::FixedNull64(data))
-    }
-}
-
-impl From<&arrow::array::Float64Array> for Column {
-    fn from(arr: &arrow::array::Float64Array) -> Self {
-        if arr.null_count() == 0 {
-            return Self::from(arr.values());
-        }
-
-        todo!("figure out how to run off of a borrowed arrow array");
     }
 }
 
@@ -3245,102 +2930,6 @@ mod test {
     }
 
     #[test]
-    fn from_i32_slice() {
-        let input = &[-1, i8::MAX as i32];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::I64I8(_))
-        ));
-
-        let input = &[0, u8::MAX as i32];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::I64U8(_))
-        ));
-
-        let input = &[-1, i16::MAX as i32];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::I64I16(_))
-        ));
-
-        let input = &[0, u16::MAX as i32];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::I64U16(_))
-        ));
-
-        let input = &[-1, i32::MAX];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::I64I32(_))
-        ));
-
-        // validate min/max check
-        let input = &[0, -12, u8::MAX as i32, 5];
-        let col = Column::from(&input[..]);
-        if let Column::Integer(meta, IntegerEncoding::I64I16(_)) = col {
-            assert_eq!(meta.size, 32); // 4 i16s (8b) and a vec (24b)
-            assert_eq!(meta.rows, 4);
-            assert_eq!(meta.range, Some((-12, u8::MAX as i64)));
-        } else {
-            panic!("invalid variant");
-        }
-    }
-
-    #[test]
-    fn from_i16_slice() {
-        let input = &[-1, i8::MAX as i16];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::I64I8(_))
-        ));
-
-        let input = &[0, u8::MAX as i16];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::I64U8(_))
-        ));
-
-        let input = &[-1, i16::MAX as i16];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::I64I16(_))
-        ));
-
-        // validate min/max check
-        let input = &[0, -12, u8::MAX as i16, 5];
-        let col = Column::from(&input[..]);
-        if let Column::Integer(meta, IntegerEncoding::I64I16(_)) = col {
-            assert_eq!(meta.size, 32); // 4 i16s (8b) and a vec (24b)
-            assert_eq!(meta.rows, 4);
-            assert_eq!(meta.range, Some((-12, u8::MAX as i64)));
-        } else {
-            panic!("invalid variant");
-        }
-    }
-
-    #[test]
-    fn from_i8_slice() {
-        let input = &[-1, i8::MAX];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Integer(_, IntegerEncoding::I64I8(_))
-        ));
-
-        // validate min/max check
-        let input = &[0, -12, i8::MAX, 5];
-        let col = Column::from(&input[..]);
-        if let Column::Integer(meta, IntegerEncoding::I64I8(_)) = col {
-            assert_eq!(meta.size, 28); // 4 i8s (4b) and a vec (24b)
-            assert_eq!(meta.rows, 4);
-            assert_eq!(meta.range, Some((-12, i8::MAX as i64)));
-        } else {
-            panic!("invalid variant");
-        }
-    }
-
-    #[test]
     fn from_u64_slice() {
         let input = &[0, u8::MAX as u64];
         assert!(matches!(
@@ -3373,107 +2962,29 @@ mod test {
     }
 
     #[test]
-    fn from_u32_slice() {
-        let input = &[0, u8::MAX as u32];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Unsigned(_, IntegerEncoding::U64U8(_))
-        ));
-
-        let input = &[0, u16::MAX as u32];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Unsigned(_, IntegerEncoding::U64U16(_))
-        ));
-
-        let input = &[0, u32::MAX as u32];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Unsigned(_, IntegerEncoding::U64U32(_))
-        ));
-
-        // validate min/max check
-        let input = &[13, 12, u16::MAX as u32, 5];
-        let col = Column::from(&input[..]);
-        if let Column::Unsigned(meta, IntegerEncoding::U64U16(_)) = col {
-            assert_eq!(meta.size, 32); // 4 u16s (8b) and a vec (24b)
-            assert_eq!(meta.rows, 4);
-            assert_eq!(meta.range, Some((5, u16::MAX as u64)));
-        } else {
-            panic!("invalid variant");
-        }
-    }
-
-    #[test]
-    fn from_u16_slice() {
-        let input = &[0, u8::MAX as u16];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Unsigned(_, IntegerEncoding::U64U8(_))
-        ));
-
-        let input = &[0, u16::MAX as u16];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Unsigned(_, IntegerEncoding::U64U16(_))
-        ));
-
-        // validate min/max check
-        let input = &[13, 12, u8::MAX as u16, 5];
-        let col = Column::from(&input[..]);
-        if let Column::Unsigned(meta, IntegerEncoding::U64U8(_)) = col {
-            assert_eq!(meta.size, 28); // 4 u8s (4b) and a vec (24b)
-            assert_eq!(meta.rows, 4);
-            assert_eq!(meta.range, Some((5, u8::MAX as u64)));
-        } else {
-            panic!("invalid variant");
-        }
-    }
-
-    #[test]
-    fn from_u8_slice() {
-        let input = &[0, u8::MAX];
-        assert!(matches!(
-            Column::from(&input[..]),
-            Column::Unsigned(_, IntegerEncoding::U64U8(_))
-        ));
-
-        // validate min/max check
-        let input = &[13, 12, u8::MAX, 5];
-        let col = Column::from(&input[..]);
-        if let Column::Unsigned(meta, IntegerEncoding::U64U8(_)) = col {
-            assert_eq!(meta.size, 28); // 4 u8s (4b) and a vec (24b)
-            assert_eq!(meta.rows, 4);
-            assert_eq!(meta.range, Some((5, u8::MAX as u64)));
-        } else {
-            panic!("invalid variant");
-        }
-    }
-
-    #[test]
     fn value() {
         // The Scalar variant always represents the logical type of the column.
         // The `value` method always returns values according to the logical
         // type, no matter what the underlying physical type might be.
 
-        // physical type of `col` will be `i16` but logical type is `i64`
+        // `col` will stored as `i16`, but logical type in and out is `i64`.
         let col = Column::from(&[0_i64, 1, 200, 20, -1][..]);
         assert_eq!(col.value(4), Value::from(-1_i64));
 
-        // physical type of `col` will be `u16` but logical type is `u64`
+        // `col` will stored as `u16`, but logical type in and out is `u64`.
         let col = Column::from(&[20_u64, 300][..]);
         assert_eq!(col.value(1), Value::from(300_u64));
 
-        // physical type of `col` will be `u8` but logical type is `u64`
-        let col = Column::from(&[20_u32, 3][..]);
+        // `col` will stored as `u8`, but logical type in and out is `u64`.
+        let col = Column::from(&[20_u64, 3][..]);
         assert_eq!(col.value(0), Value::from(20_u64));
 
-        // physical type of `col` will be `u8` but logical type is `u64`
-        let col = Column::from(&[20_u16, 3][..]);
+        // `col` will stored as `u8`, but logical type in and out is `u64`.
+        let col = Column::from(&[20_u64, 3][..]);
         assert_eq!(col.value(1), Value::from(3_u64));
 
-        // physical and logical type of `col` will be `u64`
-        let col = Column::from(&[243_u8, 198][..]);
+        // `col` will stored as `u8`, but logical type in and out is `u64`.
+        let col = Column::from(&[243_u64, 198][..]);
         assert_eq!(col.value(0), Value::from(243_u64));
 
         let col = Column::from(&[-19.2, -30.2][..]);
@@ -3486,36 +2997,36 @@ mod test {
 
     #[test]
     fn values() {
-        // physical type of `col` will be `i16` but logical type is `i64`
+        // `col` will stored as `i16`, but logical type in and out is `i64`.
         let col = Column::from(&[0_i64, 1, 200, 20, -1][..]);
         assert_eq!(col.values(&[0, 2, 3]), Values::I64(vec![0, 200, 20]));
 
-        // physical type of `col` will be `i16` but logical type is `i64`
-        let col = Column::from(&[0_i32, 1, 200, 20, -1][..]);
+        // `col` will stored as `i16`, but logical type in and out is `i64`.
+        let col = Column::from(&[0_i64, 1, 200, 20, -1][..]);
         assert_eq!(col.values(&[0, 2, 3]), Values::I64(vec![0, 200, 20]));
 
-        // physical and logical type of `col` will be `i64`
-        let col = Column::from(&[0_i16, 1, 200, 20, -1][..]);
+        // `col` will stored as `i16`, but logical type in and out is `i64`.
+        let col = Column::from(&[0_i64, 1, 200, 20, -1][..]);
         assert_eq!(col.values(&[0, 2, 3]), Values::I64(vec![0, 200, 20]));
 
-        // physical and logical type of `col` will be `i64`
-        let col = Column::from(&[0_i8, 1, 127, 20, -1][..]);
+        // `col` will stored as `i8`, but logical type in and out is `i64`.
+        let col = Column::from(&[0_i64, 1, 127, 20, -1][..]);
         assert_eq!(col.values(&[0, 2, 3]), Values::I64(vec![0, 127, 20]));
 
-        // physical type of `col` will be `u8` but logical type is `u64`
+        // `col` will stored as `u8`, but logical type in and out is `u64`.
         let col = Column::from(&[0_u64, 1, 200, 20, 100][..]);
         assert_eq!(col.values(&[3, 4]), Values::U64(vec![20, 100]));
 
-        // physical type of `col` will be `u8` but logical type is `u64`
-        let col = Column::from(&[0_u32, 1, 200, 20, 100][..]);
+        // `col` will stored as `u8`, but logical type in and out is `u64`.
+        let col = Column::from(&[0_u64, 1, 200, 20, 100][..]);
         assert_eq!(col.values(&[3, 4]), Values::U64(vec![20, 100]));
 
-        // physical type of `col` will be `u8` but logical type is `u64`
-        let col = Column::from(&[0_u16, 1, 200, 20, 100][..]);
+        // `col` will stored as `u8`, but logical type in and out is `u64`.
+        let col = Column::from(&[0_u64, 1, 200, 20, 100][..]);
         assert_eq!(col.values(&[3, 4]), Values::U64(vec![20, 100]));
 
-        // physical and logical type of `col` will be `u64`
-        let col = Column::from(&[0_u8, 1, 200, 20, 100][..]);
+        // `col` will stored as `u8`, but logical type in and out is `u64`.
+        let col = Column::from(&[0_u64, 1, 200, 20, 100][..]);
         assert_eq!(col.values(&[3, 4]), Values::U64(vec![20, 100]));
 
         // physical and logical type of `col` will be `f64`
@@ -3756,7 +3267,7 @@ mod test {
 
     #[test]
     fn row_ids_filter_int() {
-        let input = &[100, 200, 300, 2, 200, 22, 30];
+        let input = &[100_i64, 200, 300, 2, 200, 22, 30];
 
         let col = Column::from(&input[..]);
         let mut row_ids = col.row_ids_filter(
@@ -3822,7 +3333,7 @@ mod test {
 
     #[test]
     fn row_ids_filter_uint() {
-        let input = &[100_u32, 200, 300, 2, 200, 22, 30];
+        let input = &[100_u64, 200, 300, 2, 200, 22, 30];
 
         let col = Column::from(&input[..]);
         let mut row_ids = col.row_ids_filter(
@@ -3904,7 +3415,7 @@ mod test {
 
     #[test]
     fn row_ids_range() {
-        let input = &[100, 200, 300, 2, 200, 22, 30];
+        let input = &[100_i64, 200, 300, 2, 200, 22, 30];
 
         let col = Column::from(&input[..]);
         let mut row_ids = col.row_ids_filter_range(
@@ -3966,7 +3477,7 @@ mod test {
 
     #[test]
     fn might_contain_value() {
-        let input = &[100i64, 200, 300, 2, 200, 22, 30, -1228282828282];
+        let input = &[100_i64, 200, 300, 2, 200, 22, 30, -1228282828282];
         let col = Column::from(&input[..]);
         assert!(matches!(
             col,
@@ -3989,11 +3500,11 @@ mod test {
         }
 
         // Input stored as different physical size
-        let input = &[100i16, 200, 300, 2, 200, 22, 30];
+        let input = &[100_i64, 200, 300, 2, 200, 22, 30];
         let col = Column::from(&input[..]);
         assert!(matches!(
             col,
-            Column::Integer(_, IntegerEncoding::I64I16(_))
+            Column::Integer(_, IntegerEncoding::I64U16(_))
         ));
 
         for (scalar, result) in cases.clone() {
@@ -4001,7 +3512,7 @@ mod test {
         }
 
         // Input stored as unsigned column
-        let input = &[100u64, 200, 300, 2, 200, 22, 30];
+        let input = &[100_u64, 200, 300, 2, 200, 22, 30];
         let col = Column::from(&input[..]);
         assert!(matches!(
             col,
@@ -4050,7 +3561,7 @@ mod test {
         }
 
         // Future improvement would be to support this type of check.
-        let input = &[100i8, -20];
+        let input = &[100_i64, -20];
         let col = Column::from(&input[..]);
         assert_eq!(
             col.predicate_matches_all_values(&cmp::Operator::LT, &Value::from(u64::MAX)),
@@ -4060,7 +3571,7 @@ mod test {
 
     #[test]
     fn evaluate_predicate_on_meta() {
-        let input = &[100i64, 200, 300, 2, 200, 22, 30];
+        let input = &[100_i64, 200, 300, 2, 200, 22, 30];
         let col = Column::from(&input[..]);
 
         let cases: Vec<(cmp::Operator, Scalar, PredicateMatch)> = vec![
@@ -4123,12 +3634,12 @@ mod test {
 
     #[test]
     fn min() {
-        let input = &[100i64, 200, 300, 2, 200, 22, 30];
+        let input = &[100_i64, 200, 300, 2, 200, 22, 30];
         let col = Column::from(&input[..]);
         assert_eq!(col.min(&[0, 1, 3][..]), Value::from(2_i64));
         assert_eq!(col.min(&[0, 1, 2][..]), Value::from(100_i64));
 
-        let input = &[100u8, 200, 245, 2, 200, 22, 30];
+        let input = &[100_u64, 200, 245, 2, 200, 22, 30];
         let col = Column::from(&input[..]);
         assert_eq!(col.min(&[4, 6][..]), Value::from(30_u64));
 
@@ -4140,7 +3651,7 @@ mod test {
 
     #[test]
     fn max() {
-        let input = &[100i64, 200, 300, 2, 200, 22, 30];
+        let input = &[100_i64, 200, 300, 2, 200, 22, 30];
         let col = Column::from(&input[..]);
         assert_eq!(col.max(&[0, 1, 3][..]), Value::from(200_i64));
         assert_eq!(col.max(&[0, 1, 2][..]), Value::from(300_i64));
@@ -4162,12 +3673,12 @@ mod test {
 
     #[test]
     fn sum() {
-        let input = &[100i64, 200, 300, 2, 200, 22, 30];
+        let input = &[100_i64, 200, 300, 2, 200, 22, 30];
         let col = Column::from(&input[..]);
         assert_eq!(col.sum(&[0, 1, 3][..]), Scalar::I64(302));
         assert_eq!(col.sum(&[0, 1, 2][..]), Scalar::I64(600));
 
-        let input = &[10.2f64, -2.43, 200.2];
+        let input = &[10.2_f64, -2.43, 200.2];
         let col = Column::from(&input[..]);
         assert_eq!(col.sum(&[0, 1, 2][..]), Scalar::F64(207.97));
 
@@ -4179,7 +3690,7 @@ mod test {
 
     #[test]
     fn count() {
-        let input = &[100i64, 200, 300, 2, 200, 22, 30];
+        let input = &[100_i64, 200, 300, 2, 200, 22, 30];
         let col = Column::from(&input[..]);
         assert_eq!(col.count(&[0, 1, 3][..]), 3);
 
