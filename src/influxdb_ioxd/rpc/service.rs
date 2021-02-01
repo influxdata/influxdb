@@ -9,6 +9,7 @@ use super::{
     },
     expr::{self, AddRPCNode, Loggable, SpecialTagKeys},
     input::GrpcInputs,
+    GrpcService,
 };
 use arrow_deps::{
     arrow,
@@ -243,21 +244,6 @@ impl Error {
             Self::BucketNotFound { .. } => Status::not_found(self.to_string()),
             Self::Query { .. } => Status::internal(self.to_string()),
         }
-    }
-}
-
-#[derive(Debug)]
-pub struct GrpcService<T: DatabaseStore> {
-    db_store: Arc<T>,
-}
-
-impl<T> GrpcService<T>
-where
-    T: DatabaseStore + 'static,
-{
-    /// Create a new GrpcService connected to `db_store`
-    pub fn new(db_store: Arc<T>) -> Self {
-        Self { db_store }
     }
 }
 
