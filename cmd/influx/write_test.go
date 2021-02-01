@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -447,6 +448,27 @@ func Test_writeRunE(t *testing.T) {
 		err := command.Execute()
 		require.NoError(t, err)
 		require.Equal(t, "stdin3 i=stdin1,j=stdin2,k=stdin4", strings.Trim(lineData.String(), "\n"))
+	})
+
+	t.Run("report server-side error", func(t *testing.T) {
+		writeSvc := &mock.WriteService{
+			WriteToF: func(_ context.Context, _ influxdb.BucketFilter, _ io.Reader) error {
+				return errors.New("i broke")
+			},
+		}
+		svcBuilder := func(*writeFlagsBuilder) influxdb.WriteService { return writeSvc }
+
+		// read data from CSV transformation, send them to server and validate the created protocol line
+		cliOpts := genericCLIOpts{
+			in:    strings.NewReader("stdin3 i=stdin1,j=stdin2,k=stdin4"),
+			w:     ioutil.Discard,
+			viper: viper.New(),
+		}
+		command := newWriteFlagsBuilder(svcBuilder, &globalFlags{}, cliOpts).cmd()
+		command.SetArgs([]string{"--org", "my-org", "--bucket-id", "4f14589c26df8286"})
+		err := command.Execute()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "i broke")
 	})
 
 	t.Run("read data from CSV and send lp", func(t *testing.T) {
