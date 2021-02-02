@@ -50,7 +50,7 @@ func TestEngine_ConcurrentShardSnapshots(t *testing.T) {
 			time.Unix(int64(i), 0),
 		))
 	}
-	err = sh.WritePoints(points, nil)
+	err = sh.WritePoints(points, tsdb.NoopStatsTracker())
 	if err != nil {
 		t.Fatalf(err.Error())
 	}

@@ -1293,6 +1293,7 @@ func (e *Engine) WritePoints(points []models.Point, tracker tsdb.StatsTracker) e
 		t := p.Time().UnixNano()
 
 		npoints++
+		var nValuesForPoint int64
 		for iter.Next() {
 			// Skip fields name "time", they are illegal
 			if bytes.Equal(iter.FieldKey(), timeBytes) {
@@ -1363,8 +1364,12 @@ func (e *Engine) WritePoints(points []models.Point, tracker tsdb.StatsTracker) e
 				return fmt.Errorf("unknown field type for %s: %s", string(iter.FieldKey()), p.String())
 			}
 
-			nvalues++
+			nValuesForPoint++
 			values[string(keyBuf)] = append(values[string(keyBuf)], v)
+		}
+		nvalues += nValuesForPoint
+		if tracker.AddedMeasurementPoints != nil {
+			tracker.AddedMeasurementPoints(models.ParseName(keyBuf), 1, nValuesForPoint)
 		}
 	}
 
@@ -1382,8 +1387,8 @@ func (e *Engine) WritePoints(points []models.Point, tracker tsdb.StatsTracker) e
 		}
 	}
 
-	if tracker != nil {
-		tracker(npoints, nvalues)
+	if tracker.AddedPoints != nil {
+		tracker.AddedPoints(npoints, nvalues)
 	}
 	return seriesErr
 }
