@@ -341,6 +341,10 @@ func (s *WriteService) WriteTo(ctx context.Context, filter influxdb.BucketFilter
 	SetToken(s.Token, req)
 
 	params := req.URL.Query()
+
+	// In other CLI commands that take either an ID or a name as input, the ID
+	// is prioritized and used to short-circuit looking up the name. We simulate
+	// the same behavior here for a consistent experience.
 	if filter.OrganizationID != nil && filter.OrganizationID.Valid() {
 		params.Set("org", filter.OrganizationID.String())
 	} else if filter.Org != nil && *filter.Org != "" {
