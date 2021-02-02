@@ -101,7 +101,8 @@ type Store struct {
 	epochs map[uint64]*epochTracker
 
 	// Statistics for the store
-	stats StoreStatistics
+	stats          StoreStatistics
+	ingressMetrics IngressMetrics
 
 	EngineOptions EngineOptions
 
@@ -185,6 +186,29 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 			statValuesWritten: atomic.LoadInt64(&s.stats.ValuesWritten),
 		},
 	})
+
+	ingressTags := func(key MetricKey, tags map[string]string) map[string]string {
+		newTags := make(map[string]string, 2)
+		if s.EngineOptions.Config.IngressMetricByMeasurement {
+			newTags["measurement"] = key.measurement
+			newTags["db"] = key.db
+			newTags["rp"] = key.rp
+		}
+		// TODO: add login
+		return models.StatisticTags(newTags).Merge(tags)
+	}
+
+	s.ingressMetrics.ForEach(func(key MetricKey, points, values int64) {
+		statistics = append(statistics, models.Statistic{
+			Name: "ingress",
+			Tags: ingressTags(key, tags),
+			Values: map[string]interface{}{
+				statPointsWritten: points,
+				statValuesWritten: values,
+			},
+		})
+	})
+
 	return statistics
 }
 
@@ -1409,6 +1433,24 @@ func (s *Store) ExpandSources(sources influxql.Sources) (influxql.Sources, error
 	return shards.ExpandSources(sources)
 }
 
+func (s *Store) statsTracker(db, rp string) StatsTracker {
+	var tracker StatsTracker
+	// TODO: add login
+	if s.EngineOptions.Config.IngressMetricByMeasurement {
+		tracker.AddedMeasurementPoints = func(measurement []byte, points, values int64) {
+			atomic.AddInt64(&s.stats.ValuesWritten, values)
+			atomic.AddInt64(&s.stats.PointsWritten, points)
+			s.ingressMetrics.AddMetric(string(measurement), db, rp, points, values)
+		}
+	} else {
+		tracker.AddedPoints = func(points, values int64) {
+			atomic.AddInt64(&s.stats.ValuesWritten, values)
+			atomic.AddInt64(&s.stats.PointsWritten, points)
+		}
+	}
+	return tracker
+}
+
 // WriteToShard writes a list of points to a shard identified by its ID.
 func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 	s.mu.RLock()
@@ -1447,11 +1489,7 @@ func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 		sh.SetCompactionsEnabled(true)
 	}
 
-	tracker := func(points, values int64) {
-		atomic.AddInt64(&s.stats.ValuesWritten, values)
-		atomic.AddInt64(&s.stats.PointsWritten, points)
-	}
-	return sh.WritePoints(points, tracker)
+	return sh.WritePoints(points, s.statsTracker(sh.database, sh.retentionPolicy))
 }
 
 // MeasurementNames returns a slice of all measurements. Measurements accepts an

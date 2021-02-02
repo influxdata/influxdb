@@ -496,7 +496,14 @@ type FieldCreate struct {
 	Field       *Field
 }
 
-type StatsTracker func(points, values int64)
+type StatsTracker struct {
+	AddedPoints            func(points, values int64)
+	AddedMeasurementPoints func(measurement []byte, points, values int64)
+}
+
+func NoopStatsTracker() StatsTracker {
+	return StatsTracker{}
+}
 
 // WritePoints() will write the raw data points and any new metadata
 // to the index in the shard.
@@ -528,10 +535,11 @@ func (s *Shard) WritePoints(points []models.Point, tracker StatsTracker) error {
 		return err
 	}
 
-	engineTracker := func(points, values int64) {
-		if tracker != nil {
+	engineTracker := tracker
+	engineTracker.AddedPoints = func(points, values int64) {
+		if tracker.AddedPoints != nil {
 			// notify outer tracker (e.g. http service)
-			tracker(points, values)
+			tracker.AddedPoints(points, values)
 		}
 		atomic.AddInt64(&s.stats.WritePointsOK, points)
 		atomic.AddInt64(&s.stats.WriteValuesOK, values)

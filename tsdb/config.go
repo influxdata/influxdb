@@ -107,6 +107,9 @@ type Config struct {
 	CompactThroughput              toml.Size     `toml:"compact-throughput"`
 	CompactThroughputBurst         toml.Size     `toml:"compact-throughput-burst"`
 
+	// Options for ingress metrics
+	IngressMetricByMeasurement bool `toml:"ingress-metric-by-measurement-enabled"`
+
 	// Limits
 
 	// MaxSeriesPerDatabase is the maximum number of series a node can hold per database.
