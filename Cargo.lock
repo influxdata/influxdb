@@ -29,9 +29,9 @@ checksum = "739f4a8db6605981345c5654f3a85b056ce52f37a39d34da03f25bf2151ea16e"
 
 [[package]]
 name = "ahash"
-version = "0.6.3"
+version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "796540673305a66d127804eef19ad696f1f204b8c1025aaca4958c17eab32877"
+checksum = "efa60d2eadd8b12a996add391db32bd1153eac697ba4869660c0016353611426"
 dependencies = [
  "getrandom 0.2.2",
  "once_cell",
@@ -101,7 +101,7 @@ checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
 [[package]]
 name = "arrow"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=3ec449bb38a29dac13f81a0f1fdaaa191b0a4b27#3ec449bb38a29dac13f81a0f1fdaaa191b0a4b27"
+source = "git+https://github.com/apache/arrow.git?rev=a7ae73be24f6653c2da8d0d37dd9686711eea974#a7ae73be24f6653c2da8d0d37dd9686711eea974"
 dependencies = [
  "cfg_aliases",
  "chrono",
@@ -831,9 +831,9 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=3ec449bb38a29dac13f81a0f1fdaaa191b0a4b27#3ec449bb38a29dac13f81a0f1fdaaa191b0a4b27"
+source = "git+https://github.com/apache/arrow.git?rev=a7ae73be24f6653c2da8d0d37dd9686711eea974#a7ae73be24f6653c2da8d0d37dd9686711eea974"
 dependencies = [
- "ahash 0.6.3",
+ "ahash 0.7.0",
  "arrow",
  "async-trait",
  "chrono",
@@ -2250,7 +2250,7 @@ dependencies = [
 [[package]]
 name = "parquet"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=3ec449bb38a29dac13f81a0f1fdaaa191b0a4b27#3ec449bb38a29dac13f81a0f1fdaaa191b0a4b27"
+source = "git+https://github.com/apache/arrow.git?rev=a7ae73be24f6653c2da8d0d37dd9686711eea974#a7ae73be24f6653c2da8d0d37dd9686711eea974"
 dependencies = [
  "arrow",
  "base64 0.12.3",

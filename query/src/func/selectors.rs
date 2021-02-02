@@ -672,7 +672,7 @@ mod test {
         ctx.register_table("t", Box::new(provider));
 
         let df = ctx.table("t").unwrap();
-        let df = df.aggregate(vec![], aggs).unwrap();
+        let df = df.aggregate(&[], &aggs).unwrap();
 
         // execute the query
         let record_batches = df.collect().await.unwrap();
