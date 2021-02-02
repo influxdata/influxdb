@@ -51,7 +51,7 @@ type Engine interface {
 	CreateIterator(ctx context.Context, measurement string, opt query.IteratorOptions) (query.Iterator, error)
 	CreateCursorIterator(ctx context.Context) (CursorIterator, error)
 	IteratorCost(measurement string, opt query.IteratorOptions) (query.IteratorCost, error)
-	WritePoints(points []models.Point) error
+	WritePoints(points []models.Point, tracker StatsTracker) error
 
 	CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error
 	CreateSeriesListIfNotExists(keys, names [][]byte, tags []models.Tags) error

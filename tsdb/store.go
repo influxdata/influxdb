@@ -2,7 +2,6 @@ package tsdb // import "github.com/influxdata/influxdb/tsdb"
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -14,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/influxdata/influxdb/logger"
@@ -43,6 +43,8 @@ var (
 const (
 	statDatabaseSeries       = "numSeries"       // number of series in a database
 	statDatabaseMeasurements = "numMeasurements" // number of measurements in a database
+	statPointsWritten        = "pointsWritten"   // number of points parsed by engines successfully
+	statValuesWritten        = "valuesWritten"   // number of values parsed by engines successfully
 )
 
 // SeriesFileDirectory is the name of the directory containing series files for
@@ -73,6 +75,11 @@ func (d *databaseState) removeIndexType(indexType string) {
 // hasMultipleIndexTypes returns true if the database has multiple index types.
 func (d *databaseState) hasMultipleIndexTypes() bool { return d != nil && len(d.indexTypes) > 1 }
 
+type StoreStatistics struct {
+	ValuesWritten int64
+	PointsWritten int64
+}
+
 // Store manages shards and indexes for databases.
 type Store struct {
 	mu                sync.RWMutex
@@ -92,6 +99,9 @@ type Store struct {
 	// Epoch tracker helps serialize writes and deletes that may conflict. It
 	// is stored by shard.
 	epochs map[uint64]*epochTracker
+
+	// Statistics for the store
+	stats StoreStatistics
 
 	EngineOptions EngineOptions
 
@@ -162,10 +172,19 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 		})
 	}
 
-	// Gather all statistics for all shards.
+	// Gather all statistics for all shards.
 	for _, shard := range shards {
 		statistics = append(statistics, shard.Statistics(tags)...)
 	}
+
+	statistics = append(statistics, models.Statistic{
+		Name: "localStore",
+		Tags: tags,
+		Values: map[string]interface{}{
+			statPointsWritten: atomic.LoadInt64(&s.stats.PointsWritten),
+			statValuesWritten: atomic.LoadInt64(&s.stats.ValuesWritten),
+		},
+	})
 	return statistics
 }
 
@@ -1392,10 +1411,6 @@ func (s *Store) ExpandSources(sources influxql.Sources) (influxql.Sources, error
 
 // WriteToShard writes a list of points to a shard identified by its ID.
 func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
-	return s.WriteToShardWithContext(context.Background(), shardID, points)
-}
-
-func (s *Store) WriteToShardWithContext(ctx context.Context, shardID uint64, points []models.Point) error {
 	s.mu.RLock()
 
 	select {
@@ -1432,7 +1447,11 @@ func (s *Store) WriteToShardWithContext(ctx context.Context, shardID uint64, poi
 		sh.SetCompactionsEnabled(true)
 	}
 
-	return sh.WritePointsWithContext(ctx, points)
+	tracker := func(points, values int64) {
+		atomic.AddInt64(&s.stats.ValuesWritten, values)
+		atomic.AddInt64(&s.stats.PointsWritten, points)
+	}
+	return sh.WritePoints(points, tracker)
 }
 
 // MeasurementNames returns a slice of all measurements. Measurements accepts an

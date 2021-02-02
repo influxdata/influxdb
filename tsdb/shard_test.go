@@ -49,7 +49,7 @@ func TestShardWriteAndIndex(t *testing.T) {
 
 	// Calling WritePoints when the engine is not open will return
 	// ErrEngineClosed.
-	if got, exp := sh.WritePoints(nil), tsdb.ErrEngineClosed; got != exp {
+	if got, exp := sh.WritePoints(nil, nil), tsdb.ErrEngineClosed; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 
@@ -64,13 +64,13 @@ func TestShardWriteAndIndex(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	err := sh.WritePoints([]models.Point{pt})
+	err := sh.WritePoints([]models.Point{pt}, nil)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
 
 	pt.SetTime(time.Unix(2, 3))
-	err = sh.WritePoints([]models.Point{pt})
+	err = sh.WritePoints([]models.Point{pt}, nil)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -96,7 +96,7 @@ func TestShardWriteAndIndex(t *testing.T) {
 
 	// and ensure that we can still write data
 	pt.SetTime(time.Unix(2, 6))
-	err = sh.WritePoints([]models.Point{pt})
+	err = sh.WritePoints([]models.Point{pt}, nil)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -119,7 +119,7 @@ func TestShard_Open_CorruptFieldsIndex(t *testing.T) {
 
 	// Calling WritePoints when the engine is not open will return
 	// ErrEngineClosed.
-	if got, exp := sh.WritePoints(nil), tsdb.ErrEngineClosed; got != exp {
+	if got, exp := sh.WritePoints(nil, nil), tsdb.ErrEngineClosed; got != exp {
 		t.Fatalf("got %v, expected %v", got, exp)
 	}
 
@@ -134,7 +134,7 @@ func TestShard_Open_CorruptFieldsIndex(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	err := sh.WritePoints([]models.Point{pt})
+	err := sh.WritePoints([]models.Point{pt}, nil)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -186,7 +186,7 @@ func TestMaxSeriesLimit(t *testing.T) {
 		points = append(points, pt)
 	}
 
-	err := sh.WritePoints(points)
+	err := sh.WritePoints(points, nil)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -199,7 +199,7 @@ func TestMaxSeriesLimit(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	err = sh.WritePoints([]models.Point{pt})
+	err = sh.WritePoints([]models.Point{pt}, nil)
 	if err == nil {
 		t.Fatal("expected error")
 	} else if exp, got := `partial write: max-series-per-database limit exceeded: (1000) dropped=1`, err.Error(); exp != got {
@@ -242,7 +242,7 @@ func TestShard_MaxTagValuesLimit(t *testing.T) {
 		points = append(points, pt)
 	}
 
-	err := sh.WritePoints(points)
+	err := sh.WritePoints(points, nil)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -255,7 +255,7 @@ func TestShard_MaxTagValuesLimit(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	err = sh.WritePoints([]models.Point{pt})
+	err = sh.WritePoints([]models.Point{pt}, nil)
 	if err == nil {
 		t.Fatal("expected error")
 	} else if exp, got := `partial write: max-values-per-tag limit exceeded (1000/1000): measurement="cpu" tag="host" value="server9999" dropped=1`, err.Error(); exp != got {
@@ -291,7 +291,7 @@ func TestWriteTimeTag(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	if err := sh.WritePoints([]models.Point{pt}); err == nil {
+	if err := sh.WritePoints([]models.Point{pt}, nil); err == nil {
 		t.Fatal("expected error: got nil")
 	}
 
@@ -302,7 +302,7 @@ func TestWriteTimeTag(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	if err := sh.WritePoints([]models.Point{pt}); err != nil {
+	if err := sh.WritePoints([]models.Point{pt}, nil); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
@@ -342,7 +342,7 @@ func TestWriteTimeField(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	if err := sh.WritePoints([]models.Point{pt}); err == nil {
+	if err := sh.WritePoints([]models.Point{pt}, nil); err == nil {
 		t.Fatal("expected error: got nil")
 	}
 
@@ -378,7 +378,7 @@ func TestShardWriteAddNewField(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	err := sh.WritePoints([]models.Point{pt})
+	err := sh.WritePoints([]models.Point{pt}, nil)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -390,7 +390,7 @@ func TestShardWriteAddNewField(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	err = sh.WritePoints([]models.Point{pt})
+	err = sh.WritePoints([]models.Point{pt}, nil)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -455,7 +455,7 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 				return
 			}
 
-			_ = sh.WritePoints(points[:500])
+			_ = sh.WritePoints(points[:500], nil)
 			if f, err := sh.CreateSnapshot(false); err == nil {
 				os.RemoveAll(f)
 			}
@@ -471,7 +471,7 @@ func TestShard_WritePoints_FieldConflictConcurrent(t *testing.T) {
 				return
 			}
 
-			_ = sh.WritePoints(points[500:])
+			_ = sh.WritePoints(points[500:], nil)
 			if f, err := sh.CreateSnapshot(false); err == nil {
 				os.RemoveAll(f)
 			}
@@ -543,7 +543,7 @@ func TestShard_WritePoints_FieldConflictConcurrentQuery(t *testing.T) {
 				errC <- err
 			}
 
-			sh.WritePoints(points)
+			sh.WritePoints(points, nil)
 			m := &influxql.Measurement{Name: "cpu"}
 			iter, err := sh.CreateIterator(context.Background(), m, query.IteratorOptions{
 				Expr:       influxql.MustParseExpr(`value`),
@@ -603,7 +603,7 @@ func TestShard_WritePoints_FieldConflictConcurrentQuery(t *testing.T) {
 				errC <- err
 			}
 
-			sh.WritePoints(points)
+			sh.WritePoints(points, nil)
 			m := &influxql.Measurement{Name: "cpu"}
 			iter, err := sh.CreateIterator(context.Background(), m, query.IteratorOptions{
 				Expr:       influxql.MustParseExpr(`value`),
@@ -670,7 +670,7 @@ func TestShard_Close_RemoveIndex(t *testing.T) {
 		time.Unix(1, 2),
 	)
 
-	err := sh.WritePoints([]models.Point{pt})
+	err := sh.WritePoints([]models.Point{pt}, nil)
 	if err != nil {
 		t.Fatalf(err.Error())
 	}
@@ -1021,7 +1021,7 @@ func TestShard_Disabled_WriteQuery(t *testing.T) {
 			time.Unix(1, 2),
 		)
 
-		err := sh.WritePoints([]models.Point{pt})
+		err := sh.WritePoints([]models.Point{pt}, nil)
 		if err == nil {
 			t.Fatalf("expected shard disabled error")
 		}
@@ -1039,7 +1039,7 @@ func TestShard_Disabled_WriteQuery(t *testing.T) {
 
 		sh.SetEnabled(true)
 
-		err = sh.WritePoints([]models.Point{pt})
+		err = sh.WritePoints([]models.Point{pt}, nil)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -1070,7 +1070,7 @@ func TestShard_Closed_Functions(t *testing.T) {
 			time.Unix(1, 2),
 		)
 
-		if err := sh.WritePoints([]models.Point{pt}); err != nil {
+		if err := sh.WritePoints([]models.Point{pt}, nil); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
@@ -2094,7 +2094,7 @@ func benchmarkWritePointsExistingSeriesEqualBatches(b *testing.B, mCnt, tkCnt, t
 		}
 
 		b.StartTimer()
-		shard.WritePoints(points[start:end])
+		shard.WritePoints(points[start:end], nil)
 		b.StopTimer()
 
 		start = end
@@ -2128,7 +2128,7 @@ func BenchmarkCreateIterator(b *testing.B) {
 	setup := func(index string, shards Shards) {
 		// Write all the points to all the shards.
 		for _, sh := range shards {
-			if err := sh.WritePoints(points); err != nil {
+			if err := sh.WritePoints(points, nil); err != nil {
 				b.Fatal(err)
 			}
 		}
@@ -2196,7 +2196,7 @@ func chunkedWrite(shard *tsdb.Shard, points []models.Point) {
 			break
 		}
 
-		shard.WritePoints(points[start:end])
+		shard.WritePoints(points[start:end], nil)
 		start = end
 		end += chunkSz
 	}
@@ -2335,7 +2335,7 @@ func (sh *Shard) MustWritePointsString(s string) {
 		panic(err)
 	}
 
-	if err := sh.WritePoints(a); err != nil {
+	if err := sh.WritePoints(a, nil); err != nil {
 		panic(err)
 	}
 }

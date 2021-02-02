@@ -1272,26 +1272,9 @@ func (e *Engine) addToIndexFromKey(keys [][]byte, fieldTypes []influxql.DataType
 	return nil
 }
 
-// WritePoints() is a thin wrapper for WritePointsWithContext().
-//
-// TODO: We should consider obsolteing and removing this function in favor of
-// WritePointsWithContext()
-//
-func (e *Engine) WritePoints(points []models.Point) error {
-	return e.WritePointsWithContext(context.Background(), points)
-}
-
-// WritePointsWithContext() writes metadata and point data into the engine.  It
+// WritePoints() writes metadata and point data into the engine.  It
 // returns an error if new points are added to an existing key.
-//
-// In addition, it accepts a context.Context value. It stores write statstics
-// to context values passed in of type tsdb.ContextKey. The metrics it stores
-// are points written and values (fields) written.
-//
-// It expects int64 pointers to be stored in the tsdb.StatPointsWritten and
-// tsdb.StatValuesWritten keys and will store the proper values if requested.
-//
-func (e *Engine) WritePointsWithContext(ctx context.Context, points []models.Point) error {
+func (e *Engine) WritePoints(points []models.Point, tracker tsdb.StatsTracker) error {
 	values := make(map[string][]Value, len(points))
 	var (
 		keyBuf    []byte
@@ -1302,9 +1285,7 @@ func (e *Engine) WritePointsWithContext(ctx context.Context, points []models.Poi
 	)
 
 	for _, p := range points {
-		// TODO: In the future we'd like to check ctx.Err() for cancellation here.
-		// Beforehand we should measure the performance impact.
-
+		// TODO: In the future we'd like to check for cancellation here.
 		keyBuf = append(keyBuf[:0], p.Key()...)
 		keyBuf = append(keyBuf, keyFieldSeparator...)
 		baseLen = len(keyBuf)
@@ -1401,16 +1382,9 @@ func (e *Engine) WritePointsWithContext(ctx context.Context, points []models.Poi
 		}
 	}
 
-	// if requested, store points written stats
-	if pointsWritten, ok := ctx.Value(tsdb.StatPointsWritten).(*int64); ok {
-		*pointsWritten = npoints
+	if tracker != nil {
+		tracker(npoints, nvalues)
 	}
-
-	// if requested, store values written stats
-	if valuesWritten, ok := ctx.Value(tsdb.StatValuesWritten).(*int64); ok {
-		*valuesWritten = nvalues
-	}
-
 	return seriesErr
 }
 

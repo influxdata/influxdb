@@ -188,7 +188,7 @@ func TestEngine_Digest(t *testing.T) {
 		MustParsePointString("cpu,host=B value=1.2 2000000000"),
 	}
 
-	if err := e.WritePoints(points); err != nil {
+	if err := e.WritePoints(points, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -284,7 +284,7 @@ func TestEngine_Digest(t *testing.T) {
 		MustParsePointString("cpu,host=C value=1.1 3000000000"),
 	}
 
-	if err := e.WritePoints(points); err != nil {
+	if err := e.WritePoints(points, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -336,7 +336,7 @@ func TestEngine_Digest_Concurrent(t *testing.T) {
 		MustParsePointString("cpu,host=B value=1.2 2000000000"),
 	}
 
-	if err := e.WritePoints(points); err != nil {
+	if err := e.WritePoints(points, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -406,14 +406,14 @@ func TestEngine_Backup(t *testing.T) {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
 
-	if err := e.WritePoints([]models.Point{p1}); err != nil {
+	if err := e.WritePoints([]models.Point{p1}, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 	if err := e.WriteSnapshot(); err != nil {
 		t.Fatalf("failed to snapshot: %s", err.Error())
 	}
 
-	if err := e.WritePoints([]models.Point{p2}); err != nil {
+	if err := e.WritePoints([]models.Point{p2}, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -459,7 +459,7 @@ func TestEngine_Backup(t *testing.T) {
 	// so this test won't work properly unless the file is at least a second past the last one
 	time.Sleep(time.Second)
 
-	if err := e.WritePoints([]models.Point{p3}); err != nil {
+	if err := e.WritePoints([]models.Point{p3}, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -513,21 +513,21 @@ func TestEngine_Export(t *testing.T) {
 		t.Fatalf("failed to open tsm1 engine: %s", err.Error())
 	}
 
-	if err := e.WritePoints([]models.Point{p1}); err != nil {
+	if err := e.WritePoints([]models.Point{p1}, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 	if err := e.WriteSnapshot(); err != nil {
 		t.Fatalf("failed to snapshot: %s", err.Error())
 	}
 
-	if err := e.WritePoints([]models.Point{p2}); err != nil {
+	if err := e.WritePoints([]models.Point{p2}, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 	if err := e.WriteSnapshot(); err != nil {
 		t.Fatalf("failed to snapshot: %s", err.Error())
 	}
 
-	if err := e.WritePoints([]models.Point{p3}); err != nil {
+	if err := e.WritePoints([]models.Point{p3}, nil); err != nil {
 		t.Fatalf("failed to write points: %s", err.Error())
 	}
 
@@ -1275,7 +1275,7 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 				}
 			}
 
-			if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
+			if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}, nil); err != nil {
 				t.Fatalf("failed to write points: %s", err.Error())
 			}
 			if err := e.WriteSnapshot(); err != nil {
@@ -1385,7 +1385,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate(t *testing.T) {
 				}
 			}
 
-			if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
+			if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}, nil); err != nil {
 				t.Fatalf("failed to write points: %s", err.Error())
 			}
 			if err := e.WriteSnapshot(); err != nil {
@@ -1511,7 +1511,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_Nil(t *testing.T) {
 				}
 			}
 
-			if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
+			if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}, nil); err != nil {
 				t.Fatalf("failed to write points: %s", err.Error())
 			}
 			if err := e.WriteSnapshot(); err != nil {
@@ -1597,7 +1597,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_FlushBatch(t *testing.T) {
 				}
 			}
 
-			if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}); err != nil {
+			if err := e.WritePoints([]models.Point{p1, p2, p3, p4, p5, p6, p7, p8}, nil); err != nil {
 				t.Fatalf("failed to write points: %s", err.Error())
 			}
 			if err := e.WriteSnapshot(); err != nil {
@@ -1716,7 +1716,7 @@ func TestEngine_DeleteSeriesRange_OutsideTime(t *testing.T) {
 				}
 			}
 
-			if err := e.WritePoints([]models.Point{p1}); err != nil {
+			if err := e.WritePoints([]models.Point{p1}, nil); err != nil {
 				t.Fatalf("failed to write points: %s", err.Error())
 			}
 			if err := e.WriteSnapshot(); err != nil {
@@ -2171,7 +2171,7 @@ func TestEngine_DisableEnableCompactions_Concurrent(t *testing.T) {
 
 }
 
-func TestEngine_WritePointsWithContext(t *testing.T) {
+func TestEngine_WritePointsWithStats(t *testing.T) {
 	// Create a few points.
 	points := []models.Point{
 		MustParsePointString("cpu,host=A value=1.1 1000000000"),
@@ -2185,11 +2185,12 @@ func TestEngine_WritePointsWithContext(t *testing.T) {
 			e := MustOpenEngine(index)
 
 			var numPoints, numValues int64
+			tracker := func(points, values int64) {
+				numPoints += points
+				numValues += values
+			}
 
-			ctx := context.WithValue(context.Background(), tsdb.StatPointsWritten, &numPoints)
-			ctx = context.WithValue(ctx, tsdb.StatValuesWritten, &numValues)
-
-			if err := e.WritePointsWithContext(ctx, points); err != nil {
+			if err := e.WritePoints(points, tracker); err != nil {
 				t.Fatalf("failed to write points: %v", err)
 			}
 
@@ -2306,7 +2307,7 @@ func TestEngine_Invalid_UTF8(t *testing.T) {
 				t.Fatalf("create series index error: %v", err)
 			}
 
-			if err := e.WritePoints([]models.Point{p}); err != nil {
+			if err := e.WritePoints([]models.Point{p}, nil); err != nil {
 				t.Fatalf("failed to write points: %s", err.Error())
 			}
 
@@ -2332,7 +2333,7 @@ func BenchmarkEngine_WritePoints(b *testing.B) {
 			b.Run(fmt.Sprintf("%s_%d", index, sz), func(b *testing.B) {
 				b.ReportAllocs()
 				for i := 0; i < b.N; i++ {
-					err := e.WritePoints(pp)
+					err := e.WritePoints(pp, nil)
 					if err != nil {
 						b.Fatal(err)
 					}
@@ -2367,7 +2368,7 @@ func BenchmarkEngine_WritePoints_Parallel(b *testing.B) {
 						go func(i int) {
 							defer wg.Done()
 							from, to := i*sz, (i+1)*sz
-							err := e.WritePoints(pp[from:to])
+							err := e.WritePoints(pp[from:to], nil)
 							if err != nil {
 								errC <- err
 								return
@@ -2783,7 +2784,7 @@ func (e *Engine) writePoints(points ...models.Point) error {
 		}
 	}
 	// Write the points into the cache/wal.
-	return e.WritePoints(points)
+	return e.WritePoints(points, nil)
 }
 
 // MustAddSeries calls AddSeries, panicking if there is an error.
