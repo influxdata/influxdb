@@ -52,6 +52,7 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"map":                 "unbounded test",
 		"join_missing_on_col": "unbounded test",
 		"join_use_previous":   "unbounded test (https://github.com/influxdata/flux/issues/2996)",
+		"join_panic":          "unbounded test (https://github.com/influxdata/flux/issues/3465)",
 		"rowfn_with_import":   "unbounded test",
 
 		// the following tests have a difference between the CSV-decoded input table, and the storage-retrieved version of that table
