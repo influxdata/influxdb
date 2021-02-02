@@ -425,21 +425,42 @@ impl Table {
     // ---- Schema API queries
     //
 
-    /// Returns the distinct set of tag keys (column names) matching the
-    /// provided optional predicates and time range.
-    pub fn tag_keys<'a>(
+    /// Returns a distinct set of column names in the table.
+    ///
+    /// Optionally a predicate may be provided. In such a case only column names
+    /// will be returned belonging to columns whom have at least one non-null
+    /// value for any row satisfying the predicate.
+    pub fn column_names(
         &self,
-        time_range: (i64, i64),
-        predicates: &[(&str, &str)],
-        found_columns: &BTreeSet<String>,
-    ) -> BTreeSet<ColumnName<'a>> {
-        // Firstly, this should short-circuit early if all of the table's columns
-        // are present in `found_columns`.
+        predicate: &Predicate,
+        mut dst: BTreeSet<String>,
+    ) -> BTreeSet<String> {
+        let table_data = self.table_data.read().unwrap();
+
+        // Short circuit execution if we have already got all of this table's
+        // columns in the results.
+        if table_data
+            .meta
+            .columns
+            .keys()
+            .all(|name| dst.contains(name))
+        {
+            return dst;
+        }
+
+        // Identify row groups where time range and predicates match could match
+        // the predicate. Get a snapshot of those, and the table meta-data.
         //
-        // Otherwise, identify segments where time range and predicates match could
-        // match using segment meta data and then execute against those segments
-        // and merge results.
-        todo!();
+        // NOTE(edd): this takes another read lock on `self`. I think this is
+        // ok, but if it turns out it's not then we can move the
+        // `filter_row_groups` logic into here and not take the second read
+        // lock.
+        let (_, row_groups) = self.filter_row_groups(predicate);
+        for row_group in row_groups {
+            row_group.column_names(predicate, &mut dst);
+        }
+
+        dst
     }
 
     /// Returns the distinct set of tag values (column values) for each provided
@@ -1267,6 +1288,77 @@ mod test {
 east,host-a,10
 west,host-b,100
 "
+        );
+    }
+
+    #[test]
+    fn column_names() {
+        // Build a row group.
+        let mut columns = BTreeMap::new();
+        let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3][..]));
+        columns.insert("time".to_string(), tc);
+
+        let rc = ColumnType::Tag(Column::from(&["west", "south", "north"][..]));
+        columns.insert("region".to_string(), rc);
+        let rg = RowGroup::new(3, columns);
+        let mut table = Table::new("cpu".to_owned(), rg);
+
+        // add another row group
+        let mut columns = BTreeMap::new();
+        let tc = ColumnType::Time(Column::from(&[200_i64, 300, 400][..]));
+        columns.insert("time".to_string(), tc);
+
+        let rc = ColumnType::Tag(Column::from(vec![Some("north"), None, None].as_slice()));
+        columns.insert("region".to_string(), rc);
+        let rg = RowGroup::new(3, columns);
+        table.add_row_group(rg);
+
+        // Table looks like:
+        //
+        // region, time
+        // ------------
+        // west,     1
+        // south,    2
+        // north,    3
+        // <- next row group ->
+        // north,  200
+        // NULL,   300
+        // NULL,   400
+
+        let mut dst: BTreeSet<String> = BTreeSet::new();
+        dst = table.column_names(&Predicate::default(), dst);
+
+        assert_eq!(
+            dst.iter().cloned().collect::<Vec<_>>(),
+            vec!["region".to_owned(), "time".to_owned()],
+        );
+
+        // re-run and get the same answer
+        dst = table.column_names(&Predicate::default(), dst);
+        assert_eq!(
+            dst.iter().cloned().collect::<Vec<_>>(),
+            vec!["region".to_owned(), "time".to_owned()],
+        );
+
+        // include a predicate that doesn't match any region rows and still get
+        // region from previous results.
+        dst = table.column_names(
+            &Predicate::new(vec![BinaryExpr::from(("time", ">=", 300_i64))]),
+            dst,
+        );
+        assert_eq!(
+            dst.iter().cloned().collect::<Vec<_>>(),
+            vec!["region".to_owned(), "time".to_owned()],
+        );
+
+        // wipe the destination buffer and region won't show up
+        dst = table.column_names(
+            &Predicate::new(vec![BinaryExpr::from(("time", ">=", 300_i64))]),
+            BTreeSet::new(),
+        );
+        assert_eq!(
+            dst.iter().cloned().collect::<Vec<_>>(),
+            vec!["time".to_owned()],
         );
     }
 }
