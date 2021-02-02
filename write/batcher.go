@@ -96,6 +96,8 @@ func (b *Batcher) read(ctx context.Context, r io.Reader, lines chan<- []byte, er
 	for scanner.Scan() {
 		// exit early if the context is done
 		select {
+		// NOTE: We purposefully don't use scanner.Bytes() here because it returns a slice
+		// pointing to an array which is reused / overwritten on every call to Scan().
 		case lines <- []byte(scanner.Text()):
 		case <-ctx.Done():
 			errC <- ctx.Err()
@@ -134,7 +136,7 @@ func (b *Batcher) write(ctx context.Context, writeFn func(batch []byte) error, l
 	for more {
 		select {
 		case line, more = <-lines:
-			if more {
+			if more && string(line) != "\n" {
 				buf = append(buf, line...)
 			}
 			// write if we exceed the max lines OR read routine has finished
