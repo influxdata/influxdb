@@ -2593,6 +2593,8 @@ impl PartialEq<Value<'_>> for OwnedValue {
         match (&self, other) {
             (OwnedValue::String(a), Value::String(b)) => a == b,
             (OwnedValue::Scalar(a), Value::Scalar(b)) => a == b,
+            (OwnedValue::Boolean(a), Value::Boolean(b)) => a == b,
+            (OwnedValue::ByteArray(a), Value::ByteArray(b)) => a == b,
             _ => false,
         }
     }
@@ -2603,6 +2605,8 @@ impl PartialOrd<Value<'_>> for OwnedValue {
         match (&self, other) {
             (OwnedValue::String(a), Value::String(b)) => Some(a.as_str().cmp(b)),
             (OwnedValue::Scalar(a), Value::Scalar(b)) => a.partial_cmp(b),
+            (OwnedValue::Boolean(a), Value::Boolean(b)) => a.partial_cmp(b),
+            (OwnedValue::ByteArray(a), Value::ByteArray(b)) => a.as_slice().partial_cmp(*b),
             _ => None,
         }
     }
