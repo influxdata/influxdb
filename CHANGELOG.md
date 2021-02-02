@@ -62,6 +62,7 @@ Replacement `tsi1` indexes will be automatically generated on startup for shards
 1. [20495](https://github.com/influxdata/influxdb/pull/20495): Update Flux functions list in UI to reflect that `v1` package was renamed to `schema`.
 1. [20669](https://github.com/influxdata/influxdb/pull/20669): Remove blank lines from payloads sent by `influx write`.
 1. [20657](https://github.com/influxdata/influxdb/pull/20657): Allow for creating users without initial passwords in `influx user create`.
+1. [20679](https://github.com/influxdata/influxdb/pull/20679): Fix incorrect "bucket not found" errors when passing `--bucket-id` to `influx write`.
 
 ## v2.0.3 [2020-12-14]
 
