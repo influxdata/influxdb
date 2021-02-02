@@ -292,66 +292,6 @@ type WriteService struct {
 
 var _ influxdb.WriteService = (*WriteService)(nil)
 
-func (s *WriteService) Write(ctx context.Context, orgID, bucketID influxdb.ID, r io.Reader) error {
-	precision := s.Precision
-	if precision == "" {
-		precision = "ns"
-	}
-
-	if !models.ValidPrecision(precision) {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Op:   "http/Write",
-			Msg:  msgInvalidPrecision,
-		}
-	}
-
-	u, err := NewURL(s.Addr, prefixWrite)
-	if err != nil {
-		return err
-	}
-
-	r, err = compressWithGzip(r)
-	if err != nil {
-		return err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, u.String(), r)
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Type", "text/plain; charset=utf-8")
-	req.Header.Set("Content-Encoding", "gzip")
-	SetToken(s.Token, req)
-
-	org, err := orgID.Encode()
-	if err != nil {
-		return err
-	}
-
-	bucket, err := bucketID.Encode()
-	if err != nil {
-		return err
-	}
-
-	params := req.URL.Query()
-	params.Set("org", string(org))
-	params.Set("bucket", string(bucket))
-	params.Set("precision", string(precision))
-	req.URL.RawQuery = params.Encode()
-
-	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
-
-	resp, err := hc.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	return CheckError(resp)
-}
-
 func compressWithGzip(data io.Reader) (io.Reader, error) {
 	pr, pw := io.Pipe()
 	gw := gzip.NewWriter(pw)
@@ -401,10 +341,21 @@ func (s *WriteService) WriteTo(ctx context.Context, filter influxdb.BucketFilter
 	SetToken(s.Token, req)
 
 	params := req.URL.Query()
-	for key, param := range filter.QueryParams() {
-		params[key] = param
+
+	// In other CLI commands that take either an ID or a name as input, the ID
+	// is prioritized and used to short-circuit looking up the name. We simulate
+	// the same behavior here for a consistent experience.
+	if filter.OrganizationID != nil && filter.OrganizationID.Valid() {
+		params.Set("org", filter.OrganizationID.String())
+	} else if filter.Org != nil && *filter.Org != "" {
+		params.Set("org", *filter.Org)
 	}
-	params.Set("precision", string(precision))
+	if filter.ID != nil && filter.ID.Valid() {
+		params.Set("bucket", filter.ID.String())
+	} else if filter.Name != nil && *filter.Name != "" {
+		params.Set("bucket", *filter.Name)
+	}
+	params.Set("precision", precision)
 	req.URL.RawQuery = params.Encode()
 
 	hc := NewClient(u.Scheme, s.InsecureSkipVerify)
