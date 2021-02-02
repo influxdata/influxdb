@@ -319,7 +319,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		var mu sync.Mutex
 
 		store := &fakeStore{
-			WriteFn: func(shardID uint64, points []models.Point, tracker tsdb.StatsTracker) error {
+			WriteFn: func(shardID uint64, points []models.Point) error {
 				mu.Lock()
 				defer mu.Unlock()
 				return theTest.err[0]
@@ -346,7 +346,7 @@ func TestPointsWriter_WritePoints(t *testing.T) {
 		c.Open()
 		defer c.Close()
 
-		err := c.WritePointsPrivileged(pr.Database, pr.RetentionPolicy, models.ConsistencyLevelOne, pr.Points, nil)
+		err := c.WritePointsPrivileged(pr.Database, pr.RetentionPolicy, models.ConsistencyLevelOne, pr.Points)
 		if err == nil && test.expErr != nil {
 			t.Errorf("PointsWriter.WritePointsPrivileged(): '%s' error: got %v, exp %v", test.name, err, test.expErr)
 		}
@@ -395,7 +395,7 @@ func TestPointsWriter_WritePoints_Dropped(t *testing.T) {
 	var mu sync.Mutex
 
 	store := &fakeStore{
-		WriteFn: func(shardID uint64, points []models.Point, tracker tsdb.StatsTracker) error {
+		WriteFn: func(shardID uint64, points []models.Point) error {
 			mu.Lock()
 			defer mu.Unlock()
 			return nil
@@ -422,7 +422,7 @@ func TestPointsWriter_WritePoints_Dropped(t *testing.T) {
 	c.Open()
 	defer c.Close()
 
-	err := c.WritePointsPrivileged(pr.Database, pr.RetentionPolicy, models.ConsistencyLevelOne, pr.Points, nil)
+	err := c.WritePointsPrivileged(pr.Database, pr.RetentionPolicy, models.ConsistencyLevelOne, pr.Points)
 	if _, ok := err.(tsdb.PartialWriteError); !ok {
 		t.Errorf("PointsWriter.WritePoints(): got %v, exp %v", err, tsdb.PartialWriteError{})
 	}
@@ -549,12 +549,12 @@ func TestBufferedPointsWriter(t *testing.T) {
 var shardID uint64
 
 type fakeStore struct {
-	WriteFn       func(shardID uint64, points []models.Point, tracker tsdb.StatsTracker) error
+	WriteFn       func(shardID uint64, points []models.Point) error
 	CreateShardfn func(database, retentionPolicy string, shardID uint64, enabled bool) error
 }
 
-func (f *fakeStore) WriteToShard(shardID uint64, points []models.Point, tracker tsdb.StatsTracker) error {
-	return f.WriteFn(shardID, points, tracker)
+func (f *fakeStore) WriteToShard(shardID uint64, points []models.Point) error {
+	return f.WriteFn(shardID, points)
 }
 
 func (f *fakeStore) CreateShard(database, retentionPolicy string, shardID uint64, enabled bool) error {

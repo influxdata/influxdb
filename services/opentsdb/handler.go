@@ -14,7 +14,6 @@ import (
 
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/tsdb"
 	"go.uber.org/zap"
 )
 
@@ -24,7 +23,7 @@ type Handler struct {
 	RetentionPolicy string
 
 	PointsWriter interface {
-		WritePointsPrivileged(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point, tracker tsdb.StatsTracker) error
+		WritePointsPrivileged(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
 	}
 
 	Logger *zap.Logger
@@ -126,7 +125,7 @@ func (h *Handler) servePut(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Write points.
-	if err := h.PointsWriter.WritePointsPrivileged(h.Database, h.RetentionPolicy, models.ConsistencyLevelAny, points, nil); influxdb.IsClientError(err) {
+	if err := h.PointsWriter.WritePointsPrivileged(h.Database, h.RetentionPolicy, models.ConsistencyLevelAny, points); influxdb.IsClientError(err) {
 		h.Logger.Info("Write series error", zap.Error(err))
 		http.Error(w, "write series error: "+err.Error(), http.StatusBadRequest)
 		return

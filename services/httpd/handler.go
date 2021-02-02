@@ -113,7 +113,7 @@ type Handler struct {
 	}
 
 	PointsWriter interface {
-		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point, tracker tsdb.StatsTracker) error
+		WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
 	}
 
 	Store Store
@@ -355,7 +355,6 @@ type Statistics struct {
 	WriteRequestBytesReceived    int64
 	QueryRequestBytesTransmitted int64
 	PointsWrittenOK              int64
-	ValuesWrittenOK              int64
 	PointsWrittenDropped         int64
 	PointsWrittenFail            int64
 	AuthenticationFailures       int64
@@ -387,7 +386,6 @@ func (h *Handler) Statistics(tags map[string]string) []models.Statistic {
 			statWriteRequestBytesReceived:    atomic.LoadInt64(&h.stats.WriteRequestBytesReceived),
 			statQueryRequestBytesTransmitted: atomic.LoadInt64(&h.stats.QueryRequestBytesTransmitted),
 			statPointsWrittenOK:              atomic.LoadInt64(&h.stats.PointsWrittenOK),
-			statValuesWrittenOK:              atomic.LoadInt64(&h.stats.ValuesWrittenOK),
 			statPointsWrittenDropped:         atomic.LoadInt64(&h.stats.PointsWrittenDropped),
 			statPointsWrittenFail:            atomic.LoadInt64(&h.stats.PointsWrittenFail),
 			statAuthFail:                     atomic.LoadInt64(&h.stats.AuthenticationFailures),
@@ -973,12 +971,8 @@ func (h *Handler) serveWrite(database, retentionPolicy, precision string, w http
 		}
 	}
 
-	tracker := func(points, values int64) {
-		// only track values for now
-		atomic.AddInt64(&h.stats.ValuesWrittenOK, values)
-	}
-
-	if err := h.PointsWriter.WritePoints(database, retentionPolicy, consistency, user, points, tracker); influxdb.IsClientError(err) {
+	// Write points.
+	if err := h.PointsWriter.WritePoints(database, retentionPolicy, consistency, user, points); influxdb.IsClientError(err) {
 		atomic.AddInt64(&h.stats.PointsWrittenFail, int64(len(points)))
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return
@@ -988,7 +982,7 @@ func (h *Handler) serveWrite(database, retentionPolicy, precision string, w http
 		return
 	} else if werr, ok := err.(tsdb.PartialWriteError); ok {
 		// Note - we don't always collect all the errors before returning from the call,
-		// so PointsWrittenOK might overestimate and ValuesWrittenOK might underestimate
+		// so PointsWrittenOK might overestimate the number of successful points if multiple shards have errors
 		atomic.AddInt64(&h.stats.PointsWrittenOK, int64(len(points)-werr.Dropped))
 		atomic.AddInt64(&h.stats.PointsWrittenDropped, int64(werr.Dropped))
 		h.httpError(w, werr.Error(), http.StatusBadRequest)
@@ -1189,8 +1183,8 @@ func (h *Handler) servePromWrite(w http.ResponseWriter, r *http.Request, user me
 		}
 	}
 
-	// Write points - without stats tracking.
-	if err := h.PointsWriter.WritePoints(database, r.URL.Query().Get("rp"), consistency, user, points, nil); influxdb.IsClientError(err) {
+	// Write points.
+	if err := h.PointsWriter.WritePoints(database, r.URL.Query().Get("rp"), consistency, user, points); influxdb.IsClientError(err) {
 		atomic.AddInt64(&h.stats.PointsWrittenFail, int64(len(points)))
 		h.httpError(w, err.Error(), http.StatusBadRequest)
 		return

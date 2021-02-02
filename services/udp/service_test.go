@@ -10,7 +10,6 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
-	"github.com/influxdata/influxdb/tsdb"
 )
 
 func TestService_OpenClose(t *testing.T) {
@@ -54,7 +53,7 @@ func TestService_CreatesDatabase(t *testing.T) {
 	t.Parallel()
 
 	s := NewTestService(nil)
-	s.WritePointsFn = func(string, string, models.ConsistencyLevel, []models.Point, tsdb.StatsTracker) error {
+	s.WritePointsFn = func(string, string, models.ConsistencyLevel, []models.Point) error {
 		return nil
 	}
 
@@ -129,7 +128,7 @@ type TestService struct {
 	Service       *Service
 	Config        Config
 	MetaClient    *internal.MetaClientMock
-	WritePointsFn func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point, tracker tsdb.StatsTracker) error
+	WritePointsFn func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
 }
 
 func NewTestService(c *Config) *TestService {
@@ -153,6 +152,6 @@ func NewTestService(c *Config) *TestService {
 	return service
 }
 
-func (s *TestService) WritePointsPrivileged(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point, tracker tsdb.StatsTracker) error {
-	return s.WritePointsFn(database, retentionPolicy, consistencyLevel, points, tracker)
+func (s *TestService) WritePointsPrivileged(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+	return s.WritePointsFn(database, retentionPolicy, consistencyLevel, points)
 }

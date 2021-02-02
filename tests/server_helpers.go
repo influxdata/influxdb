@@ -348,7 +348,7 @@ func (s *LocalServer) WritePoints(database, retentionPolicy string, consistencyL
 		return fmt.Errorf("server closed")
 	}
 
-	return s.PointsWriter.WritePoints(database, retentionPolicy, consistencyLevel, user, points, nil)
+	return s.PointsWriter.WritePoints(database, retentionPolicy, consistencyLevel, user, points)
 }
 
 // client abstract querying and writing to a Server using HTTP
