@@ -35,13 +35,6 @@ type Batcher struct {
 	Service          platform.WriteService // Service receives batches flushed from Batcher.
 }
 
-// Write reads r in batches and writes to a target specified by org and bucket.
-func (b *Batcher) Write(ctx context.Context, org, bucket platform.ID, r io.Reader) error {
-	return b.writeBytes(ctx, r, func(batch []byte) error {
-		return b.Service.Write(ctx, org, bucket, bytes.NewReader(batch))
-	})
-}
-
 // WriteTo reads r in batches and writes to a target specified by filter.
 func (b *Batcher) WriteTo(ctx context.Context, filter platform.BucketFilter, r io.Reader) error {
 	return b.writeBytes(ctx, r, func(batch []byte) error {

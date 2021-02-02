@@ -291,16 +291,7 @@ func TestBatcher_write(t *testing.T) {
 			writeCalled := false
 			var got string
 			svc := &mock.WriteService{
-				WriteF: func(ctx context.Context, org, bucket platform.ID, r io.Reader) error {
-					writeCalled = true
-					if tt.args.writeError {
-						return fmt.Errorf("error")
-					}
-					b, err := ioutil.ReadAll(r)
-					got = string(b)
-					return err
-				},
-				WriteToF: func(ctx context.Context, filter platform.BucketFilter, r io.Reader) error {
+				WriteToF: func(ctx context.Context, _ platform.BucketFilter, r io.Reader) error {
 					writeCalled = true
 					if tt.args.writeError {
 						return fmt.Errorf("error")
@@ -317,7 +308,7 @@ func TestBatcher_write(t *testing.T) {
 				Service:          svc,
 			}
 			writeFn := func(batch []byte) error {
-				return svc.Write(ctx, tt.args.org, tt.args.bucket, bytes.NewReader(batch))
+				return svc.WriteTo(ctx, platform.BucketFilter{ID: &tt.args.bucket, OrganizationID: &tt.args.org}, bytes.NewReader(batch))
 			}
 
 			go b.write(ctx, writeFn, tt.args.lines, tt.args.errC)
@@ -348,7 +339,7 @@ func TestBatcher_write(t *testing.T) {
 	}
 }
 
-func TestBatcher_Write(t *testing.T) {
+func TestBatcher_WriteTo(t *testing.T) {
 	createReader := func(data string) func() io.Reader {
 		if data == "error" {
 			return func() io.Reader {
@@ -424,7 +415,7 @@ func TestBatcher_Write(t *testing.T) {
 				gotFlushes int
 			)
 			svc := &mock.WriteService{
-				WriteF: func(ctx context.Context, org, bucket platform.ID, r io.Reader) error {
+				WriteToF: func(ctx context.Context, _ platform.BucketFilter, r io.Reader) error {
 					if tt.args.writeError {
 						return fmt.Errorf("error")
 					}
@@ -442,7 +433,11 @@ func TestBatcher_Write(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			if err := b.Write(ctx, tt.args.org, tt.args.bucket, tt.args.r()); (err != nil) != tt.wantErr {
+			if err := b.WriteTo(
+				ctx,
+				platform.BucketFilter{ID: &tt.args.bucket, OrganizationID: &tt.args.org},
+				tt.args.r(),
+			); (err != nil) != tt.wantErr {
 				t.Errorf("Batcher.Write() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
@@ -462,7 +457,7 @@ func TestBatcher_Write(t *testing.T) {
 				gotFlushes int
 			)
 			svc := &mock.WriteService{
-				WriteToF: func(ctx context.Context, filter platform.BucketFilter, r io.Reader) error {
+				WriteToF: func(ctx context.Context, _ platform.BucketFilter, r io.Reader) error {
 					if tt.args.writeError {
 						return fmt.Errorf("error")
 					}
@@ -498,9 +493,12 @@ func TestBatcher_Write(t *testing.T) {
 func TestBatcher_WriteTimeout(t *testing.T) {
 	// mocking the write service here to either return an error
 	// or get back all the bytes from the reader.
+	bucketId := platform.ID(2)
+	orgId := platform.ID(1)
+
 	var got string
 	svc := &mock.WriteService{
-		WriteF: func(ctx context.Context, org, bucket platform.ID, r io.Reader) error {
+		WriteToF: func(ctx context.Context, filter platform.BucketFilter, r io.Reader) error {
 			b, err := ioutil.ReadAll(r)
 			got = string(b)
 			return err
@@ -517,19 +515,16 @@ func TestBatcher_WriteTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond)
 	defer cancel()
 
-	if err := b.Write(ctx, platform.ID(1), platform.ID(2), r); err != context.DeadlineExceeded {
+	if err := b.WriteTo(ctx, platform.BucketFilter{ID: &bucketId, OrganizationID: &orgId}, r); err != context.DeadlineExceeded {
 		t.Errorf("Batcher.Write() with timeout error = %v", err)
 	}
 
-	if got != "" {
-		t.Errorf(" Batcher.Write() with timeout got %s", got)
-	}
+	require.Empty(t, got, "Batcher.Write() with timeout received data")
 }
 
 func TestBatcher_WriteWithoutService(t *testing.T) {
 	b := Batcher{}
-	err := b.Write(context.Background(), platform.ID(1), platform.ID(1), strings.NewReader("m1,t1=v1 f1=1"))
-	if err == nil || !strings.Contains(err.Error(), "write service required") {
-		t.Errorf(" Batcher.Write() error expected, but got %v", err)
-	}
+	err := b.WriteTo(context.Background(), platform.BucketFilter{}, strings.NewReader("m1,t1=v1 f1=1"))
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "write service required")
 }
