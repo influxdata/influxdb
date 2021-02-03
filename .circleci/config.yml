@@ -603,6 +603,8 @@ jobs:
           key: influxdb-build-{{ .Branch }}-{{ .Revision }}
           paths:
             - /tmp/go-cache
+      - store_artifacts:
+          path: bin/linux
       - persist_to_workspace:
           root: .
           paths:
@@ -636,6 +638,8 @@ jobs:
       - install_core_deps
       - run_goreleaser:
           publish_release: false
+      - store_artifacts:
+          path: dist
       - save_cache:
           name: Save GOCACHE
           key: influxdb-cross-build-{{ .Branch }}-{{ .Revision }}

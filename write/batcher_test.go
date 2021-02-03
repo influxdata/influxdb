@@ -15,6 +15,7 @@ import (
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestScanLines(t *testing.T) {
@@ -181,11 +182,12 @@ func TestBatcher_write(t *testing.T) {
 		errC       chan error
 	}
 	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    string
-		wantErr bool
+		name       string
+		fields     fields
+		args       args
+		want       string
+		wantErr    bool
+		wantNoCall bool
 	}{
 		{
 			name: "sending a single line will send a line to the service",
@@ -240,10 +242,11 @@ func TestBatcher_write(t *testing.T) {
 				org:    platform.ID(1),
 				bucket: platform.ID(2),
 				line:   "m1,t1=v1 f1=1",
-				lines:  make(chan []byte),
-				errC:   make(chan error),
+				lines:  make(chan []byte, 1),
+				errC:   make(chan error, 1),
 			},
-			wantErr: true,
+			wantErr:    true,
+			wantNoCall: true,
 		},
 		{
 			name: "write service returning error stops the write",
@@ -260,6 +263,20 @@ func TestBatcher_write(t *testing.T) {
 			},
 			wantErr: true,
 		},
+		{
+			name: "blank line is not sent to service",
+			fields: fields{
+				MaxFlushBytes: 1,
+			},
+			args: args{
+				org:    platform.ID(1),
+				bucket: platform.ID(2),
+				line:   "\n",
+				lines:  make(chan []byte),
+				errC:   make(chan error),
+			},
+			wantNoCall: true,
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -271,9 +288,11 @@ func TestBatcher_write(t *testing.T) {
 
 			// mocking the write service here to either return an error
 			// or get back all the bytes from the reader.
+			writeCalled := false
 			var got string
 			svc := &mock.WriteService{
 				WriteF: func(ctx context.Context, org, bucket platform.ID, r io.Reader) error {
+					writeCalled = true
 					if tt.args.writeError {
 						return fmt.Errorf("error")
 					}
@@ -282,6 +301,7 @@ func TestBatcher_write(t *testing.T) {
 					return err
 				},
 				WriteToF: func(ctx context.Context, filter platform.BucketFilter, r io.Reader) error {
+					writeCalled = true
 					if tt.args.writeError {
 						return fmt.Errorf("error")
 					}
@@ -304,16 +324,17 @@ func TestBatcher_write(t *testing.T) {
 
 			if cancel != nil {
 				cancel()
-			} else {
-				tt.args.lines <- []byte(tt.args.line)
-				// if the max flush interval is not zero,  we are testing to see
-				// if the data is flushed via the timer rather than forced by
-				// closing the channel.
-				if tt.fields.MaxFlushInterval != 0 {
-					time.Sleep(tt.fields.MaxFlushInterval * 100)
-				}
-				close(tt.args.lines)
+				time.Sleep(500 * time.Millisecond)
 			}
+
+			tt.args.lines <- []byte(tt.args.line)
+			// if the max flush interval is not zero, we are testing to see
+			// if the data is flushed via the timer rather than forced by
+			// closing the channel.
+			if tt.fields.MaxFlushInterval != 0 {
+				time.Sleep(tt.fields.MaxFlushInterval * 100)
+			}
+			close(tt.args.lines)
 
 			err := <-tt.args.errC
 			if (err != nil) != tt.wantErr {
@@ -321,9 +342,8 @@ func TestBatcher_write(t *testing.T) {
 				return
 			}
 
-			if !cmp.Equal(got, tt.want) {
-				t.Errorf("%q. Batcher.write() = -got/+want %s", tt.name, cmp.Diff(got, tt.want))
-			}
+			require.Equal(t, tt.wantNoCall, !writeCalled)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }
