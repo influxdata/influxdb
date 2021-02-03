@@ -2,7 +2,7 @@
 //! and `query::Database` for use in testing.
 
 use arrow_deps::{
-    arrow::record_batch::RecordBatch, datafusion::logical_plan::LogicalPlan,
+    datafusion::{logical_plan::LogicalPlan, physical_plan::SendableRecordBatchStream},
     util::str_iter_to_batch,
 };
 
@@ -474,12 +474,12 @@ impl PartitionChunk for TestChunk {
         unimplemented!()
     }
 
-    fn table_to_arrow(
+    async fn read_filter(
         &self,
-        _dst: &mut Vec<RecordBatch>,
         _table_name: &str,
+        _predicate: &Predicate,
         _selection: Selection<'_>,
-    ) -> Result<(), Self::Error> {
+    ) -> Result<SendableRecordBatchStream, Self::Error> {
         unimplemented!()
     }
 

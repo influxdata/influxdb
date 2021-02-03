@@ -928,7 +928,6 @@ mod tests {
             seriesset::{Error as SeriesSetError, SeriesSet, SeriesSetItem},
             Executor,
         },
-        frontend::sql::SQLQueryPlanner,
         predicate::PredicateBuilder,
         Database,
     };
@@ -937,10 +936,8 @@ mod tests {
         arrow::{
             array::{Array, StringArray},
             datatypes::DataType,
-            record_batch::RecordBatch,
         },
-        assert_table_eq,
-        datafusion::{physical_plan::collect, prelude::*},
+        datafusion::prelude::*,
     };
     use influxdb_line_protocol::{parse_lines, ParsedLine};
     use test_helpers::{assert_contains, str_pair_vec_to_vec};
@@ -1008,30 +1005,6 @@ mod tests {
         assert!(host_col.is_null(1), "is_null(1): {:?}", host_col);
         assert!(!host_col.is_null(2), "is_null(2): {:?}", host_col);
         assert_eq!(host_col.value(2), "one", "host_col: {:?}", host_col);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn write_and_query() -> Result {
-        let db = MutableBufferDb::new("foo");
-
-        let lines: Vec<_> = parse_lines("cpu,region=west,host=A user=23.2,other=1i 10")
-            .map(|l| l.unwrap())
-            .collect();
-        write_lines(&db, &lines).await;
-
-        let results = run_sql_query(&db, "select * from cpu").await;
-
-        let expected_cpu_table = &[
-            "+------+-------+--------+------+------+",
-            "| host | other | region | time | user |",
-            "+------+-------+--------+------+------+",
-            "| A    | 1     | west   | 10   | 23.2 |",
-            "+------+-------+--------+------+------+",
-        ];
-
-        assert_table_eq!(expected_cpu_table, &results);
 
         Ok(())
     }
@@ -1757,14 +1730,5 @@ mod tests {
     async fn write_lines(database: &MutableBufferDb, lines: &[ParsedLine<'_>]) {
         let mut writer = query::test::TestLPWriter::default();
         writer.write_lines(database, lines).await.unwrap()
-    }
-
-    async fn run_sql_query(database: &MutableBufferDb, query: &str) -> Vec<RecordBatch> {
-        let planner = SQLQueryPlanner::default();
-        let executor = Executor::new();
-
-        let physical_plan = planner.query(database, query, &executor).await.unwrap();
-
-        collect(physical_plan).await.unwrap()
     }
 }

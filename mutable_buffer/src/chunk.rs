@@ -6,6 +6,7 @@ use arrow_deps::{
         error::{DataFusionError, Result as DatafusionResult},
         logical_plan::{Expr, ExpressionVisitor, LogicalPlan, Operator, Recursion},
         optimizer::utils::expr_to_column_names,
+        physical_plan::SendableRecordBatchStream,
         prelude::*,
     },
 };
@@ -500,17 +501,17 @@ impl query::PartitionChunk for Chunk {
         self.table_stats()
     }
 
-    fn table_to_arrow(
-        &self,
-        dst: &mut Vec<RecordBatch>,
-        table_name: &str,
-        selection: Selection<'_>,
-    ) -> Result<(), Self::Error> {
-        self.table_to_arrow(dst, table_name, selection)
+    async fn table_names(&self, _predicate: &Predicate) -> Result<LogicalPlan, Self::Error> {
+        unimplemented!("This function is slated for removal")
     }
 
-    async fn table_names(&self, _predicate: &Predicate) -> Result<LogicalPlan, Self::Error> {
-        unimplemented!("please use table_names function directly")
+    async fn read_filter(
+        &self,
+        _table_name: &str,
+        _predicate: &Predicate,
+        _selection: Selection<'_>,
+    ) -> Result<SendableRecordBatchStream, Self::Error> {
+        unimplemented!("This function is slated for removal")
     }
 
     async fn table_schema(

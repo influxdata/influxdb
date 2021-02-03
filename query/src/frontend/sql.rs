@@ -2,10 +2,8 @@ use std::sync::Arc;
 
 use snafu::{ResultExt, Snafu};
 
-use crate::{exec::Executor, Database, PartitionChunk};
-use arrow_deps::datafusion::{
-    datasource::MemTable, error::DataFusionError, physical_plan::ExecutionPlan,
-};
+use crate::{exec::Executor, provider::ProviderBuilder, Database, PartitionChunk};
+use arrow_deps::datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
 use data_types::selection::Selection;
 
 #[derive(Debug, Snafu)]
@@ -31,14 +29,44 @@ pub enum Error {
         source: DataFusionError,
     },
 
-    #[snafu(display("Internal error converting table to arrow {}: {}", table, source))]
-    InternalTableConversion {
-        table: String,
+    #[snafu(display("Error listing partition keys: {}", source))]
+    GettingDatabasePartition {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
-    #[snafu(display("No rows found in table {} while executing '{}'", table, query))]
-    InternalNoRowsInTable { table: String, query: String },
+    #[snafu(display(
+        "Error getting table schema for table '{}' in chunk {}: {}",
+        table_name,
+        chunk_id,
+        source
+    ))]
+    GettingTableSchema {
+        table_name: String,
+        chunk_id: u32,
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+
+    #[snafu(display(
+        "Error adding chunk to table provider for table '{}' in chunk {}: {}",
+        table_name,
+        chunk_id,
+        source
+    ))]
+    AddingProviderToChunk {
+        table_name: String,
+        chunk_id: u32,
+        source: crate::provider::Error,
+    },
+
+    #[snafu(display(
+        "Error creating  table provider for table '{}': {}",
+        table_name,
+        source
+    ))]
+    CreatingTableProvider {
+        table_name: String,
+        source: crate::provider::Error,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -51,7 +79,7 @@ impl SQLQueryPlanner {
     /// Plan a SQL query against the data in `database`, and return a
     /// DataFusion physical execution plan. The plan can then be
     /// executed using `executor` in a streaming fashion.
-    pub async fn query<D: Database>(
+    pub async fn query<D: Database + 'static>(
         &self,
         database: &D,
         query: &str,
@@ -62,41 +90,46 @@ impl SQLQueryPlanner {
         // figure out the table names that appear in the sql
         let table_names = table_names(query)?;
 
-        let partition_keys = database.partition_keys().await.unwrap();
+        let partition_keys = database
+            .partition_keys()
+            .await
+            .map_err(|e| Box::new(e) as _)
+            .context(GettingDatabasePartition)?;
 
         // Register a table provider for each table so DataFusion
         // knows what the schema of that table is and how to obtain
         // its data when needed.
-        for table in &table_names {
-            let mut data = Vec::new();
+        for table_name in &table_names {
+            let mut builder = ProviderBuilder::new(table_name);
+
             for partition_key in &partition_keys {
                 for chunk in database.chunks(partition_key).await {
-                    chunk
-                        .table_to_arrow(&mut data, &table, Selection::All)
-                        .map_err(|e| Box::new(e) as _)
-                        .context(InternalTableConversion { table })?
+                    if chunk.has_table(table_name).await {
+                        let chunk_id = chunk.id();
+                        let chunk_table_schema = chunk
+                            .table_schema(table_name, Selection::All)
+                            .await
+                            .map_err(|e| Box::new(e) as _)
+                            .context(GettingTableSchema {
+                                table_name,
+                                chunk_id,
+                            })?;
+
+                        builder = builder
+                            .add_chunk(chunk, chunk_table_schema.into())
+                            .context(AddingProviderToChunk {
+                                table_name,
+                                chunk_id,
+                            })?
+                    }
                 }
             }
+            let provider = builder
+                .build()
+                .context(CreatingTableProvider { table_name })?;
 
-            // TODO: make our own struct that implements
-            // TableProvider, type so we can take advantage of
-            // datafusion predicate and selection pushdown. For now,
-            // use a Memtable provider (which requires materializing
-            // the entire table here)
-
-            // if the table was reported to exist, it should not be empty (eventually we
-            // should get the schema and table data separtely)
-            if data.is_empty() {
-                return InternalNoRowsInTable { table, query }.fail();
-            }
-
-            let schema = data[0].schema().clone();
-            let provider = Box::new(
-                MemTable::try_new(schema, vec![data])
-                    .context(InternalMemTableCreation { table })?,
-            );
-
-            ctx.inner_mut().register_table(&table, provider);
+            ctx.inner_mut()
+                .register_table(&table_name, Box::new(provider));
         }
 
         ctx.prepare_sql(query).await.context(Preparing)

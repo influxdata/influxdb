@@ -5,7 +5,7 @@
     clippy::use_self
 )]
 
-use arrow_deps::{arrow::record_batch::RecordBatch, datafusion::logical_plan::LogicalPlan};
+use arrow_deps::datafusion::{logical_plan::LogicalPlan, physical_plan::SendableRecordBatchStream};
 use async_trait::async_trait;
 use data_types::{
     data::ReplicatedWrite, partition_metadata::Table as TableStats, schema::Schema,
@@ -20,6 +20,7 @@ pub mod frontend;
 pub mod func;
 pub mod group_by;
 pub mod predicate;
+pub mod provider;
 pub mod util;
 
 use self::{group_by::GroupByAndAggregate, predicate::Predicate};
@@ -115,8 +116,8 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// rows that match.
     ///
     /// This is used during query planning to skip including entire chunks
-    fn might_pass_predicate(&self, _predicate: &Predicate) -> bool {
-        true
+    fn could_pass_predicate(&self, _predicate: &Predicate) -> Result<bool, Self::Error> {
+        Ok(true)
     }
 
     /// Returns true if this chunk contains data for the specified table
@@ -141,14 +142,22 @@ pub trait PartitionChunk: Debug + Send + Sync {
         selection: Selection<'_>,
     ) -> Result<Schema, Self::Error>;
 
-    /// converts the table to an Arrow RecordBatch and writes to dst
-    /// TODO turn this into a streaming interface
-    fn table_to_arrow(
+    /// Provides access to raw Chunk data as an asynchronous stream of
+    /// RecordBatches.
+    ///
+    /// This is the analog of the `TableProvider` in DataFusion
+    ///
+    /// The reason we can't simply use the TableProvider trait
+    /// directly is that the data for a particular Table lives in
+    /// several chunks within a partition, so there needs to be an
+    /// implementation of TableProvider that stitches together the
+    /// streams from several different Chunks.
+    async fn read_filter(
         &self,
-        dst: &mut Vec<RecordBatch>,
         table_name: &str,
+        predicate: &Predicate,
         selection: Selection<'_>,
-    ) -> Result<(), Self::Error>;
+    ) -> Result<SendableRecordBatchStream, Self::Error>;
 }
 
 #[async_trait]

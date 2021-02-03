@@ -33,6 +33,16 @@ pub enum Error {
     ListingPartitions {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
+
+    #[snafu(display(
+        "gRPC planner got error checking if chunk {} could pass predicate: {}",
+        chunk_id,
+        source
+    ))]
+    CheckingChunkPredicate {
+        chunk_id: u32,
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -66,7 +76,14 @@ impl InfluxRPCPlanner {
             // TODO prune partitions somehow
             let chunks = database.chunks(&key).await;
             for chunk in chunks {
-                if chunk.might_pass_predicate(&predicate) {
+                let could_pass_predicate = chunk
+                    .could_pass_predicate(&predicate)
+                    .map_err(|e| Box::new(e) as _)
+                    .context(CheckingChunkPredicate {
+                        chunk_id: chunk.id(),
+                    })?;
+
+                if could_pass_predicate {
                     let plan = chunk
                         .table_names(&predicate)
                         .await

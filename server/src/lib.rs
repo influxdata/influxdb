@@ -722,12 +722,10 @@ mod tests {
         let db_name = DatabaseName::new("foo").unwrap();
         let db = server.db(&db_name).await.unwrap();
 
-        let buff = db.mutable_buffer.as_ref().unwrap();
-
         let planner = SQLQueryPlanner::default();
         let executor = server.executor();
         let physical_plan = planner
-            .query(buff, "select * from cpu", executor.as_ref())
+            .query(db.as_ref(), "select * from cpu", executor.as_ref())
             .await
             .unwrap();
 

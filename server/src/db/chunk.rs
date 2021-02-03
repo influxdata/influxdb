@@ -1,19 +1,19 @@
 use arrow_deps::{
-    arrow::record_batch::RecordBatch, datafusion::logical_plan::LogicalPlan,
+    datafusion::{logical_plan::LogicalPlan, physical_plan::SendableRecordBatchStream},
     util::str_iter_to_batch,
 };
 use data_types::{schema::Schema, selection::Selection};
-use query::{
-    predicate::{Predicate, PredicateBuilder},
-    util::make_scan_plan,
-    PartitionChunk,
-};
+use mutable_buffer::chunk::Chunk as MBChunk;
+use query::{predicate::Predicate, util::make_scan_plan, PartitionChunk};
 use read_buffer::Database as ReadBufferDb;
 use snafu::{ResultExt, Snafu};
 
 use std::sync::{Arc, RwLock};
 
-use super::pred::to_read_buffer_predicate;
+use super::{
+    pred::to_read_buffer_predicate,
+    streams::{MutableBufferChunkStream, ReadFilterResultsStream},
+};
 
 use async_trait::async_trait;
 
@@ -50,7 +50,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug)]
 pub enum DBChunk {
     MutableBuffer {
-        chunk: Arc<mutable_buffer::chunk::Chunk>,
+        chunk: Arc<MBChunk>,
     },
     ReadBuffer {
         db: Arc<RwLock<ReadBufferDb>>,
@@ -99,49 +99,6 @@ impl PartitionChunk for DBChunk {
             Self::ReadBuffer { .. } => unimplemented!("read buffer not implemented"),
             Self::ParquetFile => unimplemented!("parquet file not implemented"),
         }
-    }
-
-    fn table_to_arrow(
-        &self,
-        dst: &mut Vec<RecordBatch>,
-        table_name: &str,
-        selection: Selection<'_>,
-    ) -> Result<(), Self::Error> {
-        match self {
-            Self::MutableBuffer { chunk } => {
-                chunk
-                    .table_to_arrow(dst, table_name, selection)
-                    .context(MutableBufferChunk)?;
-            }
-            Self::ReadBuffer {
-                db,
-                partition_key,
-                chunk_id,
-            } => {
-                let chunk_id = *chunk_id;
-                // Translate the predicate and selection to ReadBuffer style
-                let predicate = PredicateBuilder::default().build();
-                let rb_predicate =
-                    to_read_buffer_predicate(&predicate).context(InternalPredicateConversion)?;
-
-                // run the query
-                let db = db.read().unwrap();
-                let read_result = db
-                    .read_filter(
-                        partition_key,
-                        table_name,
-                        &[chunk_id],
-                        rb_predicate,
-                        selection,
-                    )
-                    .context(ReadBufferChunk { chunk_id })?;
-
-                // copy the RecordBatches into dst
-                dst.extend(read_result);
-            }
-            Self::ParquetFile => unimplemented!("parquet file not implemented"),
-        }
-        Ok(())
     }
 
     async fn table_names(&self, predicate: &Predicate) -> Result<LogicalPlan, Self::Error> {
@@ -250,6 +207,84 @@ impl PartitionChunk for DBChunk {
             }
             DBChunk::ParquetFile => {
                 unimplemented!("parquet file not implemented for has_table")
+            }
+        }
+    }
+
+    async fn read_filter(
+        &self,
+        table_name: &str,
+        predicate: &Predicate,
+        selection: Selection<'_>,
+    ) -> Result<SendableRecordBatchStream, Self::Error> {
+        match self {
+            DBChunk::MutableBuffer { chunk } => {
+                // Note Mutable buffer doesn't support predicate
+                // pushdown (other than pruning out the entire chunk
+                // via `might_pass_predicate)
+                let schema = self
+                    .table_schema(table_name, selection.clone())
+                    .await?
+                    .into();
+                Ok(Box::pin(MutableBufferChunkStream::new(
+                    chunk.clone(),
+                    schema,
+                    table_name,
+                    selection,
+                )))
+            }
+            DBChunk::ReadBuffer {
+                db,
+                partition_key,
+                chunk_id,
+            } => {
+                let chunk_id = *chunk_id;
+                let rb_predicate =
+                    to_read_buffer_predicate(&predicate).context(InternalPredicateConversion)?;
+                let db = db.read().expect("mutex poisoned");
+                let read_results = db
+                    .read_filter(
+                        partition_key,
+                        table_name,
+                        &[chunk_id],
+                        rb_predicate,
+                        selection,
+                    )
+                    .context(ReadBufferChunk { chunk_id })?;
+
+                let schema = read_results
+                    .schema()
+                    .context(ReadBufferChunk { chunk_id })?
+                    .into();
+
+                Ok(Box::pin(ReadFilterResultsStream::new(read_results, schema)))
+            }
+            DBChunk::ParquetFile => {
+                unimplemented!("parquet file not implemented for scan_data")
+            }
+        }
+    }
+
+    fn could_pass_predicate(&self, _predicate: &Predicate) -> Result<bool> {
+        match self {
+            Self::MutableBuffer { .. } => {
+                // For now, we might get an error if we try and
+                // compile a chunk predicate (e.g. for tables that
+                // don't exist in the chunk) which could signal the
+                // chunk can't pass the predicate.
+
+                // However, we can also get an error if there is some
+                // unsupported operation and we need a way to
+                // distinguish the two cases.
+                Ok(true)
+            }
+            Self::ReadBuffer { .. } => {
+                // TODO: ask Edd how he wants this wired up in the read buffer
+                Ok(true)
+            }
+            Self::ParquetFile => {
+                // TODO proper filtering for parquet files
+                Ok(true)
             }
         }
     }

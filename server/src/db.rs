@@ -22,6 +22,7 @@ use crate::buffer::Buffer;
 mod chunk;
 use chunk::DBChunk;
 pub mod pred;
+mod streams;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
