@@ -29,6 +29,8 @@ Replacement `tsi1` indexes will be automatically generated on startup for shards
 1. [20591](https://github.com/influxdata/influxdb/pull/20591): Add `nats-max-payload-bytes` config option for `influxd` server.
 1. [20608](https://github.com/influxdata/influxdb/pull/20608): Add `influxd inspect export-lp` command to extract data in line-protocol format.
 1. [20650](https://github.com/influxdata/influxdb/pull/20650): Promote schema and fill query optimizations to default behavior.
+1. [20688](https://github.com/influxdata/influxdb/pull/20688): Upgrade Flux to v0.104.0.
+1. [20688](https://github.com/influxdata/influxdb/pull/20688): UI: Upgrade flux-lsp-browser to v0.5.31.
 
 ### Bug Fixes
 
@@ -58,6 +60,7 @@ Replacement `tsi1` indexes will be automatically generated on startup for shards
 1. [20592](https://github.com/influxdata/influxdb/pull/20592): Update V1 API spec to document all valid Accept headers and matching Content-Types.
 1. [20611](https://github.com/influxdata/influxdb/pull/20611): Respect the --skip-verify flag when running `influx query`.
 1. [20671](https://github.com/influxdata/influxdb/pull/20671): Remove blank lines from payloads sent by `influx write`.
+1. [20688](https://github.com/influxdata/influxdb/pull/20688): Fix infinite loop in Flux parser caused by invalid array expressions.
 
 ## v2.0.3 [2020-12-14]
 ----------------------
