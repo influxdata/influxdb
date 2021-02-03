@@ -9,7 +9,6 @@ use arrow_deps::{
     },
     datafusion::physical_plan::collect,
 };
-use data_types::names::{org_and_bucket_to_database, OrgBucketMappingError};
 use futures::Stream;
 use query::{frontend::sql::SQLQueryPlanner, DatabaseStore};
 use serde::Deserialize;
@@ -31,15 +30,16 @@ pub enum Error {
         source: serde_json::Error,
     },
 
-    #[snafu(display("Internal error mapping org & bucket: {}", source))]
-    BucketMappingError { source: OrgBucketMappingError },
+    #[snafu(display("Database {} not found", database_name))]
+    DatabaseNotFound { database_name: String },
 
-    #[snafu(display("Bucket {} not found in org {}", bucket, org))]
-    BucketNotFound { org: String, bucket: String },
-
-    #[snafu(display("Internal error reading points from database {}:  {}", db_name, source))]
+    #[snafu(display(
+        "Internal error reading points from database {}:  {}",
+        database_name,
+        source
+    ))]
     Query {
-        db_name: String,
+        database_name: String,
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
@@ -67,8 +67,7 @@ impl Error {
         match &self {
             Self::InvalidTicket { .. } => Status::invalid_argument(self.to_string()),
             Self::InvalidQuery { .. } => Status::invalid_argument(self.to_string()),
-            Self::BucketMappingError { .. } => Status::internal(self.to_string()),
-            Self::BucketNotFound { .. } => Status::not_found(self.to_string()),
+            Self::DatabaseNotFound { .. } => Status::not_found(self.to_string()),
             Self::Query { .. } => Status::internal(self.to_string()),
             Self::PlanningSQLQuery { .. } => Status::invalid_argument(self.to_string()),
         }
@@ -81,8 +80,7 @@ type TonicStream<T> = Pin<Box<dyn Stream<Item = Result<T, tonic::Status>> + Send
 /// Body of the `Ticket` serialized and sent to the do_get endpoint; this should
 /// be shared with the read API probably...
 struct ReadInfo {
-    org: String,
-    bucket: String,
+    database_name: String,
     sql_query: String,
 }
 
@@ -120,12 +118,13 @@ where
         let read_info: ReadInfo =
             serde_json::from_str(&json_str).context(InvalidQuery { query: &json_str })?;
 
-        let db_name = org_and_bucket_to_database(&read_info.org, &read_info.bucket)
-            .context(BucketMappingError)?;
-        let db = self.db_store.db(&db_name).await.context(BucketNotFound {
-            org: read_info.org.clone(),
-            bucket: read_info.bucket.clone(),
-        })?;
+        let db = self
+            .db_store
+            .db(&read_info.database_name)
+            .await
+            .context(DatabaseNotFound {
+                database_name: &read_info.database_name,
+            })?;
 
         let planner = SQLQueryPlanner::default();
         let executor = self.db_store.executor();
@@ -141,7 +140,9 @@ where
         let results = collect(physical_plan.clone())
             .await
             .map_err(|e| Box::new(e) as _)
-            .context(Query { db_name })?;
+            .context(Query {
+                database_name: &read_info.database_name,
+            })?;
         if results.is_empty() {
             return Err(tonic::Status::internal("There were no results from ticket"));
         }

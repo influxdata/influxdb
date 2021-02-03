@@ -16,8 +16,7 @@ use std::{convert::TryFrom, sync::Arc};
 // TODO: this should be shared
 #[derive(Serialize, Debug)]
 struct ReadInfo {
-    org: String,
-    bucket: String,
+    database_name: String,
     sql_query: String,
 }
 
@@ -25,8 +24,7 @@ pub async fn test(scenario: &Scenario, sql_query: &str, expected_read_data: &[St
     let mut flight_client = FlightServiceClient::connect(GRPC_URL_BASE).await.unwrap();
 
     let query = ReadInfo {
-        org: scenario.org_id_str().into(),
-        bucket: scenario.bucket_id_str().into(),
+        database_name: scenario.database_name().into(),
         sql_query: sql_query.into(),
     };
 
