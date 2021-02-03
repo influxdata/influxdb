@@ -32,11 +32,6 @@ use super::counters::ExecutionCounters;
 struct IOxQueryPlanner {}
 
 impl QueryPlanner for IOxQueryPlanner {
-    fn rewrite_logical_plan(&self, plan: LogicalPlan) -> Result<LogicalPlan> {
-        // TODO: implement any IOx specific query rewrites needed
-        Ok(plan)
-    }
-
     /// Given a `LogicalPlan` created from above, create an
     /// `ExecutionPlan` suitable for execution
     fn create_physical_plan(
@@ -46,7 +41,7 @@ impl QueryPlanner for IOxQueryPlanner {
     ) -> Result<Arc<dyn ExecutionPlan>> {
         // Teach the default physical planner how to plan SchemaPivot nodes.
         let physical_planner =
-            DefaultPhysicalPlanner::with_extension_planner(Arc::new(IOxExtensionPlanner {}));
+            DefaultPhysicalPlanner::with_extension_planners(vec![Arc::new(IOxExtensionPlanner {})]);
         // Delegate most work of physical planning to the default physical planner
         physical_planner.create_physical_plan(logical_plan, ctx_state)
     }
@@ -60,22 +55,20 @@ impl ExtensionPlanner for IOxExtensionPlanner {
     fn plan_extension(
         &self,
         node: &dyn UserDefinedLogicalNode,
-        inputs: Vec<Arc<dyn ExecutionPlan>>,
+        inputs: &[Arc<dyn ExecutionPlan>],
         _ctx_state: &ExecutionContextState,
-    ) -> Result<Arc<dyn ExecutionPlan>> {
-        match node.as_any().downcast_ref::<SchemaPivotNode>() {
-            Some(schema_pivot) => {
+    ) -> Result<Option<Arc<dyn ExecutionPlan>>> {
+        node.as_any()
+            .downcast_ref::<SchemaPivotNode>()
+            .map(|schema_pivot| {
                 assert_eq!(inputs.len(), 1, "Inconsistent number of inputs");
-                Ok(Arc::new(SchemaPivotExec::new(
+                let execution_plan = Arc::new(SchemaPivotExec::new(
                     inputs[0].clone(),
                     schema_pivot.schema().as_ref().clone().into(),
-                )))
-            }
-            None => Err(Error::Internal(format!(
-                "Unknown extension node type {:?}",
-                node
-            ))),
-        }
+                ));
+                Ok(execution_plan as _)
+            })
+            .transpose()
     }
 }
 
@@ -105,9 +98,10 @@ impl IOxExecutionContext {
         const BATCH_SIZE: usize = 1000;
 
         // TBD: Should we be reusing an execution context across all executions?
-        let config = ExecutionConfig::new().with_batch_size(BATCH_SIZE);
+        let config = ExecutionConfig::new()
+            .with_batch_size(BATCH_SIZE)
+            .with_query_planner(Arc::new(IOxQueryPlanner {}));
 
-        let config = config.with_query_planner(Arc::new(IOxQueryPlanner {}));
         let inner = ExecutionContext::with_config(config);
 
         Self { counters, inner }

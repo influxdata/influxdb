@@ -338,9 +338,9 @@ impl Table {
                         None
                     }
                 })
-                .collect();
+                .collect::<Vec<_>>();
 
-            plan_builder.project(select_exprs).context(BuildingPlan)?
+            plan_builder.project(&select_exprs).context(BuildingPlan)?
         };
 
         let plan = plan_builder.build().context(BuildingPlan)?;
@@ -377,7 +377,7 @@ impl Table {
         let select_exprs = vec![col(column_name)];
 
         plan_builder
-            .project(select_exprs)
+            .project(&select_exprs)
             .context(BuildingPlan)?
             .build()
             .context(BuildingPlan)
@@ -435,7 +435,7 @@ impl Table {
         sort_exprs.push(TIME_COLUMN_NAME.into_sort_expr());
 
         // Order by
-        let plan_builder = plan_builder.sort(sort_exprs).context(BuildingPlan)?;
+        let plan_builder = plan_builder.sort(&sort_exprs).context(BuildingPlan)?;
 
         // Selection
         let mut select_exprs = Vec::new();
@@ -443,7 +443,7 @@ impl Table {
         select_exprs.extend(field_columns.iter().map(|c| c.into_expr()));
         select_exprs.push(TIME_COLUMN_NAME.into_expr());
 
-        let plan_builder = plan_builder.project(select_exprs).context(BuildingPlan)?;
+        let plan_builder = plan_builder.project(&select_exprs).context(BuildingPlan)?;
 
         // and finally create the plan
         let plan = plan_builder.build().context(BuildingPlan)?;
@@ -591,9 +591,9 @@ impl Table {
             .collect::<Vec<_>>();
 
         let plan_builder = plan_builder
-            .aggregate(group_exprs, agg_exprs)
+            .aggregate(&group_exprs, &agg_exprs)
             .context(BuildingPlan)?
-            .sort(sort_exprs)
+            .sort(&sort_exprs)
             .context(BuildingPlan)?;
 
         // and finally create the plan
@@ -672,9 +672,9 @@ impl Table {
             .collect::<Vec<_>>();
 
         let plan_builder = plan_builder
-            .aggregate(group_exprs, agg_exprs)
+            .aggregate(&group_exprs, &agg_exprs)
             .context(BuildingPlan)?
-            .sort(sort_exprs)
+            .sort(&sort_exprs)
             .context(BuildingPlan)?;
 
         // and finally create the plan
@@ -715,7 +715,7 @@ impl Table {
             .map(|c| c.into_expr())
             .collect::<Vec<_>>();
 
-        let plan_builder = plan_builder.project(select_exprs).context(BuildingPlan)?;
+        let plan_builder = plan_builder.project(&select_exprs).context(BuildingPlan)?;
 
         // and finally create the plan
         plan_builder.build().context(BuildingPlan)

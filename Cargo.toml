@@ -14,6 +14,7 @@ members = [
     "influxdb_tsm",
     "influxdb2_client",
     "ingest",
+    "logfmt",
     "mem_qe",
     "mutable_buffer",
     "object_store",
@@ -41,6 +42,7 @@ influxdb_iox_client = { path = "influxdb_iox_client" }
 influxdb_line_protocol = { path = "influxdb_line_protocol" }
 influxdb_tsm = { path = "influxdb_tsm" }
 ingest = { path = "ingest" }
+logfmt = { path = "logfmt" }
 mem_qe = { path = "mem_qe" }
 mutable_buffer = { path = "mutable_buffer" }
 object_store = { path = "object_store" }
