@@ -1,13 +1,13 @@
 //! This module contains the IOx implementation for using memory as the object
 //! store.
 use crate::{
-    path::{parsed::DirsAndFileName, ObjectStorePath},
-    DataDoesNotMatchLength, ListResult, NoDataInMemory, ObjectMeta, Result,
-    UnableToPutDataInMemory,
+    path::parsed::DirsAndFileName, DataDoesNotMatchLength, ListResult, NoDataInMemory, ObjectMeta,
+    ObjectStoreApi, Result, UnableToPutDataInMemory,
 };
+use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::Utc;
-use futures::{Stream, TryStreamExt};
+use futures::{stream::BoxStream, Stream, StreamExt, TryStreamExt};
 use snafu::{ensure, OptionExt, ResultExt};
 use std::collections::BTreeSet;
 use std::{collections::BTreeMap, io};
@@ -20,24 +20,15 @@ pub struct InMemory {
     storage: RwLock<BTreeMap<DirsAndFileName, Bytes>>,
 }
 
-impl InMemory {
-    /// Create new in-memory storage.
-    pub fn new() -> Self {
-        Self::default()
+#[async_trait]
+impl ObjectStoreApi for InMemory {
+    type Path = DirsAndFileName;
+
+    fn new_path(&self) -> Self::Path {
+        DirsAndFileName::default()
     }
 
-    /// Creates a clone of the store
-    pub async fn clone(&self) -> Self {
-        let storage = self.storage.read().await;
-        let storage = storage.clone();
-
-        Self {
-            storage: RwLock::new(storage),
-        }
-    }
-
-    /// Save the provided bytes to the specified location.
-    pub async fn put<S>(&self, location: &ObjectStorePath, bytes: S, length: usize) -> Result<()>
+    async fn put<S>(&self, location: &Self::Path, bytes: S, length: usize) -> Result<()>
     where
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
@@ -57,69 +48,55 @@ impl InMemory {
 
         let content = content.freeze();
 
-        self.storage.write().await.insert(location.into(), content);
+        self.storage
+            .write()
+            .await
+            .insert(location.to_owned(), content);
         Ok(())
     }
 
-    /// Return the bytes that are stored at the specified location.
-    pub async fn get(
-        &self,
-        location: &ObjectStorePath,
-    ) -> Result<impl Stream<Item = Result<Bytes>>> {
-        let location = location.into();
+    async fn get(&self, location: &Self::Path) -> Result<BoxStream<'static, Result<Bytes>>> {
         let data = self
             .storage
             .read()
             .await
-            .get(&location)
+            .get(location)
             .cloned()
             .context(NoDataInMemory)?;
 
-        Ok(futures::stream::once(async move { Ok(data) }))
+        Ok(futures::stream::once(async move { Ok(data) }).boxed())
     }
 
-    /// Delete the object at the specified location.
-    pub async fn delete(&self, location: &ObjectStorePath) -> Result<()> {
-        self.storage.write().await.remove(&location.into());
+    async fn delete(&self, location: &Self::Path) -> Result<()> {
+        self.storage.write().await.remove(&location);
         Ok(())
     }
 
-    /// List all the objects with the given prefix.
-    pub async fn list<'a>(
+    async fn list<'a>(
         &'a self,
-        prefix: Option<&'a ObjectStorePath>,
-    ) -> Result<impl Stream<Item = Result<Vec<ObjectStorePath>>> + 'a> {
-        let prefix = prefix.map(Into::into);
-
+        prefix: Option<&'a Self::Path>,
+    ) -> Result<BoxStream<'a, Result<Vec<Self::Path>>>> {
         let list = if let Some(prefix) = &prefix {
             self.storage
                 .read()
                 .await
                 .keys()
                 .filter(|k| k.prefix_matches(prefix))
-                .map(Into::into)
+                .cloned()
                 .collect()
         } else {
-            self.storage.read().await.keys().map(Into::into).collect()
+            self.storage.read().await.keys().cloned().collect()
         };
 
-        Ok(futures::stream::once(async move { Ok(list) }))
+        Ok(futures::stream::once(async move { Ok(list) }).boxed())
     }
 
-    /// List objects with the given prefix and a set delimiter of `/`. Returns
-    /// common prefixes (directories) in addition to object metadata. The
-    /// memory implementation returns all results, as opposed to the cloud
+    /// The memory implementation returns all results, as opposed to the cloud
     /// versions which limit their results to 1k or more because of API
     /// limitations.
-    pub async fn list_with_delimiter<'a>(
-        &'a self,
-        prefix: &'a ObjectStorePath,
-        _next_token: &Option<String>,
-    ) -> Result<ListResult> {
+    async fn list_with_delimiter(&self, prefix: &Self::Path) -> Result<ListResult<Self::Path>> {
         let mut common_prefixes = BTreeSet::new();
         let last_modified = Utc::now();
-
-        let prefix: DirsAndFileName = prefix.into();
 
         // Only objects in this base level should be returned in the
         // response. Otherwise, we just collect the common prefixes.
@@ -128,20 +105,20 @@ impl InMemory {
             .storage
             .read()
             .await
-            .range((&prefix)..)
-            .take_while(|(k, _)| k.prefix_matches(&prefix))
+            .range((prefix)..)
+            .take_while(|(k, _)| k.prefix_matches(prefix))
         {
             let parts = k
-                .parts_after_prefix(&prefix)
+                .parts_after_prefix(prefix)
                 .expect("must have prefix if in range");
 
             if parts.len() >= 2 {
-                let mut full_prefix = prefix.clone();
+                let mut full_prefix = prefix.to_owned();
                 full_prefix.push_part_as_dir(&parts[0]);
                 common_prefixes.insert(full_prefix);
             } else {
                 let object = ObjectMeta {
-                    location: k.into(),
+                    location: k.to_owned(),
                     last_modified,
                     size: v.len(),
                 };
@@ -151,9 +128,26 @@ impl InMemory {
 
         Ok(ListResult {
             objects,
-            common_prefixes: common_prefixes.into_iter().map(Into::into).collect(),
+            common_prefixes: common_prefixes.into_iter().collect(),
             next_token: None,
         })
+    }
+}
+
+impl InMemory {
+    /// Create new in-memory storage.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Creates a clone of the store
+    pub async fn clone(&self) -> Self {
+        let storage = self.storage.read().await;
+        let storage = storage.clone();
+
+        Self {
+            storage: RwLock::new(storage),
+        }
     }
 }
 
@@ -166,13 +160,13 @@ mod tests {
 
     use crate::{
         tests::{list_with_delimiter, put_get_delete_list},
-        Error, ObjectStore,
+        Error, ObjectStoreApi, ObjectStorePath,
     };
     use futures::stream;
 
     #[tokio::test]
     async fn in_memory_test() -> Result<()> {
-        let integration = ObjectStore::new_in_memory(InMemory::new());
+        let integration = InMemory::new();
 
         put_get_delete_list(&integration).await?;
 
@@ -183,10 +177,11 @@ mod tests {
 
     #[tokio::test]
     async fn length_mismatch_is_an_error() -> Result<()> {
-        let integration = ObjectStore::new_in_memory(InMemory::new());
+        let integration = InMemory::new();
 
         let bytes = stream::once(async { Ok(Bytes::from("hello world")) });
-        let location = ObjectStorePath::from_cloud_unchecked("junk");
+        let mut location = integration.new_path();
+        location.set_file_name("junk");
         let res = integration.put(&location, bytes, 0).await;
 
         assert!(matches!(

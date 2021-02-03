@@ -17,7 +17,7 @@ use data_types::{
     DatabaseName,
 };
 use influxdb_line_protocol::parse_lines;
-use object_store::path::ObjectStorePath;
+use object_store::ObjectStoreApi;
 use query::{frontend::sql::SQLQueryPlanner, Database, DatabaseStore};
 use server::{ConnectionManager, Server as AppServer};
 
@@ -695,6 +695,8 @@ where
 async fn snapshot_partition<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
+    use object_store::path::ObjectStorePath;
+
     let server = req
         .data::<Arc<AppServer<M>>>()
         .expect("server state")
@@ -715,7 +717,9 @@ async fn snapshot_partition<M: ConnectionManager + Send + Sync + Debug + 'static
         bucket: &snapshot.bucket,
     })?;
 
-    let mut metadata_path = ObjectStorePath::default();
+    let store = server.store.clone();
+
+    let mut metadata_path = store.new_path();
     metadata_path.push_dir(&db_name.to_string());
     let mut data_path = metadata_path.clone();
     metadata_path.push_dir("meta");
@@ -726,7 +730,7 @@ async fn snapshot_partition<M: ConnectionManager + Send + Sync + Debug + 'static
     let snapshot = server::snapshot::snapshot_chunk(
         metadata_path,
         data_path,
-        server.store.clone(),
+        store,
         partition_key,
         chunk,
         None,

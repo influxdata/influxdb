@@ -86,14 +86,14 @@ use data_types::{
     {DatabaseName, DatabaseNameError},
 };
 use influxdb_line_protocol::ParsedLine;
-use object_store::{path::ObjectStorePath, ObjectStore};
+use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use query::{exec::Executor, Database, DatabaseStore};
 
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::TryStreamExt;
 use snafu::{OptionExt, ResultExt, Snafu};
-use tracing::{error, info};
+use tracing::error;
 
 type DatabaseError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
@@ -138,6 +138,8 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+const STORE_ERROR_PAUSE_SECONDS: u64 = 100;
 
 /// `Server` is the container struct for how servers store data internally, as
 /// well as how they communicate with other servers. Each server will have one
@@ -186,7 +188,7 @@ impl<M: ConnectionManager> Server<M> {
         mut rules: DatabaseRules,
     ) -> Result<()> {
         // Return an error if this server hasn't yet been setup with an id
-        let id = self.require_id()?;
+        self.require_id()?;
 
         let name = db_name.into();
         let db_name = DatabaseName::new(name.clone()).context(InvalidDatabaseName)?;
@@ -197,10 +199,8 @@ impl<M: ConnectionManager> Server<M> {
         let data =
             Bytes::from(serde_json::to_vec(&db_reservation.db.rules).context(ErrorSerializing)?);
         let len = data.len();
-        let location = object_store_path_for_database_config(
-            &server_object_store_path(id),
-            &db_reservation.name,
-        );
+        let location =
+            object_store_path_for_database_config(&self.root_path()?, &db_reservation.name);
 
         let stream_data = std::io::Result::Ok(data);
         self.store
@@ -217,19 +217,25 @@ impl<M: ConnectionManager> Server<M> {
         Ok(())
     }
 
+    // base location in object store for this writer
+    fn root_path(&self) -> Result<object_store::path::Path> {
+        let id = self.require_id()?;
+
+        let mut path = self.store.new_path();
+        path.push_dir(format!("{}", id));
+        Ok(path)
+    }
+
     /// Loads the database configurations based on the databases in the
     /// object store. Any databases in the config already won't be
     /// replaced.
     pub async fn load_database_configs(&self) -> Result<()> {
-        let id = self.require_id()?;
-        let root_path = server_object_store_path(id);
-
         // get the database names from the object store prefixes
         // TODO: update object store to pull back all common prefixes by
         //       following the next tokens.
         let list_result = self
             .store
-            .list_with_delimiter(&root_path)
+            .list_with_delimiter(&self.root_path()?)
             .await
             .context(StoreError)?;
 
@@ -345,12 +351,10 @@ impl<M: ConnectionManager> Server<M> {
             if let Some(segment) = segment {
                 if persist {
                     let writer_id = self.require_id()?;
-                    let data = segment.to_file_bytes(writer_id).context(WalError)?;
                     let store = self.store.clone();
-                    let location = database_object_store_path(writer_id, db_name);
-                    let location = buffer::object_store_path_for_segment(&location, segment.id)
+                    segment
+                        .persist_bytes_in_background(writer_id, db_name, store)
                         .context(WalError)?;
-                    persist_bytes_in_background(data, store, location);
                 }
             }
         }
@@ -522,51 +526,13 @@ impl RemoteServer for RemoteServerImpl {
     }
 }
 
-// base location in object store for a given database name
-fn database_object_store_path(writer_id: u32, database_name: &DatabaseName<'_>) -> ObjectStorePath {
-    let mut path = ObjectStorePath::default();
-    path.push_dir(format!("{}", writer_id));
-    path.push_dir(database_name.to_string());
-    path
-}
-
-fn server_object_store_path(writer_id: u32) -> ObjectStorePath {
-    ObjectStorePath::from_cloud_unchecked(format!("{}", writer_id))
-}
-
-const STORE_ERROR_PAUSE_SECONDS: u64 = 100;
-
-/// Spawns a tokio task that will continuously try to persist the bytes to the
-/// given object store location.
-fn persist_bytes_in_background(data: Bytes, store: Arc<ObjectStore>, location: ObjectStorePath) {
-    let len = data.len();
-    let mut stream_data = std::io::Result::Ok(data.clone());
-
-    tokio::task::spawn(async move {
-        while let Err(err) = store
-            .put(
-                &location,
-                futures::stream::once(async move { stream_data }),
-                len,
-            )
-            .await
-        {
-            error!("error writing bytes to store: {}", err);
-            tokio::time::sleep(tokio::time::Duration::from_secs(STORE_ERROR_PAUSE_SECONDS)).await;
-            stream_data = std::io::Result::Ok(data.clone());
-        }
-
-        info!("persisted data to {}", store.convert_path(&location));
-    });
-}
-
 // get bytes from the location in object store
 async fn get_store_bytes(
-    location: &ObjectStorePath,
+    location: &object_store::path::Path,
     store: &ObjectStore,
 ) -> Result<bytes::BytesMut> {
     let b = store
-        .get(&location)
+        .get(location)
         .await
         .context(StoreError)?
         .map_ok(|b| bytes::BytesMut::from(&b[..]))
@@ -589,7 +555,7 @@ mod tests {
     };
     use futures::TryStreamExt;
     use influxdb_line_protocol::parse_lines;
-    use object_store::memory::InMemory;
+    use object_store::{memory::InMemory, path::ObjectStorePath};
     use query::frontend::sql::SQLQueryPlanner;
     use snafu::Snafu;
     use std::collections::BTreeMap;
@@ -644,11 +610,13 @@ mod tests {
             .await
             .expect("failed to create database");
 
+        let mut rules_path = server.store.new_path();
+        rules_path.push_all_dirs(&["1", name]);
+        rules_path.set_file_name("rules.json");
+
         let read_data = server
             .store
-            .get(&ObjectStorePath::from_cloud_unchecked(
-                "1/bananas/rules.json",
-            ))
+            .get(&rules_path)
             .await
             .unwrap()
             .map_ok(|b| bytes::BytesMut::from(&b[..]))
@@ -667,10 +635,7 @@ mod tests {
             .await
             .expect("failed to create 2nd db");
 
-        store
-            .list_with_delimiter(&ObjectStorePath::from_cloud_unchecked(""))
-            .await
-            .unwrap();
+        store.list_with_delimiter(&store.new_path()).await.unwrap();
 
         let manager = TestConnectionManager::new();
         let server2 = Server::new(manager, store);
@@ -929,7 +894,10 @@ partition_key:
         // write lines should have caused a segment rollover and persist, wait
         tokio::task::yield_now().await;
 
-        let path = ObjectStorePath::from_cloud_unchecked("1/my_db/wal/000/000/001.segment");
+        let mut path = store.new_path();
+        path.push_all_dirs(&["1", "my_db", "wal", "000", "000"]);
+        path.set_file_name("001.segment");
+
         let data = store
             .get(&path)
             .await

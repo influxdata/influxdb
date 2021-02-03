@@ -3,9 +3,10 @@
 use data_types::{
     data::ReplicatedWrite,
     database_rules::{WalBufferRollover, WriterId},
+    DatabaseName,
 };
 use generated_types::wal;
-use object_store::path::ObjectStorePath;
+use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 
 use std::{
     collections::BTreeMap,
@@ -20,7 +21,7 @@ use chrono::{DateTime, Utc};
 use crc32fast::Hasher;
 use data_types::database_rules::WalBufferConfig;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
-use tracing::warn;
+use tracing::{error, info, warn};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -352,6 +353,44 @@ impl Segment {
         *persisted
     }
 
+    /// Spawns a tokio task that will continuously try to persist the bytes to
+    /// the given object store location.
+    pub fn persist_bytes_in_background(
+        &self,
+        writer_id: u32,
+        db_name: &DatabaseName<'_>,
+        store: Arc<ObjectStore>,
+    ) -> Result<()> {
+        let data = self.to_file_bytes(writer_id)?;
+        let location = database_object_store_path(writer_id, db_name, &store);
+        let location = object_store_path_for_segment(&location, self.id)?;
+
+        let len = data.len();
+        let mut stream_data = std::io::Result::Ok(data.clone());
+
+        tokio::task::spawn(async move {
+            while let Err(err) = store
+                .put(
+                    &location,
+                    futures::stream::once(async move { stream_data }),
+                    len,
+                )
+                .await
+            {
+                error!("error writing bytes to store: {}", err);
+                tokio::time::sleep(tokio::time::Duration::from_secs(
+                    super::STORE_ERROR_PAUSE_SECONDS,
+                ))
+                .await;
+                stream_data = std::io::Result::Ok(data.clone());
+            }
+
+            info!("persisted data to {}", location.display());
+        });
+
+        Ok(())
+    }
+
     // converts the segment to its flatbuffer bytes
     fn fb_bytes(&self, writer_id: u32) -> Vec<u8> {
         let mut fbb = flatbuffers::FlatBufferBuilder::new_with_capacity(
@@ -468,10 +507,7 @@ const SEGMENT_FILE_EXTENSION: &str = ".segment";
 
 /// Builds the path for a given segment id, given the root object store path.
 /// The path should be where the root of the database is (e.g. 1/my_db/).
-pub fn object_store_path_for_segment(
-    root_path: &ObjectStorePath,
-    segment_id: u64,
-) -> Result<ObjectStorePath> {
+fn object_store_path_for_segment<P: ObjectStorePath>(root_path: &P, segment_id: u64) -> Result<P> {
     ensure!(
         segment_id < MAX_SEGMENT_ID && segment_id > 0,
         SegmentIdOutOfBounds
@@ -494,12 +530,24 @@ pub fn object_store_path_for_segment(
     Ok(path)
 }
 
+// base location in object store for a given database name
+fn database_object_store_path(
+    writer_id: u32,
+    database_name: &DatabaseName<'_>,
+    store: &ObjectStore,
+) -> object_store::path::Path {
+    let mut path = store.new_path();
+    path.push_dir(format!("{}", writer_id));
+    path.push_dir(database_name.to_string());
+    path
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use data_types::{data::lines_to_replicated_write, database_rules::DatabaseRules};
     use influxdb_line_protocol::parse_lines;
-    use object_store::path::cloud::CloudConverter;
+    use object_store::memory::InMemory;
 
     #[test]
     fn append_increments_current_size_and_uses_existing_segment() {
@@ -806,33 +854,40 @@ mod tests {
     }
 
     #[test]
-    fn object_store_path_for_segment() {
-        let path = ObjectStorePath::from_cloud_unchecked("1/mydb");
-        let segment_path = super::object_store_path_for_segment(&path, 23).unwrap();
-        let segment_path = CloudConverter::convert(&segment_path);
+    fn valid_object_store_path_for_segment() {
+        let storage = ObjectStore::new_in_memory(InMemory::new());
+        let mut base_path = storage.new_path();
+        base_path.push_all_dirs(&["1", "mydb"]);
 
-        assert_eq!(segment_path, "1/mydb/wal/000/000/023.segment");
+        let segment_path = object_store_path_for_segment(&base_path, 23).unwrap();
+        let mut expected_segment_path = base_path.clone();
+        expected_segment_path.push_all_dirs(&["wal", "000", "000"]);
+        expected_segment_path.set_file_name("023.segment");
+        assert_eq!(segment_path, expected_segment_path);
 
-        let segment_path = super::object_store_path_for_segment(&path, 20_003).unwrap();
-        let segment_path = CloudConverter::convert(&segment_path);
+        let segment_path = object_store_path_for_segment(&base_path, 20_003).unwrap();
+        let mut expected_segment_path = base_path.clone();
+        expected_segment_path.push_all_dirs(&["wal", "000", "020"]);
+        expected_segment_path.set_file_name("003.segment");
+        assert_eq!(segment_path, expected_segment_path);
 
-        assert_eq!(segment_path, "1/mydb/wal/000/020/003.segment");
-
-        let segment_path = super::object_store_path_for_segment(&path, 45_010_105).unwrap();
-        let segment_path = CloudConverter::convert(&segment_path);
-
-        assert_eq!(segment_path, "1/mydb/wal/045/010/105.segment");
+        let segment_path = object_store_path_for_segment(&base_path, 45_010_105).unwrap();
+        let mut expected_segment_path = base_path;
+        expected_segment_path.push_all_dirs(&["wal", "045", "010"]);
+        expected_segment_path.set_file_name("105.segment");
+        assert_eq!(segment_path, expected_segment_path);
     }
 
     #[test]
     fn object_store_path_for_segment_out_of_bounds() {
-        let path = ObjectStorePath::from_cloud_unchecked("1/mydb");
-        let segment_path = super::object_store_path_for_segment(&path, 0)
-            .err()
-            .unwrap();
+        let storage = ObjectStore::new_in_memory(InMemory::new());
+        let mut base_path = storage.new_path();
+        base_path.push_all_dirs(&["1", "mydb"]);
+
+        let segment_path = object_store_path_for_segment(&base_path, 0).err().unwrap();
         matches!(segment_path, Error::SegmentIdOutOfBounds);
 
-        let segment_path = super::object_store_path_for_segment(&path, 23_000_000_000)
+        let segment_path = object_store_path_for_segment(&base_path, 23_000_000_000)
             .err()
             .unwrap();
         matches!(segment_path, Error::SegmentIdOutOfBounds);
