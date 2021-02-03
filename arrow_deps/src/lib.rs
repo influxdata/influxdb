@@ -5,6 +5,7 @@
 // export arrow, parquet, and datafusion publically so we can have a single
 // reference in cargo
 pub use arrow;
+pub use arrow_flight;
 pub use datafusion;
 pub use parquet;
 

@@ -2,52 +2,41 @@
 //! implemented in terms of the `query::Database` and
 //! `query::DatabaseStore`
 
-use std::{collections::HashMap, sync::Arc};
-
-use generated_types::{
-    i_ox_testing_server::{IOxTesting, IOxTestingServer},
-    storage_server::{Storage, StorageServer},
-    CapabilitiesResponse, Capability, Int64ValuesResponse, MeasurementFieldsRequest,
-    MeasurementFieldsResponse, MeasurementNamesRequest, MeasurementTagKeysRequest,
-    MeasurementTagValuesRequest, Predicate, ReadFilterRequest, ReadGroupRequest, ReadResponse,
-    ReadSeriesCardinalityRequest, ReadWindowAggregateRequest, StringValuesResponse, TagKeysRequest,
-    TagValuesRequest, TestErrorRequest, TestErrorResponse, TimestampRange,
+use super::{
+    data::{
+        fieldlist_to_measurement_fields_response, series_set_item_to_read_response,
+        tag_keys_to_byte_vecs,
+    },
+    expr::{self, AddRPCNode, Loggable, SpecialTagKeys},
+    input::GrpcInputs,
+    GrpcService,
 };
-
-use data_types::error::ErrorLogger;
-
-use query::group_by::GroupByAndAggregate;
-use query::{exec::fieldlist::FieldList, frontend::influxrpc::InfluxRPCPlanner};
-use tokio_stream::wrappers::{ReceiverStream, TcpListenerStream};
-
-use super::expr::{self, AddRPCNode, Loggable, SpecialTagKeys};
-use super::input::GrpcInputs;
-use data_types::names::org_and_bucket_to_database;
-
-use data_types::DatabaseName;
-
+use data_types::{error::ErrorLogger, names::org_and_bucket_to_database, DatabaseName};
+use generated_types::{
+    i_ox_testing_server::IOxTesting, storage_server::Storage, CapabilitiesResponse, Capability,
+    Int64ValuesResponse, MeasurementFieldsRequest, MeasurementFieldsResponse,
+    MeasurementNamesRequest, MeasurementTagKeysRequest, MeasurementTagValuesRequest, Predicate,
+    ReadFilterRequest, ReadGroupRequest, ReadResponse, ReadSeriesCardinalityRequest,
+    ReadWindowAggregateRequest, StringValuesResponse, TagKeysRequest, TagValuesRequest,
+    TestErrorRequest, TestErrorResponse, TimestampRange,
+};
 use query::{
+    exec::fieldlist::FieldList,
     exec::seriesset::{Error as SeriesSetError, SeriesSetItem},
+    frontend::influxrpc::InfluxRPCPlanner,
+    group_by::GroupByAndAggregate,
     predicate::PredicateBuilder,
     Database, DatabaseStore,
 };
-
 use snafu::{OptionExt, ResultExt, Snafu};
-
-use tokio::{net::TcpListener, sync::mpsc};
+use std::{collections::HashMap, sync::Arc};
+use tokio::sync::mpsc;
+use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
 use tracing::{error, info, warn};
 
-use super::data::{
-    fieldlist_to_measurement_fields_response, series_set_item_to_read_response,
-    tag_keys_to_byte_vecs,
-};
-
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("gRPC server error:  {}", source))]
-    ServerError { source: tonic::transport::Error },
-
     #[snafu(display("Database not found: {}", db_name))]
     DatabaseNotFound { db_name: String },
 
@@ -183,7 +172,6 @@ impl Error {
     /// status
     fn to_status(&self) -> tonic::Status {
         match &self {
-            Self::ServerError { .. } => Status::internal(self.to_string()),
             Self::DatabaseNotFound { .. } => Status::not_found(self.to_string()),
             Self::ListingTables { .. } => Status::internal(self.to_string()),
             Self::ListingColumns { .. } => {
@@ -212,21 +200,6 @@ impl Error {
             Self::InternalHintsFieldNotSupported { .. } => Status::internal(self.to_string()),
             Self::NotYetImplemented { .. } => Status::internal(self.to_string()),
         }
-    }
-}
-
-#[derive(Debug)]
-pub struct GrpcService<T: DatabaseStore> {
-    db_store: Arc<T>,
-}
-
-impl<T> GrpcService<T>
-where
-    T: DatabaseStore + 'static,
-{
-    /// Create a new GrpcService connected to `db_store`
-    pub fn new(db_store: Arc<T>) -> Self {
-        Self { db_store }
     }
 }
 
@@ -1132,25 +1105,6 @@ where
             })?;
 
     Ok(field_list)
-}
-
-/// Instantiate a server listening on the specified address
-/// implementing the IOx and Storage gRPC interfaces, the
-/// underlying hyper server instance. Resolves when the server has
-/// shutdown.
-pub async fn make_server<T>(socket: TcpListener, storage: Arc<T>) -> Result<()>
-where
-    T: DatabaseStore + 'static,
-{
-    let stream = TcpListenerStream::new(socket);
-
-    tonic::transport::Server::builder()
-        .add_service(IOxTestingServer::new(GrpcService::new(storage.clone())))
-        .add_service(StorageServer::new(GrpcService::new(storage.clone())))
-        .serve_with_incoming(stream)
-        .await
-        .context(ServerError {})
-        .log_if_error("Running Tonic Server")
 }
 
 #[cfg(test)]
@@ -2606,7 +2560,7 @@ mod tests {
 
             println!("Starting InfluxDB IOx rpc test server on {:?}", bind_addr);
 
-            let server = make_server(socket, test_storage.clone());
+            let server = super::super::make_server(socket, test_storage.clone());
             tokio::task::spawn(server);
 
             let iox_client = connect_to_server::<IOxTestingClient>(bind_addr)
