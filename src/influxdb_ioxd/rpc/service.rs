@@ -816,29 +816,27 @@ where
         })?
         .build();
 
-    let db = db_store
-        .db(&db_name)
-        .await
-        .context(DatabaseNotFound { db_name: &*db_name })?;
+    let db = db_store.db(&db_name).await.context(DatabaseNotFound {
+        db_name: db_name.as_str(),
+    })?;
 
     let executor = db_store.executor();
 
     let tag_key_plan = db
         .tag_column_names(predicate)
         .await
-        .map_err(|e| Error::ListingColumns {
-            db_name: db_name.to_string(),
-            source: Box::new(e),
+        .map_err(|e| Box::new(e) as _)
+        .context(ListingColumns {
+            db_name: db_name.as_str(),
         })?;
 
-    let tag_keys =
-        executor
-            .to_string_set(tag_key_plan)
-            .await
-            .map_err(|e| Error::ListingColumns {
-                db_name: db_name.to_string(),
-                source: Box::new(e),
-            })?;
+    let tag_keys = executor
+        .to_string_set(tag_key_plan)
+        .await
+        .map_err(|e| Box::new(e) as _)
+        .context(ListingColumns {
+            db_name: db_name.as_str(),
+        })?;
 
     // Map the resulting collection of Strings into a Vec<Vec<u8>>for return
     let values = tag_keys_to_byte_vecs(tag_keys);
@@ -873,31 +871,27 @@ where
         })?
         .build();
 
+    let db_name = db_name.as_str();
+    let tag_name = &tag_name;
+
     let db = db_store
-        .db(&db_name)
+        .db(db_name)
         .await
-        .context(DatabaseNotFound { db_name: &*db_name })?;
+        .context(DatabaseNotFound { db_name })?;
 
     let executor = db_store.executor();
 
-    let tag_value_plan =
-        db.column_values(&tag_name, predicate)
-            .await
-            .map_err(|e| Error::ListingTagValues {
-                db_name: db_name.to_string(),
-                tag_name: tag_name.clone(),
-                source: Box::new(e),
-            })?;
+    let tag_value_plan = db
+        .column_values(tag_name, predicate)
+        .await
+        .map_err(|e| Box::new(e) as _)
+        .context(ListingTagValues { db_name, tag_name })?;
 
-    let tag_values =
-        executor
-            .to_string_set(tag_value_plan)
-            .await
-            .map_err(|e| Error::ListingTagValues {
-                db_name: db_name.to_string(),
-                tag_name: tag_name.clone(),
-                source: Box::new(e),
-            })?;
+    let tag_values = executor
+        .to_string_set(tag_value_plan)
+        .await
+        .map_err(|e| Box::new(e) as _)
+        .context(ListingTagValues { db_name, tag_name })?;
 
     // Map the resulting collection of Strings into a Vec<Vec<u8>>for return
     let values: Vec<Vec<u8>> = tag_values
@@ -933,20 +927,23 @@ where
         })?
         .build();
 
+    // keep original name so we can transfer ownership
+    // to closure below
+    let owned_db_name = db_name;
+
+    let db_name = owned_db_name.as_str();
     let db = db_store
-        .db(&db_name)
+        .db(db_name)
         .await
-        .context(DatabaseNotFound { db_name: &*db_name })?;
+        .context(DatabaseNotFound { db_name })?;
 
     let executor = db_store.executor();
 
-    let series_plan =
-        db.query_series(predicate)
-            .await
-            .map_err(|e| Error::PlanningFilteringSeries {
-                db_name: db_name.to_string(),
-                source: Box::new(e),
-            })?;
+    let series_plan = db
+        .query_series(predicate)
+        .await
+        .map_err(|e| Box::new(e) as _)
+        .context(PlanningFilteringSeries { db_name })?;
 
     // Spawn task to convert between series sets and the gRPC results
     // and to run the actual plans (so we can return a result to the
@@ -963,9 +960,9 @@ where
         executor
             .to_series_set(series_plan, tx_series)
             .await
-            .map_err(|e| Error::FilteringSeries {
-                db_name: db_name.to_string(),
-                source: Box::new(e),
+            .map_err(|e| Box::new(e) as _)
+            .context(FilteringSeries {
+                db_name: owned_db_name.as_str(),
             })
             .log_if_error("Running series set plan")
     });
@@ -989,7 +986,7 @@ async fn convert_series_set(
 
         tx.send(response)
             .await
-            .map_err(|e| Box::new(e) as Box<dyn std::error::Error + Send + Sync>)
+            .map_err(|e| Box::new(e) as _)
             .context(SendingResults)?
     }
     Ok(())
@@ -1017,20 +1014,23 @@ where
         })?
         .build();
 
+    // keep original name so we can transfer ownership
+    // to closure below
+    let owned_db_name = db_name;
+    let db_name = owned_db_name.as_str();
+
     let db = db_store
         .db(&db_name)
         .await
-        .context(DatabaseNotFound { db_name: &*db_name })?;
+        .context(DatabaseNotFound { db_name })?;
 
     let executor = db_store.executor();
 
-    let grouped_series_set_plan =
-        db.query_groups(predicate, gby_agg)
-            .await
-            .map_err(|e| Error::PlanningFilteringSeries {
-                db_name: db_name.to_string(),
-                source: Box::new(e),
-            })?;
+    let grouped_series_set_plan = db
+        .query_groups(predicate, gby_agg)
+        .await
+        .map_err(|e| Box::new(e) as _)
+        .context(PlanningFilteringSeries { db_name })?;
 
     // Spawn task to convert between series sets and the gRPC results
     // and to run the actual plans (so we can return a result to the
@@ -1047,9 +1047,9 @@ where
         executor
             .to_series_set(grouped_series_set_plan, tx_series)
             .await
-            .map_err(|e| Error::GroupingSeries {
-                db_name: db_name.to_string(),
-                source: Box::new(e),
+            .map_err(|e| Box::new(e) as _)
+            .context(GroupingSeries {
+                db_name: owned_db_name.as_str(),
             })
             .log_if_error("Running Grouped SeriesSet Plan")
     });
@@ -1080,29 +1080,25 @@ where
         })?
         .build();
 
+    let db_name = db_name.as_str();
     let db = db_store
-        .db(&db_name)
+        .db(db_name)
         .await
-        .context(DatabaseNotFound { db_name: &*db_name })?;
+        .context(DatabaseNotFound { db_name })?;
 
     let executor = db_store.executor();
 
-    let field_list_plan =
-        db.field_column_names(predicate)
-            .await
-            .map_err(|e| Error::ListingFields {
-                db_name: db_name.to_string(),
-                source: Box::new(e),
-            })?;
+    let field_list_plan = db
+        .field_column_names(predicate)
+        .await
+        .map_err(|e| Box::new(e) as _)
+        .context(ListingFields { db_name })?;
 
-    let field_list =
-        executor
-            .to_field_list(field_list_plan)
-            .await
-            .map_err(|e| Error::ListingFields {
-                db_name: db_name.to_string(),
-                source: Box::new(e),
-            })?;
+    let field_list = executor
+        .to_field_list(field_list_plan)
+        .await
+        .map_err(|e| Box::new(e) as _)
+        .context(ListingFields { db_name })?;
 
     Ok(field_list)
 }
