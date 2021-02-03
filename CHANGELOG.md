@@ -61,6 +61,7 @@ Replacement `tsi1` indexes will be automatically generated on startup for shards
 1. [20611](https://github.com/influxdata/influxdb/pull/20611): Respect the --skip-verify flag when running `influx query`.
 1. [20671](https://github.com/influxdata/influxdb/pull/20671): Remove blank lines from payloads sent by `influx write`.
 1. [20688](https://github.com/influxdata/influxdb/pull/20688): Fix infinite loop in Flux parser caused by invalid array expressions.
+1. [20672](https://github.com/influxdata/influxdb/pull/20672): Allow for creating users without initial passwords in `influx user create`.
 
 ## v2.0.3 [2020-12-14]
 ----------------------
