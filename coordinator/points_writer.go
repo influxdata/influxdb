@@ -57,7 +57,7 @@ type PointsWriter struct {
 
 	TSDBStore interface {
 		CreateShard(database, retentionPolicy string, shardID uint64, enabled bool) error
-		WriteToShard(shardID uint64, points []models.Point) error
+		WriteToShard(ctx tsdb.WriteContext, shardID uint64, points []models.Point) error
 	}
 
 	subPoints []chan<- *WritePointsRequest
@@ -280,15 +280,26 @@ func (l sgList) Append(sgi meta.ShardGroupInfo) sgList {
 // a cluster structure for information. This is to avoid a circular dependency.
 // It is used for 'SELECT INTO' statements
 func (w *PointsWriter) WritePointsInto(p *IntoWriteRequest) error {
-	return w.WritePointsPrivileged(p.Database, p.RetentionPolicy, models.ConsistencyLevelOne, p.Points)
+	// TODO: assign the correct original user for select into statements
+	writeCtx := tsdb.WriteContext{
+		UserId: tsdb.SelectIntoUser,
+	}
+	return w.WritePointsPrivileged(writeCtx, p.Database, p.RetentionPolicy, models.ConsistencyLevelOne, p.Points)
 }
 
 // A wrapper for WritePointsPrivileged() - user is only required for clustering
 func (w *PointsWriter) WritePoints(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error {
-	return w.WritePointsPrivileged(database, retentionPolicy, consistencyLevel, points)
+	userID := tsdb.UnknownUser
+	if user != nil {
+		userID = user.ID()
+	}
+	writeCtx := tsdb.WriteContext{
+		UserId: userID,
+	}
+	return w.WritePointsPrivileged(writeCtx, database, retentionPolicy, consistencyLevel, points)
 }
 
-func (w *PointsWriter) WritePointsPrivileged(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+func (w *PointsWriter) WritePointsPrivileged(writeCtx tsdb.WriteContext, database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
 	atomic.AddInt64(&w.stats.WriteReq, 1)
 	atomic.AddInt64(&w.stats.PointWriteReq, int64(len(points)))
 
@@ -308,13 +319,13 @@ func (w *PointsWriter) WritePointsPrivileged(database, retentionPolicy string, c
 	// Write each shard in it's own goroutine and return as soon as one fails.
 	ch := make(chan error, len(shardMappings.Points))
 	for shardID, points := range shardMappings.Points {
-		go func(shard *meta.ShardInfo, database, retentionPolicy string, points []models.Point) {
-			err := w.writeToShard(shard, database, retentionPolicy, points)
+		go func(writeCtx tsdb.WriteContext, shard *meta.ShardInfo, database, retentionPolicy string, points []models.Point) {
+			err := w.writeToShard(writeCtx, shard, database, retentionPolicy, points)
 			if err == tsdb.ErrShardDeletion {
 				err = tsdb.PartialWriteError{Reason: fmt.Sprintf("shard %d is pending deletion", shard.ID), Dropped: len(points)}
 			}
 			ch <- err
-		}(shardMappings.Shards[shardID], database, retentionPolicy, points)
+		}(writeCtx, shardMappings.Shards[shardID], database, retentionPolicy, points)
 	}
 
 	// Send points to subscriptions if possible.
@@ -364,10 +375,10 @@ func (w *PointsWriter) WritePointsPrivileged(database, retentionPolicy string, c
 }
 
 // writeToShards writes points to a shard.
-func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPolicy string, points []models.Point) error {
+func (w *PointsWriter) writeToShard(writeCtx tsdb.WriteContext, shard *meta.ShardInfo, database, retentionPolicy string, points []models.Point) error {
 	atomic.AddInt64(&w.stats.PointWriteReqLocal, int64(len(points)))
 	// Except tsdb.ErrShardNotFound no error can be handled here
-	if err := w.TSDBStore.WriteToShard(shard.ID, points); err == tsdb.ErrShardNotFound {
+	if err := w.TSDBStore.WriteToShard(writeCtx, shard.ID, points); err == tsdb.ErrShardNotFound {
 		// Shard doesn't exist -- lets create it and try again..
 
 		// If we've written to shard that should exist on the current node, but the
@@ -380,7 +391,7 @@ func (w *PointsWriter) writeToShard(shard *meta.ShardInfo, database, retentionPo
 		}
 
 		// Now that we've created the shard, try to write to it again.
-		if err := w.TSDBStore.WriteToShard(shard.ID, points); err != nil {
+		if err := w.TSDBStore.WriteToShard(writeCtx, shard.ID, points); err != nil {
 			w.Logger.Info("Write failed", zap.Uint64("shard", shard.ID), zap.Error(err))
 			atomic.AddInt64(&w.stats.WriteErr, 1)
 			return err

@@ -194,7 +194,9 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 			newTags["db"] = key.db
 			newTags["rp"] = key.rp
 		}
-		// TODO: add login
+		if s.EngineOptions.Config.IngressMetricByLogin {
+			newTags["login"] = key.login
+		}
 		return models.StatisticTags(newTags).Merge(tags)
 	}
 
@@ -1433,14 +1435,25 @@ func (s *Store) ExpandSources(sources influxql.Sources) (influxql.Sources, error
 	return shards.ExpandSources(sources)
 }
 
-func (s *Store) statsTracker(db, rp string) StatsTracker {
+func (s *Store) statsTracker(db, rp, login string) StatsTracker {
 	var tracker StatsTracker
-	// TODO: add login
-	if s.EngineOptions.Config.IngressMetricByMeasurement {
+	if s.EngineOptions.Config.IngressMetricByLogin && s.EngineOptions.Config.IngressMetricByMeasurement {
 		tracker.AddedMeasurementPoints = func(measurement []byte, points, values int64) {
 			atomic.AddInt64(&s.stats.ValuesWritten, values)
 			atomic.AddInt64(&s.stats.PointsWritten, points)
-			s.ingressMetrics.AddMetric(string(measurement), db, rp, points, values)
+			s.ingressMetrics.AddMetric(string(measurement), db, rp, login, points, values)
+		}
+	} else if s.EngineOptions.Config.IngressMetricByLogin {
+		tracker.AddedPoints = func(points, values int64) {
+			atomic.AddInt64(&s.stats.ValuesWritten, values)
+			atomic.AddInt64(&s.stats.PointsWritten, points)
+			s.ingressMetrics.AddMetric("", "", "", login, points, values)
+		}
+	} else if s.EngineOptions.Config.IngressMetricByMeasurement {
+		tracker.AddedMeasurementPoints = func(measurement []byte, points, values int64) {
+			atomic.AddInt64(&s.stats.ValuesWritten, values)
+			atomic.AddInt64(&s.stats.PointsWritten, points)
+			s.ingressMetrics.AddMetric(string(measurement), db, rp, "", points, values)
 		}
 	} else {
 		tracker.AddedPoints = func(points, values int64) {
@@ -1451,8 +1464,28 @@ func (s *Store) statsTracker(db, rp string) StatsTracker {
 	return tracker
 }
 
+// 'Fake' user names for write loggging / metrics
+const (
+	HintedHandoffUser = "_systemuser_hintedhandoff"
+	UnknownUser       = "_systemuser_unknown" // for when user authentication is off
+	SelectIntoUser    = "_systemuser_selectinto"
+	CollectdUser      = "_systemuser_collectd"
+	OpenTsdbUser      = "_systemuser_opentsdb"
+	GraphiteUser      = "_systemuser_graphite"
+	UdpUser           = "_systemuser_udpwriter"
+	MonitorUser       = "_systemuser_monitor"
+)
+
+// WriteContext holds some request-scoped details about the write,
+// for metrics and logging. Currently just the UserId login name.
+// Eventually it could also hold a context.Context for cancellation.
+type WriteContext struct {
+	// Could be a system UserId, e.g. HintedHandoffUser
+	UserId string
+}
+
 // WriteToShard writes a list of points to a shard identified by its ID.
-func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
+func (s *Store) WriteToShard(writeCtx WriteContext, shardID uint64, points []models.Point) error {
 	s.mu.RLock()
 
 	select {
@@ -1489,7 +1522,7 @@ func (s *Store) WriteToShard(shardID uint64, points []models.Point) error {
 		sh.SetCompactionsEnabled(true)
 	}
 
-	return sh.WritePoints(points, s.statsTracker(sh.database, sh.retentionPolicy))
+	return sh.WritePoints(points, s.statsTracker(sh.database, sh.retentionPolicy, writeCtx.UserId))
 }
 
 // MeasurementNames returns a slice of all measurements. Measurements accepts an
