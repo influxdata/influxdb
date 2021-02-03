@@ -169,6 +169,9 @@ pub trait DatabaseStore: Debug + Send + Sync {
     /// The type of error this DataBase store generates
     type Error: std::error::Error + Send + Sync + 'static;
 
+    /// List the database names.
+    async fn db_names_sorted(&self) -> Vec<String>;
+
     /// Retrieve the database specified by `name` returning None if no
     /// such database exists
     async fn db(&self, name: &str) -> Option<Arc<Self::Database>>;

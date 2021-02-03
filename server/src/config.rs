@@ -68,8 +68,13 @@ impl Config {
     }
 
     pub(crate) fn host_group(&self, host_group_id: &str) -> Option<Arc<HostGroup>> {
-        let state = self.state.read().expect("mutex poinsoned");
+        let state = self.state.read().expect("mutex poisoned");
         state.host_groups.get(host_group_id).cloned()
+    }
+
+    pub(crate) fn db_names_sorted(&self) -> Vec<DatabaseName<'static>> {
+        let state = self.state.read().expect("mutex poisoned");
+        state.databases.keys().cloned().collect()
     }
 
     fn commit(&self, name: &DatabaseName<'static>, db: Arc<Db>) {
@@ -153,6 +158,8 @@ mod test {
         let db_reservation = config.create_db(name.clone(), rules).unwrap();
         db_reservation.commit();
         assert!(config.db(&name).is_some());
+
+        assert_eq!(config.db_names_sorted(), vec![name]);
     }
 
     #[test]
