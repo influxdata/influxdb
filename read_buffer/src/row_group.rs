@@ -195,7 +195,7 @@ impl RowGroup {
     /// Determines if the row group contains one or more rows that satisfy all
     /// of the provided binary expressions, when conjunctively applied.
     ///
-    /// `row_satisfies_predicate` currently constructs a set of row ids for all
+    /// `satisfies_predicate` currently constructs a set of row ids for all
     /// rows that satisfy the predicate, but does not materialise any
     /// values. There are some optimisation opportunities here, but I don't
     /// think they're at all worth it at the moment.
@@ -204,7 +204,7 @@ impl RowGroup {
     ///  * for predicates with single expression just find a matching value in
     ///    the column;
     ///  * in some cases perhaps work row by row rather than column by column.
-    pub fn row_satisfies_predicate(&self, predicate: &Predicate) -> bool {
+    pub fn satisfies_predicate(&self, predicate: &Predicate) -> bool {
         if !self.could_satisfy_conjunctive_binary_expressions(predicate.iter()) {
             return false;
         }
@@ -2396,46 +2396,46 @@ west,POST,304,101,203
         let row_group = RowGroup::new(6, columns);
 
         let mut predicate = Predicate::default();
-        assert_eq!(row_group.row_satisfies_predicate(&predicate), true);
+        assert_eq!(row_group.satisfies_predicate(&predicate), true);
 
         predicate = Predicate::new(vec![BinaryExpr::from(("region", "=", "east"))]);
-        assert_eq!(row_group.row_satisfies_predicate(&predicate), true);
+        assert_eq!(row_group.satisfies_predicate(&predicate), true);
 
         // all expressions satisfied in data
         predicate = Predicate::new(vec![
             BinaryExpr::from(("region", "=", "east")),
             BinaryExpr::from(("method", "!=", "POST")),
         ]);
-        assert_eq!(row_group.row_satisfies_predicate(&predicate), true);
+        assert_eq!(row_group.satisfies_predicate(&predicate), true);
 
         // all expressions satisfied in data by all rows
         predicate = Predicate::new(vec![BinaryExpr::from(("method", "=", "GET"))]);
-        assert_eq!(row_group.row_satisfies_predicate(&predicate), true);
+        assert_eq!(row_group.satisfies_predicate(&predicate), true);
 
         // one expression satisfied in data but other ruled out via column pruning.
         predicate = Predicate::new(vec![
             BinaryExpr::from(("region", "=", "east")),
             BinaryExpr::from(("method", ">", "GET")),
         ]);
-        assert_eq!(row_group.row_satisfies_predicate(&predicate), false);
+        assert_eq!(row_group.satisfies_predicate(&predicate), false);
 
         // all expressions rules out via column pruning.
         predicate = Predicate::new(vec![
             BinaryExpr::from(("region", ">", "west")),
             BinaryExpr::from(("method", ">", "GET")),
         ]);
-        assert_eq!(row_group.row_satisfies_predicate(&predicate), false);
+        assert_eq!(row_group.satisfies_predicate(&predicate), false);
 
         // column does not exist
         predicate = Predicate::new(vec![BinaryExpr::from(("track", "=", "Jeanette"))]);
-        assert_eq!(row_group.row_satisfies_predicate(&predicate), false);
+        assert_eq!(row_group.satisfies_predicate(&predicate), false);
 
         // one column satisfies expression but other column does not exist
         predicate = Predicate::new(vec![
             BinaryExpr::from(("region", "=", "south")),
             BinaryExpr::from(("track", "=", "Jeanette")),
         ]);
-        assert_eq!(row_group.row_satisfies_predicate(&predicate), false);
+        assert_eq!(row_group.satisfies_predicate(&predicate), false);
     }
 
     #[test]

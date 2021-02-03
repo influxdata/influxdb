@@ -541,7 +541,7 @@ impl Table {
         // processed but this operation is now lock-free.
         row_groups
             .iter()
-            .any(|row_group| row_group.row_satisfies_predicate(predicate))
+            .any(|row_group| row_group.satisfies_predicate(predicate))
     }
 }
 
