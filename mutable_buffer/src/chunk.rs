@@ -484,6 +484,13 @@ impl Chunk {
             .schema(self, selection)
             .context(NamedTableError { table_name })
     }
+
+    /// Return the approximate memory size of the chunk, in bytes including the
+    /// dictionary, tables, and their rows.
+    pub fn size(&self) -> usize {
+        let data_size = self.tables.values().fold(0, |acc, val| acc + val.size());
+        data_size + self.dictionary.size
+    }
 }
 
 #[async_trait]

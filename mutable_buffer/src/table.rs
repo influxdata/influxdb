@@ -216,6 +216,13 @@ impl Table {
         self.columns.first().map_or(0, |v| v.len())
     }
 
+    /// The approximate memory size of the data in the table, in bytes. Note
+    /// that the space taken for the tag string values is represented in the
+    /// dictionary size in the chunk that holds the table.
+    pub fn size(&self) -> usize {
+        self.columns.iter().fold(0, |acc, val| acc + val.size())
+    }
+
     /// Returns a reference to the specified column
     fn column(&self, column_id: u32) -> Result<&Column> {
         Ok(self
@@ -1394,6 +1401,29 @@ mod tests {
         set.insert(new_symbol);
         let pred = ChunkIdSet::Present(set);
         assert!(!table.has_columns(Some(&pred)));
+    }
+
+    #[test]
+    fn table_size() {
+        let mut chunk = Chunk::new(42);
+        let dictionary = &mut chunk.dictionary;
+        let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
+
+        let lp_lines = vec![
+            "h2o,state=MA,city=Boston temp=70.4 100",
+            "h2o,state=MA,city=Boston temp=72.4 250",
+        ];
+
+        write_lines_to_table(&mut table, dictionary, lp_lines.clone());
+        assert_eq!(128, table.size());
+
+        // doesn't double because of the stats overhead
+        write_lines_to_table(&mut table, dictionary, lp_lines.clone());
+        assert_eq!(224, table.size());
+
+        // now make sure it increased by the same amount minus stats overhead
+        write_lines_to_table(&mut table, dictionary, lp_lines);
+        assert_eq!(320, table.size());
     }
 
     #[test]

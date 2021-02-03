@@ -184,6 +184,19 @@ impl MutableBufferDb {
             .drop_chunk(chunk_id)
             .context(DroppingChunk { partition_key })
     }
+
+    /// The approximate size in memory of all data in the mutable buffer, in
+    /// bytes
+    pub async fn size(&self) -> usize {
+        let partitions: Vec<_> = { self.partitions.read().await.values().cloned().collect() };
+
+        let mut size = 0;
+        for p in partitions {
+            size += p.read().await.size();
+        }
+
+        size
+    }
 }
 
 #[async_trait]
@@ -1678,6 +1691,24 @@ mod tests {
         );
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn db_size() {
+        let db = MutableBufferDb::new("column_namedb");
+
+        let lp_data = vec![
+            "h2o,state=MA,city=Boston temp=70.4 50",
+            "h2o,state=MA,city=Boston other_temp=70.4 250",
+            "h2o,state=CA,city=Boston other_temp=72.4 350",
+            "o2,state=MA,city=Boston temp=53.4,reading=51 50",
+        ]
+        .join("\n");
+
+        let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
+        write_lines(&db, &lines).await;
+
+        assert_eq!(429, db.size().await);
     }
 
     /// Run the plan and gather the results in a order that can be compared

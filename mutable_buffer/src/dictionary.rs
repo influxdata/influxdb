@@ -17,9 +17,11 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, Clone)]
-pub struct Dictionary(
-    StringInterner<DefaultSymbol, StringBackend<DefaultSymbol>, DefaultHashBuilder>,
-);
+pub struct Dictionary {
+    interner: StringInterner<DefaultSymbol, StringBackend<DefaultSymbol>, DefaultHashBuilder>,
+    /// the approximate memory size of the dictionary
+    pub size: usize,
+}
 
 impl Default for Dictionary {
     fn default() -> Self {
@@ -29,13 +31,20 @@ impl Default for Dictionary {
 
 impl Dictionary {
     pub fn new() -> Self {
-        Self(StringInterner::new())
+        Self {
+            interner: StringInterner::new(),
+            size: 0,
+        }
     }
 
     /// Returns the id corresponding to value, adding an entry for the
     /// id if it is not yet present in the dictionary.
     pub fn lookup_value_or_insert(&mut self, value: &str) -> u32 {
-        symbol_to_u32(self.0.get_or_intern(value))
+        self.id(value).unwrap_or_else(|| {
+            self.size += value.len();
+            self.size += std::mem::size_of::<u32>();
+            symbol_to_u32(self.interner.get_or_intern(value))
+        })
     }
 
     /// Returns the ID in self.dictionary that corresponds to `value`, if any.
@@ -49,7 +58,7 @@ impl Dictionary {
     /// if any. No error is returned to avoid an allocation when no value is
     /// present
     pub fn id(&self, value: &str) -> Option<u32> {
-        self.0.get(value).map(symbol_to_u32)
+        self.interner.get(value).map(symbol_to_u32)
     }
 
     /// Returns the str in self.dictionary that corresponds to `id`,
@@ -57,7 +66,7 @@ impl Dictionary {
     pub fn lookup_id(&self, id: u32) -> Result<&str> {
         let symbol =
             Symbol::try_from_usize(id as usize).expect("to be able to convert u32 to symbol");
-        self.0
+        self.interner
             .resolve(symbol)
             .context(DictionaryIdLookupError { id })
     }
@@ -65,4 +74,20 @@ impl Dictionary {
 
 fn symbol_to_u32(sym: DefaultSymbol) -> u32 {
     sym.to_usize() as u32
+}
+
+#[cfg(test)]
+mod test {
+    use crate::dictionary::Dictionary;
+
+    #[test]
+    fn tracks_size() {
+        let mut d = Dictionary::new();
+        d.lookup_value_or_insert("foo");
+        assert_eq!(7, d.size);
+        d.lookup_value_or_insert("this is a much longer string");
+        assert_eq!(39, d.size);
+        d.lookup_value_or_insert("foo");
+        assert_eq!(39, d.size);
+    }
 }

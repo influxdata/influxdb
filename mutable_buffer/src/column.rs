@@ -6,6 +6,8 @@ use data_types::{data::type_description, partition_metadata::Statistics};
 
 use arrow_deps::arrow::datatypes::DataType as ArrowDataType;
 
+use std::mem;
+
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Don't know how to insert a column of type {}", inserted_value_type))]
@@ -275,6 +277,34 @@ impl Column {
             _ => InternalTypeMismatchForTimePredicate {}.fail(),
         }
     }
+
+    /// The approximate memory size of the data in the column. Note that
+    /// the space taken for the tag string values is represented in
+    /// the dictionary size in the chunk that holds the table that has this
+    /// column. The size returned here is only for their identifiers.
+    pub fn size(&self) -> usize {
+        match self {
+            Self::F64(v, stats) => {
+                mem::size_of::<Option<f64>>() * v.len() + mem::size_of_val(&stats)
+            }
+            Self::I64(v, stats) => {
+                mem::size_of::<Option<i64>>() * v.len() + mem::size_of_val(&stats)
+            }
+            Self::Bool(v, stats) => {
+                mem::size_of::<Option<bool>>() * v.len() + mem::size_of_val(&stats)
+            }
+            Self::Tag(v, stats) => {
+                mem::size_of::<Option<u32>>() * v.len() + mem::size_of_val(&stats)
+            }
+            Self::String(v, stats) => {
+                let string_bytes_size = v
+                    .iter()
+                    .fold(0, |acc, val| acc + val.as_ref().map_or(0, |s| s.len()));
+                let vec_pointer_sizes = mem::size_of::<Option<String>>() * v.len();
+                string_bytes_size + vec_pointer_sizes + mem::size_of_val(&stats)
+            }
+        }
+    }
 }
 
 #[cfg(test)]
@@ -344,5 +374,29 @@ mod tests {
         assert!(!col.has_non_null_i64_range(&none_col, 3, 4)?);
 
         Ok(())
+    }
+
+    #[test]
+    fn column_size() {
+        let i64col = Column::I64(vec![Some(1), Some(1)], Statistics::new(1));
+        assert_eq!(40, i64col.size());
+
+        let f64col = Column::F64(vec![Some(1.1), Some(1.1), Some(1.1)], Statistics::new(1.1));
+        assert_eq!(56, f64col.size());
+
+        let boolcol = Column::Bool(vec![Some(true)], Statistics::new(true));
+        assert_eq!(9, boolcol.size());
+
+        let tagcol = Column::Tag(
+            vec![Some(1), Some(1), Some(1), Some(1)],
+            Statistics::new("foo".to_string()),
+        );
+        assert_eq!(40, tagcol.size());
+
+        let stringcol = Column::String(
+            vec![Some("foo".to_string()), Some("hello world".to_string())],
+            Statistics::new("foo".to_string()),
+        );
+        assert_eq!(70, stringcol.size());
     }
 }

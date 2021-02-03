@@ -201,6 +201,14 @@ impl Partition {
     pub fn iter(&self) -> ChunkIter<'_> {
         ChunkIter::new(self)
     }
+
+    /// Return the estimated size in bytes of the partition
+    pub fn size(&self) -> usize {
+        self.closed_chunks
+            .values()
+            .fold(0, |acc, val| acc + val.size())
+            + self.open_chunk.size()
+    }
 }
 
 /// information on chunks for this partition
@@ -781,6 +789,38 @@ mod tests {
         assert_table_eq!(expected1, &dump_chunk_table(&chunk0_snapshot1, "h2o"));
         assert_table_eq!(expected2, &dump_chunk_table(&chunk0_snapshot2, "h2o"));
         assert_table_eq!(expected2, &dump_chunk_table(&chunk0_rollover, "h2o"));
+    }
+
+    #[tokio::test]
+    async fn partition_size() {
+        let mut partition = Partition::new("a_key");
+
+        load_data(&mut partition, &["h2o,state=MA,city=Boston temp=71.4 100"]).await;
+        assert_eq!(136, partition.size());
+
+        // should increase by less because we're not adding to the dictionary
+        load_data(&mut partition, &["h2o,state=MA,city=Boston temp=71.4 100"]).await;
+        assert_eq!(184, partition.size());
+
+        // make sure it increases by the lesser amount
+        load_data(&mut partition, &["h2o,state=MA,city=Boston temp=71.4 100"]).await;
+        assert_eq!(232, partition.size());
+
+        // make sure a new table makes it increase by more
+        load_data(
+            &mut partition,
+            &["another,state=MA,city=Boston temp=71.4 100"],
+        )
+        .await;
+        assert_eq!(323, partition.size());
+
+        // now roll the chunk and make sure writing into a new chunk will
+        // increase by the same initial amount
+        let chunk = partition.rollover_chunk();
+        assert_eq!(323, chunk.size());
+
+        load_data(&mut partition, &["h2o,state=MA,city=Boston temp=71.4 100"]).await;
+        assert_eq!(459, partition.size());
     }
 
     fn row_count(table_name: &str, chunk: &Chunk) -> u32 {
