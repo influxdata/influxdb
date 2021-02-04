@@ -34,7 +34,7 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::{stream::BoxStream, Stream, StreamExt, TryFutureExt, TryStreamExt};
 use snafu::{ResultExt, Snafu};
-use std::{io, path::PathBuf};
+use std::io;
 
 /// Universal API to multiple object store services.
 #[async_trait]
@@ -392,46 +392,20 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
 pub enum Error {
-    DataDoesNotMatchLength {
-        expected: usize,
-        actual: usize,
-    },
-    #[snafu(display("Unable to parse last modified time {}: {}", value, err))]
-    UnableToParseLastModifiedTime {
-        value: String,
-        err: chrono::ParseError,
-    },
-
-    #[snafu(display("Unable to list directory {}: {}", path.display(), source))]
-    UnableToListDirectory {
-        source: io::Error,
-        path: PathBuf,
-    },
-
     #[snafu(display("File-based Object Store error: {}", source))]
-    FileObjectStoreError {
-        source: disk::Error,
-    },
+    FileObjectStoreError { source: disk::Error },
 
     #[snafu(display("Google Cloud Storage-based Object Store error: {}", source))]
-    GcsObjectStoreError {
-        source: gcp::Error,
-    },
+    GcsObjectStoreError { source: gcp::Error },
 
     #[snafu(display("AWS S3-based Object Store error: {}", source))]
-    AwsObjectStoreError {
-        source: aws::Error,
-    },
+    AwsObjectStoreError { source: aws::Error },
 
     #[snafu(display("Azure Blob storage-based Object Store error: {}", source))]
-    AzureObjectStoreError {
-        source: azure::Error,
-    },
+    AzureObjectStoreError { source: azure::Error },
 
     #[snafu(display("In-memory-based Object Store error: {}", source))]
-    InMemoryObjectStoreError {
-        source: memory::Error,
-    },
+    InMemoryObjectStoreError { source: memory::Error },
 }
 
 impl From<disk::Error> for Error {
