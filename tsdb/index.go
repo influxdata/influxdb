@@ -40,8 +40,8 @@ type Index interface {
 	ForEachMeasurementName(fn func(name []byte) error) error
 
 	InitializeSeries(keys, names [][]byte, tags []models.Tags) error
-	CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error
-	CreateSeriesListIfNotExists(keys, names [][]byte, tags []models.Tags) error
+	CreateSeriesIfNotExists(key, name []byte, tags models.Tags, tracker StatsTracker) error
+	CreateSeriesListIfNotExists(keys, names [][]byte, tags []models.Tags, tracker StatsTracker) error
 	DropSeries(seriesID uint64, key []byte, cascade bool) error
 	DropSeriesList(seriesID []uint64, key [][]byte, cascade bool) error
 	DropMeasurementIfSeriesNotExist(name []byte) (bool, error)

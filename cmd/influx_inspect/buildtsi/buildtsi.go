@@ -426,7 +426,7 @@ func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize i
 
 			// Flush batch?
 			if len(keysBatch) == batchSize {
-				if err := tsiIndex.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch); err != nil {
+				if err := tsiIndex.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch, tsdb.NoopStatsTracker()); err != nil {
 					return fmt.Errorf("problem creating series: (%s)", err)
 				}
 				keysBatch = keysBatch[:0]
@@ -437,7 +437,7 @@ func IndexShard(sfile *tsdb.SeriesFile, dataDir, walDir string, maxLogFileSize i
 
 		// Flush any remaining series in the batches
 		if len(keysBatch) > 0 {
-			if err := tsiIndex.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch); err != nil {
+			if err := tsiIndex.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch, tsdb.NoopStatsTracker()); err != nil {
 				return fmt.Errorf("problem creating series: (%s)", err)
 			}
 			keysBatch = nil
@@ -496,7 +496,7 @@ func IndexTSMFile(index *tsi1.Index, path string, batchSize int, log *zap.Logger
 
 		// Flush batch?
 		if len(keysBatch) == batchSize {
-			if err := index.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch[:ti]); err != nil {
+			if err := index.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch[:ti], tsdb.NoopStatsTracker()); err != nil {
 				return fmt.Errorf("problem creating series: (%s)", err)
 			}
 			keysBatch = keysBatch[:0]
@@ -507,7 +507,7 @@ func IndexTSMFile(index *tsi1.Index, path string, batchSize int, log *zap.Logger
 
 	// Flush any remaining series in the batches
 	if len(keysBatch) > 0 {
-		if err := index.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch[:ti]); err != nil {
+		if err := index.CreateSeriesListIfNotExists(keysBatch, namesBatch, tagsBatch[:ti], tsdb.NoopStatsTracker()); err != nil {
 			return fmt.Errorf("problem creating series: (%s)", err)
 		}
 	}

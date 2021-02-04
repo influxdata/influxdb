@@ -31,6 +31,8 @@ import (
 	tassert "github.com/stretchr/testify/assert"
 )
 
+var notrack = tsdb.NoopStatsTracker()
+
 // Ensure that deletes only sent to the WAL will clear out the data from the cache on restart
 func TestEngine_DeleteWALLoadMetadata(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
@@ -82,8 +84,8 @@ func TestEngine_DeleteSeriesAfterCacheSnapshot(t *testing.T) {
 			}
 
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
-			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
-			e.CreateSeriesIfNotExists([]byte("cpu,host=B"), []byte("cpu"), models.NewTags(map[string]string{"host": "B"}))
+			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}), notrack)
+			e.CreateSeriesIfNotExists([]byte("cpu,host=B"), []byte("cpu"), models.NewTags(map[string]string{"host": "B"}), notrack)
 
 			// Verify series exist.
 			n, err := seriesExist(e, "cpu", []string{"host"})
@@ -755,7 +757,7 @@ func TestEngine_CreateIterator_Cache_Ascending(t *testing.T) {
 			defer e.Close()
 
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
-			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
+			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}), notrack)
 
 			if err := e.WritePointsString(
 				`cpu,host=A value=1.1 1000000000`,
@@ -812,7 +814,7 @@ func TestEngine_CreateIterator_Cache_Descending(t *testing.T) {
 			defer e.Close()
 
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
-			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
+			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}), notrack)
 
 			if err := e.WritePointsString(
 				`cpu,host=A value=1.1 1000000000`,
@@ -868,7 +870,7 @@ func TestEngine_CreateIterator_TSM_Ascending(t *testing.T) {
 			defer e.Close()
 
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
-			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
+			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}), notrack)
 
 			if err := e.WritePointsString(
 				`cpu,host=A value=1.1 1000000000`,
@@ -926,7 +928,7 @@ func TestEngine_CreateIterator_TSM_Descending(t *testing.T) {
 			defer e.Close()
 
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
-			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
+			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}), notrack)
 
 			if err := e.WritePointsString(
 				`cpu,host=A value=1.1 1000000000`,
@@ -985,7 +987,7 @@ func TestEngine_CreateIterator_Aux(t *testing.T) {
 
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("F"), influxql.Float)
-			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
+			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}), notrack)
 
 			if err := e.WritePointsString(
 				`cpu,host=A value=1.1 1000000000`,
@@ -1046,7 +1048,7 @@ func TestEngine_CreateIterator_Condition(t *testing.T) {
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("X"), influxql.Float)
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("Y"), influxql.Float)
-			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
+			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}), notrack)
 			e.SetFieldName([]byte("cpu"), "X")
 			e.SetFieldName([]byte("cpu"), "Y")
 
@@ -1270,7 +1272,7 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 			defer e.Close()
 
 			for _, p := range []models.Point{p1, p2, p3, p4, p5, p6, p7, p8} {
-				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags()); err != nil {
+				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags(), notrack); err != nil {
 					t.Fatalf("create series index error: %v", err)
 				}
 			}
@@ -1380,7 +1382,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate(t *testing.T) {
 			defer e.Close()
 
 			for _, p := range []models.Point{p1, p2, p3, p4, p5, p6, p7, p8} {
-				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags()); err != nil {
+				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags(), notrack); err != nil {
 					t.Fatalf("create series index error: %v", err)
 				}
 			}
@@ -1506,7 +1508,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_Nil(t *testing.T) {
 			defer e.Close()
 
 			for _, p := range []models.Point{p1, p2, p3, p4, p5, p6, p7, p8} {
-				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags()); err != nil {
+				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags(), notrack); err != nil {
 					t.Fatalf("create series index error: %v", err)
 				}
 			}
@@ -1592,7 +1594,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_FlushBatch(t *testing.T) {
 			defer e.Close()
 
 			for _, p := range []models.Point{p1, p2, p3, p4, p5, p6, p7, p8} {
-				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags()); err != nil {
+				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags(), notrack); err != nil {
 					t.Fatalf("create series index error: %v", err)
 				}
 			}
@@ -1711,7 +1713,7 @@ func TestEngine_DeleteSeriesRange_OutsideTime(t *testing.T) {
 			defer e.Close()
 
 			for _, p := range []models.Point{p1} {
-				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags()); err != nil {
+				if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags(), notrack); err != nil {
 					t.Fatalf("create series index error: %v", err)
 				}
 			}
@@ -1920,7 +1922,7 @@ func TestEngine_CreateCursor_Ascending(t *testing.T) {
 			defer e.Close()
 
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
-			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
+			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}), notrack)
 
 			if err := e.WritePointsString(
 				`cpu,host=A value=1.1 1`,
@@ -1980,7 +1982,7 @@ func TestEngine_CreateCursor_Descending(t *testing.T) {
 			defer e.Close()
 
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
-			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
+			e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}), notrack)
 
 			if err := e.WritePointsString(
 				`cpu,host=A value=1.1 1`,
@@ -2040,10 +2042,10 @@ func TestEngine_CreateIterator_SeriesKey(t *testing.T) {
 			defer e.Close()
 
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
-			e.CreateSeriesIfNotExists([]byte("cpu,host=A,region=east"), []byte("cpu"), models.NewTags(map[string]string{"host": "A", "region": "east"}))
-			e.CreateSeriesIfNotExists([]byte("cpu,host=B,region=east"), []byte("cpu"), models.NewTags(map[string]string{"host": "B", "region": "east"}))
-			e.CreateSeriesIfNotExists([]byte("cpu,host=C,region=east"), []byte("cpu"), models.NewTags(map[string]string{"host": "C", "region": "east"}))
-			e.CreateSeriesIfNotExists([]byte("cpu,host=A,region=west"), []byte("cpu"), models.NewTags(map[string]string{"host": "A", "region": "west"}))
+			e.CreateSeriesIfNotExists([]byte("cpu,host=A,region=east"), []byte("cpu"), models.NewTags(map[string]string{"host": "A", "region": "east"}), notrack)
+			e.CreateSeriesIfNotExists([]byte("cpu,host=B,region=east"), []byte("cpu"), models.NewTags(map[string]string{"host": "B", "region": "east"}), notrack)
+			e.CreateSeriesIfNotExists([]byte("cpu,host=C,region=east"), []byte("cpu"), models.NewTags(map[string]string{"host": "C", "region": "east"}), notrack)
+			e.CreateSeriesIfNotExists([]byte("cpu,host=A,region=west"), []byte("cpu"), models.NewTags(map[string]string{"host": "A", "region": "west"}), notrack)
 
 			if err := e.WritePointsString(
 				`cpu,host=A,region=east value=1.1 1000000001`,
@@ -2327,7 +2329,7 @@ func TestEngine_Invalid_UTF8(t *testing.T) {
 			}
 			defer e.Close()
 
-			if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags()); err != nil {
+			if err := e.CreateSeriesIfNotExists(p.Key(), p.Name(), p.Tags(), notrack); err != nil {
 				t.Fatalf("create series index error: %v", err)
 			}
 
@@ -2607,7 +2609,7 @@ func MustInitDefaultBenchmarkEngine(name string, pointN int) *benchmarkEngine {
 
 	// Initialize metadata.
 	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
-	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}))
+	e.CreateSeriesIfNotExists([]byte("cpu,host=A"), []byte("cpu"), models.NewTags(map[string]string{"host": "A"}), notrack)
 
 	// Generate time ascending points with jitterred time & value.
 	rand := rand.New(rand.NewSource(0))
@@ -2803,7 +2805,7 @@ func (e *Engine) WritePointsString(ptstr ...string) error {
 func (e *Engine) writePoints(points ...models.Point) error {
 	for _, point := range points {
 		// Write into the index.
-		if err := e.Engine.CreateSeriesIfNotExists(point.Key(), point.Name(), point.Tags()); err != nil {
+		if err := e.Engine.CreateSeriesIfNotExists(point.Key(), point.Name(), point.Tags(), notrack); err != nil {
 			return err
 		}
 	}

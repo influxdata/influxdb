@@ -16,6 +16,7 @@ type MetricKey struct {
 type MetricValue struct {
 	points int64
 	values int64
+	series int64
 }
 
 type IngressMetrics struct {
@@ -23,7 +24,7 @@ type IngressMetrics struct {
 	length int64
 }
 
-func (i *IngressMetrics) AddMetric(measurement, db, rp, login string, points, values int64) {
+func (i *IngressMetrics) AddMetric(measurement, db, rp, login string, points, values, series int64) {
 	key := MetricKey{measurement, db, rp, login}
 	val, ok := i.m.Load(key)
 	if !ok {
@@ -36,9 +37,10 @@ func (i *IngressMetrics) AddMetric(measurement, db, rp, login string, points, va
 	metricVal := val.(*MetricValue)
 	atomic.AddInt64(&metricVal.points, points)
 	atomic.AddInt64(&metricVal.values, values)
+	atomic.AddInt64(&metricVal.series, series)
 }
 
-func (i *IngressMetrics) ForEach(f func(m MetricKey, points, values int64)) {
+func (i *IngressMetrics) ForEach(f func(m MetricKey, points, values, series int64)) {
 	keys := make([]MetricKey, 0, atomic.LoadInt64(&i.length))
 	i.m.Range(func(key, value interface{}) bool {
 		keys = append(keys, key.(MetricKey))
@@ -60,7 +62,7 @@ func (i *IngressMetrics) ForEach(f func(m MetricKey, points, values int64)) {
 		val, ok := i.m.Load(key)
 		// ok should always be true - we don't delete keys. But if we did we would ignore keys concurrently deleted.
 		if ok {
-			f(key, val.(*MetricValue).points, val.(*MetricValue).values)
+			f(key, val.(*MetricValue).points, val.(*MetricValue).values, val.(*MetricValue).series)
 		}
 	}
 }

@@ -43,7 +43,7 @@ func (sw *seriesWriter) AddSeries(key []byte) error {
 	sw.tags = append(sw.tags, tag)
 
 	if len(sw.keys) == sw.seriesBatchSize {
-		if err := sw.idx.CreateSeriesListIfNotExists(sw.keys, sw.names, sw.tags); err != nil {
+		if err := sw.idx.CreateSeriesListIfNotExists(sw.keys, sw.names, sw.tags, tsdb.NoopStatsTracker()); err != nil {
 			return err
 		}
 		sw.keys = sw.keys[:0]
@@ -56,7 +56,7 @@ func (sw *seriesWriter) AddSeries(key []byte) error {
 
 func (sw *seriesWriter) Close() error {
 	el := errlist.NewErrorList()
-	el.Add(sw.idx.CreateSeriesListIfNotExists(sw.keys, sw.names, sw.tags))
+	el.Add(sw.idx.CreateSeriesListIfNotExists(sw.keys, sw.names, sw.tags, tsdb.NoopStatsTracker()))
 	el.Add(sw.idx.Compact())
 	el.Add(sw.idx.Close())
 	el.Add(sw.sfile.Close())
@@ -64,7 +64,7 @@ func (sw *seriesWriter) Close() error {
 }
 
 type seriesIndex interface {
-	CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsSlice []models.Tags) (err error)
+	CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsSlice []models.Tags, tracker tsdb.StatsTracker) (err error)
 	Compact() error
 	Close() error
 }
@@ -74,8 +74,8 @@ type seriesFileAdapter struct {
 	buf []byte
 }
 
-func (s *seriesFileAdapter) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsSlice []models.Tags) (err error) {
-	_, err = s.sf.CreateSeriesListIfNotExists(names, tagsSlice)
+func (s *seriesFileAdapter) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsSlice []models.Tags, tracker tsdb.StatsTracker) (err error) {
+	_, err = s.sf.CreateSeriesListIfNotExists(names, tagsSlice, tsdb.NoopStatsTracker())
 	return err
 }
 
@@ -99,8 +99,8 @@ type tsi1Adapter struct {
 	ti *tsi1.Index
 }
 
-func (t *tsi1Adapter) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsSlice []models.Tags) (err error) {
-	return t.ti.CreateSeriesListIfNotExists(keys, names, tagsSlice)
+func (t *tsi1Adapter) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsSlice []models.Tags, tracker tsdb.StatsTracker) (err error) {
+	return t.ti.CreateSeriesListIfNotExists(keys, names, tagsSlice, tsdb.NoopStatsTracker())
 }
 
 func (t *tsi1Adapter) Compact() error {

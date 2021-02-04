@@ -11,6 +11,8 @@ import (
 	"github.com/influxdata/influxdb/tsdb/index/inmem"
 )
 
+var notrack = tsdb.NoopStatsTracker()
+
 func createData(lo, hi int) (keys, names [][]byte, tags []models.Tags) {
 	for i := lo; i < hi; i++ {
 		keys = append(keys, []byte(fmt.Sprintf("m0,tag0=t%d", i)))
@@ -30,13 +32,13 @@ func BenchmarkShardIndex_CreateSeriesListIfNotExists_MaxValuesExceeded(b *testin
 	si := inmem.NewShardIndex(1, tsdb.NewSeriesIDSet(), opt)
 	si.Open()
 	keys, names, tags := createData(0, 10)
-	si.CreateSeriesListIfNotExists(keys, names, tags)
+	si.CreateSeriesListIfNotExists(keys, names, tags, notrack)
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	keys, names, tags = createData(9, 5010)
 	for i := 0; i < b.N; i++ {
-		si.CreateSeriesListIfNotExists(keys, names, tags)
+		si.CreateSeriesListIfNotExists(keys, names, tags, notrack)
 	}
 }
 
@@ -48,13 +50,13 @@ func BenchmarkShardIndex_CreateSeriesListIfNotExists_MaxValuesNotExceeded(b *tes
 	si := inmem.NewShardIndex(1, tsdb.NewSeriesIDSet(), opt)
 	si.Open()
 	keys, names, tags := createData(0, 10)
-	si.CreateSeriesListIfNotExists(keys, names, tags)
+	si.CreateSeriesListIfNotExists(keys, names, tags, notrack)
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	keys, names, tags = createData(9, 5010)
 	for i := 0; i < b.N; i++ {
-		si.CreateSeriesListIfNotExists(keys, names, tags)
+		si.CreateSeriesListIfNotExists(keys, names, tags, notrack)
 	}
 }
 
@@ -65,13 +67,13 @@ func BenchmarkShardIndex_CreateSeriesListIfNotExists_NoMaxValues(b *testing.B) {
 	si := inmem.NewShardIndex(1, tsdb.NewSeriesIDSet(), opt)
 	si.Open()
 	keys, names, tags := createData(0, 10)
-	si.CreateSeriesListIfNotExists(keys, names, tags)
+	si.CreateSeriesListIfNotExists(keys, names, tags, notrack)
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	keys, names, tags = createData(9, 5010)
 	for i := 0; i < b.N; i++ {
-		si.CreateSeriesListIfNotExists(keys, names, tags)
+		si.CreateSeriesListIfNotExists(keys, names, tags, notrack)
 	}
 }
 
@@ -84,13 +86,13 @@ func BenchmarkShardIndex_CreateSeriesListIfNotExists_MaxSeriesExceeded(b *testin
 	si := inmem.NewShardIndex(1, tsdb.NewSeriesIDSet(), opt)
 	si.Open()
 	keys, names, tags := createData(0, 10)
-	si.CreateSeriesListIfNotExists(keys, names, tags)
+	si.CreateSeriesListIfNotExists(keys, names, tags, notrack)
 	b.ReportAllocs()
 	b.ResetTimer()
 
 	keys, names, tags = createData(9, 5010)
 	for i := 0; i < b.N; i++ {
-		si.CreateSeriesListIfNotExists(keys, names, tags)
+		si.CreateSeriesListIfNotExists(keys, names, tags, notrack)
 	}
 }
 
@@ -103,7 +105,7 @@ func TestIndex_Bytes(t *testing.T) {
 	indexBaseBytes := si.Bytes()
 
 	name := []byte("name")
-	err := si.CreateSeriesIfNotExists(name, name, models.Tags{})
+	err := si.CreateSeriesIfNotExists(name, name, models.Tags{}, notrack)
 	if err != nil {
 		t.Error(err)
 		t.FailNow()
@@ -124,10 +126,10 @@ func TestIndex_MeasurementTracking(t *testing.T) {
 	b := func(s string) []byte { return []byte(s) }
 	mt := func(k, v string) models.Tag { return models.Tag{Key: b(k), Value: b(v)} }
 
-	s1.CreateSeriesIfNotExists(b("m,t=t1"), b("m"), models.Tags{mt("t", "t1")})
-	s1.CreateSeriesIfNotExists(b("m,t=t2"), b("m"), models.Tags{mt("t", "t2")})
-	s2.CreateSeriesIfNotExists(b("m,t=t1"), b("m"), models.Tags{mt("t", "t1")})
-	s2.CreateSeriesIfNotExists(b("m,t=t2"), b("m"), models.Tags{mt("t", "t2")})
+	s1.CreateSeriesIfNotExists(b("m,t=t1"), b("m"), models.Tags{mt("t", "t1")}, notrack)
+	s1.CreateSeriesIfNotExists(b("m,t=t2"), b("m"), models.Tags{mt("t", "t2")}, notrack)
+	s2.CreateSeriesIfNotExists(b("m,t=t1"), b("m"), models.Tags{mt("t", "t1")}, notrack)
+	s2.CreateSeriesIfNotExists(b("m,t=t2"), b("m"), models.Tags{mt("t", "t2")}, notrack)
 	series1, _ := s1.Series(b("m,t=t1"))
 	series2, _ := s1.Series(b("m,t=t2"))
 

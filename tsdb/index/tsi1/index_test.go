@@ -312,6 +312,8 @@ func TestIndex_DiskSizeBytes(t *testing.T) {
 	})
 }
 
+var notrack = tsdb.NoopStatsTracker()
+
 func TestIndex_TagValueSeriesIDIterator(t *testing.T) {
 	idx1 := MustOpenDefaultIndex() // Uses the single series creation method CreateSeriesIfNotExists
 	defer idx1.Close()
@@ -341,7 +343,7 @@ func TestIndex_TagValueSeriesIDIterator(t *testing.T) {
 	var batchNames [][]byte
 	var batchTags []models.Tags
 	for _, pt := range data {
-		if err := idx1.CreateSeriesIfNotExists([]byte(pt.Key), []byte(pt.Name), models.NewTags(pt.Tags)); err != nil {
+		if err := idx1.CreateSeriesIfNotExists([]byte(pt.Key), []byte(pt.Name), models.NewTags(pt.Tags), notrack); err != nil {
 			t.Fatal(err)
 		}
 
@@ -350,7 +352,7 @@ func TestIndex_TagValueSeriesIDIterator(t *testing.T) {
 		batchTags = append(batchTags, models.NewTags(pt.Tags))
 	}
 
-	if err := idx2.CreateSeriesListIfNotExists(batchKeys, batchNames, batchTags); err != nil {
+	if err := idx2.CreateSeriesListIfNotExists(batchKeys, batchNames, batchTags, notrack); err != nil {
 		t.Fatal(err)
 	}
 
@@ -411,19 +413,11 @@ func TestIndex_TagValueSeriesIDIterator(t *testing.T) {
 	// Adding a new series that would be referenced by some cached bitsets (in this case
 	// the bitsets for mem->region->west and mem->server->c) should cause the cached
 	// bitsets to be updated.
-	if err := idx1.CreateSeriesIfNotExists(
-		[]byte("mem,region=west,root=x,server=c"),
-		[]byte("mem"),
-		models.NewTags(map[string]string{"region": "west", "root": "x", "server": "c"}),
-	); err != nil {
+	if err := idx1.CreateSeriesIfNotExists([]byte("mem,region=west,root=x,server=c"), []byte("mem"), models.NewTags(map[string]string{"region": "west", "root": "x", "server": "c"}), notrack); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := idx2.CreateSeriesListIfNotExists(
-		[][]byte{[]byte("mem,region=west,root=x,server=c")},
-		[][]byte{[]byte("mem")},
-		[]models.Tags{models.NewTags(map[string]string{"region": "west", "root": "x", "server": "c"})},
-	); err != nil {
+	if err := idx2.CreateSeriesListIfNotExists([][]byte{[]byte("mem,region=west,root=x,server=c")}, [][]byte{[]byte("mem")}, []models.Tags{models.NewTags(map[string]string{"region": "west", "root": "x", "server": "c"})}, notrack); err != nil {
 		t.Fatal(err)
 	}
 
@@ -436,19 +430,11 @@ func TestIndex_TagValueSeriesIDIterator(t *testing.T) {
 		})
 	})
 
-	if err := idx1.CreateSeriesIfNotExists(
-		[]byte("mem,region=west,root=x,server=c"),
-		[]byte("mem"),
-		models.NewTags(map[string]string{"region": "west", "root": "x", "server": "c"}),
-	); err != nil {
+	if err := idx1.CreateSeriesIfNotExists([]byte("mem,region=west,root=x,server=c"), []byte("mem"), models.NewTags(map[string]string{"region": "west", "root": "x", "server": "c"}), notrack); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := idx2.CreateSeriesListIfNotExists(
-		[][]byte{[]byte("mem,region=west,root=x,server=c")},
-		[][]byte{[]byte("mem")},
-		[]models.Tags{models.NewTags(map[string]string{"region": "west", "root": "x", "server": "c"})},
-	); err != nil {
+	if err := idx2.CreateSeriesListIfNotExists([][]byte{[]byte("mem,region=west,root=x,server=c")}, [][]byte{[]byte("mem")}, []models.Tags{models.NewTags(map[string]string{"region": "west", "root": "x", "server": "c"})}, notrack); err != nil {
 		t.Fatal(err)
 	}
 
@@ -492,7 +478,7 @@ func TestIndex_DropSeriesList(t *testing.T) {
 	keys := make([][]byte, 0, 15)
 	seriesIDs := make([]uint64, 0, 15)
 	for _, pt := range data {
-		if err := idx.CreateSeriesIfNotExists([]byte(pt.Key), []byte(pt.Name), models.NewTags(pt.Tags)); err != nil {
+		if err := idx.CreateSeriesIfNotExists([]byte(pt.Key), []byte(pt.Name), models.NewTags(pt.Tags), notrack); err != nil {
 			t.Fatal(err)
 		}
 
@@ -640,7 +626,7 @@ func (idx *Index) CreateSeriesSliceIfNotExists(a []Series) error {
 		names = append(names, s.Name)
 		tags = append(tags, s.Tags)
 	}
-	return idx.CreateSeriesListIfNotExists(keys, names, tags)
+	return idx.CreateSeriesListIfNotExists(keys, names, tags, notrack)
 }
 
 var tsiditr tsdb.SeriesIDIterator
@@ -762,7 +748,7 @@ func BenchmarkIndex_CreateSeriesListIfNotExists(b *testing.B) {
 							k := keys[i : i+sz]
 							n := names[i : i+sz]
 							t := tags[i : i+sz]
-							if errResult = idx.CreateSeriesListIfNotExists(k, n, t); errResult != nil {
+							if errResult = idx.CreateSeriesListIfNotExists(k, n, t, notrack); errResult != nil {
 								b.Fatal(err)
 							}
 						}
@@ -876,7 +862,7 @@ func BenchmarkIndex_ConcurrentWriteQuery(b *testing.B) {
 				k := keys[i : i+batchSize]
 				n := names[i : i+batchSize]
 				t := tags[i : i+batchSize]
-				if errResult = idx.CreateSeriesListIfNotExists(k, n, t); errResult != nil {
+				if errResult = idx.CreateSeriesListIfNotExists(k, n, t, notrack); errResult != nil {
 					b.Fatal(err)
 				}
 			}

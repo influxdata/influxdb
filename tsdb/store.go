@@ -45,6 +45,7 @@ const (
 	statDatabaseMeasurements = "numMeasurements" // number of measurements in a database
 	statPointsWritten        = "pointsWritten"   // number of points parsed by engines successfully
 	statValuesWritten        = "valuesWritten"   // number of values parsed by engines successfully
+	statSeriesCreated        = "seriesCreated"   // number of series created since startup
 )
 
 // SeriesFileDirectory is the name of the directory containing series files for
@@ -78,6 +79,7 @@ func (d *databaseState) hasMultipleIndexTypes() bool { return d != nil && len(d.
 type StoreStatistics struct {
 	ValuesWritten int64
 	PointsWritten int64
+	SeriesCreated int64
 }
 
 // Store manages shards and indexes for databases.
@@ -184,6 +186,7 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 		Values: map[string]interface{}{
 			statPointsWritten: atomic.LoadInt64(&s.stats.PointsWritten),
 			statValuesWritten: atomic.LoadInt64(&s.stats.ValuesWritten),
+			statSeriesCreated: atomic.LoadInt64(&s.stats.SeriesCreated),
 		},
 	})
 
@@ -200,13 +203,14 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 		return models.StatisticTags(newTags).Merge(tags)
 	}
 
-	s.ingressMetrics.ForEach(func(key MetricKey, points, values int64) {
+	s.ingressMetrics.ForEach(func(key MetricKey, points, values, series int64) {
 		statistics = append(statistics, models.Statistic{
 			Name: "ingress",
 			Tags: ingressTags(key, tags),
 			Values: map[string]interface{}{
 				statPointsWritten: points,
 				statValuesWritten: values,
+				statSeriesCreated: series,
 			},
 		})
 	})
@@ -1441,24 +1445,39 @@ func (s *Store) statsTracker(db, rp, login string) StatsTracker {
 		tracker.AddedMeasurementPoints = func(measurement []byte, points, values int64) {
 			atomic.AddInt64(&s.stats.ValuesWritten, values)
 			atomic.AddInt64(&s.stats.PointsWritten, points)
-			s.ingressMetrics.AddMetric(string(measurement), db, rp, login, points, values)
+			s.ingressMetrics.AddMetric(string(measurement), db, rp, login, points, values, 0)
+		}
+		tracker.AddedMeasurementSeries = func(measurement []byte, series int64) {
+			atomic.AddInt64(&s.stats.SeriesCreated, series)
+			s.ingressMetrics.AddMetric(string(measurement), db, rp, login, 0, 0, series)
 		}
 	} else if s.EngineOptions.Config.IngressMetricByLogin {
 		tracker.AddedPoints = func(points, values int64) {
 			atomic.AddInt64(&s.stats.ValuesWritten, values)
 			atomic.AddInt64(&s.stats.PointsWritten, points)
-			s.ingressMetrics.AddMetric("", "", "", login, points, values)
+			s.ingressMetrics.AddMetric("", "", "", login, points, values, 0)
+		}
+		tracker.AddedSeries = func(series int64) {
+			atomic.AddInt64(&s.stats.SeriesCreated, series)
+			s.ingressMetrics.AddMetric("", "", "", login, 0, 0, series)
 		}
 	} else if s.EngineOptions.Config.IngressMetricByMeasurement {
 		tracker.AddedMeasurementPoints = func(measurement []byte, points, values int64) {
 			atomic.AddInt64(&s.stats.ValuesWritten, values)
 			atomic.AddInt64(&s.stats.PointsWritten, points)
-			s.ingressMetrics.AddMetric(string(measurement), db, rp, "", points, values)
+			s.ingressMetrics.AddMetric(string(measurement), db, rp, "", points, values, 0)
+		}
+		tracker.AddedMeasurementSeries = func(measurement []byte, series int64) {
+			atomic.AddInt64(&s.stats.SeriesCreated, series)
+			s.ingressMetrics.AddMetric(string(measurement), db, rp, "", 0, 0, series)
 		}
 	} else {
 		tracker.AddedPoints = func(points, values int64) {
 			atomic.AddInt64(&s.stats.ValuesWritten, values)
 			atomic.AddInt64(&s.stats.PointsWritten, points)
+		}
+		tracker.AddedSeries = func(series int64) {
+			atomic.AddInt64(&s.stats.SeriesCreated, series)
 		}
 	}
 	return tracker

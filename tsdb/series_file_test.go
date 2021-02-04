@@ -75,7 +75,7 @@ func TestSeriesFile_Series(t *testing.T) {
 		{Name: []byte("mem"), Tags: models.NewTags(map[string]string{"region": "east"})},
 	}
 	for _, s := range series {
-		if _, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte(s.Name)}, []models.Tags{s.Tags}); err != nil {
+		if _, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte(s.Name)}, []models.Tags{s.Tags}, tsdb.NoopStatsTracker()); err != nil {
 			t.Fatal(err)
 		}
 	}
@@ -114,7 +114,7 @@ func TestSeriesFileCompactor(t *testing.T) {
 		names = append(names, []byte(fmt.Sprintf("m%d", i)))
 		tagsSlice = append(tagsSlice, models.NewTags(map[string]string{"foo": "bar"}))
 	}
-	if _, err := sfile.CreateSeriesListIfNotExists(names, tagsSlice); err != nil {
+	if _, err := sfile.CreateSeriesListIfNotExists(names, tagsSlice, tsdb.NoopStatsTracker()); err != nil {
 		t.Fatal(err)
 	}
 
@@ -144,10 +144,10 @@ func TestSeriesFile_DeleteSeriesID(t *testing.T) {
 	sfile := MustOpenSeriesFile()
 	defer sfile.Close()
 
-	ids0, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m1")}, []models.Tags{nil})
+	ids0, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m1")}, []models.Tags{nil}, tsdb.NoopStatsTracker())
 	if err != nil {
 		t.Fatal(err)
-	} else if _, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m2")}, []models.Tags{nil}); err != nil {
+	} else if _, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m2")}, []models.Tags{nil}, tsdb.NoopStatsTracker()); err != nil {
 		t.Fatal(err)
 	} else if err := sfile.ForceCompact(); err != nil {
 		t.Fatal(err)
@@ -156,7 +156,7 @@ func TestSeriesFile_DeleteSeriesID(t *testing.T) {
 	// Delete and ensure deletion.
 	if err := sfile.DeleteSeriesID(ids0[0]); err != nil {
 		t.Fatal(err)
-	} else if _, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m1")}, []models.Tags{nil}); err != nil {
+	} else if _, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m1")}, []models.Tags{nil}, tsdb.NoopStatsTracker()); err != nil {
 		t.Fatal(err)
 	} else if !sfile.IsDeleted(ids0[0]) {
 		t.Fatal("expected deletion before compaction")
@@ -188,7 +188,7 @@ func TestSeriesFile_Compaction(t *testing.T) {
 	}
 
 	// Add all to the series file.
-	ids, err := sfile.CreateSeriesListIfNotExists(mms, tagSets)
+	ids, err := sfile.CreateSeriesListIfNotExists(mms, tagSets, tsdb.NoopStatsTracker())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -266,7 +266,7 @@ func BenchmarkSeriesFile_Compaction(b *testing.B) {
 		// Generate a bunch of keys.
 		var ids []uint64
 		for i := 0; i < n; i++ {
-			tmp, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("cpu")}, []models.Tags{models.NewTags(map[string]string{"region": fmt.Sprintf("r%d", i)})})
+			tmp, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("cpu")}, []models.Tags{models.NewTags(map[string]string{"region": fmt.Sprintf("r%d", i)})}, tsdb.NoopStatsTracker())
 			if err != nil {
 				b.Fatal(err)
 			}

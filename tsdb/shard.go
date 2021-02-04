@@ -499,6 +499,8 @@ type FieldCreate struct {
 type StatsTracker struct {
 	AddedPoints            func(points, values int64)
 	AddedMeasurementPoints func(measurement []byte, points, values int64)
+	AddedSeries            func(newSeries int64)
+	AddedMeasurementSeries func(measurement []byte, newSeries int64)
 }
 
 func NoopStatsTracker() StatsTracker {
@@ -519,7 +521,7 @@ func (s *Shard) WritePoints(points []models.Point, tracker StatsTracker) error {
 	var writeError error
 	atomic.AddInt64(&s.stats.WriteReq, 1)
 
-	points, fieldsToCreate, err := s.validateSeriesAndFields(points)
+	points, fieldsToCreate, err := s.validateSeriesAndFields(points, tracker)
 	if err != nil {
 		if _, ok := err.(PartialWriteError); !ok {
 			return err
@@ -558,7 +560,7 @@ func (s *Shard) WritePoints(points []models.Point, tracker StatsTracker) error {
 }
 
 // validateSeriesAndFields checks which series and fields are new and whose metadata should be saved and indexed.
-func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, []*FieldCreate, error) {
+func (s *Shard) validateSeriesAndFields(points []models.Point, tracker StatsTracker) ([]models.Point, []*FieldCreate, error) {
 	var (
 		fieldsToCreate []*FieldCreate
 		err            error
@@ -613,7 +615,7 @@ func (s *Shard) validateSeriesAndFields(points []models.Point) ([]models.Point, 
 
 	// Add new series. Check for partial writes.
 	var droppedKeys [][]byte
-	if err := engine.CreateSeriesListIfNotExists(keys, names, tagsSlice); err != nil {
+	if err := engine.CreateSeriesListIfNotExists(keys, names, tagsSlice, tracker); err != nil {
 		switch err := err.(type) {
 		// TODO(jmw): why is this a *PartialWriteError when everything else is not a pointer?
 		// Maybe we can just change it to be consistent if we change it also in all

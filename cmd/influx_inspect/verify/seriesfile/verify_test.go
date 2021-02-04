@@ -102,7 +102,7 @@ func NewTest(t *testing.T) *Test {
 			tagsSlice = append(tagsSlice, nil)
 		}
 
-		ids, err := seriesFile.CreateSeriesListIfNotExists(names, tagsSlice)
+		ids, err := seriesFile.CreateSeriesListIfNotExists(names, tagsSlice, tsdb.NoopStatsTracker())
 		if err != nil {
 			return err
 		}
