@@ -7,7 +7,10 @@ use query::{
 };
 use tracing::debug;
 
-use std::{collections::BTreeSet, collections::HashMap, sync::Arc};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::Arc,
+};
 
 use crate::{
     chunk::ChunkIdSet,
@@ -76,11 +79,7 @@ pub enum Error {
         column_name,
         chunk
     ))]
-    ColumnNameNotFoundInDictionary {
-        column_name: String,
-        chunk: u64,
-        source: DictionaryError,
-    },
+    ColumnNameNotFoundInDictionary { column_name: String, chunk: u64 },
 
     #[snafu(display(
         "Internal: Column id '{}' not found in dictionary of chunk {}",
@@ -143,6 +142,9 @@ pub enum Error {
 
     #[snafu(display("Duplicate group column '{}'", column_name))]
     DuplicateGroupColumn { column_name: String },
+
+    #[snafu(display("Column {} not found in table {}", id, table_id))]
+    ColumnIdNotFound { id: u32, table_id: u32 },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -151,12 +153,8 @@ pub struct Table {
     /// Name of the table as a u32 in the chunk dictionary
     pub id: u32,
 
-    /// Maps column name (as a u32 in the chunk dictionary) to an index in
-    /// self.columns
-    pub column_id_to_index: HashMap<u32, usize>,
-
-    /// Actual column storage
-    pub columns: Vec<Column>,
+    /// Map of column id from the chunk dictionary to the column
+    pub columns: BTreeMap<u32, Column>,
 }
 
 type ArcStringVec = Vec<Arc<String>>;
@@ -165,8 +163,7 @@ impl Table {
     pub fn new(id: u32) -> Self {
         Self {
             id,
-            column_id_to_index: HashMap::new(),
-            columns: Vec::new(),
+            columns: BTreeMap::new(),
         }
     }
 
@@ -184,13 +181,12 @@ impl Table {
                 .context(ColumnNameNotInRow { table: self.id })?;
             let column_id = dictionary.lookup_value_or_insert(column_name);
 
-            let column = match self.column_id_to_index.get(&column_id) {
-                Some(idx) => &mut self.columns[*idx],
+            let column = match self.columns.get_mut(&column_id) {
+                Some(col) => col,
                 None => {
                     // Add the column and make all values for existing rows None
-                    let idx = self.columns.len();
-                    self.column_id_to_index.insert(column_id, idx);
-                    self.columns.push(
+                    self.columns.insert(
+                        column_id,
                         Column::with_value(dictionary, row_count, value)
                             .context(CreatingFromWal { column: column_id })?,
                     );
@@ -205,7 +201,7 @@ impl Table {
         }
 
         // make sure all the columns are of the same length
-        for col in &mut self.columns {
+        for col in self.columns.values_mut() {
             col.push_none_if_len_equal(row_count);
         }
 
@@ -213,23 +209,26 @@ impl Table {
     }
 
     pub fn row_count(&self) -> usize {
-        self.columns.first().map_or(0, |v| v.len())
+        self.columns
+            .values()
+            .next()
+            .map(|col| col.len())
+            .unwrap_or(0)
     }
 
     /// The approximate memory size of the data in the table, in bytes. Note
     /// that the space taken for the tag string values is represented in the
     /// dictionary size in the chunk that holds the table.
     pub fn size(&self) -> usize {
-        self.columns.iter().fold(0, |acc, val| acc + val.size())
+        self.columns.values().fold(0, |acc, v| acc + v.size())
     }
 
     /// Returns a reference to the specified column
     fn column(&self, column_id: u32) -> Result<&Column> {
-        Ok(self
-            .column_id_to_index
-            .get(&column_id)
-            .map(|&column_index| &self.columns[column_index])
-            .expect("invalid column id"))
+        self.columns.get(&column_id).context(ColumnIdNotFound {
+            id: column_id,
+            table_id: self.id,
+        })
     }
 
     /// Returns a reference to the specified column as a slice of
@@ -292,30 +291,27 @@ impl Table {
         let time_column_id = chunk_predicate.time_column_id;
 
         // figure out the tag columns
-        let cols = self
-            .column_id_to_index
-            .iter()
-            .filter_map(|(&column_id, &column_index)| {
-                // keep tag columns and the timestamp column, if needed to evaluate a timestamp
-                // predicate
-                let need_column = if let Column::Tag(_, _) = self.columns[column_index] {
-                    true
-                } else {
-                    need_time_column && column_id == time_column_id
-                };
+        let mut cols = Vec::with_capacity(self.columns.len());
+        for (column_id, column) in &self.columns {
+            if column.is_tag() {
+                let column_name = chunk.dictionary.lookup_id(*column_id).context(
+                    ColumnIdNotFoundInDictionary {
+                        column_id: *column_id,
+                        chunk: chunk.id,
+                    },
+                )?;
+                cols.push(ColSelection {
+                    column_name,
+                    column_id: *column_id,
+                });
+            } else if need_time_column && *column_id == time_column_id {
+                cols.push(ColSelection {
+                    column_name: TIME_COLUMN_NAME,
+                    column_id: *column_id,
+                });
+            }
+        }
 
-                if need_column {
-                    // the id came out of our map, so it should always be valid
-                    let column_name = chunk.dictionary.lookup_id(column_id).unwrap();
-                    Some(ColSelection {
-                        column_name,
-                        column_index,
-                    })
-                } else {
-                    None
-                }
-            })
-            .collect();
         let selection = TableColSelection { cols };
 
         // TODO avoid materializing here
@@ -588,8 +584,20 @@ impl Table {
             agg_exprs,
             field_columns,
         } = AggExprs::new(agg, field_columns, |col_name| {
-            let index = self.column_index(chunk, col_name)?;
-            Ok(self.columns[index].data_type())
+            let column_id =
+                chunk
+                    .dictionary
+                    .id(col_name)
+                    .context(ColumnNameNotFoundInDictionary {
+                        column_name: col_name,
+                        chunk: chunk.id,
+                    })?;
+            let column = self.columns.get(&column_id).context(ColumnIdNotFound {
+                id: column_id,
+                table_id: self.id,
+            })?;
+
+            Ok(column.data_type())
         })?;
 
         let sort_exprs = group_exprs
@@ -736,22 +744,22 @@ impl Table {
         chunk_predicate: &ChunkPredicate,
         chunk: &Chunk,
     ) -> Result<(ArcStringVec, ArcStringVec)> {
-        let mut tag_columns = Vec::with_capacity(self.column_id_to_index.len());
-        let mut field_columns = Vec::with_capacity(self.column_id_to_index.len());
+        let mut tag_columns = Vec::with_capacity(self.columns.len());
+        let mut field_columns = Vec::with_capacity(self.columns.len());
 
-        for (&column_id, &column_index) in &self.column_id_to_index {
+        for (column_id, column) in &self.columns {
             let column_name = chunk
                 .dictionary
-                .lookup_id(column_id)
+                .lookup_id(*column_id)
                 .expect("Find column name in dictionary");
 
             if column_name != TIME_COLUMN_NAME {
                 let column_name = Arc::new(column_name.to_string());
 
-                match self.columns[column_index] {
+                match column {
                     Column::Tag(_, _) => tag_columns.push(column_name),
                     _ => {
-                        if chunk_predicate.should_include_field(column_id) {
+                        if chunk_predicate.should_include_field(*column_id) {
                             field_columns.push(column_name)
                         }
                     }
@@ -778,18 +786,18 @@ impl Table {
         chunk: &Chunk,
     ) -> ArcStringVec {
         let mut field_columns = self
-            .column_id_to_index
+            .columns
             .iter()
-            .filter_map(|(&column_id, &column_index)| {
-                match self.columns[column_index] {
+            .filter_map(|(column_id, column)| {
+                match column {
                     Column::Tag(_, _) => None, // skip tags
                     _ => {
-                        if chunk_predicate.should_include_field(column_id)
-                            || chunk_predicate.is_time_column(column_id)
+                        if chunk_predicate.should_include_field(*column_id)
+                            || chunk_predicate.is_time_column(*column_id)
                         {
                             let column_name = chunk
                                 .dictionary
-                                .lookup_id(column_id)
+                                .lookup_id(*column_id)
                                 .expect("Find column name in dictionary");
                             Some(Arc::new(column_name.to_string()))
                         } else {
@@ -807,42 +815,22 @@ impl Table {
         field_columns
     }
 
-    /// Return the index of the column named `column_name`
-    fn column_index(&self, chunk: &Chunk, column_name: &str) -> Result<usize> {
-        let column_id =
-            chunk
-                .dictionary
-                .lookup_value(column_name)
-                .context(ColumnNameNotFoundInDictionary {
-                    column_name,
-                    chunk: chunk.id,
-                })?;
-
-        self.column_id_to_index
-            .get(&column_id)
-            .copied()
-            .context(InternalNoColumnInIndex {
-                column_name,
-                column_id,
-            })
-    }
-
     /// Returns the column selection for all the columns in this table, orderd
     /// by table name
     fn all_columns_selection<'a>(&self, chunk: &'a Chunk) -> Result<TableColSelection<'a>> {
         let cols = self
-            .column_id_to_index
+            .columns
             .iter()
-            .map(|(&column_id, &column_index)| {
-                let column_name = chunk.dictionary.lookup_id(column_id).context(
+            .map(|(column_id, _)| {
+                let column_name = chunk.dictionary.lookup_id(*column_id).context(
                     ColumnIdNotFoundInDictionary {
-                        column_id,
+                        column_id: *column_id,
                         chunk: chunk.id,
                     },
                 )?;
                 Ok(ColSelection {
                     column_name,
-                    column_index,
+                    column_id: *column_id,
                 })
             })
             .collect::<Result<_>>()?;
@@ -859,17 +847,23 @@ impl Table {
         chunk: &'a Chunk,
         columns: &'a [&'a str],
     ) -> Result<TableColSelection<'a>> {
-        let cols = columns
-            .iter()
-            .map(|&column_name| {
-                let column_index = self.column_index(chunk, column_name)?;
+        let cols =
+            columns
+                .iter()
+                .map(|&column_name| {
+                    let column_id = chunk.dictionary.id(column_name).context(
+                        ColumnNameNotFoundInDictionary {
+                            column_name,
+                            chunk: chunk.id,
+                        },
+                    )?;
 
-                Ok(ColSelection {
-                    column_name,
-                    column_index,
+                    Ok(ColSelection {
+                        column_name,
+                        column_id,
+                    })
                 })
-            })
-            .collect::<Result<_>>()?;
+                .collect::<Result<_>>()?;
 
         Ok(TableColSelection { cols })
     }
@@ -895,34 +889,29 @@ impl Table {
 
     /// Returns the Schema of this table
     fn schema_impl(&self, selection: &TableColSelection<'_>) -> Result<Schema> {
-        let schema_builder =
-            selection
-                .cols
-                .iter()
-                .fold(SchemaBuilder::new(), |schema_builder, col| {
-                    let column_name = col.column_name;
-                    let column_index = col.column_index;
+        let mut schema_builder = SchemaBuilder::new();
 
-                    match &self.columns[column_index] {
-                        Column::String(_, _) => {
-                            schema_builder.field(column_name, ArrowDataType::Utf8)
-                        }
-                        Column::Tag(_, _) => schema_builder.tag(column_name),
-                        Column::F64(_, _) => {
-                            schema_builder.field(column_name, ArrowDataType::Float64)
-                        }
-                        Column::I64(_, _) => {
-                            if column_name == TIME_COLUMN_NAME {
-                                schema_builder.timestamp()
-                            } else {
-                                schema_builder.field(column_name, ArrowDataType::Int64)
-                            }
-                        }
-                        Column::Bool(_, _) => {
-                            schema_builder.field(column_name, ArrowDataType::Boolean)
-                        }
+        for col in &selection.cols {
+            let column_name = col.column_name;
+            let column = self.columns.get(&col.column_id).context(ColumnIdNotFound {
+                id: col.column_id,
+                table_id: self.id,
+            })?;
+
+            schema_builder = match column {
+                Column::String(_, _) => schema_builder.field(column_name, ArrowDataType::Utf8),
+                Column::Tag(_, _) => schema_builder.tag(column_name),
+                Column::F64(_, _) => schema_builder.field(column_name, ArrowDataType::Float64),
+                Column::I64(_, _) => {
+                    if column_name == TIME_COLUMN_NAME {
+                        schema_builder.timestamp()
+                    } else {
+                        schema_builder.field(column_name, ArrowDataType::Int64)
                     }
-                });
+                }
+                Column::Bool(_, _) => schema_builder.field(column_name, ArrowDataType::Boolean),
+            };
+        }
 
         schema_builder.build().context(InternalSchema)
     }
@@ -935,77 +924,80 @@ impl Table {
         chunk: &Chunk,
         selection: &TableColSelection<'_>,
     ) -> Result<RecordBatch> {
-        let columns = selection
-            .cols
-            .iter()
-            .map(|col| {
-                let column_index = col.column_index;
-                let array = match &self.columns[column_index] {
-                    Column::String(vals, _) => {
-                        let mut builder = StringBuilder::with_capacity(vals.len(), vals.len() * 10);
+        let mut columns = Vec::with_capacity(selection.cols.len());
 
-                        for v in vals {
-                            match v {
-                                None => builder.append_null(),
-                                Some(s) => builder.append_value(s),
+        for col in &selection.cols {
+            let column = self.columns.get(&col.column_id).context(ColumnIdNotFound {
+                id: col.column_id,
+                table_id: self.id,
+            })?;
+
+            let array = match column {
+                Column::String(vals, _) => {
+                    let mut builder = StringBuilder::with_capacity(vals.len(), vals.len() * 10);
+
+                    for v in vals {
+                        match v {
+                            None => builder.append_null(),
+                            Some(s) => builder.append_value(s),
+                        }
+                        .context(ArrowError {})?;
+                    }
+
+                    Arc::new(builder.finish()) as ArrayRef
+                }
+                Column::Tag(vals, _) => {
+                    let mut builder = StringBuilder::with_capacity(vals.len(), vals.len() * 10);
+
+                    for v in vals {
+                        match v {
+                            None => builder.append_null(),
+                            Some(value_id) => {
+                                let tag_value = chunk.dictionary.lookup_id(*value_id).context(
+                                    TagValueIdNotFoundInDictionary {
+                                        value: *value_id,
+                                        chunk: chunk.id,
+                                    },
+                                )?;
+                                builder.append_value(tag_value)
                             }
-                            .context(ArrowError {})?;
                         }
-
-                        Arc::new(builder.finish()) as ArrayRef
+                        .context(ArrowError {})?;
                     }
-                    Column::Tag(vals, _) => {
-                        let mut builder = StringBuilder::with_capacity(vals.len(), vals.len() * 10);
 
-                        for v in vals {
-                            match v {
-                                None => builder.append_null(),
-                                Some(value_id) => {
-                                    let tag_value = chunk.dictionary.lookup_id(*value_id).context(
-                                        TagValueIdNotFoundInDictionary {
-                                            value: *value_id,
-                                            chunk: chunk.id,
-                                        },
-                                    )?;
-                                    builder.append_value(tag_value)
-                                }
-                            }
-                            .context(ArrowError {})?;
-                        }
+                    Arc::new(builder.finish()) as ArrayRef
+                }
+                Column::F64(vals, _) => {
+                    let mut builder = Float64Builder::new(vals.len());
 
-                        Arc::new(builder.finish()) as ArrayRef
+                    for v in vals {
+                        builder.append_option(*v).context(ArrowError {})?;
                     }
-                    Column::F64(vals, _) => {
-                        let mut builder = Float64Builder::new(vals.len());
 
-                        for v in vals {
-                            builder.append_option(*v).context(ArrowError {})?;
-                        }
+                    Arc::new(builder.finish()) as ArrayRef
+                }
+                Column::I64(vals, _) => {
+                    let mut builder = Int64Builder::new(vals.len());
 
-                        Arc::new(builder.finish()) as ArrayRef
+                    for v in vals {
+                        builder.append_option(*v).context(ArrowError {})?;
                     }
-                    Column::I64(vals, _) => {
-                        let mut builder = Int64Builder::new(vals.len());
 
-                        for v in vals {
-                            builder.append_option(*v).context(ArrowError {})?;
-                        }
+                    Arc::new(builder.finish()) as ArrayRef
+                }
+                Column::Bool(vals, _) => {
+                    let mut builder = BooleanBuilder::new(vals.len());
 
-                        Arc::new(builder.finish()) as ArrayRef
+                    for v in vals {
+                        builder.append_option(*v).context(ArrowError {})?;
                     }
-                    Column::Bool(vals, _) => {
-                        let mut builder = BooleanBuilder::new(vals.len());
 
-                        for v in vals {
-                            builder.append_option(*v).context(ArrowError {})?;
-                        }
+                    Arc::new(builder.finish()) as ArrayRef
+                }
+            };
 
-                        Arc::new(builder.finish()) as ArrayRef
-                    }
-                };
-                Ok(array)
-            })
-            .collect::<Result<_>>()?;
+            columns.push(array);
+        }
 
         let schema = self.schema_impl(selection)?.into();
 
@@ -1031,11 +1023,16 @@ impl Table {
     fn matches_column_name_predicate(&self, column_selection: Option<&BTreeSet<u32>>) -> bool {
         match column_selection {
             Some(column_selection) => {
-                self.column_id_to_index
-                    .iter()
-                    .any(|(column_id, &column_index)| {
-                        column_selection.contains(column_id) && !self.columns[column_index].is_tag()
-                    })
+                for column_id in column_selection {
+                    if let Some(column) = self.columns.get(column_id) {
+                        if !column.is_tag() {
+                            return true;
+                        }
+                    }
+                }
+
+                // selection only had tag columns
+                false
             }
             None => true, // no specific selection
         }
@@ -1073,7 +1070,7 @@ impl Table {
                 ChunkIdSet::AtLeastOneMissing => return false,
                 ChunkIdSet::Present(symbols) => {
                     for symbol in symbols {
-                        if !self.column_id_to_index.contains_key(symbol) {
+                        if !self.columns.contains_key(symbol) {
                             return false;
                         }
                     }
@@ -1107,7 +1104,7 @@ impl Table {
     pub fn stats(&self) -> Vec<ColumnStats> {
         self.columns
             .iter()
-            .map(|c| match c {
+            .map(|(_, c)| match c {
                 Column::F64(_, stats) => ColumnStats::F64(stats.clone()),
                 Column::I64(_, stats) => ColumnStats::I64(stats.clone()),
                 Column::Bool(_, stats) => ColumnStats::Bool(stats.clone()),
@@ -1330,7 +1327,7 @@ fn make_selector_expr(
 
 struct ColSelection<'a> {
     column_name: &'a str,
-    column_index: usize,
+    column_id: u32,
 }
 
 /// Represets a set of column_name, column_index pairs

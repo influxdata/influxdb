@@ -457,13 +457,8 @@ impl MutableBufferDb {
                         if filter.should_visit_table(table)? {
                             visitor.pre_visit_table(table, chunk, filter)?;
 
-                            for (column_id, column_index) in &table.column_id_to_index {
-                                visitor.visit_column(
-                                    table,
-                                    *column_id,
-                                    &table.columns[*column_index],
-                                    filter,
-                                )?
+                            for (column_id, column) in &table.columns {
+                                visitor.visit_column(table, *column_id, column, filter)?
                             }
 
                             visitor.post_visit_table(table, chunk)?;
