@@ -27,6 +27,18 @@ impl ObjectStorePath for FilePath {
     }
 }
 
+impl Ord for FilePath {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.inner.cmp(&other.inner)
+    }
+}
+
+impl PartialOrd for FilePath {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
 impl FilePath {
     /// Creates a file storage location from a `PathBuf` without parsing or
     /// allocating unless other methods are called on this instance that
@@ -118,6 +130,34 @@ impl PartialEq for FilePathRepresentation {
                 let self_parts: DirsAndFileName = self.to_owned().into();
                 let other_parts: DirsAndFileName = other.to_owned().into();
                 self_parts == other_parts
+            }
+        }
+    }
+}
+
+impl PartialOrd for FilePathRepresentation {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for FilePathRepresentation {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        use FilePathRepresentation::*;
+        match (self, other) {
+            (Parsed(self_parts), Parsed(other_parts)) => self_parts.cmp(other_parts),
+            (Parsed(self_parts), _) => {
+                let other_parts: DirsAndFileName = other.to_owned().into();
+                self_parts.cmp(&other_parts)
+            }
+            (_, Parsed(other_parts)) => {
+                let self_parts: DirsAndFileName = self.to_owned().into();
+                self_parts.cmp(other_parts)
+            }
+            _ => {
+                let self_parts: DirsAndFileName = self.to_owned().into();
+                let other_parts: DirsAndFileName = other.to_owned().into();
+                self_parts.cmp(&other_parts)
             }
         }
     }
@@ -308,5 +348,34 @@ mod tests {
 
         assert!(parts.directories.is_empty());
         assert!(parts.file_name.is_none());
+    }
+
+    #[test]
+    fn equality() {
+        let path_buf: PathBuf = "foo/bar/blah.json".into();
+        let file_path = FilePath::raw(path_buf);
+        let parts: DirsAndFileName = file_path.clone().into();
+        let parsed: FilePath = parts.into();
+
+        assert_eq!(file_path, parsed);
+    }
+
+    #[test]
+    fn ordering() {
+        let a_path_buf: PathBuf = "foo/bar/a.json".into();
+        let a_file_path = FilePath::raw(&a_path_buf);
+        let a_parts: DirsAndFileName = a_file_path.into();
+        let a_parsed: FilePath = a_parts.into();
+
+        let b_path_buf: PathBuf = "foo/bar/b.json".into();
+        let b_file_path = FilePath::raw(&b_path_buf);
+
+        assert!(a_path_buf < b_path_buf);
+        assert!(
+            a_parsed < b_file_path,
+            "a was not less than b: a = {:#?}\nb = {:#?}",
+            a_parsed,
+            b_file_path
+        );
     }
 }

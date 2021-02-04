@@ -3,7 +3,7 @@
 use crate::{
     path::file::FilePath, DataDoesNotMatchLength, ListResult, ObjectStoreApi, Result,
     UnableToCopyDataToFile, UnableToCreateDir, UnableToCreateFile, UnableToDeleteFile,
-    UnableToOpenFile, UnableToStreamDataIntoMemory, UnableToReadBytes,
+    UnableToOpenFile, UnableToReadBytes, UnableToStreamDataIntoMemory,
 };
 use async_trait::async_trait;
 use bytes::Bytes;
