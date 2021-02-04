@@ -57,7 +57,7 @@ bytes = "1.0"
 hyper = "0.14"
 
 # Forked to upgrade hyper and tokio
-routerify = { git = "https://github.com/influxdata/routerify", rev = "bfe198e" }
+routerify = { git = "https://github.com/influxdata/routerify", rev = "274e250" }
 
 tokio = { version = "1.0", features=["macros", "rt-multi-thread"] }
 tokio-stream = {version = "0.1.2", features=["net"]}

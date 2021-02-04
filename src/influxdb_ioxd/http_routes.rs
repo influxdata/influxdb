@@ -26,7 +26,7 @@ use bytes::{Bytes, BytesMut};
 use futures::{self, StreamExt};
 use http::header::CONTENT_ENCODING;
 use hyper::{Body, Method, Request, Response, StatusCode};
-use routerify::{prelude::*, Middleware, RequestInfo, Router, RouterService};
+use routerify::{prelude::*, Middleware, RequestInfo, Router, RouterError, RouterService};
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use tracing::{debug, error, info};
@@ -146,8 +146,8 @@ pub enum ApplicationError {
 }
 
 impl ApplicationError {
-    pub fn response(&self) -> Result<Response<Body>, Self> {
-        Ok(match self {
+    pub fn response(&self) -> Response<Body> {
+        match self {
             Self::BucketByName { .. } => self.internal_error(),
             Self::BucketMappingError { .. } => self.internal_error(),
             Self::WritingPoints { .. } => self.internal_error(),
@@ -171,7 +171,7 @@ impl ApplicationError {
             Self::ErrorCreatingDatabase { .. } => self.bad_request(),
             Self::DatabaseNameError { .. } => self.bad_request(),
             Self::DatabaseNotFound { .. } => self.not_found(),
-        })
+        }
     }
 
     fn bad_request(&self) -> Response<Body> {
@@ -247,14 +247,14 @@ where
             info!(response = ?res, "Successfully processed request");
             Ok(res)
         })) // this endpoint is for API backward compatibility with InfluxDB 2.x
-        .post("/api/v2/write", write_handler::<M>)
+        .post("/api/v2/write", write::<M>)
         .get("/ping", ping)
-        .get("/api/v2/read", read_handler::<M>)
-        .put("/iox/api/v1/databases/:name", create_database_handler::<M>)
-        .get("/iox/api/v1/databases/:name", get_database_handler::<M>)
-        .put("/iox/api/v1/id", set_writer_handler::<M>)
-        .get("/api/v1/partitions", list_partitions_handler::<M>)
-        .post("/api/v1/snapshot", snapshot_partition_handler::<M>)
+        .get("/api/v2/read", read::<M>)
+        .put("/iox/api/v1/databases/:name", create_database::<M>)
+        .get("/iox/api/v1/databases/:name", get_database::<M>)
+        .put("/iox/api/v1/id", set_writer::<M>)
+        .get("/api/v1/partitions", list_partitions::<M>)
+        .post("/api/v1/snapshot", snapshot_partition::<M>)
         // Specify the error handler to handle any errors caused by
         // a route or any middleware.
         .err_handler_with_info(error_handler)
@@ -262,19 +262,29 @@ where
         .unwrap()
 }
 
-// the Routerify error handler. This should be the handler of last resort.
-// Errors should be handled with responses built in the individual handlers for
-// specific ApplicationError(s)
-async fn error_handler(err: routerify::Error, req: RequestInfo) -> Response<Body> {
-    let method = req.method().clone();
-    let uri = req.uri().clone();
-    error!(error = ?err, error_message = ?err.to_string(), method = ?method, uri = ?uri, "Error while handling request");
+// The API-global error handler, handles ApplicationErrors originating from
+// individual routes and middlewares, along with errors from the router itself
+async fn error_handler(err: RouterError<ApplicationError>, req: RequestInfo) -> Response<Body> {
+    match err {
+        RouterError::HandleRequest(e, _)
+        | RouterError::HandlePreMiddlewareRequest(e)
+        | RouterError::HandlePostMiddlewareWithInfoRequest(e)
+        | RouterError::HandlePostMiddlewareWithoutInfoRequest(e) => {
+            error!(error = ?e, error_message = ?e.to_string(), "Error while handling request");
+            e.response()
+        }
+        _ => {
+            let method = req.method().clone();
+            let uri = req.uri().clone();
+            error!(error = ?err, error_message = ?err.to_string(), method = ?method, uri = ?uri, "Error while handling request");
 
-    let json = serde_json::json!({"error": err.to_string()}).to_string();
-    Response::builder()
-        .status(StatusCode::INTERNAL_SERVER_ERROR)
-        .body(Body::from(json))
-        .unwrap()
+            let json = serde_json::json!({"error": err.to_string()}).to_string();
+            Response::builder()
+                .status(StatusCode::INTERNAL_SERVER_ERROR)
+                .body(Body::from(json))
+                .unwrap()
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -333,20 +343,6 @@ async fn parse_body(req: hyper::Request<Body>) -> Result<Bytes, ApplicationError
         Ok(decoded_data.into())
     } else {
         Ok(body)
-    }
-}
-
-#[tracing::instrument(level = "debug")]
-async fn write_handler<M>(req: Request<Body>) -> Result<Response<Body>, ApplicationError>
-where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
-{
-    match write::<M>(req).await {
-        Err(e) => {
-            error!(error = ?e, error_message = ?e.to_string(), "Error while handling request");
-            e.response()
-        }
-        res => res,
     }
 }
 
@@ -410,21 +406,6 @@ struct ReadInfo {
     sql_query: String,
 }
 
-#[tracing::instrument(level = "debug")]
-async fn read_handler<M>(req: Request<Body>) -> Result<Response<Body>, ApplicationError>
-where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
-{
-    match read::<M>(req).await {
-        Err(e) => {
-            error!(error = ?e, error_message = ?e.to_string(), "Error while handling request");
-
-            e.response()
-        }
-        res => res,
-    }
-}
-
 // TODO: figure out how to stream read results out rather than rendering the
 // whole thing in mem
 #[tracing::instrument(level = "debug")]
@@ -468,21 +449,6 @@ async fn read<M: ConnectionManager + Send + Sync + Debug + 'static>(
 }
 
 #[tracing::instrument(level = "debug")]
-async fn create_database_handler<M>(req: Request<Body>) -> Result<Response<Body>, ApplicationError>
-where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
-{
-    match create_database::<M>(req).await {
-        Err(e) => {
-            error!(error = ?e, error_message = ?e.to_string(), "Error while handling request");
-
-            e.response()
-        }
-        res => res,
-    }
-}
-
-#[tracing::instrument(level = "debug")]
 async fn create_database<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
@@ -506,21 +472,6 @@ async fn create_database<M: ConnectionManager + Send + Sync + Debug + 'static>(
         .context(ErrorCreatingDatabase)?;
 
     Ok(Response::new(Body::empty()))
-}
-
-#[tracing::instrument(level = "debug")]
-async fn get_database_handler<M>(req: Request<Body>) -> Result<Response<Body>, ApplicationError>
-where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
-{
-    match get_database::<M>(req).await {
-        Err(e) => {
-            error!(error = ?e, error_message = ?e.to_string(), "Error while handling request");
-
-            e.response()
-        }
-        res => res,
-    }
 }
 
 #[tracing::instrument(level = "debug")]
@@ -551,21 +502,6 @@ async fn get_database<M: ConnectionManager + Send + Sync + Debug + 'static>(
         .expect("builder should be successful");
 
     Ok(response)
-}
-
-#[tracing::instrument(level = "debug")]
-async fn set_writer_handler<M>(req: Request<Body>) -> Result<Response<Body>, ApplicationError>
-where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
-{
-    match set_writer::<M>(req).await {
-        Err(e) => {
-            error!(error = ?e, error_message = ?e.to_string(), "Error while handling request");
-
-            e.response()
-        }
-        res => res,
-    }
 }
 
 #[tracing::instrument(level = "debug")]
@@ -616,21 +552,6 @@ struct DatabaseInfo {
 }
 
 #[tracing::instrument(level = "debug")]
-async fn list_partitions_handler<M>(req: Request<Body>) -> Result<Response<Body>, ApplicationError>
-where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
-{
-    match list_partitions::<M>(req).await {
-        Err(e) => {
-            error!(error = ?e, error_message = ?e.to_string(), "Error while handling request");
-
-            e.response()
-        }
-        res => res,
-    }
-}
-
-#[tracing::instrument(level = "debug")]
 async fn list_partitions<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
@@ -672,23 +593,6 @@ struct SnapshotInfo {
     org: String,
     bucket: String,
     partition: String,
-}
-
-#[tracing::instrument(level = "debug")]
-async fn snapshot_partition_handler<M>(
-    req: Request<Body>,
-) -> Result<Response<Body>, ApplicationError>
-where
-    M: ConnectionManager + Send + Sync + Debug + 'static,
-{
-    match snapshot_partition::<M>(req).await {
-        Err(e) => {
-            error!(error = ?e, error_message = ?e.to_string(), "Error while handling request");
-
-            e.response()
-        }
-        res => res,
-    }
 }
 
 #[tracing::instrument(level = "debug")]
