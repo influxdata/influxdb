@@ -1,18 +1,73 @@
 //! This module contains the IOx implementation for using Google Cloud Storage
 //! as the object store.
-use crate::{
-    path::cloud::CloudPath, DataDoesNotMatchLength, Error, ListResult, ObjectStoreApi, Result,
-    UnableToDeleteDataFromGcs, UnableToGetDataFromGcs, UnableToListDataFromGcs,
-    UnableToListDataFromGcs2, UnableToPutDataToGcs,
-};
+use crate::{path::cloud::CloudPath, ListResult, ObjectStoreApi};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{
     stream::{self, BoxStream},
     Stream, StreamExt, TryStreamExt,
 };
-use snafu::{ensure, futures::TryStreamExt as _, ResultExt};
+use snafu::{ensure, futures::TryStreamExt as _, ResultExt, Snafu};
 use std::io;
+
+/// A specialized `Result` for Google Cloud Storage object store-related errors
+pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// A specialized `Error` for Google Cloud Storage object store-related errors
+#[derive(Debug, Snafu)]
+#[allow(missing_docs)]
+pub enum Error {
+    #[snafu(display("Expected streamed data to have length {}, got {}", expected, actual))]
+    DataDoesNotMatchLength { expected: usize, actual: usize },
+
+    #[snafu(display(
+        "Unable to PUT data. Bucket: {}, Location: {}, Error: {}",
+        bucket,
+        location,
+        source
+    ))]
+    UnableToPutDataToGcs {
+        source: cloud_storage::Error,
+        bucket: String,
+        location: String,
+    },
+
+    #[snafu(display("Unable to list data. Bucket: {}, Error: {}", bucket, source,))]
+    UnableToListDataFromGcs {
+        source: cloud_storage::Error,
+        bucket: String,
+    },
+
+    #[snafu(display("Unable to stream list data. Bucket: {}, Error: {}", bucket, source,))]
+    UnableToStreamListDataFromGcs {
+        source: cloud_storage::Error,
+        bucket: String,
+    },
+
+    #[snafu(display(
+        "Unable to DELETE data. Bucket: {}, Location: {}, Error: {}",
+        bucket,
+        location,
+        source,
+    ))]
+    UnableToDeleteDataFromGcs {
+        source: cloud_storage::Error,
+        bucket: String,
+        location: String,
+    },
+
+    #[snafu(display(
+        "Unable to GET data. Bucket: {}, Location: {}, Error: {}",
+        bucket,
+        location,
+        source,
+    ))]
+    UnableToGetDataFromGcs {
+        source: cloud_storage::Error,
+        bucket: String,
+        location: String,
+    },
+}
 
 /// Configuration for connecting to [Google Cloud Storage](https://cloud.google.com/storage/).
 #[derive(Debug)]
@@ -129,7 +184,7 @@ impl ObjectStoreApi for GoogleCloudStorage {
                     .map(|o| CloudPath::raw(o.name))
                     .collect::<Vec<_>>()
             })
-            .context(UnableToListDataFromGcs2 {
+            .context(UnableToStreamListDataFromGcs {
                 bucket: &self.bucket_name,
             });
 
@@ -152,9 +207,10 @@ impl GoogleCloudStorage {
 
 #[cfg(test)]
 mod test {
+    use super::*;
     use crate::{
         tests::{get_nonexistent_object, put_get_delete_list},
-        Error, GoogleCloudStorage, ObjectStoreApi, ObjectStorePath,
+        GoogleCloudStorage, ObjectStoreApi, ObjectStorePath,
     };
     use bytes::Bytes;
     use std::env;

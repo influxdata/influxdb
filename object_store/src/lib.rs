@@ -138,9 +138,10 @@ impl ObjectStoreApi for ObjectStore {
             (AmazonS3(s3), path::Path::AmazonS3(location)) => {
                 s3.put(location, bytes, length).await?
             }
-            (GoogleCloudStorage(gcs), path::Path::GoogleCloudStorage(location)) => {
-                gcs.put(location, bytes, length).await?
-            }
+            (GoogleCloudStorage(gcs), path::Path::GoogleCloudStorage(location)) => gcs
+                .put(location, bytes, length)
+                .await
+                .context(GcsObjectStoreError)?,
             (InMemory(in_mem), path::Path::InMemory(location)) => {
                 in_mem.put(location, bytes, length).await?
             }
@@ -402,30 +403,6 @@ pub enum Error {
         err: chrono::ParseError,
     },
 
-    UnableToPutDataToGcs {
-        source: cloud_storage::Error,
-        bucket: String,
-        location: String,
-    },
-    UnableToListDataFromGcs {
-        source: cloud_storage::Error,
-        bucket: String,
-    },
-    UnableToListDataFromGcs2 {
-        source: cloud_storage::Error,
-        bucket: String,
-    },
-    UnableToDeleteDataFromGcs {
-        source: cloud_storage::Error,
-        bucket: String,
-        location: String,
-    },
-    UnableToGetDataFromGcs {
-        source: cloud_storage::Error,
-        bucket: String,
-        location: String,
-    },
-
     UnableToPutDataToS3 {
         source: rusoto_core::RusotoError<rusoto_s3::PutObjectError>,
         bucket: String,
@@ -491,11 +468,22 @@ pub enum Error {
     FileObjectStoreError {
         source: disk::Error,
     },
+
+    #[snafu(display("Google Cloud Storage-based Object Store error: {}", source))]
+    GcsObjectStoreError {
+        source: gcp::Error,
+    },
 }
 
 impl From<disk::Error> for Error {
     fn from(source: disk::Error) -> Self {
         Error::FileObjectStoreError { source }
+    }
+}
+
+impl From<gcp::Error> for Error {
+    fn from(source: gcp::Error) -> Self {
+        Error::GcsObjectStoreError { source }
     }
 }
 
