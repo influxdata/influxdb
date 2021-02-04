@@ -577,7 +577,12 @@ mod tests {
 
         assert_eq!(object.location, expected_location);
         assert_eq!(object.size, data.len());
-        assert!(object.last_modified > time_before_creation);
+        assert!(
+            object.last_modified > time_before_creation,
+            "object.last_modified = {}, time_before_creation = {}",
+            object.last_modified,
+            time_before_creation
+        );
 
         // List with a prefix containing a partial "file name"
         let mut prefix = storage.new_path();
