@@ -268,7 +268,11 @@ impl ObjectStoreApi for ObjectStore {
                     .map_ok(|list_result| list_result.map_paths(path::Path::InMemory))
                     .await
             }
-            (File(_file), _) => unimplemented!(),
+            (File(file), path::Path::File(prefix)) => {
+                file.list_with_delimiter(prefix)
+                    .map_ok(|list_result| list_result.map_paths(path::Path::File))
+                    .await
+            }
             (MicrosoftAzure(_azure), _) => unimplemented!(),
             _ => unreachable!(),
         }
@@ -493,6 +497,17 @@ pub enum Error {
     #[snafu(display("Unable to copy data to file: {}", source))]
     UnableToCopyDataToFile {
         source: io::Error,
+    },
+    #[snafu(display("Unable to access metadata for {}: {}", path.display(), source))]
+    UnableToAccessMetadata {
+        source: io::Error,
+        path: PathBuf,
+    },
+
+    #[snafu(display("File size for {} did not fit in a usize: {}", path.display(), source))]
+    FileSizeOverflowedUsize {
+        source: std::num::TryFromIntError,
+        path: PathBuf,
     },
 }
 
