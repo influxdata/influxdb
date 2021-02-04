@@ -435,7 +435,7 @@ pub enum Error {
         bucket: String,
     },
 
-    UnableToPutDataInMemory {
+    UnableToStreamDataIntoMemory {
         source: std::io::Error,
     },
     NoDataInMemory,

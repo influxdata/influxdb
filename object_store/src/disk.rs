@@ -3,7 +3,7 @@
 use crate::{
     path::file::FilePath, DataDoesNotMatchLength, ListResult, ObjectStoreApi, Result,
     UnableToCopyDataToFile, UnableToCreateDir, UnableToCreateFile, UnableToDeleteFile,
-    UnableToOpenFile, UnableToPutDataInMemory, UnableToReadBytes,
+    UnableToOpenFile, UnableToStreamDataIntoMemory, UnableToReadBytes,
 };
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -40,7 +40,7 @@ impl ObjectStoreApi for File {
             .map_ok(|b| bytes::BytesMut::from(&b[..]))
             .try_concat()
             .await
-            .context(UnableToPutDataInMemory)?;
+            .context(UnableToStreamDataIntoMemory)?;
 
         ensure!(
             content.len() == length,

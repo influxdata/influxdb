@@ -2,7 +2,7 @@
 //! store.
 use crate::{
     path::parsed::DirsAndFileName, DataDoesNotMatchLength, ListResult, NoDataInMemory, ObjectMeta,
-    ObjectStoreApi, Result, UnableToPutDataInMemory,
+    ObjectStoreApi, Result, UnableToStreamDataIntoMemory,
 };
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -36,7 +36,7 @@ impl ObjectStoreApi for InMemory {
             .map_ok(|b| bytes::BytesMut::from(&b[..]))
             .try_concat()
             .await
-            .context(UnableToPutDataInMemory)?;
+            .context(UnableToStreamDataIntoMemory)?;
 
         ensure!(
             content.len() == length,
