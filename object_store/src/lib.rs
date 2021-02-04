@@ -544,8 +544,6 @@ mod tests {
         .map(|&s| str_to_path(s))
         .collect();
 
-        let time_before_creation = Utc::now();
-
         for f in &files {
             let stream_data = std::io::Result::Ok(data.clone());
             storage
@@ -577,12 +575,6 @@ mod tests {
 
         assert_eq!(object.location, expected_location);
         assert_eq!(object.size, data.len());
-        assert!(
-            object.last_modified > time_before_creation,
-            "object.last_modified = {}, time_before_creation = {}",
-            object.last_modified,
-            time_before_creation
-        );
 
         // List with a prefix containing a partial "file name"
         let mut prefix = storage.new_path();
