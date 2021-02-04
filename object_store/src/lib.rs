@@ -410,31 +410,31 @@ pub enum Error {
 
 impl From<disk::Error> for Error {
     fn from(source: disk::Error) -> Self {
-        Error::FileObjectStoreError { source }
+        Self::FileObjectStoreError { source }
     }
 }
 
 impl From<gcp::Error> for Error {
     fn from(source: gcp::Error) -> Self {
-        Error::GcsObjectStoreError { source }
+        Self::GcsObjectStoreError { source }
     }
 }
 
 impl From<aws::Error> for Error {
     fn from(source: aws::Error) -> Self {
-        Error::AwsObjectStoreError { source }
+        Self::AwsObjectStoreError { source }
     }
 }
 
 impl From<azure::Error> for Error {
     fn from(source: azure::Error) -> Self {
-        Error::AzureObjectStoreError { source }
+        Self::AzureObjectStoreError { source }
     }
 }
 
 impl From<memory::Error> for Error {
     fn from(source: memory::Error) -> Self {
-        Error::InMemoryObjectStoreError { source }
+        Self::InMemoryObjectStoreError { source }
     }
 }
 
