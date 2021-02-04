@@ -122,6 +122,11 @@ impl DirsAndFileName {
     pub(crate) fn push_part_as_dir(&mut self, part: &PathPart) {
         self.directories.push(part.to_owned());
     }
+
+    /// Remove the file name, if any.
+    pub(crate) fn unset_file_name(&mut self) {
+        self.file_name = None;
+    }
 }
 
 #[cfg(test)]

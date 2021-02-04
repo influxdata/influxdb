@@ -92,6 +92,11 @@ impl FilePath {
     pub fn parts_after_prefix(&self, prefix: &Self) -> Option<Vec<PathPart>> {
         self.inner.parts_after_prefix(&prefix.inner)
     }
+
+    /// Remove this path's file name, if there is one.
+    pub fn unset_file_name(&mut self) {
+        self.inner = mem::take(&mut self.inner).unset_file_name();
+    }
 }
 
 impl From<FilePath> for DirsAndFileName {
@@ -189,6 +194,13 @@ impl FilePathRepresentation {
         let mut dirs_and_file_name: DirsAndFileName = self.into();
 
         dirs_and_file_name.set_file_name(part);
+        Self::Parsed(dirs_and_file_name)
+    }
+
+    fn unset_file_name(self) -> Self {
+        let mut dirs_and_file_name: DirsAndFileName = self.into();
+
+        dirs_and_file_name.unset_file_name();
         Self::Parsed(dirs_and_file_name)
     }
 
