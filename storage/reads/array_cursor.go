@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/interval"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
@@ -22,10 +22,10 @@ func newAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate, curs
 	case datatypes.AggregateTypeFirst, datatypes.AggregateTypeLast:
 		return newLimitArrayCursor(cursor), nil
 	}
-	return newWindowAggregateArrayCursor(ctx, agg, execute.Window{}, cursor)
+	return newWindowAggregateArrayCursor(ctx, agg, interval.Window{}, cursor)
 }
 
-func newWindowAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate, window execute.Window, cursor cursors.Cursor) (cursors.Cursor, error) {
+func newWindowAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate, window interval.Window, cursor cursors.Cursor) (cursors.Cursor, error) {
 	if cursor == nil {
 		return nil, nil
 	}
