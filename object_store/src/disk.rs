@@ -30,7 +30,10 @@ pub enum Error {
     },
 
     #[snafu(display("Unable to access metadata for {}: {}", path.display(), source))]
-    UnableToAccessMetadata { source: walkdir::Error, path: PathBuf },
+    UnableToAccessMetadata {
+        source: walkdir::Error,
+        path: PathBuf,
+    },
 
     #[snafu(display("Unable to copy data to file: {}", source))]
     UnableToCopyDataToFile { source: io::Error },
@@ -192,8 +195,7 @@ impl ObjectStoreApi for File {
 
         let root_path = self.root.to_raw();
         for entry in walkdir {
-            let entry = entry
-                .context(UnableToProcessEntry)?;
+            let entry = entry.context(UnableToProcessEntry)?;
             let entry_location = FilePath::raw(entry.path());
 
             if entry_location.prefix_matches(&resolved_prefix) {

@@ -29,7 +29,7 @@ pub enum Error {
     DataDoesNotMatchLength { expected: usize, actual: usize },
 
     #[snafu(display("Did not receive any data. Bucket: {}, Location: {}", bucket, location))]
-    NoDataFromS3 { bucket: String, location: String },
+    NoData { bucket: String, location: String },
 
     #[snafu(display(
         "Unable to DELETE data. Bucket: {}, Location: {}, Error: {}",
@@ -37,7 +37,7 @@ pub enum Error {
         location,
         source,
     ))]
-    UnableToDeleteDataFromS3 {
+    UnableToDeleteData {
         source: rusoto_core::RusotoError<rusoto_s3::DeleteObjectError>,
         bucket: String,
         location: String,
@@ -49,7 +49,7 @@ pub enum Error {
         location,
         source,
     ))]
-    UnableToGetDataFromS3 {
+    UnableToGetData {
         source: rusoto_core::RusotoError<rusoto_s3::GetObjectError>,
         bucket: String,
         location: String,
@@ -61,7 +61,7 @@ pub enum Error {
         location,
         source,
     ))]
-    UnableToGetPieceOfDataFromS3 {
+    UnableToGetPieceOfData {
         source: std::io::Error,
         bucket: String,
         location: String,
@@ -73,14 +73,14 @@ pub enum Error {
         location,
         source,
     ))]
-    UnableToPutDataToS3 {
+    UnableToPutData {
         source: rusoto_core::RusotoError<rusoto_s3::PutObjectError>,
         bucket: String,
         location: String,
     },
 
     #[snafu(display("Unable to list data. Bucket: {}, Error: {}", bucket, source))]
-    UnableToListDataFromS3 {
+    UnableToListData {
         source: rusoto_core::RusotoError<rusoto_s3::ListObjectsV2Error>,
         bucket: String,
     },
@@ -126,7 +126,7 @@ impl ObjectStoreApi for AmazonS3 {
         self.client
             .put_object(put_request)
             .await
-            .context(UnableToPutDataToS3 {
+            .context(UnableToPutData {
                 bucket: &self.bucket_name,
                 location: location.to_raw(),
             })?;
@@ -144,16 +144,16 @@ impl ObjectStoreApi for AmazonS3 {
             .client
             .get_object(get_request)
             .await
-            .context(UnableToGetDataFromS3 {
+            .context(UnableToGetData {
                 bucket: self.bucket_name.to_owned(),
                 location: key.clone(),
             })?
             .body
-            .context(NoDataFromS3 {
+            .context(NoData {
                 bucket: self.bucket_name.to_owned(),
                 location: key.clone(),
             })?
-            .context(UnableToGetPieceOfDataFromS3 {
+            .context(UnableToGetPieceOfData {
                 bucket: self.bucket_name.to_owned(),
                 location: key,
             })
@@ -172,7 +172,7 @@ impl ObjectStoreApi for AmazonS3 {
         self.client
             .delete_object(delete_request)
             .await
-            .context(UnableToDeleteDataFromS3 {
+            .context(UnableToDeleteData {
                 bucket: self.bucket_name.to_owned(),
                 location: key,
             })?;
@@ -214,7 +214,7 @@ impl ObjectStoreApi for AmazonS3 {
                 Ok(resp) => resp,
                 Err(e) => {
                     return Some((
-                        Err(Error::UnableToListDataFromS3 {
+                        Err(Error::UnableToListData {
                             source: e,
                             bucket: self.bucket_name.clone(),
                         }),
@@ -297,7 +297,7 @@ impl AmazonS3 {
         let resp = match self.client.list_objects_v2(list_request).await {
             Ok(resp) => resp,
             Err(e) => {
-                return Err(Error::UnableToListDataFromS3 {
+                return Err(Error::UnableToListData {
                     source: e,
                     bucket: self.bucket_name.clone(),
                 })
@@ -359,22 +359,22 @@ impl Error {
         use Error::*;
 
         matches! (self,
-             UnableToPutDataToS3 {
+             UnableToPutData {
                  source: RusotoError::Credentials(_),
                  bucket: _,
                  location: _,
              } |
-             UnableToGetDataFromS3 {
+             UnableToGetData {
                  source: RusotoError::Credentials(_),
                  bucket: _,
                  location: _,
              } |
-             UnableToDeleteDataFromS3 {
+             UnableToDeleteData {
                  source: RusotoError::Credentials(_),
                  bucket: _,
                  location: _,
              } |
-             UnableToListDataFromS3 {
+             UnableToListData {
                  source: RusotoError::Credentials(_),
                  bucket: _,
              }
@@ -499,8 +499,7 @@ mod tests {
         let err = get_nonexistent_object(&integration, Some(location))
             .await
             .unwrap_err();
-        if let Some(Error::UnableToListDataFromS3 { source, bucket }) = err.downcast_ref::<Error>()
-        {
+        if let Some(Error::UnableToListData { source, bucket }) = err.downcast_ref::<Error>() {
             assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
             assert_eq!(bucket, &bucket_name);
         } else {
@@ -521,7 +520,7 @@ mod tests {
         let err = get_nonexistent_object(&integration, Some(location))
             .await
             .unwrap_err();
-        if let Some(Error::UnableToGetDataFromS3 {
+        if let Some(Error::UnableToGetData {
             source,
             bucket,
             location,
@@ -552,8 +551,7 @@ mod tests {
         let err = get_nonexistent_object(&integration, Some(location))
             .await
             .unwrap_err();
-        if let Some(Error::UnableToListDataFromS3 { source, bucket }) = err.downcast_ref::<Error>()
-        {
+        if let Some(Error::UnableToListData { source, bucket }) = err.downcast_ref::<Error>() {
             assert!(matches!(
                 source,
                 rusoto_core::RusotoError::Service(rusoto_s3::ListObjectsV2Error::NoSuchBucket(_))
@@ -587,7 +585,7 @@ mod tests {
             .await
             .unwrap_err();
 
-        if let Error::UnableToPutDataToS3 {
+        if let Error::UnableToPutData {
             source,
             bucket,
             location,
@@ -623,7 +621,7 @@ mod tests {
             .await
             .unwrap_err();
 
-        if let Error::UnableToPutDataToS3 {
+        if let Error::UnableToPutData {
             source,
             bucket,
             location,
@@ -665,7 +663,7 @@ mod tests {
         location.set_file_name(NON_EXISTENT_NAME);
 
         let err = integration.delete(&location).await.unwrap_err();
-        if let Error::UnableToDeleteDataFromS3 {
+        if let Error::UnableToDeleteData {
             source,
             bucket,
             location,
@@ -691,7 +689,7 @@ mod tests {
         location.set_file_name(NON_EXISTENT_NAME);
 
         let err = integration.delete(&location).await.unwrap_err();
-        if let Error::UnableToDeleteDataFromS3 {
+        if let Error::UnableToDeleteData {
             source,
             bucket,
             location,

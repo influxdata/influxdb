@@ -29,25 +29,25 @@ pub enum Error {
     DataDoesNotMatchLength { expected: usize, actual: usize },
 
     #[snafu(display("Unable to DELETE data. Location: {}, Error: {}", location, source,))]
-    UnableToDeleteDataFromAzure {
+    UnableToDeleteData {
         source: Box<dyn std::error::Error + Send + Sync>,
         location: String,
     },
 
     #[snafu(display("Unable to GET data. Location: {}, Error: {}", location, source,))]
-    UnableToGetDataFromAzure {
+    UnableToGetData {
         source: Box<dyn std::error::Error + Send + Sync>,
         location: String,
     },
 
     #[snafu(display("Unable to PUT data. Location: {}, Error: {}", location, source,))]
-    UnableToPutDataToAzure {
+    UnableToPutData {
         source: Box<dyn std::error::Error + Send + Sync>,
         location: String,
     },
 
     #[snafu(display("Unable to list data. Error: {}", source))]
-    UnableToListDataFromAzure {
+    UnableToListData {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 }
@@ -92,7 +92,7 @@ impl ObjectStoreApi for MicrosoftAzure {
             .put_block_blob(&temporary_non_streaming)
             .execute()
             .await
-            .context(UnableToPutDataToAzure {
+            .context(UnableToPutData {
                 location: location.to_owned(),
             })?;
 
@@ -109,7 +109,7 @@ impl ObjectStoreApi for MicrosoftAzure {
                 .execute()
                 .await
                 .map(|blob| blob.data.into())
-                .context(UnableToGetDataFromAzure {
+                .context(UnableToGetData {
                     location: location.to_owned(),
                 })
         }
@@ -125,7 +125,7 @@ impl ObjectStoreApi for MicrosoftAzure {
             .delete_snapshots_method(DeleteSnapshotsMethod::Include)
             .execute()
             .await
-            .context(UnableToDeleteDataFromAzure {
+            .context(UnableToDeleteData {
                 location: location.to_owned(),
             })?;
 
@@ -161,7 +161,7 @@ impl ObjectStoreApi for MicrosoftAzure {
                 ListState::Start => {}
             }
 
-            let resp = match request.execute().await.context(UnableToListDataFromAzure) {
+            let resp = match request.execute().await.context(UnableToListData) {
                 Ok(resp) => resp,
                 Err(err) => return Some((Err(err), state)),
             };

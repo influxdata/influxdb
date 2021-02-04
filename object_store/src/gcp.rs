@@ -26,20 +26,20 @@ pub enum Error {
         location,
         source
     ))]
-    UnableToPutDataToGcs {
+    UnableToPutData {
         source: cloud_storage::Error,
         bucket: String,
         location: String,
     },
 
     #[snafu(display("Unable to list data. Bucket: {}, Error: {}", bucket, source,))]
-    UnableToListDataFromGcs {
+    UnableToListData {
         source: cloud_storage::Error,
         bucket: String,
     },
 
     #[snafu(display("Unable to stream list data. Bucket: {}, Error: {}", bucket, source,))]
-    UnableToStreamListDataFromGcs {
+    UnableToStreamListData {
         source: cloud_storage::Error,
         bucket: String,
     },
@@ -50,7 +50,7 @@ pub enum Error {
         location,
         source,
     ))]
-    UnableToDeleteDataFromGcs {
+    UnableToDeleteData {
         source: cloud_storage::Error,
         bucket: String,
         location: String,
@@ -62,7 +62,7 @@ pub enum Error {
         location,
         source,
     ))]
-    UnableToGetDataFromGcs {
+    UnableToGetData {
         source: cloud_storage::Error,
         bucket: String,
         location: String,
@@ -114,7 +114,7 @@ impl ObjectStoreApi for GoogleCloudStorage {
             "application/octet-stream",
         )
         .await
-        .context(UnableToPutDataToGcs {
+        .context(UnableToPutData {
             bucket: &self.bucket_name,
             location,
         })?;
@@ -129,7 +129,7 @@ impl ObjectStoreApi for GoogleCloudStorage {
 
         let bytes = cloud_storage::Object::download(&bucket_name, &location_copy)
             .await
-            .context(UnableToGetDataFromGcs {
+            .context(UnableToGetData {
                 bucket: &self.bucket_name,
                 location,
             })?;
@@ -144,7 +144,7 @@ impl ObjectStoreApi for GoogleCloudStorage {
 
         cloud_storage::Object::delete(&bucket_name, &location_copy)
             .await
-            .context(UnableToDeleteDataFromGcs {
+            .context(UnableToDeleteData {
                 bucket: &self.bucket_name,
                 location: location.clone(),
             })?;
@@ -161,7 +161,7 @@ impl ObjectStoreApi for GoogleCloudStorage {
                 let cloud_prefix = prefix.to_raw();
                 let list = cloud_storage::Object::list_prefix(&self.bucket_name, &cloud_prefix)
                     .await
-                    .context(UnableToListDataFromGcs {
+                    .context(UnableToListData {
                         bucket: &self.bucket_name,
                     })?;
 
@@ -172,7 +172,7 @@ impl ObjectStoreApi for GoogleCloudStorage {
             }
             None => cloud_storage::Object::list(&self.bucket_name)
                 .await
-                .context(UnableToListDataFromGcs {
+                .context(UnableToListData {
                     bucket: &self.bucket_name,
                 })?
                 .right_stream(),
@@ -184,7 +184,7 @@ impl ObjectStoreApi for GoogleCloudStorage {
                     .map(|o| CloudPath::raw(o.name))
                     .collect::<Vec<_>>()
             })
-            .context(UnableToStreamListDataFromGcs {
+            .context(UnableToStreamListData {
                 bucket: &self.bucket_name,
             });
 
@@ -305,7 +305,7 @@ mod test {
 
         let err = integration.delete(&location).await.unwrap_err();
 
-        if let Error::UnableToDeleteDataFromGcs {
+        if let Error::UnableToDeleteData {
             source,
             bucket,
             location,
@@ -332,7 +332,7 @@ mod test {
 
         let err = integration.delete(&location).await.unwrap_err();
 
-        if let Error::UnableToDeleteDataFromGcs {
+        if let Error::UnableToDeleteData {
             source,
             bucket,
             location,
