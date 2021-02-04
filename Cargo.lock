@@ -2869,7 +2869,7 @@ dependencies = [
 [[package]]
 name = "routerify"
 version = "2.0.0-beta-2"
-source = "git+https://github.com/influxdata/routerify?rev=bfe198e#bfe198e006d85b1b648ac96101d676b620d6f569"
+source = "git+https://github.com/influxdata/routerify?rev=274e250#274e250e556b968ad02259282c0433e445db4200"
 dependencies = [
  "http",
  "hyper",
