@@ -30,7 +30,7 @@ pub enum Error {
     },
 
     #[snafu(display("Unable to access metadata for {}: {}", path.display(), source))]
-    UnableToAccessMetadata { source: io::Error, path: PathBuf },
+    UnableToAccessMetadata { source: walkdir::Error, path: PathBuf },
 
     #[snafu(display("Unable to copy data to file: {}", source))]
     UnableToCopyDataToFile { source: io::Error },
@@ -48,7 +48,7 @@ pub enum Error {
     UnableToOpenFile { source: io::Error, path: PathBuf },
 
     #[snafu(display("Unable to process directory entry: {}", source))]
-    UnableToProcessEntry { source: io::Error },
+    UnableToProcessEntry { source: walkdir::Error },
 
     #[snafu(display("Unable to read data from file {}: {}", path.display(), source))]
     UnableToReadBytes { source: io::Error, path: PathBuf },
@@ -193,14 +193,12 @@ impl ObjectStoreApi for File {
         let root_path = self.root.to_raw();
         for entry in walkdir {
             let entry = entry
-                .map_err(|e| std::io::Error::from(e))
                 .context(UnableToProcessEntry)?;
             let entry_location = FilePath::raw(entry.path());
 
             if entry_location.prefix_matches(&resolved_prefix) {
                 let metadata = entry
                     .metadata()
-                    .map_err(|e| std::io::Error::from(e))
                     .context(UnableToAccessMetadata { path: entry.path() })?;
 
                 if metadata.is_dir() {
