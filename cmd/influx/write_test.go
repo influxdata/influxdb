@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
@@ -18,7 +19,6 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
-	"github.com/influxdata/influxdb/v2/pkg/csv2lp"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 )
@@ -57,19 +57,25 @@ func readLines(reader io.Reader) []string {
 	return retVal
 }
 
-func createTempFile(suffix string, contents []byte) string {
+func createTempFile(t *testing.T, suffix string, contents []byte, compress bool) string {
+	t.Helper()
+
 	file, err := ioutil.TempFile("", "influx_writeTest*."+suffix)
-	file.Close() // Close immediately, since we need only a file name
-	if err != nil {
-		log.Fatal(err)
-		return "unknown.file"
-	}
+	require.NoError(t, err)
+	defer file.Close()
+
 	fileName := file.Name()
 	tempFiles = append(tempFiles, fileName)
-	err = ioutil.WriteFile(fileName, contents, os.ModePerm)
-	if err != nil {
-		log.Fatal(err)
+
+	var writer io.Writer = file
+	if compress {
+		gzipWriter := gzip.NewWriter(writer)
+		defer gzipWriter.Close()
+		writer = gzipWriter
 	}
+
+	_, err = writer.Write(contents)
+	require.NoError(t, err)
 	return fileName
 }
 
@@ -93,9 +99,28 @@ func Test_writeFlags_dump(t *testing.T) {
 // are combined and transformed to provide a reader of protocol lines
 func Test_writeFlags_createLineReader(t *testing.T) {
 	defer removeTempFiles()
-	fileContents := "_measurement,b,c,d\nf1,f2,f3,f4"
-	csvFile1 := createTempFile("csv", []byte(fileContents))
-	stdInContents := "i,j,_measurement,k\nstdin1,stdin2,stdin3,stdin4"
+
+	lpContents := "f1 b=f2,c=f3,d=f4"
+	lpFile := createTempFile(t, "txt", []byte(lpContents), false)
+	gzipLpFile := createTempFile(t, "txt.gz", []byte(lpContents), true)
+	gzipLpFileNoExt := createTempFile(t, "lp", []byte(lpContents), true)
+	stdInLpContents := "f1 x=1,b=2,c=3"
+	stdInLpGzipContents := &bytes.Buffer{}
+	stdInLpGzipWriter := gzip.NewWriter(stdInLpGzipContents)
+	_, err := stdInLpGzipWriter.Write([]byte(stdInLpContents))
+	require.NoError(t, err)
+	require.NoError(t, stdInLpGzipWriter.Close())
+
+	csvContents := "_measurement,b,c,d\nf1,f2,f3,f4"
+	csvFile := createTempFile(t, "csv", []byte(csvContents), false)
+	gzipCsvFile := createTempFile(t, "csv.gz", []byte(csvContents), true)
+	gzipCsvFileNoExt := createTempFile(t, "csv", []byte(csvContents), true)
+	stdInCsvContents := "i,j,_measurement,k\nstdin1,stdin2,stdin3,stdin4"
+	stdInCsvGzipContents := &bytes.Buffer{}
+	stdInCsvGzipWriter := gzip.NewWriter(stdInCsvGzipContents)
+	_, err = stdInCsvGzipWriter.Write([]byte(stdInCsvContents))
+	require.NoError(t, err)
+	require.NoError(t, stdInCsvGzipWriter.Close())
 
 	// use a test HTTP server to provide CSV data
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
@@ -104,9 +129,20 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		if contentType := query.Get("Content-Type"); contentType != "" {
 			rw.Header().Set("Content-Type", contentType)
 		}
+		if encoding := query.Get("encoding"); encoding != "" {
+			rw.Header().Set("Content-Encoding", encoding)
+		}
+		compress := query.Get("compress") != ""
 		rw.WriteHeader(http.StatusOK)
 		if data := query.Get("data"); data != "" {
-			rw.Write([]byte(data))
+			var writer io.Writer = rw
+			if compress {
+				gzw := gzip.NewWriter(writer)
+				defer gzw.Close()
+				writer = gzw
+			}
+			_, err := writer.Write([]byte(data))
+			require.NoError(t, err)
 		}
 	}))
 	defer server.Close()
@@ -120,13 +156,114 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		// output
 		firstLineCorrection int // 0 unless shifted by prepended headers or skipped rows
 		lines               []string
-		// lpData indicates the the data are line protocol data
-		lpData bool
 	}{
+		{
+			name: "read data from LP file",
+			flags: writeFlagsBuilder{
+				Files: []string{lpFile},
+			},
+			firstLineCorrection: 0,
+			lines: []string{
+				lpContents,
+			},
+		},
+		{
+			name: "read compressed LP data from file",
+			flags: writeFlagsBuilder{
+				Files:      []string{gzipLpFileNoExt},
+				Compressed: true,
+			},
+			firstLineCorrection: 0,
+			lines: []string{
+				lpContents,
+			},
+		},
+		{
+			name: "read compressed LP data from file ending in .gz",
+			flags: writeFlagsBuilder{
+				Files: []string{gzipLpFile},
+			},
+			firstLineCorrection: 0,
+			lines: []string{
+				lpContents,
+			},
+		},
+		{
+			name: "read LP data from stdin",
+			flags: writeFlagsBuilder{},
+			stdIn: strings.NewReader(stdInLpContents),
+			lines: []string{
+				stdInLpContents,
+			},
+		},
+		{
+			name: "read compressed LP data from stdin",
+			flags: writeFlagsBuilder{
+				Compressed: true,
+			},
+			stdIn: stdInLpGzipContents,
+			lines: []string{
+				stdInLpContents,
+			},
+		},
+		{
+			name: "read LP data from stdin using '-' argument",
+			flags: writeFlagsBuilder{},
+			stdIn:     strings.NewReader(stdInLpContents),
+			arguments: []string{"-"},
+			lines: []string{
+				stdInLpContents,
+			},
+		},
+		{
+			name: "read LP data from 1st argument",
+			flags: writeFlagsBuilder{},
+			arguments: []string{stdInLpContents},
+			lines: []string{
+				stdInLpContents,
+			},
+		},
+		{
+			name: "read LP data from URL",
+			flags: writeFlagsBuilder{
+				URLs: []string{server.URL + "/a?data=" + url.QueryEscape(lpContents)},
+			},
+			lines: []string{
+				lpContents,
+			},
+		},
+		{
+			name: "read compressed LP data from URL",
+			flags: writeFlagsBuilder{
+				URLs: []string{fmt.Sprintf("%s/a?data=%s&compress=true", server.URL, url.QueryEscape(lpContents))},
+				Compressed: true,
+			},
+			lines: []string{
+				lpContents,
+			},
+		},
+		{
+			name: "read compressed LP data from URL ending in .gz",
+			flags: writeFlagsBuilder{
+				URLs: []string{fmt.Sprintf("%s/a.gz?data=%s&compress=true", server.URL, url.QueryEscape(lpContents))},
+			},
+			lines: []string{
+				lpContents,
+			},
+		},
+		{
+			name: "read compressed LP data from URL with gzip encoding",
+			flags: writeFlagsBuilder{
+				URLs: []string{fmt.Sprintf("%s/a?data=%s&compress=true&encoding=gzip", server.URL, url.QueryEscape(lpContents))},
+			},
+			lines: []string{
+				lpContents,
+			},
+		},
 		{
 			name: "read data from CSV file + transform to line protocol",
 			flags: writeFlagsBuilder{
-				Files: []string{csvFile1},
+				Files: []string{csvFile},
 			},
 			firstLineCorrection: 0, // no changes
 			lines: []string{
@@ -134,10 +271,31 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			},
 		},
 		{
+			name: "read compressed CSV data from file + transform to line protocol",
+			flags: writeFlagsBuilder{
+				Files:      []string{gzipCsvFileNoExt},
+				Compressed: true,
+			},
+			firstLineCorrection: 0,
+			lines: []string{
+				lpContents,
+			},
+		},
+		{
+			name: "read compressed CSV data from file ending in .csv.gz + transform to line protocol",
+			flags: writeFlagsBuilder{
+				Files: []string{gzipCsvFile},
+			},
+			firstLineCorrection: 0,
+			lines: []string{
+				lpContents,
+			},
+		},
+		{
 			name: "read CSV data from --header and --file + transform to line protocol",
 			flags: writeFlagsBuilder{
 				Headers: []string{"x,_measurement,y,z"},
-				Files:   []string{csvFile1},
+				Files:   []string{csvFile},
 			},
 			firstLineCorrection: -1, // shifted back by header line
 			lines: []string{
@@ -151,7 +309,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 				Headers:    []string{"x,_measurement,y,z"},
 				SkipHeader: 1,
 			},
-			arguments:           []string{"@" + csvFile1},
+			arguments:           []string{"@" + csvFile},
 			firstLineCorrection: 0, // shifted (-1) back by header line, forward (+1) by skipHeader
 			lines: []string{
 				"f2 x=f1,y=f3,z=f4",
@@ -163,7 +321,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 				Headers:    []string{"x,_measurement,y,z"},
 				SkipHeader: 1,
 			},
-			arguments:           []string{"@" + csvFile1},
+			arguments:           []string{"@" + csvFile},
 			firstLineCorrection: 0, // shifted (-1) back by header line, forward (+1) by skipHeader
 			lines: []string{
 				"f2 x=f1,y=f3,z=f4",
@@ -174,7 +332,18 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			flags: writeFlagsBuilder{
 				Format: inputFormatCsv,
 			},
-			stdIn: strings.NewReader(stdInContents),
+			stdIn: strings.NewReader(stdInCsvContents),
+			lines: []string{
+				"stdin3 i=stdin1,j=stdin2,k=stdin4",
+			},
+		},
+		{
+			name: "read compressed CSV data from stdin + transform to line protocol",
+			flags: writeFlagsBuilder{
+				Format: inputFormatCsv,
+				Compressed: true,
+			},
+			stdIn: stdInCsvGzipContents,
 			lines: []string{
 				"stdin3 i=stdin1,j=stdin2,k=stdin4",
 			},
@@ -184,7 +353,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			flags: writeFlagsBuilder{
 				Format: inputFormatCsv,
 			},
-			stdIn:     strings.NewReader(stdInContents),
+			stdIn:     strings.NewReader(stdInCsvContents),
 			arguments: []string{"-"},
 			lines: []string{
 				"stdin3 i=stdin1,j=stdin2,k=stdin4",
@@ -195,7 +364,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			flags: writeFlagsBuilder{
 				Format: inputFormatCsv,
 			},
-			arguments: []string{stdInContents},
+			arguments: []string{stdInCsvContents},
 			lines: []string{
 				"stdin3 i=stdin1,j=stdin2,k=stdin4",
 			},
@@ -203,7 +372,35 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		{
 			name: "read data from .csv URL + transform to line protocol",
 			flags: writeFlagsBuilder{
-				URLs: []string{(server.URL + "/a.csv?data=" + url.QueryEscape(fileContents))},
+				URLs: []string{server.URL + "/a.csv?data=" + url.QueryEscape(csvContents)},
+			},
+			lines: []string{
+				"f1 b=f2,c=f3,d=f4",
+			},
+		},
+		{
+			name: "read compressed CSV data from URL + transform to line protocol",
+			flags: writeFlagsBuilder{
+				URLs: []string{fmt.Sprintf("%s/a.csv?data=%s&compress=true", server.URL, url.QueryEscape(csvContents))},
+				Compressed: true,
+			},
+			lines: []string{
+				"f1 b=f2,c=f3,d=f4",
+			},
+		},
+		{
+			name: "read compressed CSV data from URL ending in .csv.gz + transform to line protocol",
+			flags: writeFlagsBuilder{
+				URLs: []string{fmt.Sprintf("%s/a.csv.gz?data=%s&compress=true", server.URL, url.QueryEscape(csvContents))},
+			},
+			lines: []string{
+				"f1 b=f2,c=f3,d=f4",
+			},
+		},
+		{
+			name: "read compressed CSV data from URL with gzip encoding + transform to line protocol",
+			flags: writeFlagsBuilder{
+				URLs: []string{fmt.Sprintf("%s/a.csv?data=%s&compress=true&encoding=gzip", server.URL, url.QueryEscape(csvContents))},
 			},
 			lines: []string{
 				"f1 b=f2,c=f3,d=f4",
@@ -212,7 +409,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		{
 			name: "read data from .csv URL + change header line + transform to line protocol",
 			flags: writeFlagsBuilder{
-				URLs:       []string{(server.URL + "/a.csv?data=" + url.QueryEscape(fileContents))},
+				URLs:       []string{server.URL + "/a.csv?data=" + url.QueryEscape(csvContents)},
 				Headers:    []string{"k,j,_measurement,i"},
 				SkipHeader: 1,
 			},
@@ -223,24 +420,16 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		{
 			name: "read data from having text/csv URL resource + transform to line protocol",
 			flags: writeFlagsBuilder{
-				URLs: []string{(server.URL + "/a?Content-Type=text/csv&data=" + url.QueryEscape(fileContents))},
+				URLs: []string{server.URL + "/a?Content-Type=text/csv&data=" + url.QueryEscape(csvContents)},
 			},
 			lines: []string{
 				"f1 b=f2,c=f3,d=f4",
 			},
 		},
 		{
-			name: "read line protocol data from URL",
-			flags: writeFlagsBuilder{
-				URLs: []string{(server.URL + "/a?data=" + url.QueryEscape(fileContents))},
-			},
-			lines:  strings.Split(fileContents, "\n"),
-			lpData: true,
-		},
-		{
 			name: "read data from CSV file + transform to line protocol + throttle read to 1MB/min",
 			flags: writeFlagsBuilder{
-				Files:     []string{csvFile1},
+				Files:     []string{csvFile},
 				RateLimit: "1MBs",
 			},
 			lines: []string{
@@ -257,11 +446,6 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			defer closer.Close()
 			require.Nil(t, err)
 			require.NotNil(t, reader)
-			if !test.lpData && len(test.flags.RateLimit) == 0 {
-				csvToLineReader, ok := reader.(*csv2lp.CsvToLineReader)
-				require.True(t, ok)
-				require.Equal(t, csvToLineReader.LineNumber, test.firstLineCorrection)
-			}
 			lines := readLines(reader)
 			require.Equal(t, test.lines, lines)
 		})
@@ -271,7 +455,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 // Test_writeFlags_createLineReader_errors tests input validation
 func Test_writeFlags_createLineReader_errors(t *testing.T) {
 	defer removeTempFiles()
-	csvFile1 := createTempFile("csv", []byte("_measurement,b,c,d\nf1,f2,f3,f4"))
+	csvFile1 := createTempFile(t, "csv", []byte("_measurement,b,c,d\nf1,f2,f3,f4"), false)
 	// use a test HTTP server to server errors
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		rw.WriteHeader(http.StatusInternalServerError)
@@ -500,7 +684,7 @@ func Test_writeRunE(t *testing.T) {
 // Test_writeFlags_errorsFile tests that rejected rows are written to errors file
 func Test_writeFlags_errorsFile(t *testing.T) {
 	defer removeTempFiles()
-	errorsFile := createTempFile("errors", []byte{})
+	errorsFile := createTempFile(t, "errors", []byte{}, false)
 	stdInContents := "_measurement,a|long:strict\nm,1\nm,1.1"
 	out := bytes.Buffer{}
 	command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out), viper: viper.New()})

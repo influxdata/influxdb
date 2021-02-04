@@ -193,13 +193,19 @@ func (b *writeFlagsBuilder) createLineReader(ctx context.Context, cmd *cobra.Com
 			}
 			closers = append(closers, f)
 
-			if r, err = b.decompressIfNecessary(f, &closers, file); err != nil {
-				return nil, csv2lp.MultiCloser(closers...), err
+			b.Compressed = b.Compressed || strings.HasSuffix(file, ".gz")
+			if b.Compressed {
+				file = strings.TrimSuffix(file, ".gz")
 			}
-			readers = append(readers, decode(r), strings.NewReader("\n"))
 			if len(b.Format) == 0 && strings.HasSuffix(file, ".csv") {
 				b.Format = inputFormatCsv
 			}
+
+			if r, err = b.decompressIfNecessary(decode(f), &closers, file); err != nil {
+				return nil, csv2lp.MultiCloser(closers...), err
+			}
+			readers = append(readers, r, strings.NewReader("\n"))
+
 		}
 	}
 
@@ -215,6 +221,7 @@ func (b *writeFlagsBuilder) createLineReader(ctx context.Context, cmd *cobra.Com
 			if err != nil {
 				return nil, csv2lp.MultiCloser(closers...), fmt.Errorf("failed to open %q: %v", addr, err)
 			}
+			req.Header.Set("Accept-Encoding", "gzip")
 			resp, err := client.Do(req)
 			if err != nil {
 				return nil, csv2lp.MultiCloser(closers...), fmt.Errorf("failed to open %q: %v", addr, err)
@@ -224,17 +231,22 @@ func (b *writeFlagsBuilder) createLineReader(ctx context.Context, cmd *cobra.Com
 				return nil, csv2lp.MultiCloser(closers...), fmt.Errorf("failed to open %q: response status_code=%d", addr, resp.StatusCode)
 			}
 
-			var r io.Reader
-			if r, err = b.decompressIfNecessary(resp.Body, &closers, addr); err != nil {
-				return nil, csv2lp.MultiCloser(closers...), err
-			} else {
-				r = resp.Body
+			b.Compressed = b.Compressed ||
+				strings.HasSuffix(u.Path, ".gz") ||
+				strings.HasPrefix(resp.Header.Get("Content-Encoding"), "gzip")
+			if b.Compressed {
+				u.Path = strings.TrimSuffix(u.Path, ".gz")
 			}
-			readers = append(readers, decode(r), strings.NewReader("\n"))
 			if len(b.Format) == 0 &&
 				(strings.HasSuffix(u.Path, ".csv") || strings.HasPrefix(resp.Header.Get("Content-Type"), "text/csv")) {
 				b.Format = inputFormatCsv
 			}
+
+			var r io.Reader
+			if r, err = b.decompressIfNecessary(decode(resp.Body), &closers, addr); err != nil {
+				return nil, csv2lp.MultiCloser(closers...), err
+			}
+			readers = append(readers, r, strings.NewReader("\n"))
 		}
 	}
 
@@ -243,16 +255,21 @@ func (b *writeFlagsBuilder) createLineReader(ctx context.Context, cmd *cobra.Com
 	case len(args) == 0:
 		// use also stdIn if it is a terminal
 		if !isCharacterDevice(cmd.InOrStdin()) {
-			readers = append(readers, decode(cmd.InOrStdin()))
+			var r io.Reader
+			if r, err = b.decompressIfNecessary(decode(cmd.InOrStdin()), &closers, "stdin"); err != nil {
+				return nil, csv2lp.MultiCloser(closers...), err
+			}
+			readers = append(readers, r)
 		}
 	case args[0] == "-":
 		// "-" also means stdin
 		var r io.Reader
-		if r, err = b.decompressIfNecessary(cmd.InOrStdin(), &closers, "stdin"); err != nil {
+		if r, err = b.decompressIfNecessary(decode(cmd.InOrStdin()), &closers, "stdin"); err != nil {
 			return nil, csv2lp.MultiCloser(closers...), err
 		}
-		readers = append(readers, decode(r))
+		readers = append(readers, r)
 	default:
+		// NOTE: Assuming nobody will be typing out gzip on the CLI.
 		readers = append(readers, strings.NewReader(args[0]))
 	}
 
