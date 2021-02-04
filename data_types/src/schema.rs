@@ -371,7 +371,7 @@ impl Schema {
 
         let new_self = if need_merge {
             // Delegate the rest of the actual work to arrow schema
-            let new_schema = ArrowSchema::try_merge(&[
+            let new_schema = ArrowSchema::try_merge(vec![
                 self.unwrap_to_inner_owned(),
                 other.unwrap_to_inner_owned(),
             ])

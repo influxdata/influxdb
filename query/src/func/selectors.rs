@@ -259,13 +259,13 @@ where
         self.selector.datafusion_state()
     }
 
-    fn update(&mut self, _values: &Vec<ScalarValue>) -> DataFusionResult<()> {
+    fn update(&mut self, _values: &[ScalarValue]) -> DataFusionResult<()> {
         unreachable!("Should only be calling update_batch for performance reasons");
     }
 
     // this function receives states from other accumulators
     // (Vec<ScalarValue>) and updates the accumulator.
-    fn merge(&mut self, _states: &Vec<ScalarValue>) -> DataFusionResult<()> {
+    fn merge(&mut self, _states: &[ScalarValue]) -> DataFusionResult<()> {
         unreachable!("Should only be calling merge_batch for performance reasons");
     }
 
@@ -276,7 +276,7 @@ where
 
     // This function receives one entry per argument of this
     // accumulator and updates the selector state function appropriately
-    fn update_batch(&mut self, values: &Vec<ArrayRef>) -> DataFusionResult<()> {
+    fn update_batch(&mut self, values: &[ArrayRef]) -> DataFusionResult<()> {
         if values.is_empty() {
             return Ok(());
         }
@@ -296,7 +296,7 @@ where
     // The input values and accumulator state are the same types for
     // selectors, and thus we can merge intermediate states with the
     // same function as inputs
-    fn merge_batch(&mut self, states: &Vec<ArrayRef>) -> DataFusionResult<()> {
+    fn merge_batch(&mut self, states: &[ArrayRef]) -> DataFusionResult<()> {
         // merge is the same operation as update for these selectors
         self.update_batch(states)
     }
