@@ -2,8 +2,7 @@
 //! store.
 use crate::{
     path::{cloud::CloudPath, DELIMITER},
-    Error, ListResult, NoDataFromS3, ObjectMeta, ObjectStoreApi, Result, UnableToDeleteDataFromS3,
-    UnableToGetDataFromS3, UnableToGetPieceOfDataFromS3, UnableToPutDataToS3,
+    ListResult, ObjectMeta, ObjectStoreApi,
 };
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -15,9 +14,77 @@ use futures::{
 use rusoto_core::ByteStream;
 use rusoto_credential::ChainProvider;
 use rusoto_s3::S3;
-use snafu::{futures::TryStreamExt as _, OptionExt, ResultExt};
+use snafu::{futures::TryStreamExt as _, OptionExt, ResultExt, Snafu};
 use std::convert::TryFrom;
 use std::{fmt, io};
+
+/// A specialized `Result` for object store-related errors
+pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// A specialized `Error` for object store-related errors
+#[derive(Debug, Snafu)]
+#[allow(missing_docs)]
+pub enum Error {
+    #[snafu(display("Expected streamed data to have length {}, got {}", expected, actual))]
+    DataDoesNotMatchLength { expected: usize, actual: usize },
+
+    #[snafu(display("Did not receive any data. Bucket: {}, Location: {}", bucket, location))]
+    NoDataFromS3 { bucket: String, location: String },
+
+    #[snafu(display(
+        "Unable to DELETE data. Bucket: {}, Location: {}, Error: {}",
+        bucket,
+        location,
+        source,
+    ))]
+    UnableToDeleteDataFromS3 {
+        source: rusoto_core::RusotoError<rusoto_s3::DeleteObjectError>,
+        bucket: String,
+        location: String,
+    },
+
+    #[snafu(display(
+        "Unable to GET data. Bucket: {}, Location: {}, Error: {}",
+        bucket,
+        location,
+        source,
+    ))]
+    UnableToGetDataFromS3 {
+        source: rusoto_core::RusotoError<rusoto_s3::GetObjectError>,
+        bucket: String,
+        location: String,
+    },
+
+    #[snafu(display(
+        "Unable to GET part of the data. Bucket: {}, Location: {}, Error: {}",
+        bucket,
+        location,
+        source,
+    ))]
+    UnableToGetPieceOfDataFromS3 {
+        source: std::io::Error,
+        bucket: String,
+        location: String,
+    },
+
+    #[snafu(display(
+        "Unable to PUT data. Bucket: {}, Location: {}, Error: {}",
+        bucket,
+        location,
+        source,
+    ))]
+    UnableToPutDataToS3 {
+        source: rusoto_core::RusotoError<rusoto_s3::PutObjectError>,
+        bucket: String,
+        location: String,
+    },
+
+    #[snafu(display("Unable to list data. Bucket: {}, Error: {}", bucket, source))]
+    UnableToListDataFromS3 {
+        source: rusoto_core::RusotoError<rusoto_s3::ListObjectsV2Error>,
+        bucket: String,
+    },
+}
 
 /// Configuration for connecting to [Amazon S3](https://aws.amazon.com/s3/).
 pub struct AmazonS3 {
@@ -288,8 +355,8 @@ impl AmazonS3 {
 impl Error {
     #[cfg(test)]
     fn s3_error_due_to_credentials(&self) -> bool {
-        use crate::Error::*;
         use rusoto_core::RusotoError;
+        use Error::*;
 
         matches! (self,
              UnableToPutDataToS3 {
@@ -317,9 +384,10 @@ impl Error {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use crate::{
         tests::{get_nonexistent_object, list_with_delimiter, put_get_delete_list},
-        AmazonS3, Error, ObjectStoreApi, ObjectStorePath,
+        AmazonS3, ObjectStoreApi, ObjectStorePath,
     };
     use bytes::Bytes;
     use std::env;
@@ -392,7 +460,7 @@ mod tests {
     fn check_credentials<T>(r: Result<T>) -> Result<T> {
         if let Err(e) = &r {
             let e = &**e;
-            if let Some(e) = e.downcast_ref::<crate::Error>() {
+            if let Some(e) = e.downcast_ref::<Error>() {
                 if e.s3_error_due_to_credentials() {
                     eprintln!(
                         "Try setting the AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY \
@@ -431,8 +499,7 @@ mod tests {
         let err = get_nonexistent_object(&integration, Some(location))
             .await
             .unwrap_err();
-        if let Some(Error::UnableToListDataFromS3 { source, bucket }) =
-            err.downcast_ref::<crate::Error>()
+        if let Some(Error::UnableToListDataFromS3 { source, bucket }) = err.downcast_ref::<Error>()
         {
             assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
             assert_eq!(bucket, &bucket_name);
@@ -458,7 +525,7 @@ mod tests {
             source,
             bucket,
             location,
-        }) = err.downcast_ref::<crate::Error>()
+        }) = err.downcast_ref::<Error>()
         {
             assert!(matches!(
                 source,
@@ -485,8 +552,7 @@ mod tests {
         let err = get_nonexistent_object(&integration, Some(location))
             .await
             .unwrap_err();
-        if let Some(Error::UnableToListDataFromS3 { source, bucket }) =
-            err.downcast_ref::<crate::Error>()
+        if let Some(Error::UnableToListDataFromS3 { source, bucket }) = err.downcast_ref::<Error>()
         {
             assert!(matches!(
                 source,

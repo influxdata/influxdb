@@ -278,11 +278,11 @@ impl ObjectStoreApi for ObjectStore {
     async fn list_with_delimiter(&self, prefix: &Self::Path) -> Result<ListResult<Self::Path>> {
         use ObjectStoreIntegration::*;
         match (&self.0, prefix) {
-            (AmazonS3(s3), path::Path::AmazonS3(prefix)) => {
-                s3.list_with_delimiter(prefix)
-                    .map_ok(|list_result| list_result.map_paths(path::Path::AmazonS3))
-                    .await
-            }
+            (AmazonS3(s3), path::Path::AmazonS3(prefix)) => s3
+                .list_with_delimiter(prefix)
+                .map_ok(|list_result| list_result.map_paths(path::Path::AmazonS3))
+                .await
+                .context(AwsObjectStoreError),
             (GoogleCloudStorage(_gcs), _) => unimplemented!(),
             (InMemory(in_mem), path::Path::InMemory(prefix)) => {
                 in_mem
@@ -403,40 +403,6 @@ pub enum Error {
         err: chrono::ParseError,
     },
 
-    UnableToPutDataToS3 {
-        source: rusoto_core::RusotoError<rusoto_s3::PutObjectError>,
-        bucket: String,
-        location: String,
-    },
-    UnableToGetDataFromS3 {
-        source: rusoto_core::RusotoError<rusoto_s3::GetObjectError>,
-        bucket: String,
-        location: String,
-    },
-    UnableToDeleteDataFromS3 {
-        source: rusoto_core::RusotoError<rusoto_s3::DeleteObjectError>,
-        bucket: String,
-        location: String,
-    },
-    NoDataFromS3 {
-        bucket: String,
-        location: String,
-    },
-    UnableToReadBytesFromS3 {
-        source: std::io::Error,
-        bucket: String,
-        location: String,
-    },
-    UnableToGetPieceOfDataFromS3 {
-        source: std::io::Error,
-        bucket: String,
-        location: String,
-    },
-    UnableToListDataFromS3 {
-        source: rusoto_core::RusotoError<rusoto_s3::ListObjectsV2Error>,
-        bucket: String,
-    },
-
     UnableToStreamDataIntoMemory {
         source: std::io::Error,
     },
@@ -473,6 +439,11 @@ pub enum Error {
     GcsObjectStoreError {
         source: gcp::Error,
     },
+
+    #[snafu(display("AWS S3-based Object Store error: {}", source))]
+    AwsObjectStoreError {
+        source: aws::Error,
+    },
 }
 
 impl From<disk::Error> for Error {
@@ -484,6 +455,12 @@ impl From<disk::Error> for Error {
 impl From<gcp::Error> for Error {
     fn from(source: gcp::Error) -> Self {
         Error::GcsObjectStoreError { source }
+    }
+}
+
+impl From<aws::Error> for Error {
+    fn from(source: aws::Error) -> Self {
+        Error::AwsObjectStoreError { source }
     }
 }
 
