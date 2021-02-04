@@ -408,22 +408,6 @@ pub enum Error {
     },
     NoDataInMemory,
 
-    UnableToPutDataToAzure {
-        source: Box<dyn std::error::Error + Send + Sync>,
-        location: String,
-    },
-    UnableToGetDataFromAzure {
-        source: Box<dyn std::error::Error + Send + Sync>,
-        location: String,
-    },
-    UnableToDeleteDataFromAzure {
-        source: Box<dyn std::error::Error + Send + Sync>,
-        location: String,
-    },
-    UnableToListDataFromAzure {
-        source: Box<dyn std::error::Error + Send + Sync>,
-    },
-
     #[snafu(display("Unable to list directory {}: {}", path.display(), source))]
     UnableToListDirectory {
         source: io::Error,
@@ -444,6 +428,11 @@ pub enum Error {
     AwsObjectStoreError {
         source: aws::Error,
     },
+
+    #[snafu(display("Azure Blob storage-based Object Store error: {}", source))]
+    AzureObjectStoreError {
+        source: azure::Error,
+    },
 }
 
 impl From<disk::Error> for Error {
@@ -461,6 +450,12 @@ impl From<gcp::Error> for Error {
 impl From<aws::Error> for Error {
     fn from(source: aws::Error) -> Self {
         Error::AwsObjectStoreError { source }
+    }
+}
+
+impl From<azure::Error> for Error {
+    fn from(source: azure::Error) -> Self {
+        Error::AzureObjectStoreError { source }
     }
 }
 

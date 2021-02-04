@@ -1,10 +1,6 @@
 //! This module contains the IOx implementation for using Azure Blob storage as
 //! the object store.
-use crate::{
-    path::cloud::CloudPath, DataDoesNotMatchLength, Error, ListResult, ObjectStoreApi, Result,
-    UnableToDeleteDataFromAzure, UnableToGetDataFromAzure, UnableToListDataFromAzure,
-    UnableToPutDataToAzure,
-};
+use crate::{path::cloud::CloudPath, ListResult, ObjectStoreApi};
 use async_trait::async_trait;
 use azure_core::HttpClient;
 use azure_storage::{
@@ -18,9 +14,43 @@ use futures::{
     stream::{self, BoxStream},
     FutureExt, Stream, StreamExt, TryStreamExt,
 };
-use snafu::{ensure, ResultExt};
+use snafu::{ensure, ResultExt, Snafu};
 use std::io;
 use std::sync::Arc;
+
+/// A specialized `Result` for Azure object store-related errors
+pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// A specialized `Error` for Azure object store-related errors
+#[derive(Debug, Snafu)]
+#[allow(missing_docs)]
+pub enum Error {
+    #[snafu(display("Expected streamed data to have length {}, got {}", expected, actual))]
+    DataDoesNotMatchLength { expected: usize, actual: usize },
+
+    #[snafu(display("Unable to DELETE data. Location: {}, Error: {}", location, source,))]
+    UnableToDeleteDataFromAzure {
+        source: Box<dyn std::error::Error + Send + Sync>,
+        location: String,
+    },
+
+    #[snafu(display("Unable to GET data. Location: {}, Error: {}", location, source,))]
+    UnableToGetDataFromAzure {
+        source: Box<dyn std::error::Error + Send + Sync>,
+        location: String,
+    },
+
+    #[snafu(display("Unable to PUT data. Location: {}, Error: {}", location, source,))]
+    UnableToPutDataToAzure {
+        source: Box<dyn std::error::Error + Send + Sync>,
+        location: String,
+    },
+
+    #[snafu(display("Unable to list data. Error: {}", source))]
+    UnableToListDataFromAzure {
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+}
 
 /// Configuration for connecting to [Microsoft Azure Blob Storage](https://azure.microsoft.com/en-us/services/storage/blobs/).
 #[derive(Debug)]
