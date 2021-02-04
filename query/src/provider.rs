@@ -1,4 +1,4 @@
-//! Implementation of a DataFusion TableProvider in terms of PartitionChunks
+//! Implementation of a DataFusion `TableProvider` in terms of `PartitionChunk`s
 
 use std::sync::Arc;
 
@@ -37,17 +37,17 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "Internal error: no chunks found in builder for table {:?}",
+        "Internal error: no chunks found in builder for table '{}'",
         table_name,
     ))]
-    NoChunks { table_name: String },
+    InternalNoChunks { table_name: String },
 
-    #[snafu(display("No rows found in table {}", table_name))]
+    #[snafu(display("Internal error: No rows found in table '{}'", table_name))]
     InternalNoRowsInTable { table_name: String },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Builds a ChunkTableProvider from a series of `PartitionChunks`
+/// Builds a `ChunkTableProvider` from a series of `PartitionChunk`s
 /// and ensures the schema across the chunks is compatible and
 /// consistent.
 #[derive(Debug)]
@@ -104,7 +104,7 @@ impl<C: PartitionChunk> ProviderBuilder<C> {
             chunks,
         } = self;
 
-        let schema = schema.context(NoChunks {
+        let schema = schema.context(InternalNoChunks {
             table_name: table_name.as_ref(),
         })?;
 

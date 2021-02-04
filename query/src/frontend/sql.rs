@@ -52,17 +52,13 @@ pub enum Error {
         chunk_id,
         source
     ))]
-    AddingProviderToChunk {
+    AddingChunkToProvider {
         table_name: String,
         chunk_id: u32,
         source: crate::provider::Error,
     },
 
-    #[snafu(display(
-        "Error creating  table provider for table '{}': {}",
-        table_name,
-        source
-    ))]
+    #[snafu(display("Error creating table provider for table '{}': {}", table_name, source))]
     CreatingTableProvider {
         table_name: String,
         source: crate::provider::Error,
@@ -117,7 +113,7 @@ impl SQLQueryPlanner {
 
                         builder = builder
                             .add_chunk(chunk, chunk_table_schema.into())
-                            .context(AddingProviderToChunk {
+                            .context(AddingChunkToProvider {
                                 table_name,
                                 chunk_id,
                             })?
