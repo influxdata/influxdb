@@ -432,6 +432,14 @@ where
     type Database = Db;
     type Error = Error;
 
+    async fn db_names_sorted(&self) -> Vec<String> {
+        self.config
+            .db_names_sorted()
+            .iter()
+            .map(|i| i.clone().into())
+            .collect()
+    }
+
     async fn db(&self, name: &str) -> Option<Arc<Self::Database>> {
         if let Ok(name) = DatabaseName::new(name) {
             return self.db(&name).await;
@@ -672,6 +680,28 @@ mod tests {
         if !matches!(got, Error::DatabaseAlreadyExists {..}) {
             panic!("expected already exists error");
         }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn db_names_sorted() -> Result {
+        let manager = TestConnectionManager::new();
+        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let server = Server::new(manager, store);
+        server.set_id(1);
+
+        let names = vec!["bar", "baz"];
+
+        for name in &names {
+            server
+                .create_database(*name, DatabaseRules::default())
+                .await
+                .expect("failed to create database");
+        }
+
+        let db_names_sorted = server.db_names_sorted().await;
+        assert_eq!(names, db_names_sorted);
 
         Ok(())
     }

@@ -98,6 +98,9 @@ pub enum ApplicationError {
     #[snafu(display("Invalid request body: {}", source))]
     InvalidRequestBody { source: serde_json::error::Error },
 
+    #[snafu(display("Invalid response body: {}", source))]
+    InternalSerializationError { source: serde_json::error::Error },
+
     #[snafu(display("Invalid content encoding: {}", content_encoding))]
     InvalidContentEncoding { content_encoding: String },
 
@@ -159,6 +162,7 @@ impl ApplicationError {
             Self::ExpectedQueryString { .. } => self.bad_request(),
             Self::InvalidQueryString { .. } => self.bad_request(),
             Self::InvalidRequestBody { .. } => self.bad_request(),
+            Self::InternalSerializationError { .. } => self.internal_error(),
             Self::InvalidContentEncoding { .. } => self.bad_request(),
             Self::ReadingHeaderAsUtf8 { .. } => self.bad_request(),
             Self::ReadingBody { .. } => self.bad_request(),
@@ -250,6 +254,7 @@ where
         .post("/api/v2/write", write::<M>)
         .get("/ping", ping)
         .get("/api/v2/read", read::<M>)
+        .get("/iox/api/v1/databases", list_databases::<M>)
         .put("/iox/api/v1/databases/:name", create_database::<M>)
         .get("/iox/api/v1/databases/:name", get_database::<M>)
         .put("/iox/api/v1/id", set_writer::<M>)
@@ -446,6 +451,28 @@ async fn read<M: ConnectionManager + Send + Sync + Debug + 'static>(
     let results = arrow::util::pretty::pretty_format_batches(&batches).unwrap();
 
     Ok(Response::new(Body::from(results.into_bytes())))
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+/// Body of the response to the /databases endpoint.
+struct ListDatabasesResponse {
+    names: Vec<String>,
+}
+
+#[tracing::instrument(level = "debug")]
+async fn list_databases<M>(req: Request<Body>) -> Result<Response<Body>, ApplicationError>
+where
+    M: ConnectionManager + Send + Sync + Debug + 'static,
+{
+    let server = req
+        .data::<Arc<AppServer<M>>>()
+        .expect("server state")
+        .clone();
+
+    let names = server.db_names_sorted().await;
+    let json = serde_json::to_string(&ListDatabasesResponse { names })
+        .context(InternalSerializationError)?;
+    Ok(Response::new(Body::from(json)))
 }
 
 #[tracing::instrument(level = "debug")]
@@ -826,6 +853,42 @@ mod tests {
         check_response("set_writer_id", response, StatusCode::OK, data).await;
 
         assert_eq!(server.require_id().expect("should be set"), 42);
+    }
+
+    #[tokio::test]
+    async fn list_databases() {
+        let server = Arc::new(AppServer::new(
+            ConnectionManagerImpl {},
+            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
+        ));
+        server.set_id(1);
+        let server_url = test_server(server.clone());
+
+        let database_names: Vec<String> = vec!["foo_bar", "foo_baz"]
+            .iter()
+            .map(|i| i.to_string())
+            .collect();
+
+        for database_name in &database_names {
+            let rules = DatabaseRules {
+                name: database_name.clone(),
+                store_locally: true,
+                ..Default::default()
+            };
+            server.create_database(database_name, rules).await.unwrap();
+        }
+
+        let client = Client::new();
+        let response = client
+            .get(&format!("{}/iox/api/v1/databases", server_url))
+            .send()
+            .await;
+
+        let data = serde_json::to_string(&ListDatabasesResponse {
+            names: database_names,
+        })
+        .unwrap();
+        check_response("list_databases", response, StatusCode::OK, &data).await;
     }
 
     #[tokio::test]
