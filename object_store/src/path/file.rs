@@ -85,6 +85,13 @@ impl FilePath {
     pub fn prefix_matches(&self, prefix: &Self) -> bool {
         self.inner.prefix_matches(&prefix.inner)
     }
+
+    /// Returns all directory and file name `PathParts` in `self` after the
+    /// specified `prefix`. Ignores any `file_name` part of `prefix`.
+    /// Returns `None` if `self` dosen't start with `prefix`.
+    pub fn parts_after_prefix(&self, prefix: &Self) -> Option<Vec<PathPart>> {
+        self.inner.parts_after_prefix(&prefix.inner)
+    }
 }
 
 impl From<FilePath> for DirsAndFileName {
@@ -219,6 +226,31 @@ impl FilePathRepresentation {
                 let self_parts: DirsAndFileName = self.to_owned().into();
                 let prefix_parts: DirsAndFileName = prefix.to_owned().into();
                 self_parts.prefix_matches(&prefix_parts)
+            }
+        }
+    }
+
+    /// Returns all directory and file name `PathParts` in `self` after the
+    /// specified `prefix`. Ignores any `file_name` part of `prefix`.
+    /// Returns `None` if `self` dosen't start with `prefix`.
+    fn parts_after_prefix(&self, prefix: &Self) -> Option<Vec<PathPart>> {
+        use FilePathRepresentation::*;
+        match (self, prefix) {
+            (Parsed(self_parts), Parsed(prefix_parts)) => {
+                self_parts.parts_after_prefix(prefix_parts)
+            }
+            (Parsed(self_parts), _) => {
+                let prefix_parts: DirsAndFileName = prefix.to_owned().into();
+                self_parts.parts_after_prefix(&prefix_parts)
+            }
+            (_, Parsed(prefix_parts)) => {
+                let self_parts: DirsAndFileName = self.to_owned().into();
+                self_parts.parts_after_prefix(prefix_parts)
+            }
+            _ => {
+                let self_parts: DirsAndFileName = self.to_owned().into();
+                let prefix_parts: DirsAndFileName = prefix.to_owned().into();
+                self_parts.parts_after_prefix(&prefix_parts)
             }
         }
     }
