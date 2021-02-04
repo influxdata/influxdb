@@ -81,6 +81,11 @@ impl FilePath {
         self.inner = mem::take(&mut self.inner).push_path(path)
     }
 
+    /// Add a `PathPart` to the end of the path's directories.
+    pub fn push_part_as_dir(&mut self, part: &PathPart) {
+        self.inner = mem::take(&mut self.inner).push_part_as_dir(part);
+    }
+
     /// Whether the prefix is the start of this path or not.
     pub fn prefix_matches(&self, prefix: &Self) -> bool {
         self.inner.prefix_matches(&prefix.inner)
@@ -218,6 +223,15 @@ impl FilePathRepresentation {
 
         dirs_and_file_name.directories.extend(path_dirs);
         dirs_and_file_name.file_name = path_file_name;
+
+        Self::Parsed(dirs_and_file_name)
+    }
+
+    /// Add a `PathPart` to the end of the path's directories.
+    fn push_part_as_dir(self, part: &PathPart) -> Self {
+        let mut dirs_and_file_name: DirsAndFileName = self.into();
+
+        dirs_and_file_name.push_part_as_dir(part);
 
         Self::Parsed(dirs_and_file_name)
     }
