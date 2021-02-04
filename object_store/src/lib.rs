@@ -284,12 +284,11 @@ impl ObjectStoreApi for ObjectStore {
                 .await
                 .context(AwsObjectStoreError),
             (GoogleCloudStorage(_gcs), _) => unimplemented!(),
-            (InMemory(in_mem), path::Path::InMemory(prefix)) => {
-                in_mem
-                    .list_with_delimiter(prefix)
-                    .map_ok(|list_result| list_result.map_paths(path::Path::InMemory))
-                    .await
-            }
+            (InMemory(in_mem), path::Path::InMemory(prefix)) => in_mem
+                .list_with_delimiter(prefix)
+                .map_ok(|list_result| list_result.map_paths(path::Path::InMemory))
+                .await
+                .context(InMemoryObjectStoreError),
             (File(file), path::Path::File(prefix)) => file
                 .list_with_delimiter(prefix)
                 .map_ok(|list_result| list_result.map_paths(path::Path::File))
@@ -403,11 +402,6 @@ pub enum Error {
         err: chrono::ParseError,
     },
 
-    UnableToStreamDataIntoMemory {
-        source: std::io::Error,
-    },
-    NoDataInMemory,
-
     #[snafu(display("Unable to list directory {}: {}", path.display(), source))]
     UnableToListDirectory {
         source: io::Error,
@@ -433,6 +427,11 @@ pub enum Error {
     AzureObjectStoreError {
         source: azure::Error,
     },
+
+    #[snafu(display("In-memory-based Object Store error: {}", source))]
+    InMemoryObjectStoreError {
+        source: memory::Error,
+    },
 }
 
 impl From<disk::Error> for Error {
@@ -456,6 +455,12 @@ impl From<aws::Error> for Error {
 impl From<azure::Error> for Error {
     fn from(source: azure::Error) -> Self {
         Error::AzureObjectStoreError { source }
+    }
+}
+
+impl From<memory::Error> for Error {
+    fn from(source: memory::Error) -> Self {
+        Error::InMemoryObjectStoreError { source }
     }
 }
 
