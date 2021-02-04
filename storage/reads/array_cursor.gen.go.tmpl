@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"math"
 
-    "github.com/influxdata/flux/execute"
+    "github.com/influxdata/flux/interval"
     "github.com/influxdata/flux/values"
     "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
@@ -29,8 +29,8 @@ func newLimitArrayCursor(cur cursors.Cursor) cursors.Cursor {
 	}
 }
 
-func newWindowFirstArrayCursor(cur cursors.Cursor, window execute.Window) cursors.Cursor {
-	if window.Every.IsZero() {
+func newWindowFirstArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
+	if window.IsZero() {
 		return newLimitArrayCursor(cur)
 	}
 	switch cur := cur.(type) {
@@ -43,8 +43,8 @@ func newWindowFirstArrayCursor(cur cursors.Cursor, window execute.Window) cursor
 	}
 }
 
-func newWindowLastArrayCursor(cur cursors.Cursor, window execute.Window) cursors.Cursor {
-	if window.Every.IsZero() {
+func newWindowLastArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
+	if window.IsZero() {
 		return newLimitArrayCursor(cur)
 	}
 	switch cur := cur.(type) {
@@ -57,7 +57,7 @@ func newWindowLastArrayCursor(cur cursors.Cursor, window execute.Window) cursors
 	}
 }
 
-func newWindowCountArrayCursor(cur cursors.Cursor, window execute.Window) cursors.Cursor {
+func newWindowCountArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
 	switch cur := cur.(type) {
 {{range .}}{{/* every type supports count */}}
 	case cursors.{{.Name}}ArrayCursor:
@@ -68,7 +68,7 @@ func newWindowCountArrayCursor(cur cursors.Cursor, window execute.Window) cursor
 	}
 }
 
-func newWindowSumArrayCursor(cur cursors.Cursor, window execute.Window) (cursors.Cursor, error) {
+func newWindowSumArrayCursor(cur cursors.Cursor, window interval.Window) (cursors.Cursor, error) {
 	switch cur := cur.(type) {
 {{range .}}
 {{$Type := .Name}}
@@ -87,7 +87,7 @@ func newWindowSumArrayCursor(cur cursors.Cursor, window execute.Window) (cursors
 	}
 }
 
-func newWindowMinArrayCursor(cur cursors.Cursor, window execute.Window) cursors.Cursor {
+func newWindowMinArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
 	switch cur := cur.(type) {
 {{range .}}
 {{$Type := .Name}}
@@ -103,7 +103,7 @@ func newWindowMinArrayCursor(cur cursors.Cursor, window execute.Window) cursors.
 	}
 }
 
-func newWindowMaxArrayCursor(cur cursors.Cursor, window execute.Window) cursors.Cursor {
+func newWindowMaxArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
 	switch cur := cur.(type) {
 {{range .}}
 {{$Type := .Name}}
@@ -119,7 +119,7 @@ func newWindowMaxArrayCursor(cur cursors.Cursor, window execute.Window) cursors.
 	}
 }
 
-func newWindowMeanArrayCursor(cur cursors.Cursor, window execute.Window) (cursors.Cursor, error) {
+func newWindowMeanArrayCursor(cur cursors.Cursor, window interval.Window) (cursors.Cursor, error) {
 	switch cur := cur.(type) {
 {{range .}}
 {{$Type := .Name}}
@@ -322,12 +322,12 @@ type {{.name}}WindowLastArrayCursor struct {
 	windowEnd int64
 	res {{$arrayType}}
 	tmp {{$arrayType}}
-	window execute.Window
+	window interval.Window
 }
 
 // Window array cursors assume that every != 0 && every != MaxInt64.
 // Such a cursor will panic in the first case and possibly overflow in the second.
-func new{{.Name}}WindowLastArrayCursor(cur cursors.{{.Name}}ArrayCursor, window execute.Window) *{{.name}}WindowLastArrayCursor {
+func new{{.Name}}WindowLastArrayCursor(cur cursors.{{.Name}}ArrayCursor, window interval.Window) *{{.name}}WindowLastArrayCursor {
 	return &{{.name}}WindowLastArrayCursor{
 		{{.Name}}ArrayCursor: cur,
 		windowEnd: math.MinInt64,
@@ -373,7 +373,7 @@ NEXT:
 		c.res.Timestamps[cur] = t
 		c.res.Values[cur] = a.Values[i]
 
-		c.windowEnd = int64(c.window.GetEarliestBounds(values.Time(t)).Stop)
+		c.windowEnd = int64(c.window.GetLatestBounds(values.Time(t)).Stop())
 	}
 
 	c.tmp.Timestamps = nil
@@ -387,12 +387,12 @@ type {{.name}}WindowFirstArrayCursor struct {
 	windowEnd int64
 	res {{$arrayType}}
 	tmp {{$arrayType}}
-	window execute.Window
+	window interval.Window
 }
 
 // Window array cursors assume that every != 0 && every != MaxInt64.
 // Such a cursor will panic in the first case and possibly overflow in the second.
-func new{{.Name}}WindowFirstArrayCursor(cur cursors.{{.Name}}ArrayCursor, window execute.Window) *{{.name}}WindowFirstArrayCursor {
+func new{{.Name}}WindowFirstArrayCursor(cur cursors.{{.Name}}ArrayCursor, window interval.Window) *{{.name}}WindowFirstArrayCursor {
 	return &{{.name}}WindowFirstArrayCursor{
 		{{.Name}}ArrayCursor: cur,
 		windowEnd: math.MinInt64,
@@ -428,7 +428,7 @@ NEXT:
 			continue
 		}
 
-		c.windowEnd = int64(c.window.GetEarliestBounds(values.Time(t)).Stop)
+		c.windowEnd = int64(c.window.GetLatestBounds(values.Time(t)).Stop())
 
 		c.res.Timestamps = append(c.res.Timestamps, t)
 		c.res.Values = append(c.res.Values, a.Values[i])
@@ -456,12 +456,12 @@ type {{$name}}Window{{$aggName}}ArrayCursor struct {
 	cursors.{{$Name}}ArrayCursor
 	res   *cursors.{{.OutputTypeName}}Array
 	tmp   {{$arrayType}}
-	window execute.Window
+	window interval.Window
 }
 
-func new{{$Name}}Window{{$aggName}}ArrayCursor(cur cursors.{{$Name}}ArrayCursor, window execute.Window) *{{$name}}Window{{$aggName}}ArrayCursor {
+func new{{$Name}}Window{{$aggName}}ArrayCursor(cur cursors.{{$Name}}ArrayCursor, window interval.Window) *{{$name}}Window{{$aggName}}ArrayCursor {
 	resLen := MaxPointsPerBlock
-	if window.Every.IsZero() {
+	if window.IsZero() {
 		resLen = 1
 	}
 	return &{{$name}}Window{{$aggName}}ArrayCursor{
@@ -496,8 +496,8 @@ func (c *{{$name}}Window{{$aggName}}ArrayCursor) Next() *cursors.{{.OutputTypeNa
 	{{.AccDecls}}
 
 	var windowEnd int64
-	if !c.window.Every.IsZero() {
-		windowEnd = int64(c.window.GetEarliestBounds(values.Time(a.Timestamps[rowIdx])).Stop)
+	if !c.window.IsZero() {
+		windowEnd = int64(c.window.GetLatestBounds(values.Time(a.Timestamps[rowIdx])).Stop())
 	} else {
 		windowEnd = math.MaxInt64
 	}
@@ -508,7 +508,7 @@ WINDOWS:
 	for {
 		for ; rowIdx < a.Len(); rowIdx++ {
 			ts := a.Timestamps[rowIdx]
-			if !c.window.Every.IsZero() && ts >= windowEnd {
+			if !c.window.IsZero() && ts >= windowEnd {
 				// new window detected, close the current window
 				// do not generate a point for empty windows
 				if windowHasPoints {
@@ -526,7 +526,7 @@ WINDOWS:
 
 				// start the new window
 				{{.AccReset}}
-				windowEnd = int64(c.window.GetEarliestBounds(values.Time(ts)).Stop)
+				windowEnd = int64(c.window.GetLatestBounds(values.Time(ts)).Stop())
 				windowHasPoints = false
 
 				continue WINDOWS
