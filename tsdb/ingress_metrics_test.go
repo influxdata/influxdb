@@ -15,14 +15,12 @@ func TestIngressMetrics(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
-			ingress.AddMetric("cpu", "telegraf", "autogen", 1, 10)
+			ingress.AddMetric("cpu", "telegraf", "autogen", "user1", 1, 10)
 			wg.Done()
 		}()
-	}
-	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
-			ingress.AddMetric("mem", "telegraf", "autogen", 2, 20)
+			ingress.AddMetric("mem", "telegraf", "autogen", "user1", 2, 20)
 			wg.Done()
 		}()
 	}
@@ -34,6 +32,7 @@ func TestIngressMetrics(t *testing.T) {
 				measurement: "cpu",
 				db:          "telegraf",
 				rp:          "autogen",
+				login:       "user1",
 			}, m)
 			assert.Equal(int64(10), points)
 			assert.Equal(int64(100), values)
@@ -42,6 +41,7 @@ func TestIngressMetrics(t *testing.T) {
 				measurement: "mem",
 				db:          "telegraf",
 				rp:          "autogen",
+				login:       "user1",
 			}, m)
 			assert.Equal(int64(20), points)
 			assert.Equal(int64(200), values)

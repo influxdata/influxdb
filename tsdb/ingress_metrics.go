@@ -10,7 +10,7 @@ type MetricKey struct {
 	measurement string
 	db          string
 	rp          string
-	// TODO: add login
+	login       string
 }
 
 type MetricValue struct {
@@ -23,8 +23,8 @@ type IngressMetrics struct {
 	length int64
 }
 
-func (i *IngressMetrics) AddMetric(measurement, db, rp string, points, values int64) {
-	key := MetricKey{measurement, db, rp}
+func (i *IngressMetrics) AddMetric(measurement, db, rp, login string, points, values int64) {
+	key := MetricKey{measurement, db, rp, login}
 	val, ok := i.m.Load(key)
 	if !ok {
 		var loaded bool
@@ -51,8 +51,10 @@ func (i *IngressMetrics) ForEach(f func(m MetricKey, points, values int64)) {
 		if keys[i].rp != keys[j].rp {
 			return keys[i].rp < keys[j].rp
 		}
-		return keys[i].measurement < keys[j].measurement
-		//TODO: sort based on login
+		if keys[i].measurement != keys[j].measurement {
+			return keys[i].measurement < keys[j].measurement
+		}
+		return keys[i].login < keys[j].login
 	})
 	for _, key := range keys {
 		val, ok := i.m.Load(key)

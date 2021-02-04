@@ -67,6 +67,12 @@
   # log any sensitive data contained within a query.
   # query-log-enabled = true
 
+  # It is possible to collect statistics of points written per-measurement and/or per-login.
+  # These can be accessed via the monitoring subsystem.
+  # ingress-metric-by-measurement-enabled = false
+  # ingress-metric-by-login-enabled = false
+
+
   # Provides more error checking. For example, SELECT INTO will err out inserting an +/-Inf value
   # rather than silently failing.
   # strict-error-handling = false

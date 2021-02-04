@@ -17,6 +17,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/tsdb"
 )
 
 func Test_Service_OpenClose(t *testing.T) {
@@ -64,7 +65,7 @@ func TestService_CreatesDatabase(t *testing.T) {
 
 	database := "db0"
 	s := NewTestService(database, "127.0.0.1:0")
-	s.WritePointsFn = func(string, string, models.ConsistencyLevel, []models.Point) error {
+	s.WritePointsFn = func(tsdb.WriteContext, string, string, models.ConsistencyLevel, []models.Point) error {
 		return nil
 	}
 
@@ -147,7 +148,7 @@ func TestService_Telnet(t *testing.T) {
 
 	// Mock points writer.
 	var called int32
-	s.WritePointsFn = func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+	s.WritePointsFn = func(_ tsdb.WriteContext, database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
 		atomic.StoreInt32(&called, 1)
 
 		if database != "db0" {
@@ -210,7 +211,7 @@ func TestService_HTTP(t *testing.T) {
 
 	// Mock points writer.
 	var called bool
-	s.WritePointsFn = func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+	s.WritePointsFn = func(_ tsdb.WriteContext, database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
 		called = true
 		if database != "db0" {
 			t.Fatalf("unexpected database: %s", database)
@@ -251,7 +252,7 @@ func TestService_HTTP(t *testing.T) {
 type TestService struct {
 	Service       *Service
 	MetaClient    *internal.MetaClientMock
-	WritePointsFn func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
+	WritePointsFn func(ctx tsdb.WriteContext, database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error
 }
 
 // NewTestService returns a new instance of Service.
@@ -287,6 +288,6 @@ func NewTestService(database string, bind string) *TestService {
 	return service
 }
 
-func (s *TestService) WritePointsPrivileged(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
-	return s.WritePointsFn(database, retentionPolicy, consistencyLevel, points)
+func (s *TestService) WritePointsPrivileged(ctx tsdb.WriteContext, database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, points []models.Point) error {
+	return s.WritePointsFn(ctx, database, retentionPolicy, consistencyLevel, points)
 }

@@ -109,6 +109,7 @@ type Config struct {
 
 	// Options for ingress metrics
 	IngressMetricByMeasurement bool `toml:"ingress-metric-by-measurement-enabled"`
+	IngressMetricByLogin       bool `toml:"ingress-metric-by-login-enabled"`
 
 	// Limits
 
