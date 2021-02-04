@@ -33,7 +33,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::{stream::BoxStream, Stream, StreamExt, TryFutureExt, TryStreamExt};
-use snafu::Snafu;
+use snafu::{ResultExt, Snafu};
 use std::{io, path::PathBuf};
 
 /// Universal API to multiple object store services.
@@ -42,30 +42,44 @@ pub trait ObjectStoreApi: Send + Sync + 'static {
     /// The type of the locations used in interacting with this object store.
     type Path: path::ObjectStorePath;
 
+    /// The error returned from fallible methods
+    type Error: std::error::Error + Send + Sync + 'static;
+
     /// Return a new location path appropriate for this object storage
     fn new_path(&self) -> Self::Path;
 
     /// Save the provided bytes to the specified location.
-    async fn put<S>(&self, location: &Self::Path, bytes: S, length: usize) -> Result<()>
+    async fn put<S>(
+        &self,
+        location: &Self::Path,
+        bytes: S,
+        length: usize,
+    ) -> Result<(), Self::Error>
     where
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static;
 
     /// Return the bytes that are stored at the specified location.
-    async fn get(&self, location: &Self::Path) -> Result<BoxStream<'static, Result<Bytes>>>;
+    async fn get(
+        &self,
+        location: &Self::Path,
+    ) -> Result<BoxStream<'static, Result<Bytes, Self::Error>>, Self::Error>;
 
     /// Delete the object at the specified location.
-    async fn delete(&self, location: &Self::Path) -> Result<()>;
+    async fn delete(&self, location: &Self::Path) -> Result<(), Self::Error>;
 
     /// List all the objects with the given prefix.
     async fn list<'a>(
         &'a self,
         prefix: Option<&'a Self::Path>,
-    ) -> Result<BoxStream<'a, Result<Vec<Self::Path>>>>;
+    ) -> Result<BoxStream<'a, Result<Vec<Self::Path>, Self::Error>>, Self::Error>;
 
     /// List objects with the given prefix and an implementation specific
     /// delimiter. Returns common prefixes (directories) in addition to object
     /// metadata.
-    async fn list_with_delimiter(&self, prefix: &Self::Path) -> Result<ListResult<Self::Path>>;
+    async fn list_with_delimiter(
+        &self,
+        prefix: &Self::Path,
+    ) -> Result<ListResult<Self::Path>, Self::Error>;
 }
 
 /// Universal interface to multiple object store services.
@@ -102,6 +116,7 @@ impl ObjectStore {
 #[async_trait]
 impl ObjectStoreApi for ObjectStore {
     type Path = path::Path;
+    type Error = Error;
 
     fn new_path(&self) -> Self::Path {
         use ObjectStoreIntegration::*;
@@ -129,7 +144,10 @@ impl ObjectStoreApi for ObjectStore {
             (InMemory(in_mem), path::Path::InMemory(location)) => {
                 in_mem.put(location, bytes, length).await?
             }
-            (File(file), path::Path::File(location)) => file.put(location, bytes, length).await?,
+            (File(file), path::Path::File(location)) => file
+                .put(location, bytes, length)
+                .await
+                .context(FileObjectStoreError)?,
             (MicrosoftAzure(azure), path::Path::MicrosoftAzure(location)) => {
                 azure.put(location, bytes, length).await?
             }
@@ -151,9 +169,12 @@ impl ObjectStoreApi for ObjectStore {
             (InMemory(in_mem), path::Path::InMemory(location)) => {
                 in_mem.get(location).await?.err_into().boxed()
             }
-            (File(file), path::Path::File(location)) => {
-                file.get(location).await?.err_into().boxed()
-            }
+            (File(file), path::Path::File(location)) => file
+                .get(location)
+                .await
+                .context(FileObjectStoreError)?
+                .err_into()
+                .boxed(),
             (MicrosoftAzure(azure), path::Path::MicrosoftAzure(location)) => {
                 azure.get(location).await?.err_into().boxed()
             }
@@ -268,11 +289,11 @@ impl ObjectStoreApi for ObjectStore {
                     .map_ok(|list_result| list_result.map_paths(path::Path::InMemory))
                     .await
             }
-            (File(file), path::Path::File(prefix)) => {
-                file.list_with_delimiter(prefix)
-                    .map_ok(|list_result| list_result.map_paths(path::Path::File))
-                    .await
-            }
+            (File(file), path::Path::File(prefix)) => file
+                .list_with_delimiter(prefix)
+                .map_ok(|list_result| list_result.map_paths(path::Path::File))
+                .await
+                .context(FileObjectStoreError),
             (MicrosoftAzure(_azure), _) => unimplemented!(),
             _ => unreachable!(),
         }
@@ -460,55 +481,22 @@ pub enum Error {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
-    #[snafu(display("Unable to create file {}: {}", path.display(), err))]
-    UnableToCreateFile {
-        err: io::Error,
-        path: PathBuf,
-    },
-    #[snafu(display("Unable to create dir {}: {}", path.display(), source))]
-    UnableToCreateDir {
-        source: io::Error,
-        path: PathBuf,
-    },
-    #[snafu(display("Unable to open file {}: {}", path.display(), source))]
-    UnableToOpenFile {
-        source: io::Error,
-        path: PathBuf,
-    },
-    #[snafu(display("Unable to read data from file {}: {}", path.display(), source))]
-    UnableToReadBytes {
-        source: io::Error,
-        path: PathBuf,
-    },
-    #[snafu(display("Unable to delete file {}: {}", path.display(), source))]
-    UnableToDeleteFile {
-        source: io::Error,
-        path: PathBuf,
-    },
     #[snafu(display("Unable to list directory {}: {}", path.display(), source))]
     UnableToListDirectory {
         source: io::Error,
         path: PathBuf,
     },
-    #[snafu(display("Unable to process directory entry: {}", source))]
-    UnableToProcessEntry {
-        source: io::Error,
-    },
-    #[snafu(display("Unable to copy data to file: {}", source))]
-    UnableToCopyDataToFile {
-        source: io::Error,
-    },
-    #[snafu(display("Unable to access metadata for {}: {}", path.display(), source))]
-    UnableToAccessMetadata {
-        source: io::Error,
-        path: PathBuf,
-    },
 
-    #[snafu(display("File size for {} did not fit in a usize: {}", path.display(), source))]
-    FileSizeOverflowedUsize {
-        source: std::num::TryFromIntError,
-        path: PathBuf,
+    #[snafu(display("File-based Object Store error: {}", source))]
+    FileObjectStoreError {
+        source: disk::Error,
     },
+}
+
+impl From<disk::Error> for Error {
+    fn from(source: disk::Error) -> Self {
+        Error::FileObjectStoreError { source }
+    }
 }
 
 #[cfg(test)]

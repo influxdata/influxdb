@@ -1,7 +1,7 @@
 //! This module contains the IOx implementation for using Google Cloud Storage
 //! as the object store.
 use crate::{
-    path::cloud::CloudPath, DataDoesNotMatchLength, ListResult, ObjectStoreApi, Result,
+    path::cloud::CloudPath, DataDoesNotMatchLength, Error, ListResult, ObjectStoreApi, Result,
     UnableToDeleteDataFromGcs, UnableToGetDataFromGcs, UnableToListDataFromGcs,
     UnableToListDataFromGcs2, UnableToPutDataToGcs,
 };
@@ -23,6 +23,7 @@ pub struct GoogleCloudStorage {
 #[async_trait]
 impl ObjectStoreApi for GoogleCloudStorage {
     type Path = CloudPath;
+    type Error = Error;
 
     fn new_path(&self) -> Self::Path {
         CloudPath::default()

@@ -37,6 +37,7 @@ impl fmt::Debug for AmazonS3 {
 #[async_trait]
 impl ObjectStoreApi for AmazonS3 {
     type Path = CloudPath;
+    type Error = Error;
 
     fn new_path(&self) -> Self::Path {
         CloudPath::default()

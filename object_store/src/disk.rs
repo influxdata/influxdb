@@ -1,22 +1,61 @@
 //! This module contains the IOx implementation for using local disk as the
 //! object store.
-use crate::{
-    path::file::FilePath, DataDoesNotMatchLength, FileSizeOverflowedUsize, ListResult, ObjectMeta,
-    ObjectStoreApi, Result, UnableToAccessMetadata, UnableToCopyDataToFile, UnableToCreateDir,
-    UnableToCreateFile, UnableToDeleteFile, UnableToOpenFile, UnableToProcessEntry,
-    UnableToReadBytes, UnableToStreamDataIntoMemory,
-};
+use crate::{path::file::FilePath, ListResult, ObjectMeta, ObjectStoreApi};
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{
     stream::{self, BoxStream},
     Stream, StreamExt, TryStreamExt,
 };
-use snafu::{ensure, futures::TryStreamExt as _, OptionExt, ResultExt};
+use snafu::{ensure, futures::TryStreamExt as _, OptionExt, ResultExt, Snafu};
 use std::{collections::BTreeSet, convert::TryFrom, io, path::PathBuf};
 use tokio::fs;
 use tokio_util::codec::{BytesCodec, FramedRead};
 use walkdir::WalkDir;
+
+/// A specialized `Result` for filesystem object store-related errors
+pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// A specialized `Error` for filesystem object store-related errors
+#[derive(Debug, Snafu)]
+#[allow(missing_docs)]
+pub enum Error {
+    #[snafu(display("Expected streamed data to have length {}, got {}", expected, actual))]
+    DataDoesNotMatchLength { expected: usize, actual: usize },
+
+    #[snafu(display("File size for {} did not fit in a usize: {}", path.display(), source))]
+    FileSizeOverflowedUsize {
+        source: std::num::TryFromIntError,
+        path: PathBuf,
+    },
+
+    #[snafu(display("Unable to access metadata for {}: {}", path.display(), source))]
+    UnableToAccessMetadata { source: io::Error, path: PathBuf },
+
+    #[snafu(display("Unable to copy data to file: {}", source))]
+    UnableToCopyDataToFile { source: io::Error },
+
+    #[snafu(display("Unable to create dir {}: {}", path.display(), source))]
+    UnableToCreateDir { source: io::Error, path: PathBuf },
+
+    #[snafu(display("Unable to create file {}: {}", path.display(), err))]
+    UnableToCreateFile { err: io::Error, path: PathBuf },
+
+    #[snafu(display("Unable to delete file {}: {}", path.display(), source))]
+    UnableToDeleteFile { source: io::Error, path: PathBuf },
+
+    #[snafu(display("Unable to open file {}: {}", path.display(), source))]
+    UnableToOpenFile { source: io::Error, path: PathBuf },
+
+    #[snafu(display("Unable to process directory entry: {}", source))]
+    UnableToProcessEntry { source: io::Error },
+
+    #[snafu(display("Unable to read data from file {}: {}", path.display(), source))]
+    UnableToReadBytes { source: io::Error, path: PathBuf },
+
+    #[snafu(display("Unable to stream data from the request into memory: {}", source))]
+    UnableToStreamDataIntoMemory { source: std::io::Error },
+}
 
 /// Local filesystem storage suitable for testing or for opting out of using a
 /// cloud storage provider.
@@ -28,6 +67,7 @@ pub struct File {
 #[async_trait]
 impl ObjectStoreApi for File {
     type Path = FilePath;
+    type Error = Error;
 
     fn new_path(&self) -> Self::Path {
         FilePath::default()
@@ -226,7 +266,7 @@ mod tests {
 
     use crate::{
         tests::{list_with_delimiter, put_get_delete_list},
-        Error, ObjectStoreApi, ObjectStorePath,
+        ObjectStoreApi, ObjectStorePath,
     };
     use futures::stream;
     use tempfile::TempDir;

@@ -1,8 +1,8 @@
 //! This module contains the IOx implementation for using memory as the object
 //! store.
 use crate::{
-    path::parsed::DirsAndFileName, DataDoesNotMatchLength, ListResult, NoDataInMemory, ObjectMeta,
-    ObjectStoreApi, Result, UnableToStreamDataIntoMemory,
+    path::parsed::DirsAndFileName, DataDoesNotMatchLength, Error, ListResult, NoDataInMemory,
+    ObjectMeta, ObjectStoreApi, Result, UnableToStreamDataIntoMemory,
 };
 use async_trait::async_trait;
 use bytes::Bytes;
@@ -23,6 +23,7 @@ pub struct InMemory {
 #[async_trait]
 impl ObjectStoreApi for InMemory {
     type Path = DirsAndFileName;
+    type Error = Error;
 
     fn new_path(&self) -> Self::Path {
         DirsAndFileName::default()

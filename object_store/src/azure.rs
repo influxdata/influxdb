@@ -1,7 +1,7 @@
 //! This module contains the IOx implementation for using Azure Blob storage as
 //! the object store.
 use crate::{
-    path::cloud::CloudPath, DataDoesNotMatchLength, ListResult, ObjectStoreApi, Result,
+    path::cloud::CloudPath, DataDoesNotMatchLength, Error, ListResult, ObjectStoreApi, Result,
     UnableToDeleteDataFromAzure, UnableToGetDataFromAzure, UnableToListDataFromAzure,
     UnableToPutDataToAzure,
 };
@@ -32,6 +32,7 @@ pub struct MicrosoftAzure {
 #[async_trait]
 impl ObjectStoreApi for MicrosoftAzure {
     type Path = CloudPath;
+    type Error = Error;
 
     fn new_path(&self) -> Self::Path {
         CloudPath::default()
