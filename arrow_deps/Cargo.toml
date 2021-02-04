@@ -5,10 +5,7 @@ authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
 edition = "2018"
 description = "Apache Arrow / Parquet / DataFusion dependencies for InfluxDB IOx, to ensure consistent versions and unified updates"
 
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
+[dependencies] # In alphabetical order
 # We are using development version of arrow/parquet/datafusion and the dependencies are at the same rev
 
 # The version can be found here: https://github.com/apache/arrow/commit/fc7540328ca686fa29247928abc158b3f33d0701

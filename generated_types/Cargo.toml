@@ -4,14 +4,12 @@ version = "0.1.0"
 authors = ["Paul Dix <paul@pauldix.net>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
+[dependencies] # In alphabetical order
 flatbuffers = "0.6.1"
 futures = "0.3.1"
 prost = "0.7"
 prost-types = "0.7"
 tonic = "0.4"
 
-[build-dependencies]
+[build-dependencies] # In alphabetical order
 tonic-build = "0.4"

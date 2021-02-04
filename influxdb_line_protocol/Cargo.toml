@@ -4,12 +4,12 @@ version = "0.1.0"
 authors = ["Paul Dix <paul@pauldix.net>"]
 edition = "2018"
 
-[dependencies]
-tracing = "0.1"
+[dependencies] # In alphabetical order
+influxdb2_client = { path = "../influxdb2_client" }
 nom = "5.1.1"
 smallvec = "1.2.0"
 snafu = "0.6.2"
-influxdb2_client = { path = "../influxdb2_client" }
+tracing = "0.1"
 
-[dev-dependencies]
+[dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }

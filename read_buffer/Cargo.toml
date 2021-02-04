@@ -4,29 +4,24 @@ version = "0.1.0"
 authors = ["Edd Robinson <me@edd.io>"]
 edition = "2018"
 
-
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 # Note this crate is designed to be standalone, and should not depend
 # on the IOx Query Engine. The rationale is:
 #
 # 1. Keep the API clean (and concerns separated) and allow for potential future reuse outside of IOx
 # 2. Keep change/compile/link time down during development when working on just this crate
 
-
-[dependencies]
-snafu = "0.6"
+[dependencies] # In alphabetical order
 arrow_deps = { path = "../arrow_deps" }
-data_types = { path = "../data_types" }
-packers = { path = "../packers" }
 croaring = "0.4.5"
-itertools = "0.9.0"
+data_types = { path = "../data_types" }
 either = "1.6.1"
-permutation = "0.2.5"
 hashbrown = "0.9.1"
+itertools = "0.9.0"
+packers = { path = "../packers" }
+permutation = "0.2.5"
+snafu = "0.6"
 
-[dev-dependencies]
+[dev-dependencies] # In alphabetical order
 criterion = "0.3.3"
 rand = "0.7.3"
 rand_distr = "0.3.0"
