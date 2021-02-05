@@ -307,11 +307,7 @@ impl Bool {
     /// Returns true if the column contains any non-null values at the rows
     /// provided.
     pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
-        if !self.contains_null() {
-            return true;
-        }
-
-        row_ids.iter().any(|id| !self.arr.is_null(*id as usize))
+        !self.contains_null() || row_ids.iter().any(|id| !self.arr.is_null(*id as usize))
     }
 }
 

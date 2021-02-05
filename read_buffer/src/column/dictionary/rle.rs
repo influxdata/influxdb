@@ -801,7 +801,7 @@ impl RLE {
             return true;
         }
 
-        // If there are any non-null rows then there will entries in the
+        // If there are any non-null rows then there are entries in the
         // dictionary.
         !self.entry_index.is_empty()
     }

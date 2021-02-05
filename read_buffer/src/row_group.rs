@@ -923,10 +923,10 @@ impl RowGroup {
         dst.aggregates.push(AggregateResults(aggregate_row)); // write the row
     }
 
-    /// Given the optional predicate, determines a set of rows contained in this
-    /// row group that satisfy it. Any column that contains a non-null value at
-    /// any of these row positions is then included in the results, which are
-    /// added to `dst`.
+    /// Given the predicate (which may be empty), determine a set of rows
+    /// contained in this row group that satisfy it. Any column that contains a
+    /// non-null value at any of these row positions is then included in the
+    /// results, which are added to `dst`.
     ///
     /// As an optimisation, the contents of `dst` are checked before execution
     /// and any columns already existing in the set are not interrogated.

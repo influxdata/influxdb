@@ -670,7 +670,7 @@ impl Plain {
             return true;
         }
 
-        // If there are more than one dictionary entries then there is a non-null
+        // If there is more than one dictionary entry then there is a non-null
         // value in the column.
         self.entries.len() > 1
     }

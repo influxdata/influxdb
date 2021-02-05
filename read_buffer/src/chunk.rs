@@ -258,7 +258,7 @@ impl Chunk {
     }
 
     /// Returns the distinct set of column names that contain data matching the
-    /// provided optional predicate.
+    /// provided predicate, which may be empty.
     ///
     /// `dst` is a buffer that will be populated with results. `column_names` is
     /// smart enough to short-circuit processing on row groups when it

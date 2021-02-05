@@ -488,7 +488,7 @@ impl Database {
             })?;
 
         let chunk_data = partition.data.read().unwrap();
-        let mut filtered_chunks = vec![];
+        let mut filtered_chunks = Vec::with_capacity(chunk_ids.len());
         for id in chunk_ids {
             filtered_chunks.push(
                 chunk_data
