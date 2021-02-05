@@ -427,21 +427,21 @@ func Test_ConfigPathDotDirectory(t *testing.T) {
 	require.NoError(t, err)
 	defer os.RemoveAll(testDir)
 
-	tests := []struct{
+	tests := []struct {
 		name string
-		dir string
+		dir  string
 	}{
 		{
 			name: "dot at start",
-			dir: ".directory",
+			dir:  ".directory",
 		},
 		{
 			name: "dot in middle",
-			dir: "config.d",
+			dir:  "config.d",
 		},
 		{
 			name: "dot at end",
-			dir: "forgotmyextension.",
+			dir:  "forgotmyextension.",
 		},
 	}
 
@@ -464,7 +464,7 @@ func Test_ConfigPathDotDirectory(t *testing.T) {
 				Opts: []Opt{
 					{
 						DestP: &foo,
-						Flag: "foo",
+						Flag:  "foo",
 					},
 				},
 				Run: func() error { return nil },
