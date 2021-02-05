@@ -71,6 +71,7 @@ RPM packages, which has been left unchanged.
 1. [20672](https://github.com/influxdata/influxdb/pull/20672): Allow for creating users without initial passwords in `influx user create`.
 1. [20689](https://github.com/influxdata/influxdb/pull/20689): Fix incorrect "bucket not found" errors when passing `--bucket-id` to `influx write`.
 1. [20710](https://github.com/influxdata/influxdb/pull/20710): Fix loading config when `INFLUXD_CONFIG_PATH` points to a directory with `.` in its name.
+1. [20708](https://github.com/influxdata/influxdb/pull/20708): Update API spec to document Flux dictionary features.
 
 ## v2.0.3 [2020-12-14]
 ----------------------
