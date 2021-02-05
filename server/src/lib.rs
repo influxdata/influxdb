@@ -71,6 +71,9 @@ mod config;
 pub mod db;
 pub mod snapshot;
 
+#[cfg(test)]
+mod query_tests;
+
 use std::sync::{
     atomic::{AtomicU32, Ordering},
     Arc,

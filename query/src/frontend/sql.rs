@@ -72,6 +72,10 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub struct SQLQueryPlanner {}
 
 impl SQLQueryPlanner {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     /// Plan a SQL query against the data in `database`, and return a
     /// DataFusion physical execution plan. The plan can then be
     /// executed using `executor` in a streaming fashion.
