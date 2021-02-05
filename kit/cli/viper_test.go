@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"path"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -418,5 +419,62 @@ func Test_ConfigPrecedence(t *testing.T) {
 		}
 
 		t.Run(tt.name, fn)
+	}
+}
+
+func Test_ConfigPathDotDirectory(t *testing.T) {
+	testDir, err := ioutil.TempDir("", "")
+	require.NoError(t, err)
+	defer os.RemoveAll(testDir)
+
+	tests := []struct{
+		name string
+		dir string
+	}{
+		{
+			name: "dot at start",
+			dir: ".directory",
+		},
+		{
+			name: "dot in middle",
+			dir: "config.d",
+		},
+		{
+			name: "dot at end",
+			dir: "forgotmyextension.",
+		},
+	}
+
+	config := map[string]string{
+		"foo": "bar",
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			configDir := filepath.Join(testDir, tc.dir)
+			require.NoError(t, os.Mkdir(configDir, 0700))
+
+			_, err = writeTomlConfig(configDir, config)
+			require.NoError(t, err)
+			defer setEnvVar("TEST_CONFIG_PATH", configDir)()
+
+			var foo string
+			program := &Program{
+				Name: "test",
+				Opts: []Opt{
+					{
+						DestP: &foo,
+						Flag: "foo",
+					},
+				},
+				Run: func() error { return nil },
+			}
+
+			cmd := NewCommand(viper.New(), program)
+			cmd.SetArgs([]string{})
+			require.NoError(t, cmd.Execute())
+
+			require.Equal(t, "bar", foo)
+		})
 	}
 }
