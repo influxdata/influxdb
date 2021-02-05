@@ -664,13 +664,29 @@ impl Plain {
         todo!()
     }
 
+    /// Determines if the column contains at least one non-null value.
+    pub fn has_any_non_null_value(&self) -> bool {
+        if !self.contains_null() {
+            return true;
+        }
+
+        // If there is more than one dictionary entry then there is a non-null
+        // value in the column.
+        self.entries.len() > 1
+    }
+
     /// Determines if the column contains at least one non-null value at
     /// any of the provided row ids.
-    ///
-    /// It is the caller's responsibility to ensure row ids are a monotonically
-    /// increasing set.
     pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
-        todo!()
+        if !self.contains_null() {
+            return true;
+        }
+
+        // If there are encoded values at any of the row IDs then there is at
+        // least one non-null value in the column.
+        row_ids
+            .iter()
+            .any(|id| self.encoded_data[*id as usize] != NULL_ID)
     }
 
     // Returns true if there exists an encoded non-null value at any of the row
@@ -815,5 +831,31 @@ mod test {
         let mut enc = Plain::default();
         enc.push("b".to_string());
         enc.push("a".to_string());
+    }
+
+    #[test]
+    fn has_non_null_value() {
+        let mut enc = Plain::default();
+        enc.push_none();
+        enc.push_none();
+
+        assert!(!enc.has_non_null_value(&[0, 1]));
+
+        enc.push("b".to_string());
+        assert!(enc.has_non_null_value(&[0, 1, 2]));
+        assert!(enc.has_non_null_value(&[2]));
+        assert!(!enc.has_non_null_value(&[0, 1]));
+    }
+
+    #[test]
+    fn has_any_non_null_value() {
+        let mut enc = Plain::default();
+        enc.push_none();
+        enc.push_none();
+
+        assert!(!enc.has_any_non_null_value());
+
+        enc.push("b".to_string());
+        assert!(enc.has_any_non_null_value());
     }
 }

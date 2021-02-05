@@ -34,6 +34,10 @@ use table::Table;
 /// `table_names`.
 pub const TABLE_NAMES_COLUMN_NAME: &str = "table";
 
+/// The name of the column containing column names returned by a call to
+/// `column_names`.
+pub const COLUMN_NAMES_COLUMN_NAME: &str = "column";
+
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("arrow conversion error: {}", source))]
@@ -470,20 +474,42 @@ impl Database {
     pub fn column_names(
         &self,
         partition_key: &str,
+        table_name: &str,
         chunk_ids: &[u32],
         predicate: Predicate,
     ) -> Result<RecordBatch> {
-        // Find all matching chunks using:
-        //   - time range
-        //   - measurement name.
-        //
-        // Execute query against matching chunks. The `tag_keys` method for
-        // a chunk allows the caller to provide already found tag keys
-        // (column names). This allows the execution to skip entire chunks,
-        // tables or segments if there are no new columns to be found there...
-        Err(Error::UnsupportedOperation {
-            msg: "`column_names` call not yet hooked up".to_owned(),
-        })
+        let partition_data = self.data.read().unwrap();
+
+        let partition = partition_data
+            .partitions
+            .get(partition_key)
+            .ok_or_else(|| Error::PartitionNotFound {
+                key: partition_key.to_owned(),
+            })?;
+
+        let chunk_data = partition.data.read().unwrap();
+        let mut filtered_chunks = Vec::with_capacity(chunk_ids.len());
+        for id in chunk_ids {
+            filtered_chunks.push(
+                chunk_data
+                    .chunks
+                    .get(id)
+                    .ok_or_else(|| Error::ChunkNotFound { id: *id })?,
+            );
+        }
+
+        let names = filtered_chunks
+            .iter()
+            .fold(BTreeSet::new(), |dst, chunk| {
+                // the dst buffer is pushed into each chunk's `column_names`
+                // implementation ensuring that we short-circuit any tables where
+                // we have already determined column names.
+                chunk.column_names(table_name, &predicate, dst)
+            }) // have a BTreeSet here, convert to an iterator of Some(&str)
+            .into_iter()
+            .map(Some);
+
+        str_iter_to_batch(COLUMN_NAMES_COLUMN_NAME, names).context(ArrowError)
     }
 }
 
@@ -1039,6 +1065,126 @@ mod test {
             &data,
             res_col,
             &Values::String(vec![Some("20 Size"), Some("Coolverine")]),
+        );
+    }
+
+    #[test]
+    fn column_names() {
+        let mut db = Database::new();
+        let res_col = COLUMN_NAMES_COLUMN_NAME;
+
+        let schema = SchemaBuilder::new()
+            .non_null_tag("region")
+            .non_null_field("counter", Float64)
+            .timestamp()
+            .field("sketchy_sensor", Float64)
+            .build()
+            .unwrap()
+            .into();
+
+        let data: Vec<ArrayRef> = vec![
+            Arc::new(StringArray::from(vec!["west", "west", "east"])),
+            Arc::new(Float64Array::from(vec![1.2, 3.3, 45.3])),
+            Arc::new(Int64Array::from(vec![11111111, 222222, 3333])),
+            Arc::new(Float64Array::from(vec![Some(11.0), None, Some(12.0)])),
+        ];
+
+        // Add the above table to a chunk and partition
+        let rb = RecordBatch::try_new(schema, data).unwrap();
+        db.upsert_partition("hour_1", 22, "Utopia", rb);
+
+        // Add a different but compatible table to a different chunk in the same
+        // partition.
+        let schema = SchemaBuilder::new()
+            .field("active", Boolean)
+            .timestamp()
+            .build()
+            .unwrap()
+            .into();
+
+        let data: Vec<ArrayRef> = vec![
+            Arc::new(BooleanArray::from(vec![Some(true), None, None])),
+            Arc::new(Int64Array::from(vec![10, 20, 30])),
+        ];
+        let rb = RecordBatch::try_new(schema, data).unwrap();
+        db.upsert_partition("hour_1", 40, "Utopia", rb);
+
+        // Just query against the first chunk.
+        let result = db
+            .column_names("hour_1", "Utopia", &[22], Predicate::default())
+            .unwrap();
+
+        assert_rb_column_equals(
+            &result,
+            res_col,
+            &Values::String(
+                vec!["counter", "region", "sketchy_sensor", "time"]
+                    .into_iter()
+                    .map(Some)
+                    .collect(),
+            ),
+        );
+
+        // Now the second - different columns.
+        let result = db
+            .column_names("hour_1", "Utopia", &[40], Predicate::default())
+            .unwrap();
+
+        assert_rb_column_equals(
+            &result,
+            res_col,
+            &Values::String(vec!["active", "time"].into_iter().map(Some).collect()),
+        );
+
+        // And now the union across all chunks.
+        let result = db
+            .column_names("hour_1", "Utopia", &[22, 40], Predicate::default())
+            .unwrap();
+
+        assert_rb_column_equals(
+            &result,
+            res_col,
+            &Values::String(
+                vec!["active", "counter", "region", "sketchy_sensor", "time"]
+                    .into_iter()
+                    .map(Some)
+                    .collect(),
+            ),
+        );
+
+        // Testing predicates
+        let result = db
+            .column_names(
+                "hour_1",
+                "Utopia",
+                &[22, 40],
+                Predicate::new(vec![BinaryExpr::from(("time", "=", 30_i64))]),
+            )
+            .unwrap();
+
+        // only time will be returned - "active" in the second chunk is NULL for
+        // matching rows
+        assert_rb_column_equals(
+            &result,
+            res_col,
+            &Values::String(vec!["time"].into_iter().map(Some).collect()),
+        );
+
+        let result = db
+            .column_names(
+                "hour_1",
+                "Utopia",
+                &[22, 40],
+                Predicate::new(vec![BinaryExpr::from(("active", "=", true))]),
+            )
+            .unwrap();
+
+        // there exists at least one row in the second chunk with a matching
+        // non-null value across the active and time columns.
+        assert_rb_column_equals(
+            &result,
+            res_col,
+            &Values::String(vec!["active", "time"].into_iter().map(Some).collect()),
         );
     }
 

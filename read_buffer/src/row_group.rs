@@ -1,7 +1,7 @@
 use std::{
     borrow::Cow,
     cmp::Ordering,
-    collections::BTreeMap,
+    collections::{BTreeMap, BTreeSet},
     convert::{TryFrom, TryInto},
     sync::Arc,
 };
@@ -195,10 +195,10 @@ impl RowGroup {
     /// Determines if the row group contains one or more rows that satisfy all
     /// of the provided binary expressions, when conjunctively applied.
     ///
-    /// `satisfies_predicate` currently constructs a set of row ids for all rows
-    /// that satisfy the predicate, but does not materialise any values. There
-    /// are some optimisation opportunities here, but I don't think they're at
-    /// all worth it at the moment.
+    /// `satisfies_predicate` currently constructs a set of row ids for all
+    /// rows that satisfy the predicate, but does not materialise any
+    /// values. There are some optimisation opportunities here, but I don't
+    /// think they're at all worth it at the moment.
     ///
     /// They could be:
     ///  * for predicates with single expression just find a matching value in
@@ -921,6 +921,51 @@ impl RowGroup {
             }
         }
         dst.aggregates.push(AggregateResults(aggregate_row)); // write the row
+    }
+
+    /// Given the predicate (which may be empty), determine a set of rows
+    /// contained in this row group that satisfy it. Any column that contains a
+    /// non-null value at any of these row positions is then included in the
+    /// results, which are added to `dst`.
+    ///
+    /// As an optimisation, the contents of `dst` are checked before execution
+    /// and any columns already existing in the set are not interrogated.
+    ///
+    /// If you are familiar with InfluxDB, this is essentially an implementation
+    /// of `SHOW TAG KEYS`.
+    pub fn column_names(&self, predicate: &Predicate, dst: &mut BTreeSet<String>) {
+        // Determine the set of columns in this row group that are not already
+        // present in `dst`, i.e., they haven't been identified in other row
+        // groups already.
+        let candidate_columns = self
+            .all_columns_by_name
+            .iter()
+            .filter_map(|(name, &id)| match dst.contains(name) {
+                // N.B there is bool::then() but it's currently unstable.
+                true => None,
+                false => Some((name, &self.columns[id])),
+            })
+            .collect::<Vec<_>>();
+
+        match self.row_ids_from_predicate(predicate) {
+            RowIDsOption::None(_) => {} // nothing matches predicate
+            RowIDsOption::Some(row_ids) => {
+                let row_ids = row_ids.to_vec();
+
+                for (name, column) in candidate_columns {
+                    if column.has_non_null_value(&row_ids) {
+                        dst.insert(name.to_owned());
+                    }
+                }
+            }
+            RowIDsOption::All(_) => {
+                for (name, column) in candidate_columns {
+                    if column.has_any_non_null_value() {
+                        dst.insert(name.to_owned());
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -2721,5 +2766,76 @@ west,host-d,11,9
         assert_eq!(col1, col2);
         assert_ne!(col1, col3);
         assert_ne!(col2, col3);
+    }
+
+    #[test]
+    fn column_names() {
+        let mut columns = BTreeMap::new();
+        let rc = ColumnType::Tag(Column::from(&[Some("west"), Some("west"), None, None][..]));
+        columns.insert("region".to_string(), rc);
+        let track = ColumnType::Tag(Column::from(
+            &[Some("Thinking"), Some("of"), Some("a"), Some("place")][..],
+        ));
+        columns.insert("track".to_string(), track);
+        let tc = ColumnType::Time(Column::from(&[100_i64, 200, 500, 600][..]));
+        columns.insert("time".to_string(), tc);
+        let row_group = RowGroup::new(4, columns);
+
+        // No predicate - just find a value in each column that matches.
+        let mut dst = BTreeSet::new();
+        row_group.column_names(&Predicate::default(), &mut dst);
+        assert_eq!(
+            dst,
+            vec!["region", "time", "track"]
+                .into_iter()
+                .map(|s| s.to_owned())
+                .collect()
+        );
+
+        // A predicate, but no rows match. No columns should be returned.
+        let mut dst = BTreeSet::new();
+        row_group.column_names(
+            &Predicate::new(vec![BinaryExpr::from(("region", "=", "east"))]),
+            &mut dst,
+        );
+        assert!(dst.is_empty());
+
+        // A predicate, that matches some rows. Columns with non-null values at
+        // those rows should be returned.
+        let mut dst = BTreeSet::new();
+        let names = row_group.column_names(
+            &Predicate::new(vec![BinaryExpr::from(("track", "=", "place"))]),
+            &mut dst,
+        );
+        // query matches one row.
+        //
+        // region, track, time
+        // NULL  , place, 600
+        //
+        assert_eq!(
+            dst,
+            vec!["track", "time"]
+                .into_iter()
+                .map(|s| s.to_owned())
+                .collect()
+        );
+
+        // Reusing the same buffer keeps existing results even if they're not
+        // part of the result-set from the row group.
+        let mut columns = BTreeMap::new();
+        let rc = ColumnType::Tag(Column::from(&[Some("prod")][..]));
+        columns.insert("env".to_string(), rc);
+        let tc = ColumnType::Time(Column::from(&[100_i64][..]));
+        columns.insert("time".to_string(), tc);
+        let row_group = RowGroup::new(1, columns);
+
+        row_group.column_names(&Predicate::default(), &mut dst);
+        assert_eq!(
+            dst,
+            vec!["env", "time", "track"]
+                .into_iter()
+                .map(|s| s.to_owned())
+                .collect()
+        );
     }
 }

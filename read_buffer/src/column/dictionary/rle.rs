@@ -795,6 +795,17 @@ impl RLE {
         false
     }
 
+    /// Determines if the column contains at least one non-null value.
+    pub fn has_any_non_null_value(&self) -> bool {
+        if !self.contains_null() {
+            return true;
+        }
+
+        // If there are any non-null rows then there are entries in the
+        // dictionary.
+        !self.entry_index.is_empty()
+    }
+
     /// Determines if the column contains at least one non-null value at
     /// any of the provided row ids.
     ///

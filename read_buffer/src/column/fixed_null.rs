@@ -473,6 +473,20 @@ where
         }
         dst
     }
+
+    /// Determines if the column contains a non-null value.
+    pub fn has_any_non_null_value(&self) -> bool {
+        self.arr.null_count() < self.num_rows() as usize
+    }
+
+    /// Returns true if a non-null value exists at any of the row ids.
+    pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
+        if !self.contains_null() {
+            return true;
+        }
+
+        row_ids.iter().any(|id| !self.arr.is_null(*id as usize))
+    }
 }
 
 // This macro implements the From trait for slices of various logical types.
@@ -876,5 +890,32 @@ mod test {
             RowIDs::new_vector(),
         );
         assert_eq!(row_ids.to_vec(), vec![1, 2, 4]);
+    }
+
+    #[test]
+    fn has_non_null_value() {
+        let v = FixedNull::<UInt64Type>::from(vec![None, None].as_slice());
+        assert!(!v.has_non_null_value(&[0, 1]));
+
+        let v = FixedNull::from(vec![Some(100_u64), Some(222_u64)].as_slice());
+        assert!(v.has_non_null_value(&[0, 1]));
+        assert!(v.has_non_null_value(&[1]));
+
+        let v = FixedNull::from(vec![None, Some(100_u64), Some(222_u64)].as_slice());
+        assert!(v.has_non_null_value(&[0, 1, 2]));
+        assert!(!v.has_non_null_value(&[0]));
+        assert!(v.has_non_null_value(&[2]));
+    }
+
+    #[test]
+    fn has_any_non_null_value() {
+        let v = FixedNull::<UInt64Type>::from(vec![None, None].as_slice());
+        assert!(!v.has_any_non_null_value());
+
+        let v = FixedNull::from(vec![Some(100_u64), Some(222_u64)].as_slice());
+        assert!(v.has_any_non_null_value());
+
+        let v = FixedNull::from(vec![None, Some(100_u64), Some(222_u64)].as_slice());
+        assert!(v.has_any_non_null_value());
     }
 }

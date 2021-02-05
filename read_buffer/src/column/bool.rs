@@ -298,6 +298,17 @@ impl Bool {
         }
         dst
     }
+
+    /// Determines if the column contains a non-null value.
+    pub fn has_any_non_null_value(&self) -> bool {
+        self.arr.null_count() < self.num_rows() as usize
+    }
+
+    /// Returns true if the column contains any non-null values at the rows
+    /// provided.
+    pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
+        !self.contains_null() || row_ids.iter().any(|id| !self.arr.is_null(*id as usize))
+    }
 }
 
 impl From<&[bool]> for Bool {
@@ -435,5 +446,34 @@ mod test {
 
         let row_ids = v.row_ids_filter(false, &Operator::LTE, RowIDs::new_vector());
         assert_eq!(row_ids.to_vec(), vec![1]);
+    }
+
+    #[test]
+    fn has_any_non_null_value() {
+        let v = Bool::from(vec![None, None].as_slice());
+        assert!(!v.has_any_non_null_value());
+
+        let v = Bool::from(vec![Some(true), Some(false)].as_slice());
+        assert!(v.has_any_non_null_value());
+
+        let v = Bool::from(vec![Some(true), None, Some(false)].as_slice());
+        assert!(v.has_any_non_null_value());
+    }
+
+    #[test]
+    fn has_non_null_value() {
+        let v = Bool::from(vec![None, None].as_slice());
+        assert!(!v.has_non_null_value(&[0, 1]));
+        assert!(!v.has_non_null_value(&[0]));
+
+        let v = Bool::from(vec![Some(true), Some(false)].as_slice());
+        assert!(v.has_non_null_value(&[0, 1]));
+        assert!(v.has_non_null_value(&[1]));
+
+        let v = Bool::from(vec![Some(true), None, Some(false)].as_slice());
+        assert!(v.has_non_null_value(&[0, 1, 2]));
+        assert!(v.has_non_null_value(&[0]));
+        assert!(v.has_non_null_value(&[1, 2]));
+        assert!(!v.has_non_null_value(&[1]));
     }
 }

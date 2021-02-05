@@ -217,7 +217,7 @@ impl Chunk {
     /// Returns the distinct set of table names that contain data satisfying the
     /// provided predicate.
     ///
-    /// `exclude_table_names` can be used to provide a set of table names to
+    /// `skip_table_names` can be used to provide a set of table names to
     /// skip, typically because they're already included in results from other
     /// chunks.
     pub fn table_names(
@@ -257,18 +257,27 @@ impl Chunk {
             .collect::<BTreeSet<_>>()
     }
 
-    /// Returns the distinct set of tag keys (column names) matching the
-    /// provided optional predicates and time range.
-    pub fn tag_keys(
+    /// Returns the distinct set of column names that contain data matching the
+    /// provided predicate, which may be empty.
+    ///
+    /// `dst` is a buffer that will be populated with results. `column_names` is
+    /// smart enough to short-circuit processing on row groups when it
+    /// determines that all the columns in the row group are already contained
+    /// in the results buffer.
+    pub fn column_names(
         &self,
-        table_name: String,
-        predicate: Predicate,
-        found_keys: &BTreeSet<ColumnName<'_>>,
-    ) -> BTreeSet<ColumnName<'_>> {
-        // Lookup table by name and dispatch execution if the table's time range
-        // overlaps the requested time range *and* there exists columns in the
-        // table's schema that are *not* already found.
-        todo!();
+        table_name: &str,
+        predicate: &Predicate,
+        dst: BTreeSet<String>,
+    ) -> BTreeSet<String> {
+        let chunk_data = self.chunk_data.read().unwrap();
+
+        // TODO(edd): same potential contention as `table_names` but I'm ok
+        // with this for now.
+        match chunk_data.data.get(table_name) {
+            Some(table) => table.column_names(predicate, dst),
+            None => dst,
+        }
     }
 
     /// Returns the distinct set of tag values (column values) for each provided
