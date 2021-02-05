@@ -6,6 +6,11 @@ use reqwest::{Method, Url};
 use crate::errors::{ClientError, CreateDatabaseError, Error, ServerErrorResponse};
 use data_types::DatabaseName;
 
+#[cfg(feature = "flight")]
+mod flight;
+#[cfg(feature = "flight")]
+pub(crate) use flight::*;
+
 // TODO: move DatabaseRules / WriterId to the API client
 
 /// An IOx HTTP API client.

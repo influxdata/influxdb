@@ -1561,13 +1561,16 @@ dependencies = [
 name = "influxdb_iox_client"
 version = "0.1.0"
 dependencies = [
+ "arrow_deps",
  "data_types",
+ "futures-util",
  "rand 0.8.3",
  "reqwest",
  "serde",
  "serde_json",
  "thiserror",
  "tokio",
+ "tonic",
 ]
 
 [[package]]
