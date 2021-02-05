@@ -60,20 +60,6 @@ func NewCommand(v *viper.Viper, p *Program) *cobra.Command {
 	// This normalizes "-" to an underscore in env names.
 	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 
-	if configPath := v.GetString("CONFIG_PATH"); configPath != "" {
-		switch strings.ToLower(path.Ext(configPath)) {
-		case ".json", ".toml", ".yaml", ".yml":
-			v.SetConfigFile(configPath)
-		case "":
-			v.AddConfigPath(configPath)
-		}
-	} else {
-		// defaults to looking in same directory as program running for
-		// a file with base `config` and extensions .json|.toml|.yaml|.yml
-		v.SetConfigName("config")
-		v.AddConfigPath(".")
-	}
-
 	// done before we bind flags to viper keys.
 	// order of precedence (1 highest -> 3 lowest):
 	//	1. flags
@@ -88,8 +74,20 @@ func NewCommand(v *viper.Viper, p *Program) *cobra.Command {
 }
 
 func initializeConfig(v *viper.Viper) error {
-	err := v.ReadInConfig()
-	if err != nil && !os.IsNotExist(err) {
+	configPath := v.GetString("CONFIG_PATH")
+	if configPath == "" {
+		// Default to looking in the working directory of the running process.
+		configPath = "."
+	}
+
+	switch strings.ToLower(path.Ext(configPath)) {
+	case ".json", ".toml", ".yaml", ".yml":
+		v.SetConfigFile(configPath)
+	default:
+		v.AddConfigPath(configPath)
+	}
+
+	if err := v.ReadInConfig(); err != nil && !os.IsNotExist(err) {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return err
 		}

@@ -7,6 +7,7 @@ import (
 	"math"
 	"os"
 	"path"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -306,6 +307,26 @@ func yamlConfigWriter(shortExt bool) configWriter {
 	}
 }
 
+func Test_RequiredFlag(t *testing.T) {
+	var testVar string
+	program := &Program{
+		Name: "test",
+		Opts: []Opt{
+			{
+				DestP:    &testVar,
+				Flag:     "foo",
+				Required: true,
+			},
+		},
+	}
+
+	cmd := NewCommand(viper.New(), program)
+	cmd.SetArgs([]string{})
+	err := cmd.Execute()
+	require.Error(t, err)
+	require.Equal(t, `required flag(s) "foo" not set`, err.Error())
+}
+
 func Test_ConfigPrecedence(t *testing.T) {
 	jsonConfig := map[string]interface{}{"log-level": zapcore.DebugLevel}
 	tomlConfig := map[string]interface{}{"log-level": zapcore.InfoLevel}
@@ -401,22 +422,95 @@ func Test_ConfigPrecedence(t *testing.T) {
 	}
 }
 
-func Test_RequiredFlag(t *testing.T) {
-	var testVar string
+func Test_ConfigPathDotDirectory(t *testing.T) {
+	testDir, err := ioutil.TempDir("", "")
+	require.NoError(t, err)
+	defer os.RemoveAll(testDir)
+
+	tests := []struct {
+		name string
+		dir  string
+	}{
+		{
+			name: "dot at start",
+			dir:  ".directory",
+		},
+		{
+			name: "dot in middle",
+			dir:  "config.d",
+		},
+		{
+			name: "dot at end",
+			dir:  "forgotmyextension.",
+		},
+	}
+
+	config := map[string]string{
+		"foo": "bar",
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			configDir := filepath.Join(testDir, tc.dir)
+			require.NoError(t, os.Mkdir(configDir, 0700))
+
+			_, err = writeTomlConfig(configDir, config)
+			require.NoError(t, err)
+			defer setEnvVar("TEST_CONFIG_PATH", configDir)()
+
+			var foo string
+			program := &Program{
+				Name: "test",
+				Opts: []Opt{
+					{
+						DestP: &foo,
+						Flag:  "foo",
+					},
+				},
+				Run: func() error { return nil },
+			}
+
+			cmd := NewCommand(viper.New(), program)
+			cmd.SetArgs([]string{})
+			require.NoError(t, cmd.Execute())
+
+			require.Equal(t, "bar", foo)
+		})
+	}
+}
+
+func Test_LoadConfigCwd(t *testing.T) {
+	testDir, err := ioutil.TempDir("", "")
+	require.NoError(t, err)
+	defer os.RemoveAll(testDir)
+
+	pwd, err := os.Getwd()
+	require.NoError(t, err)
+	defer os.Chdir(pwd)
+
+	require.NoError(t, os.Chdir(testDir))
+
+	config := map[string]string{
+		"foo": "bar",
+	}
+	_, err = writeJsonConfig(testDir, config)
+	require.NoError(t, err)
+
+	var foo string
 	program := &Program{
 		Name: "test",
 		Opts: []Opt{
 			{
-				DestP:    &testVar,
-				Flag:     "foo",
-				Required: true,
+				DestP: &foo,
+				Flag:  "foo",
 			},
 		},
+		Run: func() error { return nil },
 	}
 
 	cmd := NewCommand(viper.New(), program)
 	cmd.SetArgs([]string{})
-	err := cmd.Execute()
-	require.Error(t, err)
-	require.Equal(t, `required flag(s) "foo" not set`, err.Error())
+	require.NoError(t, cmd.Execute())
+
+	require.Equal(t, "bar", foo)
 }
