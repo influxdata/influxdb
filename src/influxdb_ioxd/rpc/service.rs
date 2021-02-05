@@ -1183,8 +1183,7 @@ mod tests {
             .db_or_create(&db_info.db_name)
             .await
             .unwrap()
-            .add_chunk("my_partition_key", Arc::new(chunk))
-            .await;
+            .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClientWrapper::read_source(
             db_info.org_id,
@@ -1234,7 +1233,6 @@ mod tests {
             .await
             .expect("getting db")
             .get_chunk("my_partition_key", 0)
-            .await
             .and_then(|chunk| chunk.table_names_predicate());
 
         let expected_predicate = Some(
@@ -1284,7 +1282,7 @@ mod tests {
             predicate: "Predicate { exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into()
         };
 
-        test_db.set_column_names(to_string_vec(&tag_keys)).await;
+        test_db.set_column_names(to_string_vec(&tag_keys));
 
         let actual_tag_keys = fixture.storage_client.tag_keys(request).await?;
         let mut expected_tag_keys = vec!["_f(0xff)", "_m(0x00)"];
@@ -1295,7 +1293,7 @@ mod tests {
             "unexpected tag keys while getting column names"
         );
         assert_eq!(
-            test_db.get_column_names_request().await,
+            test_db.get_column_names_request(),
             Some(expected_request),
             "unexpected request while getting column names"
         );
@@ -1325,7 +1323,7 @@ mod tests {
         let expected_request = Some(ColumnNamesRequest {
             predicate: "Predicate {}".into(),
         });
-        assert_eq!(test_db.get_column_names_request().await, expected_request);
+        assert_eq!(test_db.get_column_names_request(), expected_request);
 
         Ok(())
     }
@@ -1376,7 +1374,7 @@ mod tests {
             predicate: "Predicate { table_names: m4 exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into()
         };
 
-        test_db.set_column_names(to_string_vec(&tag_keys)).await;
+        test_db.set_column_names(to_string_vec(&tag_keys));
 
         let actual_tag_keys = fixture.storage_client.measurement_tag_keys(request).await?;
 
@@ -1389,7 +1387,7 @@ mod tests {
         );
 
         assert_eq!(
-            test_db.get_column_names_request().await,
+            test_db.get_column_names_request(),
             Some(expected_request),
             "unexpected request while getting column names"
         );
@@ -1420,7 +1418,7 @@ mod tests {
         let expected_request = Some(ColumnNamesRequest {
             predicate: "Predicate { table_names: m5}".into(),
         });
-        assert_eq!(test_db.get_column_names_request().await, expected_request);
+        assert_eq!(test_db.get_column_names_request(), expected_request);
 
         Ok(())
     }
@@ -1461,7 +1459,7 @@ mod tests {
             column_name: "the_tag_key".into(),
         };
 
-        test_db.set_column_values(to_string_vec(&tag_values)).await;
+        test_db.set_column_values(to_string_vec(&tag_values));
 
         let actual_tag_values = fixture.storage_client.tag_values(request).await.unwrap();
         assert_eq!(
@@ -1469,7 +1467,7 @@ mod tests {
             "unexpected tag values while getting tag values"
         );
         assert_eq!(
-            test_db.get_column_values_request().await,
+            test_db.get_column_values_request(),
             Some(expected_request),
             "unexpected request while getting tag values"
         );
@@ -1491,8 +1489,7 @@ mod tests {
             .db_or_create(&db_info.db_name)
             .await
             .unwrap()
-            .add_chunk("my_partition_key", Arc::new(chunk))
-            .await;
+            .add_chunk("my_partition_key", Arc::new(chunk));
 
         let tag_values = vec!["h2o"];
         let actual_tag_values = fixture.storage_client.tag_values(request).await.unwrap();
@@ -1520,7 +1517,7 @@ mod tests {
             }],
         };
         let fieldlist_plan = FieldListPlan::Known(Ok(fieldlist));
-        test_db.set_field_colum_names_values(fieldlist_plan).await;
+        test_db.set_field_colum_names_values(fieldlist_plan);
 
         let expected_tag_values = vec!["Field1"];
         let actual_tag_values = fixture.storage_client.tag_values(request).await.unwrap();
@@ -1556,7 +1553,7 @@ mod tests {
             predicate: "Predicate {}".into(),
             column_name: "the_tag_key".into(),
         });
-        assert_eq!(test_db.get_column_values_request().await, expected_request);
+        assert_eq!(test_db.get_column_values_request(), expected_request);
 
         // ---
         // test error with non utf8 value
@@ -1617,7 +1614,7 @@ mod tests {
             column_name: "the_tag_key".into(),
         };
 
-        test_db.set_column_values(to_string_vec(&tag_values)).await;
+        test_db.set_column_values(to_string_vec(&tag_values));
 
         let actual_tag_values = fixture
             .storage_client
@@ -1631,7 +1628,7 @@ mod tests {
         );
 
         assert_eq!(
-            test_db.get_column_values_request().await,
+            test_db.get_column_values_request(),
             Some(expected_request),
             "unexpected request while getting tag values",
         );
@@ -1664,7 +1661,7 @@ mod tests {
             predicate: "Predicate { table_names: m5}".into(),
             column_name: "the_tag_key".into(),
         });
-        assert_eq!(test_db.get_column_values_request().await, expected_request);
+        assert_eq!(test_db.get_column_values_request(), expected_request);
     }
 
     #[tokio::test]
@@ -1763,7 +1760,7 @@ mod tests {
         };
 
         let dummy_series_set_plan = SeriesSetPlans::from(vec![]);
-        test_db.set_query_series_values(dummy_series_set_plan).await;
+        test_db.set_query_series_values(dummy_series_set_plan);
 
         let actual_frames = fixture.storage_client.read_filter(request).await?;
 
@@ -1775,7 +1772,7 @@ mod tests {
             "unexpected frames returned by query_series",
         );
         assert_eq!(
-            test_db.get_query_series_request().await,
+            test_db.get_query_series_request(),
             Some(expected_request),
             "unexpected request to query_series",
         );
@@ -1804,7 +1801,7 @@ mod tests {
         let expected_request = Some(QuerySeriesRequest {
             predicate: "Predicate {}".into(),
         });
-        assert_eq!(test_db.get_query_series_request().await, expected_request);
+        assert_eq!(test_db.get_query_series_request(), expected_request);
 
         Ok(())
     }
@@ -1853,7 +1850,7 @@ mod tests {
 
         // TODO setup any expected results
         let dummy_groups_set_plan = SeriesSetPlans::from(vec![]);
-        test_db.set_query_groups_values(dummy_groups_set_plan).await;
+        test_db.set_query_groups_values(dummy_groups_set_plan);
 
         let actual_frames = fixture.storage_client.read_group(request).await?;
         let expected_frames: Vec<String> = vec!["0 group frames".into()];
@@ -1863,7 +1860,7 @@ mod tests {
             "unexpected frames returned by query_groups"
         );
         assert_eq!(
-            test_db.get_query_groups_request().await,
+            test_db.get_query_groups_request(),
             Some(expected_request),
             "unexpected request to query_groups"
         );
@@ -1896,7 +1893,7 @@ mod tests {
 
         // Errored out in gRPC and never got to database layer
         let expected_request: Option<QueryGroupsRequest> = None;
-        assert_eq!(test_db.get_query_groups_request().await, expected_request);
+        assert_eq!(test_db.get_query_groups_request(), expected_request);
 
         // ---
         // test error returned in database processing
@@ -1932,7 +1929,7 @@ mod tests {
                 group_columns: vec!["tag1".into()],
             },
         });
-        assert_eq!(test_db.get_query_groups_request().await, expected_request);
+        assert_eq!(test_db.get_query_groups_request(), expected_request);
 
         Ok(())
     }
@@ -1989,7 +1986,7 @@ mod tests {
 
         // setup expected results
         let dummy_groups_set_plan = SeriesSetPlans::from(vec![]);
-        test_db.set_query_groups_values(dummy_groups_set_plan).await;
+        test_db.set_query_groups_values(dummy_groups_set_plan);
 
         let actual_frames = fixture
             .storage_client
@@ -2002,7 +1999,7 @@ mod tests {
             "unexpected frames returned by query_groups"
         );
         assert_eq!(
-            test_db.get_query_groups_request().await,
+            test_db.get_query_groups_request(),
             Some(expected_request_window_every),
             "unexpected request to query_groups"
         );
@@ -2051,7 +2048,7 @@ mod tests {
 
         // setup expected results
         let dummy_groups_set_plan = SeriesSetPlans::from(vec![]);
-        test_db.set_query_groups_values(dummy_groups_set_plan).await;
+        test_db.set_query_groups_values(dummy_groups_set_plan);
 
         let actual_frames = fixture
             .storage_client
@@ -2064,7 +2061,7 @@ mod tests {
             "unexpected frames returned by query_groups"
         );
         assert_eq!(
-            test_db.get_query_groups_request().await,
+            test_db.get_query_groups_request(),
             Some(expected_request_window.clone()),
             "unexpected request to query_groups"
         );
@@ -2089,7 +2086,7 @@ mod tests {
         );
 
         assert_eq!(
-            test_db.get_query_groups_request().await,
+            test_db.get_query_groups_request(),
             Some(expected_request_window)
         );
 
@@ -2136,7 +2133,7 @@ mod tests {
         };
 
         let fieldlist_plan = FieldListPlan::Known(Ok(fieldlist));
-        test_db.set_field_colum_names_values(fieldlist_plan).await;
+        test_db.set_field_colum_names_values(fieldlist_plan);
 
         let actual_fields = fixture.storage_client.measurement_fields(request).await?;
         let expected_fields: Vec<String> = vec!["key: Field1, type: 3, timestamp: 1000".into()];
@@ -2146,7 +2143,7 @@ mod tests {
             "unexpected frames returned by measuremnt_fields"
         );
         assert_eq!(
-            test_db.get_field_columns_request().await,
+            test_db.get_field_columns_request(),
             Some(expected_request),
             "unexpected request to measurement-fields"
         );
@@ -2176,7 +2173,7 @@ mod tests {
         let expected_request = Some(FieldColumnsRequest {
             predicate: "Predicate { table_names: TheMeasurement}".into(),
         });
-        assert_eq!(test_db.get_field_columns_request().await, expected_request);
+        assert_eq!(test_db.get_field_columns_request(), expected_request);
 
         Ok(())
     }
