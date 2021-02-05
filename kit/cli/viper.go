@@ -81,7 +81,7 @@ func initializeConfig(v *viper.Viper) error {
 	}
 
 	switch strings.ToLower(path.Ext(configPath)) {
-	case ".json",".toml",".yaml",".yml":
+	case ".json", ".toml", ".yaml", ".yml":
 		v.SetConfigFile(configPath)
 	default:
 		v.AddConfigPath(configPath)
