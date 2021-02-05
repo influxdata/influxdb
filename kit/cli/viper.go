@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path"
 	"strings"
 	"time"
 
@@ -79,17 +80,11 @@ func initializeConfig(v *viper.Viper) error {
 		configPath = "."
 	}
 
-	fi, err := os.Stat(configPath)
-	if err != nil {
-		return err
-	}
-	if fi.IsDir() {
-		// NOTE: if given a directory, viper will look in the dir for a file
-		// with base name `config` and an extension from `viper.SupportedExts`.
-		// Of those extensions, we only document support for .json|.toml|.yaml|.yml
-		v.AddConfigPath(configPath)
-	} else {
+	switch strings.ToLower(path.Ext(configPath)) {
+	case ".json",".toml",".yaml",".yml":
 		v.SetConfigFile(configPath)
+	default:
+		v.AddConfigPath(configPath)
 	}
 
 	if err := v.ReadInConfig(); err != nil && !os.IsNotExist(err) {
