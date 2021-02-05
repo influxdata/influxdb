@@ -631,7 +631,7 @@ func (i *Index) DropMeasurement(name []byte) error {
 }
 
 // CreateSeriesListIfNotExists creates a list of series if they doesn't exist in bulk.
-func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsSlice []models.Tags) error {
+func (i *Index) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSlice []models.Tags, tracker tsdb.StatsTracker) error {
 	// All slices must be of equal length.
 	if len(names) != len(tagsSlice) {
 		return errors.New("names/tags length mismatch in index")
@@ -664,7 +664,7 @@ func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsS
 					return // No more work.
 				}
 
-				ids, err := i.partitions[idx].createSeriesListIfNotExists(pNames[idx], pTags[idx])
+				ids, err := i.partitions[idx].createSeriesListIfNotExists(pNames[idx], pTags[idx], tracker)
 
 				var updateCache bool
 				for _, id := range ids {
@@ -737,8 +737,8 @@ func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsS
 }
 
 // CreateSeriesIfNotExists creates a series if it doesn't exist or is deleted.
-func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
-	ids, err := i.partition(key).createSeriesListIfNotExists([][]byte{name}, []models.Tags{tags})
+func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags, tracker tsdb.StatsTracker) error {
+	ids, err := i.partition(key).createSeriesListIfNotExists([][]byte{name}, []models.Tags{tags}, tracker)
 	if err != nil {
 		return err
 	}

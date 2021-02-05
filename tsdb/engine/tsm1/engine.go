@@ -1264,7 +1264,9 @@ func (e *Engine) addToIndexFromKey(keys [][]byte, fieldTypes []influxql.DataType
 			return err
 		}
 	} else {
-		if err := e.index.CreateSeriesListIfNotExists(keys, names, tags); err != nil {
+		// We don't count series additions in this code, it is (only?) used at startup
+		tracker := tsdb.NoopStatsTracker()
+		if err := e.index.CreateSeriesListIfNotExists(keys, names, tags, tracker); err != nil {
 			return err
 		}
 	}
@@ -1854,12 +1856,12 @@ func (e *Engine) ForEachMeasurementName(fn func(name []byte) error) error {
 	return e.index.ForEachMeasurementName(fn)
 }
 
-func (e *Engine) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSlice []models.Tags) error {
-	return e.index.CreateSeriesListIfNotExists(keys, names, tagsSlice)
+func (e *Engine) CreateSeriesListIfNotExists(keys, names [][]byte, tagsSlice []models.Tags, tracker tsdb.StatsTracker) error {
+	return e.index.CreateSeriesListIfNotExists(keys, names, tagsSlice, tracker)
 }
 
-func (e *Engine) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
-	return e.index.CreateSeriesIfNotExists(key, name, tags)
+func (e *Engine) CreateSeriesIfNotExists(key, name []byte, tags models.Tags, tracker tsdb.StatsTracker) error {
+	return e.index.CreateSeriesIfNotExists(key, name, tags, tracker)
 }
 
 // WriteTo is not implemented.

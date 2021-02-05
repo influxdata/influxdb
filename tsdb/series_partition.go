@@ -196,7 +196,7 @@ func (p *SeriesPartition) FileSize() (n int64, err error) {
 
 // CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist.
 // The ids parameter is modified to contain series IDs for all keys belonging to this partition.
-func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitionIDs []int, ids []uint64) error {
+func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitionIDs []int, ids []uint64, tracker StatsTracker) error {
 	var writeRequired bool
 	p.mu.RLock()
 	if p.closed {
@@ -261,6 +261,11 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitio
 		ids[i] = id
 		newIDs[string(key)] = id
 		newKeyRanges = append(newKeyRanges, keyRange{id, offset})
+		if tracker.AddedMeasurementSeries != nil {
+			_, remainder := ReadSeriesKeyLen(key)
+			measurement, _ := ReadSeriesKeyMeasurement(remainder)
+			tracker.AddedMeasurementSeries(measurement, 1)
+		}
 	}
 
 	// Flush active segment writes so we can access data in mmap.
@@ -273,6 +278,10 @@ func (p *SeriesPartition) CreateSeriesListIfNotExists(keys [][]byte, keyPartitio
 	// Add keys to hash map(s).
 	for _, keyRange := range newKeyRanges {
 		p.index.Insert(p.seriesKeyByOffset(keyRange.offset), keyRange.id, keyRange.offset)
+	}
+
+	if tracker.AddedSeries != nil {
+		tracker.AddedSeries(int64(len(newKeyRanges)))
 	}
 
 	// Check if we've crossed the compaction threshold.

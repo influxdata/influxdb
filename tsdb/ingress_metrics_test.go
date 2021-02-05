@@ -15,18 +15,18 @@ func TestIngressMetrics(t *testing.T) {
 	for i := 0; i < 10; i++ {
 		wg.Add(1)
 		go func() {
-			ingress.AddMetric("cpu", "telegraf", "autogen", "user1", 1, 10)
+			ingress.AddMetric("cpu", "telegraf", "autogen", "user1", 1, 10, 0)
 			wg.Done()
 		}()
 		wg.Add(1)
 		go func() {
-			ingress.AddMetric("mem", "telegraf", "autogen", "user1", 2, 20)
+			ingress.AddMetric("mem", "telegraf", "autogen", "user1", 2, 20, 1)
 			wg.Done()
 		}()
 	}
 	wg.Wait()
 	metric := 0
-	ingress.ForEach(func(m MetricKey, points, values int64) {
+	ingress.ForEach(func(m MetricKey, points, values, series int64) {
 		if metric == 0 {
 			assert.Equal(MetricKey{
 				measurement: "cpu",
@@ -45,6 +45,7 @@ func TestIngressMetrics(t *testing.T) {
 			}, m)
 			assert.Equal(int64(20), points)
 			assert.Equal(int64(200), values)
+			assert.Equal(int64(10), series)
 		}
 		metric++
 	})

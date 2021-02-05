@@ -175,7 +175,7 @@ func (f *SeriesFile) FileSize() (n int64, err error) {
 
 // CreateSeriesListIfNotExists creates a list of series in bulk if they don't exist.
 // The returned ids slice returns IDs for every name+tags, creating new series IDs as needed.
-func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags) ([]uint64, error) {
+func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []models.Tags, tracker StatsTracker) ([]uint64, error) {
 	keys := GenerateSeriesKeys(names, tagsSlice)
 	keyPartitionIDs := f.SeriesKeysPartitionIDs(keys)
 	ids := make([]uint64, len(keys))
@@ -184,7 +184,7 @@ func (f *SeriesFile) CreateSeriesListIfNotExists(names [][]byte, tagsSlice []mod
 	for i := range f.partitions {
 		p := f.partitions[i]
 		g.Go(func() error {
-			return p.CreateSeriesListIfNotExists(keys, keyPartitionIDs, ids)
+			return p.CreateSeriesListIfNotExists(keys, keyPartitionIDs, ids, tracker)
 		})
 	}
 	if err := g.Wait(); err != nil {
