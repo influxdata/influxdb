@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"strconv"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
@@ -66,6 +67,9 @@ func (c *Client) FindMany(ctx context.Context, filter influxdb.DBRPMappingFilter
 	if filter.RetentionPolicy != nil {
 		params = append(params, [2]string{"rp", *filter.RetentionPolicy})
 	}
+	if filter.Default != nil {
+		params = append(params, [2]string{"default", strconv.FormatBool(*filter.Default)})
+	}
 
 	var resp getDBRPsResponse
 	if err := c.Client.
@@ -88,8 +92,8 @@ func (c *Client) Create(ctx context.Context, dbrp *influxdb.DBRPMappingV2) error
 			Database:        dbrp.Database,
 			RetentionPolicy: dbrp.RetentionPolicy,
 			Default:         dbrp.Default,
-			OrganizationID:  dbrp.OrganizationID,
-			BucketID:        dbrp.BucketID,
+			OrganizationID:  dbrp.OrganizationID.String(),
+			BucketID:        dbrp.BucketID.String(),
 		}, c.Prefix).
 		DecodeJSON(&newDBRP).
 		Do(ctx); err != nil {

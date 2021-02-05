@@ -1,10 +1,9 @@
 // Libraries
 import React, {FC, ChangeEvent, useContext} from 'react'
-import {DataID, PipeData} from 'src/notebooks'
 import {NotebookContext} from 'src/notebooks/context/notebook.current'
 
 interface Props {
-  id: DataID<PipeData>
+  id: string
 }
 
 const NotebookPanelTitle: FC<Props> = ({id}) => {

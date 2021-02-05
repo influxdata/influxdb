@@ -36,7 +36,7 @@ type Client struct {
 
 	writerFns []WriteCloserFn
 
-	authFn   func(*http.Request)
+	authFn   func(*http.Request) error
 	respFn   func(*http.Response) error
 	statusFn func(*http.Response) error
 }
@@ -44,7 +44,7 @@ type Client struct {
 // New creates a new httpc client.
 func New(opts ...ClientOptFn) (*Client, error) {
 	opt := clientOpt{
-		authFn: func(*http.Request) {},
+		authFn: func(*http.Request) error { return nil },
 	}
 	for _, o := range opts {
 		if err := o(&opt); err != nil {

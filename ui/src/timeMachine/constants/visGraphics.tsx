@@ -19,12 +19,12 @@ const GRAPHIC_SVGS = {
         <g id="r">
           <polygon
             className="vis-graphic--fill vis-graphic--fill-b"
-            points="127.5,127.5 127.5,112.5 112.5,112.5 112.5,127.5 97.5,127.5 97.5,142.5 112.5,142.5 127.5,142.5 
+            points="127.5,127.5 127.5,112.5 112.5,112.5 112.5,127.5 97.5,127.5 97.5,142.5 112.5,142.5 127.5,142.5
 		142.5,142.5 142.5,127.5 	"
           />
           <polygon
             className="vis-graphic--fill vis-graphic--fill-b"
-            points="67.5,127.5 52.5,127.5 52.5,112.5 37.5,112.5 37.5,97.5 22.5,97.5 22.5,112.5 22.5,127.5 7.5,127.5 
+            points="67.5,127.5 52.5,127.5 52.5,112.5 37.5,112.5 37.5,97.5 22.5,97.5 22.5,112.5 22.5,127.5 7.5,127.5
 		7.5,142.5 22.5,142.5 37.5,142.5 52.5,142.5 67.5,142.5 82.5,142.5 82.5,127.5 82.5,112.5 67.5,112.5 	"
           />
         </g>
@@ -47,18 +47,18 @@ const GRAPHIC_SVGS = {
         <g id="g">
           <polygon
             className="vis-graphic--fill vis-graphic--fill-c"
-            points="97.5,97.5 97.5,82.5 82.5,82.5 82.5,97.5 67.5,97.5 52.5,97.5 37.5,97.5 37.5,112.5 52.5,112.5 
-		52.5,127.5 67.5,127.5 67.5,112.5 82.5,112.5 82.5,127.5 82.5,142.5 97.5,142.5 97.5,127.5 112.5,127.5 112.5,112.5 97.5,112.5 	
+            points="97.5,97.5 97.5,82.5 82.5,82.5 82.5,97.5 67.5,97.5 52.5,97.5 37.5,97.5 37.5,112.5 52.5,112.5
+		52.5,127.5 67.5,127.5 67.5,112.5 82.5,112.5 82.5,127.5 82.5,142.5 97.5,142.5 97.5,127.5 112.5,127.5 112.5,112.5 97.5,112.5
 		"
           />
           <polygon
             className="vis-graphic--fill vis-graphic--fill-c"
-            points="127.5,82.5 127.5,97.5 112.5,97.5 112.5,112.5 127.5,112.5 127.5,127.5 142.5,127.5 142.5,112.5 
+            points="127.5,82.5 127.5,97.5 112.5,97.5 112.5,112.5 127.5,112.5 127.5,127.5 142.5,127.5 142.5,112.5
 		142.5,97.5 142.5,82.5 	"
           />
           <polygon
             className="vis-graphic--fill vis-graphic--fill-c"
-            points="37.5,67.5 22.5,67.5 22.5,82.5 7.5,82.5 7.5,97.5 7.5,112.5 7.5,127.5 22.5,127.5 22.5,112.5 
+            points="37.5,67.5 22.5,67.5 22.5,82.5 7.5,82.5 7.5,97.5 7.5,112.5 7.5,127.5 22.5,127.5 22.5,112.5
 		22.5,97.5 37.5,97.5 37.5,82.5 	"
           />
         </g>
@@ -117,7 +117,7 @@ const GRAPHIC_SVGS = {
           />
           <polygon
             className="vis-graphic--fill vis-graphic--fill-a"
-            points="112.5,67.5 97.5,67.5 82.5,67.5 82.5,82.5 97.5,82.5 97.5,97.5 97.5,112.5 112.5,112.5 112.5,97.5 
+            points="112.5,67.5 97.5,67.5 82.5,67.5 82.5,82.5 97.5,82.5 97.5,97.5 97.5,112.5 112.5,112.5 112.5,97.5
 		127.5,97.5 127.5,82.5 112.5,82.5 	"
           />
           <rect
@@ -467,6 +467,37 @@ const GRAPHIC_SVGS = {
             height="5"
           />
         </g>
+      </svg>
+    </div>
+  ),
+  band: (
+    <div className="vis-graphic" data-testid="vis-graphic--band-chart">
+      <svg
+        id="Band Chart"
+        x="0px"
+        y="0px"
+        width="100%"
+        height="100%"
+        viewBox="0 0 150 150"
+      >
+        <path
+          className="vis-graphic--fill vis-graphic--fill-e"
+          d="M10,127V52.6v-8c0-1.8,0.8-3.5,2.2-4.6l25-18.3c1.6-1.2,3.7-0.9,5,0.5l24.6,26.9c1.8,1.9,4.5,2.1,6.5,0.5
+	L104,23c1.8-1.5,7.1-1.5,8.3,0.6l16.5,27c0.7,1.2,2,1.9,3.3,1.9h7.9v5.5V127H10z"
+        />
+        <path
+          className="vis-graphic--line vis-graphic--line-c"
+          d="M39.5,22c0.8,0,1.5,0.3,2.1,1l24.6,26.9c1.1,1.2,2.7,1.9,4.3,1.9c1.3,0,2.6-0.5,3.7-1.3l30.5-26.7
+	c0.6-0.5,1.9-0.8,3.3-0.8c1.7,0,3.1,0.5,3.5,1.2l16.5,27c0.9,1.5,2.5,2.4,4.2,2.4h6.9v4.5V126H11V52.6v-8c0-1.5,0.7-2.9,1.8-3.7
+	l25-18.3C38.3,22.2,38.9,22,39.5,22 M39.5,21c-0.8,0-1.5,0.2-2.2,0.7L12.2,40c-1.4,1-2.2,2.7-2.2,4.6v8V127h130V58.1v-5.5h-7.9
+	c-1.3,0-2.6-0.7-3.3-1.9l-16.5-27c-0.7-1.1-2.5-1.7-4.4-1.7c-1.6,0-3.1,0.4-4,1.1L73.5,49.7c-0.9,0.7-1.9,1.1-3,1.1
+	c-1.3,0-2.6-0.5-3.5-1.6L42.3,22.3C41.5,21.4,40.5,21,39.5,21L39.5,21z"
+        />
+        <path
+          className="vis-graphic--line vis-graphic--line-e"
+          d="M10,91h0.2c1.2,0,2.4-0.4,3.3-1.2L35.6,71c2-1.7,5-1.6,6.9,0.3L66.6,96c2.1,2.1,5.6,2,7.5-0.3l29.2-34.4
+	c2.2-2.6,6.4-2.3,8.2,0.6l15,24.6c0.9,1.5,2.5,2.4,4.3,2.4h9.3"
+        />
       </svg>
     </div>
   ),
@@ -895,6 +926,244 @@ const GRAPHIC_SVGS = {
         <polygon
           className="vis-graphic--fill vis-graphic--fill-a"
           points="78.8,47.5 71.3,60.5 86.3,60.5 "
+        />
+      </svg>
+    </div>
+  ),
+  mosaic: (
+    <div className="vis-graphic" data-testid="vis-graphic--mosaic">
+      <svg
+        width="100%"
+        height="100%"
+        version="1.1"
+        id="Bar"
+        x="0px"
+        y="0px"
+        viewBox="0 0 150 150"
+        preserveAspectRatio="none meet"
+      >
+        <rect
+          x="96"
+          y="58"
+          className="vis-graphic--line vis-graphic--line-b"
+          width="44"
+          height="34"
+        />
+        <rect
+          x="57"
+          y="95"
+          className="vis-graphic--line vis-graphic--line-b"
+          width="50"
+          height="33"
+        />
+        <rect
+          x="78"
+          y="22"
+          className="vis-graphic--line vis-graphic--line-b"
+          width="26"
+          height="33"
+        />
+        <rect
+          x="96"
+          y="58"
+          className="vis-graphic--fill vis-graphic--fill-b"
+          width="44"
+          height="34"
+        />
+        <rect
+          x="57"
+          y="95"
+          className="vis-graphic--fill vis-graphic--fill-b"
+          width="50"
+          height="33"
+        />
+        <rect
+          x="78"
+          y="22"
+          className="vis-graphic--fill vis-graphic--fill-b"
+          width="26"
+          height="33"
+        />
+        <rect
+          x="67"
+          y="22"
+          className="vis-graphic--line vis-graphic--line-c"
+          width="10"
+          height="33"
+        />
+        <rect
+          x="105"
+          y="22"
+          className="vis-graphic--line vis-graphic--line-c"
+          width="14"
+          height="33"
+        />
+        <rect
+          x="10"
+          y="95"
+          className="vis-graphic--line vis-graphic--line-c"
+          width="23"
+          height="33"
+        />
+        <rect
+          x="24"
+          y="58"
+          className="vis-graphic--line vis-graphic--line-c"
+          width="71"
+          height="34"
+        />
+        <rect
+          x="67"
+          y="22"
+          className="vis-graphic--fill vis-graphic--fill-c"
+          width="10"
+          height="33"
+        />
+        <rect
+          x="105"
+          y="22"
+          className="vis-graphic--fill vis-graphic--fill-c"
+          width="14"
+          height="33"
+        />
+        <rect
+          x="10"
+          y="95"
+          className="vis-graphic--fill vis-graphic--fill-c"
+          width="23"
+          height="33"
+        />
+        <rect
+          x="24"
+          y="58"
+          className="vis-graphic--fill vis-graphic--fill-c"
+          width="71"
+          height="34"
+        />
+        <rect
+          x="120"
+          y="22"
+          className="vis-graphic--line vis-graphic--line-a"
+          width="20"
+          height="33"
+        />
+        <rect
+          x="10"
+          y="22"
+          className="vis-graphic--line vis-graphic--line-a"
+          width="56"
+          height="33"
+        />
+        <rect
+          x="34"
+          y="95"
+          className="vis-graphic--line vis-graphic--line-a"
+          width="22"
+          height="33"
+        />
+        <rect
+          x="108"
+          y="95"
+          className="vis-graphic--line vis-graphic--line-a"
+          width="32"
+          height="33"
+        />
+        <rect
+          x="10"
+          y="58"
+          className="vis-graphic--line vis-graphic--line-a"
+          width="13"
+          height="34"
+        />
+        <rect
+          x="120"
+          y="22"
+          className="vis-graphic--fill vis-graphic--fill-a"
+          width="20"
+          height="33"
+        />
+        <rect
+          x="10"
+          y="22"
+          className="vis-graphic--fill vis-graphic--fill-a"
+          width="56"
+          height="33"
+        />
+        <rect
+          x="34"
+          y="95"
+          className="vis-graphic--fill vis-graphic--fill-a"
+          width="22"
+          height="33"
+        />
+        <rect
+          x="108"
+          y="95"
+          className="vis-graphic--fill vis-graphic--fill-a"
+          width="32"
+          height="33"
+        />
+        <rect
+          x="10"
+          y="58"
+          className="vis-graphic--fill vis-graphic--fill-a"
+          width="13"
+          height="34"
+        />
+      </svg>
+    </div>
+  ),
+  map: (
+    <div className="vis-graphic" data-testid="vis-graphic--mosaic">
+      <svg
+        width="100%"
+        height="100%"
+        version="1.1"
+        id="Bar"
+        x="0px"
+        y="0px"
+        viewBox="0 0 150 150"
+        preserveAspectRatio="none meet"
+      >
+        <polygon
+          className="vis-graphic--fill vis-graphic--fill-a"
+          points="15,100.5 42.3,114.1 69.5,100.5 42.3,86.9 "
+        />
+        <polygon
+          className="vis-graphic--fill vis-graphic--fill-a"
+          points="80.5,100.5 107.7,114.1 135,100.5 107.7,86.9 "
+        />
+        <polygon
+          className="vis-graphic--fill vis-graphic--fill-a"
+          points="47.7,84.1 75,97.8 102.3,84.1 75,70.5 "
+        />
+        <polygon
+          className="vis-graphic--fill vis-graphic--fill-a"
+          points="47.7,116.9 75,130.5 102.3,116.9 75,103.2 "
+        />
+        <polygon
+          className="vis-graphic--line vis-graphic-line-a"
+          points="15,100.5 42.3,114.1 69.5,100.5 42.3,86.9 "
+        />
+        <polygon
+          className="vis-graphic--line vis-graphic-line-a"
+          points="80.5,100.5 107.7,114.1 135,100.5 107.7,86.9 "
+        />
+        <polygon
+          className="vis-graphic--line vis-graphic-line-a"
+          points="47.7,84.1 75,97.8 102.3,84.1 75,70.5 "
+        />
+        <polygon
+          className="vis-graphic--line vis-graphic-line-a"
+          points="47.7,116.9 75,130.5 102.3,116.9 75,103.2 "
+        />
+        <path
+          className="vis-graphic--fill vis-graphic--fill-b"
+          d="M92.7,26.8c-9.8-9.8-25.6-9.8-35.4,0s-9.8,25.6,0,35.4L75,79.9l17.7-17.7C102.4,52.4,102.4,36.6,92.7,26.8z M82.8,52.3c-4.3,4.3-11.3,4.3-15.6,0c-4.3-4.3-4.3-11.3,0-15.6c4.3-4.3,11.3-4.3,15.6,0C87.1,41,87.1,48,82.8,52.3z"
+        />
+        <path
+          className="vis-graphic--line vis-graphic--line-b"
+          d="M92.7,26.8c-9.8-9.8-25.6-9.8-35.4,0s-9.8,25.6,0,35.4L75,79.9l17.7-17.7C102.4,52.4,102.4,36.6,92.7,26.8z M82.8,52.3c-4.3,4.3-11.3,4.3-15.6,0c-4.3-4.3-4.3-11.3,0-15.6c4.3-4.3,11.3-4.3,15.6,0C87.1,41,87.1,48,82.8,52.3z"
         />
       </svg>
     </div>

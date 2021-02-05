@@ -110,7 +110,7 @@ func (h *OnboardHandler) handleOnboardRequest(w http.ResponseWriter, r *http.Req
 }
 
 type onboardingResponse struct {
-	User         *userResponse   `json:"user"`
+	User         *UserResponse   `json:"user"`
 	Bucket       *bucketResponse `json:"bucket"`
 	Organization orgResponse     `json:"org"`
 	Auth         *authResponse   `json:"auth"`

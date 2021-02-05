@@ -15,7 +15,7 @@ type OrgService struct {
 	s influxdb.OrganizationService
 }
 
-// NewOrgService constructs an instance of an authorizing org serivce.
+// NewOrgService constructs an instance of an authorizing org service.
 func NewOrgService(s influxdb.OrganizationService) *OrgService {
 	return &OrgService{
 		s: s,

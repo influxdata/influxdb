@@ -185,7 +185,7 @@ func TestTelegrafHandler_handleGetTelegrafs(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handleGetTelegrafs(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handleGetTelegrafs(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handleGetTelegrafs() = ***%s***", tt.name, diff)
 				}
@@ -351,8 +351,8 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
   ## urls will be written to each interval.
-  ## urls exp: http://127.0.0.1:9999
-  urls = ["http://127.0.0.1:9999"]
+  ## urls exp: http://127.0.0.1:8086
+  urls = ["http://127.0.0.1:8086"]
 
   ## Token for authentication.
   token = "no_more_secrets"
@@ -437,8 +437,8 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
   ## urls will be written to each interval.
-  ## urls exp: http://127.0.0.1:9999
-  urls = ["http://127.0.0.1:9999"]
+  ## urls exp: http://127.0.0.1:8086
+  urls = ["http://127.0.0.1:8086"]
 
   ## Token for authentication.
   token = "no_more_secrets"
@@ -527,8 +527,8 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
   ## urls will be written to each interval.
-  ## urls exp: http://127.0.0.1:9999
-  urls = ["http://127.0.0.1:9999"]
+  ## urls exp: http://127.0.0.1:8086
+  urls = ["http://127.0.0.1:8086"]
 
   ## Token for authentication.
   token = "no_more_secrets"
@@ -613,8 +613,8 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
   ## urls will be written to each interval.
-  ## urls exp: http://127.0.0.1:9999
-  urls = ["http://127.0.0.1:9999"]
+  ## urls exp: http://127.0.0.1:8086
+  urls = ["http://127.0.0.1:8086"]
 
   ## Token for authentication.
   token = "no_more_secrets"
@@ -705,8 +705,8 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
   ## urls will be written to each interval.
-  ## urls exp: http://127.0.0.1:9999
-  urls = ["http://127.0.0.1:9999"]
+  ## urls exp: http://127.0.0.1:8086
+  urls = ["http://127.0.0.1:8086"]
 
   ## Token for authentication.
   token = "no_more_secrets"
@@ -791,8 +791,8 @@ func TestTelegrafHandler_handleGetTelegraf(t *testing.T) {
   ##
   ## Multiple URLs can be specified for a single cluster, only ONE of the
   ## urls will be written to each interval.
-  ## urls exp: http://127.0.0.1:9999
-  urls = ["http://127.0.0.1:9999"]
+  ## urls exp: http://127.0.0.1:8086
+  urls = ["http://127.0.0.1:8086"]
 
   ## Token for authentication.
   token = "no_more_secrets"

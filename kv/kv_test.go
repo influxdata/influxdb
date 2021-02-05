@@ -24,7 +24,9 @@ func NewTestBoltStore(t *testing.T) (kv.SchemaStore, func(), error) {
 	ctx := context.Background()
 	logger := zaptest.NewLogger(t)
 	path := f.Name()
-	s := bolt.NewKVStore(logger, path)
+
+	// skip fsync to improve test performance
+	s := bolt.NewKVStore(logger, path, bolt.WithNoSync)
 	if err := s.Open(context.Background()); err != nil {
 		return nil, nil, err
 	}

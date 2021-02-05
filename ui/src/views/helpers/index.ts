@@ -8,6 +8,10 @@ import {
   DEFAULT_THRESHOLDS_TABLE_COLORS,
 } from 'src/shared/constants/thresholds'
 import {DEFAULT_CHECK_EVERY} from 'src/alerting/constants'
+import {
+  DEFAULT_FILLVALUES,
+  AGG_WINDOW_AUTO,
+} from 'src/timeMachine/constants/queryBuilder'
 
 // Types
 import {
@@ -22,6 +26,7 @@ import {
   HeatmapViewProperties,
   HistogramViewProperties,
   LinePlusSingleStatProperties,
+  MosaicViewProperties,
   MarkdownViewProperties,
   NewView,
   RemoteDataState,
@@ -31,6 +36,7 @@ import {
   ViewProperties,
   ViewType,
   XYViewProperties,
+  BandViewProperties,
 } from 'src/types'
 
 export const defaultView = (name: string = DEFAULT_CELL_NAME) => {
@@ -53,8 +59,8 @@ export function defaultBuilderConfig(): BuilderConfig {
   return {
     buckets: [],
     tags: [{key: '_measurement', values: [], aggregateFunctionType: 'filter'}],
-    functions: [],
-    aggregateWindow: {period: 'auto'},
+    functions: [{name: 'mean'}],
+    aggregateWindow: {period: AGG_WINDOW_AUTO, fillValues: DEFAULT_FILLVALUES},
   }
 }
 
@@ -80,6 +86,32 @@ export function defaultLineViewProperties() {
         prefix: '',
         suffix: '',
         base: '10' as Base,
+        scale: 'linear',
+      } as Axis,
+    },
+  }
+}
+
+export function defaultBandViewProperties() {
+  return {
+    queries: [defaultViewQuery()],
+    colors: DEFAULT_LINE_COLORS as Color[],
+    legend: {},
+    note: '',
+    showNoteWhenEmpty: false,
+    axes: {
+      x: {
+        bounds: ['', ''],
+        label: '',
+        prefix: '',
+        suffix: '',
+        scale: 'linear',
+      } as Axis,
+      y: {
+        bounds: ['', ''],
+        label: '',
+        prefix: '',
+        suffix: '',
         scale: 'linear',
       } as Axis,
     },
@@ -132,6 +164,17 @@ const NEW_VIEW_CREATORS = {
       xColumn: null,
       yColumn: null,
       position: 'overlaid',
+    },
+  }),
+  band: (): NewView<BandViewProperties> => ({
+    ...defaultView(),
+    properties: {
+      ...defaultBandViewProperties(),
+      type: 'band',
+      shape: 'chronograf-v2',
+      geom: 'line',
+      xColumn: null,
+      yColumn: null,
     },
   }),
   histogram: (): NewView<HistogramViewProperties> => ({
@@ -256,6 +299,28 @@ const NEW_VIEW_CREATORS = {
       ySuffix: '',
     },
   }),
+  mosaic: (): NewView<MosaicViewProperties> => ({
+    ...defaultView(),
+    properties: {
+      type: 'mosaic',
+      shape: 'chronograf-v2',
+      queries: [defaultViewQuery()],
+      colors: NINETEEN_EIGHTY_FOUR,
+      note: '',
+      showNoteWhenEmpty: false,
+      fillColumns: null,
+      xColumn: null,
+      xDomain: null,
+      ySeriesColumns: null,
+      yDomain: null,
+      xAxisLabel: '',
+      yAxisLabel: '',
+      xPrefix: '',
+      xSuffix: '',
+      yPrefix: '',
+      ySuffix: '',
+    },
+  }),
   threshold: (): NewView<CheckViewProperties> => ({
     ...defaultView('check'),
     properties: {
@@ -277,7 +342,10 @@ const NEW_VIEW_CREATORS = {
               },
             ],
             functions: [{name: 'mean'}],
-            aggregateWindow: {period: DEFAULT_CHECK_EVERY},
+            aggregateWindow: {
+              period: DEFAULT_CHECK_EVERY,
+              fillValues: DEFAULT_FILLVALUES,
+            },
           },
         },
       ],

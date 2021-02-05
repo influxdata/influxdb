@@ -1,0 +1,15 @@
+apiVersion: influxdata.com/v2alpha2
+kind: Task
+metadata:
+  name: task-1
+spec:
+  description: desc_1
+  every: 1m
+  query:  >
+    option params = { this: "foo" }
+    from(bucket: "rucket_1")
+      |> range(start: -5d, stop: -1h)
+      |> filter(fn: (r) => r._measurement == params.this)
+      |> filter(fn: (r) => r._field == "usage_idle")
+      |> aggregateWindow(every: 1m, fn: mean)
+      |> yield(name: "mean")

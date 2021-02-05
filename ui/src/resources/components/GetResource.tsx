@@ -30,6 +30,8 @@ export type Props = ReduxProps & OwnProps
 
 @ErrorHandling
 class GetResource extends PureComponent<Props> {
+  controller = new AbortController()
+
   public componentDidMount() {
     const {resources} = this.props
     const promises = []
@@ -39,10 +41,14 @@ class GetResource extends PureComponent<Props> {
     Promise.all(promises)
   }
 
+  public componentWillUnmount() {
+    this.controller.abort()
+  }
+
   private getResourceDetails({type, id}: Resource) {
     switch (type) {
       case ResourceType.Dashboards: {
-        return this.props.getDashboard(id)
+        return this.props.getDashboard(id, this.controller)
       }
 
       default: {

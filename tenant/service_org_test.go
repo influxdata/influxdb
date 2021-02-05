@@ -29,19 +29,37 @@ func initBoltOrganizationService(f influxdbtesting.OrganizationFields, t *testin
 
 func initOrganizationService(s kv.Store, f influxdbtesting.OrganizationFields, t *testing.T) (influxdb.OrganizationService, string, func()) {
 	storage := tenant.NewStore(s)
-	svc := tenant.NewService(storage)
 
-	for _, o := range f.Organizations {
-		if err := svc.CreateOrganization(context.Background(), o); err != nil {
-			t.Fatalf("failed to populate organizations")
-		}
+	if f.OrgBucketIDs != nil {
+		storage.OrgIDGen = f.OrgBucketIDs
+		storage.BucketIDGen = f.OrgBucketIDs
 	}
 
-	return svc, "tenant/", func() {
+	// go direct to storage for test data
+	if err := s.Update(context.Background(), func(tx kv.Tx) error {
 		for _, o := range f.Organizations {
-			if err := svc.DeleteOrganization(context.Background(), o.ID); err != nil {
-				t.Logf("failed to remove organizations: %v", err)
+			if err := storage.CreateOrg(tx.Context(), tx, o); err != nil {
+				return err
 			}
+		}
+
+		return nil
+	}); err != nil {
+		t.Fatalf("failed to populate organizations: %s", err)
+	}
+
+	return tenant.NewService(storage), "tenant/", func() {
+		// go direct to storage for test data
+		if err := s.Update(context.Background(), func(tx kv.Tx) error {
+			for _, o := range f.Organizations {
+				if err := storage.DeleteOrg(tx.Context(), tx, o.ID); err != nil {
+					return err
+				}
+			}
+
+			return nil
+		}); err != nil {
+			t.Logf("failed to remove organizations: %v", err)
 		}
 	}
 }

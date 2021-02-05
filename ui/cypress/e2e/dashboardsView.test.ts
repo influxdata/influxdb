@@ -41,7 +41,7 @@ describe('Dashboard', () => {
     cy.getByTestID('dashboard-card').should('contain', newName)
   })
 
-  it('can create and destroy cells & toggle in and out of presentation mode', () => {
+  it('can create, clone and destroy cells & toggle in and out of presentation mode', () => {
     cy.get('@org').then(({id: orgID}: Organization) => {
       cy.createDashboard(orgID).then(({body}) => {
         cy.fixture('routes').then(({orgs}) => {
@@ -150,12 +150,23 @@ describe('Dashboard', () => {
 
     // Remove Note cell
     cy.getByTestID('cell-context--toggle')
-      .first()
+      .last()
       .click()
     cy.getByTestID('cell-context--delete').click()
     cy.getByTestID('cell-context--delete-confirm').click()
 
-    // Remove View cell
+    // Clone View cell
+    cy.getByTestID('cell-context--toggle').click()
+    cy.getByTestID('cell-context--clone').click()
+
+    // Ensure that the clone exists
+    cy.getByTestID('cell Line Graph (Clone)').should('exist')
+    // Remove View cells
+    cy.getByTestID('cell-context--toggle')
+      .first()
+      .click()
+    cy.getByTestID('cell-context--delete').click()
+    cy.getByTestID('cell-context--delete-confirm').click()
     cy.getByTestID('cell-context--toggle').click()
     cy.getByTestID('cell-context--delete').click()
     cy.getByTestID('cell-context--delete-confirm').click()
@@ -338,7 +349,7 @@ describe('Dashboard', () => {
               `?lower=now%28%29%20-%201h&vars%5BbucketsCSV%5D=${defaultBucket}`
             )
 
-            // open CEO
+            // open VEO
             cy.getByTestID('cell-context--toggle').click()
             cy.getByTestID('cell-context--configure').click()
 
@@ -396,7 +407,7 @@ describe('Dashboard', () => {
               .pipe(getSelectedVariable(dashboard.id, 2))
               .should('equal', 'v2')
 
-            // open CEO
+            // open VEO
             cy.getByTestID('cell-context--toggle').click()
             cy.getByTestID('cell-context--configure').click()
             cy.getByTestID('toolbar-tab').should('be.visible')

@@ -20,7 +20,6 @@ const allPermissionTypes: PermissionTypes[] = [
   'secrets',
   'scrapers',
   'sources',
-  'stack',
   'tasks',
   'telegrafs',
   'users',
@@ -48,7 +47,6 @@ const ensureT = (orgID: string, userID: string) => (
     case 'secrets':
     case 'scrapers':
     case 'sources':
-    case 'stack':
     case 'tasks':
     case 'telegrafs':
     case 'variables':

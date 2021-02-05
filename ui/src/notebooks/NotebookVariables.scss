@@ -4,6 +4,8 @@ $notebook-header-height: 46px;
 
 $notebook-panel--gutter: $cf-marg-d;
 $notebook-panel--bg: mix($g1-raven, $g2-kevlar, 50%);
+$notebook-panel--node-gap: $cf-marg-d + $cf-marg-b;
+$notebook-panel--node-dot: 20px;
 
 $notebook-divider-height: ($cf-marg-a * 2) + $cf-border;
 $notebook-divider-color: $g2-kevlar;

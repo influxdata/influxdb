@@ -330,14 +330,7 @@ func convertRespStackResources(resources []RespStackResource) ([]StackResource, 
 			Kind:       r.Kind,
 		}
 		for _, a := range r.Associations {
-			sra := StackResourceAssociation{
-				Kind:     a.Kind,
-				MetaName: a.MetaName,
-			}
-			if sra.MetaName == "" && a.PkgName != nil {
-				sra.MetaName = *a.PkgName
-			}
-			sr.Associations = append(sr.Associations, sra)
+			sr.Associations = append(sr.Associations, StackResourceAssociation(a))
 		}
 
 		resID, err := influxdb.IDFromString(r.ID)
@@ -346,9 +339,6 @@ func convertRespStackResources(resources []RespStackResource) ([]StackResource, 
 		}
 		sr.ID = *resID
 
-		if sr.MetaName == "" && r.PkgName != nil {
-			sr.MetaName = *r.PkgName
-		}
 		out = append(out, sr)
 	}
 	return out, nil

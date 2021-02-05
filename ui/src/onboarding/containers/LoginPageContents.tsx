@@ -21,7 +21,7 @@ import auth0js, {WebAuth} from 'auth0-js'
 // Components
 import {LoginForm} from 'src/onboarding/components/LoginForm'
 import {SocialButton} from 'src/shared/components/SocialButton'
-import {GoogleLogo} from 'src/clientLibraries/graphics'
+import {GoogleLogo} from 'src/shared/graphics/GoogleLogo'
 
 // Types
 import {Auth0Connection, FormFieldValidation} from 'src/types'

@@ -121,7 +121,9 @@ function buildQueryFromConfig(
   })
 
   const {aggregateWindow} = builderConfig
-  const fnCall = fn ? formatFunctionCall(fn, aggregateWindow.period) : ''
+  const fnCall = fn
+    ? formatFunctionCall(fn, aggregateWindow.period, aggregateWindow.fillValues)
+    : ''
 
   const query = `from(bucket: "${bucket}")
   |> range(start: ${OPTION_NAME}.${TIME_RANGE_START}, stop: ${OPTION_NAME}.${TIME_RANGE_STOP})${tagsFunctionCalls}${fnCall}`
@@ -131,7 +133,8 @@ function buildQueryFromConfig(
 
 export function formatFunctionCall(
   fn: BuilderConfig['functions'][0],
-  period: string
+  period: string,
+  fillValues: boolean
 ) {
   const fnSpec = FUNCTIONS.find(spec => spec.name === fn.name)
 
@@ -141,7 +144,9 @@ export function formatFunctionCall(
 
   const formattedPeriod = formatPeriod(period)
 
-  return `\n  ${fnSpec.flux(formattedPeriod)}\n  |> yield(name: "${fn.name}")`
+  return `\n  ${fnSpec.flux(formattedPeriod, fillValues)}\n  |> yield(name: "${
+    fn.name
+  }")`
 }
 
 const convertTagsToFluxFunctionString = function convertTagsToFluxFunctionString(

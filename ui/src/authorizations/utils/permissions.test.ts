@@ -181,20 +181,6 @@ const hvhs: Permission[] = [
     action: 'read',
     resource: {
       orgID: 'bulldogs',
-      type: 'stack',
-    },
-  },
-  {
-    action: 'write',
-    resource: {
-      orgID: 'bulldogs',
-      type: 'stack',
-    },
-  },
-  {
-    action: 'read',
-    resource: {
-      orgID: 'bulldogs',
       type: 'tasks',
     },
   },

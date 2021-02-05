@@ -37,5 +37,11 @@ export const validateVariableName = (
     }
   }
 
+  if (!varName[0].match(/[A-Z]|[_]/i)) {
+    return {
+      error: `Variable name must begin with a letter or underscore`,
+    }
+  }
+
   return {error: null}
 }

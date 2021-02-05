@@ -56,19 +56,22 @@ const TMDownloadCSV = '[data-testid=button][title*=\'CSV\']';
 //Query builder
 const TMQBSelectedBucket = '[data-testid=bucket-selector] [data-testid^=\'selector-list\'][class*=selected]';
 const TMQBSelectedTagOfCard = '//*[@data-testid=\'builder-card\'][.//*[@data-testid=\'tag-selector--container %INDEX%\']]//*[contains(@data-testid,\'selector-list\')][contains(@class,\'selected\')]';
-const TMBuilderCardMenuDurationInput = '[data-testid=\'builder-card--menu\'] [data-testid=\'duration-input\']';
-const TMBuilderCardMenuFunctionListItem = '[data-testid=\'function-selector\'] [data-testid=\'selector-list %ITEM%\']';
+const TMBuilderCardMenuDurationInput = '[data-testid=\'duration-input\']';
+const TMBuilderCardMenuFunctionListItem = '[data-testid=\'selector-list %ITEM%\']';
 const TMBuilderCardMenuFunctionFilter = '[data-testid=\'input-field\'][placeholder*=\'functions\']';
 const TMBuilderCardMenuFunctionListItems = '[data-testid=function-selector] [data-testid^=\'selector-list\']';
-const TMQBSelectedFunctionsByName = '[data-testid=function-selector] [data-testid=\'selector-list %NAME%\'].selected';
-const TMQBDurationSuggestions = '[data-testid=\'builder-card--menu\'] [data-testid=\'dropdown-menu--contents\'] [data-testid=\'dropdown-item\']';
-const TMQBDurationSuggestionByName = '//*[@data-testid=\'builder-card--menu\']//*[@data-testid=\'dropdown-menu--contents\']//*[@data-testid=\'dropdown-item\'][./*[text()=\'%NAME%\']]';
+const TMQBSelectedFunctionsByName = '[data-testid=\'selector-list %NAME%\'].selected';
+const TMQBDurationSuggestions = '[data-testid=\'dropdown-menu--contents\'] [data-testid=\'dropdown-item\']';
+const TMQBDurationSuggestionByName = '//*[@data-testid=\'dropdown-menu--contents\']//*[@data-testid=\'dropdown-item\'][./*[text()=\'%NAME%\']]';
 const TMBuilderTabsAddQuery = '[data-testid=overlay] [class=time-machine-queries--tabs] [data-testid=square-button]';
 const TMQBActiveQueryTab = '.query-tab__active';
 const TMQBQueryTabByName = '//*[contains(@class,\'query-tab\')][./*[text()=\'%NAME%\']]';
 const TMQBRightClickItem = '[data-testid=\'right-click--%ITEM%-tab\']';
 const TMQBQueryTabNameInput = 'div.cf-input__focused input';
 const TMQBQueryTabs = '.time-machine-queries .query-tab';
+const TMQBCustomFunctionGroup = '[data-testid=custom-function]';
+const TMQBCustomWindowPeriod = '[data-testid=\'custom-window-period\']';
+const TMQBAutoWindowPeriod = '[data-testid=\'auto-window-period\']';
 
 //Query Editor
 const TMQEFunctionCategory = '//*[@class=\'flux-toolbar--heading\'][text()=\'%NAME%\']';
@@ -346,6 +349,18 @@ class cellEditOverlay extends influxPage {
 
     async getTMBuilderCardMenuFunctionListItems(){
         return await this.driver.findElements(By.css(TMBuilderCardMenuFunctionListItems));
+    }
+
+    async getTMQBCustomFunctionGroup(){
+        return await this.driver.findElement(By.css(TMQBCustomFunctionGroup));
+    }
+
+    async getTMQBCustomWindowPeriod(){
+        return await this.driver.findElement(By.css(TMQBCustomWindowPeriod));
+    }
+
+    async getTMQBAutoWindowPeriod(){
+        return await this.driver.findElement(By.css(TMQBAutoWindowPeriod));
     }
 
     async getTMQBDurationSuggestions(){

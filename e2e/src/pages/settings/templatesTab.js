@@ -22,6 +22,7 @@ const importTemplateUploadButton = '[data-testid=overlay--body] [data-testid=sel
 const importTemplatePasteButton = '[data-testid=overlay--body] [data-testid=select-group--option][title=Paste]';
 const importTemplateJSONTextArea = '[data-testid=overlay--body] [data-testid=import-overlay--textarea]';
 const importTemplateDragNDrop = '[data-testid=overlay--body] input[type=file]';
+const importTemplateSubmitButton = '[data-testid=\'submit-button Template\']';
 
 class templatesTab extends settingsPage{
 
@@ -75,6 +76,10 @@ class templatesTab extends settingsPage{
 
     async getImportTemplateDragNDrop(){
         return await this.driver.findElement(By.css(importTemplateDragNDrop));
+    }
+
+    async getImportTemplateSubmitButton(){
+        return await this.driver.findElement(By.css(importTemplateSubmitButton));
     }
 
     async getTemplateCardByName(name){

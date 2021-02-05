@@ -79,15 +79,8 @@ class DashboardsIndexContents extends Component<Props> {
 }
 
 const mstp = (state: AppState) => {
-  const {
-    cloud: {
-      limits: {status},
-    },
-  } = state
-
   return {
     dashboards: getAll<Dashboard>(state, ResourceType.Dashboards),
-    limitStatus: status,
   }
 }
 

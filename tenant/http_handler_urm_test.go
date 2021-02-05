@@ -13,8 +13,10 @@ import (
 	"github.com/go-chi/chi"
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
+	ihttp "github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/tenant"
+	itesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -364,6 +366,126 @@ func TestUserResourceMappingService_PostMembersHandler(t *testing.T) {
 					if diff := cmp.Diff(string(body), tt.wants.body); diff != "" {
 						t.Errorf("%q. PostMembersHandler() = ***%s***", tt.name, diff)
 					}
+				}
+			})
+		}
+	}
+}
+
+func TestUserResourceMappingService_Client(t *testing.T) {
+	type fields struct {
+		userService                influxdb.UserService
+		userResourceMappingService influxdb.UserResourceMappingService
+	}
+	type args struct {
+		resourceID string
+		userType   influxdb.UserType
+		user       influxdb.User
+	}
+	tests := []struct {
+		name   string
+		fields fields
+		args   args
+	}{
+		{
+			name: "post members",
+			fields: fields{
+				userService: &mock.UserService{
+					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+						return &influxdb.User{ID: id, Name: fmt.Sprintf("user%s", id), Status: influxdb.Active}, nil
+					},
+				},
+				userResourceMappingService: &mock.UserResourceMappingService{
+					CreateMappingFn: func(ctx context.Context, m *influxdb.UserResourceMapping) error {
+						return nil
+					},
+					FindMappingsFn: func(ctx context.Context, f influxdb.UserResourceMappingFilter) ([]*influxdb.UserResourceMapping, int, error) {
+						return []*influxdb.UserResourceMapping{&influxdb.UserResourceMapping{}}, 1, nil
+					},
+				},
+			},
+			args: args{
+				resourceID: "0000000000000099",
+				user: influxdb.User{
+					ID:     1,
+					Name:   "user0000000000000001",
+					Status: influxdb.Active,
+				},
+				userType: influxdb.Member,
+			},
+		},
+
+		{
+			name: "post owners",
+			fields: fields{
+				userService: &mock.UserService{
+					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+						return &influxdb.User{ID: id, Name: fmt.Sprintf("user%s", id), Status: influxdb.Active}, nil
+					},
+				},
+				userResourceMappingService: &mock.UserResourceMappingService{
+					CreateMappingFn: func(ctx context.Context, m *influxdb.UserResourceMapping) error {
+						return nil
+					},
+					FindMappingsFn: func(ctx context.Context, f influxdb.UserResourceMappingFilter) ([]*influxdb.UserResourceMapping, int, error) {
+						return []*influxdb.UserResourceMapping{&influxdb.UserResourceMapping{}}, 1, nil
+					},
+				},
+			},
+			args: args{
+				resourceID: "0000000000000099",
+				user: influxdb.User{
+					ID:     2,
+					Name:   "user0000000000000002",
+					Status: influxdb.Active,
+				},
+				userType: influxdb.Owner,
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		resourceTypes := []influxdb.ResourceType{
+			influxdb.BucketsResourceType,
+			influxdb.DashboardsResourceType,
+			influxdb.OrgsResourceType,
+			influxdb.SourcesResourceType,
+			influxdb.TasksResourceType,
+			influxdb.TelegrafsResourceType,
+			influxdb.UsersResourceType,
+		}
+
+		for _, resourceType := range resourceTypes {
+			t.Run(tt.name+"_"+string(resourceType), func(t *testing.T) {
+				// create server
+				h := tenant.NewURMHandler(zaptest.NewLogger(t), resourceType, "id", tt.fields.userService, tt.fields.userResourceMappingService)
+				router := chi.NewRouter()
+				router.Mount(fmt.Sprintf("/api/v2/%s/{id}/members", resourceType), h)
+				router.Mount(fmt.Sprintf("/api/v2/%s/{id}/owners", resourceType), h)
+				s := httptest.NewServer(router)
+				defer s.Close()
+				ctx := context.Background()
+
+				resourceID := itesting.MustIDBase16(tt.args.resourceID)
+				urm := &influxdb.UserResourceMapping{ResourceType: resourceType, ResourceID: resourceID, UserType: tt.args.userType, UserID: tt.args.user.ID}
+
+				httpClient, err := ihttp.NewHTTPClient(s.URL, "", false)
+				if err != nil {
+					t.Fatal(err)
+				}
+				c := tenant.UserResourceMappingClient{Client: httpClient}
+				err = c.CreateUserResourceMapping(ctx, urm)
+
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				_, n, err := c.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{ResourceID: resourceID, ResourceType: resourceType, UserType: tt.args.userType})
+				if err != nil {
+					t.Fatal(err)
+				}
+				if n != 1 {
+					t.Fatalf("expected 1 urm to be created, got: %d", n)
 				}
 			})
 		}

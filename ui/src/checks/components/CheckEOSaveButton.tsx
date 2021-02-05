@@ -48,6 +48,7 @@ const CheckEOSaveButton: FunctionComponent<Props> = ({
         hideEvent={PopoverInteraction.None}
         color={ComponentColor.Secondary}
         appearance={Appearance.Outline}
+        forceToTop={true}
         contents={() => (
           <div className="query-checklist--popover">
             <p>{`To create a ${checkType} check, you must select:`}</p>

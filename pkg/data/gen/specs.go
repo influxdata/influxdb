@@ -11,26 +11,19 @@ import (
 	"unicode/utf8"
 
 	"github.com/BurntSushi/toml"
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/models"
-	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/pkg/errors"
 )
 
 type Spec struct {
-	OrgID        influxdb.ID
-	BucketID     influxdb.ID
 	SeriesLimit  *int64
 	Measurements []MeasurementSpec
 }
 
-type idType [influxdb.IDLength]byte
-
 func NewSeriesGeneratorFromSpec(s *Spec, tr TimeRange) SeriesGenerator {
-	id := tsdb.EncodeName(s.OrgID, s.BucketID)
 	sg := make([]SeriesGenerator, len(s.Measurements))
 	for i := range s.Measurements {
-		sg[i] = newSeriesGeneratorFromMeasurementSpec(id, &s.Measurements[i], tr)
+		sg[i] = newSeriesGeneratorFromMeasurementSpec(&s.Measurements[i], tr)
 	}
 	if s.SeriesLimit == nil {
 		return NewMergedSeriesGenerator(sg)
@@ -45,19 +38,19 @@ type MeasurementSpec struct {
 	FieldValuesSpec *FieldValuesSpec
 }
 
-func newSeriesGeneratorFromMeasurementSpec(id idType, ms *MeasurementSpec, tr TimeRange) SeriesGenerator {
+func newSeriesGeneratorFromMeasurementSpec(ms *MeasurementSpec, tr TimeRange) SeriesGenerator {
 	if ms.SeriesLimit == nil {
 		return NewSeriesGenerator(
-			id,
+			[]byte(ms.Name),
 			[]byte(ms.FieldValuesSpec.Name),
 			newTimeValuesSequenceFromFieldValuesSpec(ms.FieldValuesSpec, tr),
-			newTagsSequenceFromTagsSpec(ms.Name, ms.FieldValuesSpec.Name, ms.TagsSpec))
+			newTagsSequenceFromTagsSpec(ms.TagsSpec))
 	}
 	return NewSeriesGeneratorLimit(
-		id,
+		[]byte(ms.Name),
 		[]byte(ms.FieldValuesSpec.Name),
 		newTimeValuesSequenceFromFieldValuesSpec(ms.FieldValuesSpec, tr),
-		newTagsSequenceFromTagsSpec(ms.Name, ms.FieldValuesSpec.Name, ms.TagsSpec),
+		newTagsSequenceFromTagsSpec(ms.TagsSpec),
 		int64(*ms.SeriesLimit))
 }
 
@@ -74,20 +67,13 @@ type TagsSpec struct {
 	Sample *sample
 }
 
-func newTagsSequenceFromTagsSpec(m, f string, ts *TagsSpec) TagsSequence {
+func newTagsSequenceFromTagsSpec(ts *TagsSpec) TagsSequence {
 	var keys []string
 	var vals []CountableSequence
-
-	keys = append(keys, models.MeasurementTagKey)
-	vals = append(vals, NewStringConstantSequence(m))
-
 	for _, spec := range ts.Tags {
 		keys = append(keys, spec.TagKey)
 		vals = append(vals, spec.Values())
 	}
-
-	keys = append(keys, models.FieldKeyTagKey)
-	vals = append(vals, NewStringConstantSequence(f))
 
 	var opts []tagsValuesOption
 	if ts.Sample != nil && *ts.Sample != 1.0 {

@@ -5,7 +5,6 @@ import {
   NotebookList,
   Notebook,
   NotebookState,
-  DataID,
   Resource,
   PipeData,
   PipeMeta,
@@ -16,11 +15,12 @@ const useNotebookListState = createPersistedState('notebooks')
 
 export interface NotebookListContextType extends NotebookList {
   add: (notebook?: Notebook) => string
-  update: (id: DataID<Notebook>, notebook: Notebook) => void
-  remove: (id: DataID<Notebook>) => void
+  update: (id: string, notebook: Notebook) => void
+  remove: (id: string) => void
 }
 
 export const EMPTY_NOTEBOOK: NotebookState = {
+  name: 'Name this Flow',
   data: {
     byID: {},
     allIDs: [],
@@ -35,8 +35,8 @@ export const EMPTY_NOTEBOOK: NotebookState = {
 export const DEFAULT_CONTEXT: NotebookListContextType = {
   notebooks: {},
   add: (_notebook?: Notebook) => {},
-  update: (_id: DataID<Notebook>, _notebook: Notebook) => {},
-  remove: (_id: DataID<Notebook>) => {},
+  update: (_id: string, _notebook: Notebook) => {},
+  remove: (_id: string) => {},
 } as NotebookListContextType
 
 export const NotebookListContext = React.createContext<NotebookListContextType>(
@@ -58,6 +58,7 @@ export const NotebookListProvider: FC = ({children}) => {
       }
     } else {
       _notebook = {
+        name: notebook.name,
         data: notebook.data.serialize(),
         meta: notebook.meta.serialize(),
         readOnly: notebook.readOnly,
@@ -72,7 +73,7 @@ export const NotebookListProvider: FC = ({children}) => {
     return id
   }
 
-  const update = (id: DataID<Notebook>, notebook: Notebook) => {
+  const update = (id: string, notebook: Notebook) => {
     if (!notebooks.hasOwnProperty(id)) {
       throw new Error('Notebook not found')
     }
@@ -80,6 +81,7 @@ export const NotebookListProvider: FC = ({children}) => {
     setNotebooks({
       ...notebooks,
       [id]: {
+        name: notebook.name,
         data: notebook.data.serialize(),
         meta: notebook.meta.serialize(),
         readOnly: notebook.readOnly,
@@ -87,7 +89,7 @@ export const NotebookListProvider: FC = ({children}) => {
     })
   }
 
-  const remove = (id: DataID<Notebook>) => {
+  const remove = (id: string) => {
     const _notebooks = {
       ...notebooks,
     }
@@ -112,6 +114,7 @@ export const NotebookListProvider: FC = ({children}) => {
     }
 
     acc[curr] = {
+      name: notebooks[curr].name,
       data: _asResource(notebooks[curr].data, data => {
         stateUpdater('data', data)
       }),

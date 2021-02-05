@@ -16,46 +16,35 @@ import (
 	platformtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
-var dbrpMappingSvc = mock.NewDBRPMappingService()
+var dbrpMappingSvc = &mock.DBRPMappingServiceV2{}
 var organizationID platform.ID
 var bucketID platform.ID
 var altBucketID platform.ID
 
 func init() {
-	mapping := platform.DBRPMapping{
-		Cluster:         "cluster",
+	mapping := platform.DBRPMappingV2{
 		Database:        "db0",
 		RetentionPolicy: "autogen",
 		Default:         true,
 		OrganizationID:  organizationID,
 		BucketID:        bucketID,
 	}
-	altMapping := platform.DBRPMapping{
-		Cluster:         "cluster",
+	altMapping := platform.DBRPMappingV2{
 		Database:        "db0",
 		RetentionPolicy: "autogen",
 		Default:         true,
 		OrganizationID:  organizationID,
 		BucketID:        altBucketID,
 	}
-	dbrpMappingSvc.FindByFn = func(ctx context.Context, cluster string, db string, rp string) (*platform.DBRPMapping, error) {
-		if rp == "alternate" {
-			return &altMapping, nil
-		}
+	dbrpMappingSvc.FindByIDFn = func(ctx context.Context, orgID, id platform.ID) (*platform.DBRPMappingV2, error) {
 		return &mapping, nil
 	}
-	dbrpMappingSvc.FindFn = func(ctx context.Context, filter platform.DBRPMappingFilter) (*platform.DBRPMapping, error) {
-		if filter.RetentionPolicy != nil && *filter.RetentionPolicy == "alternate" {
-			return &altMapping, nil
-		}
-		return &mapping, nil
-	}
-	dbrpMappingSvc.FindManyFn = func(ctx context.Context, filter platform.DBRPMappingFilter, opt ...platform.FindOptions) ([]*platform.DBRPMapping, int, error) {
+	dbrpMappingSvc.FindManyFn = func(ctx context.Context, filter platform.DBRPMappingFilterV2, opt ...platform.FindOptions) ([]*platform.DBRPMappingV2, int, error) {
 		m := &mapping
 		if filter.RetentionPolicy != nil && *filter.RetentionPolicy == "alternate" {
 			m = &altMapping
 		}
-		return []*platform.DBRPMapping{m}, 1, nil
+		return []*platform.DBRPMappingV2{m}, 1, nil
 	}
 }
 

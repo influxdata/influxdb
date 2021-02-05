@@ -102,11 +102,6 @@ class BucketsTab extends PureComponent<Props, State> {
 
     return (
       <>
-        <AssetLimitAlert
-          resourceName="buckets"
-          limitStatus={limitStatus}
-          className="load-data--asset-alert"
-        />
         <TabbedPageHeader
           childrenLeft={leftHeaderItems}
           childrenRight={rightHeaderItems}
@@ -136,6 +131,11 @@ class BucketsTab extends PureComponent<Props, State> {
                   />
                 )}
               </FilterBuckets>
+              <AssetLimitAlert
+                resourceName="buckets"
+                limitStatus={limitStatus}
+                className="load-data--asset-alert"
+              />
             </Grid.Column>
             <Grid.Column
               widthXS={Columns.Twelve}

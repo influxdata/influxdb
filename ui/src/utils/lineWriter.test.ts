@@ -357,7 +357,7 @@ describe('batched writes', () => {
     })
   })
 
-  it('waits 10 seconds (by default) to send an HTTP reqeust', () => {
+  it('waits 10 seconds (by default) to send an HTTP request', () => {
     const measurement = 'performance'
     const timestamp = 1585163446
 

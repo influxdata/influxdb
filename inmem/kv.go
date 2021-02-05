@@ -88,6 +88,10 @@ func (s *KVStore) Backup(ctx context.Context, w io.Writer) error {
 	panic("not implemented")
 }
 
+func (s *KVStore) Restore(ctx context.Context, r io.Reader) error {
+	panic("not implemented")
+}
+
 // Flush removes all data from the buckets.  Used for testing.
 func (s *KVStore) Flush(ctx context.Context) {
 	s.mu.Lock()
@@ -324,13 +328,15 @@ func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.Forward
 			fn        = config.Hints.PredicateFn
 			iterate   = b.ascend
 			skipFirst = config.SkipFirst
+			seen      int
 		)
 
 		if config.Direction == kv.CursorDescending {
 			iterate = b.descend
 			if len(seek) == 0 {
-				seek = b.btree.Max().(*item).key
-
+				if item, ok := b.btree.Max().(*item); ok {
+					seek = item.key
+				}
 			}
 		}
 
@@ -349,6 +355,11 @@ func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.Forward
 				return true
 			}
 
+			// enforce limit
+			if config.Limit != nil && seen >= *config.Limit {
+				return false
+			}
+
 			j, ok := i.(*item)
 			if !ok {
 				batch = append(batch, pair{err: fmt.Errorf("error item is type %T not *item", i)})
@@ -362,6 +373,7 @@ func (b *Bucket) ForwardCursor(seek []byte, opts ...kv.CursorOption) (kv.Forward
 
 			if fn == nil || fn(j.key, j.value) {
 				batch = append(batch, pair{Pair: kv.Pair{Key: j.key, Value: j.value}})
+				seen++
 			}
 
 			if len(batch) < cursorBatchSize {

@@ -1,5 +1,5 @@
 import React, {FC, useContext} from 'react'
-import {DataID, PipeData, FluxResult} from 'src/notebooks'
+import {PipeData, FluxResult} from 'src/notebooks'
 import {NotebookContext} from 'src/notebooks/context/notebook.current'
 import {ResultsContext} from 'src/notebooks/context/results'
 import {RemoteDataState} from 'src/types'
@@ -27,7 +27,7 @@ export const DEFAULT_CONTEXT: PipeContextType = {
 export const PipeContext = React.createContext<PipeContextType>(DEFAULT_CONTEXT)
 
 interface PipeContextProps {
-  id: DataID<PipeData>
+  id: string
 }
 
 export const PipeProvider: FC<PipeContextProps> = ({id, children}) => {

@@ -66,12 +66,6 @@ func (s *Store) generateSafeID(ctx context.Context, tx kv.Tx, bucket []byte) (in
 	for i := 0; i < MaxIDGenerationN; i++ {
 		id := s.IDGenerator.ID()
 
-		// TODO: this is probably unnecessary but for testing we need to keep it in.
-		// After KV is cleaned out we can update the tests and remove this.
-		if id < ReservedIDs {
-			continue
-		}
-
 		err := s.uniqueID(ctx, tx, bucket, id)
 		if err == nil {
 			return id, nil

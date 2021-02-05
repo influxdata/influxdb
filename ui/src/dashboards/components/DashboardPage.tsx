@@ -19,9 +19,11 @@ import {AddNoteOverlay, EditNoteOverlay} from 'src/overlays/components'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
+import {event} from 'src/cloud/utils/reporting'
+import {resetQueryCache} from 'src/shared/apis/queryCache'
+import {isFlagEnabled} from 'src/shared/utils/featureFlag'
 
-// Selectors & Actions
-import {resetCachedQueryResults} from 'src/queryCache/actions'
+// Selectors
 import {getByID} from 'src/resources/selectors'
 
 // Types
@@ -46,8 +48,18 @@ const dashRoute = `/${ORGS}/${ORG_ID}/${DASHBOARDS}/${DASHBOARD_ID}`
 
 @ErrorHandling
 class DashboardPage extends Component<Props> {
+  public componentDidMount() {
+    if (isFlagEnabled('queryCacheForDashboards')) {
+      resetQueryCache()
+    }
+
+    this.emitRenderCycleEvent()
+  }
+
   public componentWillUnmount() {
-    this.props.resetCachedQueryResults()
+    if (isFlagEnabled('queryCacheForDashboards')) {
+      resetQueryCache()
+    }
   }
 
   public render() {
@@ -62,7 +74,7 @@ class DashboardPage extends Component<Props> {
                 autoRefresh={autoRefresh}
                 onManualRefresh={onManualRefresh}
               />
-              <RateLimitAlert className="dashboard--rate-alert" />
+              <RateLimitAlert alertOnly={true} />
               <VariablesControlBar />
               <DashboardComponent manualRefresh={manualRefresh} />
             </HoverTimeProvider>
@@ -87,6 +99,20 @@ class DashboardPage extends Component<Props> {
 
     return pageTitleSuffixer([title])
   }
+
+  private emitRenderCycleEvent = () => {
+    const {dashboard, startVisitMs} = this.props
+
+    const tags = {
+      dashboardID: dashboard.id,
+    }
+
+    const now = new Date().getTime()
+    const timeToAppearMs = now - startVisitMs
+
+    const fields = {timeToAppearMs}
+    event('Dashboard and Variable Initial Render', tags, fields)
+  }
 }
 
 const mstp = (state: AppState) => {
@@ -97,14 +123,11 @@ const mstp = (state: AppState) => {
   )
 
   return {
+    startVisitMs: state.perf.dashboard.byID[dashboard.id]?.startVisitMs,
     dashboard,
   }
 }
 
-const mdtp = {
-  resetCachedQueryResults: resetCachedQueryResults,
-}
-
-const connector = connect(mstp, mdtp)
+const connector = connect(mstp)
 
 export default connector(ManualRefresh<OwnProps>(DashboardPage))

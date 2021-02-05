@@ -22,9 +22,20 @@
           "decimalPlaces": 1,
           "shade": true,
           "hoverDimension": "y",
+          "generateXAxisTicks": ["xTotalTicks", "xTickStart", "xTickStep"],
           "xColumn": "_time",
+          "xTotalTicks": 15,
+          "xTickStart": 0,
+          "xTickStep": 1000,
           "yColumn": "_value",
+          "generateYAxisTicks": ["yTotalTicks", "yTickStart", "yTickStep"],
+          "yTotalTicks": 10,
+          "yTickStart": 0,
+          "yTickStep": 100,
           "position": "overlaid",
+          "legendColorizeRows": true,
+          "legendOpacity": 1.0,
+          "legendOrientationThreshold": 5,
           "legend": {
             "type": "leg_type",
             "orientation": "horizontal"
@@ -36,12 +47,14 @@
           ],
           "colors": [
             {
+              "id": "base",
               "name": "laser",
               "type": "text",
               "hex": "#8F8AF4",
               "value": 3
             },
             {
+              "id": "base",
               "name": "android",
               "type": "scale",
               "hex": "#F4CF31",

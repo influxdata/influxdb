@@ -32,7 +32,11 @@ import {getVariables, hydrateVariables} from 'src/variables/actions/thunks'
 import {setExportTemplate} from 'src/templates/actions/creators'
 import {checkDashboardLimits} from 'src/cloud/actions/limits'
 import {setCells, Action as CellAction} from 'src/cells/actions/creators'
-import {setViews, Action as ViewAction} from 'src/views/actions/creators'
+import {
+  setViewsAndCells,
+  setViews,
+  Action as ViewAction,
+} from 'src/views/actions/creators'
 import {updateViewAndVariables} from 'src/views/actions/thunks'
 import {setLabelOnResource} from 'src/labels/actions/creators'
 import * as creators from 'src/dashboards/actions/creators'
@@ -50,6 +54,7 @@ import {getAll, getByID, getStatus} from 'src/resources/selectors'
 // Constants
 import * as copy from 'src/shared/copy/notifications'
 import {DEFAULT_DASHBOARD_NAME} from 'src/dashboards/constants/index'
+import {DASHBOARD_LIMIT} from 'src/resources/constants'
 
 // Types
 import {
@@ -221,7 +226,12 @@ export const getDashboards = () => async (
 
     const org = getOrg(state)
 
-    const resp = await api.getDashboards({query: {orgID: org.id}})
+    const resp = await api.getDashboards({
+      query: {
+        orgID: org.id,
+        limit: DASHBOARD_LIMIT,
+      },
+    })
 
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
@@ -238,15 +248,18 @@ export const getDashboards = () => async (
       return
     }
 
-    Object.values(dashboards.entities.dashboards)
-      .map(dashboard => {
-        return {
-          id: dashboard.id,
-          cells: dashboard.cells.map(cell => dashboards.entities.cells[cell]),
-        }
-      })
-      .forEach(entity => {
-        setTimeout(() => {
+    const normalizedCellsArray = []
+    const normalizedViewsArray = []
+
+    setTimeout(() => {
+      Object.values(dashboards.entities.dashboards)
+        .map(dashboard => {
+          return {
+            id: dashboard.id,
+            cells: dashboard.cells.map(cell => dashboards.entities.cells[cell]),
+          }
+        })
+        .forEach(entity => {
           const viewsData = viewsFromCells(entity.cells, entity.id)
 
           const normViews = normalize<View, ViewEntities, string[]>(
@@ -254,18 +267,23 @@ export const getDashboards = () => async (
             arrayOfViews
           )
 
-          dispatch(setViews(RemoteDataState.Done, normViews))
-        }, 0)
+          normalizedViewsArray.push(normViews)
 
-        setTimeout(() => {
           const normCells = normalize<Dashboard, DashboardEntities, string[]>(
             entity.cells,
             arrayOfCells
           )
 
-          dispatch(setCells(entity.id, RemoteDataState.Done, normCells))
-        }, 0)
-      })
+          normalizedCellsArray.push(normCells)
+        })
+      dispatch(
+        setViewsAndCells(
+          RemoteDataState.Done,
+          normalizedCellsArray,
+          normalizedViewsArray
+        )
+      )
+    }, 0)
   } catch (error) {
     dispatch(creators.setDashboards(RemoteDataState.Error))
     console.error(error)
@@ -324,25 +342,32 @@ export const deleteDashboard = (dashboardID: string, name: string) => async (
   }
 }
 
-export const getDashboard = (dashboardID: string) => async (
-  dispatch,
-  getState: GetState
-): Promise<void> => {
+export const getDashboard = (
+  dashboardID: string,
+  controller?: AbortController
+) => async (dispatch, getState: GetState): Promise<void> => {
   try {
     dispatch(creators.setDashboard(dashboardID, RemoteDataState.Loading))
 
     // Fetch the dashboard, views, and all variables a user has access to
     const [resp] = await Promise.all([
-      api.getDashboard({dashboardID, query: {include: 'properties'}}),
-      dispatch(getVariables()),
+      api.getDashboard(
+        {dashboardID, query: {include: 'properties'}},
+        {signal: controller?.signal}
+      ),
+      dispatch(getVariables(controller)),
     ])
+
+    if (!resp) {
+      return
+    }
 
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
     }
 
     const skipCache = true
-    dispatch(hydrateVariables(skipCache))
+    dispatch(hydrateVariables(skipCache, controller))
 
     const normDash = normalize<Dashboard, DashboardEntities, string>(
       resp.data,
@@ -351,18 +376,30 @@ export const getDashboard = (dashboardID: string) => async (
 
     const cellViews: CellsWithViewProperties = resp.data.cells || []
     const viewsData = viewsFromCells(cellViews, dashboardID)
+    setTimeout(() => {
+      const normCells = normalize<Dashboard, DashboardEntities, string[]>(
+        cellViews,
+        arrayOfCells
+      )
 
-    const normViews = normalize<View, ViewEntities, string[]>(
-      viewsData,
-      arrayOfViews
-    )
+      dispatch(setCells(dashboardID, RemoteDataState.Done, normCells))
+      const normViews = normalize<View, ViewEntities, string[]>(
+        viewsData,
+        arrayOfViews
+      )
 
-    dispatch(setViews(RemoteDataState.Done, normViews))
-
-    // Now that all the necessary state has been loaded, set the dashboard
-    dispatch(creators.setDashboard(dashboardID, RemoteDataState.Done, normDash))
-    dispatch(updateTimeRangeFromQueryParams(dashboardID))
+      dispatch(setViews(RemoteDataState.Done, normViews))
+      // Now that all the necessary state has been loaded, set the dashboard
+      dispatch(
+        creators.setDashboard(dashboardID, RemoteDataState.Done, normDash)
+      )
+      dispatch(updateTimeRangeFromQueryParams(dashboardID))
+    }, 0)
   } catch (error) {
+    if (error.name === 'AbortError') {
+      return
+    }
+
     const org = getOrg(getState())
     dispatch(push(`/orgs/${org.id}/dashboards-list`))
     dispatch(notify(copy.dashboardGetFailed(dashboardID, error.message)))

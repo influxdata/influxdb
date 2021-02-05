@@ -126,7 +126,7 @@ class telegrafsSteps extends loadDataSteps{
         await this.assertVisible(await this.teleTab.getCopyToClipboardToken());
         await this.assertVisible(await this.teleTab.getCopyToClipboardCommand());
         await this.verifyElementContainsText(await this.teleTab.getCodeToken(), 'INFLUX_TOKEN');
-        await this.verifyElementContainsText(await this.teleTab.getCodeCliTelegraf(), 'telegraf --config http://localhost:9999/api/v2/telegrafs/');
+        await this.verifyElementContainsText(await this.teleTab.getCodeCliTelegraf(), `telegraf --config ${__config.influx_url}/api/v2/telegrafs/`);
     }
 
     async verifyCreateWizardStep2PluginsList(plugins){
@@ -359,7 +359,7 @@ class telegrafsSteps extends loadDataSteps{
         await this.assertVisible(await this.teleTab.getCopyToClipboardToken());
         await this.assertVisible(await this.teleTab.getCopyToClipboardCommand());
         await this.verifyElementContainsText(await this.teleTab.getCodeToken(), 'INFLUX_TOKEN');
-        await this.verifyElementContainsText(await this.teleTab.getCodeCliTelegraf(), 'telegraf --config http://localhost:9999/api/v2/telegrafs/');
+        await this.verifyElementContainsText(await this.teleTab.getCodeCliTelegraf(), `telegraf --config ${__config.influx_url}/api/v2/telegrafs/`);
     }
 
     async verifyTelegrafConfigPopup(name){

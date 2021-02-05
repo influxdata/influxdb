@@ -16,24 +16,16 @@ import {validateURI} from 'src/shared/utils/validateURI'
 import {Action} from 'src/dataLoaders/actions/dataLoaders'
 import {
   DataLoaderType,
-  LineProtocolTab,
   DataLoadersState,
   ConfigurationState,
   ConfigFieldType,
   Plugin,
 } from 'src/types/dataLoaders'
-import {RemoteDataState} from 'src/types'
-import {WritePrecision} from '@influxdata/influx'
 import {QUICKSTART_SCRAPER_TARGET_URL} from 'src/dataLoaders/constants/pluginConfigs'
 
 export const INITIAL_STATE: DataLoadersState = {
   telegrafPlugins: [],
   type: DataLoaderType.Empty,
-  lineProtocolBody: '',
-  activeLPTab: LineProtocolTab.UploadFile,
-  lpStatus: RemoteDataState.NotStarted,
-  lpError: '',
-  precision: WritePrecision.Ns,
   telegrafConfigID: null,
   pluginBundles: [],
   scraperTarget: {
@@ -314,35 +306,6 @@ export default (state = INITIAL_STATE, action: Action): DataLoadersState => {
           ...state.scraperTarget,
           id,
         },
-      }
-    case 'SET_LINE_PROTOCOL_BODY':
-      return {
-        ...state,
-        lineProtocolBody: action.payload.lineProtocolBody,
-      }
-    case 'SET_ACTIVE_LP_TAB':
-      return {
-        ...state,
-        activeLPTab: action.payload.activeLPTab,
-      }
-    case 'SET_LP_STATUS':
-      const {lpStatus, lpError} = action.payload
-      if (lpStatus === RemoteDataState.Error) {
-        return {
-          ...state,
-          lpStatus,
-          lpError,
-        }
-      }
-      return {
-        ...state,
-        lpStatus,
-        lpError: '',
-      }
-    case 'SET_PRECISION':
-      return {
-        ...state,
-        precision: action.payload.precision,
       }
     case 'SET_TOKEN':
       return {

@@ -4,8 +4,8 @@ import (
 	"log"
 	"strings"
 
-	bolt "github.com/coreos/bbolt"
 	"github.com/gogo/protobuf/proto"
+	bolt "go.etcd.io/bbolt"
 )
 
 // changeIntervalToDuration
@@ -35,7 +35,7 @@ var up = func(db *bolt.DB) error {
 
 			err := proto.Unmarshal(data, board)
 			if err != nil {
-				log.Fatal("unmarshaling error: ", err)
+				log.Fatal("unmarshalling error: ", err)
 			}
 
 			// Migrate the dashboard
@@ -77,7 +77,7 @@ var down = func(db *bolt.DB) error {
 	This isolates the migration from the codebase, and prevents a future change
 	to a type definition from invalidating the migration functions.
 */
-var dashboardBucket = []byte("Dashoard")
+var dashboardBucket = []byte("Dashoard") // N.B. leave the misspelling for backwards-compat!
 
 type Source struct {
 	ID                 int64  `protobuf:"varint,1,opt,name=ID,proto3" json:"ID,omitempty"`

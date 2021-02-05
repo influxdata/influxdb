@@ -1283,47 +1283,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-    patch:
-      operationId: PatchScrapersIDLabelsID
-      tags:
-        - ScraperTargets
-      summary: Update a label on a scraper target
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - in: path
-          name: scraperTargetID
-          schema:
-            type: string
-          required: true
-          description: The scraper target ID.
-        - in: path
-          name: labelID
-          schema:
-            type: string
-          required: true
-          description: The label ID.
-      requestBody:
-        description: Label update to apply
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Label"
-      responses:
-        "200":
-          description: Updated successfully
-        "404":
-          description: Scraper target not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
   "/scrapers/{scraperTargetID}/members":
     get:
       operationId: GetScrapersIDMembers
@@ -1914,6 +1873,7 @@ paths:
                 $ref: "#/components/schemas/Error"
   /delete:
     post:
+      operationId: PostDelete
       summary: Delete time series data from InfluxDB
       requestBody:
         description: Predicate delete request
@@ -2031,7 +1991,7 @@ paths:
       operationId: PostSources
       tags:
         - Sources
-      summary: Creates a source
+      summary: Create a source
       parameters:
         - $ref: "#/components/parameters/TraceSpan"
       requestBody:
@@ -2433,6 +2393,9 @@ paths:
       summary: Get all dashboards
       parameters:
         - $ref: "#/components/parameters/TraceSpan"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Descending"
         - in: query
           name: owner
           description: The owner ID.
@@ -2449,7 +2412,7 @@ paths:
               - "UpdatedAt"
         - in: query
           name: id
-          description: List of dashboard IDs to return. If both `id and `owner` are specified, only `id` is used.
+          description: List of dashboard IDs to return. If both `id` and `owner` are specified, only `id` is used.
           schema:
             type: array
             items:
@@ -2852,7 +2815,7 @@ paths:
       operationId: GetDashboardsIDLabels
       tags:
         - Dashboards
-      summary: list all labels for a dashboard
+      summary: List all labels for a dashboard
       parameters:
         - $ref: "#/components/parameters/TraceSpan"
         - in: path
@@ -3343,7 +3306,7 @@ paths:
       operationId: DeleteAuthorizationsID
       tags:
         - Authorizations
-      summary: Delete a authorization
+      summary: Delete an authorization
       parameters:
         - $ref: "#/components/parameters/TraceSpan"
         - in: path
@@ -3504,6 +3467,7 @@ paths:
         - $ref: "#/components/parameters/TraceSpan"
         - $ref: "#/components/parameters/Offset"
         - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/After"
         - in: query
           name: org
           description: The organization name.
@@ -3718,7 +3682,7 @@ paths:
       operationId: DeleteBucketsIDLabelsID
       tags:
         - Buckets
-      summary: delete a label from a bucket
+      summary: Delete a label from a bucket
       parameters:
         - $ref: "#/components/parameters/TraceSpan"
         - in: path
@@ -3940,6 +3904,9 @@ paths:
       summary: List all organizations
       parameters:
         - $ref: "#/components/parameters/TraceSpan"
+        - $ref: "#/components/parameters/Offset"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Descending"
         - in: query
           name: org
           schema:
@@ -4068,101 +4035,6 @@ paths:
             type: string
           required: true
           description: The ID of the organization to delete.
-      responses:
-        "204":
-          description: Delete has been accepted
-        "404":
-          description: Organization not found
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  "/orgs/{orgID}/labels":
-    get:
-      operationId: GetOrgsIDLabels
-      tags:
-        - Organizations
-      summary: List all labels for a organization
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - in: path
-          name: orgID
-          schema:
-            type: string
-          required: true
-          description: The organization ID.
-      responses:
-        "200":
-          description: A list of all labels for an organization
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LabelsResponse"
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-    post:
-      operationId: PostOrgsIDLabels
-      tags:
-        - Organizations
-      summary: Add a label to an organization
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - in: path
-          name: orgID
-          schema:
-            type: string
-          required: true
-          description: The organization ID.
-      requestBody:
-        description: Label to add
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/LabelMapping"
-      responses:
-        "201":
-          description: Returns the created label
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/LabelResponse"
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  "/orgs/{orgID}/labels/{labelID}":
-    delete:
-      operationId: DeleteOrgsIDLabelsID
-      tags:
-        - Organizations
-      summary: Delete a label from an organization
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - in: path
-          name: orgID
-          schema:
-            type: string
-          required: true
-          description: The organization ID.
-        - in: path
-          name: labelID
-          schema:
-            type: string
-          required: true
-          description: The label ID.
       responses:
         "204":
           description: Delete has been accepted
@@ -4433,161 +4305,6 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
-  "/orgs/{orgID}/invites":
-    post:
-      operationId: PostOrgsIDInvites
-      tags:
-        - Invites
-        - Organizations
-      summary: Creates an invite to an organization
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - in: path
-          name: orgID
-          schema:
-            type: string
-          required: true
-          description: The organization ID.
-      requestBody:
-        description: Invite to be sent
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/Invite"
-      responses:
-        "201":
-          description: Invite sent
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Invite"
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  "/orgs/{orgID}/invites/{inviteID}":
-    delete:
-      operationId: DeleteOrgsIDInviteID
-      tags:
-        - Invites
-        - Organizations
-      summary: Remove an invite to an organization
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - in: path
-          name: inviteID
-          schema:
-            type: string
-          required: true
-          description: The ID of the invite to remove.
-        - in: path
-          name: orgID
-          schema:
-            type: string
-          required: true
-          description: The organization ID.
-      responses:
-        "204":
-          description: Invite removed
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  "/orgs/{orgID}/invites/{inviteID}/resend":
-    post:
-      operationId: PostOrgsIDInviteID
-      tags:
-        - Invites
-        - Organizations
-      summary: Resends an invite
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - in: path
-          name: inviteID
-          schema:
-            type: string
-          required: true
-          description: The ID of the invite to resend.
-        - in: path
-          name: orgID
-          schema:
-            type: string
-          required: true
-          description: The organization ID.
-      responses:
-        "200":
-          description: Invite resent
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Invite"
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  "/orgs/{orgID}/users":
-    get:
-      operationId: GetCloudUsers
-      tags:
-        - CloudUsers
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - in: path
-          name: orgID
-          description: Specifies the organization ID of the CloudUser.
-          required: true
-          schema:
-            type: string
-      responses:
-        "200":
-          description: A list of cloud users
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/CloudUsers"
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
-  "/orgs/{orgID}/users/{userID}":
-    delete:
-      operationId: DeleteOrgsIDCloudUserID
-      tags:
-        - CloudUsers
-        - Organizations
-      summary: Deletes a cloud user
-      parameters:
-        - $ref: "#/components/parameters/TraceSpan"
-        - in: path
-          name: userID
-          schema:
-            type: string
-          required: true
-          description: The ID of the user to remove.
-        - in: path
-          name: orgID
-          schema:
-            type: string
-          required: true
-          description: The organization ID.
-      responses:
-        "204":
-          description: User removed
-        default:
-          description: Unexpected error
-          content:
-            application/json:
-              schema:
-                $ref: "#/components/schemas/Error"
   "/orgs/{orgID}/owners/{userID}":
     delete:
       operationId: DeleteOrgsIDOwnersID
@@ -4743,12 +4460,15 @@ paths:
               properties:
                 name:
                   type: string
+                  nullable: true
                 description:
                   type: string
+                  nullable: true
                 templateURLs:
                   type: array
                   items:
                     type: string
+                  nullable: true
                 additionalResources:
                   type: array
                   items:
@@ -4760,7 +4480,7 @@ paths:
                         type: string
                       templateMetaName:
                         type: string
-                    required: ["kind","resourceID"]
+                    required: ["kind", "resourceID"]
       responses:
         "200":
           description: Influx stack updated
@@ -4883,7 +4603,9 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/TemplateExport"
+              oneOf:
+                - $ref: "#/components/schemas/TemplateExportByID"
+                - $ref: "#/components/schemas/TemplateExportByName"
       responses:
         "200":
           description: InfluxDB template created
@@ -6797,6 +6519,15 @@ components:
       required: false
       schema:
         type: string
+    After:
+      in: query
+      name: after
+      required: false
+      schema:
+        type: string
+      description: >
+        The last resource ID from which to seek from (but not including).
+        This is to be used instead of `offset`.
   schemas:
     LanguageRequest:
       description: Flux query to be analyzed.
@@ -7018,6 +6749,7 @@ components:
     Expression:
       oneOf:
         - $ref: "#/components/schemas/ArrayExpression"
+        - $ref: "#/components/schemas/DictExpression"
         - $ref: "#/components/schemas/FunctionExpression"
         - $ref: "#/components/schemas/BinaryExpression"
         - $ref: "#/components/schemas/CallExpression"
@@ -7050,6 +6782,27 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Expression"
+    DictExpression:
+      description: Used to create and directly specify the elements of a dictionary
+      type: object
+      properties:
+        type:
+          $ref: "#/components/schemas/NodeType"
+        elements:
+          description: Elements of the dictionary
+          type: array
+          items:
+            $ref: "#/components/schemas/DictItem"
+    DictItem:
+      description: A key/value pair in a dictionary
+      type: object
+      properties:
+        type:
+          $ref: "#/components/schemas/NodeType"
+        key:
+          $ref: "#/components/schemas/Expression"
+        val:
+          $ref: "#/components/schemas/Expression"
     FunctionExpression:
       description: Function expression
       type: object
@@ -7294,15 +7047,15 @@ components:
           maxLength: 1
           minLength: 1
         annotations:
-          description: Https://www.w3.org/TR/2015/REC-tabular-data-model-20151217/#columns
+          description: https://www.w3.org/TR/2015/REC-tabular-data-model-20151217/#columns
           type: array
+          uniqueItems: true
           items:
             type: string
             enum:
               - "group"
               - "datatype"
               - "default"
-            uniqueItems: true
         commentPrefix:
           description: Character prefixed to comment strings
           type: string
@@ -7351,7 +7104,6 @@ components:
             - notificationEndpoints
             - checks
             - dbrp
-            - stack
         id:
           type: string
           nullable: true
@@ -7399,7 +7151,7 @@ components:
               description: ID of org that authorization is scoped to.
             permissions:
               type: array
-              minLength: 1
+              minItems: 1
               description: List of permissions for an auth.  An auth must have at least one Permission.
               items:
                 $ref: "#/components/schemas/Permission"
@@ -7681,6 +7433,14 @@ components:
                   type: string
               contents:
                 $ref: "#/components/schemas/Template"
+        envRefs:
+          type: object
+          additionalProperties:
+            oneOf:
+              - type: string
+              - type: integer
+              - type: number
+              - type: boolean
         secrets:
           type: object
           additionalProperties:
@@ -7740,7 +7500,7 @@ components:
         - Task
         - Telegraf
         - Variable
-    TemplateExport:
+    TemplateExportByID:
       type: object
       properties:
         stackID:
@@ -7772,7 +7532,39 @@ components:
               $ref: "#/components/schemas/TemplateKind"
             name:
               type: string
+              description: "if defined with id, name is used for resource exported by id. if defined independently, resources strictly matching name are exported"
           required: [id, kind]
+    TemplateExportByName:
+      type: object
+      properties:
+        stackID:
+          type: string
+        orgIDs:
+          type: array
+          items:
+            type: object
+            properties:
+              orgID:
+                type: string
+              resourceFilters:
+                type: object
+                properties:
+                  byLabel:
+                    type: array
+                    items:
+                      type: string
+                  byResourceKind:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/TemplateKind"
+        resources:
+          type: object
+          properties:
+            kind:
+              $ref: "#/components/schemas/TemplateKind"
+            name:
+              type: string
+          required: [name, kind]
     Template:
       type: array
       items:
@@ -7801,12 +7593,22 @@ components:
             type: string
             description: Key identified as environment reference and is the key identified in the template
           value:
-            type: string
             description: Value provided to fulfill reference
+            nullable: true
+            oneOf:
+              - type: string
+              - type: integer
+              - type: number
+              - type: boolean
           defaultValue:
-            type: string
             description: Default value that will be provided for the reference when no value is provided
-        required: [resourceField, envRefKey, defaultValue]
+            nullable: true
+            oneOf:
+              - type: string
+              - type: integer
+              - type: number
+              - type: boolean
+        required: [resourceField, envRefKey]
     TemplateSummary:
       type: object
       properties:
@@ -8505,6 +8307,11 @@ components:
                             $ref: "#/components/schemas/TemplateKind"
                           metaName:
                             type: string
+                    links:
+                      type: object
+                      properties:
+                        self:
+                          type: string
               urls:
                 type: array
                 items:
@@ -8695,85 +8502,6 @@ components:
     TaskStatusType:
       type: string
       enum: [active, inactive]
-    Invite:
-      properties:
-        id:
-          description: the idpe id of the invite
-          readOnly: true
-          type: string
-        email:
-          type: string
-        role:
-          type: string
-          enum:
-            - member
-            - owner
-        expiresAt:
-          format: date-time
-          type: string
-        links:
-          type: object
-          readOnly: true
-          example:
-            self: "/api/v2/invites/1"
-          properties:
-            self:
-              type: string
-              format: uri
-      required: [id, email, role]
-    Invites:
-      type: object
-      properties:
-        links:
-          type: object
-          properties:
-            self:
-              type: string
-              format: uri
-        invites:
-          type: array
-          items:
-            $ref: "#/components/schemas/Invite"
-    CloudUser:
-      properties:
-        id:
-          description: the idpe id of the user
-          readOnly: true
-          type: string
-        firstName:
-          type: string
-        lastName:
-          type: string
-        email:
-          type: string
-        role:
-          type: string
-          enum:
-            - member
-            - owner
-        links:
-          type: object
-          readOnly: true
-          example:
-            self: "/api/v2/cloud_users/1"
-          properties:
-            self:
-              type: string
-              format: uri
-      required: [id, email, role]
-    CloudUsers:
-      type: object
-      properties:
-        links:
-          type: object
-          properties:
-            self:
-              type: string
-              format: uri
-        users:
-          type: array
-          items:
-            $ref: "#/components/schemas/CloudUser"
     User:
       properties:
         id:
@@ -9080,6 +8808,8 @@ components:
           properties:
             period:
               type: string
+            fillValues:
+              type: boolean
     BuilderTagsType:
       type: object
       properties:
@@ -9232,8 +8962,32 @@ components:
           $ref: "#/components/schemas/Legend"
         xColumn:
           type: string
+        generateXAxisTicks:
+          type: array
+          items:
+            type: string
+        xTotalTicks:
+          type: integer
+        xTickStart:
+          type: number
+          format: float
+        xTickStep:
+          type: number
+          format: float
         yColumn:
           type: string
+        generateYAxisTicks:
+          type: array
+          items:
+            type: string
+        yTotalTicks:
+          type: integer
+        yTickStart:
+          type: number
+          format: float
+        yTickStep:
+          type: number
+          format: float
         shadeBelow:
           type: boolean
         hoverDimension:
@@ -9244,9 +8998,101 @@ components:
           enum: [overlaid, stacked]
         geom:
           $ref: "#/components/schemas/XYGeom"
+        legendColorizeRows:
+          type: boolean
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
+          type: integer
     XYGeom:
       type: string
       enum: [line, step, stacked, bar, monotoneX]
+    BandViewProperties:
+      type: object
+      required:
+        - type
+        - geom
+        - queries
+        - shape
+        - axes
+        - colors
+        - legend
+        - note
+        - showNoteWhenEmpty
+      properties:
+        timeFormat:
+          type: string
+        type:
+          type: string
+          enum: [band]
+        queries:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardQuery"
+        colors:
+          description: Colors define color encoding of data into a visualization
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardColor"
+        shape:
+          type: string
+          enum: ["chronograf-v2"]
+        note:
+          type: string
+        showNoteWhenEmpty:
+          description: If true, will display note when empty
+          type: boolean
+        axes:
+          $ref: "#/components/schemas/Axes"
+        legend:
+          $ref: "#/components/schemas/Legend"
+        xColumn:
+          type: string
+        generateXAxisTicks:
+          type: array
+          items:
+            type: string
+        xTotalTicks:
+          type: integer
+        xTickStart:
+          type: number
+          format: float
+        xTickStep:
+          type: number
+          format: float
+        yColumn:
+          type: string
+        generateYAxisTicks:
+          type: array
+          items:
+            type: string
+        yTotalTicks:
+          type: integer
+        yTickStart:
+          type: number
+          format: float
+        yTickStep:
+          type: number
+          format: float
+        upperColumn:
+          type: string
+        mainColumn:
+          type: string
+        lowerColumn:
+          type: string
+        hoverDimension:
+          type: string
+          enum: [auto, x, y, xy]
+        geom:
+          $ref: "#/components/schemas/XYGeom"
+        legendColorizeRows:
+          type: boolean
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
+          type: integer
     LinePlusSingleStatProperties:
       type: object
       required:
@@ -9291,8 +9137,32 @@ components:
           $ref: "#/components/schemas/Legend"
         xColumn:
           type: string
+        generateXAxisTicks:
+          type: array
+          items:
+            type: string
+        xTotalTicks:
+          type: integer
+        xTickStart:
+          type: number
+          format: float
+        xTickStep:
+          type: number
+          format: float
         yColumn:
           type: string
+        generateYAxisTicks:
+          type: array
+          items:
+            type: string
+        yTotalTicks:
+          type: integer
+        yTickStart:
+          type: number
+          format: float
+        yTickStep:
+          type: number
+          format: float
         shadeBelow:
           type: boolean
         hoverDimension:
@@ -9307,6 +9177,107 @@ components:
           type: string
         decimalPlaces:
           $ref: "#/components/schemas/DecimalPlaces"
+        legendColorizeRows:
+          type: boolean
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
+          type: integer
+    MosaicViewProperties:
+      type: object
+      required:
+        - type
+        - queries
+        - colors
+        - shape
+        - note
+        - showNoteWhenEmpty
+        - xColumn
+        - ySeriesColumns
+        - fillColumns
+        - xDomain
+        - yDomain
+        - xAxisLabel
+        - yAxisLabel
+        - xPrefix
+        - yPrefix
+        - xSuffix
+        - ySuffix
+      properties:
+        timeFormat:
+          type: string
+        type:
+          type: string
+          enum: [mosaic]
+        queries:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardQuery"
+        colors:
+          description: Colors define color encoding of data into a visualization
+          type: array
+          items:
+            type: string
+        shape:
+          type: string
+          enum: ["chronograf-v2"]
+        note:
+          type: string
+        showNoteWhenEmpty:
+          description: If true, will display note when empty
+          type: boolean
+        xColumn:
+          type: string
+        generateXAxisTicks:
+          type: array
+          items:
+            type: string
+        xTotalTicks:
+          type: integer
+        xTickStart:
+          type: number
+          format: float
+        xTickStep:
+          type: number
+          format: float
+        ySeriesColumns:
+          type: array
+          items:
+            type: string
+        fillColumns:
+          type: array
+          items:
+            type: string
+        xDomain:
+          type: array
+          items:
+            type: number
+          maxItems: 2
+        yDomain:
+          type: array
+          items:
+            type: number
+          maxItems: 2
+        xAxisLabel:
+          type: string
+        yAxisLabel:
+          type: string
+        xPrefix:
+          type: string
+        xSuffix:
+          type: string
+        yPrefix:
+          type: string
+        ySuffix:
+          type: string
+        legendColorizeRows:
+          type: boolean
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
+          type: integer
     ScatterViewProperties:
       type: object
       required:
@@ -9353,8 +9324,32 @@ components:
           type: boolean
         xColumn:
           type: string
+        generateXAxisTicks:
+          type: array
+          items:
+            type: string
+        xTotalTicks:
+          type: integer
+        xTickStart:
+          type: number
+          format: float
+        xTickStep:
+          type: number
+          format: float
         yColumn:
           type: string
+        generateYAxisTicks:
+          type: array
+          items:
+            type: string
+        yTotalTicks:
+          type: integer
+        yTickStart:
+          type: number
+          format: float
+        yTickStep:
+          type: number
+          format: float
         fillColumns:
           type: array
           items:
@@ -9385,6 +9380,13 @@ components:
           type: string
         ySuffix:
           type: string
+        legendColorizeRows:
+          type: boolean
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
+          type: integer
     HeatmapViewProperties:
       type: object
       required:
@@ -9430,8 +9432,32 @@ components:
           type: boolean
         xColumn:
           type: string
+        generateXAxisTicks:
+          type: array
+          items:
+            type: string
+        xTotalTicks:
+          type: integer
+        xTickStart:
+          type: number
+          format: float
+        xTickStep:
+          type: number
+          format: float
         yColumn:
           type: string
+        generateYAxisTicks:
+          type: array
+          items:
+            type: string
+        yTotalTicks:
+          type: integer
+        yTickStart:
+          type: number
+          format: float
+        yTickStep:
+          type: number
+          format: float
         xDomain:
           type: array
           items:
@@ -9456,6 +9482,13 @@ components:
           type: string
         binSize:
           type: number
+        legendColorizeRows:
+          type: boolean
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
+          type: integer
     SingleStatViewProperties:
       type: object
       required:
@@ -9557,6 +9590,13 @@ components:
           type: string
           enum: [overlaid, stacked]
         binCount:
+          type: integer
+        legendColorizeRows:
+          type: boolean
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
           type: integer
     GaugeViewProperties:
       type: object
@@ -9720,6 +9760,174 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DashboardColor"
+        legendColorizeRows:
+          type: boolean
+        legendOpacity:
+          type: number
+          format: float
+        legendOrientationThreshold:
+          type: integer
+    GeoViewLayer:
+      type: object
+      oneOf:
+        - $ref: "#/components/schemas/GeoCircleViewLayer"
+        - $ref: "#/components/schemas/GeoHeatMapViewLayer"
+        - $ref: "#/components/schemas/GeoPointMapViewLayer"
+        - $ref: "#/components/schemas/GeoTrackMapViewLayer"
+    GeoViewLayerProperties:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [heatmap, circleMap, pointMap, trackMap]
+    GeoCircleViewLayer:
+      allOf:
+        - $ref: "#/components/schemas/GeoViewLayerProperties"
+        - type: object
+          required: [radiusField, radiusDimension, colorField, colorDimension, colors]
+          properties:
+            radiusField:
+              type: string
+              description: Radius field
+            radiusDimension:
+              $ref: '#/components/schemas/Axis'
+            colorField:
+              type: string
+              description: Circle color field
+            colorDimension:
+              $ref: '#/components/schemas/Axis'
+            colors:
+              description: Colors define color encoding of data into a visualization
+              type: array
+              items:
+                $ref: "#/components/schemas/DashboardColor"
+            radius:
+              description: Maximum radius size in pixels
+              type: integer
+            interpolateColors:
+              description: Interpolate circle color based on displayed value
+              type: boolean
+    GeoPointMapViewLayer:
+      allOf:
+        - $ref: "#/components/schemas/GeoViewLayerProperties"
+        - type: object
+          required: [colorField, colorDimension, colors]
+          properties:
+            colorField:
+              type: string
+              description: Marker color field
+            colorDimension:
+              $ref: '#/components/schemas/Axis'
+            colors:
+              description: Colors define color encoding of data into a visualization
+              type: array
+              items:
+                $ref: "#/components/schemas/DashboardColor"
+            isClustered:
+              description: Cluster close markers together
+              type: boolean
+    GeoTrackMapViewLayer:
+      allOf:
+        - $ref: "#/components/schemas/GeoViewLayerProperties"
+        - type: object
+          required: [trackWidth, speed, randomColors, trackPointVisualization]
+      properties:
+        trackWidth:
+          description: Width of the track
+          type: integer
+        speed:
+          description: Speed of the track animation
+          type: integer
+        randomColors:
+          description: Assign different colors to different tracks
+          type: boolean
+        colors:
+          description: Colors define color encoding of data into a visualization
+          type: array
+          items:
+             $ref: "#/components/schemas/DashboardColor"
+    GeoHeatMapViewLayer:
+      allOf:
+        - $ref: "#/components/schemas/GeoViewLayerProperties"
+        - type: object
+          required: [intensityField, intensityDimension, radius, blur, colors]
+          properties:
+            intensityField:
+              type: string
+              description: Intensity field
+            intensityDimension:
+              $ref: '#/components/schemas/Axis'
+            radius:
+              description: Radius size in pixels
+              type: integer
+            blur:
+              description: Blur for heatmap points
+              type: integer
+            colors:
+              description: Colors define color encoding of data into a visualization
+              type: array
+              items:
+                $ref: "#/components/schemas/DashboardColor"
+    GeoViewProperties:
+      type: object
+      required: [type, shape, queries, note, showNoteWhenEmpty, center, zoom, allowPanAndZoom, detectCoordinateFields, layers]
+      properties:
+        type:
+          type: string
+          enum: [geo]
+        queries:
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardQuery"
+        shape:
+          type: string
+          enum: ['chronograf-v2']
+        center:
+          description: Coordinates of the center of the map
+          type: object
+          required: [lat, lon]
+          properties:
+            lat:
+              description: Latitude of the center of the map
+              type: number
+              format: double
+            lon:
+              description: Longitude of the center of the map
+              type: number
+              format: double
+        zoom:
+          description: Zoom level used for initial display of the map
+          type: number
+          format: double
+          minimum: 1
+          maximum: 28
+        allowPanAndZoom:
+          description: If true, map zoom and pan controls are enabled on the dashboard view
+          type: boolean
+          default: true
+        detectCoordinateFields:
+          description: If true, search results get automatically regroupped so that lon,lat and value are treated as columns
+          type: boolean
+          default: true
+        mapStyle:
+          description: Define map type - regular, satellite etc.
+          type: string
+        note:
+          type: string
+        showNoteWhenEmpty:
+          description: If true, will display note when empty
+          type: boolean
+        colors:
+          description: Colors define color encoding of data into a visualization
+          type: array
+          items:
+            $ref: "#/components/schemas/DashboardColor"
+        layers:
+          description: List of individual layers shown in the map
+          type: array
+          items:
+            $ref: "#/components/schemas/GeoViewLayer"
     Axes:
       description: The viewport for a View's visualizations
       type: object
@@ -9889,6 +10097,9 @@ components:
         - $ref: "#/components/schemas/CheckViewProperties"
         - $ref: "#/components/schemas/ScatterViewProperties"
         - $ref: "#/components/schemas/HeatmapViewProperties"
+        - $ref: "#/components/schemas/MosaicViewProperties"
+        - $ref: "#/components/schemas/BandViewProperties"
+        - $ref: "#/components/schemas/GeoViewProperties"
     View:
       required:
         - name
@@ -10237,6 +10448,10 @@ components:
         bucketID:
           type: string
           description: The ID of the bucket to write to.
+        allowInsecure:
+          type: boolean
+          description: Skip TLS verification on endpoint.
+          default: false
     ScraperTargetResponse:
       type: object
       allOf:
@@ -10923,7 +11138,6 @@ components:
           type: integer
       required:
         - username
-        - password
         - org
         - bucket
     OnboardingResponse:
@@ -11012,7 +11226,7 @@ components:
           example: { "color": "ffb3b3", "description": "this is a description" }
     LabelCreateRequest:
       type: object
-      required: [orgID]
+      required: [orgID, name]
       properties:
         orgID:
           type: string
@@ -11387,6 +11601,7 @@ components:
         - $ref: "#/components/schemas/SMTPNotificationRule"
         - $ref: "#/components/schemas/PagerDutyNotificationRule"
         - $ref: "#/components/schemas/HTTPNotificationRule"
+        - $ref: "#/components/schemas/TelegramNotificationRule"
       discriminator:
         propertyName: type
         mapping:
@@ -11394,6 +11609,7 @@ components:
           smtp: "#/components/schemas/SMTPNotificationRule"
           pagerduty: "#/components/schemas/PagerDutyNotificationRule"
           http: "#/components/schemas/HTTPNotificationRule"
+          telegram: "#/components/schemas/TelegramNotificationRule"
     NotificationRule:
       allOf:
         - $ref: "#/components/schemas/NotificationRuleDiscriminator"
@@ -11595,6 +11811,31 @@ components:
           enum: [pagerduty]
         messageTemplate:
           type: string
+    TelegramNotificationRule:
+      allOf:
+        - $ref: "#/components/schemas/NotificationRuleBase"
+        - $ref: "#/components/schemas/TelegramNotificationRuleBase"
+    TelegramNotificationRuleBase:
+      type: object
+      required: [type, messageTemplate, channel]
+      properties:
+        type:
+          description: The discriminator between other types of notification rules is "telegram".
+          type: string
+          enum: [telegram]
+        messageTemplate:
+          description: The message template as a flux interpolated string.
+          type: string
+        parseMode:
+          description: Parse mode of the message text per https://core.telegram.org/bots/api#formatting-options . Defaults to "MarkdownV2" .
+          type: string
+          enum:
+            - MarkdownV2
+            - HTML
+            - Markdown
+        disableWebPagePreview:
+          description: Disables preview of web links in the sent messages when "true". Defaults to "false" .
+          type: boolean
     NotificationEndpointUpdate:
       type: object
 
@@ -11613,12 +11854,14 @@ components:
         - $ref: "#/components/schemas/SlackNotificationEndpoint"
         - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
         - $ref: "#/components/schemas/HTTPNotificationEndpoint"
+        - $ref: "#/components/schemas/TelegramNotificationEndpoint"
       discriminator:
         propertyName: type
         mapping:
           slack: "#/components/schemas/SlackNotificationEndpoint"
           pagerduty: "#/components/schemas/PagerDutyNotificationEndpoint"
           http: "#/components/schemas/HTTPNotificationEndpoint"
+          telegram: "#/components/schemas/TelegramNotificationEndpoint"
     NotificationEndpoint:
       allOf:
         - $ref: "#/components/schemas/NotificationEndpointDiscrimator"
@@ -11737,16 +11980,24 @@ components:
               description: Customized headers.
               additionalProperties:
                 type: string
+    TelegramNotificationEndpoint:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/NotificationEndpointBase"
+        - type: object
+          required: [token, channel]
+          properties:
+            token:
+              description: Specifies the Telegram bot token. See https://core.telegram.org/bots#creating-a-new-bot .
+              type: string
+            channel:
+              description: ID of the telegram channel, a chat_id in https://core.telegram.org/bots/api#sendmessage .
+              type: string
     NotificationEndpointType:
       type: string
-      enum: ["slack", "pagerduty", "http"]
+      enum: ["slack", "pagerduty", "http", "telegram"]
     DBRP:
-      required:
-        - orgID
-        - org
-        - bucketID
-        - database
-        - retention_policy
+      type: object
       properties:
         id:
           type: string
@@ -11772,6 +12023,17 @@ components:
           description: Specify if this mapping represents the default retention policy for the database specificed.
         links:
           $ref: "#/components/schemas/Links"
+      oneOf:
+        - required:
+          - orgID
+          - bucketID
+          - database
+          - retention_policy
+        - required:
+          - org
+          - bucketID
+          - database
+          - retention_policy
     DBRPs:
       properties:
         notificationEndpoints:

@@ -1,33 +1,44 @@
 // Libraries
-import React, {PureComponent} from 'react'
+import React, {FC, ReactNode} from 'react'
 import _ from 'lodash'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import LoadDataNavigation from 'src/settings/components/LoadDataNavigation'
 import {Tabs, Orientation, Page} from '@influxdata/clockface'
 
-// Decorators
-import {ErrorHandling} from 'src/shared/decorators/errors'
+// Utils
+import {getOrg} from 'src/organizations/selectors'
 
-interface Props {
+// Types
+import {AppState} from 'src/types'
+
+interface ComponentProps {
   activeTab: string
-  orgID: string
+  children?: ReactNode
 }
 
-@ErrorHandling
-class LoadDataTabbedPage extends PureComponent<Props> {
-  public render() {
-    const {activeTab, orgID, children} = this.props
+type StateProps = ConnectedProps<typeof connector>
 
-    return (
-      <Page.Contents fullWidth={false} scrollable={true}>
-        <Tabs.Container orientation={Orientation.Horizontal}>
-          <LoadDataNavigation activeTab={activeTab} orgID={orgID} />
-          <Tabs.TabContents>{children}</Tabs.TabContents>
-        </Tabs.Container>
-      </Page.Contents>
-    )
-  }
+type Props = ComponentProps & StateProps
+
+const LoadDataTabbedPage: FC<Props> = ({activeTab, orgID, children}) => {
+  return (
+    <Page.Contents fullWidth={false} scrollable={true}>
+      <Tabs.Container orientation={Orientation.Horizontal}>
+        <LoadDataNavigation activeTab={activeTab} orgID={orgID} />
+        <Tabs.TabContents>{children}</Tabs.TabContents>
+      </Tabs.Container>
+    </Page.Contents>
+  )
 }
 
-export default LoadDataTabbedPage
+const mstp = (state: AppState) => {
+  const org = getOrg(state)
+
+  return {orgID: org.id}
+}
+
+const connector = connect(mstp)
+
+export default connector(LoadDataTabbedPage)

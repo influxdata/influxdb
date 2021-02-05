@@ -36,6 +36,7 @@ import {
   patchDashboardsCellsView as apiPatchDashboardsCellsView,
   deleteStack as apiDeleteStack,
   getStacks,
+  patchStack,
   postTemplatesApply,
   Error as PkgError,
   TemplateApply,
@@ -488,7 +489,8 @@ export const reviewTemplate = async (orgID: string, templateUrl: string) => {
 export const installTemplate = async (
   orgID: string,
   templateUrl: string,
-  resourcesToSkip
+  resourcesToSkip: {[key: string]: string},
+  envRefs: {} = {}
 ) => {
   const data: TemplateApply = {
     dryRun: false,
@@ -508,6 +510,10 @@ export const installTemplate = async (
       })
     }
     data.actions = actions
+  }
+
+  if (Object.keys(envRefs).length) {
+    data.envRefs = envRefs
   }
 
   const params = {
@@ -535,4 +541,33 @@ export const deleteStack = async (stackId, orgID) => {
   }
 
   return resp
+}
+
+export const updateStackName = async (stackID, name) => {
+  const resp = await patchStack({
+    stack_id: stackID,
+    data: {
+      name,
+      description: null,
+      templateURLs: null,
+      additionalResources: null,
+    },
+  })
+  if (resp.status >= 300) {
+    throw new Error((resp.data as PkgError).message)
+  }
+
+  return resp
+}
+
+export const fetchReadMe = async (directory: string) => {
+  const resp = await fetch(
+    `https://raw.githubusercontent.com/influxdata/community-templates/master/${directory}/readme.md`
+  )
+
+  if (resp.status >= 300) {
+    throw new Error(`Network response was not ok:' ${resp.statusText}`)
+  }
+
+  return resp.text()
 }

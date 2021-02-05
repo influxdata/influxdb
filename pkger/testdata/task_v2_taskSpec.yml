@@ -1,0 +1,24 @@
+apiVersion: influxdata.com/v2alpha2
+kind: Task
+metadata:
+  name: task-1
+spec:
+  task:
+    - key: name
+      default: "foo"
+      type: string
+    - key: every
+      default: 1m0s
+      type: duration
+    - key: offset
+      default: 1m0s
+      type: duration
+  description: desc_1
+  query:  >
+    option task = { name: "bar", every: 1m, offset: 3m }
+    from(bucket: "rucket_1")
+      |> range(start: -5d, stop: -1h)
+      |> filter(fn: (r) => r._measurement == "cpu")
+      |> filter(fn: (r) => r._field == "usage_idle")
+      |> aggregateWindow(every: 1m, fn: mean)
+      |> yield(name: "mean")

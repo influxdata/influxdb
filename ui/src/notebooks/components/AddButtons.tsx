@@ -91,6 +91,7 @@ const AddButtons: FC<Props> = ({index, onInsert, eventName}) => {
     const pipes = pipeFamilies[fam.family].map(def => {
       return (
         <Button
+          className={`flows-add-cell-${def.type}`}
           key={def.type}
           text={def.button}
           onClick={() => {

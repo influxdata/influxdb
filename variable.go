@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/url"
+	"regexp"
 )
 
 // ErrVariableNotFound is the error msg for a missing variable.
@@ -115,6 +116,11 @@ func (m *Variable) Valid() error {
 
 	if m.Name == "" {
 		return fmt.Errorf("missing variable name")
+	}
+
+	// variable name must start with a letter to be a valid identifier in Flux
+	if !regexp.MustCompile(`^[a-zA-Z_].*`).MatchString(m.Name) {
+		return fmt.Errorf("variable name must start with a letter")
 	}
 
 	validTypes := map[string]bool{

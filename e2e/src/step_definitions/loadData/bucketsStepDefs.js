@@ -254,6 +254,10 @@ When(/^click the Line Protocol wizard continue button$/, async () => {
     await bktTabSteps.clickLineProtocolContinue();
 });
 
+When(/^click the Line Protocol wizard write button$/, async () => {
+   await bktTabSteps.clickLineProtocolWrite();
+});
+
 When(/^click the line Protocol wizard precision "(.*)"$/, async (prec) => {
     await bktTabSteps.clickLineProtocolPrecisionItem(prec);
 });
@@ -272,6 +276,18 @@ Then(/^the Line Protocol wizard step status message contains "(.*)"$/, async msg
 
 When(/^click the Line Protocol wizard finish button$/, async () => {
     await bktTabSteps.clickLineProtocolFinish();
+});
+
+When(/^click the Line Protocol wizard close button$/, async () => {
+   await bktTabSteps.clickLineProtocolClose();
+});
+
+When(/^click the Line Protocol wizard cancel button$/, async () => {
+   await bktTabSteps.clickLineProtocolCancel();
+});
+
+When(/^click the Line Protocol wizard close icon$/, async () => {
+   await bktTabSteps.clickLineProtocolCancelIcon();
 });
 
 Then(/^the line Protocol wizard is not present$/, {timeout: 2 * 5000}, async () => {

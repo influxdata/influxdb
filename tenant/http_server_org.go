@@ -29,7 +29,7 @@ func (h *OrgHandler) Prefix() string {
 }
 
 // NewHTTPOrgHandler constructs a new http server.
-func NewHTTPOrgHandler(log *zap.Logger, orgService influxdb.OrganizationService, urm http.Handler, labelHandler http.Handler, secretHandler http.Handler) *OrgHandler {
+func NewHTTPOrgHandler(log *zap.Logger, orgService influxdb.OrganizationService, urm http.Handler, secretHandler http.Handler) *OrgHandler {
 	svr := &OrgHandler{
 		api:    kithttp.NewAPI(kithttp.WithLog(log)),
 		log:    log,
@@ -56,7 +56,6 @@ func NewHTTPOrgHandler(log *zap.Logger, orgService influxdb.OrganizationService,
 			mountableRouter := r.With(kithttp.ValidResource(svr.api, svr.lookupOrgByID))
 			mountableRouter.Mount("/members", urm)
 			mountableRouter.Mount("/owners", urm)
-			mountableRouter.Mount("/labels", labelHandler)
 			mountableRouter.Mount("/secrets", secretHandler)
 		})
 	})
@@ -142,8 +141,15 @@ func (h *OrgHandler) handleGetOrg(w http.ResponseWriter, r *http.Request) {
 
 // handleGetOrgs is the HTTP handler for the GET /api/v2/orgs route.
 func (h *OrgHandler) handleGetOrgs(w http.ResponseWriter, r *http.Request) {
-	var filter influxdb.OrganizationFilter
 	qp := r.URL.Query()
+
+	opts, err := influxdb.DecodeFindOptions(r)
+	if err != nil {
+		h.api.Err(w, r, err)
+		return
+	}
+
+	var filter influxdb.OrganizationFilter
 	if name := qp.Get("org"); name != "" {
 		filter.Name = &name
 	}
@@ -162,7 +168,7 @@ func (h *OrgHandler) handleGetOrgs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	orgs, _, err := h.orgSvc.FindOrganizations(r.Context(), filter)
+	orgs, _, err := h.orgSvc.FindOrganizations(r.Context(), filter, *opts)
 	if err != nil {
 		h.api.Err(w, r, err)
 		return

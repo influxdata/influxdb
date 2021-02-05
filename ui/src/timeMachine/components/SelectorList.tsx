@@ -1,9 +1,8 @@
 // Libraries
 import React, {SFC} from 'react'
-import classnames from 'classnames'
 
 // Components
-import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
+import {List, ComponentSize, Gradients} from '@influxdata/clockface'
 
 interface Props {
   items: string[]
@@ -12,6 +11,7 @@ interface Props {
   multiSelect: boolean
   children?: JSX.Element | JSX.Element[]
   testID?: string
+  wrapText?: boolean
 }
 
 const SelectorList: SFC<Props> = props => {
@@ -22,38 +22,40 @@ const SelectorList: SFC<Props> = props => {
     multiSelect,
     children,
     testID,
+    wrapText,
   } = props
 
   return (
-    <BuilderCard.Body
-      addPadding={false}
-      autoHideScrollbars={true}
-      testID={testID}
-    >
+    <List autoHideScrollbars={true} testID={testID} style={{flex: '1 0 0'}}>
       {items.map(item => {
-        const className = classnames('selector-list--item', {
-          selected: selectedItems.includes(item),
-          'selector-list--checkbox': multiSelect,
-        })
+        const selected = selectedItems.includes(item)
 
-        const title = selectedItems.includes(item)
+        const title = selected
           ? 'Click to remove this filter'
           : `Click to filter by ${item}`
 
+        const indicator = multiSelect && <List.Indicator type="checkbox" />
+
         return (
-          <div
-            className={className}
-            data-testid={`selector-list ${item}`}
+          <List.Item
+            className="selector-list--item"
+            testID={`selector-list ${item}`}
             key={item}
-            onClick={() => onSelectItem(item)}
+            value={item}
+            onClick={onSelectItem}
             title={title}
+            selected={selected}
+            size={ComponentSize.ExtraSmall}
+            gradient={Gradients.GundamPilot}
+            wrapText={wrapText}
           >
+            {indicator}
             {item}
-          </div>
+          </List.Item>
         )
       })}
       {children}
-    </BuilderCard.Body>
+    </List>
   )
 }
 

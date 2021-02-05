@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
@@ -15,7 +14,8 @@ import (
 type groupResultSet struct {
 	ctx          context.Context
 	req          *datatypes.ReadGroupRequest
-	arrayCursors *arrayCursors
+	agg          *datatypes.Aggregate
+	arrayCursors multiShardCursors
 
 	i             int
 	seriesRows    []*SeriesRow
@@ -41,13 +41,10 @@ func GroupOptionNilSortLo() GroupOption {
 }
 
 func NewGroupResultSet(ctx context.Context, req *datatypes.ReadGroupRequest, newSeriesCursorFn func() (SeriesCursor, error), opts ...GroupOption) GroupResultSet {
-	span, _ := tracing.StartSpanFromContext(ctx)
-	defer span.Finish()
-	span.LogKV("group_type", req.Group.String())
-
 	g := &groupResultSet{
 		ctx:               ctx,
 		req:               req,
+		agg:               req.Aggregate,
 		keys:              make([][]byte, len(req.GroupKeys)),
 		nilSort:           NilSortHi,
 		newSeriesCursorFn: newSeriesCursorFn,
@@ -57,17 +54,7 @@ func NewGroupResultSet(ctx context.Context, req *datatypes.ReadGroupRequest, new
 		o(g)
 	}
 
-	g.arrayCursors = newArrayCursors(
-		ctx,
-		req.Range.Start,
-		req.Range.End,
-		// The following is an optimization where the selector `last`
-		// is implemented as a descending array cursor followed by a
-		// limit array cursor that selects only the first point, i.e
-		// the point with the largest timestamp, from the descending
-		// array cursor.
-		req.Aggregate == nil || req.Aggregate.Type != datatypes.AggregateTypeLast,
-	)
+	g.arrayCursors = newMultiShardArrayCursors(ctx, req.Range.Start, req.Range.End, true)
 
 	for i, k := range req.GroupKeys {
 		g.keys[i] = []byte(k)
@@ -85,8 +72,6 @@ func NewGroupResultSet(ctx context.Context, req *datatypes.ReadGroupRequest, new
 
 		if n, err := g.groupBySort(); n == 0 || err != nil {
 			return nil
-		} else {
-			span.LogKV("rows", n)
 		}
 
 	case datatypes.GroupNone:
@@ -94,8 +79,6 @@ func NewGroupResultSet(ctx context.Context, req *datatypes.ReadGroupRequest, new
 
 		if n, err := g.groupNoneSort(); n == 0 || err != nil {
 			return nil
-		} else {
-			span.LogKV("rows", n)
 		}
 
 	default:
@@ -170,7 +153,7 @@ func groupNoneNextGroup(g *groupResultSet) GroupCursor {
 	return &groupNoneCursor{
 		ctx:          g.ctx,
 		arrayCursors: g.arrayCursors,
-		agg:          g.req.Aggregate,
+		agg:          g.agg,
 		cur:          seriesCursor,
 		keys:         g.km.Get(),
 	}
@@ -278,11 +261,13 @@ func (g *groupResultSet) groupBySort() (int, error) {
 
 type groupNoneCursor struct {
 	ctx          context.Context
-	arrayCursors *arrayCursors
+	arrayCursors multiShardCursors
 	agg          *datatypes.Aggregate
 	cur          SeriesCursor
 	row          SeriesRow
 	keys         [][]byte
+	cursor       cursors.Cursor
+	err          error
 }
 
 func (c *groupNoneCursor) Err() error                 { return nil }
@@ -292,6 +277,10 @@ func (c *groupNoneCursor) PartitionKeyVals() [][]byte { return nil }
 func (c *groupNoneCursor) Close()                     { c.cur.Close() }
 func (c *groupNoneCursor) Stats() cursors.CursorStats { return c.row.Query.Stats() }
 
+func (c *groupNoneCursor) Aggregate() *datatypes.Aggregate {
+	return c.agg
+}
+
 func (c *groupNoneCursor) Next() bool {
 	row := c.cur.Next()
 	if row == nil {
@@ -300,25 +289,32 @@ func (c *groupNoneCursor) Next() bool {
 
 	c.row = *row
 
-	return true
+	c.cursor, c.err = c.createCursor(c.row)
+	return c.err == nil
+}
+
+func (c *groupNoneCursor) createCursor(seriesRow SeriesRow) (cur cursors.Cursor, err error) {
+	cur = c.arrayCursors.createCursor(c.row)
+	if c.agg != nil {
+		cur, err = newAggregateArrayCursor(c.ctx, c.agg, cur)
+	}
+	return cur, err
 }
 
 func (c *groupNoneCursor) Cursor() cursors.Cursor {
-	cur := c.arrayCursors.createCursor(c.row)
-	if c.agg != nil {
-		cur = newAggregateArrayCursor(c.ctx, c.agg, cur)
-	}
-	return cur
+	return c.cursor
 }
 
 type groupByCursor struct {
 	ctx          context.Context
-	arrayCursors *arrayCursors
+	arrayCursors multiShardCursors
 	agg          *datatypes.Aggregate
 	i            int
 	seriesRows   []*SeriesRow
 	keys         [][]byte
 	vals         [][]byte
+	cursor       cursors.Cursor
+	err          error
 }
 
 func (c *groupByCursor) reset(seriesRows []*SeriesRow) {
@@ -332,20 +328,29 @@ func (c *groupByCursor) PartitionKeyVals() [][]byte { return c.vals }
 func (c *groupByCursor) Tags() models.Tags          { return c.seriesRows[c.i-1].Tags }
 func (c *groupByCursor) Close()                     {}
 
+func (c *groupByCursor) Aggregate() *datatypes.Aggregate {
+	return c.agg
+}
+
 func (c *groupByCursor) Next() bool {
 	if c.i < len(c.seriesRows) {
 		c.i++
-		return true
+		c.cursor, c.err = c.createCursor(*c.seriesRows[c.i-1])
+		return c.err == nil
 	}
 	return false
 }
 
-func (c *groupByCursor) Cursor() cursors.Cursor {
-	cur := c.arrayCursors.createCursor(*c.seriesRows[c.i-1])
+func (c *groupByCursor) createCursor(seriesRow SeriesRow) (cur cursors.Cursor, err error) {
+	cur = c.arrayCursors.createCursor(seriesRow)
 	if c.agg != nil {
-		cur = newAggregateArrayCursor(c.ctx, c.agg, cur)
+		cur, err = newAggregateArrayCursor(c.ctx, c.agg, cur)
 	}
-	return cur
+	return cur, err
+}
+
+func (c *groupByCursor) Cursor() cursors.Cursor {
+	return c.cursor
 }
 
 func (c *groupByCursor) Stats() cursors.CursorStats {

@@ -9,6 +9,7 @@ import (
 	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
+	"github.com/influxdata/flux/metadata"
 	"github.com/influxdata/flux/plan"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
@@ -29,6 +30,7 @@ type runner interface {
 }
 
 type Source struct {
+	execute.ExecutionNode
 	id execute.DatasetID
 	ts []execute.Transformation
 
@@ -46,7 +48,7 @@ func (s *Source) Run(ctx context.Context) {
 	labelValues := s.m.getLabelValues(ctx, s.orgID, s.op)
 	start := time.Now()
 	var err error
-	if flux.IsExperimentalTracingEnabled() {
+	if flux.IsQueryTracingEnabled(ctx) {
 		span, ctxWithSpan := tracing.StartSpanFromContextWithOperationName(ctx, "source-"+s.op)
 		err = s.runner.run(ctxWithSpan)
 		span.Finish()
@@ -63,8 +65,8 @@ func (s *Source) AddTransformation(t execute.Transformation) {
 	s.ts = append(s.ts, t)
 }
 
-func (s *Source) Metadata() flux.Metadata {
-	return flux.Metadata{
+func (s *Source) Metadata() metadata.Metadata {
+	return metadata.Metadata{
 		"influxdb/scanned-bytes":  []interface{}{s.stats.ScannedBytes},
 		"influxdb/scanned-values": []interface{}{s.stats.ScannedValues},
 	}
@@ -274,11 +276,11 @@ func createReadGroupSource(s plan.ProcedureSpec, id execute.DatasetID, a execute
 
 type readWindowAggregateSource struct {
 	Source
-	reader   query.WindowAggregateReader
+	reader   query.StorageReader
 	readSpec query.ReadWindowAggregateSpec
 }
 
-func ReadWindowAggregateSource(id execute.DatasetID, r query.WindowAggregateReader, readSpec query.ReadWindowAggregateSpec, a execute.Administration) execute.Source {
+func ReadWindowAggregateSource(id execute.DatasetID, r query.StorageReader, readSpec query.ReadWindowAggregateSpec, a execute.Administration) execute.Source {
 	src := new(readWindowAggregateSource)
 
 	src.id = id
@@ -323,8 +325,6 @@ func createReadWindowAggregateSource(s plan.ProcedureSpec, id execute.DatasetID,
 	}
 
 	deps := GetStorageDependencies(a.Context()).FromDeps
-	reader := deps.Reader.(query.WindowAggregateReader)
-
 	req := query.RequestFromContext(a.Context())
 	if req == nil {
 		return nil, &flux.Error{
@@ -341,7 +341,7 @@ func createReadWindowAggregateSource(s plan.ProcedureSpec, id execute.DatasetID,
 
 	return ReadWindowAggregateSource(
 		id,
-		reader,
+		deps.Reader,
 		query.ReadWindowAggregateSpec{
 			ReadFilterSpec: query.ReadFilterSpec{
 				OrganizationID: orgID,
@@ -349,8 +349,11 @@ func createReadWindowAggregateSource(s plan.ProcedureSpec, id execute.DatasetID,
 				Bounds:         *bounds,
 				Predicate:      spec.Filter,
 			},
-			WindowEvery: spec.WindowEvery,
-			Offset:      spec.Offset,
+			Window: execute.Window{
+				Every:  spec.WindowEvery,
+				Period: spec.WindowEvery,
+				Offset: spec.Offset,
+			},
 			Aggregates:  spec.Aggregates,
 			CreateEmpty: spec.CreateEmpty,
 			TimeColumn:  spec.TimeColumn,

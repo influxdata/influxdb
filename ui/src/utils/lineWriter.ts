@@ -103,7 +103,7 @@ export class LineWriter {
       if (typeof fieldValue === 'string') {
         printableFieldValue = fieldValue
           .replace(/\n/g, '') // remove newlines
-          .replace(/\\/g, '\\') // replace single backslach with an escaped backslash
+          .replace(/\\/g, '\\') // replace single backslash with an escaped backslash
           .replace(/"/g, '\\"') // replace double quotes with escaped double quotes
       }
 

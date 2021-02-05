@@ -100,7 +100,7 @@ func WithMaxConcurrentWorkers(n int) treeSchedulerOptFunc {
 	}
 }
 
-// WithTime is an optiom for NewScheduler that allows you to inject a clock.Clock from ben johnson's github.com/benbjohnson/clock library, for testing purposes.
+// WithTime is an option for NewScheduler that allows you to inject a clock.Clock from ben johnson's github.com/benbjohnson/clock library, for testing purposes.
 func WithTime(t clock.Clock) treeSchedulerOptFunc {
 	return func(sch *TreeScheduler) error {
 		sch.time = t
@@ -209,7 +209,7 @@ func (s *TreeScheduler) Stop() {
 	s.wg.Wait()
 }
 
-// itemList is a list of items for deleting and inserting.  We have to do them seperately instead of just a re-add,
+// itemList is a list of items for deleting and inserting.  We have to do them separately instead of just a re-add,
 // because usually the items key must be changed between the delete and insert
 type itemList struct {
 	toInsert []Item

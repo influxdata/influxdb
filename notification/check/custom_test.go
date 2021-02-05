@@ -178,10 +178,10 @@ data
 					t.Errorf("expected:\n%v\n\ngot:\n%v\n", exp, got)
 				}
 			} else if (exp == nil || got == nil) && got != exp {
-				//either exp or got are nill
+				//either exp or got are nil
 				t.Errorf("expected:\n%v\n\ngot:\n%v\n", exp, got)
 			} else {
-				// neither errs are nill check that scripts match
+				// neither errs are nil check that scripts match
 				if exp, got := tt.wants.script, tt.args.custom.Query.Text; exp != got {
 					t.Errorf("\n\nStrings do not match:\n\n%s", diff.LineDiff(exp, got))
 				}

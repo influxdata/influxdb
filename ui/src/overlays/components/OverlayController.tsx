@@ -14,6 +14,7 @@ import TelegrafConfigOverlay from 'src/telegrafs/components/TelegrafConfigOverla
 import TelegrafOutputOverlay from 'src/telegrafs/components/TelegrafOutputOverlay'
 import OrgSwitcherOverlay from 'src/pageLayout/components/OrgSwitcherOverlay'
 import CreateBucketOverlay from 'src/buckets/components/CreateBucketOverlay'
+import AssetLimitOverlay from 'src/cloud/components/AssetLimitOverlay'
 
 // Actions
 import {dismissOverlay} from 'src/overlays/actions/overlays'
@@ -56,6 +57,9 @@ const OverlayController: FunctionComponent<OverlayControllerProps> = props => {
       break
     case 'create-bucket':
       activeOverlay = <CreateBucketOverlay onClose={closer} />
+      break
+    case 'asset-limit':
+      activeOverlay = <AssetLimitOverlay onClose={closer} />
       break
     default:
       visibility = false

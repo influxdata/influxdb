@@ -1,0 +1,15 @@
+FROM node:12.16
+
+USER root
+
+COPY package.json /home/e2e/package.json
+
+WORKDIR /home/e2e
+
+RUN npm install
+
+COPY . /home/e2e
+
+ENV PATH $PATH:./node_modules/.bin
+
+ENTRYPOINT scripts/cloud-test.sh

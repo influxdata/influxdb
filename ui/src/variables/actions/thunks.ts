@@ -63,7 +63,7 @@ import {getActiveTimeMachine} from 'src/timeMachine/selectors'
 
 type Action = VariableAction | EditorAction | NotifyAction
 
-export const getVariables = () => async (
+export const getVariables = (controller?: AbortController) => async (
   dispatch: Dispatch<Action>,
   getState: GetState
 ) => {
@@ -77,7 +77,14 @@ export const getVariables = () => async (
     }
 
     const org = getOrg(state)
-    const resp = await api.getVariables({query: {orgID: org.id}})
+    const resp = await api.getVariables(
+      {query: {orgID: org.id}},
+      {signal: controller?.signal}
+    )
+    if (!resp) {
+      return
+    }
+
     if (resp.status !== 200) {
       throw new Error(resp.data.message)
     }
@@ -138,10 +145,10 @@ const getActiveView = (state: AppState) => {
   return []
 }
 
-export const hydrateVariables = (skipCache?: boolean) => async (
-  dispatch: Dispatch<Action>,
-  getState: GetState
-) => {
+export const hydrateVariables = (
+  skipCache?: boolean,
+  controller?: AbortController
+) => async (dispatch: Dispatch<Action>, getState: GetState) => {
   const state = getState()
   const org = getOrg(state)
   const vars = getVariablesFromState(state)
@@ -152,6 +159,7 @@ export const hydrateVariables = (skipCache?: boolean) => async (
     orgID: org.id,
     url: state.links.query.self,
     skipCache,
+    controller,
   })
 
   hydration.on('status', (variable, status) => {

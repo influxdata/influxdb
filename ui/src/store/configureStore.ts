@@ -52,17 +52,22 @@ import {
 } from 'src/dataLoaders/reducers/telegrafEditor'
 import {predicatesReducer} from 'src/shared/reducers/predicates'
 import alertBuilderReducer from 'src/alerting/reducers/alertBuilder'
+import perfReducer from 'src/perf/reducers'
+import {schemaReducer} from 'src/shared/reducers/schema'
 
 // Types
 import {AppState, LocalStorage} from 'src/types'
-import {queryCacheReducer} from 'src/queryCache/reducers'
 
 type ReducerState = Pick<AppState, Exclude<keyof AppState, 'timeRange'>>
 
 import {history} from 'src/store/history'
 
-export const rootReducer = (history: History) =>
-  combineReducers<ReducerState>({
+export const rootReducer = (history: History) => (state, action) => {
+  if (action.type === 'USER_LOGGED_OUT') {
+    state = undefined
+  }
+
+  return combineReducers<ReducerState>({
     router: connectRouter(history),
     ...sharedReducers,
     autoRefresh: autoRefreshReducer,
@@ -81,12 +86,13 @@ export const rootReducer = (history: History) =>
     dataLoading: dataLoadingReducer,
     me: meReducer,
     flags: flagReducer,
+    notebook: schemaReducer,
     noteEditor: noteEditorReducer,
     onboarding: onboardingReducer,
     overlays: overlaysReducer,
+    perf: perfReducer,
     plugins: pluginsResourceReducer,
     predicates: predicatesReducer,
-    queryCache: queryCacheReducer,
     ranges: rangesReducer,
     resources: combineReducers({
       buckets: bucketsReducer,
@@ -113,7 +119,8 @@ export const rootReducer = (history: History) =>
     userSettings: userSettingsReducer,
     variableEditor: variableEditorReducer,
     VERSION: () => '',
-  })
+  })(state, action)
+}
 
 const composeEnhancers =
   (window as any).__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose

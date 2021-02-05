@@ -1,6 +1,9 @@
 package influxdb
 
-import "context"
+import (
+	"context"
+	"time"
+)
 
 // OnboardingService represents a service for the first run.
 type OnboardingService interface {
@@ -25,22 +28,15 @@ type OnboardingResults struct {
 // OnboardingRequest is the request
 // to setup defaults.
 type OnboardingRequest struct {
-	User            string `json:"username"`
-	Password        string `json:"password"`
-	Org             string `json:"org"`
-	Bucket          string `json:"bucket"`
-	RetentionPeriod uint   `json:"retentionPeriodHrs,omitempty"`
-	Token           string `json:"token,omitempty"`
+	User            string        `json:"username"`
+	Password        string        `json:"password"`
+	Org             string        `json:"org"`
+	Bucket          string        `json:"bucket"`
+	RetentionPeriod time.Duration `json:"retentionPeriodHrs,omitempty"`
+	Token           string        `json:"token,omitempty"`
 }
 
 func (r *OnboardingRequest) Valid() error {
-	if r.Password == "" {
-		return &Error{
-			Code: EEmptyValue,
-			Msg:  "password is empty",
-		}
-	}
-
 	if r.User == "" {
 		return &Error{
 			Code: EEmptyValue,

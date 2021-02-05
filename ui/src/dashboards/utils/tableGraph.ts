@@ -215,6 +215,11 @@ export const sortTableData = (
 
   if (headerSet.has(sort.field)) {
     sortIndex = _.indexOf(data[0], sort.field)
+  } else if (!sort.field) {
+    return {
+      sortedData: [...data],
+      sortedTimeVals: data.map(col => col[0]),
+    }
   }
 
   const dataValues = _.drop(data, 1)

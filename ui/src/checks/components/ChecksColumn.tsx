@@ -23,8 +23,15 @@ import {
   ResourceType,
 } from 'src/types'
 
+// Utils
+import {extractChecksLimits} from 'src/cloud/utils/limits'
+
+interface OwnProps {
+  tabIndex: number
+}
+
 type ReduxProps = ConnectedProps<typeof connector>
-type Props = ReduxProps & RouteComponentProps<{orgID: string}>
+type Props = OwnProps & ReduxProps & RouteComponentProps<{orgID: string}>
 
 const ChecksColumn: FunctionComponent<Props> = ({
   checks,
@@ -34,6 +41,8 @@ const ChecksColumn: FunctionComponent<Props> = ({
   },
   rules,
   endpoints,
+  limitStatus,
+  tabIndex,
 }) => {
   const handleCreateThreshold = () => {
     history.push(`/orgs/${orgID}/alerting/checks/new-threshold`)
@@ -66,6 +75,7 @@ const ChecksColumn: FunctionComponent<Props> = ({
 
   const createButton = (
     <CreateCheckDropdown
+      limitStatus={limitStatus}
       onCreateThreshold={handleCreateThreshold}
       onCreateDeadman={handleCreateDeadman}
     />
@@ -77,6 +87,7 @@ const ChecksColumn: FunctionComponent<Props> = ({
       title="Checks"
       createButton={createButton}
       questionMarkTooltipContents={tooltipContents}
+      tabIndex={tabIndex}
     >
       {searchTerm => (
         <CheckCards
@@ -92,6 +103,10 @@ const ChecksColumn: FunctionComponent<Props> = ({
 }
 
 const mstp = (state: AppState) => {
+  const {
+    cloud: {limits},
+  } = state
+
   const checks = getAll<Check>(state, ResourceType.Checks)
 
   const endpoints = getAll<NotificationEndpoint>(
@@ -108,6 +123,7 @@ const mstp = (state: AppState) => {
     checks: sortChecksByName(checks),
     rules: sortRulesByName(rules),
     endpoints: sortEndpointsByName(endpoints),
+    limitStatus: extractChecksLimits(limits),
   }
 }
 

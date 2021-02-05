@@ -64,7 +64,12 @@ describe('DataExplorer', () => {
         cy.get('.view-lines').type(fluxCode)
       })
       cy.contains('Submit').click()
-      cy.getByTestID('nav-item-load-data').click()
+      cy.get('.cf-tree-nav--toggle').click()
+      // Can't use the testID to select this nav item because Clockface is silly and uses the same testID twice
+      // Issue: https://github.com/influxdata/clockface/issues/539
+      cy.get('.cf-tree-nav--sub-item-label')
+        .contains('Buckets')
+        .click()
       cy.getByTestID('bucket--card--name _tasks').click()
       cy.getByTestID('query-builder').should('exist')
     })
@@ -690,17 +695,23 @@ describe('DataExplorer', () => {
         cy.getByTestID(`selector-list m`).click()
         cy.getByTestID('selector-list v').click()
         cy.getByTestID(`selector-list tv1`).click()
-        cy.getByTestID('selector-list max').click()
+        cy.getByTestID('selector-list last').click({force: true})
 
         cy.getByTestID('time-machine-submit-button').click()
 
         // cycle through all the visualizations of the data
         VIS_TYPES.forEach(({type}) => {
-          cy.getByTestID('view-type--dropdown').click()
-          cy.getByTestID(`view-type--${type}`).click()
-          cy.getByTestID(`vis-graphic--${type}`).should('exist')
-          if (type.includes('single-stat')) {
-            cy.getByTestID('single-stat--text').should('contain', `${numLines}`)
+          if (type !== 'mosaic' && type !== 'band') {
+            //mosaic graph is behind feature flag
+            cy.getByTestID('view-type--dropdown').click()
+            cy.getByTestID(`view-type--${type}`).click()
+            cy.getByTestID(`vis-graphic--${type}`).should('exist')
+            if (type.includes('single-stat')) {
+              cy.getByTestID('single-stat--text').should(
+                'contain',
+                `${numLines}`
+              )
+            }
           }
         })
 
@@ -739,12 +750,63 @@ describe('DataExplorer', () => {
         cy.getByTestID('form--element-error').should('not.exist')
       })
 
+      it('can set x-axis and y-axis values', () => {
+        // build the query to return data from beforeEach
+        cy.getByTestID(`selector-list m`).click()
+        cy.getByTestID('selector-list v').click()
+        cy.getByTestID(`selector-list tv1`).click()
+
+        cy.getByTestID('time-machine-submit-button').click()
+        cy.getByTestID('cog-cell--button').click()
+
+        // Check stop
+        cy.getByTestID('dropdown-x').click()
+        cy.getByTitle('_stop').click()
+        cy.getByTestID('dropdown-x').contains('_stop')
+
+        //check Value
+        cy.getByTestID('dropdown-x').click()
+        cy.getByTitle('_value').click()
+        cy.getByTestID('dropdown-x').contains('_value')
+
+        //check start
+        cy.getByTestID('dropdown-x').click()
+        cy.getByTitle('_start').click()
+        cy.getByTestID('dropdown-x').contains('_start')
+
+        //check time
+        cy.getByTestID('dropdown-x').click()
+        cy.getByTitle('_time').click()
+        cy.getByTestID('dropdown-x').contains('_time')
+
+        // Check stop
+        cy.getByTestID('dropdown-y').click()
+        cy.getByTitle('_stop').click()
+        cy.getByTestID('dropdown-y').contains('_stop')
+
+        //check Value
+        cy.getByTestID('dropdown-y').click()
+        cy.getByTitle('_value').click()
+        cy.getByTestID('dropdown-y').contains('_value')
+
+        //check start
+        cy.getByTestID('dropdown-y').click()
+        cy.getByTitle('_start').click()
+        cy.getByTestID('dropdown-y').contains('_start')
+
+        //check time
+        cy.getByTestID('dropdown-y').click()
+        cy.getByTitle('_time').click()
+        cy.getByTestID('dropdown-y').contains('_time')
+      })
+
       it('can view table data & sort values numerically', () => {
         // build the query to return data from beforeEach
         cy.getByTestID(`selector-list m`).click()
         cy.getByTestID('selector-list v').click()
         cy.getByTestID(`selector-list tv1`).click()
-        cy.getByTestID('selector-list sort').click()
+        cy.getByTestID(`custom-function`).click()
+        cy.getByTestID('selector-list sort').click({force: true})
 
         cy.getByTestID('time-machine-submit-button').click()
 
@@ -792,7 +854,8 @@ describe('DataExplorer', () => {
         cy.getByTestID(`selector-list m`).click()
         cy.getByTestID('selector-list v').click()
         cy.getByTestID(`selector-list tv1`).click()
-        cy.getByTestID('selector-list sort').click()
+        cy.getByTestID(`custom-function`).click()
+        cy.getByTestID('selector-list sort').click({force: true})
 
         cy.getByTestID('time-machine-submit-button').click()
 
@@ -802,12 +865,12 @@ describe('DataExplorer', () => {
         cy.getByTestID('raw-data--toggle').click()
 
         cy.get('.time-machine--view').within(() => {
-          cy.get('.cf-dapper-scrollbars--thumb-y') // TODO(zoe): replace with test ids https://github.com/influxdata/clockface/issues/507
+          cy.getByTestID('rawdata-table--scrollbar--thumb-y')
             .trigger('mousedown', {force: true})
             .trigger('mousemove', {clientY: 5000})
             .trigger('mouseup')
 
-          cy.get('.cf-dapper-scrollbars--thumb-x') // TODO(zoe): replace with test ids https://github.com/influxdata/clockface/issues/507
+          cy.getByTestID('rawdata-table--scrollbar--thumb-x')
             .trigger('mousedown', {force: true})
             .trigger('mousemove', {clientX: 1000})
             .trigger('mouseup')
@@ -823,7 +886,8 @@ describe('DataExplorer', () => {
         cy.getByTestID(`selector-list m`).click()
         cy.getByTestID('selector-list v').click()
         cy.getByTestID(`selector-list tv1`).click()
-        cy.getByTestID('selector-list sort').click()
+        cy.getByTestID(`custom-function`).click()
+        cy.getByTestID('selector-list sort').click({force: true})
 
         cy.getByTestID('time-machine-submit-button').click()
 
@@ -831,7 +895,7 @@ describe('DataExplorer', () => {
         cy.getByTestID(`view-type--table`).click()
 
         cy.get('.time-machine--view').within(() => {
-          cy.get('.cf-dapper-scrollbars--thumb-y') // TODO(zoe): replace with test ids https://github.com/influxdata/clockface/issues/507
+          cy.getByTestID('dapper-scrollbars--thumb-y')
             .trigger('mousedown', {force: true})
             .trigger('mousemove', {clientY: 5000})
             .trigger('mouseup')

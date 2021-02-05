@@ -36,7 +36,7 @@ func (a *AuthAgent) IsWritable(ctx context.Context, orgID influxdb.ID, resType i
 	if resTypeErr != nil && orgErr != nil {
 		return &influxdb.Error{
 			Code: influxdb.EUnauthorized,
-			Msg:  "not authorized to write " + string(resType),
+			Msg:  "not authorized to create " + string(resType),
 		}
 	}
 

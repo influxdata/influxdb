@@ -68,7 +68,7 @@ class influxSteps extends baseSteps {
             elem = await this.influxPage.getNavMenuUser();
             break;
         default:
-            throw `Unkown menu item ${item}`;
+            throw `Unknown menu item ${item}`;
         }
 
         return elem;
@@ -87,7 +87,7 @@ class influxSteps extends baseSteps {
                 elem = await this.influxPage.getUserMenuItem('logout');
                 break;
             default:
-                throw `Unkown menu item ${item}`;
+                throw `Unknown menu item ${item}`;
         }
 
         return elem;
@@ -103,7 +103,7 @@ class influxSteps extends baseSteps {
         }else if(state === 'visible'){
             this.assertVisible(await this.getNavMenuElem(item));
         }else{
-            throw `unkown menu state ${state}`;
+            throw `unknown menu state ${state}`;
         }
     }
 
@@ -113,13 +113,17 @@ class influxSteps extends baseSteps {
         }else if(state === 'visible'){
             this.assertVisible(await this.getUserMenuElem(item));
         }else{
-            throw `unkown menu state ${state}`;
+            throw `unknown menu state ${state}`;
         }
     }
 
     async clickMenuItem(item,
                         wait = async () => { await this.driver.sleep((await this.driver.manage().getTimeouts()).implicit/20); }){
         await this.clickAndWait(await this.getNavMenuElem(item), wait);
+    }
+
+    async clickUserMenuItem(item){
+        await this.clickAndWait(await this.getUserMenuElem(item.toLowerCase()));
     }
 
     async clickSubMenuItem(item,

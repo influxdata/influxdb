@@ -1,5 +1,5 @@
 import React, {FC, useContext, useEffect, useState} from 'react'
-import {FluxResult, Resource, ResourceManipulator, DataID} from 'src/notebooks'
+import {FluxResult, Resource, ResourceManipulator} from 'src/notebooks'
 import useResource from 'src/notebooks/context/resource.hook'
 import {NotebookContext} from 'src/notebooks/context/notebook.current'
 
@@ -40,7 +40,7 @@ export const ResultsProvider: FC = ({children}) => {
 
   const value = {
     ...manipulator,
-    add: (id: DataID<FluxResult>, result?: FluxResult) => {
+    add: (id: string, result?: FluxResult) => {
       try {
         if (result) {
           manipulator.add(id, result)

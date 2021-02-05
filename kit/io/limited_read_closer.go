@@ -11,38 +11,49 @@ var ErrReadLimitExceeded = errors.New("read limit exceeded")
 // io.LimitedReader. It allows us to obtain the limit error at the time of close
 // instead of just when writing.
 type LimitedReadCloser struct {
-	*io.LimitedReader
-	err   error
-	close func() error
+	R             io.ReadCloser // underlying reader
+	N             int64         // max bytes remaining
+	err           error
+	closed        bool
+	limitExceeded bool
 }
 
 // NewLimitedReadCloser returns a new LimitedReadCloser.
 func NewLimitedReadCloser(r io.ReadCloser, n int64) *LimitedReadCloser {
-	// read up to max + 1 as limited reader just returns EOF when the limit is reached
-	// or when there is nothing left to read. If we exceed the max batch size by one
-	// then we know the limit has been passed.
 	return &LimitedReadCloser{
-		LimitedReader: &io.LimitedReader{R: r, N: n + 1},
-		close:         r.Close,
+		R: r,
+		N: n,
 	}
+}
+
+func (l *LimitedReadCloser) Read(p []byte) (n int, err error) {
+	if l.N <= 0 {
+		l.limitExceeded = true
+		return 0, io.EOF
+	}
+	if int64(len(p)) > l.N {
+		p = p[0:l.N]
+	}
+	n, err = l.R.Read(p)
+	l.N -= int64(n)
+	return
 }
 
 // Close returns an ErrReadLimitExceeded when the wrapped reader exceeds the set
 // limit for number of bytes.  This is safe to call more than once but not
 // concurrently.
 func (l *LimitedReadCloser) Close() (err error) {
-	defer func() {
-		if cerr := l.close(); cerr != nil && err == nil {
-			err = cerr
-		}
-
-		// only call close once
-		l.close = func() error { return nil }
-	}()
-
-	if l.N < 1 {
+	if l.limitExceeded {
 		l.err = ErrReadLimitExceeded
 	}
-
+	if l.closed {
+		// Close has already been called.
+		return l.err
+	}
+	if err := l.R.Close(); err != nil && l.err == nil {
+		l.err = err
+	}
+	// Prevent l.closer.Close from being called again.
+	l.closed = true
 	return l.err
 }

@@ -34,6 +34,10 @@ type Limiter struct {
 // NewLimiter returns a new instance of Limiter associated with an mmap.
 // The underlying limiter can be shared to limit faults across the entire process.
 func NewLimiter(underlying *rate.Limiter, data []byte) *Limiter {
+	if underlying == nil {
+		return nil
+	}
+
 	return &Limiter{
 		underlying: underlying,
 		data:       data,

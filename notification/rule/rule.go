@@ -16,6 +16,7 @@ var typeToRule = map[string](func() influxdb.NotificationRule){
 	"slack":     func() influxdb.NotificationRule { return &Slack{} },
 	"pagerduty": func() influxdb.NotificationRule { return &PagerDuty{} },
 	"http":      func() influxdb.NotificationRule { return &HTTP{} },
+	"telegram":  func() influxdb.NotificationRule { return &Telegram{} },
 }
 
 // UnmarshalJSON will convert
@@ -135,16 +136,17 @@ func (b *Base) generateLevelChecks() []ast.Statement {
 	now := flux.Call(flux.Identifier("now"), flux.Object())
 	timeFilter := flux.Function(
 		flux.FunctionParams("r"),
-		flux.GreaterThan(
-			flux.Member("r", "_time"),
-			flux.Call(
+		&ast.BinaryExpression{
+			Operator: ast.GreaterThanEqualOperator,
+			Left:     flux.Member("r", "_time"),
+			Right: flux.Call(
 				flux.Member("experimental", "subDuration"),
 				flux.Object(
 					flux.Property("from", now),
 					flux.Property("d", (*ast.DurationLiteral)(b.Every)),
 				),
 			),
-		),
+		},
 	)
 
 	var pipe *ast.PipeExpression

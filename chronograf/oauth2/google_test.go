@@ -45,7 +45,7 @@ func TestGooglePrincipalID(t *testing.T) {
 
 	email, err := prov.PrincipalID(tc)
 	if err != nil {
-		t.Fatal("Unexpected error while retrieiving PrincipalID: err:", err)
+		t.Fatal("Unexpected error while retrieving PrincipalID: err:", err)
 	}
 
 	if email != expected.Email {
@@ -91,7 +91,7 @@ func TestGooglePrincipalIDDomain(t *testing.T) {
 
 	email, err := prov.PrincipalID(tc)
 	if err != nil {
-		t.Fatal("Unexpected error while retrieiving PrincipalID: err:", err)
+		t.Fatal("Unexpected error while retrieving PrincipalID: err:", err)
 	}
 
 	if email != expectedUser.Email {

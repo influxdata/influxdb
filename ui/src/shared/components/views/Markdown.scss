@@ -28,8 +28,8 @@
     font-weight: $cf-font-weight--medium;
   }
 
-  h3,
-  h4 {
+  h3:not(.cf-heading),
+  h4:not(.cf-heading) {
     border-bottom: $cf-border solid $g4-onyx;
     padding-bottom: 0.25em;
   }
@@ -39,17 +39,17 @@
     color: $g16-pearl;
   }
 
-  table {
+  table:not(.cf-table) {
     border-collapse: collapse;
   }
 
-  td,
-  th {
+  td:not(.cf-table--cell),
+  th:not(.cf-table--header-cell) {
     padding: $cf-marg-a $cf-marg-b;
     border: $cf-border solid $g5-pepper;
   }
 
-  th {
+  th:not(.cf-table--header-cell) {
     background-color: $g5-pepper;
   }
 

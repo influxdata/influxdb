@@ -50,10 +50,10 @@ func taskCreateCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Short = "Create task"
 	cmd.Long = `Create a task with a Flux script provided via the first argument or a file or stdin`
 
-	f.registerFlags(cmd)
+	f.registerFlags(opt.viper, cmd)
 	cmd.Flags().StringVarP(&taskCreateFlags.file, "file", "f", "", "Path to Flux script file")
-	taskCreateFlags.org.register(cmd, false)
-	registerPrintOptions(cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
+	taskCreateFlags.org.register(opt.viper, cmd, false)
+	registerPrintOptions(opt.viper, cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
 
 	return cmd
 }
@@ -121,9 +121,9 @@ func taskFindCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Short = "List tasks"
 	cmd.Aliases = []string{"find", "ls"}
 
-	taskFindFlags.org.register(cmd, false)
-	f.registerFlags(cmd)
-	registerPrintOptions(cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
+	taskFindFlags.org.register(opt.viper, cmd, false)
+	f.registerFlags(opt.viper, cmd)
+	registerPrintOptions(opt.viper, cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
 	cmd.Flags().StringVarP(&taskFindFlags.id, "id", "i", "", "task ID")
 	cmd.Flags().StringVarP(&taskFindFlags.user, "user-id", "n", "", "task owner ID")
 	cmd.Flags().IntVarP(&taskFindFlags.limit, "limit", "", influxdb.TaskDefaultPageSize, "the number of tasks to find")
@@ -171,7 +171,7 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 	}
 	filter.Limit = taskFindFlags.limit
 
-	var tasks []http.Task
+	var tasks []*influxdb.Task
 
 	if taskFindFlags.id != "" {
 		id, err := influxdb.IDFromString(taskFindFlags.id)
@@ -184,7 +184,7 @@ func taskFindF(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		tasks = append(tasks, *task)
+		tasks = append(tasks, task)
 	} else {
 		tasks, _, err = s.FindTasks(context.Background(), filter)
 		if err != nil {
@@ -213,8 +213,8 @@ func taskUpdateCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Short = "Update task"
 	cmd.Long = `Update task status or script. Provide a Flux script via the first argument or a file. Use '-' argument to read from stdin.`
 
-	f.registerFlags(cmd)
-	registerPrintOptions(cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
+	f.registerFlags(opt.viper, cmd)
+	registerPrintOptions(opt.viper, cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
 	cmd.Flags().StringVarP(&taskUpdateFlags.id, "id", "i", "", "task ID (required)")
 	cmd.Flags().StringVarP(&taskUpdateFlags.status, "status", "", "", "update task status")
 	cmd.Flags().StringVarP(&taskUpdateFlags.file, "file", "f", "", "Path to Flux script file")
@@ -275,8 +275,8 @@ func taskDeleteCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := opt.newCmd("delete", taskDeleteF, true)
 	cmd.Short = "Delete task"
 
-	f.registerFlags(cmd)
-	registerPrintOptions(cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
+	f.registerFlags(opt.viper, cmd)
+	registerPrintOptions(opt.viper, cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
 	cmd.Flags().StringVarP(&taskDeleteFlags.id, "id", "i", "", "task id (required)")
 	cmd.MarkFlagRequired("id")
 
@@ -322,8 +322,8 @@ func taskDeleteF(cmd *cobra.Command, args []string) error {
 type taskPrintOpts struct {
 	hideHeaders bool
 	json        bool
-	task        *http.Task
-	tasks       []http.Task
+	task        *influxdb.Task
+	tasks       []*influxdb.Task
 }
 
 func printTasks(w io.Writer, opts taskPrintOpts) error {
@@ -351,7 +351,7 @@ func printTasks(w io.Writer, opts taskPrintOpts) error {
 	)
 
 	if opts.task != nil {
-		opts.tasks = append(opts.tasks, *opts.task)
+		opts.tasks = append(opts.tasks, opts.task)
 	}
 
 	for _, t := range opts.tasks {
@@ -391,8 +391,8 @@ func taskLogFindCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Short = "List logs for task"
 	cmd.Aliases = []string{"find", "ls"}
 
-	f.registerFlags(cmd)
-	registerPrintOptions(cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
+	f.registerFlags(opt.viper, cmd)
+	registerPrintOptions(opt.viper, cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
 	cmd.Flags().StringVarP(&taskLogFindFlags.taskID, "task-id", "", "", "task id (required)")
 	cmd.Flags().StringVarP(&taskLogFindFlags.runID, "run-id", "", "", "run id")
 	cmd.MarkFlagRequired("task-id")
@@ -478,13 +478,13 @@ func taskRunFindCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Short = "List runs for a task"
 	cmd.Aliases = []string{"find", "ls"}
 
-	f.registerFlags(cmd)
-	registerPrintOptions(cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
+	f.registerFlags(opt.viper, cmd)
+	registerPrintOptions(opt.viper, cmd, &taskPrintFlags.hideHeaders, &taskPrintFlags.json)
 	cmd.Flags().StringVarP(&taskRunFindFlags.taskID, "task-id", "", "", "task id (required)")
 	cmd.Flags().StringVarP(&taskRunFindFlags.runID, "run-id", "", "", "run id")
 	cmd.Flags().StringVarP(&taskRunFindFlags.afterTime, "after", "", "", "after time for filtering")
 	cmd.Flags().StringVarP(&taskRunFindFlags.beforeTime, "before", "", "", "before time for filtering")
-	cmd.Flags().IntVarP(&taskRunFindFlags.limit, "limit", "", 0, "limit the results")
+	cmd.Flags().IntVarP(&taskRunFindFlags.limit, "limit", "", 100, "limit the results; default is 100")
 
 	cmd.MarkFlagRequired("task-id")
 
@@ -582,7 +582,7 @@ func taskRunRetryCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd := opt.newCmd("retry", runRetryF, true)
 	cmd.Short = "retry a run"
 
-	f.registerFlags(cmd)
+	f.registerFlags(opt.viper, cmd)
 	cmd.Flags().StringVarP(&runRetryFlags.taskID, "task-id", "i", "", "task id (required)")
 	cmd.Flags().StringVarP(&runRetryFlags.runID, "run-id", "r", "", "run id (required)")
 	cmd.MarkFlagRequired("task-id")

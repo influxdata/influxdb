@@ -141,7 +141,7 @@ func TestValidCheck(t *testing.T) {
 			},
 		},
 		{
-			name: "bad thredshold",
+			name: "bad threshold",
 			src: &check.Threshold{
 				Base: goodBase,
 				Thresholds: []check.ThresholdConfig{

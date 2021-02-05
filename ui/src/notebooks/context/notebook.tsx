@@ -14,6 +14,7 @@ export interface PipeMeta {
 // TODO: this is screaming for normalization. figure out frontend uuids for cells
 export interface NotebookContextType {
   id: string
+  name: string
   pipes: PipeData[]
   meta: PipeMeta[] // data only used for the view layer for Notebooks
   results: FluxResult[]
@@ -21,16 +22,19 @@ export interface NotebookContextType {
   updatePipe: (idx: number, pipe: Partial<PipeData>) => void
   updateMeta: (idx: number, pipe: Partial<PipeMeta>) => void
   updateResult: (idx: number, result: Partial<FluxResult>) => void
+  updateName: (name: string) => void
   movePipe: (currentIdx: number, newIdx: number) => void
   removePipe: (idx: number) => void
 }
 
 export const DEFAULT_CONTEXT: NotebookContextType = {
   id: 'new',
+  name: 'Name this Flow',
   pipes: [],
   meta: [],
   results: [],
   addPipe: () => {},
+  updateName: () => {},
   updatePipe: () => {},
   updateMeta: () => {},
   updateResult: () => {},
@@ -78,10 +82,13 @@ export const NotebookProvider: FC = ({children}) => {
   const [pipes, setPipes] = useState(DEFAULT_CONTEXT.pipes)
   const [meta, setMeta] = useState(DEFAULT_CONTEXT.meta)
   const [results, setResults] = useState(DEFAULT_CONTEXT.results)
+  const [name, setName] = useState(DEFAULT_CONTEXT.name)
 
   const _setPipes = useCallback(setPipes, [id, setPipes])
   const _setMeta = useCallback(setMeta, [id, setMeta])
   const _setResults = useCallback(setResults, [id, setResults])
+
+  const updateName = (newName: string) => setName(newName)
 
   const addPipe = useCallback(
     (pipe: PipeData, insertAtIndex?: number) => {
@@ -221,9 +228,11 @@ export const NotebookProvider: FC = ({children}) => {
     <NotebookContext.Provider
       value={{
         id,
+        name,
         pipes,
         meta,
         results,
+        updateName,
         updatePipe,
         updateMeta,
         updateResult,

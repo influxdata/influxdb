@@ -8,9 +8,9 @@ import (
 	"path"
 	"time"
 
-	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/influxdb/v2/chronograf"
 	"github.com/influxdata/influxdb/v2/chronograf/id"
+	bolt "go.etcd.io/bbolt"
 )
 
 // Client is a client for the boltDB data store.

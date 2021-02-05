@@ -3,7 +3,8 @@ package kv
 import (
 	"context"
 	"encoding/json"
-	"regexp"
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -12,7 +13,6 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/resource"
 	"github.com/influxdata/influxdb/v2/task/options"
-	"go.uber.org/zap"
 )
 
 // Task Storage Schema
@@ -52,6 +52,8 @@ type kvTask struct {
 	Offset          influxdb.Duration      `json:"offset,omitempty"`
 	LatestCompleted time.Time              `json:"latestCompleted,omitempty"`
 	LatestScheduled time.Time              `json:"latestScheduled,omitempty"`
+	LatestSuccess   time.Time              `json:"latestSuccess,omitempty"`
+	LatestFailure   time.Time              `json:"latestFailure,omitempty"`
 	CreatedAt       time.Time              `json:"createdAt,omitempty"`
 	UpdatedAt       time.Time              `json:"updatedAt,omitempty"`
 	Metadata        map[string]interface{} `json:"metadata,omitempty"`
@@ -75,6 +77,8 @@ func kvToInfluxTask(k *kvTask) *influxdb.Task {
 		Offset:          k.Offset.Duration,
 		LatestCompleted: k.LatestCompleted,
 		LatestScheduled: k.LatestScheduled,
+		LatestSuccess:   k.LatestSuccess,
+		LatestFailure:   k.LatestFailure,
 		CreatedAt:       k.CreatedAt,
 		UpdatedAt:       k.UpdatedAt,
 		Metadata:        k.Metadata,
@@ -85,52 +89,15 @@ func kvToInfluxTask(k *kvTask) *influxdb.Task {
 func (s *Service) FindTaskByID(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
 	var t *influxdb.Task
 	err := s.kv.View(ctx, func(tx Tx) error {
-		if influxdb.FindTaskAuthRequired(ctx) {
-			task, err := s.findTaskByIDWithAuth(ctx, tx, id)
-			if err != nil {
-				return err
-			}
-			t = task
-		} else {
-			task, err := s.findTaskByID(ctx, tx, id)
-			if err != nil {
-				return err
-			}
-			t = task
+		task, err := s.findTaskByID(ctx, tx, id)
+		if err != nil {
+			return err
 		}
+		t = task
 		return nil
 	})
 	if err != nil {
 		return nil, err
-	}
-
-	return t, nil
-}
-
-// findTaskByIDWithAuth is a task lookup that populates the auth
-// This is to be used when we want to satisfy the FindTaskByID method
-// But is more taxing on the system then if we want to find the task alone.
-func (s *Service) findTaskByIDWithAuth(ctx context.Context, tx Tx, id influxdb.ID) (*influxdb.Task, error) {
-	t, err := s.findTaskByID(ctx, tx, id)
-	if err != nil {
-		return nil, err
-	}
-
-	t.Authorization = &influxdb.Authorization{
-		Status: influxdb.Active,
-		ID:     influxdb.ID(1),
-		OrgID:  t.OrganizationID,
-		UserID: t.OwnerID,
-	}
-
-	if t.OwnerID.Valid() {
-		ctx = icontext.SetAuthorizer(ctx, t.Authorization)
-		// populate task Auth
-		ps, err := s.maxPermissions(ctx, tx, t.OwnerID)
-		if err != nil {
-			return nil, err
-		}
-		t.Authorization.Permissions = ps
 	}
 
 	return t, nil
@@ -167,41 +134,23 @@ func (s *Service) findTaskByID(ctx context.Context, tx Tx, id influxdb.ID) (*inf
 		t.LatestCompleted = t.CreatedAt
 	}
 
-	// Attempt to fill in the owner ID based on the auth.
-	if !t.OwnerID.Valid() {
-		authType := struct {
-			AuthorizationID influxdb.ID `json:"authorizationID"`
-		}{}
-		if err := json.Unmarshal(v, &authType); err != nil {
-			return nil, influxdb.ErrInternalTaskServiceError(err)
-		}
-
-		auth, err := s.findAuthorizationByID(ctx, tx, authType.AuthorizationID)
-		if err == nil {
-			t.OwnerID = auth.GetUserID()
-		}
-	}
-
-	// Attempt to fill in the ownerID based on the organization owners.
-	// If they have multiple owners just use the first one because any org owner
-	// will have sufficient permissions to run a task.
-	if !t.OwnerID.Valid() {
-		owners, err := s.findUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
-			ResourceID:   t.OrganizationID,
-			ResourceType: influxdb.OrgsResourceType,
-			UserType:     influxdb.Owner,
-		})
-		if err == nil && len(owners) > 0 {
-			t.OwnerID = owners[0].UserID
-		}
-	}
-
 	return t, nil
 }
 
 // FindTasks returns a list of tasks that match a filter (limit 100) and the total count
 // of matching tasks.
 func (s *Service) FindTasks(ctx context.Context, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
+	if filter.Organization != "" {
+		org, err := s.orgs.FindOrganization(ctx, influxdb.OrganizationFilter{
+			Name: &filter.Organization,
+		})
+		if err != nil {
+			return nil, 0, err
+		}
+
+		filter.OrganizationID = &org.ID
+	}
+
 	var ts []*influxdb.Task
 	err := s.kv.View(ctx, func(tx Tx) error {
 		tasks, _, err := s.findTasks(ctx, tx, filter)
@@ -219,20 +168,6 @@ func (s *Service) FindTasks(ctx context.Context, filter influxdb.TaskFilter) ([]
 }
 
 func (s *Service) findTasks(ctx context.Context, tx Tx, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
-	var org *influxdb.Organization
-	var err error
-	if filter.OrganizationID != nil {
-		org, err = s.findOrganizationByID(ctx, tx, *filter.OrganizationID)
-		if err != nil {
-			return nil, 0, err
-		}
-	} else if filter.Organization != "" {
-		org, err = s.findOrganizationByName(ctx, tx, filter.Organization)
-		if err != nil {
-			return nil, 0, err
-		}
-	}
-
 	// complain about limits
 	if filter.Limit < 0 {
 		return nil, 0, influxdb.ErrPageSizeTooSmall
@@ -246,7 +181,7 @@ func (s *Service) findTasks(ctx context.Context, tx Tx, filter influxdb.TaskFilt
 
 	// if no user or organization is passed, assume contexts auth is the user we are looking for.
 	// it is possible for a  internal system to call this with no auth so we shouldnt fail if no auth is found.
-	if org == nil && filter.User == nil {
+	if filter.OrganizationID == nil && filter.User == nil {
 		userAuth, err := icontext.GetAuthorizer(ctx)
 		if err == nil {
 			userID := userAuth.GetUserID()
@@ -259,8 +194,8 @@ func (s *Service) findTasks(ctx context.Context, tx Tx, filter influxdb.TaskFilt
 	// filter by user id.
 	if filter.User != nil {
 		return s.findTasksByUser(ctx, tx, filter)
-	} else if org != nil {
-		return s.findTasksByOrg(ctx, tx, filter)
+	} else if filter.OrganizationID != nil {
+		return s.findTasksByOrg(ctx, tx, *filter.OrganizationID, filter)
 	}
 
 	return s.findAllTasks(ctx, tx, filter)
@@ -268,89 +203,6 @@ func (s *Service) findTasks(ctx context.Context, tx Tx, filter influxdb.TaskFilt
 
 // findTasksByUser is a subset of the find tasks function. Used for cleanliness
 func (s *Service) findTasksByUser(ctx context.Context, tx Tx, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
-	if feature.UrmFreeTasks().Enabled(ctx) {
-		return s.findTasksByUserUrmFree(ctx, tx, filter)
-	}
-	return s.findTasksByUserWithURM(ctx, tx, filter)
-}
-
-// findTasksByUser is a subset of the find tasks function. Used for cleanliness
-func (s *Service) findTasksByUserWithURM(ctx context.Context, tx Tx, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
-	if filter.User == nil {
-		return nil, 0, influxdb.ErrTaskNotFound
-	}
-	var org *influxdb.Organization
-	var err error
-	if filter.OrganizationID != nil {
-		org, err = s.findOrganizationByID(ctx, tx, *filter.OrganizationID)
-		if err != nil {
-			return nil, 0, err
-		}
-	} else if filter.Organization != "" {
-		org, err = s.findOrganizationByName(ctx, tx, filter.Organization)
-		if err != nil {
-			return nil, 0, err
-		}
-	}
-
-	var ts []*influxdb.Task
-
-	maps, err := s.findUserResourceMappings(
-		ctx,
-		tx,
-		influxdb.UserResourceMappingFilter{
-			ResourceType: influxdb.TasksResourceType,
-			UserID:       *filter.User,
-			UserType:     influxdb.Owner,
-		},
-	)
-	if err != nil {
-		return nil, 0, err
-	}
-
-	var (
-		afterSeen bool
-		after     = func(task *influxdb.Task) bool {
-			if filter.After == nil || afterSeen {
-				return true
-			}
-
-			if task.ID == *filter.After {
-				afterSeen = true
-			}
-
-			return false
-		}
-		matchFn = newTaskMatchFn(filter, org)
-	)
-
-	for _, m := range maps {
-		task, err := s.findTaskByIDWithAuth(ctx, tx, m.ResourceID)
-		if err != nil && err != influxdb.ErrTaskNotFound {
-			return nil, 0, err
-		}
-		if err == influxdb.ErrTaskNotFound {
-			continue
-		}
-
-		if matchFn == nil || matchFn(task) {
-			if !after(task) {
-				continue
-			}
-
-			ts = append(ts, task)
-
-			if len(ts) >= filter.Limit {
-				break
-			}
-		}
-
-	}
-
-	return ts, len(ts), nil
-}
-
-func (s *Service) findTasksByUserUrmFree(ctx context.Context, tx Tx, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
 	var ts []*influxdb.Task
 
 	taskBucket, err := tx.Bucket(taskBucket)
@@ -377,11 +229,6 @@ func (s *Service) findTasksByUserUrmFree(ctx context.Context, tx Tx, filter infl
 		return nil, 0, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
 
-	ps, err := s.maxPermissions(ctx, tx, *filter.User)
-	if err != nil {
-		return nil, 0, err
-	}
-
 	matchFn := newTaskMatchFn(filter, nil)
 
 	for k, v := c.Next(); k != nil; k, v = c.Next() {
@@ -392,14 +239,6 @@ func (s *Service) findTasksByUserUrmFree(ctx context.Context, tx Tx, filter infl
 
 		t := kvToInfluxTask(kvTask)
 		if matchFn == nil || matchFn(t) {
-			t.Authorization = &influxdb.Authorization{
-				Status:      influxdb.Active,
-				UserID:      t.OwnerID,
-				ID:          influxdb.ID(1),
-				OrgID:       t.OrganizationID,
-				Permissions: ps,
-			}
-
 			ts = append(ts, t)
 
 			if len(ts) >= filter.Limit {
@@ -415,23 +254,10 @@ func (s *Service) findTasksByUserUrmFree(ctx context.Context, tx Tx, filter infl
 }
 
 // findTasksByOrg is a subset of the find tasks function. Used for cleanliness
-func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
-	var org *influxdb.Organization
+func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, orgID influxdb.ID, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
 	var err error
-	if filter.OrganizationID != nil {
-		org, err = s.findOrganizationByID(ctx, tx, *filter.OrganizationID)
-		if err != nil {
-			return nil, 0, err
-		}
-	} else if filter.Organization != "" {
-		org, err = s.findOrganizationByName(ctx, tx, filter.Organization)
-		if err != nil {
-			return nil, 0, err
-		}
-	}
-
-	if org == nil {
-		return nil, 0, influxdb.ErrTaskNotFound
+	if !orgID.Valid() {
+		return nil, 0, fmt.Errorf("finding tasks by organization ID: %w", influxdb.ErrInvalidID)
 	}
 
 	var ts []*influxdb.Task
@@ -441,7 +267,7 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.Tas
 		return nil, 0, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
 
-	prefix, err := org.ID.Encode()
+	prefix, err := orgID.Encode()
 	if err != nil {
 		return nil, 0, influxdb.ErrInvalidTaskID
 	}
@@ -452,7 +278,7 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.Tas
 	)
 	// we can filter by orgID
 	if filter.After != nil {
-		key, err = taskOrgKey(org.ID, *filter.After)
+		key, err = taskOrgKey(orgID, *filter.After)
 		if err != nil {
 			return nil, 0, err
 		}
@@ -479,7 +305,7 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.Tas
 			return nil, 0, influxdb.ErrInvalidTaskID
 		}
 
-		t, err := s.findTaskByIDWithAuth(ctx, tx, *id)
+		t, err := s.findTaskByID(ctx, tx, *id)
 		if err != nil {
 			if err == influxdb.ErrTaskNotFound {
 				// we might have some crufty index's
@@ -490,7 +316,7 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, filter influxdb.Tas
 		}
 
 		// If the new task doesn't belong to the org we have looped outside the org filter
-		if org != nil && t.OrganizationID != org.ID {
+		if t.OrganizationID != orgID {
 			break
 		}
 
@@ -622,40 +448,36 @@ func (s *Service) findAllTasks(ctx context.Context, tx Tx, filter influxdb.TaskF
 // CreateTask creates a new task.
 // The owner of the task is inferred from the authorizer associated with ctx.
 func (s *Service) CreateTask(ctx context.Context, tc influxdb.TaskCreate) (*influxdb.Task, error) {
+	var orgFilter influxdb.OrganizationFilter
+
+	if tc.Organization != "" {
+		orgFilter.Name = &tc.Organization
+	} else if tc.OrganizationID.Valid() {
+		orgFilter.ID = &tc.OrganizationID
+
+	} else {
+		return nil, errors.New("organization required")
+	}
+
+	org, err := s.orgs.FindOrganization(ctx, orgFilter)
+	if err != nil {
+		return nil, err
+	}
+
 	var t *influxdb.Task
-	err := s.kv.Update(ctx, func(tx Tx) error {
-		task, err := s.createTask(ctx, tx, tc)
+	err = s.kv.Update(ctx, func(tx Tx) error {
+		task, err := s.createTask(ctx, tx, org, tc)
 		if err != nil {
 			return err
 		}
 		t = task
 		return nil
 	})
-	if err != nil {
-		return nil, err
-	}
 
-	return t, nil
+	return t, err
 }
 
-func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate) (*influxdb.Task, error) {
-	var err error
-	var org *influxdb.Organization
-	if tc.OrganizationID.Valid() {
-		org, err = s.findOrganizationByID(ctx, tx, tc.OrganizationID)
-		if err != nil {
-			return nil, err
-		}
-	} else if tc.Organization != "" {
-		org, err = s.findOrganizationByName(ctx, tx, tc.Organization)
-		if err != nil {
-			return nil, err
-		}
-	}
-	if org == nil {
-		return nil, influxdb.ErrOrgNotFound
-	}
-
+func (s *Service) createTask(ctx context.Context, tx Tx, org *influxdb.Organization, tc influxdb.TaskCreate) (*influxdb.Task, error) {
 	// TODO: Uncomment this once the checks/notifications no longer create tasks in kv
 	// confirm the owner is a real user.
 	// if _, err = s.findUserByID(ctx, tx, tc.OwnerID); err != nil {
@@ -736,22 +558,6 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 		return nil, influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
 
-	if !feature.UrmFreeTasks().Enabled(ctx) {
-		if err := s.createTaskURM(ctx, tx, task); err != nil {
-			s.log.Info("Error creating user resource mapping for task", zap.Stringer("taskID", task.ID), zap.Error(err))
-		}
-	}
-
-	// populate permissions so the task can be used immediately
-	// if we cant populate here we shouldn't error.
-	ps, _ := s.maxPermissions(ctx, tx, task.OwnerID)
-	task.Authorization = &influxdb.Authorization{
-		Status:      influxdb.Active,
-		ID:          influxdb.ID(1),
-		OrgID:       task.OrganizationID,
-		Permissions: ps,
-	}
-
 	uid, _ := icontext.GetUserID(ctx)
 	if err := s.audit.Log(resource.Change{
 		Type:           resource.Create,
@@ -766,22 +572,6 @@ func (s *Service) createTask(ctx context.Context, tx Tx, tc influxdb.TaskCreate)
 	}
 
 	return task, nil
-}
-
-func (s *Service) createTaskURM(ctx context.Context, tx Tx, t *influxdb.Task) error {
-	// TODO(jsteenb2): should not be getting authorizer inside the store, should terminate at the
-	//  transport layer then pass user id everywhere else.
-	userAuth, err := icontext.GetAuthorizer(ctx)
-	if err != nil {
-		return err
-	}
-
-	return s.createUserResourceMapping(ctx, tx, &influxdb.UserResourceMapping{
-		ResourceType: influxdb.TasksResourceType,
-		ResourceID:   t.ID,
-		UserID:       userAuth.GetUserID(),
-		UserType:     influxdb.Owner,
-	})
 }
 
 // UpdateTask updates a single task with changeset.
@@ -813,7 +603,7 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 
 	// update the flux script
 	if !upd.Options.IsZero() || upd.Flux != nil {
-		if err = upd.UpdateFlux(s.FluxLanguageService, task.Flux); err != nil {
+		if err = upd.UpdateFlux(ctx, s.FluxLanguageService, task.Flux); err != nil {
 			return nil, err
 		}
 		task.Flux = *upd.Flux
@@ -873,6 +663,26 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 		// make sure we only update latest scheduled one way
 		if upd.LatestScheduled.After(task.LatestScheduled) {
 			task.LatestScheduled = *upd.LatestScheduled
+		}
+	}
+
+	if upd.LatestSuccess != nil {
+		// make sure we only update latest success one way
+		tlc := task.LatestSuccess
+		ulc := *upd.LatestSuccess
+
+		if !ulc.IsZero() && ulc.After(tlc) {
+			task.LatestSuccess = *upd.LatestSuccess
+		}
+	}
+
+	if upd.LatestFailure != nil {
+		// make sure we only update latest failure one way
+		tlc := task.LatestFailure
+		ulc := *upd.LatestFailure
+
+		if !ulc.IsZero() && ulc.After(tlc) {
+			task.LatestFailure = *upd.LatestFailure
 		}
 	}
 
@@ -1005,12 +815,6 @@ func (s *Service) deleteTask(ctx context.Context, tx Tx, id influxdb.ID) error {
 		return influxdb.ErrUnexpectedTaskBucketErr(err)
 	}
 
-	if err := s.deleteUserResourceMapping(ctx, tx, influxdb.UserResourceMappingFilter{
-		ResourceID: task.ID,
-	}); err != nil {
-		s.log.Debug("Error deleting user resource mapping for task", zap.Stringer("taskID", task.ID), zap.Error(err))
-	}
-
 	uid, _ := icontext.GetUserID(ctx)
 	return s.audit.Log(resource.Change{
 		Type:           resource.Delete,
@@ -1093,6 +897,21 @@ func (s *Service) findRuns(ctx context.Context, tx Tx, filter influxdb.RunFilter
 	if filter.Limit < 0 || filter.Limit > influxdb.TaskMaxPageSize {
 		return nil, 0, influxdb.ErrOutOfBoundsLimit
 	}
+	parsedFilterAfterTime := time.Time{}
+	parsedFilterBeforeTime := time.Now().UTC()
+	var err error
+	if len(filter.AfterTime) > 0 {
+		parsedFilterAfterTime, err = time.Parse(time.RFC3339, filter.AfterTime)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
+	if filter.BeforeTime != "" {
+		parsedFilterBeforeTime, err = time.Parse(time.RFC3339, filter.BeforeTime)
+		if err != nil {
+			return nil, 0, err
+		}
+	}
 
 	var runs []*influxdb.Run
 	// manual runs
@@ -1101,7 +920,9 @@ func (s *Service) findRuns(ctx context.Context, tx Tx, filter influxdb.RunFilter
 		return nil, 0, err
 	}
 	for _, run := range manualRuns {
-		runs = append(runs, run)
+		if run.ScheduledFor.After(parsedFilterAfterTime) && run.ScheduledFor.Before(parsedFilterBeforeTime) {
+			runs = append(runs, run)
+		}
 		if len(runs) >= filter.Limit {
 			return runs, len(runs), nil
 		}
@@ -1113,7 +934,9 @@ func (s *Service) findRuns(ctx context.Context, tx Tx, filter influxdb.RunFilter
 		return nil, 0, err
 	}
 	for _, run := range currentlyRunning {
-		runs = append(runs, run)
+		if run.ScheduledFor.After(parsedFilterAfterTime) && run.ScheduledFor.Before(parsedFilterBeforeTime) {
+			runs = append(runs, run)
+		}
 		if len(runs) >= filter.Limit {
 			return runs, len(runs), nil
 		}
@@ -1586,8 +1409,19 @@ func (s *Service) finishRun(ctx context.Context, tx Tx, taskID, runID influxdb.I
 
 	// tell task to update latest completed
 	scheduled := r.ScheduledFor
+
+	var latestSuccess, latestFailure *time.Time
+
+	if r.Status == "failed" {
+		latestFailure = &scheduled
+	} else {
+		latestSuccess = &scheduled
+	}
+
 	_, err = s.updateTask(ctx, tx, taskID, influxdb.TaskUpdate{
 		LatestCompleted: &scheduled,
+		LatestSuccess:   latestSuccess,
+		LatestFailure:   latestFailure,
 		LastRunStatus:   &r.Status,
 		LastRunError: func() *string {
 			if r.Status == "failed" {
@@ -1766,8 +1600,6 @@ func taskRunKey(taskID, runID influxdb.ID) ([]byte, error) {
 	return []byte(string(encodedID) + "/" + string(encodedRunID)), nil
 }
 
-var taskOptionsPattern = regexp.MustCompile(`option\s+task\s*=\s*{.*}`)
-
 // ExtractTaskOptions is a feature-flag driven switch between normal options
 // parsing and a more simplified variant.
 //
@@ -1779,61 +1611,8 @@ var taskOptionsPattern = regexp.MustCompile(`option\s+task\s*=\s*{.*}`)
 //
 // [1]: https://github.com/influxdata/influxdb/issues/17666
 func ExtractTaskOptions(ctx context.Context, lang influxdb.FluxLanguageService, flux string) (options.Options, error) {
-	if !feature.SimpleTaskOptionsExtraction().Enabled(ctx) {
-		return options.FromScript(lang, flux)
+	if feature.SimpleTaskOptionsExtraction().Enabled(ctx) {
+		return options.FromScriptAST(lang, flux)
 	}
-
-	matches := taskOptionsPattern.FindAllString(flux, -1)
-	if len(matches) == 0 {
-		return options.Options{}, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "no task options defined",
-		}
-	}
-	if len(matches) > 1 {
-		return options.Options{}, &influxdb.Error{
-			Code: influxdb.EInvalid,
-			Msg:  "multiple task options defined",
-		}
-	}
-	return options.FromScript(lang, matches[0])
-}
-
-func (s *Service) maxPermissions(ctx context.Context, tx Tx, userID influxdb.ID) ([]influxdb.Permission, error) {
-	// TODO(desa): these values should be cached so it's not so expensive to lookup each time.
-	f := influxdb.UserResourceMappingFilter{UserID: userID}
-	mappings, err := s.findUserResourceMappings(ctx, tx, f)
-	if err != nil {
-		return nil, &influxdb.Error{
-			Err: err,
-		}
-	}
-
-	ps := make([]influxdb.Permission, 0, len(mappings))
-	for _, m := range mappings {
-		p, err := m.ToPermissions()
-		if err != nil {
-			return nil, &influxdb.Error{
-				Err: err,
-			}
-		}
-
-		ps = append(ps, p...)
-	}
-	ps = append(ps, influxdb.MePermissions(userID)...)
-
-	if !s.disableAuthorizationsForMaxPermissions(ctx) {
-		// TODO(desa): this is super expensive, we should keep a list of a users maximal privileges somewhere
-		// we did this so that the oper token would be used in a users permissions.
-		af := influxdb.AuthorizationFilter{UserID: &userID}
-		as, err := s.findAuthorizations(ctx, tx, af)
-		if err != nil {
-			return nil, err
-		}
-		for _, a := range as {
-			ps = append(ps, a.Permissions...)
-		}
-	}
-
-	return ps, nil
+	return options.FromScript(lang, flux)
 }

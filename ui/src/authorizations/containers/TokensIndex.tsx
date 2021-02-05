@@ -1,6 +1,5 @@
 // Libraries
 import React, {Component} from 'react'
-import {connect, ConnectedProps} from 'react-redux'
 import {Switch, Route} from 'react-router-dom'
 
 // Components
@@ -17,28 +16,22 @@ import {
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
-import {getOrg} from 'src/organizations/selectors'
 
 // Types
-import {AppState, ResourceType} from 'src/types'
+import {ResourceType} from 'src/types'
 
 import {ORGS, ORG_ID, TOKENS} from 'src/shared/constants/routes'
 
 const tokensPath = `/${ORGS}/${ORG_ID}/load-data/${TOKENS}/generate`
 
-type ReduxProps = ConnectedProps<typeof connector>
-type Props = ReduxProps
-
 @ErrorHandling
-class TokensIndex extends Component<Props> {
+class TokensIndex extends Component {
   public render() {
-    const {org} = this.props
-
     return (
       <>
         <Page titleTag={pageTitleSuffixer(['Tokens', 'Load Data'])}>
           <LoadDataHeader />
-          <LoadDataTabbedPage activeTab="tokens" orgID={org.id}>
+          <LoadDataTabbedPage activeTab="tokens">
             <GetResources resources={[ResourceType.Authorizations]}>
               <TokensTab />
             </GetResources>
@@ -59,8 +52,4 @@ class TokensIndex extends Component<Props> {
   }
 }
 
-const mstp = (state: AppState) => ({org: getOrg(state)})
-
-const connector = connect(mstp)
-
-export default connector(TokensIndex)
+export default TokensIndex

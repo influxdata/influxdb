@@ -3,7 +3,7 @@ package predicate
 import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
-	"github.com/influxdata/influxdb/v2/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 )
 
 // Node is a predicate node.
@@ -16,6 +16,7 @@ func New(n Node) (influxdb.Predicate, error) {
 	if n == nil {
 		return nil, nil
 	}
+
 	dt, err := n.ToDataType()
 	if err != nil {
 		return nil, err

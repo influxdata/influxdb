@@ -67,26 +67,6 @@ func OnboardInitialUser(
 			},
 		},
 		{
-			name: "missing password",
-			fields: OnboardingFields{
-				IDGenerator: &loopIDGenerator{
-					s: []string{oneID, twoID, threeID, fourID},
-				},
-				TokenGenerator: mock.NewTokenGenerator(oneToken, nil),
-				IsOnboarding:   true,
-			},
-			args: args{
-				request: &platform.OnboardingRequest{
-					User:   "admin",
-					Org:    "org1",
-					Bucket: "bucket1",
-				},
-			},
-			wants: wants{
-				errCode: platform.EEmptyValue,
-			},
-		},
-		{
 			name: "missing username",
 			fields: OnboardingFields{
 				IDGenerator: &loopIDGenerator{
@@ -144,6 +124,25 @@ func OnboardInitialUser(
 			},
 		},
 		{
+			name: "missing password should fail",
+			fields: OnboardingFields{
+				IDGenerator: &loopIDGenerator{
+					s: []string{oneID, twoID, threeID, fourID},
+				},
+				TokenGenerator: mock.NewTokenGenerator(oneToken, nil),
+				IsOnboarding:   true,
+			},
+			args: args{
+				request: &platform.OnboardingRequest{
+					User: "admin",
+					Org:  "org1",
+				},
+			},
+			wants: wants{
+				errCode: platform.EEmptyValue,
+			},
+		},
+		{
 			name: "valid onboarding json should create a user, org, bucket, and authorization",
 			fields: OnboardingFields{
 				IDGenerator: &loopIDGenerator{
@@ -159,7 +158,7 @@ func OnboardInitialUser(
 					Org:             "org1",
 					Bucket:          "bucket1",
 					Password:        "password1",
-					RetentionPeriod: 24 * 7, // 1 week
+					RetentionPeriod: time.Hour * 24 * 7, // 1 week
 				},
 			},
 			wants: wants{

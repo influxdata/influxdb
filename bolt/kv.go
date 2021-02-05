@@ -8,11 +8,13 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
-	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/pkg/fs"
+	bolt "go.etcd.io/bbolt"
 	"go.uber.org/zap"
 )
 
@@ -22,17 +24,41 @@ var _ kv.SchemaStore = (*KVStore)(nil)
 // KVStore is a kv.Store backed by boltdb.
 type KVStore struct {
 	path string
+	mu   sync.RWMutex
 	db   *bolt.DB
 	log  *zap.Logger
+
+	noSync bool
+}
+
+type KVOption func(*KVStore)
+
+// WithNoSync WARNING: this is useful for tests only
+// this skips fsyncing on every commit to improve
+// write performance in exchange for no guarantees
+// that the db will persist.
+func WithNoSync(s *KVStore) {
+	s.noSync = true
 }
 
 // NewKVStore returns an instance of KVStore with the file at
 // the provided path.
-func NewKVStore(log *zap.Logger, path string) *KVStore {
-	return &KVStore{
+func NewKVStore(log *zap.Logger, path string, opts ...KVOption) *KVStore {
+	store := &KVStore{
 		path: path,
 		log:  log,
 	}
+
+	for _, opt := range opts {
+		opt(store)
+	}
+
+	return store
+}
+
+// tempPath returns the path to the temporary file used by Restore().
+func (s *KVStore) tempPath() string {
+	return s.path + ".tmp"
 }
 
 // Open creates boltDB file it doesn't exists and opens it otherwise.
@@ -49,28 +75,46 @@ func (s *KVStore) Open(ctx context.Context) error {
 		return err
 	}
 
+	// Remove any temporary file created during a failed restore.
+	if err := os.Remove(s.tempPath()); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("unable to remove boltdb partial restore file: %w", err)
+	}
+
 	// Open database file.
-	db, err := bolt.Open(s.path, 0600, &bolt.Options{Timeout: 1 * time.Second})
-	if err != nil {
+	if err := s.openDB(); err != nil {
 		return fmt.Errorf("unable to open boltdb file %v", err)
 	}
-	s.db = db
 
 	s.log.Info("Resources opened", zap.String("path", s.path))
 	return nil
 }
 
+func (s *KVStore) openDB() (err error) {
+	if s.db, err = bolt.Open(s.path, 0600, &bolt.Options{Timeout: 1 * time.Second}); err != nil {
+		return fmt.Errorf("unable to open boltdb file %v", err)
+	}
+	s.db.NoSync = s.noSync
+	return nil
+}
+
 // Close the connection to the bolt database
 func (s *KVStore) Close() error {
-	if s.db != nil {
-		return s.db.Close()
+	if db := s.DB(); db != nil {
+		return db.Close()
 	}
 	return nil
 }
 
+// DB returns a reference to the current Bolt database.
+func (s *KVStore) DB() *bolt.DB {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.db
+}
+
 // Flush removes all bolt keys within each bucket.
 func (s *KVStore) Flush(ctx context.Context) {
-	_ = s.db.Update(
+	_ = s.DB().Update(
 		func(tx *bolt.Tx) error {
 			return tx.ForEach(func(name []byte, b *bolt.Bucket) error {
 				s.cleanBucket(tx, b)
@@ -97,6 +141,8 @@ func (s *KVStore) cleanBucket(tx *bolt.Tx, b *bolt.Bucket) {
 
 // WithDB sets the boltdb on the store.
 func (s *KVStore) WithDB(db *bolt.DB) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.db = db
 }
 
@@ -105,7 +151,7 @@ func (s *KVStore) View(ctx context.Context, fn func(tx kv.Tx) error) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	return s.db.View(func(tx *bolt.Tx) error {
+	return s.DB().View(func(tx *bolt.Tx) error {
 		return fn(&Tx{
 			tx:  tx,
 			ctx: ctx,
@@ -118,7 +164,7 @@ func (s *KVStore) Update(ctx context.Context, fn func(tx kv.Tx) error) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	return s.db.Update(func(tx *bolt.Tx) error {
+	return s.DB().Update(func(tx *bolt.Tx) error {
 		return fn(&Tx{
 			tx:  tx,
 			ctx: ctx,
@@ -129,7 +175,7 @@ func (s *KVStore) Update(ctx context.Context, fn func(tx kv.Tx) error) error {
 // CreateBucket creates a bucket in the underlying boltdb store if it
 // does not already exist
 func (s *KVStore) CreateBucket(ctx context.Context, name []byte) error {
-	return s.db.Update(func(tx *bolt.Tx) error {
+	return s.DB().Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists(name)
 		return err
 	})
@@ -138,7 +184,7 @@ func (s *KVStore) CreateBucket(ctx context.Context, name []byte) error {
 // DeleteBucket creates a bucket in the underlying boltdb store if it
 // does not already exist
 func (s *KVStore) DeleteBucket(ctx context.Context, name []byte) error {
-	return s.db.Update(func(tx *bolt.Tx) error {
+	return s.DB().Update(func(tx *bolt.Tx) error {
 		if err := tx.DeleteBucket(name); err != nil && !errors.Is(err, bolt.ErrBucketNotFound) {
 			return err
 		}
@@ -152,10 +198,49 @@ func (s *KVStore) Backup(ctx context.Context, w io.Writer) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	return s.db.View(func(tx *bolt.Tx) error {
+	return s.DB().View(func(tx *bolt.Tx) error {
 		_, err := tx.WriteTo(w)
 		return err
 	})
+}
+
+// Restore replaces the underlying database with the data from r.
+func (s *KVStore) Restore(ctx context.Context, r io.Reader) error {
+	if err := func() error {
+		f, err := os.Create(s.tempPath())
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+
+		if _, err := io.Copy(f, r); err != nil {
+			return err
+		} else if err := f.Sync(); err != nil {
+			return err
+		} else if err := f.Close(); err != nil {
+			return err
+		}
+
+		// Swap and reopen under lock.
+		s.mu.Lock()
+		defer s.mu.Unlock()
+
+		if err := s.db.Close(); err != nil {
+			return err
+		}
+
+		// Atomically swap temporary file with current DB file.
+		if err := fs.RenameFileWithReplacement(s.tempPath(), s.path); err != nil {
+			return err
+		}
+
+		// Reopen with new database file.
+		return s.openDB()
+	}(); err != nil {
+		os.Remove(s.tempPath()) // clean up on error
+		return err
+	}
+	return nil
 }
 
 // Tx is a light wrapper around a boltdb transaction. It implements kv.Tx.
@@ -284,6 +369,7 @@ type Cursor struct {
 
 	config kv.CursorConfig
 	closed bool
+	seen   int
 }
 
 // Close sets the closed to closed
@@ -331,12 +417,16 @@ func (c *Cursor) Last() ([]byte, []byte) {
 
 // Next retrieves the next key in the bucket.
 func (c *Cursor) Next() (k []byte, v []byte) {
-	if c.closed || (c.key != nil && c.missingPrefix(c.key)) {
+	if c.closed ||
+		c.atLimit() ||
+		(c.key != nil && c.missingPrefix(c.key)) {
 		return nil, nil
 	}
+
 	// get and unset previously seeked values if they exist
 	k, v, c.key, c.value = c.key, c.value, nil, nil
 	if len(k) > 0 || len(v) > 0 {
+		c.seen++
 		return
 	}
 
@@ -349,18 +439,24 @@ func (c *Cursor) Next() (k []byte, v []byte) {
 	if (len(k) == 0 && len(v) == 0) || c.missingPrefix(k) {
 		return nil, nil
 	}
+
+	c.seen++
+
 	return k, v
 }
 
 // Prev retrieves the previous key in the bucket.
 func (c *Cursor) Prev() (k []byte, v []byte) {
-	if c.closed || (c.key != nil && c.missingPrefix(c.key)) {
+	if c.closed ||
+		c.atLimit() ||
+		(c.key != nil && c.missingPrefix(c.key)) {
 		return nil, nil
 	}
 
 	// get and unset previously seeked values if they exist
 	k, v, c.key, c.value = c.key, c.value, nil, nil
 	if len(k) > 0 && len(v) > 0 {
+		c.seen++
 		return
 	}
 
@@ -373,11 +469,18 @@ func (c *Cursor) Prev() (k []byte, v []byte) {
 	if (len(k) == 0 && len(v) == 0) || c.missingPrefix(k) {
 		return nil, nil
 	}
+
+	c.seen++
+
 	return k, v
 }
 
 func (c *Cursor) missingPrefix(key []byte) bool {
 	return c.config.Prefix != nil && !bytes.HasPrefix(key, c.config.Prefix)
+}
+
+func (c *Cursor) atLimit() bool {
+	return c.config.Limit != nil && c.seen >= *c.config.Limit
 }
 
 // Err always returns nil as nothing can go wrong™ during iteration

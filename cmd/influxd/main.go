@@ -7,16 +7,14 @@ import (
 	"os"
 	"time"
 
-	"github.com/influxdata/flux"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/cmd/influxd/generate"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/inspect"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
-	"github.com/influxdata/influxdb/v2/cmd/influxd/migrate"
-	"github.com/influxdata/influxdb/v2/cmd/influxd/restore"
-	_ "github.com/influxdata/influxdb/v2/query/builtin"
-	_ "github.com/influxdata/influxdb/v2/tsdb/tsi1"
-	_ "github.com/influxdata/influxdb/v2/tsdb/tsm1"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/upgrade"
+	_ "github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
+	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var (
@@ -32,25 +30,28 @@ func main() {
 
 	influxdb.SetBuildInfo(version, commit, date)
 
-	rootCmd := launcher.NewInfluxdCommand(context.Background(),
-		generate.Command,
-		restore.Command,
-		migrate.Command,
-		&cobra.Command{
-			Use:   "version",
-			Short: "Print the influxd server version",
-			Run: func(cmd *cobra.Command, args []string) {
-				fmt.Printf("InfluxDB %s (git: %s) build_date: %s\n", version, commit, date)
-			},
-		},
-	)
+	ctx := context.Background()
+	v := viper.New()
 
-	// TODO: this should be removed in the future: https://github.com/influxdata/influxdb/issues/16220
-	if os.Getenv("QUERY_TRACING") == "1" {
-		flux.EnableExperimentalTracing()
-	}
+	rootCmd := launcher.NewInfluxdCommand(ctx, v)
+	// upgrade binds options to env variables, so it must be added after rootCmd is initialized
+	rootCmd.AddCommand(upgrade.NewCommand(ctx, v))
+	rootCmd.AddCommand(inspect.NewCommand(v))
+	rootCmd.AddCommand(versionCmd())
 
+	rootCmd.SilenceUsage = true
 	if err := rootCmd.Execute(); err != nil {
+		rootCmd.PrintErrf("See '%s -h' for help\n", rootCmd.CommandPath())
 		os.Exit(1)
+	}
+}
+
+func versionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Print the influxd server version",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("InfluxDB %s (git: %s) build_date: %s\n", version, commit, date)
+		},
 	}
 }

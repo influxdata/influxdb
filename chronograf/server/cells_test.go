@@ -30,13 +30,13 @@ func Test_Cells_CorrectAxis(t *testing.T) {
 			name: "correct axes",
 			cell: &chronograf.DashboardCell{
 				Axes: map[string]chronograf.Axis{
-					"x": chronograf.Axis{
+					"x": {
 						Bounds: []string{"0", "100"},
 					},
-					"y": chronograf.Axis{
+					"y": {
 						Bounds: []string{"0", "100"},
 					},
-					"y2": chronograf.Axis{
+					"y2": {
 						Bounds: []string{"0", "100"},
 					},
 				},
@@ -46,10 +46,10 @@ func Test_Cells_CorrectAxis(t *testing.T) {
 			name: "invalid axes present",
 			cell: &chronograf.DashboardCell{
 				Axes: map[string]chronograf.Axis{
-					"axis of evil": chronograf.Axis{
+					"axis of evil": {
 						Bounds: []string{"666", "666"},
 					},
-					"axis of awesome": chronograf.Axis{
+					"axis of awesome": {
 						Bounds: []string{"1337", "31337"},
 					},
 				},
@@ -60,7 +60,7 @@ func Test_Cells_CorrectAxis(t *testing.T) {
 			name: "linear scale value",
 			cell: &chronograf.DashboardCell{
 				Axes: map[string]chronograf.Axis{
-					"x": chronograf.Axis{
+					"x": {
 						Scale:  "linear",
 						Bounds: []string{"0", "100"},
 					},
@@ -71,7 +71,7 @@ func Test_Cells_CorrectAxis(t *testing.T) {
 			name: "log scale value",
 			cell: &chronograf.DashboardCell{
 				Axes: map[string]chronograf.Axis{
-					"x": chronograf.Axis{
+					"x": {
 						Scale:  "log",
 						Bounds: []string{"0", "100"},
 					},
@@ -82,7 +82,7 @@ func Test_Cells_CorrectAxis(t *testing.T) {
 			name: "invalid scale value",
 			cell: &chronograf.DashboardCell{
 				Axes: map[string]chronograf.Axis{
-					"x": chronograf.Axis{
+					"x": {
 						Scale:  "potatoes",
 						Bounds: []string{"0", "100"},
 					},
@@ -94,7 +94,7 @@ func Test_Cells_CorrectAxis(t *testing.T) {
 			name: "base 10 axis",
 			cell: &chronograf.DashboardCell{
 				Axes: map[string]chronograf.Axis{
-					"x": chronograf.Axis{
+					"x": {
 						Base:   "10",
 						Bounds: []string{"0", "100"},
 					},
@@ -105,7 +105,7 @@ func Test_Cells_CorrectAxis(t *testing.T) {
 			name: "base 2 axis",
 			cell: &chronograf.DashboardCell{
 				Axes: map[string]chronograf.Axis{
-					"x": chronograf.Axis{
+					"x": {
 						Base:   "2",
 						Bounds: []string{"0", "100"},
 					},
@@ -116,7 +116,7 @@ func Test_Cells_CorrectAxis(t *testing.T) {
 			name: "invalid base",
 			cell: &chronograf.DashboardCell{
 				Axes: map[string]chronograf.Axis{
-					"x": chronograf.Axis{
+					"x": {
 						Base:   "all your base are belong to us",
 						Bounds: []string{"0", "100"},
 					},
@@ -191,13 +191,13 @@ func Test_Service_DashboardCells(t *testing.T) {
 					Queries:    []chronograf.DashboardQuery{},
 					CellColors: []chronograf.CellColor{},
 					Axes: map[string]chronograf.Axis{
-						"x": chronograf.Axis{
+						"x": {
 							Bounds: []string{"", ""},
 						},
-						"y": chronograf.Axis{
+						"y": {
 							Bounds: []string{"", ""},
 						},
-						"y2": chronograf.Axis{
+						"y2": {
 							Bounds: []string{"", ""},
 						},
 					},
@@ -265,7 +265,7 @@ func Test_Service_DashboardCells(t *testing.T) {
 			}
 
 			if err := json.NewDecoder(resp.Body).Decode(&respFrame); err != nil {
-				t.Fatalf("%q - Error unmarshaling response body: err: %s", test.name, err)
+				t.Fatalf("%q - Error unmarshalling response body: err: %s", test.name, err)
 			}
 
 			// extract actual
@@ -714,7 +714,7 @@ func Test_newCellResponses(t *testing.T) {
 			name: "all fields set",
 			dID:  chronograf.DashboardID(1),
 			dcells: []chronograf.DashboardCell{
-				chronograf.DashboardCell{
+				{
 					ID:   "445f8dc0-4d73-4168-8477-f628690d18a3",
 					X:    0,
 					Y:    0,
@@ -744,7 +744,7 @@ func Test_newCellResponses(t *testing.T) {
 										},
 									},
 								},
-								Tags: map[string][]string{"cpu": []string{"ChristohersMBP2.lan"}},
+								Tags: map[string][]string{"cpu": {"ChristohersMBP2.lan"}},
 								GroupBy: chronograf.GroupBy{
 									Time: "2s",
 								},
@@ -759,14 +759,14 @@ func Test_newCellResponses(t *testing.T) {
 						},
 					},
 					Axes: map[string]chronograf.Axis{
-						"x":  chronograf.Axis{},
-						"y":  chronograf.Axis{},
-						"y2": chronograf.Axis{},
+						"x":  {},
+						"y":  {},
+						"y2": {},
 					},
 					Type: "line",
 					CellColors: []chronograf.CellColor{
-						chronograf.CellColor{ID: "0", Type: "min", Hex: "#00C9FF", Name: "laser", Value: "0"},
-						chronograf.CellColor{ID: "1", Type: "max", Hex: "#9394FF", Name: "comet", Value: "100"},
+						{ID: "0", Type: "min", Hex: "#00C9FF", Name: "laser", Value: "0"},
+						{ID: "1", Type: "max", Hex: "#9394FF", Name: "comet", Value: "100"},
 					},
 					Legend: chronograf.Legend{
 						Type:        "static",
@@ -851,7 +851,7 @@ func Test_newCellResponses(t *testing.T) {
 			name: "nothing set",
 			dID:  chronograf.DashboardID(1),
 			dcells: []chronograf.DashboardCell{
-				chronograf.DashboardCell{
+				{
 					ID:   "445f8dc0-4d73-4168-8477-f628690d18a3",
 					X:    0,
 					Y:    0,
@@ -869,13 +869,13 @@ func Test_newCellResponses(t *testing.T) {
 						Name:    "Untitled Cell",
 						Queries: []chronograf.DashboardQuery{},
 						Axes: map[string]chronograf.Axis{
-							"x": chronograf.Axis{
+							"x": {
 								Bounds: []string{"", ""},
 							},
-							"y": chronograf.Axis{
+							"y": {
 								Bounds: []string{"", ""},
 							},
-							"y2": chronograf.Axis{
+							"y2": {
 								Bounds: []string{"", ""},
 							},
 						},

@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "http://influxdata.com/idpe.schema.json",
+  "title": "InfluxQL Test",
+  "description": "An InfluxQL Test Schema",
+  "type": "object",
+  "required": ["tests"],
+  "additionalProperties": false,
+  "properties": {
+    "description": {
+      "description": "An optional description of the test suite",
+      "type": "string"
+    },
+    "tests": {
+      "type": "array",
+      "items": {"$ref": "#/definitions/test"}
+    },
+    "dataset": {
+      "description": "The dataset to be used for this test",
+      "type": "string"
+    },
+    "generated": {
+      "description": "The dataset to be used for this test",
+      "type": "object",
+      "required": ["start", "end", "toml"],
+      "properties": {
+        "start": {
+          "description": "The start time in restricted RFC3339 or nanoseconds",
+          "type": "string",
+          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z|\\d+)$"
+        },
+        "end": {
+          "description": "The end time in restricted RFC3339",
+          "type": "string",
+          "pattern": "^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}Z|\\d+)$"
+        },
+        "toml": {
+          "description": "The TOML schema for the dataset",
+          "type": "string"
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {"required": ["dataset"]},
+    {"required": ["generated"]}
+  ],
+  "definitions": {
+    "test": {
+      "type": "object",
+      "required": ["query", "result"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "A name for this test",
+          "type": "string"
+        },
+        "description": {
+          "description": "An optional description of the test",
+          "type": "string"
+        },
+        "query": {
+          "description": "The InfluxQL query to under test",
+          "type": "string"
+        },
+        "result": {
+          "description": "The expected results in CSV format",
+          "type": "string"
+        }
+      }
+    }
+  }
+}

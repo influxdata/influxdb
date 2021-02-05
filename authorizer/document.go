@@ -89,87 +89,10 @@ func (s *documentStore) FindDocument(ctx context.Context, id influxdb.ID) (*infl
 	return d, nil
 }
 
-func (s *documentStore) UpdateDocument(ctx context.Context, d *influxdb.Document) error {
-	if len(d.Organizations) == 0 {
-		// Cannot authorize without orgs
-		ds, err := s.s.FindDocument(ctx, d.ID)
-		if err != nil {
-			return err
-		}
-		d.Organizations = ds.Organizations
-	}
-	ps, err := toPerms(influxdb.WriteAction, d.Organizations, &d.ID)
-	if err != nil {
-		return err
-	}
-	if err := IsAllowedAny(ctx, ps); err != nil {
-		return err
-	}
-	return s.s.UpdateDocument(ctx, d)
-}
-
-func (s *documentStore) DeleteDocument(ctx context.Context, id influxdb.ID) error {
-	d, err := s.s.FindDocument(ctx, id)
-	if err != nil {
-		return err
-	}
-	ps, err := toPerms(influxdb.WriteAction, d.Organizations, &id)
-	if err != nil {
-		return err
-	}
-	if err := IsAllowedAny(ctx, ps); err != nil {
-		return err
-	}
-	return s.s.DeleteDocument(ctx, id)
-}
-
-func (s *documentStore) findDocs(ctx context.Context, action influxdb.Action, opts ...influxdb.DocumentFindOptions) ([]*influxdb.Document, error) {
-	// TODO: we'll likely want to push this operation into the database eventually since fetching the whole list of data
-	//  will likely be expensive.
-	opts = append(opts, influxdb.IncludeOrganizations)
-	ds, err := s.s.FindDocuments(ctx, opts...)
-	if err != nil {
+func (s *documentStore) FindDocuments(ctx context.Context, oid influxdb.ID) ([]*influxdb.Document, error) {
+	if _, _, err := AuthorizeOrgReadResource(ctx, influxdb.DocumentsResourceType, oid); err != nil {
 		return nil, err
 	}
 
-	// This filters without allocating
-	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
-	fds := ds[:0]
-	for _, d := range ds {
-		ps, err := toPerms(action, d.Organizations, &d.ID)
-		if err != nil {
-			return nil, err
-		}
-		if err := IsAllowedAny(ctx, ps); err != nil {
-			// If you are looking for docs for reading, then use permissions as a filter.
-			// If you are editing, then, you are not allowed.
-			if action == influxdb.ReadAction {
-				continue
-			} else {
-				return nil, err
-			}
-		}
-		fds = append(fds, d)
-	}
-	return fds, nil
-}
-
-func (s *documentStore) FindDocuments(ctx context.Context, opts ...influxdb.DocumentFindOptions) ([]*influxdb.Document, error) {
-	return s.findDocs(ctx, influxdb.ReadAction, opts...)
-}
-
-func (s *documentStore) DeleteDocuments(ctx context.Context, opts ...influxdb.DocumentFindOptions) error {
-	ds, err := s.findDocs(ctx, influxdb.WriteAction, opts...)
-	if err != nil {
-		return err
-	}
-	ids := make([]influxdb.ID, len(ds))
-	for i, d := range ds {
-		ids[i] = d.ID
-	}
-	return s.s.DeleteDocuments(ctx,
-		func(_ influxdb.DocumentIndex, _ influxdb.DocumentDecorator) (ids []influxdb.ID, e error) {
-			return ids, nil
-		},
-	)
+	return s.s.FindDocuments(ctx, oid)
 }

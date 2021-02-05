@@ -1,18 +1,35 @@
 const { By, Condition, until, StaleElementReferenceError} = require('selenium-webdriver');
-
-const urlCtx = 'signin';
+const basePage = require(__srcdir + '/pages/basePage.js');
 
 const emailInput = '[data-testid=\'input-field\']';
 const passwordInput = '[data-testid=\'visibility-input\']';
 const logInButton = '[data-testid=\'button\']';
 const logInPanel = '[data-testid=\'panel\']';
+const googleLoginButton = '[data-testid=button-base]';
+const signupLink = '//*[text()=\'Sign Up\']';
+const forgotPassLink = '//*[text()=\'Forgot Password\']';
 
-class cloudLoginPage {
+const urlCtx = 'login';
+
+
+class cloudLoginPage extends basePage {
 
     constructor(driver) {
-        //super(driver);
+        super(driver);
         this.urlCtx = urlCtx;
         this.driver = driver;
+    }
+
+    async isLoaded(){
+        await super.isLoaded([
+            {type: 'css', selector: emailInput},
+            {type: 'css', selector: passwordInput},
+            {type: 'css', selector: logInButton},
+            {type: 'css', selector: logInPanel},
+            {type: 'css', selector: googleLoginButton},
+            {type: 'xpath', selector: signupLink},
+            {type: 'xpath', selector: forgotPassLink}
+        ], urlCtx);
     }
 
     async waitToLoad(timeout = 10000){

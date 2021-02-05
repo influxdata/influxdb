@@ -55,17 +55,13 @@ export const reportError = (
 
     event('ui error', {error: errorType}, {errorCount: 1})
   } else {
-    const honeyBadgerContext = (HoneyBadger as any).context
-    /* eslint-disable no-console */
-    console.log('Context that would have been sent to HoneyBadger:')
-    console.table({...honeyBadgerContext, ...context, ...options})
-    /* eslint-enable no-console */
+    console.error(error)
   }
 }
 
 /*
   Parse React's error boundary info message to provide the name of the
-  component an error occured in.
+  component an error occurred in.
 
   For example, given the following info message:
 

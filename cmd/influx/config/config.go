@@ -26,15 +26,15 @@ type Config struct {
 // DefaultConfig is default config without token
 var DefaultConfig = Config{
 	Name:   "default",
-	Host:   "http://localhost:9999",
+	Host:   "http://localhost:8086",
 	Active: true,
 }
 
 // Configs is map of configs indexed by name.
 type Configs map[string]Config
 
-// ConfigsService is the service to list and write configs.
-type ConfigsService interface {
+// Service is the service to list and write configs.
+type Service interface {
 	CreateConfig(Config) (Config, error)
 	DeleteConfig(name string) (Config, error)
 	UpdateConfig(Config) (Config, error)
@@ -65,6 +65,20 @@ func (cfgs Configs) Switch(name string) error {
 	return nil
 }
 
+func (cfgs Configs) Active() Config {
+	for _, cfg := range cfgs {
+		if cfg.Active {
+			return cfg
+		}
+	}
+	if len(cfgs) > 0 {
+		for _, cfg := range cfgs {
+			return cfg
+		}
+	}
+	return DefaultConfig
+}
+
 // localConfigsSVC has the path and dir to write and parse configs.
 type localConfigsSVC struct {
 	store
@@ -83,10 +97,10 @@ func newConfigsSVC(s store) localConfigsSVC {
 }
 
 // NewLocalConfigSVC create a new local config svc.
-func NewLocalConfigSVC(Path, Dir string) ConfigsService {
+func NewLocalConfigSVC(path, dir string) Service {
 	return newConfigsSVC(ioStore{
-		Path: Path,
-		Dir:  Dir,
+		Path: path,
+		Dir:  dir,
 	})
 }
 

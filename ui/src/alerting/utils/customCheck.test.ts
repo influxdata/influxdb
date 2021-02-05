@@ -14,7 +14,7 @@ const bc1: BuilderConfig = {
 const ab1: AlertBuilderState = {
   activeStatus: 'active',
   status: RemoteDataState.Done,
-  statusMessageTemplate: 'this is staus message',
+  statusMessageTemplate: 'this is status message',
   tags: [{key: 'k1', value: 'v1'}],
   id: '2',
   name: 'name of thing',
@@ -35,7 +35,7 @@ const ab1: AlertBuilderState = {
 const ab2: AlertBuilderState = {
   activeStatus: 'active',
   status: RemoteDataState.Done,
-  statusMessageTemplate: 'this is staus message',
+  statusMessageTemplate: 'this is status message',
   tags: [{key: 'k1', value: 'v1'}],
   id: '2',
   name: 'name of thing',
@@ -57,12 +57,12 @@ const TESTS = [
   [
     bc1,
     ab1,
-    'package main\nimport "influxdata/influxdb/monitor"\nimport "experimental"\nimport "influxdata/influxdb/v1"\n\ncheck = {\n  _check_id: "2",\n  _check_name: "name of thing",\n  _type: "custom",\n  tags: {k1: "v1"},\n  every: 2d\n}\n\noption task = {\n  name: "name of thing",\n  every: 2d, // expected to match check.every\n  offset: 10m\n}\n\ninfo = (r) => (r.dead)\n\nmessageFn = (r) =>("this is staus message")\n\ndata = from(bucket: "bestBuck")\n  |> range(start: -lala)\n  |> filter(fn: (r) => r.k1 == "v1")\n  |> filter(fn: (r) => r._field == "v2")\n\ndata\n  |> v1.fieldsAsCols()\n  |> monitor.deadman(t: experimental.subDuration(from: now(), d: 10m))\n  |> monitor.check(data: check, messageFn: messageFn,info:info)',
+    'package main\nimport "influxdata/influxdb/monitor"\nimport "experimental"\nimport "influxdata/influxdb/v1"\n\ncheck = {\n  _check_id: "2",\n  _check_name: "name of thing",\n  _type: "custom",\n  tags: {k1: "v1"},\n  every: 2d\n}\n\noption task = {\n  name: "name of thing",\n  every: 2d, // expected to match check.every\n  offset: 10m\n}\n\ninfo = (r) => (r.dead)\n\nmessageFn = (r) =>("this is status message")\n\ndata = from(bucket: "bestBuck")\n  |> range(start: -lala)\n  |> filter(fn: (r) => r.k1 == "v1")\n  |> filter(fn: (r) => r._field == "v2")\n\ndata\n  |> v1.fieldsAsCols()\n  |> monitor.deadman(t: experimental.subDuration(from: now(), d: 10m))\n  |> monitor.check(data: check, messageFn: messageFn,info:info)',
   ],
   [
     bc1,
     ab2,
-    'package main\nimport "influxdata/influxdb/monitor"\nimport "influxdata/influxdb/v1"\n\ncheck = {\n  _check_id: "2",\n  _check_name: "name of thing",\n  _type: "custom",\n  tags: {k1: "v1"},\n  every: 2d\n}\n\noption task = {\n  name: "name of thing",\n  every: 2d, // expected to match check.every\n  offset: 10m\n}\n\ninfo = (r) =>(r.v2 > 45)\nok = (r) =>(r.v2 < 15)\nwarn = (r) =>(r.v2 < 2 and r.v2 > 10)\n\nmessageFn = (r) =>("this is staus message")\n\ndata = from(bucket: "bestBuck")\n  |> range(start: -check.every)\n  |> filter(fn: (r) => r.k1 == "v1")\n  |> filter(fn: (r) => r._field == "v2")\n  |> aggregateWindow(every: check.every, fn: mean, createEmpty: false)\n\ndata\n  |> v1.fieldsAsCols()\n  |> monitor.check(data: check, messageFn: messageFn, info:info, ok:ok, warn:warn)',
+    'package main\nimport "influxdata/influxdb/monitor"\nimport "influxdata/influxdb/v1"\n\ncheck = {\n  _check_id: "2",\n  _check_name: "name of thing",\n  _type: "custom",\n  tags: {k1: "v1"},\n  every: 2d\n}\n\noption task = {\n  name: "name of thing",\n  every: 2d, // expected to match check.every\n  offset: 10m\n}\n\ninfo = (r) =>(r.v2 > 45)\nok = (r) =>(r.v2 < 15)\nwarn = (r) =>(r.v2 < 2 and r.v2 > 10)\n\nmessageFn = (r) =>("this is status message")\n\ndata = from(bucket: "bestBuck")\n  |> range(start: -check.every)\n  |> filter(fn: (r) => r.k1 == "v1")\n  |> filter(fn: (r) => r._field == "v2")\n  |> aggregateWindow(every: check.every, fn: mean, createEmpty: false)\n\ndata\n  |> v1.fieldsAsCols()\n  |> monitor.check(data: check, messageFn: messageFn, info:info, ok:ok, warn:warn)',
   ],
 ]
 

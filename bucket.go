@@ -8,11 +8,6 @@ import (
 )
 
 const (
-	// TasksSystemBucketID is the fixed ID for our tasks system bucket
-	TasksSystemBucketID = ID(10)
-	// MonitoringSystemBucketID is the fixed ID for our monitoring system bucket
-	MonitoringSystemBucketID = ID(11)
-
 	// BucketTypeUser is a user created bucket
 	BucketTypeUser = BucketType(0)
 	// BucketTypeSystem is an internally created bucket that cannot be deleted/renamed.
@@ -42,6 +37,12 @@ type Bucket struct {
 	RetentionPolicyName string        `json:"rp,omitempty"` // This to support v1 sources
 	RetentionPeriod     time.Duration `json:"retentionPeriod"`
 	CRUDLog
+}
+
+// Clone returns a shallow copy of b.
+func (b *Bucket) Clone() *Bucket {
+	other := *b
+	return &other
 }
 
 // BucketType differentiates system buckets from user buckets.
@@ -122,7 +123,7 @@ func (f BucketFilter) QueryParams() map[string][]string {
 	}
 
 	if f.Name != nil {
-		qp["name"] = []string{*f.Name}
+		qp["bucket"] = []string{*f.Name}
 	}
 
 	if f.OrganizationID != nil {

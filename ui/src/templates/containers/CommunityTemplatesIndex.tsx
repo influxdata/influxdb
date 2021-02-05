@@ -7,11 +7,12 @@ import {
   Route,
 } from 'react-router-dom'
 import {connect, ConnectedProps} from 'react-redux'
+import {notify} from 'src/shared/actions/notifications'
 
 // Components
 import {ErrorHandling} from 'src/shared/decorators/errors'
 import {CommunityTemplateImportOverlay} from 'src/templates/components/CommunityTemplateImportOverlay'
-import {CommunityTemplatesActivityLog} from 'src/templates/components/CommunityTemplatesActivityLog'
+import {CommunityTemplatesInstalledList} from 'src/templates/components/CommunityTemplatesInstalledList'
 
 import {
   Bullet,
@@ -21,33 +22,43 @@ import {
   Heading,
   HeadingElement,
   Input,
-  LinkButton,
-  LinkTarget,
   Page,
   Panel,
+  FlexDirection,
+  IconFont,
 } from '@influxdata/clockface'
 import SettingsTabbedPage from 'src/settings/components/SettingsTabbedPage'
 import SettingsHeader from 'src/settings/components/SettingsHeader'
 
 import {communityTemplatesImportPath} from 'src/templates/containers/TemplatesIndex'
 
+import GetResources from 'src/resources/components/GetResources'
 import {getOrg} from 'src/organizations/selectors'
+
+import {setStagedTemplateUrl} from 'src/templates/actions/creators'
 
 // Utils
 import {pageTitleSuffixer} from 'src/shared/utils/pageTitles'
 import {
-  getGithubUrlFromTemplateName,
-  getTemplateNameFromGithubUrl,
+  getGithubUrlFromTemplateDetails,
+  getTemplateNameFromUrl,
 } from 'src/templates/utils'
+import {reportError} from 'src/shared/utils/errors'
+
+import {communityTemplateUnsupportedFormatError} from 'src/shared/copy/notifications'
 
 // Types
-import {AppState} from 'src/types'
+import {AppState, ResourceType} from 'src/types'
+
+import {event} from 'src/cloud/utils/reporting'
 
 const communityTemplatesUrl =
   'https://github.com/influxdata/community-templates#templates'
 const templatesPath = '/orgs/:orgID/settings/templates'
 
-type Params = {params: {templateName: string}}
+type Params = {
+  params: {directory: string; templateName: string; templateExtension: string}
+}
 type ReduxProps = ConnectedProps<typeof connector>
 type Props = ReduxProps & RouteComponentProps<{templateName: string}>
 
@@ -65,9 +76,17 @@ class UnconnectedTemplatesIndex extends Component<Props> {
       path: communityTemplatesImportPath,
     }) as Params
 
-    if (match?.params?.templateName) {
+    if (
+      match?.params?.directory &&
+      match?.params?.templateName &&
+      match?.params?.templateExtension
+    ) {
       this.setState({
-        templateUrl: getGithubUrlFromTemplateName(match.params.templateName),
+        templateUrl: getGithubUrlFromTemplateDetails(
+          match.params.directory,
+          match.params.templateName,
+          match.params.templateExtension
+        ),
       })
     }
   }
@@ -81,7 +100,7 @@ class UnconnectedTemplatesIndex extends Component<Props> {
           <SettingsTabbedPage activeTab="templates" orgID={org.id}>
             {/* todo: maybe make this not a div */}
             <div className="community-templates-upload">
-              <Panel className="community-templates-upload-panel">
+              <Panel className="community-templates-panel">
                 <Panel.SymbolHeader
                   symbol={<Bullet text={1} size={ComponentSize.Medium} />}
                   title={
@@ -91,12 +110,13 @@ class UnconnectedTemplatesIndex extends Component<Props> {
                   }
                   size={ComponentSize.Small}
                 >
-                  <LinkButton
+                  <Button
                     color={ComponentColor.Primary}
-                    href={communityTemplatesUrl}
-                    size={ComponentSize.Small}
-                    target={LinkTarget.Blank}
+                    size={ComponentSize.Large}
+                    onClick={this.onClickBrowseCommunityTemplates}
                     text="Browse Community Templates"
+                    testID="browse-template-button"
+                    icon={IconFont.GitHub}
                   />
                 </Panel.SymbolHeader>
               </Panel>
@@ -108,32 +128,50 @@ class UnconnectedTemplatesIndex extends Component<Props> {
                       Paste the Template's Github URL below
                     </Heading>
                   }
-                  size={ComponentSize.Medium}
+                  size={ComponentSize.Small}
                 />
-                <Panel.Body size={ComponentSize.Large}>
-                  <div>
-                    <Input
-                      className="community-templates-template-url"
-                      onChange={this.handleTemplateChange}
-                      placeholder="Enter the URL of an InfluxDB Template..."
-                      style={{width: '80%'}}
-                      value={this.state.templateUrl}
-                    />
-                    <Button
-                      onClick={this.startTemplateInstall}
-                      size={ComponentSize.Small}
-                      text="Lookup Template"
-                    />
-                  </div>
+                <Panel.Body
+                  size={ComponentSize.Large}
+                  direction={FlexDirection.Row}
+                >
+                  <Input
+                    className="community-templates-template-url"
+                    onChange={this.handleTemplateChange}
+                    placeholder="Enter the URL of an InfluxDB Template..."
+                    style={{flex: '1 0 0'}}
+                    value={this.state.templateUrl}
+                    testID="lookup-template-input"
+                    size={ComponentSize.Large}
+                  />
+                  <Button
+                    onClick={this.startTemplateInstall}
+                    size={ComponentSize.Large}
+                    text="Lookup Template"
+                    testID="lookup-template-button"
+                  />
                 </Panel.Body>
               </Panel>
-              <CommunityTemplatesActivityLog orgID={org.id} />
+              <GetResources
+                resources={[
+                  ResourceType.Buckets,
+                  ResourceType.Checks,
+                  ResourceType.Dashboards,
+                  ResourceType.Labels,
+                  ResourceType.NotificationEndpoints,
+                  ResourceType.NotificationRules,
+                  ResourceType.Tasks,
+                  ResourceType.Telegrafs,
+                  ResourceType.Variables,
+                ]}
+              >
+                <CommunityTemplatesInstalledList orgID={org.id} />
+              </GetResources>
             </div>
           </SettingsTabbedPage>
         </Page>
         <Switch>
           <Route
-            path={`${templatesPath}/import/:templateName`}
+            path={`${templatesPath}/import`}
             component={CommunityTemplateImportOverlay}
           />
         </Switch>
@@ -143,22 +181,36 @@ class UnconnectedTemplatesIndex extends Component<Props> {
 
   private startTemplateInstall = () => {
     if (!this.state.templateUrl) {
-      console.error('undefined')
+      this.props.notify(communityTemplateUnsupportedFormatError())
       return false
     }
 
-    const name = getTemplateNameFromGithubUrl(this.state.templateUrl)
-    this.showInstallerOverlay(name)
+    try {
+      this.props.setStagedTemplateUrl(this.state.templateUrl)
+
+      event('template_click_lookup', {
+        templateName: getTemplateNameFromUrl(this.state.templateUrl).name,
+      })
+
+      this.props.history.push(
+        `/orgs/${this.props.org.id}/settings/templates/import`
+      )
+    } catch (err) {
+      this.props.notify(communityTemplateUnsupportedFormatError())
+      reportError(err, {
+        name: 'The community template getTemplateDetails failed',
+      })
+    }
   }
 
-  private showInstallerOverlay = templateName => {
-    const {history, org} = this.props
-
-    history.push(`/orgs/${org.id}/settings/templates/import/${templateName}`)
+  private handleTemplateChange = evt => {
+    this.setState({templateUrl: evt.target.value})
   }
 
-  private handleTemplateChange = event => {
-    this.setState({templateUrl: event.target.value})
+  private onClickBrowseCommunityTemplates = () => {
+    event('template_click_browse')
+
+    window.open(communityTemplatesUrl)
   }
 }
 
@@ -168,7 +220,12 @@ const mstp = (state: AppState) => {
   }
 }
 
-const connector = connect(mstp)
+const mdtp = {
+  notify,
+  setStagedTemplateUrl,
+}
+
+const connector = connect(mstp, mdtp)
 
 export const CommunityTemplatesIndex = connector(
   withRouter(UnconnectedTemplatesIndex)

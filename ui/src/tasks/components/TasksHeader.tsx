@@ -6,7 +6,6 @@ import {
   InputLabel,
   SlideToggle,
   ComponentSize,
-  ComponentStatus,
   Page,
   Sort,
   FlexBox,
@@ -15,7 +14,7 @@ import {
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
-import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
+import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 
 // Types
 import {LimitStatus} from 'src/cloud/actions/limits'
@@ -57,13 +56,14 @@ export default class TasksHeader extends PureComponent<Props> {
       sortType,
       sortDirection,
       onSort,
+      limitStatus,
     } = this.props
 
     return (
       <>
         <Page.Header fullWidth={false} testID="tasks-page--header">
           <Page.Title title="Tasks" />
-          <CloudUpgradeButton />
+          <RateLimitAlert />
         </Page.Header>
         <Page.ControlBar fullWidth={false}>
           <Page.ControlBarLeft>
@@ -98,19 +98,11 @@ export default class TasksHeader extends PureComponent<Props> {
               onSelectImport={onImportTask}
               onSelectTemplate={onImportFromTemplate}
               resourceName="Task"
-              status={this.addResourceStatus}
+              limitStatus={limitStatus}
             />
           </Page.ControlBarRight>
         </Page.ControlBar>
       </>
     )
-  }
-
-  private get addResourceStatus(): ComponentStatus {
-    const {limitStatus} = this.props
-    if (limitStatus === LimitStatus.EXCEEDED) {
-      return ComponentStatus.Disabled
-    }
-    return ComponentStatus.Default
   }
 }

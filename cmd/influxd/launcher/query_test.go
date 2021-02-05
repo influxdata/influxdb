@@ -19,21 +19,21 @@ import (
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/execute/executetest"
+	"github.com/influxdata/flux/execute/table"
 	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	phttp "github.com/influxdata/influxdb/v2/http"
-	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/prom"
-	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query"
+	"go.uber.org/zap"
 )
 
 func TestLauncher_Write_Query_FieldKey(t *testing.T) {
-	be := launcher.RunTestLauncherOrFail(t, ctx, nil)
-	be.SetupOrFail(t)
+	be := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer be.ShutdownOrFail(t, ctx)
 
 	resp, err := nethttp.DefaultClient.Do(
@@ -78,8 +78,7 @@ mem,server=b value=45.2`))
 // and checks that the queried results contain the expected number of tables
 // and expected number of columns.
 func TestLauncher_WriteV2_Query(t *testing.T) {
-	be := launcher.RunTestLauncherOrFail(t, ctx, nil)
-	be.SetupOrFail(t)
+	be := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer be.ShutdownOrFail(t, ctx)
 
 	// The default gateway instance inserts some values directly such that ID lookups seem to break,
@@ -243,7 +242,7 @@ func queryPoints(ctx context.Context, t *testing.T, l *launcher.TestLauncher, op
 func TestLauncher_QueryMemoryLimits(t *testing.T) {
 	tcs := []struct {
 		name           string
-		args           []string
+		setOpts        launcher.OptSetter
 		err            bool
 		querySizeBytes int
 		// max_memory - per_query_memory * concurrency
@@ -251,10 +250,10 @@ func TestLauncher_QueryMemoryLimits(t *testing.T) {
 	}{
 		{
 			name: "ok - initial memory bytes, memory bytes, and max memory set",
-			args: []string{
-				"--query-concurrency", "1",
-				"--query-initial-memory-bytes", "100",
-				"--query-max-memory-bytes", "1048576", // 1MB
+			setOpts: func(o *launcher.InfluxdOpts) {
+				o.ConcurrencyQuota = 1
+				o.InitialMemoryBytesQuotaPerQuery = 100
+				o.MaxMemoryBytes = 1048576 // 1MB
 			},
 			querySizeBytes:    30000,
 			err:               false,
@@ -262,10 +261,10 @@ func TestLauncher_QueryMemoryLimits(t *testing.T) {
 		},
 		{
 			name: "error - memory bytes and max memory set",
-			args: []string{
-				"--query-concurrency", "1",
-				"--query-memory-bytes", "1",
-				"--query-max-memory-bytes", "100",
+			setOpts: func(o *launcher.InfluxdOpts) {
+				o.ConcurrencyQuota = 1
+				o.MemoryBytesQuotaPerQuery = 1
+				o.MaxMemoryBytes = 100
 			},
 			querySizeBytes:    2,
 			err:               true,
@@ -273,10 +272,10 @@ func TestLauncher_QueryMemoryLimits(t *testing.T) {
 		},
 		{
 			name: "error - initial memory bytes and max memory set",
-			args: []string{
-				"--query-concurrency", "1",
-				"--query-initial-memory-bytes", "1",
-				"--query-max-memory-bytes", "100",
+			setOpts: func(o *launcher.InfluxdOpts) {
+				o.ConcurrencyQuota = 1
+				o.InitialMemoryBytesQuotaPerQuery = 1
+				o.MaxMemoryBytes = 100
 			},
 			querySizeBytes:    101,
 			err:               true,
@@ -284,11 +283,11 @@ func TestLauncher_QueryMemoryLimits(t *testing.T) {
 		},
 		{
 			name: "error - initial memory bytes, memory bytes, and max memory set",
-			args: []string{
-				"--query-concurrency", "1",
-				"--query-initial-memory-bytes", "1",
-				"--query-memory-bytes", "50",
-				"--query-max-memory-bytes", "100",
+			setOpts: func(o *launcher.InfluxdOpts) {
+				o.ConcurrencyQuota = 1
+				o.InitialMemoryBytesQuotaPerQuery = 1
+				o.MemoryBytesQuotaPerQuery = 50
+				o.MaxMemoryBytes = 100
 			},
 			querySizeBytes:    51,
 			err:               true,
@@ -298,8 +297,7 @@ func TestLauncher_QueryMemoryLimits(t *testing.T) {
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			l := launcher.RunTestLauncherOrFail(t, ctx, nil, tc.args...)
-			l.SetupOrFail(t)
+			l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, tc.setOpts)
 			defer l.ShutdownOrFail(t, ctx)
 
 			const tagValue = "t0"
@@ -336,14 +334,13 @@ func TestLauncher_QueryMemoryLimits(t *testing.T) {
 func TestLauncher_QueryMemoryManager_ExceedMemory(t *testing.T) {
 	t.Skip("this test is flaky, occasionally get error: \"memory allocation limit reached\" on OK query")
 
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil,
-		"--log-level", "error",
-		"--query-concurrency", "1",
-		"--query-initial-memory-bytes", "100",
-		"--query-memory-bytes", "50000",
-		"--query-max-memory-bytes", "200000",
-	)
-	l.SetupOrFail(t)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
+		o.LogLevel = zap.ErrorLevel
+		o.ConcurrencyQuota = 1
+		o.InitialMemoryBytesQuotaPerQuery = 100
+		o.MemoryBytesQuotaPerQuery = 50000
+		o.MaxMemoryBytes = 200000
+	})
 	defer l.ShutdownOrFail(t, ctx)
 
 	// One tag does not exceed memory.
@@ -381,14 +378,13 @@ func TestLauncher_QueryMemoryManager_ExceedMemory(t *testing.T) {
 func TestLauncher_QueryMemoryManager_ContextCanceled(t *testing.T) {
 	t.Skip("this test is flaky, occasionally get error: \"memory allocation limit reached\"")
 
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil,
-		"--log-level", "error",
-		"--query-concurrency", "1",
-		"--query-initial-memory-bytes", "100",
-		"--query-memory-bytes", "50000",
-		"--query-max-memory-bytes", "200000",
-	)
-	l.SetupOrFail(t)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
+		o.LogLevel = zap.ErrorLevel
+		o.ConcurrencyQuota = 1
+		o.InitialMemoryBytesQuotaPerQuery = 100
+		o.MemoryBytesQuotaPerQuery = 50000
+		o.MaxMemoryBytes = 200000
+	})
 	defer l.ShutdownOrFail(t, ctx)
 
 	const tag = "t0"
@@ -425,15 +421,14 @@ func TestLauncher_QueryMemoryManager_ContextCanceled(t *testing.T) {
 func TestLauncher_QueryMemoryManager_ConcurrentQueries(t *testing.T) {
 	t.Skip("this test is flaky, occasionally get error: \"dial tcp 127.0.0.1:59654: connect: connection reset by peer\"")
 
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil,
-		"--log-level", "error",
-		"--query-queue-size", "1024",
-		"--query-concurrency", "1",
-		"--query-initial-memory-bytes", "10000",
-		"--query-memory-bytes", "50000",
-		"--query-max-memory-bytes", "200000",
-	)
-	l.SetupOrFail(t)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t, func(o *launcher.InfluxdOpts) {
+		o.LogLevel = zap.ErrorLevel
+		o.QueueSize = 1024
+		o.ConcurrencyQuota = 1
+		o.InitialMemoryBytesQuotaPerQuery = 10000
+		o.MemoryBytesQuotaPerQuery = 50000
+		o.MaxMemoryBytes = 200000
+	})
 	defer l.ShutdownOrFail(t, ctx)
 
 	// One tag does not exceed memory.
@@ -499,8 +494,7 @@ func TestLauncher_QueryMemoryManager_ConcurrentQueries(t *testing.T) {
 }
 
 func TestLauncher_Query_LoadSecret_Success(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
-	l.SetupOrFail(t)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	const key, value = "mytoken", "secrettoken"
@@ -549,8 +543,7 @@ from(bucket: "%s")
 }
 
 func TestLauncher_Query_LoadSecret_Forbidden(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
-	l.SetupOrFail(t)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	const key, value = "mytoken", "secrettoken"
@@ -608,8 +601,7 @@ from(bucket: "%s")
 // This will change once we make side effects drive execution and remove from/to concurrency in our e2e tests.
 // See https://github.com/influxdata/flux/issues/1799.
 func TestLauncher_DynamicQuery(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
-	l.SetupOrFail(t)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	l.WritePointsOrFail(t, `
@@ -683,8 +675,7 @@ stream2 |> filter(fn: (r) => contains(value: r._value, set: col)) |> group() |> 
 }
 
 func TestLauncher_Query_ExperimentalTo(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
-	l.SetupOrFail(t)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	// Last row of data tests nil field value
@@ -751,6 +742,203 @@ from(bucket: "%s")
 	}
 }
 
+type TestQueryProfiler struct {
+	start int64
+}
+
+func (s TestQueryProfiler) Name() string {
+	return fmt.Sprintf("query%d", s.start)
+}
+
+func (s TestQueryProfiler) GetSortedResult(q flux.Query, alloc *memory.Allocator, desc bool, sortKeys ...string) (flux.Table, error) {
+	return nil, nil
+}
+
+func (s TestQueryProfiler) GetResult(q flux.Query, alloc *memory.Allocator) (flux.Table, error) {
+	groupKey := execute.NewGroupKey(
+		[]flux.ColMeta{
+			{
+				Label: "_measurement",
+				Type:  flux.TString,
+			},
+		},
+		[]values.Value{
+			values.NewString(fmt.Sprintf("profiler/query%d", s.start)),
+		},
+	)
+	b := execute.NewColListTableBuilder(groupKey, alloc)
+	colMeta := []flux.ColMeta{
+		{
+			Label: "_measurement",
+			Type:  flux.TString,
+		},
+		{
+			Label: "TotalDuration",
+			Type:  flux.TInt,
+		},
+		{
+			Label: "CompileDuration",
+			Type:  flux.TInt,
+		},
+		{
+			Label: "QueueDuration",
+			Type:  flux.TInt,
+		},
+		{
+			Label: "PlanDuration",
+			Type:  flux.TInt,
+		},
+		{
+			Label: "RequeueDuration",
+			Type:  flux.TInt,
+		},
+		{
+			Label: "ExecuteDuration",
+			Type:  flux.TInt,
+		},
+		{
+			Label: "Concurrency",
+			Type:  flux.TInt,
+		},
+		{
+			Label: "MaxAllocated",
+			Type:  flux.TInt,
+		},
+		{
+			Label: "TotalAllocated",
+			Type:  flux.TInt,
+		},
+		{
+			Label: "RuntimeErrors",
+			Type:  flux.TString,
+		},
+		{
+			Label: "influxdb/scanned-bytes",
+			Type:  flux.TInt,
+		},
+		{
+			Label: "influxdb/scanned-values",
+			Type:  flux.TInt,
+		},
+		{
+			Label: "flux/query-plan",
+			Type:  flux.TString,
+		},
+	}
+	colData := []interface{}{
+		fmt.Sprintf("profiler/query%d", s.start),
+		s.start,
+		s.start + 1,
+		s.start + 2,
+		s.start + 3,
+		s.start + 4,
+		s.start + 5,
+		s.start + 6,
+		s.start + 7,
+		s.start + 8,
+		"error1\nerror2",
+		s.start + 9,
+		s.start + 10,
+		"query plan",
+	}
+	for _, col := range colMeta {
+		if _, err := b.AddCol(col); err != nil {
+			return nil, err
+		}
+	}
+	for i := 0; i < len(colData); i++ {
+		if intValue, ok := colData[i].(int64); ok {
+			b.AppendInt(i, intValue)
+		} else {
+			b.AppendString(i, colData[i].(string))
+		}
+	}
+	tbl, err := b.Table()
+	if err != nil {
+		return nil, err
+	}
+	return tbl, nil
+}
+
+func NewTestQueryProfiler0() execute.Profiler {
+	return &TestQueryProfiler{start: 0}
+}
+
+func NewTestQueryProfiler100() execute.Profiler {
+	return &TestQueryProfiler{start: 100}
+}
+
+func TestFluxProfiler(t *testing.T) {
+	testcases := []struct {
+		name  string
+		data  []string
+		query string
+		want  string
+	}{
+		{
+			name: "range last single point start time",
+			data: []string{
+				"m,tag=a f=1i 1",
+			},
+			query: `
+option profiler.enabledProfilers = ["query0", "query100", "query100", "NonExistentProfiler"]
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:00.000000001Z, stop: 1970-01-01T01:00:00Z)
+	|> last()
+`,
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement,tag
+,,0,1970-01-01T00:00:00.000000001Z,1970-01-01T01:00:00Z,1970-01-01T00:00:00.000000001Z,1,f,m,a
+
+#datatype,string,long,string,long,long,long,long,long,long,long,long,long,string,string,long,long
+#group,false,false,true,false,false,false,false,false,false,false,false,false,false,false,false,false
+#default,_profiler,,,,,,,,,,,,,,,
+,result,table,_measurement,TotalDuration,CompileDuration,QueueDuration,PlanDuration,RequeueDuration,ExecuteDuration,Concurrency,MaxAllocated,TotalAllocated,RuntimeErrors,flux/query-plan,influxdb/scanned-bytes,influxdb/scanned-values
+,,0,profiler/query0,0,1,2,3,4,5,6,7,8,"error1
+error2","query plan",9,10
+,,1,profiler/query100,100,101,102,103,104,105,106,107,108,"error1
+error2","query plan",109,110
+`,
+		},
+	}
+	execute.RegisterProfilerFactories(NewTestQueryProfiler0, NewTestQueryProfiler100)
+	for _, tc := range testcases {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
+			defer l.ShutdownOrFail(t, ctx)
+
+			l.WritePointsOrFail(t, strings.Join(tc.data, "\n"))
+
+			queryStr := "import \"profiler\"\nv = {bucket: " + "\"" + l.Bucket.Name + "\"" + "}\n" + tc.query
+			req := &query.Request{
+				Authorization:  l.Auth,
+				OrganizationID: l.Org.ID,
+				Compiler: lang.FluxCompiler{
+					Query: queryStr,
+				},
+			}
+			if got, err := l.FluxQueryService().Query(ctx, req); err != nil {
+				t.Error(err)
+			} else {
+				dec := csv.NewMultiResultDecoder(csv.ResultDecoderConfig{})
+				want, err := dec.Decode(ioutil.NopCloser(strings.NewReader(tc.want)))
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer want.Release()
+
+				if err := executetest.EqualResultIterators(want, got); err != nil {
+					t.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
 func TestQueryPushDowns(t *testing.T) {
 	testcases := []struct {
 		name  string
@@ -758,6 +946,7 @@ func TestQueryPushDowns(t *testing.T) {
 		query string
 		op    string
 		want  string
+		skip  string
 	}{
 		{
 			name: "range last single point start time",
@@ -1199,6 +1388,284 @@ from(bucket: v.bucket)
 `,
 		},
 		{
+			name: "window min",
+			data: []string{
+				"m0,k=k0 f=0i 0",
+				"m0,k=k0 f=1i 1000000000",
+				"m0,k=k0 f=2i 2000000000",
+				"m0,k=k0 f=3i 3000000000",
+				"m0,k=k0 f=4i 4000000000",
+				"m0,k=k0 f=5i 5000000000",
+				"m0,k=k0 f=6i 6000000000",
+				"m0,k=k0 f=5i 7000000000",
+				"m0,k=k0 f=0i 8000000000",
+				"m0,k=k0 f=6i 9000000000",
+				"m0,k=k0 f=6i 10000000000",
+				"m0,k=k0 f=7i 11000000000",
+				"m0,k=k0 f=5i 12000000000",
+				"m0,k=k0 f=8i 13000000000",
+				"m0,k=k0 f=9i 14000000000",
+				"m0,k=k0 f=5i 15000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:05Z, stop: 1970-01-01T00:00:20Z)
+	|> window(every: 3s)
+	|> min()
+`,
+			op: "readWindow(min)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement,k
+,,0,1970-01-01T00:00:05Z,1970-01-01T00:00:06Z,1970-01-01T00:00:05Z,5,f,m0,k0
+,,1,1970-01-01T00:00:06Z,1970-01-01T00:00:09Z,1970-01-01T00:00:08Z,0,f,m0,k0
+,,2,1970-01-01T00:00:09Z,1970-01-01T00:00:12Z,1970-01-01T00:00:09Z,6,f,m0,k0
+,,3,1970-01-01T00:00:12Z,1970-01-01T00:00:15Z,1970-01-01T00:00:12Z,5,f,m0,k0
+,,4,1970-01-01T00:00:15Z,1970-01-01T00:00:18Z,1970-01-01T00:00:15Z,5,f,m0,k0
+`,
+		},
+		{
+			name: "bare min",
+			data: []string{
+				"m0,k=k0 f=0i 0",
+				"m0,k=k0 f=1i 1000000000",
+				"m0,k=k0 f=2i 2000000000",
+				"m0,k=k0 f=3i 3000000000",
+				"m0,k=k0 f=4i 4000000000",
+				"m0,k=k0 f=5i 5000000000",
+				"m0,k=k0 f=6i 6000000000",
+				"m0,k=k0 f=5i 7000000000",
+				"m0,k=k0 f=0i 8000000000",
+				"m0,k=k0 f=6i 9000000000",
+				"m0,k=k0 f=6i 10000000000",
+				"m0,k=k0 f=7i 11000000000",
+				"m0,k=k0 f=5i 12000000000",
+				"m0,k=k0 f=8i 13000000000",
+				"m0,k=k0 f=9i 14000000000",
+				"m0,k=k0 f=5i 15000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:05Z, stop: 1970-01-01T00:00:20Z)
+	|> min()
+`,
+			op: "readWindow(min)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement,k
+,,0,1970-01-01T00:00:05Z,1970-01-01T00:00:20Z,1970-01-01T00:00:08Z,0,f,m0,k0
+`,
+		},
+		{
+			name: "window empty min",
+			data: []string{
+				"m0,k=k0 f=0i 0",
+				"m0,k=k0 f=1i 1000000000",
+				"m0,k=k0 f=2i 2000000000",
+				"m0,k=k0 f=6i 6000000000",
+				"m0,k=k0 f=5i 7000000000",
+				"m0,k=k0 f=0i 8000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:12Z)
+	|> window(every: 3s, createEmpty: true)
+	|> min()
+`,
+			op: "readWindow(min)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,,,,,,,,
+,_result,table,_start,_stop,_time,_value,_field,_measurement,k
+,_result,0,1970-01-01T00:00:00Z,1970-01-01T00:00:03Z,1970-01-01T00:00:00Z,0,f,m0,k0
+
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,1,1970-01-01T00:00:03Z,1970-01-01T00:00:06Z,,,f,m0,k0
+,_result,table,_start,_stop,_time,_value,_field,_measurement,k
+
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,,,,,,,,
+,_result,table,_start,_stop,_time,_value,_field,_measurement,k
+,_result,2,1970-01-01T00:00:06Z,1970-01-01T00:00:09Z,1970-01-01T00:00:08Z,0,f,m0,k0
+
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,3,1970-01-01T00:00:09Z,1970-01-01T00:00:12Z,,,f,m0,k0
+,_result,table,_start,_stop,_time,_value,_field,_measurement,k
+`,
+		},
+		{
+			name: "window aggregate min",
+			data: []string{
+				"m0,k=k0 f=0i 0",
+				"m0,k=k0 f=1i 1000000000",
+				"m0,k=k0 f=2i 2000000000",
+				"m0,k=k0 f=6i 6000000000",
+				"m0,k=k0 f=5i 7000000000",
+				"m0,k=k0 f=0i 8000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:12Z)
+	|> aggregateWindow(every: 3s, fn: min)
+`,
+			op: "readWindow(min)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement,k
+,,0,1970-01-01T00:00:00Z,1970-01-01T00:00:12Z,1970-01-01T00:00:03Z,0,f,m0,k0
+,,0,1970-01-01T00:00:00Z,1970-01-01T00:00:12Z,1970-01-01T00:00:09Z,0,f,m0,k0
+`,
+		},
+		{
+			name: "window max",
+			data: []string{
+				"m0,k=k0 f=0i 0",
+				"m0,k=k0 f=1i 1000000000",
+				"m0,k=k0 f=2i 2000000000",
+				"m0,k=k0 f=3i 3000000000",
+				"m0,k=k0 f=4i 4000000000",
+				"m0,k=k0 f=5i 5000000000",
+				"m0,k=k0 f=6i 6000000000",
+				"m0,k=k0 f=5i 7000000000",
+				"m0,k=k0 f=0i 8000000000",
+				"m0,k=k0 f=6i 9000000000",
+				"m0,k=k0 f=6i 10000000000",
+				"m0,k=k0 f=7i 11000000000",
+				"m0,k=k0 f=5i 12000000000",
+				"m0,k=k0 f=8i 13000000000",
+				"m0,k=k0 f=9i 14000000000",
+				"m0,k=k0 f=5i 15000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:05Z, stop: 1970-01-01T00:00:20Z)
+	|> window(every: 3s)
+	|> max()
+`,
+			op: "readWindow(max)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement,k
+,,0,1970-01-01T00:00:05Z,1970-01-01T00:00:06Z,1970-01-01T00:00:05Z,5,f,m0,k0
+,,1,1970-01-01T00:00:06Z,1970-01-01T00:00:09Z,1970-01-01T00:00:06Z,6,f,m0,k0
+,,2,1970-01-01T00:00:09Z,1970-01-01T00:00:12Z,1970-01-01T00:00:11Z,7,f,m0,k0
+,,3,1970-01-01T00:00:12Z,1970-01-01T00:00:15Z,1970-01-01T00:00:14Z,9,f,m0,k0
+,,4,1970-01-01T00:00:15Z,1970-01-01T00:00:18Z,1970-01-01T00:00:15Z,5,f,m0,k0
+`,
+		},
+		{
+			name: "bare max",
+			data: []string{
+				"m0,k=k0 f=0i 0",
+				"m0,k=k0 f=1i 1000000000",
+				"m0,k=k0 f=2i 2000000000",
+				"m0,k=k0 f=3i 3000000000",
+				"m0,k=k0 f=4i 4000000000",
+				"m0,k=k0 f=5i 5000000000",
+				"m0,k=k0 f=6i 6000000000",
+				"m0,k=k0 f=5i 7000000000",
+				"m0,k=k0 f=0i 8000000000",
+				"m0,k=k0 f=6i 9000000000",
+				"m0,k=k0 f=6i 10000000000",
+				"m0,k=k0 f=7i 11000000000",
+				"m0,k=k0 f=5i 12000000000",
+				"m0,k=k0 f=8i 13000000000",
+				"m0,k=k0 f=9i 14000000000",
+				"m0,k=k0 f=5i 15000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:05Z, stop: 1970-01-01T00:00:20Z)
+	|> max()
+`,
+			op: "readWindow(max)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement,k
+,,0,1970-01-01T00:00:05Z,1970-01-01T00:00:20Z,1970-01-01T00:00:14Z,9,f,m0,k0
+`,
+		},
+		{
+			name: "window empty max",
+			data: []string{
+				"m0,k=k0 f=0i 0",
+				"m0,k=k0 f=1i 1000000000",
+				"m0,k=k0 f=2i 2000000000",
+				"m0,k=k0 f=6i 6000000000",
+				"m0,k=k0 f=5i 7000000000",
+				"m0,k=k0 f=0i 8000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:12Z)
+	|> window(every: 3s, createEmpty: true)
+	|> max()
+`,
+			op: "readWindow(max)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,,,,,,,,
+,_result,table,_start,_stop,_time,_value,_field,_measurement,k
+,_result,0,1970-01-01T00:00:00Z,1970-01-01T00:00:03Z,1970-01-01T00:00:02Z,2,f,m0,k0
+
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,1,1970-01-01T00:00:03Z,1970-01-01T00:00:06Z,,,f,m0,k0
+,_result,table,_start,_stop,_time,_value,_field,_measurement,k
+
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,,,,,,,,
+,_result,table,_start,_stop,_time,_value,_field,_measurement,k
+,_result,2,1970-01-01T00:00:06Z,1970-01-01T00:00:09Z,1970-01-01T00:00:06Z,6,f,m0,k0
+
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,3,1970-01-01T00:00:09Z,1970-01-01T00:00:12Z,,,f,m0,k0
+,_result,table,_start,_stop,_time,_value,_field,_measurement,k
+`,
+		},
+		{
+			name: "window aggregate max",
+			data: []string{
+				"m0,k=k0 f=0i 0",
+				"m0,k=k0 f=1i 1000000000",
+				"m0,k=k0 f=2i 2000000000",
+				"m0,k=k0 f=6i 6000000000",
+				"m0,k=k0 f=5i 7000000000",
+				"m0,k=k0 f=0i 8000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:12Z)
+	|> aggregateWindow(every: 3s, fn: max)
+`,
+			op: "readWindow(max)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,long,string,string,string
+#group,false,false,true,true,false,false,true,true,true
+#default,_result,,,,,,,,
+,result,table,_start,_stop,_time,_value,_field,_measurement,k
+,,0,1970-01-01T00:00:00Z,1970-01-01T00:00:12Z,1970-01-01T00:00:03Z,2,f,m0,k0
+,,0,1970-01-01T00:00:00Z,1970-01-01T00:00:12Z,1970-01-01T00:00:09Z,6,f,m0,k0
+`,
+		},
+		{
 			name: "window count removes empty series",
 			data: []string{
 				"m,tag=a f=0i 1500000000",
@@ -1530,6 +1997,145 @@ from(bucket: v.bucket)
 `,
 		},
 		{
+			name: "bare mean",
+			data: []string{
+				"m0,k=k0,kk=kk0 f=5 0",
+				"m0,k=k0,kk=kk0 f=6 5000000000",
+				"m0,k=k0,kk=kk0 f=7 10000000000",
+				"m0,k=k0,kk=kk0 f=9 15000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 0)
+	|> mean()
+	|> keep(columns: ["_value"])
+`,
+			op: "readWindow(mean)",
+			want: `
+#datatype,string,long,double
+#group,false,false,false
+#default,_result,,
+,result,table,_value
+,,0,6.75
+`,
+		},
+		{
+			name: "window mean",
+			data: []string{
+				"m0,k=k0 f=1i 5000000000",
+				"m0,k=k0 f=2i 6000000000",
+				"m0,k=k0 f=3i 7000000000",
+				"m0,k=k0 f=4i 8000000000",
+				"m0,k=k0 f=5i 9000000000",
+				"m0,k=k0 f=6i 10000000000",
+				"m0,k=k0 f=7i 11000000000",
+				"m0,k=k0 f=8i 12000000000",
+				"m0,k=k0 f=9i 13000000000",
+				"m0,k=k0 f=10i 14000000000",
+				"m0,k=k0 f=11i 15000000000",
+				"m0,k=k0 f=12i 16000000000",
+				"m0,k=k0 f=13i 17000000000",
+				"m0,k=k0 f=14i 18000000000",
+				"m0,k=k0 f=16i 19000000000",
+				"m0,k=k0 f=17i 20000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:05Z, stop: 1970-01-01T00:00:20Z)
+	|> aggregateWindow(fn: mean, every: 5s)
+	|> keep(columns: ["_time", "_value"])
+`,
+			op: "readWindow(mean)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,double
+#group,false,false,false,false
+#default,_result,,,
+,result,table,_time,_value
+,,0,1970-01-01T00:00:10Z,3
+,,0,1970-01-01T00:00:15Z,8
+,,0,1970-01-01T00:00:20Z,13.2
+`,
+		},
+		{
+			name: "window mean offset",
+			data: []string{
+				"m0,k=k0 f=1i 5000000000",
+				"m0,k=k0 f=2i 6000000000",
+				"m0,k=k0 f=3i 7000000000",
+				"m0,k=k0 f=4i 8000000000",
+				"m0,k=k0 f=5i 9000000000",
+				"m0,k=k0 f=6i 10000000000",
+				"m0,k=k0 f=7i 11000000000",
+				"m0,k=k0 f=8i 12000000000",
+				"m0,k=k0 f=9i 13000000000",
+				"m0,k=k0 f=10i 14000000000",
+				"m0,k=k0 f=11i 15000000000",
+				"m0,k=k0 f=12i 16000000000",
+				"m0,k=k0 f=13i 17000000000",
+				"m0,k=k0 f=14i 18000000000",
+				"m0,k=k0 f=16i 19000000000",
+				"m0,k=k0 f=17i 20000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:05Z, stop: 1970-01-01T00:00:20Z)
+	|> window(every: 5s, offset: 1s)
+	|> mean()
+`,
+			op: "readWindow(mean)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,string,string,string,double
+#group,false,false,true,true,true,true,true,false
+#default,_result,,,,,,,
+,result,table,_start,_stop,_field,_measurement,k,_value
+,,0,1970-01-01T00:00:05Z,1970-01-01T00:00:06Z,f,m0,k0,1
+,,1,1970-01-01T00:00:06Z,1970-01-01T00:00:11Z,f,m0,k0,4
+,,2,1970-01-01T00:00:11Z,1970-01-01T00:00:16Z,f,m0,k0,9
+,,3,1970-01-01T00:00:16Z,1970-01-01T00:00:20Z,f,m0,k0,13.75
+`,
+		},
+		{
+			name: "window mean offset with duplicate and unwindow",
+			data: []string{
+				"m0,k=k0 f=1i 5000000000",
+				"m0,k=k0 f=2i 6000000000",
+				"m0,k=k0 f=3i 7000000000",
+				"m0,k=k0 f=4i 8000000000",
+				"m0,k=k0 f=5i 9000000000",
+				"m0,k=k0 f=6i 10000000000",
+				"m0,k=k0 f=7i 11000000000",
+				"m0,k=k0 f=8i 12000000000",
+				"m0,k=k0 f=9i 13000000000",
+				"m0,k=k0 f=10i 14000000000",
+				"m0,k=k0 f=11i 15000000000",
+				"m0,k=k0 f=12i 16000000000",
+				"m0,k=k0 f=13i 17000000000",
+				"m0,k=k0 f=14i 18000000000",
+				"m0,k=k0 f=16i 19000000000",
+				"m0,k=k0 f=17i 20000000000",
+			},
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:05Z, stop: 1970-01-01T00:00:20Z)
+	|> window(every: 5s, offset: 1s)
+	|> mean()
+	|> duplicate(column: "_stop", as: "_time")
+	|> window(every: inf)
+	|> keep(columns: ["_time", "_value"])
+`,
+			op: "readWindow(mean)",
+			want: `
+#datatype,string,long,dateTime:RFC3339,double
+#group,false,false,false,false
+#default,_result,,,
+,result,table,_time,_value
+,,0,1970-01-01T00:00:06Z,1
+,,0,1970-01-01T00:00:11Z,4
+,,0,1970-01-01T00:00:16Z,9
+,,0,1970-01-01T00:00:20Z,13.75
+`,
+		},
+		{
 			name: "group first",
 			data: []string{
 				"m0,k=k0,kk=kk0 f=0i 0",
@@ -1564,6 +2170,7 @@ from(bucket: v.bucket)
 ,result,table,_time,_value
 ,,0,1970-01-01T00:00:00.00Z,0
 `,
+			skip: "https://github.com/influxdata/idpe/issues/8828",
 		},
 		{
 			name: "group none first",
@@ -1600,6 +2207,7 @@ from(bucket: v.bucket)
 ,result,table,_time,_value
 ,,0,1970-01-01T00:00:00.00Z,0
 `,
+			skip: "https://github.com/influxdata/idpe/issues/8828",
 		},
 		{
 			name: "group last",
@@ -1636,6 +2244,7 @@ from(bucket: v.bucket)
 ,result,table,_time,_value
 ,,0,1970-01-01T00:00:15.00Z,5
 `,
+			skip: "https://github.com/influxdata/idpe/issues/8828",
 		},
 		{
 			name: "group none last",
@@ -1672,6 +2281,7 @@ from(bucket: v.bucket)
 ,result,table,_time,_value
 ,,0,1970-01-01T00:00:15.00Z,5
 `,
+			skip: "https://github.com/influxdata/idpe/issues/8828",
 		},
 		{
 			name: "count group none",
@@ -1708,6 +2318,7 @@ from(bucket: v.bucket)
 ,result,table,_value
 ,,0,15
 `,
+			skip: "https://github.com/influxdata/idpe/issues/8828",
 		},
 		{
 			name: "count group",
@@ -1745,6 +2356,7 @@ from(bucket: v.bucket)
 ,,0,kk0,8
 ,,1,kk1,7
 `,
+			skip: "https://github.com/influxdata/idpe/issues/8828",
 		},
 		{
 			name: "sum group none",
@@ -1781,6 +2393,7 @@ from(bucket: v.bucket)
 ,result,table,_value
 ,,0,67
 `,
+			skip: "https://github.com/influxdata/idpe/issues/8828",
 		},
 		{
 			name: "sum group",
@@ -1818,17 +2431,93 @@ from(bucket: v.bucket)
 ,,0,kk0,32
 ,,1,kk1,35
 `,
+			skip: "https://github.com/influxdata/idpe/issues/8828",
+		},
+		{
+			name: "min group",
+			data: []string{
+				"m0,k=k0,kk=kk0 f=0i 0",
+				"m0,k=k0,kk=kk1 f=1i 1000000000",
+				"m0,k=k0,kk=kk0 f=2i 2000000000",
+				"m0,k=k0,kk=kk1 f=3i 3000000000",
+				"m0,k=k0,kk=kk0 f=4i 4000000000",
+				"m0,k=k0,kk=kk1 f=5i 5000000000",
+				"m0,k=k0,kk=kk0 f=6i 6000000000",
+				"m0,k=k0,kk=kk1 f=5i 7000000000",
+				"m0,k=k0,kk=kk0 f=0i 8000000000",
+				"m0,k=k0,kk=kk1 f=6i 9000000000",
+				"m0,k=k0,kk=kk0 f=6i 10000000000",
+				"m0,k=k0,kk=kk1 f=7i 11000000000",
+				"m0,k=k0,kk=kk0 f=5i 12000000000",
+				"m0,k=k0,kk=kk1 f=8i 13000000000",
+				"m0,k=k0,kk=kk0 f=9i 14000000000",
+				"m0,k=k0,kk=kk1 f=5i 15000000000",
+			},
+			op: "readGroup(min)",
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:15Z)
+	|> group(columns: ["kk"])
+	|> min()
+	|> keep(columns: ["kk", "_value"])
+`,
+			want: `
+#datatype,string,long,string,long
+#group,false,false,true,false
+#default,_result,,,
+,result,table,kk,_value
+,,0,kk0,0
+,,1,kk1,1
+`,
+			skip: "https://github.com/influxdata/idpe/issues/8828",
+		},
+		{
+			name: "max group",
+			data: []string{
+				"m0,k=k0,kk=kk0 f=0i 0",
+				"m0,k=k0,kk=kk1 f=1i 1000000000",
+				"m0,k=k0,kk=kk0 f=2i 2000000000",
+				"m0,k=k0,kk=kk1 f=3i 3000000000",
+				"m0,k=k0,kk=kk0 f=4i 4000000000",
+				"m0,k=k0,kk=kk1 f=5i 5000000000",
+				"m0,k=k0,kk=kk0 f=6i 6000000000",
+				"m0,k=k0,kk=kk1 f=5i 7000000000",
+				"m0,k=k0,kk=kk0 f=0i 8000000000",
+				"m0,k=k0,kk=kk1 f=6i 9000000000",
+				"m0,k=k0,kk=kk0 f=6i 10000000000",
+				"m0,k=k0,kk=kk1 f=7i 11000000000",
+				"m0,k=k0,kk=kk0 f=5i 12000000000",
+				"m0,k=k0,kk=kk1 f=8i 13000000000",
+				"m0,k=k0,kk=kk0 f=9i 14000000000",
+				"m0,k=k0,kk=kk1 f=5i 15000000000",
+			},
+			op: "readGroup(max)",
+			query: `
+from(bucket: v.bucket)
+	|> range(start: 1970-01-01T00:00:00Z, stop: 1970-01-01T00:00:15Z)
+	|> group(columns: ["kk"])
+	|> max()
+	|> keep(columns: ["kk", "_value"])
+`,
+			want: `
+#datatype,string,long,string,long
+#group,false,false,true,false
+#default,_result,,,
+,result,table,kk,_value
+,,0,kk0,9
+,,1,kk1,8
+`,
+			skip: "https://github.com/influxdata/idpe/issues/8828",
 		},
 	}
 	for _, tc := range testcases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			l := launcher.RunTestLauncherOrFail(t, ctx, mock.NewFlagger(map[feature.Flag]interface{}{
-				feature.PushDownWindowAggregateCount(): true,
-				feature.PushDownWindowAggregateSum():   true,
-			}))
+			if tc.skip != "" {
+				t.Skip(tc.skip)
+			}
 
-			l.SetupOrFail(t)
+			l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 			defer l.ShutdownOrFail(t, ctx)
 
 			l.WritePointsOrFail(t, strings.Join(tc.data, "\n"))
@@ -1854,5 +2543,60 @@ from(bucket: v.bucket)
 				t.Fatalf("unexpected sample count -want/+got:\n\t- %d\n\t+ %d", want, got)
 			}
 		})
+	}
+}
+
+func TestLauncher_Query_Buckets_MultiplePages(t *testing.T) {
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
+	defer l.ShutdownOrFail(t, ctx)
+
+	// Create a large number of buckets. This is above the default
+	// page size of 20.
+	for i := 0; i < 50; i++ {
+		b := &influxdb.Bucket{
+			OrgID: l.Org.ID,
+			Name:  fmt.Sprintf("b%02d", i),
+		}
+		if err := l.BucketService(t).CreateBucket(ctx, b); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	var sb strings.Builder
+	sb.WriteString(`
+#datatype,string,long,string
+#group,false,false,false
+#default,_result,,
+,result,table,name
+,,0,BUCKET
+,,0,_monitoring
+,,0,_tasks
+`)
+	for i := 0; i < 50; i++ {
+		_, _ = fmt.Fprintf(&sb, ",,0,b%02d\n", i)
+	}
+	data := sb.String()
+
+	bucketsQuery := `
+buckets()
+	|> keep(columns: ["name"])
+	|> sort(columns: ["name"])
+`
+	res := l.MustExecuteQuery(bucketsQuery)
+	defer res.Done()
+
+	firstResult := func(ri flux.ResultIterator) flux.Result {
+		ri.More()
+		return ri.Next()
+	}
+	got := firstResult(flux.NewSliceResultIterator(res.Results))
+
+	want, err := csv.NewResultDecoder(csv.ResultDecoderConfig{}).Decode(strings.NewReader(data))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if diff := table.Diff(want.Tables(), got.Tables()); diff != "" {
+		t.Fatalf("unexpected output -want/+got:\n%s", diff)
 	}
 }

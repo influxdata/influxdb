@@ -13,9 +13,8 @@ import {Page} from '@influxdata/clockface'
 import SearchWidget from 'src/shared/components/search_widget/SearchWidget'
 import AddResourceDropdown from 'src/shared/components/AddResourceDropdown'
 import GetAssetLimits from 'src/cloud/components/GetAssetLimits'
-import AssetLimitAlert from 'src/cloud/components/AssetLimitAlert'
+import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 import ResourceSortDropdown from 'src/shared/components/resource_sort_dropdown/ResourceSortDropdown'
-import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
 import DashboardImportOverlay from 'src/dashboards/components/DashboardImportOverlay'
 import CreateFromTemplateOverlay from 'src/templates/components/createFromTemplateOverlay/CreateFromTemplateOverlay'
 import DashboardExportOverlay from 'src/dashboards/components/DashboardExportOverlay'
@@ -30,8 +29,7 @@ import {setDashboardSort} from 'src/dashboards/actions/creators'
 
 // Types
 import {AppState, ResourceType} from 'src/types'
-import {LimitStatus} from 'src/cloud/actions/limits'
-import {ComponentStatus, Sort} from '@influxdata/clockface'
+import {Sort} from '@influxdata/clockface'
 import {SortTypes} from 'src/shared/utils/sort'
 import {DashboardSortKey} from 'src/shared/components/resource_sort_dropdown/generateSortItems'
 
@@ -53,8 +51,9 @@ class DashboardIndex extends PureComponent<Props, State> {
   }
 
   public render() {
-    const {createDashboard, limitStatus, sortOptions} = this.props
+    const {createDashboard, sortOptions, limitStatus} = this.props
     const {searchTerm} = this.state
+
     return (
       <>
         <Page
@@ -63,7 +62,7 @@ class DashboardIndex extends PureComponent<Props, State> {
         >
           <Page.Header fullWidth={false}>
             <Page.Title title="Dashboards" />
-            <CloudUpgradeButton />
+            <RateLimitAlert />
           </Page.Header>
           <Page.ControlBar fullWidth={false}>
             <Page.ControlBarLeft>
@@ -87,7 +86,7 @@ class DashboardIndex extends PureComponent<Props, State> {
                 onSelectTemplate={this.summonImportFromTemplateOverlay}
                 resourceName="Dashboard"
                 canImportFromTemplate={true}
-                status={this.addResourceStatus}
+                limitStatus={limitStatus}
               />
             </Page.ControlBarRight>
           </Page.ControlBar>
@@ -97,10 +96,6 @@ class DashboardIndex extends PureComponent<Props, State> {
             scrollable={true}
           >
             <GetAssetLimits>
-              <AssetLimitAlert
-                resourceName="dashboards"
-                limitStatus={limitStatus}
-              />
               <DashboardsIndexContents
                 searchTerm={searchTerm}
                 onFilterChange={this.handleFilterDashboards}
@@ -159,14 +154,6 @@ class DashboardIndex extends PureComponent<Props, State> {
       },
     } = this.props
     history.push(`/orgs/${orgID}/dashboards-list/import/template`)
-  }
-
-  private get addResourceStatus(): ComponentStatus {
-    const {limitStatus} = this.props
-    if (limitStatus === LimitStatus.EXCEEDED) {
-      return ComponentStatus.Disabled
-    }
-    return ComponentStatus.Default
   }
 }
 

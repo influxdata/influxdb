@@ -148,6 +148,7 @@ func TestService_handleGetChecks(t *testing.T) {
 			"query": {
 				"builderConfig": {
 					"aggregateWindow": {
+						"fillValues": false,
 						"period": ""
 					},
 					"buckets": [],
@@ -191,6 +192,7 @@ func TestService_handleGetChecks(t *testing.T) {
 			"query": {
 				"builderConfig": {
 					"aggregateWindow": {
+						"fillValues": false,
 						"period": ""
 					},
 					"buckets": [],
@@ -510,7 +512,8 @@ func TestService_handleGetCheck(t *testing.T) {
 		  "query": {
             "builderConfig": {
               "aggregateWindow": {
-                "period": ""
+								"fillValues": false,
+								"period": ""
               },
               "buckets": [],
               "functions": [],
@@ -596,7 +599,7 @@ func TestService_handleGetCheck(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handleGetCheck(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handleGetCheck(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handleGetCheck() = ***%s***", tt.name, diff)
 				}
@@ -690,6 +693,7 @@ func TestService_handlePostCheck(t *testing.T) {
   "query": {
   	"builderConfig": {
     "aggregateWindow": {
+      "fillValues": false,
       "period": ""
     },
     "buckets": [],
@@ -755,7 +759,7 @@ func TestService_handlePostCheck(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handlePostCheck(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handlePostCheck(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handlePostCheck() = ***%s***", tt.name, diff)
 				}
@@ -864,7 +868,7 @@ func TestService_handleDeleteCheck(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handleDeleteCheck(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handleDeleteCheck(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handleDeleteCheck() = ***%s***", tt.name, diff)
 				}
@@ -945,6 +949,7 @@ func TestService_handlePatchCheck(t *testing.T) {
 		  "query": {
 				"builderConfig": {
 					"aggregateWindow": {
+						"fillValues": false,
 						"period": ""
 					},
 					"buckets": [],
@@ -1039,7 +1044,7 @@ func TestService_handlePatchCheck(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handlePatchCheck(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handlePatchCheck(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handlePatchCheck() = ***%s***", tt.name, diff)
 				}
@@ -1131,6 +1136,7 @@ func TestService_handleUpdateCheck(t *testing.T) {
 		  "query": {
             "builderConfig": {
               "aggregateWindow": {
+                "fillValues": false,
                 "period": ""
               },
               "buckets": [],
@@ -1227,7 +1233,7 @@ func TestService_handleUpdateCheck(t *testing.T) {
 			}
 			if tt.wants.body != "" {
 				if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-					t.Errorf("%q, handlePutCheck(). error unmarshaling json %v", tt.name, err)
+					t.Errorf("%q, handlePutCheck(). error unmarshalling json %v", tt.name, err)
 				} else if !eq {
 					t.Errorf("%q. handlePutCheck() = ***%s***", tt.name, diff)
 				}
@@ -1327,7 +1333,7 @@ func TestService_handlePostCheckMember(t *testing.T) {
 				t.Errorf("%q. handlePostCheckMember() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
 			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-				t.Errorf("%q, handlePostCheckMember(). error unmarshaling json %v", tt.name, err)
+				t.Errorf("%q, handlePostCheckMember(). error unmarshalling json %v", tt.name, err)
 			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. handlePostCheckMember() = ***%s***", tt.name, diff)
 			}
@@ -1421,7 +1427,7 @@ func TestService_handlePostCheckOwner(t *testing.T) {
 				t.Errorf("%q. handlePostCheckOwner() = %v, want %v", tt.name, content, tt.wants.contentType)
 			}
 			if eq, diff, err := jsonEqual(string(body), tt.wants.body); err != nil {
-				t.Errorf("%q, handlePostCheckOwner(). error unmarshaling json %v", tt.name, err)
+				t.Errorf("%q, handlePostCheckOwner(). error unmarshalling json %v", tt.name, err)
 			} else if tt.wants.body != "" && !eq {
 				t.Errorf("%q. handlePostCheckOwner() = ***%s***", tt.name, diff)
 			}

@@ -1,22 +1,41 @@
 // Libraries
 import React, {FunctionComponent, MouseEvent} from 'react'
+import {connect, ConnectedProps} from 'react-redux'
 
 // Components
 import {Dropdown, ComponentColor, IconFont} from '@influxdata/clockface'
 
+// Actions
+import {showOverlay, dismissOverlay} from 'src/overlays/actions/overlays'
+
 // Types
 import {CheckType} from 'src/types'
+import {LimitStatus} from 'src/cloud/actions/limits'
 
-interface Props {
+// Constants
+import {CLOUD} from 'src/shared/constants'
+
+interface OwnProps {
   onCreateThreshold: () => void
   onCreateDeadman: () => void
+  limitStatus: LimitStatus
 }
 
-const CreateCheckDropdown: FunctionComponent<Props> = ({
+type ReduxProps = ConnectedProps<typeof connector>
+
+const CreateCheckDropdown: FunctionComponent<OwnProps & ReduxProps> = ({
   onCreateThreshold,
   onCreateDeadman,
+  onDismissOverlay,
+  onShowOverlay,
+  limitStatus,
 }) => {
   const handleItemClick = (type: CheckType): void => {
+    if (CLOUD && limitStatus === LimitStatus.EXCEEDED) {
+      onShowOverlay('asset-limit', {asset: 'Checks'}, onDismissOverlay)
+      return
+    }
+
     if (type === 'threshold') {
       onCreateThreshold()
     }
@@ -69,4 +88,11 @@ const CreateCheckDropdown: FunctionComponent<Props> = ({
   )
 }
 
-export default CreateCheckDropdown
+const mdtp = {
+  onShowOverlay: showOverlay,
+  onDismissOverlay: dismissOverlay,
+}
+
+const connector = connect(null, mdtp)
+
+export default connector(CreateCheckDropdown)

@@ -1,0 +1,49 @@
+apiVersion: influxdata.com/v2alpha1
+kind: Dashboard
+metadata:
+  name: dash-1
+spec:
+  charts:
+    - kind: Single_Stat
+      name: single stat
+      xPos: 1
+      yPos: 2
+      width: 6
+      height: 3
+      queries:
+        - query: |
+            option params = {
+              bucket:   "foo",
+              start:    -1d,
+              stop:     now(),
+              name:     "max",
+              floatVal: 1.0,
+              minVal:   10
+            }
+
+            from(bucket: params.bucket)
+              |> range(start: params.start, stop: params.stop)
+              |> filter(fn: (r) => r._measurement == "processes")
+              |> filter(fn: (r) => r.floater == params.floatVal)
+              |> filter(fn: (r) => r._value > params.minVal)
+              |> aggregateWindow(every: v.windowPeriod, fn: max)
+              |> yield(name: params.name)
+          params:
+            - key: bucket
+              default: "bar"
+              type: string
+            - key: start
+              type: duration
+            - key: stop
+              type: time
+            - key: floatVal
+              default: 37.2
+              type: float
+            - key: minVal
+              type: int
+            - key: name # infer type
+      colors:
+        - name: laser
+          type: text
+          hex: "#8F8AF4"
+          value: 3

@@ -40,7 +40,7 @@ func NewBucketService() *BucketService {
 		FindBucketByIDFn: func(context.Context, platform.ID) (*platform.Bucket, error) { return nil, nil },
 		FindBucketByNameFn: func(context.Context, platform.ID, string) (*platform.Bucket, error) {
 			return &platform.Bucket{
-				ID:              platform.TasksSystemBucketID,
+				ID:              platform.ID(10),
 				Type:            platform.BucketTypeSystem,
 				Name:            "_tasks",
 				RetentionPeriod: time.Hour * 24 * 3,

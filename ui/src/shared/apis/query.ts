@@ -58,7 +58,7 @@ export const runQuery = (
     method: 'POST',
     headers,
     body: JSON.stringify(body),
-    signal: controller.signal,
+    signal: controller?.signal,
   })
 
   const promise = request

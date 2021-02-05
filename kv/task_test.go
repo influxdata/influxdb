@@ -10,14 +10,16 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorization"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/mock"
-	_ "github.com/influxdata/influxdb/v2/query/builtin"
+	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/task/options"
 	"github.com/influxdata/influxdb/v2/task/servicetest"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
@@ -32,8 +34,15 @@ func TestBoltTaskService(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			tenantStore := tenant.NewStore(store)
+			ts := tenant.NewService(tenantStore)
+
+			authStore, err := authorization.NewStore(store)
+			require.NoError(t, err)
+			authSvc := authorization.NewService(authStore, ts)
+
 			ctx, cancelFunc := context.WithCancel(context.Background())
-			service := kv.NewService(zaptest.NewLogger(t), store, kv.ServiceConfig{
+			service := kv.NewService(zaptest.NewLogger(t), store, ts, kv.ServiceConfig{
 				FluxLanguageService: fluxlang.DefaultService,
 			})
 
@@ -43,10 +52,13 @@ func TestBoltTaskService(t *testing.T) {
 			}()
 
 			return &servicetest.System{
-				TaskControlService: service,
-				TaskService:        service,
-				I:                  service,
-				Ctx:                ctx,
+				TaskControlService:         service,
+				TaskService:                service,
+				OrganizationService:        ts.OrganizationService,
+				UserService:                ts.UserService,
+				UserResourceMappingService: ts.UserResourceMappingService,
+				AuthorizationService:       authSvc,
+				Ctx:                        ctx,
 			}, cancelFunc
 		},
 		"transactional",
@@ -88,21 +100,28 @@ func newService(t *testing.T, ctx context.Context, c clock.Clock) *testService {
 
 	ts.Store = store
 
-	ts.Service = kv.NewService(zaptest.NewLogger(t), store, kv.ServiceConfig{
+	tenantStore := tenant.NewStore(store)
+	tenantSvc := tenant.NewService(tenantStore)
+
+	authStore, err := authorization.NewStore(store)
+	require.NoError(t, err)
+	authSvc := authorization.NewService(authStore, tenantSvc)
+
+	ts.Service = kv.NewService(zaptest.NewLogger(t), store, tenantSvc, kv.ServiceConfig{
 		Clock:               c,
 		FluxLanguageService: fluxlang.DefaultService,
 	})
 
 	ts.User = influxdb.User{Name: t.Name() + "-user"}
-	if err := ts.Service.CreateUser(ctx, &ts.User); err != nil {
+	if err := tenantSvc.CreateUser(ctx, &ts.User); err != nil {
 		t.Fatal(err)
 	}
 	ts.Org = influxdb.Organization{Name: t.Name() + "-org"}
-	if err := ts.Service.CreateOrganization(ctx, &ts.Org); err != nil {
+	if err := tenantSvc.CreateOrganization(ctx, &ts.Org); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := ts.Service.CreateUserResourceMapping(ctx, &influxdb.UserResourceMapping{
+	if err := tenantSvc.CreateUserResourceMapping(ctx, &influxdb.UserResourceMapping{
 		ResourceType: influxdb.OrgsResourceType,
 		ResourceID:   ts.Org.ID,
 		UserID:       ts.User.ID,
@@ -116,7 +135,7 @@ func newService(t *testing.T, ctx context.Context, c clock.Clock) *testService {
 		UserID:      ts.User.ID,
 		Permissions: influxdb.OperPermissions(),
 	}
-	if err := ts.Service.CreateAuthorization(context.Background(), &ts.Auth); err != nil {
+	if err := authSvc.CreateAuthorization(context.Background(), &ts.Auth); err != nil {
 		t.Fatal(err)
 	}
 
@@ -153,7 +172,6 @@ func TestRetrieveTaskWithBadAuth(t *testing.T) {
 			return err
 		}
 		task.OwnerID = influxdb.ID(1)
-		task.AuthorizationID = influxdb.ID(132) // bad id or an id that doesnt match any auth
 		tbyte, err := json.Marshal(task)
 		if err != nil {
 			return err
@@ -258,20 +276,27 @@ func TestTaskRunCancellation(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 
-	service := kv.NewService(zaptest.NewLogger(t), store, kv.ServiceConfig{
+	tenantStore := tenant.NewStore(store)
+	tenantSvc := tenant.NewService(tenantStore)
+
+	authStore, err := authorization.NewStore(store)
+	require.NoError(t, err)
+	authSvc := authorization.NewService(authStore, tenantSvc)
+
+	service := kv.NewService(zaptest.NewLogger(t), store, tenantSvc, kv.ServiceConfig{
 		FluxLanguageService: fluxlang.DefaultService,
 	})
 
 	u := &influxdb.User{Name: t.Name() + "-user"}
-	if err := service.CreateUser(ctx, u); err != nil {
+	if err := tenantSvc.CreateUser(ctx, u); err != nil {
 		t.Fatal(err)
 	}
 	o := &influxdb.Organization{Name: t.Name() + "-org"}
-	if err := service.CreateOrganization(ctx, o); err != nil {
+	if err := tenantSvc.CreateOrganization(ctx, o); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := service.CreateUserResourceMapping(ctx, &influxdb.UserResourceMapping{
+	if err := tenantSvc.CreateUserResourceMapping(ctx, &influxdb.UserResourceMapping{
 		ResourceType: influxdb.OrgsResourceType,
 		ResourceID:   o.ID,
 		UserID:       u.ID,
@@ -285,7 +310,7 @@ func TestTaskRunCancellation(t *testing.T) {
 		UserID:      u.ID,
 		Permissions: influxdb.OperPermissions(),
 	}
-	if err := service.CreateAuthorization(context.Background(), &authz); err != nil {
+	if err := authSvc.CreateAuthorization(context.Background(), &authz); err != nil {
 		t.Fatal(err)
 	}
 
@@ -316,6 +341,85 @@ func TestTaskRunCancellation(t *testing.T) {
 
 	if canceled.Status != influxdb.RunCanceled.String() {
 		t.Fatalf("expected task run to be cancelled")
+	}
+}
+
+func TestService_UpdateTask_RecordLatestSuccessAndFailure(t *testing.T) {
+	ctx, cancelFunc := context.WithCancel(context.Background())
+	defer cancelFunc()
+
+	c := clock.NewMock()
+	c.Set(time.Unix(1000, 0))
+
+	ts := newService(t, ctx, c)
+	defer ts.Close()
+
+	ctx = icontext.SetAuthorizer(ctx, &ts.Auth)
+
+	originalTask, err := ts.Service.CreateTask(ctx, influxdb.TaskCreate{
+		Flux:           `option task = {name: "a task",every: 1h} from(bucket:"test") |> range(start:-1h)`,
+		OrganizationID: ts.Org.ID,
+		OwnerID:        ts.User.ID,
+		Status:         string(influxdb.TaskActive),
+	})
+	if err != nil {
+		t.Fatal("CreateTask", err)
+	}
+
+	c.Add(1 * time.Second)
+	exp := c.Now()
+	updatedTask, err := ts.Service.UpdateTask(ctx, originalTask.ID, influxdb.TaskUpdate{
+		LatestCompleted: &exp,
+		LatestScheduled: &exp,
+
+		// These would be updated in a mutually exclusive manner, but we'll set
+		// them both to demonstrate that they do change.
+		LatestSuccess: &exp,
+		LatestFailure: &exp,
+	})
+	if err != nil {
+		t.Fatal("UpdateTask", err)
+	}
+
+	if got := updatedTask.LatestScheduled; !got.Equal(exp) {
+		t.Fatalf("unexpected -got/+exp\n%s", cmp.Diff(got.String(), exp.String()))
+	}
+	if got := updatedTask.LatestCompleted; !got.Equal(exp) {
+		t.Fatalf("unexpected -got/+exp\n%s", cmp.Diff(got.String(), exp.String()))
+	}
+	if got := updatedTask.LatestSuccess; !got.Equal(exp) {
+		t.Fatalf("unexpected -got/+exp\n%s", cmp.Diff(got.String(), exp.String()))
+	}
+	if got := updatedTask.LatestFailure; !got.Equal(exp) {
+		t.Fatalf("unexpected -got/+exp\n%s", cmp.Diff(got.String(), exp.String()))
+	}
+
+	c.Add(5 * time.Second)
+	exp = c.Now()
+	updatedTask, err = ts.Service.UpdateTask(ctx, originalTask.ID, influxdb.TaskUpdate{
+		LatestCompleted: &exp,
+		LatestScheduled: &exp,
+
+		// These would be updated in a mutually exclusive manner, but we'll set
+		// them both to demonstrate that they do change.
+		LatestSuccess: &exp,
+		LatestFailure: &exp,
+	})
+	if err != nil {
+		t.Fatal("UpdateTask", err)
+	}
+
+	if got := updatedTask.LatestScheduled; !got.Equal(exp) {
+		t.Fatalf("unexpected -got/+exp\n%s", cmp.Diff(got.String(), exp.String()))
+	}
+	if got := updatedTask.LatestCompleted; !got.Equal(exp) {
+		t.Fatalf("unexpected -got/+exp\n%s", cmp.Diff(got.String(), exp.String()))
+	}
+	if got := updatedTask.LatestSuccess; !got.Equal(exp) {
+		t.Fatalf("unexpected -got/+exp\n%s", cmp.Diff(got.String(), exp.String()))
+	}
+	if got := updatedTask.LatestFailure; !got.Equal(exp) {
+		t.Fatalf("unexpected -got/+exp\n%s", cmp.Diff(got.String(), exp.String()))
 	}
 }
 

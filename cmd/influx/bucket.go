@@ -5,7 +5,8 @@ import (
 	"fmt"
 
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/cmd/internal"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/spf13/cobra"
 )
 
@@ -68,11 +69,11 @@ func (b *cmdBucketBuilder) cmdCreate() *cobra.Command {
 			Required: true,
 		},
 	}
-	opts.mustRegister(cmd)
+	opts.mustRegister(b.viper, cmd)
 
 	cmd.Flags().StringVarP(&b.description, "description", "d", "", "Description of bucket that will be created")
 	cmd.Flags().StringVarP(&b.retention, "retention", "r", "", "Duration bucket will retain data. 0 is infinite. Default is 0.")
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 	b.registerPrintFlags(cmd)
 
 	return cmd
@@ -88,7 +89,7 @@ func (b *cmdBucketBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 		return err
 	}
 
-	dur, err := rawDurationToTimeDuration(b.retention)
+	dur, err := internal.RawDurationToTimeDuration(b.retention)
 	if err != nil {
 		return err
 	}
@@ -116,7 +117,7 @@ func (b *cmdBucketBuilder) cmdDelete() *cobra.Command {
 
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The bucket ID, required if name isn't provided")
 	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The bucket name, org or org-id will be required by choosing this")
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 	b.registerPrintFlags(cmd)
 
 	return cmd
@@ -179,9 +180,9 @@ func (b *cmdBucketBuilder) cmdList() *cobra.Command {
 			Desc:   "The bucket name",
 		},
 	}
-	opts.mustRegister(cmd)
+	opts.mustRegister(b.viper, cmd)
 
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 	b.registerPrintFlags(cmd)
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The bucket ID")
 
@@ -243,7 +244,7 @@ func (b *cmdBucketBuilder) cmdUpdate() *cobra.Command {
 			Desc:   "New bucket name",
 		},
 	}
-	opts.mustRegister(cmd)
+	opts.mustRegister(b.viper, cmd)
 
 	b.registerPrintFlags(cmd)
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The bucket ID (required)")
@@ -273,7 +274,7 @@ func (b *cmdBucketBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) er
 		update.Description = &b.description
 	}
 
-	dur, err := rawDurationToTimeDuration(b.retention)
+	dur, err := internal.RawDurationToTimeDuration(b.retention)
 	if err != nil {
 		return err
 	}
@@ -291,12 +292,12 @@ func (b *cmdBucketBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) er
 
 func (b *cmdBucketBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
 	cmd := b.genericCLIOpts.newCmd(use, runE, true)
-	b.globalFlags.registerFlags(cmd)
+	b.globalFlags.registerFlags(b.viper, cmd)
 	return cmd
 }
 
 func (b *cmdBucketBuilder) registerPrintFlags(cmd *cobra.Command) {
-	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
 }
 
 type bucketPrintOpt struct {
@@ -351,7 +352,7 @@ func newBucketSVCs() (influxdb.BucketService, influxdb.OrganizationService, erro
 		return nil, nil, err
 	}
 
-	orgSvc := &http.OrganizationService{Client: httpClient}
+	orgSvc := &tenant.OrgClientService{Client: httpClient}
 
-	return &http.BucketService{Client: httpClient}, orgSvc, nil
+	return &tenant.BucketClientService{Client: httpClient}, orgSvc, nil
 }

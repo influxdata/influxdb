@@ -33,8 +33,6 @@ import {
   TelegrafPluginOutputFileConfig,
   TelegrafPluginOutputInfluxDBV2Config,
 } from '@influxdata/influx'
-import {RemoteDataState} from 'src/types'
-import {WritePrecision} from '@influxdata/influx'
 
 export enum DataLoaderStep {
   'Configure',
@@ -62,12 +60,7 @@ export interface DataLoadersState {
   telegrafPlugins: TelegrafPlugin[]
   pluginBundles: BundleName[]
   type: DataLoaderType
-  activeLPTab: LineProtocolTab
   telegrafConfigID: string
-  lpStatus: RemoteDataState
-  lpError: string
-  lineProtocolBody: string
-  precision: WritePrecision
   scraperTarget: ScraperTarget
   telegrafConfigName: string
   telegrafConfigDescription: string
@@ -83,7 +76,6 @@ export enum ConfigurationState {
 export enum DataLoaderType {
   CSV = 'CSV',
   Streaming = 'Streaming',
-  LineProtocol = 'Line Protocol',
   ClientLibrary = 'Client Library',
   Scraping = 'Scraping',
   Empty = '',
@@ -164,12 +156,6 @@ export type TelegrafPluginName =
   | TelegrafPluginInputTail.NameEnum.Tail
   | TelegrafPluginOutputFile.NameEnum.File
   | TelegrafPluginOutputInfluxDBV2.NameEnum.InfluxdbV2
-
-export enum LineProtocolTab {
-  UploadFile = 'Upload File',
-  EnterManually = 'Enter Manually',
-  EnterURL = 'Enter URL',
-}
 
 export enum LineProtocolStatus {
   ImportData = 'importData',

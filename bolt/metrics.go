@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"time"
 
-	bolt "github.com/coreos/bbolt"
 	"github.com/prometheus/client_golang/prometheus"
+	bolt "go.etcd.io/bbolt"
 )
 
 var _ prometheus.Collector = (*Client)(nil)

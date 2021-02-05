@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/storage/reads"
@@ -21,7 +22,7 @@ func TestNewWindowAggregateResultSet_Tags(t *testing.T) {
 	request := datatypes.ReadWindowAggregateRequest{
 		Aggregate: []*datatypes.Aggregate{
 			{
-				Type: datatypes.AggregateTypeCount,
+				Type: datatypes.AggregateTypeMean,
 			},
 		},
 	}
@@ -66,18 +67,39 @@ func (i *mockIntegerArrayCursor) Next() *cursors.IntegerArray {
 			1000000013,
 			1000000014,
 			1000000020,
+			2678400000000000,
+			5000000000000000,
+			5097600000000001,
 		},
-		Values: []int64{100, 55, 256, 83, 99, 124, 1979, 4, 67, 49929},
+		Values: []int64{100, 55, 256, 83, 99, 124, 1979, 4, 67, 49929, 51000},
 	}
 }
 
-type mockCursorIterator struct{}
+type mockStringArrayCursor struct{}
+
+func (i *mockStringArrayCursor) Close()                     {}
+func (i *mockStringArrayCursor) Err() error                 { return nil }
+func (i *mockStringArrayCursor) Stats() cursors.CursorStats { return cursors.CursorStats{} }
+func (i *mockStringArrayCursor) Next() *cursors.StringArray {
+	return &cursors.StringArray{
+		Timestamps: []int64{1000000000},
+		Values:     []string{"a"},
+	}
+}
+
+type mockCursorIterator struct {
+	newCursorFn func() cursors.Cursor
+	statsFn     func() cursors.CursorStats
+}
 
 func (i *mockCursorIterator) Next(ctx context.Context, req *cursors.CursorRequest) (cursors.Cursor, error) {
-	return &mockIntegerArrayCursor{}, nil
+	return i.newCursorFn(), nil
 }
 func (i *mockCursorIterator) Stats() cursors.CursorStats {
-	return cursors.CursorStats{ScannedBytes: 500, ScannedValues: 10}
+	if i.statsFn == nil {
+		return cursors.CursorStats{}
+	}
+	return i.statsFn()
 }
 
 type mockReadCursor struct {
@@ -90,9 +112,18 @@ func newMockReadCursor(keys ...string) mockReadCursor {
 	for i := range keys {
 		rows[i].Name, rows[i].SeriesTags = models.ParseKeyBytes([]byte(keys[i]))
 		rows[i].Tags = rows[i].SeriesTags.Clone()
-		rows[i].Query = &mockCursorIterator{}
+		var itrs cursors.CursorIterators
+		cur := &mockCursorIterator{
+			newCursorFn: func() cursors.Cursor {
+				return &mockIntegerArrayCursor{}
+			},
+			statsFn: func() cursors.CursorStats {
+				return cursors.CursorStats{ScannedBytes: 500, ScannedValues: 10}
+			},
+		}
+		itrs = append(itrs, cur)
+		rows[i].Query = itrs
 	}
-
 	return mockReadCursor{rows: rows}
 }
 
@@ -117,7 +148,7 @@ func TestNewWindowAggregateResultSet_Stats(t *testing.T) {
 	request := datatypes.ReadWindowAggregateRequest{
 		Aggregate: []*datatypes.Aggregate{
 			{
-				Type: datatypes.AggregateTypeCount,
+				Type: datatypes.AggregateTypeMean,
 			},
 		},
 	}
@@ -143,8 +174,8 @@ func TestNewWindowAggregateResultSet_Stats(t *testing.T) {
 	}
 }
 
-// A count window aggregate is supported
-func TestNewWindowAggregateResultSet_Count(t *testing.T) {
+// A mean window aggregate is supported
+func TestNewWindowAggregateResultSet_Mean(t *testing.T) {
 
 	newCursor := newMockReadCursor(
 		"clicks click=1 1",
@@ -152,7 +183,7 @@ func TestNewWindowAggregateResultSet_Count(t *testing.T) {
 
 	request := datatypes.ReadWindowAggregateRequest{
 		Aggregate: []*datatypes.Aggregate{
-			&datatypes.Aggregate{Type: datatypes.AggregateTypeCount},
+			&datatypes.Aggregate{Type: datatypes.AggregateTypeMean},
 		},
 		WindowEvery: 10,
 	}
@@ -169,13 +200,92 @@ func TestNewWindowAggregateResultSet_Count(t *testing.T) {
 	if cursor == nil {
 		t.Fatalf("unexpected: cursor was nil")
 	}
-	integerArrayCursor := cursor.(cursors.IntegerArrayCursor)
-	integerArray := integerArrayCursor.Next()
+	floatArrayCursor := cursor.(cursors.FloatArrayCursor)
+	floatArray := floatArrayCursor.Next()
 
-	if !reflect.DeepEqual(integerArray.Timestamps, []int64{1000000010, 1000000020, 1000000030}) {
-		t.Errorf("unexpected count values: %v", integerArray.Timestamps)
+	if !reflect.DeepEqual(floatArray.Timestamps, []int64{1000000010, 1000000020, 1000000030, 2678400000000010, 5000000000000010, 5097600000000010}) {
+		t.Log(time.Unix(0, floatArray.Timestamps[0]))
+		t.Errorf("unexpected mean timestamps: %v", floatArray.Timestamps)
 	}
-	if !reflect.DeepEqual(integerArray.Values, []int64{2, 5, 1}) {
-		t.Errorf("unexpected count values: %v", integerArray.Values)
+	if !reflect.DeepEqual(floatArray.Values, []float64{77.5, 508.2, 4, 67, 49929, 51000}) {
+		t.Errorf("unexpected mean values: %v", floatArray.Values)
+	}
+}
+
+func TestNewWindowAggregateResultSet_Months(t *testing.T) {
+
+	newCursor := newMockReadCursor(
+		"clicks click=1 1",
+	)
+	request := datatypes.ReadWindowAggregateRequest{
+		Aggregate: []*datatypes.Aggregate{
+			&datatypes.Aggregate{Type: datatypes.AggregateTypeMean},
+		},
+		Window: &datatypes.Window{
+			Every: &datatypes.Duration{
+				Nsecs:    0,
+				Months:   1,
+				Negative: false,
+			},
+		},
+	}
+	resultSet, err := reads.NewWindowAggregateResultSet(context.Background(), &request, &newCursor)
+
+	if err != nil {
+		t.Fatalf("error creating WindowAggregateResultSet: %s", err)
+	}
+
+	if !resultSet.Next() {
+		t.Fatalf("unexpected: resultSet could not advance")
+	}
+	cursor := resultSet.Cursor()
+	if cursor == nil {
+		t.Fatalf("unexpected: cursor was nil")
+	}
+	floatArrayCursor := cursor.(cursors.FloatArrayCursor)
+	floatArray := floatArrayCursor.Next()
+
+	if !reflect.DeepEqual(floatArray.Timestamps, []int64{2678400000000000, 5097600000000000, 7776000000000000}) {
+		t.Log(time.Unix(0, floatArray.Timestamps[0]))
+		t.Errorf("unexpected month timestamps: %v", floatArray.Timestamps)
+	}
+	if !reflect.DeepEqual(floatArray.Values, []float64{337.5, 24998, 51000}) {
+		t.Errorf("unexpected month values: %v", floatArray.Values)
+	}
+}
+
+func TestNewWindowAggregateResultSet_UnsupportedTyped(t *testing.T) {
+	newCursor := newMockReadCursor(
+		"clicks click=1 1",
+	)
+	for i := range newCursor.rows[0].Query {
+		newCursor.rows[0].Query[i] = &mockCursorIterator{
+			newCursorFn: func() cursors.Cursor {
+				return &mockStringArrayCursor{}
+			},
+		}
+	}
+
+	request := datatypes.ReadWindowAggregateRequest{
+		Aggregate: []*datatypes.Aggregate{
+			{Type: datatypes.AggregateTypeMean},
+		},
+		WindowEvery: 10,
+	}
+	resultSet, err := reads.NewWindowAggregateResultSet(context.Background(), &request, &newCursor)
+
+	if err != nil {
+		t.Fatalf("error creating WindowAggregateResultSet: %s", err)
+	}
+
+	if resultSet.Next() {
+		t.Fatal("unexpected: resultSet should not have advanced")
+	}
+	err = resultSet.Err()
+	if err == nil {
+		t.Fatal("expected error")
+	}
+	if want, got := "unsupported input type for mean aggregate: string", err.Error(); want != got {
+		t.Fatalf("unexpected error:\n\t- %q\n\t+ %q", want, got)
 	}
 }

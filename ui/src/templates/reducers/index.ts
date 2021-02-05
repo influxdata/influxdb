@@ -4,12 +4,14 @@ import {
   ADD_TEMPLATE_SUMMARY,
   POPULATE_TEMPLATE_SUMMARIES,
   REMOVE_TEMPLATE_SUMMARY,
-  SET_COMMUNITY_TEMPLATE_TO_INSTALL,
   SET_EXPORT_TEMPLATE,
-  SET_TEMPLATE_SUMMARY,
-  SET_TEMPLATES_STATUS,
-  TOGGLE_TEMPLATE_RESOURCE_INSTALL,
   SET_STACKS,
+  SET_STAGED_TEMPLATE,
+  SET_STAGED_TEMPLATE_URL,
+  SET_TEMPLATES_STATUS,
+  SET_TEMPLATE_SUMMARY,
+  TOGGLE_TEMPLATE_RESOURCE_INSTALL,
+  UPDATE_TEMPLATE_ENV_REF,
 } from 'src/templates/actions/creators'
 import {
   CommunityTemplate,
@@ -36,7 +38,9 @@ const defaultCommunityTemplate = (): CommunityTemplate => {
 }
 
 export const defaultState = (): TemplatesState => ({
-  communityTemplateToInstall: defaultCommunityTemplate(),
+  stagedCommunityTemplate: defaultCommunityTemplate(),
+  stagedTemplateEnvReferences: {},
+  stagedTemplateUrl: '',
   status: RemoteDataState.NotStarted,
   byID: {},
   allIDs: [],
@@ -75,96 +79,196 @@ export const templatesReducer = (
         return
       }
 
-      case SET_COMMUNITY_TEMPLATE_TO_INSTALL: {
+      case SET_STAGED_TEMPLATE_URL: {
+        const {templateUrl} = action
+
+        draftState.stagedTemplateUrl = templateUrl
+        return
+      }
+
+      case SET_STAGED_TEMPLATE: {
         const {template} = action
 
-        const communityTemplateToInstall = {
+        const envReferences = {}
+
+        const stagedCommunityTemplate = {
           ...defaultCommunityTemplate(),
           ...template,
         }
 
-        communityTemplateToInstall.summary.dashboards = (
+        stagedCommunityTemplate.summary.dashboards = (
           template.summary.dashboards || []
         ).map(dashboard => {
           if (!dashboard.hasOwnProperty('shouldInstall')) {
             dashboard.shouldInstall = true
           }
+          if (dashboard.envReferences.length) {
+            dashboard.envReferences.forEach(ref => {
+              envReferences[ref.envRefKey] = {
+                envRefKey: ref.envRefKey,
+                resourceField: ref.resourceField,
+                value: ref.defaultValue,
+                valueType: ref.valueType,
+              }
+            })
+          }
           return dashboard
         })
 
-        communityTemplateToInstall.summary.telegrafConfigs = (
+        stagedCommunityTemplate.summary.telegrafConfigs = (
           template.summary.telegrafConfigs || []
         ).map(telegrafConfig => {
           if (!telegrafConfig.hasOwnProperty('shouldInstall')) {
             telegrafConfig.shouldInstall = true
           }
+          if (telegrafConfig.envReferences.length) {
+            telegrafConfig.envReferences.forEach(ref => {
+              envReferences[ref.envRefKey] = {
+                envRefKey: ref.envRefKey,
+                resourceField: ref.resourceField,
+                value: ref.defaultValue,
+                valueType: ref.valueType,
+              }
+            })
+          }
           return telegrafConfig
         })
 
-        communityTemplateToInstall.summary.buckets = (
+        stagedCommunityTemplate.summary.buckets = (
           template.summary.buckets || []
         ).map(bucket => {
           if (!bucket.hasOwnProperty('shouldInstall')) {
             bucket.shouldInstall = true
           }
+          if (bucket.envReferences.length) {
+            bucket.envReferences.forEach(ref => {
+              envReferences[ref.envRefKey] = {
+                envRefKey: ref.envRefKey,
+                resourceField: ref.resourceField,
+                value: ref.defaultValue,
+                valueType: ref.valueType,
+              }
+            })
+          }
           return bucket
         })
 
-        communityTemplateToInstall.summary.checks = (
+        stagedCommunityTemplate.summary.checks = (
           template.summary.checks || []
         ).map(check => {
           if (!check.hasOwnProperty('shouldInstall')) {
             check.shouldInstall = true
           }
+          if (check.envReferences.length) {
+            check.envReferences.forEach(ref => {
+              envReferences[ref.envRefKey] = {
+                envRefKey: ref.envRefKey,
+                resourceField: ref.resourceField,
+                value: ref.defaultValue,
+                valueType: ref.valueType,
+              }
+            })
+          }
           return check
         })
 
-        communityTemplateToInstall.summary.variables = (
+        stagedCommunityTemplate.summary.variables = (
           template.summary.variables || []
         ).map(variable => {
           if (!variable.hasOwnProperty('shouldInstall')) {
             variable.shouldInstall = true
           }
+          if (variable.envReferences.length) {
+            variable.envReferences.forEach(ref => {
+              envReferences[ref.envRefKey] = {
+                envRefKey: ref.envRefKey,
+                resourceField: ref.resourceField,
+                value: ref.defaultValue,
+                valueType: ref.valueType,
+              }
+            })
+          }
           return variable
         })
 
-        communityTemplateToInstall.summary.notificationRules = (
+        stagedCommunityTemplate.summary.notificationRules = (
           template.summary.notificationRules || []
         ).map(notificationRule => {
           if (!notificationRule.hasOwnProperty('shouldInstall')) {
             notificationRule.shouldInstall = true
           }
+          if (notificationRule.envReferences.length) {
+            notificationRule.envReferences.forEach(ref => {
+              envReferences[ref.envRefKey] = {
+                envRefKey: ref.envRefKey,
+                resourceField: ref.resourceField,
+                value: ref.defaultValue,
+                valueType: ref.valueType,
+              }
+            })
+          }
           return notificationRule
         })
 
-        communityTemplateToInstall.summary.notificationEndpoints = (
+        stagedCommunityTemplate.summary.notificationEndpoints = (
           template.summary.notificationEndpoints || []
         ).map(notificationEndpoint => {
           if (!notificationEndpoint.hasOwnProperty('shouldInstall')) {
             notificationEndpoint.shouldInstall = true
           }
+          if (notificationEndpoint.envReferences.length) {
+            notificationEndpoint.envReferences.forEach(ref => {
+              envReferences[ref.envRefKey] = {
+                envRefKey: ref.envRefKey,
+                resourceField: ref.resourceField,
+                value: ref.defaultValue,
+                valueType: ref.valueType,
+              }
+            })
+          }
           return notificationEndpoint
         })
 
-        communityTemplateToInstall.summary.labels = (
+        stagedCommunityTemplate.summary.labels = (
           template.summary.labels || []
         ).map(label => {
           if (!label.hasOwnProperty('shouldInstall')) {
             label.shouldInstall = true
           }
+          if (label.envReferences.length) {
+            label.envReferences.forEach(ref => {
+              envReferences[ref.envRefKey] = {
+                envRefKey: ref.envRefKey,
+                resourceField: ref.resourceField,
+                value: ref.defaultValue,
+                valueType: ref.valueType,
+              }
+            })
+          }
           return label
         })
 
-        communityTemplateToInstall.summary.summaryTask = (
+        stagedCommunityTemplate.summary.summaryTask = (
           template.summary.summaryTask || []
         ).map(summaryTask => {
           if (!summaryTask.hasOwnProperty('shouldInstall')) {
             summaryTask.shouldInstall = true
           }
+          if (summaryTask.envReferences.length) {
+            summaryTask.envReferences.forEach(ref => {
+              envReferences[ref.envRefKey] = {
+                envRefKey: ref.envRefKey,
+                resourceField: ref.resourceField,
+                value: ref.defaultValue,
+                valueType: ref.valueType,
+              }
+            })
+          }
           return summaryTask
         })
 
-        draftState.communityTemplateToInstall = communityTemplateToInstall
+        draftState.stagedTemplateEnvReferences = envReferences
+        draftState.stagedCommunityTemplate = stagedCommunityTemplate
         return
       }
 
@@ -195,7 +299,7 @@ export const templatesReducer = (
       case TOGGLE_TEMPLATE_RESOURCE_INSTALL: {
         const {resourceType, shouldInstall, templateMetaName} = action
 
-        const templateToInstall = {...draftState.communityTemplateToInstall}
+        const templateToInstall = {...draftState.stagedCommunityTemplate}
 
         templateToInstall.summary[resourceType].forEach(resource => {
           if (resource.templateMetaName === templateMetaName) {
@@ -214,7 +318,7 @@ export const templatesReducer = (
           }
         })
 
-        draftState.communityTemplateToInstall = templateToInstall
+        draftState.stagedCommunityTemplate = templateToInstall
         return
       }
 
@@ -222,6 +326,17 @@ export const templatesReducer = (
         const {stacks} = action
 
         draftState.stacks = stacks
+        return
+      }
+
+      case UPDATE_TEMPLATE_ENV_REF: {
+        const {envRefKey, newValue, resourceField, valueType} = action
+        draftState.stagedTemplateEnvReferences[envRefKey] = {
+          envRefKey,
+          resourceField,
+          value: newValue,
+          valueType,
+        }
         return
       }
     }

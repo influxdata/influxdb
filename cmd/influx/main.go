@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -21,7 +20,7 @@ import (
 	"github.com/influxdata/influxdb/v2/internal/fs"
 	"github.com/influxdata/influxdb/v2/kit/cli"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
-	"github.com/influxdata/influxdb/v2/task/options"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -29,9 +28,10 @@ import (
 const maxTCPConnections = 10
 
 var (
-	version = "dev"
-	commit  = "none"
-	date    = ""
+	version            = "dev"
+	commit             = "none"
+	date               = ""
+	defaultConfigsPath = mustDefaultConfigPath()
 )
 
 func main() {
@@ -68,7 +68,8 @@ func newHTTPClient() (*httpc.Client, error) {
 		opts = append(opts, httpc.WithHeader("jaeger-debug-id", flags.traceDebugID))
 	}
 
-	c, err := http.NewHTTPClient(flags.Host, flags.Token, flags.skipVerify, opts...)
+	ac := flags.config()
+	c, err := http.NewHTTPClient(ac.Host, ac.Token, flags.skipVerify, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -86,9 +87,10 @@ type (
 )
 
 type genericCLIOpts struct {
-	in   io.Reader
-	w    io.Writer
-	errW io.Writer
+	in    io.Reader
+	w     io.Writer
+	errW  io.Writer
+	viper *viper.Viper
 
 	json        bool
 	hideHeaders bool
@@ -101,11 +103,6 @@ func (o genericCLIOpts) newCmd(use string, runE func(*cobra.Command, []string) e
 		Args: cobra.NoArgs,
 		Use:  use,
 		RunE: runE,
-		FParseErrWhitelist: cobra.FParseErrWhitelist{
-			// allows for unknown flags, parser does not crap the bed
-			// when providing a flag that doesn't exist/match.
-			UnknownFlags: true,
-		},
 	}
 
 	canWrapRunE := runE != nil && o.runEWrapFn != nil
@@ -132,7 +129,7 @@ func (o genericCLIOpts) newTabWriter() *internal.TabWriter {
 }
 
 func (o *genericCLIOpts) registerPrintOptions(cmd *cobra.Command) {
-	registerPrintOptions(cmd, &o.hideHeaders, &o.json)
+	registerPrintOptions(o.viper, cmd, &o.hideHeaders, &o.json)
 }
 
 func in(r io.Reader) genericCLIOptFn {
@@ -148,12 +145,35 @@ func out(w io.Writer) genericCLIOptFn {
 }
 
 type globalFlags struct {
-	config.Config
 	skipVerify   bool
+	token        string
+	host         string
 	traceDebugID string
+	filepath     string
+	activeConfig string
+	configs      config.Configs
 }
 
-func (g *globalFlags) registerFlags(cmd *cobra.Command, skipFlags ...string) {
+func (g *globalFlags) config() config.Config {
+	if ac := g.activeConfig; ac != "" {
+		c, ok := g.configs[ac]
+		if !ok {
+			// this is unrecoverable
+			fmt.Fprintf(os.Stderr, "Err: active config %q was not found\n", ac)
+			os.Exit(1)
+		}
+		if g.host != "" {
+			c.Host = g.host
+		}
+		if g.token != "" {
+			c.Token = g.token
+		}
+		return c
+	}
+	return g.configs.Active()
+}
+
+func (g *globalFlags) registerFlags(v *viper.Viper, cmd *cobra.Command, skipFlags ...string) {
 	if g == nil {
 		panic("global flags are not set: <nil>")
 	}
@@ -165,13 +185,13 @@ func (g *globalFlags) registerFlags(cmd *cobra.Command, skipFlags ...string) {
 
 	fOpts := flagOpts{
 		{
-			DestP: &g.Token,
+			DestP: &g.token,
 			Flag:  "token",
 			Short: 't',
 			Desc:  "Authentication token",
 		},
 		{
-			DestP: &g.Host,
+			DestP: &g.host,
 			Flag:  "host",
 			Desc:  "HTTP address of InfluxDB",
 		},
@@ -179,6 +199,18 @@ func (g *globalFlags) registerFlags(cmd *cobra.Command, skipFlags ...string) {
 			DestP:  &g.traceDebugID,
 			Flag:   "trace-debug-id",
 			Hidden: true,
+		},
+		{
+			DestP:   &g.filepath,
+			Flag:    "configs-path",
+			Desc:    "Path to the influx CLI configurations",
+			Default: defaultConfigsPath,
+		},
+		{
+			DestP: &g.activeConfig,
+			Flag:  "active-config",
+			Desc:  "Config name to use for command",
+			Short: 'c',
 		},
 	}
 
@@ -190,7 +222,7 @@ func (g *globalFlags) registerFlags(cmd *cobra.Command, skipFlags ...string) {
 		filtered = append(filtered, o)
 	}
 
-	filtered.mustRegister(cmd)
+	filtered.mustRegister(v, cmd)
 
 	if skips["skip-verify"] {
 		return
@@ -214,6 +246,7 @@ func newInfluxCmdBuilder(optFns ...genericCLIOptFn) *cmdInfluxBuilder {
 		w:          os.Stdout,
 		errW:       os.Stderr,
 		runEWrapFn: checkSetupRunEMiddleware(&flags),
+		viper:      viper.New(),
 	}
 	for _, optFn := range optFns {
 		optFn(&opt)
@@ -226,7 +259,7 @@ func newInfluxCmdBuilder(optFns ...genericCLIOptFn) *cmdInfluxBuilder {
 func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCLIOpts) *cobra.Command) *cobra.Command {
 	b.once.Do(func() {
 		// enforce that viper options only ever get set once
-		setViperOptions()
+		setViperOptions(b.viper)
 	})
 
 	cmd := b.newCmd("influx", nil, false)
@@ -237,25 +270,29 @@ func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCL
 		cmd.AddCommand(childCmd(&flags, b.genericCLIOpts))
 	}
 
-	// migration credential token
-	migrateOldCredential()
+	cmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
+		// migration credential token
+		migrateOldCredential(flags.filepath)
 
-	// this is after the flagOpts register b/c we don't want to show the default value
-	// in the usage display. This will add it as the config, then if a token flag
-	// is provided too, the flag will take precedence.
-	cfg := getConfigFromDefaultPath()
+		// this is after the flagOpts register b/c we don't want to show the default value
+		// in the usage display. This will add it as the config, then if a token flag
+		// is provided too, the flag will take precedence.
+		flags.configs = getConfigFromDefaultPath(flags.filepath)
 
-	// we have some indirection here b/c of how the Config is embedded on the
-	// global flags type. For the time being, we check to see if there was a
-	// value set on flags registered (via env vars), and override the host/token
-	// values if they are.
-	if flags.Token != "" {
-		cfg.Token = flags.Token
+		cfg := flags.configs.Active()
+
+		// we have some indirection here b/c of how the Config is embedded on the
+		// global flags type. For the time being, we check to see if there was a
+		// value set on flags registered (via env vars), and override the host/token
+		// values if they are.
+		if flags.token != "" {
+			cfg.Token = flags.token
+		}
+		if flags.host != "" {
+			cfg.Host = flags.host
+		}
+		flags.configs[cfg.Name] = cfg
 	}
-	if flags.Host != "" {
-		cfg.Host = flags.Host
-	}
-	flags.Config = cfg
 
 	// Update help description for all commands in command tree
 	walk(cmd, func(c *cobra.Command) {
@@ -288,12 +325,13 @@ func influxCmd(opts ...genericCLIOptFn) *cobra.Command {
 		cmdBackup,
 		cmdBucket,
 		cmdConfig,
+		cmdDashboard,
 		cmdDelete,
 		cmdExport,
 		cmdOrganization,
 		cmdPing,
 		cmdQuery,
-		cmdREPL,
+		cmdRestore,
 		cmdSecret,
 		cmdSetup,
 		cmdStack,
@@ -304,6 +342,7 @@ func influxCmd(opts ...genericCLIOptFn) *cobra.Command {
 		cmdTranspile,
 		cmdUser,
 		cmdWrite,
+		cmdV1SubCommands,
 	)
 }
 
@@ -335,48 +374,62 @@ func seeHelp(c *cobra.Command, args []string) {
 	c.Printf("See '%s -h' for help\n", c.CommandPath())
 }
 
+func getConfigFromDefaultPath(configsPath string) config.Configs {
+	r, err := os.Open(configsPath)
+	if err != nil {
+		return config.Configs{
+			config.DefaultConfig.Name: config.DefaultConfig,
+		}
+	}
+	defer r.Close()
+
+	cfgs, err := config.
+		NewLocalConfigSVC(configsPath, filepath.Dir(configsPath)).
+		ListConfigs()
+	if err != nil {
+		return map[string]config.Config{
+			config.DefaultConfig.Name: config.DefaultConfig,
+		}
+	}
+
+	return cfgs
+}
+
 func defaultConfigPath() (string, string, error) {
 	dir, err := fs.InfluxDir()
 	if err != nil {
 		return "", "", err
 	}
-	return filepath.Join(dir, http.DefaultConfigsFile), dir, nil
+	return filepath.Join(dir, fs.DefaultConfigsFile), dir, nil
 }
 
-func getConfigFromDefaultPath() config.Config {
-	path, _, err := defaultConfigPath()
+func mustDefaultConfigPath() string {
+	filepath, _, err := defaultConfigPath()
 	if err != nil {
-		return config.DefaultConfig
+		panic(err)
 	}
-	r, err := os.Open(path)
-	if err != nil {
-		return config.DefaultConfig
-	}
-	activated, err := config.ParseActiveConfig(r)
-	if err != nil {
-		return config.DefaultConfig
-	}
-	return activated
+	return filepath
 }
 
-func migrateOldCredential() {
-	dir, err := fs.InfluxDir()
+func migrateOldCredential(configsPath string) {
+	dir := filepath.Dir(configsPath)
+	if configsPath == "" || dir == "" {
+		return
+	}
+
+	tokenFile := filepath.Join(dir, fs.DefaultTokenFile)
+	tokB, err := ioutil.ReadFile(tokenFile)
 	if err != nil {
 		return // no need for migration
 	}
 
-	tokB, err := ioutil.ReadFile(filepath.Join(dir, http.DefaultTokenFile))
-	if err != nil {
-		return // no need for migration
-	}
-
-	err = writeConfigToPath(strings.TrimSpace(string(tokB)), "", filepath.Join(dir, http.DefaultConfigsFile), dir)
+	err = writeConfigToPath(strings.TrimSpace(string(tokB)), "", configsPath, dir)
 	if err != nil {
 		return
 	}
 
 	// ignore the remove err
-	_ = os.Remove(filepath.Join(dir, http.DefaultTokenFile))
+	_ = os.Remove(tokenFile)
 }
 
 func writeConfigToPath(tok, org, path, dir string) error {
@@ -389,10 +442,12 @@ func writeConfigToPath(tok, org, path, dir string) error {
 }
 
 func checkSetup(host string, skipVerify bool) error {
-	s := &http.SetupService{
-		Addr:               host,
-		InsecureSkipVerify: skipVerify,
+	httpClient, err := newHTTPClient()
+	if err != nil {
+		return err
 	}
+
+	s := &tenant.OnboardClientService{Client: httpClient}
 
 	isOnboarding, err := s.IsOnboarding(context.Background())
 	if err != nil {
@@ -414,7 +469,8 @@ func checkSetupRunEMiddleware(f *globalFlags) cobraRunEMiddleware {
 				return nil
 			}
 
-			if setupErr := checkSetup(f.Host, f.skipVerify); setupErr != nil && influxdb.EUnauthorized != influxdb.ErrorCode(setupErr) {
+			ac := f.config()
+			if setupErr := checkSetup(ac.Host, f.skipVerify); setupErr != nil && influxdb.EUnauthorized != influxdb.ErrorCode(setupErr) {
 				cmd.OutOrStderr().Write([]byte(fmt.Sprintf("Error: %s\n", internal.ErrorFmt(err).Error())))
 				return internal.ErrorFmt(setupErr)
 			}
@@ -436,7 +492,7 @@ type organization struct {
 	id, name string
 }
 
-func (o *organization) register(cmd *cobra.Command, persistent bool) {
+func (o *organization) register(v *viper.Viper, cmd *cobra.Command, persistent bool) {
 	opts := flagOpts{
 		{
 			DestP:      &o.id,
@@ -452,14 +508,14 @@ func (o *organization) register(cmd *cobra.Command, persistent bool) {
 			Persistent: persistent,
 		},
 	}
-	opts.mustRegister(cmd)
+	opts.mustRegister(v, cmd)
 }
 
 func (o *organization) getID(orgSVC influxdb.OrganizationService) (influxdb.ID, error) {
 	if o.id != "" {
 		influxOrgID, err := influxdb.IDFromString(o.id)
 		if err != nil {
-			return 0, fmt.Errorf("invalid org ID provided: %s", err.Error())
+			return 0, fmt.Errorf("invalid org ID '%s' provided (did you pass an org name instead of an ID?): %w", o.id, err)
 		}
 		return *influxOrgID, nil
 	}
@@ -469,7 +525,7 @@ func (o *organization) getID(orgSVC influxdb.OrganizationService) (influxdb.ID, 
 			Name: &name,
 		})
 		if err != nil {
-			return 0, err
+			return 0, fmt.Errorf("failed to get ID for org '%s' (do you have org-level read permission?): %w", name, err)
 		}
 		return org.ID, nil
 	}
@@ -477,15 +533,15 @@ func (o *organization) getID(orgSVC influxdb.OrganizationService) (influxdb.ID, 
 		return getOrgByName(o.name)
 	}
 	// last check is for the org set in the CLI config. This will be last in priority.
-	if flags.Org != "" {
-		return getOrgByName(flags.Org)
+	if ac := flags.config(); ac.Org != "" {
+		return getOrgByName(ac.Org)
 	}
 	return 0, fmt.Errorf("failed to locate organization criteria")
 }
 
 func (o *organization) validOrgFlags(f *globalFlags) error {
 	if o.id == "" && o.name == "" && f != nil {
-		o.name = f.Org
+		o.name = f.config().Org
 	}
 
 	if o.id == "" && o.name == "" {
@@ -498,7 +554,7 @@ func (o *organization) validOrgFlags(f *globalFlags) error {
 
 type flagOpts []cli.Opt
 
-func (f flagOpts) mustRegister(cmd *cobra.Command) {
+func (f flagOpts) mustRegister(v *viper.Viper, cmd *cobra.Command) {
 	if len(f) == 0 {
 		return
 	}
@@ -515,10 +571,10 @@ func (f flagOpts) mustRegister(cmd *cobra.Command) {
 			strings.ToUpper(strings.Replace(envVar, "-", "_", -1)),
 		)
 	}
-	cli.BindOptions(cmd, f)
+	cli.BindOptions(v, cmd, f)
 }
 
-func registerPrintOptions(cmd *cobra.Command, headersP, jsonOutP *bool) {
+func registerPrintOptions(v *viper.Viper, cmd *cobra.Command, headersP, jsonOutP *bool) {
 	var opts flagOpts
 	if headersP != nil {
 		opts = append(opts, cli.Opt{
@@ -538,85 +594,17 @@ func registerPrintOptions(cmd *cobra.Command, headersP, jsonOutP *bool) {
 			Default: false,
 		})
 	}
-	opts.mustRegister(cmd)
+	opts.mustRegister(v, cmd)
 }
 
-func setViperOptions() {
-	viper.SetEnvPrefix("INFLUX")
-	viper.AutomaticEnv()
-	viper.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
-}
-
-func enforceFlagValidation(cmd *cobra.Command) {
-	cmd.FParseErrWhitelist = cobra.FParseErrWhitelist{
-		// disable unknown flags when short flag can conflict with a long flag.
-		// An example here is the --filter flag provided as -filter=foo will overwrite
-		// the -f flag to -f=ilter=foo, which generates a bad filename.
-		// remedies issue: https://github.com/influxdata/influxdb/issues/18850
-		UnknownFlags: false,
-	}
+func setViperOptions(v *viper.Viper) {
+	v.SetEnvPrefix("INFLUX")
+	v.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 }
 
 func writeJSON(w io.Writer, v interface{}) error {
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "\t")
 	return enc.Encode(v)
-}
-
-func newBucketService() (influxdb.BucketService, error) {
-	client, err := newHTTPClient()
-	if err != nil {
-		return nil, err
-	}
-
-	return &http.BucketService{
-		Client: client,
-	}, nil
-}
-
-func rawDurationToTimeDuration(raw string) (time.Duration, error) {
-	if raw == "" {
-		return 0, nil
-	}
-
-	if dur, err := time.ParseDuration(raw); err == nil {
-		return dur, nil
-	}
-
-	retention, err := options.ParseSignedDuration(raw)
-	if err != nil {
-		return 0, err
-	}
-
-	const (
-		day  = 24 * time.Hour
-		week = 7 * day
-	)
-
-	var dur time.Duration
-	for _, d := range retention.Values {
-		if d.Magnitude < 0 {
-			return 0, errors.New("must be greater than 0")
-		}
-		mag := time.Duration(d.Magnitude)
-		switch d.Unit {
-		case "w":
-			dur += mag * week
-		case "d":
-			dur += mag * day
-		case "m":
-			dur += mag * time.Minute
-		case "s":
-			dur += mag * time.Second
-		case "ms":
-			dur += mag * time.Minute
-		case "us":
-			dur += mag * time.Microsecond
-		case "ns":
-			dur += mag * time.Nanosecond
-		default:
-			return 0, errors.New("duration must be week(w), day(d), hour(h), min(m), sec(s), millisec(ms), microsec(us), or nanosec(ns)")
-		}
-	}
-	return dur, nil
 }

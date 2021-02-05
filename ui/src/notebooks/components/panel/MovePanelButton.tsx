@@ -36,6 +36,7 @@ const MovePanelUpButton: FC<Props> = ({onClick, direction, active}) => {
       onClick={handleClick}
       titleText={title}
       status={status}
+      className="flow-move-cell-button"
     />
   )
 }

@@ -202,5 +202,21 @@ describe('Checks', () => {
         .trigger('mousemove', {which: 1, pageX: 700, pageY: 100})
         .trigger('mouseup', {force: true})
     })
+
+    it('accepts keyboard tabs as navigation', () => {
+      // have to make the viewport huge to get it not to switch to tablet size
+      cy.viewport(1800, 980)
+
+      cy.get('body').tab()
+      cy.getByTestID('filter--input checks').should('have.focus')
+
+      cy.focused()
+        .tab()
+        .tab()
+      cy.getByTestID('filter--input endpoints').should('have.focus')
+
+      cy.focused().tab()
+      cy.getByTestID('filter--input rules').should('have.focus')
+    })
   })
 })

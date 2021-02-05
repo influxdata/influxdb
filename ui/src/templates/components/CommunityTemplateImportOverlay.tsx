@@ -3,10 +3,10 @@ import {withRouter, RouteComponentProps} from 'react-router-dom'
 import {connect, ConnectedProps} from 'react-redux'
 
 // Components
-import {CommunityTemplateInstallerOverlay} from 'src/templates/components/CommunityTemplateInstallerOverlay'
+import {CommunityTemplateOverlay} from 'src/templates/components/CommunityTemplateOverlay'
 
 // Actions
-import {setCommunityTemplateToInstall} from 'src/templates/actions/creators'
+import {setStagedCommunityTemplate} from 'src/templates/actions/creators'
 import {createTemplate, fetchAndSetStacks} from 'src/templates/actions/thunks'
 import {notify} from 'src/shared/actions/notifications'
 
@@ -18,21 +18,32 @@ import {ComponentStatus} from '@influxdata/clockface'
 
 // Utils
 import {getByID} from 'src/resources/selectors'
+import {getTemplateNameFromUrl} from 'src/templates/utils'
+import {reportError} from 'src/shared/utils/errors'
+
 import {
-  getGithubUrlFromTemplateName,
-  getRawUrlFromGithub,
-} from 'src/templates/utils'
+  installTemplate,
+  reviewTemplate,
+  updateStackName,
+} from 'src/templates/api'
 
-import {installTemplate, reviewTemplate} from 'src/templates/api'
+import {
+  communityTemplateInstallFailed,
+  communityTemplateInstallSucceeded,
+  communityTemplateRenameFailed,
+} from 'src/shared/copy/notifications'
 
-import {communityTemplateInstallSucceeded} from 'src/shared/copy/notifications'
+import {event} from 'src/cloud/utils/reporting'
 
 interface State {
   status: ComponentStatus
 }
 
 type ReduxProps = ConnectedProps<typeof connector>
-type RouterProps = RouteComponentProps<{orgID: string; templateName: string}>
+type RouterProps = RouteComponentProps<{
+  orgID: string
+}>
+
 type Props = ReduxProps & RouterProps
 
 class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
@@ -41,74 +52,87 @@ class UnconnectedTemplateImportOverlay extends PureComponent<Props> {
   }
 
   public componentDidMount() {
-    const {org, templateName} = this.props
-
-    this.reviewTemplateResources(org.id, templateName)
+    if (!this.props.stagedTemplateUrl) {
+      this.onDismiss()
+      return
+    }
+    this.reviewTemplateResources(
+      this.props.org.id,
+      this.props.stagedTemplateUrl
+    )
   }
 
   public render() {
-    if (!this.props.flags.communityTemplates) {
-      return null
-    }
+    const templateDetails = getTemplateNameFromUrl(this.props.stagedTemplateUrl)
+    const templateName = templateDetails.name
+    const templateDirectory = templateDetails.directory
 
     return (
-      <CommunityTemplateInstallerOverlay
+      <CommunityTemplateOverlay
         onDismissOverlay={this.onDismiss}
         onInstall={this.handleInstallTemplate}
         resourceCount={this.props.resourceCount}
         status={this.state.status}
-        templateName={this.props.templateName}
+        templateName={templateName}
+        templateDirectory={templateDirectory}
         updateStatus={this.updateOverlayStatus}
       />
     )
   }
 
-  private reviewTemplateResources = async (orgID, templateName) => {
-    const yamlLocation = `${getRawUrlFromGithub(
-      getGithubUrlFromTemplateName(templateName)
-    )}/${templateName}.yml`
-
+  private reviewTemplateResources = async (
+    orgID: string,
+    templateUrl: string
+  ) => {
     try {
-      const summary = await reviewTemplate(orgID, yamlLocation)
+      const summary = await reviewTemplate(orgID, templateUrl)
 
-      this.props.setCommunityTemplateToInstall(summary)
+      this.props.setStagedCommunityTemplate(summary)
       return summary
     } catch (err) {
-      console.error(err)
+      this.props.notify(communityTemplateInstallFailed(err.message))
+      reportError(err, {
+        name: 'The community template fetch for preview failed',
+      })
     }
   }
 
   private onDismiss = () => {
-    const {history} = this.props
-
-    history.goBack()
+    this.props.history.push(`/orgs/${this.props.org.id}/settings/templates`)
   }
 
   private updateOverlayStatus = (status: ComponentStatus) =>
     this.setState(() => ({status}))
 
   private handleInstallTemplate = async () => {
-    const {org, templateName} = this.props
-
-    const yamlLocation = `${getRawUrlFromGithub(
-      getGithubUrlFromTemplateName(templateName)
-    )}/${templateName}.yml`
+    let summary
+    try {
+      summary = await installTemplate(
+        this.props.org.id,
+        this.props.stagedTemplateUrl,
+        this.props.resourcesToSkip,
+        this.props.stagedTemplateEnvReferences
+      )
+    } catch (err) {
+      this.props.notify(communityTemplateInstallFailed(err.message))
+      reportError(err, {name: 'Failed to install community template'})
+    }
 
     try {
-      const summary = await installTemplate(
-        org.id,
-        yamlLocation,
-        this.props.resourcesToSkip
+      const templateDetails = getTemplateNameFromUrl(
+        this.props.stagedTemplateUrl
       )
-      this.props.notify(communityTemplateInstallSucceeded(templateName))
+      await updateStackName(summary.stackID, templateDetails.name)
 
-      this.props.fetchAndSetStacks(org.id)
+      event('template_install', {templateName: templateDetails.name})
 
-      this.onDismiss()
-
-      return summary
+      this.props.notify(communityTemplateInstallSucceeded(templateDetails.name))
     } catch (err) {
-      console.error('Error installing template', err)
+      this.props.notify(communityTemplateRenameFailed())
+      reportError(err, {name: 'The community template rename failed'})
+    } finally {
+      this.props.fetchAndSetStacks(this.props.org.id)
+      this.onDismiss()
     }
   }
 }
@@ -120,22 +144,50 @@ const mstp = (state: AppState, props: RouterProps) => {
     props.match.params.orgID
   )
 
+  // convert the env references into a format pkger is happy with
+  const stagedTemplateEnvReferences = {}
+  for (const [refKey, refObject] of Object.entries(
+    state.resources.templates.stagedTemplateEnvReferences
+  )) {
+    switch (refObject.valueType) {
+      case 'string':
+      case 'time':
+      case 'duration': {
+        stagedTemplateEnvReferences[refKey] = refObject.value
+        continue
+      }
+      case 'number':
+      case 'float': {
+        stagedTemplateEnvReferences[refKey] = parseFloat(refObject.value as any)
+        continue
+      }
+      case 'integer': {
+        stagedTemplateEnvReferences[refKey] = parseInt(
+          refObject.value as any,
+          10
+        )
+        continue
+      }
+    }
+  }
+
   return {
     org,
-    templateName: props.match.params.templateName,
+    stagedTemplateEnvReferences,
     flags: state.flags.original,
     resourceCount: getTotalResourceCount(
-      state.resources.templates.communityTemplateToInstall.summary
+      state.resources.templates.stagedCommunityTemplate.summary
     ),
     resourcesToSkip:
-      state.resources.templates.communityTemplateToInstall.resourcesToSkip,
+      state.resources.templates.stagedCommunityTemplate.resourcesToSkip,
+    stagedTemplateUrl: state.resources.templates.stagedTemplateUrl,
   }
 }
 
 const mdtp = {
   createTemplate,
   notify,
-  setCommunityTemplateToInstall,
+  setStagedCommunityTemplate,
   fetchAndSetStacks,
 }
 

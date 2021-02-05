@@ -13,8 +13,16 @@ export const OSS_FLAGS = {
   notebooks: false,
   telegrafEditor: false,
   streamEvents: false,
+  'notebook-move-cells': false,
   'notebook-panel--spotify': false,
   'notebook-panel--test-flux': false,
+  disableDefaultTableSort: false,
+  'load-data-client-libraries': true,
+  'load-data-telegraf-plugins': true,
+  'load-data-dev-tools': false,
+  'load-data-flux-sources': false,
+  'load-data-integrations': false,
+  'notification-endpoint-telegram': false,
 }
 
 export const CLOUD_FLAGS = {
@@ -29,8 +37,16 @@ export const CLOUD_FLAGS = {
   notebooks: false,
   telegrafEditor: false,
   streamEvents: false,
+  'notebook-move-cells': false,
   'notebook-panel--spotify': false,
   'notebook-panel--test-flux': false,
+  disableDefaultTableSort: false,
+  'load-data-client-libraries': true,
+  'load-data-telegraf-plugins': true,
+  'load-data-dev-tools': false,
+  'load-data-flux-sources': false,
+  'load-data-integrations': false,
+  'notification-endpoint-telegram': false,
 }
 
 export const activeFlags = (state: AppState): FlagMap => {

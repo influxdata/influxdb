@@ -193,10 +193,10 @@ func TestMetricsMarshal(t *testing.T) {
 		result := make([]Metrics, 0)
 		err = json.Unmarshal(b, &result)
 		if err != nil {
-			t.Fatalf("error in unmarshaling metrics: b: %s, %v", string(b), err)
+			t.Fatalf("error in unmarshalling metrics: b: %s, %v", string(b), err)
 		}
 		if diff := cmp.Diff(c.ms, result, nil); diff != "" {
-			t.Fatalf("unmarshaling metrics is incorrect, want %v, got %v", c.ms, result)
+			t.Fatalf("unmarshalling metrics is incorrect, want %v, got %v", c.ms, result)
 		}
 	}
 }

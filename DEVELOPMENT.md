@@ -41,7 +41,7 @@ cd ui
 yarn && yarn start
 ```
 
-If there are no errors, hit [localhost:8080](http://localhost:8080) and follow the prompts to setup your username and password. *Note the port difference: `8080` vs the production `9999`*
+If there are no errors, hit [localhost:8080](http://localhost:8080) and follow the prompts to setup your username and password. *Note the port difference: `8080` vs the production `8086`*
 
 You're set up to develop Influx locally. Any changes you make to front-end code under the `ui/` directory will be updated after the watcher process (that was initiated by running `yarn start`) sees them and rebuilds the bundle. Any changes to go code will need to be re-compiled by re-running the `go run` command above.
 
@@ -65,7 +65,7 @@ Tab 1:
 go run ./cmd/influxd --assets-path=ui/build
 ```
 
-This starts the influxdb application server. It handles API requests and can be reached via `localhost:9999`. Any changes to go code will need to be re-compiled by re-running the `go run` command above.
+This starts the influxdb application server. It handles API requests and can be reached via `localhost:8086`. Any changes to go code will need to be re-compiled by re-running the `go run` command above.
 
 Tab 2:
 

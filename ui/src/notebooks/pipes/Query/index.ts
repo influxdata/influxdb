@@ -10,7 +10,7 @@ register({
   button: 'Flux Script',
   initial: {
     panelVisibility: 'visible',
-    panelHeight: 200,
+    panelHeight: 330,
     activeQuery: 0,
     queries: [
       {

@@ -64,6 +64,10 @@ When(/^upload the template file "(.*)"$/, async filePath => {
     await tpltSteps.uploadTemplateFile(filePath);
 });
 
+When(/^click import template popup submit button$/, async () => {
+   await tpltSteps.clickImportTemplateSubmitButton();
+});
+
 Then(/^there is a template card named "(.*)"$/, async name => {
     await tpltSteps.verifyTemplateCardVisibility(name);
 });

@@ -14,7 +14,6 @@ export interface PipeMeta {
   visible: boolean
   loading: RemoteDataState
   error?: string
-  focus: boolean
 }
 
 export interface PipeProp {
@@ -27,44 +26,44 @@ export interface FluxResult {
   source: string // the query that was used to generate the flux
   raw: string // the result from the API
   parsed: FromFluxResult // the parsed result
-  error?: string // any error that might have happend while fetching
+  error?: string // any error that might have happened while fetching
 }
 
-export type DataID<_T> = string
-
 interface DataLookup<T> {
-  [key: DataID<T>]: T
+  [key: string]: T
 }
 
 export interface Resource<T> {
   byID: DataLookup<T>
-  allIDs: DataID<T>[]
+  allIDs: string[]
 }
 
 export type ResourceGenerator<T> = () => T | T
 export type ResourceUpdater<T> = (resource: Resource<T>) => void
 
 export interface ResourceManipulator<T> {
-  get: (id: DataID<T>) => T
-  add: (id: DataID<T>, data?: T) => void
-  update: (id: DataID<T>, data: Partial<T>) => void
-  remove: (id: DataID<T>) => void
-  indexOf: (id: DataID<T>) => number
-  move: (id: DataID<T>, index: number) => void
+  get: (id: string) => T
+  add: (id: string, data?: T) => void
+  update: (id: string, data: Partial<T>) => void
+  remove: (id: string) => void
+  indexOf: (id: string) => number
+  move: (id: string, index: number) => void
 
   serialize: () => Resource<T>
 
-  allIDs: DataID<T>[]
+  allIDs: string[]
   all: T[]
 }
 
 export interface NotebookState {
+  name: string
   data: Resource<PipeData>
   meta: Resource<PipeMeta>
   readOnly?: boolean
 }
 
 export interface Notebook {
+  name: string
   data: ResourceManipulator<PipeData>
   meta: ResourceManipulator<PipeMeta>
   results: FluxResult
@@ -73,13 +72,13 @@ export interface Notebook {
 
 export interface NotebookListState {
   notebooks: {
-    [key: DataID<Notebook>]: Resource<NotebookState>
+    [key: string]: Resource<NotebookState>
   }
 }
 
 export interface NotebookList {
   notebooks: {
-    [key: DataID<Notebook>]: ResourceManipulator<Notebook>
+    [key: string]: Notebook
   }
 }
 

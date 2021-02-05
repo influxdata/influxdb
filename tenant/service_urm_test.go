@@ -6,6 +6,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/tenant"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 )
@@ -28,8 +29,10 @@ func initBoltUserResourceMappingService(f influxdbtesting.UserResourceFields, t 
 }
 
 func initUserResourceMappingService(s kv.Store, f influxdbtesting.UserResourceFields, t *testing.T) (influxdb.UserResourceMappingService, func()) {
-	storage := tenant.NewStore(s)
-	svc := tenant.NewService(storage)
+	var (
+		storage = tenant.NewStore(s)
+		svc     = tenant.NewService(storage)
+	)
 
 	// Create resources before mappings.
 
@@ -39,16 +42,31 @@ func initUserResourceMappingService(s kv.Store, f influxdbtesting.UserResourceFi
 		}
 	}
 
-	for _, o := range f.Organizations {
-		if err := svc.CreateOrganization(context.Background(), o); err != nil {
-			t.Fatalf("failed to populate organizations: %s", err)
+	withID := func(gen *influxdb.IDGenerator, id influxdb.ID, fn func()) {
+		idGen := *gen
+		defer func() { *gen = idGen }()
+
+		if id.Valid() {
+			*gen = mock.NewStaticIDGenerator(id)
 		}
+
+		fn()
+	}
+
+	for _, o := range f.Organizations {
+		withID(&storage.OrgIDGen, o.ID, func() {
+			if err := svc.CreateOrganization(context.Background(), o); err != nil {
+				t.Fatalf("failed to populate organizations: %s", err)
+			}
+		})
 	}
 
 	for _, b := range f.Buckets {
-		if err := svc.CreateBucket(context.Background(), b); err != nil {
-			t.Fatalf("failed to populate buckets: %s", err)
-		}
+		withID(&storage.BucketIDGen, b.ID, func() {
+			if err := svc.CreateBucket(context.Background(), b); err != nil {
+				t.Fatalf("failed to populate buckets: %s", err)
+			}
+		})
 	}
 
 	// Now create mappings.

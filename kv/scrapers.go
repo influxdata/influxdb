@@ -92,6 +92,17 @@ func (s *Service) scrapersBucket(tx Tx) (Bucket, error) {
 
 // ListTargets will list all scrape targets.
 func (s *Service) ListTargets(ctx context.Context, filter influxdb.ScraperTargetFilter) ([]influxdb.ScraperTarget, error) {
+	if filter.Org != nil {
+		org, err := s.orgs.FindOrganization(ctx, influxdb.OrganizationFilter{
+			Name: filter.Org,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		filter.OrgID = &org.ID
+	}
+
 	targets := []influxdb.ScraperTarget{}
 	err := s.kv.View(ctx, func(tx Tx) error {
 		var err error
@@ -113,21 +124,6 @@ func (s *Service) listTargets(ctx context.Context, tx Tx, filter influxdb.Scrape
 		return nil, UnexpectedScrapersBucketError(err)
 	}
 
-	var org *influxdb.Organization
-	if filter.Org != nil {
-		org, err = s.findOrganizationByName(ctx, tx, *filter.Org)
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	if filter.OrgID != nil {
-		org, err = s.findOrganizationByID(ctx, tx, *filter.OrgID)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	for k, v := cur.Next(); k != nil; k, v = cur.Next() {
 		target, err := unmarshalScraper(v)
 		if err != nil {
@@ -142,7 +138,7 @@ func (s *Service) listTargets(ctx context.Context, tx Tx, filter influxdb.Scrape
 			continue
 		}
 
-		if org != nil && target.OrgID != org.ID {
+		if filter.OrgID != nil && target.OrgID != *filter.OrgID {
 			continue
 		}
 
@@ -172,13 +168,7 @@ func (s *Service) addTarget(ctx context.Context, tx Tx, target *influxdb.Scraper
 		return err
 	}
 
-	urm := &influxdb.UserResourceMapping{
-		ResourceID:   target.ID,
-		UserID:       userID,
-		UserType:     influxdb.Owner,
-		ResourceType: influxdb.ScraperResourceType,
-	}
-	return s.createUserResourceMapping(ctx, tx, urm)
+	return nil
 }
 
 // RemoveTarget removes a scraper target from the bucket.
@@ -215,10 +205,7 @@ func (s *Service) removeTarget(ctx context.Context, tx Tx, id influxdb.ID) error
 		return InternalScraperServiceError(err)
 	}
 
-	return s.deleteUserResourceMappings(ctx, tx, influxdb.UserResourceMappingFilter{
-		ResourceID:   id,
-		ResourceType: influxdb.ScraperResourceType,
-	})
+	return nil
 }
 
 // UpdateTarget updates a scraper target.

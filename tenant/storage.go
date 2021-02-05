@@ -2,28 +2,48 @@ package tenant
 
 import (
 	"context"
+	"time"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/rand"
 	"github.com/influxdata/influxdb/v2/snowflake"
+	"github.com/influxdata/influxdb/v2/tenant/index"
 )
 
 const MaxIDGenerationN = 100
-const ReservedIDs = 1000
 
 type Store struct {
-	kvStore        kv.Store
-	IDGen          influxdb.IDGenerator
+	kvStore     kv.Store
+	IDGen       influxdb.IDGenerator
+	OrgIDGen    influxdb.IDGenerator
+	BucketIDGen influxdb.IDGenerator
+
+	now func() time.Time
+
 	urmByUserIndex *kv.Index
 }
 
-func NewStore(kvStore kv.Store) *Store {
-	return &Store{
-		kvStore:        kvStore,
-		IDGen:          snowflake.NewDefaultIDGenerator(),
-		urmByUserIndex: kv.NewIndex(kv.URMByUserIndexMapping, kv.WithIndexReadPathEnabled),
+type StoreOption func(*Store)
+
+func NewStore(kvStore kv.Store, opts ...StoreOption) *Store {
+	store := &Store{
+		kvStore:     kvStore,
+		IDGen:       snowflake.NewDefaultIDGenerator(),
+		OrgIDGen:    rand.NewOrgBucketID(time.Now().UnixNano()),
+		BucketIDGen: rand.NewOrgBucketID(time.Now().UnixNano()),
+		now: func() time.Time {
+			return time.Now().UTC()
+		},
+		urmByUserIndex: kv.NewIndex(index.URMByUserIndexMapping, kv.WithIndexReadPathEnabled),
 	}
+
+	for _, opt := range opts {
+		opt(store)
+	}
+
+	return store
 }
 
 // View opens up a transaction that will not write to any data. Implementing interfaces
@@ -39,27 +59,22 @@ func (s *Store) Update(ctx context.Context, fn func(kv.Tx) error) error {
 
 // generateSafeID attempts to create ids for buckets
 // and orgs that are without backslash, commas, and spaces, BUT ALSO do not already exist.
-func (s *Store) generateSafeID(ctx context.Context, tx kv.Tx, bucket []byte) (influxdb.ID, error) {
+func (s *Store) generateSafeID(ctx context.Context, tx kv.Tx, bucket []byte, gen influxdb.IDGenerator) (influxdb.ID, error) {
 	for i := 0; i < MaxIDGenerationN; i++ {
-		id := s.IDGen.ID()
-
-		// TODO: this is probably unnecessary but for testing we need to keep it in.
-		// After KV is cleaned out we can update the tests and remove this.
-		if id < ReservedIDs {
-			continue
-		}
+		id := gen.ID()
 
 		err := s.uniqueID(ctx, tx, bucket, id)
 		if err == nil {
 			return id, nil
 		}
 
-		if err == NotUniqueIDError {
+		if err == ErrIDNotUnique {
 			continue
 		}
 
 		return influxdb.InvalidID(), err
 	}
+
 	return influxdb.InvalidID(), ErrFailureGeneratingID
 }
 
@@ -85,5 +100,5 @@ func (s *Store) uniqueID(ctx context.Context, tx kv.Tx, bucket []byte, id influx
 		return nil
 	}
 
-	return NotUniqueIDError
+	return ErrIDNotUnique
 }

@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"path"
 	"strings"
@@ -25,7 +26,7 @@ func SetCORS(next http.Handler) http.Handler {
 		}
 		if r.Method == http.MethodOptions {
 			// allow and stop processing in pre-flight requests
-			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE")
+			w.Header().Set("Access-Control-Allow-Methods", "POST, GET, OPTIONS, PUT, DELETE, PATCH")
 			w.Header().Set("Access-Control-Allow-Headers", "Accept, Content-Type, Content-Length, Accept-Encoding, Authorization, User-Agent")
 			w.WriteHeader(http.StatusNoContent)
 			return
@@ -42,11 +43,12 @@ func Metrics(name string, reqMetric *prometheus.CounterVec, durMetric *prometheu
 
 			defer func(start time.Time) {
 				label := prometheus.Labels{
-					"handler":    name,
-					"method":     r.Method,
-					"path":       normalizePath(r.URL.Path),
-					"status":     statusW.StatusCodeClass(),
-					"user_agent": UserAgent(r),
+					"handler":       name,
+					"method":        r.Method,
+					"path":          normalizePath(r.URL.Path),
+					"status":        statusW.StatusCodeClass(),
+					"response_code": fmt.Sprintf("%d", statusW.Code()),
+					"user_agent":    UserAgent(r),
 				}
 				durMetric.With(label).Observe(time.Since(start).Seconds())
 				reqMetric.With(label).Inc()

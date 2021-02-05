@@ -71,7 +71,7 @@ describe('the Time Machine reducer', () => {
 
     it('builds the query if the query builder config is valid', () => {
       const expectedText =
-        'from(bucket: "metrics")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r["_measurement"] == "mem")\n  |> filter(fn: (r) => r["_field"] == "active")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean)\n  |> yield(name: "mean")'
+        'from(bucket: "metrics")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r["_measurement"] == "mem")\n  |> filter(fn: (r) => r["_field"] == "active")\n  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)\n  |> yield(name: "mean")'
       const validDraftQuery = {
         text: '',
         editMode: 'advanced',
@@ -102,6 +102,7 @@ describe('the Time Machine reducer', () => {
           ],
           aggregateWindow: {
             period: 'auto',
+            fillValues: false,
           },
         },
         hidden: false,
@@ -213,7 +214,7 @@ describe('the Time Machine reducer', () => {
 
   // Fix for: https://github.com/influxdata/influxdb/issues/17364
   describe('editing a table view', () => {
-    it('does not overwrite internal TableViewProperites when files is an empty array', () => {
+    it('does not overwrite internal TableViewProperties when files is an empty array', () => {
       const initial = initialState()
 
       const store = createStore(timeMachinesReducer, initial)

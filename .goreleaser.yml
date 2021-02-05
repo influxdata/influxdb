@@ -1,4 +1,4 @@
-project_name: influxdb
+project_name: influxdb2
 builds:
   - id: influx
     goos:
@@ -7,9 +7,12 @@ builds:
     goarch:
       - amd64
       - arm64
+    ignore:
+      - goos: darwin
+        goarch: arm64
     main: ./cmd/influx/
     flags:
-      - -tags={{if and (eq .Os "linux") (eq .Arch "amd64")}}osusergo,netgo,static_build{{end}}
+      - -tags={{if eq .Os "linux"}}osusergo,netgo,static_build{{if not (eq .Arch "amd64")}},noasm{{end}}{{end}}
     env:
       - GO111MODULE=on
       - CGO_ENABLED=1
@@ -17,8 +20,9 @@ builds:
       - PKG_CONFIG=$GOPATH/bin/pkg-config
       - MACOSX_DEPLOYMENT_TARGET=10.11
     ldflags:
-      - -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if and (eq .Os "linux") (eq .Arch "amd64")}}-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"{{end}}
+      - -s -w -X main.version=nightly -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if eq .Os "linux"}}-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"{{end}}
     binary: influx
+
   - id: influxd
     goos:
       - linux
@@ -26,9 +30,12 @@ builds:
     goarch:
       - amd64
       - arm64
+    ignore:
+      - goos: darwin
+        goarch: arm64
     main: ./cmd/influxd/
     flags:
-      - -tags=assets{{if and (eq .Os "linux") (eq .Arch "amd64")}},osusergo,netgo,static_build{{end}}
+      - -tags=assets{{if eq .Os "linux"}},osusergo,netgo,static_build{{if not (eq .Arch "amd64")}},noasm{{end}}{{end}}
     env:
       - GO111MODULE=on
       - CGO_ENABLED=1
@@ -36,30 +43,59 @@ builds:
       - PKG_CONFIG=$GOPATH/bin/pkg-config
       - MACOSX_DEPLOYMENT_TARGET=10.11
     ldflags:
-      - -s -w -X main.version={{.Version}} -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if and (eq .Os "linux") (eq .Arch "amd64")}}-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"{{end}}
+      - -s -w -X main.version=nightly -X main.commit={{.ShortCommit}} -X main.date={{.Date}} {{if eq .Os "linux"}}-extldflags "-fno-PIC -static -Wl,-z,stack-size=8388608"{{end}}
     binary: influxd
     hooks:
       pre: make generate
 
+nfpms:
+  - id: "influxdb2"
+    builds: ["influx", "influxd"]
+    formats:
+      - deb
+      - rpm
+    bindir: /usr/bin
+    contents:
+      - src: scripts/init.sh
+        dst: /usr/lib/influxdb/scripts/init.sh
+      - src: scripts/influxdb.service
+        dst: /usr/lib/influxdb/scripts/influxdb.service
+      - src: scripts/logrotate
+        dst: /etc/logrotate.d/influxdb
+      - src: scripts/influxdb2-upgrade.sh
+        dst: /usr/share/influxdb/influxdb2-upgrade.sh
+    scripts:
+      preinstall:  "scripts/pre-install.sh"
+      postinstall: "scripts/post-install.sh"
+      postremove: "scripts/post-uninstall.sh"
+    conflicts:
+      - influxdb
+    overrides:
+      rpm:
+        replacements:
+          amd64: x86_64
+        file_name_template: "influxdb2-nightly.{{ .Arch }}"
+      deb:
+        file_name_template: "influxdb2-nightly-{{ .Arch }}"
+    vendor: InfluxData
+    homepage: https://influxdata.com
+    maintainer: support@influxdb.com
+    description: Distributed time-series database.
+    license: MIT
+
 archives:
-  - id: influxdb_client
+  - id: influx_only
     builds: ["influx"]
     format: tar.gz
     wrap_in_directory: true
-    format_overrides:
-      - goos: windows
-        format: zip
-    name_template: "influxdb_client_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    name_template: "influxdb2-client-nightly-{{ .Os }}-{{ .Arch }}"
     files:
       - LICENSE
       - README.md
-  - id: influxdb_single_binary
+  - id: influx_and_influxd
     format: tar.gz
     wrap_in_directory: true
-    format_overrides:
-      - goos: windows
-        format: zip
-    name_template: "influxdb_{{ .Version }}_{{ .Os }}_{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}"
+    name_template: "influxdb2-nightly-{{ .Os }}-{{ .Arch }}"
     files:
       - LICENSE
       - README.md
@@ -68,7 +104,11 @@ blobs:
   - provider: "s3"
     bucket: "dl.influxdata.com"
     region: "us-east-1"
-    folder: "influxdb/releases/"
+    folder: "platform/nightlies/"
+
+checksum:
+  name_template: "influxdb2-nightly.sha256"
+  algorithm: sha256
 
 dockers:
   - goos: linux
@@ -77,14 +117,39 @@ dockers:
       - influxd
       - influx
     image_templates:
-      - "quay.io/influxdb/influxdb:{{ .Env.DOCKER_VERSION }}"
+      - "quay.io/influxdb/influxdb-amd64:nightly"
     dockerfile: docker/influxd/Dockerfile
     extra_files:
       - docker/influxd/entrypoint.sh
+    build_flag_templates:
+      - "--platform=linux/amd64"
+    use_buildx: true
+  - goos: linux
+    goarch: arm64
+    binaries:
+      - influxd
+      - influx
+    image_templates:
+      - "quay.io/influxdb/influxdb-arm64v8:nightly"
+    dockerfile: docker/influxd/Dockerfile
+    extra_files:
+      - docker/influxd/entrypoint.sh
+    build_flag_templates:
+      - "--platform=linux/arm64/v8"
+    use_buildx: true
+
+docker_manifests:
+  - name_template: "quay.io/influxdb/influxdb:nightly"
+    image_templates:
+      - "quay.io/influxdb/influxdb-amd64:nightly"
+      - "quay.io/influxdb/influxdb-arm64v8:nightly"
+
+signs:
+  - signature: "${artifact}.asc"
+    cmd: gpg
+    args: [ "--passphrase", "{{.Env.PASSPHRASE}}",  "--pinentry-mode=loopback", "--batch", "--armor",  "--detach-sign", "${artifact}"]
+    artifacts: all
 
 # Do not make github release
 release:
-  name_template: "v{{.Version}}"
-  prerelease: auto # when we go to GA remove this line
-  draft: false # This needs to be false, or the container image will not be published
-  disable: true # we keep the artifacts in S3 and link from the website
+  disable: true

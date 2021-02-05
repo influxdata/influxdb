@@ -59,7 +59,7 @@ Feature: Settings - Templates
     When click user templates
     When click header import template button
     When upload the template file "<FILEPATH>"
-    When click popup submit button
+    When click import template popup submit button
     Then popup is not loaded
     Then the success notification contains "Successfully imported template."
     When close all notifications
@@ -81,7 +81,7 @@ Feature: Settings - Templates
     When click header import template button
     Then click the import template paste button
     When paste contents of "<FILEPATH>" to template textarea
-    When click popup submit button
+    When click import template popup submit button
     Then popup is not loaded
     Then the success notification contains "Successfully imported template."
     When close all notifications
@@ -103,7 +103,7 @@ Feature: Settings - Templates
     When click user templates
     When click header import template button
     When upload the template file "etc/test-data/bad-template.json"
-    When click popup submit button
+    When click import template popup submit button
     Then popup is not loaded
     Then the error notification contains "Failed to import template: Error: Request failed with status code 400"
     When close all notifications

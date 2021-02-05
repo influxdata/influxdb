@@ -7,23 +7,28 @@ import (
 	"testing"
 	"time"
 
+	"github.com/golang/mock/gomock"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorization"
 	icontext "github.com/influxdata/influxdb/v2/context"
+	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query"
-	_ "github.com/influxdata/influxdb/v2/query/builtin"
 	"github.com/influxdata/influxdb/v2/query/control"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	stdlib "github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/v2/storage"
 	storageflux "github.com/influxdata/influxdb/v2/storage/flux"
-	"github.com/influxdata/influxdb/v2/storage/readservice"
 	"github.com/influxdata/influxdb/v2/task/backend"
 	"github.com/influxdata/influxdb/v2/task/servicetest"
+	"github.com/influxdata/influxdb/v2/tenant"
+	"github.com/influxdata/influxdb/v2/v1/services/meta"
+	storage2 "github.com/influxdata/influxdb/v2/v1/services/storage"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
@@ -39,45 +44,69 @@ func TestAnalyticalStore(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			svc := kv.NewService(logger, store, kv.ServiceConfig{
+			tenantStore := tenant.NewStore(store)
+			ts := tenant.NewService(tenantStore)
+
+			authStore, err := authorization.NewStore(store)
+			require.NoError(t, err)
+			authSvc := authorization.NewService(authStore, ts)
+
+			svc := kv.NewService(logger, store, ts, kv.ServiceConfig{
 				FluxLanguageService: fluxlang.DefaultService,
 			})
 
+			metaClient := meta.NewClient(meta.NewConfig(), store)
+			require.NoError(t, metaClient.Open())
+
 			var (
-				ab       = newAnalyticalBackend(t, svc, svc)
+				ab       = newAnalyticalBackend(t, ts.OrganizationService, ts.BucketService, metaClient)
 				rr       = backend.NewStoragePointsWriterRecorder(logger, ab.PointsWriter())
-				svcStack = backend.NewAnalyticalRunStorage(logger, svc, svc, svc, rr, ab.QueryService())
+				svcStack = backend.NewAnalyticalRunStorage(logger, svc, ts.BucketService, svc, rr, ab.QueryService())
 			)
 
-			go func() {
-				<-ctx.Done()
-				ab.Close(t)
-			}()
+			ts.BucketService = storage.NewBucketService(logger, ts.BucketService, ab.storageEngine)
 
 			authCtx := icontext.SetAuthorizer(ctx, &influxdb.Authorization{
 				Permissions: influxdb.OperPermissions(),
 			})
 
 			return &servicetest.System{
-				TaskControlService: svcStack,
-				TaskService:        svcStack,
-				I:                  svc,
-				Ctx:                authCtx,
-			}, cancelFunc
+					TaskControlService:         svcStack,
+					TaskService:                svcStack,
+					OrganizationService:        ts.OrganizationService,
+					UserService:                ts.UserService,
+					UserResourceMappingService: ts.UserResourceMappingService,
+					AuthorizationService:       authSvc,
+					Ctx:                        authCtx,
+					CallFinishRun:              true,
+				}, func() {
+					cancelFunc()
+					ab.Close(t)
+				}
 		},
 	)
 }
 
 func TestDeduplicateRuns(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
 	logger := zaptest.NewLogger(t)
 	store := inmem.NewKVStore()
 	if err := all.Up(context.Background(), logger, store); err != nil {
 		t.Fatal(err)
 	}
 
-	svc := kv.NewService(logger, store)
+	tenantStore := tenant.NewStore(store)
+	ts := tenant.NewService(tenantStore)
 
-	ab := newAnalyticalBackend(t, svc, svc)
+	metaClient := meta.NewClient(meta.NewConfig(), store)
+	require.NoError(t, metaClient.Open())
+
+	_, err := metaClient.CreateDatabase(influxdb.ID(10).String())
+	require.NoError(t, err)
+
+	ab := newAnalyticalBackend(t, ts.OrganizationService, ts.BucketService, metaClient)
 	defer ab.Close(t)
 
 	mockTS := &mock.TaskService{
@@ -99,7 +128,7 @@ func TestDeduplicateRuns(t *testing.T) {
 
 	svcStack := backend.NewAnalyticalStorage(zaptest.NewLogger(t), mockTS, mockBS, mockTCS, ab.PointsWriter(), ab.QueryService())
 
-	_, err := svcStack.FinishRun(context.Background(), 1, 2)
+	_, err = svcStack.FinishRun(context.Background(), 1, 2)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +173,7 @@ func (ab *analyticalBackend) Close(t *testing.T) {
 	}
 }
 
-func newAnalyticalBackend(t *testing.T, orgSvc influxdb.OrganizationService, bucketSvc influxdb.BucketService) *analyticalBackend {
+func newAnalyticalBackend(t *testing.T, orgSvc influxdb.OrganizationService, bucketSvc influxdb.BucketService, metaClient storage.MetaClient) *analyticalBackend {
 	// Mostly copied out of cmd/influxd/main.go.
 	logger := zaptest.NewLogger(t)
 
@@ -153,7 +182,7 @@ func newAnalyticalBackend(t *testing.T, orgSvc influxdb.OrganizationService, buc
 		t.Fatal(err)
 	}
 
-	engine := storage.NewEngine(rootDir, storage.NewConfig())
+	engine := storage.NewEngine(rootDir, storage.NewConfig(), storage.WithMetaClient(metaClient))
 	engine.WithLogger(logger)
 
 	if err := engine.Open(context.Background()); err != nil {
@@ -174,8 +203,10 @@ func newAnalyticalBackend(t *testing.T, orgSvc influxdb.OrganizationService, buc
 	)
 
 	// TODO(adam): do we need a proper secret service here?
-	reader := storageflux.NewReader(readservice.NewStore(engine))
-	deps, err := stdlib.NewDependencies(reader, engine, bucketSvc, orgSvc, nil, nil)
+	storageStore := storage2.NewStore(engine.TSDBStore(), engine.MetaClient())
+	readsReader := storageflux.NewReader(storageStore)
+
+	deps, err := stdlib.NewDependencies(readsReader, engine, bucketSvc, orgSvc, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

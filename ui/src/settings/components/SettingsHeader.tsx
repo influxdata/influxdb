@@ -2,14 +2,14 @@ import React, {Component} from 'react'
 
 // Components
 import {Page} from '@influxdata/clockface'
-import CloudUpgradeButton from 'src/shared/components/CloudUpgradeButton'
+import RateLimitAlert from 'src/cloud/components/RateLimitAlert'
 
 class SettingsHeader extends Component {
   public render() {
     return (
       <Page.Header fullWidth={false}>
         <Page.Title title="Settings" testID="settings-page--header" />
-        <CloudUpgradeButton />
+        <RateLimitAlert />
       </Page.Header>
     )
   }

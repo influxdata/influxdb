@@ -13,6 +13,7 @@ import {
   SET_DASHBOARD,
   Action as DashboardAction,
 } from 'src/dashboards/actions/creators'
+import {SET_VIEWS_AND_CELLS} from 'src/views/actions/creators'
 
 // Types
 import {Cell, ResourceState, RemoteDataState} from 'src/types'
@@ -50,6 +51,20 @@ export const cellsReducer = (
         if (get(schema, ['entities', 'cells'])) {
           draftState.byID = schema.entities['cells']
         }
+
+        return
+      }
+
+      case SET_VIEWS_AND_CELLS: {
+        const {status, cellsArray} = action
+
+        cellsArray.forEach(cellSchema => {
+          draftState.status = status
+
+          if (get(cellSchema, ['entities', 'cells'])) {
+            draftState.byID = cellSchema.entities['cells']
+          }
+        })
 
         return
       }

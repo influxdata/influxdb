@@ -1,149 +1,33 @@
 # InfluxDB [![CircleCI](https://circleci.com/gh/influxdata/influxdb.svg?style=svg)](https://circleci.com/gh/influxdata/influxdb)
 [![Slack Status](https://img.shields.io/badge/slack-join_chat-white.svg?logo=slack&style=social)](https://www.influxdata.com/slack)
 
-
 InfluxDB is an open source time series platform. This includes APIs for storing and querying data, processing it in the background for ETL or monitoring and alerting purposes, user dashboards, and visualizing and exploring the data and more. The master branch on this repo now represents the latest InfluxDB, which now includes functionality for Kapacitor (background processing) and Chronograf (the UI) all in a single binary.
 
 The list of InfluxDB Client Libraries that are compatible with the latest version can be found in [our documentation](https://v2.docs.influxdata.com/v2.0/reference/api/client-libraries/).
 
 If you are looking for the 1.x line of releases, there are branches for each minor version as well as a `master-1.x` branch that will contain the code for the next 1.x release. The master-1.x [working branch is here](https://github.com/influxdata/influxdb/tree/master-1.x). The [InfluxDB 1.x Go Client can be found here](https://github.com/influxdata/influxdb1-client).
 
-## State of the Project
+## Installing
 
-The latest InfluxDB 1.x is the stable release and recommended for production use. The InfluxDB that is on the master branch is currently in the beta stage. This means that it is still **NOT** recommended for production usage. There may be breaking API changes, breaking changes in the [Flux language](https://github.com/influxdata/flux), changes in the underlying storage format that will require you to delete all your data, and significant changes to the UI. The beta is intended for feature exploration and gathering feedback on the available feature set. It **SHOULD NOT** be used for performance testing, benchmarks, or other stress tests.
+We have nightly and versioned Docker images, Debian packages, RPM packages, and tarballs of InfluxDB available at the [InfluxData downloads page](https://portal.influxdata.com/downloads/). We also provide the `influx` command line interface (CLI) client as a separate binary available at the same location.
 
-Additional features will arrive during the beta period until we reach general availability (GA). We will be cutting versioned releases at least every two weeks starting in the first release. There will also be nightly builds based off the latest code in master.
-
-Once we close on the final feature set of what will be in the first GA release of InfluxDB in the 2.x line, we will move into the release candidate (RC) phase. At that point, we do not expect there to be breaking changes to the API or Flux language. We may still need to make a breaking change prior to GA due to some unforseen circumstance, but it would need to be extremely important and will be clearly communicated via the changelog and all available channels.
-
-Our current plans are to release RCs suitable for production usage, but we will re-evaluate in consultation with the community as the cycle progresses. During the RC period, we will focus on feedback from users, bug fixes, performance, and additive features (where time permits).
-
-### What you can expect in the Beta and RC Phases
-
-#### Beta
-**Releases every two weeks or as needed**
-
-Planned additions include:
-- Compatibility layer with 1.x including: 1.x HTTP Write API  and HTTP Read API support for InfluxQL
-- Import Bulk Data from 1.x - convert TSM from 1.x to 2.x
-- Performance tuning, stability improvements, and fine tuning based on community feedback.
-- Finalization of supported client libraries starting with JavaScript and Go.
-
-#### RC
-**As needed**
-
-Planned activities include:
-- Performance tuning, stability improvements, and fine-tuning based on community feedback.
-
-### What is **NOT** planned?
-- Migration of users/security permissions from InfluxDB v1.x to 2.x.  ACTION REQUIRED: Re-establish users and permissions within the new unified security model which now spans the underlying database and user interface.
-- Migration of Continuous Queries.  ACTION REQUIRED: These will need to be re-implemented as Flux tasks.
-- Direct support by InfluxDB for CollectD, StatsD, Graphite, or UDP.  ACTION REQUIRED: Leverage Telegraf 1.9+ along with the InfluxDB v2.0 output plugin to translate these protocols/formats.
-
-## Installing from Source
-
-We have nightly and weekly versioned Docker images, Debian packages, RPM packages, and tarballs of InfluxDB available at the [InfluxData downloads page](https://portal.influxdata.com/downloads/).
-
-## Building From Source
-
-This project requires Go 1.13 and Go module support.
-
-Set `GO111MODULE=on` or build the project outside of your `GOPATH` for it to succeed.
-
-The project also requires a recent stable version of Rust. We recommend using [rustup](https://rustup.rs/) to install Rust.
-
-If you are getting an `error loading module requirements` error with `bzr executable file not found in $PATH”` on `make`, then you need to ensure you have `bazaar`, `protobuf`, and `yarn` installed.
-
-- OSX: `brew install bazaar protobuf yarn`
-- Linux (Arch): `pacman -S bzr protobuf yarn`
-- Linux (Ubuntu): `apt install bzr protobuf-compiler yarnpkg`
-
-**NB:** For RedHat, there are some extra steps:
-
-1. You must enable the [EPEL](https://fedoraproject.org/wiki/EPEL)
-2. You must add the `yarn` [repository](https://yarnpkg.com/lang/en/docs/install/#centos-stable)
-
-For information about modules, please refer to the [wiki](https://github.com/golang/go/wiki/Modules).
-
-A successful `make` run results in two binaries, with platform-dependent paths:
-
-```
-$ make
-...
-env GO111MODULE=on go build -tags 'assets ' -o bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx ./cmd/influx
-env GO111MODULE=on go build -tags 'assets ' -o bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influxd ./cmd/influxd
-```
-
-`influxd` is the InfluxDB service.
-`influx` is the CLI management tool.
-
-Start the service.
-Logs to stdout by default:
-
-```
-$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influxd
-```
-
-### Building with the go command
-
-The `Makefile` provides a wrapper around configuring the utilities for building influxdb. For those wanting to use the `go` command directly, one of two things can be done.
-
-First, the `env` script is located in the root of the repository. This script can be used to execute `go` commands with the appropriate environment configuration.
-
-```bash
-$ ./env go build ./cmd/influxd
-```
-
-Another method is to configure the `pkg-config` utility. Follow the instructions [here](https://github.com/influxdata/flux#getting-started) to install and configure `pkg-config` and then the normal go commands will work.
-
-The first step is to install the `pkg-config` command.
-
-```bash
-# On Debian/Ubuntu
-$ sudo apt-get install -y clang pkg-config
-# On Mac OS X with Homebrew
-$ brew install pkg-config
-```
-
-Install the `pkg-config` wrapper utility of the same name to a different path that is earlier in the PATH.
-
-```bash
-# Install the pkg-config wrapper utility
-$ go build -o ~/go/bin/ github.com/influxdata/pkg-config
-# Ensure the GOBIN directory is on your PATH
-$ export PATH=$HOME/go/bin:${PATH}
-$ which -a pkg-config
-/home/user/go/bin/pkg-config
-/usr/bin/pkg-config
-```
-
-Then all `go` build commands should work.
-
-```bash
-$ go build ./cmd/influxd
-$ go test ./...
-```
+If you are interested in building from source, see the [building from source](CONTRIBUTING.md#building-from-source) guide for contributors.
 
 ## Getting Started
 
-For a complete getting started guide, please see our full [online documentation site](https://v2.docs.influxdata.com/v2.0/). 
+For a complete getting started guide, please see our full [online documentation site](https://docs.influxdata.com/influxdb/v2.0/). 
 
 To write and query data or use the API in any way, you'll need to first create a user, credentials, organization and bucket.
 Everything in InfluxDB is organized under a concept of an organization. The API is designed to be multi-tenant.
 Buckets represent where you store time series data.
 They're synonymous with what was previously in InfluxDB 1.x a database and retention policy.
 
-The simplest way to get set up is to point your browser to [http://localhost:9999](http://localhost:9999) and go through the prompts.
+The simplest way to get set up is to point your browser to [http://localhost:8086](http://localhost:8086) and go through the prompts.
 
-**Note**: Port 9999 will be used during the beta phases of development of InfluxDB v2.0.
-This should allow a v2.0-beta instance to be run alongside a v1.x instance without interfering on port 8086.
-InfluxDB will thereafter continue to use 8086.
-
-You can also get set up from the CLI using the subcommands `influx user`, `influx auth`, `influx org` and `influx bucket`,
-or do it all in one breath with `influx setup`:
+You can also get set up from the CLI using the command `influx setup`:
 
 
-```
+```bash
 $ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx setup
 Welcome to InfluxDB 2.0!
 Please type your primary username: marty
@@ -172,45 +56,47 @@ UserID                  Username        Organization    Bucket
 Your token has been stored in /Users/marty/.influxdbv2/credentials
 ```
 
-You may get into a development loop where `influx setup` becomes tedious.
+You can run this command non-interactively using the `-f, --force` flag if you are automating the setup.
 Some added flags can help:
-```
-$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx setup --username marty --password F1uxKapacit0r85 --org InfluxData --bucket telegraf --retention 168 --token where-were-going-we-dont-need-roads --force
-```
-
-`~/.influxdbv2/credentials` contains your auth token.
-Most `influx` commands read the token from this file path by default.
-
-You may need the organization ID and bucket ID later:
-
-```
-$ influx org find
-ID                      Name
-033a3f2c708aa000        InfluxData
+```bash
+$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx setup \
+--username marty \
+--password F1uxKapacit0r85 \
+--org InfluxData \
+--bucket telegraf \
+--retention 168 \
+--token where-were-going-we-dont-need-roads \
+--force
 ```
 
-```
-$ influx bucket find
-ID                      Name            Retention       Organization    OrganizationID
-033a3f2c710aa000        telegraf        72h0m0s         InfluxData      033a3f2c708aa000
+Once setup is complete, a configuration profile is created to allow you to interact with your local InfluxDB without passing in credentials each time. You can list and manage those profiles using the `influx config` command.
+```bash
+$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx config
+Active	Name	URL			            Org
+*	    default	http://localhost:9999	InfluxData
 ```
 
+## Writing Data
 Write to measurement `m`, with tag `v=2`, in bucket `telegraf`, which belongs to organization `InfluxData`:
 
+```bash
+$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx write --bucket telegraf --precision s "m v=2 $(date +%s)"
 ```
-$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx write --org InfluxData --bucket telegraf --precision s "m v=2 $(date +%s)"
-```
+
+Since you have a default profile set up, you can omit the Organization and Token from the command.
 
 Write the same point using `curl`:
 
-```
-curl --header "Authorization: Token $(cat ~/.influxdbv2/credentials)" --data-raw "m v=2 $(date +%s)" "http://localhost:9999/api/v2/write?org=InfluxData&bucket=telegraf&precision=s"
+```bash
+curl --header "Authorization: Token $(bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx auth list --json | jq -r '.[0].token')" \
+--data-raw "m v=2 $(date +%s)" \
+"http://localhost:8086/api/v2/write?org=InfluxData&bucket=telegraf&precision=s"
 ```
 
 Read that back with a simple Flux query:
 
-```
-$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx query -o InfluxData 'from(bucket:"telegraf") |> range(start:-1h)'
+```bash
+$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx query 'from(bucket:"telegraf") |> range(start:-1h)'
 Result: _result
 Table: keys: [_start, _stop, _field, _measurement]
                    _start:time                      _stop:time           _field:string     _measurement:string                      _time:time                  _value:float
@@ -218,19 +104,7 @@ Table: keys: [_start, _stop, _field, _measurement]
 2019-12-30T22:19:39.043918000Z  2019-12-30T23:19:39.043918000Z                       v                       m  2019-12-30T23:17:02.000000000Z                             2
 ```
 
-Use the fancy REPL:
-
-```
-$ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx repl -o InfluxData
-> from(bucket:"telegraf") |> range(start:-1h)
-Result: _result
-Table: keys: [_start, _stop, _field, _measurement]
-                   _start:time                      _stop:time           _field:string     _measurement:string                      _time:time                  _value:float
-------------------------------  ------------------------------  ----------------------  ----------------------  ------------------------------  ----------------------------
-2019-12-30T22:22:44.776351000Z  2019-12-30T23:22:44.776351000Z                       v                       m  2019-12-30T23:17:02.000000000Z                             2
->
-```
-
+Use the `-r, --raw` option to return the raw flux response from the query. This is useful for moving data from one instance to another as the `influx write` command can accept the Flux response using the `--format csv` option. 
 
 ## Introducing Flux
 

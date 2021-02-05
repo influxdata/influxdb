@@ -6,15 +6,13 @@ import (
 	"io/ioutil"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/storage"
-	"github.com/influxdata/influxdb/v2/storage/reads"
-	"github.com/influxdata/influxdb/v2/tsdb/cursors"
-	"github.com/influxdata/influxql"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -25,13 +23,16 @@ var _ Engine = (*storage.Engine)(nil)
 // to facilitate testing.
 type Engine interface {
 	influxdb.DeleteService
-	reads.Viewer
 	storage.PointsWriter
-	storage.BucketDeleter
+	storage.EngineSchema
 	prom.PrometheusCollector
 	influxdb.BackupService
+	influxdb.RestoreService
 
-	SeriesCardinality() int64
+	SeriesCardinality(orgID, bucketID influxdb.ID) int64
+
+	TSDBStore() storage.TSDBStore
+	MetaClient() storage.MetaClient
 
 	WithLogger(log *zap.Logger)
 	Open(context.Context) error
@@ -51,7 +52,8 @@ type TemporaryEngine struct {
 	mu     sync.Mutex
 	opened bool
 
-	engine *storage.Engine
+	engine    *storage.Engine
+	tsdbStore temporaryTSDBStore
 
 	log *zap.Logger
 }
@@ -89,6 +91,8 @@ func (t *TemporaryEngine) Open(ctx context.Context) error {
 		return err
 	}
 
+	t.tsdbStore.TSDBStore = t.engine.TSDBStore()
+
 	t.opened = true
 	return nil
 }
@@ -105,19 +109,26 @@ func (t *TemporaryEngine) Close() error {
 }
 
 // WritePoints stores points into the storage engine.
-func (t *TemporaryEngine) WritePoints(ctx context.Context, points []models.Point) error {
-	return t.engine.WritePoints(ctx, points)
+func (t *TemporaryEngine) WritePoints(ctx context.Context, orgID influxdb.ID, bucketID influxdb.ID, points []models.Point) error {
+	return t.engine.WritePoints(ctx, orgID, bucketID, points)
 }
 
 // SeriesCardinality returns the number of series in the engine.
-func (t *TemporaryEngine) SeriesCardinality() int64 {
-	return t.engine.SeriesCardinality()
+func (t *TemporaryEngine) SeriesCardinality(orgID, bucketID influxdb.ID) int64 {
+	return t.engine.SeriesCardinality(orgID, bucketID)
 }
 
 // DeleteBucketRangePredicate will delete a bucket from the range and predicate.
 func (t *TemporaryEngine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64, pred influxdb.Predicate) error {
 	return t.engine.DeleteBucketRangePredicate(ctx, orgID, bucketID, min, max, pred)
+}
 
+func (t *TemporaryEngine) CreateBucket(ctx context.Context, b *influxdb.Bucket) error {
+	return t.engine.CreateBucket(ctx, b)
+}
+
+func (t *TemporaryEngine) UpdateBucketRetentionPeriod(ctx context.Context, bucketID influxdb.ID, d time.Duration) error {
+	return t.engine.UpdateBucketRetentionPeriod(ctx, bucketID, d)
 }
 
 // DeleteBucket deletes a bucket from the time-series data.
@@ -136,26 +147,6 @@ func (t *TemporaryEngine) PrometheusCollectors() []prometheus.Collector {
 	return t.engine.PrometheusCollectors()
 }
 
-// CreateCursorIterator calls into the underlying engines CreateCurorIterator.
-func (t *TemporaryEngine) CreateCursorIterator(ctx context.Context) (cursors.CursorIterator, error) {
-	return t.engine.CreateCursorIterator(ctx)
-}
-
-// CreateSeriesCursor calls into the underlying engines CreateSeriesCursor.
-func (t *TemporaryEngine) CreateSeriesCursor(ctx context.Context, orgID, bucketID influxdb.ID, cond influxql.Expr) (storage.SeriesCursor, error) {
-	return t.engine.CreateSeriesCursor(ctx, orgID, bucketID, cond)
-}
-
-// TagKeys calls into the underlying engines TagKeys.
-func (t *TemporaryEngine) TagKeys(ctx context.Context, orgID, bucketID influxdb.ID, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error) {
-	return t.engine.TagKeys(ctx, orgID, bucketID, start, end, predicate)
-}
-
-// TagValues calls into the underlying engines TagValues.
-func (t *TemporaryEngine) TagValues(ctx context.Context, orgID, bucketID influxdb.ID, tagKey string, start, end int64, predicate influxql.Expr) (cursors.StringIterator, error) {
-	return t.engine.TagValues(ctx, orgID, bucketID, tagKey, start, end, predicate)
-}
-
 // Flush will remove the time-series files and re-open the engine.
 func (t *TemporaryEngine) Flush(ctx context.Context) {
 	if err := t.Close(); err != nil {
@@ -167,14 +158,34 @@ func (t *TemporaryEngine) Flush(ctx context.Context) {
 	}
 }
 
-func (t *TemporaryEngine) CreateBackup(ctx context.Context) (int, []string, error) {
-	return t.engine.CreateBackup(ctx)
+func (t *TemporaryEngine) BackupKVStore(ctx context.Context, w io.Writer) error {
+	return t.engine.BackupKVStore(ctx, w)
 }
 
-func (t *TemporaryEngine) FetchBackupFile(ctx context.Context, backupID int, backupFile string, w io.Writer) error {
-	return t.engine.FetchBackupFile(ctx, backupID, backupFile, w)
+func (t *TemporaryEngine) RestoreKVStore(ctx context.Context, r io.Reader) error {
+	return t.engine.RestoreKVStore(ctx, r)
 }
 
-func (t *TemporaryEngine) InternalBackupPath(backupID int) string {
-	return t.engine.InternalBackupPath(backupID)
+func (t *TemporaryEngine) RestoreBucket(ctx context.Context, id influxdb.ID, dbi []byte) (map[uint64]uint64, error) {
+	return t.engine.RestoreBucket(ctx, id, dbi)
+}
+
+func (t *TemporaryEngine) BackupShard(ctx context.Context, w io.Writer, shardID uint64, since time.Time) error {
+	return t.engine.BackupShard(ctx, w, shardID, since)
+}
+
+func (t *TemporaryEngine) RestoreShard(ctx context.Context, shardID uint64, r io.Reader) error {
+	return t.engine.RestoreShard(ctx, shardID, r)
+}
+
+func (t *TemporaryEngine) TSDBStore() storage.TSDBStore {
+	return &t.tsdbStore
+}
+
+func (t *TemporaryEngine) MetaClient() storage.MetaClient {
+	return t.engine.MetaClient()
+}
+
+type temporaryTSDBStore struct {
+	storage.TSDBStore
 }

@@ -2,53 +2,55 @@
 @import '~src/notebooks/NotebookVariables.scss';
 
 .notebook-divider {
-  height: 12px;
-  margin: $cf-marg-a $notebook-panel--gutter;
-  position: relative;
-
-  &:after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 0;
-    right: 0;
-    background-color: $notebook-divider-color;
-    height: $cf-border;
-    transform: translateY(-50%);
-    z-index: 0;
-  }
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: $notebook-panel--node-gap;
+  height: $notebook-panel--node-gap;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  z-index: 2;
 
   &:hover {
     cursor: pointer;
   }
-
-  &:last-of-type {
-    margin-bottom: 25vh;
-  }
 }
 
-.notebook-divider:hover:after,
-.notebook-divider__popped:after {
-  background-color: $c-star;
+.notebook-panel:hover .notebook-divider,
+.notebook-panel:last-child .notebook-divider,
+.notebook-divider__popped {
+  opacity: 1;
+}
+
+.notebook-panel:last-child .notebook-divider {
+  transform: translateY(100%);
+}
+
+.notebook-panel:last-child .notebook-divider:after {
+  content: '';
+  width: $cf-border;
+  position: absolute;
+  left: 50%;
+  top: 5px;
+  height: 150%;
+  transform: translate(-50%, -100%);
+  @include gradient-v($g5-pepper, $c-amethyst);
+}
+
+.notebook-panel__hidden.notebook-panel:last-child .notebook-divider:after {
+  height: 50%;
 }
 
 .notebook-divider--button {
-  position: absolute;
-  z-index: 1;
-  top: 50%;
-  transform: translate(-50%, -50%);
   border-radius: 50%;
-  opacity: 0;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   cursor: pointer;
 
   &:after {
     border-radius: 50%;
-  }
-
-  .notebook-divider:hover &,
-  .notebook-divider__popped &,
-  .notebook-divider__popped:hover & {
-    opacity: 1;
   }
 }
 

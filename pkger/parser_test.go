@@ -74,9 +74,8 @@ func TestParse(t *testing.T) {
 						DefaultValue: "spectacles",
 					},
 					{
-						Field:        "spec.associations[0].name",
-						EnvRefKey:    "label-meta-name",
-						DefaultValue: "env-label-meta-name",
+						Field:     "spec.associations[0].name",
+						EnvRefKey: "label-meta-name",
 					},
 				}
 				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
@@ -215,14 +214,12 @@ spec:
 
 				expected := sumLabelGen("env-meta-name", "env-spec-name", "", "",
 					SummaryReference{
-						Field:        "metadata.name",
-						EnvRefKey:    "meta-name",
-						DefaultValue: "env-meta-name",
+						Field:     "metadata.name",
+						EnvRefKey: "meta-name",
 					},
 					SummaryReference{
-						Field:        "spec.name",
-						EnvRefKey:    "spec-name",
-						DefaultValue: "env-spec-name",
+						Field:     "spec.name",
+						EnvRefKey: "spec-name",
 					},
 				)
 				assert.Contains(t, actual, expected)
@@ -598,9 +595,8 @@ spec:
 						DefaultValue: "spectacles",
 					},
 					{
-						Field:        "spec.associations[0].name",
-						EnvRefKey:    "label-meta-name",
-						DefaultValue: "env-label-meta-name",
+						Field:     "spec.associations[0].name",
+						EnvRefKey: "label-meta-name",
 					},
 				}
 				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
@@ -908,40 +904,42 @@ spec:
 `,
 					},
 				},
-				{
-					kind: KindCheckDeadman,
-					resErr: testTemplateResourceError{
-						name:           "duplicate meta name and spec name",
-						validationErrs: 1,
-						valFields:      []string{fieldSpec, fieldAssociations},
-						templateStr: `
-apiVersion: influxdata.com/v2alpha1
-kind: CheckDeadman
-metadata:
-  name: check-1
-spec:
-  every: 5m
-  level: cRiT
-  query:  >
-    from(bucket: "rucket_1") |> yield(name: "mean")
-  statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
-  timeSince: 90s
----
-apiVersion: influxdata.com/v2alpha1
-kind: CheckDeadman
-metadata:
-  name: valid-name
-spec:
-  name: check-1
-  every: 5m
-  level: cRiT
-  query:  >
-    from(bucket: "rucket_1") |> yield(name: "mean")
-  statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
-  timeSince: 90s
-`,
-					},
-				},
+				/* checks are not name unique
+							{
+								kind: KindCheckDeadman,
+								resErr: testTemplateResourceError{
+									name:           "duplicate meta name and spec name",
+									validationErrs: 1,
+									valFields:      []string{fieldSpec, fieldAssociations},
+									templateStr: `
+				apiVersion: influxdata.com/v2alpha1
+				kind: CheckDeadman
+				metadata:
+					name: check-1
+				spec:
+					every: 5m
+					level: cRiT
+					query:  >
+						from(bucket: "rucket_1") |> yield(name: "mean")
+					statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+					timeSince: 90s
+				---
+				apiVersion: influxdata.com/v2alpha1
+				kind: CheckDeadman
+				metadata:
+					name: valid-name
+				spec:
+					name: check-1
+					every: 5m
+					level: cRiT
+					query:  >
+						from(bucket: "rucket_1") |> yield(name: "mean")
+					statusMessageTemplate: "Check: ${ r._check_name } is: ${ r._level }"
+					timeSince: 90s
+				`,
+								},
+							},
+				*/
 			}
 
 			for _, tt := range tests {
@@ -1060,6 +1058,17 @@ spec:
 						assert.Equal(t, "heatmap", props.GetType())
 						assert.Equal(t, "heatmap note", props.Note)
 						assert.Equal(t, int32(10), props.BinSize)
+						assert.Equal(t, []string{"xTotalTicks", "xTickStart", "xTickStep"}, props.GenerateXAxisTicks)
+						assert.Equal(t, 15, props.XTotalTicks)
+						assert.Equal(t, 0.0, props.XTickStart)
+						assert.Equal(t, 1000.0, props.XTickStep)
+						assert.Equal(t, []string{"yTotalTicks", "yTickStart", "yTickStep"}, props.GenerateYAxisTicks)
+						assert.Equal(t, 10, props.YTotalTicks)
+						assert.Equal(t, 0.0, props.YTickStart)
+						assert.Equal(t, 100.0, props.YTickStep)
+						assert.Equal(t, true, props.LegendColorizeRows)
+						assert.Equal(t, 1.0, props.LegendOpacity)
+						assert.Equal(t, 5, props.LegendOrientationThreshold)
 						assert.True(t, props.ShowNoteWhenEmpty)
 
 						assert.Equal(t, []float64{0, 10}, props.XDomain)
@@ -1177,6 +1186,9 @@ spec:
 						assert.Equal(t, "histogram", props.GetType())
 						assert.Equal(t, "histogram note", props.Note)
 						assert.Equal(t, 30, props.BinCount)
+						assert.Equal(t, true, props.LegendColorizeRows)
+						assert.Equal(t, 1.0, props.LegendOpacity)
+						assert.Equal(t, 5, props.LegendOrientationThreshold)
 						assert.True(t, props.ShowNoteWhenEmpty)
 						assert.Equal(t, []float64{0, 10}, props.XDomain)
 						assert.Equal(t, []string{"a", "b"}, props.FillColumns)
@@ -1253,6 +1265,118 @@ spec:
 				})
 			})
 
+			t.Run("mosaic chart", func(t *testing.T) {
+				t.Run("happy path", func(t *testing.T) {
+					testfileRunner(t, "testdata/dashboard_mosaic.yml", func(t *testing.T, template *Template) {
+						sum := template.Summary()
+						require.Len(t, sum.Dashboards, 1)
+
+						actual := sum.Dashboards[0]
+						assert.Equal(t, KindDashboard, actual.Kind)
+						assert.Equal(t, "dash-0", actual.Name)
+						assert.Equal(t, "a dashboard w/ single mosaic chart", actual.Description)
+
+						require.Len(t, actual.Charts, 1)
+						actualChart := actual.Charts[0]
+						assert.Equal(t, 3, actualChart.Height)
+						assert.Equal(t, 6, actualChart.Width)
+						assert.Equal(t, 1, actualChart.XPosition)
+						assert.Equal(t, 2, actualChart.YPosition)
+
+						props, ok := actualChart.Properties.(influxdb.MosaicViewProperties)
+						require.True(t, ok)
+						assert.Equal(t, "mosaic note", props.Note)
+						assert.True(t, props.ShowNoteWhenEmpty)
+
+						require.Len(t, props.Queries, 1)
+						q := props.Queries[0]
+						expectedQuery := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")`
+						assert.Equal(t, expectedQuery, q.Text)
+						assert.Equal(t, "advanced", q.EditMode)
+
+						assert.Equal(t, []string{"_value", "foo"}, props.YSeriesColumns)
+						assert.Equal(t, []float64{0, 10}, props.XDomain)
+						assert.Equal(t, []float64{0, 100}, props.YDomain)
+						assert.Equal(t, "x_label", props.XAxisLabel)
+						assert.Equal(t, "y_label", props.YAxisLabel)
+						assert.Equal(t, "x_prefix", props.XPrefix)
+						assert.Equal(t, "y_prefix", props.YPrefix)
+						assert.Equal(t, "x_suffix", props.XSuffix)
+						assert.Equal(t, "y_suffix", props.YSuffix)
+						assert.Equal(t, []string{"xTotalTicks", "xTickStart", "xTickStep"}, props.GenerateXAxisTicks)
+						assert.Equal(t, 15, props.XTotalTicks)
+						assert.Equal(t, 0.0, props.XTickStart)
+						assert.Equal(t, 1000.0, props.XTickStep)
+						assert.Equal(t, true, props.LegendColorizeRows)
+						assert.Equal(t, 1.0, props.LegendOpacity)
+						assert.Equal(t, 5, props.LegendOrientationThreshold)
+					})
+				})
+			})
+
+			t.Run("band chart", func(t *testing.T) {
+				t.Run("happy path", func(t *testing.T) {
+					testfileRunner(t, "testdata/dashboard_band.yml", func(t *testing.T, template *Template) {
+						sum := template.Summary()
+						require.Len(t, sum.Dashboards, 1)
+
+						actual := sum.Dashboards[0]
+						assert.Equal(t, KindDashboard, actual.Kind)
+						assert.Equal(t, "dash-1", actual.Name)
+						assert.Equal(t, "a dashboard w/ single band chart", actual.Description)
+
+						require.Len(t, actual.Charts, 1)
+						actualChart := actual.Charts[0]
+						assert.Equal(t, 3, actualChart.Height)
+						assert.Equal(t, 6, actualChart.Width)
+						assert.Equal(t, 1, actualChart.XPosition)
+						assert.Equal(t, 2, actualChart.YPosition)
+
+						props, ok := actualChart.Properties.(influxdb.BandViewProperties)
+						require.True(t, ok)
+						assert.Equal(t, "band note", props.Note)
+						assert.True(t, props.ShowNoteWhenEmpty)
+						assert.Equal(t, "y", props.HoverDimension)
+						assert.Equal(t, "foo", props.UpperColumn)
+						assert.Equal(t, "baz", props.MainColumn)
+						assert.Equal(t, "bar", props.LowerColumn)
+						assert.Equal(t, []string{"xTotalTicks", "xTickStart", "xTickStep"}, props.GenerateXAxisTicks)
+						assert.Equal(t, 15, props.XTotalTicks)
+						assert.Equal(t, 0.0, props.XTickStart)
+						assert.Equal(t, 1000.0, props.XTickStep)
+						assert.Equal(t, []string{"yTotalTicks", "yTickStart", "yTickStep"}, props.GenerateYAxisTicks)
+						assert.Equal(t, 10, props.YTotalTicks)
+						assert.Equal(t, 0.0, props.YTickStart)
+						assert.Equal(t, 100.0, props.YTickStep)
+						assert.Equal(t, true, props.LegendColorizeRows)
+						assert.Equal(t, 1.0, props.LegendOpacity)
+						assert.Equal(t, 5, props.LegendOrientationThreshold)
+
+						require.Len(t, props.ViewColors, 1)
+						c := props.ViewColors[0]
+						assert.Equal(t, "laser", c.Name)
+						assert.Equal(t, "scale", c.Type)
+						assert.Equal(t, "#8F8AF4", c.Hex)
+						assert.Equal(t, 3.0, c.Value)
+
+						require.Len(t, props.Queries, 1)
+						q := props.Queries[0]
+						expectedQuery := `from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")`
+						assert.Equal(t, expectedQuery, q.Text)
+						assert.Equal(t, "advanced", q.EditMode)
+
+						for _, key := range []string{"x", "y"} {
+							xAxis, ok := props.Axes[key]
+							require.True(t, ok, "key="+key)
+							assert.Equal(t, key+"_label", xAxis.Label, "key="+key)
+							assert.Equal(t, key+"_prefix", xAxis.Prefix, "key="+key)
+							assert.Equal(t, key+"_suffix", xAxis.Suffix, "key="+key)
+						}
+
+					})
+				})
+			})
+
 			t.Run("scatter chart", func(t *testing.T) {
 				t.Run("happy path", func(t *testing.T) {
 					testfileRunner(t, "testdata/dashboard_scatter", func(t *testing.T, template *Template) {
@@ -1290,6 +1414,17 @@ spec:
 						assert.Equal(t, "y_prefix", props.YPrefix)
 						assert.Equal(t, "x_suffix", props.XSuffix)
 						assert.Equal(t, "y_suffix", props.YSuffix)
+						assert.Equal(t, []string{"xTotalTicks", "xTickStart", "xTickStep"}, props.GenerateXAxisTicks)
+						assert.Equal(t, 15, props.XTotalTicks)
+						assert.Equal(t, 0.0, props.XTickStart)
+						assert.Equal(t, 1000.0, props.XTickStep)
+						assert.Equal(t, []string{"yTotalTicks", "yTickStart", "yTickStep"}, props.GenerateYAxisTicks)
+						assert.Equal(t, 10, props.YTotalTicks)
+						assert.Equal(t, 0.0, props.YTickStart)
+						assert.Equal(t, 100.0, props.YTickStep)
+						assert.Equal(t, true, props.LegendColorizeRows)
+						assert.Equal(t, 1.0, props.LegendOpacity)
+						assert.Equal(t, 5, props.LegendOrientationThreshold)
 					})
 				})
 
@@ -1728,6 +1863,17 @@ spec:
 						assert.Equal(t, "overlaid", props.Position)
 						assert.Equal(t, "leg_type", props.Legend.Type)
 						assert.Equal(t, "horizontal", props.Legend.Orientation)
+						assert.Equal(t, []string{"xTotalTicks", "xTickStart", "xTickStep"}, props.GenerateXAxisTicks)
+						assert.Equal(t, 15, props.XTotalTicks)
+						assert.Equal(t, 0.0, props.XTickStart)
+						assert.Equal(t, 1000.0, props.XTickStep)
+						assert.Equal(t, []string{"yTotalTicks", "yTickStart", "yTickStep"}, props.GenerateYAxisTicks)
+						assert.Equal(t, 10, props.YTotalTicks)
+						assert.Equal(t, 0.0, props.YTickStart)
+						assert.Equal(t, 100.0, props.YTickStep)
+						assert.Equal(t, true, props.LegendColorizeRows)
+						assert.Equal(t, 1.0, props.LegendOpacity)
+						assert.Equal(t, 5, props.LegendOrientationThreshold)
 
 						require.Len(t, props.Queries, 1)
 						q := props.Queries[0]
@@ -1747,12 +1893,14 @@ spec:
 
 						require.Len(t, props.ViewColors, 2)
 						c := props.ViewColors[0]
+						assert.Equal(t, "base", c.ID)
 						assert.Equal(t, "laser", c.Name)
 						assert.Equal(t, "text", c.Type)
 						assert.Equal(t, "#8F8AF4", c.Hex)
 						assert.Equal(t, 3.0, c.Value)
 
 						c = props.ViewColors[1]
+						assert.Equal(t, "base", c.ID)
 						assert.Equal(t, "android", c.Name)
 						assert.Equal(t, "scale", c.Type)
 						assert.Equal(t, "#F4CF31", c.Hex)
@@ -2062,7 +2210,7 @@ spec:
       colors:
         - name: laser
           type: min
-          hex: 
+          hex:
           value: 3.0`,
 						},
 						{
@@ -2182,6 +2330,17 @@ spec:
 						assert.Equal(t, "xy chart note", props.Note)
 						assert.True(t, props.ShowNoteWhenEmpty)
 						assert.Equal(t, "stacked", props.Position)
+						assert.Equal(t, []string{"xTotalTicks", "xTickStart", "xTickStep"}, props.GenerateXAxisTicks)
+						assert.Equal(t, 15, props.XTotalTicks)
+						assert.Equal(t, 0.0, props.XTickStart)
+						assert.Equal(t, 1000.0, props.XTickStep)
+						assert.Equal(t, []string{"yTotalTicks", "yTickStart", "yTickStep"}, props.GenerateYAxisTicks)
+						assert.Equal(t, 10, props.YTotalTicks)
+						assert.Equal(t, 0.0, props.YTickStart)
+						assert.Equal(t, 100.0, props.YTickStep)
+						assert.Equal(t, true, props.LegendColorizeRows)
+						assert.Equal(t, 1.0, props.LegendOpacity)
+						assert.Equal(t, 5, props.LegendOrientationThreshold)
 
 						require.Len(t, props.Queries, 1)
 						q := props.Queries[0]
@@ -2292,12 +2451,105 @@ spec:
 			})
 		})
 
+		t.Run("with params option should be parameterizable", func(t *testing.T) {
+			testfileRunner(t, "testdata/dashboard_params.yml", func(t *testing.T, template *Template) {
+				sum := template.Summary()
+				require.Len(t, sum.Dashboards, 1)
+
+				actual := sum.Dashboards[0]
+				assert.Equal(t, KindDashboard, actual.Kind)
+				assert.Equal(t, "dash-1", actual.MetaName)
+
+				require.Len(t, actual.Charts, 1)
+				actualChart := actual.Charts[0]
+				assert.Equal(t, 3, actualChart.Height)
+				assert.Equal(t, 6, actualChart.Width)
+				assert.Equal(t, 1, actualChart.XPosition)
+				assert.Equal(t, 2, actualChart.YPosition)
+
+				props, ok := actualChart.Properties.(influxdb.SingleStatViewProperties)
+				require.True(t, ok)
+				assert.Equal(t, "single-stat", props.GetType())
+
+				require.Len(t, props.Queries, 1)
+
+				// parmas
+				queryText := `option params = {
+	bucket: "bar",
+	start: -24h0m0s,
+	stop: now(),
+	name: "max",
+	floatVal: 37.2,
+	minVal: 10,
+}
+
+from(bucket: params.bucket)
+	|> range(start: params.start, stop: params.stop)
+	|> filter(fn: (r) =>
+		(r._measurement == "processes"))
+	|> filter(fn: (r) =>
+		(r.floater == params.floatVal))
+	|> filter(fn: (r) =>
+		(r._value > params.minVal))
+	|> aggregateWindow(every: v.windowPeriod, fn: max)
+	|> yield(name: params.name)`
+
+				q := props.Queries[0]
+				assert.Equal(t, queryText, q.Text)
+				assert.Equal(t, "advanced", q.EditMode)
+
+				expectedRefs := []SummaryReference{
+					{
+						Field:        "spec.charts[0].queries[0].params.bucket",
+						EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.bucket`,
+						ValType:      "string",
+						DefaultValue: "bar",
+					},
+					{
+						Field:        "spec.charts[0].queries[0].params.floatVal",
+						EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.floatVal`,
+						ValType:      "float",
+						DefaultValue: 37.2,
+					},
+					{
+						Field:        "spec.charts[0].queries[0].params.minVal",
+						EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.minVal`,
+						ValType:      "integer",
+						DefaultValue: int64(10),
+					},
+					{
+						Field:        "spec.charts[0].queries[0].params.name",
+						EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.name`,
+						ValType:      "string",
+						DefaultValue: "max",
+					},
+					{
+						Field:        "spec.charts[0].queries[0].params.start",
+						EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.start`,
+						ValType:      "duration",
+						DefaultValue: "-24h0m0s",
+					},
+					{
+						Field:        "spec.charts[0].queries[0].params.stop",
+						EnvRefKey:    `dashboards[dash-1].spec.charts[0].queries[0].params.stop`,
+						ValType:      "time",
+						DefaultValue: "now()",
+					},
+				}
+				assert.Equal(t, expectedRefs, actual.EnvReferences)
+			})
+		})
+
 		t.Run("with env refs should be valid", func(t *testing.T) {
 			testfileRunner(t, "testdata/dashboard_ref.yml", func(t *testing.T, template *Template) {
 				actual := template.Summary().Dashboards
 				require.Len(t, actual, 1)
 
 				expected := []SummaryReference{
+					{
+						Field:     "spec.associations[0].name",
+						EnvRefKey: "label-meta-name",
+					},
 					{
 						Field:        "metadata.name",
 						EnvRefKey:    "meta-name",
@@ -2307,11 +2559,6 @@ spec:
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
 						DefaultValue: "spectacles",
-					},
-					{
-						Field:        "spec.associations[0].name",
-						EnvRefKey:    "label-meta-name",
-						DefaultValue: "env-label-meta-name",
 					},
 				}
 				assert.Equal(t, expected, actual[0].EnvReferences)
@@ -2571,9 +2818,8 @@ spec:
 						DefaultValue: "spectacles",
 					},
 					{
-						Field:        "spec.associations[0].name",
-						EnvRefKey:    "label-meta-name",
-						DefaultValue: "env-label-meta-name",
+						Field:     "spec.associations[0].name",
+						EnvRefKey: "label-meta-name",
 					},
 				}
 				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
@@ -2896,14 +3142,12 @@ spec:
 						DefaultValue: "spectacles",
 					},
 					{
-						Field:        "spec.associations[0].name",
-						EnvRefKey:    "label-meta-name",
-						DefaultValue: "env-label-meta-name",
+						Field:     "spec.associations[0].name",
+						EnvRefKey: "label-meta-name",
 					},
 					{
-						Field:        "spec.endpointName",
-						EnvRefKey:    "endpoint-meta-name",
-						DefaultValue: "env-endpoint-meta-name",
+						Field:     "spec.endpointName",
+						EnvRefKey: "endpoint-meta-name",
 					},
 				}
 				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
@@ -3216,8 +3460,196 @@ spec:
 
 				task1 := tasks[1]
 				baseEqual(t, 0, influxdb.Inactive, task1)
-				assert.Equal(t, (10 * time.Minute).String(), task1.Every)
+				assert.Equal(t, (25 * time.Hour).String(), task1.Every)
 				assert.Equal(t, (15 * time.Second).String(), task1.Offset)
+			})
+		})
+
+		t.Run("with params option should be parameterizable", func(t *testing.T) {
+			testfileRunner(t, "testdata/tasks_params.yml", func(t *testing.T, template *Template) {
+				sum := template.Summary()
+				require.Len(t, sum.Tasks, 1)
+
+				actual := sum.Tasks[0]
+				assert.Equal(t, KindTask, actual.Kind)
+				assert.Equal(t, "task-uuid", actual.MetaName)
+
+				queryText := `option params = {
+	bucket: "bar",
+	start: -24h0m0s,
+	stop: now(),
+	name: "max",
+	floatVal: 37.2,
+	minVal: 10,
+}
+
+from(bucket: params.bucket)
+	|> range(start: params.start, stop: params.stop)
+	|> filter(fn: (r) =>
+		(r._measurement == "processes"))
+	|> filter(fn: (r) =>
+		(r.floater == params.floatVal))
+	|> filter(fn: (r) =>
+		(r._value > params.minVal))
+	|> aggregateWindow(every: v.windowPeriod, fn: max)
+	|> yield(name: params.name)`
+
+				assert.Equal(t, queryText, actual.Query)
+
+				expectedRefs := []SummaryReference{
+					{
+						Field:        "spec.params.bucket",
+						EnvRefKey:    `tasks[task-uuid].spec.params.bucket`,
+						ValType:      "string",
+						DefaultValue: "bar",
+					},
+					{
+						Field:        "spec.params.floatVal",
+						EnvRefKey:    `tasks[task-uuid].spec.params.floatVal`,
+						ValType:      "float",
+						DefaultValue: 37.2,
+					},
+					{
+						Field:        "spec.params.minVal",
+						EnvRefKey:    `tasks[task-uuid].spec.params.minVal`,
+						ValType:      "integer",
+						DefaultValue: int64(10),
+					},
+					{
+						Field:        "spec.params.name",
+						EnvRefKey:    `tasks[task-uuid].spec.params.name`,
+						ValType:      "string",
+						DefaultValue: "max",
+					},
+					{
+						Field:        "spec.params.start",
+						EnvRefKey:    `tasks[task-uuid].spec.params.start`,
+						ValType:      "duration",
+						DefaultValue: "-24h0m0s",
+					},
+					{
+						Field:        "spec.params.stop",
+						EnvRefKey:    `tasks[task-uuid].spec.params.stop`,
+						ValType:      "time",
+						DefaultValue: "now()",
+					},
+				}
+				assert.Equal(t, expectedRefs, actual.EnvReferences)
+			})
+		})
+
+		t.Run("with task option should be valid", func(t *testing.T) {
+			testfileRunner(t, "testdata/task_v2.yml", func(t *testing.T, template *Template) {
+				actual := template.Summary().Tasks
+				require.Len(t, actual, 1)
+
+				expectedEnvRefs := []SummaryReference{
+					{
+						Field:        "spec.task.every",
+						EnvRefKey:    "tasks[task-1].spec.task.every",
+						ValType:      "duration",
+						DefaultValue: time.Minute,
+					},
+					{
+						Field:        "spec.name",
+						EnvRefKey:    "tasks[task-1].spec.task.name",
+						ValType:      "string",
+						DefaultValue: "bar",
+					},
+					{
+						Field:        "spec.task.name",
+						EnvRefKey:    "tasks[task-1].spec.task.name",
+						ValType:      "string",
+						DefaultValue: "bar",
+					},
+					{
+						Field:        "spec.task.offset",
+						EnvRefKey:    "tasks[task-1].spec.task.offset",
+						ValType:      "duration",
+						DefaultValue: time.Minute * 3,
+					},
+				}
+				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
+			})
+		})
+
+		t.Run("with task spec should be valid", func(t *testing.T) {
+			testfileRunner(t, "testdata/task_v2_taskSpec.yml", func(t *testing.T, template *Template) {
+				actual := template.Summary().Tasks
+				require.Len(t, actual, 1)
+
+				expectedEnvRefs := []SummaryReference{
+					{
+						Field:        "spec.task.every",
+						EnvRefKey:    "tasks[task-1].spec.task.every",
+						ValType:      "duration",
+						DefaultValue: time.Minute,
+					},
+					{
+						Field:        "spec.name",
+						EnvRefKey:    "tasks[task-1].spec.task.name",
+						ValType:      "string",
+						DefaultValue: "foo",
+					},
+					{
+						Field:        "spec.task.name",
+						EnvRefKey:    "tasks[task-1].spec.task.name",
+						ValType:      "string",
+						DefaultValue: "foo",
+					},
+					{
+						Field:        "spec.task.offset",
+						EnvRefKey:    "tasks[task-1].spec.task.offset",
+						ValType:      "duration",
+						DefaultValue: time.Minute,
+					},
+				}
+
+				queryText := `option task = {name: "foo", every: 1m0s, offset: 1m0s}
+
+from(bucket: "rucket_1")
+	|> range(start: -5d, stop: -1h)
+	|> filter(fn: (r) =>
+		(r._measurement == "cpu"))
+	|> filter(fn: (r) =>
+		(r._field == "usage_idle"))
+	|> aggregateWindow(every: 1m, fn: mean)
+	|> yield(name: "mean")`
+
+				assert.Equal(t, queryText, actual[0].Query)
+
+				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
+			})
+		})
+
+		t.Run("with params option should be valid", func(t *testing.T) {
+			testfileRunner(t, "testdata/task_v2_params.yml", func(t *testing.T, template *Template) {
+				actual := template.Summary().Tasks
+				require.Len(t, actual, 1)
+
+				expectedEnvRefs := []SummaryReference{
+					{
+						Field:        "spec.params.this",
+						EnvRefKey:    "tasks[task-1].spec.params.this",
+						ValType:      "string",
+						DefaultValue: "foo",
+					},
+				}
+
+				queryText := `option params = {this: "foo"}
+
+from(bucket: "rucket_1")
+	|> range(start: -5d, stop: -1h)
+	|> filter(fn: (r) =>
+		(r._measurement == params.this))
+	|> filter(fn: (r) =>
+		(r._field == "usage_idle"))
+	|> aggregateWindow(every: 1m, fn: mean)
+	|> yield(name: "mean")`
+
+				assert.Equal(t, queryText, actual[0].Query)
+
+				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
 			})
 		})
 
@@ -3228,6 +3660,10 @@ spec:
 
 				expectedEnvRefs := []SummaryReference{
 					{
+						Field:     "spec.associations[0].name",
+						EnvRefKey: "label-meta-name",
+					},
+					{
 						Field:        "metadata.name",
 						EnvRefKey:    "meta-name",
 						DefaultValue: "meta",
@@ -3236,11 +3672,6 @@ spec:
 						Field:        "spec.name",
 						EnvRefKey:    "spec-name",
 						DefaultValue: "spectacles",
-					},
-					{
-						Field:        "spec.associations[0].name",
-						EnvRefKey:    "label-meta-name",
-						DefaultValue: "env-label-meta-name",
 					},
 				}
 				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
@@ -3457,9 +3888,8 @@ spec:
 						DefaultValue: "spectacles",
 					},
 					{
-						Field:        "spec.associations[0].name",
-						EnvRefKey:    "label-meta-name",
-						DefaultValue: "env-label-meta-name",
+						Field:     "spec.associations[0].name",
+						EnvRefKey: "label-meta-name",
 					},
 				}
 				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
@@ -3588,9 +4018,8 @@ spec:
 						DefaultValue: "spectacles",
 					},
 					{
-						Field:        "spec.associations[0].name",
-						EnvRefKey:    "label-meta-name",
-						DefaultValue: "env-label-meta-name",
+						Field:     "spec.associations[0].name",
+						EnvRefKey: "label-meta-name",
 					},
 					{
 						Field:        "spec.selected[0]",
@@ -3598,9 +4027,8 @@ spec:
 						DefaultValue: "second val",
 					},
 					{
-						Field:        "spec.selected[1]",
-						EnvRefKey:    "the-2nd",
-						DefaultValue: "env-the-2nd",
+						Field:     "spec.selected[1]",
+						EnvRefKey: "the-2nd",
 					},
 				}
 				assert.Equal(t, expectedEnvRefs, actual[0].EnvReferences)
@@ -3879,7 +4307,7 @@ spec:
 
 			t.Log("applying env vars should populate env fields")
 			{
-				err := template.applyEnvRefs(map[string]string{
+				err := template.applyEnvRefs(map[string]interface{}{
 					"bkt-1-name-ref":   "bucket-1",
 					"label-1-name-ref": "label-1",
 				})
@@ -4312,7 +4740,7 @@ func testTemplateErrors(t *testing.T, k Kind, tt testTemplateResourceError) {
 
 		defer func() {
 			if t.Failed() {
-				t.Logf("recieved unexpected err: %s", pErr)
+				t.Logf("received unexpected err: %s", pErr)
 			}
 		}()
 
@@ -4420,7 +4848,7 @@ func newParsedTemplate(t *testing.T, fn ReaderFn, encoding Encoding, opts ...Val
 	require.NoError(t, err)
 
 	for _, k := range template.Objects {
-		require.Equal(t, APIVersion, k.APIVersion)
+		require.Contains(t, k.APIVersion, "influxdata.com/v2alpha")
 	}
 
 	require.True(t, template.isParsed)

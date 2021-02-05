@@ -3,7 +3,6 @@ package tenant
 import (
 	"context"
 	"encoding/json"
-	"time"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
@@ -118,28 +117,7 @@ func (s *Store) GetBucketByName(ctx context.Context, tx kv.Tx, orgID influxdb.ID
 
 	// allow for hard coded bucket names that dont exist in the system
 	if kv.IsNotFound(err) {
-		switch n {
-		case influxdb.TasksSystemBucketName:
-			return &influxdb.Bucket{
-				ID:              influxdb.TasksSystemBucketID,
-				Type:            influxdb.BucketTypeSystem,
-				Name:            influxdb.TasksSystemBucketName,
-				RetentionPeriod: influxdb.TasksSystemBucketRetention,
-				Description:     "System bucket for task logs",
-				OrgID:           orgID,
-			}, nil
-		case influxdb.MonitoringSystemBucketName:
-			return &influxdb.Bucket{
-				ID:              influxdb.MonitoringSystemBucketID,
-				Type:            influxdb.BucketTypeSystem,
-				Name:            influxdb.MonitoringSystemBucketName,
-				RetentionPeriod: influxdb.MonitoringSystemBucketRetention,
-				Description:     "System bucket for monitoring logs",
-				OrgID:           orgID,
-			}, nil
-		default:
-			return nil, ErrBucketNotFoundByName(n)
-		}
+		return nil, ErrBucketNotFoundByName(n)
 	}
 
 	if err != nil {
@@ -191,7 +169,17 @@ func (s *Store) ListBuckets(ctx context.Context, tx kv.Tx, filter BucketFilter, 
 	if o.Descending {
 		opts = append(opts, kv.WithCursorDirection(kv.CursorDescending))
 	}
-	cursor, err := b.ForwardCursor(nil, opts...)
+
+	var seek []byte
+	if o.After != nil {
+		after := (*o.After) + 1
+		seek, err = after.Encode()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	cursor, err := b.ForwardCursor(seek, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -276,13 +264,11 @@ func (s *Store) listBucketsByOrg(ctx context.Context, tx kv.Tx, orgID influxdb.I
 	return bs, cursor.Err()
 }
 
-func (s *Store) CreateBucket(ctx context.Context, tx kv.Tx, bucket *influxdb.Bucket) error {
-	if !bucket.ID.Valid() {
-		id, err := s.generateSafeID(ctx, tx, bucketBucket)
-		if err != nil {
-			return err
-		}
-		bucket.ID = id
+func (s *Store) CreateBucket(ctx context.Context, tx kv.Tx, bucket *influxdb.Bucket) (err error) {
+	// generate new bucket ID
+	bucket.ID, err = s.generateSafeID(ctx, tx, bucketBucket, s.BucketIDGen)
+	if err != nil {
+		return err
 	}
 
 	encodedID, err := bucket.ID.Encode()
@@ -294,8 +280,8 @@ func (s *Store) CreateBucket(ctx context.Context, tx kv.Tx, bucket *influxdb.Buc
 		return err
 	}
 
-	bucket.SetCreatedAt(time.Now())
-	bucket.SetUpdatedAt(time.Now())
+	bucket.SetCreatedAt(s.now())
+	bucket.SetUpdatedAt(s.now())
 	idx, err := tx.Bucket(bucketIndex)
 	if err != nil {
 		return err
@@ -338,10 +324,15 @@ func (s *Store) UpdateBucket(ctx context.Context, tx kv.Tx, id influxdb.ID, upd 
 		return nil, err
 	}
 
-	bucket.SetUpdatedAt(time.Now())
+	bucket.SetUpdatedAt(s.now())
 	if upd.Name != nil && bucket.Name != *upd.Name {
+		// validation
 		if bucket.Type == influxdb.BucketTypeSystem {
 			return nil, errRenameSystemBucket
+		}
+
+		if err := validBucketName(*upd.Name, bucket.Type); err != nil {
+			return nil, err
 		}
 
 		if err := s.uniqueBucketName(ctx, tx, bucket.OrgID, *upd.Name); err != nil {

@@ -43,10 +43,19 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       shortLabel: 'Data',
       link: {
         type: 'link',
-        location: `${orgPrefix}/load-data/buckets`,
+        location: `${orgPrefix}/load-data/sources`,
       },
       activeKeywords: ['load-data'],
       menu: [
+        {
+          id: 'sources',
+          testID: 'nav-subitem-sources',
+          label: 'Sources',
+          link: {
+            type: 'link',
+            location: `${orgPrefix}/load-data/sources`,
+          },
+        },
         {
           id: 'buckets',
           testID: 'nav-subitem-buckets',
@@ -84,15 +93,6 @@ export const generateNavItems = (orgID: string): NavItem[] => {
             location: `${orgPrefix}/load-data/tokens`,
           },
         },
-        {
-          id: 'client-libraries',
-          testID: 'nav-subitem-client-libraries',
-          label: 'Client Libraries',
-          link: {
-            type: 'link',
-            location: `${orgPrefix}/load-data/client-libraries`,
-          },
-        },
       ],
     },
     {
@@ -108,17 +108,17 @@ export const generateNavItems = (orgID: string): NavItem[] => {
       activeKeywords: ['data-explorer'],
     },
     {
-      id: 'notebooks',
-      testID: 'nav-item-notebooks',
+      id: 'flows',
+      testID: 'nav-item-flows',
       icon: IconFont.Erlenmeyer,
       label: 'Flows',
       featureFlag: 'notebooks',
       shortLabel: 'Flows',
       link: {
         type: 'link',
-        location: `${orgPrefix}/notebooks`,
+        location: `${orgPrefix}/flows`,
       },
-      activeKeywords: ['notebooks'],
+      activeKeywords: ['flows'],
     },
     {
       id: 'dashboards',

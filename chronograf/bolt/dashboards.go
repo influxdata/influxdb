@@ -4,16 +4,16 @@ import (
 	"context"
 	"strconv"
 
-	bolt "github.com/coreos/bbolt"
 	"github.com/influxdata/influxdb/v2/chronograf"
 	"github.com/influxdata/influxdb/v2/chronograf/bolt/internal"
+	bolt "go.etcd.io/bbolt"
 )
 
 // Ensure DashboardsStore implements chronograf.DashboardsStore.
 var _ chronograf.DashboardsStore = &DashboardsStore{}
 
 // DashboardsBucket is the bolt bucket dashboards are stored in
-var DashboardsBucket = []byte("Dashoard")
+var DashboardsBucket = []byte("Dashoard") // N.B. leave the misspelling for backwards-compat!
 
 // DashboardsStore is the bolt implementation of storing dashboards
 type DashboardsStore struct {

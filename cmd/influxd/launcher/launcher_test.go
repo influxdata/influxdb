@@ -9,21 +9,25 @@ import (
 
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
+	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/http"
-	_ "github.com/influxdata/influxdb/v2/query/builtin"
+	"github.com/influxdata/influxdb/v2/tenant"
 )
 
 // Default context.
 var ctx = context.Background()
 
 func TestLauncher_Setup(t *testing.T) {
-	l := launcher.NewTestLauncher(nil)
-	if err := l.Run(ctx); err != nil {
+	l := launcher.NewTestLauncher()
+	l.RunOrFail(t, ctx)
+	defer l.ShutdownOrFail(t, ctx)
+
+	client, err := http.NewHTTPClient(l.URL(), "", false)
+	if err != nil {
 		t.Fatal(err)
 	}
-	defer l.Shutdown(ctx)
 
-	svc := &http.SetupService{Addr: l.URL()}
+	svc := &tenant.OnboardClientService{Client: client}
 	if results, err := svc.OnboardInitialUser(ctx, &platform.OnboardingRequest{
 		User:     "USER",
 		Password: "PASSWORD",
@@ -45,8 +49,7 @@ func TestLauncher_Setup(t *testing.T) {
 // This is to mimic chronograf using cookies as sessions
 // rather than authorizations
 func TestLauncher_SetupWithUsers(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
-	l.SetupOrFail(t)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	r, err := nethttp.NewRequest("POST", l.URL()+"/api/v2/signin", nil)
@@ -133,7 +136,7 @@ func TestLauncher_SetupWithUsers(t *testing.T) {
 	}{}
 	err = json.Unmarshal(body, &exp)
 	if err != nil {
-		t.Fatalf("unexpected error unmarshaling user: %v", err)
+		t.Fatalf("unexpected error unmarshalling user: %v", err)
 	}
 	if len(exp.Users) != 2 {
 		t.Fatalf("unexpected 2 users: %#+v", exp)

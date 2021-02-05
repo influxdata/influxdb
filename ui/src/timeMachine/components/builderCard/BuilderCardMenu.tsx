@@ -1,8 +1,10 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import classnames from 'classnames'
 
 interface Props {
   testID: string
+  className?: string
 }
 
 export default class BuilderCardMenu extends PureComponent<Props> {
@@ -11,9 +13,13 @@ export default class BuilderCardMenu extends PureComponent<Props> {
   }
 
   public render() {
-    const {testID, children} = this.props
+    const {testID, children, className} = this.props
+    const classname = classnames('builder-card--menu', {
+      [`${className}`]: className,
+    })
+
     return (
-      <div className="builder-card--menu" data-testid={testID}>
+      <div className={classname} data-testid={testID}>
         {children}
       </div>
     )

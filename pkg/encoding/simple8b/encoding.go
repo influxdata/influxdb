@@ -501,7 +501,7 @@ func DecodeBytesBigEndian(dst []uint64, src []byte) (value int, err error) {
 	return j, nil
 }
 
-// canPack returs true if n elements from in can be stored using bits per element
+// canPack returns true if n elements from in can be stored using bits per element
 func canPack(src []uint64, n, bits int) bool {
 	if len(src) < n {
 		return false

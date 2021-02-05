@@ -57,8 +57,13 @@ var (
 		Code: EInvalid,
 	}
 
+	// ErrPageSizeTooLarge indicates the page size is too large. This error is only
+	// used in the kv task service implementation. The name of this error may lead it
+	// to be used in a place that is not useful. The TaskMaxPageSize is the only one
+	// at 500, the rest at 100. This would likely benefit from a more specific name
+	// since those limits aren't shared globally.
 	ErrPageSizeTooLarge = &Error{
-		Msg:  fmt.Sprintf("cannot use page size larger then %d", MaxPageSize),
+		Msg:  fmt.Sprintf("cannot use page size larger then %d", TaskMaxPageSize),
 		Code: EInvalid,
 	}
 
@@ -89,7 +94,7 @@ var (
 func ErrFluxParseError(err error) *Error {
 	return &Error{
 		Code: EInvalid,
-		Msg:  fmt.Sprintf("could not parse Flux script; Err: %v", err),
+		Msg:  "could not parse Flux script",
 		Op:   "taskExecutor",
 		Err:  err,
 	}
@@ -99,7 +104,7 @@ func ErrFluxParseError(err error) *Error {
 func ErrQueryError(err error) *Error {
 	return &Error{
 		Code: EInternal,
-		Msg:  fmt.Sprintf("unexpected error from queryd; Err: %v", err),
+		Msg:  "unexpected error from queryd",
 		Op:   "taskExecutor",
 		Err:  err,
 	}
@@ -109,7 +114,7 @@ func ErrQueryError(err error) *Error {
 func ErrResultIteratorError(err error) *Error {
 	return &Error{
 		Code: EInvalid,
-		Msg:  fmt.Sprintf("Error exhausting result iterator; Err: %v", err),
+		Msg:  "error exhausting result iterator",
 		Op:   "taskExecutor",
 		Err:  err,
 	}
@@ -118,7 +123,7 @@ func ErrResultIteratorError(err error) *Error {
 func ErrInternalTaskServiceError(err error) *Error {
 	return &Error{
 		Code: EInternal,
-		Msg:  fmt.Sprintf("unexpected error in tasks; Err: %v", err),
+		Msg:  "unexpected error in tasks",
 		Op:   "task",
 		Err:  err,
 	}
@@ -128,7 +133,7 @@ func ErrInternalTaskServiceError(err error) *Error {
 func ErrUnexpectedTaskBucketErr(err error) *Error {
 	return &Error{
 		Code: EInternal,
-		Msg:  fmt.Sprintf("unexpected error retrieving task bucket; Err: %v", err),
+		Msg:  "unexpected error retrieving task bucket",
 		Op:   "taskBucket",
 		Err:  err,
 	}
@@ -138,7 +143,7 @@ func ErrUnexpectedTaskBucketErr(err error) *Error {
 func ErrTaskTimeParse(err error) *Error {
 	return &Error{
 		Code: EInternal,
-		Msg:  fmt.Sprintf("unexpected error parsing time; Err: %v", err),
+		Msg:  "unexpected error parsing time",
 		Op:   "taskCron",
 		Err:  err,
 	}
@@ -147,17 +152,8 @@ func ErrTaskTimeParse(err error) *Error {
 func ErrTaskOptionParse(err error) *Error {
 	return &Error{
 		Code: EInvalid,
-		Msg:  fmt.Sprintf("invalid options; Err: %v", err),
+		Msg:  "invalid options",
 		Op:   "taskOptions",
-		Err:  err,
-	}
-}
-
-func ErrJsonMarshalError(err error) *Error {
-	return &Error{
-		Code: EInvalid,
-		Msg:  fmt.Sprintf("unable to marshal JSON; Err: %v", err),
-		Op:   "taskScheduler",
 		Err:  err,
 	}
 }
@@ -165,7 +161,7 @@ func ErrJsonMarshalError(err error) *Error {
 func ErrRunExecutionError(err error) *Error {
 	return &Error{
 		Code: EInternal,
-		Msg:  fmt.Sprintf("could not execute task run; Err: %v", err),
+		Msg:  "could not execute task run",
 		Op:   "taskExecutor",
 		Err:  err,
 	}

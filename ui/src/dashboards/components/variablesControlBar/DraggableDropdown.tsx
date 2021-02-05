@@ -103,14 +103,14 @@ class Dropdown extends React.Component<
   }
 }
 
-export default DropTarget<Props & DropdownTargetCollectedProps>(
+export default DropTarget<Props, DropdownTargetCollectedProps>(
   dropdownType,
   dropdownTarget,
   (connect: DropTargetConnector) => ({
     connectDropTarget: connect.dropTarget(),
   })
 )(
-  DragSource<Props & DropdownSourceCollectedProps>(
+  DragSource<Props, DropdownSourceCollectedProps>(
     dropdownType,
     dropdownSource,
     (connect: DragSourceConnector, monitor: DragSourceMonitor) => ({

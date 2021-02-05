@@ -32,6 +32,7 @@ import {
   createEndpoint,
   createDashWithCell,
   createDashWithViewAndVar,
+  createRule,
 } from './support/commands'
 
 declare global {
@@ -67,6 +68,7 @@ declare global {
       createToken: typeof createToken
       writeData: typeof writeData
       createEndpoint: typeof createEndpoint
+      createRule: typeof createRule
     }
   }
 }

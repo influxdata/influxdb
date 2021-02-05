@@ -20,9 +20,10 @@ import (
 	"github.com/fatih/color"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
-	ihttp "github.com/influxdata/influxdb/v2/http"
+	internal2 "github.com/influxdata/influxdb/v2/cmd/internal"
 	ierror "github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/pkger"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	input "github.com/tcnksm/go-input"
@@ -61,6 +62,7 @@ type cmdTemplateBuilder struct {
 	disableTableBorders bool
 	hideHeaders         bool
 	json                bool
+	force               bool
 	name                string
 	names               []string
 	org                 organization
@@ -77,16 +79,25 @@ type cmdTemplateBuilder struct {
 	}
 
 	exportOpts struct {
-		resourceType string
-		buckets      string
-		checks       string
-		dashboards   string
-		endpoints    string
-		labels       string
-		rules        string
-		tasks        string
-		telegrafs    string
-		variables    string
+		resourceType   string
+		buckets        string
+		checks         string
+		dashboards     string
+		endpoints      string
+		labels         string
+		rules          string
+		tasks          string
+		telegrafs      string
+		variables      string
+		bucketNames    string
+		checkNames     string
+		dashboardNames string
+		endpointNames  string
+		labelNames     string
+		ruleNames      string
+		taskNames      string
+		telegrafNames  string
+		variableNames  string
 	}
 
 	updateStackOpts struct {
@@ -104,7 +115,6 @@ func newCmdPkgerBuilder(svcFn templateSVCsFn, f *globalFlags, opts genericCLIOpt
 
 func (b *cmdTemplateBuilder) cmdApply() *cobra.Command {
 	cmd := b.newCmd("apply", b.applyRunEFn)
-	enforceFlagValidation(cmd)
 	cmd.Short = "Apply a template to manage resources"
 	cmd.Long = `
 	The apply command applies InfluxDB template(s). Use the command to create new
@@ -162,7 +172,7 @@ func (b *cmdTemplateBuilder) cmdApply() *cobra.Command {
 	https://github.com/influxdata/community-templates.
 `
 
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 	b.registerTemplateFileFlags(cmd)
 	b.registerTemplatePrintOpts(cmd)
 	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "Disable output printing")
@@ -215,7 +225,7 @@ func (b *cmdTemplateBuilder) applyRunEFn(cmd *cobra.Command, args []string) erro
 
 	opts := []pkger.ApplyOptFn{
 		pkger.ApplyWithTemplate(template),
-		pkger.ApplyWithEnvRefs(providedEnvRefs),
+		pkger.ApplyWithEnvRefs(toMapInterface(providedEnvRefs)),
 		pkger.ApplyWithStackID(stackID),
 	}
 
@@ -352,6 +362,15 @@ func (b *cmdTemplateBuilder) cmdExport() *cobra.Command {
 	cmd.Flags().StringVar(&b.exportOpts.tasks, "tasks", "", "List of task ids comma separated")
 	cmd.Flags().StringVar(&b.exportOpts.telegrafs, "telegraf-configs", "", "List of telegraf config ids comma separated")
 	cmd.Flags().StringVar(&b.exportOpts.variables, "variables", "", "List of variable ids comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.bucketNames, "bucket-names", "", "List of bucket names comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.checkNames, "check-names", "", "List of check names comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.dashboardNames, "dashboard-names", "", "List of dashboard names comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.endpointNames, "endpoint-names", "", "List of notification endpoint names comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.labelNames, "label-names", "", "List of label names comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.ruleNames, "rule-names", "", "List of notification rule names comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.taskNames, "task-names", "", "List of task names comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.telegrafNames, "telegraf-config-names", "", "List of telegraf config names comma separated")
+	cmd.Flags().StringVar(&b.exportOpts.variableNames, "variable-names", "", "List of variable names comma separated")
 
 	return cmd
 }
@@ -365,21 +384,22 @@ func (b *cmdTemplateBuilder) exportRunEFn(cmd *cobra.Command, args []string) err
 	resTypes := []struct {
 		kind   pkger.Kind
 		idStrs []string
+		names  []string
 	}{
-		{kind: pkger.KindBucket, idStrs: strings.Split(b.exportOpts.buckets, ",")},
-		{kind: pkger.KindCheck, idStrs: strings.Split(b.exportOpts.checks, ",")},
-		{kind: pkger.KindDashboard, idStrs: strings.Split(b.exportOpts.dashboards, ",")},
-		{kind: pkger.KindLabel, idStrs: strings.Split(b.exportOpts.labels, ",")},
-		{kind: pkger.KindNotificationEndpoint, idStrs: strings.Split(b.exportOpts.endpoints, ",")},
-		{kind: pkger.KindNotificationRule, idStrs: strings.Split(b.exportOpts.rules, ",")},
-		{kind: pkger.KindTask, idStrs: strings.Split(b.exportOpts.tasks, ",")},
-		{kind: pkger.KindTelegraf, idStrs: strings.Split(b.exportOpts.telegrafs, ",")},
-		{kind: pkger.KindVariable, idStrs: strings.Split(b.exportOpts.variables, ",")},
+		{kind: pkger.KindBucket, idStrs: strings.Split(b.exportOpts.buckets, ","), names: strings.Split(b.exportOpts.bucketNames, ",")},
+		{kind: pkger.KindCheck, idStrs: strings.Split(b.exportOpts.checks, ","), names: strings.Split(b.exportOpts.checkNames, ",")},
+		{kind: pkger.KindDashboard, idStrs: strings.Split(b.exportOpts.dashboards, ","), names: strings.Split(b.exportOpts.dashboardNames, ",")},
+		{kind: pkger.KindLabel, idStrs: strings.Split(b.exportOpts.labels, ","), names: strings.Split(b.exportOpts.labelNames, ",")},
+		{kind: pkger.KindNotificationEndpoint, idStrs: strings.Split(b.exportOpts.endpoints, ","), names: strings.Split(b.exportOpts.endpointNames, ",")},
+		{kind: pkger.KindNotificationRule, idStrs: strings.Split(b.exportOpts.rules, ","), names: strings.Split(b.exportOpts.ruleNames, ",")},
+		{kind: pkger.KindTask, idStrs: strings.Split(b.exportOpts.tasks, ","), names: strings.Split(b.exportOpts.taskNames, ",")},
+		{kind: pkger.KindTelegraf, idStrs: strings.Split(b.exportOpts.telegrafs, ","), names: strings.Split(b.exportOpts.telegrafNames, ",")},
+		{kind: pkger.KindVariable, idStrs: strings.Split(b.exportOpts.variables, ","), names: strings.Split(b.exportOpts.variableNames, ",")},
 	}
 
 	var opts []pkger.ExportOptFn
 	for _, rt := range resTypes {
-		newOpt, err := newResourcesToClone(rt.kind, rt.idStrs)
+		newOpt, err := newResourcesToClone(rt.kind, rt.idStrs, rt.names)
 		if err != nil {
 			return ierror.Wrap(err, rt.kind.String())
 		}
@@ -411,7 +431,7 @@ func (b *cmdTemplateBuilder) exportRunEFn(cmd *cobra.Command, args []string) err
 		}
 	}
 
-	resTypeOpt, err := newResourcesToClone(resKind, args)
+	resTypeOpt, err := newResourcesToClone(resKind, args, []string{})
 	if err != nil {
 		return err
 	}
@@ -456,12 +476,11 @@ func (b *cmdTemplateBuilder) cmdExportAll() *cobra.Command {
 	and
 	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/export/all
 `
-	enforceFlagValidation(cmd)
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created template; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
 	cmd.Flags().StringArrayVar(&b.filters, "filter", nil, "Filter exported resources by labelName or resourceKind (format: --filter=labelName=example)")
 
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 
 	return cmd
 }
@@ -528,7 +547,7 @@ func (b *cmdTemplateBuilder) cmdExportStack() *cobra.Command {
 	cmd.Args = cobra.ExactValidArgs(1)
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created template; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 
 	return cmd
 }
@@ -593,9 +612,9 @@ func (b *cmdTemplateBuilder) cmdStacks() *cobra.Command {
 	cmd := b.newCmd("stacks [flags]", b.stackListRunEFn)
 	cmd.Flags().StringArrayVar(&b.stackIDs, "stack-id", nil, "Stack ID to filter by")
 	cmd.Flags().StringArrayVar(&b.names, "stack-name", nil, "Stack name to filter by")
-	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
 
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 
 	cmd.Short = "List stack(s) and associated templates. Subcommands manage stacks."
 	cmd.Long = `
@@ -656,9 +675,9 @@ func (b *cmdTemplateBuilder) cmdStackInit() *cobra.Command {
 	cmd.Flags().StringVarP(&b.name, "stack-name", "n", "", "Name given to created stack")
 	cmd.Flags().StringVarP(&b.description, "stack-description", "d", "", "Description given to created stack")
 	cmd.Flags().StringArrayVarP(&b.urls, "template-url", "u", nil, "Template urls to associate with new stack")
-	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
 
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 
 	return cmd
 }
@@ -735,10 +754,11 @@ func (b *cmdTemplateBuilder) cmdStackRemove() *cobra.Command {
 	cmd.Aliases = []string{"remove", "uninstall"}
 
 	cmd.Flags().StringArrayVar(&b.stackIDs, "stack-id", nil, "Stack IDs to be removed")
+	cmd.Flags().BoolVar(&b.force, "force", false, "Remove stack without confirmation prompt")
 	cmd.MarkFlagRequired("stack-id")
-	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
 
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 
 	return cmd
 }
@@ -792,10 +812,12 @@ func (b *cmdTemplateBuilder) stackRemoveRunEFn(cmd *cobra.Command, args []string
 			return err
 		}
 
-		msg := fmt.Sprintf("Confirm removal of the stack[%s] and all associated resources (y/n)", stack.ID)
-		confirm := b.getInput(msg, "n")
-		if confirm != "y" {
-			continue
+		if !b.force {
+			msg := fmt.Sprintf("Confirm removal of the stack[%s] and all associated resources (y/n)", stack.ID)
+			confirm := b.getInput(msg, "n")
+			if confirm != "y" {
+				continue
+			}
 		}
 
 		err := templateSVC.DeleteStack(context.Background(), struct{ OrgID, UserID, StackID influxdb.ID }{
@@ -850,7 +872,7 @@ func (b *cmdTemplateBuilder) cmdStackUpdate() *cobra.Command {
 	cmd.Flags().StringArrayVarP(&b.urls, "template-url", "u", nil, "Template urls to associate with stack")
 	cmd.Flags().StringArrayVar(&b.updateStackOpts.addResources, "addResource", nil, "Additional resources to associate with stack")
 	cmd.Flags().StringVarP(&b.file, "export-file", "f", "", "Destination for exported template")
-	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
 
 	return cmd
 }
@@ -866,16 +888,27 @@ func (b *cmdTemplateBuilder) stackUpdateRunEFn(cmd *cobra.Command, args []string
 		return ierror.Wrap(err, "required stack id is invalid")
 	}
 
+	var name, description *string
+
+	if cmd.Flags().Lookup("stack-name").Changed {
+		name = &b.name
+	}
+	if cmd.Flags().Lookup("stack-description").Changed {
+		description = &b.description
+	}
+
 	update := pkger.StackUpdate{
 		ID:           *stackID,
-		Name:         &b.name,
-		Description:  &b.description,
+		Name:         name,
+		Description:  description,
 		TemplateURLs: b.urls,
 	}
 
+	failedString := []string{}
 	for _, res := range b.updateStackOpts.addResources {
 		parts := strings.SplitN(res, "=", 2)
 		if len(parts) < 2 {
+			failedString = append(failedString, res)
 			continue
 		}
 
@@ -893,6 +926,10 @@ func (b *cmdTemplateBuilder) stackUpdateRunEFn(cmd *cobra.Command, args []string
 			ID:         *id,
 			Kind:       kind,
 		})
+	}
+
+	if len(failedString) > 0 {
+		return errors.New("invalid 'resourceType=resourceID' key value pair[s]: " + strings.Join(failedString, ";"))
 	}
 
 	stack, err := templateSVC.UpdateStack(context.Background(), update)
@@ -940,14 +977,14 @@ func (b *cmdTemplateBuilder) writeStack(stack pkger.Stack) error {
 
 func (b *cmdTemplateBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
 	cmd := b.genericCLIOpts.newCmd(use, runE, true)
-	b.globalFlags.registerFlags(cmd)
+	b.globalFlags.registerFlags(b.viper, cmd)
 	return cmd
 }
 
 func (b *cmdTemplateBuilder) registerTemplatePrintOpts(cmd *cobra.Command) {
-	cmd.Flags().BoolVarP(&b.disableColor, "disable-color", "c", false, "Disable color in output")
+	cmd.Flags().BoolVar(&b.disableColor, "disable-color", false, "Disable color in output")
 	cmd.Flags().BoolVar(&b.disableTableBorders, "disable-table-borders", false, "Disable table borders")
-	registerPrintOptions(cmd, nil, &b.json)
+	registerPrintOptions(b.viper, cmd, nil, &b.json)
 }
 
 func (b *cmdTemplateBuilder) registerTemplateFileFlags(cmd *cobra.Command) {
@@ -1092,7 +1129,7 @@ func (b *cmdTemplateBuilder) getInput(msg, defaultVal string) string {
 		Writer: b.w,
 		Reader: b.in,
 	}
-	return getInput(ui, msg, defaultVal)
+	return internal2.GetInput(ui, msg, defaultVal)
 }
 
 func (b *cmdTemplateBuilder) convertURLEncoding(url string) pkger.Encoding {
@@ -1135,7 +1172,7 @@ func (b *cmdTemplateBuilder) convertEncoding() pkger.Encoding {
 	}
 }
 
-func newResourcesToClone(kind pkger.Kind, idStrs []string) (pkger.ExportOptFn, error) {
+func newResourcesToClone(kind pkger.Kind, idStrs, names []string) (pkger.ExportOptFn, error) {
 	ids, err := toInfluxIDs(idStrs)
 	if err != nil {
 		return nil, err
@@ -1148,6 +1185,15 @@ func newResourcesToClone(kind pkger.Kind, idStrs []string) (pkger.ExportOptFn, e
 			ID:   id,
 		})
 	}
+	for _, name := range names {
+		if len(name) == 0 {
+			continue
+		}
+		resources = append(resources, pkger.ResourceToClone{
+			Kind: kind,
+			Name: name,
+		})
+	}
 	return pkger.ExportWithExistingResources(resources...), nil
 }
 
@@ -1158,7 +1204,7 @@ func toInfluxIDs(args []string) ([]influxdb.ID, error) {
 	)
 	for _, arg := range args {
 		normedArg := strings.TrimSpace(strings.ToLower(arg))
-		if normedArg == "" {
+		if len(normedArg) == 0 {
 			continue
 		}
 
@@ -1198,7 +1244,7 @@ func newPkgerSVC() (pkger.SVC, influxdb.OrganizationService, error) {
 		return nil, nil, err
 	}
 
-	orgSvc := &ihttp.OrganizationService{
+	orgSvc := &tenant.OrgClientService{
 		Client: httpClient,
 	}
 
@@ -2044,6 +2090,14 @@ func mapKeys(provided, kvPairs []string) map[string]string {
 		out[k] = v
 	}
 
+	return out
+}
+
+func toMapInterface(m map[string]string) map[string]interface{} {
+	out := make(map[string]interface{})
+	for k, v := range m {
+		out[k] = v
+	}
 	return out
 }
 

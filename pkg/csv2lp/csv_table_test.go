@@ -104,6 +104,7 @@ func Test_CsvTable_FluxQueryResult(t *testing.T) {
 				require.Equal(t, table.Tags()[0].Label, "cpu")
 				require.Equal(t, table.Tags()[1].Label, "host")
 				require.Equal(t, len(table.Fields()), 0)
+				require.Contains(t, table.ColumnLabels(), "_measurement")
 			}
 		}
 	}
@@ -255,6 +256,15 @@ func Test_CsvTableProcessing(t *testing.T) {
 			"#default cpu,yes,0,1\n#datatype ,tag,,\n_measurement,test,col1,_time\n,,,",
 			"cpu,test=yes col1=0 1",
 		},
+		{
+			"no duplicate tags", // duplicate tags are ignored, the last column wins, https://github.com/influxdata/influxdb/issues/19453
+			"#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string,string,string,string,string,string,string,string\n" +
+				"#group,true,true,false,false,false,false,true,true,true,true,true,true,true,true,true,true\n" +
+				"#default,_result,,,,,,,,,,,,,,,\n" +
+				",result,table,_start,_stop,_time,_value,_field,_measurement,env,host,hostname,nodename,org,result,table,url\n" +
+				",,0,2020-08-26T23:10:54.023607624Z,2020-08-26T23:15:54.023607624Z,2020-08-26T23:11:00Z,0,0.001,something,host,pod,node,host,,success,role,http://127.0.0.1:8099/metrics\n",
+			"something,env=host,host=pod,hostname=node,nodename=host,result=success,table=role,url=http://127.0.0.1:8099/metrics 0.001=0 1598483460000000000",
+		},
 	}
 
 	for _, test := range tests {
@@ -323,46 +333,108 @@ func Test_ConstantAnnotations(t *testing.T) {
 	}
 }
 
+// Test_ConcatAnnotations tests processing of concat annotations
+func Test_ConcatAnnotations(t *testing.T) {
+	var tests = []struct {
+		name string
+		csv  string
+		line string
+	}{
+		{
+			"measurement_1",
+			"#concat measurement,cpu\n" +
+				"a,b\n" +
+				"1,1",
+			"cpu a=1,b=1",
+		},
+		{
+			"measurement_2",
+			"#concat,measurement,${a}${b}\n" +
+				"#constant,tag,cpu,cpu1\n" +
+				"#constant,long,of,0\n" +
+				"#constant,dateTime,,2\n" +
+				"a,b\n" +
+				"1,1",
+			"11,cpu=cpu1 a=1,b=1,of=0i 2",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			rows := readCsv(t, test.csv)
+			table := CsvTable{}
+			var lines []string
+			for _, row := range rows {
+				rowProcessed := table.AddRow(row)
+				if rowProcessed {
+					line, err := table.CreateLine(row)
+					if err != nil && test.line != "" {
+						require.Nil(t, err.Error())
+					}
+					lines = append(lines, line)
+				}
+			}
+			require.Equal(t, []string{test.line}, lines)
+		})
+	}
+}
+
 // Test_DataTypeInColumnName tests specification of column data type in the header row
 func Test_DataTypeInColumnName(t *testing.T) {
 	var tests = []struct {
 		csv                        string
 		line                       string
 		ignoreDataTypeInColumnName bool
+		error                      string
 	}{
 		{
-			"m|measurement,b|boolean:x:,c|boolean:x:|x\n" +
+			csv: "m|measurement,b|boolean:x:,c|boolean:x:|x\n" +
 				"cpu,,",
-			`cpu c=true`,
-			false,
+			line: `cpu c=true`,
 		},
 		{
-			"m|measurement,a|boolean,b|boolean:0:1,c|boolean:x:,d|boolean:x:\n" +
+			csv: "m|measurement,a|boolean,b|boolean:0:1,c|boolean:x:,d|boolean:x:\n" +
 				"cpu,1,1,x,y",
-			`cpu a=true,b=false,c=true,d=false`,
-			false,
+			line: `cpu a=true,b=false,c=true,d=false`,
 		},
 		{
-			"#constant measurement,cpu\n" +
+			csv: "#constant measurement,cpu\n" +
 				"a|long,b|string\n" +
 				"1,1",
-			`cpu a=1i,b="1"`,
-			false,
+			line: `cpu a=1i,b="1"`,
 		},
 		{
-			"#constant measurement,cpu\n" +
+			csv: "#constant measurement,cpu\n" +
 				"a|long,b|string\n" +
 				"1,1",
-			`cpu a|long=1,b|string=1`,
-			true,
+			line:                       `cpu a|long=1,b|string=1`,
+			ignoreDataTypeInColumnName: true,
 		},
 		{
-			"#constant measurement,cpu\n" +
+			csv: "#constant measurement,cpu\n" +
 				"#datatype long,string\n" +
 				"a|long,b|string\n" +
 				"1,1",
-			`cpu a|long=1i,b|string="1"`,
-			true,
+			line:                       `cpu a|long=1i,b|string="1"`,
+			ignoreDataTypeInColumnName: true,
+		},
+		{
+			csv: "#constant measurement,cpu\n" +
+				"a|long:strict: ,b|unsignedLong:strict: \n" +
+				"1 2,1 2",
+			line: `cpu a=12i,b=12u`,
+		},
+		{
+			csv: "#constant measurement,cpu\n" +
+				"a|long:strict\n" +
+				"1.1,1",
+			error: "column 'a': '1.1' cannot fit into long data type",
+		},
+		{
+			csv: "#constant measurement,cpu\n" +
+				"a|unsignedLong:strict\n" +
+				"1.1,1",
+			error: "column 'a': '1.1' cannot fit into unsignedLong data type",
 		},
 	}
 
@@ -376,8 +448,12 @@ func Test_DataTypeInColumnName(t *testing.T) {
 				rowProcessed := table.AddRow(row)
 				if rowProcessed {
 					line, err := table.CreateLine(row)
-					if err != nil && test.line != "" {
-						require.Nil(t, err.Error())
+					if err != nil {
+						if test.error == "" {
+							require.Nil(t, err.Error())
+						} else {
+							require.Equal(t, test.error, err.Error())
+						}
 					}
 					lines = append(lines, line)
 				}
@@ -424,6 +500,10 @@ func Test_CsvTable_dataErrors(t *testing.T) {
 		{
 			"error_no_measurement_data",
 			"_measurement,col1\n,2",
+		},
+		{
+			"error_derived_column_missing reference",
+			"#concat string,d,${col1}${col2}\n_measurement,col1\nm,2",
 		},
 	}
 

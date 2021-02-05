@@ -147,11 +147,7 @@ func (s *Store) ListUsers(ctx context.Context, tx kv.Tx, opt ...influxdb.FindOpt
 
 func (s *Store) CreateUser(ctx context.Context, tx kv.Tx, u *influxdb.User) error {
 	if !u.ID.Valid() {
-		id, err := s.generateSafeID(ctx, tx, userBucket)
-		if err != nil {
-			return err
-		}
-		u.ID = id
+		u.ID = s.IDGen.ID()
 	}
 
 	encodedID, err := u.ID.Encode()

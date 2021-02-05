@@ -19,8 +19,12 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/feature"
+	influxdbmock "github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/task/backend"
 	"github.com/influxdata/influxdb/v2/task/options"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // BackendComponentFactory is supplied by consumers of the adaptertest package,
@@ -136,13 +140,20 @@ func (tc TestCreds) Authorizer() influxdb.Authorizer {
 	}
 }
 
-// UsedServices is a simple interface that contains all the service we need
-// now we dont have to use a specific implementation of these services.
-type UsedServices interface {
-	influxdb.UserService
-	influxdb.OrganizationService
-	influxdb.UserResourceMappingService
-	influxdb.AuthorizationService
+type OrganizationService interface {
+	CreateOrganization(ctx context.Context, b *influxdb.Organization) error
+}
+
+type UserService interface {
+	CreateUser(ctx context.Context, u *influxdb.User) error
+}
+
+type UserResourceMappingService interface {
+	CreateUserResourceMapping(ctx context.Context, m *influxdb.UserResourceMapping) error
+}
+
+type AuthorizationService interface {
+	CreateAuthorization(ctx context.Context, a *influxdb.Authorization) error
 }
 
 // System  as in "system under test" encapsulates the required parts of a influxdb.TaskAdapter
@@ -150,7 +161,10 @@ type System struct {
 	TaskControlService backend.TaskControlService
 
 	// Used in the Creds function to create valid organizations, users, tokens, etc.
-	I UsedServices
+	OrganizationService        OrganizationService
+	UserService                UserService
+	UserResourceMappingService UserResourceMappingService
+	AuthorizationService       AuthorizationService
 
 	// Set this context, to be used in tests, so that any spawned goroutines watching Ctx.Done()
 	// will clean up after themselves.
@@ -165,6 +179,9 @@ type System struct {
 	// the caller should set this value and return valid IDs and a valid token.
 	// It is safe if this returns the same values every time it is called.
 	CredsFunc func(*testing.T) (TestCreds, error)
+
+	// Toggles behavior between KV and archive storage because FinishRun() deletes runs after completion
+	CallFinishRun bool
 }
 
 func testTaskCRUD(t *testing.T, sys *System) {
@@ -270,8 +287,6 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		LatestScheduled: tsk.LatestScheduled,
 		OrganizationID:  cr.OrgID,
 		Organization:    cr.Org,
-		AuthorizationID: tsk.AuthorizationID,
-		Authorization:   tsk.Authorization,
 		OwnerID:         tsk.OwnerID,
 		Name:            "task #0",
 		Cron:            "* * * * *",
@@ -280,10 +295,6 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		Flux:            fmt.Sprintf(scriptFmt, 0),
 		Type:            influxdb.TaskSystemType,
 	}
-
-	// tasks sets user id on authorization to that
-	// of the tasks owner
-	want.Authorization.UserID = tsk.OwnerID
 
 	for fn, f := range found {
 		if diff := cmp.Diff(f, want); diff != "" {
@@ -365,6 +376,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	if origID != f.ID {
 		t.Fatalf("task ID unexpectedly changed during update, from %s to %s", origID.String(), f.ID.String())
 	}
+
 	if f.Flux != newFlux {
 		t.Fatalf("wrong flux from update; want %q, got %q", newFlux, f.Flux)
 	}
@@ -416,7 +428,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 
 	// Update task: switch to every.
 	newStatus = string(influxdb.TaskActive)
-	newFlux = "option task = {\n\tname: \"task-changed #98\",\n\tevery: 30s,\n\toffset: 5s,\n\tconcurrency: 100,\n}\n\nfrom(bucket: \"b\")\n\t|> to(bucket: \"two\", orgID: \"000000000000000\")"
+	newFlux = "option task = {\n\tname: \"task-changed #98\",\n\toffset: 5s,\n\tconcurrency: 100,\n\tevery: 30s,\n}\n\nfrom(bucket: \"b\")\n\t|> to(bucket: \"two\", orgID: \"000000000000000\")"
 	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, influxdb.TaskUpdate{Options: options.Options{Every: *(options.MustParseDuration("30s"))}})
 	if err != nil {
 		t.Fatal(err)
@@ -645,7 +657,7 @@ from(bucket: "b")
 		t.Fatal(err)
 	}
 	t.Run("update task and delete offset", func(t *testing.T) {
-		expectedFlux := `option task = {name: "task-Options-Update", every: 10s, concurrency: 100}
+		expectedFlux := `option task = {name: "task-Options-Update", concurrency: 100, every: 10s}
 
 from(bucket: "b")
 	|> to(bucket: "two", orgID: "000000000000000")`
@@ -665,8 +677,8 @@ from(bucket: "b")
 	t.Run("update task with different offset option", func(t *testing.T) {
 		expectedFlux := `option task = {
 	name: "task-Options-Update",
-	every: 10s,
 	concurrency: 100,
+	every: 10s,
 	offset: 10s,
 }
 
@@ -897,7 +909,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 			t.Fatalf("failed to error with out of bounds run limit: %d", influxdb.TaskMaxPageSize+1)
 		}
 
-		requestedAt := time.Now().Add(5 * time.Minute).UTC() // This should guarantee we can make two runs.
+		requestedAt := time.Now().Add(time.Hour * -1).UTC() // This should guarantee we can make two runs.
 
 		rc0, err := sys.TaskControlService.CreateRun(sys.Ctx, task.ID, requestedAt, requestedAt.Add(time.Second))
 		if err != nil {
@@ -989,6 +1001,78 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 	})
 
+	t.Run("FindRunsByTime", func(t *testing.T) {
+
+		t.Parallel()
+		ctx := icontext.SetAuthorizer(sys.Ctx, cr.Authorizer())
+		ctx, err := feature.Annotate(ctx, influxdbmock.NewFlagger(map[feature.Flag]interface{}{
+			feature.TimeFilterFlags(): true,
+		}))
+		require.NoError(t, err)
+
+		// Script is set to run every minute. The platform adapter is currently hardcoded to schedule after "now",
+		// which makes timing of runs somewhat difficult.
+		ct := influxdb.TaskCreate{
+			OrganizationID: cr.OrgID,
+			Flux:           fmt.Sprintf(scriptFmt, 0),
+			OwnerID:        cr.UserID,
+		}
+		task, err := sys.TaskService.CreateTask(ctx, ct)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		// set to one hour before now because of bucket retention policy
+		scheduledFor := time.Now().Add(time.Hour * -1).UTC()
+		runs := make([]*influxdb.Run, 0, 5)
+		// create runs to put into Context
+		for i := 5; i > 0; i-- {
+			run, err := sys.TaskControlService.CreateRun(ctx, task.ID, scheduledFor.Add(time.Second*time.Duration(i)), scheduledFor.Add(time.Second*time.Duration(i)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = sys.TaskControlService.UpdateRunState(ctx, task.ID, run.ID, scheduledFor.Add(time.Second*time.Duration(i+1)), influxdb.RunStarted)
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = sys.TaskControlService.UpdateRunState(ctx, task.ID, run.ID, scheduledFor.Add(time.Second*time.Duration(i+2)), influxdb.RunSuccess)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// setting run in memory to match the fields in Context
+			run.StartedAt = scheduledFor.Add(time.Second * time.Duration(i+1))
+			run.FinishedAt = scheduledFor.Add(time.Second * time.Duration(i+2))
+			run.RunAt = scheduledFor.Add(time.Second * time.Duration(i))
+			run.Status = influxdb.RunSuccess.String()
+			run.Log = nil
+
+			if sys.CallFinishRun {
+				run, err = sys.TaskControlService.FinishRun(ctx, task.ID, run.ID)
+				if err != nil {
+					t.Fatal(err)
+				}
+				// Analytical storage does not store run at
+				run.RunAt = time.Time{}
+			}
+
+			runs = append(runs, run)
+		}
+
+		found, _, err := sys.TaskService.FindRuns(ctx,
+			influxdb.RunFilter{
+				Task:       task.ID,
+				Limit:      2,
+				AfterTime:  scheduledFor.Add(time.Second * time.Duration(1)).Format(time.RFC3339),
+				BeforeTime: scheduledFor.Add(time.Second * time.Duration(4)).Format(time.RFC3339),
+			})
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		assert.Equal(t, runs[2:4], found)
+
+	})
+
 	t.Run("ForceRun", func(t *testing.T) {
 		t.Parallel()
 
@@ -1012,8 +1096,6 @@ func testTaskRuns(t *testing.T, sys *System) {
 			t.Fatalf("expected: 1970-01-01T00:01:17Z, got %s", r.ScheduledFor)
 		}
 
-		// TODO(lh): Once we have moved over to kv we can list runs and see the manual queue in the list
-
 		// Forcing the same run before it's executed should be rejected.
 		if _, err = sys.TaskService.ForceRun(sys.Ctx, task.ID, scheduledFor); err == nil {
 			t.Fatalf("subsequent force should have been rejected; failed to error: %s", task.ID)
@@ -1033,7 +1115,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 			t.Fatal(err)
 		}
 
-		requestedAt := time.Now().Add(5 * time.Minute).UTC() // This should guarantee we can make a run.
+		requestedAt := time.Now().Add(time.Hour * -1).UTC() // This should guarantee we can make a run.
 
 		// Create two runs.
 		rc1, err := sys.TaskControlService.CreateRun(sys.Ctx, task.ID, requestedAt, requestedAt.Add(time.Second))
@@ -1342,7 +1424,7 @@ func testRunStorage(t *testing.T, sys *System) {
 		t.Fatalf("failed to error with out of bounds run limit: %d", influxdb.TaskMaxPageSize+1)
 	}
 
-	requestedAt := time.Now().Add(5 * time.Minute).UTC() // This should guarantee we can make two runs.
+	requestedAt := time.Now().Add(time.Hour * -1).UTC() // This should guarantee we can make two runs.
 
 	rc0, err := sys.TaskControlService.CreateRun(sys.Ctx, task.ID, requestedAt, requestedAt.Add(time.Second))
 	if err != nil {
@@ -1469,7 +1551,6 @@ func testRunStorage(t *testing.T, sys *System) {
 
 	// Look for a run that doesn't exist.
 	_, err = sys.TaskService.FindRunByID(sys.Ctx, task.ID, influxdb.ID(math.MaxUint64))
-	// TODO(lh): use kv.ErrRunNotFound in the future. Our error's are not exact
 	if err == nil {
 		t.Fatalf("expected %s but got %s instead", influxdb.ErrRunNotFound, err)
 	}
@@ -1517,7 +1598,7 @@ func testRetryAcrossStorage(t *testing.T, sys *System) {
 		t.Errorf("expected retrying run that doesn't exist to return %v, got %v", influxdb.ErrRunNotFound, err)
 	}
 
-	requestedAt := time.Now().Add(5 * time.Minute).UTC() // This should guarantee we can make a run.
+	requestedAt := time.Now().Add(time.Hour * -1).UTC() // This should guarantee we can make a run.
 
 	rc, err := sys.TaskControlService.CreateRun(sys.Ctx, task.ID, requestedAt, requestedAt.Add(time.Second))
 	if err != nil {
@@ -1579,7 +1660,7 @@ func testLogsAcrossStorage(t *testing.T, sys *System) {
 		t.Fatal(err)
 	}
 
-	requestedAt := time.Now().Add(5 * time.Minute).UTC() // This should guarantee we can make two runs.
+	requestedAt := time.Now().Add(time.Hour * -1).UTC() // This should guarantee we can make two runs.
 
 	rc0, err := sys.TaskControlService.CreateRun(sys.Ctx, task.ID, requestedAt, requestedAt.Add(time.Second))
 	if err != nil {
@@ -1675,19 +1756,19 @@ func testLogsAcrossStorage(t *testing.T, sys *System) {
 }
 
 func creds(t *testing.T, s *System) TestCreds {
-	t.Helper()
+	// t.Helper()
 
 	if s.CredsFunc == nil {
 		u := &influxdb.User{Name: t.Name() + "-user"}
-		if err := s.I.CreateUser(s.Ctx, u); err != nil {
+		if err := s.UserService.CreateUser(s.Ctx, u); err != nil {
 			t.Fatal(err)
 		}
 		o := &influxdb.Organization{Name: t.Name() + "-org"}
-		if err := s.I.CreateOrganization(s.Ctx, o); err != nil {
+		if err := s.OrganizationService.CreateOrganization(s.Ctx, o); err != nil {
 			t.Fatal(err)
 		}
 
-		if err := s.I.CreateUserResourceMapping(s.Ctx, &influxdb.UserResourceMapping{
+		if err := s.UserResourceMappingService.CreateUserResourceMapping(s.Ctx, &influxdb.UserResourceMapping{
 			ResourceType: influxdb.OrgsResourceType,
 			ResourceID:   o.ID,
 			UserID:       u.ID,
@@ -1701,7 +1782,7 @@ func creds(t *testing.T, s *System) TestCreds {
 			UserID:      u.ID,
 			Permissions: influxdb.OperPermissions(),
 		}
-		if err := s.I.CreateAuthorization(context.Background(), &authz); err != nil {
+		if err := s.AuthorizationService.CreateAuthorization(context.Background(), &authz); err != nil {
 			t.Fatal(err)
 		}
 		return TestCreds{
@@ -1728,14 +1809,14 @@ const (
 	concurrency: 100,
 }
 
-from(bucket:"b")
+from(bucket: "b")
 	|> to(bucket: "two", orgID: "000000000000000")`
 
 	scriptDifferentName = `option task = {
 	name: "task-changed #%d",
-	cron: "* * * * *",
 	offset: 5s,
 	concurrency: 100,
+	cron: "* * * * *",
 }
 
 from(bucket: "b")

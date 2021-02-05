@@ -45,7 +45,7 @@ FROM debian:stretch-slim AS influx
 COPY --from=dbuild-all /code/bin/linux/influxd /usr/bin/influxd
 COPY --from=dbuild-all /code/bin/linux/influx /usr/bin/influx
 
-EXPOSE 9999
+EXPOSE 8086
 
 ENTRYPOINT [ "/usr/bin/influxd" ]
 

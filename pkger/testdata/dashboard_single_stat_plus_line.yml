@@ -19,6 +19,23 @@ spec:
       shade: true
       hoverDimension: "y"
       position: overlaid
+      generateXAxisTicks:
+        - xTotalTicks
+        - xTickStart
+        - xTickStep
+      xTotalTicks: 15
+      xTickStart: 0
+      xTickStep: 1000
+      generateYAxisTicks:
+        - yTotalTicks
+        - yTickStart
+        - yTickStep
+      yTotalTicks: 10
+      yTickStart: 0
+      yTickStep: 100
+      legendColorizeRows: true
+      legendOpacity: 1.0
+      legendOrientationThreshold: 5
       legend:
         type: leg_type
         orientation: horizontal
@@ -27,10 +44,12 @@ spec:
             from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")
       colors:
         - name: laser
+          id: "base"
           type: text
           hex: "#8F8AF4"
           value: 3
         - name: android
+          id: "base"
           type: scale
           hex: "#F4CF31"
           value: 1

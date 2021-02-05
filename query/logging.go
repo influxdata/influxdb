@@ -22,6 +22,10 @@ type LoggingProxyQueryService struct {
 	nowFunction       func() time.Time
 	log               *zap.Logger
 	cond              func(ctx context.Context) bool
+
+	// If this is set then logging happens only if this key is present in the
+	// metadata.
+	requireMetadataKey string
 }
 
 // LoggingProxyQueryServiceOption provides a way to modify the
@@ -34,6 +38,12 @@ type LoggingProxyQueryServiceOption func(lpqs *LoggingProxyQueryService)
 func ConditionalLogging(cond func(context.Context) bool) LoggingProxyQueryServiceOption {
 	return func(lpqs *LoggingProxyQueryService) {
 		lpqs.cond = cond
+	}
+}
+
+func RequireMetadataKey(metadataKey string) LoggingProxyQueryServiceOption {
+	return func(lpqs *LoggingProxyQueryService) {
+		lpqs.requireMetadataKey = metadataKey
 	}
 }
 
@@ -76,6 +86,14 @@ func (s *LoggingProxyQueryService) Query(ctx context.Context, w io.Writer, req *
 				entry.Write(zap.Error(err))
 			}
 		}
+
+		// Enforce requireMetadataKey, if set.
+		if s.requireMetadataKey != "" {
+			if _, ok := stats.Metadata[s.requireMetadataKey]; !ok {
+				return
+			}
+		}
+
 		traceID, sampled, _ := tracing.InfoFromContext(ctx)
 		log := Log{
 			OrganizationID: req.Request.OrganizationID,

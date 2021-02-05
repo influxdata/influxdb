@@ -73,7 +73,6 @@ const BucketCardActions: FC<Props> = ({
   const handleAddLineProtocol = () => {
     onSetDataLoadersBucket(orgID, bucket.name, bucket.id)
 
-    onSetDataLoadersType(DataLoaderType.LineProtocol)
     history.push(
       `/orgs/${orgID}/load-data/buckets/${bucket.id}/line-protocols/new`
     )

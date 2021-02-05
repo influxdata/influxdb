@@ -10,10 +10,10 @@ import (
 )
 
 func TestBucketLoggingService(t *testing.T) {
-	influxdbtesting.BucketService(initBoltBucketLoggingService, t, influxdbtesting.WithoutHooks())
+	influxdbtesting.BucketService(initInmemBucketLoggingService, t)
 }
 
-func initBoltBucketLoggingService(f influxdbtesting.BucketFields, t *testing.T) (influxdb.BucketService, string, func()) {
-	svc, s, closer := initBoltBucketService(f, t)
+func initInmemBucketLoggingService(f influxdbtesting.BucketFields, t *testing.T) (influxdb.BucketService, string, func()) {
+	svc, s, closer := initInmemBucketService(f, t)
 	return tenant.NewBucketLogger(zaptest.NewLogger(t), svc), s, closer
 }

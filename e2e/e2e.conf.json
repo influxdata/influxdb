@@ -2,7 +2,7 @@
   "active": "development",
   "development" : {
     "config_id" : "development",
-    "influx_url": "http://localhost:9999",
+    "influx_url": "http://localhost:8086",
     "def_ctx": "/",
     "headless": false,
     "sel_docker": false,
@@ -28,15 +28,19 @@
   },
   "nightly" : {
     "config_id": "nightly",
-    "influx_url": "http://localhost:9999",
+    "influx_url": "http://localhost:8086",
     "def_ctx": "/",
     "headless": true,
+    "sel_docker": false,
+    "deployment": "nightly_docker",
     "browser": "chrome",
     "screenshot_dir": "screenshots",
-    "deployment": "local_build",
     "create_method": "CLI_DOCKER",
     "influx_path": "../bin/linux/influx",
     "docker_name": "influx2_solo",
+    "influxdb": {
+      "version" : "2.0.0"
+    },
     "default_user": {
       "username": "hibou",
       "password": "ENV",

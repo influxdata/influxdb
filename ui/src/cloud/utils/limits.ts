@@ -34,10 +34,16 @@ export const extractTaskMax = (limits: LimitsState): number => {
   return get(limits, 'tasks.maxAllowed') || Infinity
 }
 
+export const extractChecksLimits = (limits: LimitsState): LimitStatus => {
+  return get(limits, 'checks.limitStatus')
+}
 export const extractChecksMax = (limits: LimitsState): number => {
   return get(limits, 'checks.maxAllowed') || Infinity
 }
 
+export const extractRulesLimits = (limits: LimitsState): LimitStatus => {
+  return get(limits, 'rules.limitStatus')
+}
 export const extractRulesMax = (limits: LimitsState): number => {
   return get(limits, 'rules.maxAllowed') || Infinity
 }
@@ -45,27 +51,14 @@ export const extractBlockedRules = (limits: LimitsState): string[] => {
   return get(limits, 'rules.blocked') || []
 }
 
+export const extractEndpointsLimits = (limits: LimitsState): LimitStatus => {
+  return get(limits, 'endpoints.limitStatus')
+}
 export const extractEndpointsMax = (limits: LimitsState): number => {
   return get(limits, 'endpoints.maxAllowed') || Infinity
 }
 export const extractBlockedEndpoints = (limits: LimitsState): string[] => {
   return get(limits, 'endpoints.blocked') || []
-}
-
-export const extractMonitoringLimitStatus = (
-  limits: LimitsState
-): LimitStatus => {
-  const statuses = [
-    get(limits, 'rules.limitStatus'),
-    get(limits, 'endpoints.limitStatus'),
-    get(limits, 'checks.limitStatus'),
-  ]
-
-  if (statuses.includes(LimitStatus.EXCEEDED)) {
-    return LimitStatus.EXCEEDED
-  }
-
-  return LimitStatus.OK
 }
 
 export const extractLimitedMonitoringResources = (

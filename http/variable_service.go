@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
@@ -366,13 +367,16 @@ func (h *VariableHandler) handlePutVariable(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	err = h.VariableService.ReplaceVariable(ctx, req.variable)
+	v := req.variable
+	v.ID = req.id
+
+	err = h.VariableService.ReplaceVariable(ctx, v)
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
 
-	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: req.variable.ID, ResourceType: influxdb.VariablesResourceType})
+	labels, err := h.LabelService.FindResourceLabels(ctx, influxdb.LabelMappingFilter{ResourceID: v.ID, ResourceType: influxdb.VariablesResourceType})
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
 		return
@@ -386,6 +390,7 @@ func (h *VariableHandler) handlePutVariable(w http.ResponseWriter, r *http.Reque
 }
 
 type putVariableRequest struct {
+	id       influxdb.ID
 	variable *influxdb.Variable
 }
 
@@ -404,8 +409,14 @@ func decodePutVariableRequest(ctx context.Context, r *http.Request) (*putVariabl
 		}
 	}
 
+	id, err := requestVariableID(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	req := &putVariableRequest{
 		variable: m,
+		id:       id,
 	}
 
 	if err := req.Valid(); err != nil {
@@ -483,6 +494,7 @@ func (s *VariableService) FindVariables(ctx context.Context, filter influxdb.Var
 
 // CreateVariable creates a new variable and assigns it an influxdb.ID
 func (s *VariableService) CreateVariable(ctx context.Context, m *influxdb.Variable) error {
+	m.Name = strings.TrimSpace(m.Name)
 	if err := m.Valid(); err != nil {
 		return &influxdb.Error{
 			Code: influxdb.EInvalid,

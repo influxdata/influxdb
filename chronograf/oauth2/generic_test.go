@@ -47,7 +47,7 @@ func TestGenericGroup_withNotEmail(t *testing.T) {
 
 	got, err := prov.Group(tc)
 	if err != nil {
-		t.Fatal("Unexpected error while retrieiving PrincipalID: err:", err)
+		t.Fatal("Unexpected error while retrieving PrincipalID: err:", err)
 	}
 
 	want := "pinheads.rok"
@@ -93,7 +93,7 @@ func TestGenericGroup_withEmail(t *testing.T) {
 
 	got, err := prov.Group(tc)
 	if err != nil {
-		t.Fatal("Unexpected error while retrieiving PrincipalID: err:", err)
+		t.Fatal("Unexpected error while retrieving PrincipalID: err:", err)
 	}
 
 	want := "pinheads.rok"
@@ -139,7 +139,7 @@ func TestGenericPrincipalID(t *testing.T) {
 
 	got, err := prov.PrincipalID(tc)
 	if err != nil {
-		t.Fatal("Unexpected error while retrieiving PrincipalID: err:", err)
+		t.Fatal("Unexpected error while retrieving PrincipalID: err:", err)
 	}
 
 	want := "martymcfly@pinheads.rok"
@@ -191,7 +191,7 @@ func TestGenericPrincipalIDDomain(t *testing.T) {
 
 	got, err := prov.PrincipalID(tc)
 	if err != nil {
-		t.Fatal("Unexpected error while retrieiving PrincipalID: err:", err)
+		t.Fatal("Unexpected error while retrieving PrincipalID: err:", err)
 	}
 	want := "martymcfly@pinheads.rok"
 	if got != want {

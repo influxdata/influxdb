@@ -2,6 +2,7 @@ package io
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"io/ioutil"
 	"testing"
@@ -11,8 +12,8 @@ import (
 )
 
 func TestLimitedReadCloser_Exceeded(t *testing.T) {
-	b := closer{bytes.NewBufferString("howdy")}
-	rc := NewLimitedReadCloser(b, 2)
+	b := &closer{Reader: bytes.NewBufferString("howdy")}
+	rc := NewLimitedReadCloser(b, 3)
 
 	out, err := ioutil.ReadAll(rc)
 	require.NoError(t, err)
@@ -21,7 +22,7 @@ func TestLimitedReadCloser_Exceeded(t *testing.T) {
 }
 
 func TestLimitedReadCloser_Happy(t *testing.T) {
-	b := closer{bytes.NewBufferString("ho")}
+	b := &closer{Reader: bytes.NewBufferString("ho")}
 	rc := NewLimitedReadCloser(b, 2)
 
 	out, err := ioutil.ReadAll(rc)
@@ -30,8 +31,57 @@ func TestLimitedReadCloser_Happy(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-type closer struct {
-	io.Reader
+func TestLimitedReadCloseWithErrorAndLimitExceeded(t *testing.T) {
+	b := &closer{
+		Reader: bytes.NewBufferString("howdy"),
+		err:    errors.New("some error"),
+	}
+	rc := NewLimitedReadCloser(b, 3)
+
+	out, err := ioutil.ReadAll(rc)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("how"), out)
+	// LimitExceeded error trumps the close error.
+	assert.Equal(t, ErrReadLimitExceeded, rc.Close())
 }
 
-func (c closer) Close() error { return nil }
+func TestLimitedReadCloseWithError(t *testing.T) {
+	closeErr := errors.New("some error")
+	b := &closer{
+		Reader: bytes.NewBufferString("howdy"),
+		err:    closeErr,
+	}
+	rc := NewLimitedReadCloser(b, 10)
+
+	out, err := ioutil.ReadAll(rc)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("howdy"), out)
+	assert.Equal(t, closeErr, rc.Close())
+}
+
+func TestMultipleCloseOnlyClosesOnce(t *testing.T) {
+	closeErr := errors.New("some error")
+	b := &closer{
+		Reader: bytes.NewBufferString("howdy"),
+		err:    closeErr,
+	}
+	rc := NewLimitedReadCloser(b, 10)
+
+	out, err := ioutil.ReadAll(rc)
+	require.NoError(t, err)
+	assert.Equal(t, []byte("howdy"), out)
+	assert.Equal(t, closeErr, rc.Close())
+	assert.Equal(t, closeErr, rc.Close())
+	assert.Equal(t, 1, b.closeCount)
+}
+
+type closer struct {
+	io.Reader
+	err        error
+	closeCount int
+}
+
+func (c *closer) Close() error {
+	c.closeCount++
+	return c.err
+}

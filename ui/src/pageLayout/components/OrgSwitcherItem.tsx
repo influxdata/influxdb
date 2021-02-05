@@ -30,7 +30,7 @@ const OrgSwitcherItem: FC<Props> = ({
 
   const handleClick = (): void => {
     onDismiss()
-    history.push(`orgs/${orgID}`)
+    history.push(`/orgs/${orgID}`)
   }
 
   const currentOrgIndicator = selected ? <em>Current</em> : null

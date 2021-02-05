@@ -13,10 +13,27 @@ spec:
       suffix: days
       xPos:  1
       yPos:  2
+      generateXAxisTicks:
+        - xTotalTicks
+        - xTickStart
+        - xTickStep
       xCol: _time
+      xTotalTicks: 15
+      xTickStart: 0
+      xTickStep: 1000
       yCol: _value
+      generateYAxisTicks:
+        - yTotalTicks
+        - yTickStart
+        - yTickStep
+      yTotalTicks: 10
+      yTickStart: 0
+      yTickStep: 100
       width:  6
       height: 3
+      legendColorizeRows: true
+      legendOpacity: 1.0
+      legendOrientationThreshold: 5
       queries:
         - query: >
             from(bucket: v.bucket)  |> range(start: v.timeRangeStart)  |> filter(fn: (r) => r._measurement == "mem")  |> filter(fn: (r) => r._field == "used_percent")  |> aggregateWindow(every: v.windowPeriod, fn: mean, createEmpty: false)  |> yield(name: "mean")

@@ -3,24 +3,11 @@
 package fs
 
 import (
-	"fmt"
 	"os"
 	"syscall"
+
+	unix "golang.org/x/sys/unix"
 )
-
-// A FileExistsError is returned when an operation cannot be completed due to a
-// file already existing.
-type FileExistsError struct {
-	path string
-}
-
-func newFileExistsError(path string) FileExistsError {
-	return FileExistsError{path: path}
-}
-
-func (e FileExistsError) Error() string {
-	return fmt.Sprintf("operation not allowed, file %q exists", e.path)
-}
 
 // SyncDir flushes any file renames to the filesystem.
 func SyncDir(dirName string) error {
@@ -80,4 +67,19 @@ func CreateFile(newpath string) (*os.File, error) {
 	}
 
 	return os.Create(newpath)
+}
+
+// DiskUsage returns disk usage of disk of path
+func DiskUsage(path string) (*DiskStatus, error) {
+	fs := unix.Statfs_t{}
+	if err := unix.Statfs(path, &fs); err != nil {
+		return nil, err
+	}
+
+	var disk DiskStatus
+	disk.All = fs.Blocks * uint64(fs.Bsize)
+	disk.Avail = uint64(fs.Bavail) * uint64(fs.Bsize)
+	disk.Free = fs.Bfree * uint64(fs.Bsize)
+	disk.Used = disk.All - disk.Free
+	return &disk, nil
 }

@@ -32,11 +32,16 @@ func initBoltAuthService(f influxdbtesting.AuthorizationFields, t *testing.T) (i
 
 func initAuthService(s kv.Store, f influxdbtesting.AuthorizationFields, t *testing.T) (influxdb.AuthorizationService, func()) {
 	st := tenant.NewStore(s)
+	if f.OrgIDGenerator != nil {
+		st.OrgIDGen = f.OrgIDGenerator
+	}
+
 	ts := tenant.NewService(st)
 	storage, err := authorization.NewStore(s)
 	if err != nil {
 		t.Fatal(err)
 	}
+
 	svc := authorization.NewService(storage, ts)
 
 	for _, u := range f.Users {
@@ -60,7 +65,7 @@ func initAuthService(s kv.Store, f influxdbtesting.AuthorizationFields, t *testi
 	return svc, func() {
 		for _, m := range f.Authorizations {
 			if err := svc.DeleteAuthorization(context.Background(), m.ID); err != nil {
-				t.Logf("failed to remove user resource mapping: %v", err)
+				t.Logf("failed to remove authorization token: %v", err)
 			}
 		}
 	}
@@ -77,7 +82,7 @@ func NewTestBoltStore(t *testing.T) (kv.Store, func(), error) {
 	ctx := context.Background()
 	logger := zaptest.NewLogger(t)
 
-	s := bolt.NewKVStore(logger, path)
+	s := bolt.NewKVStore(logger, path, bolt.WithNoSync)
 
 	if err := s.Open(ctx); err != nil {
 		return nil, nil, err

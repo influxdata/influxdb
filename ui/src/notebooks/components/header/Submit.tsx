@@ -42,6 +42,7 @@ export const Submit: FC = () => {
 
   const submit = () => {
     event('Notebook Submit Button Clicked')
+    let queryIncludesPreviousResult = false
     setLoading(RemoteDataState.Loading)
     Promise.all(
       notebook.data.allIDs
@@ -69,6 +70,7 @@ export const Submit: FC = () => {
                 [`prev_${index}`]: stages[stages.length - 1].text,
               }
               text = text.replace(PREVIOUS_REGEXP, `prev_${index}`)
+              queryIncludesPreviousResult = true
             }
 
             stages.push({
@@ -77,9 +79,57 @@ export const Submit: FC = () => {
               requirements,
             })
           } else if (pipe.type === 'data') {
-            const {bucketName, timeStart, timeStop} = pipe
+            const {bucketName} = pipe
 
-            const text = `from(bucket: "${bucketName}")|>range(start: ${timeStart}, stop: ${timeStop})`
+            const text = `from(bucket: "${bucketName}")|>range(start: v.timeRangeStart, stop: v.timeRangeStop)`
+
+            stages.push({
+              text,
+              instances: [pipeID],
+              requirements: {},
+            })
+          } else if (pipe.type === 'queryBuilder') {
+            const {
+              aggregateFunction,
+              bucketName,
+              field,
+              measurement,
+              tags,
+            } = pipe
+
+            let text = `from(bucket: "${bucketName}")|>range(start: v.timeRangeStart, stop: v.timeRangeStop)`
+            if (measurement) {
+              text += `|> filter(fn: (r) => r["_measurement"] == "${measurement}")`
+            }
+            if (field) {
+              text += `|> filter(fn: (r) => r["_field"] == "${field}")`
+            }
+            if (tags && Object.keys(tags)?.length > 0) {
+              Object.keys(tags)
+                .filter((tagName: string) => !!tags[tagName])
+                .forEach((tagName: string) => {
+                  const tagValues = tags[tagName]
+                  if (tagValues.length === 1) {
+                    text += `|> filter(fn: (r) => r["${tagName}"] == "${tagValues[0]}")`
+                  } else {
+                    tagValues.forEach((val, i) => {
+                      if (i === 0) {
+                        text += `|> filter(fn: (r) => r["${tagName}"] == "${val}"`
+                      }
+                      if (tagValues.length - 1 === i) {
+                        text += ` or r["${tagName}"] == "${val}")`
+                      } else {
+                        text += ` or r["${tagName}"] == "${val}"`
+                      }
+                    })
+                  }
+                })
+            }
+
+            if (aggregateFunction?.name) {
+              text += `  |> aggregateWindow(every: v.windowPeriod, fn: ${aggregateFunction.name}, createEmpty: false)
+              |> yield(name: "${aggregateFunction.name}")`
+            }
 
             stages.push({
               text,
@@ -119,6 +169,12 @@ export const Submit: FC = () => {
       .then(() => {
         event('Notebook Submit Resolved')
 
+        if (queryIncludesPreviousResult) {
+          event('flows_queryIncludesPreviousResult')
+        } else {
+          event('flows_queryExcludesPreviousResult')
+        }
+
         setLoading(RemoteDataState.Done)
       })
       .catch(e => {
@@ -132,11 +188,12 @@ export const Submit: FC = () => {
 
   const hasQueries = notebook.data.all
     .map(p => p.type)
-    .filter(p => p === 'query' || p === 'data').length
+    .filter(p => p === 'query' || p === 'data' || p === 'queryBuilder').length
 
   return (
     <SubmitQueryButton
       text="Run Flow"
+      className="flows-run-flow"
       icon={IconFont.Play}
       submitButtonDisabled={!hasQueries}
       queryStatus={isLoading}

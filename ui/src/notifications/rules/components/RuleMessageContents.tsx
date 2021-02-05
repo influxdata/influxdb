@@ -5,6 +5,7 @@ import React, {FC} from 'react'
 import SlackMessage from './SlackMessage'
 import SMTPMessage from './SMTPMessage'
 import PagerDutyMessage from './PagerDutyMessage'
+import TelegramMessage from './TelegramMessage'
 
 // Utils
 import {useRuleDispatch} from './RuleOverlayProvider'
@@ -56,6 +57,15 @@ const RuleMessageContents: FC<Props> = ({rule}) => {
       const {messageTemplate} = rule
       return (
         <PagerDutyMessage
+          messageTemplate={messageTemplate}
+          onChange={onChange}
+        />
+      )
+    }
+    case 'telegram': {
+      const {messageTemplate} = rule
+      return (
+        <TelegramMessage
           messageTemplate={messageTemplate}
           onChange={onChange}
         />

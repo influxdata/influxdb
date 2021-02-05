@@ -5,7 +5,7 @@ import {range} from 'lodash'
 
 // Components
 import TagSelector from 'src/timeMachine/components/TagSelector'
-import FunctionSelector from 'src/timeMachine/components/FunctionSelector'
+import AggregationSelector from 'src/timeMachine/components/AggregationSelector'
 import AddCardButton from 'src/timeMachine/components/AddCardButton'
 import BuilderCard from 'src/timeMachine/components/builderCard/BuilderCard'
 import BucketsSelector from 'src/timeMachine/components/queryBuilder/BucketsSelector'
@@ -69,7 +69,7 @@ class TimeMachineQueryBuilder extends PureComponent<Props, State> {
       return
     }
 
-    return <FunctionSelector />
+    return <AggregationSelector />
   }
 
   private get addButton(): JSX.Element {

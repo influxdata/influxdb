@@ -3,8 +3,22 @@
   grid-column-gap: $ix-marg-b;
   grid-row-gap: $ix-marg-b;
   grid-template-columns: 1fr;
-  grid-template-rows: 80px 150px;
   margin: $ix-marg-b 0;
+}
+
+/* The two styles below are a bandaid fix until the clockface dependency can be safely updated */
+.cf-panel.community-templates-panel
+  .cf-panel--symbol-header.cf-panel--symbol-header__sm {
+  padding-left: 46px;
+  padding-right: 46px;
+}
+
+@media screen and (min-width: $cf-grid--breakpoint-sm) {
+  .cf-panel.community-templates-panel
+    .cf-panel--symbol-header.cf-panel--symbol-header__sm {
+    padding-left: 70px;
+    padding-right: 70px;
+  }
 }
 
 .community-templates-template-url {
@@ -93,4 +107,39 @@
   .community-templates--list-group__expanded & > .cf-icon {
     transform: translate(-50%, -50%) rotate(90deg);
   }
+}
+
+.community-templates--resources-table {
+  & > tbody > tr > td {
+    padding-right: $cf-marg-b;
+    font-size: 13px;
+  }
+}
+
+.community-templates--resources-table-toggle {
+  display: flex;
+  align-items: center;
+
+  h6 {
+    margin: 0;
+  }
+
+  &:hover {
+    cursor: pointer;
+  }
+}
+
+.community-templates--resources-table-caret {
+  margin-right: $cf-marg-b;
+  transition: transform 0.25s ease;
+}
+
+.community-templates--resources-table-caret__expanded {
+  transform: rotate(90deg);
+}
+
+.community-templates--resources-table-toggle h6,
+.community-templates--resources-table-item {
+  height: $cf-form-sm-height;
+  line-height: $cf-form-sm-height;
 }

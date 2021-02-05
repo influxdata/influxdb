@@ -28,7 +28,7 @@ func (store *SourcesStore) All(ctx context.Context) ([]chronograf.Source, error)
 	return nil, nil
 }
 
-// Delete removes the SourcesStore.Soruce if it matches the provided Source
+// Delete removes the SourcesStore.Source if it matches the provided Source
 func (store *SourcesStore) Delete(ctx context.Context, src chronograf.Source) error {
 	if store.Source == nil || store.Source.ID != src.ID {
 		return fmt.Errorf("unable to find Source with id %d", src.ID)

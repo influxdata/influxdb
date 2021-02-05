@@ -9,7 +9,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	pmock "github.com/influxdata/influxdb/v2/mock"
-	_ "github.com/influxdata/influxdb/v2/query/builtin"
+	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/task/backend"
 	"github.com/influxdata/influxdb/v2/task/backend/coordinator"
@@ -30,7 +30,6 @@ func timeoutSelector(ch <-chan scheduler.ID) (scheduler.ID, error) {
 
 const script = `option task = {name: "a task",cron: "* * * * *"} from(bucket:"test") |> range(start:-1h)`
 
-// TODO(lh): Once we have a kv.TaskService this entire part can be replaced with kv.TaskService using a inmem kv.Store
 func inmemTaskService() influxdb.TaskService {
 	gen := snowflake.NewDefaultIDGenerator()
 	tasks := map[influxdb.ID]*influxdb.Task{}

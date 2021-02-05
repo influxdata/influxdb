@@ -1,11 +1,13 @@
 // Libraries
 import React, {PureComponent} from 'react'
+import classnames from 'classnames'
 
 interface Props {
   title: string
   testID: string
   onDelete?: () => void
   onDragStart?: () => void
+  className?: string
 }
 
 export default class BuilderCardHeader extends PureComponent<Props> {
@@ -14,10 +16,14 @@ export default class BuilderCardHeader extends PureComponent<Props> {
   }
 
   public render() {
-    const {testID, children} = this.props
+    const {testID, children, className} = this.props
+
+    const classname = classnames('builder-card--header', {
+      [`${className}`]: className,
+    })
 
     return (
-      <div className="builder-card--header" data-testid={testID}>
+      <div className={classname} data-testid={testID}>
         {this.title}
         {children}
         {this.deleteButton}

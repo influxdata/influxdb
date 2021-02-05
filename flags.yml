@@ -31,9 +31,9 @@
 - name: Community Templates
   description: Replace current template uploading functionality with community driven templates
   key: communityTemplates
-  default: false
+  default: true
   expose: true
-  contact: Bucky, Johnny Steenbergen (Berg)
+  contact: Bucky
   lifetime: permanent
 
 - name: Frontend Example
@@ -43,48 +43,11 @@
   contact: Gavin Cabbage
   expose: true
 
-- name: Push Down Window Aggregate Count
-  description: Enable Count variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-  key: pushDownWindowAggregateCount
-  default: false
-  contact: Query Team
-
-- name: Push Down Window Aggregate Sum
-  description: Enable Sum variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-  key: pushDownWindowAggregateSum
-  default: false
-  contact: Query Team
-
-- name: Push Down Window Aggregate Min
-  description: Enable Min variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-  key: pushDownWindowAggregateMin
-  default: false
-  contact: Query Team
-
-- name: Push Down Window Aggregate Max
-  description: Enable Max variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-  key: pushDownWindowAggregateMax
-  default: false
-  contact: Query Team
-
-- name: Push Down Window Aggregate Mean
-  description: Enable Mean variant of PushDownWindowAggregateRule and PushDownBareAggregateRule
-  key: pushDownWindowAggregateMean
-  default: false
-  contact: Query Team
-
 - name: Group Window Aggregate Transpose
   description: Enables the GroupWindowAggregateTransposeRule for all enabled window aggregates
   key: groupWindowAggregateTranspose
   default: false
   contact: Query Team
-
-- name: New Auth Package
-  description: Enables the refactored authorization api
-  key: newAuth
-  default: false
-  contact: Alirie Gray
-  lifetime: temporaryc
 
 - name: New Label Package
   description: Enables the refactored labels api
@@ -92,14 +55,6 @@
   default: false
   contact: Alirie Gray
   lifetime: temporary
-
-- name: New Hydrate Vars Functionality
-  description: Enables a minimalistic variable hydration
-  key: hydratevars
-  default: false
-  contact: Ariel Salem / Monitoring Team
-  lifetime: temporary
-  expose: true
 
 - name: Memory Optimized Fill
   description: Enable the memory optimized fill()
@@ -115,12 +70,12 @@
   contact: Query Team
   lifetime: temporary
 
-- name: Urm Free Tasks
-  description: allow task system to operate without creating additional urms
-  key: urmFreeTasks
+- name: Query Tracing
+  description: Turn on query tracing for queries that are sampled
+  key: queryTracing
   default: false
-  contact: Lyon Hill
-  lifetime: temporary
+  contact: Query Team
+  lifetime: permanent
 
 - name: Simple Task Options Extraction
   description: Simplified task options extraction to avoid undefined functions when saving tasks
@@ -129,9 +84,45 @@
   contact: Brett Buddin
   lifetime: temporary
 
-- name: Use User Permission
-  description: When enabled we will use the new user service permission function
-  key: useUserPermission
+- name: Band Plot Type
+  description: Enables the creation of a band plot in Dashboards
+  key: bandPlotType
   default: false
-  contact: Lyon Hill
+  contact: Monitoring Team
+  expose: true
   lifetime: temporary
+
+- name: Mosaic Graph Type
+  description: Enables the creation of a mosaic graph in Dashboards
+  key: mosaicGraphType
+  default: false
+  contact: Monitoring Team
+  expose: true
+  lifetime: temporary
+
+- name: Notebooks
+  description: Determine if the notebook feature's route and navbar icon are visible to the user
+  key: notebooks
+  default: false
+  contact: Monitoring Team
+  lifetime: temporary
+  expose: true
+
+- name: Inject Latest Success Time
+  description: Inject the latest successful task run timestamp into a Task query extern when executing.
+  key: injectLatestSuccessTime
+  default: false
+  contact: Compute Team
+
+- name: Enforce Organization Dashboard Limits
+  description: Enforces the default limit params for the dashboards api when orgs are set
+  key: enforceOrgDashboardLimits
+  default: false
+  contact: Compute Team
+
+- name: Time Filter Flags
+  description: Filter task run list based on before and after flags
+  key: timeFilterFlags
+  contact: Compute Team
+  default: false
+  expose: true

@@ -38,6 +38,10 @@ When(/^click nav sub menu "(.*?)"$/, async(item) => {
     await iSteps.clickSubMenuItem(item);
 });
 
+When(/^click user nav item "(.*)"$/, async (item) => {
+    await iSteps.clickUserMenuItem(item);
+});
+
 When(/^click nav menu item "(.*?)"$/, async(item) => {
     await iSteps.clickMenuItem(item);
 });

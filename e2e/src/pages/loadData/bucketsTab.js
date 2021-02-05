@@ -40,8 +40,12 @@ const wizardRadioManual = '[data-testid=\'Enter Manually\']';
 const wizardPrecisionDropdown = '[data-testid=\'wizard-step--lp-precision--dropdown\']';
 const wizardDragAndDrop = 'div.drag-and-drop';
 const wizardContinueButton = '[data-testid=next]';
+const wizardWriteDataButton = '[data-testid*=\'write-data--button\']';
 const wizardTextArea = '[data-testid=\'line-protocol--text-area\']';
 const wizardFinishButton = '[data-testid=next][title=\'Finish\']';
+const wizardCloseButton = '[data-testid=lp-close--button]';
+const wizardCancelButton = '[data-testid^=lp-cancel--button]';
+const wizardDismissButton = '.cf-overlay--dismiss';
 const wizardStepStateText = '[data-testid=\'line-protocol--status\']';
 const wizardSparkleSpinner = '[data-testid=sparkle-spinner]';
 const dataWizardPreviousButton = '[data-testid=overlay--footer] [data-testid=back]';
@@ -281,6 +285,10 @@ class bucketsTab extends loadDataPage {
         return {type: 'css', selector: wizardContinueButton };
     }
 
+    async getWizardWriteDataButton(){
+        return await this.driver.findElement(By.css(wizardWriteDataButton));
+    }
+
 
     async getWizardTextArea(){
         return await this.driver.findElement(By.css(wizardTextArea));
@@ -292,6 +300,18 @@ class bucketsTab extends loadDataPage {
 
     async getWizardFinishButton(){
         return await this.driver.findElement(By.css(wizardFinishButton));
+    }
+
+    async getWizardCloseButton(){
+        return await this.driver.findElement(By.css(wizardCloseButton));
+    }
+
+    async getWizardCancelButton(){
+        return await this.driver.findElement(By.css(wizardCancelButton));
+    }
+
+    async getWizardDismissButton(){
+        return await this.driver.findElement(By.css(wizardDismissButton));
     }
 
     async getWizardStepStateText(){

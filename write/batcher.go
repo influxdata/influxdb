@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -18,6 +19,11 @@ const (
 	DefaultInterval = 10 * time.Second
 )
 
+var (
+	// ErrLineTooLong is the error returned when reading a line that exceeds MaxLineLength.
+	ErrLineTooLong = errors.New("batcher: line too long")
+)
+
 // batcher is a write service that batches for another write service.
 var _ platform.WriteService = (*Batcher)(nil)
 
@@ -25,11 +31,18 @@ var _ platform.WriteService = (*Batcher)(nil)
 type Batcher struct {
 	MaxFlushBytes    int                   // MaxFlushBytes is the maximum number of bytes to buffer before flushing
 	MaxFlushInterval time.Duration         // MaxFlushInterval is the maximum amount of time to wait before flushing
+	MaxLineLength    int                   // MaxLineLength specifies the maximum length of a single line
 	Service          platform.WriteService // Service receives batches flushed from Batcher.
 }
 
-// Write reads r in batches and sends to the output.
-func (b *Batcher) Write(ctx context.Context, org, bucket platform.ID, r io.Reader) error {
+// WriteTo reads r in batches and writes to a target specified by filter.
+func (b *Batcher) WriteTo(ctx context.Context, filter platform.BucketFilter, r io.Reader) error {
+	return b.writeBytes(ctx, r, func(batch []byte) error {
+		return b.Service.WriteTo(ctx, filter, bytes.NewReader(batch))
+	})
+}
+
+func (b *Batcher) writeBytes(ctx context.Context, r io.Reader, writeFn func(batch []byte) error) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
@@ -40,7 +53,7 @@ func (b *Batcher) Write(ctx context.Context, org, bucket platform.ID, r io.Reade
 	lines := make(chan []byte)
 
 	errC := make(chan error, 2)
-	go b.write(ctx, org, bucket, lines, errC)
+	go b.write(ctx, writeFn, lines, errC)
 	go b.read(ctx, r, lines, errC)
 
 	// we loop twice to check if both read and write have an error. if read exits
@@ -50,7 +63,7 @@ func (b *Batcher) Write(ctx context.Context, org, bucket platform.ID, r io.Reade
 		case <-ctx.Done():
 			return ctx.Err()
 		case err := <-errC:
-			// onky if there is any error, exit immediately.
+			// only if there is any error, exit immediately.
 			if err != nil {
 				return err
 			}
@@ -66,22 +79,35 @@ func (b *Batcher) read(ctx context.Context, r io.Reader, lines chan<- []byte, er
 	defer close(lines)
 	scanner := bufio.NewScanner(r)
 	scanner.Split(ScanLines)
+
+	maxLineLength := bufio.MaxScanTokenSize
+	if b.MaxLineLength > 0 {
+		maxLineLength = b.MaxLineLength
+	}
+	scanner.Buffer(nil, maxLineLength)
+
 	for scanner.Scan() {
 		// exit early if the context is done
 		select {
+		// NOTE: We purposefully don't use scanner.Bytes() here because it returns a slice
+		// pointing to an array which is reused / overwritten on every call to Scan().
 		case lines <- []byte(scanner.Text()):
 		case <-ctx.Done():
 			errC <- ctx.Err()
 			return
 		}
 	}
-	errC <- scanner.Err()
+	err := scanner.Err()
+	if errors.Is(err, bufio.ErrTooLong) {
+		err = ErrLineTooLong
+	}
+	errC <- err
 }
 
 // finishes when the lines channel is closed or context is done.
 // if an error occurs while writing data to the write service, the error is send in the
 // errC channel and the function returns.
-func (b *Batcher) write(ctx context.Context, org, bucket platform.ID, lines <-chan []byte, errC chan<- error) {
+func (b *Batcher) write(ctx context.Context, writeFn func(batch []byte) error, lines <-chan []byte, errC chan<- error) {
 	flushInterval := b.MaxFlushInterval
 	if flushInterval == 0 {
 		flushInterval = DefaultInterval
@@ -96,7 +122,6 @@ func (b *Batcher) write(ctx context.Context, org, bucket platform.ID, lines <-ch
 	defer func() { _ = timer.Stop() }()
 
 	buf := make([]byte, 0, maxBytes)
-	r := bytes.NewReader(buf)
 
 	var line []byte
 	var more = true
@@ -104,14 +129,13 @@ func (b *Batcher) write(ctx context.Context, org, bucket platform.ID, lines <-ch
 	for more {
 		select {
 		case line, more = <-lines:
-			if more {
+			if more && string(line) != "\n" {
 				buf = append(buf, line...)
 			}
 			// write if we exceed the max lines OR read routine has finished
 			if len(buf) >= maxBytes || (!more && len(buf) > 0) {
-				r.Reset(buf)
 				timer.Reset(flushInterval)
-				if err := b.Service.Write(ctx, org, bucket, r); err != nil {
+				if err := writeFn(buf); err != nil {
 					errC <- err
 					return
 				}
@@ -119,9 +143,8 @@ func (b *Batcher) write(ctx context.Context, org, bucket platform.ID, lines <-ch
 			}
 		case <-timer.C:
 			if len(buf) > 0 {
-				r.Reset(buf)
 				timer.Reset(flushInterval)
-				if err := b.Service.Write(ctx, org, bucket, r); err != nil {
+				if err := writeFn(buf); err != nil {
 					errC <- err
 					return
 				}

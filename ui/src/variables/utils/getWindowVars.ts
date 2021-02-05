@@ -44,6 +44,9 @@ export const getWindowVars = (
   ]
 }
 
+export const calcWindowPeriodForDuration = (queryDuration: number) =>
+  Math.round(queryDuration / DESIRED_POINTS_PER_GRAPH) // queryDuration in ms
+
 /*
   Compute the duration (in milliseconds) to use for the `v.windowPeriod`
   variable assignment for a query.
@@ -73,7 +76,7 @@ export const getWindowPeriod = (
       return foundDuration.windowPeriod
     }
 
-    return Math.round(queryDuration / DESIRED_POINTS_PER_GRAPH)
+    return calcWindowPeriodForDuration(queryDuration)
   } catch (error) {
     return null
   }

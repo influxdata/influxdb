@@ -108,14 +108,6 @@ func (s *Service) findVariables(ctx context.Context, tx Tx, filter influxdb.Vari
 		return s.findOrganizationVariables(ctx, tx, *filter.OrganizationID)
 	}
 
-	if filter.Organization != nil {
-		o, err := s.findOrganizationByName(ctx, tx, *filter.Organization)
-		if err != nil {
-			return nil, err
-		}
-		return s.findOrganizationVariables(ctx, tx, o.ID)
-	}
-
 	var o influxdb.FindOptions
 	if len(opt) > 0 {
 		o = opt[0]
@@ -160,7 +152,17 @@ func filterVariablesFn(filter influxdb.VariableFilter) func([]byte, interface{})
 
 // FindVariables returns all variables in the store
 func (s *Service) FindVariables(ctx context.Context, filter influxdb.VariableFilter, opt ...influxdb.FindOptions) ([]*influxdb.Variable, error) {
-	// todo(leodido) > handle find options
+	if filter.Organization != nil {
+		o, err := s.orgs.FindOrganization(ctx, influxdb.OrganizationFilter{
+			Name: filter.Organization,
+		})
+		if err != nil {
+			return nil, err
+		}
+
+		filter.OrganizationID = &o.ID
+	}
+
 	res := []*influxdb.Variable{}
 	err := s.kv.View(ctx, func(tx Tx) error {
 		variables, err := s.findVariables(ctx, tx, filter, opt...)
@@ -207,7 +209,6 @@ func (s *Service) CreateVariable(ctx context.Context, v *influxdb.Variable) erro
 			}
 		}
 
-		v.Name = strings.TrimSpace(v.Name) // TODO: move to service layer
 		v.ID = s.IDGenerator.ID()
 		now := s.Now()
 		v.CreatedAt = now
@@ -216,9 +217,12 @@ func (s *Service) CreateVariable(ctx context.Context, v *influxdb.Variable) erro
 	})
 }
 
-// ReplaceVariable puts a variable in the store
+// ReplaceVariable replaces a variable that exists in the store or creates it if it does not
 func (s *Service) ReplaceVariable(ctx context.Context, v *influxdb.Variable) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
+		if found, _ := s.findVariableByID(ctx, tx, v.ID); found != nil {
+			return s.putVariable(ctx, tx, v, PutUpdate())
+		}
 		return s.putVariable(ctx, tx, v, PutNew())
 	})
 }

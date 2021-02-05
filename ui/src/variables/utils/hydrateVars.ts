@@ -31,6 +31,7 @@ interface HydrateVarsOptions {
   selections?: ValueSelections
   fetcher?: ValueFetcher
   skipCache?: boolean
+  controller?: AbortController
 }
 
 export interface EventedCancelBox<T> extends CancelBox<T> {
@@ -132,7 +133,9 @@ const postOrderDFS = (
 ): VariableNode[] => {
   // Handle the edge case that the function is
   // called without providing the root node
-  if (!node) return [...acc]
+  if (!node) {
+    return [...acc]
+  }
 
   for (const child of node.children) {
     // by checking the cache for existing variables, we ensure that the graph stops
@@ -368,7 +371,8 @@ const hydrateVarsHelper = async (
     assignments,
     null,
     '',
-    options.skipCache
+    options.skipCache,
+    options.controller
   )
 
   node.cancel = request.cancel
@@ -543,7 +547,7 @@ export const hydrateVars = (
       node.variable.selected = node.variable.selected || []
 
       // ensure that the selected value defaults propegate for
-      // nested queryies.
+      // nested queries.
       if (
         node.variable.arguments.type === 'query' ||
         node.variable.arguments.type === 'constant'

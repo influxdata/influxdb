@@ -34,7 +34,7 @@ describe('NotificationRules', () => {
     it('should route the user to the alerting index page', () => {
       const nonexistentID = '04984be058066088'
 
-      // visitng the rules edit overlay
+      // visiting the rules edit overlay
       cy.get('@org').then(({id}: Organization) => {
         cy.fixture('routes').then(({orgs, alerting, rules}) => {
           cy.visit(`${orgs}/${id}${alerting}${rules}/${nonexistentID}/edit`)
@@ -47,7 +47,7 @@ describe('NotificationRules', () => {
     })
   })
 
-  describe('numeric input validation in Theshold Checks', () => {
+  describe('numeric input validation in Threshold Checks', () => {
     beforeEach(() => {
       cy.getByTestID('page-contents').within(() => {
         cy.getByTestID('dropdown').click()

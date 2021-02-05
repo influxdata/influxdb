@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"math"
 
+    "github.com/influxdata/flux/interval"
+    "github.com/influxdata/flux/values"
+    "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 
@@ -26,69 +29,72 @@ func newLimitArrayCursor(cur cursors.Cursor) cursors.Cursor {
 	}
 }
 
-func newWindowFirstArrayCursor(cur cursors.Cursor, every, offset int64) cursors.Cursor {
-	if every == 0 {
+func newWindowFirstArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
+	if window.IsZero() {
 		return newLimitArrayCursor(cur)
 	}
 	switch cur := cur.(type) {
 {{range .}}{{/* every type supports first */}}
 	case cursors.{{.Name}}ArrayCursor:
-		return new{{.Name}}WindowFirstArrayCursor(cur, every, offset)
+		return new{{.Name}}WindowFirstArrayCursor(cur, window)
 {{end}}
 	default:
 		panic(fmt.Sprintf("unreachable: %T", cur))
 	}
 }
 
-func newWindowLastArrayCursor(cur cursors.Cursor, every, offset int64) cursors.Cursor {
-	if every == 0 {
+func newWindowLastArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
+	if window.IsZero() {
 		return newLimitArrayCursor(cur)
 	}
 	switch cur := cur.(type) {
 {{range .}}{{/* every type supports last */}}
 	case cursors.{{.Name}}ArrayCursor:
-		return new{{.Name}}WindowLastArrayCursor(cur, every, offset)
+		return new{{.Name}}WindowLastArrayCursor(cur, window)
 {{end}}
 	default:
 		panic(fmt.Sprintf("unreachable: %T", cur))
 	}
 }
 
-func newWindowCountArrayCursor(cur cursors.Cursor, every, offset int64) cursors.Cursor {
+func newWindowCountArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
 	switch cur := cur.(type) {
 {{range .}}{{/* every type supports count */}}
 	case cursors.{{.Name}}ArrayCursor:
-		return new{{.Name}}WindowCountArrayCursor(cur, every, offset)
+		return new{{.Name}}WindowCountArrayCursor(cur, window)
 {{end}}
 	default:
 		panic(fmt.Sprintf("unreachable: %T", cur))
 	}
 }
 
-func newWindowSumArrayCursor(cur cursors.Cursor, every, offset int64) cursors.Cursor {
+func newWindowSumArrayCursor(cur cursors.Cursor, window interval.Window) (cursors.Cursor, error) {
 	switch cur := cur.(type) {
 {{range .}}
 {{$Type := .Name}}
 {{range .Aggs}}
 {{if eq .Name "Sum"}}
 	case cursors.{{$Type}}ArrayCursor:
-		return new{{$Type}}WindowSumArrayCursor(cur, every, offset)
+		return new{{$Type}}WindowSumArrayCursor(cur, window), nil
 {{end}}
 {{end}}{{/* for each supported agg fn */}}
 {{end}}{{/* for each field type */}}
 	default:
-		panic(fmt.Sprintf("unsupported for aggregate sum: %T", cur))
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg: fmt.Sprintf("unsupported input type for sum aggregate: %s", arrayCursorType(cur)),
+		}
 	}
 }
 
-func newWindowMinArrayCursor(cur cursors.Cursor, every, offset int64) cursors.Cursor {
+func newWindowMinArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
 	switch cur := cur.(type) {
 {{range .}}
 {{$Type := .Name}}
 {{range .Aggs}}
 {{if eq .Name "Min"}}
 	case cursors.{{$Type}}ArrayCursor:
-		return new{{$Type}}WindowMinArrayCursor(cur, every, offset)
+		return new{{$Type}}WindowMinArrayCursor(cur, window)
 {{end}}
 {{end}}{{/* for each supported agg fn */}}
 {{end}}{{/* for each field type */}}
@@ -97,19 +103,38 @@ func newWindowMinArrayCursor(cur cursors.Cursor, every, offset int64) cursors.Cu
 	}
 }
 
-func newWindowMaxArrayCursor(cur cursors.Cursor, every, offset int64) cursors.Cursor {
+func newWindowMaxArrayCursor(cur cursors.Cursor, window interval.Window) cursors.Cursor {
 	switch cur := cur.(type) {
 {{range .}}
 {{$Type := .Name}}
 {{range .Aggs}}
 {{if eq .Name "Max"}}
 	case cursors.{{$Type}}ArrayCursor:
-		return new{{$Type}}WindowMaxArrayCursor(cur, every, offset)
+		return new{{$Type}}WindowMaxArrayCursor(cur, window)
 {{end}}
 {{end}}{{/* for each supported agg fn */}}
 {{end}}{{/* for each field type */}}
 	default:
 		panic(fmt.Sprintf("unsupported for aggregate max: %T", cur))
+	}
+}
+
+func newWindowMeanArrayCursor(cur cursors.Cursor, window interval.Window) (cursors.Cursor, error) {
+	switch cur := cur.(type) {
+{{range .}}
+{{$Type := .Name}}
+{{range .Aggs}}
+{{if eq .Name "Mean"}}
+	case cursors.{{$Type}}ArrayCursor:
+		return new{{$Type}}WindowMeanArrayCursor(cur, window), nil
+{{end}}
+{{end}}{{/* for each supported agg fn */}}
+{{end}}{{/* for each field type */}}
+	default:
+		return nil, &influxdb.Error{
+			Code: influxdb.EInvalid,
+			Msg: fmt.Sprintf("unsupported input type for mean aggregate: %s", arrayCursorType(cur)),
+		}
 	}
 }
 {{range .}}
@@ -172,12 +197,13 @@ LOOP:
 				}
 			}
 		}
-		
-		// Clear bufferred timestamps & values if we make it through a cursor.
+
+
+		// Clear buffered timestamps & values if we make it through a cursor.
 		// The break above will skip this if a cursor is partially read.
 		c.tmp.Timestamps = nil
 		c.tmp.Values = nil
-		
+
 		a = c.{{.Name}}ArrayCursor.Next()
 	}
 
@@ -187,13 +213,13 @@ LOOP:
 	return c.res
 }
 
-type {{.name}}ArrayCursor struct {
+type {{.name}}MultiShardArrayCursor struct {
 	cursors.{{.Name}}ArrayCursor
 	cursorContext
 	filter *{{$type}}
 }
 
-func (c *{{.name}}ArrayCursor) reset(cur cursors.{{.Name}}ArrayCursor, cursorIterator cursors.CursorIterator, cond expression) {
+func (c *{{.name}}MultiShardArrayCursor) reset(cur cursors.{{.Name}}ArrayCursor, itrs cursors.CursorIterators, cond expression) {
 	if cond != nil {
 		if c.filter == nil {
 			c.filter = new{{.Name}}FilterArrayCursor(cond)
@@ -203,18 +229,18 @@ func (c *{{.name}}ArrayCursor) reset(cur cursors.{{.Name}}ArrayCursor, cursorIte
 	}
 
 	c.{{.Name}}ArrayCursor = cur
-	c.cursorIterator = cursorIterator
+	c.itrs = itrs
 	c.err = nil
 }
 
 
-func (c *{{.name}}ArrayCursor) Err() error { return c.err }
+func (c *{{.name}}MultiShardArrayCursor) Err() error { return c.err }
 
-func (c *{{.name}}ArrayCursor) Stats() cursors.CursorStats {
+func (c *{{.name}}MultiShardArrayCursor) Stats() cursors.CursorStats {
 	return c.{{.Name}}ArrayCursor.Stats()
 }
 
-func (c *{{.name}}ArrayCursor) Next() {{$arrayType}} {
+func (c *{{.name}}MultiShardArrayCursor) Next() {{$arrayType}} {
 	for {
 		a := c.{{.Name}}ArrayCursor.Next()
 		if a.Len() == 0 {
@@ -226,15 +252,19 @@ func (c *{{.name}}ArrayCursor) Next() {{$arrayType}} {
 	}
 }
 
-func (c *{{.name}}ArrayCursor) nextArrayCursor() bool {
-	if c.cursorIterator == nil {
+func (c *{{.name}}MultiShardArrayCursor) nextArrayCursor() bool {
+	if len(c.itrs) == 0 {
 		return false
 	}
 
 	c.{{.Name}}ArrayCursor.Close()
 
-	cur, _ := c.cursorIterator.Next(c.ctx, c.req)
-	c.cursorIterator = nil
+	var itr cursors.CursorIterator
+	var cur cursors.Cursor
+	for cur == nil && len(c.itrs) > 0 {
+		itr, c.itrs = c.itrs[0], c.itrs[1:]
+		cur, _ = itr.Next(c.ctx, c.req)
+    }
 
 	var ok bool
 	if cur != nil {
@@ -243,7 +273,6 @@ func (c *{{.name}}ArrayCursor) nextArrayCursor() bool {
 		if !ok {
 			cur.Close()
 			next = {{.Name}}EmptyArrayCursor
-			c.cursorIterator = nil
 			c.err = errors.New("expected {{.name}} cursor")
 		} else {
 			if c.filter != nil {
@@ -290,21 +319,21 @@ func (c *{{.name}}LimitArrayCursor) Next() {{$arrayType}} {
 
 type {{.name}}WindowLastArrayCursor struct {
 	cursors.{{.Name}}ArrayCursor
-	every, offset, windowEnd int64
+	windowEnd int64
 	res {{$arrayType}}
 	tmp {{$arrayType}}
+	window interval.Window
 }
 
 // Window array cursors assume that every != 0 && every != MaxInt64.
 // Such a cursor will panic in the first case and possibly overflow in the second.
-func new{{.Name}}WindowLastArrayCursor(cur cursors.{{.Name}}ArrayCursor, every, offset int64) *{{.name}}WindowLastArrayCursor {
+func new{{.Name}}WindowLastArrayCursor(cur cursors.{{.Name}}ArrayCursor, window interval.Window) *{{.name}}WindowLastArrayCursor {
 	return &{{.name}}WindowLastArrayCursor{
 		{{.Name}}ArrayCursor: cur,
-		every: every,
-		offset: offset,
 		windowEnd: math.MinInt64,
 		res: cursors.New{{.Name}}ArrayLen(MaxPointsPerBlock),
 		tmp: &cursors.{{.Name}}Array{},
+		window: window,
 	}
 }
 
@@ -344,7 +373,7 @@ NEXT:
 		c.res.Timestamps[cur] = t
 		c.res.Values[cur] = a.Values[i]
 
-		c.windowEnd = WindowStop(t, c.every, c.offset)
+		c.windowEnd = int64(c.window.GetLatestBounds(values.Time(t)).Stop())
 	}
 
 	c.tmp.Timestamps = nil
@@ -355,21 +384,21 @@ NEXT:
 
 type {{.name}}WindowFirstArrayCursor struct {
 	cursors.{{.Name}}ArrayCursor
-	every, offset, windowEnd int64
+	windowEnd int64
 	res {{$arrayType}}
 	tmp {{$arrayType}}
+	window interval.Window
 }
 
 // Window array cursors assume that every != 0 && every != MaxInt64.
 // Such a cursor will panic in the first case and possibly overflow in the second.
-func new{{.Name}}WindowFirstArrayCursor(cur cursors.{{.Name}}ArrayCursor, every, offset int64) *{{.name}}WindowFirstArrayCursor {
+func new{{.Name}}WindowFirstArrayCursor(cur cursors.{{.Name}}ArrayCursor, window interval.Window) *{{.name}}WindowFirstArrayCursor {
 	return &{{.name}}WindowFirstArrayCursor{
 		{{.Name}}ArrayCursor: cur,
-		every: every,
-		offset: offset,
 		windowEnd: math.MinInt64,
 		res: cursors.New{{.Name}}ArrayLen(MaxPointsPerBlock),
 		tmp: &cursors.{{.Name}}Array{},
+		window: window,
 	}
 }
 
@@ -399,7 +428,7 @@ NEXT:
 			continue
 		}
 
-		c.windowEnd = WindowStop(t, c.every, c.offset)
+		c.windowEnd = int64(c.window.GetLatestBounds(values.Time(t)).Stop())
 
 		c.res.Timestamps = append(c.res.Timestamps, t)
 		c.res.Values = append(c.res.Values, a.Values[i])
@@ -425,22 +454,21 @@ NEXT:
 
 type {{$name}}Window{{$aggName}}ArrayCursor struct {
 	cursors.{{$Name}}ArrayCursor
-	every, offset int64
 	res   *cursors.{{.OutputTypeName}}Array
 	tmp   {{$arrayType}}
+	window interval.Window
 }
 
-func new{{$Name}}Window{{$aggName}}ArrayCursor(cur cursors.{{$Name}}ArrayCursor, every, offset int64) *{{$name}}Window{{$aggName}}ArrayCursor {
+func new{{$Name}}Window{{$aggName}}ArrayCursor(cur cursors.{{$Name}}ArrayCursor, window interval.Window) *{{$name}}Window{{$aggName}}ArrayCursor {
 	resLen := MaxPointsPerBlock
-	if every == 0 {
+	if window.IsZero() {
 		resLen = 1
 	}
 	return &{{$name}}Window{{$aggName}}ArrayCursor{
 		{{$Name}}ArrayCursor: cur,
-		every: every,
-		offset: offset,
 		res: cursors.New{{.OutputTypeName}}ArrayLen(resLen),
 		tmp: &cursors.{{$Name}}Array{},
+		window: window,
 	}
 }
 
@@ -468,12 +496,11 @@ func (c *{{$name}}Window{{$aggName}}ArrayCursor) Next() *cursors.{{.OutputTypeNa
 	{{.AccDecls}}
 
 	var windowEnd int64
-	if c.every != 0 {
-		windowEnd = WindowStop(a.Timestamps[rowIdx], c.every, c.offset)
+	if !c.window.IsZero() {
+		windowEnd = int64(c.window.GetLatestBounds(values.Time(a.Timestamps[rowIdx])).Stop())
 	} else {
 		windowEnd = math.MaxInt64
 	}
-
 	windowHasPoints := false
 
 	// enumerate windows
@@ -481,7 +508,7 @@ WINDOWS:
 	for {
 		for ; rowIdx < a.Len(); rowIdx++ {
 			ts := a.Timestamps[rowIdx]
-			if c.every != 0 && ts >= windowEnd {
+			if !c.window.IsZero() && ts >= windowEnd {
 				// new window detected, close the current window
 				// do not generate a point for empty windows
 				if windowHasPoints {
@@ -499,7 +526,7 @@ WINDOWS:
 
 				// start the new window
 				{{.AccReset}}
-				windowEnd = WindowStop(a.Timestamps[rowIdx], c.every, c.offset)
+				windowEnd = int64(c.window.GetLatestBounds(values.Time(ts)).Stop())
 				windowHasPoints = false
 
 				continue WINDOWS
@@ -548,3 +575,14 @@ func (c *{{.name}}EmptyArrayCursor) Stats() cursors.CursorStats { return cursors
 func (c *{{.name}}EmptyArrayCursor) Next() {{$arrayType}} { return &c.res }
 
 {{end}}{{/* range . */}}
+
+func arrayCursorType(cur cursors.Cursor) string {
+	switch cur.(type) {
+	{{range .}}
+	case cursors.{{.Name}}ArrayCursor:
+		return "{{.name}}"
+	{{end}}{{/* range . */}}
+	default:
+		return "unknown"
+	}
+}

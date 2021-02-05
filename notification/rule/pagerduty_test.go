@@ -83,7 +83,7 @@ crit = statuses
 		(r["_level"] == "crit"))
 all_statuses = crit
 	|> filter(fn: (r) =>
-		(r["_time"] > experimental["subDuration"](from: now(), d: 1h)))
+		(r["_time"] >= experimental["subDuration"](from: now(), d: 1h)))
 
 all_statuses
 	|> monitor["notify"](data: notification, endpoint: pagerduty_endpoint(mapFn: (r) =>
@@ -166,7 +166,7 @@ info_to_crit = statuses
 	|> monitor["stateChanges"](fromLevel: "info", toLevel: "crit")
 all_statuses = info_to_crit
 	|> filter(fn: (r) =>
-		(r["_time"] > experimental["subDuration"](from: now(), d: 1h)))
+		(r["_time"] >= experimental["subDuration"](from: now(), d: 1h)))
 
 all_statuses
 	|> monitor["notify"](data: notification, endpoint: pagerduty_endpoint(mapFn: (r) =>
@@ -256,7 +256,7 @@ ok_to_warn = statuses
 all_statuses = union(tables: [crit, ok_to_warn])
 	|> sort(columns: ["_time"])
 	|> filter(fn: (r) =>
-		(r["_time"] > experimental["subDuration"](from: now(), d: 1h)))
+		(r["_time"] >= experimental["subDuration"](from: now(), d: 1h)))
 
 all_statuses
 	|> monitor["notify"](data: notification, endpoint: pagerduty_endpoint(mapFn: (r) =>

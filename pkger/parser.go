@@ -16,8 +16,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/ast/edit"
+	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/pkg/jsonnet"
+	"github.com/influxdata/influxdb/v2/task/options"
 	"gopkg.in/yaml.v3"
 )
 
@@ -354,7 +358,7 @@ type Template struct {
 	mVariables             map[string]*variable
 
 	mEnv     map[string]bool
-	mEnvVals map[string]string
+	mEnvVals map[string]interface{}
 	mSecrets map[string]bool
 
 	isParsed bool // indicates the pkg has been parsed and all resources graphed accordingly
@@ -458,13 +462,13 @@ func (p *Template) Summary() Summary {
 	return sum
 }
 
-func (p *Template) applyEnvRefs(envRefs map[string]string) error {
+func (p *Template) applyEnvRefs(envRefs map[string]interface{}) error {
 	if len(envRefs) == 0 {
 		return nil
 	}
 
 	if p.mEnvVals == nil {
-		p.mEnvVals = make(map[string]string)
+		p.mEnvVals = make(map[string]interface{})
 	}
 
 	for k, v := range envRefs {
@@ -857,7 +861,8 @@ func (p *Template) graphLabels() *parseErr {
 
 func (p *Template) graphChecks() *parseErr {
 	p.mChecks = make(map[string]*check)
-	tracker := p.trackNames(true)
+	// todo: what is the business goal wrt having unique names? (currently duplicates are allowed)
+	tracker := p.trackNames(false)
 
 	checkKinds := []struct {
 		kind      Kind
@@ -948,7 +953,7 @@ func (p *Template) graphDashboards() *parseErr {
 		sort.Sort(dash.labels)
 
 		for i, cr := range o.Spec.slcResource(fieldDashCharts) {
-			ch, fails := parseChart(cr)
+			ch, fails := p.parseChart(dash.MetaName(), i, cr)
 			if fails != nil {
 				failures = append(failures,
 					objectValidationErr(fieldSpec, validationErr{
@@ -963,7 +968,7 @@ func (p *Template) graphDashboards() *parseErr {
 		}
 
 		p.mDashboards[dash.MetaName()] = dash
-		p.setRefs(dash.name, dash.displayName)
+		p.setRefs(dash.refs()...)
 
 		return append(failures, dash.valid()...)
 	})
@@ -1106,19 +1111,65 @@ func (p *Template) graphTasks() *parseErr {
 			description: o.Spec.stringShort(fieldDescription),
 			every:       o.Spec.durationShort(fieldEvery),
 			offset:      o.Spec.durationShort(fieldOffset),
-			query:       strings.TrimSpace(o.Spec.stringShort(fieldQuery)),
 			status:      normStr(o.Spec.stringShort(fieldStatus)),
 		}
 
-		failures := p.parseNestedLabels(o.Spec, func(l *label) error {
+		prefix := fmt.Sprintf("tasks[%s].spec", t.MetaName())
+		params := o.Spec.slcResource(fieldParams)
+		task := o.Spec.slcResource("task")
+
+		var (
+			err      error
+			failures []validationErr
+		)
+
+		t.query, err = p.parseQuery(prefix, o.Spec.stringShort(fieldQuery), params, task)
+		if err != nil {
+			failures = append(failures, validationErr{
+				Field: fieldQuery,
+				Msg:   err.Error(),
+			})
+		}
+
+		if o.APIVersion == APIVersion2 {
+			for _, ref := range t.query.task {
+				switch ref.EnvRef {
+				case prefix + ".task.name", prefix + ".params.name":
+					t.displayName = ref
+				case prefix + ".task.every":
+					every, ok := ref.defaultVal.(time.Duration)
+					if ok {
+						t.every = every
+					} else {
+						failures = append(failures, validationErr{
+							Field: fieldTask,
+							Msg:   "field every is not duration",
+						})
+					}
+				case prefix + ".task.offset":
+					offset, ok := ref.defaultVal.(time.Duration)
+					if ok {
+						t.offset = offset
+					} else {
+						failures = append(failures, validationErr{
+							Field: fieldTask,
+							Msg:   "field every is not duration",
+						})
+					}
+				}
+			}
+		}
+
+		failures = append(failures, p.parseNestedLabels(o.Spec, func(l *label) error {
 			t.labels = append(t.labels, l)
 			p.mLabels[l.MetaName()].setMapping(t, false)
 			return nil
-		})
+		})...)
 		sort.Sort(t.labels)
 
 		p.mTasks[t.MetaName()] = t
-		p.setRefs(t.name, t.displayName)
+
+		p.setRefs(t.refs()...)
 		return append(failures, t.valid()...)
 	})
 }
@@ -1212,14 +1263,14 @@ func (p *Template) eachResource(resourceKind Kind, fn func(o Object) []validatio
 			continue
 		}
 
-		if k.APIVersion != APIVersion {
+		if k.APIVersion != APIVersion && k.APIVersion != APIVersion2 {
 			pErr.append(resourceErr{
 				Kind: k.Kind.String(),
 				Idx:  intPtr(i),
 				ValidationErrs: []validationErr{
 					{
 						Field: fieldAPIVersion,
-						Msg:   fmt.Sprintf("invalid API version provided %q; must be 1 in [%s]", k.APIVersion, APIVersion),
+						Msg:   fmt.Sprintf("invalid API version provided %q; must be 1 in [%s, %s]", k.APIVersion, APIVersion, APIVersion2),
 					},
 				},
 			})
@@ -1378,43 +1429,85 @@ func (p *Template) setRefs(refs ...*references) {
 			p.mSecrets[ref.Secret] = false
 		}
 		if ref.EnvRef != "" {
-			p.mEnv[ref.EnvRef] = p.mEnvVals[ref.EnvRef] != ""
+			p.mEnv[ref.EnvRef] = p.mEnvVals[ref.EnvRef] != nil
 		}
 	}
 }
 
-func parseChart(r Resource) (chart, []validationErr) {
+func parseAxis(ra Resource, domain []float64) *axis {
+	return &axis{
+		Base:   ra.stringShort(fieldAxisBase),
+		Label:  ra.stringShort(fieldAxisLabel),
+		Name:   ra.Name(),
+		Prefix: ra.stringShort(fieldPrefix),
+		Scale:  ra.stringShort(fieldAxisScale),
+		Suffix: ra.stringShort(fieldSuffix),
+		Domain: domain,
+	}
+}
+
+func parseColor(rc Resource) *color {
+	return &color{
+		ID:    rc.stringShort("id"),
+		Name:  rc.Name(),
+		Type:  rc.stringShort(fieldType),
+		Hex:   rc.stringShort(fieldColorHex),
+		Value: flt64Ptr(rc.float64Short(fieldValue)),
+	}
+}
+
+func (p *Template) parseChart(dashMetaName string, chartIdx int, r Resource) (*chart, []validationErr) {
 	ck, err := r.chartKind()
 	if err != nil {
-		return chart{}, []validationErr{{
+		return nil, []validationErr{{
 			Field: fieldKind,
 			Msg:   err.Error(),
 		}}
 	}
 
 	c := chart{
-		Kind:           ck,
-		Name:           r.Name(),
-		BinSize:        r.intShort(fieldChartBinSize),
-		BinCount:       r.intShort(fieldChartBinCount),
-		Geom:           r.stringShort(fieldChartGeom),
-		Height:         r.intShort(fieldChartHeight),
-		Note:           r.stringShort(fieldChartNote),
-		NoteOnEmpty:    r.boolShort(fieldChartNoteOnEmpty),
-		Position:       r.stringShort(fieldChartPosition),
-		Prefix:         r.stringShort(fieldPrefix),
-		Shade:          r.boolShort(fieldChartShade),
-		HoverDimension: r.stringShort(fieldChartHoverDimension),
-		Suffix:         r.stringShort(fieldSuffix),
-		TickPrefix:     r.stringShort(fieldChartTickPrefix),
-		TickSuffix:     r.stringShort(fieldChartTickSuffix),
-		TimeFormat:     r.stringShort(fieldChartTimeFormat),
-		Width:          r.intShort(fieldChartWidth),
-		XCol:           r.stringShort(fieldChartXCol),
-		YCol:           r.stringShort(fieldChartYCol),
-		XPos:           r.intShort(fieldChartXPos),
-		YPos:           r.intShort(fieldChartYPos),
-		FillColumns:    r.slcStr(fieldChartFillColumns),
+		Kind:                       ck,
+		Name:                       r.Name(),
+		BinSize:                    r.intShort(fieldChartBinSize),
+		BinCount:                   r.intShort(fieldChartBinCount),
+		Geom:                       r.stringShort(fieldChartGeom),
+		Height:                     r.intShort(fieldChartHeight),
+		Note:                       r.stringShort(fieldChartNote),
+		NoteOnEmpty:                r.boolShort(fieldChartNoteOnEmpty),
+		Position:                   r.stringShort(fieldChartPosition),
+		Prefix:                     r.stringShort(fieldPrefix),
+		Shade:                      r.boolShort(fieldChartShade),
+		HoverDimension:             r.stringShort(fieldChartHoverDimension),
+		Suffix:                     r.stringShort(fieldSuffix),
+		TickPrefix:                 r.stringShort(fieldChartTickPrefix),
+		TickSuffix:                 r.stringShort(fieldChartTickSuffix),
+		TimeFormat:                 r.stringShort(fieldChartTimeFormat),
+		Width:                      r.intShort(fieldChartWidth),
+		XCol:                       r.stringShort(fieldChartXCol),
+		GenerateXAxisTicks:         r.slcStr(fieldChartGenerateXAxisTicks),
+		XTotalTicks:                r.intShort(fieldChartXTotalTicks),
+		XTickStart:                 r.float64Short(fieldChartXTickStart),
+		XTickStep:                  r.float64Short(fieldChartXTickStep),
+		YCol:                       r.stringShort(fieldChartYCol),
+		GenerateYAxisTicks:         r.slcStr(fieldChartGenerateYAxisTicks),
+		YTotalTicks:                r.intShort(fieldChartYTotalTicks),
+		YTickStart:                 r.float64Short(fieldChartYTickStart),
+		YTickStep:                  r.float64Short(fieldChartYTickStep),
+		XPos:                       r.intShort(fieldChartXPos),
+		YPos:                       r.intShort(fieldChartYPos),
+		FillColumns:                r.slcStr(fieldChartFillColumns),
+		YSeriesColumns:             r.slcStr(fieldChartYSeriesColumns),
+		UpperColumn:                r.stringShort(fieldChartUpperColumn),
+		MainColumn:                 r.stringShort(fieldChartMainColumn),
+		LowerColumn:                r.stringShort(fieldChartLowerColumn),
+		LegendColorizeRows:         r.boolShort(fieldChartLegendColorizeRows),
+		LegendOpacity:              r.float64Short(fieldChartLegendOpacity),
+		LegendOrientationThreshold: r.intShort(fieldChartLegendOrientationThreshold),
+		Zoom:                       r.float64Short(fieldChartGeoZoom),
+		Center:                     center{Lat: r.float64Short(fieldChartGeoCenterLat), Lon: r.float64Short(fieldChartGeoCenterLon)},
+		MapStyle:                   r.stringShort(fieldChartGeoMapStyle),
+		AllowPanAndZoom:            r.boolShort(fieldChartGeoAllowPanAndZoom),
+		DetectCoordinateFields:     r.boolShort(fieldChartGeoDetectCoordinateFields),
 	}
 
 	if presLeg, ok := r[fieldChartLegend].(legend); ok {
@@ -1435,23 +1528,21 @@ func parseChart(r Resource) (chart, []validationErr) {
 	if presentQueries, ok := r[fieldChartQueries].(queries); ok {
 		c.Queries = presentQueries
 	} else {
-		for _, rq := range r.slcResource(fieldChartQueries) {
-			c.Queries = append(c.Queries, query{
-				Query: strings.TrimSpace(rq.stringShort(fieldQuery)),
+		q, vErrs := p.parseChartQueries(dashMetaName, chartIdx, r.slcResource(fieldChartQueries))
+		if len(vErrs) > 0 {
+			failures = append(failures, validationErr{
+				Field:  "queries",
+				Nested: vErrs,
 			})
 		}
+		c.Queries = q
 	}
 
 	if presentColors, ok := r[fieldChartColors].(colors); ok {
 		c.Colors = presentColors
 	} else {
 		for _, rc := range r.slcResource(fieldChartColors) {
-			c.Colors = append(c.Colors, &color{
-				Name:  rc.Name(),
-				Type:  rc.stringShort(fieldType),
-				Hex:   rc.stringShort(fieldColorHex),
-				Value: flt64Ptr(rc.float64Short(fieldValue)),
-			})
+			c.Colors = append(c.Colors, parseColor(rc))
 		}
 	}
 
@@ -1474,15 +1565,49 @@ func parseChart(r Resource) (chart, []validationErr) {
 				}
 			}
 
-			c.Axes = append(c.Axes, axis{
-				Base:   ra.stringShort(fieldAxisBase),
-				Label:  ra.stringShort(fieldAxisLabel),
-				Name:   ra.Name(),
-				Prefix: ra.stringShort(fieldPrefix),
-				Scale:  ra.stringShort(fieldAxisScale),
-				Suffix: ra.stringShort(fieldSuffix),
-				Domain: domain,
-			})
+			c.Axes = append(c.Axes, *parseAxis(ra, domain))
+		}
+	}
+
+	if presentGeoLayers, ok := r[fieldChartGeoLayers].(geoLayers); ok {
+		c.GeoLayers = presentGeoLayers
+	} else {
+		parseGeoAxis := func(r Resource, field string) *axis {
+			if axis, ok := r[field].(*axis); ok {
+				return axis
+			} else {
+				if leg, ok := ifaceToResource(r[field]); ok {
+					return parseAxis(leg, nil)
+				}
+			}
+			return nil
+		}
+
+		for _, rl := range r.slcResource(fieldChartGeoLayers) {
+			gl := geoLayer{
+				Type:               rl.stringShort(fieldChartGeoLayerType),
+				RadiusField:        rl.stringShort(fieldChartGeoLayerRadiusField),
+				ColorField:         rl.stringShort(fieldChartGeoLayerColorField),
+				IntensityField:     rl.stringShort(fieldChartGeoLayerIntensityField),
+				Radius:             int32(rl.intShort(fieldChartGeoLayerRadius)),
+				Blur:               int32(rl.intShort(fieldChartGeoLayerBlur)),
+				RadiusDimension:    parseGeoAxis(rl, fieldChartGeoLayerRadiusDimension),
+				ColorDimension:     parseGeoAxis(rl, fieldChartGeoLayerColorDimension),
+				IntensityDimension: parseGeoAxis(rl, fieldChartGeoLayerIntensityDimension),
+				InterpolateColors:  rl.boolShort(fieldChartGeoLayerInterpolateColors),
+				TrackWidth:         int32(rl.intShort(fieldChartGeoLayerTrackWidth)),
+				Speed:              int32(rl.intShort(fieldChartGeoLayerSpeed)),
+				RandomColors:       rl.boolShort(fieldChartGeoLayerRandomColors),
+				IsClustered:        rl.boolShort(fieldChartGeoLayerIsClustered),
+			}
+			if presentColors, ok := rl[fieldChartGeoLayerViewColors].(colors); ok {
+				gl.ViewColors = presentColors
+			} else {
+				for _, rc := range rl.slcResource(fieldChartGeoLayerViewColors) {
+					gl.ViewColors = append(gl.ViewColors, parseColor(rc))
+				}
+			}
+			c.GeoLayers = append(c.GeoLayers, &gl)
 		}
 	}
 
@@ -1504,10 +1629,197 @@ func parseChart(r Resource) (chart, []validationErr) {
 	}
 
 	if failures = append(failures, c.validProperties()...); len(failures) > 0 {
-		return chart{}, failures
+		return nil, failures
 	}
 
-	return c, nil
+	return &c, nil
+}
+
+func (p *Template) parseChartQueries(dashMetaName string, chartIdx int, resources []Resource) (queries, []validationErr) {
+	var (
+		q     queries
+		vErrs []validationErr
+	)
+	for i, rq := range resources {
+		source := rq.stringShort(fieldQuery)
+		if source == "" {
+			continue
+		}
+		prefix := fmt.Sprintf("dashboards[%s].spec.charts[%d].queries[%d]", dashMetaName, chartIdx, i)
+		qq, err := p.parseQuery(prefix, source, rq.slcResource(fieldParams), nil)
+		if err != nil {
+			vErrs = append(vErrs, validationErr{
+				Field: "query",
+				Index: intPtr(i),
+				Msg:   err.Error(),
+			})
+		}
+		q = append(q, qq)
+	}
+	return q, vErrs
+}
+
+func (p *Template) parseQuery(prefix, source string, params, task []Resource) (query, error) {
+	files := parser.ParseSource(source).Files
+	if len(files) != 1 {
+		return query{}, influxErr(influxdb.EInvalid, "invalid query source")
+	}
+
+	q := query{
+		Query: strings.TrimSpace(source),
+	}
+
+	mParams := make(map[string]*references)
+	tParams := make(map[string]*references)
+
+	paramsOpt, paramsErr := edit.GetOption(files[0], "params")
+	taskOpt, taskErr := edit.GetOption(files[0], "task")
+	if paramsErr != nil && taskErr != nil {
+		return q, nil
+	}
+
+	if paramsErr == nil {
+		obj, ok := paramsOpt.(*ast.ObjectExpression)
+		if ok {
+			for _, p := range obj.Properties {
+				sl, ok := p.Key.(*ast.Identifier)
+				if !ok {
+					continue
+				}
+
+				mParams[sl.Name] = &references{
+					EnvRef:     sl.Name,
+					defaultVal: valFromExpr(p.Value),
+					valType:    p.Value.Type(),
+				}
+			}
+		}
+	}
+
+	if taskErr == nil {
+		tobj, ok := taskOpt.(*ast.ObjectExpression)
+		if ok {
+			for _, p := range tobj.Properties {
+				sl, ok := p.Key.(*ast.Identifier)
+				if !ok {
+					continue
+				}
+
+				tParams[sl.Name] = &references{
+					EnvRef:     sl.Name,
+					defaultVal: valFromExpr(p.Value),
+					valType:    p.Value.Type(),
+				}
+			}
+		}
+	}
+
+	// override defaults here maybe?
+	for _, pr := range params {
+		field := pr.stringShort(fieldKey)
+		if field == "" {
+			continue
+		}
+
+		if _, ok := mParams[field]; !ok {
+			mParams[field] = &references{EnvRef: field}
+		}
+		if def, ok := pr[fieldDefault]; ok {
+			mParams[field].defaultVal = def
+		}
+		if valtype, ok := pr.string(fieldType); ok {
+			mParams[field].valType = valtype
+		}
+	}
+
+	var err error
+	for _, pr := range task {
+		field := pr.stringShort(fieldKey)
+		if field == "" {
+			continue
+		}
+
+		if _, ok := tParams[field]; !ok {
+			tParams[field] = &references{EnvRef: field}
+		}
+
+		if valtype, ok := pr.string(fieldType); ok {
+			tParams[field].valType = valtype
+		}
+
+		if def, ok := pr[fieldDefault]; ok {
+			switch tParams[field].valType {
+			case "duration":
+				switch defDur := def.(type) {
+				case string:
+					tParams[field].defaultVal, err = time.ParseDuration(defDur)
+					if err != nil {
+						return query{}, influxErr(influxdb.EInvalid, err.Error())
+					}
+				case time.Duration:
+					tParams[field].defaultVal = defDur
+				}
+			default:
+				tParams[field].defaultVal = def
+			}
+		}
+	}
+
+	for _, ref := range mParams {
+		envRef := fmt.Sprintf("%s.params.%s", prefix, ref.EnvRef)
+		q.params = append(q.params, &references{
+			EnvRef:     envRef,
+			defaultVal: ref.defaultVal,
+			val:        p.mEnvVals[envRef],
+			valType:    ref.valType,
+		})
+	}
+
+	for _, ref := range tParams {
+		envRef := fmt.Sprintf("%s.task.%s", prefix, ref.EnvRef)
+		q.task = append(q.task, &references{
+			EnvRef:     envRef,
+			defaultVal: ref.defaultVal,
+			val:        p.mEnvVals[envRef],
+			valType:    ref.valType,
+		})
+	}
+	return q, nil
+}
+
+func valFromExpr(p ast.Expression) interface{} {
+	switch literal := p.(type) {
+	case *ast.CallExpression:
+		sl, ok := literal.Callee.(*ast.Identifier)
+		if ok && sl.Name == "now" {
+			return "now()"
+		}
+		return nil
+	case *ast.DateTimeLiteral:
+		return ast.DateTimeFromLiteral(literal)
+	case *ast.FloatLiteral:
+		return ast.FloatFromLiteral(literal)
+	case *ast.IntegerLiteral:
+		return ast.IntegerFromLiteral(literal)
+	case *ast.DurationLiteral:
+		dur, _ := ast.DurationFrom(literal, time.Time{})
+		return dur
+	case *ast.StringLiteral:
+		return ast.StringFromLiteral(literal)
+	case *ast.UnaryExpression:
+		// a signed duration is represented by a UnaryExpression.
+		// it is the only unary expression allowed.
+		v := valFromExpr(literal.Argument)
+		if dur, ok := v.(time.Duration); ok {
+			switch literal.Operator {
+			case ast.SubtractionOperator:
+				return "-" + dur.String()
+			}
+		}
+		return v
+	default:
+		return nil
+	}
 }
 
 // dns1123LabelMaxLength is a label's max length in DNS (RFC 1123)
@@ -1590,7 +1902,12 @@ func (r Resource) boolShort(key string) bool {
 }
 
 func (r Resource) duration(key string) (time.Duration, bool) {
-	dur, err := time.ParseDuration(r.stringShort(key))
+	astDur, err := options.ParseSignedDuration(r.stringShort(key))
+	if err != nil {
+		return time.Duration(0), false
+	}
+
+	dur, err := ast.DurationFrom(astDur, time.Time{})
 	return dur, err == nil
 }
 
@@ -1772,7 +2089,7 @@ func ifaceToReference(i interface{}) *references {
 			switch f {
 			case fieldReferencesEnv:
 				ref.EnvRef = keyRes.stringShort(fieldKey)
-				ref.defaultVal = keyRes.stringShort(fieldDefault)
+				ref.defaultVal = keyRes[fieldDefault]
 			case fieldReferencesSecret:
 				ref.Secret = keyRes.stringShort(fieldKey)
 			}

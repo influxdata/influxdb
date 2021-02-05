@@ -1,0 +1,27 @@
+description: |
+  This test suite verifies correctness of queries containing
+  fields in the WHERE condition. In most cases, the field
+  in the SELECT projection is different, to test joins across
+  fields.
+
+tests:
+  - name: "no_aggregate"
+    query: "select f1 from m0 where f0 > 1 AND time >= 30000000000 AND time <= 50000000000"
+    result: |
+      name,tags,time,f1
+      m0,,50000000000,30
+
+  - name: "aggregate"
+    description: |
+      This test verifies that an aggregate
+
+    query: "SELECT sum(f1) FROM m0 WHERE f0 >= 1"
+    result: |
+      name,tags,time,sum
+      m0,,0,50
+
+dataset: |
+  m0,t0=tv0 f0=0i,f1=10i 30000000000
+  m0,t0=tv1 f0=1i,f1=20i 40000000000
+  m0,t0=tv1 f0=2i,f1=30i 50000000000
+  m1,t0=tv0 f0=0i,f1=10i 40000000000

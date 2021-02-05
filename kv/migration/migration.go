@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	influxdb "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
 	"go.uber.org/zap"
 )
@@ -148,6 +148,11 @@ func (m *Migrator) Up(ctx context.Context) error {
 		return wrapErr(err)
 	}
 
+	migrationsToDo := len(m.Specs[lastMigration:])
+	if migrationsToDo > 0 {
+		m.logger.Info("Bringing up metadata migrations", zap.Int("migration_count", migrationsToDo))
+	}
+
 	for idx, spec := range m.Specs[lastMigration:] {
 		startedAt := m.now()
 		migration := Migration{
@@ -218,7 +223,12 @@ func (m *Migrator) Down(ctx context.Context) (err error) {
 		return wrapErr(err)
 	}
 
-	for i := len(migrations) - 1; i >= 0; i-- {
+	migrationsToDo := len(migrations)
+	if migrationsToDo > 0 {
+		m.logger.Info("Tearing down metadata migrations", zap.Int("migration_count", migrationsToDo))
+	}
+
+	for i := migrationsToDo - 1; i >= 0; i-- {
 		migration := migrations[i]
 
 		m.logMigrationEvent(DownMigrationState, migration.Migration, "started")
@@ -238,7 +248,12 @@ func (m *Migrator) Down(ctx context.Context) (err error) {
 }
 
 func (m *Migrator) logMigrationEvent(state MigrationState, mig Migration, event string) {
-	m.logger.Info(fmt.Sprintf("Migration %q %s (%s)", mig.Name, event, state))
+	m.logger.Debug(
+		"Executing metadata migration",
+		zap.String("migration_name", mig.Name),
+		zap.String("target_state", state.String()),
+		zap.String("migration_event", event),
+	)
 }
 
 func (m *Migrator) walk(ctx context.Context, store kv.Store, fn func(id influxdb.ID, m Migration)) error {
@@ -253,24 +268,24 @@ func (m *Migrator) walk(ctx context.Context, store kv.Store, fn func(id influxdb
 			return err
 		}
 
-		return kv.WalkCursor(ctx, cursor, func(k, v []byte) error {
+		return kv.WalkCursor(ctx, cursor, func(k, v []byte) (bool, error) {
 			var id influxdb.ID
 			if err := id.Decode(k); err != nil {
-				return fmt.Errorf("decoding migration id: %w", err)
+				return false, fmt.Errorf("decoding migration id: %w", err)
 			}
 
 			var migration Migration
 			if err := json.Unmarshal(v, &migration); err != nil {
-				return err
+				return false, err
 			}
 
 			idx := int(id) - 1
 			if idx >= len(m.Specs) {
-				return fmt.Errorf("migration %q: %w", migration.Name, ErrMigrationSpecNotFound)
+				return false, fmt.Errorf("migration %q: %w", migration.Name, ErrMigrationSpecNotFound)
 			}
 
 			if spec := m.Specs[idx]; spec.MigrationName() != migration.Name {
-				return fmt.Errorf("expected migration %q, found %q", spec.MigrationName(), migration.Name)
+				return false, fmt.Errorf("expected migration %q, found %q", spec.MigrationName(), migration.Name)
 			}
 
 			if migration.FinishedAt != nil {
@@ -279,7 +294,7 @@ func (m *Migrator) walk(ctx context.Context, store kv.Store, fn func(id influxdb
 
 			fn(id, migration)
 
-			return nil
+			return true, nil
 		})
 	}); err != nil {
 		return fmt.Errorf("reading migrations: %w", err)

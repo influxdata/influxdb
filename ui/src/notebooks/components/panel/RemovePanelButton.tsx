@@ -24,6 +24,7 @@ const RemoveButton: FC<Props> = ({onRemove}) => {
 
   return (
     <SquareButton
+      className="flows-delete-cell"
       icon={IconFont.Remove}
       onClick={handleClick}
       titleText="Remove this cell"

@@ -28,7 +28,7 @@ type Props = RouteComponentProps & ReduxProps
 const GettingStarted: FunctionComponent<Props> = ({orgID, history}) => {
   const [loadDataAnimating, setLoadDataAnimation] = useState<boolean>(false)
   const handleLoadDataClick = (): void => {
-    history.push(`/orgs/${orgID}/load-data/telegrafs`)
+    history.push(`/orgs/${orgID}/load-data/sources`)
   }
   const handleLoadDataMouseOver = (): void => {
     setLoadDataAnimation(true)

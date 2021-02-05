@@ -25,9 +25,11 @@ Feature: Data explorer
     When click the Line Protocol wizard precision dropdown
     When click the line Protocol wizard precision "ms"
     #When enter "<any>" into the line protocol text area
-    When click the Line Protocol wizard continue button
+    #When click the Line Protocol wizard continue button
+    When click the Line Protocol wizard write button
     Then the Line Protocol wizard step status message is "Data Written Successfully"
-    When click the Line Protocol wizard finish button
+    #When click the Line Protocol wizard finish button
+    When click the Line Protocol wizard close button
 
 
   Scenario: Create a simple query

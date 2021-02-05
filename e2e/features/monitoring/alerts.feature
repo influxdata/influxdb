@@ -197,13 +197,16 @@ Scenario: Exercise Initial Alerts view Controls
   { "state": "error", "text": "One or more thresholds"}]
   """
     Then the save check button is disabled
-    When click the time machine query builder function duration input
-    When click the query builder function duration suggestion "5s"
+  # 7.8.20 -- feature disabled - see issue 19249
+  #  When click the time machine query builder function duration input
+  #  When click the query builder function duration suggestion "5s"
     When click the time machine cell edit submit button
     Then the time machine cell edit preview graph is shown
     When click check editor configure check button
-    Then the interval indicator is set to "5s"
+    Then the interval indicator is set to "1m"
     Then the time machine cell edit preview graph is shown
+    When click the check offset interval input
+    When set the check interval input to "10s"
     When enter into interval offset "1s"
     When send keys "ENTER"
     When update the check message template to
@@ -378,7 +381,7 @@ Scenario: Add Labels To Checks
     When click the check card name "Simple Count Check (clone 1)"
     Then the edit check overlay is loaded
     Then the current edit check name is "Simple Count Check (clone 1)"
-    Then the interval indicator is set to "5s"
+    Then the interval indicator is set to "10s"
     Then the offset input is set to "1s"
     Then the check message tempate contains
     """
