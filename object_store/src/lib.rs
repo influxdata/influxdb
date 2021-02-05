@@ -33,8 +33,8 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::{stream::BoxStream, Stream, StreamExt, TryFutureExt, TryStreamExt};
-use snafu::Snafu;
-use std::{io, path::PathBuf};
+use snafu::{ResultExt, Snafu};
+use std::io;
 
 /// Universal API to multiple object store services.
 #[async_trait]
@@ -42,30 +42,44 @@ pub trait ObjectStoreApi: Send + Sync + 'static {
     /// The type of the locations used in interacting with this object store.
     type Path: path::ObjectStorePath;
 
+    /// The error returned from fallible methods
+    type Error: std::error::Error + Send + Sync + 'static;
+
     /// Return a new location path appropriate for this object storage
     fn new_path(&self) -> Self::Path;
 
     /// Save the provided bytes to the specified location.
-    async fn put<S>(&self, location: &Self::Path, bytes: S, length: usize) -> Result<()>
+    async fn put<S>(
+        &self,
+        location: &Self::Path,
+        bytes: S,
+        length: usize,
+    ) -> Result<(), Self::Error>
     where
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static;
 
     /// Return the bytes that are stored at the specified location.
-    async fn get(&self, location: &Self::Path) -> Result<BoxStream<'static, Result<Bytes>>>;
+    async fn get(
+        &self,
+        location: &Self::Path,
+    ) -> Result<BoxStream<'static, Result<Bytes, Self::Error>>, Self::Error>;
 
     /// Delete the object at the specified location.
-    async fn delete(&self, location: &Self::Path) -> Result<()>;
+    async fn delete(&self, location: &Self::Path) -> Result<(), Self::Error>;
 
     /// List all the objects with the given prefix.
     async fn list<'a>(
         &'a self,
         prefix: Option<&'a Self::Path>,
-    ) -> Result<BoxStream<'a, Result<Vec<Self::Path>>>>;
+    ) -> Result<BoxStream<'a, Result<Vec<Self::Path>, Self::Error>>, Self::Error>;
 
     /// List objects with the given prefix and an implementation specific
     /// delimiter. Returns common prefixes (directories) in addition to object
     /// metadata.
-    async fn list_with_delimiter(&self, prefix: &Self::Path) -> Result<ListResult<Self::Path>>;
+    async fn list_with_delimiter(
+        &self,
+        prefix: &Self::Path,
+    ) -> Result<ListResult<Self::Path>, Self::Error>;
 }
 
 /// Universal interface to multiple object store services.
@@ -102,6 +116,7 @@ impl ObjectStore {
 #[async_trait]
 impl ObjectStoreApi for ObjectStore {
     type Path = path::Path;
+    type Error = Error;
 
     fn new_path(&self) -> Self::Path {
         use ObjectStoreIntegration::*;
@@ -123,13 +138,17 @@ impl ObjectStoreApi for ObjectStore {
             (AmazonS3(s3), path::Path::AmazonS3(location)) => {
                 s3.put(location, bytes, length).await?
             }
-            (GoogleCloudStorage(gcs), path::Path::GoogleCloudStorage(location)) => {
-                gcs.put(location, bytes, length).await?
-            }
+            (GoogleCloudStorage(gcs), path::Path::GoogleCloudStorage(location)) => gcs
+                .put(location, bytes, length)
+                .await
+                .context(GcsObjectStoreError)?,
             (InMemory(in_mem), path::Path::InMemory(location)) => {
                 in_mem.put(location, bytes, length).await?
             }
-            (File(file), path::Path::File(location)) => file.put(location, bytes, length).await?,
+            (File(file), path::Path::File(location)) => file
+                .put(location, bytes, length)
+                .await
+                .context(FileObjectStoreError)?,
             (MicrosoftAzure(azure), path::Path::MicrosoftAzure(location)) => {
                 azure.put(location, bytes, length).await?
             }
@@ -151,9 +170,12 @@ impl ObjectStoreApi for ObjectStore {
             (InMemory(in_mem), path::Path::InMemory(location)) => {
                 in_mem.get(location).await?.err_into().boxed()
             }
-            (File(file), path::Path::File(location)) => {
-                file.get(location).await?.err_into().boxed()
-            }
+            (File(file), path::Path::File(location)) => file
+                .get(location)
+                .await
+                .context(FileObjectStoreError)?
+                .err_into()
+                .boxed(),
             (MicrosoftAzure(azure), path::Path::MicrosoftAzure(location)) => {
                 azure.get(location).await?.err_into().boxed()
             }
@@ -256,19 +278,22 @@ impl ObjectStoreApi for ObjectStore {
     async fn list_with_delimiter(&self, prefix: &Self::Path) -> Result<ListResult<Self::Path>> {
         use ObjectStoreIntegration::*;
         match (&self.0, prefix) {
-            (AmazonS3(s3), path::Path::AmazonS3(prefix)) => {
-                s3.list_with_delimiter(prefix)
-                    .map_ok(|list_result| list_result.map_paths(path::Path::AmazonS3))
-                    .await
-            }
+            (AmazonS3(s3), path::Path::AmazonS3(prefix)) => s3
+                .list_with_delimiter(prefix)
+                .map_ok(|list_result| list_result.map_paths(path::Path::AmazonS3))
+                .await
+                .context(AwsObjectStoreError),
             (GoogleCloudStorage(_gcs), _) => unimplemented!(),
-            (InMemory(in_mem), path::Path::InMemory(prefix)) => {
-                in_mem
-                    .list_with_delimiter(prefix)
-                    .map_ok(|list_result| list_result.map_paths(path::Path::InMemory))
-                    .await
-            }
-            (File(_file), _) => unimplemented!(),
+            (InMemory(in_mem), path::Path::InMemory(prefix)) => in_mem
+                .list_with_delimiter(prefix)
+                .map_ok(|list_result| list_result.map_paths(path::Path::InMemory))
+                .await
+                .context(InMemoryObjectStoreError),
+            (File(file), path::Path::File(prefix)) => file
+                .list_with_delimiter(prefix)
+                .map_ok(|list_result| list_result.map_paths(path::Path::File))
+                .await
+                .context(FileObjectStoreError),
             (MicrosoftAzure(_azure), _) => unimplemented!(),
             _ => unreachable!(),
         }
@@ -367,133 +392,50 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, Snafu)]
 #[allow(missing_docs)]
 pub enum Error {
-    DataDoesNotMatchLength {
-        expected: usize,
-        actual: usize,
-    },
-    #[snafu(display("Unable to parse last modified time {}: {}", value, err))]
-    UnableToParseLastModifiedTime {
-        value: String,
-        err: chrono::ParseError,
-    },
+    #[snafu(display("File-based Object Store error: {}", source))]
+    FileObjectStoreError { source: disk::Error },
 
-    UnableToPutDataToGcs {
-        source: cloud_storage::Error,
-        bucket: String,
-        location: String,
-    },
-    UnableToListDataFromGcs {
-        source: cloud_storage::Error,
-        bucket: String,
-    },
-    UnableToListDataFromGcs2 {
-        source: cloud_storage::Error,
-        bucket: String,
-    },
-    UnableToDeleteDataFromGcs {
-        source: cloud_storage::Error,
-        bucket: String,
-        location: String,
-    },
-    UnableToGetDataFromGcs {
-        source: cloud_storage::Error,
-        bucket: String,
-        location: String,
-    },
+    #[snafu(display("Google Cloud Storage-based Object Store error: {}", source))]
+    GcsObjectStoreError { source: gcp::Error },
 
-    UnableToPutDataToS3 {
-        source: rusoto_core::RusotoError<rusoto_s3::PutObjectError>,
-        bucket: String,
-        location: String,
-    },
-    UnableToGetDataFromS3 {
-        source: rusoto_core::RusotoError<rusoto_s3::GetObjectError>,
-        bucket: String,
-        location: String,
-    },
-    UnableToDeleteDataFromS3 {
-        source: rusoto_core::RusotoError<rusoto_s3::DeleteObjectError>,
-        bucket: String,
-        location: String,
-    },
-    NoDataFromS3 {
-        bucket: String,
-        location: String,
-    },
-    UnableToReadBytesFromS3 {
-        source: std::io::Error,
-        bucket: String,
-        location: String,
-    },
-    UnableToGetPieceOfDataFromS3 {
-        source: std::io::Error,
-        bucket: String,
-        location: String,
-    },
-    UnableToListDataFromS3 {
-        source: rusoto_core::RusotoError<rusoto_s3::ListObjectsV2Error>,
-        bucket: String,
-    },
+    #[snafu(display("AWS S3-based Object Store error: {}", source))]
+    AwsObjectStoreError { source: aws::Error },
 
-    UnableToPutDataInMemory {
-        source: std::io::Error,
-    },
-    NoDataInMemory,
+    #[snafu(display("Azure Blob storage-based Object Store error: {}", source))]
+    AzureObjectStoreError { source: azure::Error },
 
-    UnableToPutDataToAzure {
-        source: Box<dyn std::error::Error + Send + Sync>,
-        location: String,
-    },
-    UnableToGetDataFromAzure {
-        source: Box<dyn std::error::Error + Send + Sync>,
-        location: String,
-    },
-    UnableToDeleteDataFromAzure {
-        source: Box<dyn std::error::Error + Send + Sync>,
-        location: String,
-    },
-    UnableToListDataFromAzure {
-        source: Box<dyn std::error::Error + Send + Sync>,
-    },
+    #[snafu(display("In-memory-based Object Store error: {}", source))]
+    InMemoryObjectStoreError { source: memory::Error },
+}
 
-    #[snafu(display("Unable to create file {}: {}", path.display(), err))]
-    UnableToCreateFile {
-        err: io::Error,
-        path: PathBuf,
-    },
-    #[snafu(display("Unable to create dir {}: {}", path.display(), source))]
-    UnableToCreateDir {
-        source: io::Error,
-        path: PathBuf,
-    },
-    #[snafu(display("Unable to open file {}: {}", path.display(), source))]
-    UnableToOpenFile {
-        source: io::Error,
-        path: PathBuf,
-    },
-    #[snafu(display("Unable to read data from file {}: {}", path.display(), source))]
-    UnableToReadBytes {
-        source: io::Error,
-        path: PathBuf,
-    },
-    #[snafu(display("Unable to delete file {}: {}", path.display(), source))]
-    UnableToDeleteFile {
-        source: io::Error,
-        path: PathBuf,
-    },
-    #[snafu(display("Unable to list directory {}: {}", path.display(), source))]
-    UnableToListDirectory {
-        source: io::Error,
-        path: PathBuf,
-    },
-    #[snafu(display("Unable to process directory entry: {}", source))]
-    UnableToProcessEntry {
-        source: io::Error,
-    },
-    #[snafu(display("Unable to copy data to file: {}", source))]
-    UnableToCopyDataToFile {
-        source: io::Error,
-    },
+impl From<disk::Error> for Error {
+    fn from(source: disk::Error) -> Self {
+        Self::FileObjectStoreError { source }
+    }
+}
+
+impl From<gcp::Error> for Error {
+    fn from(source: gcp::Error) -> Self {
+        Self::GcsObjectStoreError { source }
+    }
+}
+
+impl From<aws::Error> for Error {
+    fn from(source: aws::Error) -> Self {
+        Self::AwsObjectStoreError { source }
+    }
+}
+
+impl From<azure::Error> for Error {
+    fn from(source: azure::Error) -> Self {
+        Self::AzureObjectStoreError { source }
+    }
+}
+
+impl From<memory::Error> for Error {
+    fn from(source: memory::Error) -> Self {
+        Self::InMemoryObjectStoreError { source }
+    }
 }
 
 #[cfg(test)]
@@ -595,14 +537,12 @@ mod tests {
             "mydb/wal/000/000/001.segment",
             "mydb/wal/000/000/002.segment",
             "mydb/wal/001/001/000.segment",
-            "mydb/wal/foo.test",
+            "mydb/wal/foo.json",
             "mydb/data/whatevs",
         ]
         .iter()
         .map(|&s| str_to_path(s))
         .collect();
-
-        let time_before_creation = Utc::now();
 
         for f in &files {
             let stream_data = std::io::Result::Ok(data.clone());
@@ -624,7 +564,7 @@ mod tests {
         let mut expected_001 = prefix.clone();
         expected_001.push_dir("001");
         let mut expected_location = prefix.clone();
-        expected_location.set_file_name("foo.test");
+        expected_location.set_file_name("foo.json");
 
         let result = storage.list_with_delimiter(&prefix).await.unwrap();
 
@@ -635,7 +575,6 @@ mod tests {
 
         assert_eq!(object.location, expected_location);
         assert_eq!(object.size, data.len());
-        assert!(object.last_modified > time_before_creation);
 
         // List with a prefix containing a partial "file name"
         let mut prefix = storage.new_path();
@@ -710,7 +649,7 @@ mod tests {
             "mydb/wal/000/000/001.segment",
             "mydb/wal/000/000/002.segment",
             "mydb/wal/001/001/000.segment",
-            "mydb/wal/foo.test",
+            "mydb/wal/foo.json",
             "mydb/data/whatevs",
         ]
         .iter()

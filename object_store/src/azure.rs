@@ -1,10 +1,6 @@
 //! This module contains the IOx implementation for using Azure Blob storage as
 //! the object store.
-use crate::{
-    path::cloud::CloudPath, DataDoesNotMatchLength, ListResult, ObjectStoreApi, Result,
-    UnableToDeleteDataFromAzure, UnableToGetDataFromAzure, UnableToListDataFromAzure,
-    UnableToPutDataToAzure,
-};
+use crate::{path::cloud::CloudPath, ListResult, ObjectStoreApi};
 use async_trait::async_trait;
 use azure_core::HttpClient;
 use azure_storage::{
@@ -18,9 +14,43 @@ use futures::{
     stream::{self, BoxStream},
     FutureExt, Stream, StreamExt, TryStreamExt,
 };
-use snafu::{ensure, ResultExt};
+use snafu::{ensure, ResultExt, Snafu};
 use std::io;
 use std::sync::Arc;
+
+/// A specialized `Result` for Azure object store-related errors
+pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// A specialized `Error` for Azure object store-related errors
+#[derive(Debug, Snafu)]
+#[allow(missing_docs)]
+pub enum Error {
+    #[snafu(display("Expected streamed data to have length {}, got {}", expected, actual))]
+    DataDoesNotMatchLength { expected: usize, actual: usize },
+
+    #[snafu(display("Unable to DELETE data. Location: {}, Error: {}", location, source,))]
+    UnableToDeleteData {
+        source: Box<dyn std::error::Error + Send + Sync>,
+        location: String,
+    },
+
+    #[snafu(display("Unable to GET data. Location: {}, Error: {}", location, source,))]
+    UnableToGetData {
+        source: Box<dyn std::error::Error + Send + Sync>,
+        location: String,
+    },
+
+    #[snafu(display("Unable to PUT data. Location: {}, Error: {}", location, source,))]
+    UnableToPutData {
+        source: Box<dyn std::error::Error + Send + Sync>,
+        location: String,
+    },
+
+    #[snafu(display("Unable to list data. Error: {}", source))]
+    UnableToListData {
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+}
 
 /// Configuration for connecting to [Microsoft Azure Blob Storage](https://azure.microsoft.com/en-us/services/storage/blobs/).
 #[derive(Debug)]
@@ -32,6 +62,7 @@ pub struct MicrosoftAzure {
 #[async_trait]
 impl ObjectStoreApi for MicrosoftAzure {
     type Path = CloudPath;
+    type Error = Error;
 
     fn new_path(&self) -> Self::Path {
         CloudPath::default()
@@ -61,7 +92,7 @@ impl ObjectStoreApi for MicrosoftAzure {
             .put_block_blob(&temporary_non_streaming)
             .execute()
             .await
-            .context(UnableToPutDataToAzure {
+            .context(UnableToPutData {
                 location: location.to_owned(),
             })?;
 
@@ -78,7 +109,7 @@ impl ObjectStoreApi for MicrosoftAzure {
                 .execute()
                 .await
                 .map(|blob| blob.data.into())
-                .context(UnableToGetDataFromAzure {
+                .context(UnableToGetData {
                     location: location.to_owned(),
                 })
         }
@@ -94,7 +125,7 @@ impl ObjectStoreApi for MicrosoftAzure {
             .delete_snapshots_method(DeleteSnapshotsMethod::Include)
             .execute()
             .await
-            .context(UnableToDeleteDataFromAzure {
+            .context(UnableToDeleteData {
                 location: location.to_owned(),
             })?;
 
@@ -130,7 +161,7 @@ impl ObjectStoreApi for MicrosoftAzure {
                 ListState::Start => {}
             }
 
-            let resp = match request.execute().await.context(UnableToListDataFromAzure) {
+            let resp = match request.execute().await.context(UnableToListData) {
                 Ok(resp) => resp,
                 Err(err) => return Some((Err(err), state)),
             };

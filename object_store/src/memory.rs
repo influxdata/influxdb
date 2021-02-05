@@ -1,17 +1,33 @@
 //! This module contains the IOx implementation for using memory as the object
 //! store.
 use crate::{
-    path::parsed::DirsAndFileName, DataDoesNotMatchLength, ListResult, NoDataInMemory, ObjectMeta,
-    ObjectStoreApi, Result, UnableToPutDataInMemory,
+    path::parsed::DirsAndFileName, ListResult, ObjectMeta, ObjectStoreApi, ObjectStorePath,
 };
 use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::Utc;
 use futures::{stream::BoxStream, Stream, StreamExt, TryStreamExt};
-use snafu::{ensure, OptionExt, ResultExt};
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use std::collections::BTreeSet;
 use std::{collections::BTreeMap, io};
 use tokio::sync::RwLock;
+
+/// A specialized `Result` for in-memory object store-related errors
+pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// A specialized `Error` for in-memory object store-related errors
+#[derive(Debug, Snafu)]
+#[allow(missing_docs)]
+pub enum Error {
+    #[snafu(display("Expected streamed data to have length {}, got {}", expected, actual))]
+    DataDoesNotMatchLength { expected: usize, actual: usize },
+
+    #[snafu(display("Unable to stream data from the request into memory: {}", source))]
+    UnableToStreamDataIntoMemory { source: std::io::Error },
+
+    #[snafu(display("No data in memory found. Location: {}", location))]
+    NoDataInMemory { location: String },
+}
 
 /// In-memory storage suitable for testing or for opting out of using a cloud
 /// storage provider.
@@ -23,6 +39,7 @@ pub struct InMemory {
 #[async_trait]
 impl ObjectStoreApi for InMemory {
     type Path = DirsAndFileName;
+    type Error = Error;
 
     fn new_path(&self) -> Self::Path {
         DirsAndFileName::default()
@@ -36,7 +53,7 @@ impl ObjectStoreApi for InMemory {
             .map_ok(|b| bytes::BytesMut::from(&b[..]))
             .try_concat()
             .await
-            .context(UnableToPutDataInMemory)?;
+            .context(UnableToStreamDataIntoMemory)?;
 
         ensure!(
             content.len() == length,
@@ -62,7 +79,9 @@ impl ObjectStoreApi for InMemory {
             .await
             .get(location)
             .cloned()
-            .context(NoDataInMemory)?;
+            .context(NoDataInMemory {
+                location: location.display(),
+            })?;
 
         Ok(futures::stream::once(async move { Ok(data) }).boxed())
     }
@@ -160,7 +179,7 @@ mod tests {
 
     use crate::{
         tests::{list_with_delimiter, put_get_delete_list},
-        Error, ObjectStoreApi, ObjectStorePath,
+        ObjectStoreApi, ObjectStorePath,
     };
     use futures::stream;
 
