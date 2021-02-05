@@ -478,3 +478,39 @@ func Test_ConfigPathDotDirectory(t *testing.T) {
 		})
 	}
 }
+
+func Test_LoadConfigCwd(t *testing.T) {
+	testDir, err := ioutil.TempDir("", "")
+	require.NoError(t, err)
+	defer os.RemoveAll(testDir)
+
+	pwd, err := os.Getwd()
+	require.NoError(t, err)
+	defer os.Chdir(pwd)
+
+	require.NoError(t, os.Chdir(testDir))
+
+	config := map[string]string{
+		"foo": "bar",
+	}
+	_, err = writeJsonConfig(testDir, config)
+	require.NoError(t, err)
+
+	var foo string
+	program := &Program{
+		Name: "test",
+		Opts: []Opt{
+			{
+				DestP: &foo,
+				Flag:  "foo",
+			},
+		},
+		Run: func() error { return nil },
+	}
+
+	cmd := NewCommand(viper.New(), program)
+	cmd.SetArgs([]string{})
+	require.NoError(t, cmd.Execute())
+
+	require.Equal(t, "bar", foo)
+}
