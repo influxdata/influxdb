@@ -119,7 +119,6 @@ impl Db {
         if let Some(local_store) = self.mutable_buffer.as_ref() {
             local_store
                 .rollover_partition(partition_key)
-                .await
                 .context(RollingPartition)
                 .map(DBChunk::new_mb)
         } else {
@@ -165,7 +164,6 @@ impl Db {
             .as_ref()
             .context(DatatbaseNotWriteable)?
             .drop_chunk(partition_key, chunk_id)
-            .await
             .map(DBChunk::new_mb)
             .context(MutableBufferDrop)
     }
@@ -213,7 +211,6 @@ impl Db {
             .as_ref()
             .context(DatatbaseNotWriteable)?
             .get_chunk(partition_key, chunk_id)
-            .await
             .context(UnknownMutableBufferChunk { chunk_id })?;
 
         let mut batches = Vec::new();
