@@ -427,7 +427,9 @@ impl Chunk {
                         chunk: self.id,
                     })?;
 
-            let columns = table.stats();
+            let columns = table
+                .stats(&self)
+                .context(NamedTableError { table_name: name })?;
 
             stats.push(TableStats {
                 name: name.to_string(),

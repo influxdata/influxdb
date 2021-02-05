@@ -23,9 +23,23 @@ pub struct Table {
     pub columns: Vec<Column>,
 }
 
+/// Column name, statistics which encode type information
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+pub struct Column {
+    pub name: String,
+    pub stats: ColumnStats,
+}
+
+impl Column {
+    /// Returns the total number of rows in this column
+    pub fn count(&self) -> u32 {
+        self.stats.count()
+    }
+}
+
 /// Statistics and type information for a column.
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
-pub enum Column {
+pub enum ColumnStats {
     I64(Statistics<i64>),
     U64(Statistics<u64>),
     F64(Statistics<f64>),
@@ -33,7 +47,7 @@ pub enum Column {
     String(Statistics<String>),
 }
 
-impl Column {
+impl ColumnStats {
     /// Returns the total number of rows in this column
     pub fn count(&self) -> u32 {
         match self {

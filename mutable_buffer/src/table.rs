@@ -20,7 +20,7 @@ use crate::{
     dictionary::{Dictionary, Error as DictionaryError},
 };
 use data_types::{
-    partition_metadata::Column as ColumnStats,
+    partition_metadata::{Column as ColumnSummary, ColumnStats},
     schema::{builder::SchemaBuilder, Schema},
     selection::Selection,
     TIME_COLUMN_NAME,
@@ -1101,18 +1101,35 @@ impl Table {
         }
     }
 
-    pub fn stats(&self) -> Vec<ColumnStats> {
-        self.columns
-            .iter()
-            .map(|(_, c)| match c {
+    pub fn stats(&self, chunk: &Chunk) -> Result<Vec<ColumnSummary>> {
+        let mut summaries = Vec::with_capacity(self.columns.len());
+
+        for (column_id, c) in &self.columns {
+            let column_name =
+                chunk
+                    .dictionary
+                    .lookup_id(*column_id)
+                    .context(ColumnIdNotFoundInDictionary {
+                        column_id: *column_id,
+                        chunk: chunk.id,
+                    })?;
+
+            let stats = match c {
                 Column::F64(_, stats) => ColumnStats::F64(stats.clone()),
                 Column::I64(_, stats) => ColumnStats::I64(stats.clone()),
                 Column::Bool(_, stats) => ColumnStats::Bool(stats.clone()),
                 Column::String(_, stats) | Column::Tag(_, stats) => {
                     ColumnStats::String(stats.clone())
                 }
-            })
-            .collect()
+            };
+
+            summaries.push(ColumnSummary {
+                name: column_name.to_string(),
+                stats,
+            });
+        }
+
+        Ok(summaries)
     }
 }
 
