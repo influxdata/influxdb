@@ -20,6 +20,13 @@ This release fully removes the `inmem` indexing option, along with the associate
 
 Replacement `tsi1` indexes will be automatically generated on startup for shards that need it.
 
+#### Artifact naming conventions
+
+The names of artifacts produced by our nightly & release builds have been updated according to the
+[Google developer guidelines](https://developers.google.com/style/filenames). Underscores (`_`) have
+been replaced by hyphens (`-`) in nearly all cases; the one exception is the use of `x86_64` in our
+RPM packages, which has been left unchanged.
+
 ### Features
 
 1. [20537](https://github.com/influxdata/influxdb/pull/20537): Add `--overwrite-existing-v2` flag to `influxd upgrade` to overwrite existing files at output paths (instead of aborting).

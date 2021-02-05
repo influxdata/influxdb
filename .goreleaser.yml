@@ -76,7 +76,7 @@ nfpms:
           amd64: x86_64
         file_name_template: "influxdb2-{{ .Version }}.{{ .Arch }}"
       deb:
-        file_name_template: "influxdb2_{{ .Version }}_{{ .Arch }}"
+        file_name_template: "influxdb2-{{ .Version }}-{{ .Arch }}"
     vendor: InfluxData
     homepage: https://influxdata.com
     maintainer: support@influxdb.com
@@ -88,14 +88,14 @@ archives:
     builds: ["influx"]
     format: tar.gz
     wrap_in_directory: true
-    name_template: "influxdb2_client_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "influxdb2-client-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
     files:
       - LICENSE
       - README.md
   - id: influx_and_influxd
     format: tar.gz
     wrap_in_directory: true
-    name_template: "influxdb2-{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    name_template: "influxdb2-{{ .Version }}-{{ .Os }}-{{ .Arch }}"
     files:
       - LICENSE
       - README.md
@@ -107,7 +107,7 @@ blobs:
     folder: "influxdb/releases/"
 
 checksum:
-  name_template: "influxdb2_{{ .Version }}.sha256"
+  name_template: "influxdb2-{{ .Version }}.sha256"
   algorithm: sha256
 
 dockers:
