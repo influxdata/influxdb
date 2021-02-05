@@ -4,16 +4,14 @@ version = "0.1.0"
 authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-[dependencies]
-snafu = "0.6.2"
-tracing = "0.1"
-rand = "0.7.3"
-human_format = "1.0.3"
-
+[dependencies] # In alphabetical order
 arrow_deps = { path = "../arrow_deps" }
 data_types = { path = "../data_types" }
+human_format = "1.0.3"
 influxdb_tsm = { path = "../influxdb_tsm" }
+rand = "0.7.3"
+snafu = "0.6.2"
+tracing = "0.1"
 
-[dev-dependencies]
-test_helpers ={ path = "../test_helpers" }
+[dev-dependencies] # In alphabetical order
+test_helpers = { path = "../test_helpers" }

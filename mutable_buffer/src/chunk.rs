@@ -16,7 +16,7 @@ use generated_types::wal as wb;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use data_types::{
-    partition_metadata::Table as TableStats, schema::Schema, selection::Selection, TIME_COLUMN_NAME,
+    partition_metadata::TableSummary, schema::Schema, selection::Selection, TIME_COLUMN_NAME,
 };
 
 use query::{
@@ -415,7 +415,7 @@ impl Chunk {
     }
 
     /// Returns a vec of the summary statistics of the tables in this chunk
-    pub fn table_stats(&self) -> Result<Vec<TableStats>> {
+    pub fn table_stats(&self) -> Result<Vec<TableSummary>> {
         let mut stats = Vec::with_capacity(self.tables.len());
 
         for (&table_id, table) in &self.tables {
@@ -427,9 +427,11 @@ impl Chunk {
                         chunk: self.id,
                     })?;
 
-            let columns = table.stats();
+            let columns = table
+                .stats(&self)
+                .context(NamedTableError { table_name: name })?;
 
-            stats.push(TableStats {
+            stats.push(TableSummary {
                 name: name.to_string(),
                 columns,
             });
@@ -484,6 +486,13 @@ impl Chunk {
             .schema(self, selection)
             .context(NamedTableError { table_name })
     }
+
+    /// Return the approximate memory size of the chunk, in bytes including the
+    /// dictionary, tables, and their rows.
+    pub fn size(&self) -> usize {
+        let data_size = self.tables.values().fold(0, |acc, val| acc + val.size());
+        data_size + self.dictionary.size
+    }
 }
 
 #[async_trait]
@@ -497,7 +506,7 @@ impl query::PartitionChunk for Chunk {
         self.id
     }
 
-    fn table_stats(&self) -> Result<Vec<TableStats>, Self::Error> {
+    fn table_stats(&self) -> Result<Vec<TableSummary>, Self::Error> {
         self.table_stats()
     }
 

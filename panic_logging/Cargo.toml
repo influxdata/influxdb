@@ -4,5 +4,5 @@ version = "0.1.0"
 authors = ["Paul Dix <paul@pauldix.net>"]
 edition = "2018"
 
-[dependencies]
+[dependencies] # In alphabetical order
 tracing = { version = "0.1", features = ["release_max_level_debug"] }

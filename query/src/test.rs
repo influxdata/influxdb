@@ -470,7 +470,9 @@ impl PartitionChunk for TestChunk {
         self.id
     }
 
-    fn table_stats(&self) -> Result<Vec<data_types::partition_metadata::Table>, Self::Error> {
+    fn table_stats(
+        &self,
+    ) -> Result<Vec<data_types::partition_metadata::TableSummary>, Self::Error> {
         unimplemented!()
     }
 

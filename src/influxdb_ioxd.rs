@@ -6,7 +6,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 mod flight;
-pub mod http_routes;
+pub mod http;
 pub mod rpc;
 
 use server::{ConnectionManagerImpl as ConnectionManager, Server as AppServer};
@@ -141,7 +141,7 @@ pub async fn main(logging_level: LoggingLevel, config: Option<Config>) -> Result
 
     // Construct and start up HTTP server
 
-    let router_service = http_routes::router_service(app_server.clone());
+    let router_service = http::router_service(app_server.clone());
 
     let bind_addr = config.http_bind_address;
     let http_server = Server::try_bind(&bind_addr)

@@ -6,7 +6,7 @@ use arrow_deps::{
     parquet::{self, arrow::ArrowWriter, file::writer::TryClone},
 };
 use data_types::{
-    partition_metadata::{Partition as PartitionMeta, Table},
+    partition_metadata::{PartitionSummary, TableSummary},
     selection::Selection,
 };
 use futures::StreamExt;
@@ -76,7 +76,7 @@ where
     T: Send + Sync + 'static + PartitionChunk,
 {
     pub id: Uuid,
-    pub partition_meta: PartitionMeta,
+    pub partition_summary: PartitionSummary,
     pub metadata_path: object_store::path::Path,
     pub data_path: object_store::path::Path,
     store: Arc<ObjectStore>,
@@ -94,7 +94,7 @@ where
         data_path: object_store::path::Path,
         store: Arc<ObjectStore>,
         partition: Arc<T>,
-        tables: Vec<Table>,
+        tables: Vec<TableSummary>,
     ) -> Self {
         let table_states = vec![TableState::NotStarted; tables.len()];
 
@@ -105,7 +105,7 @@ where
 
         Self {
             id: Uuid::new_v4(),
-            partition_meta: PartitionMeta {
+            partition_summary: PartitionSummary {
                 key: partition_key.into(),
                 tables,
             },
@@ -127,7 +127,7 @@ where
             .position(|s| s == &TableState::NotStarted)
             .map(|pos| {
                 status.table_states[pos] = TableState::Running;
-                (pos, &*self.partition_meta.tables[pos].name)
+                (pos, &*self.partition_summary.tables[pos].name)
             })
     }
 
@@ -184,9 +184,9 @@ where
         }
 
         let mut partition_meta_path = self.metadata_path.clone();
-        let key = format!("{}.json", &self.partition_meta.key);
+        let key = format!("{}.json", &self.partition_summary.key);
         partition_meta_path.set_file_name(&key);
-        let json_data = serde_json::to_vec(&self.partition_meta).context(JsonGenerationError)?;
+        let json_data = serde_json::to_vec(&self.partition_summary).context(JsonGenerationError)?;
         let data = Bytes::from(json_data);
         let len = data.len();
         let stream_data = std::io::Result::Ok(data);
@@ -305,7 +305,7 @@ where
     tokio::spawn(async move {
         info!(
             "starting snapshot of {} to {}",
-            &snapshot.partition_meta.key,
+            &snapshot.partition_summary.key,
             &snapshot.data_path.display()
         );
         if let Err(e) = snapshot.run(notify).await {
@@ -419,22 +419,22 @@ mem,host=A,region=west used=45 1
             .await
             .unwrap();
 
-        let meta: PartitionMeta = serde_json::from_slice(&*summary).unwrap();
-        assert_eq!(meta, snapshot.partition_meta);
+        let meta: PartitionSummary = serde_json::from_slice(&*summary).unwrap();
+        assert_eq!(meta, snapshot.partition_summary);
     }
 
     #[test]
     fn snapshot_states() {
         let tables = vec![
-            Table {
+            TableSummary {
                 name: "foo".to_string(),
                 columns: vec![],
             },
-            Table {
+            TableSummary {
                 name: "bar".to_string(),
                 columns: vec![],
             },
-            Table {
+            TableSummary {
                 name: "asdf".to_string(),
                 columns: vec![],
             },

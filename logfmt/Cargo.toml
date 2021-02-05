@@ -5,12 +5,10 @@ authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
 description="tracing_subscriber layer for writing out logfmt formatted events"
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
+[dependencies] # In alphabetical order
 tracing = { version = "0.1" }
 tracing-subscriber = "0.2.15"
 
-[dev-dependencies]
+[dev-dependencies] # In alphabetical order
 lazy_static = "1.4.0"
 regex = "1.4.3"

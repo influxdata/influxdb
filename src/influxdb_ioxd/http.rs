@@ -810,7 +810,7 @@ mod tests {
             .send()
             .await;
 
-        check_response("write", response, StatusCode::NO_CONTENT, "").await;
+        check_response("gzip_write", response, StatusCode::NO_CONTENT, "").await;
 
         // Check that the data got into the right bucket
         let test_db = test_storage
@@ -949,7 +949,7 @@ mod tests {
             .send()
             .await;
 
-        check_response("create_database", response, StatusCode::OK, &data).await;
+        check_response("get_database", response, StatusCode::OK, &data).await;
     }
 
     /// checks a http response against expected results

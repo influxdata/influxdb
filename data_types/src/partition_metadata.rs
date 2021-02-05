@@ -8,32 +8,60 @@ use serde::{Deserialize, Serialize};
 /// Describes the schema, summary statistics for each column in each table and
 /// the location of the partition in storage.
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
-pub struct Partition {
+pub struct PartitionSummary {
     /// The identifier for the partition, the partition key computed from
     /// PartitionRules
     pub key: String,
     /// The tables in this partition
-    pub tables: Vec<Table>,
+    pub tables: Vec<TableSummary>,
 }
 
 /// Metadata and statistics information for a table.
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
-pub struct Table {
+pub struct TableSummary {
     pub name: String,
-    pub columns: Vec<Column>,
+    pub columns: Vec<ColumnSummary>,
+}
+
+/// Column name, statistics which encode type information
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+pub struct ColumnSummary {
+    pub name: String,
+    pub stats: Statistics,
+}
+
+impl ColumnSummary {
+    /// Returns the total number of rows in this column
+    pub fn count(&self) -> u32 {
+        self.stats.count()
+    }
+}
+
+/// Column name, statistics which encode type information
+#[derive(Debug, Deserialize, Serialize, PartialEq)]
+pub struct Column {
+    pub name: String,
+    pub stats: Statistics,
+}
+
+impl Column {
+    /// Returns the total number of rows in this column
+    pub fn count(&self) -> u32 {
+        self.stats.count()
+    }
 }
 
 /// Statistics and type information for a column.
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
-pub enum Column {
-    I64(Statistics<i64>),
-    U64(Statistics<u64>),
-    F64(Statistics<f64>),
-    Bool(Statistics<bool>),
-    String(Statistics<String>),
+pub enum Statistics {
+    I64(StatValues<i64>),
+    U64(StatValues<u64>),
+    F64(StatValues<f64>),
+    Bool(StatValues<bool>),
+    String(StatValues<String>),
 }
 
-impl Column {
+impl Statistics {
     /// Returns the total number of rows in this column
     pub fn count(&self) -> u32 {
         match self {
@@ -48,14 +76,14 @@ impl Column {
 
 /// Summary statistics for a column.
 #[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
-pub struct Statistics<T: PartialEq + PartialOrd + Debug + Display + Clone> {
+pub struct StatValues<T: PartialEq + PartialOrd + Debug + Display + Clone> {
     pub min: T,
     pub max: T,
     /// number of non-nil values in this column
     pub count: u32,
 }
 
-impl<T> Statistics<T>
+impl<T> StatValues<T>
 where
     T: PartialEq + PartialOrd + Debug + Display + Clone,
 {
@@ -90,7 +118,7 @@ where
     }
 }
 
-impl Statistics<String> {
+impl StatValues<String> {
     /// Function for string stats to avoid allocating if we're not updating min
     /// or max
     pub fn update_string(stats: &mut Self, other: &str) {
@@ -112,7 +140,7 @@ mod tests {
 
     #[test]
     fn statistics_update() {
-        let mut stat = Statistics::new(23);
+        let mut stat = StatValues::new(23);
         assert_eq!(stat.min, 23);
         assert_eq!(stat.max, 23);
         assert_eq!(stat.count, 1);
@@ -135,22 +163,22 @@ mod tests {
 
     #[test]
     fn update_string() {
-        let mut stat = Statistics::new("bbb".to_string());
+        let mut stat = StatValues::new("bbb".to_string());
         assert_eq!(stat.min, "bbb".to_string());
         assert_eq!(stat.max, "bbb".to_string());
         assert_eq!(stat.count, 1);
 
-        Statistics::update_string(&mut stat, "aaa");
+        StatValues::update_string(&mut stat, "aaa");
         assert_eq!(stat.min, "aaa".to_string());
         assert_eq!(stat.max, "bbb".to_string());
         assert_eq!(stat.count, 2);
 
-        Statistics::update_string(&mut stat, "z");
+        StatValues::update_string(&mut stat, "z");
         assert_eq!(stat.min, "aaa".to_string());
         assert_eq!(stat.max, "z".to_string());
         assert_eq!(stat.count, 3);
 
-        Statistics::update_string(&mut stat, "p");
+        StatValues::update_string(&mut stat, "p");
         assert_eq!(stat.min, "aaa".to_string());
         assert_eq!(stat.max, "z".to_string());
         assert_eq!(stat.count, 4);

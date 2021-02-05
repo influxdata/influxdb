@@ -4,21 +4,19 @@ version = "0.1.0"
 authors = ["pauldix <paul@pauldix.net>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
+[dependencies] # In alphabetical order
 arrow_deps = { path = "../arrow_deps" }
-snafu = "0.6"
-serde = "1.0"
+chrono = "0.4"
+crc32fast = "1.2.0"
+flatbuffers = "0.6"
 generated_types = { path = "../generated_types" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
-chrono = "0.4"
-flatbuffers = "0.6"
-crc32fast = "1.2.0"
-tracing = "0.1"
 percent-encoding = "2.1.0"
+serde = "1.0"
+snafu = "0.6"
+tracing = "0.1"
 
-[dev-dependencies]
+[dev-dependencies] # In alphabetical order
 criterion = "0.3"
 test_helpers = { path = "../test_helpers" }
 

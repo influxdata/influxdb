@@ -93,7 +93,9 @@ impl PartitionChunk for DBChunk {
         }
     }
 
-    fn table_stats(&self) -> Result<Vec<data_types::partition_metadata::Table>, Self::Error> {
+    fn table_stats(
+        &self,
+    ) -> Result<Vec<data_types::partition_metadata::TableSummary>, Self::Error> {
         match self {
             Self::MutableBuffer { chunk } => chunk.table_stats().context(MutableBufferChunk),
             Self::ReadBuffer { .. } => unimplemented!("read buffer not implemented"),

@@ -5,10 +5,7 @@ authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
 edition = "2018"
 description = "IOx Query Interface and Executor"
 
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-# This create is designed to be independent of the rest of the IOx
+# This crate is designed to be independent of the rest of the IOx
 # server and specific storage systems such as Mutable Buffer and Read Buffer.
 #
 # The rationale for this is to:
@@ -16,19 +13,18 @@ description = "IOx Query Interface and Executor"
 # 1. Keep change/compile/link time down during development when working on just this crate
 # 2. Allow for query logic testing without bringing in all the storage systems.
 
-
-
-[dependencies]
-snafu = "0.6.2"
+[dependencies] # In alphabetical order
+arrow_deps = { path = "../arrow_deps" }
 async-trait = "0.1"
-tokio = { version = "1.0", features=["macros"] }
+chrono = "0.4"
+croaring = "0.4.5"
+data_types = { path = "../data_types" }
+influxdb_line_protocol = { path = "../influxdb_line_protocol" }
+snafu = "0.6.2"
+sqlparser = "0.6.1"
+tokio = { version = "1.0", features = ["macros"] }
 tokio-stream = "0.1.2"
 tracing = "0.1"
-croaring = "0.4.5"
-chrono = "0.4"
 
-arrow_deps = { path = "../arrow_deps" }
-sqlparser = "0.6.1"
-influxdb_line_protocol = { path = "../influxdb_line_protocol" }
-data_types = { path = "../data_types" }
+[dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }

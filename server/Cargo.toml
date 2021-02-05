@@ -4,30 +4,28 @@ version = "0.1.0"
 authors = ["pauldix <paul@pauldix.net>"]
 edition = "2018"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
-snafu = "0.6"
-serde = "1.0"
-serde_json = "1.0"
-async-trait = "0.1"
-data_types = { path = "../data_types" }
-generated_types = { path = "../generated_types" }
-influxdb_line_protocol = { path = "../influxdb_line_protocol" }
-query = { path = "../query" }
-mutable_buffer = { path = "../mutable_buffer" }
-read_buffer = { path = "../read_buffer" }
-object_store = { path = "../object_store" }
-tracing = "0.1"
-tokio = { version = "1.0", features=["macros", "time"] }
+[dependencies] # In alphabetical order
 arrow_deps = { path = "../arrow_deps" }
-futures = "0.3.7"
+async-trait = "0.1"
 bytes = "1.0"
 chrono = "0.4"
-uuid = { version = "0.8", features = ["serde", "v4"]}
-flatbuffers = "0.6"
 crc32fast = "1.2.0"
+data_types = { path = "../data_types" }
+flatbuffers = "0.6"
+futures = "0.3.7"
+generated_types = { path = "../generated_types" }
+influxdb_line_protocol = { path = "../influxdb_line_protocol" }
+mutable_buffer = { path = "../mutable_buffer" }
+object_store = { path = "../object_store" }
+query = { path = "../query" }
+read_buffer = { path = "../read_buffer" }
+serde = "1.0"
+serde_json = "1.0"
+snafu = "0.6"
 snap = "1.0.0"
+tokio = { version = "1.0", features = ["macros", "time"] }
+tracing = "0.1"
+uuid = { version = "0.8", features = ["serde", "v4"] }
 
-[dev-dependencies]
+[dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }
