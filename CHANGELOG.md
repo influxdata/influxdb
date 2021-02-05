@@ -70,6 +70,7 @@ RPM packages, which has been left unchanged.
 1. [20669](https://github.com/influxdata/influxdb/pull/20669): Remove blank lines from payloads sent by `influx write`.
 1. [20657](https://github.com/influxdata/influxdb/pull/20657): Allow for creating users without initial passwords in `influx user create`.
 1. [20679](https://github.com/influxdata/influxdb/pull/20679): Fix incorrect "bucket not found" errors when passing `--bucket-id` to `influx write`.
+1. [20702](https://github.com/influxdata/influxdb/pull/20702): Fix loading config when `INFLUXD_CONFIG_PATH` points to a directory with `.` in its name.
 
 ## v2.0.3 [2020-12-14]
 
