@@ -5,7 +5,7 @@ use std::{
     collections::BTreeMap,
     sync::{
         atomic::{AtomicU64, Ordering},
-        Arc, Mutex, RwLock,
+        Arc, Mutex,
     },
 };
 
@@ -83,9 +83,7 @@ pub struct Db {
     #[serde(skip)]
     /// The read buffer holds chunk data in an in-memory optimized
     /// format.
-    ///
-    /// TODO: finer grained locking see ticket https://github.com/influxdata/influxdb_iox/issues/669
-    pub read_buffer: Arc<RwLock<ReadBufferDb>>,
+    pub read_buffer: Arc<ReadBufferDb>,
 
     #[serde(skip)]
     /// The wal buffer holds replicated writes in an append in-memory
@@ -104,7 +102,7 @@ impl Db {
         wal_buffer: Option<Buffer>,
     ) -> Self {
         let wal_buffer = wal_buffer.map(Mutex::new);
-        let read_buffer = Arc::new(RwLock::new(read_buffer));
+        let read_buffer = Arc::new(read_buffer);
         Self {
             rules,
             mutable_buffer,
@@ -145,8 +143,6 @@ impl Db {
     /// List chunks that are currently in the read buffer
     pub async fn read_buffer_chunks(&self, partition_key: &str) -> Vec<Arc<DBChunk>> {
         self.read_buffer
-            .read()
-            .expect("mutex poisoned")
             .chunk_ids(partition_key)
             .into_iter()
             .map(|chunk_id| DBChunk::new_rb(self.read_buffer.clone(), partition_key, chunk_id))
@@ -176,8 +172,6 @@ impl Db {
         chunk_id: u32,
     ) -> Result<Arc<DBChunk>> {
         self.read_buffer
-            .write()
-            .expect("mutex poisoned")
             .drop_chunk(partition_key, chunk_id)
             .context(ReadBufferDrop)?;
 
@@ -222,8 +216,8 @@ impl Db {
                 // As implemented now, taking this write lock will wait
                 // until all reads to the read buffer to complete and
                 // then will block all reads while the insert is occuring
-                let mut read_buffer = self.read_buffer.write().expect("mutex poisoned");
-                read_buffer.upsert_partition(partition_key, mb_chunk.id(), &stats.name, batch)
+                self.read_buffer
+                    .upsert_partition(partition_key, mb_chunk.id(), &stats.name, batch)
             }
         }
 

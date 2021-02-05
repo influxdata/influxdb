@@ -14,7 +14,7 @@ const ONE_MS: i64 = 1_000_000;
 
 fn table_names(c: &mut Criterion) {
     let rb = generate_row_group(500_000);
-    let mut db = Database::new();
+    let db = Database::new();
     db.upsert_partition("hour_1", 0, "table_a", rb.clone());
 
     // no predicate - return all the tables

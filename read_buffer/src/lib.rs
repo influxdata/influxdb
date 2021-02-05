@@ -103,7 +103,7 @@ impl Database {
     /// chunk. If the `Table` or `Chunk` does not exist they will be created,
     /// otherwise relevant structures will be updated.
     pub fn upsert_partition(
-        &mut self,
+        &self,
         partition_key: &str,
         chunk_id: u32,
         table_name: &str,
@@ -153,7 +153,7 @@ impl Database {
     }
 
     /// Remove all row groups and tables for the specified chunks and partition.
-    pub fn drop_chunk(&mut self, partition_key: &str, chunk_id: u32) -> Result<()> {
+    pub fn drop_chunk(&self, partition_key: &str, chunk_id: u32) -> Result<()> {
         let mut partition_data = self.data.write().unwrap();
 
         let partition = partition_data
@@ -1023,7 +1023,7 @@ mod test {
 
     #[test]
     fn table_names() {
-        let mut db = Database::new();
+        let db = Database::new();
         let res_col = TABLE_NAMES_COLUMN_NAME;
 
         db.upsert_partition("hour_1", 22, "Coolverine", gen_recordbatch());
@@ -1070,7 +1070,7 @@ mod test {
 
     #[test]
     fn column_names() {
-        let mut db = Database::new();
+        let db = Database::new();
         let res_col = COLUMN_NAMES_COLUMN_NAME;
 
         let schema = SchemaBuilder::new()
@@ -1190,7 +1190,7 @@ mod test {
 
     #[test]
     fn read_filter_single_chunk() {
-        let mut db = Database::new();
+        let db = Database::new();
 
         // Add a bunch of row groups to a single table in a single chunk
         for &i in &[100, 200, 300] {
@@ -1272,7 +1272,7 @@ mod test {
 
     #[test]
     fn read_filter_multiple_chunks() {
-        let mut db = Database::new();
+        let db = Database::new();
 
         // Add a bunch of row groups to a single table across multiple chunks
         for &i in &[100, 200, 300] {
@@ -1342,7 +1342,7 @@ mod test {
 
     #[test]
     fn read_aggregate() {
-        let mut db = Database::new();
+        let db = Database::new();
 
         // Add a bunch of row groups to a single table in a single chunks
         for &i in &[100, 200, 300] {

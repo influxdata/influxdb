@@ -8,7 +8,7 @@ use query::{predicate::Predicate, util::make_scan_plan, PartitionChunk};
 use read_buffer::Database as ReadBufferDb;
 use snafu::{ResultExt, Snafu};
 
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use super::{
     pred::to_read_buffer_predicate,
@@ -53,7 +53,7 @@ pub enum DBChunk {
         chunk: Arc<MBChunk>,
     },
     ReadBuffer {
-        db: Arc<RwLock<ReadBufferDb>>,
+        db: Arc<ReadBufferDb>,
         partition_key: String,
         chunk_id: u32,
     },
@@ -68,7 +68,7 @@ impl DBChunk {
 
     /// create a new read buffer chunk
     pub fn new_rb(
-        db: Arc<RwLock<ReadBufferDb>>,
+        db: Arc<ReadBufferDb>,
         partition_key: impl Into<String>,
         chunk_id: u32,
     ) -> Arc<Self> {
@@ -135,7 +135,6 @@ impl PartitionChunk for DBChunk {
                 let rb_predicate =
                     to_read_buffer_predicate(&predicate).context(InternalPredicateConversion)?;
 
-                let db = db.read().unwrap();
                 let batch = db
                     .table_names(partition_key, &[chunk_id], rb_predicate)
                     .context(ReadBufferChunk { chunk_id })?;
@@ -162,7 +161,6 @@ impl PartitionChunk for DBChunk {
                 chunk_id,
             } => {
                 let chunk_id = *chunk_id;
-                let db = db.read().unwrap();
 
                 // TODO: Andrew -- I think technically this reordering
                 // should be happening inside the read buffer, but
@@ -204,7 +202,6 @@ impl PartitionChunk for DBChunk {
                 chunk_id,
             } => {
                 let chunk_id = *chunk_id;
-                let db = db.read().unwrap();
                 db.has_table(partition_key, table_name, &[chunk_id])
             }
             DBChunk::ParquetFile => {
@@ -243,7 +240,6 @@ impl PartitionChunk for DBChunk {
                 let chunk_id = *chunk_id;
                 let rb_predicate =
                     to_read_buffer_predicate(&predicate).context(InternalPredicateConversion)?;
-                let db = db.read().expect("mutex poisoned");
                 let read_results = db
                     .read_filter(
                         partition_key,
