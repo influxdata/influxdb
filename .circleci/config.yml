@@ -629,8 +629,15 @@ jobs:
       - install_core_deps
       - run_goreleaser:
           publish_release: false
+      - run:
+          name: Clean up artifacts
+          command: |
+            # goreleaser generates some temp files in the dist/
+            # directory alongside the artifacts we want to save.
+            mkdir artifacts
+            mv dist/influx* artifacts/
       - store_artifacts:
-          path: dist
+          path: artifacts
       - save_cache:
           name: Save GOCACHE
           key: influxdb-cross-build-{{ .Branch }}-{{ .Revision }}
