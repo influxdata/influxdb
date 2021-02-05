@@ -2,7 +2,7 @@ use generated_types::wal as wb;
 use snafu::Snafu;
 
 use crate::dictionary::Dictionary;
-use data_types::{data::type_description, partition_metadata::Statistics};
+use data_types::{data::type_description, partition_metadata::StatValues};
 
 use arrow_deps::arrow::datatypes::DataType as ArrowDataType;
 
@@ -32,11 +32,11 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// statistics
 #[derive(Debug, Clone)]
 pub enum Column {
-    F64(Vec<Option<f64>>, Statistics<f64>),
-    I64(Vec<Option<i64>>, Statistics<i64>),
-    String(Vec<Option<String>>, Statistics<String>),
-    Bool(Vec<Option<bool>>, Statistics<bool>),
-    Tag(Vec<Option<u32>>, Statistics<String>),
+    F64(Vec<Option<f64>>, StatValues<f64>),
+    I64(Vec<Option<i64>>, StatValues<i64>),
+    String(Vec<Option<String>>, StatValues<String>),
+    Bool(Vec<Option<bool>>, StatValues<bool>),
+    Tag(Vec<Option<u32>>, StatValues<String>),
 }
 
 impl Column {
@@ -55,7 +55,7 @@ impl Column {
                     .value();
                 let mut vals = vec![None; capacity];
                 vals.push(Some(val));
-                Self::F64(vals, Statistics::new(val))
+                Self::F64(vals, StatValues::new(val))
             }
             I64Value => {
                 let val = value
@@ -64,7 +64,7 @@ impl Column {
                     .value();
                 let mut vals = vec![None; capacity];
                 vals.push(Some(val));
-                Self::I64(vals, Statistics::new(val))
+                Self::I64(vals, StatValues::new(val))
             }
             StringValue => {
                 let val = value
@@ -74,7 +74,7 @@ impl Column {
                     .expect("string must be present");
                 let mut vals = vec![None; capacity];
                 vals.push(Some(val.to_string()));
-                Self::String(vals, Statistics::new(val.to_string()))
+                Self::String(vals, StatValues::new(val.to_string()))
             }
             BoolValue => {
                 let val = value
@@ -83,7 +83,7 @@ impl Column {
                     .value();
                 let mut vals = vec![None; capacity];
                 vals.push(Some(val));
-                Self::Bool(vals, Statistics::new(val))
+                Self::Bool(vals, StatValues::new(val))
             }
             TagValue => {
                 let val = value
@@ -94,7 +94,7 @@ impl Column {
                 let mut vals = vec![None; capacity];
                 let id = dictionary.lookup_value_or_insert(val);
                 vals.push(Some(id));
-                Self::Tag(vals, Statistics::new(val.to_string()))
+                Self::Tag(vals, StatValues::new(val.to_string()))
             }
             _ => {
                 return UnknownColumnType {
@@ -147,7 +147,7 @@ impl Column {
                     let tag_value = tag.value().expect("tag must have string value");
                     let id = dictionary.lookup_value_or_insert(tag_value);
                     vals.push(Some(id));
-                    Statistics::update_string(stats, tag_value);
+                    StatValues::update_string(stats, tag_value);
                     true
                 }
                 None => false,
@@ -156,7 +156,7 @@ impl Column {
                 Some(str_val) => {
                     let str_val = str_val.value().expect("string must have value");
                     vals.push(Some(str_val.to_string()));
-                    Statistics::update_string(stats, str_val);
+                    StatValues::update_string(stats, str_val);
                     true
                 }
                 None => false,
@@ -316,7 +316,7 @@ mod tests {
 
     #[test]
     fn test_has_i64_range() -> Result {
-        let mut stats = Statistics::new(1);
+        let mut stats = StatValues::new(1);
         stats.update(2);
         let col = Column::I64(vec![Some(1), None, Some(2)], stats.clone());
         assert!(!col.has_i64_range(-1, 0)?);
@@ -338,7 +338,7 @@ mod tests {
     #[test]
     fn test_has_i64_range_does_not_panic() -> Result {
         // providing the wrong column type should get an internal error, not a panic
-        let col = Column::F64(vec![Some(1.2)], Statistics::new(1.2));
+        let col = Column::F64(vec![Some(1.2)], StatValues::new(1.2));
         let res = col.has_i64_range(-1, 0);
         assert!(res.is_err());
         let res_string = format!("{:?}", res);
@@ -357,7 +357,7 @@ mod tests {
         let none_col: Vec<Option<u32>> = vec![None, None, None];
         let some_col: Vec<Option<u32>> = vec![Some(0), Some(0), Some(0)];
 
-        let mut stats = Statistics::new(1);
+        let mut stats = StatValues::new(1);
         stats.update(2);
         let col = Column::I64(vec![Some(1), None, Some(2)], stats);
 
@@ -378,24 +378,24 @@ mod tests {
 
     #[test]
     fn column_size() {
-        let i64col = Column::I64(vec![Some(1), Some(1)], Statistics::new(1));
+        let i64col = Column::I64(vec![Some(1), Some(1)], StatValues::new(1));
         assert_eq!(40, i64col.size());
 
-        let f64col = Column::F64(vec![Some(1.1), Some(1.1), Some(1.1)], Statistics::new(1.1));
+        let f64col = Column::F64(vec![Some(1.1), Some(1.1), Some(1.1)], StatValues::new(1.1));
         assert_eq!(56, f64col.size());
 
-        let boolcol = Column::Bool(vec![Some(true)], Statistics::new(true));
+        let boolcol = Column::Bool(vec![Some(true)], StatValues::new(true));
         assert_eq!(9, boolcol.size());
 
         let tagcol = Column::Tag(
             vec![Some(1), Some(1), Some(1), Some(1)],
-            Statistics::new("foo".to_string()),
+            StatValues::new("foo".to_string()),
         );
         assert_eq!(40, tagcol.size());
 
         let stringcol = Column::String(
             vec![Some("foo".to_string()), Some("hello world".to_string())],
-            Statistics::new("foo".to_string()),
+            StatValues::new("foo".to_string()),
         );
         assert_eq!(70, stringcol.size());
     }

@@ -20,7 +20,7 @@ use crate::{
     dictionary::{Dictionary, Error as DictionaryError},
 };
 use data_types::{
-    partition_metadata::{Column as ColumnSummary, ColumnStats},
+    partition_metadata::{ColumnSummary, Statistics},
     schema::{builder::SchemaBuilder, Schema},
     selection::Selection,
     TIME_COLUMN_NAME,
@@ -1115,11 +1115,11 @@ impl Table {
                     })?;
 
             let stats = match c {
-                Column::F64(_, stats) => ColumnStats::F64(stats.clone()),
-                Column::I64(_, stats) => ColumnStats::I64(stats.clone()),
-                Column::Bool(_, stats) => ColumnStats::Bool(stats.clone()),
+                Column::F64(_, stats) => Statistics::F64(stats.clone()),
+                Column::I64(_, stats) => Statistics::I64(stats.clone()),
+                Column::Bool(_, stats) => Statistics::Bool(stats.clone()),
                 Column::String(_, stats) | Column::Tag(_, stats) => {
-                    ColumnStats::String(stats.clone())
+                    Statistics::String(stats.clone())
                 }
             };
 

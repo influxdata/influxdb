@@ -8,8 +8,7 @@
 use arrow_deps::datafusion::{logical_plan::LogicalPlan, physical_plan::SendableRecordBatchStream};
 use async_trait::async_trait;
 use data_types::{
-    data::ReplicatedWrite, partition_metadata::Table as TableStats, schema::Schema,
-    selection::Selection,
+    data::ReplicatedWrite, partition_metadata::TableSummary, schema::Schema, selection::Selection,
 };
 use exec::{Executor, FieldListPlan, SeriesSetPlans, StringSetPlan};
 
@@ -108,7 +107,7 @@ pub trait PartitionChunk: Debug + Send + Sync {
     fn id(&self) -> u32;
 
     /// returns the partition metadata stats for every table in the partition
-    fn table_stats(&self) -> Result<Vec<TableStats>, Self::Error>;
+    fn table_stats(&self) -> Result<Vec<TableSummary>, Self::Error>;
 
     /// Returns true if this chunk *might* have data that passes the
     /// predicate. If false is returned, this chunk can be
