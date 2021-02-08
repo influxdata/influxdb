@@ -23,7 +23,7 @@ impl ObjectStorePath for FilePath {
     }
 
     fn display(&self) -> String {
-        todo!()
+        self.to_raw().display().to_string()
     }
 }
 
@@ -435,5 +435,19 @@ mod tests {
             a_parsed,
             b_file_path
         );
+    }
+
+    #[test]
+    fn path_display() {
+        let a_path_buf: PathBuf = "foo/bar/a.json".into();
+        let expected_display = a_path_buf.display().to_string();
+        let a_file_path = FilePath::raw(&a_path_buf);
+
+        assert_eq!(a_file_path.display(), expected_display);
+
+        let a_parts: DirsAndFileName = a_file_path.into();
+        let a_parsed: FilePath = a_parts.into();
+
+        assert_eq!(a_parsed.display(), expected_display);
     }
 }
