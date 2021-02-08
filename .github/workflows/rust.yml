@@ -45,6 +45,18 @@ jobs:
         with:
           command: build
           args: --workspace
+      # Ensure benches still build
+      - name: Build Benches
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --workspace --benches --no-run
+      # Ensure examples continue to build
+      - name: Build examples
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --workspace --examples
 
   test:
     name: Test
