@@ -15,6 +15,29 @@ use serde::Serialize;
 use std::{convert::TryFrom, sync::Arc};
 use tonic::Streaming;
 
+/// An IOx Arrow Flight gRPC API client.
+///
+/// ```rust
+/// #[tokio::test]
+/// # async fn test() {
+/// use data_types::database_rules::DatabaseRules;
+/// use influxdb_iox_client::FlightClientBuilder;
+///
+/// let client = FlightClientBuilder::default()
+///     .build("http://127.0.0.1:8082")
+///     .expect("client should be valid");
+///
+/// let mut query_results = client
+///     .perform_query(scenario.database_name(), sql_query)
+///     .await;
+///
+/// let mut batches = vec![];
+///
+/// while let Some(data) = query_results.next().await {
+///     batches.push(data);
+/// }
+/// # }
+/// ```
 #[derive(Debug)]
 pub struct FlightClient {
     inner: FlightServiceClient<tonic::transport::Channel>,
@@ -31,6 +54,8 @@ impl FlightClient {
         })
     }
 
+    /// Query the given database with the given SQL query, and return a
+    /// [`PerformQuery`] instance that streams Arrow `RecordBatch` results.
     pub async fn perform_query(
         &mut self,
         database_name: impl Into<String>,
@@ -47,6 +72,9 @@ struct ReadInfo {
     sql_query: String,
 }
 
+/// A struct that manages the stream of Arrow `RecordBatch` results from an
+/// Arrow Flight query. Created by calling the `perform_query` method on a
+/// [`FlightClient`].
 #[derive(Debug)]
 pub struct PerformQuery {
     schema: Arc<Schema>,
@@ -82,6 +110,8 @@ impl PerformQuery {
         }
     }
 
+    /// Returns the next `RecordBatch` available for this query, or `None` if
+    /// there are no further results available.
     pub async fn next(&mut self) -> Option<RecordBatch> {
         let Self {
             schema,

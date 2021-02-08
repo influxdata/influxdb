@@ -1,8 +1,8 @@
-//! Error types returned by the [`Client`][crate::Client].
+//! Error types returned by a client.
 //!
 //! A request to an IOx server can fail in three main ways:
 //!
-//!  - a HTTP transport error (network error)
+//!  - an HTTP transport error (network error)
 //!  - a known API handler error response
 //!  - an unknown error returned by the server
 //!

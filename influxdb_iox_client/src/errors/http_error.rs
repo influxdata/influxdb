@@ -1,6 +1,6 @@
-/// A HTTP request error.
+/// An HTTP request error.
 ///
-/// This is a non-application level error returned when a HTTP request to the
+/// This is a non-application level error returned when an HTTP request to the
 /// IOx server has failed.
 #[derive(Debug)]
 pub struct HttpError(reqwest::Error);
