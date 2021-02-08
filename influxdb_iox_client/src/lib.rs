@@ -9,4 +9,11 @@ pub use builder::*;
 mod client;
 pub use client::*;
 
+// can't combine these into one statement that uses `{}` because of this bug in
+// the `unreachable_pub` lint: https://github.com/rust-lang/rust/issues/64762
+#[cfg(feature = "flight")]
+pub use client::FlightClient;
+#[cfg(feature = "flight")]
+pub use client::PerformQuery;
+
 pub mod errors;

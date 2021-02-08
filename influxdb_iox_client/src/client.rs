@@ -8,8 +8,13 @@ use data_types::DatabaseName;
 
 #[cfg(feature = "flight")]
 mod flight;
+
+// can't combine these into one statement that uses `{}` because of this bug in
+// the `unreachable_pub` lint: https://github.com/rust-lang/rust/issues/64762
 #[cfg(feature = "flight")]
-pub(crate) use flight::*;
+pub use flight::FlightClient;
+#[cfg(feature = "flight")]
+pub use flight::PerformQuery;
 
 // TODO: move DatabaseRules / WriterId to the API client
 

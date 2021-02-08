@@ -21,7 +21,7 @@ pub struct FlightClient {
 }
 
 impl FlightClient {
-    pub async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
+    pub(crate) async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
     where
         D: std::convert::TryInto<tonic::transport::Endpoint>,
         D::Error: Into<tonic::codegen::StdError>,

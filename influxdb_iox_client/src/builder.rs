@@ -4,6 +4,9 @@ use reqwest::Url;
 
 use crate::Client;
 
+#[cfg(feature = "flight")]
+use crate::FlightClient;
+
 /// The default User-Agent header sent by the HTTP client.
 pub const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
@@ -128,15 +131,12 @@ impl Default for FlightClientBuilder {
 impl FlightClientBuilder {
     /// Construct the [`FlightClient`] instance using the specified URL to the
     /// server and port where the Arrow Flight API is available.
-    pub async fn build<T>(
-        self,
-        flight_url: T,
-    ) -> Result<crate::FlightClient, Box<dyn std::error::Error>>
+    pub async fn build<T>(self, flight_url: T) -> Result<FlightClient, Box<dyn std::error::Error>>
     where
         T: std::convert::TryInto<tonic::transport::Endpoint>,
         T::Error: Into<tonic::codegen::StdError>,
     {
-        Ok(crate::FlightClient::connect(flight_url).await?)
+        Ok(FlightClient::connect(flight_url).await?)
     }
 }
 
