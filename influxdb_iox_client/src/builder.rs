@@ -136,7 +136,7 @@ impl FlightClientBuilder {
         T: std::convert::TryInto<tonic::transport::Endpoint>,
         T::Error: Into<tonic::codegen::StdError>,
     {
-        Ok(FlightClient::connect(flight_url).await?)
+        Ok(FlightClient::connect(flight_url).await.map_err(Box::new)?)
     }
 }
 

@@ -15,6 +15,8 @@ use serde::Serialize;
 use std::{convert::TryFrom, sync::Arc};
 use tonic::Streaming;
 
+use crate::errors::{GrpcError, GrpcQueryError};
+
 /// An IOx Arrow Flight gRPC API client.
 ///
 /// ```rust
@@ -44,7 +46,7 @@ pub struct FlightClient {
 }
 
 impl FlightClient {
-    pub(crate) async fn connect<D>(dst: D) -> Result<Self, tonic::transport::Error>
+    pub(crate) async fn connect<D>(dst: D) -> Result<Self, GrpcError>
     where
         D: std::convert::TryInto<tonic::transport::Endpoint>,
         D::Error: Into<tonic::codegen::StdError>,
@@ -60,7 +62,7 @@ impl FlightClient {
         &mut self,
         database_name: impl Into<String>,
         sql_query: impl Into<String>,
-    ) -> PerformQuery {
+    ) -> Result<PerformQuery, GrpcQueryError> {
         PerformQuery::new(self, database_name.into(), sql_query.into()).await
     }
 }
@@ -87,62 +89,69 @@ impl PerformQuery {
         flight: &mut FlightClient,
         database_name: String,
         sql_query: String,
-    ) -> Self {
+    ) -> Result<Self, GrpcQueryError> {
         let query = ReadInfo {
             database_name,
             sql_query,
         };
 
         let t = Ticket {
-            ticket: serde_json::to_string(&query).unwrap().into(),
+            ticket: serde_json::to_string(&query)?.into(),
         };
-        let mut response = flight.inner.do_get(t).await.unwrap().into_inner();
+        let mut response = flight.inner.do_get(t).await?.into_inner();
 
-        let flight_data_schema = response.next().await.unwrap().unwrap();
-        let schema = Arc::new(Schema::try_from(&flight_data_schema).unwrap());
+        let flight_data_schema = response.next().await.ok_or(GrpcQueryError::NoSchema)??;
+        let schema = Arc::new(Schema::try_from(&flight_data_schema)?);
 
         let dictionaries_by_field = vec![None; schema.fields().len()];
 
-        Self {
+        Ok(Self {
             schema,
             dictionaries_by_field,
             response,
-        }
+        })
     }
 
     /// Returns the next `RecordBatch` available for this query, or `None` if
     /// there are no further results available.
-    pub async fn next(&mut self) -> Option<RecordBatch> {
+    pub async fn next(&mut self) -> Result<Option<RecordBatch>, GrpcQueryError> {
         let Self {
             schema,
             dictionaries_by_field,
             response,
         } = self;
 
-        let data = response.next().await?;
+        let mut data = match response.next().await {
+            Some(d) => d?,
+            None => return Ok(None),
+        };
 
-        let mut data = data.unwrap();
-        let mut message =
-            ipc::root_as_message(&data.data_header[..]).expect("Error parsing first message");
+        let mut message = ipc::root_as_message(&data.data_header[..])
+            .map_err(|e| GrpcQueryError::InvalidFlatbuffer(e.to_string()))?;
 
         while message.header_type() == ipc::MessageHeader::DictionaryBatch {
             reader::read_dictionary(
                 &data.data_body,
                 message
                     .header_as_dictionary_batch()
-                    .expect("Error parsing dictionary"),
+                    .ok_or(GrpcQueryError::CouldNotGetDictionaryBatch)?,
                 &schema,
                 dictionaries_by_field,
-            )
-            .expect("Error reading dictionary");
+            )?;
 
-            data = response.next().await.unwrap().ok().unwrap();
-            message = ipc::root_as_message(&data.data_header[..]).expect("Error parsing message");
+            data = match response.next().await {
+                Some(d) => d?,
+                None => return Ok(None),
+            };
+
+            message = ipc::root_as_message(&data.data_header[..])
+                .map_err(|e| GrpcQueryError::InvalidFlatbuffer(e.to_string()))?;
         }
 
-        Some(
-            flight_data_to_arrow_batch(&data, schema.clone(), &dictionaries_by_field)
-                .expect("Unable to convert flight data to Arrow batch"),
-        )
+        Ok(Some(flight_data_to_arrow_batch(
+            &data,
+            schema.clone(),
+            &dictionaries_by_field,
+        )?))
     }
 }

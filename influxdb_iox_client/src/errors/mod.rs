@@ -17,6 +17,9 @@
 //! The last case is a generic error returned by the IOx server. These become
 //! [`ServerErrorResponse`] instances and contain the error string, optional
 //! error code and HTTP status code sent by the server.
+//!
+//! If using the Arrow Flight API, errors from gRPC requests will be converted
+//! into a [`GrpcError`] containing details of the failed request.
 
 use thiserror::Error;
 
@@ -31,6 +34,16 @@ pub use server_error_response::*;
 
 mod create_database;
 pub use create_database::*;
+
+#[cfg(feature = "flight")]
+mod grpc_error;
+#[cfg(feature = "flight")]
+pub use grpc_error::*;
+
+#[cfg(feature = "flight")]
+mod grpc_query_error;
+#[cfg(feature = "flight")]
+pub use grpc_query_error::*;
 
 /// Constants used in API error codes.
 ///
