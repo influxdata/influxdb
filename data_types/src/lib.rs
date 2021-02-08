@@ -14,10 +14,12 @@ pub use schema::TIME_COLUMN_NAME;
 pub mod data;
 pub mod database_rules;
 pub mod error;
+pub mod http;
 pub mod names;
 pub mod partition_metadata;
 pub mod schema;
 pub mod selection;
+pub mod wal;
 
 mod database_name;
 pub use database_name::*;

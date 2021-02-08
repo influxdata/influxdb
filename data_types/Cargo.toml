@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies] # In alphabetical order
 arrow_deps = { path = "../arrow_deps" }
-chrono = "0.4"
+chrono = { version = "0.4", features = ["serde"] }
 crc32fast = "1.2.0"
 flatbuffers = "0.6"
 generated_types = { path = "../generated_types" }
