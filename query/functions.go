@@ -2223,7 +2223,13 @@ func marshalPlus(p *hll.Plus, err error) StringPoint {
 			Value: string(hllPrefix),
 		}
 	}
-	b, _ := p.MarshalBinary() // no possible errors
+	b, err := p.MarshalBinary()
+	if err != nil {
+		return StringPoint{
+			Time:  ZeroTime,
+			Value: string(hllErrorPrefix) + err.Error(),
+		}
+	}
 	hllValue := make([]byte, len(hllPrefix)+base64.StdEncoding.EncodedLen(len(b)))
 	copy(hllValue, hllPrefix)
 	base64.StdEncoding.Encode(hllValue[len(hllPrefix):], b)

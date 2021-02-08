@@ -775,7 +775,7 @@ func (c *compiledField) compileIntegral(args []influxql.Expr) error {
 
 func (c *compiledField) compileCountHll(args []influxql.Expr) error {
 	if exp, got := 1, len(args); exp != got {
-		return fmt.Errorf("invalid number of arguments for integral, expected %d, got %d", exp, got)
+		return fmt.Errorf("invalid number of arguments for count_hll, expected %d, got %d", exp, got)
 	}
 	c.global.OnlySelectors = false
 	switch arg0 := args[0].(type) {

@@ -526,6 +526,9 @@ func TestHll_SumAndMergeHll(t *testing.T) {
 		s2.AggregateString(p)
 	}
 	point2 := s2.Emit()
+	// Demonstration of the input: repeatably seeded pseudorandom
+	// stringified integers (so we are testing the counting of unique strings,
+	// not unique integers).
 	require.Equal("17190211103962133664", input[2999].Value)
 
 	checkStringFingerprint := func(prefix string, length int, hash string, check string) {
