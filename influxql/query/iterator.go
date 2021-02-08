@@ -144,6 +144,13 @@ func (a Iterators) Merge(opt IteratorOptions) (Iterator, error) {
 			Args: call.Args,
 		}
 	}
+	// When merging the sum_hll() function, use merge_hll() to sum the counted points.
+	if call.Name == "sum_hll" {
+		opt.Expr = &influxql.Call{
+			Name: "merge_hll",
+			Args: call.Args,
+		}
+	}
 	return NewCallIterator(itr, opt)
 }
 

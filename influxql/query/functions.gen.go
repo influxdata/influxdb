@@ -7,9 +7,13 @@
 package query
 
 import (
+	"bytes"
+	"encoding/binary"
 	"math/rand"
 	"sort"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/pkg/estimator/hll"
 )
 
 // FloatPointAggregator aggregates points to produce a single point.
@@ -20,20 +24,6 @@ type FloatPointAggregator interface {
 // FloatBulkPointAggregator aggregates multiple points at a time.
 type FloatBulkPointAggregator interface {
 	AggregateFloatBulk(points []FloatPoint)
-}
-
-// AggregateFloatPoints feeds a slice of FloatPoint into an
-// aggregator. If the aggregator is a FloatBulkPointAggregator, it will
-// use the AggregateBulk method.
-func AggregateFloatPoints(a FloatPointAggregator, points []FloatPoint) {
-	switch a := a.(type) {
-	case FloatBulkPointAggregator:
-		a.AggregateFloatBulk(points)
-	default:
-		for _, p := range points {
-			a.AggregateFloat(&p)
-		}
-	}
 }
 
 // FloatPointEmitter produces a single point from an aggregate.
@@ -391,6 +381,33 @@ func (r *FloatSliceFuncBooleanReducer) Emit() []BooleanPoint {
 	return r.fn(r.points)
 }
 
+// FloatSumHllReducer returns the HLL sketch for a series, in string form
+type FloatSumHllReducer struct {
+	plus *hll.Plus
+}
+
+// func NewFloatSumHllReducer creates a new FloatSumHllReducer
+func NewFloatSumHllReducer() *FloatSumHllReducer {
+	return &FloatSumHllReducer{plus: hll.NewDefaultPlus()}
+}
+
+// AggregateFloat aggregates a point into the reducer.
+func (r *FloatSumHllReducer) AggregateFloat(p *FloatPoint) {
+
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.BigEndian, p.Value)
+	b := buf.Bytes()
+
+	r.plus.Add(b)
+}
+
+// Emit emits the distinct points that have been aggregated into the reducer.
+func (r *FloatSumHllReducer) Emit() []StringPoint {
+	return []StringPoint{
+		marshalPlus(r.plus, nil),
+	}
+}
+
 // FloatDistinctReducer returns the distinct points in a series.
 type FloatDistinctReducer struct {
 	m map[float64]FloatPoint
@@ -504,20 +521,6 @@ type IntegerPointAggregator interface {
 // IntegerBulkPointAggregator aggregates multiple points at a time.
 type IntegerBulkPointAggregator interface {
 	AggregateIntegerBulk(points []IntegerPoint)
-}
-
-// AggregateIntegerPoints feeds a slice of IntegerPoint into an
-// aggregator. If the aggregator is a IntegerBulkPointAggregator, it will
-// use the AggregateBulk method.
-func AggregateIntegerPoints(a IntegerPointAggregator, points []IntegerPoint) {
-	switch a := a.(type) {
-	case IntegerBulkPointAggregator:
-		a.AggregateIntegerBulk(points)
-	default:
-		for _, p := range points {
-			a.AggregateInteger(&p)
-		}
-	}
 }
 
 // IntegerPointEmitter produces a single point from an aggregate.
@@ -875,6 +878,33 @@ func (r *IntegerSliceFuncBooleanReducer) Emit() []BooleanPoint {
 	return r.fn(r.points)
 }
 
+// IntegerSumHllReducer returns the HLL sketch for a series, in string form
+type IntegerSumHllReducer struct {
+	plus *hll.Plus
+}
+
+// func NewIntegerSumHllReducer creates a new IntegerSumHllReducer
+func NewIntegerSumHllReducer() *IntegerSumHllReducer {
+	return &IntegerSumHllReducer{plus: hll.NewDefaultPlus()}
+}
+
+// AggregateInteger aggregates a point into the reducer.
+func (r *IntegerSumHllReducer) AggregateInteger(p *IntegerPoint) {
+
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.BigEndian, p.Value)
+	b := buf.Bytes()
+
+	r.plus.Add(b)
+}
+
+// Emit emits the distinct points that have been aggregated into the reducer.
+func (r *IntegerSumHllReducer) Emit() []StringPoint {
+	return []StringPoint{
+		marshalPlus(r.plus, nil),
+	}
+}
+
 // IntegerDistinctReducer returns the distinct points in a series.
 type IntegerDistinctReducer struct {
 	m map[int64]IntegerPoint
@@ -988,20 +1018,6 @@ type UnsignedPointAggregator interface {
 // UnsignedBulkPointAggregator aggregates multiple points at a time.
 type UnsignedBulkPointAggregator interface {
 	AggregateUnsignedBulk(points []UnsignedPoint)
-}
-
-// AggregateUnsignedPoints feeds a slice of UnsignedPoint into an
-// aggregator. If the aggregator is a UnsignedBulkPointAggregator, it will
-// use the AggregateBulk method.
-func AggregateUnsignedPoints(a UnsignedPointAggregator, points []UnsignedPoint) {
-	switch a := a.(type) {
-	case UnsignedBulkPointAggregator:
-		a.AggregateUnsignedBulk(points)
-	default:
-		for _, p := range points {
-			a.AggregateUnsigned(&p)
-		}
-	}
 }
 
 // UnsignedPointEmitter produces a single point from an aggregate.
@@ -1359,6 +1375,33 @@ func (r *UnsignedSliceFuncBooleanReducer) Emit() []BooleanPoint {
 	return r.fn(r.points)
 }
 
+// UnsignedSumHllReducer returns the HLL sketch for a series, in string form
+type UnsignedSumHllReducer struct {
+	plus *hll.Plus
+}
+
+// func NewUnsignedSumHllReducer creates a new UnsignedSumHllReducer
+func NewUnsignedSumHllReducer() *UnsignedSumHllReducer {
+	return &UnsignedSumHllReducer{plus: hll.NewDefaultPlus()}
+}
+
+// AggregateUnsigned aggregates a point into the reducer.
+func (r *UnsignedSumHllReducer) AggregateUnsigned(p *UnsignedPoint) {
+
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.BigEndian, p.Value)
+	b := buf.Bytes()
+
+	r.plus.Add(b)
+}
+
+// Emit emits the distinct points that have been aggregated into the reducer.
+func (r *UnsignedSumHllReducer) Emit() []StringPoint {
+	return []StringPoint{
+		marshalPlus(r.plus, nil),
+	}
+}
+
 // UnsignedDistinctReducer returns the distinct points in a series.
 type UnsignedDistinctReducer struct {
 	m map[uint64]UnsignedPoint
@@ -1472,20 +1515,6 @@ type StringPointAggregator interface {
 // StringBulkPointAggregator aggregates multiple points at a time.
 type StringBulkPointAggregator interface {
 	AggregateStringBulk(points []StringPoint)
-}
-
-// AggregateStringPoints feeds a slice of StringPoint into an
-// aggregator. If the aggregator is a StringBulkPointAggregator, it will
-// use the AggregateBulk method.
-func AggregateStringPoints(a StringPointAggregator, points []StringPoint) {
-	switch a := a.(type) {
-	case StringBulkPointAggregator:
-		a.AggregateStringBulk(points)
-	default:
-		for _, p := range points {
-			a.AggregateString(&p)
-		}
-	}
 }
 
 // StringPointEmitter produces a single point from an aggregate.
@@ -1843,6 +1872,31 @@ func (r *StringSliceFuncBooleanReducer) Emit() []BooleanPoint {
 	return r.fn(r.points)
 }
 
+// StringSumHllReducer returns the HLL sketch for a series, in string form
+type StringSumHllReducer struct {
+	plus *hll.Plus
+}
+
+// func NewStringSumHllReducer creates a new StringSumHllReducer
+func NewStringSumHllReducer() *StringSumHllReducer {
+	return &StringSumHllReducer{plus: hll.NewDefaultPlus()}
+}
+
+// AggregateString aggregates a point into the reducer.
+func (r *StringSumHllReducer) AggregateString(p *StringPoint) {
+
+	b := []byte(p.Value)
+
+	r.plus.Add(b)
+}
+
+// Emit emits the distinct points that have been aggregated into the reducer.
+func (r *StringSumHllReducer) Emit() []StringPoint {
+	return []StringPoint{
+		marshalPlus(r.plus, nil),
+	}
+}
+
 // StringDistinctReducer returns the distinct points in a series.
 type StringDistinctReducer struct {
 	m map[string]StringPoint
@@ -1956,20 +2010,6 @@ type BooleanPointAggregator interface {
 // BooleanBulkPointAggregator aggregates multiple points at a time.
 type BooleanBulkPointAggregator interface {
 	AggregateBooleanBulk(points []BooleanPoint)
-}
-
-// AggregateBooleanPoints feeds a slice of BooleanPoint into an
-// aggregator. If the aggregator is a BooleanBulkPointAggregator, it will
-// use the AggregateBulk method.
-func AggregateBooleanPoints(a BooleanPointAggregator, points []BooleanPoint) {
-	switch a := a.(type) {
-	case BooleanBulkPointAggregator:
-		a.AggregateBooleanBulk(points)
-	default:
-		for _, p := range points {
-			a.AggregateBoolean(&p)
-		}
-	}
 }
 
 // BooleanPointEmitter produces a single point from an aggregate.
@@ -2325,6 +2365,33 @@ func (r *BooleanSliceFuncReducer) AggregateBooleanBulk(points []BooleanPoint) {
 // This method does not clear the points from the internal slice.
 func (r *BooleanSliceFuncReducer) Emit() []BooleanPoint {
 	return r.fn(r.points)
+}
+
+// BooleanSumHllReducer returns the HLL sketch for a series, in string form
+type BooleanSumHllReducer struct {
+	plus *hll.Plus
+}
+
+// func NewBooleanSumHllReducer creates a new BooleanSumHllReducer
+func NewBooleanSumHllReducer() *BooleanSumHllReducer {
+	return &BooleanSumHllReducer{plus: hll.NewDefaultPlus()}
+}
+
+// AggregateBoolean aggregates a point into the reducer.
+func (r *BooleanSumHllReducer) AggregateBoolean(p *BooleanPoint) {
+
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.BigEndian, p.Value)
+	b := buf.Bytes()
+
+	r.plus.Add(b)
+}
+
+// Emit emits the distinct points that have been aggregated into the reducer.
+func (r *BooleanSumHllReducer) Emit() []StringPoint {
+	return []StringPoint{
+		marshalPlus(r.plus, nil),
+	}
 }
 
 // BooleanDistinctReducer returns the distinct points in a series.

@@ -2437,7 +2437,7 @@ func (e *Engine) createCallIterator(ctx context.Context, measurement string, cal
 	if e.index.Type() == tsdb.TSI1IndexName {
 		indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
 		seriesOpt := opt
-		if len(opt.Dimensions) == 0 && call.Name == "count" {
+		if len(opt.Dimensions) == 0 && (call.Name == "count" || call.Name == "sum_hll") {
 			// no point ordering the series if we are just counting all of them
 			seriesOpt.Ordered = false
 		}

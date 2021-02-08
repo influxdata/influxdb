@@ -1,9 +1,13 @@
 package query
 
 import (
+"encoding/binary"
+"bytes"
 "sort"
 "time"
 "math/rand"
+
+"github.com/influxdata/influxdb/v2/pkg/estimator/hll"
 )
 
 {{with $types := .}}{{range $k := $types}}
@@ -16,20 +20,6 @@ type {{$k.Name}}PointAggregator interface {
 // {{$k.Name}}BulkPointAggregator aggregates multiple points at a time.
 type {{$k.Name}}BulkPointAggregator interface {
 	Aggregate{{$k.Name}}Bulk(points []{{$k.Name}}Point)
-}
-
-// Aggregate{{$k.Name}}Points feeds a slice of {{$k.Name}}Point into an
-// aggregator. If the aggregator is a {{$k.Name}}BulkPointAggregator, it will
-// use the AggregateBulk method.
-func Aggregate{{$k.Name}}Points(a {{$k.Name}}PointAggregator, points []{{$k.Name}}Point) {
-	switch a := a.(type) {
-	case {{$k.Name}}BulkPointAggregator:
-		a.Aggregate{{$k.Name}}Bulk(points)
-	default:
-		for _, p := range points {
-			a.Aggregate{{$k.Name}}(&p)
-		}
-	}
 }
 
 // {{$k.Name}}PointEmitter produces a single point from an aggregate.
@@ -109,6 +99,35 @@ func (r *{{$k.Name}}SliceFunc{{if ne $k.Name $v.Name}}{{$v.Name}}{{end}}Reducer)
 	return r.fn(r.points)
 }
 {{end}}
+
+// {{$k.Name}}SumHllReducer returns the HLL sketch for a series, in string form
+type {{$k.Name}}SumHllReducer struct {
+	plus *hll.Plus
+}
+
+// func New{{$k.Name}}SumHllReducer creates a new {{$k.Name}}SumHllReducer
+func New{{$k.Name}}SumHllReducer() *{{$k.Name}}SumHllReducer {
+	return &{{$k.Name}}SumHllReducer{plus:hll.NewDefaultPlus()}
+}
+
+// Aggregate{{$k.Name}} aggregates a point into the reducer.
+func (r *{{$k.Name}}SumHllReducer) Aggregate{{$k.Name}}(p *{{$k.Name}}Point) {
+	{{if eq $k.Type "string"}}
+	b := []byte(p.Value)
+	{{else}}
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.BigEndian, p.Value)
+	b := buf.Bytes()
+	{{end}}
+	r.plus.Add(b)
+}
+
+// Emit emits the distinct points that have been aggregated into the reducer.
+func (r *{{$k.Name}}SumHllReducer) Emit() []StringPoint {
+	return []StringPoint{
+		marshalPlus(r.plus, nil),
+	}
+}
 
 // {{$k.Name}}DistinctReducer returns the distinct points in a series.
 type {{$k.Name}}DistinctReducer struct {
