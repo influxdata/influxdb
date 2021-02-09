@@ -268,8 +268,16 @@ func (b *cmdTaskBuilder) taskRetryFailedF(*cobra.Command, []string) error {
 		} else {
 			fmt.Printf("Would retry for %s run for Task %s.\n", run.ID, run.TaskID)
 		}
-
 	}
+	if !b.taskRerunFailedFlags.executeRuns {
+		uniqueIDs := make(map[influxdb.ID]struct{})
+		for _, r := range failedRuns {
+			uniqueIDs[r.TaskID] = struct{}{}
+		}
+		fmt.Printf("Dry run complete. Found %d tasks with a total of %d runs to be retried\n"+
+			"Rerun with '--run true' to execute", len(uniqueIDs), len(failedRuns))
+	}
+
 	return nil
 
 }
