@@ -541,7 +541,7 @@ func (o *organization) getID(orgSVC influxdb.OrganizationService) (influxdb.ID, 
 
 func (o *organization) validOrgFlags(f *globalFlags) error {
 	if o.id == "" && o.name == "" && f != nil {
-		o.name = flags.config().Org
+		o.name = f.config().Org
 	}
 
 	if o.id == "" && o.name == "" {

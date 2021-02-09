@@ -84,7 +84,14 @@ func (c *Client) MustWriteBatch(points string) {
 
 // WriteBatch writes the current batch of points to the HTTP endpoint.
 func (c *Client) WriteBatch(points string) error {
-	return c.WriteService.Write(context.Background(), c.OrgID, c.BucketID, strings.NewReader(points))
+	return c.WriteService.WriteTo(
+		context.Background(),
+		influxdb.BucketFilter{
+			ID:             &c.BucketID,
+			OrganizationID: &c.OrgID,
+		},
+		strings.NewReader(points),
+	)
 }
 
 // Query returns the CSV response from a flux query to the HTTP API.

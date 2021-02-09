@@ -38,8 +38,8 @@ func Test_NotifyCoordinatorOfCreated(t *testing.T) {
 			// paginated responses
 			pageOne: []*influxdb.Task{taskOne},
 			otherPages: map[influxdb.ID][]*influxdb.Task{
-				one:   []*influxdb.Task{taskTwo, taskThree},
-				three: []*influxdb.Task{taskFour},
+				one:   {taskTwo, taskThree},
+				three: {taskFour},
 			},
 		}
 	)

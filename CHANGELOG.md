@@ -1,5 +1,11 @@
 ## unreleased
 
+### Features
+
+1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells.
+
+## v2.0.4 [2021-02-08]
+
 ### Docker
 
 #### ARM64
@@ -23,15 +29,24 @@ This release fully removes the `inmem` indexing option, along with the associate
 
 Replacement `tsi1` indexes will be automatically generated on startup for shards that need it.
 
+#### Artifact naming conventions
+
+The names of artifacts produced by our nightly & release builds have been updated according to the
+[Google developer guidelines](https://developers.google.com/style/filenames). Underscores (`_`) have
+been replaced by hyphens (`-`) in nearly all cases; the one exception is the use of `x86_64` in our
+RPM packages, which has been left unchanged.
+
 ### Features
 
-1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells.
 1. [20473](https://github.com/influxdata/influxdb/pull/20473): Add `--overwrite-existing-v2` flag to `influxd upgrade` to overwrite existing files at output paths (instead of aborting).
 1. [20524](https://github.com/influxdata/influxdb/pull/20524): Add `influxd print-config` command to support automated config inspection.
 1. [20561](https://github.com/influxdata/influxdb/pull/20561): Add `nats-port` config option for `influxd` server.
 1. [20564](https://github.com/influxdata/influxdb/pull/20564): Add `nats-max-payload-bytes` config option for `influxd` server.
 1. [20467](https://github.com/influxdata/influxdb/pull/20467): Add `influxd inspect export-lp` command to extract data in line-protocol format.
 1. [20604](https://github.com/influxdata/influxdb/pull/20604): Update telegraf plugins list in UI to include Beat, Intel PowerStats, and Rienmann.
+1. [20634](https://github.com/influxdata/influxdb/pull/20634): Promote schema and fill query optimizations to default behavior.
+1. [20678](https://github.com/influxdata/influxdb/pull/20678): Upgrade Flux to v0.104.0
+1. [20680](https://github.com/influxdata/influxdb/pull/20680): UI: Upgrade flux-lsp-browser to v0.5.31
 
 ### Bug Fixes
 
@@ -60,6 +75,12 @@ Replacement `tsi1` indexes will be automatically generated on startup for shards
 1. [20565](https://github.com/influxdata/influxdb/pull/20565): Update V1 API spec to document all valid Accept headers and matching Content-Types.
 1. [20578](https://github.com/influxdata/influxdb/pull/20578): Respect the --skip-verify flag when running `influx query`.
 1. [20495](https://github.com/influxdata/influxdb/pull/20495): Update Flux functions list in UI to reflect that `v1` package was renamed to `schema`.
+1. [20669](https://github.com/influxdata/influxdb/pull/20669): Remove blank lines from payloads sent by `influx write`.
+1. [20657](https://github.com/influxdata/influxdb/pull/20657): Allow for creating users without initial passwords in `influx user create`.
+1. [20679](https://github.com/influxdata/influxdb/pull/20679): Fix incorrect "bucket not found" errors when passing `--bucket-id` to `influx write`.
+1. [20702](https://github.com/influxdata/influxdb/pull/20702): Fix loading config when `INFLUXD_CONFIG_PATH` points to a directory with `.` in its name.
+1. [20678](https://github.com/influxdata/influxdb/pull/20678): Fix infinite loop in Flux parser caused by invalid array expressions.
+1. [20360](https://github.com/influxdata/influxdb/pull/20360): Update API spec to document Flux dictionary features.
 
 ## v2.0.3 [2020-12-14]
 

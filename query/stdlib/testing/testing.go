@@ -52,6 +52,7 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"map":                 "unbounded test",
 		"join_missing_on_col": "unbounded test",
 		"join_use_previous":   "unbounded test (https://github.com/influxdata/flux/issues/2996)",
+		"join_panic":          "unbounded test (https://github.com/influxdata/flux/issues/3465)",
 		"rowfn_with_import":   "unbounded test",
 
 		// the following tests have a difference between the CSV-decoded input table, and the storage-retrieved version of that table
@@ -93,14 +94,14 @@ var FluxEndToEndSkipList = map[string]map[string]string{
 		"holt_winters_panic": "Expected output is an empty table which breaks the testing framework (https://github.com/influxdata/influxdb/issues/14749)",
 		"map_nulls":          "to cannot write null values",
 	},
+	"array": {
+		"from":       "test not meant to be consumed by influxdb",
+		"from_group": "test not meant to be consumed by influxdb",
+	},
 	"experimental": {
 		"set":       "Reason TBD",
 		"join":      "unbounded test",
 		"alignTime": "unbounded test",
-	},
-	"experimental/array": {
-		"from":       "test not meant to be consumed by influxdb",
-		"from_group": "test not meant to be consumed by influxdb",
 	},
 	"experimental/geo": {
 		"filterRowsNotStrict": "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",

@@ -35,13 +35,6 @@ type Batcher struct {
 	Service          platform.WriteService // Service receives batches flushed from Batcher.
 }
 
-// Write reads r in batches and writes to a target specified by org and bucket.
-func (b *Batcher) Write(ctx context.Context, org, bucket platform.ID, r io.Reader) error {
-	return b.writeBytes(ctx, r, func(batch []byte) error {
-		return b.Service.Write(ctx, org, bucket, bytes.NewReader(batch))
-	})
-}
-
 // WriteTo reads r in batches and writes to a target specified by filter.
 func (b *Batcher) WriteTo(ctx context.Context, filter platform.BucketFilter, r io.Reader) error {
 	return b.writeBytes(ctx, r, func(batch []byte) error {
@@ -96,6 +89,8 @@ func (b *Batcher) read(ctx context.Context, r io.Reader, lines chan<- []byte, er
 	for scanner.Scan() {
 		// exit early if the context is done
 		select {
+		// NOTE: We purposefully don't use scanner.Bytes() here because it returns a slice
+		// pointing to an array which is reused / overwritten on every call to Scan().
 		case lines <- []byte(scanner.Text()):
 		case <-ctx.Done():
 			errC <- ctx.Err()
@@ -134,7 +129,7 @@ func (b *Batcher) write(ctx context.Context, writeFn func(batch []byte) error, l
 	for more {
 		select {
 		case line, more = <-lines:
-			if more {
+			if more && string(line) != "\n" {
 				buf = append(buf, line...)
 			}
 			// write if we exceed the max lines OR read routine has finished

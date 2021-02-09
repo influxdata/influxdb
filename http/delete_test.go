@@ -118,7 +118,7 @@ func TestDelete(t *testing.T) {
 			name: "missing bucket",
 			args: args{
 				queryParams: map[string][]string{
-					"org": []string{"org1"},
+					"org": {"org1"},
 				},
 				body:       []byte(`{"start":"2009-01-01T23:00:00Z","stop":"2009-11-10T01:00:00Z"}`),
 				authorizer: &influxdb.Authorization{UserID: user1ID},
@@ -153,8 +153,8 @@ func TestDelete(t *testing.T) {
 			name: "insufficient permissions delete",
 			args: args{
 				queryParams: map[string][]string{
-					"org":    []string{"org1"},
-					"bucket": []string{"buck1"},
+					"org":    {"org1"},
+					"bucket": {"buck1"},
 				},
 				body:       []byte(`{"start":"2009-01-01T23:00:00Z","stop":"2019-11-10T01:00:00Z"}`),
 				authorizer: &influxdb.Authorization{UserID: user1ID},
@@ -189,8 +189,8 @@ func TestDelete(t *testing.T) {
 			name: "no predicate delete",
 			args: args{
 				queryParams: map[string][]string{
-					"org":    []string{"org1"},
-					"bucket": []string{"buck1"},
+					"org":    {"org1"},
+					"bucket": {"buck1"},
 				},
 				body: []byte(`{"start":"2009-01-01T23:00:00Z","stop":"2019-11-10T01:00:00Z"}`),
 				authorizer: &influxdb.Authorization{
@@ -236,8 +236,8 @@ func TestDelete(t *testing.T) {
 			name: "unsupported delete",
 			args: args{
 				queryParams: map[string][]string{
-					"org":    []string{"org1"},
-					"bucket": []string{"buck1"},
+					"org":    {"org1"},
+					"bucket": {"buck1"},
 				},
 				body: []byte(`{
 					"start":"2009-01-01T23:00:00Z",
@@ -290,8 +290,8 @@ func TestDelete(t *testing.T) {
 			name: "complex delete",
 			args: args{
 				queryParams: map[string][]string{
-					"org":    []string{"org1"},
-					"bucket": []string{"buck1"},
+					"org":    {"org1"},
+					"bucket": {"buck1"},
 				},
 				body: []byte(`{
 					"start":"2009-01-01T23:00:00Z",

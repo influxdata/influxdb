@@ -128,7 +128,7 @@ ui_client:
 #
 
 fmt: $(SOURCES_NO_VENDOR)
-	gofmt -w -s $^
+	./etc/fmt.sh
 
 checkfmt:
 	./etc/checkfmt.sh
