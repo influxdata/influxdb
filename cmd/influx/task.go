@@ -217,8 +217,9 @@ func (b *cmdTaskBuilder) taskFindF(cmd *cobra.Command, args []string) error {
 }
 
 type taskRerunFailedFlags struct {
-	before string
-	after  string
+	before      string
+	after       string
+	executeRuns bool
 }
 
 func (b *cmdTaskBuilder) taskRetryFailedCmd() *cobra.Command {
@@ -232,6 +233,8 @@ func (b *cmdTaskBuilder) taskRetryFailedCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&b.taskID, "id", "i", "", "task ID")
 	cmd.Flags().StringVar(&b.taskRerunFailedFlags.before, "before", "", "runs before this time")
 	cmd.Flags().StringVar(&b.taskRerunFailedFlags.after, "after", "", "runs after this time")
+	cmd.Flags().BoolVar(&b.taskRerunFailedFlags.executeRuns, "run", false,
+		"actually execute failed runs; defaults false")
 
 	return cmd
 }
@@ -245,32 +248,34 @@ func (b *cmdTaskBuilder) taskRetryFailedF(*cobra.Command, []string) error {
 		return err
 	}
 
-	taskIDPresent := b.taskID == ""
-
 	var failedRuns []*influxdb.Run
-	if !taskIDPresent {
-		failedRuns, err = b.getRunsOrg()
+	if b.taskID == "" {
+		failedRuns, err = b.getFailedRunsForOrg()
 	} else {
-		failedRuns, err = b.getFailedRunsTaskID()
+		failedRuns, err = b.getFailedRunsForTaskID()
 	}
 	if err != nil {
 		return err
 	}
 
 	for _, run := range failedRuns {
-		newRun, err := tskSvc.RetryRun(context.Background(), run.TaskID, run.ID)
-		if err != nil {
-			return err
+		if b.taskRerunFailedFlags.executeRuns {
+			newRun, err := tskSvc.RetryRun(context.Background(), run.TaskID, run.ID)
+			if err != nil {
+				return err
+			}
+			fmt.Printf("Retry for task %s's run %s queued as run %s.\n", run.TaskID, run.ID, newRun.ID)
+		} else {
+			fmt.Printf("Would retry for %s run for Task %s.\n", run.ID, run.TaskID)
 		}
-		fmt.Printf("Retry for task %s's run %s queued as run %s.\n", run.TaskID, run.ID, newRun.ID)
+
 	}
 	return nil
 
 }
 
-// helper function to find all failed runs based on taskID
-func (b *cmdTaskBuilder) getFailedRunsTaskID() ([]*influxdb.Run, error) {
-	// use RunFilter to search for failed runs then return collection of failed tasks
+func (b *cmdTaskBuilder) getFailedRunsForTaskID() ([]*influxdb.Run, error) {
+	// use RunFilter to search for failed runs
 	tskSvc, _, err := b.svcFn()
 	if err != nil {
 		return nil, err
@@ -297,10 +302,8 @@ func (b *cmdTaskBuilder) getFailedRunsTaskID() ([]*influxdb.Run, error) {
 
 }
 
-// helper function to find all failed runs associated with an organization
-func (b *cmdTaskBuilder) getRunsOrg() ([]*influxdb.Run, error) {
-	// use TaskFilter to get all Tasks in org then search for failed runs in each task.
-	// returns collection of failed tasks
+func (b *cmdTaskBuilder) getFailedRunsForOrg() ([]*influxdb.Run, error) {
+	// use TaskFilter to get all Tasks in org then search for failed runs in each task
 	taskFilter := influxdb.TaskFilter{}
 	runFilter := influxdb.RunFilter{}
 	runFilter.BeforeTime = b.taskRerunFailedFlags.before

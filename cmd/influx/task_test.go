@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+//	Purpose of test suite:
+//   	checking if cmd line tool gives all data needed for TaskService to perform functions
 func TestCmdTask(t *testing.T) {
 	orgID := influxdb.ID(9000)
 
@@ -28,8 +30,6 @@ func TestCmdTask(t *testing.T) {
 	}
 
 	t.Run("create", func(t *testing.T) {
-
-		//	checking cmd line tool gives all data needed for TaskService to actually create a Task
 
 		// todo: add more test cases
 		tests := []struct {
@@ -93,7 +93,7 @@ func TestCmdTask(t *testing.T) {
 			t.Run(tt.name, fn)
 		}
 
-	}) // end t.Run create
+	})
 
 	// todo: add tests for task subcommands
 
