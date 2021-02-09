@@ -56,25 +56,6 @@ workflows:
             branches:
               only: master
 
-  hourly-e2e:
-    triggers:
-      - schedule:
-          cron: "0 * * * *"
-          filters:
-            branches:
-              only:
-                - master
-    jobs:
-      - godeps
-      - jsdeps
-      - build:
-          requires:
-            - godeps
-            - jsdeps
-      - e2e:
-          requires:
-            - build
-
   nightly:
     triggers:
       - schedule:
