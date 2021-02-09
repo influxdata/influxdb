@@ -5,12 +5,13 @@
     clippy::use_self
 )]
 
-use arrow_deps::datafusion::{logical_plan::LogicalPlan, physical_plan::SendableRecordBatchStream};
+use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 use async_trait::async_trait;
 use data_types::{
     data::ReplicatedWrite, partition_metadata::TableSummary, schema::Schema, selection::Selection,
 };
-use exec::{Executor, FieldListPlan, SeriesSetPlans, StringSetPlan};
+use exec::{stringset::StringSet, Executor, FieldListPlan, SeriesSetPlans};
+use plan::stringset::StringSetPlan;
 
 use std::{fmt::Debug, sync::Arc};
 
@@ -18,6 +19,7 @@ pub mod exec;
 pub mod frontend;
 pub mod func;
 pub mod group_by;
+pub mod plan;
 pub mod predicate;
 pub mod provider;
 pub mod util;
@@ -122,16 +124,21 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// Returns true if this chunk contains data for the specified table
     async fn has_table(&self, table_name: &str) -> bool;
 
-    /// Returns a datafusion plan that produces
-    /// a single string column representing the names
-    /// of the tables that have at least one row that matches the
-    /// `predicate`
+    /// Returns all table names from this chunk that have at least one
+    /// row that matches the `predicate` and are not already in `known_tables`.
     ///
-    /// Note that the table names produced may be duplicated (e.g. if
-    /// the same table exists in multiple distinct chunks) and it is
-    /// the responsibility of the caller to deduplicate them if
-    /// desired.
-    async fn table_names(&self, predicate: &Predicate) -> Result<LogicalPlan, Self::Error>;
+    /// If the predicate cannot be evaluated (e.g it has predicates
+    /// that cannot be directly evaluated in the chunk), `None` is
+    /// returned.
+    ///
+    /// `known_tables` is a list of table names already known to be in
+    /// other chunks from the same partition. It may be empty or
+    /// contain `table_names` not in this chunk.
+    async fn table_names(
+        &self,
+        predicate: &Predicate,
+        known_tables: &StringSet,
+    ) -> Result<Option<StringSet>, Self::Error>;
 
     /// Returns the Schema for a table in this chunk, with the
     /// specified column selection

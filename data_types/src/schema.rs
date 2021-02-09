@@ -12,6 +12,7 @@ use arrow_deps::arrow::datatypes::{
     SchemaRef as ArrowSchemaRef,
 };
 
+/// The name of the timestamp column in the InfluxDB datamodel
 pub const TIME_COLUMN_NAME: &str = "time";
 
 pub mod builder;

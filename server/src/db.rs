@@ -12,7 +12,7 @@ use std::{
 use async_trait::async_trait;
 use data_types::{data::ReplicatedWrite, database_rules::DatabaseRules, selection::Selection};
 use mutable_buffer::MutableBufferDb;
-use query::{Database, PartitionChunk};
+use query::{plan::stringset::StringSetPlan, Database, PartitionChunk};
 use read_buffer::Database as ReadBufferDb;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -280,7 +280,7 @@ impl Database for Db {
     async fn tag_column_names(
         &self,
         predicate: query::predicate::Predicate,
-    ) -> Result<query::exec::StringSetPlan, Self::Error> {
+    ) -> Result<query::plan::stringset::StringSetPlan, Self::Error> {
         self.mutable_buffer
             .as_ref()
             .context(DatabaseNotReadable)?
@@ -305,7 +305,7 @@ impl Database for Db {
         &self,
         column_name: &str,
         predicate: query::predicate::Predicate,
-    ) -> Result<query::exec::StringSetPlan, Self::Error> {
+    ) -> Result<StringSetPlan, Self::Error> {
         self.mutable_buffer
             .as_ref()
             .context(DatabaseNotReadable)?

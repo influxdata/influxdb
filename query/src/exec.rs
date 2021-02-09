@@ -23,10 +23,12 @@ use schema_pivot::SchemaPivotNode;
 
 use fieldlist::{FieldList, IntoFieldList};
 use seriesset::{Error as SeriesSetError, SeriesSetConverter, SeriesSetItem};
-use stringset::{IntoStringSet, StringSet, StringSetRef};
+use stringset::{IntoStringSet, StringSetRef};
 use tokio::sync::mpsc::{self, error::SendError};
 
 use snafu::{ResultExt, Snafu};
+
+use crate::plan::stringset::StringSetPlan;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -82,63 +84,6 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
-
-/// A plan which produces a logical set of Strings (e.g. tag
-/// values). This includes variants with pre-calculated results as
-/// well a variant that runs a full on DataFusion plan.
-#[derive(Debug)]
-pub enum StringSetPlan {
-    // If the results are known without having to run an actual datafusion plan
-    Known(Result<StringSetRef>),
-    /// A DataFusion plan(s) to execute. Each plan must produce
-    /// RecordBatches with exactly one String column, though the
-    /// the values produced by the plan may be repeated
-    ///
-    /// TODO: it would be cool to have a single datafusion LogicalPlan
-    /// that merged all the results together. However, no such Union
-    /// node exists at the time of writing, so we do the unioning in IOx
-    Plan(Vec<LogicalPlan>),
-}
-
-impl From<StringSetRef> for StringSetPlan {
-    /// Create a StringSetPlan from a StringSetRef
-    fn from(set: StringSetRef) -> Self {
-        Self::Known(Ok(set))
-    }
-}
-
-impl From<StringSet> for StringSetPlan {
-    /// Create a StringSetPlan from a StringSet result, wrapping the error type
-    /// appropriately
-    fn from(set: StringSet) -> Self {
-        Self::Known(Ok(StringSetRef::new(set)))
-    }
-}
-
-impl<E> From<Result<StringSetRef, E>> for StringSetPlan
-where
-    E: std::error::Error + Send + Sync + 'static,
-{
-    /// Create a StringSetPlan from a Result<StringSetRef> result, wrapping the
-    /// error type appropriately
-    fn from(result: Result<StringSetRef, E>) -> Self {
-        match result {
-            Ok(set) => Self::Known(Ok(set)),
-            Err(e) => Self::Known(Err(Error::Execution {
-                source: Box::new(e),
-            })),
-        }
-    }
-}
-
-impl From<Vec<LogicalPlan>> for StringSetPlan {
-    /// Create a DataFusion LogicalPlan node, each if which must
-    /// produce a single output Utf8 column. The output of each plan
-    /// will be included into the final set.
-    fn from(plans: Vec<LogicalPlan>) -> Self {
-        Self::Plan(plans)
-    }
-}
 
 /// A plan that can be run to produce a logical stream of time series,
 /// as represented as sequence of SeriesSets from a single DataFusion
@@ -248,7 +193,8 @@ impl Executor {
     /// Executes this plan and returns the resulting set of strings
     pub async fn to_string_set(&self, plan: StringSetPlan) -> Result<StringSetRef> {
         match plan {
-            StringSetPlan::Known(res) => res,
+            StringSetPlan::KnownOk(ss) => Ok(ss),
+            StringSetPlan::KnownError(source) => Err(Error::Execution { source }),
             StringSetPlan::Plan(plans) => self
                 .run_logical_plans(plans)
                 .await?
