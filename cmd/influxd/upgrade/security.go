@@ -27,7 +27,7 @@ func upgradeUsers(
 	// check if there any 1.x users at all
 	v1meta := v1.meta
 	if len(v1meta.Users()) == 0 {
-		log.Info("There are no users in 1.x, nothing to upgrade.")
+		log.Info("There are no users in 1.x, nothing to upgrade")
 		return 0, nil
 	}
 
@@ -41,13 +41,14 @@ func upgradeUsers(
 	}
 
 	// upgrade users
+	log.Info("Upgrading 1.x users")
 	numUpgraded := 0
 	for _, row := range helper.sortUserInfo(v1meta.Users()) {
 		username := row.Name
 		if row.Admin {
-			log.Info("User is admin and will not be upgraded.", zap.String("username", username))
+			log.Warn("User is admin and will not be upgraded", zap.String("username", username))
 		} else if len(row.Privileges) == 0 {
-			log.Info("User has no privileges and will not be upgraded.", zap.String("username", username))
+			log.Warn("User has no privileges and will not be upgraded", zap.String("username", username))
 		} else {
 			var dbList []string
 			for database := range row.Privileges {
@@ -94,22 +95,23 @@ func upgradeUsers(
 				}
 				err := v2.authSvc.CreateAuthorization(ctx, auth)
 				if err != nil {
-					log.Error("Failed to create authorization.", zap.String("user", username), zap.Error(err))
+					log.Error("Failed to create authorization", zap.String("user", username), zap.Error(err))
 					continue
 				}
 				err = v2.authSvc.SetPasswordHash(ctx, auth.ID, row.Hash)
 				if err != nil {
-					log.Error("Failed to set user's password.", zap.String("user", username), zap.Error(err))
+					log.Error("Failed to set user's password", zap.String("user", username), zap.Error(err))
 					continue
 				}
-				log.Info("User upgraded.", zap.String("username", username))
+				log.Debug("User upgraded", zap.String("username", username))
 				numUpgraded++
 			} else {
-				log.Info("User has no privileges and will not be upgraded.", zap.String("username", username))
+				log.Warn("User has no privileges and will not be upgraded", zap.String("username", username))
 			}
 		}
 	}
 
+	log.Info("User upgrade complete", zap.Int("upgraded_count", numUpgraded))
 	return numUpgraded, nil
 }
 

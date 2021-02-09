@@ -56,25 +56,6 @@ workflows:
             branches:
               only: master
 
-  hourly-e2e:
-    triggers:
-      - schedule:
-          cron: "0 * * * *"
-          filters:
-            branches:
-              only:
-                - master
-    jobs:
-      - godeps
-      - jsdeps
-      - build:
-          requires:
-            - godeps
-            - jsdeps
-      - e2e:
-          requires:
-            - build
-
   nightly:
     triggers:
       - schedule:
@@ -594,6 +575,8 @@ jobs:
           key: influxdb-build-{{ .Branch }}-{{ .Revision }}
           paths:
             - /tmp/go-cache
+      - store_artifacts:
+          path: bin/linux
       - persist_to_workspace:
           root: .
           paths:
@@ -627,6 +610,15 @@ jobs:
       - install_core_deps
       - run_goreleaser:
           publish_release: false
+      - run:
+          name: Clean up artifacts
+          command: |
+            # goreleaser generates some temp files in the dist/
+            # directory alongside the artifacts we want to save.
+            mkdir artifacts
+            mv dist/influx* artifacts/
+      - store_artifacts:
+          path: artifacts
       - save_cache:
           name: Save GOCACHE
           key: influxdb-cross-build-{{ .Branch }}-{{ .Revision }}
@@ -773,11 +765,12 @@ jobs:
       - attach_workspace:
           at: ~/project
       - quay_login
-      - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -e TEST_RESULTS=~/project quay.io/influxdb/grace:latest
+      - run: mkdir -p ~/project/results
+      - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project/results:/grace/test-results/grace-results -e TEST_RESULTS=~/project/results quay.io/influxdb/grace:latest
       - store_artifacts:
-          path: ~/project
+          path: ~/project/results
       - store_test_results:
-          path: ~/project
+          path: ~/project/results
 
   grace_daily:
     machine: true
@@ -788,6 +781,9 @@ jobs:
       - run:
           command: ./bin/linux/influxd --store=memory --log-level=debug
           background: true
-      - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project:/grace/test-results/grace-results quay.io/influxdb/grace:daily
+      - run: mkdir -p ~/project/results
+      - run: docker run --net host -v /var/run/docker.sock:/var/run/docker.sock -v ~/project/results:/grace/test-results/grace-results quay.io/influxdb/grace:daily
       - store_artifacts:
-          path: ~/project
+          path: ~/project/results
+      - store_test_results:
+          path: ~/project/results

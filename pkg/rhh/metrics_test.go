@@ -68,8 +68,8 @@ func TestMetrics_Metrics(t *testing.T) {
 
 	// The label variants for the two caches.
 	labelVariants := []prometheus.Labels{
-		prometheus.Labels{"engine_id": "0", "node_id": "0"},
-		prometheus.Labels{"engine_id": "1", "node_id": "0"},
+		{"engine_id": "0", "node_id": "0"},
+		{"engine_id": "1", "node_id": "0"},
 	}
 
 	for i, labels := range labelVariants {

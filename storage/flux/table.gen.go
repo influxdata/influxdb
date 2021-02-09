@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/arrow"
 	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/interval"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2"
@@ -105,19 +106,19 @@ func (t *floatTable) advance() bool {
 // window table
 type floatWindowTable struct {
 	floatTable
-	arr         *cursors.FloatArray
-	nextTS      int64
-	idxInArr    int
-	createEmpty bool
-	timeColumn  string
-	window      execute.Window
+	arr          *cursors.FloatArray
+	windowBounds interval.Bounds
+	idxInArr     int
+	createEmpty  bool
+	timeColumn   string
+	window       interval.Window
 }
 
 func newFloatWindowTable(
 	done chan struct{},
 	cur cursors.FloatArrayCursor,
 	bounds execute.Bounds,
-	window execute.Window,
+	window interval.Window,
 	createEmpty bool,
 	timeColumn string,
 
@@ -139,7 +140,7 @@ func newFloatWindowTable(
 	}
 	if t.createEmpty {
 		start := int64(bounds.Start)
-		t.nextTS = int64(window.GetEarliestBounds(values.Time(start)).Stop)
+		t.windowBounds = window.GetLatestBounds(values.Time(start))
 	}
 	t.readTags(tags)
 	t.init(t.advance)
@@ -160,8 +161,7 @@ func (t *floatWindowTable) createNextBufferTimes() (start, stop *array.Int64, ok
 	if t.createEmpty {
 		// There are no more windows when the start time is greater
 		// than or equal to the stop time.
-		subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
-		if startT := int64(values.Time(t.nextTS).Add(subEvery)); startT >= int64(t.bounds.Stop) {
+		if startT := int64(t.windowBounds.Start()); startT >= int64(t.bounds.Stop) {
 			return nil, nil, false
 		}
 
@@ -169,8 +169,8 @@ func (t *floatWindowTable) createNextBufferTimes() (start, stop *array.Int64, ok
 		// TODO(jsternberg): Calculate the exact size with max points as the maximum.
 		startB.Resize(storage.MaxPointsPerBlock)
 		stopB.Resize(storage.MaxPointsPerBlock)
-		for ; ; t.nextTS = int64(values.Time(t.nextTS).Add(t.window.Every)) {
-			startT, stopT := t.getWindowBoundsFor(t.nextTS)
+		for ; ; t.windowBounds = t.window.NextBounds(t.windowBounds) {
+			startT, stopT := t.getWindowBoundsFor(t.windowBounds)
 			if startT >= int64(t.bounds.Stop) {
 				break
 			}
@@ -192,7 +192,8 @@ func (t *floatWindowTable) createNextBufferTimes() (start, stop *array.Int64, ok
 	startB.Resize(len(t.arr.Timestamps))
 	stopB.Resize(len(t.arr.Timestamps))
 	for _, stopT := range t.arr.Timestamps {
-		startT, stopT := t.getWindowBoundsFor(stopT)
+		bounds := t.window.PrevBounds(t.window.GetLatestBounds(values.Time(stopT)))
+		startT, stopT := t.getWindowBoundsFor(bounds)
 		startB.Append(startT)
 		stopB.Append(stopT)
 	}
@@ -201,16 +202,16 @@ func (t *floatWindowTable) createNextBufferTimes() (start, stop *array.Int64, ok
 	return start, stop, true
 }
 
-func (t *floatWindowTable) getWindowBoundsFor(ts int64) (startT, stopT int64) {
-	subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
-	startT, stopT = int64(values.Time(ts).Add(subEvery)), ts
-	if startT < int64(t.bounds.Start) {
-		startT = int64(t.bounds.Start)
+func (t *floatWindowTable) getWindowBoundsFor(bounds interval.Bounds) (int64, int64) {
+	beg := int64(bounds.Start())
+	end := int64(bounds.Stop())
+	if beg < int64(t.bounds.Start) {
+		beg = int64(t.bounds.Start)
 	}
-	if stopT > int64(t.bounds.Stop) {
-		stopT = int64(t.bounds.Stop)
+	if end > int64(t.bounds.Stop) {
+		end = int64(t.bounds.Stop)
 	}
-	return startT, stopT
+	return beg, end
 }
 
 // nextAt will retrieve the next value that can be used with
@@ -242,8 +243,7 @@ func (t *floatWindowTable) isInWindow(ts int64, stop int64) bool {
 	// but we may have truncated the stop time because of the boundary
 	// and this is why we are checking for this range instead of checking
 	// if the two values are equal.
-	subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
-	start := int64(values.Time(stop).Add(subEvery))
+	start := int64(t.window.PrevBounds(t.window.GetLatestBounds(values.Time(stop))).Start())
 	return start < ts && ts <= stop
 }
 
@@ -320,14 +320,14 @@ func (t *floatWindowTable) advance() bool {
 type floatWindowSelectorTable struct {
 	floatTable
 	timeColumn string
-	window     execute.Window
+	window     interval.Window
 }
 
 func newFloatWindowSelectorTable(
 	done chan struct{},
 	cur cursors.FloatArrayCursor,
 	bounds execute.Bounds,
-	window execute.Window,
+	window interval.Window,
 	timeColumn string,
 	key flux.GroupKey,
 	cols []flux.ColMeta,
@@ -386,7 +386,7 @@ func (t *floatWindowSelectorTable) startTimes(arr *cursors.FloatArray) *array.In
 	rangeStart := int64(t.bounds.Start)
 
 	for _, v := range arr.Timestamps {
-		if windowStart := int64(t.window.GetEarliestBounds(values.Time(v)).Start); windowStart < rangeStart {
+		if windowStart := int64(t.window.GetLatestBounds(values.Time(v)).Start()); windowStart < rangeStart {
 			start.Append(rangeStart)
 		} else {
 			start.Append(windowStart)
@@ -402,7 +402,7 @@ func (t *floatWindowSelectorTable) stopTimes(arr *cursors.FloatArray) *array.Int
 	rangeStop := int64(t.bounds.Stop)
 
 	for _, v := range arr.Timestamps {
-		if windowStop := int64(t.window.GetEarliestBounds(values.Time(v)).Stop); windowStop > rangeStop {
+		if windowStop := int64(t.window.GetLatestBounds(values.Time(v)).Stop()); windowStop > rangeStop {
 			stop.Append(rangeStop)
 		} else {
 			stop.Append(windowStop)
@@ -415,21 +415,20 @@ func (t *floatWindowSelectorTable) stopTimes(arr *cursors.FloatArray) *array.Int
 // in addition to non-empty windows.
 type floatEmptyWindowSelectorTable struct {
 	floatTable
-	arr         *cursors.FloatArray
-	idx         int
-	rangeStart  int64
-	rangeStop   int64
-	windowStart int64
-	windowStop  int64
-	timeColumn  string
-	window      execute.Window
+	arr          *cursors.FloatArray
+	idx          int
+	rangeStart   int64
+	rangeStop    int64
+	windowBounds interval.Bounds
+	timeColumn   string
+	window       interval.Window
 }
 
 func newFloatEmptyWindowSelectorTable(
 	done chan struct{},
 	cur cursors.FloatArrayCursor,
 	bounds execute.Bounds,
-	window execute.Window,
+	window interval.Window,
 	timeColumn string,
 	key flux.GroupKey,
 	cols []flux.ColMeta,
@@ -445,13 +444,12 @@ func newFloatEmptyWindowSelectorTable(
 			table: newTable(done, bounds, key, cols, defs, cache, alloc),
 			cur:   cur,
 		},
-		arr:         cur.Next(),
-		rangeStart:  rangeStart,
-		rangeStop:   rangeStop,
-		windowStart: int64(window.GetEarliestBounds(values.Time(rangeStart)).Start),
-		windowStop:  int64(window.GetEarliestBounds(values.Time(rangeStart)).Stop),
-		window:      window,
-		timeColumn:  timeColumn,
+		arr:          cur.Next(),
+		rangeStart:   rangeStart,
+		rangeStop:    rangeStop,
+		windowBounds: window.GetLatestBounds(values.Time(rangeStart)),
+		window:       window,
+		timeColumn:   timeColumn,
 	}
 	t.readTags(tags)
 	t.init(t.advance)
@@ -500,13 +498,13 @@ func (t *floatEmptyWindowSelectorTable) startTimes(builder *array.Float64Builder
 	start := arrow.NewIntBuilder(t.alloc)
 	start.Resize(storage.MaxPointsPerBlock)
 
-	for t.windowStart < t.rangeStop {
+	for int64(t.windowBounds.Start()) < t.rangeStop {
 		// The first window should start at the
 		// beginning of the time range.
-		if t.windowStart < t.rangeStart {
+		if int64(t.windowBounds.Start()) < t.rangeStart {
 			start.Append(t.rangeStart)
 		} else {
-			start.Append(t.windowStart)
+			start.Append(int64(t.windowBounds.Start()))
 		}
 
 		var v int64
@@ -520,15 +518,14 @@ func (t *floatEmptyWindowSelectorTable) startTimes(builder *array.Float64Builder
 		// If the current timestamp falls within the
 		// current window, append the value to the
 		// builder, otherwise append a null value.
-		if t.windowStart <= v && v < t.windowStop {
+		if int64(t.windowBounds.Start()) <= v && v < int64(t.windowBounds.Stop()) {
 			t.append(builder, t.arr.Values[t.idx])
 			t.idx++
 		} else {
 			builder.AppendNull()
 		}
 
-		t.windowStart = int64(values.Time(t.windowStart).Add(t.window.Every))
-		t.windowStop = int64(values.Time(t.windowStop).Add(t.window.Every))
+		t.windowBounds = t.window.NextBounds(t.windowBounds)
 
 		// If the current array is non-empty and has
 		// been read in its entirety, call Next().
@@ -548,13 +545,13 @@ func (t *floatEmptyWindowSelectorTable) stopTimes(builder *array.Float64Builder)
 	stop := arrow.NewIntBuilder(t.alloc)
 	stop.Resize(storage.MaxPointsPerBlock)
 
-	for t.windowStart < t.rangeStop {
+	for int64(t.windowBounds.Start()) < t.rangeStop {
 		// The last window should stop at the end of
 		// the time range.
-		if t.windowStop > t.rangeStop {
+		if int64(t.windowBounds.Stop()) > t.rangeStop {
 			stop.Append(t.rangeStop)
 		} else {
-			stop.Append(t.windowStop)
+			stop.Append(int64(t.windowBounds.Stop()))
 		}
 
 		var v int64
@@ -568,15 +565,14 @@ func (t *floatEmptyWindowSelectorTable) stopTimes(builder *array.Float64Builder)
 		// If the current timestamp falls within the
 		// current window, append the value to the
 		// builder, otherwise append a null value.
-		if t.windowStart <= v && v < t.windowStop {
+		if int64(t.windowBounds.Start()) <= v && v < int64(t.windowBounds.Stop()) {
 			t.append(builder, t.arr.Values[t.idx])
 			t.idx++
 		} else {
 			builder.AppendNull()
 		}
 
-		t.windowStart = int64(values.Time(t.windowStart).Add(t.window.Every))
-		t.windowStop = int64(values.Time(t.windowStop).Add(t.window.Every))
+		t.windowBounds = t.window.NextBounds(t.windowBounds)
 
 		// If the current array is non-empty and has
 		// been read in its entirety, call Next().
@@ -602,22 +598,22 @@ func (t *floatEmptyWindowSelectorTable) startStopTimes(builder *array.Float64Bui
 	time := arrow.NewIntBuilder(t.alloc)
 	time.Resize(storage.MaxPointsPerBlock)
 
-	for t.windowStart < t.rangeStop {
+	for int64(t.windowBounds.Start()) < t.rangeStop {
 
 		// The first window should start at the
 		// beginning of the time range.
-		if t.windowStart < t.rangeStart {
+		if int64(t.windowBounds.Start()) < t.rangeStart {
 			start.Append(t.rangeStart)
 		} else {
-			start.Append(t.windowStart)
+			start.Append(int64(t.windowBounds.Start()))
 		}
 
 		// The last window should stop at the end of
 		// the time range.
-		if t.windowStop > t.rangeStop {
+		if int64(t.windowBounds.Stop()) > t.rangeStop {
 			stop.Append(t.rangeStop)
 		} else {
-			stop.Append(t.windowStop)
+			stop.Append(int64(t.windowBounds.Stop()))
 		}
 
 		var v int64
@@ -631,7 +627,7 @@ func (t *floatEmptyWindowSelectorTable) startStopTimes(builder *array.Float64Bui
 		// If the current timestamp falls within the
 		// current window, append the value to the
 		// builder, otherwise append a null value.
-		if t.windowStart <= v && v < t.windowStop {
+		if int64(t.windowBounds.Start()) <= v && v < int64(t.windowBounds.Stop()) {
 			time.Append(v)
 			t.append(builder, t.arr.Values[t.idx])
 			t.idx++
@@ -640,8 +636,7 @@ func (t *floatEmptyWindowSelectorTable) startStopTimes(builder *array.Float64Bui
 			builder.AppendNull()
 		}
 
-		t.windowStart = int64(values.Time(t.windowStart).Add(t.window.Every))
-		t.windowStop = int64(values.Time(t.windowStop).Add(t.window.Every))
+		t.windowBounds = t.window.NextBounds(t.windowBounds)
 
 		// If the current array is non-empty and has
 		// been read in its entirety, call Next().
@@ -1005,20 +1000,20 @@ func (t *integerTable) advance() bool {
 // window table
 type integerWindowTable struct {
 	integerTable
-	arr         *cursors.IntegerArray
-	nextTS      int64
-	idxInArr    int
-	createEmpty bool
-	timeColumn  string
-	window      execute.Window
-	fillValue   *int64
+	arr          *cursors.IntegerArray
+	windowBounds interval.Bounds
+	idxInArr     int
+	createEmpty  bool
+	timeColumn   string
+	window       interval.Window
+	fillValue    *int64
 }
 
 func newIntegerWindowTable(
 	done chan struct{},
 	cur cursors.IntegerArrayCursor,
 	bounds execute.Bounds,
-	window execute.Window,
+	window interval.Window,
 	createEmpty bool,
 	timeColumn string,
 	fillValue *int64,
@@ -1041,7 +1036,7 @@ func newIntegerWindowTable(
 	}
 	if t.createEmpty {
 		start := int64(bounds.Start)
-		t.nextTS = int64(window.GetEarliestBounds(values.Time(start)).Stop)
+		t.windowBounds = window.GetLatestBounds(values.Time(start))
 	}
 	t.readTags(tags)
 	t.init(t.advance)
@@ -1062,8 +1057,7 @@ func (t *integerWindowTable) createNextBufferTimes() (start, stop *array.Int64, 
 	if t.createEmpty {
 		// There are no more windows when the start time is greater
 		// than or equal to the stop time.
-		subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
-		if startT := int64(values.Time(t.nextTS).Add(subEvery)); startT >= int64(t.bounds.Stop) {
+		if startT := int64(t.windowBounds.Start()); startT >= int64(t.bounds.Stop) {
 			return nil, nil, false
 		}
 
@@ -1071,8 +1065,8 @@ func (t *integerWindowTable) createNextBufferTimes() (start, stop *array.Int64, 
 		// TODO(jsternberg): Calculate the exact size with max points as the maximum.
 		startB.Resize(storage.MaxPointsPerBlock)
 		stopB.Resize(storage.MaxPointsPerBlock)
-		for ; ; t.nextTS = int64(values.Time(t.nextTS).Add(t.window.Every)) {
-			startT, stopT := t.getWindowBoundsFor(t.nextTS)
+		for ; ; t.windowBounds = t.window.NextBounds(t.windowBounds) {
+			startT, stopT := t.getWindowBoundsFor(t.windowBounds)
 			if startT >= int64(t.bounds.Stop) {
 				break
 			}
@@ -1094,7 +1088,8 @@ func (t *integerWindowTable) createNextBufferTimes() (start, stop *array.Int64, 
 	startB.Resize(len(t.arr.Timestamps))
 	stopB.Resize(len(t.arr.Timestamps))
 	for _, stopT := range t.arr.Timestamps {
-		startT, stopT := t.getWindowBoundsFor(stopT)
+		bounds := t.window.PrevBounds(t.window.GetLatestBounds(values.Time(stopT)))
+		startT, stopT := t.getWindowBoundsFor(bounds)
 		startB.Append(startT)
 		stopB.Append(stopT)
 	}
@@ -1103,16 +1098,16 @@ func (t *integerWindowTable) createNextBufferTimes() (start, stop *array.Int64, 
 	return start, stop, true
 }
 
-func (t *integerWindowTable) getWindowBoundsFor(ts int64) (startT, stopT int64) {
-	subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
-	startT, stopT = int64(values.Time(ts).Add(subEvery)), ts
-	if startT < int64(t.bounds.Start) {
-		startT = int64(t.bounds.Start)
+func (t *integerWindowTable) getWindowBoundsFor(bounds interval.Bounds) (int64, int64) {
+	beg := int64(bounds.Start())
+	end := int64(bounds.Stop())
+	if beg < int64(t.bounds.Start) {
+		beg = int64(t.bounds.Start)
 	}
-	if stopT > int64(t.bounds.Stop) {
-		stopT = int64(t.bounds.Stop)
+	if end > int64(t.bounds.Stop) {
+		end = int64(t.bounds.Stop)
 	}
-	return startT, stopT
+	return beg, end
 }
 
 // nextAt will retrieve the next value that can be used with
@@ -1144,8 +1139,7 @@ func (t *integerWindowTable) isInWindow(ts int64, stop int64) bool {
 	// but we may have truncated the stop time because of the boundary
 	// and this is why we are checking for this range instead of checking
 	// if the two values are equal.
-	subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
-	start := int64(values.Time(stop).Add(subEvery))
+	start := int64(t.window.PrevBounds(t.window.GetLatestBounds(values.Time(stop))).Start())
 	return start < ts && ts <= stop
 }
 
@@ -1222,14 +1216,14 @@ func (t *integerWindowTable) advance() bool {
 type integerWindowSelectorTable struct {
 	integerTable
 	timeColumn string
-	window     execute.Window
+	window     interval.Window
 }
 
 func newIntegerWindowSelectorTable(
 	done chan struct{},
 	cur cursors.IntegerArrayCursor,
 	bounds execute.Bounds,
-	window execute.Window,
+	window interval.Window,
 	timeColumn string,
 	key flux.GroupKey,
 	cols []flux.ColMeta,
@@ -1288,7 +1282,7 @@ func (t *integerWindowSelectorTable) startTimes(arr *cursors.IntegerArray) *arra
 	rangeStart := int64(t.bounds.Start)
 
 	for _, v := range arr.Timestamps {
-		if windowStart := int64(t.window.GetEarliestBounds(values.Time(v)).Start); windowStart < rangeStart {
+		if windowStart := int64(t.window.GetLatestBounds(values.Time(v)).Start()); windowStart < rangeStart {
 			start.Append(rangeStart)
 		} else {
 			start.Append(windowStart)
@@ -1304,7 +1298,7 @@ func (t *integerWindowSelectorTable) stopTimes(arr *cursors.IntegerArray) *array
 	rangeStop := int64(t.bounds.Stop)
 
 	for _, v := range arr.Timestamps {
-		if windowStop := int64(t.window.GetEarliestBounds(values.Time(v)).Stop); windowStop > rangeStop {
+		if windowStop := int64(t.window.GetLatestBounds(values.Time(v)).Stop()); windowStop > rangeStop {
 			stop.Append(rangeStop)
 		} else {
 			stop.Append(windowStop)
@@ -1317,21 +1311,20 @@ func (t *integerWindowSelectorTable) stopTimes(arr *cursors.IntegerArray) *array
 // in addition to non-empty windows.
 type integerEmptyWindowSelectorTable struct {
 	integerTable
-	arr         *cursors.IntegerArray
-	idx         int
-	rangeStart  int64
-	rangeStop   int64
-	windowStart int64
-	windowStop  int64
-	timeColumn  string
-	window      execute.Window
+	arr          *cursors.IntegerArray
+	idx          int
+	rangeStart   int64
+	rangeStop    int64
+	windowBounds interval.Bounds
+	timeColumn   string
+	window       interval.Window
 }
 
 func newIntegerEmptyWindowSelectorTable(
 	done chan struct{},
 	cur cursors.IntegerArrayCursor,
 	bounds execute.Bounds,
-	window execute.Window,
+	window interval.Window,
 	timeColumn string,
 	key flux.GroupKey,
 	cols []flux.ColMeta,
@@ -1347,13 +1340,12 @@ func newIntegerEmptyWindowSelectorTable(
 			table: newTable(done, bounds, key, cols, defs, cache, alloc),
 			cur:   cur,
 		},
-		arr:         cur.Next(),
-		rangeStart:  rangeStart,
-		rangeStop:   rangeStop,
-		windowStart: int64(window.GetEarliestBounds(values.Time(rangeStart)).Start),
-		windowStop:  int64(window.GetEarliestBounds(values.Time(rangeStart)).Stop),
-		window:      window,
-		timeColumn:  timeColumn,
+		arr:          cur.Next(),
+		rangeStart:   rangeStart,
+		rangeStop:    rangeStop,
+		windowBounds: window.GetLatestBounds(values.Time(rangeStart)),
+		window:       window,
+		timeColumn:   timeColumn,
 	}
 	t.readTags(tags)
 	t.init(t.advance)
@@ -1402,13 +1394,13 @@ func (t *integerEmptyWindowSelectorTable) startTimes(builder *array.Int64Builder
 	start := arrow.NewIntBuilder(t.alloc)
 	start.Resize(storage.MaxPointsPerBlock)
 
-	for t.windowStart < t.rangeStop {
+	for int64(t.windowBounds.Start()) < t.rangeStop {
 		// The first window should start at the
 		// beginning of the time range.
-		if t.windowStart < t.rangeStart {
+		if int64(t.windowBounds.Start()) < t.rangeStart {
 			start.Append(t.rangeStart)
 		} else {
-			start.Append(t.windowStart)
+			start.Append(int64(t.windowBounds.Start()))
 		}
 
 		var v int64
@@ -1422,15 +1414,14 @@ func (t *integerEmptyWindowSelectorTable) startTimes(builder *array.Int64Builder
 		// If the current timestamp falls within the
 		// current window, append the value to the
 		// builder, otherwise append a null value.
-		if t.windowStart <= v && v < t.windowStop {
+		if int64(t.windowBounds.Start()) <= v && v < int64(t.windowBounds.Stop()) {
 			t.append(builder, t.arr.Values[t.idx])
 			t.idx++
 		} else {
 			builder.AppendNull()
 		}
 
-		t.windowStart = int64(values.Time(t.windowStart).Add(t.window.Every))
-		t.windowStop = int64(values.Time(t.windowStop).Add(t.window.Every))
+		t.windowBounds = t.window.NextBounds(t.windowBounds)
 
 		// If the current array is non-empty and has
 		// been read in its entirety, call Next().
@@ -1450,13 +1441,13 @@ func (t *integerEmptyWindowSelectorTable) stopTimes(builder *array.Int64Builder)
 	stop := arrow.NewIntBuilder(t.alloc)
 	stop.Resize(storage.MaxPointsPerBlock)
 
-	for t.windowStart < t.rangeStop {
+	for int64(t.windowBounds.Start()) < t.rangeStop {
 		// The last window should stop at the end of
 		// the time range.
-		if t.windowStop > t.rangeStop {
+		if int64(t.windowBounds.Stop()) > t.rangeStop {
 			stop.Append(t.rangeStop)
 		} else {
-			stop.Append(t.windowStop)
+			stop.Append(int64(t.windowBounds.Stop()))
 		}
 
 		var v int64
@@ -1470,15 +1461,14 @@ func (t *integerEmptyWindowSelectorTable) stopTimes(builder *array.Int64Builder)
 		// If the current timestamp falls within the
 		// current window, append the value to the
 		// builder, otherwise append a null value.
-		if t.windowStart <= v && v < t.windowStop {
+		if int64(t.windowBounds.Start()) <= v && v < int64(t.windowBounds.Stop()) {
 			t.append(builder, t.arr.Values[t.idx])
 			t.idx++
 		} else {
 			builder.AppendNull()
 		}
 
-		t.windowStart = int64(values.Time(t.windowStart).Add(t.window.Every))
-		t.windowStop = int64(values.Time(t.windowStop).Add(t.window.Every))
+		t.windowBounds = t.window.NextBounds(t.windowBounds)
 
 		// If the current array is non-empty and has
 		// been read in its entirety, call Next().
@@ -1504,22 +1494,22 @@ func (t *integerEmptyWindowSelectorTable) startStopTimes(builder *array.Int64Bui
 	time := arrow.NewIntBuilder(t.alloc)
 	time.Resize(storage.MaxPointsPerBlock)
 
-	for t.windowStart < t.rangeStop {
+	for int64(t.windowBounds.Start()) < t.rangeStop {
 
 		// The first window should start at the
 		// beginning of the time range.
-		if t.windowStart < t.rangeStart {
+		if int64(t.windowBounds.Start()) < t.rangeStart {
 			start.Append(t.rangeStart)
 		} else {
-			start.Append(t.windowStart)
+			start.Append(int64(t.windowBounds.Start()))
 		}
 
 		// The last window should stop at the end of
 		// the time range.
-		if t.windowStop > t.rangeStop {
+		if int64(t.windowBounds.Stop()) > t.rangeStop {
 			stop.Append(t.rangeStop)
 		} else {
-			stop.Append(t.windowStop)
+			stop.Append(int64(t.windowBounds.Stop()))
 		}
 
 		var v int64
@@ -1533,7 +1523,7 @@ func (t *integerEmptyWindowSelectorTable) startStopTimes(builder *array.Int64Bui
 		// If the current timestamp falls within the
 		// current window, append the value to the
 		// builder, otherwise append a null value.
-		if t.windowStart <= v && v < t.windowStop {
+		if int64(t.windowBounds.Start()) <= v && v < int64(t.windowBounds.Stop()) {
 			time.Append(v)
 			t.append(builder, t.arr.Values[t.idx])
 			t.idx++
@@ -1542,8 +1532,7 @@ func (t *integerEmptyWindowSelectorTable) startStopTimes(builder *array.Int64Bui
 			builder.AppendNull()
 		}
 
-		t.windowStart = int64(values.Time(t.windowStart).Add(t.window.Every))
-		t.windowStop = int64(values.Time(t.windowStop).Add(t.window.Every))
+		t.windowBounds = t.window.NextBounds(t.windowBounds)
 
 		// If the current array is non-empty and has
 		// been read in its entirety, call Next().
@@ -1908,19 +1897,19 @@ func (t *unsignedTable) advance() bool {
 // window table
 type unsignedWindowTable struct {
 	unsignedTable
-	arr         *cursors.UnsignedArray
-	nextTS      int64
-	idxInArr    int
-	createEmpty bool
-	timeColumn  string
-	window      execute.Window
+	arr          *cursors.UnsignedArray
+	windowBounds interval.Bounds
+	idxInArr     int
+	createEmpty  bool
+	timeColumn   string
+	window       interval.Window
 }
 
 func newUnsignedWindowTable(
 	done chan struct{},
 	cur cursors.UnsignedArrayCursor,
 	bounds execute.Bounds,
-	window execute.Window,
+	window interval.Window,
 	createEmpty bool,
 	timeColumn string,
 
@@ -1942,7 +1931,7 @@ func newUnsignedWindowTable(
 	}
 	if t.createEmpty {
 		start := int64(bounds.Start)
-		t.nextTS = int64(window.GetEarliestBounds(values.Time(start)).Stop)
+		t.windowBounds = window.GetLatestBounds(values.Time(start))
 	}
 	t.readTags(tags)
 	t.init(t.advance)
@@ -1963,8 +1952,7 @@ func (t *unsignedWindowTable) createNextBufferTimes() (start, stop *array.Int64,
 	if t.createEmpty {
 		// There are no more windows when the start time is greater
 		// than or equal to the stop time.
-		subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
-		if startT := int64(values.Time(t.nextTS).Add(subEvery)); startT >= int64(t.bounds.Stop) {
+		if startT := int64(t.windowBounds.Start()); startT >= int64(t.bounds.Stop) {
 			return nil, nil, false
 		}
 
@@ -1972,8 +1960,8 @@ func (t *unsignedWindowTable) createNextBufferTimes() (start, stop *array.Int64,
 		// TODO(jsternberg): Calculate the exact size with max points as the maximum.
 		startB.Resize(storage.MaxPointsPerBlock)
 		stopB.Resize(storage.MaxPointsPerBlock)
-		for ; ; t.nextTS = int64(values.Time(t.nextTS).Add(t.window.Every)) {
-			startT, stopT := t.getWindowBoundsFor(t.nextTS)
+		for ; ; t.windowBounds = t.window.NextBounds(t.windowBounds) {
+			startT, stopT := t.getWindowBoundsFor(t.windowBounds)
 			if startT >= int64(t.bounds.Stop) {
 				break
 			}
@@ -1995,7 +1983,8 @@ func (t *unsignedWindowTable) createNextBufferTimes() (start, stop *array.Int64,
 	startB.Resize(len(t.arr.Timestamps))
 	stopB.Resize(len(t.arr.Timestamps))
 	for _, stopT := range t.arr.Timestamps {
-		startT, stopT := t.getWindowBoundsFor(stopT)
+		bounds := t.window.PrevBounds(t.window.GetLatestBounds(values.Time(stopT)))
+		startT, stopT := t.getWindowBoundsFor(bounds)
 		startB.Append(startT)
 		stopB.Append(stopT)
 	}
@@ -2004,16 +1993,16 @@ func (t *unsignedWindowTable) createNextBufferTimes() (start, stop *array.Int64,
 	return start, stop, true
 }
 
-func (t *unsignedWindowTable) getWindowBoundsFor(ts int64) (startT, stopT int64) {
-	subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
-	startT, stopT = int64(values.Time(ts).Add(subEvery)), ts
-	if startT < int64(t.bounds.Start) {
-		startT = int64(t.bounds.Start)
+func (t *unsignedWindowTable) getWindowBoundsFor(bounds interval.Bounds) (int64, int64) {
+	beg := int64(bounds.Start())
+	end := int64(bounds.Stop())
+	if beg < int64(t.bounds.Start) {
+		beg = int64(t.bounds.Start)
 	}
-	if stopT > int64(t.bounds.Stop) {
-		stopT = int64(t.bounds.Stop)
+	if end > int64(t.bounds.Stop) {
+		end = int64(t.bounds.Stop)
 	}
-	return startT, stopT
+	return beg, end
 }
 
 // nextAt will retrieve the next value that can be used with
@@ -2045,8 +2034,7 @@ func (t *unsignedWindowTable) isInWindow(ts int64, stop int64) bool {
 	// but we may have truncated the stop time because of the boundary
 	// and this is why we are checking for this range instead of checking
 	// if the two values are equal.
-	subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
-	start := int64(values.Time(stop).Add(subEvery))
+	start := int64(t.window.PrevBounds(t.window.GetLatestBounds(values.Time(stop))).Start())
 	return start < ts && ts <= stop
 }
 
@@ -2123,14 +2111,14 @@ func (t *unsignedWindowTable) advance() bool {
 type unsignedWindowSelectorTable struct {
 	unsignedTable
 	timeColumn string
-	window     execute.Window
+	window     interval.Window
 }
 
 func newUnsignedWindowSelectorTable(
 	done chan struct{},
 	cur cursors.UnsignedArrayCursor,
 	bounds execute.Bounds,
-	window execute.Window,
+	window interval.Window,
 	timeColumn string,
 	key flux.GroupKey,
 	cols []flux.ColMeta,
@@ -2189,7 +2177,7 @@ func (t *unsignedWindowSelectorTable) startTimes(arr *cursors.UnsignedArray) *ar
 	rangeStart := int64(t.bounds.Start)
 
 	for _, v := range arr.Timestamps {
-		if windowStart := int64(t.window.GetEarliestBounds(values.Time(v)).Start); windowStart < rangeStart {
+		if windowStart := int64(t.window.GetLatestBounds(values.Time(v)).Start()); windowStart < rangeStart {
 			start.Append(rangeStart)
 		} else {
 			start.Append(windowStart)
@@ -2205,7 +2193,7 @@ func (t *unsignedWindowSelectorTable) stopTimes(arr *cursors.UnsignedArray) *arr
 	rangeStop := int64(t.bounds.Stop)
 
 	for _, v := range arr.Timestamps {
-		if windowStop := int64(t.window.GetEarliestBounds(values.Time(v)).Stop); windowStop > rangeStop {
+		if windowStop := int64(t.window.GetLatestBounds(values.Time(v)).Stop()); windowStop > rangeStop {
 			stop.Append(rangeStop)
 		} else {
 			stop.Append(windowStop)
@@ -2218,21 +2206,20 @@ func (t *unsignedWindowSelectorTable) stopTimes(arr *cursors.UnsignedArray) *arr
 // in addition to non-empty windows.
 type unsignedEmptyWindowSelectorTable struct {
 	unsignedTable
-	arr         *cursors.UnsignedArray
-	idx         int
-	rangeStart  int64
-	rangeStop   int64
-	windowStart int64
-	windowStop  int64
-	timeColumn  string
-	window      execute.Window
+	arr          *cursors.UnsignedArray
+	idx          int
+	rangeStart   int64
+	rangeStop    int64
+	windowBounds interval.Bounds
+	timeColumn   string
+	window       interval.Window
 }
 
 func newUnsignedEmptyWindowSelectorTable(
 	done chan struct{},
 	cur cursors.UnsignedArrayCursor,
 	bounds execute.Bounds,
-	window execute.Window,
+	window interval.Window,
 	timeColumn string,
 	key flux.GroupKey,
 	cols []flux.ColMeta,
@@ -2248,13 +2235,12 @@ func newUnsignedEmptyWindowSelectorTable(
 			table: newTable(done, bounds, key, cols, defs, cache, alloc),
 			cur:   cur,
 		},
-		arr:         cur.Next(),
-		rangeStart:  rangeStart,
-		rangeStop:   rangeStop,
-		windowStart: int64(window.GetEarliestBounds(values.Time(rangeStart)).Start),
-		windowStop:  int64(window.GetEarliestBounds(values.Time(rangeStart)).Stop),
-		window:      window,
-		timeColumn:  timeColumn,
+		arr:          cur.Next(),
+		rangeStart:   rangeStart,
+		rangeStop:    rangeStop,
+		windowBounds: window.GetLatestBounds(values.Time(rangeStart)),
+		window:       window,
+		timeColumn:   timeColumn,
 	}
 	t.readTags(tags)
 	t.init(t.advance)
@@ -2303,13 +2289,13 @@ func (t *unsignedEmptyWindowSelectorTable) startTimes(builder *array.Uint64Build
 	start := arrow.NewIntBuilder(t.alloc)
 	start.Resize(storage.MaxPointsPerBlock)
 
-	for t.windowStart < t.rangeStop {
+	for int64(t.windowBounds.Start()) < t.rangeStop {
 		// The first window should start at the
 		// beginning of the time range.
-		if t.windowStart < t.rangeStart {
+		if int64(t.windowBounds.Start()) < t.rangeStart {
 			start.Append(t.rangeStart)
 		} else {
-			start.Append(t.windowStart)
+			start.Append(int64(t.windowBounds.Start()))
 		}
 
 		var v int64
@@ -2323,15 +2309,14 @@ func (t *unsignedEmptyWindowSelectorTable) startTimes(builder *array.Uint64Build
 		// If the current timestamp falls within the
 		// current window, append the value to the
 		// builder, otherwise append a null value.
-		if t.windowStart <= v && v < t.windowStop {
+		if int64(t.windowBounds.Start()) <= v && v < int64(t.windowBounds.Stop()) {
 			t.append(builder, t.arr.Values[t.idx])
 			t.idx++
 		} else {
 			builder.AppendNull()
 		}
 
-		t.windowStart = int64(values.Time(t.windowStart).Add(t.window.Every))
-		t.windowStop = int64(values.Time(t.windowStop).Add(t.window.Every))
+		t.windowBounds = t.window.NextBounds(t.windowBounds)
 
 		// If the current array is non-empty and has
 		// been read in its entirety, call Next().
@@ -2351,13 +2336,13 @@ func (t *unsignedEmptyWindowSelectorTable) stopTimes(builder *array.Uint64Builde
 	stop := arrow.NewIntBuilder(t.alloc)
 	stop.Resize(storage.MaxPointsPerBlock)
 
-	for t.windowStart < t.rangeStop {
+	for int64(t.windowBounds.Start()) < t.rangeStop {
 		// The last window should stop at the end of
 		// the time range.
-		if t.windowStop > t.rangeStop {
+		if int64(t.windowBounds.Stop()) > t.rangeStop {
 			stop.Append(t.rangeStop)
 		} else {
-			stop.Append(t.windowStop)
+			stop.Append(int64(t.windowBounds.Stop()))
 		}
 
 		var v int64
@@ -2371,15 +2356,14 @@ func (t *unsignedEmptyWindowSelectorTable) stopTimes(builder *array.Uint64Builde
 		// If the current timestamp falls within the
 		// current window, append the value to the
 		// builder, otherwise append a null value.
-		if t.windowStart <= v && v < t.windowStop {
+		if int64(t.windowBounds.Start()) <= v && v < int64(t.windowBounds.Stop()) {
 			t.append(builder, t.arr.Values[t.idx])
 			t.idx++
 		} else {
 			builder.AppendNull()
 		}
 
-		t.windowStart = int64(values.Time(t.windowStart).Add(t.window.Every))
-		t.windowStop = int64(values.Time(t.windowStop).Add(t.window.Every))
+		t.windowBounds = t.window.NextBounds(t.windowBounds)
 
 		// If the current array is non-empty and has
 		// been read in its entirety, call Next().
@@ -2405,22 +2389,22 @@ func (t *unsignedEmptyWindowSelectorTable) startStopTimes(builder *array.Uint64B
 	time := arrow.NewIntBuilder(t.alloc)
 	time.Resize(storage.MaxPointsPerBlock)
 
-	for t.windowStart < t.rangeStop {
+	for int64(t.windowBounds.Start()) < t.rangeStop {
 
 		// The first window should start at the
 		// beginning of the time range.
-		if t.windowStart < t.rangeStart {
+		if int64(t.windowBounds.Start()) < t.rangeStart {
 			start.Append(t.rangeStart)
 		} else {
-			start.Append(t.windowStart)
+			start.Append(int64(t.windowBounds.Start()))
 		}
 
 		// The last window should stop at the end of
 		// the time range.
-		if t.windowStop > t.rangeStop {
+		if int64(t.windowBounds.Stop()) > t.rangeStop {
 			stop.Append(t.rangeStop)
 		} else {
-			stop.Append(t.windowStop)
+			stop.Append(int64(t.windowBounds.Stop()))
 		}
 
 		var v int64
@@ -2434,7 +2418,7 @@ func (t *unsignedEmptyWindowSelectorTable) startStopTimes(builder *array.Uint64B
 		// If the current timestamp falls within the
 		// current window, append the value to the
 		// builder, otherwise append a null value.
-		if t.windowStart <= v && v < t.windowStop {
+		if int64(t.windowBounds.Start()) <= v && v < int64(t.windowBounds.Stop()) {
 			time.Append(v)
 			t.append(builder, t.arr.Values[t.idx])
 			t.idx++
@@ -2443,8 +2427,7 @@ func (t *unsignedEmptyWindowSelectorTable) startStopTimes(builder *array.Uint64B
 			builder.AppendNull()
 		}
 
-		t.windowStart = int64(values.Time(t.windowStart).Add(t.window.Every))
-		t.windowStop = int64(values.Time(t.windowStop).Add(t.window.Every))
+		t.windowBounds = t.window.NextBounds(t.windowBounds)
 
 		// If the current array is non-empty and has
 		// been read in its entirety, call Next().
@@ -2808,19 +2791,19 @@ func (t *stringTable) advance() bool {
 // window table
 type stringWindowTable struct {
 	stringTable
-	arr         *cursors.StringArray
-	nextTS      int64
-	idxInArr    int
-	createEmpty bool
-	timeColumn  string
-	window      execute.Window
+	arr          *cursors.StringArray
+	windowBounds interval.Bounds
+	idxInArr     int
+	createEmpty  bool
+	timeColumn   string
+	window       interval.Window
 }
 
 func newStringWindowTable(
 	done chan struct{},
 	cur cursors.StringArrayCursor,
 	bounds execute.Bounds,
-	window execute.Window,
+	window interval.Window,
 	createEmpty bool,
 	timeColumn string,
 
@@ -2842,7 +2825,7 @@ func newStringWindowTable(
 	}
 	if t.createEmpty {
 		start := int64(bounds.Start)
-		t.nextTS = int64(window.GetEarliestBounds(values.Time(start)).Stop)
+		t.windowBounds = window.GetLatestBounds(values.Time(start))
 	}
 	t.readTags(tags)
 	t.init(t.advance)
@@ -2863,8 +2846,7 @@ func (t *stringWindowTable) createNextBufferTimes() (start, stop *array.Int64, o
 	if t.createEmpty {
 		// There are no more windows when the start time is greater
 		// than or equal to the stop time.
-		subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
-		if startT := int64(values.Time(t.nextTS).Add(subEvery)); startT >= int64(t.bounds.Stop) {
+		if startT := int64(t.windowBounds.Start()); startT >= int64(t.bounds.Stop) {
 			return nil, nil, false
 		}
 
@@ -2872,8 +2854,8 @@ func (t *stringWindowTable) createNextBufferTimes() (start, stop *array.Int64, o
 		// TODO(jsternberg): Calculate the exact size with max points as the maximum.
 		startB.Resize(storage.MaxPointsPerBlock)
 		stopB.Resize(storage.MaxPointsPerBlock)
-		for ; ; t.nextTS = int64(values.Time(t.nextTS).Add(t.window.Every)) {
-			startT, stopT := t.getWindowBoundsFor(t.nextTS)
+		for ; ; t.windowBounds = t.window.NextBounds(t.windowBounds) {
+			startT, stopT := t.getWindowBoundsFor(t.windowBounds)
 			if startT >= int64(t.bounds.Stop) {
 				break
 			}
@@ -2895,7 +2877,8 @@ func (t *stringWindowTable) createNextBufferTimes() (start, stop *array.Int64, o
 	startB.Resize(len(t.arr.Timestamps))
 	stopB.Resize(len(t.arr.Timestamps))
 	for _, stopT := range t.arr.Timestamps {
-		startT, stopT := t.getWindowBoundsFor(stopT)
+		bounds := t.window.PrevBounds(t.window.GetLatestBounds(values.Time(stopT)))
+		startT, stopT := t.getWindowBoundsFor(bounds)
 		startB.Append(startT)
 		stopB.Append(stopT)
 	}
@@ -2904,16 +2887,16 @@ func (t *stringWindowTable) createNextBufferTimes() (start, stop *array.Int64, o
 	return start, stop, true
 }
 
-func (t *stringWindowTable) getWindowBoundsFor(ts int64) (startT, stopT int64) {
-	subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
-	startT, stopT = int64(values.Time(ts).Add(subEvery)), ts
-	if startT < int64(t.bounds.Start) {
-		startT = int64(t.bounds.Start)
+func (t *stringWindowTable) getWindowBoundsFor(bounds interval.Bounds) (int64, int64) {
+	beg := int64(bounds.Start())
+	end := int64(bounds.Stop())
+	if beg < int64(t.bounds.Start) {
+		beg = int64(t.bounds.Start)
 	}
-	if stopT > int64(t.bounds.Stop) {
-		stopT = int64(t.bounds.Stop)
+	if end > int64(t.bounds.Stop) {
+		end = int64(t.bounds.Stop)
 	}
-	return startT, stopT
+	return beg, end
 }
 
 // nextAt will retrieve the next value that can be used with
@@ -2945,8 +2928,7 @@ func (t *stringWindowTable) isInWindow(ts int64, stop int64) bool {
 	// but we may have truncated the stop time because of the boundary
 	// and this is why we are checking for this range instead of checking
 	// if the two values are equal.
-	subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
-	start := int64(values.Time(stop).Add(subEvery))
+	start := int64(t.window.PrevBounds(t.window.GetLatestBounds(values.Time(stop))).Start())
 	return start < ts && ts <= stop
 }
 
@@ -3023,14 +3005,14 @@ func (t *stringWindowTable) advance() bool {
 type stringWindowSelectorTable struct {
 	stringTable
 	timeColumn string
-	window     execute.Window
+	window     interval.Window
 }
 
 func newStringWindowSelectorTable(
 	done chan struct{},
 	cur cursors.StringArrayCursor,
 	bounds execute.Bounds,
-	window execute.Window,
+	window interval.Window,
 	timeColumn string,
 	key flux.GroupKey,
 	cols []flux.ColMeta,
@@ -3089,7 +3071,7 @@ func (t *stringWindowSelectorTable) startTimes(arr *cursors.StringArray) *array.
 	rangeStart := int64(t.bounds.Start)
 
 	for _, v := range arr.Timestamps {
-		if windowStart := int64(t.window.GetEarliestBounds(values.Time(v)).Start); windowStart < rangeStart {
+		if windowStart := int64(t.window.GetLatestBounds(values.Time(v)).Start()); windowStart < rangeStart {
 			start.Append(rangeStart)
 		} else {
 			start.Append(windowStart)
@@ -3105,7 +3087,7 @@ func (t *stringWindowSelectorTable) stopTimes(arr *cursors.StringArray) *array.I
 	rangeStop := int64(t.bounds.Stop)
 
 	for _, v := range arr.Timestamps {
-		if windowStop := int64(t.window.GetEarliestBounds(values.Time(v)).Stop); windowStop > rangeStop {
+		if windowStop := int64(t.window.GetLatestBounds(values.Time(v)).Stop()); windowStop > rangeStop {
 			stop.Append(rangeStop)
 		} else {
 			stop.Append(windowStop)
@@ -3118,21 +3100,20 @@ func (t *stringWindowSelectorTable) stopTimes(arr *cursors.StringArray) *array.I
 // in addition to non-empty windows.
 type stringEmptyWindowSelectorTable struct {
 	stringTable
-	arr         *cursors.StringArray
-	idx         int
-	rangeStart  int64
-	rangeStop   int64
-	windowStart int64
-	windowStop  int64
-	timeColumn  string
-	window      execute.Window
+	arr          *cursors.StringArray
+	idx          int
+	rangeStart   int64
+	rangeStop    int64
+	windowBounds interval.Bounds
+	timeColumn   string
+	window       interval.Window
 }
 
 func newStringEmptyWindowSelectorTable(
 	done chan struct{},
 	cur cursors.StringArrayCursor,
 	bounds execute.Bounds,
-	window execute.Window,
+	window interval.Window,
 	timeColumn string,
 	key flux.GroupKey,
 	cols []flux.ColMeta,
@@ -3148,13 +3129,12 @@ func newStringEmptyWindowSelectorTable(
 			table: newTable(done, bounds, key, cols, defs, cache, alloc),
 			cur:   cur,
 		},
-		arr:         cur.Next(),
-		rangeStart:  rangeStart,
-		rangeStop:   rangeStop,
-		windowStart: int64(window.GetEarliestBounds(values.Time(rangeStart)).Start),
-		windowStop:  int64(window.GetEarliestBounds(values.Time(rangeStart)).Stop),
-		window:      window,
-		timeColumn:  timeColumn,
+		arr:          cur.Next(),
+		rangeStart:   rangeStart,
+		rangeStop:    rangeStop,
+		windowBounds: window.GetLatestBounds(values.Time(rangeStart)),
+		window:       window,
+		timeColumn:   timeColumn,
 	}
 	t.readTags(tags)
 	t.init(t.advance)
@@ -3203,13 +3183,13 @@ func (t *stringEmptyWindowSelectorTable) startTimes(builder *array.BinaryBuilder
 	start := arrow.NewIntBuilder(t.alloc)
 	start.Resize(storage.MaxPointsPerBlock)
 
-	for t.windowStart < t.rangeStop {
+	for int64(t.windowBounds.Start()) < t.rangeStop {
 		// The first window should start at the
 		// beginning of the time range.
-		if t.windowStart < t.rangeStart {
+		if int64(t.windowBounds.Start()) < t.rangeStart {
 			start.Append(t.rangeStart)
 		} else {
-			start.Append(t.windowStart)
+			start.Append(int64(t.windowBounds.Start()))
 		}
 
 		var v int64
@@ -3223,15 +3203,14 @@ func (t *stringEmptyWindowSelectorTable) startTimes(builder *array.BinaryBuilder
 		// If the current timestamp falls within the
 		// current window, append the value to the
 		// builder, otherwise append a null value.
-		if t.windowStart <= v && v < t.windowStop {
+		if int64(t.windowBounds.Start()) <= v && v < int64(t.windowBounds.Stop()) {
 			t.append(builder, t.arr.Values[t.idx])
 			t.idx++
 		} else {
 			builder.AppendNull()
 		}
 
-		t.windowStart = int64(values.Time(t.windowStart).Add(t.window.Every))
-		t.windowStop = int64(values.Time(t.windowStop).Add(t.window.Every))
+		t.windowBounds = t.window.NextBounds(t.windowBounds)
 
 		// If the current array is non-empty and has
 		// been read in its entirety, call Next().
@@ -3251,13 +3230,13 @@ func (t *stringEmptyWindowSelectorTable) stopTimes(builder *array.BinaryBuilder)
 	stop := arrow.NewIntBuilder(t.alloc)
 	stop.Resize(storage.MaxPointsPerBlock)
 
-	for t.windowStart < t.rangeStop {
+	for int64(t.windowBounds.Start()) < t.rangeStop {
 		// The last window should stop at the end of
 		// the time range.
-		if t.windowStop > t.rangeStop {
+		if int64(t.windowBounds.Stop()) > t.rangeStop {
 			stop.Append(t.rangeStop)
 		} else {
-			stop.Append(t.windowStop)
+			stop.Append(int64(t.windowBounds.Stop()))
 		}
 
 		var v int64
@@ -3271,15 +3250,14 @@ func (t *stringEmptyWindowSelectorTable) stopTimes(builder *array.BinaryBuilder)
 		// If the current timestamp falls within the
 		// current window, append the value to the
 		// builder, otherwise append a null value.
-		if t.windowStart <= v && v < t.windowStop {
+		if int64(t.windowBounds.Start()) <= v && v < int64(t.windowBounds.Stop()) {
 			t.append(builder, t.arr.Values[t.idx])
 			t.idx++
 		} else {
 			builder.AppendNull()
 		}
 
-		t.windowStart = int64(values.Time(t.windowStart).Add(t.window.Every))
-		t.windowStop = int64(values.Time(t.windowStop).Add(t.window.Every))
+		t.windowBounds = t.window.NextBounds(t.windowBounds)
 
 		// If the current array is non-empty and has
 		// been read in its entirety, call Next().
@@ -3305,22 +3283,22 @@ func (t *stringEmptyWindowSelectorTable) startStopTimes(builder *array.BinaryBui
 	time := arrow.NewIntBuilder(t.alloc)
 	time.Resize(storage.MaxPointsPerBlock)
 
-	for t.windowStart < t.rangeStop {
+	for int64(t.windowBounds.Start()) < t.rangeStop {
 
 		// The first window should start at the
 		// beginning of the time range.
-		if t.windowStart < t.rangeStart {
+		if int64(t.windowBounds.Start()) < t.rangeStart {
 			start.Append(t.rangeStart)
 		} else {
-			start.Append(t.windowStart)
+			start.Append(int64(t.windowBounds.Start()))
 		}
 
 		// The last window should stop at the end of
 		// the time range.
-		if t.windowStop > t.rangeStop {
+		if int64(t.windowBounds.Stop()) > t.rangeStop {
 			stop.Append(t.rangeStop)
 		} else {
-			stop.Append(t.windowStop)
+			stop.Append(int64(t.windowBounds.Stop()))
 		}
 
 		var v int64
@@ -3334,7 +3312,7 @@ func (t *stringEmptyWindowSelectorTable) startStopTimes(builder *array.BinaryBui
 		// If the current timestamp falls within the
 		// current window, append the value to the
 		// builder, otherwise append a null value.
-		if t.windowStart <= v && v < t.windowStop {
+		if int64(t.windowBounds.Start()) <= v && v < int64(t.windowBounds.Stop()) {
 			time.Append(v)
 			t.append(builder, t.arr.Values[t.idx])
 			t.idx++
@@ -3343,8 +3321,7 @@ func (t *stringEmptyWindowSelectorTable) startStopTimes(builder *array.BinaryBui
 			builder.AppendNull()
 		}
 
-		t.windowStart = int64(values.Time(t.windowStart).Add(t.window.Every))
-		t.windowStop = int64(values.Time(t.windowStop).Add(t.window.Every))
+		t.windowBounds = t.window.NextBounds(t.windowBounds)
 
 		// If the current array is non-empty and has
 		// been read in its entirety, call Next().
@@ -3681,19 +3658,19 @@ func (t *booleanTable) advance() bool {
 // window table
 type booleanWindowTable struct {
 	booleanTable
-	arr         *cursors.BooleanArray
-	nextTS      int64
-	idxInArr    int
-	createEmpty bool
-	timeColumn  string
-	window      execute.Window
+	arr          *cursors.BooleanArray
+	windowBounds interval.Bounds
+	idxInArr     int
+	createEmpty  bool
+	timeColumn   string
+	window       interval.Window
 }
 
 func newBooleanWindowTable(
 	done chan struct{},
 	cur cursors.BooleanArrayCursor,
 	bounds execute.Bounds,
-	window execute.Window,
+	window interval.Window,
 	createEmpty bool,
 	timeColumn string,
 
@@ -3715,7 +3692,7 @@ func newBooleanWindowTable(
 	}
 	if t.createEmpty {
 		start := int64(bounds.Start)
-		t.nextTS = int64(window.GetEarliestBounds(values.Time(start)).Stop)
+		t.windowBounds = window.GetLatestBounds(values.Time(start))
 	}
 	t.readTags(tags)
 	t.init(t.advance)
@@ -3736,8 +3713,7 @@ func (t *booleanWindowTable) createNextBufferTimes() (start, stop *array.Int64, 
 	if t.createEmpty {
 		// There are no more windows when the start time is greater
 		// than or equal to the stop time.
-		subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
-		if startT := int64(values.Time(t.nextTS).Add(subEvery)); startT >= int64(t.bounds.Stop) {
+		if startT := int64(t.windowBounds.Start()); startT >= int64(t.bounds.Stop) {
 			return nil, nil, false
 		}
 
@@ -3745,8 +3721,8 @@ func (t *booleanWindowTable) createNextBufferTimes() (start, stop *array.Int64, 
 		// TODO(jsternberg): Calculate the exact size with max points as the maximum.
 		startB.Resize(storage.MaxPointsPerBlock)
 		stopB.Resize(storage.MaxPointsPerBlock)
-		for ; ; t.nextTS = int64(values.Time(t.nextTS).Add(t.window.Every)) {
-			startT, stopT := t.getWindowBoundsFor(t.nextTS)
+		for ; ; t.windowBounds = t.window.NextBounds(t.windowBounds) {
+			startT, stopT := t.getWindowBoundsFor(t.windowBounds)
 			if startT >= int64(t.bounds.Stop) {
 				break
 			}
@@ -3768,7 +3744,8 @@ func (t *booleanWindowTable) createNextBufferTimes() (start, stop *array.Int64, 
 	startB.Resize(len(t.arr.Timestamps))
 	stopB.Resize(len(t.arr.Timestamps))
 	for _, stopT := range t.arr.Timestamps {
-		startT, stopT := t.getWindowBoundsFor(stopT)
+		bounds := t.window.PrevBounds(t.window.GetLatestBounds(values.Time(stopT)))
+		startT, stopT := t.getWindowBoundsFor(bounds)
 		startB.Append(startT)
 		stopB.Append(stopT)
 	}
@@ -3777,16 +3754,16 @@ func (t *booleanWindowTable) createNextBufferTimes() (start, stop *array.Int64, 
 	return start, stop, true
 }
 
-func (t *booleanWindowTable) getWindowBoundsFor(ts int64) (startT, stopT int64) {
-	subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
-	startT, stopT = int64(values.Time(ts).Add(subEvery)), ts
-	if startT < int64(t.bounds.Start) {
-		startT = int64(t.bounds.Start)
+func (t *booleanWindowTable) getWindowBoundsFor(bounds interval.Bounds) (int64, int64) {
+	beg := int64(bounds.Start())
+	end := int64(bounds.Stop())
+	if beg < int64(t.bounds.Start) {
+		beg = int64(t.bounds.Start)
 	}
-	if stopT > int64(t.bounds.Stop) {
-		stopT = int64(t.bounds.Stop)
+	if end > int64(t.bounds.Stop) {
+		end = int64(t.bounds.Stop)
 	}
-	return startT, stopT
+	return beg, end
 }
 
 // nextAt will retrieve the next value that can be used with
@@ -3818,8 +3795,7 @@ func (t *booleanWindowTable) isInWindow(ts int64, stop int64) bool {
 	// but we may have truncated the stop time because of the boundary
 	// and this is why we are checking for this range instead of checking
 	// if the two values are equal.
-	subEvery := values.MakeDuration(t.window.Every.Nanoseconds(), t.window.Every.Months(), t.window.Every.IsPositive())
-	start := int64(values.Time(stop).Add(subEvery))
+	start := int64(t.window.PrevBounds(t.window.GetLatestBounds(values.Time(stop))).Start())
 	return start < ts && ts <= stop
 }
 
@@ -3896,14 +3872,14 @@ func (t *booleanWindowTable) advance() bool {
 type booleanWindowSelectorTable struct {
 	booleanTable
 	timeColumn string
-	window     execute.Window
+	window     interval.Window
 }
 
 func newBooleanWindowSelectorTable(
 	done chan struct{},
 	cur cursors.BooleanArrayCursor,
 	bounds execute.Bounds,
-	window execute.Window,
+	window interval.Window,
 	timeColumn string,
 	key flux.GroupKey,
 	cols []flux.ColMeta,
@@ -3962,7 +3938,7 @@ func (t *booleanWindowSelectorTable) startTimes(arr *cursors.BooleanArray) *arra
 	rangeStart := int64(t.bounds.Start)
 
 	for _, v := range arr.Timestamps {
-		if windowStart := int64(t.window.GetEarliestBounds(values.Time(v)).Start); windowStart < rangeStart {
+		if windowStart := int64(t.window.GetLatestBounds(values.Time(v)).Start()); windowStart < rangeStart {
 			start.Append(rangeStart)
 		} else {
 			start.Append(windowStart)
@@ -3978,7 +3954,7 @@ func (t *booleanWindowSelectorTable) stopTimes(arr *cursors.BooleanArray) *array
 	rangeStop := int64(t.bounds.Stop)
 
 	for _, v := range arr.Timestamps {
-		if windowStop := int64(t.window.GetEarliestBounds(values.Time(v)).Stop); windowStop > rangeStop {
+		if windowStop := int64(t.window.GetLatestBounds(values.Time(v)).Stop()); windowStop > rangeStop {
 			stop.Append(rangeStop)
 		} else {
 			stop.Append(windowStop)
@@ -3991,21 +3967,20 @@ func (t *booleanWindowSelectorTable) stopTimes(arr *cursors.BooleanArray) *array
 // in addition to non-empty windows.
 type booleanEmptyWindowSelectorTable struct {
 	booleanTable
-	arr         *cursors.BooleanArray
-	idx         int
-	rangeStart  int64
-	rangeStop   int64
-	windowStart int64
-	windowStop  int64
-	timeColumn  string
-	window      execute.Window
+	arr          *cursors.BooleanArray
+	idx          int
+	rangeStart   int64
+	rangeStop    int64
+	windowBounds interval.Bounds
+	timeColumn   string
+	window       interval.Window
 }
 
 func newBooleanEmptyWindowSelectorTable(
 	done chan struct{},
 	cur cursors.BooleanArrayCursor,
 	bounds execute.Bounds,
-	window execute.Window,
+	window interval.Window,
 	timeColumn string,
 	key flux.GroupKey,
 	cols []flux.ColMeta,
@@ -4021,13 +3996,12 @@ func newBooleanEmptyWindowSelectorTable(
 			table: newTable(done, bounds, key, cols, defs, cache, alloc),
 			cur:   cur,
 		},
-		arr:         cur.Next(),
-		rangeStart:  rangeStart,
-		rangeStop:   rangeStop,
-		windowStart: int64(window.GetEarliestBounds(values.Time(rangeStart)).Start),
-		windowStop:  int64(window.GetEarliestBounds(values.Time(rangeStart)).Stop),
-		window:      window,
-		timeColumn:  timeColumn,
+		arr:          cur.Next(),
+		rangeStart:   rangeStart,
+		rangeStop:    rangeStop,
+		windowBounds: window.GetLatestBounds(values.Time(rangeStart)),
+		window:       window,
+		timeColumn:   timeColumn,
 	}
 	t.readTags(tags)
 	t.init(t.advance)
@@ -4076,13 +4050,13 @@ func (t *booleanEmptyWindowSelectorTable) startTimes(builder *array.BooleanBuild
 	start := arrow.NewIntBuilder(t.alloc)
 	start.Resize(storage.MaxPointsPerBlock)
 
-	for t.windowStart < t.rangeStop {
+	for int64(t.windowBounds.Start()) < t.rangeStop {
 		// The first window should start at the
 		// beginning of the time range.
-		if t.windowStart < t.rangeStart {
+		if int64(t.windowBounds.Start()) < t.rangeStart {
 			start.Append(t.rangeStart)
 		} else {
-			start.Append(t.windowStart)
+			start.Append(int64(t.windowBounds.Start()))
 		}
 
 		var v int64
@@ -4096,15 +4070,14 @@ func (t *booleanEmptyWindowSelectorTable) startTimes(builder *array.BooleanBuild
 		// If the current timestamp falls within the
 		// current window, append the value to the
 		// builder, otherwise append a null value.
-		if t.windowStart <= v && v < t.windowStop {
+		if int64(t.windowBounds.Start()) <= v && v < int64(t.windowBounds.Stop()) {
 			t.append(builder, t.arr.Values[t.idx])
 			t.idx++
 		} else {
 			builder.AppendNull()
 		}
 
-		t.windowStart = int64(values.Time(t.windowStart).Add(t.window.Every))
-		t.windowStop = int64(values.Time(t.windowStop).Add(t.window.Every))
+		t.windowBounds = t.window.NextBounds(t.windowBounds)
 
 		// If the current array is non-empty and has
 		// been read in its entirety, call Next().
@@ -4124,13 +4097,13 @@ func (t *booleanEmptyWindowSelectorTable) stopTimes(builder *array.BooleanBuilde
 	stop := arrow.NewIntBuilder(t.alloc)
 	stop.Resize(storage.MaxPointsPerBlock)
 
-	for t.windowStart < t.rangeStop {
+	for int64(t.windowBounds.Start()) < t.rangeStop {
 		// The last window should stop at the end of
 		// the time range.
-		if t.windowStop > t.rangeStop {
+		if int64(t.windowBounds.Stop()) > t.rangeStop {
 			stop.Append(t.rangeStop)
 		} else {
-			stop.Append(t.windowStop)
+			stop.Append(int64(t.windowBounds.Stop()))
 		}
 
 		var v int64
@@ -4144,15 +4117,14 @@ func (t *booleanEmptyWindowSelectorTable) stopTimes(builder *array.BooleanBuilde
 		// If the current timestamp falls within the
 		// current window, append the value to the
 		// builder, otherwise append a null value.
-		if t.windowStart <= v && v < t.windowStop {
+		if int64(t.windowBounds.Start()) <= v && v < int64(t.windowBounds.Stop()) {
 			t.append(builder, t.arr.Values[t.idx])
 			t.idx++
 		} else {
 			builder.AppendNull()
 		}
 
-		t.windowStart = int64(values.Time(t.windowStart).Add(t.window.Every))
-		t.windowStop = int64(values.Time(t.windowStop).Add(t.window.Every))
+		t.windowBounds = t.window.NextBounds(t.windowBounds)
 
 		// If the current array is non-empty and has
 		// been read in its entirety, call Next().
@@ -4178,22 +4150,22 @@ func (t *booleanEmptyWindowSelectorTable) startStopTimes(builder *array.BooleanB
 	time := arrow.NewIntBuilder(t.alloc)
 	time.Resize(storage.MaxPointsPerBlock)
 
-	for t.windowStart < t.rangeStop {
+	for int64(t.windowBounds.Start()) < t.rangeStop {
 
 		// The first window should start at the
 		// beginning of the time range.
-		if t.windowStart < t.rangeStart {
+		if int64(t.windowBounds.Start()) < t.rangeStart {
 			start.Append(t.rangeStart)
 		} else {
-			start.Append(t.windowStart)
+			start.Append(int64(t.windowBounds.Start()))
 		}
 
 		// The last window should stop at the end of
 		// the time range.
-		if t.windowStop > t.rangeStop {
+		if int64(t.windowBounds.Stop()) > t.rangeStop {
 			stop.Append(t.rangeStop)
 		} else {
-			stop.Append(t.windowStop)
+			stop.Append(int64(t.windowBounds.Stop()))
 		}
 
 		var v int64
@@ -4207,7 +4179,7 @@ func (t *booleanEmptyWindowSelectorTable) startStopTimes(builder *array.BooleanB
 		// If the current timestamp falls within the
 		// current window, append the value to the
 		// builder, otherwise append a null value.
-		if t.windowStart <= v && v < t.windowStop {
+		if int64(t.windowBounds.Start()) <= v && v < int64(t.windowBounds.Stop()) {
 			time.Append(v)
 			t.append(builder, t.arr.Values[t.idx])
 			t.idx++
@@ -4216,8 +4188,7 @@ func (t *booleanEmptyWindowSelectorTable) startStopTimes(builder *array.BooleanB
 			builder.AppendNull()
 		}
 
-		t.windowStart = int64(values.Time(t.windowStart).Add(t.window.Every))
-		t.windowStop = int64(values.Time(t.windowStop).Add(t.window.Every))
+		t.windowBounds = t.window.NextBounds(t.windowBounds)
 
 		// If the current array is non-empty and has
 		// been read in its entirety, call Next().

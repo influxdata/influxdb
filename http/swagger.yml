@@ -12036,12 +12036,10 @@ components:
           - retention_policy
     DBRPs:
       properties:
-        notificationEndpoints:
+        content:
           type: array
           items:
             $ref: "#/components/schemas/DBRP"
-        links:
-          $ref: "#/components/schemas/Links"
     DBRPUpdate:
       properties:
         database:

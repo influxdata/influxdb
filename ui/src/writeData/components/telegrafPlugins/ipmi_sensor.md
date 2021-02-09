@@ -19,6 +19,11 @@ When one or more servers are specified, the plugin will use the following comman
 ipmitool -I lan -H SERVER -U USERID -P PASSW0RD sdr
 ```
 
+Any of the following parameters will be added to the aformentioned query if they're configured:
+```
+-y hex_key -L privilege
+```
+
 ### Configuration
 
 ```toml
@@ -53,6 +58,18 @@ ipmitool -I lan -H SERVER -U USERID -P PASSW0RD sdr
 
   ## Schema Version: (Optional, defaults to version 1)
   metric_version = 2
+
+  ## Optionally provide the hex key for the IMPI connection.
+  # hex_key = ""
+
+  ## If ipmitool should use a cache
+  ## for me ipmitool runs about 2 to 10 times faster with cache enabled on HP G10 servers (when using ubuntu20.04)
+  ## the cache file may not work well for you if some sensors come up late
+  # use_cache = false
+
+  ## Path to the ipmitools cache file (defaults to OS temp dir)
+  ## The provided path must exist and must be writable
+  # cache_path = ""
 ```
 
 ### Measurements

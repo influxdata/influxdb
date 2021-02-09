@@ -3,23 +3,34 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"reflect"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/internal"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	input "github.com/tcnksm/go-input"
+	"github.com/tcnksm/go-input"
 )
 
 func TestCmdUser(t *testing.T) {
+	var org = &influxdb.Organization{ID: influxdb.ID(9000), Name: "org name"}
+	var orgNameFlag = fmt.Sprintf("--org=%s", org.Name)
+
+	type orgSetResult struct {
+		expectingSet bool
+		actuallySet  bool
+	}
 	type userResult struct {
 		user     influxdb.User
 		password string
+		org      orgSetResult
+		err      error
 	}
 
 	fakeSVCFn := func(dep cmdUserDeps) userSVCsFn {
@@ -31,21 +42,21 @@ func TestCmdUser(t *testing.T) {
 	newCMDUserDeps := func(
 		userSVC influxdb.UserService,
 		passSVC influxdb.PasswordsService,
+		urmSVC influxdb.UserResourceMappingService,
 		getPassFn func(*input.UI, bool) string,
 	) cmdUserDeps {
 		return cmdUserDeps{
 			userSVC: userSVC,
 			orgSvc: &mock.OrganizationService{
 				FindOrganizationF: func(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
-					return &influxdb.Organization{ID: influxdb.ID(9000), Name: "influxdata"}, nil
+					if *filter.Name != org.Name {
+						return nil, fmt.Errorf("unexpected org name: %q", *filter.Name)
+					}
+					return org, nil
 				},
 			},
-			passSVC: passSVC,
-			urmSVC: &mock.UserResourceMappingService{
-				CreateMappingFn: func(context.Context, *influxdb.UserResourceMapping) error {
-					return nil
-				},
-			},
+			passSVC:   passSVC,
+			urmSVC:    urmSVC,
 			getPassFn: getPassFn,
 		}
 	}
@@ -58,60 +69,85 @@ func TestCmdUser(t *testing.T) {
 			envVars  map[string]string
 		}{
 			{
-				name:  "basic just name",
-				flags: []string{"--name=new name", "--org=org name"},
+				name:  "name and org",
+				flags: []string{"--name=new name", orgNameFlag},
 				expected: userResult{
 					user: influxdb.User{
 						Name: "new name",
 					},
+					org: orgSetResult{
+						expectingSet: true,
+					},
 				},
 			},
 			{
-				name: "with password",
+				name: "name, org, and password",
 				flags: []string{
 					"--name=new name",
-					"--password=pass1",
-					"--org=org name",
+					"--password=pass12345",
+					orgNameFlag,
 				},
 				expected: userResult{
 					user: influxdb.User{
 						Name: "new name",
 					},
-					password: "pass1",
+					password: "pass12345",
+					org: orgSetResult{
+						expectingSet: true,
+					},
 				},
 			},
 			{
-				name: "with password and env",
+				name: "password too short",
 				flags: []string{
 					"--name=new name",
 					"--password=pass1",
+					orgNameFlag,
+				},
+				expected: userResult{
+					err: internal.ErrPasswordIsTooShort,
+				},
+			},
+			{
+				name: "name and password, org in env",
+				flags: []string{
+					"--name=new name",
+					"--password=pass12345",
 				},
 				envVars: map[string]string{
 					"INFLUX_ORG":    "",
-					"INFLUX_ORG_ID": influxdb.ID(1).String(),
+					"INFLUX_ORG_ID": org.ID.String(),
 				},
 				expected: userResult{
 					user: influxdb.User{
 						Name: "new name",
 					},
-					password: "pass1",
+					password: "pass12345",
+					org: orgSetResult{
+						expectingSet: true,
+					},
 				},
 			},
 			{
 				name: "shorts",
 				flags: []string{
 					"-n=new name",
-					"-o=org name",
+					fmt.Sprintf("-o=%s", org.Name),
+					"-p=pass12345",
 				},
 				expected: userResult{
 					user: influxdb.User{
 						Name: "new name",
 					},
+					password: "pass12345",
+					org: orgSetResult{
+						expectingSet: true,
+					},
 				},
 			},
 		}
 
-		cmdFn := func(expected userResult) func(*globalFlags, genericCLIOpts) *cobra.Command {
+		cmdFn := func(expected *userResult) func(*globalFlags, genericCLIOpts) *cobra.Command {
 			svc := mock.NewUserService()
 			svc.CreateUserFn = func(ctx context.Context, User *influxdb.User) error {
 				if expected.user != *User {
@@ -126,9 +162,31 @@ func TestCmdUser(t *testing.T) {
 				}
 				return nil
 			}
+			urmSVC := mock.NewUserResourceMappingService()
+			urmSVC.CreateMappingFn = func(ctx context.Context, mapping *influxdb.UserResourceMapping) error {
+				if !expected.org.expectingSet {
+					return errors.New("unexpected call to set user org")
+				}
+				expectedMapping := &influxdb.UserResourceMapping{
+					UserID:       expected.user.ID,
+					UserType:     influxdb.Member,
+					ResourceType: influxdb.OrgsResourceType,
+					ResourceID:   org.ID,
+				}
+				if !assert.Equal(t, expectedMapping, mapping) {
+					return errors.New("received unexpected URM")
+				}
+				expected.org.actuallySet = true
+				return nil
+			}
 
 			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
-				builder := newCmdUserBuilder(fakeSVCFn(newCMDUserDeps(svc, passSVC, nil)), g, opt)
+				// User commands are wrapped in middleware that checks the onboarding API when a failure occurs,
+				// to provide a more useful error message. That check breaks unit-testing, so we disable it here.
+				opt.runEWrapFn = func(fn cobraRunEFn) cobraRunEFn {
+					return fn
+				}
+				builder := newCmdUserBuilder(fakeSVCFn(newCMDUserDeps(svc, passSVC, urmSVC, nil)), g, opt)
 				return builder.cmd()
 			}
 
@@ -142,10 +200,17 @@ func TestCmdUser(t *testing.T) {
 					in(new(bytes.Buffer)),
 					out(ioutil.Discard),
 				)
-				cmd := builder.cmd(cmdFn(tt.expected))
+				cmd := builder.cmd(cmdFn(&tt.expected))
 				cmd.SetArgs(append([]string{"user", "create"}, tt.flags...))
 
-				require.NoError(t, cmd.Execute())
+				err := cmd.Execute()
+				if tt.expected.err != nil {
+					require.Equal(t, tt.expected.err, err)
+				} else {
+					require.NoError(t, err)
+				}
+
+				require.Equal(t, tt.expected.org.expectingSet, tt.expected.org.actuallySet, "org not set according to expectations")
 			}
 
 			t.Run(tt.name, fn)
@@ -183,7 +248,7 @@ func TestCmdUser(t *testing.T) {
 			}
 
 			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
-				builder := newCmdUserBuilder(fakeSVCFn(newCMDUserDeps(svc, nil, nil)), g, opt)
+				builder := newCmdUserBuilder(fakeSVCFn(newCMDUserDeps(svc, nil, nil, nil)), g, opt)
 				return builder.cmd()
 			}
 		}
@@ -276,7 +341,7 @@ func TestCmdUser(t *testing.T) {
 			}
 
 			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
-				builder := newCmdUserBuilder(fakeSVCFn(newCMDUserDeps(svc, nil, nil)), g, opt)
+				builder := newCmdUserBuilder(fakeSVCFn(newCMDUserDeps(svc, nil, nil, nil)), g, opt)
 				return builder.cmd()
 			}, calls
 		}
@@ -355,7 +420,7 @@ func TestCmdUser(t *testing.T) {
 			}
 
 			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
-				builder := newCmdUserBuilder(fakeSVCFn(newCMDUserDeps(svc, nil, nil)), g, opt)
+				builder := newCmdUserBuilder(fakeSVCFn(newCMDUserDeps(svc, nil, nil, nil)), g, opt)
 				return builder.cmd()
 			}
 		}
@@ -424,7 +489,7 @@ func TestCmdUser(t *testing.T) {
 			}
 
 			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
-				builder := newCmdUserBuilder(fakeSVCFn(newCMDUserDeps(svc, passSVC, getPassFn)), g, opt)
+				builder := newCmdUserBuilder(fakeSVCFn(newCMDUserDeps(svc, passSVC, nil, getPassFn)), g, opt)
 				return builder.cmd()
 			}
 		}

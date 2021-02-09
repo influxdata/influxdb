@@ -70,7 +70,14 @@ EOF
 
 function init_config {
     mkdir -p $(dirname ${INFLUXD_CONFIG_PATH})
-    cat << EOF > ${INFLUXD_CONFIG_PATH}
+
+    local config_path=${INFLUXD_CONFIG_PATH}
+    if [[ -s ${config_path} ]]; then
+        config_path=${INFLUXD_CONFIG_PATH}.defaults
+        echo "Config file ${INFLUXD_CONFIG_PATH} already exists, writing defaults to ${config_path}"
+    fi
+
+    cat << EOF > ${config_path}
 bolt-path = "/var/lib/influxdb/influxd.bolt"
 engine-path = "/var/lib/influxdb/engine"
 EOF

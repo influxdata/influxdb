@@ -15,7 +15,6 @@ import (
 	"github.com/influxdata/flux/execute/table"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/parser"
-	"github.com/influxdata/flux/stdlib"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	"github.com/influxdata/influxdb/v2/query"
@@ -113,10 +112,6 @@ func (t *testExecutor) executeWithOptions(bucketOpt, orgOpt *ast.OptionStatement
 	// Add options to pkg
 	pkg = pkg.Copy().(*ast.Package)
 	pkg.Files = append(pkg.Files, options)
-
-	// Use testing.inspect call to get all of diff, want, and got
-	inspectCalls := stdlib.TestingInspectCalls(pkg)
-	pkg.Files = append(pkg.Files, inspectCalls)
 
 	bs, err := json.Marshal(pkg)
 	if err != nil {

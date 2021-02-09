@@ -191,6 +191,7 @@ func upgradeDatabases(ctx context.Context, ui *input.UI, v1 *influxDBv1, v2 *inf
 		}
 	}
 
+	log.Info("Database upgrade complete", zap.Int("upgraded_count", len(db2BucketIds)))
 	return db2BucketIds, nil
 }
 

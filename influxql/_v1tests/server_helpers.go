@@ -190,7 +190,7 @@ func (qt *Test) init(ctx context.Context, t *testing.T, p *tests.DefaultPipeline
 func (qt *Test) writeTestData(ctx context.Context, t *testing.T, c *tests.Client) {
 	t.Helper()
 	for _, w := range qt.writes {
-		err := c.Write(ctx, qt.orgID, qt.bucketID, strings.NewReader(w.data))
+		err := c.WriteTo(ctx, influxdb.BucketFilter{ID: &qt.bucketID, OrganizationID: &qt.orgID}, strings.NewReader(w.data))
 		require.NoError(t, err)
 	}
 }

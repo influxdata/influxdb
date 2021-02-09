@@ -57,6 +57,9 @@ native Go by the Telegraf process, eliminating the need to execute the system
   ## option of the ping command.
   # interface = ""
 
+  ## Percentiles to calculate. This only works with the native method.
+  # percentiles = [50, 95, 99]
+
   ## Specify the ping executable binary.
   # binary = "ping"
 
@@ -147,10 +150,11 @@ sockets and the `ping_group_range` setting.
     - packets_received (integer)
     - percent_packet_loss (float)
     - ttl (integer, Not available on Windows)
-    - average_response_ms (integer)
-    - minimum_response_ms (integer)
-    - maximum_response_ms (integer)
-    - standard_deviation_ms (integer, Available on Windows only with native ping)
+    - average_response_ms (float)
+    - minimum_response_ms (float)
+    - maximum_response_ms (float)
+    - standard_deviation_ms (float, Available on Windows only with method = "native")
+    - percentile\<N\>_ms (float, Where `<N>` is the percentile specified in `percentiles`. Available with method = "native" only)
     - errors (float, Windows only)
     - reply_received (integer, Windows with method = "exec" only)
     - percent_reply_loss (float, Windows with method = "exec" only)

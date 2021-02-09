@@ -39,11 +39,14 @@ This plugin does not require a plugin on jenkins and it makes use of Jenkins API
   ## empty will use default value 10
   # max_subjob_per_layer = 10
 
-  ## Jobs to exclude from gathering
-  # job_exclude = [ "job1", "job2/subjob1/subjob2", "job3/*"]
+  ## Jobs to include or exclude from gathering
+  ## When using both lists, job_exclude has priority.
+  ## Wildcards are supported: [ "jobA/*", "jobB/subjob1/*"]
+  # job_include = [ "*" ]
+  # job_exclude = [ ]
 
   ## Nodes to exclude from gathering
-  # node_exclude = [ "node1", "node2" ]
+  # node_exclude = [ ]
 
   ## Worker pool for jenkins plugin only
   ## Empty this field will use default value 5
@@ -88,6 +91,7 @@ This plugin does not require a plugin on jenkins and it makes use of Jenkins API
     - port
   - fields:
     - duration (ms)
+    - number
     - result_code (0 = SUCCESS, 1 = FAILURE, 2 = NOT_BUILD, 3 = UNSTABLE, 4 = ABORTED)
 
 ### Sample Queries:
