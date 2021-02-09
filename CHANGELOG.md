@@ -4,6 +4,10 @@
 
 1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells.
 
+### Bug Fixes
+
+1. [20705](https://github.com/influxdata/influxdb/pull/20705): Repair swagger to match implementation of DBRPs type.
+
 ## v2.0.4 [2021-02-08]
 
 ### Docker
