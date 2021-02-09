@@ -4,7 +4,7 @@ use data_types::database_rules::DatabaseRules;
 use reqwest::{Method, Url};
 
 use crate::errors::{ClientError, CreateDatabaseError, Error, ServerErrorResponse};
-use data_types::DatabaseName;
+use data_types::{http::ListDatabasesResponse, DatabaseName};
 
 // TODO: move DatabaseRules / WriterId to the API client
 
@@ -121,6 +121,19 @@ impl Client {
 
         match r {
             r if r.status() == 200 => Ok(()),
+            r => Err(ServerErrorResponse::from_response(r).await.into()),
+        }
+    }
+
+    /// List databases.
+    pub async fn list_databases(&self) -> Result<ListDatabasesResponse, Error> {
+        const LIST_DATABASES_PATH: &str = "iox/api/v1/databases";
+        let url = self.url_for(LIST_DATABASES_PATH);
+
+        let r = self.http.request(Method::GET, url).send().await?;
+
+        match r {
+            r if r.status() == 200 => Ok(r.json::<ListDatabasesResponse>().await?),
             r => Err(ServerErrorResponse::from_response(r).await.into()),
         }
     }
@@ -260,6 +273,23 @@ mod tests {
             dbg!(err),
             CreateDatabaseError::ClientError(ClientError::InvalidDatabaseName)
         ));
+    }
+
+    #[tokio::test]
+    async fn test_list_databases() {
+        let endpoint = maybe_skip_integration!();
+        let c = ClientBuilder::default().build(endpoint).unwrap();
+
+        c.set_writer_id(NonZeroU32::new(42).unwrap())
+            .await
+            .expect("set ID failed");
+
+        let name = rand_name();
+        c.create_database(&name, &DatabaseRules::default())
+            .await
+            .expect("create database failed");
+        let r = c.list_databases().await.expect("list databases failed");
+        assert!(r.names.contains(&name));
     }
 
     #[test]

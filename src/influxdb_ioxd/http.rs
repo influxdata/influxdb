@@ -13,7 +13,7 @@
 use arrow_deps::{arrow, datafusion::physical_plan::collect};
 use data_types::{
     database_rules::DatabaseRules,
-    http::WalMetadataQuery,
+    http::{ListDatabasesResponse, WalMetadataQuery},
     names::{org_and_bucket_to_database, OrgBucketMappingError},
     DatabaseName,
 };
@@ -458,12 +458,6 @@ async fn read<M: ConnectionManager + Send + Sync + Debug + 'static>(
     let results = arrow::util::pretty::pretty_format_batches(&batches).unwrap();
 
     Ok(Response::new(Body::from(results.into_bytes())))
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-/// Body of the response to the /databases endpoint.
-struct ListDatabasesResponse {
-    names: Vec<String>,
 }
 
 #[tracing::instrument(level = "debug")]
