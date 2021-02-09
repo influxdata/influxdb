@@ -1,5 +1,7 @@
 ## unreleased
 
+1. [20307](https://github.com/influxdata/influxdb/pull/20307): Add `influx task retry-failed` command to rerun failed runs.
+
 ### Features
 
 1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells.
@@ -51,7 +53,6 @@ RPM packages, which has been left unchanged.
 1. [20634](https://github.com/influxdata/influxdb/pull/20634): Promote schema and fill query optimizations to default behavior.
 1. [20678](https://github.com/influxdata/influxdb/pull/20678): Upgrade Flux to v0.104.0
 1. [20680](https://github.com/influxdata/influxdb/pull/20680): UI: Upgrade flux-lsp-browser to v0.5.31
-1. [20307](https://github.com/influxdata/influxdb/pull/20307): Add `retry-failed` cmd to CLI to rerun failed runs. Also, refactored [task.go](https://github.com/influxdata/influxdb/blob/master/cmd/influx/task.go) to follow builder pattern for testing.
 
 ### Bug Fixes
 
