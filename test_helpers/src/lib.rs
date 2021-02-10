@@ -6,7 +6,10 @@
     clippy::use_self
 )]
 
-use std::{env, f64, sync::Arc};
+use std::{
+    env, f64,
+    sync::{Arc, Once},
+};
 pub use tempfile;
 
 pub mod tracing;
@@ -80,9 +83,17 @@ pub fn tag_key_bytes_to_strings(bytes: Vec<u8>) -> String {
     }
 }
 
+static LOG_SETUP: Once = Once::new();
+
+/// Enables debug logging. This function can be called more than once
 pub fn enable_logging() {
-    std::env::set_var("RUST_LOG", "debug");
-    env_logger::init();
+    // ensure the global has been initialized
+    LOG_SETUP.call_once(|| {
+        // TODO honor any existing RUST_LOG level (and maybe not start
+        // logging unless it is set??)
+        std::env::set_var("RUST_LOG", "debug");
+        env_logger::init();
+    })
 }
 
 #[macro_export]
