@@ -217,9 +217,9 @@ func (b *cmdTaskBuilder) taskFindF(cmd *cobra.Command, args []string) error {
 }
 
 type taskRerunFailedFlags struct {
-	before      string
-	after       string
-	executeRuns bool
+	before string
+	after  string
+	dryRun bool
 }
 
 func (b *cmdTaskBuilder) taskRetryFailedCmd() *cobra.Command {
@@ -233,8 +233,8 @@ func (b *cmdTaskBuilder) taskRetryFailedCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&b.taskID, "id", "i", "", "task ID")
 	cmd.Flags().StringVar(&b.taskRerunFailedFlags.before, "before", "", "runs before this time")
 	cmd.Flags().StringVar(&b.taskRerunFailedFlags.after, "after", "", "runs after this time")
-	cmd.Flags().BoolVar(&b.taskRerunFailedFlags.executeRuns, "run", false,
-		"actually execute failed runs; defaults false")
+	cmd.Flags().BoolVar(&b.taskRerunFailedFlags.dryRun, "dry-run", false,
+		"print info about runs that would be retried")
 
 	return cmd
 }
@@ -259,23 +259,23 @@ func (b *cmdTaskBuilder) taskRetryFailedF(*cobra.Command, []string) error {
 	}
 
 	for _, run := range failedRuns {
-		if b.taskRerunFailedFlags.executeRuns {
+		if b.taskRerunFailedFlags.dryRun {
+			fmt.Printf("Would retry for %s run for Task %s.\n", run.ID, run.TaskID)
+		} else {
 			newRun, err := tskSvc.RetryRun(context.Background(), run.TaskID, run.ID)
 			if err != nil {
 				return err
 			}
 			fmt.Printf("Retry for task %s's run %s queued as run %s.\n", run.TaskID, run.ID, newRun.ID)
-		} else {
-			fmt.Printf("Would retry for %s run for Task %s.\n", run.ID, run.TaskID)
 		}
 	}
-	if !b.taskRerunFailedFlags.executeRuns {
+	if b.taskRerunFailedFlags.dryRun {
 		uniqueIDs := make(map[influxdb.ID]struct{})
 		for _, r := range failedRuns {
 			uniqueIDs[r.TaskID] = struct{}{}
 		}
 		fmt.Printf("Dry run complete. Found %d tasks with a total of %d runs to be retried\n"+
-			"Rerun with '--run true' to execute", len(uniqueIDs), len(failedRuns))
+			"Rerun with '--dry-run true' to execute", len(uniqueIDs), len(failedRuns))
 	}
 
 	return nil
