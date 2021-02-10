@@ -3,11 +3,12 @@
 ### Features
 
 1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells.
-1. [20621](https://github.com/influxdata/influxdb/pull/20621): Add Swift client library to the data loading section of the UI
+1. [20621](https://github.com/influxdata/influxdb/pull/20621): Add Swift client library to the data loading section of the UI.
 
 ### Bug Fixes
 
 1. [20705](https://github.com/influxdata/influxdb/pull/20705): Repair swagger to match implementation of DBRPs type.
+1. [19936](https://github.com/influxdata/influxdb/pull/19936): Fix use-after-free bug in series ID iterator. Thanks @foobar!
 
 ## v2.0.4 [2021-02-08]
 
@@ -86,7 +87,6 @@ RPM packages, which has been left unchanged.
 1. [20702](https://github.com/influxdata/influxdb/pull/20702): Fix loading config when `INFLUXD_CONFIG_PATH` points to a directory with `.` in its name.
 1. [20678](https://github.com/influxdata/influxdb/pull/20678): Fix infinite loop in Flux parser caused by invalid array expressions.
 1. [20360](https://github.com/influxdata/influxdb/pull/20360): Update API spec to document Flux dictionary features.
-1. [19936](https://github.com/influxdata/influxdb/pull/19936): Close series id iterator after merging
 
 ## v2.0.3 [2020-12-14]
 
