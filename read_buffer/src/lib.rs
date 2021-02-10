@@ -19,6 +19,7 @@ use arrow_deps::{arrow::record_batch::RecordBatch, util::str_iter_to_batch};
 use data_types::{
     schema::{builder::SchemaMerger, Schema},
     selection::Selection,
+    COLUMN_NAMES_COLUMN_NAME,
 };
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
@@ -29,14 +30,6 @@ pub use schema::*;
 use chunk::Chunk;
 use row_group::{ColumnName, RowGroup};
 use table::Table;
-
-/// The name of the column containing table names returned by a call to
-/// `table_names`.
-pub const TABLE_NAMES_COLUMN_NAME: &str = "table";
-
-/// The name of the column containing column names returned by a call to
-/// `column_names`.
-pub const COLUMN_NAMES_COLUMN_NAME: &str = "column";
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -425,14 +418,12 @@ impl Database {
 
     /// Returns the distinct set of table names that contain data that satisfies
     /// the provided predicate.
-    ///
-    /// TODO(edd): Implement predicate support.
     pub fn table_names(
         &self,
         partition_key: &str,
         chunk_ids: &[u32],
         predicate: Predicate,
-    ) -> Result<RecordBatch> {
+    ) -> Result<BTreeSet<String>> {
         let partition_data = self.data.read().unwrap();
 
         let partition = partition_data
@@ -461,12 +452,8 @@ impl Database {
                 // we need to.
                 names.append(&mut chunk.table_names(&predicate, &names));
                 names
-            })
-            // have a BTreeSet here, convert to an iterator of Some(&str)
-            .into_iter()
-            .map(Some);
-
-        str_iter_to_batch(TABLE_NAMES_COLUMN_NAME, names).context(ArrowError)
+            });
+        Ok(names)
     }
 
     /// Returns the distinct set of column names (tag keys) that satisfy the
@@ -1024,35 +1011,30 @@ mod test {
     #[test]
     fn table_names() {
         let db = Database::new();
-        let res_col = TABLE_NAMES_COLUMN_NAME;
 
         db.upsert_partition("hour_1", 22, "Coolverine", gen_recordbatch());
         let data = db
             .table_names("hour_1", &[22], Predicate::default())
             .unwrap();
-        assert_rb_column_equals(&data, res_col, &Values::String(vec![Some("Coolverine")]));
+        assert_eq!(data, to_set(&["Coolverine"]));
 
         db.upsert_partition("hour_1", 22, "Coolverine", gen_recordbatch());
         let data = db
             .table_names("hour_1", &[22], Predicate::default())
             .unwrap();
-        assert_rb_column_equals(&data, res_col, &Values::String(vec![Some("Coolverine")]));
+        assert_eq!(data, to_set(&["Coolverine"]));
 
         db.upsert_partition("hour_1", 2, "Coolverine", gen_recordbatch());
         let data = db
             .table_names("hour_1", &[22], Predicate::default())
             .unwrap();
-        assert_rb_column_equals(&data, res_col, &Values::String(vec![Some("Coolverine")]));
+        assert_eq!(data, to_set(&["Coolverine"]));
 
         db.upsert_partition("hour_1", 2, "20 Size", gen_recordbatch());
         let data = db
             .table_names("hour_1", &[2, 22], Predicate::default())
             .unwrap();
-        assert_rb_column_equals(
-            &data,
-            res_col,
-            &Values::String(vec![Some("20 Size"), Some("Coolverine")]),
-        );
+        assert_eq!(data, to_set(&["20 Size", "Coolverine"]));
 
         let data = db
             .table_names(
@@ -1061,11 +1043,7 @@ mod test {
                 Predicate::new(vec![BinaryExpr::from(("region", ">", "north"))]),
             )
             .unwrap();
-        assert_rb_column_equals(
-            &data,
-            res_col,
-            &Values::String(vec![Some("20 Size"), Some("Coolverine")]),
-        );
+        assert_eq!(data, to_set(&["20 Size", "Coolverine"]));
     }
 
     #[test]
@@ -1462,6 +1440,10 @@ mod test {
         assert_rb_column_equals(&result, "temp_max", &Values::F64(vec![4500.0, 30000.0]));
         assert_rb_column_equals(&result, "counter_sum", &Values::U64(vec![15000, 12000]));
         assert_rb_column_equals(&result, "counter_count", &Values::U64(vec![3, 6]));
+    }
+
+    fn to_set(v: &[&str]) -> BTreeSet<String> {
+        v.iter().map(|s| s.to_string()).collect()
     }
 }
 

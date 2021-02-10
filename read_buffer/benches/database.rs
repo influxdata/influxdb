@@ -96,7 +96,7 @@ fn benchmark_table_names(
                 let tables = database
                     .table_names("hour_1", chunk_ids, predicate)
                     .unwrap();
-                assert_eq!(tables.num_rows(), expected_rows);
+                assert_eq!(tables.len(), expected_rows);
             },
             BatchSize::SmallInput,
         );

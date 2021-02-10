@@ -1,12 +1,12 @@
 use generated_types::wal;
-use query::group_by::Aggregate;
 use query::group_by::GroupByAndAggregate;
 use query::group_by::WindowDuration;
 use query::{
-    exec::{stringset::StringSet, FieldListPlan, SeriesSetPlan, SeriesSetPlans, StringSetPlan},
+    exec::{stringset::StringSet, FieldListPlan, SeriesSetPlan, SeriesSetPlans},
     predicate::Predicate,
     Database,
 };
+use query::{group_by::Aggregate, plan::stringset::StringSetPlan};
 
 use crate::column::Column;
 use crate::table::Table;

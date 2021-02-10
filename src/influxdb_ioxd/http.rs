@@ -13,6 +13,7 @@
 use arrow_deps::{arrow, datafusion::physical_plan::collect};
 use data_types::{
     database_rules::DatabaseRules,
+    http::WalMetadataQuery,
     names::{org_and_bucket_to_database, OrgBucketMappingError},
     DatabaseName,
 };
@@ -31,6 +32,7 @@ use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 use tracing::{debug, error, info};
 
+use data_types::http::WalMetadataResponse;
 use std::{fmt::Debug, str, sync::Arc};
 
 #[derive(Debug, Snafu)]
@@ -146,6 +148,9 @@ pub enum ApplicationError {
 
     #[snafu(display("Database {} not found", name))]
     DatabaseNotFound { name: String },
+
+    #[snafu(display("Database {} does not have a WAL", name))]
+    WALNotFound { name: String },
 }
 
 impl ApplicationError {
@@ -175,6 +180,7 @@ impl ApplicationError {
             Self::ErrorCreatingDatabase { .. } => self.bad_request(),
             Self::DatabaseNameError { .. } => self.bad_request(),
             Self::DatabaseNotFound { .. } => self.not_found(),
+            Self::WALNotFound { .. } => self.not_found(),
         }
     }
 
@@ -257,6 +263,7 @@ where
         .get("/iox/api/v1/databases", list_databases::<M>)
         .put("/iox/api/v1/databases/:name", create_database::<M>)
         .get("/iox/api/v1/databases/:name", get_database::<M>)
+        .get("/iox/api/v1/databases/:name/wal/meta", get_wal_meta::<M>)
         .put("/iox/api/v1/id", set_writer::<M>)
         .get("/api/v1/partitions", list_partitions::<M>)
         .post("/api/v1/snapshot", snapshot_partition::<M>)
@@ -532,6 +539,66 @@ async fn get_database<M: ConnectionManager + Send + Sync + Debug + 'static>(
 }
 
 #[tracing::instrument(level = "debug")]
+async fn get_wal_meta<M: ConnectionManager + Send + Sync + Debug + 'static>(
+    req: Request<Body>,
+) -> Result<Response<Body>, ApplicationError> {
+    let server = req
+        .data::<Arc<AppServer<M>>>()
+        .expect("server state")
+        .clone();
+
+    let db_name_str = req
+        .param("name")
+        .expect("db name must have been set")
+        .clone();
+
+    let query: WalMetadataQuery = req
+        .uri()
+        .query()
+        .map(|query| {
+            serde_urlencoded::from_str(query).context(InvalidQueryString {
+                query_string: query,
+            })
+        })
+        .transpose()?
+        .unwrap_or_default();
+
+    let db_name = DatabaseName::new(&db_name_str).context(DatabaseNameError)?;
+
+    let db = server
+        .db(&db_name)
+        .await
+        .context(DatabaseNotFound { name: &db_name_str })?;
+
+    let wal = db
+        .wal_buffer
+        .as_ref()
+        .context(WALNotFound { name: &db_name_str })?;
+    let wal_buffer = wal.lock().expect("mutex poisoned");
+
+    let segments = wal_buffer
+        .segments(query.offset)
+        .take(query.limit.unwrap_or(10))
+        .take_while(|x| {
+            query
+                .newer_than
+                .map(|newer_than| x.created_at > newer_than)
+                .unwrap_or(true)
+        })
+        .collect();
+
+    let response = Response::builder()
+        .status(StatusCode::OK)
+        .body(Body::from(
+            serde_json::to_string(&WalMetadataResponse { segments })
+                .expect("json encoding should not fail"),
+        ))
+        .expect("builder should be successful");
+
+    Ok(response)
+}
+
+#[tracing::instrument(level = "debug")]
 async fn set_writer<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
@@ -691,9 +758,13 @@ mod tests {
 
     use hyper::Server;
 
-    use data_types::database_rules::DatabaseRules;
-    use data_types::DatabaseName;
+    use data_types::{
+        database_rules::{DatabaseRules, WalBufferConfig, WalBufferRollover},
+        wal::WriterSummary,
+        DatabaseName,
+    };
     use object_store::{memory::InMemory, ObjectStore};
+    use serde::de::DeserializeOwned;
     use server::{db::Db, ConnectionManagerImpl};
 
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -952,6 +1023,107 @@ mod tests {
         check_response("get_database", response, StatusCode::OK, &data).await;
     }
 
+    #[tokio::test]
+    async fn get_wal_meta() {
+        let server = Arc::new(AppServer::new(
+            ConnectionManagerImpl {},
+            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
+        ));
+        server.set_id(1);
+        let server_url = test_server(server.clone());
+
+        let database_name = "foo_bar";
+        let rules = DatabaseRules {
+            name: database_name.to_owned(),
+            store_locally: true,
+            wal_buffer_config: Some(WalBufferConfig {
+                buffer_size: 500,
+                segment_size: 10,
+                buffer_rollover: WalBufferRollover::ReturnError,
+                store_segments: true,
+                close_segment_after: None,
+            }),
+            ..Default::default()
+        };
+
+        server.create_database(database_name, rules).await.unwrap();
+
+        let base_url = format!(
+            "{}/iox/api/v1/databases/{}/wal/meta",
+            server_url, database_name
+        );
+
+        let client = Client::new();
+
+        let r1: WalMetadataResponse = check_json_response(&client, &base_url, StatusCode::OK).await;
+
+        let lines: std::result::Result<Vec<_>, _> = influxdb_line_protocol::parse_lines(
+            "cpu,host=A,region=west usage_system=64i 1590488773254420000",
+        )
+        .collect();
+
+        server
+            .write_lines(database_name, &lines.unwrap())
+            .await
+            .unwrap();
+
+        let r2: WalMetadataResponse = check_json_response(&client, &base_url, StatusCode::OK).await;
+
+        let limit_1 = serde_urlencoded::to_string(&WalMetadataQuery {
+            limit: Some(1),
+            newer_than: None,
+            offset: None,
+        })
+        .unwrap();
+        let limit_url = format!("{}?{}", base_url, limit_1);
+
+        let r3: WalMetadataResponse =
+            check_json_response(&client, &limit_url, StatusCode::OK).await;
+
+        let limit_future = serde_urlencoded::to_string(&WalMetadataQuery {
+            limit: None,
+            offset: None,
+            newer_than: Some(chrono::Utc::now() + chrono::Duration::seconds(5)),
+        })
+        .unwrap();
+        let future_url = format!("{}?{}", base_url, limit_future);
+
+        let r4: WalMetadataResponse =
+            check_json_response(&client, &future_url, StatusCode::OK).await;
+
+        // No data written yet - expect no results
+        assert_eq!(r1.segments.len(), 1);
+        assert_eq!(r1.segments[0].size, 0);
+        assert_eq!(r1.segments[0].writers.len(), 0);
+
+        // The WAL segment size is less than the line size
+        // We therefore expect an open and a closed segment in that order
+        // With the closed segment containing the written data
+        // And the open segment containing no data
+        assert_eq!(r2.segments.len(), 2);
+        assert_eq!(r2.segments[0].size, 0);
+        assert!(r2.segments[0].created_at >= r2.segments[1].created_at);
+
+        assert!(r2.segments[1].persisted.is_none());
+        assert_eq!(r2.segments[1].size, 368);
+        assert_eq!(r2.segments[1].writers.len(), 1);
+        assert_eq!(
+            r2.segments[1].writers.values().next().unwrap(),
+            &WriterSummary {
+                start_sequence: 1,
+                end_sequence: 1,
+                missing_sequence: false
+            }
+        );
+
+        // Query limited to a single segment - expect only the most recent segment
+        assert_eq!(r3.segments.len(), 1);
+        assert_eq!(r3.segments[0], r2.segments[0]);
+
+        // Requesting segments from future - expect no results
+        assert_eq!(r4.segments.len(), 0);
+    }
+
     /// checks a http response against expected results
     async fn check_response(
         description: &str,
@@ -972,6 +1144,31 @@ mod tests {
 
             assert_eq!(status, expected_status);
             assert_eq!(body, expected_body);
+        } else {
+            panic!("Unexpected error response: {:?}", response);
+        }
+    }
+
+    async fn check_json_response<T: DeserializeOwned + Eq + Debug>(
+        client: &Client,
+        url: &str,
+        expected_status: StatusCode,
+    ) -> T {
+        let response = client.get(url).send().await;
+
+        // Print the response so if the test fails, we have a log of
+        // what went wrong
+        println!("{} response: {:?}", url, response);
+
+        if let Ok(response) = response {
+            let status = response.status();
+            let body: T = response
+                .json()
+                .await
+                .expect("Converting request body to string");
+
+            assert_eq!(status, expected_status);
+            body
         } else {
             panic!("Unexpected error response: {:?}", response);
         }

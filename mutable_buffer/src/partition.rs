@@ -5,6 +5,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use crate::chunk::{Chunk, Error as ChunkError};
 
+use data_types::partition_metadata::TableSummary;
 use snafu::{ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
@@ -50,6 +51,9 @@ pub enum Error {
         chunk_id: u32,
         valid_chunk_ids: Vec<u32>,
     },
+
+    #[snafu(display("Chunk error {}", source))]
+    SummariesChunkError { source: ChunkError },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -209,6 +213,21 @@ impl Partition {
             .fold(0, |acc, val| acc + val.size())
             + self.open_chunk.size()
     }
+
+    /// Return the table summaries from all chunks. A table will have a summary
+    /// for each chunk it exists in. Use PartitionSummary::from_table_summaries
+    /// to construct a PartitionSummary.
+    #[allow(dead_code)] // TODO: remove once this gets used
+    pub fn chunk_table_summaries(&self) -> Result<Vec<TableSummary>> {
+        let mut summaries = self.open_chunk.table_stats().context(SummariesChunkError)?;
+
+        for chunk in self.closed_chunks.values() {
+            let mut other = chunk.table_stats().context(SummariesChunkError)?;
+            summaries.append(&mut other);
+        }
+
+        Ok(summaries)
+    }
 }
 
 /// information on chunks for this partition
@@ -262,7 +281,10 @@ impl<'a> Iterator for ChunkIter<'a> {
 mod tests {
     use super::*;
     use chrono::Utc;
-    use data_types::{data::split_lines_into_write_entry_partitions, selection::Selection};
+    use data_types::{
+        data::split_lines_into_write_entry_partitions, partition_metadata::PartitionSummary,
+        selection::Selection,
+    };
 
     use arrow_deps::{
         arrow::record_batch::RecordBatch, assert_table_eq, test_util::sort_record_batch,
@@ -821,6 +843,34 @@ mod tests {
 
         load_data(&mut partition, &["h2o,state=MA,city=Boston temp=71.4 100"]).await;
         assert_eq!(459, partition.size());
+    }
+
+    #[tokio::test]
+    async fn chunk_summaries_return_open_and_closed() {
+        let mut partition = Partition::new("a_key");
+
+        load_data(
+            &mut partition,
+            &["cpu,host=a,region=west usage=21.1,system=55.5,num=10 10"],
+        )
+        .await;
+        partition.rollover_chunk();
+        load_data(
+            &mut partition,
+            &[
+                "cpu,foo=bar val=5 1",
+                "mem,host=a,region=east bytes=23423 21",
+            ],
+        )
+        .await;
+
+        let summaries = partition.chunk_table_summaries().unwrap();
+        assert_eq!(3, summaries.len());
+
+        let summary = PartitionSummary::from_table_summaries(&partition.key, summaries);
+        assert_eq!(2, summary.tables.len());
+        assert!(summary.table("cpu").is_some());
+        assert!(summary.table("mem").is_some());
     }
 
     fn row_count(table_name: &str, chunk: &Chunk) -> u32 {

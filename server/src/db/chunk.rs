@@ -1,10 +1,7 @@
-use arrow_deps::{
-    datafusion::{logical_plan::LogicalPlan, physical_plan::SendableRecordBatchStream},
-    util::str_iter_to_batch,
-};
+use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 use data_types::{schema::Schema, selection::Selection};
 use mutable_buffer::chunk::Chunk as MBChunk;
-use query::{predicate::Predicate, util::make_scan_plan, PartitionChunk};
+use query::{exec::stringset::StringSet, predicate::Predicate, PartitionChunk};
 use read_buffer::Database as ReadBufferDb;
 use snafu::{ResultExt, Snafu};
 
@@ -103,27 +100,34 @@ impl PartitionChunk for DBChunk {
         }
     }
 
-    async fn table_names(&self, predicate: &Predicate) -> Result<LogicalPlan, Self::Error> {
+    async fn table_names(
+        &self,
+        predicate: &Predicate,
+        _known_tables: &StringSet,
+    ) -> Result<Option<StringSet>, Self::Error> {
         match self {
             Self::MutableBuffer { chunk } => {
-                let names: Vec<Option<&str>> = if chunk.is_empty() {
-                    Vec::new()
+                if chunk.is_empty() {
+                    Ok(Some(StringSet::new()))
                 } else {
                     let chunk_predicate = chunk
                         .compile_predicate(predicate)
                         .context(MutableBufferChunk)?;
 
-                    chunk
-                        .table_names(&chunk_predicate)
-                        .context(MutableBufferChunk)?
-                        .into_iter()
-                        .map(Some)
-                        .collect()
-                };
+                    // we don't support arbitrary expressions in chunk predicate yet
+                    if !chunk_predicate.chunk_exprs.is_empty() {
+                        Ok(None)
+                    } else {
+                        let names = chunk
+                            .table_names(&chunk_predicate)
+                            .context(MutableBufferChunk)?
+                            .into_iter()
+                            .map(|s| s.to_string())
+                            .collect::<StringSet>();
 
-                let batch = str_iter_to_batch("tables", names).context(ArrowConversion)?;
-
-                make_scan_plan(batch).context(InternalPlanCreation)
+                        Ok(Some(names))
+                    }
+                }
             }
             Self::ReadBuffer {
                 db,
@@ -132,13 +136,16 @@ impl PartitionChunk for DBChunk {
             } => {
                 let chunk_id = *chunk_id;
 
+                // TODO: figure out if this predicate was "not
+                // supported" or "actual error". If not supported,
+                // should return Ok(None)
                 let rb_predicate =
                     to_read_buffer_predicate(&predicate).context(InternalPredicateConversion)?;
 
-                let batch = db
+                let names = db
                     .table_names(partition_key, &[chunk_id], rb_predicate)
                     .context(ReadBufferChunk { chunk_id })?;
-                make_scan_plan(batch).context(InternalPlanCreation)
+                Ok(Some(names))
             }
             Self::ParquetFile => {
                 unimplemented!("parquet file not implemented")

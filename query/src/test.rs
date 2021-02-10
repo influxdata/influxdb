@@ -1,16 +1,13 @@
 //! This module provides a reference implementaton of `query::DatabaseSource`
 //! and `query::Database` for use in testing.
 
-use arrow_deps::{
-    datafusion::{logical_plan::LogicalPlan, physical_plan::SendableRecordBatchStream},
-    util::str_iter_to_batch,
-};
+use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 
-use crate::{exec::Executor, group_by::GroupByAndAggregate, util::make_scan_plan};
+use crate::{exec::Executor, group_by::GroupByAndAggregate, plan::stringset::StringSetPlan};
 use crate::{
     exec::{
         stringset::{StringSet, StringSetRef},
-        FieldListPlan, SeriesSetPlans, StringSetPlan,
+        FieldListPlan, SeriesSetPlans,
     },
     Database, DatabaseStore, PartitionChunk, Predicate,
 };
@@ -542,16 +539,19 @@ impl PartitionChunk for TestChunk {
         unimplemented!()
     }
 
-    async fn table_names(&self, predicate: &Predicate) -> Result<LogicalPlan, Self::Error> {
+    async fn table_names(
+        &self,
+        predicate: &Predicate,
+        _known_tables: &StringSet,
+    ) -> Result<Option<StringSet>, Self::Error> {
         // save the predicate
         self.table_names_predicate
             .lock()
             .expect("mutex poisoned")
             .replace(predicate.clone());
 
-        let names = self.table_names.iter().map(Some);
-        let batch = str_iter_to_batch("tables", names).unwrap();
-        Ok(make_scan_plan(batch).unwrap())
+        let names = self.table_names.iter().cloned().collect::<BTreeSet<_>>();
+        Ok(Some(names))
     }
 
     async fn table_schema(

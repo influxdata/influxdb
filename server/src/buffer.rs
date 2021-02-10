@@ -20,6 +20,7 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use crc32fast::Hasher;
 use data_types::database_rules::WalBufferConfig;
+use data_types::wal::{SegmentPersistence, SegmentSummary, WriterSummary};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use tracing::{error, info, warn};
 
@@ -114,7 +115,7 @@ impl Buffer {
 
         while self.current_size + write_size > self.max_size {
             let oldest_is_persisted = match self.closed_segments.get(0) {
-                Some(s) => s.persisted_at().is_some(),
+                Some(s) => s.persisted().is_some(),
                 None => false,
             };
 
@@ -143,7 +144,7 @@ impl Buffer {
                         size: self.current_size,
                         segment_count: self.closed_segments.len(),
                     }
-                    .fail()
+                    .fail();
                 }
             }
         }
@@ -238,7 +239,15 @@ impl Buffer {
         writes
     }
 
-    // Removes the oldest segment present in the buffer, returning its id
+    /// Returns a list of segment summaries for stored segments
+    pub fn segments(&self, offset: Option<usize>) -> impl Iterator<Item = SegmentSummary> + '_ {
+        std::iter::once(&self.open_segment)
+            .chain(self.closed_segments.iter().map(|x| x.as_ref()).rev())
+            .skip(offset.unwrap_or(0))
+            .map(|x| x.summary())
+    }
+
+    /// Removes the oldest segment present in the buffer, returning its id
     fn remove_oldest_segment(&mut self) -> u64 {
         let removed_segment = self.closed_segments.remove(0);
         self.current_size -= removed_segment.size;
@@ -265,8 +274,10 @@ pub struct Segment {
     size: u64,
     pub writes: Vec<Arc<ReplicatedWrite>>,
     writers: BTreeMap<WriterId, WriterSummary>,
-    // If set, this is the time at which this segment was persisted
-    persisted: Mutex<Option<DateTime<Utc>>>,
+    // Time this segment was initialized
+    created_at: DateTime<Utc>,
+    // Persistence metadata if segment is persisted
+    persisted: Mutex<Option<SegmentPersistence>>,
 }
 
 impl Segment {
@@ -276,6 +287,7 @@ impl Segment {
             size: 0,
             writes: vec![],
             writers: BTreeMap::new(),
+            created_at: Utc::now(),
             persisted: Mutex::new(None),
         }
     }
@@ -286,6 +298,7 @@ impl Segment {
             size: 0,
             writes: Vec::with_capacity(capacity),
             writers: BTreeMap::new(),
+            created_at: Utc::now(),
             persisted: Mutex::new(None),
         }
     }
@@ -341,16 +354,15 @@ impl Segment {
         Ok(())
     }
 
-    /// sets the time this segment was persisted at
-    pub fn set_persisted_at(&self, time: DateTime<Utc>) {
-        let mut persisted = self.persisted.lock().expect("mutex poisoned");
-        *persisted = Some(time);
+    /// sets the persistence metadata for this segment
+    pub fn set_persisted(&self, persisted: SegmentPersistence) {
+        let mut self_persisted = self.persisted.lock().expect("mutex poisoned");
+        *self_persisted = Some(persisted);
     }
 
-    /// returns the time this segment was persisted at or none if not set
-    pub fn persisted_at(&self) -> Option<DateTime<Utc>> {
-        let persisted = self.persisted.lock().expect("mutex poisoned");
-        *persisted
+    /// returns persistence metadata for this segment if persisted
+    pub fn persisted(&self) -> Option<SegmentPersistence> {
+        self.persisted.lock().expect("mutex poisoned").clone()
     }
 
     /// Spawns a tokio task that will continuously try to persist the bytes to
@@ -385,13 +397,14 @@ impl Segment {
                 stream_data = std::io::Result::Ok(data.clone());
             }
 
+            // TODO: Mark segment as persisted
             info!("persisted data to {}", location.display());
         });
 
         Ok(())
     }
 
-    // converts the segment to its flatbuffer bytes
+    /// converts the segment to its flatbuffer bytes
     fn fb_bytes(&self, writer_id: u32) -> Vec<u8> {
         let mut fbb = flatbuffers::FlatBufferBuilder::new_with_capacity(
             usize::try_from(self.size).expect("unable to serialize segment of this size"),
@@ -424,6 +437,18 @@ impl Segment {
 
         let (mut data, idx) = fbb.collapse();
         data.split_off(idx)
+    }
+
+    /// returns a summary of the data stored within this segment
+    pub fn summary(&self) -> SegmentSummary {
+        let persisted = self.persisted.lock().expect("mutex poisoned").clone();
+
+        SegmentSummary {
+            size: self.size,
+            created_at: self.created_at,
+            persisted,
+            writers: self.writers.clone(),
+        }
     }
 
     /// serialize the segment to the bytes to represent it in a file. This
@@ -485,14 +510,6 @@ impl Segment {
 
         Ok(segment)
     }
-}
-
-/// The summary information for a writer that has data in a segment
-#[derive(Debug, Eq, PartialEq)]
-pub struct WriterSummary {
-    start_sequence: u64,
-    end_sequence: u64,
-    missing_sequence: bool,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -595,8 +612,11 @@ mod tests {
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
         let segment = buf.append(write).unwrap().unwrap();
         assert_eq!(1, segment.id);
-        assert!(segment.persisted_at().is_none());
-        segment.set_persisted_at(Utc::now());
+        assert!(segment.persisted().is_none());
+        segment.set_persisted(SegmentPersistence {
+            location: "PLACEHOLDER".to_string(),
+            time: Utc::now(),
+        });
 
         let write = lp_to_replicated_write(1, 2, "cpu val=1 10");
         let segment = buf.append(write).unwrap();
@@ -611,7 +631,7 @@ mod tests {
         let segment = buf.append(write).unwrap();
         let segment = segment.unwrap();
         assert_eq!(3, segment.id);
-        assert!(segment.persisted_at().is_none());
+        assert!(segment.persisted().is_none());
 
         assert_eq!(2, buf.closed_segments.len());
         assert_eq!(2, buf.closed_segments[0].id);
@@ -837,7 +857,7 @@ mod tests {
             &WriterSummary {
                 start_sequence: 1,
                 end_sequence: 2,
-                missing_sequence: false
+                missing_sequence: false,
             },
             summary
         );
@@ -847,7 +867,7 @@ mod tests {
             &WriterSummary {
                 start_sequence: 1,
                 end_sequence: 4,
-                missing_sequence: true
+                missing_sequence: true,
             },
             summary
         );

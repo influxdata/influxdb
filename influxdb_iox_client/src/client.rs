@@ -3,7 +3,8 @@ use std::num::NonZeroU32;
 use data_types::database_rules::DatabaseRules;
 use reqwest::{Method, Url};
 
-use crate::errors::{CreateDatabaseError, Error, ServerErrorResponse};
+use crate::errors::{ClientError, CreateDatabaseError, Error, ServerErrorResponse};
+use data_types::DatabaseName;
 
 // TODO: move DatabaseRules / WriterId to the API client
 
@@ -83,12 +84,7 @@ impl Client {
         name: impl AsRef<str>,
         rules: &DatabaseRules,
     ) -> Result<(), CreateDatabaseError> {
-        const DB_PATH: &str = "iox/api/v1/databases/";
-
-        let url = self
-            .url_for(DB_PATH)
-            .join(name.as_ref())
-            .map_err(|_| CreateDatabaseError::InvalidName)?;
+        let url = self.db_url(name.as_ref())?;
 
         let r = self
             .http
@@ -147,6 +143,18 @@ impl Client {
             .join(path)
             .expect("failed to construct request URL")
     }
+
+    fn db_url(&self, database: &str) -> Result<Url, ClientError> {
+        const DB_PATH: &str = "iox/api/v1/databases/";
+
+        // Perform validation in the client as URL parser silently drops invalid
+        // characters
+        let name = DatabaseName::new(database).map_err(|_| ClientError::InvalidDatabaseName)?;
+
+        self.url_for(DB_PATH)
+            .join(name.as_ref())
+            .map_err(|_| ClientError::InvalidDatabaseName)
+    }
 }
 
 #[cfg(test)]
@@ -202,13 +210,11 @@ mod tests {
         let endpoint = maybe_skip_integration!();
         let c = ClientBuilder::default().build(endpoint).unwrap();
 
-        let rand_name: String = thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(10)
-            .map(char::from)
-            .collect();
+        c.set_writer_id(NonZeroU32::new(42).unwrap())
+            .await
+            .expect("set ID failed");
 
-        c.create_database(rand_name, &DatabaseRules::default())
+        c.create_database(rand_name(), &DatabaseRules::default())
             .await
             .expect("create database failed");
     }
@@ -218,18 +224,18 @@ mod tests {
         let endpoint = maybe_skip_integration!();
         let c = ClientBuilder::default().build(endpoint).unwrap();
 
-        let rand_name: String = thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(10)
-            .map(char::from)
-            .collect();
+        c.set_writer_id(NonZeroU32::new(42).unwrap())
+            .await
+            .expect("set ID failed");
 
-        c.create_database(rand_name.clone(), &DatabaseRules::default())
+        let db_name = rand_name();
+
+        c.create_database(db_name.clone(), &DatabaseRules::default())
             .await
             .expect("create database failed");
 
         let err = c
-            .create_database(rand_name, &DatabaseRules::default())
+            .create_database(db_name, &DatabaseRules::default())
             .await
             .expect_err("create database failed");
 
@@ -241,12 +247,19 @@ mod tests {
         let endpoint = maybe_skip_integration!();
         let c = ClientBuilder::default().build(endpoint).unwrap();
 
+        c.set_writer_id(NonZeroU32::new(42).unwrap())
+            .await
+            .expect("set ID failed");
+
         let err = c
-            .create_database("bananas!", &DatabaseRules::default())
+            .create_database("my_example\ndb", &DatabaseRules::default())
             .await
             .expect_err("expected request to fail");
 
-        assert!(matches!(dbg!(err), CreateDatabaseError::InvalidName))
+        assert!(matches!(
+            dbg!(err),
+            CreateDatabaseError::ClientError(ClientError::InvalidDatabaseName)
+        ));
     }
 
     #[test]
@@ -276,5 +289,13 @@ mod tests {
             .unwrap();
 
         c.url_for("/bananas");
+    }
+
+    fn rand_name() -> String {
+        thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(10)
+            .map(char::from)
+            .collect()
     }
 }

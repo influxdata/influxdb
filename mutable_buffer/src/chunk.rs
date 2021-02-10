@@ -4,7 +4,7 @@ use arrow_deps::{
     arrow::record_batch::RecordBatch,
     datafusion::{
         error::{DataFusionError, Result as DatafusionResult},
-        logical_plan::{Expr, ExpressionVisitor, LogicalPlan, Operator, Recursion},
+        logical_plan::{Expr, ExpressionVisitor, Operator, Recursion},
         optimizer::utils::expr_to_column_names,
         physical_plan::SendableRecordBatchStream,
         prelude::*,
@@ -20,6 +20,7 @@ use data_types::{
 };
 
 use query::{
+    exec::stringset::StringSet,
     predicate::{Predicate, TimestampRange},
     util::AndExprBuilder,
 };
@@ -510,7 +511,11 @@ impl query::PartitionChunk for Chunk {
         self.table_stats()
     }
 
-    async fn table_names(&self, _predicate: &Predicate) -> Result<LogicalPlan, Self::Error> {
+    async fn table_names(
+        &self,
+        _predicate: &Predicate,
+        _known_tables: &StringSet,
+    ) -> Result<Option<StringSet>, Self::Error> {
         unimplemented!("This function is slated for removal")
     }
 

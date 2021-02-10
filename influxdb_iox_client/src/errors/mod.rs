@@ -23,6 +23,9 @@ use thiserror::Error;
 mod http_error;
 pub use http_error::*;
 
+mod client_error;
+pub use client_error::*;
+
 mod server_error_response;
 pub use server_error_response::*;
 
