@@ -38,15 +38,18 @@ workflows:
       - grace_daily:
           requires:
             - build
+      - grace_nightly:
+          requires:
+            - build
       - litmus_daily:
           requires:
             - build
       - litmus_integration:
           requires:
             - build
-          filters:
-            branches:
-              only: master
+#          filters:
+#            branches:
+#              only: master
 
   nightly:
     triggers:
