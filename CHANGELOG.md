@@ -1,11 +1,10 @@
 ## unreleased
 
-1. [20307](https://github.com/influxdata/influxdb/pull/20307): Add `influx task retry-failed` command to rerun failed runs.
-
 ### Features
 
 1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells.
 1. [20621](https://github.com/influxdata/influxdb/pull/20621): Add Swift client library to the data loading section of the UI
+1. [20307](https://github.com/influxdata/influxdb/pull/20307): Add `influx task retry-failed` command to rerun failed runs.
 
 ### Bug Fixes
 
