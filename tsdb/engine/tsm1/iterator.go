@@ -227,7 +227,10 @@ type seriesIterator struct {
 	statsBuf  query.IteratorStats
 }
 
-func newSeriesIterator(name string, cur tsdb.SeriesKeyIterator) *seriesIterator {
+func newSeriesIterator(name string, cur tsdb.SeriesKeyIterator) (*seriesIterator, error) {
+	if cur == nil {
+		return nil, fmt.Errorf("internal error: cannot create series iterator from nil iterator")
+	}
 	itr := &seriesIterator{
 		cur: cur,
 		point: query.StringPoint{
@@ -236,7 +239,7 @@ func newSeriesIterator(name string, cur tsdb.SeriesKeyIterator) *seriesIterator 
 		},
 	}
 	itr.stats = itr.statsBuf
-	return itr
+	return itr, nil
 }
 
 // Next returns the next point from the iterator.

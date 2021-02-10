@@ -126,7 +126,7 @@ func TestRewriteStatement(t *testing.T) {
 		},
 		{
 			stmt: `SHOW SERIES CARDINALITY FROM m`,
-			s:    `SELECT count(distinct(_seriesKey)) AS count FROM m`,
+			s:    `SELECT count_hll(sum_hll(_seriesKey)) AS "cardinality estimation" FROM m`,
 		},
 		{
 			stmt: `SHOW SERIES EXACT CARDINALITY`,

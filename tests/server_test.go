@@ -23,6 +23,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/prometheus/prometheus/prompb"
+	"github.com/stretchr/testify/assert"
 )
 
 // Global server used by benchmarks
@@ -7382,37 +7383,37 @@ func TestServer_Query_ShowSeriesExactCardinality(t *testing.T) {
 		&Query{
 			name:    `show series cardinality from measurement`,
 			command: "SHOW SERIES CARDINALITY FROM cpu",
-			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["count"],"values":[[4]]}]}]}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["cardinality estimation"],"values":[[4]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
 			name:    `show series cardinality from regular expression`,
 			command: "SHOW SERIES CARDINALITY FROM /[cg]pu/",
-			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["count"],"values":[[4]]},{"name":"gpu","columns":["count"],"values":[[2]]}]}]}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["cardinality estimation"],"values":[[4]]},{"name":"gpu","columns":["cardinality estimation"],"values":[[2]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
 			name:    `show series cardinality with where tag`,
 			command: "SHOW SERIES CARDINALITY WHERE region = 'uswest'",
-			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["count"],"values":[[1]]}]}]}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["cardinality estimation"],"values":[[1]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
 			name:    `show series cardinality where tag matches regular expression`,
 			command: "SHOW SERIES CARDINALITY WHERE region =~ /ca.*/",
-			exp:     `{"results":[{"statement_id":0,"series":[{"name":"disk","columns":["count"],"values":[[1]]},{"name":"gpu","columns":["count"],"values":[[1]]}]}]}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"disk","columns":["cardinality estimation"],"values":[[1]]},{"name":"gpu","columns":["cardinality estimation"],"values":[[1]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
 			name:    `show series cardinality`,
 			command: "SHOW SERIES CARDINALITY WHERE host !~ /server0[12]/",
-			exp:     `{"results":[{"statement_id":0,"series":[{"name":"disk","columns":["count"],"values":[[1]]},{"name":"gpu","columns":["count"],"values":[[1]]}]}]}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"disk","columns":["cardinality estimation"],"values":[[1]]},{"name":"gpu","columns":["cardinality estimation"],"values":[[1]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
 			name:    `show series cardinality with from and where`,
 			command: "SHOW SERIES CARDINALITY FROM cpu WHERE region = 'useast'",
-			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["count"],"values":[[2]]}]}]}`,
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["cardinality estimation"],"values":[[2]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
@@ -7528,6 +7529,100 @@ func TestServer_Query_ShowStats(t *testing.T) {
 			} else if !query.success() {
 				t.Error(query.failureMessage())
 			}
+		})
+	}
+}
+
+func TestServer_Query_ShowIngressStats(t *testing.T) {
+	t.Parallel()
+
+	configWithIngress := func(measurement, login bool) *Config {
+		c := NewConfig()
+		c.Data.IngressMetricByMeasurement = measurement
+		c.Data.IngressMetricByLogin = login
+		return c
+	}
+
+	writes := strings.Join([]string{
+		fmt.Sprintf(`cpu,host=server01 value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:02Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server01 value=100  %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:03Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server01 value=100  %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:04Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server02 value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:05Z").UnixNano()),
+		fmt.Sprintf(`cpu,host=server02 value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:06Z").UnixNano()),
+		fmt.Sprintf(`gpu,host=server02 value=100 %d`, mustParseTime(time.RFC3339Nano, "2009-11-10T23:00:06Z").UnixNano()),
+	}, "\n")
+
+	var testData = []struct {
+		name             string
+		config           *Config
+		expectLocalStore string
+		expectIngress    string
+	}{
+		{
+			name:             "no details",
+			config:           configWithIngress(false, false),
+			expectLocalStore: `{"columns": ["pointsWritten", "seriesCreated", "valuesWritten"], "name":"localStore", "values": [[6,3,6]]}`,
+			expectIngress:    "[]",
+		},
+		{
+			name:             "just measurement",
+			config:           configWithIngress(true, false),
+			expectLocalStore: `{"columns": ["pointsWritten", "seriesCreated", "valuesWritten"], "name":"localStore", "values": [[6,3,6]]}`,
+			expectIngress:    `[{"columns":["pointsWritten","seriesCreated","valuesWritten"],"name":"ingress","tags":{"db":"db0","measurement":"cpu","rp":"rp0"},"values":[[5,2,5]]},{"columns":["pointsWritten","seriesCreated","valuesWritten"],"name":"ingress","tags":{"db":"db0","measurement":"gpu","rp":"rp0"},"values":[[1,1,1]]}]`,
+		},
+		{
+			// note we are unauthenticated, so the login user is '_systemuser_unknown'
+			name:             "just login",
+			config:           configWithIngress(false, true),
+			expectLocalStore: `{"columns": ["pointsWritten", "seriesCreated", "valuesWritten"], "name":"localStore", "values": [[6,3,6]]}`,
+			expectIngress:    `[{"columns":["pointsWritten","seriesCreated","valuesWritten"],"name":"ingress","tags":{"login":"_systemuser_unknown"},"values":[[6,3,6]]}]`,
+		},
+		{
+			name:             "measurement and login",
+			config:           configWithIngress(true, true),
+			expectLocalStore: `{"columns": ["pointsWritten", "seriesCreated", "valuesWritten"], "name":"localStore", "values": [[6,3,6]]}`,
+			expectIngress:    `[{"columns":["pointsWritten","seriesCreated","valuesWritten"],"name":"ingress","tags":{"db":"db0","login":"_systemuser_unknown","measurement":"cpu","rp":"rp0"},"values":[[5,2,5]]},{"columns":["pointsWritten","seriesCreated","valuesWritten"],"name":"ingress","tags":{"db":"db0","login":"_systemuser_unknown","measurement":"gpu","rp":"rp0"},"values":[[1,1,1]]}]`,
+		},
+	}
+
+	for _, data := range testData {
+		t.Run(data.name, func(t *testing.T) {
+			s := OpenServer(data.config)
+			defer s.Close()
+			if err := s.CreateDatabaseAndRetentionPolicy("db0", NewRetentionPolicySpec("rp0", 1, 0), true); err != nil {
+				t.Fatalf("Unexpected create database error: %v", err)
+			}
+			if _, err := s.Write("db0", "rp0", writes, url.Values{}); err != nil {
+				t.Fatalf("Unexpected write error: %v", err)
+			}
+			results, err := s.Query("show stats")
+			if err != nil {
+				t.Fatalf("stats query error: %v", err)
+			}
+			var v map[string]interface{}
+			var localStore map[string]interface{}
+			var ingress = make([]map[string]interface{}, 0)
+			json.Unmarshal([]byte(results), &v)
+			resultSeries := v["results"].([]interface{})[0].(map[string]interface{})["series"].([]interface{})
+			for _, series := range resultSeries {
+				seriesMap := series.(map[string]interface{})
+				name := seriesMap["name"].(string)
+				if name == "localStore" {
+					localStore = seriesMap
+				}
+				if name == "ingress" {
+					ingress = append(ingress, seriesMap)
+				}
+			}
+			mustJson := func(v interface{}) string {
+				b, err := json.Marshal(v)
+				if err != nil {
+					t.Fatalf("Unexpected json marshalling error: %v", err)
+				}
+				return string(b)
+			}
+			assert.JSONEq(t, data.expectLocalStore, mustJson(localStore))
+			assert.JSONEq(t, data.expectIngress, mustJson(ingress))
 		})
 	}
 }

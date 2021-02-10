@@ -2506,7 +2506,10 @@ func (e *Engine) createSeriesIterator(measurement string, ref *influxql.VarRef, 
 		return nil, err
 	}
 	var seriesIterator query.Iterator
-	seriesIterator = newSeriesIterator(measurement, seriesCursor)
+	seriesIterator, err = newSeriesIterator(measurement, seriesCursor)
+	if err != nil {
+		return nil, err
+	}
 	if opt.InterruptCh != nil {
 		seriesIterator = query.NewInterruptIterator(seriesIterator, opt.InterruptCh)
 	}
