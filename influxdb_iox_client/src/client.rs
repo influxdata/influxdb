@@ -20,9 +20,9 @@ pub use flight::PerformQuery;
 
 /// An IOx HTTP API client.
 ///
-/// ```
-/// #[tokio::test]
-/// # async fn test() {
+/// ```no_run
+/// #[tokio::main]
+/// # async fn main() {
 /// use data_types::database_rules::DatabaseRules;
 /// use influxdb_iox_client::ClientBuilder;
 ///
