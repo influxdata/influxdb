@@ -193,8 +193,7 @@ impl Executor {
     /// Executes this plan and returns the resulting set of strings
     pub async fn to_string_set(&self, plan: StringSetPlan) -> Result<StringSetRef> {
         match plan {
-            StringSetPlan::KnownOk(ss) => Ok(ss),
-            StringSetPlan::KnownError(source) => Err(Error::Execution { source }),
+            StringSetPlan::Known(ss) => Ok(ss),
             StringSetPlan::Plan(plans) => self
                 .run_logical_plans(plans)
                 .await?
@@ -415,32 +414,11 @@ mod tests {
     #[tokio::test]
     async fn executor_known_string_set_plan_ok() -> Result<()> {
         let expected_strings = to_set(&["Foo", "Bar"]);
-        let result: Result<_> = Ok(expected_strings.clone());
-        let plan = result.into();
+        let plan = StringSetPlan::Known(expected_strings.clone());
 
         let executor = Executor::default();
         let result_strings = executor.to_string_set(plan).await?;
         assert_eq!(result_strings, expected_strings);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn executor_known_string_set_plan_err() -> Result<()> {
-        let result = InternalResultsExtraction {
-            message: "this is a test",
-        }
-        .fail();
-
-        let plan = result.into();
-
-        let executor = Executor::default();
-        let actual_result = executor.to_string_set(plan).await;
-        assert!(actual_result.is_err());
-        assert!(
-            format!("{:?}", actual_result).contains("this is a test"),
-            "Actual result: '{:?}'",
-            actual_result
-        );
         Ok(())
     }
 
