@@ -1933,7 +1933,7 @@ type measurementSeriesKeyByExprIterator struct {
 }
 
 func (itr *measurementSeriesKeyByExprIterator) Next() ([]byte, error) {
-	if itr == nil {
+	if itr.ids == nil {
 		return nil, nil
 	}
 	for {
@@ -1982,7 +1982,8 @@ func (itr *measurementSeriesKeyByExprIterator) Next() ([]byte, error) {
 }
 
 func (itr *measurementSeriesKeyByExprIterator) Close() error {
-	if itr == nil {
+	// assume that we don't have to release if ids is nil - see MeasurementSeriesKeyByExprIterator
+	if itr.ids == nil {
 		return nil
 	}
 	itr.once.Do(itr.releaser)
@@ -2001,7 +2002,7 @@ func (is IndexSet) MeasurementSeriesKeyByExprIterator(name []byte, expr influxql
 	}
 	if ids == nil {
 		release()
-		return nil, nil
+		release = nil
 	}
 	return &measurementSeriesKeyByExprIterator{
 		ids:      ids,

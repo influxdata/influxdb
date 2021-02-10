@@ -202,6 +202,30 @@ func rewriteShowSeriesCardinalityStatement(stmt *influxql.ShowSeriesCardinalityS
 		}
 	}
 
+	// do hll estimation for per-measurement queries
+	if !stmt.Exact && stmt.Dimensions == nil && stmt.Limit == 0 && stmt.Offset == 0 {
+		return &influxql.SelectStatement{
+			Fields: []*influxql.Field{
+				{
+					Expr: &influxql.Call{
+						Name: "count_hll",
+						Args: []influxql.Expr{&influxql.Call{
+							Name: "sum_hll",
+							Args: []influxql.Expr{&influxql.VarRef{Val: "_seriesKey"}},
+						}},
+					},
+					Alias: "cardinality estimation",
+				},
+			},
+			Sources:    rewriteSources2(stmt.Sources, stmt.Database),
+			Condition:  stmt.Condition,
+			Dimensions: stmt.Dimensions,
+			Offset:     stmt.Offset,
+			Limit:      stmt.Limit,
+			OmitTime:   true,
+		}, nil
+	}
+
 	return &influxql.SelectStatement{
 		Fields: []*influxql.Field{
 			{
