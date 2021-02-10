@@ -25,7 +25,7 @@ use data_types::{http::ListDatabasesResponse, DatabaseName};
 ///
 /// // Create a new database!
 /// client
-///     .create_database("bananas", &DatabaseRules::default())
+///     .create_database("bananas", &DatabaseRules::new())
 ///     .await
 ///     .expect("failed to create database");
 /// # }
@@ -227,7 +227,7 @@ mod tests {
             .await
             .expect("set ID failed");
 
-        c.create_database(rand_name(), &DatabaseRules::default())
+        c.create_database(rand_name(), &DatabaseRules::new())
             .await
             .expect("create database failed");
     }
@@ -243,12 +243,12 @@ mod tests {
 
         let db_name = rand_name();
 
-        c.create_database(db_name.clone(), &DatabaseRules::default())
+        c.create_database(db_name.clone(), &DatabaseRules::new())
             .await
             .expect("create database failed");
 
         let err = c
-            .create_database(db_name, &DatabaseRules::default())
+            .create_database(db_name, &DatabaseRules::new())
             .await
             .expect_err("create database failed");
 
@@ -265,7 +265,7 @@ mod tests {
             .expect("set ID failed");
 
         let err = c
-            .create_database("my_example\ndb", &DatabaseRules::default())
+            .create_database("my_example\ndb", &DatabaseRules::new())
             .await
             .expect_err("expected request to fail");
 

@@ -36,7 +36,7 @@ impl Config {
             });
         }
 
-        let mutable_buffer = if rules.store_locally {
+        let mutable_buffer = if rules.mutable_buffer_config.is_some() {
             Some(MutableBufferDb::new(name.to_string()))
         } else {
             None
@@ -147,7 +147,7 @@ mod test {
     fn create_db() {
         let name = DatabaseName::new("foo").unwrap();
         let config = Config::default();
-        let rules = DatabaseRules::default();
+        let rules = DatabaseRules::new();
 
         {
             let _db_reservation = config.create_db(name.clone(), rules.clone()).unwrap();

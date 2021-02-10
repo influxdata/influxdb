@@ -939,7 +939,7 @@ mod tests {
         lp: &str,
     ) -> Arc<ReplicatedWrite> {
         let lines: Vec<_> = parse_lines(lp).map(|l| l.unwrap()).collect();
-        let rules = DatabaseRules::default();
+        let rules = DatabaseRules::new();
         Arc::new(lines_to_replicated_write(
             writer_id,
             sequence_number,
