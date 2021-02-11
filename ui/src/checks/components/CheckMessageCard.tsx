@@ -72,7 +72,7 @@ const CheckMessageCard: FC<Props> = ({
           <p>
             Need help? Check out the Status Message Template{' '}
             <a
-              href="https://v2.docs.influxdata.com/v2.0/monitor-alert/checks/create/#flux-only-interpolates-string-values"
+              href="https://docs.influxdata.com/influxdb/v2.0/monitor-alert/checks/create/#flux-only-interpolates-string-values"
               target="_blank"
             >
               Documentation

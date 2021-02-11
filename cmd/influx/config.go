@@ -61,7 +61,7 @@ func (b *cmdConfigBuilder) cmd() *cobra.Command {
 	to manually enter a token to log into InfluxDB.
 
 	For information about the config command, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/config
+	https://docs.influxdata.com/influxdb/v2.0/reference/cli/influx/config/
 `
 
 	b.registerFilepath(cmd)
@@ -124,9 +124,9 @@ func (b *cmdConfigBuilder) cmdCreate() *cobra.Command {
 		influx config create -n $CFG_NAME -u $HOST_URL -t $TOKEN -o $ORG_NAME
 
 	For information about the config command, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/config
+	https://docs.influxdata.com/influxdb/v2.0/reference/cli/influx/config/
 	and
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/config/create`
+	https://docs.influxdata.com/influxdb/v2.0/reference/cli/influx/config/create/`
 
 	b.registerFilepath(cmd)
 	b.registerPrintFlags(cmd)
@@ -177,9 +177,9 @@ func (b *cmdConfigBuilder) cmdDelete() *cobra.Command {
 		influx config rm $CFG_NAME_1 $CFG_NAME_2
 
 	For information about the config command, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/config
+	https://docs.influxdata.com/influxdb/v2.0/reference/cli/influx/config/
 	and
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/config/remove`
+	https://docs.influxdata.com/influxdb/v2.0/reference/cli/influx/config/rm/`
 
 	b.registerPrintFlags(cmd)
 	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The config name (required)")
@@ -229,9 +229,9 @@ func (b *cmdConfigBuilder) cmdUpdate() *cobra.Command {
 		influx config set -n $CFG_NAME -u $HOST_URL -t $TOKEN -o $ORG_NAME
 
 	For information about the config command, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/config
+	https://docs.influxdata.com/influxdb/v2.0/reference/cli/influx/config/
 	and
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/config/set`
+	https://docs.influxdata.com/influxdb/v2.0/reference/cli/influx/config/set/`
 
 	b.registerPrintFlags(cmd)
 	b.registerConfigSettingFlags(cmd)
@@ -282,9 +282,9 @@ func (b *cmdConfigBuilder) cmdList() *cobra.Command {
 		influx config list
 
 	For information about the config command, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/config
+	https://docs.influxdata.com/influxdb/v2.0/reference/cli/influx/config/
 	and
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/config/list`
+	https://docs.influxdata.com/influxdb/v2.0/reference/cli/influx/config/list/`
 	b.registerPrintFlags(cmd)
 	return cmd
 }

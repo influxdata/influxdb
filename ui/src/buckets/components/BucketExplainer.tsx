@@ -18,7 +18,7 @@ const BucketExplainer: FunctionComponent = () => (
         <br />
         Here's{' '}
         <a
-          href="https://v2.docs.influxdata.com/v2.0/write-data/"
+          href="https://docs.influxdata.com/influxdb/v2.0/write-data/"
           target="_blank"
         >
           how to write data

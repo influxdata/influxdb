@@ -6,19 +6,19 @@ import {Panel} from '@influxdata/clockface'
 
 const supportLinks = [
   {
-    link: 'https://v2.docs.influxdata.com/v2.0/query-data/get-started/',
+    link: 'https://docs.influxdata.com/influxdb/v2.0/query-data/get-started/',
     title: 'Get Started with Flux',
   },
   {
-    link: 'https://v2.docs.influxdata.com/v2.0/visualize-data/explore-metrics/',
+    link: 'https://docs.influxdata.com/influxdb/v2.0/query-data/execute-queries/data-explorer/',
     title: 'Explore Metrics',
   },
   {
-    link: 'https://v2.docs.influxdata.com/v2.0/visualize-data/dashboards/',
+    link: 'https://docs.influxdata.com/influxdb/v2.0/visualize-data/dashboards/',
     title: 'Build a Dashboard',
   },
   {
-    link: 'https://v2.docs.influxdata.com/v2.0/process-data/write-a-task/',
+    link: 'https://docs.influxdata.com/influxdb/v2.0/process-data/get-started/',
     title: 'Write a Task',
   },
 ]
