@@ -87,17 +87,21 @@ tracing-futures = "0.2.4"
 tracing-opentelemetry = "0.11.0"
 tracing-subscriber = "0.2.15"
 
-[dev-dependencies] # In alphabetical order
+[dev-dependencies]
+# Workspace dependencies, in alphabetical order
+influxdb2_client = { path = "influxdb2_client" }
+influxdb_iox_client = { path = "influxdb_iox_client", features = ["flight"] }
+test_helpers = { path = "test_helpers" }
+
+# Crates.io dependencies, in alphabetical order
 assert_cmd = "1.0.0"
 criterion = "0.3"
 flate2 = "1.0"
 hex = "0.4.2"
-influxdb2_client = { path = "influxdb2_client" }
 predicates = "1.0.4"
 rand = "0.7.2"
 reqwest = "0.11"
 tempfile = "3.1.0"
-test_helpers = { path = "test_helpers" }
 
 [[bin]]
 name = "cpu_feature_check"

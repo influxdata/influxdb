@@ -6,13 +6,23 @@ use reqwest::{Method, Url};
 use crate::errors::{ClientError, CreateDatabaseError, Error, ServerErrorResponse};
 use data_types::{http::ListDatabasesResponse, DatabaseName};
 
+#[cfg(feature = "flight")]
+mod flight;
+
+// can't combine these into one statement that uses `{}` because of this bug in
+// the `unreachable_pub` lint: https://github.com/rust-lang/rust/issues/64762
+#[cfg(feature = "flight")]
+pub use flight::FlightClient;
+#[cfg(feature = "flight")]
+pub use flight::PerformQuery;
+
 // TODO: move DatabaseRules / WriterId to the API client
 
 /// An IOx HTTP API client.
 ///
-/// ```
-/// #[tokio::test]
-/// # async fn test() {
+/// ```no_run
+/// #[tokio::main]
+/// # async fn main() {
 /// use data_types::database_rules::DatabaseRules;
 /// use influxdb_iox_client::ClientBuilder;
 ///
