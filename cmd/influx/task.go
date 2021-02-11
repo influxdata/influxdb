@@ -275,7 +275,7 @@ func (b *cmdTaskBuilder) taskRetryFailedF(*cobra.Command, []string) error {
 			uniqueIDs[r.TaskID] = struct{}{}
 		}
 		fmt.Printf("Dry run complete. Found %d tasks with a total of %d runs to be retried\n"+
-			"Rerun with '--dry-run true' to execute", len(uniqueIDs), len(failedRuns))
+			"Rerun without '--dry-run' to execute", len(uniqueIDs), len(failedRuns))
 	}
 
 	return nil
