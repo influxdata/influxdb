@@ -27,6 +27,9 @@ pub enum Error {
         chunk_id: u32,
     },
 
+    #[snafu(display("Internal error restricting schema: {}", source))]
+    InternalSelectingSchema { source: data_types::schema::Error },
+
     #[snafu(display("Internal Predicate Conversion Error: {}", source))]
     InternalPredicateConversion { source: super::pred::Error },
 
@@ -228,15 +231,12 @@ impl PartitionChunk for DBChunk {
                 // Note Mutable buffer doesn't support predicate
                 // pushdown (other than pruning out the entire chunk
                 // via `might_pass_predicate)
-                let schema = self
-                    .table_schema(table_name, selection.clone())
-                    .await?
-                    .into();
+                let schema: Schema = self.table_schema(table_name, selection.clone()).await?;
+
                 Ok(Box::pin(MutableBufferChunkStream::new(
                     chunk.clone(),
-                    schema,
+                    schema.as_arrow(),
                     table_name,
-                    selection,
                 )))
             }
             DBChunk::ReadBuffer {

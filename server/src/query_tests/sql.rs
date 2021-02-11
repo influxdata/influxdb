@@ -13,6 +13,7 @@ use query::{exec::Executor, frontend::sql::SQLQueryPlanner};
 /// output
 macro_rules! run_sql_test_case {
     ($DB_SETUP:expr, $SQL:expr, $EXPECTED_LINES:expr) => {
+        //test_helpers::enable_logging();
         let sql = $SQL.to_string();
         for scenario in $DB_SETUP.make().await {
             let DBScenario { scenario_name, db } = scenario;
@@ -123,4 +124,38 @@ async fn sql_select_from_disk() {
         "+-------+--------+------+",
     ];
     run_sql_test_case!(TwoMeasurements {}, "SELECT * from disk", &expected);
+}
+
+#[tokio::test]
+async fn sql_select_with_schema_merge() {
+    let expected = vec![
+        "+------+--------+--------+------+------+",
+        "| host | region | system | time | user |",
+        "+------+--------+--------+------+------+",
+        "|      | west   | 5      | 100  | 23.2 |",
+        "|      | west   | 6      | 150  | 21   |",
+        "| foo  | east   |        | 100  | 23.2 |",
+        "| bar  | west   |        | 250  | 21   |",
+        "+------+--------+--------+------+------+",
+    ];
+    run_sql_test_case!(MultiChunkSchemaMerge {}, "SELECT * from cpu", &expected);
+}
+
+#[tokio::test]
+async fn sql_select_with_schema_merge_subset() {
+    let expected = vec![
+        "+------+--------+--------+",
+        "| host | region | system |",
+        "+------+--------+--------+",
+        "|      | west   | 5      |",
+        "|      | west   | 6      |",
+        "| foo  | east   |        |",
+        "| bar  | west   |        |",
+        "+------+--------+--------+",
+    ];
+    run_sql_test_case!(
+        MultiChunkSchemaMerge {},
+        "SELECT host, region, system from cpu",
+        &expected
+    );
 }

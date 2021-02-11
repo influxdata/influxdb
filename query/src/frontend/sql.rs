@@ -115,12 +115,12 @@ impl SQLQueryPlanner {
                                 chunk_id,
                             })?;
 
-                        builder = builder
-                            .add_chunk(chunk, chunk_table_schema.into())
-                            .context(AddingChunkToProvider {
+                        builder = builder.add_chunk(chunk, chunk_table_schema).context(
+                            AddingChunkToProvider {
                                 table_name,
                                 chunk_id,
-                            })?
+                            },
+                        )?
                     }
                 }
             }

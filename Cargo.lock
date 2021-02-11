@@ -2583,6 +2583,7 @@ dependencies = [
  "chrono",
  "croaring",
  "data_types",
+ "futures",
  "influxdb_line_protocol",
  "snafu",
  "sqlparser 0.6.1",

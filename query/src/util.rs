@@ -1,6 +1,9 @@
 //! This module contains DataFusion utility functions and helpers
 
+use std::sync::Arc;
+
 use arrow_deps::{
+    arrow::datatypes::{Schema as ArrowSchema, SchemaRef as ArrowSchemaRef},
     arrow::record_batch::RecordBatch,
     datafusion::{
         error::DataFusionError,
@@ -59,4 +62,26 @@ pub fn make_scan_plan(batch: RecordBatch) -> std::result::Result<LogicalPlan, Da
     let partitions = vec![vec![batch]];
     let projection = None; // scan all columns
     LogicalPlanBuilder::scan_memory(partitions, schema, projection)?.build()
+}
+
+/// Given the requested projection (set of requested columns),
+/// returns the schema of selecting just those columns
+///
+/// TODO contribute this back upstream in arrow's Schema so we can
+/// avoid the copy of fields
+pub fn project_schema(
+    arrow_schema: ArrowSchemaRef,
+    projection: &Option<Vec<usize>>,
+) -> ArrowSchemaRef {
+    match projection {
+        None => arrow_schema,
+        Some(projection) => {
+            let new_fields = projection
+                .iter()
+                .map(|&i| arrow_schema.field(i))
+                .cloned()
+                .collect();
+            Arc::new(ArrowSchema::new(new_fields))
+        }
+    }
 }

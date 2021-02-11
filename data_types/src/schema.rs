@@ -93,6 +93,12 @@ pub enum Error {
     MergingSchemas {
         source: arrow_deps::arrow::error::ArrowError,
     },
+
+    #[snafu(display("Schema Selection error while selecting '{}': {}", column_name, source))]
+    SelectingColumns {
+        column_name: String,
+        source: arrow_deps::arrow::error::ArrowError,
+    },
 }
 
 fn nullable_to_str(nullability: bool) -> &'static str {
@@ -134,7 +140,7 @@ impl From<Schema> for ArrowSchemaRef {
 
 impl From<&Schema> for ArrowSchemaRef {
     fn from(s: &Schema) -> Self {
-        s.inner.clone()
+        s.as_arrow()
     }
 }
 
@@ -184,6 +190,11 @@ impl Schema {
             }
         }
         Ok(schema)
+    }
+
+    /// Return a valid Arrow `SchemaRef` representing this `Schema`
+    pub fn as_arrow(&self) -> ArrowSchemaRef {
+        self.inner.clone()
     }
 
     /// Create and validate a new Schema, creating metadata to
