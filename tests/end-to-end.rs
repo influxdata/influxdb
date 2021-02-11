@@ -29,9 +29,28 @@ use std::time::{Duration, SystemTime};
 use std::u32;
 use tempfile::TempDir;
 
-const HTTP_BASE: &str = "http://localhost:8080";
-const API_BASE: &str = "http://localhost:8080/api/v2";
-const GRPC_URL_BASE: &str = "http://localhost:8082/";
+// These port numbers are chosen to not collide with a development ioxd server
+// running locally.
+// TODO(786): allocate random free ports instead of hardcoding.
+// TODO(785): we cannot use localhost here.
+macro_rules! http_bind_addr {
+    () => {
+        "127.0.0.1:8090"
+    };
+}
+macro_rules! grpc_bind_addr {
+    () => {
+        "127.0.0.1:8092"
+    };
+}
+
+const HTTP_BIND_ADDR: &str = http_bind_addr!();
+const GRPC_BIND_ADDR: &str = grpc_bind_addr!();
+
+const HTTP_BASE: &str = concat!("http://", http_bind_addr!());
+const API_BASE: &str = concat!("http://", http_bind_addr!(), "/api/v2");
+const GRPC_URL_BASE: &str = concat!("http://", grpc_bind_addr!(), "/");
+
 const TOKEN: &str = "InfluxDB IOx doesn't have authentication yet";
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -327,6 +346,8 @@ impl TestServer {
             // Can enable for debbugging
             //.arg("-vv")
             .env("INFLUXDB_IOX_ID", "1")
+            .env("INFLUXDB_IOX_BIND_ADDR", HTTP_BIND_ADDR)
+            .env("INFLUXDB_IOX_GRPC_BIND_ADDR", GRPC_BIND_ADDR)
             .spawn()
             .unwrap();
 
