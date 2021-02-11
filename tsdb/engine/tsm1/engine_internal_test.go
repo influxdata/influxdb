@@ -7,10 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestEngine_ConcurrentShardSnapshots(t *testing.T) {
@@ -21,7 +21,7 @@ func TestEngine_ConcurrentShardSnapshots(t *testing.T) {
 	tmpShard := filepath.Join(tmpDir, "shard")
 	tmpWal := filepath.Join(tmpDir, "wal")
 
-	sfile := NewSeriesFile(tmpDir)
+	sfile := NewSeriesFile(t, tmpDir)
 	defer sfile.Close()
 
 	opts := tsdb.NewEngineOptions()
@@ -79,13 +79,15 @@ func TestEngine_ConcurrentShardSnapshots(t *testing.T) {
 }
 
 // NewSeriesFile returns a new instance of SeriesFile with a temporary file path.
-func NewSeriesFile(tmpDir string) *tsdb.SeriesFile {
+func NewSeriesFile(tb testing.TB, tmpDir string) *tsdb.SeriesFile {
+	tb.Helper()
+
 	dir, err := ioutil.TempDir(tmpDir, "tsdb-series-file-")
 	if err != nil {
 		panic(err)
 	}
 	f := tsdb.NewSeriesFile(dir)
-	f.Logger = logger.New(os.Stdout)
+	f.Logger = zaptest.NewLogger(tb)
 	if err := f.Open(); err != nil {
 		panic(err)
 	}

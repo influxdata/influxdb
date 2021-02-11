@@ -8,9 +8,9 @@ import (
 	"path"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/tsdb"
+	"go.uber.org/zap/zaptest"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -55,7 +55,7 @@ func TestParseSeriesKeyInto(t *testing.T) {
 func TestSeriesFile_Open_WhenFileCorrupt_ShouldReturnErr(t *testing.T) {
 	f := NewBrokenSeriesFile([]byte{0, 0, 0, 0, 0})
 	defer f.Close()
-	f.Logger = logger.New(os.Stdout)
+	f.Logger = zaptest.NewLogger(t)
 
 	err := f.Open()
 
@@ -66,7 +66,7 @@ func TestSeriesFile_Open_WhenFileCorrupt_ShouldReturnErr(t *testing.T) {
 
 // Ensure series file contains the correct set of series.
 func TestSeriesFile_Series(t *testing.T) {
-	sfile := MustOpenSeriesFile()
+	sfile := MustOpenSeriesFile(t)
 	defer sfile.Close()
 
 	series := []Series{
@@ -100,7 +100,7 @@ func TestSeriesFile_Series(t *testing.T) {
 
 // Ensure series file can be compacted.
 func TestSeriesFileCompactor(t *testing.T) {
-	sfile := MustOpenSeriesFile()
+	sfile := MustOpenSeriesFile(t)
 	defer sfile.Close()
 
 	// Disable automatic compactions.
@@ -141,7 +141,7 @@ func TestSeriesFileCompactor(t *testing.T) {
 
 // Ensure series file deletions persist across compactions.
 func TestSeriesFile_DeleteSeriesID(t *testing.T) {
-	sfile := MustOpenSeriesFile()
+	sfile := MustOpenSeriesFile(t)
 	defer sfile.Close()
 
 	ids0, err := sfile.CreateSeriesListIfNotExists([][]byte{[]byte("m1")}, []models.Tags{nil})
@@ -176,7 +176,7 @@ func TestSeriesFile_DeleteSeriesID(t *testing.T) {
 }
 
 func TestSeriesFile_Compaction(t *testing.T) {
-	sfile := MustOpenSeriesFile()
+	sfile := MustOpenSeriesFile(t)
 	defer sfile.Close()
 
 	// Generate a bunch of keys.
@@ -261,7 +261,7 @@ func BenchmarkSeriesFile_Compaction(b *testing.B) {
 	const n = 1000000
 
 	if cachedCompactionSeriesFile == nil {
-		sfile := MustOpenSeriesFile()
+		sfile := MustOpenSeriesFile(b)
 
 		// Generate a bunch of keys.
 		var ids []uint64
@@ -342,9 +342,11 @@ func NewBrokenSeriesFile(content []byte) *SeriesFile {
 }
 
 // MustOpenSeriesFile returns a new, open instance of SeriesFile. Panic on error.
-func MustOpenSeriesFile() *SeriesFile {
+func MustOpenSeriesFile(tb testing.TB) *SeriesFile {
+	tb.Helper()
+
 	f := NewSeriesFile()
-	f.Logger = logger.New(os.Stdout)
+	f.Logger = zaptest.NewLogger(tb)
 	if err := f.Open(); err != nil {
 		panic(err)
 	}
