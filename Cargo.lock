@@ -3213,6 +3213,7 @@ dependencies = [
  "influxdb_line_protocol",
  "mutable_buffer",
  "object_store",
+ "pin-project 1.0.5",
  "query",
  "read_buffer",
  "serde",

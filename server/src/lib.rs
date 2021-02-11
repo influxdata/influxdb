@@ -70,6 +70,7 @@ pub mod buffer;
 mod config;
 pub mod db;
 pub mod snapshot;
+mod tracker;
 
 #[cfg(test)]
 mod query_tests;
@@ -80,8 +81,10 @@ use std::sync::{
 };
 
 use crate::{
+    buffer::SegmentPersistenceTask,
     config::{object_store_path_for_database_config, Config, DB_RULES_FILE_NAME},
     db::Db,
+    tracker::TrackerRegistry,
 };
 use data_types::{
     data::{lines_to_replicated_write, ReplicatedWrite},
@@ -154,6 +157,7 @@ pub struct Server<M: ConnectionManager> {
     connection_manager: Arc<M>,
     pub store: Arc<ObjectStore>,
     executor: Arc<Executor>,
+    segment_persistence_registry: TrackerRegistry<SegmentPersistenceTask>,
 }
 
 impl<M: ConnectionManager> Server<M> {
@@ -164,6 +168,7 @@ impl<M: ConnectionManager> Server<M> {
             store,
             connection_manager: Arc::new(connection_manager),
             executor: Arc::new(Executor::new()),
+            segment_persistence_registry: TrackerRegistry::new(),
         }
     }
 
@@ -356,7 +361,12 @@ impl<M: ConnectionManager> Server<M> {
                     let writer_id = self.require_id()?;
                     let store = self.store.clone();
                     segment
-                        .persist_bytes_in_background(writer_id, db_name, store)
+                        .persist_bytes_in_background(
+                            &self.segment_persistence_registry,
+                            writer_id,
+                            db_name,
+                            store,
+                        )
                         .context(WalError)?;
                 }
             }

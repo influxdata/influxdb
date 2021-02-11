@@ -16,6 +16,7 @@ use std::{
 };
 
 //use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
+use crate::tracker::{TrackedFutureExt, TrackerRegistry};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use crc32fast::Hasher;
@@ -70,6 +71,12 @@ pub enum Error {
 
     #[snafu(display("the flatbuffers Segment is invalid"))]
     InvalidFlatbuffersSegment,
+}
+
+#[derive(Debug, Clone)]
+pub struct SegmentPersistenceTask {
+    writer_id: u32,
+    location: object_store::path::Path,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -369,6 +376,7 @@ impl Segment {
     /// the given object store location.
     pub fn persist_bytes_in_background(
         &self,
+        reg: &TrackerRegistry<SegmentPersistenceTask>,
         writer_id: u32,
         db_name: &DatabaseName<'_>,
         store: Arc<ObjectStore>,
@@ -377,29 +385,37 @@ impl Segment {
         let location = database_object_store_path(writer_id, db_name, &store);
         let location = object_store_path_for_segment(&location, self.id)?;
 
+        let task_meta = SegmentPersistenceTask {
+            writer_id,
+            location: location.clone(),
+        };
+
         let len = data.len();
         let mut stream_data = std::io::Result::Ok(data.clone());
 
-        tokio::task::spawn(async move {
-            while let Err(err) = store
-                .put(
-                    &location,
-                    futures::stream::once(async move { stream_data }),
-                    len,
-                )
-                .await
-            {
-                error!("error writing bytes to store: {}", err);
-                tokio::time::sleep(tokio::time::Duration::from_secs(
-                    super::STORE_ERROR_PAUSE_SECONDS,
-                ))
-                .await;
-                stream_data = std::io::Result::Ok(data.clone());
-            }
+        tokio::task::spawn(
+            async move {
+                while let Err(err) = store
+                    .put(
+                        &location,
+                        futures::stream::once(async move { stream_data }),
+                        len,
+                    )
+                    .await
+                {
+                    error!("error writing bytes to store: {}", err);
+                    tokio::time::sleep(tokio::time::Duration::from_secs(
+                        super::STORE_ERROR_PAUSE_SECONDS,
+                    ))
+                    .await;
+                    stream_data = std::io::Result::Ok(data.clone());
+                }
 
-            // TODO: Mark segment as persisted
-            info!("persisted data to {}", location.display());
-        });
+                // TODO: Mark segment as persisted
+                info!("persisted data to {}", location.display());
+            }
+            .track(reg, task_meta),
+        );
 
         Ok(())
     }
