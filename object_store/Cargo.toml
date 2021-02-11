@@ -22,7 +22,7 @@ rusoto_core = "0.46.0"
 rusoto_credential = "0.46.0"
 rusoto_s3 = "0.46.0"
 snafu = { version = "0.6.10", features = ["futures"] }
-tokio = { version = "1.0", features = ["macros"] }
+tokio = { version = "1.0", features = ["macros", "fs"] }
 # Filesystem integration
 tokio-util = "0.6.2"
 reqwest = "0.11"
