@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestFileStore_Read(t *testing.T) {
@@ -2964,9 +2964,7 @@ func BenchmarkFileStore_Stats(b *testing.B) {
 	}
 
 	fs := tsm1.NewFileStore(dir)
-	if testing.Verbose() {
-		fs.WithLogger(logger.New(os.Stderr))
-	}
+	fs.WithLogger(zaptest.NewLogger(b))
 
 	if err := fs.Open(); err != nil {
 		b.Fatalf("opening file store %v", err)

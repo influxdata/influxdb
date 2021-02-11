@@ -15,13 +15,21 @@ import (
 )
 
 var (
-	log  = influxlogger.New(os.Stdout)
 	addr string
 )
 
 func main() {
+	logconf := influxlogger.NewConfig()
+	log, err := logconf.New(os.Stdout)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Failed to configure logger: %v", err)
+		os.Exit(1)
+	}
+
 	prog := &cli.Program{
-		Run:  run,
+		Run: func() error {
+			return run(log)
+		},
 		Name: "telemetryd",
 		Opts: []cli.Opt{
 			{
@@ -32,6 +40,7 @@ func main() {
 			},
 		},
 	}
+
 	v := viper.New()
 	cmd := cli.NewCommand(v, prog)
 
@@ -49,8 +58,8 @@ func main() {
 	os.Exit(exitCode)
 }
 
-func run() error {
-	log := log.With(zap.String("service", "telemetryd"))
+func run(log *zap.Logger) error {
+	log = log.With(zap.String("service", "telemetryd"))
 	store := telemetry.NewLogStore(log)
 	svc := telemetry.NewPushGateway(log, store)
 	// Print data as line protocol
