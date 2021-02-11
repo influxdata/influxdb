@@ -13,7 +13,9 @@ azure_storage = { git = "https://github.com/Azure/azure-sdk-for-rust.git", rev =
 bytes = "1.0"
 chrono = "0.4"
 # Google Cloud Storage integration
-cloud-storage = { version = "0.7.0" }
+# Fork needed until https://github.com/ThouCheese/cloud-storage-rs/pull/57 or similar is merged
+# and released to support listing with a delimiter parameter
+cloud-storage = { git = "https://github.com/integer32llc/cloud-storage-rs.git", branch = "list-with-delimiter" }
 futures = "0.3.5"
 itertools = "0.9.0"
 percent-encoding = "2.1"
