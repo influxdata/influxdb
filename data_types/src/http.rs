@@ -18,3 +18,9 @@ pub struct WalMetadataQuery {
 pub struct WalMetadataResponse {
     pub segments: Vec<SegmentSummary>,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+/// Body of the response to the /databases endpoint.
+pub struct ListDatabasesResponse {
+    pub names: Vec<String>,
+}

@@ -1,7 +1,7 @@
 //! Implementation of command line option for manipulating and showing server
 //! config
 
-use std::{net::SocketAddr, path::PathBuf};
+use std::{net::SocketAddr, net::ToSocketAddrs, path::PathBuf};
 
 use lazy_static::lazy_static;
 use structopt::StructOpt;
@@ -85,6 +85,7 @@ pub struct Config {
         long = "--api-bind",
         env = "INFLUXDB_IOX_BIND_ADDR",
         default_value = DEFAULT_API_BIND_ADDR,
+        parse(try_from_str = parse_socket_addr),
     )]
     pub http_bind_address: SocketAddr,
 
@@ -93,6 +94,7 @@ pub struct Config {
         long = "--grpc-bind",
         env = "INFLUXDB_IOX_GRPC_BIND_ADDR",
         default_value = DEFAULT_GRPC_BIND_ADDR,
+        parse(try_from_str = parse_socket_addr),
     )]
     pub grpc_bind_address: SocketAddr,
 
@@ -140,6 +142,16 @@ pub fn load_config() -> Config {
 
     //let args = std::env::args().filter(|arg| arg != "server");
     Config::from_iter(strip_server(std::env::args()).iter())
+}
+
+fn parse_socket_addr(s: &str) -> std::io::Result<SocketAddr> {
+    let mut addrs = s.to_socket_addrs()?;
+    // when name resolution fails, to_socket_address returns a validation error
+    // so generally there is at least one result address, unless the resolver is
+    // drunk.
+    Ok(addrs
+        .next()
+        .expect("name resolution should return at least one address"))
 }
 
 /// Strip everything prior to the "server" portion of the args so the generated
@@ -206,6 +218,9 @@ impl std::str::FromStr for LogFormat {
 mod tests {
 
     use super::*;
+
+    use std::net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6};
+
     #[test]
     fn test_strip_server() {
         assert_eq!(
@@ -255,5 +270,51 @@ mod tests {
 
     fn to_vec(v: &[&str]) -> Vec<String> {
         v.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn test_socketaddr() -> Result<(), clap::Error> {
+        let c = Config::from_iter_safe(strip_server(
+            to_vec(&["cmd", "server", "--api-bind", "127.0.0.1:1234"]).into_iter(),
+        ))?;
+        assert_eq!(
+            c.http_bind_address,
+            SocketAddr::from(([127, 0, 0, 1], 1234))
+        );
+
+        let c = Config::from_iter_safe(strip_server(
+            to_vec(&["cmd", "server", "--api-bind", "localhost:1234"]).into_iter(),
+        ))?;
+        // depending on where the test runs, localhost will either resolve to a ipv4 or
+        // an ipv6 addr.
+        match c.http_bind_address {
+            SocketAddr::V4(so) => {
+                assert_eq!(so, SocketAddrV4::new(Ipv4Addr::new(127, 0, 0, 1), 1234))
+            }
+            SocketAddr::V6(so) => assert_eq!(
+                so,
+                SocketAddrV6::new(Ipv6Addr::new(0, 0, 0, 0, 0, 0, 0, 1), 1234, 0, 0)
+            ),
+        };
+
+        assert_eq!(
+            Config::from_iter_safe(strip_server(
+                to_vec(&["cmd", "server", "--api-bind", "!@INv_a1d(ad0/resp_!"]).into_iter(),
+            ))
+            .map_err(|e| e.kind)
+            .expect_err("must fail"),
+            clap::ErrorKind::ValueValidation
+        );
+
+        assert_eq!(
+            Config::from_iter_safe(strip_server(
+                to_vec(&["cmd", "server", "--api-bind", "badhost.badtld:1234"]).into_iter(),
+            ))
+            .map_err(|e| e.kind)
+            .expect_err("must fail"),
+            clap::ErrorKind::ValueValidation
+        );
+
+        Ok(())
     }
 }

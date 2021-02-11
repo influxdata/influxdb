@@ -30,12 +30,9 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// well a variant that runs a full on DataFusion plan.
 #[derive(Debug)]
 pub enum StringSetPlan {
-    /// The plan errored and we are delaying reporting the results
-    KnownError(Box<dyn std::error::Error + Send + Sync + 'static>),
-
     /// The results are known from metadata only without having to run
     /// an actual datafusion plan
-    KnownOk(StringSetRef),
+    Known(StringSetRef),
 
     /// A DataFusion plan(s) to execute. Each plan must produce
     /// RecordBatches with exactly one String column, though the
@@ -50,7 +47,7 @@ pub enum StringSetPlan {
 impl From<StringSetRef> for StringSetPlan {
     /// Create a StringSetPlan from a StringSetRef
     fn from(set: StringSetRef) -> Self {
-        Self::KnownOk(set)
+        Self::Known(set)
     }
 }
 
@@ -58,21 +55,7 @@ impl From<StringSet> for StringSetPlan {
     /// Create a StringSetPlan from a StringSet result, wrapping the error type
     /// appropriately
     fn from(set: StringSet) -> Self {
-        Self::KnownOk(StringSetRef::new(set))
-    }
-}
-
-impl<E> From<Result<StringSetRef, E>> for StringSetPlan
-where
-    E: std::error::Error + Send + Sync + 'static,
-{
-    /// Create a `StringSetPlan` from a `Result<StringSetRef>`, wrapping the
-    /// error type appropriately
-    fn from(result: Result<StringSetRef, E>) -> Self {
-        match result {
-            Ok(set) => Self::KnownOk(set),
-            Err(e) => Self::KnownError(Box::new(e)),
-        }
+        Self::Known(StringSetRef::new(set))
     }
 }
 
@@ -91,9 +74,6 @@ impl From<Vec<LogicalPlan>> for StringSetPlan {
 /// strings, otherwise it falls back to generic plans
 #[derive(Debug, Default)]
 pub struct StringSetPlanBuilder {
-    /// If there was any error
-    error: Option<Box<dyn std::error::Error + Send + Sync + 'static>>,
-
     /// Known strings
     strings: StringSet,
     /// General plans
@@ -115,8 +95,7 @@ impl StringSetPlanBuilder {
     /// passes on the plan
     pub fn append(mut self, other: StringSetPlan) -> Self {
         match other {
-            StringSetPlan::KnownError(err) => self.error = Some(err),
-            StringSetPlan::KnownOk(ssref) => match Arc::try_unwrap(ssref) {
+            StringSetPlan::Known(ssref) => match Arc::try_unwrap(ssref) {
                 Ok(mut ss) => {
                     self.strings.append(&mut ss);
                 }
@@ -137,18 +116,11 @@ impl StringSetPlanBuilder {
     /// Create a StringSetPlan that produces the deduplicated (union)
     /// of all plans `append`ed to this builder.
     pub fn build(self) -> Result<StringSetPlan> {
-        let Self {
-            error,
-            strings,
-            mut plans,
-        } = self;
+        let Self { strings, mut plans } = self;
 
-        if let Some(err) = error {
-            // is an error, so nothing else matters
-            Ok(StringSetPlan::KnownError(err))
-        } else if plans.is_empty() {
+        if plans.is_empty() {
             // only a known set of strings
-            Ok(StringSetPlan::KnownOk(Arc::new(strings)))
+            Ok(StringSetPlan::Known(Arc::new(strings)))
         } else {
             // Had at least one general plan, so need to use general
             // purpose plan for the known strings
@@ -177,7 +149,7 @@ mod tests {
     fn test_builder_empty() {
         let plan = StringSetPlanBuilder::new().build().unwrap();
         let empty_ss = StringSet::new().into();
-        if let StringSetPlan::KnownOk(ss) = plan {
+        if let StringSetPlan::Known(ss) = plan {
             assert_eq!(ss, empty_ss)
         } else {
             panic!("unexpected type: {:?}", plan)
@@ -194,7 +166,7 @@ mod tests {
 
         let expected_ss = to_string_set(&["foo", "bar", "baz"]).into();
 
-        if let StringSetPlan::KnownOk(ss) = plan {
+        if let StringSetPlan::Known(ss) = plan {
             assert_eq!(ss, expected_ss)
         } else {
             panic!("unexpected type: {:?}", plan)
@@ -211,26 +183,6 @@ mod tests {
     }
 
     impl std::error::Error for TestError {}
-
-    #[test]
-    fn test_builder_error() {
-        let err = Box::new(TestError {});
-        let error = StringSetPlan::KnownError(err);
-
-        // when an error is generated, ensure it gets returned
-        let plan = StringSetPlanBuilder::new()
-            .append(to_string_set(&["foo", "bar"]).into())
-            .append(error)
-            .append(to_string_set(&["bar", "baz"]).into())
-            .build()
-            .unwrap();
-
-        if let StringSetPlan::KnownError(err) = plan {
-            assert_eq!(err.to_string(), "this is an error")
-        } else {
-            panic!("unexpected type: {:?}", plan)
-        }
-    }
 
     #[tokio::test]
     async fn test_builder_plan() {

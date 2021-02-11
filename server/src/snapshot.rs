@@ -477,7 +477,7 @@ mem,host=A,region=west used=45 1
     pub fn make_db() -> Db {
         let name = "test_db";
         Db::new(
-            DatabaseRules::default(),
+            DatabaseRules::new(),
             Some(MutableBufferDb::new(name)),
             ReadBufferDb::new(),
             None, // wal buffer

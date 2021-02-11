@@ -70,6 +70,7 @@ pub mod buffer;
 mod config;
 pub mod db;
 pub mod snapshot;
+mod tracker;
 
 #[cfg(test)]
 mod query_tests;
@@ -80,8 +81,10 @@ use std::sync::{
 };
 
 use crate::{
+    buffer::SegmentPersistenceTask,
     config::{object_store_path_for_database_config, Config, DB_RULES_FILE_NAME},
     db::Db,
+    tracker::TrackerRegistry,
 };
 use data_types::{
     data::{lines_to_replicated_write, ReplicatedWrite},
@@ -154,6 +157,7 @@ pub struct Server<M: ConnectionManager> {
     connection_manager: Arc<M>,
     pub store: Arc<ObjectStore>,
     executor: Arc<Executor>,
+    segment_persistence_registry: TrackerRegistry<SegmentPersistenceTask>,
 }
 
 impl<M: ConnectionManager> Server<M> {
@@ -164,6 +168,7 @@ impl<M: ConnectionManager> Server<M> {
             store,
             connection_manager: Arc::new(connection_manager),
             executor: Arc::new(Executor::new()),
+            segment_persistence_registry: TrackerRegistry::new(),
         }
     }
 
@@ -356,7 +361,12 @@ impl<M: ConnectionManager> Server<M> {
                     let writer_id = self.require_id()?;
                     let store = self.store.clone();
                     segment
-                        .persist_bytes_in_background(writer_id, db_name, store)
+                        .persist_bytes_in_background(
+                            &self.segment_persistence_registry,
+                            writer_id,
+                            db_name,
+                            store,
+                        )
                         .context(WalError)?;
                 }
             }
@@ -459,12 +469,7 @@ where
         let db = match self.db(&db_name).await {
             Some(db) => db,
             None => {
-                let rules = DatabaseRules {
-                    store_locally: true,
-                    ..Default::default()
-                };
-
-                self.create_database(name, rules).await?;
+                self.create_database(name, DatabaseRules::new()).await?;
                 self.db(&db_name).await.expect("db not inserted")
             }
         };
@@ -581,7 +586,7 @@ mod tests {
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let mut server = Server::new(manager, store);
 
-        let rules = DatabaseRules::default();
+        let rules = DatabaseRules::new();
         let resp = server.create_database("foo", rules).await.unwrap_err();
         assert!(matches!(resp, Error::IdNotSet));
 
@@ -642,7 +647,7 @@ mod tests {
 
         let db2 = "db_awesome";
         server
-            .create_database(db2, DatabaseRules::default())
+            .create_database(db2, DatabaseRules::new())
             .await
             .expect("failed to create 2nd db");
 
@@ -670,13 +675,13 @@ mod tests {
 
         // Create a database
         server
-            .create_database(name, DatabaseRules::default())
+            .create_database(name, DatabaseRules::new())
             .await
             .expect("failed to create database");
 
         // Then try and create another with the same name
         let got = server
-            .create_database(name, DatabaseRules::default())
+            .create_database(name, DatabaseRules::new())
             .await
             .unwrap_err();
 
@@ -698,7 +703,7 @@ mod tests {
 
         for name in &names {
             server
-                .create_database(*name, DatabaseRules::default())
+                .create_database(*name, DatabaseRules::new())
                 .await
                 .expect("failed to create database");
         }
@@ -723,11 +728,10 @@ mod tests {
         ];
 
         for name in reject {
-            let rules = DatabaseRules {
-                store_locally: true,
-                ..Default::default()
-            };
-            let got = server.create_database(name, rules).await.unwrap_err();
+            let got = server
+                .create_database(name, DatabaseRules::new())
+                .await
+                .unwrap_err();
             if !matches!(got, Error::InvalidDatabaseName { .. }) {
                 panic!("expected invalid name error");
             }
@@ -742,11 +746,7 @@ mod tests {
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server = Server::new(manager, store);
         server.set_id(1);
-        let rules = DatabaseRules {
-            store_locally: true,
-            ..Default::default()
-        };
-        server.create_database("foo", rules).await?;
+        server.create_database("foo", DatabaseRules::new()).await?;
 
         let line = "cpu bar=1 10";
         let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();

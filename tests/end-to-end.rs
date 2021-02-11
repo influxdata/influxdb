@@ -160,10 +160,7 @@ impl Scenario {
 }
 
 async fn create_database(client: &reqwest::Client, database_name: &str) {
-    let rules = DatabaseRules {
-        store_locally: true,
-        ..Default::default()
-    };
+    let rules = DatabaseRules::new();
     let data = serde_json::to_vec(&rules).unwrap();
 
     client

@@ -13,7 +13,7 @@
 use arrow_deps::{arrow, datafusion::physical_plan::collect};
 use data_types::{
     database_rules::DatabaseRules,
-    http::WalMetadataQuery,
+    http::{ListDatabasesResponse, WalMetadataQuery},
     names::{org_and_bucket_to_database, OrgBucketMappingError},
     DatabaseName,
 };
@@ -460,12 +460,6 @@ async fn read<M: ConnectionManager + Send + Sync + Debug + 'static>(
     Ok(Response::new(Body::from(results.into_bytes())))
 }
 
-#[derive(Serialize, Deserialize, Debug)]
-/// Body of the response to the /databases endpoint.
-struct ListDatabasesResponse {
-    names: Vec<String>,
-}
-
 #[tracing::instrument(level = "debug")]
 async fn list_databases<M>(req: Request<Body>) -> Result<Response<Body>, ApplicationError>
 where
@@ -793,12 +787,8 @@ mod tests {
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
         test_storage.set_id(1);
-        let rules = DatabaseRules {
-            store_locally: true,
-            ..Default::default()
-        };
         test_storage
-            .create_database("MyOrg_MyBucket", rules)
+            .create_database("MyOrg_MyBucket", DatabaseRules::new())
             .await
             .unwrap();
         let server_url = test_server(test_storage.clone());
@@ -855,12 +845,8 @@ mod tests {
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
         test_storage.set_id(1);
-        let rules = DatabaseRules {
-            store_locally: true,
-            ..Default::default()
-        };
         test_storage
-            .create_database("MyOrg_MyBucket", rules)
+            .create_database("MyOrg_MyBucket", DatabaseRules::new())
             .await
             .unwrap();
         let server_url = test_server(test_storage.clone());
@@ -943,7 +929,6 @@ mod tests {
         for database_name in &database_names {
             let rules = DatabaseRules {
                 name: database_name.clone(),
-                store_locally: true,
                 ..Default::default()
             };
             server.create_database(database_name, rules).await.unwrap();
@@ -971,7 +956,7 @@ mod tests {
         server.set_id(1);
         let server_url = test_server(server.clone());
 
-        let data = r#"{"store_locally": true}"#;
+        let data = r#"{}"#;
 
         let database_name = DatabaseName::new("foo_bar").unwrap();
 
@@ -989,7 +974,7 @@ mod tests {
 
         server.db(&database_name).await.unwrap();
         let db_rules = server.db_rules(&database_name).await.unwrap();
-        assert_eq!(db_rules.store_locally, true);
+        assert!(db_rules.mutable_buffer_config.is_some());
     }
 
     #[tokio::test]
@@ -1004,7 +989,6 @@ mod tests {
         let database_name = "foo_bar";
         let rules = DatabaseRules {
             name: database_name.to_owned(),
-            store_locally: true,
             ..Default::default()
         };
         let data = serde_json::to_string(&rules).unwrap();
@@ -1035,7 +1019,6 @@ mod tests {
         let database_name = "foo_bar";
         let rules = DatabaseRules {
             name: database_name.to_owned(),
-            store_locally: true,
             wal_buffer_config: Some(WalBufferConfig {
                 buffer_size: 500,
                 segment_size: 10,

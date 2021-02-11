@@ -7,7 +7,7 @@ use crate::db::Db;
 pub fn make_db() -> Db {
     let name = "test_db";
     Db::new(
-        DatabaseRules::default(),
+        DatabaseRules::new(),
         Some(MutableBufferDb::new(name)),
         read_buffer::Database::new(),
         None, // wal buffer
