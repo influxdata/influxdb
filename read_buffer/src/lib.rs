@@ -15,11 +15,10 @@ use std::{
     sync::RwLock,
 };
 
-use arrow_deps::{arrow::record_batch::RecordBatch, util::str_iter_to_batch};
+use arrow_deps::arrow::record_batch::RecordBatch;
 use data_types::{
     schema::{builder::SchemaMerger, Schema},
     selection::Selection,
-    COLUMN_NAMES_COLUMN_NAME,
 };
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
@@ -464,7 +463,7 @@ impl Database {
         table_name: &str,
         chunk_ids: &[u32],
         predicate: Predicate,
-    ) -> Result<RecordBatch> {
+    ) -> Result<Option<BTreeSet<String>>> {
         let partition_data = self.data.read().unwrap();
 
         let partition = partition_data
@@ -485,18 +484,14 @@ impl Database {
             );
         }
 
-        let names = filtered_chunks
-            .iter()
-            .fold(BTreeSet::new(), |dst, chunk| {
-                // the dst buffer is pushed into each chunk's `column_names`
-                // implementation ensuring that we short-circuit any tables where
-                // we have already determined column names.
-                chunk.column_names(table_name, &predicate, dst)
-            }) // have a BTreeSet here, convert to an iterator of Some(&str)
-            .into_iter()
-            .map(Some);
+        let names = filtered_chunks.iter().fold(BTreeSet::new(), |dst, chunk| {
+            // the dst buffer is pushed into each chunk's `column_names`
+            // implementation ensuring that we short-circuit any tables where
+            // we have already determined column names.
+            chunk.column_names(table_name, &predicate, dst)
+        });
 
-        str_iter_to_batch(COLUMN_NAMES_COLUMN_NAME, names).context(ArrowError)
+        Ok(Some(names))
     }
 }
 
@@ -1049,7 +1044,6 @@ mod test {
     #[test]
     fn column_names() {
         let db = Database::new();
-        let res_col = COLUMN_NAMES_COLUMN_NAME;
 
         let schema = SchemaBuilder::new()
             .non_null_tag("region")
@@ -1092,42 +1086,30 @@ mod test {
             .column_names("hour_1", "Utopia", &[22], Predicate::default())
             .unwrap();
 
-        assert_rb_column_equals(
-            &result,
-            res_col,
-            &Values::String(
-                vec!["counter", "region", "sketchy_sensor", "time"]
-                    .into_iter()
-                    .map(Some)
-                    .collect(),
-            ),
+        assert_eq!(
+            result,
+            Some(to_set(&["counter", "region", "sketchy_sensor", "time"]))
         );
-
-        // Now the second - different columns.
         let result = db
             .column_names("hour_1", "Utopia", &[40], Predicate::default())
             .unwrap();
 
-        assert_rb_column_equals(
-            &result,
-            res_col,
-            &Values::String(vec!["active", "time"].into_iter().map(Some).collect()),
-        );
+        assert_eq!(result, Some(to_set(&["active", "time"])));
 
         // And now the union across all chunks.
         let result = db
             .column_names("hour_1", "Utopia", &[22, 40], Predicate::default())
             .unwrap();
 
-        assert_rb_column_equals(
-            &result,
-            res_col,
-            &Values::String(
-                vec!["active", "counter", "region", "sketchy_sensor", "time"]
-                    .into_iter()
-                    .map(Some)
-                    .collect(),
-            ),
+        assert_eq!(
+            result,
+            Some(to_set(&[
+                "active",
+                "counter",
+                "region",
+                "sketchy_sensor",
+                "time"
+            ]))
         );
 
         // Testing predicates
@@ -1142,11 +1124,7 @@ mod test {
 
         // only time will be returned - "active" in the second chunk is NULL for
         // matching rows
-        assert_rb_column_equals(
-            &result,
-            res_col,
-            &Values::String(vec!["time"].into_iter().map(Some).collect()),
-        );
+        assert_eq!(result, Some(to_set(&["time"])));
 
         let result = db
             .column_names(
@@ -1159,11 +1137,7 @@ mod test {
 
         // there exists at least one row in the second chunk with a matching
         // non-null value across the active and time columns.
-        assert_rb_column_equals(
-            &result,
-            res_col,
-            &Values::String(vec!["active", "time"].into_iter().map(Some).collect()),
-        );
+        assert_eq!(result, Some(to_set(&["active", "time"])));
     }
 
     #[test]
