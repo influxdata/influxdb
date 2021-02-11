@@ -129,14 +129,17 @@ func panicMW(api *kithttp.API) func(http.Handler) http.Handler {
 	}
 }
 
-var panicLogger *zap.Logger
+var panicLogger = zap.NewNop()
 var panicLoggerOnce sync.Once
 
 // getPanicLogger returns a logger for panicHandler.
 func getPanicLogger() *zap.Logger {
 	panicLoggerOnce.Do(func() {
-		panicLogger = influxlogger.New(os.Stderr)
-		panicLogger = panicLogger.With(zap.String("handler", "panic"))
+		conf := influxlogger.NewConfig()
+		logger, err := conf.New(os.Stderr)
+		if err == nil {
+			panicLogger = logger.With(zap.String("handler", "panic"))
+		}
 	})
 
 	return panicLogger

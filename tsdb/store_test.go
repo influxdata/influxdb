@@ -22,20 +22,20 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/internal"
-	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/deep"
 	"github.com/influxdata/influxdb/v2/pkg/slices"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxql"
+	"go.uber.org/zap/zaptest"
 )
 
 // Ensure the store can delete a retention policy and all shards under
 // it.
 func TestStore_DeleteRetentionPolicy(t *testing.T) {
 
-	test := func(index string) {
-		s := MustOpenStore(index)
+	test := func(t *testing.T, index string) {
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		// Create a new shard and verify that it exists.
@@ -86,7 +86,7 @@ func TestStore_DeleteRetentionPolicy(t *testing.T) {
 		}
 
 		// Reopen other shard and check it still exists.
-		if err := s.Reopen(); err != nil {
+		if err := s.Reopen(t); err != nil {
 			t.Error(err)
 		} else if sh := s.Shard(3); sh == nil {
 			t.Errorf("shard 3 does not exist")
@@ -102,15 +102,15 @@ func TestStore_DeleteRetentionPolicy(t *testing.T) {
 	}
 
 	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) { test(index) })
+		t.Run(index, func(t *testing.T) { test(t, index) })
 	}
 }
 
 // Ensure the store can create a new shard.
 func TestStore_CreateShard(t *testing.T) {
 
-	test := func(index string) {
-		s := MustOpenStore(index)
+	test := func(t *testing.T, index string) {
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		// Create a new shard and verify that it exists.
@@ -128,7 +128,7 @@ func TestStore_CreateShard(t *testing.T) {
 		}
 
 		// Reopen shard and recheck.
-		if err := s.Reopen(); err != nil {
+		if err := s.Reopen(t); err != nil {
 			t.Fatal(err)
 		} else if sh := s.Shard(1); sh == nil {
 			t.Fatalf("expected shard(1)")
@@ -138,14 +138,14 @@ func TestStore_CreateShard(t *testing.T) {
 	}
 
 	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) { test(index) })
+		t.Run(index, func(t *testing.T) { test(t, index) })
 	}
 }
 
 func TestStore_CreateMixedShards(t *testing.T) {
 
-	test := func(index1 string, index2 string) {
-		s := MustOpenStore(index1)
+	test := func(t *testing.T, index1 string, index2 string) {
+		s := MustOpenStore(t, index1)
 		defer s.Close()
 
 		// Create a new shard and verify that it exists.
@@ -157,7 +157,7 @@ func TestStore_CreateMixedShards(t *testing.T) {
 
 		s.EngineOptions.IndexVersion = index2
 		s.index = index2
-		if err := s.Reopen(); err != nil {
+		if err := s.Reopen(t); err != nil {
 			t.Fatal(err)
 		}
 
@@ -169,7 +169,7 @@ func TestStore_CreateMixedShards(t *testing.T) {
 		}
 
 		// Reopen shard and recheck.
-		if err := s.Reopen(); err != nil {
+		if err := s.Reopen(t); err != nil {
 			t.Fatal(err)
 		} else if sh := s.Shard(1); sh == nil {
 			t.Fatalf("expected shard(1)")
@@ -193,14 +193,14 @@ func TestStore_CreateMixedShards(t *testing.T) {
 		j := (i + 1) % len(indexes)
 		index1 := indexes[i]
 		index2 := indexes[j]
-		t.Run(fmt.Sprintf("%s-%s", index1, index2), func(t *testing.T) { test(index1, index2) })
+		t.Run(fmt.Sprintf("%s-%s", index1, index2), func(t *testing.T) { test(t, index1, index2) })
 	}
 }
 
 func TestStore_DropConcurrentWriteMultipleShards(t *testing.T) {
 
-	test := func(index string) {
-		s := MustOpenStore(index)
+	test := func(t *testing.T, index string) {
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
@@ -255,14 +255,14 @@ func TestStore_DropConcurrentWriteMultipleShards(t *testing.T) {
 	}
 
 	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) { test(index) })
+		t.Run(index, func(t *testing.T) { test(t, index) })
 	}
 }
 
 func TestStore_WriteMixedShards(t *testing.T) {
 
-	test := func(index1 string, index2 string) {
-		s := MustOpenStore(index1)
+	test := func(t *testing.T, index1 string, index2 string) {
+		s := MustOpenStore(t, index1)
 		defer s.Close()
 
 		if err := s.CreateShard("db0", "rp0", 1, true); err != nil {
@@ -273,7 +273,7 @@ func TestStore_WriteMixedShards(t *testing.T) {
 
 		s.EngineOptions.IndexVersion = index2
 		s.index = index2
-		if err := s.Reopen(); err != nil {
+		if err := s.Reopen(t); err != nil {
 			t.Fatal(err)
 		}
 
@@ -326,15 +326,15 @@ func TestStore_WriteMixedShards(t *testing.T) {
 		j := (i + 1) % len(indexes)
 		index1 := indexes[i]
 		index2 := indexes[j]
-		t.Run(fmt.Sprintf("%s-%s", index1, index2), func(t *testing.T) { test(index1, index2) })
+		t.Run(fmt.Sprintf("%s-%s", index1, index2), func(t *testing.T) { test(t, index1, index2) })
 	}
 }
 
 // Ensure the store does not return an error when delete from a non-existent db.
 func TestStore_DeleteSeries_NonExistentDB(t *testing.T) {
 
-	test := func(index string) {
-		s := MustOpenStore(index)
+	test := func(t *testing.T, index string) {
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		if err := s.DeleteSeries("db0", nil, nil); err != nil {
@@ -343,15 +343,15 @@ func TestStore_DeleteSeries_NonExistentDB(t *testing.T) {
 	}
 
 	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) { test(index) })
+		t.Run(index, func(t *testing.T) { test(t, index) })
 	}
 }
 
 // Ensure the store can delete an existing shard.
 func TestStore_DeleteShard(t *testing.T) {
 
-	test := func(index string) error {
-		s := MustOpenStore(index)
+	test := func(t *testing.T, index string) error {
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		// Create a new shard and verify that it exists.
@@ -383,7 +383,7 @@ func TestStore_DeleteShard(t *testing.T) {
 		s.MustWriteToShardString(3, "cpu,serverb=b v=1")
 
 		// Reopen the store and check all shards still exist
-		if err := s.Reopen(); err != nil {
+		if err := s.Reopen(t); err != nil {
 			return err
 		}
 		for i := uint64(1); i <= 3; i++ {
@@ -428,7 +428,7 @@ func TestStore_DeleteShard(t *testing.T) {
 
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
-			if err := test(index); err != nil {
+			if err := test(t, index); err != nil {
 				t.Error(err)
 			}
 		})
@@ -438,8 +438,8 @@ func TestStore_DeleteShard(t *testing.T) {
 // Ensure the store can create a snapshot to a shard.
 func TestStore_CreateShardSnapShot(t *testing.T) {
 
-	test := func(index string) {
-		s := MustOpenStore(index)
+	test := func(t *testing.T, index string) {
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		// Create a new shard and verify that it exists.
@@ -459,14 +459,14 @@ func TestStore_CreateShardSnapShot(t *testing.T) {
 	}
 
 	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) { test(index) })
+		t.Run(index, func(t *testing.T) { test(t, index) })
 	}
 }
 
 func TestStore_Open(t *testing.T) {
 
-	test := func(index string) {
-		s := NewStore(index)
+	test := func(t *testing.T, index string) {
+		s := NewStore(t, index)
 		defer s.Close()
 
 		if err := os.MkdirAll(filepath.Join(s.Path(), "db0", "rp0", "2"), 0777); err != nil {
@@ -500,15 +500,15 @@ func TestStore_Open(t *testing.T) {
 	}
 
 	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) { test(index) })
+		t.Run(index, func(t *testing.T) { test(t, index) })
 	}
 }
 
 // Ensure the store reports an error when it can't open a database directory.
 func TestStore_Open_InvalidDatabaseFile(t *testing.T) {
 
-	test := func(index string) {
-		s := NewStore(index)
+	test := func(t *testing.T, index string) {
+		s := NewStore(t, index)
 		defer s.Close()
 
 		// Create a file instead of a directory for a database.
@@ -525,15 +525,15 @@ func TestStore_Open_InvalidDatabaseFile(t *testing.T) {
 	}
 
 	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) { test(index) })
+		t.Run(index, func(t *testing.T) { test(t, index) })
 	}
 }
 
 // Ensure the store reports an error when it can't open a retention policy.
 func TestStore_Open_InvalidRetentionPolicy(t *testing.T) {
 
-	test := func(index string) {
-		s := NewStore(index)
+	test := func(t *testing.T, index string) {
+		s := NewStore(t, index)
 		defer s.Close()
 
 		// Create an RP file instead of a directory.
@@ -554,15 +554,15 @@ func TestStore_Open_InvalidRetentionPolicy(t *testing.T) {
 	}
 
 	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) { test(index) })
+		t.Run(index, func(t *testing.T) { test(t, index) })
 	}
 }
 
 // Ensure the store reports an error when it can't open a retention policy.
 func TestStore_Open_InvalidShard(t *testing.T) {
 
-	test := func(index string) {
-		s := NewStore(index)
+	test := func(t *testing.T, index string) {
+		s := NewStore(t, index)
 		defer s.Close()
 
 		// Create a non-numeric shard file.
@@ -583,15 +583,15 @@ func TestStore_Open_InvalidShard(t *testing.T) {
 	}
 
 	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) { test(index) })
+		t.Run(index, func(t *testing.T) { test(t, index) })
 	}
 }
 
 // Ensure shards can create iterators.
 func TestShards_CreateIterator(t *testing.T) {
 
-	test := func(index string) {
-		s := MustOpenStore(index)
+	test := func(t *testing.T, index string) {
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		// Create shard #0 with data.
@@ -666,14 +666,14 @@ func TestShards_CreateIterator(t *testing.T) {
 	}
 
 	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) { test(index) })
+		t.Run(index, func(t *testing.T) { test(t, index) })
 	}
 }
 
 // Ensure the store can backup a shard and another store can restore it.
 func TestStore_BackupRestoreShard(t *testing.T) {
-	test := func(index string) {
-		s0, s1 := MustOpenStore(index), MustOpenStore(index)
+	test := func(t *testing.T, index string) {
+		s0, s1 := MustOpenStore(t, index), MustOpenStore(t, index)
 		defer s0.Close()
 		defer s1.Close()
 
@@ -684,7 +684,7 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 			`cpu value=3 20`,
 		)
 
-		if err := s0.Reopen(); err != nil {
+		if err := s0.Reopen(t); err != nil {
 			t.Fatal(err)
 		}
 
@@ -742,14 +742,14 @@ func TestStore_BackupRestoreShard(t *testing.T) {
 
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
-			test(index)
+			test(t, index)
 		})
 	}
 }
 func TestStore_Shard_SeriesN(t *testing.T) {
 
-	test := func(index string) error {
-		s := MustOpenStore(index)
+	test := func(t *testing.T, index string) error {
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		// Create shard with data.
@@ -774,7 +774,7 @@ func TestStore_Shard_SeriesN(t *testing.T) {
 
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
-			if err := test(index); err != nil {
+			if err := test(t, index); err != nil {
 				t.Error(err)
 			}
 		})
@@ -783,8 +783,8 @@ func TestStore_Shard_SeriesN(t *testing.T) {
 
 func TestStore_MeasurementNames_Deduplicate(t *testing.T) {
 
-	test := func(index string) {
-		s := MustOpenStore(index)
+	test := func(t *testing.T, index string) {
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		// Create shard with data.
@@ -816,7 +816,7 @@ func TestStore_MeasurementNames_Deduplicate(t *testing.T) {
 	}
 
 	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) { test(index) })
+		t.Run(index, func(t *testing.T) { test(t, index) })
 	}
 }
 
@@ -883,8 +883,8 @@ func TestStore_Cardinality_Tombstoning(t *testing.T) {
 		t.Skip("Skipping test in short, race, circleci and appveyor mode.")
 	}
 
-	test := func(index string) {
-		store := NewStore(index)
+	test := func(t *testing.T, index string) {
+		store := NewStore(t, index)
 		if err := store.Open(); err != nil {
 			panic(err)
 		}
@@ -893,7 +893,7 @@ func TestStore_Cardinality_Tombstoning(t *testing.T) {
 	}
 
 	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) { test(index) })
+		t.Run(index, func(t *testing.T) { test(t, index) })
 	}
 }
 
@@ -947,8 +947,8 @@ func TestStore_Cardinality_Unique(t *testing.T) {
 		t.Skip("Skipping test in short, race, circleci and appveyor mode.")
 	}
 
-	test := func(index string) {
-		store := NewStore(index)
+	test := func(t *testing.T, index string) {
+		store := NewStore(t, index)
 		if err := store.Open(); err != nil {
 			panic(err)
 		}
@@ -957,7 +957,7 @@ func TestStore_Cardinality_Unique(t *testing.T) {
 	}
 
 	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) { test(index) })
+		t.Run(index, func(t *testing.T) { test(t, index) })
 	}
 }
 
@@ -1027,8 +1027,8 @@ func TestStore_Cardinality_Duplicates(t *testing.T) {
 		t.Skip("Skipping test in short, race, circleci and appveyor mode.")
 	}
 
-	test := func(index string) {
-		store := NewStore(index)
+	test := func(t *testing.T, index string) {
+		store := NewStore(t, index)
 		if err := store.Open(); err != nil {
 			panic(err)
 		}
@@ -1037,7 +1037,7 @@ func TestStore_Cardinality_Duplicates(t *testing.T) {
 	}
 
 	for _, index := range tsdb.RegisteredIndexes() {
-		t.Run(index, func(t *testing.T) { test(index) })
+		t.Run(index, func(t *testing.T) { test(t, index) })
 	}
 }
 
@@ -1094,8 +1094,8 @@ func TestStore_Cardinality_Compactions(t *testing.T) {
 		t.Skip("Skipping test in short, race, circleci and appveyor mode.")
 	}
 
-	test := func(index string) error {
-		store := NewStore(index)
+	test := func(t *testing.T, index string) error {
+		store := NewStore(t, index)
 		if err := store.Open(); err != nil {
 			panic(err)
 		}
@@ -1105,7 +1105,7 @@ func TestStore_Cardinality_Compactions(t *testing.T) {
 
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
-			if err := test(index); err != nil {
+			if err := test(t, index); err != nil {
 				t.Fatal(err)
 			}
 		})
@@ -1156,8 +1156,8 @@ func TestStore_Sketches(t *testing.T) {
 		return nil
 	}
 
-	test := func(index string) error {
-		store := MustOpenStore(index)
+	test := func(t *testing.T, index string) error {
+		store := MustOpenStore(t, index)
 		defer store.Close()
 
 		// Generate point data to write to the shards.
@@ -1186,7 +1186,7 @@ func TestStore_Sketches(t *testing.T) {
 		}
 
 		// Reopen the store.
-		if err := store.Reopen(); err != nil {
+		if err := store.Reopen(t); err != nil {
 			return err
 		}
 
@@ -1216,7 +1216,7 @@ func TestStore_Sketches(t *testing.T) {
 		}
 
 		// Reopen the store.
-		if err := store.Reopen(); err != nil {
+		if err := store.Reopen(t); err != nil {
 			return err
 		}
 
@@ -1231,7 +1231,7 @@ func TestStore_Sketches(t *testing.T) {
 
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
-			if err := test(index); err != nil {
+			if err := test(t, index); err != nil {
 				t.Fatal(err)
 			}
 		})
@@ -1323,8 +1323,8 @@ func TestStore_TagValues(t *testing.T) {
 	}
 
 	var s *Store
-	setup := func(index string) []uint64 { // returns shard ids
-		s = MustOpenStore(index)
+	setup := func(t *testing.T, index string) []uint64 { // returns shard ids
+		s = MustOpenStore(t, index)
 
 		fmtStr := `cpu1%[1]d,foo=a,ignoreme=nope,host=tv%[2]d,shard=s%[3]d value=1 %[4]d
 	cpu1%[1]d,host=nofoo value=1 %[4]d
@@ -1354,8 +1354,8 @@ func TestStore_TagValues(t *testing.T) {
 
 	for _, example := range examples {
 		for _, index := range tsdb.RegisteredIndexes() {
-			shardIDs := setup(index)
 			t.Run(example.Name+"_"+index, func(t *testing.T) {
+				shardIDs := setup(t, index)
 				got, err := s.TagValues(nil, shardIDs, example.Expr)
 				if err != nil {
 					t.Fatal(err)
@@ -1373,8 +1373,8 @@ func TestStore_TagValues(t *testing.T) {
 
 func TestStore_Measurements_Auth(t *testing.T) {
 
-	test := func(index string) error {
-		s := MustOpenStore(index)
+	test := func(t *testing.T, index string) error {
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		// Create shard #0 with data.
@@ -1451,7 +1451,7 @@ func TestStore_Measurements_Auth(t *testing.T) {
 
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
-			if err := test(index); err != nil {
+			if err := test(t, index); err != nil {
 				t.Fatal(err)
 			}
 		})
@@ -1461,8 +1461,8 @@ func TestStore_Measurements_Auth(t *testing.T) {
 
 func TestStore_TagKeys_Auth(t *testing.T) {
 
-	test := func(index string) error {
-		s := MustOpenStore(index)
+	test := func(t *testing.T, index string) error {
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		// Create shard #0 with data.
@@ -1548,7 +1548,7 @@ func TestStore_TagKeys_Auth(t *testing.T) {
 
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
-			if err := test(index); err != nil {
+			if err := test(t, index); err != nil {
 				t.Fatal(err)
 			}
 		})
@@ -1558,8 +1558,8 @@ func TestStore_TagKeys_Auth(t *testing.T) {
 
 func TestStore_TagValues_Auth(t *testing.T) {
 
-	test := func(index string) error {
-		s := MustOpenStore(index)
+	test := func(t *testing.T, index string) error {
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		// Create shard #0 with data.
@@ -1657,7 +1657,7 @@ func TestStore_TagValues_Auth(t *testing.T) {
 
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
-			if err := test(index); err != nil {
+			if err := test(t, index); err != nil {
 				t.Fatal(err)
 			}
 		})
@@ -1690,7 +1690,7 @@ func createTagValues(mname string, kvs map[string][]string) tsdb.TagValues {
 
 func TestStore_MeasurementNames_ConcurrentDropShard(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
-		s := MustOpenStore(index)
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		shardN := 10
@@ -1775,7 +1775,7 @@ func TestStore_MeasurementNames_ConcurrentDropShard(t *testing.T) {
 
 func TestStore_TagKeys_ConcurrentDropShard(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
-		s := MustOpenStore(index)
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		shardN := 10
@@ -1866,7 +1866,7 @@ func TestStore_TagKeys_ConcurrentDropShard(t *testing.T) {
 
 func TestStore_TagValues_ConcurrentDropShard(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
-		s := MustOpenStore(index)
+		s := MustOpenStore(t, index)
 		defer s.Close()
 
 		shardN := 10
@@ -1970,7 +1970,7 @@ func TestStore_TagValues_ConcurrentDropShard(t *testing.T) {
 
 func BenchmarkStore_SeriesCardinality_100_Shards(b *testing.B) {
 	for _, index := range tsdb.RegisteredIndexes() {
-		store := NewStore(index)
+		store := NewStore(b, index)
 		if err := store.Open(); err != nil {
 			panic(err)
 		}
@@ -2001,7 +2001,7 @@ func BenchmarkStoreOpen_200KSeries_100Shards(b *testing.B) { benchmarkStoreOpen(
 func benchmarkStoreOpen(b *testing.B, mCnt, tkCnt, tvCnt, pntCnt, shardCnt int) {
 	var store *Store
 	setup := func(index string) error {
-		store := MustOpenStore(index)
+		store := MustOpenStore(b, index)
 
 		// Generate test series (measurements + unique tag sets).
 		series := genTestSeries(mCnt, tkCnt, tvCnt)
@@ -2073,7 +2073,7 @@ func BenchmarkStore_TagValues(b *testing.B) {
 
 	var s *Store
 	setup := func(shards, measurements, tagValues int, index string, useRandom bool) []uint64 { // returns shard ids
-		s := NewStore(index)
+		s := NewStore(b, index)
 		if err := s.Open(); err != nil {
 			panic(err)
 		}
@@ -2179,7 +2179,9 @@ type Store struct {
 }
 
 // NewStore returns a new instance of Store with a temporary path.
-func NewStore(index string) *Store {
+func NewStore(tb testing.TB, index string) *Store {
+	tb.Helper()
+
 	path, err := ioutil.TempDir("", "influxdb-tsdb-")
 	if err != nil {
 		panic(err)
@@ -2189,18 +2191,17 @@ func NewStore(index string) *Store {
 	s.EngineOptions.IndexVersion = index
 	s.EngineOptions.Config.WALDir = filepath.Join(path, "wal")
 	s.EngineOptions.Config.TraceLoggingEnabled = true
-
-	if testing.Verbose() {
-		s.WithLogger(logger.New(os.Stdout))
-	}
+	s.WithLogger(zaptest.NewLogger(tb))
 
 	return s
 }
 
 // MustOpenStore returns a new, open Store using the specified index,
 // at a temporary path.
-func MustOpenStore(index string) *Store {
-	s := NewStore(index)
+func MustOpenStore(tb testing.TB, index string) *Store {
+	tb.Helper()
+
+	s := NewStore(tb, index)
 
 	if err := s.Open(); err != nil {
 		panic(err)
@@ -2209,7 +2210,9 @@ func MustOpenStore(index string) *Store {
 }
 
 // Reopen closes and reopens the store as a new store.
-func (s *Store) Reopen() error {
+func (s *Store) Reopen(tb testing.TB) error {
+	tb.Helper()
+
 	if err := s.Store.Close(); err != nil {
 		return err
 	}
@@ -2218,10 +2221,8 @@ func (s *Store) Reopen() error {
 	s.EngineOptions.IndexVersion = s.index
 	s.EngineOptions.Config.WALDir = filepath.Join(s.Path(), "wal")
 	s.EngineOptions.Config.TraceLoggingEnabled = true
+	s.WithLogger(zaptest.NewLogger(tb))
 
-	if testing.Verbose() {
-		s.WithLogger(logger.New(os.Stdout))
-	}
 	return s.Store.Open()
 }
 
