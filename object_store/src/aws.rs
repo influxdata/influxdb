@@ -84,6 +84,16 @@ pub enum Error {
         source: rusoto_core::RusotoError<rusoto_s3::ListObjectsV2Error>,
         bucket: String,
     },
+
+    #[snafu(display(
+        "Unable to parse last modified date. Bucket: {}, Error: {}",
+        bucket,
+        source
+    ))]
+    UnableToParseLastModified {
+        source: chrono::ParseError,
+        bucket: String,
+    },
 }
 
 /// Configuration for connecting to [Amazon S3](https://aws.amazon.com/s3/).
@@ -210,17 +220,16 @@ impl ObjectStoreApi for AmazonS3 {
                 Start => {}
             }
 
-            let resp = match self.client.list_objects_v2(list_request).await {
+            let resp = self
+                .client
+                .list_objects_v2(list_request)
+                .await
+                .context(UnableToListData {
+                    bucket: &self.bucket_name,
+                });
+            let resp = match resp {
                 Ok(resp) => resp,
-                Err(e) => {
-                    return Some((
-                        Err(Error::UnableToListData {
-                            source: e,
-                            bucket: self.bucket_name.clone(),
-                        }),
-                        state,
-                    ))
-                }
+                Err(e) => return Some((Err(e), state)),
             };
 
             let contents = resp.contents.unwrap_or_default();
@@ -294,46 +303,39 @@ impl AmazonS3 {
             list_request.continuation_token = Some(t.clone());
         }
 
-        let resp = match self.client.list_objects_v2(list_request).await {
-            Ok(resp) => resp,
-            Err(e) => {
-                return Err(Error::UnableToListData {
-                    source: e,
-                    bucket: self.bucket_name.clone(),
-                })
-            }
-        };
+        let resp = self
+            .client
+            .list_objects_v2(list_request)
+            .await
+            .context(UnableToListData {
+                bucket: &self.bucket_name,
+            })?;
 
         let contents = resp.contents.unwrap_or_default();
 
-        let objects: Vec<_> = contents
+        let objects = contents
             .into_iter()
             .map(|object| {
                 let location =
                     CloudPath::raw(object.key.expect("object doesn't exist without a key"));
                 let last_modified = match object.last_modified {
-                    Some(lm) => {
-                        DateTime::parse_from_rfc3339(&lm)
-                            .unwrap()
-                            .with_timezone(&Utc)
-                        // match dt {
-                        //     Err(err) => return
-                        // Err(Error::UnableToParseLastModifiedTime{value: lm,
-                        // err})     Ok(dt) =>
-                        // dt.with_timezone(&Utc), }
-                    }
+                    Some(lm) => DateTime::parse_from_rfc3339(&lm)
+                        .context(UnableToParseLastModified {
+                            bucket: &self.bucket_name,
+                        })?
+                        .with_timezone(&Utc),
                     None => Utc::now(),
                 };
                 let size = usize::try_from(object.size.unwrap_or(0))
                     .expect("unsupported size on this platform");
 
-                ObjectMeta {
+                Ok(ObjectMeta {
                     location,
                     last_modified,
                     size,
-                }
+                })
             })
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
 
         let common_prefixes = resp
             .common_prefixes
