@@ -1,8 +1,5 @@
-pub mod bool;
 pub mod cmp;
-pub mod dictionary;
-pub mod fixed;
-pub mod fixed_null;
+pub mod encoding;
 
 use std::collections::BTreeSet;
 use std::convert::TryFrom;
@@ -15,6 +12,7 @@ use either::Either;
 use arrow_deps::{arrow, arrow::array::Array};
 
 use crate::schema::{AggregateType, LogicalDataType};
+use encoding::{bool, dictionary, fixed, fixed_null};
 
 // Edd's totally made up magic constant. This determines whether we would use
 // a run-length encoded dictionary encoding or just a plain dictionary encoding.

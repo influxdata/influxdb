@@ -1429,7 +1429,8 @@ mod test {
 /// It should not be imported into any non-testing or benchmarking crates.
 pub mod benchmarks {
     pub use crate::column::{
-        cmp::Operator, dictionary, fixed::Fixed, fixed_null::FixedNull, Column, RowIDs,
+        cmp::Operator, encoding::dictionary, encoding::fixed::Fixed,
+        encoding::fixed_null::FixedNull, Column, RowIDs,
     };
 
     pub use crate::row_group::{ColumnType, RowGroup};
