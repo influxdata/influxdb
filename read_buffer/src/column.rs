@@ -1,5 +1,6 @@
 pub mod cmp;
 pub mod encoding;
+pub mod float;
 pub mod integer;
 
 use std::collections::BTreeSet;
@@ -14,6 +15,7 @@ use arrow_deps::{arrow, arrow::array::Array};
 
 use crate::schema::{AggregateType, LogicalDataType};
 use encoding::{bool, dictionary, fixed, fixed_null};
+use float::FloatEncoding;
 use integer::IntegerEncoding;
 
 // Edd's totally made up magic constant. This determines whether we would use
@@ -1104,137 +1106,6 @@ impl std::fmt::Display for StringEncoding {
     }
 }
 
-pub enum FloatEncoding {
-    Fixed64(fixed::Fixed<f64>),
-    FixedNull64(fixed_null::FixedNull<arrow::datatypes::Float64Type>),
-}
-
-impl FloatEncoding {
-    /// Determines if the column contains a NULL value.
-    pub fn contains_null(&self) -> bool {
-        match self {
-            FloatEncoding::Fixed64(_) => false,
-            FloatEncoding::FixedNull64(enc) => enc.contains_null(),
-        }
-    }
-
-    /// Determines if the column contains a non-null value.
-    pub fn has_any_non_null_value(&self) -> bool {
-        match self {
-            Self::Fixed64(_) => true,
-            Self::FixedNull64(enc) => enc.has_any_non_null_value(),
-        }
-    }
-
-    /// Determines if the column contains a non-null value at one of the
-    /// provided rows.
-    pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
-        match self {
-            Self::Fixed64(_) => !row_ids.is_empty(), // all rows will be non-null
-            Self::FixedNull64(enc) => enc.has_non_null_value(row_ids),
-        }
-    }
-
-    /// Returns the logical value found at the provided row id.
-    pub fn value(&self, row_id: u32) -> Value<'_> {
-        match &self {
-            Self::Fixed64(c) => Value::Scalar(Scalar::F64(c.value(row_id))),
-            Self::FixedNull64(c) => match c.value(row_id) {
-                Some(v) => Value::Scalar(Scalar::F64(v)),
-                None => Value::Null,
-            },
-        }
-    }
-
-    /// Returns the logical values found at the provided row ids.
-    ///
-    /// TODO(edd): perf - pooling of destination vectors.
-    pub fn values(&self, row_ids: &[u32]) -> Values<'_> {
-        match &self {
-            Self::Fixed64(c) => Values::F64(c.values::<f64>(row_ids, vec![])),
-            Self::FixedNull64(c) => Values::F64N(c.values(row_ids, vec![])),
-        }
-    }
-
-    /// Returns all logical values in the column.
-    ///
-    /// TODO(edd): perf - pooling of destination vectors.
-    pub fn all_values(&self) -> Values<'_> {
-        match &self {
-            Self::Fixed64(c) => Values::F64(c.all_values::<f64>(vec![])),
-            Self::FixedNull64(c) => Values::F64N(c.all_values(vec![])),
-        }
-    }
-
-    /// Returns the row ids that satisfy the provided predicate.
-    ///
-    /// Note: it is the caller's responsibility to ensure that the provided
-    /// `Scalar` value will fit within the physical type of the encoded column.
-    /// `row_ids_filter` will panic if this invariant is broken.
-    pub fn row_ids_filter(&self, op: &cmp::Operator, value: &Scalar, dst: RowIDs) -> RowIDs {
-        match &self {
-            Self::Fixed64(c) => c.row_ids_filter(value.as_f64(), op, dst),
-            Self::FixedNull64(c) => c.row_ids_filter(value.as_f64(), op, dst),
-        }
-    }
-
-    /// Returns the row ids that satisfy both the provided predicates.
-    ///
-    /// Note: it is the caller's responsibility to ensure that the provided
-    /// `Scalar` value will fit within the physical type of the encoded column.
-    /// `row_ids_filter` will panic if this invariant is broken.
-    pub fn row_ids_filter_range(
-        &self,
-        low: (&cmp::Operator, &Scalar),
-        high: (&cmp::Operator, &Scalar),
-        dst: RowIDs,
-    ) -> RowIDs {
-        match &self {
-            FloatEncoding::Fixed64(c) => {
-                c.row_ids_filter_range((low.1.as_f64(), &low.0), (high.1.as_f64(), &high.0), dst)
-            }
-            FloatEncoding::FixedNull64(c) => todo!(),
-        }
-    }
-
-    pub fn min(&self, row_ids: &[u32]) -> Value<'_> {
-        match &self {
-            FloatEncoding::Fixed64(c) => Value::Scalar(Scalar::F64(c.min(row_ids))),
-            FloatEncoding::FixedNull64(c) => match c.min(row_ids) {
-                Some(v) => Value::Scalar(Scalar::F64(v)),
-                None => Value::Null,
-            },
-        }
-    }
-
-    pub fn max(&self, row_ids: &[u32]) -> Value<'_> {
-        match &self {
-            FloatEncoding::Fixed64(c) => Value::Scalar(Scalar::F64(c.max(row_ids))),
-            FloatEncoding::FixedNull64(c) => match c.max(row_ids) {
-                Some(v) => Value::Scalar(Scalar::F64(v)),
-                None => Value::Null,
-            },
-        }
-    }
-
-    pub fn sum(&self, row_ids: &[u32]) -> Scalar {
-        match &self {
-            FloatEncoding::Fixed64(c) => Scalar::F64(c.sum(row_ids)),
-            FloatEncoding::FixedNull64(c) => match c.sum(row_ids) {
-                Some(v) => Scalar::F64(v),
-                None => Scalar::Null,
-            },
-        }
-    }
-
-    pub fn count(&self, row_ids: &[u32]) -> u32 {
-        match &self {
-            FloatEncoding::Fixed64(c) => c.count(row_ids),
-            FloatEncoding::FixedNull64(c) => c.count(row_ids),
-        }
-    }
-}
-
 /// Encodings for boolean values.
 pub enum BooleanEncoding {
     BooleanNull(bool::Bool),
@@ -1527,15 +1398,15 @@ impl From<&[f64]> for Column {
             max = max.max(v);
         }
 
-        let data = fixed::Fixed::<f64>::from(arr);
+        let data = FloatEncoding::from(arr);
         let meta = MetaData {
             size: data.size(),
             rows: data.num_rows(),
             range: Some((min, max)),
-            ..MetaData::default()
+            properties: ColumnProperties::default(),
         };
 
-        Column::Float(meta, FloatEncoding::Fixed64(data))
+        Column::Float(meta, data)
     }
 }
 
