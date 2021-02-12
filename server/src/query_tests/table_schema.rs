@@ -13,6 +13,7 @@ use super::scenarios::*;
 /// output
 macro_rules! run_table_schema_test_case {
     ($DB_SETUP:expr, $SELECTION:expr, $TABLE_NAME:expr, $EXPECTED_SCHEMA:expr) => {
+        test_helpers::maybe_start_logging();
         let selection = $SELECTION;
         let table_name = $TABLE_NAME;
         let expected_schema = $EXPECTED_SCHEMA;

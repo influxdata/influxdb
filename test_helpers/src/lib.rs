@@ -85,15 +85,35 @@ pub fn tag_key_bytes_to_strings(bytes: Vec<u8>) -> String {
 
 static LOG_SETUP: Once = Once::new();
 
-/// Enables debug logging. This function can be called more than once
-pub fn enable_logging() {
+/// Enables debug logging regardless of the value of RUST_LOG
+/// environment variable. If RUST_LOG isn't specifies, defaults to
+/// "debug"
+pub fn start_logging() {
     // ensure the global has been initialized
     LOG_SETUP.call_once(|| {
-        // TODO honor any existing RUST_LOG level (and maybe not start
-        // logging unless it is set??)
-        std::env::set_var("RUST_LOG", "debug");
-        env_logger::init();
+        // honor any existing RUST_LOG level
+        if std::env::var("RUST_LOG").is_err() {
+            std::env::set_var("RUST_LOG", "debug");
+        }
+        // Configure the logger to write to stderr and install it
+        let output_stream = std::io::stderr;
+
+        use tracing_subscriber::{prelude::*, EnvFilter};
+
+        tracing_subscriber::registry()
+            .with(EnvFilter::from_default_env())
+            .with(tracing_subscriber::fmt::layer().with_writer(output_stream))
+            .init();
     })
+}
+
+/// Enables debug logging if the RUST_LOG environment variable is
+/// set. Does nothing if RUST_LOG is not set. If enable_logging has
+/// been set previously, does nothing
+pub fn maybe_start_logging() {
+    if std::env::var("RUST_LOG").is_ok() {
+        start_logging()
+    }
 }
 
 #[macro_export]

@@ -6,7 +6,6 @@ edition = "2018"
 
 [dependencies] # In alphabetical order
 dotenv = "0.15.0"
-env_logger = "0.7.1"
 tempfile = "3.1.0"
 tracing = "0.1"
-
+tracing-subscriber = "0.2.15"

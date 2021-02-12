@@ -13,7 +13,7 @@ use query::{exec::Executor, frontend::sql::SQLQueryPlanner};
 /// output
 macro_rules! run_sql_test_case {
     ($DB_SETUP:expr, $SQL:expr, $EXPECTED_LINES:expr) => {
-        //test_helpers::enable_logging();
+        test_helpers::maybe_start_logging();
         let sql = $SQL.to_string();
         for scenario in $DB_SETUP.make().await {
             let DBScenario { scenario_name, db } = scenario;

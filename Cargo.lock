@@ -3536,9 +3536,9 @@ name = "test_helpers"
 version = "0.1.0"
 dependencies = [
  "dotenv",
- "env_logger 0.7.1",
  "tempfile",
  "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
