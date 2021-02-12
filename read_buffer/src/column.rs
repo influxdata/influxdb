@@ -1,3 +1,4 @@
+pub mod boolean;
 pub mod cmp;
 pub mod encoding;
 pub mod float;
@@ -14,6 +15,7 @@ use either::Either;
 use arrow_deps::{arrow, arrow::array::Array};
 
 use crate::schema::{AggregateType, LogicalDataType};
+use boolean::BooleanEncoding;
 use encoding::{bool, dictionary, fixed, fixed_null};
 use float::FloatEncoding;
 use integer::IntegerEncoding;
@@ -1106,98 +1108,6 @@ impl std::fmt::Display for StringEncoding {
     }
 }
 
-/// Encodings for boolean values.
-pub enum BooleanEncoding {
-    BooleanNull(bool::Bool),
-}
-
-impl BooleanEncoding {
-    /// Determines if the column contains a NULL value.
-    pub fn contains_null(&self) -> bool {
-        match self {
-            BooleanEncoding::BooleanNull(enc) => enc.contains_null(),
-        }
-    }
-
-    /// Determines if the column contains a non-null value.
-    pub fn has_any_non_null_value(&self) -> bool {
-        match self {
-            Self::BooleanNull(enc) => enc.has_any_non_null_value(),
-        }
-    }
-
-    /// Determines if the column contains a non-null value at one of the
-    /// provided rows.
-    pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
-        match self {
-            Self::BooleanNull(enc) => enc.has_non_null_value(row_ids),
-        }
-    }
-
-    /// Returns the logical value found at the provided row id.
-    pub fn value(&self, row_id: u32) -> Value<'_> {
-        match &self {
-            Self::BooleanNull(c) => match c.value(row_id) {
-                Some(v) => Value::Boolean(v),
-                None => Value::Null,
-            },
-        }
-    }
-
-    /// Returns the logical values found at the provided row ids.
-    ///
-    /// TODO(edd): perf - pooling of destination vectors.
-    pub fn values(&self, row_ids: &[u32]) -> Values<'_> {
-        match &self {
-            Self::BooleanNull(c) => Values::Bool(c.values(row_ids, vec![])),
-        }
-    }
-
-    /// Returns all logical values in the column.
-    ///
-    /// TODO(edd): perf - pooling of destination vectors.
-    pub fn all_values(&self) -> Values<'_> {
-        match &self {
-            Self::BooleanNull(c) => Values::Bool(c.all_values(vec![])),
-        }
-    }
-
-    /// Returns the row ids that satisfy the provided predicate.
-    ///
-    /// Note: it is the caller's responsibility to ensure that the provided
-    /// `Scalar` value will fit within the physical type of the encoded column.
-    /// `row_ids_filter` will panic if this invariant is broken.
-    pub fn row_ids_filter(&self, op: &cmp::Operator, value: bool, dst: RowIDs) -> RowIDs {
-        match &self {
-            Self::BooleanNull(c) => c.row_ids_filter(value, op, dst),
-        }
-    }
-
-    pub fn min(&self, row_ids: &[u32]) -> Value<'_> {
-        match &self {
-            Self::BooleanNull(c) => match c.min(row_ids) {
-                Some(v) => Value::Boolean(v),
-                None => Value::Null,
-            },
-        }
-    }
-
-    pub fn max(&self, row_ids: &[u32]) -> Value<'_> {
-        match &self {
-            Self::BooleanNull(c) => match c.max(row_ids) {
-                Some(v) => Value::Boolean(v),
-                None => Value::Null,
-            },
-        }
-    }
-
-    pub fn count(&self, row_ids: &[u32]) -> u32 {
-        match &self {
-            Self::BooleanNull(c) => c.count(row_ids),
-        }
-    }
-}
-
 // Converts an Arrow `StringArray` into a column, currently using the RLE
 // encoding scheme. Other encodings can be supported and added to this
 // implementation.
@@ -1500,14 +1410,14 @@ impl From<arrow::array::BooleanArray> for Column {
             _ => unreachable!("min/max must both be Some or None"),
         };
 
-        let data = bool::Bool::from(arr);
+        let data = BooleanEncoding::from(arr);
         let meta = MetaData {
             size: data.size(),
             rows: data.num_rows(),
             range,
             ..MetaData::default()
         };
-        Column::Bool(meta, BooleanEncoding::BooleanNull(data))
+        Column::Bool(meta, data)
     }
 }
 
