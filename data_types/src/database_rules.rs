@@ -122,6 +122,21 @@ impl DatabaseRules {
     }
 }
 
+/// Generates a partition key based on the line and the default time.
+pub trait Partitioner {
+    fn partition_key(
+        &self,
+        _line: &ParsedLine<'_>,
+        _default_time: &DateTime<Utc>,
+    ) -> Result<String>;
+}
+
+impl Partitioner for DatabaseRules {
+    fn partition_key(&self, line: &ParsedLine<'_>, default_time: &DateTime<Utc>) -> Result<String> {
+        self.partition_key(&line, &default_time)
+    }
+}
+
 /// MutableBufferConfig defines the configuration for the in-memory database
 /// that is hot for writes as they arrive. Operators can define rules for
 /// evicting data once the mutable buffer passes a set memory threshold.

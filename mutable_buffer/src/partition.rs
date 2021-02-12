@@ -1,7 +1,7 @@
 //! Holds one or more Chunks.
 
 use generated_types::wal as wb;
-use std::{collections::BTreeMap, sync::Arc};
+use std::{collections::BTreeMap, sync::Arc, time::Instant};
 
 use crate::chunk::{Chunk, Error as ChunkError};
 
@@ -78,6 +78,13 @@ pub struct Partition {
     /// Responsible for assigning ids to chunks. Eventually, this might
     /// need to start at a number other than 0.
     id_generator: u32,
+
+    /// the instant time this partition was created
+    pub created_at: Instant,
+
+    /// the last instant time a write was made to this partition. Partition::new
+    /// initializes this to now.
+    pub last_write_at: Instant,
 }
 
 impl Partition {
@@ -89,11 +96,14 @@ impl Partition {
         let open_chunk = Chunk::new(id_generator);
         id_generator += 1;
 
+        let now = Instant::now();
         Self {
             key,
             open_chunk,
             closed_chunks: BTreeMap::new(),
             id_generator,
+            created_at: now,
+            last_write_at: now,
         }
     }
 
@@ -109,7 +119,10 @@ impl Partition {
             .write_entry(entry)
             .with_context(|| WritingChunkData {
                 partition_key: entry.partition_key().unwrap(),
-            })
+            })?;
+        self.last_write_at = Instant::now();
+
+        Ok(())
     }
 
     /// Return the list of chunks, in order of id, in this
@@ -240,6 +253,7 @@ pub struct PartitionChunkInfo {
 /// in their creation (id) order: Closed chunks first, followed by the
 /// open chunk, if any. This allows data to be read out in the same order it
 /// was written in
+#[derive(Debug)]
 pub struct ChunkIter<'a> {
     partition: &'a Partition,
     visited_open: bool,
@@ -871,6 +885,26 @@ mod tests {
         assert_eq!(2, summary.tables.len());
         assert!(summary.table("cpu").is_some());
         assert!(summary.table("mem").is_some());
+    }
+
+    #[tokio::test]
+    async fn write_updates_last_write_at() {
+        let before_create = Instant::now();
+        let mut partition = Partition::new("data_time!");
+
+        assert!(before_create < partition.created_at);
+        assert_eq!(partition.created_at, partition.last_write_at);
+
+        let after_create = Instant::now();
+        assert!(after_create > partition.created_at);
+
+        load_data(&mut partition, &["cpu,foo=bar val=1 2"]).await;
+        assert_ne!(partition.created_at, partition.last_write_at);
+        assert!(after_create < partition.last_write_at);
+        let last_write_prev = partition.last_write_at;
+
+        load_data(&mut partition, &["asdf foo=1 23"]).await;
+        assert!(last_write_prev < partition.last_write_at);
     }
 
     fn row_count(table_name: &str, chunk: &Chunk) -> u32 {

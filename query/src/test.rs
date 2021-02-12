@@ -21,6 +21,8 @@ use data_types::{
 use influxdb_line_protocol::{parse_lines, ParsedLine};
 
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
+use data_types::database_rules::Partitioner;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -682,5 +684,37 @@ impl TestLPWriter {
             .context(DatabaseWrite)?;
 
         self.write_lines(database, &lines).await
+    }
+
+    /// Writes lines the the given partition
+    pub async fn write_lines_to_partition<D: Database>(
+        &mut self,
+        database: &D,
+        partition_key: impl Into<String>,
+        lines: &[ParsedLine<'_>],
+    ) {
+        let partitioner = TestPartitioner {
+            key: partition_key.into(),
+        };
+        let write =
+            lines_to_replicated_write(self.writer_id, self.sequence_number, &lines, &partitioner);
+        self.sequence_number += 1;
+        database.store_replicated_write(&write).await.unwrap();
+    }
+}
+
+// Outputs a set partition key for testing. Used for parsing line protocol into
+// ReplicatedWrite and setting an explicit partition key for all writes therein.
+struct TestPartitioner {
+    key: String,
+}
+
+impl Partitioner for TestPartitioner {
+    fn partition_key(
+        &self,
+        _line: &ParsedLine<'_>,
+        _default_time: &DateTime<Utc>,
+    ) -> data_types::database_rules::Result<String> {
+        Ok(self.key.clone())
     }
 }
