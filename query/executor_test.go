@@ -17,7 +17,7 @@ type StatementExecutor struct {
 	ExecuteStatementFn func(stmt influxql.Statement, ctx *query.ExecutionContext) error
 }
 
-func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+func (e *StatementExecutor) ExecuteStatement(ctx *query.ExecutionContext, stmt influxql.Statement) error {
 	return e.ExecuteStatementFn(stmt, ctx)
 }
 
@@ -57,7 +57,7 @@ func TestQueryExecutor_KillQuery(t *testing.T) {
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
 			switch stmt.(type) {
 			case *influxql.KillQueryStatement:
-				return e.TaskManager.ExecuteStatement(stmt, ctx)
+				return e.TaskManager.ExecuteStatement(ctx, stmt)
 			}
 
 			qid <- ctx.QueryID
@@ -98,7 +98,7 @@ func TestQueryExecutor_KillQuery_Zombie(t *testing.T) {
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
 			switch stmt.(type) {
 			case *influxql.KillQueryStatement, *influxql.ShowQueriesStatement:
-				return e.TaskManager.ExecuteStatement(stmt, ctx)
+				return e.TaskManager.ExecuteStatement(ctx, stmt)
 			}
 
 			qid <- ctx.QueryID
@@ -167,7 +167,7 @@ func TestQueryExecutor_KillQuery_CloseTaskManager(t *testing.T) {
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
 			switch stmt.(type) {
 			case *influxql.KillQueryStatement, *influxql.ShowQueriesStatement:
-				return e.TaskManager.ExecuteStatement(stmt, ctx)
+				return e.TaskManager.ExecuteStatement(ctx, stmt)
 			}
 
 			qid <- ctx.QueryID
@@ -224,7 +224,7 @@ func TestQueryExecutor_KillQuery_AlreadyKilled(t *testing.T) {
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
 			switch stmt.(type) {
 			case *influxql.KillQueryStatement, *influxql.ShowQueriesStatement:
-				return e.TaskManager.ExecuteStatement(stmt, ctx)
+				return e.TaskManager.ExecuteStatement(ctx, stmt)
 			}
 
 			qid <- ctx.QueryID
@@ -314,7 +314,7 @@ func TestQueryExecutor_ShowQueries(t *testing.T) {
 		ExecuteStatementFn: func(stmt influxql.Statement, ctx *query.ExecutionContext) error {
 			switch stmt.(type) {
 			case *influxql.ShowQueriesStatement:
-				return e.TaskManager.ExecuteStatement(stmt, ctx)
+				return e.TaskManager.ExecuteStatement(ctx, stmt)
 			}
 
 			t.Errorf("unexpected statement: %s", stmt)

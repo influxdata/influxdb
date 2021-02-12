@@ -93,7 +93,7 @@ func NewTaskManager() *TaskManager {
 }
 
 // ExecuteStatement executes a statement containing one of the task management queries.
-func (t *TaskManager) ExecuteStatement(stmt influxql.Statement, ctx *ExecutionContext) error {
+func (t *TaskManager) ExecuteStatement(ctx *ExecutionContext, stmt influxql.Statement) error {
 	switch stmt := stmt.(type) {
 	case *influxql.ShowQueriesStatement:
 		rows, err := t.executeShowQueriesStatement(stmt)
