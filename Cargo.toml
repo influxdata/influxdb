@@ -10,6 +10,7 @@ members = [
     "arrow_deps",
     "data_types",
     "generated_types",
+    "google_types",
     "influxdb_iox_client",
     "influxdb_line_protocol",
     "influxdb_tsm",
@@ -71,7 +72,6 @@ lazy_static = "1.4.0"
 opentelemetry = { version = "0.12", default-features = false, features = ["trace", "tokio-support"] }
 opentelemetry-jaeger = { version = "0.11", features = ["tokio"] }
 prost = "0.7"
-prost-types = "0.7"
 # Forked to upgrade hyper and tokio
 routerify = { git = "https://github.com/influxdata/routerify", rev = "274e250" }
 serde = { version = "1.0", features = ["derive"] }

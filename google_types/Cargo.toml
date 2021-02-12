@@ -1,0 +1,13 @@
+[package]
+name = "google_types"
+version = "0.1.0"
+authors = ["Raphael Taylor-Davies <r.taylordavies@googlemail.com>"]
+description = "Standard Protobuf definitions - extracted into separate crate to workaround https://github.com/hyperium/tonic/issues/521"
+edition = "2018"
+
+[dependencies] # In alphabetical order
+prost = "0.7"
+prost-types = "0.7"
+
+[build-dependencies] # In alphabetical order
+prost-build = "0.7"
