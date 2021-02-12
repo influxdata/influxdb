@@ -825,7 +825,7 @@ type StatementExecutor struct {
 	ExecuteStatementFn func(stmt influxql.Statement, ctx *query.ExecutionContext) error
 }
 
-func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+func (e *StatementExecutor) ExecuteStatement(ctx *query.ExecutionContext, stmt influxql.Statement) error {
 	return e.ExecuteStatementFn(stmt, ctx)
 }
 
