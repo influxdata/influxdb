@@ -1,7 +1,5 @@
 //! Compiles Protocol Buffers and FlatBuffers schema definitions into
 //! native Rust types.
-//!
-//! Source files are found in
 
 use std::{
     path::{Path, PathBuf},
@@ -39,7 +37,13 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         println!("cargo:rerun-if-changed={}", proto_file.display());
     }
 
-    tonic_build::configure().compile(&proto_files, &[root.into()])?;
+    let mut config = prost_build::Config::new();
+
+    config
+        .compile_well_known_types()
+        .extern_path(".google", "::google_types");
+
+    tonic_build::configure().compile_with_config(config, &proto_files, &[root.into()])?;
 
     Ok(())
 }

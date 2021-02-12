@@ -1233,7 +1233,9 @@ version = "0.1.0"
 dependencies = [
  "flatbuffers 0.6.1",
  "futures",
+ "google_types",
  "prost",
+ "prost-build",
  "prost-types",
  "tonic",
  "tonic-build",
@@ -1282,6 +1284,15 @@ name = "glob"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b919933a397b79c37e33b77bb2aa3dc8eb6e165ad809e58ff75bc7db2e34574"
+
+[[package]]
+name = "google_types"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "prost-build",
+ "prost-types",
+]
 
 [[package]]
 name = "h2"
@@ -1533,7 +1544,6 @@ dependencies = [
  "panic_logging",
  "predicates",
  "prost",
- "prost-types",
  "query",
  "rand 0.7.3",
  "read_buffer",

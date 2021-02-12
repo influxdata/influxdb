@@ -24,3 +24,5 @@ impl TimestampRange {
         }
     }
 }
+
+pub use google_types as google;

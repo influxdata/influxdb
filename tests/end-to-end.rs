@@ -152,7 +152,7 @@ impl Scenario {
         self.ns_since_epoch
     }
 
-    fn read_source(&self) -> Option<prost_types::Any> {
+    fn read_source(&self) -> Option<generated_types::google::protobuf::Any> {
         let partition_id = u64::from(u32::MAX);
         let read_source = ReadSource {
             org_id: self.org_id(),
@@ -160,11 +160,11 @@ impl Scenario {
             partition_id,
         };
 
-        let mut d = Vec::new();
+        let mut d = bytes::BytesMut::new();
         read_source.encode(&mut d).unwrap();
-        let read_source = prost_types::Any {
+        let read_source = generated_types::google::protobuf::Any {
             type_url: "/TODO".to_string(),
-            value: d,
+            value: d.freeze(),
         };
 
         Some(read_source)

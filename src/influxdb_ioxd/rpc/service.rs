@@ -13,12 +13,12 @@ use super::{
 };
 use data_types::{error::ErrorLogger, names::org_and_bucket_to_database, DatabaseName};
 use generated_types::{
-    i_ox_testing_server::IOxTesting, storage_server::Storage, CapabilitiesResponse, Capability,
-    Int64ValuesResponse, MeasurementFieldsRequest, MeasurementFieldsResponse,
-    MeasurementNamesRequest, MeasurementTagKeysRequest, MeasurementTagValuesRequest, Predicate,
-    ReadFilterRequest, ReadGroupRequest, ReadResponse, ReadSeriesCardinalityRequest,
-    ReadWindowAggregateRequest, StringValuesResponse, TagKeysRequest, TagValuesRequest,
-    TestErrorRequest, TestErrorResponse, TimestampRange,
+    google::protobuf::Empty, i_ox_testing_server::IOxTesting, storage_server::Storage,
+    CapabilitiesResponse, Capability, Int64ValuesResponse, MeasurementFieldsRequest,
+    MeasurementFieldsResponse, MeasurementNamesRequest, MeasurementTagKeysRequest,
+    MeasurementTagValuesRequest, Predicate, ReadFilterRequest, ReadGroupRequest, ReadResponse,
+    ReadSeriesCardinalityRequest, ReadWindowAggregateRequest, StringValuesResponse, TagKeysRequest,
+    TagValuesRequest, TestErrorRequest, TestErrorResponse, TimestampRange,
 };
 use query::{
     exec::fieldlist::FieldList,
@@ -503,7 +503,7 @@ where
 
     async fn capabilities(
         &self,
-        _req: tonic::Request<()>,
+        _req: tonic::Request<Empty>,
     ) -> Result<tonic::Response<CapabilitiesResponse>, Status> {
         // Full list of go capabilities in
         // idpe/storage/read/capabilities.go (aka window aggregate /
@@ -1137,6 +1137,7 @@ mod tests {
         Aggregate as RPCAggregate, Duration as RPCDuration, Node, ReadSource, Window as RPCWindow,
     };
 
+    use generated_types::google::protobuf::Any;
     use prost::Message;
 
     type IOxTestingClient = i_ox_testing_client::IOxTestingClient<tonic::transport::Channel>;
@@ -2254,25 +2255,25 @@ mod tests {
         }
 
         /// Create a ReadSource suitable for constructing messages
-        fn read_source(org_id: u64, bucket_id: u64, partition_id: u64) -> prost_types::Any {
+        fn read_source(org_id: u64, bucket_id: u64, partition_id: u64) -> Any {
             let read_source = ReadSource {
                 org_id,
                 bucket_id,
                 partition_id,
             };
-            let mut d = Vec::new();
+            let mut d = bytes::BytesMut::new();
             read_source
                 .encode(&mut d)
                 .expect("encoded read source appropriately");
-            prost_types::Any {
+            Any {
                 type_url: "/TODO".to_string(),
-                value: d,
+                value: d.freeze(),
             }
         }
 
         /// return the capabilities of the server as a hash map
         async fn capabilities(&mut self) -> Result<HashMap<String, Vec<String>>, tonic::Status> {
-            let response = self.inner.capabilities(()).await?.into_inner();
+            let response = self.inner.capabilities(Empty {}).await?.into_inner();
 
             let CapabilitiesResponse { caps } = response;
 

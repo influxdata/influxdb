@@ -11,5 +11,8 @@ prost = "0.7"
 prost-types = "0.7"
 tonic = "0.4"
 
+google_types = { path = "../google_types" }
+
 [build-dependencies] # In alphabetical order
 tonic-build = "0.4"
+prost-build = "0.7"
