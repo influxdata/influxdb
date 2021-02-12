@@ -255,7 +255,7 @@ mod tests {
                 (false, false, true) => {
                     panic!(
                         "TEST_INTEGRATION is set, \
-                            but AZURE_STROAGE_ACCOUNT and AZURE_STORAGE_CONTAINER are not"
+                            but AZURE_STORAGE_ACCOUNT and AZURE_STORAGE_CONTAINER are not"
                     )
                 }
                 (false, true, true) => {
@@ -267,7 +267,7 @@ mod tests {
                 (false, false, false) => {
                     eprintln!(
                         "skipping integration test - set \
-                               AZURE_STROAGE_ACCOUNT and AZURE_STORAGE_CONTAINER to run"
+                               AZURE_STORAGE_ACCOUNT and AZURE_STORAGE_CONTAINER to run"
                     );
                     return Ok(());
                 }
