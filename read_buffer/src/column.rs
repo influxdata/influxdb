@@ -3,6 +3,7 @@ pub mod cmp;
 pub mod encoding;
 pub mod float;
 pub mod integer;
+pub mod string;
 
 use std::collections::BTreeSet;
 use std::convert::TryFrom;
@@ -19,16 +20,7 @@ use boolean::BooleanEncoding;
 use encoding::{bool, dictionary, fixed, fixed_null};
 use float::FloatEncoding;
 use integer::IntegerEncoding;
-
-// Edd's totally made up magic constant. This determines whether we would use
-// a run-length encoded dictionary encoding or just a plain dictionary encoding.
-// I have ideas about how to build heuristics to do this in a much better way
-// than an arbitrary constant but for now it's this...
-//
-// FWIW it's not the cardinality of the column that should drive the decision
-// it's how many run-lengths would be produced in an RLE column and whether that
-// compression is worth the memory and compute costs to work on it.
-pub const TEMP_CARDINALITY_DICTIONARY_ENCODING_LIMIT: usize = 100_000;
+use string::StringEncoding;
 
 /// The possible logical types that column values can have. All values in a
 /// column have the same physical type.
@@ -739,407 +731,53 @@ impl<T: PartialOrd + std::fmt::Debug> MetaData<T> {
         }
     }
 }
-pub enum StringEncoding {
-    RLEDictionary(dictionary::RLE),
-    Dictionary(dictionary::Plain),
-    // TODO - simple array encoding, e.g., via Arrow String array.
-}
 
-/// This implementation is concerned with how to produce string columns with
-/// different encodings.
-impl StringEncoding {
-    /// Determines if the column contains a NULL value.
-    pub fn contains_null(&self) -> bool {
-        match self {
-            StringEncoding::RLEDictionary(enc) => enc.contains_null(),
-            StringEncoding::Dictionary(enc) => enc.contains_null(),
-        }
-    }
-
-    /// Determines if the column contains a non-null value
-    pub fn has_any_non_null_value(&self) -> bool {
-        match &self {
-            Self::RLEDictionary(c) => c.has_any_non_null_value(),
-            Self::Dictionary(c) => c.has_any_non_null_value(),
-        }
-    }
-
-    /// Determines if the column contains a non-null value at one of the
-    /// provided rows.
-    pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
-        match &self {
-            Self::RLEDictionary(c) => c.has_non_null_value(row_ids),
-            Self::Dictionary(c) => c.has_non_null_value(row_ids),
-        }
-    }
-
-    /// Returns the logical value found at the provided row id.
-    pub fn value(&self, row_id: u32) -> Value<'_> {
-        match &self {
-            Self::RLEDictionary(c) => match c.value(row_id) {
-                Some(v) => Value::String(v),
-                None => Value::Null,
-            },
-            Self::Dictionary(c) => match c.value(row_id) {
-                Some(v) => Value::String(v),
-                None => Value::Null,
-            },
-        }
-    }
-
-    /// All values present at the provided logical row ids.
-    ///
-    /// TODO(edd): perf - pooling of destination vectors.
-    pub fn values(&self, row_ids: &[u32]) -> Values<'_> {
-        match &self {
-            Self::RLEDictionary(c) => Values::String(c.values(row_ids, vec![])),
-            Self::Dictionary(c) => Values::String(c.values(row_ids, vec![])),
-        }
-    }
-
-    /// All values in the column.
-    ///
-    /// TODO(edd): perf - pooling of destination vectors.
-    pub fn all_values(&self) -> Values<'_> {
-        match &self {
-            Self::RLEDictionary(c) => Values::String(c.all_values(vec![])),
-            Self::Dictionary(c) => Values::String(c.all_values(vec![])),
-        }
-    }
-
-    /// Returns the logical value for the specified encoded representation.
-    pub fn decode_id(&self, encoded_id: u32) -> Value<'_> {
-        match &self {
-            Self::RLEDictionary(c) => match c.decode_id(encoded_id) {
-                Some(v) => Value::String(v),
-                None => Value::Null,
-            },
-            Self::Dictionary(c) => match c.decode_id(encoded_id) {
-                Some(v) => Value::String(v),
-                None => Value::Null,
-            },
-        }
-    }
-
-    /// Returns the distinct set of values found at the provided row ids.
-    ///
-    /// TODO(edd): perf - pooling of destination sets.
-    pub fn distinct_values(&self, row_ids: &[u32]) -> ValueSet<'_> {
-        match &self {
-            Self::RLEDictionary(c) => ValueSet::String(c.distinct_values(row_ids, BTreeSet::new())),
-            Self::Dictionary(c) => ValueSet::String(c.distinct_values(row_ids, BTreeSet::new())),
-        }
-    }
-
-    /// Returns the row ids that satisfy the provided predicate.
-    pub fn row_ids_filter(&self, op: &cmp::Operator, value: &str, dst: RowIDs) -> RowIDs {
-        match &self {
-            Self::RLEDictionary(c) => c.row_ids_filter(value, op, dst),
-            Self::Dictionary(c) => c.row_ids_filter(value, op, dst),
-        }
-    }
-
-    /// The lexicographic minimum non-null value at the rows specified, or the
-    /// NULL value if the column only contains NULL values at the provided row
-    /// ids.
-    pub fn min(&self, row_ids: &[u32]) -> Value<'_> {
-        match &self {
-            Self::RLEDictionary(c) => match c.min(row_ids) {
-                Some(min) => Value::String(min),
-                None => Value::Null,
-            },
-            Self::Dictionary(c) => match c.min(row_ids) {
-                Some(min) => Value::String(min),
-                None => Value::Null,
-            },
-        }
-    }
-
-    /// The lexicographic maximum non-null value at the rows specified, or the
-    /// NULL value if the column only contains NULL values at the provided row
-    /// ids.
-    pub fn max(&self, row_ids: &[u32]) -> Value<'_> {
-        match &self {
-            Self::RLEDictionary(c) => match c.max(row_ids) {
-                Some(max) => Value::String(max),
-                None => Value::Null,
-            },
-            Self::Dictionary(c) => match c.max(row_ids) {
-                Some(max) => Value::String(max),
-                None => Value::Null,
-            },
-        }
-    }
-
-    /// The number of non-null values at the provided row ids.
-    pub fn count(&self, row_ids: &[u32]) -> u32 {
-        match &self {
-            Self::RLEDictionary(c) => c.count(row_ids),
-            Self::Dictionary(c) => c.count(row_ids),
-        }
-    }
-
-    /// Calculate all row ids for each distinct value in the column.
-    pub fn group_row_ids(&self) -> Either<Vec<&RowIDs>, Vec<RowIDs>> {
-        match self {
-            Self::RLEDictionary(enc) => Either::Left(enc.group_row_ids()),
-            Self::Dictionary(enc) => Either::Right(enc.group_row_ids()),
-        }
-    }
-
-    fn from_arrow_string_array(arr: &arrow::array::StringArray) -> Self {
-        // build a sorted dictionary.
-        let mut dictionary = BTreeSet::new();
-
-        for i in 0..arr.len() {
-            if !arr.is_null(i) {
-                dictionary.insert(arr.value(i).to_string());
-            }
-        }
-
-        let mut data: dictionary::Encoding =
-            if dictionary.len() > TEMP_CARDINALITY_DICTIONARY_ENCODING_LIMIT {
-                dictionary::Encoding::Plain(dictionary::Plain::with_dictionary(dictionary))
-            } else {
-                dictionary::Encoding::RLE(dictionary::RLE::with_dictionary(dictionary))
-            };
-
-        let mut prev = if !arr.is_null(0) {
-            Some(arr.value(0))
-        } else {
-            None
-        };
-
-        let mut count = 1;
-        for i in 1..arr.len() {
-            let next = if arr.is_null(i) {
-                None
-            } else {
-                Some(arr.value(i))
-            };
-
-            if prev == next {
-                count += 1;
-                continue;
-            }
-
-            match prev {
-                Some(x) => data.push_additional(Some(x.to_string()), count),
-                None => data.push_additional(None, count),
-            }
-            prev = next;
-            count = 1;
-        }
-
-        // Add final batch to column if any
-        match prev {
-            Some(x) => data.push_additional(Some(x.to_string()), count),
-            None => data.push_additional(None, count),
-        };
-
-        // TODO(edd): size of RLE column.
-        let dictionary = data.dictionary();
-        let range = if !dictionary.is_empty() {
-            let min = data.dictionary()[0].clone();
-            let max = data.dictionary()[data.dictionary().len() - 1].clone();
-            Some((min, max))
-        } else {
-            None
-        };
-
-        let meta = MetaData {
-            rows: data.num_rows(),
-            range,
-            ..MetaData::default()
-        };
-
-        // TODO(edd): consider just storing under the `StringEncoding` a
-        // `Dictionary` variant that would be a `dictionary::Encoding`.
-        match data {
-            dictionary::Encoding::RLE(enc) => Self::RLEDictionary(enc),
-            dictionary::Encoding::Plain(enc) => Self::Dictionary(enc),
-        }
-    }
-
-    /// All encoded values for the provided logical row ids.
-    ///
-    /// TODO(edd): perf - pooling of destination vectors.
-    pub fn encoded_values(&self, row_ids: &[u32], dst: Vec<u32>) -> Vec<u32> {
-        match &self {
-            Self::RLEDictionary(c) => c.encoded_values(row_ids, dst),
-            Self::Dictionary(c) => c.encoded_values(row_ids, dst),
-        }
-    }
-
-    /// All encoded values for the column.
-    ///
-    /// TODO(edd): perf - pooling of destination vectors.
-    pub fn all_encoded_values(&self, dst: Vec<u32>) -> Vec<u32> {
-        match &self {
-            Self::RLEDictionary(c) => c.all_encoded_values(dst),
-            Self::Dictionary(c) => c.all_encoded_values(dst),
-        }
-    }
-
-    fn from_opt_strs(arr: &[Option<&str>]) -> Self {
-        //
-        // TODO(edd): potentially switch on things like cardinality in the input
-        // and encode in different ways. Right now we only encode with RLE.
-        //
-
-        // RLE creation.
-
-        // build a sorted dictionary.
-        let mut dictionary = BTreeSet::new();
-
-        for v in arr {
-            if let Some(x) = v {
-                dictionary.insert(x.to_string());
-            }
-        }
-
-        let mut data = dictionary::RLE::with_dictionary(dictionary);
-
-        let mut prev = &arr[0];
-
-        let mut count = 1;
-        for next in arr[1..].iter() {
-            if prev == next {
-                count += 1;
-                continue;
-            }
-
-            match prev {
-                Some(x) => data.push_additional(Some(x.to_string()), count),
-                None => data.push_additional(None, count),
-            }
-            prev = next;
-            count = 1;
-        }
-
-        // Add final batch to column if any
-        match prev {
-            Some(x) => data.push_additional(Some(x.to_string()), count),
-            None => data.push_additional(None, count),
-        };
-
-        Self::RLEDictionary(data)
-    }
-
-    fn from_strs(arr: &[&str]) -> Self {
-        //
-        // TODO(edd): potentially switch on things like cardinality in the input
-        // and encode in different ways. Right now we only encode with RLE.
-        //
-
-        // RLE creation.
-
-        // build a sorted dictionary.
-        let dictionary = arr.iter().map(|x| x.to_string()).collect::<BTreeSet<_>>();
-        let mut data = dictionary::RLE::with_dictionary(dictionary);
-
-        let mut prev = &arr[0];
-        let mut count = 1;
-        for next in arr[1..].iter() {
-            if prev == next {
-                count += 1;
-                continue;
-            }
-
-            data.push_additional(Some(prev.to_string()), count);
-            prev = next;
-            count = 1;
-        }
-
-        // Add final batch to column if any
-        data.push_additional(Some(prev.to_string()), count);
-
-        Self::RLEDictionary(data)
-    }
-
-    // generates metadata for an encoded column.
-    pub fn meta_from_data(data: &Self) -> MetaData<String> {
-        match data {
-            Self::RLEDictionary(data) => {
-                let dictionary = data.dictionary();
-                let range = if !dictionary.is_empty() {
-                    let min = data.dictionary()[0].clone();
-                    let max = data.dictionary()[data.dictionary().len() - 1].clone();
-                    Some((min, max))
-                } else {
-                    None
-                };
-
-                MetaData {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range,
-                    properties: ColumnProperties {
-                        has_pre_computed_row_ids: true,
-                    },
-                }
-            }
-            Self::Dictionary(data) => {
-                let dictionary = data.dictionary();
-                let range = if !dictionary.is_empty() {
-                    let min = data.dictionary()[0].clone();
-                    let max = data.dictionary()[data.dictionary().len() - 1].clone();
-                    Some((min, max))
-                } else {
-                    None
-                };
-
-                MetaData {
-                    rows: data.num_rows(),
-                    range,
-                    ..MetaData::default()
-                }
-            }
-        }
-    }
-}
-
-impl std::fmt::Display for StringEncoding {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::RLEDictionary(data) => write!(f, "{}", data),
-            Self::Dictionary(data) => write!(f, "{}", data),
-        }
-    }
-}
-
-// Converts an Arrow `StringArray` into a column, currently using the RLE
-// encoding scheme. Other encodings can be supported and added to this
-// implementation.
-//
-// Note: this currently runs through the array and builds the dictionary before
-// creating the encoding. There is room for performance improvement here but
-// ideally it's a "write once read many" scenario.
+// Converts an Arrow `StringArray` into a `Column`.
 impl From<arrow::array::StringArray> for Column {
     fn from(arr: arrow::array::StringArray) -> Self {
-        let data = StringEncoding::from_arrow_string_array(&arr);
-        Column::String(StringEncoding::meta_from_data(&data), data)
+        let data = StringEncoding::from(arr);
+        let meta = MetaData {
+            rows: data.num_rows(),
+            range: data.column_range(),
+            size: data.size(),
+            properties: ColumnProperties {
+                has_pre_computed_row_ids: data.has_pre_computed_row_id_sets(),
+            },
+        };
+
+        Column::String(meta, data)
     }
 }
 
 impl From<&[Option<&str>]> for Column {
     fn from(arr: &[Option<&str>]) -> Self {
-        let data = StringEncoding::from_opt_strs(arr);
-        Column::String(StringEncoding::meta_from_data(&data), data)
-    }
-}
+        let data = StringEncoding::from(arr);
+        let meta = MetaData {
+            rows: data.num_rows(),
+            range: data.column_range(),
+            size: data.size(),
+            properties: ColumnProperties {
+                has_pre_computed_row_ids: data.has_pre_computed_row_id_sets(),
+            },
+        };
 
-impl From<&[Option<String>]> for Column {
-    fn from(arr: &[Option<String>]) -> Self {
-        let other = arr.iter().map(|x| x.as_deref()).collect::<Vec<_>>();
-        Self::from(other.as_slice())
+        Column::String(meta, data)
     }
 }
 
 impl From<&[&str]> for Column {
     fn from(arr: &[&str]) -> Self {
-        let data = StringEncoding::from_strs(arr);
-        Column::String(StringEncoding::meta_from_data(&data), data)
+        let data = StringEncoding::from(arr);
+        let meta = MetaData {
+            rows: data.num_rows(),
+            range: data.column_range(),
+            size: data.size(),
+            properties: ColumnProperties {
+                has_pre_computed_row_ids: data.has_pre_computed_row_id_sets(),
+            },
+        };
+
+        Column::String(meta, data)
     }
 }
 
@@ -2375,14 +2013,6 @@ mod test {
 
         row_ids.intersect(&other);
         assert_eq!(row_ids.to_vec(), vec![2, 3, 4]);
-    }
-
-    #[test]
-    fn column_properties() {
-        let data = StringEncoding::RLEDictionary(dictionary::RLE::default());
-        let meta = StringEncoding::meta_from_data(&data);
-        let col = Column::String(meta, data);
-        assert!(col.properties().has_pre_computed_row_ids);
     }
 
     #[test]

@@ -192,6 +192,24 @@ impl Encoding {
         }
     }
 
+    /// Returns the lexicographical minimum value in the column. None is
+    /// returned only if the column does not contain any non-null values.
+    pub fn column_min(&self) -> Option<&'_ String> {
+        match self {
+            Encoding::RLE(enc) => enc.column_min(),
+            Encoding::Plain(enc) => enc.column_min(),
+        }
+    }
+
+    /// Returns the lexicographical maximum value in the column. None is
+    /// returned only if the column does not contain any non-null values.
+    pub fn column_max(&self) -> Option<&'_ String> {
+        match self {
+            Encoding::RLE(enc) => enc.column_max(),
+            Encoding::Plain(enc) => enc.column_max(),
+        }
+    }
+
     /// Returns the total number of non-null values found at the provided set of
     /// row ids.
     fn count(&self, row_ids: &[u32]) -> u32 {
@@ -964,6 +982,51 @@ mod test {
         let dst = enc.all_encoded_values(dst);
         assert_eq!(dst, vec![1, 1, 1, 0, 0, 2, 2], "{}", name);
         assert_eq!(dst.capacity(), 100, "{}", name);
+    }
+
+    #[test]
+    fn min_max() {
+        let encodings = vec![
+            Encoding::RLE(RLE::default()),
+            Encoding::Plain(Plain::default()),
+        ];
+
+        for enc in encodings {
+            _min_max(enc);
+        }
+    }
+
+    fn _min_max(mut enc: Encoding) {
+        let name = enc.debug_name();
+
+        enc.push_none();
+        enc.push_none();
+
+        assert_eq!(enc.column_min(), None, "{}", name);
+        assert_eq!(enc.column_max(), None, "{}", name);
+
+        enc.push("Disintegration".to_owned());
+        assert_eq!(
+            enc.column_min(),
+            Some(&"Disintegration".to_owned()),
+            "{}",
+            name
+        );
+        assert_eq!(
+            enc.column_max(),
+            Some(&"Disintegration".to_owned()),
+            "{}",
+            name
+        );
+
+        enc.push("Homesick".to_owned());
+        assert_eq!(
+            enc.column_min(),
+            Some(&"Disintegration".to_owned()),
+            "{}",
+            name
+        );
+        assert_eq!(enc.column_max(), Some(&"Homesick".to_owned()), "{}", name);
     }
 
     #[test]
