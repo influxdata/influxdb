@@ -11,12 +11,12 @@ use hashbrown::{hash_map, HashMap};
 use itertools::Itertools;
 use snafu::{ResultExt, Snafu};
 
-use crate::column::{
-    cmp::Operator, AggregateResult, Column, EncodedValues, OwnedValue, RowIDs, RowIDsOption,
-    Scalar, Value, Values, ValuesIterator,
-};
+use crate::column::{cmp::Operator, Column, RowIDs, RowIDsOption};
 use crate::schema;
 use crate::schema::{AggregateType, LogicalDataType, ResultSchema};
+use crate::value::{
+    AggregateResult, EncodedValues, OwnedValue, Scalar, Value, Values, ValuesIterator,
+};
 use arrow_deps::arrow::record_batch::RecordBatch;
 use arrow_deps::{
     arrow, datafusion::logical_plan::Expr as DfExpr,

@@ -10,9 +10,9 @@ use arrow_deps::arrow::record_batch::RecordBatch;
 use data_types::selection::Selection;
 use snafu::{ensure, Snafu};
 
-use crate::column::{AggregateResult, Scalar, Value};
 use crate::row_group::{self, ColumnName, GroupKey, Predicate, RowGroup};
 use crate::schema::{AggregateType, ColumnType, LogicalDataType, ResultSchema};
+use crate::value::{AggregateResult, Scalar, Value};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -911,10 +911,11 @@ mod test {
 
     use row_group::ColumnMeta;
 
-    use crate::column::{self, Column};
+    use crate::column::Column;
     use crate::row_group::{BinaryExpr, ColumnType, ReadAggregateResult};
     use crate::schema;
     use crate::schema::LogicalDataType;
+    use crate::value::{OwnedValue, Scalar};
 
     #[test]
     fn meta_data_update_with() {
@@ -927,8 +928,8 @@ mod test {
                     typ: schema::ColumnType::Tag("region".to_owned()),
                     logical_data_type: schema::LogicalDataType::String,
                     range: (
-                        column::OwnedValue::String("north".to_owned()),
-                        column::OwnedValue::String("south".to_owned()),
+                        OwnedValue::String("north".to_owned()),
+                        OwnedValue::String("south".to_owned()),
                     ),
                 },
             )]
@@ -944,8 +945,8 @@ mod test {
         assert_eq!(
             meta.columns.get("region").unwrap().range,
             (
-                column::OwnedValue::String("north".to_owned()),
-                column::OwnedValue::String("south".to_owned())
+                OwnedValue::String("north".to_owned()),
+                OwnedValue::String("south".to_owned())
             )
         );
 
@@ -960,8 +961,8 @@ mod test {
                         typ: schema::ColumnType::Tag("region".to_owned()),
                         logical_data_type: schema::LogicalDataType::String,
                         range: (
-                            column::OwnedValue::String("east".to_owned()),
-                            column::OwnedValue::String("north".to_owned()),
+                            OwnedValue::String("east".to_owned()),
+                            OwnedValue::String("north".to_owned()),
                         ),
                     },
                 )]
@@ -977,8 +978,8 @@ mod test {
         assert_eq!(
             meta.columns.get("region").unwrap().range,
             (
-                column::OwnedValue::String("east".to_owned()),
-                column::OwnedValue::String("south".to_owned())
+                OwnedValue::String("east".to_owned()),
+                OwnedValue::String("south".to_owned())
             )
         );
     }
@@ -1006,8 +1007,8 @@ mod test {
         assert_eq!(
             table.meta().columns.get("time").unwrap().range,
             (
-                column::OwnedValue::Scalar(column::Scalar::I64(0)),
-                column::OwnedValue::Scalar(column::Scalar::I64(5))
+                OwnedValue::Scalar(Scalar::I64(0)),
+                OwnedValue::Scalar(Scalar::I64(5))
             )
         );
 
@@ -1018,8 +1019,8 @@ mod test {
         assert_eq!(
             table.meta().columns.get("time").unwrap().range,
             (
-                column::OwnedValue::Scalar(column::Scalar::I64(1)),
-                column::OwnedValue::Scalar(column::Scalar::I64(5))
+                OwnedValue::Scalar(Scalar::I64(1)),
+                OwnedValue::Scalar(Scalar::I64(5))
             )
         );
 
