@@ -1035,7 +1035,7 @@ mod tests {
             description: &'a str,
             predicate: Predicate,
             expected_tag_keys: Result<Vec<&'a str>>,
-        };
+        }
 
         let test_cases = vec![
             TestCase {
@@ -1194,7 +1194,7 @@ mod tests {
             column_name: &'a str,
             predicate: Predicate,
             expected_column_values: Result<Vec<&'a str>>,
-        };
+        }
 
         let test_cases = vec![
             TestCase {

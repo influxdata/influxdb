@@ -732,10 +732,8 @@ mod tests {
 
                     assert!(
                         e.parse_key().is_ok(),
-                        format!(
-                            "failed to parse key name for {:}",
-                            String::from_utf8_lossy(entry.key.as_slice())
-                        )
+                        "failed to parse key name for {:}",
+                        String::from_utf8_lossy(entry.key.as_slice())
                     );
                 }
                 Err(e) => panic!("{:?} {:?}", e, got_blocks),

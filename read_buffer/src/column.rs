@@ -147,11 +147,9 @@ impl Column {
     pub fn value(&self, row_id: u32) -> Value<'_> {
         assert!(
             row_id < self.num_rows(),
-            format!(
-                "cannot read row {:?} from column with {:?} rows",
-                row_id,
-                self.num_rows()
-            )
+            "cannot read row {:?} from column with {:?} rows",
+            row_id,
+            self.num_rows()
         );
 
         match &self {
@@ -168,11 +166,9 @@ impl Column {
     pub fn values(&self, row_ids: &[u32]) -> Values<'_> {
         assert!(
             row_ids.len() as u32 <= self.num_rows(),
-            format!(
-                "too many row ids {:?} provided for column with {:?} rows",
-                row_ids.len(),
-                self.num_rows()
-            )
+            "too many row ids {:?} provided for column with {:?} rows",
+            row_ids.len(),
+            self.num_rows()
         );
 
         match &self {
@@ -210,11 +206,9 @@ impl Column {
     pub fn distinct_values(&self, row_ids: &[u32]) -> ValueSet<'_> {
         assert!(
             row_ids.len() as u32 <= self.num_rows(),
-            format!(
-                "too many row ids {:?} provided for column with {:?} rows",
-                row_ids.len(),
-                self.num_rows()
-            )
+            "too many row ids {:?} provided for column with {:?} rows",
+            row_ids.len(),
+            self.num_rows()
         );
 
         match &self {
@@ -232,11 +226,9 @@ impl Column {
     pub fn encoded_values(&self, row_ids: &[u32], dst: EncodedValues) -> EncodedValues {
         assert!(
             row_ids.len() as u32 <= self.num_rows(),
-            format!(
-                "too many row ids {:?} provided for column with {:?} rows",
-                row_ids.len(),
-                self.num_rows()
-            )
+            "too many row ids {:?} provided for column with {:?} rows",
+            row_ids.len(),
+            self.num_rows()
         );
 
         match &self {

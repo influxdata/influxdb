@@ -608,7 +608,7 @@ async fn set_writer<M: ConnectionManager + Send + Sync + Debug + 'static>(
     #[derive(Serialize, Deserialize)]
     struct WriterIdBody {
         id: u32,
-    };
+    }
     let req: WriterIdBody = serde_json::from_slice(body.as_ref()).context(InvalidRequestBody)?;
 
     // Set the writer ID

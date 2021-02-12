@@ -178,7 +178,7 @@ fn parse_tsm_field_key_value(rem_key: impl Iterator<Item = u8>) -> Result<String
         Key2,   // saw #!
         Key3,   // saw #!~
         Done,
-    };
+    }
 
     let mut field_name = String::with_capacity(100);
     let mut state = State::Data;
@@ -231,7 +231,7 @@ fn parse_tsm_field_key_value(rem_key: impl Iterator<Item = u8>) -> Result<String
                 }
             }
         }
-    };
+    }
 
     // loop over input byte by byte and once we are at the end of the field key,
     // consume the rest of the key stream (ignoring all remaining characters)
@@ -316,7 +316,7 @@ fn parse_tsm_tag_key(rem_key: impl Iterator<Item = u8>) -> Result<KeyType, DataE
         Measurement,
         Field,
         Escape,
-    };
+    }
 
     let mut state = State::Data;
     let mut key = String::with_capacity(250);
@@ -402,7 +402,7 @@ fn parse_tsm_tag_value(
         Start,
         Data,
         Escape,
-    };
+    }
 
     let mut state = State::Start;
     let mut tag_value = String::with_capacity(100);
@@ -668,8 +668,9 @@ mod tests {
         // expect that a representation of the actual TSM key is in the error message
         assert!(
             err_str.contains(
-                "Error while parsing tsm tag key '1234567887654321, =m,tag1=val1,tag2=val2':"
+                "Error while parsing tsm tag key '1234567887654321,\x00=m,tag1=val1,tag2=val2':"
             ),
+            "{}",
             err_str
         );
     }
@@ -684,6 +685,7 @@ mod tests {
             .to_string();
         assert!(
             err_str.contains("No field key (expected to find in tag field \\xff)"),
+            "{}",
             err_str
         );
     }

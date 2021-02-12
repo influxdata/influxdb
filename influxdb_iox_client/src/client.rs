@@ -120,7 +120,7 @@ impl Client {
         #[derive(serde::Serialize)]
         struct WriterIdBody {
             id: u32,
-        };
+        }
 
         let r = self
             .http
