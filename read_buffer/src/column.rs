@@ -1,5 +1,6 @@
 pub mod cmp;
 pub mod encoding;
+pub mod integer;
 
 use std::collections::BTreeSet;
 use std::convert::TryFrom;
@@ -13,6 +14,7 @@ use arrow_deps::{arrow, arrow::array::Array};
 
 use crate::schema::{AggregateType, LogicalDataType};
 use encoding::{bool, dictionary, fixed, fixed_null};
+use integer::IntegerEncoding;
 
 // Edd's totally made up magic constant. This determines whether we would use
 // a run-length encoded dictionary encoding or just a plain dictionary encoding.
@@ -1102,350 +1104,6 @@ impl std::fmt::Display for StringEncoding {
     }
 }
 
-pub enum IntegerEncoding {
-    I64I64(fixed::Fixed<i64>),
-    I64I32(fixed::Fixed<i32>),
-    I64U32(fixed::Fixed<u32>),
-    I64I16(fixed::Fixed<i16>),
-    I64U16(fixed::Fixed<u16>),
-    I64I8(fixed::Fixed<i8>),
-    I64U8(fixed::Fixed<u8>),
-
-    U64U64(fixed::Fixed<u64>),
-    U64U32(fixed::Fixed<u32>),
-    U64U16(fixed::Fixed<u16>),
-    U64U8(fixed::Fixed<u8>),
-
-    // TODO - add all the other possible integer combinations.
-
-    // Nullable encodings - TODO, add variants for smaller physical types.
-    I64I64N(fixed_null::FixedNull<arrow::datatypes::Int64Type>),
-    U64U64N(fixed_null::FixedNull<arrow::datatypes::UInt64Type>),
-}
-
-impl IntegerEncoding {
-    /// Determines if the column contains a NULL value.
-    pub fn contains_null(&self) -> bool {
-        match self {
-            IntegerEncoding::I64I64N(enc) => enc.contains_null(),
-            IntegerEncoding::U64U64N(enc) => enc.contains_null(),
-            _ => false,
-        }
-    }
-
-    /// Determines if the column contains a non-null value.
-    pub fn has_any_non_null_value(&self) -> bool {
-        match self {
-            IntegerEncoding::I64I64N(enc) => enc.has_any_non_null_value(),
-            IntegerEncoding::U64U64N(enc) => enc.has_any_non_null_value(),
-            _ => true,
-        }
-    }
-
-    /// Determines if the column contains a non-null value at one of the
-    /// provided rows.
-    pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
-        match self {
-            IntegerEncoding::I64I64N(enc) => enc.has_non_null_value(row_ids),
-            IntegerEncoding::U64U64N(enc) => enc.has_non_null_value(row_ids),
-            _ => !row_ids.is_empty(), // all rows will be non-null
-        }
-    }
-
-    /// Returns the logical value found at the provided row id.
-    pub fn value(&self, row_id: u32) -> Value<'_> {
-        match &self {
-            // N.B., The `Scalar` variant determines the physical type `U` that
-            // `c.value` should return as the logical type
-
-            // signed 64-bit variants - logical type is i64 for all these
-            Self::I64I64(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
-            Self::I64I32(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
-            Self::I64U32(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
-            Self::I64I16(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
-            Self::I64U16(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
-            Self::I64I8(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
-            Self::I64U8(c) => Value::Scalar(Scalar::I64(c.value(row_id))),
-
-            // unsigned 64-bit variants - logical type is u64 for all these
-            Self::U64U64(c) => Value::Scalar(Scalar::U64(c.value(row_id))),
-            Self::U64U32(c) => Value::Scalar(Scalar::U64(c.value(row_id))),
-            Self::U64U16(c) => Value::Scalar(Scalar::U64(c.value(row_id))),
-            Self::U64U8(c) => Value::Scalar(Scalar::U64(c.value(row_id))),
-
-            Self::I64I64N(c) => match c.value(row_id) {
-                Some(v) => Value::Scalar(Scalar::I64(v)),
-                None => Value::Null,
-            },
-            Self::U64U64N(c) => match c.value(row_id) {
-                Some(v) => Value::Scalar(Scalar::U64(v)),
-                None => Value::Null,
-            },
-        }
-    }
-
-    /// Returns the logical values found at the provided row ids.
-    ///
-    /// TODO(edd): perf - provide a pooling mechanism for these destination
-    /// vectors so that they can be re-used.
-    pub fn values(&self, row_ids: &[u32]) -> Values<'_> {
-        match &self {
-            // signed 64-bit variants - logical type is i64 for all these
-            Self::I64I64(c) => Values::I64(c.values::<i64>(row_ids, vec![])),
-            Self::I64I32(c) => Values::I64(c.values::<i64>(row_ids, vec![])),
-            Self::I64U32(c) => Values::I64(c.values::<i64>(row_ids, vec![])),
-            Self::I64I16(c) => Values::I64(c.values::<i64>(row_ids, vec![])),
-            Self::I64U16(c) => Values::I64(c.values::<i64>(row_ids, vec![])),
-            Self::I64I8(c) => Values::I64(c.values::<i64>(row_ids, vec![])),
-            Self::I64U8(c) => Values::I64(c.values::<i64>(row_ids, vec![])),
-
-            // unsigned 64-bit variants - logical type is u64 for all these
-            Self::U64U64(c) => Values::U64(c.values::<u64>(row_ids, vec![])),
-            Self::U64U32(c) => Values::U64(c.values::<u64>(row_ids, vec![])),
-            Self::U64U16(c) => Values::U64(c.values::<u64>(row_ids, vec![])),
-            Self::U64U8(c) => Values::U64(c.values::<u64>(row_ids, vec![])),
-
-            Self::I64I64N(c) => Values::I64N(c.values(row_ids, vec![])),
-            Self::U64U64N(c) => Values::U64N(c.values(row_ids, vec![])),
-        }
-    }
-
-    /// Returns all logical values in the column.
-    ///
-    /// TODO(edd): perf - provide a pooling mechanism for these destination
-    /// vectors so that they can be re-used.
-    pub fn all_values(&self) -> Values<'_> {
-        match &self {
-            // signed 64-bit variants - logical type is i64 for all these
-            Self::I64I64(c) => Values::I64(c.all_values::<i64>(vec![])),
-            Self::I64I32(c) => Values::I64(c.all_values::<i64>(vec![])),
-            Self::I64U32(c) => Values::I64(c.all_values::<i64>(vec![])),
-            Self::I64I16(c) => Values::I64(c.all_values::<i64>(vec![])),
-            Self::I64U16(c) => Values::I64(c.all_values::<i64>(vec![])),
-            Self::I64I8(c) => Values::I64(c.all_values::<i64>(vec![])),
-            Self::I64U8(c) => Values::I64(c.all_values::<i64>(vec![])),
-
-            // unsigned 64-bit variants - logical type is u64 for all these
-            Self::U64U64(c) => Values::U64(c.all_values::<u64>(vec![])),
-            Self::U64U32(c) => Values::U64(c.all_values::<u64>(vec![])),
-            Self::U64U16(c) => Values::U64(c.all_values::<u64>(vec![])),
-            Self::U64U8(c) => Values::U64(c.all_values::<u64>(vec![])),
-
-            Self::I64I64N(c) => Values::I64N(c.all_values(vec![])),
-            Self::U64U64N(c) => Values::U64N(c.all_values(vec![])),
-        }
-    }
-
-    /// Returns the encoded values found at the provided row ids. For an
-    /// `IntegerEncoding` the encoded values are typically just the raw values.
-    pub fn encoded_values(&self, row_ids: &[u32], dst: EncodedValues) -> EncodedValues {
-        // Right now the use-case for encoded values on non-string columns is
-        // that it's used for grouping with timestamp columns, which should be
-        // non-null signed 64-bit integers.
-        match dst {
-            EncodedValues::I64(dst) => match &self {
-                Self::I64I64(data) => EncodedValues::I64(data.values(row_ids, dst)),
-                Self::I64I32(data) => EncodedValues::I64(data.values(row_ids, dst)),
-                Self::I64U32(data) => EncodedValues::I64(data.values(row_ids, dst)),
-                Self::I64I16(data) => EncodedValues::I64(data.values(row_ids, dst)),
-                Self::I64U16(data) => EncodedValues::I64(data.values(row_ids, dst)),
-                Self::I64I8(data) => EncodedValues::I64(data.values(row_ids, dst)),
-                Self::I64U8(data) => EncodedValues::I64(data.values(row_ids, dst)),
-                _ => unreachable!("encoded values on encoding type not currently supported"),
-            },
-            _ => unreachable!("currently only support encoded values as i64"),
-        }
-    }
-
-    /// All encoded values for the column. For `IntegerEncoding` this is
-    /// typically equivalent to `all_values`.
-    pub fn all_encoded_values(&self, dst: EncodedValues) -> EncodedValues {
-        // Right now the use-case for encoded values on non-string columns is
-        // that it's used for grouping with timestamp columns, which should be
-        // non-null signed 64-bit integers.
-        match dst {
-            EncodedValues::I64(dst) => match &self {
-                Self::I64I64(data) => EncodedValues::I64(data.all_values(dst)),
-                Self::I64I32(data) => EncodedValues::I64(data.all_values(dst)),
-                Self::I64U32(data) => EncodedValues::I64(data.all_values(dst)),
-                Self::I64I16(data) => EncodedValues::I64(data.all_values(dst)),
-                Self::I64U16(data) => EncodedValues::I64(data.all_values(dst)),
-                Self::I64I8(data) => EncodedValues::I64(data.all_values(dst)),
-                Self::I64U8(data) => EncodedValues::I64(data.all_values(dst)),
-                _ => unreachable!("encoded values on encoding type not supported"),
-            },
-            _ => unreachable!("currently only support encoded values as i64"),
-        }
-    }
-
-    /// Returns the row ids that satisfy the provided predicate.
-    ///
-    /// Note: it is the caller's responsibility to ensure that the provided
-    /// `Scalar` value will fit within the physical type of the encoded column.
-    /// `row_ids_filter` will panic if this invariant is broken.
-    pub fn row_ids_filter(&self, op: &cmp::Operator, value: &Scalar, dst: RowIDs) -> RowIDs {
-        match &self {
-            Self::I64I64(c) => c.row_ids_filter(value.as_i64(), op, dst),
-            Self::I64I32(c) => c.row_ids_filter(value.as_i32(), op, dst),
-            Self::I64U32(c) => c.row_ids_filter(value.as_u32(), op, dst),
-            Self::I64I16(c) => c.row_ids_filter(value.as_i16(), op, dst),
-            Self::I64U16(c) => c.row_ids_filter(value.as_u16(), op, dst),
-            Self::I64I8(c) => c.row_ids_filter(value.as_i8(), op, dst),
-            Self::I64U8(c) => c.row_ids_filter(value.as_u8(), op, dst),
-
-            Self::U64U64(c) => c.row_ids_filter(value.as_u64(), op, dst),
-            Self::U64U32(c) => c.row_ids_filter(value.as_u32(), op, dst),
-            Self::U64U16(c) => c.row_ids_filter(value.as_u16(), op, dst),
-            Self::U64U8(c) => c.row_ids_filter(value.as_u8(), op, dst),
-
-            Self::I64I64N(c) => c.row_ids_filter(value.as_i64(), op, dst),
-            Self::U64U64N(c) => c.row_ids_filter(value.as_u64(), op, dst),
-        }
-    }
-
-    /// Returns the row ids that satisfy both the provided predicates.
-    ///
-    /// Note: it is the caller's responsibility to ensure that the provided
-    /// `Scalar` value will fit within the physical type of the encoded column.
-    /// `row_ids_filter` will panic if this invariant is broken.
-    pub fn row_ids_filter_range(
-        &self,
-        low: (&cmp::Operator, &Scalar),
-        high: (&cmp::Operator, &Scalar),
-        dst: RowIDs,
-    ) -> RowIDs {
-        match &self {
-            Self::I64I64(c) => {
-                c.row_ids_filter_range((low.1.as_i64(), low.0), (high.1.as_i64(), high.0), dst)
-            }
-            Self::I64I32(c) => {
-                c.row_ids_filter_range((low.1.as_i32(), low.0), (high.1.as_i32(), high.0), dst)
-            }
-            Self::I64U32(c) => {
-                c.row_ids_filter_range((low.1.as_u32(), low.0), (high.1.as_u32(), high.0), dst)
-            }
-            Self::I64I16(c) => {
-                c.row_ids_filter_range((low.1.as_i16(), low.0), (high.1.as_i16(), high.0), dst)
-            }
-            Self::I64U16(c) => {
-                c.row_ids_filter_range((low.1.as_u16(), low.0), (high.1.as_u16(), high.0), dst)
-            }
-            Self::I64I8(c) => {
-                c.row_ids_filter_range((low.1.as_i8(), low.0), (high.1.as_i8(), high.0), dst)
-            }
-            Self::I64U8(c) => {
-                c.row_ids_filter_range((low.1.as_u8(), low.0), (high.1.as_u8(), high.0), dst)
-            }
-
-            Self::U64U64(c) => {
-                c.row_ids_filter_range((low.1.as_u64(), low.0), (high.1.as_u64(), high.0), dst)
-            }
-            Self::U64U32(c) => {
-                c.row_ids_filter_range((low.1.as_u32(), low.0), (high.1.as_u32(), high.0), dst)
-            }
-            Self::U64U16(c) => {
-                c.row_ids_filter_range((low.1.as_u16(), low.0), (high.1.as_u16(), high.0), dst)
-            }
-            Self::U64U8(c) => {
-                c.row_ids_filter_range((low.1.as_u8(), low.0), (high.1.as_u8(), high.0), dst)
-            }
-
-            Self::I64I64N(c) => todo!(),
-            Self::U64U64N(c) => todo!(),
-        }
-    }
-
-    pub fn min(&self, row_ids: &[u32]) -> Value<'_> {
-        match &self {
-            IntegerEncoding::I64I64(c) => Value::Scalar(Scalar::I64(c.min(row_ids))),
-            IntegerEncoding::I64I32(c) => Value::Scalar(Scalar::I64(c.min(row_ids))),
-            IntegerEncoding::I64U32(c) => Value::Scalar(Scalar::I64(c.min(row_ids))),
-            IntegerEncoding::I64I16(c) => Value::Scalar(Scalar::I64(c.min(row_ids))),
-            IntegerEncoding::I64U16(c) => Value::Scalar(Scalar::I64(c.min(row_ids))),
-            IntegerEncoding::I64I8(c) => Value::Scalar(Scalar::I64(c.min(row_ids))),
-            IntegerEncoding::I64U8(c) => Value::Scalar(Scalar::I64(c.min(row_ids))),
-            IntegerEncoding::U64U64(c) => Value::Scalar(Scalar::U64(c.min(row_ids))),
-            IntegerEncoding::U64U32(c) => Value::Scalar(Scalar::U64(c.min(row_ids))),
-            IntegerEncoding::U64U16(c) => Value::Scalar(Scalar::U64(c.min(row_ids))),
-            IntegerEncoding::U64U8(c) => Value::Scalar(Scalar::U64(c.min(row_ids))),
-            IntegerEncoding::I64I64N(c) => match c.min(row_ids) {
-                Some(v) => Value::Scalar(Scalar::I64(v)),
-                None => Value::Null,
-            },
-            IntegerEncoding::U64U64N(c) => match c.min(row_ids) {
-                Some(v) => Value::Scalar(Scalar::U64(v)),
-                None => Value::Null,
-            },
-        }
-    }
-
-    pub fn max(&self, row_ids: &[u32]) -> Value<'_> {
-        match &self {
-            IntegerEncoding::I64I64(c) => Value::Scalar(Scalar::I64(c.max(row_ids))),
-            IntegerEncoding::I64I32(c) => Value::Scalar(Scalar::I64(c.max(row_ids))),
-            IntegerEncoding::I64U32(c) => Value::Scalar(Scalar::I64(c.max(row_ids))),
-            IntegerEncoding::I64I16(c) => Value::Scalar(Scalar::I64(c.max(row_ids))),
-            IntegerEncoding::I64U16(c) => Value::Scalar(Scalar::I64(c.max(row_ids))),
-            IntegerEncoding::I64I8(c) => Value::Scalar(Scalar::I64(c.max(row_ids))),
-            IntegerEncoding::I64U8(c) => Value::Scalar(Scalar::I64(c.max(row_ids))),
-            IntegerEncoding::U64U64(c) => Value::Scalar(Scalar::U64(c.max(row_ids))),
-            IntegerEncoding::U64U32(c) => Value::Scalar(Scalar::U64(c.max(row_ids))),
-            IntegerEncoding::U64U16(c) => Value::Scalar(Scalar::U64(c.max(row_ids))),
-            IntegerEncoding::U64U8(c) => Value::Scalar(Scalar::U64(c.max(row_ids))),
-            IntegerEncoding::I64I64N(c) => match c.max(row_ids) {
-                Some(v) => Value::Scalar(Scalar::I64(v)),
-                None => Value::Null,
-            },
-            IntegerEncoding::U64U64N(c) => match c.max(row_ids) {
-                Some(v) => Value::Scalar(Scalar::U64(v)),
-                None => Value::Null,
-            },
-        }
-    }
-
-    pub fn sum(&self, row_ids: &[u32]) -> Scalar {
-        match &self {
-            IntegerEncoding::I64I64(c) => Scalar::I64(c.sum(row_ids)),
-            IntegerEncoding::I64I32(c) => Scalar::I64(c.sum(row_ids)),
-            IntegerEncoding::I64U32(c) => Scalar::I64(c.sum(row_ids)),
-            IntegerEncoding::I64I16(c) => Scalar::I64(c.sum(row_ids)),
-            IntegerEncoding::I64U16(c) => Scalar::I64(c.sum(row_ids)),
-            IntegerEncoding::I64I8(c) => Scalar::I64(c.sum(row_ids)),
-            IntegerEncoding::I64U8(c) => Scalar::I64(c.sum(row_ids)),
-            IntegerEncoding::U64U64(c) => Scalar::U64(c.sum(row_ids)),
-            IntegerEncoding::U64U32(c) => Scalar::U64(c.sum(row_ids)),
-            IntegerEncoding::U64U16(c) => Scalar::U64(c.sum(row_ids)),
-            IntegerEncoding::U64U8(c) => Scalar::U64(c.sum(row_ids)),
-            IntegerEncoding::I64I64N(c) => match c.sum(row_ids) {
-                Some(v) => Scalar::I64(v),
-                None => Scalar::Null,
-            },
-            IntegerEncoding::U64U64N(c) => match c.sum(row_ids) {
-                Some(v) => Scalar::U64(v),
-                None => Scalar::Null,
-            },
-        }
-    }
-
-    pub fn count(&self, row_ids: &[u32]) -> u32 {
-        match &self {
-            IntegerEncoding::I64I64(c) => c.count(row_ids),
-            IntegerEncoding::I64I32(c) => c.count(row_ids),
-            IntegerEncoding::I64U32(c) => c.count(row_ids),
-            IntegerEncoding::I64I16(c) => c.count(row_ids),
-            IntegerEncoding::I64U16(c) => c.count(row_ids),
-            IntegerEncoding::I64I8(c) => c.count(row_ids),
-            IntegerEncoding::I64U8(c) => c.count(row_ids),
-            IntegerEncoding::U64U64(c) => c.count(row_ids),
-            IntegerEncoding::U64U32(c) => c.count(row_ids),
-            IntegerEncoding::U64U16(c) => c.count(row_ids),
-            IntegerEncoding::U64U8(c) => c.count(row_ids),
-            IntegerEncoding::I64I64N(c) => c.count(row_ids),
-            IntegerEncoding::U64U64N(c) => c.count(row_ids),
-        }
-    }
-}
-
 pub enum FloatEncoding {
     Fixed64(fixed::Fixed<f64>),
     FixedNull64(fixed_null::FixedNull<arrow::datatypes::Float64Type>),
@@ -1716,54 +1374,15 @@ impl From<&[u64]> for Column {
             max = max.max(v);
         }
 
-        // This match is carefully ordered. It prioritises smaller physical
-        // datatypes that can safely represent the provided logical data type.
-        match (min, max) {
-            // encode as u8 values
-            (min, max) if max <= u8::MAX as u64 => {
-                let data = fixed::Fixed::<u8>::from(arr);
-                let meta = MetaData {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range: Some((min, max)),
-                    ..MetaData::default()
-                };
-                Column::Unsigned(meta, IntegerEncoding::U64U8(data))
-            }
-            // encode as u16 values
-            (min, max) if max <= u16::MAX as u64 => {
-                let data = fixed::Fixed::<u16>::from(arr);
-                let meta = MetaData {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range: Some((min, max)),
-                    ..MetaData::default()
-                };
-                Column::Unsigned(meta, IntegerEncoding::U64U16(data))
-            }
-            // encode as u32 values
-            (min, max) if max <= u32::MAX as u64 => {
-                let data = fixed::Fixed::<u32>::from(arr);
-                let meta = MetaData {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range: Some((min, max)),
-                    ..MetaData::default()
-                };
-                Column::Unsigned(meta, IntegerEncoding::U64U32(data))
-            }
-            // otherwise, encode with the same physical type (u64)
-            (_, _) => {
-                let data = fixed::Fixed::<u64>::from(arr);
-                let meta = MetaData {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range: Some((min, max)),
-                    ..MetaData::default()
-                };
-                Column::Unsigned(meta, IntegerEncoding::U64U64(data))
-            }
-        }
+        let data = IntegerEncoding::from(arr);
+        let meta = MetaData {
+            size: data.size(),
+            rows: data.num_rows(),
+            range: Some((min, max)),
+            properties: ColumnProperties::default(),
+        };
+
+        Self::Unsigned(meta, data)
     }
 }
 
@@ -1808,17 +1427,15 @@ impl From<arrow::array::UInt64Array> for Column {
             _ => unreachable!("min/max must both be Some or None"),
         };
 
-        let data = fixed_null::FixedNull::<arrow::datatypes::UInt64Type>::from(arr);
+        let data = IntegerEncoding::from(arr);
         let meta = MetaData {
             size: data.size(),
             rows: data.num_rows(),
             range,
-            ..MetaData::default()
+            properties: ColumnProperties::default(),
         };
 
-        // TODO(edd): currently fixed null only supports 64-bit logical/physical
-        // types. Need to add support for storing as smaller physical types.
-        Column::Unsigned(meta, IntegerEncoding::U64U64N(data))
+        Column::Unsigned(meta, data)
     }
 }
 
@@ -1834,87 +1451,15 @@ impl From<&[i64]> for Column {
             max = max.max(v);
         }
 
-        // This match is carefully ordered. It prioritises smaller physical
-        // datatypes that can safely represent the provided logical data type.
-        match (min, max) {
-            // encode as u8 values
-            (min, max) if min >= 0 && max <= u8::MAX as i64 => {
-                let data = fixed::Fixed::<u8>::from(arr);
-                let meta = MetaData {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range: Some((min, max)),
-                    ..MetaData::default()
-                };
-                Column::Integer(meta, IntegerEncoding::I64U8(data))
-            }
-            // encode as i8 values
-            (min, max) if min >= i8::MIN as i64 && max <= i8::MAX as i64 => {
-                let data = fixed::Fixed::<i8>::from(arr);
-                let meta = MetaData {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range: Some((min, max)),
-                    ..MetaData::default()
-                };
-                Column::Integer(meta, IntegerEncoding::I64I8(data))
-            }
-            // encode as u16 values
-            (min, max) if min >= 0 && max <= u16::MAX as i64 => {
-                let data = fixed::Fixed::<u16>::from(arr);
-                let meta = MetaData {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range: Some((min, max)),
-                    ..MetaData::default()
-                };
-                Column::Integer(meta, IntegerEncoding::I64U16(data))
-            }
-            // encode as i16 values
-            (min, max) if min >= i16::MIN as i64 && max <= i16::MAX as i64 => {
-                let data = fixed::Fixed::<i16>::from(arr);
-                let meta = MetaData {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range: Some((min, max)),
-                    ..MetaData::default()
-                };
-                Column::Integer(meta, IntegerEncoding::I64I16(data))
-            }
-            // encode as u32 values
-            (min, max) if min >= 0 && max <= u32::MAX as i64 => {
-                let data = fixed::Fixed::<u32>::from(arr);
-                let meta = MetaData {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range: Some((min, max)),
-                    ..MetaData::default()
-                };
-                Column::Integer(meta, IntegerEncoding::I64U32(data))
-            }
-            // encode as i32 values
-            (min, max) if min >= i32::MIN as i64 && max <= i32::MAX as i64 => {
-                let data = fixed::Fixed::<i32>::from(arr);
-                let meta = MetaData {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range: Some((min, max)),
-                    ..MetaData::default()
-                };
-                Column::Integer(meta, IntegerEncoding::I64I32(data))
-            }
-            // otherwise, encode with the same physical type (i64)
-            (_, _) => {
-                let data = fixed::Fixed::<i64>::from(arr);
-                let meta = MetaData {
-                    size: data.size(),
-                    rows: data.num_rows(),
-                    range: Some((min, max)),
-                    ..MetaData::default()
-                };
-                Column::Integer(meta, IntegerEncoding::I64I64(data))
-            }
-        }
+        let data = IntegerEncoding::from(arr);
+        let meta = MetaData {
+            size: data.size(),
+            rows: data.num_rows(),
+            range: Some((min, max)),
+            properties: ColumnProperties::default(),
+        };
+
+        Self::Integer(meta, data)
     }
 }
 
@@ -1959,17 +1504,15 @@ impl From<arrow::array::Int64Array> for Column {
             _ => unreachable!("min/max must both be Some or None"),
         };
 
-        let data = fixed_null::FixedNull::<arrow::datatypes::Int64Type>::from(arr);
+        let data = IntegerEncoding::from(arr);
         let meta = MetaData {
             size: data.size(),
             rows: data.num_rows(),
             range,
-            ..MetaData::default()
+            properties: ColumnProperties::default(),
         };
 
-        // TODO(edd): currently fixed null only supports 64-bit logical/physical
-        // types. Need to add support for storing as smaller physical types.
-        Column::Integer(meta, IntegerEncoding::I64I64N(data))
+        Column::Integer(meta, data)
     }
 }
 
