@@ -686,6 +686,18 @@ impl TestLPWriter {
         self.write_lines(database, &lines).await
     }
 
+    /// Writes line protocol formatted data to database and partition
+    pub async fn write_lp_to_partition<D: Database>(
+        &mut self,
+        database: &D,
+        lp_data: &str,
+        paritition_key: impl Into<String>,
+    ) {
+        let lines = parse_lines(lp_data).collect::<Result<Vec<_>, _>>().unwrap();
+        self.write_lines_to_partition(database, paritition_key, &lines)
+            .await;
+    }
+
     /// Writes lines the the given partition
     pub async fn write_lines_to_partition<D: Database>(
         &mut self,

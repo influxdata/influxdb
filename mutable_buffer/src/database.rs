@@ -185,6 +185,14 @@ impl MutableBufferDb {
             .context(DroppingChunk { partition_key })
     }
 
+    /// drop the specified partition
+    pub fn drop_partition(&self, partition_key: &str) -> Option<Arc<RwLock<Partition>>> {
+        self.partitions
+            .write()
+            .expect("mutex poisoned")
+            .remove(partition_key)
+    }
+
     /// The approximate size in memory of all data in the mutable buffer, in
     /// bytes
     pub fn size(&self) -> usize {
