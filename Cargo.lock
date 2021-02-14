@@ -101,7 +101,7 @@ checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
 [[package]]
 name = "arrow"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=fc7540328ca686fa29247928abc158b3f33d0701#fc7540328ca686fa29247928abc158b3f33d0701"
+source = "git+https://github.com/apache/arrow.git?rev=f55a3f3330615a799942a9a82f5f61da5a83c7c9#f55a3f3330615a799942a9a82f5f61da5a83c7c9"
 dependencies = [
  "cfg_aliases",
  "chrono",
@@ -124,7 +124,7 @@ dependencies = [
 [[package]]
 name = "arrow-flight"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=fc7540328ca686fa29247928abc158b3f33d0701#fc7540328ca686fa29247928abc158b3f33d0701"
+source = "git+https://github.com/apache/arrow.git?rev=f55a3f3330615a799942a9a82f5f61da5a83c7c9#f55a3f3330615a799942a9a82f5f61da5a83c7c9"
 dependencies = [
  "arrow",
  "bytes",
@@ -849,7 +849,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=fc7540328ca686fa29247928abc158b3f33d0701#fc7540328ca686fa29247928abc158b3f33d0701"
+source = "git+https://github.com/apache/arrow.git?rev=f55a3f3330615a799942a9a82f5f61da5a83c7c9#f55a3f3330615a799942a9a82f5f61da5a83c7c9"
 dependencies = [
  "ahash 0.7.0",
  "arrow",
@@ -868,7 +868,7 @@ dependencies = [
  "pin-project-lite",
  "rustyline",
  "sha2",
- "sqlparser 0.7.0",
+ "sqlparser 0.8.0",
  "tokio",
 ]
 
@@ -2283,7 +2283,7 @@ dependencies = [
 [[package]]
 name = "parquet"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=fc7540328ca686fa29247928abc158b3f33d0701#fc7540328ca686fa29247928abc158b3f33d0701"
+source = "git+https://github.com/apache/arrow.git?rev=f55a3f3330615a799942a9a82f5f61da5a83c7c9#f55a3f3330615a799942a9a82f5f61da5a83c7c9"
 dependencies = [
  "arrow",
  "base64 0.12.3",
@@ -3366,9 +3366,9 @@ dependencies = [
 
 [[package]]
 name = "sqlparser"
-version = "0.7.0"
+version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e3a3da41f3ddf62cbf92635ace62dd037fad9a91c6871c514fbd404e2059f27d"
+checksum = "8b929a9577d01ee7cddb820696ed536868d81557d3c14363a7514d71add1d058"
 dependencies = [
  "log",
 ]
