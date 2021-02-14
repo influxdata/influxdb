@@ -21,7 +21,6 @@ use crate::{predicate::Predicate, util::project_schema, PartitionChunk};
 use snafu::{ResultExt, Snafu};
 
 mod adapter;
-mod make_null;
 mod physical;
 use self::physical::IOxReadFilterNode;
 
