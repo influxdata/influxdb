@@ -119,7 +119,7 @@ impl Partition {
         let mut chunks: Vec<_> = self
             .closed_chunks
             .iter()
-            .map(|(_, chunk)| chunk.clone())
+            .map(|(_, chunk)| Arc::clone(&chunk))
             .collect::<Vec<_>>();
 
         chunks.push(self.open_chunk_snapshot());
@@ -131,7 +131,7 @@ impl Partition {
     /// subsequent writes.
     pub fn get_chunk(&self, chunk_id: u32) -> Result<Arc<Chunk>> {
         if let Some(chunk) = self.closed_chunks.get(&chunk_id) {
-            Ok(chunk.clone())
+            Ok(Arc::clone(&chunk))
         } else if chunk_id == self.open_chunk.id {
             Ok(self.open_chunk_snapshot())
         } else {
@@ -168,7 +168,7 @@ impl Partition {
         chunk.mark_closed();
         let chunk = Arc::new(chunk);
         if !chunk.is_empty() {
-            let existing_value = self.closed_chunks.insert(chunk.id(), chunk.clone());
+            let existing_value = self.closed_chunks.insert(chunk.id(), Arc::clone(&chunk));
             assert!(existing_value.is_none());
         }
         chunk

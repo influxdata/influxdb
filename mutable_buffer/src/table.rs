@@ -1179,7 +1179,7 @@ fn reorder_prefix(
 
     let mut new_tag_columns = prefix_map
         .iter()
-        .map(|&i| tag_columns[i].clone())
+        .map(|&i| Arc::clone(&tag_columns[i]))
         .collect::<Vec<_>>();
 
     new_tag_columns.extend(tag_columns.into_iter().enumerate().filter_map(|(i, c)| {
@@ -1294,7 +1294,7 @@ impl AggExprs {
                     )?);
 
                     field_list.push((
-                        field_name.clone(), // value name
+                        Arc::clone(field_name), // value name
                         time_column_name,
                     ));
                 }

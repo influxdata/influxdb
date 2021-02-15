@@ -415,10 +415,10 @@ impl MutableBufferDb {
         let mut partitions = self.partitions.write().expect("mutex poisoned");
 
         if let Some(partition) = partitions.get(partition_key) {
-            partition.clone()
+            Arc::clone(&partition)
         } else {
             let partition = Arc::new(RwLock::new(Partition::new(partition_key)));
-            partitions.insert(partition_key.to_string(), partition.clone());
+            partitions.insert(partition_key.to_string(), Arc::clone(&partition));
             partition
         }
     }
