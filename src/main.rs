@@ -3,7 +3,8 @@
 #![warn(
     missing_debug_implementations,
     clippy::explicit_iter_loop,
-    clippy::use_self
+    clippy::use_self,
+    clippy::clone_on_ref_ptr
 )]
 
 use clap::{crate_authors, crate_version, value_t, App, Arg, ArgMatches, SubCommand};

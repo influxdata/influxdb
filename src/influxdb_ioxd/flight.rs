@@ -13,7 +13,7 @@ use futures::Stream;
 use query::{frontend::sql::SQLQueryPlanner, DatabaseStore};
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
-use std::pin::Pin;
+use std::{pin::Pin, sync::Arc};
 use tonic::{Request, Response, Streaming};
 use tracing::error;
 
@@ -137,7 +137,7 @@ where
             })?;
 
         // execute the query
-        let results = collect(physical_plan.clone())
+        let results = collect(Arc::clone(&physical_plan))
             .await
             .map_err(|e| Box::new(e) as _)
             .context(Query {

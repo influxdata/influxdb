@@ -249,9 +249,15 @@ where
             predicate.loggable()
         );
 
-        read_filter_impl(tx.clone(), self.db_store.clone(), db_name, range, predicate)
-            .await
-            .map_err(|e| e.to_status())?;
+        read_filter_impl(
+            tx.clone(),
+            Arc::clone(&self.db_store),
+            db_name,
+            range,
+            predicate,
+        )
+        .await
+        .map_err(|e| e.to_status())?;
 
         Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
@@ -302,7 +308,7 @@ where
 
         query_group_impl(
             tx.clone(),
-            self.db_store.clone(),
+            Arc::clone(&self.db_store),
             db_name,
             range,
             predicate,
@@ -352,7 +358,7 @@ where
 
         query_group_impl(
             tx.clone(),
-            self.db_store.clone(),
+            Arc::clone(&self.db_store),
             db_name,
             range,
             predicate,
@@ -392,7 +398,7 @@ where
         let measurement = None;
 
         let response = tag_keys_impl(
-            self.db_store.clone(),
+            Arc::clone(&self.db_store),
             db_name,
             measurement,
             range,
@@ -442,7 +448,7 @@ where
                 unimplemented!("tag_value for a measurement, with general predicate");
             }
 
-            measurement_name_impl(self.db_store.clone(), db_name, range).await
+            measurement_name_impl(Arc::clone(&self.db_store), db_name, range).await
         } else if tag_key.is_field() {
             info!(
                 "tag_values with tag_key=[xff] (field name) for database {}, range: {:?}, predicate: {} --> returning fields",
@@ -451,7 +457,8 @@ where
             );
 
             let fieldlist =
-                field_names_impl(self.db_store.clone(), db_name, None, range, predicate).await?;
+                field_names_impl(Arc::clone(&self.db_store), db_name, None, range, predicate)
+                    .await?;
 
             // Pick out the field names into a Vec<Vec<u8>>for return
             let values = fieldlist
@@ -473,7 +480,7 @@ where
             );
 
             tag_values_impl(
-                self.db_store.clone(),
+                Arc::clone(&self.db_store),
                 db_name,
                 tag_key,
                 measurement,
@@ -573,7 +580,7 @@ where
             predicate.loggable()
         );
 
-        let response = measurement_name_impl(self.db_store.clone(), db_name, range)
+        let response = measurement_name_impl(Arc::clone(&self.db_store), db_name, range)
             .await
             .map_err(|e| e.to_status());
 
@@ -614,7 +621,7 @@ where
         let measurement = Some(measurement);
 
         let response = tag_keys_impl(
-            self.db_store.clone(),
+            Arc::clone(&self.db_store),
             db_name,
             measurement,
             range,
@@ -659,7 +666,7 @@ where
         let measurement = Some(measurement);
 
         let response = tag_values_impl(
-            self.db_store.clone(),
+            Arc::clone(&self.db_store),
             db_name,
             tag_key,
             measurement,
@@ -705,7 +712,7 @@ where
         let measurement = Some(measurement);
 
         let response = field_names_impl(
-            self.db_store.clone(),
+            Arc::clone(&self.db_store),
             db_name,
             measurement,
             range,
@@ -2554,7 +2561,7 @@ mod tests {
 
             println!("Starting InfluxDB IOx rpc test server on {:?}", bind_addr);
 
-            let server = super::super::make_server(socket, test_storage.clone());
+            let server = super::super::make_server(socket, Arc::clone(&test_storage));
             tokio::task::spawn(server);
 
             let iox_client = connect_to_server::<IOxTestingClient>(bind_addr)
