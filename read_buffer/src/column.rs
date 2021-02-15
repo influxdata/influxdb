@@ -1132,6 +1132,16 @@ impl RowIDs {
         panic!("cannot unwrap RowIDs to Vector");
     }
 
+    /// An estimation of the size in bytes needed to store `self`.
+    pub fn size(&self) -> usize {
+        match self {
+            RowIDs::Bitmap(bm) => std::mem::size_of::<Bitmap>() + bm.get_serialized_size_in_bytes(),
+            RowIDs::Vector(v) => {
+                std::mem::size_of::<Vec<u32>>() + (std::mem::size_of::<u32>() * v.len())
+            }
+        }
+    }
+
     // Converts the RowIDs to a Vec<u32>. This is expensive and should only be
     // used for testing.
     pub fn to_vec(&self) -> Vec<u32> {
@@ -1243,7 +1253,7 @@ mod test {
             assert_eq!(
                 meta,
                 super::MetaData::<String> {
-                    size: 317,
+                    size: 373,
                     rows: 4,
                     range: Some(("hello".to_string(), "world".to_string())),
                     properties: ColumnProperties {
@@ -1271,7 +1281,7 @@ mod test {
             assert_eq!(
                 meta,
                 super::MetaData::<String> {
-                    size: 301,
+                    size: 345,
                     rows: 2,
                     range: Some(("hello".to_string(), "world".to_string())),
                     properties: ColumnProperties {
