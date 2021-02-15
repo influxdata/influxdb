@@ -8,11 +8,11 @@ description = "Apache Arrow / Parquet / DataFusion dependencies for InfluxDB IOx
 [dependencies] # In alphabetical order
 # We are using development version of arrow/parquet/datafusion and the dependencies are at the same rev
 
-# The version can be found here: https://github.com/apache/arrow/commit/fc7540328ca686fa29247928abc158b3f33d0701
+# The version can be found here: https://github.com/apache/arrow/commit/f55a3f3330615a799942a9a82f5f61da5a83c7c9
 #
-arrow = { git = "https://github.com/apache/arrow.git", rev = "fc7540328ca686fa29247928abc158b3f33d0701" , features = ["simd"] }
-arrow-flight = { git = "https://github.com/apache/arrow.git", rev = "fc7540328ca686fa29247928abc158b3f33d0701" }
-datafusion = { git = "https://github.com/apache/arrow.git", rev = "fc7540328ca686fa29247928abc158b3f33d0701" }
+arrow = { git = "https://github.com/apache/arrow.git", rev = "f55a3f3330615a799942a9a82f5f61da5a83c7c9" , features = ["simd"] }
+arrow-flight = { git = "https://github.com/apache/arrow.git", rev = "f55a3f3330615a799942a9a82f5f61da5a83c7c9" }
+datafusion = { git = "https://github.com/apache/arrow.git", rev = "f55a3f3330615a799942a9a82f5f61da5a83c7c9" }
 # Turn off the "arrow" feature; it currently has a bug that causes the crate to rebuild every time
 # and we're not currently using it anyway
-parquet = { git = "https://github.com/apache/arrow.git", rev = "fc7540328ca686fa29247928abc158b3f33d0701", default-features = false, features = ["snap", "brotli", "flate2", "lz4", "zstd"] }
+parquet = { git = "https://github.com/apache/arrow.git", rev = "f55a3f3330615a799942a9a82f5f61da5a83c7c9", default-features = false, features = ["snap", "brotli", "flate2", "lz4", "zstd"] }
