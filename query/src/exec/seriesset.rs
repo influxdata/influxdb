@@ -234,7 +234,7 @@ impl SeriesSetConverter {
                 .iter()
                 .map(|end_row| {
                     let series_set = SeriesSet {
-                        table_name: table_name.clone(),
+                        table_name: Arc::clone(&table_name),
                         tags: Self::get_tag_keys(
                             &batch,
                             start_row as usize,
@@ -336,7 +336,7 @@ impl SeriesSetConverter {
                     .expect("Tag column was a String")
                     .value(row)
                     .into();
-                (column_name.clone(), Arc::new(tag_value))
+                (Arc::clone(&column_name), Arc::new(tag_value))
             })
             .collect()
     }
@@ -917,7 +917,7 @@ mod tests {
     }
 
     fn parse_to_iterator(schema: SchemaRef, data: &str) -> SendableRecordBatchStream {
-        let batch = parse_to_record_batch(schema.clone(), data);
+        let batch = parse_to_record_batch(Arc::clone(&schema), data);
         Box::pin(SizedRecordBatchStream::new(schema, vec![Arc::new(batch)]))
     }
 }

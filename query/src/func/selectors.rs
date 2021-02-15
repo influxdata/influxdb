@@ -206,13 +206,13 @@ where
     let input_signature = Signature::Exact(vec![value_data_type.clone(), DataType::Int64]);
 
     let state_type = Arc::new(vec![value_data_type.clone(), DataType::Int64]);
-    let state_type_factory: StateTypeFunction = Arc::new(move |_| Ok(state_type.clone()));
+    let state_type_factory: StateTypeFunction = Arc::new(move |_| Ok(Arc::clone(&state_type)));
 
     let factory: AccumulatorFunctionImplementation =
         Arc::new(move || Ok(Box::new(SelectorAccumulator::<SELECTOR>::new(output))));
 
     let return_type = Arc::new(output.return_type(&value_data_type));
-    let return_type_func: ReturnTypeFunction = Arc::new(move |_| Ok(return_type.clone()));
+    let return_type_func: ReturnTypeFunction = Arc::new(move |_| Ok(Arc::clone(&return_type)));
 
     AggregateUDF::new(
         name,
@@ -622,7 +622,7 @@ mod test {
 
         // define data in two partitions
         let batch1 = RecordBatch::try_new(
-            schema.clone(),
+            Arc::clone(&schema),
             vec![
                 Arc::new(Float64Array::from(vec![Some(2.0), Some(4.0), None])),
                 Arc::new(Int64Array::from(vec![Some(20), Some(40), None])),
@@ -635,7 +635,7 @@ mod test {
 
         // No values in this batch
         let batch2 = RecordBatch::try_new(
-            schema.clone(),
+            Arc::clone(&schema),
             vec![
                 Arc::new(Float64Array::from(vec![] as Vec<Option<f64>>)),
                 Arc::new(Int64Array::from(vec![] as Vec<Option<i64>>)),
@@ -647,7 +647,7 @@ mod test {
         .unwrap();
 
         let batch3 = RecordBatch::try_new(
-            schema.clone(),
+            Arc::clone(&schema),
             vec![
                 Arc::new(Float64Array::from(vec![Some(1.0), Some(5.0), Some(3.0)])),
                 Arc::new(Int64Array::from(vec![Some(10), Some(50), Some(30)])),
@@ -666,8 +666,11 @@ mod test {
         )
         .unwrap();
 
-        let provider =
-            MemTable::try_new(schema.clone(), vec![vec![batch1], vec![batch2, batch3]]).unwrap();
+        let provider = MemTable::try_new(
+            Arc::clone(&schema),
+            vec![vec![batch1], vec![batch2, batch3]],
+        )
+        .unwrap();
         let mut ctx = ExecutionContext::new();
         ctx.register_table("t", Box::new(provider));
 

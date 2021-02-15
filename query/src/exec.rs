@@ -302,7 +302,7 @@ impl Executor {
                 let handles = plans
                     .into_iter()
                     .map(|plan| {
-                        let counters = self.counters.clone();
+                        let counters = Arc::clone(&self.counters);
 
                         tokio::task::spawn(async move {
                             let ctx = IOxExecutionContext::new(counters);
@@ -344,7 +344,7 @@ impl Executor {
 
     /// Create a new execution context, suitable for executing a new query
     pub fn new_context(&self) -> IOxExecutionContext {
-        IOxExecutionContext::new(self.counters.clone())
+        IOxExecutionContext::new(Arc::clone(&self.counters))
     }
 
     /// plans and runs the plans in parallel and collects the results
@@ -414,7 +414,7 @@ mod tests {
     #[tokio::test]
     async fn executor_known_string_set_plan_ok() -> Result<()> {
         let expected_strings = to_set(&["Foo", "Bar"]);
-        let plan = StringSetPlan::Known(expected_strings.clone());
+        let plan = StringSetPlan::Known(Arc::clone(&expected_strings));
 
         let executor = Executor::default();
         let result_strings = executor.to_string_set(plan).await?;
@@ -442,8 +442,8 @@ mod tests {
         // Test with a single plan that produces one record batch
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Utf8, true)]));
         let data = to_string_array(&["foo", "bar", "baz", "foo"]);
-        let batch =
-            RecordBatch::try_new(schema.clone(), vec![data]).expect("created new record batch");
+        let batch = RecordBatch::try_new(Arc::clone(&schema), vec![data])
+            .expect("created new record batch");
         let scan = make_plan(schema, vec![batch]);
         let plan: StringSetPlan = vec![scan].into();
 
@@ -460,11 +460,11 @@ mod tests {
         // Test with a single plan that produces multiple record batches
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Utf8, true)]));
         let data1 = to_string_array(&["foo", "bar"]);
-        let batch1 =
-            RecordBatch::try_new(schema.clone(), vec![data1]).expect("created new record batch");
+        let batch1 = RecordBatch::try_new(Arc::clone(&schema), vec![data1])
+            .expect("created new record batch");
         let data2 = to_string_array(&["baz", "foo"]);
-        let batch2 =
-            RecordBatch::try_new(schema.clone(), vec![data2]).expect("created new record batch");
+        let batch2 = RecordBatch::try_new(Arc::clone(&schema), vec![data2])
+            .expect("created new record batch");
         let scan = make_plan(schema, vec![batch1, batch2]);
         let plan: StringSetPlan = vec![scan].into();
 
@@ -482,13 +482,13 @@ mod tests {
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Utf8, true)]));
 
         let data1 = to_string_array(&["foo", "bar"]);
-        let batch1 =
-            RecordBatch::try_new(schema.clone(), vec![data1]).expect("created new record batch");
-        let scan1 = make_plan(schema.clone(), vec![batch1]);
+        let batch1 = RecordBatch::try_new(Arc::clone(&schema), vec![data1])
+            .expect("created new record batch");
+        let scan1 = make_plan(Arc::clone(&schema), vec![batch1]);
 
         let data2 = to_string_array(&["baz", "foo"]);
-        let batch2 =
-            RecordBatch::try_new(schema.clone(), vec![data2]).expect("created new record batch");
+        let batch2 = RecordBatch::try_new(Arc::clone(&schema), vec![data2])
+            .expect("created new record batch");
         let scan2 = make_plan(schema, vec![batch2]);
 
         let plan: StringSetPlan = vec![scan1, scan2].into();
@@ -510,8 +510,8 @@ mod tests {
         builder.append_value("foo").unwrap();
         builder.append_null().unwrap();
         let data = Arc::new(builder.finish());
-        let batch =
-            RecordBatch::try_new(schema.clone(), vec![data]).expect("created new record batch");
+        let batch = RecordBatch::try_new(Arc::clone(&schema), vec![data])
+            .expect("created new record batch");
         let scan = make_plan(schema, vec![batch]);
         let plan: StringSetPlan = vec![scan].into();
 
@@ -538,8 +538,8 @@ mod tests {
         // Ensure that an incorect schema (an int) gives a reasonable error
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int64, true)]));
         let data = Arc::new(Int64Array::from(vec![1]));
-        let batch =
-            RecordBatch::try_new(schema.clone(), vec![data]).expect("created new record batch");
+        let batch = RecordBatch::try_new(Arc::clone(&schema), vec![data])
+            .expect("created new record batch");
         let scan = make_plan(schema, vec![batch]);
         let plan: StringSetPlan = vec![scan].into();
 
@@ -571,7 +571,7 @@ mod tests {
             Field::new("f2", DataType::Utf8, true),
         ]));
         let batch = RecordBatch::try_new(
-            schema.clone(),
+            Arc::clone(&schema),
             vec![
                 to_string_array(&["foo", "bar"]),
                 to_string_array(&["baz", "bzz"]),

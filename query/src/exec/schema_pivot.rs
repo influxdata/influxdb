@@ -164,7 +164,7 @@ impl ExecutionPlan for SchemaPivotExec {
     }
 
     fn schema(&self) -> SchemaRef {
-        self.schema.clone()
+        Arc::clone(&self.schema)
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -176,7 +176,7 @@ impl ExecutionPlan for SchemaPivotExec {
     }
 
     fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
-        vec![self.input.clone()]
+        vec![Arc::clone(&self.input)]
     }
 
     fn with_new_children(
@@ -185,8 +185,8 @@ impl ExecutionPlan for SchemaPivotExec {
     ) -> Result<Arc<dyn ExecutionPlan>> {
         match children.len() {
             1 => Ok(Arc::new(Self {
-                input: children[0].clone(),
-                schema: self.schema.clone(),
+                input: Arc::clone(&children[0]),
+                schema: Arc::clone(&self.schema),
             })),
             _ => Err(DataFusionError::Internal(
                 "SchemaPivotExec wrong number of children".to_string(),
@@ -512,7 +512,7 @@ mod tests {
                 .map(|test_batch| {
                     let a_vec = test_batch.a.iter().copied().collect::<Vec<_>>();
                     RecordBatch::try_new(
-                        schema.clone(),
+                        Arc::clone(&schema),
                         vec![
                             Arc::new(Int64Array::from(a_vec)),
                             to_string_array(test_batch.b),

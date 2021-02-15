@@ -80,7 +80,7 @@ where
     fn clone(&self) -> Self {
         Self {
             chunk_table_schema: self.chunk_table_schema.clone(),
-            chunk: self.chunk.clone(),
+            chunk: Arc::clone(&self.chunk),
         }
     }
 }
@@ -207,7 +207,7 @@ impl<C: PartitionChunk + 'static> TableProvider for ChunkTableProvider<C> {
         let scan_schema = project_schema(self.arrow_schema(), projection);
 
         let plan = IOxReadFilterNode::new(
-            self.table_name.clone(),
+            Arc::clone(&self.table_name),
             scan_schema,
             self.chunk_and_infos.clone(),
             predicate,

@@ -187,13 +187,14 @@ impl TestDatabase {
         let column_names = column_names.into_iter().collect::<StringSet>();
         let column_names = Arc::new(column_names);
 
-        *(self.column_names.clone().lock().expect("mutex poisoned")) = Some(column_names)
+        *(Arc::clone(&self.column_names)
+            .lock()
+            .expect("mutex poisoned")) = Some(column_names)
     }
 
     /// Get the parameters from the last column name request
     pub fn get_column_names_request(&self) -> Option<ColumnNamesRequest> {
-        self.column_names_request
-            .clone()
+        Arc::clone(&self.column_names_request)
             .lock()
             .expect("mutex poisoned")
             .take()
@@ -205,13 +206,14 @@ impl TestDatabase {
         let column_values = column_values.into_iter().collect::<StringSet>();
         let column_values = Arc::new(column_values);
 
-        *(self.column_values.clone().lock().expect("mutex poisoned")) = Some(column_values)
+        *(Arc::clone(&self.column_values)
+            .lock()
+            .expect("mutex poisoned")) = Some(column_values)
     }
 
     /// Get the parameters from the last column name request
     pub fn get_column_values_request(&self) -> Option<ColumnValuesRequest> {
-        self.column_values_request
-            .clone()
+        Arc::clone(&self.column_values_request)
             .lock()
             .expect("mutex poisoned")
             .take()
@@ -219,17 +221,14 @@ impl TestDatabase {
 
     /// Set the series that will be returned on a call to query_series
     pub fn set_query_series_values(&self, plan: SeriesSetPlans) {
-        *(self
-            .query_series_values
-            .clone()
+        *(Arc::clone(&self.query_series_values)
             .lock()
             .expect("mutex poisoned")) = Some(plan);
     }
 
     /// Get the parameters from the last column name request
     pub fn get_query_series_request(&self) -> Option<QuerySeriesRequest> {
-        self.query_series_request
-            .clone()
+        Arc::clone(&self.query_series_request)
             .lock()
             .expect("mutex poisoned")
             .take()
@@ -237,17 +236,14 @@ impl TestDatabase {
 
     /// Set the series that will be returned on a call to query_groups
     pub fn set_query_groups_values(&self, plan: SeriesSetPlans) {
-        *(self
-            .query_groups_values
-            .clone()
+        *(Arc::clone(&self.query_groups_values)
             .lock()
             .expect("mutex poisoned")) = Some(plan);
     }
 
     /// Get the parameters from the last column name request
     pub fn get_query_groups_request(&self) -> Option<QueryGroupsRequest> {
-        self.query_groups_request
-            .clone()
+        Arc::clone(&self.query_groups_request)
             .lock()
             .expect("mutex poisoned")
             .take()
@@ -255,17 +251,14 @@ impl TestDatabase {
 
     /// Set the FieldSet plan that will be returned
     pub fn set_field_colum_names_values(&self, plan: FieldListPlan) {
-        *(self
-            .field_columns_value
-            .clone()
+        *(Arc::clone(&self.field_columns_value)
             .lock()
             .expect("mutex poisoned")) = Some(plan);
     }
 
     /// Get the parameters from the last column name request
     pub fn get_field_columns_request(&self) -> Option<FieldColumnsRequest> {
-        self.field_columns_request
-            .clone()
+        Arc::clone(&self.field_columns_request)
             .lock()
             .expect("mutex poisoned")
             .take()
@@ -336,16 +329,12 @@ impl Database for TestDatabase {
 
         let new_column_names_request = Some(ColumnNamesRequest { predicate });
 
-        *self
-            .column_names_request
-            .clone()
+        *Arc::clone(&self.column_names_request)
             .lock()
             .expect("mutex poisoned") = new_column_names_request;
 
         // pull out the saved columns
-        let column_names = self
-            .column_names
-            .clone()
+        let column_names = Arc::clone(&self.column_names)
             .lock()
             .expect("mutex poisoned")
             .take()
@@ -363,15 +352,12 @@ impl Database for TestDatabase {
 
         let field_columns_request = Some(FieldColumnsRequest { predicate });
 
-        *self
-            .field_columns_request
-            .clone()
+        *Arc::clone(&self.field_columns_request)
             .lock()
             .expect("mutex poisoned") = field_columns_request;
 
         // pull out the saved columns
-        self.field_columns_value
-            .clone()
+        Arc::clone(&self.field_columns_value)
             .lock()
             .expect("mutex poisoned")
             .take()
@@ -395,16 +381,12 @@ impl Database for TestDatabase {
             predicate,
         });
 
-        *self
-            .column_values_request
-            .clone()
+        *Arc::clone(&self.column_values_request)
             .lock()
             .expect("mutex poisoned") = new_column_values_request;
 
         // pull out the saved columns
-        let column_values = self
-            .column_values
-            .clone()
+        let column_values = Arc::clone(&self.column_values)
             .lock()
             .expect("mutex poisoned")
             .take()
@@ -421,14 +403,11 @@ impl Database for TestDatabase {
 
         let new_queries_series_request = Some(QuerySeriesRequest { predicate });
 
-        *self
-            .query_series_request
-            .clone()
+        *Arc::clone(&self.query_series_request)
             .lock()
             .expect("mutex poisoned") = new_queries_series_request;
 
-        self.query_series_values
-            .clone()
+        Arc::clone(&self.query_series_values)
             .lock()
             .expect("mutex poisoned")
             .take()
@@ -447,14 +426,11 @@ impl Database for TestDatabase {
 
         let new_queries_groups_request = Some(QueryGroupsRequest { predicate, gby_agg });
 
-        *self
-            .query_groups_request
-            .clone()
+        *Arc::clone(&self.query_groups_request)
             .lock()
             .expect("mutex poisoned") = new_queries_groups_request;
 
-        self.query_groups_values
-            .clone()
+        Arc::clone(&self.query_groups_values)
             .lock()
             .expect("mutex poisoned")
             .take()
@@ -622,16 +598,16 @@ impl DatabaseStore for TestDatabaseStore {
         let mut databases = self.databases.lock().expect("mutex poisoned");
 
         if let Some(db) = databases.get(name) {
-            Ok(db.clone())
+            Ok(Arc::clone(&db))
         } else {
             let new_db = Arc::new(TestDatabase::new());
-            databases.insert(name.to_string(), new_db.clone());
+            databases.insert(name.to_string(), Arc::clone(&new_db));
             Ok(new_db)
         }
     }
 
     fn executor(&self) -> Arc<Executor> {
-        self.executor.clone()
+        Arc::clone(&self.executor)
     }
 }
 

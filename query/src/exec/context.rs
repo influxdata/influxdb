@@ -63,7 +63,7 @@ impl ExtensionPlanner for IOxExtensionPlanner {
             .map(|schema_pivot| {
                 assert_eq!(inputs.len(), 1, "Inconsistent number of inputs");
                 let execution_plan = Arc::new(SchemaPivotExec::new(
-                    inputs[0].clone(),
+                    Arc::clone(&inputs[0]),
                     schema_pivot.schema().as_ref().clone().into(),
                 ));
                 Ok(execution_plan as _)

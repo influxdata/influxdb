@@ -1,7 +1,7 @@
 //! This module contains the definition of a "FieldList" a set of
 //! records of (field_name, field_type, last_timestamp) and code to
 //! pull them from RecordBatches
-use std::collections::BTreeMap;
+use std::{collections::BTreeMap, sync::Arc};
 
 use arrow_deps::arrow::{
     self,
@@ -79,7 +79,7 @@ impl IntoFieldList for Vec<RecordBatch> {
             arrow_schema
                 .index_of(TIME_COLUMN_NAME)
                 .with_context(|| InternalNoTimeColumn {
-                    schema: arrow_schema.clone(),
+                    schema: Arc::clone(&arrow_schema),
                 })?;
 
         // key: fieldname, value: highest value of time column we have seen
@@ -203,8 +203,11 @@ mod tests {
         let string_array: ArrayRef = Arc::new(StringArray::from(vec!["foo", "bar", "baz", "foo"]));
         let timestamp_array: ArrayRef = Arc::new(Int64Array::from(vec![1000, 2000, 3000, 4000]));
 
-        let actual = do_conversion(schema.clone(), vec![vec![string_array, timestamp_array]])
-            .expect("convert correctly");
+        let actual = do_conversion(
+            Arc::clone(&schema),
+            vec![vec![string_array, timestamp_array]],
+        )
+        .expect("convert correctly");
 
         let expected = FieldList {
             fields: vec![Field {
@@ -338,7 +341,7 @@ mod tests {
         let batches = value_arrays
             .into_iter()
             .map(|arrays| {
-                RecordBatch::try_new(schema.clone(), arrays).expect("created new record batch")
+                RecordBatch::try_new(Arc::clone(&schema), arrays).expect("created new record batch")
             })
             .collect::<Vec<_>>();
 

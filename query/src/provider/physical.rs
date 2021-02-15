@@ -51,7 +51,7 @@ impl<C: PartitionChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
     }
 
     fn schema(&self) -> SchemaRef {
-        self.schema.clone()
+        Arc::clone(&self.schema)
     }
 
     fn output_partitioning(&self) -> Partitioning {
@@ -72,8 +72,8 @@ impl<C: PartitionChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
         // For some reason when I used an automatically derived `Clone` implementation
         // the compiler didn't recognize the trait implementation
         let new_self = Self {
-            table_name: self.table_name.clone(),
-            schema: self.schema.clone(),
+            table_name: Arc::clone(&self.table_name),
+            schema: Arc::clone(&self.schema),
             chunk_and_infos: self.chunk_and_infos.clone(),
             predicate: self.predicate.clone(),
         };
@@ -114,7 +114,7 @@ impl<C: PartitionChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
                 ))
             })?;
 
-        let adapter = SchemaAdapterStream::try_new(stream, self.schema.clone())
+        let adapter = SchemaAdapterStream::try_new(stream, Arc::clone(&self.schema))
             .map_err(|e| DataFusionError::Internal(e.to_string()))?;
 
         Ok(Box::pin(adapter))

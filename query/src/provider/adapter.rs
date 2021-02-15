@@ -1,4 +1,5 @@
 //! Holds a stream that ensures chunks have the same (uniform) schema
+use std::sync::Arc;
 
 use snafu::Snafu;
 use std::task::{Context, Poll};
@@ -180,18 +181,18 @@ impl SchemaAdapterStream {
             .mappings
             .iter()
             .map(|mapping| match mapping {
-                ColumnMapping::FromInput(input_index) => batch.column(*input_index).clone(),
+                ColumnMapping::FromInput(input_index) => Arc::clone(&batch.column(*input_index)),
                 ColumnMapping::MakeNull(data_type) => new_null_array(data_type, batch.num_rows()),
             })
             .collect::<Vec<_>>();
 
-        RecordBatch::try_new(self.output_schema.clone(), output_columns)
+        RecordBatch::try_new(Arc::clone(&self.output_schema), output_columns)
     }
 }
 
 impl RecordBatchStream for SchemaAdapterStream {
     fn schema(&self) -> SchemaRef {
-        self.output_schema.clone()
+        Arc::clone(&self.output_schema)
     }
 }
 
