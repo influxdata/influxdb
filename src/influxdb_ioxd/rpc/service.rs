@@ -766,7 +766,7 @@ async fn measurement_name_impl<T>(
     range: Option<TimestampRange>,
 ) -> Result<StringValuesResponse>
 where
-    T: DatabaseStore,
+    T: DatabaseStore + 'static,
 {
     let predicate = PredicateBuilder::default().set_range(range).build();
     let db_name = db_name.as_ref();
@@ -810,7 +810,7 @@ async fn tag_keys_impl<T>(
     rpc_predicate: Option<Predicate>,
 ) -> Result<StringValuesResponse>
 where
-    T: DatabaseStore,
+    T: DatabaseStore + 'static,
 {
     let rpc_predicate_string = format!("{:?}", rpc_predicate);
 
@@ -827,15 +827,17 @@ where
         db_name: db_name.as_str(),
     })?;
 
-    let executor = db_store.executor();
+    let planner = InfluxRPCPlanner::new();
 
-    let tag_key_plan = db
-        .tag_column_names(predicate)
+    let tag_key_plan = planner
+        .tag_column_names(db.as_ref(), predicate)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(ListingColumns {
             db_name: db_name.as_str(),
         })?;
+
+    let executor = db_store.executor();
 
     let tag_keys = executor
         .to_string_set(tag_key_plan)
@@ -1115,14 +1117,16 @@ mod tests {
     use super::super::id::ID;
 
     use super::*;
-    use arrow_deps::arrow::datatypes::DataType;
+    use arrow_deps::{
+        arrow::datatypes::DataType,
+        datafusion::logical_plan::{col, lit, Expr},
+    };
     use panic_logging::SendPanicsToTracing;
     use query::{
         exec::fieldlist::{Field, FieldList},
         exec::FieldListPlan,
         exec::SeriesSetPlans,
         group_by::{Aggregate as QueryAggregate, WindowDuration as QueryWindowDuration},
-        test::ColumnNamesRequest,
         test::FieldColumnsRequest,
         test::QueryGroupsRequest,
         test::TestDatabaseStore,
@@ -1133,7 +1137,7 @@ mod tests {
         net::{IpAddr, Ipv4Addr, SocketAddr},
         time::Duration,
     };
-    use test_helpers::{tag_key_bytes_to_strings, tracing::TracingCapture};
+    use test_helpers::{assert_contains, tag_key_bytes_to_strings, tracing::TracingCapture};
 
     use tonic::Code;
 
@@ -1241,7 +1245,7 @@ mod tests {
             .await
             .expect("getting db")
             .get_chunk("my_partition_key", 0)
-            .and_then(|chunk| chunk.table_names_predicate());
+            .and_then(|chunk| chunk.predicate());
 
         let expected_predicate = Some(
             PredicateBuilder::default()
@@ -1267,11 +1271,19 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let test_db = fixture
+        // Note multiple tables / measureemnts:
+        let chunk = TestChunk::new(0)
+            .with_tag_column("m1", "k1")
+            .with_tag_column("m1", "k2")
+            .with_tag_column("m2", "k3")
+            .with_tag_column("m2", "k4");
+
+        fixture
             .test_storage
             .db_or_create(&db_info.db_name)
             .await
-            .expect("creating test database");
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClientWrapper::read_source(
             db_info.org_id,
@@ -1279,32 +1291,64 @@ mod tests {
             partition_id,
         ));
 
-        let tag_keys = vec!["k1", "k2", "k3", "k4"];
         let request = TagKeysRequest {
             tags_source: source.clone(),
             range: make_timestamp_range(150, 200),
             predicate: make_state_ma_predicate(),
         };
 
-        let expected_request =  ColumnNamesRequest {
-            predicate: "Predicate { exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into()
-        };
-
-        test_db.set_column_names(to_string_vec(&tag_keys));
-
         let actual_tag_keys = fixture.storage_client.tag_keys(request).await?;
-        let mut expected_tag_keys = vec!["_f(0xff)", "_m(0x00)"];
-        expected_tag_keys.extend(tag_keys.iter());
+        let expected_tag_keys = vec!["_f(0xff)", "_m(0x00)", "k1", "k2", "k3", "k4"];
+
+        assert_eq!(actual_tag_keys, expected_tag_keys,);
+
+        // also ensure the plumbing is hooked correctly and that the predicate made it
+        // down to the chunk
+        let actual_predicate = fixture
+            .test_storage
+            .db_or_create(&db_info.db_name)
+            .await
+            .expect("getting db")
+            .get_chunk("my_partition_key", 0)
+            .and_then(|chunk| chunk.predicate());
+
+        let expected_predicate = Some(
+            PredicateBuilder::default()
+                .timestamp_range(150, 200)
+                .add_expr(make_state_ma_expr())
+                .build(),
+        );
 
         assert_eq!(
-            actual_tag_keys, expected_tag_keys,
-            "unexpected tag keys while getting column names"
+            actual_predicate, expected_predicate,
+            "\nActual: {:?}\nExpected: {:?}",
+            actual_predicate, expected_predicate
         );
-        assert_eq!(
-            test_db.get_column_names_request(),
-            Some(expected_request),
-            "unexpected request while getting column names"
-        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_storage_rpc_tag_keys_error() -> Result<(), tonic::Status> {
+        // Start a test gRPC server on a randomally allocated port
+        let mut fixture = Fixture::new().await.expect("Connecting to test server");
+
+        let db_info = OrgAndBucket::new(123, 456);
+        let partition_id = 1;
+
+        let chunk = TestChunk::new(0).with_error("Sugar we are going down");
+
+        fixture
+            .test_storage
+            .db_or_create(&db_info.db_name)
+            .await
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk));
+
+        let source = Some(StorageClientWrapper::read_source(
+            db_info.org_id,
+            db_info.bucket_id,
+            partition_id,
+        ));
 
         // ---
         // test error
@@ -1315,23 +1359,8 @@ mod tests {
             predicate: None,
         };
 
-        // Note we don't set the column_names on the test database, so we expect an
-        // error
         let response = fixture.storage_client.tag_keys(request).await;
-        assert!(response.is_err());
-        let response_string = format!("{:?}", response);
-        let expected_error = "No saved column_names in TestDatabase";
-        assert!(
-            response_string.contains(expected_error),
-            "'{}' did not contain expected content '{}'",
-            response_string,
-            expected_error
-        );
-
-        let expected_request = Some(ColumnNamesRequest {
-            predicate: "Predicate {}".into(),
-        });
-        assert_eq!(test_db.get_column_names_request(), expected_request);
+        assert_contains!(response.unwrap_err().to_string(), "Sugar we are going down");
 
         Ok(())
     }
@@ -1341,17 +1370,27 @@ mod tests {
     /// interface and that the returned values are sent back via gRPC.
     #[tokio::test]
     async fn test_storage_rpc_measurement_tag_keys() -> Result<(), tonic::Status> {
+        test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let test_db = fixture
+        let chunk = TestChunk::new(0)
+            // predicate specifies m4, so this is filtered out
+            .with_tag_column("m1", "k0")
+            .with_tag_column("m4", "k1")
+            .with_tag_column("m4", "k2")
+            .with_tag_column("m4", "k3")
+            .with_tag_column("m4", "k4");
+
+        fixture
             .test_storage
             .db_or_create(&db_info.db_name)
             .await
-            .expect("creating test database");
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClientWrapper::read_source(
             db_info.org_id,
@@ -1359,18 +1398,9 @@ mod tests {
             partition_id,
         ));
 
-        #[derive(Debug)]
-        struct TestCase<'a> {
-            /// The tag keys to load into the database
-            tag_keys: Vec<&'a str>,
-            request: MeasurementTagKeysRequest,
-            expected_request: ColumnNamesRequest,
-        }
-
         // ---
         // Timestamp + Predicate
         // ---
-        let tag_keys = vec!["k1", "k2", "k3", "k4"];
         let request = MeasurementTagKeysRequest {
             measurement: "m4".into(),
             source: source.clone(),
@@ -1378,27 +1408,65 @@ mod tests {
             predicate: make_state_ma_predicate(),
         };
 
-        let expected_request =  ColumnNamesRequest {
-            predicate: "Predicate { table_names: m4 exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into()
-        };
-
-        test_db.set_column_names(to_string_vec(&tag_keys));
-
         let actual_tag_keys = fixture.storage_client.measurement_tag_keys(request).await?;
-
-        let mut expected_tag_keys = vec!["_f(0xff)", "_m(0x00)"];
-        expected_tag_keys.extend(tag_keys.iter());
+        let expected_tag_keys = vec!["_f(0xff)", "_m(0x00)", "k1", "k2", "k3", "k4"];
 
         assert_eq!(
             actual_tag_keys, expected_tag_keys,
             "unexpected tag keys while getting column names"
         );
 
-        assert_eq!(
-            test_db.get_column_names_request(),
-            Some(expected_request),
-            "unexpected request while getting column names"
+        // also ensure the plumbing is hooked correctly and that the predicate made it
+        // down to the chunk
+        let actual_predicate = fixture
+            .test_storage
+            .db_or_create(&db_info.db_name)
+            .await
+            .expect("getting db")
+            .get_chunk("my_partition_key", 0)
+            .and_then(|chunk| chunk.predicate());
+
+        let expected_predicate = Some(
+            PredicateBuilder::default()
+                .timestamp_range(150, 200)
+                .add_expr(make_state_ma_expr())
+                .table("m4")
+                .build(),
         );
+
+        assert_eq!(
+            actual_predicate, expected_predicate,
+            "\nActual: {:?}\nExpected: {:?}",
+            actual_predicate, expected_predicate
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_storage_rpc_measurement_tag_keys_error() -> Result<(), tonic::Status> {
+        test_helpers::maybe_start_logging();
+        // Start a test gRPC server on a randomally allocated port
+        let mut fixture = Fixture::new().await.expect("Connecting to test server");
+
+        let db_info = OrgAndBucket::new(123, 456);
+        let partition_id = 1;
+
+        let chunk = TestChunk::new(0)
+            // predicate specifies m4, so this is filtered out
+            .with_error("This is an error");
+
+        fixture
+            .test_storage
+            .db_or_create(&db_info.db_name)
+            .await
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk));
+
+        let source = Some(StorageClientWrapper::read_source(
+            db_info.org_id,
+            db_info.bucket_id,
+            partition_id,
+        ));
 
         // ---
         // test error
@@ -1410,23 +1478,8 @@ mod tests {
             predicate: None,
         };
 
-        // Note we don't set the column_names on the test database, so we expect an
-        // error
         let response = fixture.storage_client.measurement_tag_keys(request).await;
-        assert!(response.is_err());
-        let response_string = format!("{:?}", response);
-        let expected_error = "No saved column_names in TestDatabase";
-        assert!(
-            response_string.contains(expected_error),
-            "'{}' did not contain expected content '{}'",
-            response_string,
-            expected_error
-        );
-
-        let expected_request = Some(ColumnNamesRequest {
-            predicate: "Predicate { table_names: m5}".into(),
-        });
-        assert_eq!(test_db.get_column_names_request(), expected_request);
+        assert_contains!(response.unwrap_err().to_string(), "This is an error");
 
         Ok(())
     }
@@ -1470,15 +1523,8 @@ mod tests {
         test_db.set_column_values(to_string_vec(&tag_values));
 
         let actual_tag_values = fixture.storage_client.tag_values(request).await.unwrap();
-        assert_eq!(
-            actual_tag_values, tag_values,
-            "unexpected tag values while getting tag values"
-        );
-        assert_eq!(
-            test_db.get_column_values_request(),
-            Some(expected_request),
-            "unexpected request while getting tag values"
-        );
+        assert_eq!(actual_tag_values, tag_values,);
+        assert_eq!(test_db.get_column_values_request(), Some(expected_request),);
 
         // ---
         // test tag_key = _measurement means listing all measurement names
@@ -2190,7 +2236,7 @@ mod tests {
         Some(TimestampRange { start, end })
     }
 
-    /// return a predicate like
+    /// return a gRPC predicate like
     ///
     /// state="MA"
     fn make_state_ma_predicate() -> Option<Predicate> {
@@ -2212,6 +2258,13 @@ mod tests {
             ],
         };
         Some(Predicate { root: Some(root) })
+    }
+
+    /// return an DataFusion Expr predicate like
+    ///
+    /// state="MA"
+    fn make_state_ma_expr() -> Expr {
+        col("state").eq(lit("MA"))
     }
 
     /// Convert to a Vec<String> to facilitate comparison with results of client

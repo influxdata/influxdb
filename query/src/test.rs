@@ -15,7 +15,10 @@ use crate::{
 use data_types::{
     data::{lines_to_replicated_write, ReplicatedWrite},
     database_rules::{DatabaseRules, PartitionTemplate, TemplatePart},
-    schema::Schema,
+    schema::{
+        builder::{SchemaBuilder, SchemaMerger},
+        Schema,
+    },
     selection::Selection,
 };
 use influxdb_line_protocol::{parse_lines, ParsedLine};
@@ -44,9 +47,6 @@ pub struct TestDatabase {
     /// `column_names` to return upon next request
     column_names: Arc<Mutex<Option<StringSetRef>>>,
 
-    /// The last request for `column_names`
-    column_names_request: Arc<Mutex<Option<ColumnNamesRequest>>>,
-
     /// `column_values` to return upon next request
     column_values: Arc<Mutex<Option<StringSetRef>>>,
 
@@ -70,13 +70,6 @@ pub struct TestDatabase {
 
     /// The last request for `query_series`
     field_columns_request: Arc<Mutex<Option<FieldColumnsRequest>>>,
-}
-
-/// Records the parameters passed to a column name request
-#[derive(Debug, PartialEq, Clone)]
-pub struct ColumnNamesRequest {
-    /// Stringified '{:?}' version of the predicate
-    pub predicate: String,
 }
 
 /// Records the parameters passed to a column values request
@@ -114,7 +107,7 @@ pub struct FieldColumnsRequest {
 
 #[derive(Snafu, Debug)]
 pub enum TestError {
-    #[snafu(display("Test database error:  {}", message))]
+    #[snafu(display("Test database error: {}", message))]
     General { message: String },
 
     #[snafu(display("Test database execution:  {:?}", source))]
@@ -190,14 +183,6 @@ impl TestDatabase {
         *(Arc::clone(&self.column_names)
             .lock()
             .expect("mutex poisoned")) = Some(column_names)
-    }
-
-    /// Get the parameters from the last column name request
-    pub fn get_column_names_request(&self) -> Option<ColumnNamesRequest> {
-        Arc::clone(&self.column_names_request)
-            .lock()
-            .expect("mutex poisoned")
-            .take()
     }
 
     /// Set the list of column values that will be returned on a call to
@@ -322,30 +307,6 @@ impl Database for TestDatabase {
         Ok(())
     }
 
-    /// Return the mocked out column names, recording the request
-    async fn tag_column_names(&self, predicate: Predicate) -> Result<StringSetPlan, Self::Error> {
-        // save the request
-        let predicate = predicate_to_test_string(&predicate);
-
-        let new_column_names_request = Some(ColumnNamesRequest { predicate });
-
-        *Arc::clone(&self.column_names_request)
-            .lock()
-            .expect("mutex poisoned") = new_column_names_request;
-
-        // pull out the saved columns
-        let column_names = Arc::clone(&self.column_names)
-            .lock()
-            .expect("mutex poisoned")
-            .take()
-            // Turn None into an error
-            .context(General {
-                message: "No saved column_names in TestDatabase",
-            })?;
-
-        Ok(StringSetPlan::Known(column_names))
-    }
-
     async fn field_column_names(&self, predicate: Predicate) -> Result<FieldListPlan, Self::Error> {
         // save the request
         let predicate = predicate_to_test_string(&predicate);
@@ -459,13 +420,16 @@ impl Database for TestDatabase {
 
 #[derive(Debug, Default)]
 pub struct TestChunk {
-    pub id: u32,
-
-    /// Table names to return back
-    pub table_names: Vec<String>,
+    id: u32,
 
     /// A copy of the captured predicate passed
-    pub table_names_predicate: std::sync::Mutex<Option<Predicate>>,
+    predicate: std::sync::Mutex<Option<Predicate>>,
+
+    /// Column names: table_name -> Schema
+    table_schemas: BTreeMap<String, Schema>,
+
+    /// A saved error that is returned instead of actual results
+    saved_error: Option<String>,
 }
 
 impl TestChunk {
@@ -476,14 +440,56 @@ impl TestChunk {
         }
     }
 
-    pub fn with_table(mut self, name: impl Into<String>) -> Self {
-        self.table_names.push(name.into());
+    /// specify that any call should result in an error with the message
+    /// specified
+    pub fn with_error(mut self, error_message: impl Into<String>) -> Self {
+        self.saved_error = Some(error_message.into());
         self
     }
 
-    /// Get a copy of any predicate passed to table_names
-    pub fn table_names_predicate(&self) -> Option<Predicate> {
-        self.table_names_predicate
+    /// Checks the saved error, and returns it if any, otherwise returns OK
+    fn check_error(&self) -> Result<()> {
+        if let Some(message) = self.saved_error.as_ref() {
+            General { message }.fail()
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Register a table with the test chunk and a "dummy" column
+    pub fn with_table(self, table_name: impl Into<String>) -> Self {
+        self.with_tag_column(table_name, "dummy_col")
+    }
+
+    /// Register an tag column with the test chunk
+    pub fn with_tag_column(
+        mut self,
+        table_name: impl Into<String>,
+        column_name: impl Into<String>,
+    ) -> Self {
+        let table_name = table_name.into();
+        let column_name = column_name.into();
+
+        // make a new schema with the specified column and
+        // merge it in to any existing schema
+        let new_column_schema = SchemaBuilder::new().tag(&column_name).build().unwrap();
+
+        let mut merger = SchemaMerger::new().merge(new_column_schema).unwrap();
+
+        if let Some(existing_schema) = self.table_schemas.remove(&table_name) {
+            merger = merger
+                .merge(existing_schema)
+                .expect("merging was successful");
+        }
+        let new_schema = merger.build().unwrap();
+
+        self.table_schemas.insert(table_name, new_schema);
+        self
+    }
+
+    /// Get a copy of any predicate passed to the function
+    pub fn predicate(&self) -> Option<Predicate> {
+        self.predicate
             .lock()
             .expect("mutex poisoned")
             .as_ref()
@@ -520,26 +526,67 @@ impl PartitionChunk for TestChunk {
         predicate: &Predicate,
         _known_tables: &StringSet,
     ) -> Result<Option<StringSet>, Self::Error> {
+        self.check_error()?;
+
         // save the predicate
-        self.table_names_predicate
+        self.predicate
             .lock()
             .expect("mutex poisoned")
             .replace(predicate.clone());
 
-        let names = self.table_names.iter().cloned().collect::<BTreeSet<_>>();
+        // do basic filtering based on table name predicate.
+        let names = self
+            .table_schemas
+            .keys()
+            .filter(|table_name| predicate.should_include_table(&table_name))
+            .cloned()
+            .collect();
+
         Ok(Some(names))
     }
 
     async fn table_schema(
         &self,
-        _table_name: &str,
-        _selection: Selection<'_>,
+        table_name: &str,
+        selection: Selection<'_>,
     ) -> Result<Schema, Self::Error> {
+        if !matches!(selection, Selection::All) {
+            unimplemented!("Selection in TestChunk::table_schema");
+        }
+
+        self.table_schemas
+            .get(table_name)
+            .cloned()
+            .context(General {
+                message: format!("TestChunk had no schema for table {}", table_name),
+            })
+    }
+
+    fn has_table(&self, _table_name: &str) -> bool {
         unimplemented!()
     }
 
-    async fn has_table(&self, _table_name: &str) -> bool {
-        unimplemented!()
+    async fn column_names(
+        &self,
+        table_name: &str,
+        predicate: &Predicate,
+    ) -> Result<Option<StringSet>, Self::Error> {
+        self.check_error()?;
+
+        // save the predicate
+        self.predicate
+            .lock()
+            .expect("mutex poisoned")
+            .replace(predicate.clone());
+
+        let column_names = self.table_schemas.get(table_name).map(|schema| {
+            schema
+                .iter()
+                .map(|(_, field)| field.name().to_string())
+                .collect::<StringSet>()
+        });
+
+        Ok(column_names)
     }
 }
 

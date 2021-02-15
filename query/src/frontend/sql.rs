@@ -104,7 +104,7 @@ impl SQLQueryPlanner {
 
             for partition_key in &partition_keys {
                 for chunk in database.chunks(partition_key).await {
-                    if chunk.has_table(table_name).await {
+                    if chunk.has_table(table_name) {
                         let chunk_id = chunk.id();
                         let chunk_table_schema = chunk
                             .table_schema(table_name, Selection::All)

@@ -108,10 +108,10 @@ impl PartitionChunk for DBChunk {
         predicate: &Predicate,
         _known_tables: &StringSet,
     ) -> Result<Option<StringSet>, Self::Error> {
-        match self {
+        let names = match self {
             Self::MutableBuffer { chunk } => {
                 if chunk.is_empty() {
-                    Ok(Some(StringSet::new()))
+                    Some(StringSet::new())
                 } else {
                     let chunk_predicate = chunk
                         .compile_predicate(predicate)
@@ -119,7 +119,7 @@ impl PartitionChunk for DBChunk {
 
                     // we don't support arbitrary expressions in chunk predicate yet
                     if !chunk_predicate.chunk_exprs.is_empty() {
-                        Ok(None)
+                        None
                     } else {
                         let names = chunk
                             .table_names(&chunk_predicate)
@@ -128,7 +128,7 @@ impl PartitionChunk for DBChunk {
                             .map(|s| s.to_string())
                             .collect::<StringSet>();
 
-                        Ok(Some(names))
+                        Some(names)
                     }
                 }
             }
@@ -148,12 +148,27 @@ impl PartitionChunk for DBChunk {
                 let names = db
                     .table_names(partition_key, &[chunk_id], rb_predicate)
                     .context(ReadBufferChunk { chunk_id })?;
-                Ok(Some(names))
+
+                Some(names)
             }
             Self::ParquetFile => {
                 unimplemented!("parquet file not implemented")
             }
-        }
+        };
+
+        // Prune out tables that should not be
+        // present (based on additional table restrictions of the Predicate)
+        //
+        // This is needed because at time of writing, the ReadBuffer's
+        // table_names implementation doesn't include any way to
+        // further restrict the tables to a known set of tables
+        let names = names.map(|names| {
+            names
+                .into_iter()
+                .filter(|table_name| predicate.should_include_table(table_name))
+                .collect()
+        });
+        Ok(names)
     }
 
     async fn table_schema(
@@ -203,10 +218,10 @@ impl PartitionChunk for DBChunk {
         }
     }
 
-    async fn has_table(&self, table_name: &str) -> bool {
+    fn has_table(&self, table_name: &str) -> bool {
         match self {
-            DBChunk::MutableBuffer { chunk } => chunk.has_table(table_name).await,
-            DBChunk::ReadBuffer {
+            Self::MutableBuffer { chunk } => chunk.has_table(table_name),
+            Self::ReadBuffer {
                 db,
                 partition_key,
                 chunk_id,
@@ -214,7 +229,7 @@ impl PartitionChunk for DBChunk {
                 let chunk_id = *chunk_id;
                 db.has_table(partition_key, table_name, &[chunk_id])
             }
-            DBChunk::ParquetFile => {
+            Self::ParquetFile => {
                 unimplemented!("parquet file not implemented for has_table")
             }
         }
@@ -227,7 +242,7 @@ impl PartitionChunk for DBChunk {
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, Self::Error> {
         match self {
-            DBChunk::MutableBuffer { chunk } => {
+            Self::MutableBuffer { chunk } => {
                 // Note Mutable buffer doesn't support predicate
                 // pushdown (other than pruning out the entire chunk
                 // via `might_pass_predicate)
@@ -239,7 +254,7 @@ impl PartitionChunk for DBChunk {
                     table_name,
                 )))
             }
-            DBChunk::ReadBuffer {
+            Self::ReadBuffer {
                 db,
                 partition_key,
                 chunk_id,
@@ -247,11 +262,14 @@ impl PartitionChunk for DBChunk {
                 let chunk_id = *chunk_id;
                 let rb_predicate =
                     to_read_buffer_predicate(&predicate).context(InternalPredicateConversion)?;
+
+                let chunk_ids = &[chunk_id];
+
                 let read_results = db
                     .read_filter(
                         partition_key,
                         table_name,
-                        &[chunk_id],
+                        chunk_ids,
                         rb_predicate,
                         selection,
                     )
@@ -264,7 +282,7 @@ impl PartitionChunk for DBChunk {
 
                 Ok(Box::pin(ReadFilterResultsStream::new(read_results, schema)))
             }
-            DBChunk::ParquetFile => {
+            Self::ParquetFile => {
                 unimplemented!("parquet file not implemented for scan_data")
             }
         }
@@ -290,6 +308,44 @@ impl PartitionChunk for DBChunk {
             Self::ParquetFile => {
                 // TODO proper filtering for parquet files
                 Ok(true)
+            }
+        }
+    }
+
+    async fn column_names(
+        &self,
+        table_name: &str,
+        predicate: &Predicate,
+    ) -> Result<Option<StringSet>, Self::Error> {
+        match self {
+            Self::MutableBuffer { chunk } => {
+                let chunk_predicate = chunk
+                    .compile_predicate(predicate)
+                    .context(MutableBufferChunk)?;
+
+                chunk
+                    .column_names(table_name, &chunk_predicate)
+                    .context(MutableBufferChunk)
+            }
+            Self::ReadBuffer {
+                db,
+                partition_key,
+                chunk_id,
+            } => {
+                let chunk_id = *chunk_id;
+                let rb_predicate =
+                    to_read_buffer_predicate(&predicate).context(InternalPredicateConversion)?;
+
+                let chunk_ids = &[chunk_id];
+
+                let names = db
+                    .column_names(partition_key, table_name, chunk_ids, rb_predicate)
+                    .context(ReadBufferChunk { chunk_id })?;
+
+                Ok(names)
+            }
+            Self::ParquetFile => {
+                unimplemented!("parquet file not implemented for column_names")
             }
         }
     }

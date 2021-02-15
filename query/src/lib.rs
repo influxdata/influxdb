@@ -55,12 +55,6 @@ pub trait Database: Debug + Send + Sync {
     // The functions below are slated for removal (migration into a gRPC query
     // frontend) ---------
 
-    /// Returns a plan that produces the names of "tag" columns (as
-    /// defined in the data written via `write_lines`)) names in this
-    /// database, and have more than zero rows which pass the
-    /// conditions specified by `predicate`.
-    async fn tag_column_names(&self, predicate: Predicate) -> Result<StringSetPlan, Self::Error>;
-
     /// Returns a plan that produces a list of column names in this
     /// database which store fields (as defined in the data written
     /// via `write_lines`), and which have at least one row which
@@ -123,7 +117,7 @@ pub trait PartitionChunk: Debug + Send + Sync {
     }
 
     /// Returns true if this chunk contains data for the specified table
-    async fn has_table(&self, table_name: &str) -> bool;
+    fn has_table(&self, table_name: &str) -> bool;
 
     /// Returns all table names from this chunk that have at least one
     /// row that matches the `predicate` and are not already in `known_tables`.
@@ -139,6 +133,16 @@ pub trait PartitionChunk: Debug + Send + Sync {
         &self,
         predicate: &Predicate,
         known_tables: &StringSet,
+    ) -> Result<Option<StringSet>, Self::Error>;
+
+    /// Returns a set of Strings with column names from the specified
+    /// table that have at least one row that matches `predicate`, if
+    /// the predicate can be evaluated entirely on the metadata of
+    /// this Chunk.
+    async fn column_names(
+        &self,
+        table_name: &str,
+        predicate: &Predicate,
     ) -> Result<Option<StringSet>, Self::Error>;
 
     /// Returns the Schema for a table in this chunk, with the

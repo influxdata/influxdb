@@ -7,6 +7,8 @@ use std::collections::BTreeSet;
 
 use arrow_deps::datafusion::logical_plan::Expr;
 
+use crate::util::{make_range_expr, AndExprBuilder};
+
 /// Specifies a continuous range of nanosecond timestamps. Timestamp
 /// predicates are so common and critical to performance of timeseries
 /// databases in general, and IOx in particular, that they are handled
@@ -74,6 +76,38 @@ impl Predicate {
     pub fn has_exprs(&self) -> bool {
         !self.exprs.is_empty()
     }
+
+    /// Return a DataFusion `Expr` predicate representing the
+    /// combination of all predicate (`exprs`) and timestamp
+    /// restriction in this Predicate. Returns None if there are no
+    /// `Expr`'s restricting the data
+    pub fn filter_expr(&self) -> Option<Expr> {
+        let mut builder =
+            AndExprBuilder::default().append_opt(self.make_timestamp_predicate_expr());
+
+        for expr in &self.exprs {
+            builder = builder.append_expr(expr.clone());
+        }
+
+        builder.build()
+    }
+
+    /// Return true if results from this table should be included in
+    /// results
+    pub fn should_include_table(&self, table_name: &str) -> bool {
+        match &self.table_names {
+            None => true, // No table name restriction on predicate
+            Some(table_names) => table_names.contains(table_name),
+        }
+    }
+
+    /// Creates a DataFusion predicate for appliying a timestamp range:
+    ///
+    /// `range.start <= time and time < range.end`
+    fn make_timestamp_predicate_expr(&self) -> Option<Expr> {
+        self.range
+            .map(|range| make_range_expr(range.start, range.end))
+    }
 }
 
 #[derive(Debug, Default)]
@@ -89,6 +123,10 @@ impl From<Predicate> for PredicateBuilder {
 }
 
 impl PredicateBuilder {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
     /// Sets the timestamp range
     pub fn timestamp_range(mut self, start: i64, end: i64) -> Self {
         // Without more thought, redefining the timestamp range would
@@ -133,8 +171,13 @@ impl PredicateBuilder {
         self.tables(vec![table.into()])
     }
 
-    /// Sets table name restrictions
-    pub fn tables(mut self, tables: Vec<String>) -> Self {
+    /// Sets table name restrictions from something that can iterate
+    /// over items that can be converted into `Strings`
+    pub fn tables<I, S>(mut self, tables: I) -> Self
+    where
+        I: IntoIterator<Item = S>,
+        S: Into<String>,
+    {
         // We need to distinguish predicates like `table_name In
         // (foo, bar)` and `table_name = foo and table_name = bar` in order to handle
         // this
@@ -143,7 +186,8 @@ impl PredicateBuilder {
             "Multiple table predicate specification not yet supported"
         );
 
-        let table_names = tables.into_iter().collect::<BTreeSet<_>>();
+        let table_names: BTreeSet<String> = tables.into_iter().map(|s| s.into()).collect();
+
         self.inner.table_names = Some(table_names);
         self
     }

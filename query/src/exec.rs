@@ -356,7 +356,10 @@ impl Executor {
                 let ctx = self.new_context();
                 // TODO run these on some executor other than the main tokio pool
                 tokio::task::spawn(async move {
-                    let physical_plan = ctx.prepare_plan(&plan).await.expect("making logical plan");
+                    let physical_plan = ctx
+                        .prepare_plan(&plan)
+                        .await
+                        .context(DataFusionPhysicalPlanning)?;
 
                     // TODO: avoid this buffering
                     ctx.collect(physical_plan)

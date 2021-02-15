@@ -1,11 +1,10 @@
 use generated_types::wal as wb;
 use query::{
-    exec::{field::FieldColumns, make_schema_pivot, SeriesSetPlan},
+    exec::{field::FieldColumns, SeriesSetPlan},
     func::selectors::{selector_first, selector_last, selector_max, selector_min, SelectorOutput},
     func::window::make_window_bound_expr,
     group_by::{Aggregate, WindowDuration},
 };
-use tracing::debug;
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -270,94 +269,6 @@ impl Table {
             Some(df_predicate) => plan_builder.filter(df_predicate).context(BuildingPlan),
             None => Ok(plan_builder),
         }
-    }
-
-    /// Creates a DataFusion LogicalPlan that returns column *names* as a
-    /// single column of Strings
-    ///
-    /// The created plan looks like:
-    ///
-    ///  Extension(PivotSchema)
-    ///    (Optional Projection to get rid of time)
-    ///        Filter(predicate)
-    ///          InMemoryScan
-    pub fn tag_column_names_plan(
-        &self,
-        chunk_predicate: &ChunkPredicate,
-        chunk: &Chunk,
-    ) -> Result<LogicalPlan> {
-        let need_time_column = chunk_predicate.range.is_some();
-
-        let time_column_id = chunk_predicate.time_column_id;
-
-        // figure out the tag columns
-        let mut cols = Vec::with_capacity(self.columns.len());
-        for (column_id, column) in &self.columns {
-            if column.is_tag() {
-                let column_name = chunk.dictionary.lookup_id(*column_id).context(
-                    ColumnIdNotFoundInDictionary {
-                        column_id: *column_id,
-                        chunk: chunk.id,
-                    },
-                )?;
-                cols.push(ColSelection {
-                    column_name,
-                    column_id: *column_id,
-                });
-            } else if need_time_column && *column_id == time_column_id {
-                cols.push(ColSelection {
-                    column_name: TIME_COLUMN_NAME,
-                    column_id: *column_id,
-                });
-            }
-        }
-
-        let selection = TableColSelection { cols };
-
-        // TODO avoid materializing here
-        let data = self.to_arrow_impl(chunk, &selection)?;
-
-        let schema = data.schema();
-
-        let projection = None;
-
-        let plan_builder = LogicalPlanBuilder::scan_memory(vec![vec![data]], schema, projection)
-            .context(BuildingPlan)?;
-
-        let plan_builder = Self::add_datafusion_predicate(plan_builder, chunk_predicate)?;
-
-        // add optional selection to remove time column
-        let plan_builder = if !need_time_column {
-            plan_builder
-        } else {
-            // Create expressions for all columns except time
-            let select_exprs = selection
-                .cols
-                .iter()
-                .filter_map(|col_selection| {
-                    if col_selection.column_name != TIME_COLUMN_NAME {
-                        Some(col(col_selection.column_name))
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>();
-
-            plan_builder.project(&select_exprs).context(BuildingPlan)?
-        };
-
-        let plan = plan_builder.build().context(BuildingPlan)?;
-
-        // And finally pivot the plan
-        let plan = make_schema_pivot(plan);
-
-        debug!(
-            "Created column_name plan for table '{}':\n{}",
-            chunk.dictionary.lookup_id(self.id).unwrap(),
-            plan.display_indent_schema()
-        );
-
-        Ok(plan)
     }
 
     /// Creates a DataFusion LogicalPlan that returns column *values* as a
@@ -1082,9 +993,23 @@ impl Table {
 
     /// returns true if there are any rows in column that are non-null
     /// and within the timestamp range specified by pred
-    pub fn column_matches_predicate<T>(
+    pub(crate) fn column_matches_predicate(
         &self,
-        column: &[Option<T>],
+        column: &Column,
+        chunk_predicate: &ChunkPredicate,
+    ) -> Result<bool> {
+        match column {
+            Column::F64(v, _) => self.column_value_matches_predicate(v, chunk_predicate),
+            Column::I64(v, _) => self.column_value_matches_predicate(v, chunk_predicate),
+            Column::String(v, _) => self.column_value_matches_predicate(v, chunk_predicate),
+            Column::Bool(v, _) => self.column_value_matches_predicate(v, chunk_predicate),
+            Column::Tag(v, _) => self.column_value_matches_predicate(v, chunk_predicate),
+        }
+    }
+
+    fn column_value_matches_predicate<T>(
+        &self,
+        column_value: &[Option<T>],
         chunk_predicate: &ChunkPredicate,
     ) -> Result<bool> {
         match chunk_predicate.range {
@@ -1093,7 +1018,7 @@ impl Table {
                 let time_column_id = chunk_predicate.time_column_id;
                 let time_column = self.column(time_column_id)?;
                 time_column
-                    .has_non_null_i64_range(column, range.start, range.end)
+                    .has_non_null_i64_range(column_value, range.start, range.end)
                     .context(ColumnPredicateEvaluation {
                         column: time_column_id,
                     })

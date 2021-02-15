@@ -1,6 +1,6 @@
 //! This module contains DataFusion utility functions and helpers
 
-use std::sync::Arc;
+use std::{collections::HashSet, sync::Arc};
 
 use arrow_deps::{
     arrow::datatypes::{Schema as ArrowSchema, SchemaRef as ArrowSchemaRef},
@@ -8,8 +8,11 @@ use arrow_deps::{
     datafusion::{
         error::DataFusionError,
         logical_plan::{binary_expr, Expr, LogicalPlan, LogicalPlanBuilder, Operator},
+        optimizer::utils::expr_to_column_names,
+        prelude::{col, lit},
     },
 };
+use data_types::{schema::Schema, TIME_COLUMN_NAME};
 
 /// Creates a single expression representing the conjunction (aka
 /// AND'ing) together of a set of expressions
@@ -56,6 +59,15 @@ impl AndExprBuilder {
     }
 }
 
+/// Creates expression like:
+/// start <= time && time < end
+pub fn make_range_expr(start: i64, end: i64) -> Expr {
+    let ts_low = arrow_deps::datafusion::prelude::lit(start).lt_eq(col(TIME_COLUMN_NAME));
+    let ts_high = col(TIME_COLUMN_NAME).lt(lit(end));
+
+    ts_low.and(ts_high)
+}
+
 /// Create a logical plan that produces the record batch
 pub fn make_scan_plan(batch: RecordBatch) -> std::result::Result<LogicalPlan, DataFusionError> {
     let schema = batch.schema();
@@ -83,5 +95,60 @@ pub fn project_schema(
                 .collect();
             Arc::new(ArrowSchema::new(new_fields))
         }
+    }
+}
+
+/// Returns true if all columns referred to in schema are present, false
+/// otherwise
+pub fn schema_has_all_expr_columns(schema: &Schema, expr: &Expr) -> bool {
+    let mut predicate_columns = HashSet::new();
+    expr_to_column_names(expr, &mut predicate_columns).unwrap();
+
+    predicate_columns
+        .into_iter()
+        .all(|col_name| schema.find_index_of(&col_name).is_some())
+}
+
+#[cfg(test)]
+mod tests {
+    use data_types::schema::builder::SchemaBuilder;
+
+    use super::*;
+
+    #[test]
+    fn test_make_range_expr() {
+        // Test that the generated predicate is correct
+
+        let ts_predicate_expr = make_range_expr(101, 202);
+        let expected_string = "Int64(101) LtEq #time And #time Lt Int64(202)";
+        let actual_string = format!("{:?}", ts_predicate_expr);
+
+        assert_eq!(actual_string, expected_string);
+    }
+
+    #[test]
+    fn test_schema_has_all_exprs_() {
+        let schema = SchemaBuilder::new().tag("t1").timestamp().build().unwrap();
+
+        assert!(schema_has_all_expr_columns(
+            &schema,
+            &col("t1").eq(lit("foo"))
+        ));
+        assert!(!schema_has_all_expr_columns(
+            &schema,
+            &col("t2").eq(lit("foo"))
+        ));
+        assert!(schema_has_all_expr_columns(
+            &schema,
+            &col("t1").eq(col("time"))
+        ));
+        assert!(!schema_has_all_expr_columns(
+            &schema,
+            &col("t1").eq(col("time2"))
+        ));
+        assert!(!schema_has_all_expr_columns(
+            &schema,
+            &col("t1").eq(col("time")).and(col("t3").lt(col("time")))
+        ));
     }
 }

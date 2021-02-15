@@ -168,7 +168,14 @@ impl ExecutionPlan for SchemaPivotExec {
     }
 
     fn output_partitioning(&self) -> Partitioning {
-        Partitioning::UnknownPartitioning(1)
+        use Partitioning::*;
+        match self.input.output_partitioning() {
+            RoundRobinBatch(num_partitions) => RoundRobinBatch(num_partitions),
+            // as this node transforms the output schema,  whatever partitioning
+            // was present on the input is lost on the output
+            Hash(_, num_partitions) => UnknownPartitioning(num_partitions),
+            UnknownPartitioning(num_partitions) => UnknownPartitioning(num_partitions),
+        }
     }
 
     fn required_child_distribution(&self) -> Distribution {
@@ -196,7 +203,7 @@ impl ExecutionPlan for SchemaPivotExec {
 
     /// Execute one partition and return an iterator over RecordBatch
     async fn execute(&self, partition: usize) -> Result<SendableRecordBatchStream> {
-        if 0 != partition {
+        if self.output_partitioning().partition_count() <= partition {
             return Err(DataFusionError::Internal(format!(
                 "SchemaPivotExec invalid partition {}",
                 partition
@@ -443,7 +450,7 @@ mod tests {
         StringSetRef::new(stringset)
     }
 
-    /// Create a schema piv
+    /// Create a schema pivot node with a single input
     fn make_schema_pivot(input_schema: SchemaRef, data: Vec<RecordBatch>) -> SchemaPivotExec {
         let input = make_memory_exec(input_schema, data);
         let output_schema = Arc::new(make_schema_pivot_output_schema().as_ref().clone().into());

@@ -31,7 +31,7 @@ macro_rules! run_table_schema_test_case {
 
             for partition_key in db.partition_keys().await.unwrap() {
                 for chunk in db.chunks(&partition_key).await {
-                    if chunk.has_table(table_name).await {
+                    if chunk.has_table(table_name) {
                         chunks_with_table += 1;
                         let actual_schema = chunk
                             .table_schema(table_name, selection.clone())
