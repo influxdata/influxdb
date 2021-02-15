@@ -135,13 +135,13 @@ pub async fn main(logging_level: LoggingLevel, config: Option<Config>) -> Result
         .await
         .context(StartListeningGrpc { grpc_bind_addr })?;
 
-    let grpc_server = self::rpc::make_server(socket, app_server.clone());
+    let grpc_server = self::rpc::make_server(socket, Arc::clone(&app_server));
 
     info!(bind_address=?grpc_bind_addr, "gRPC server listening");
 
     // Construct and start up HTTP server
 
-    let router_service = http::router_service(app_server.clone());
+    let router_service = http::router_service(Arc::clone(&app_server));
 
     let bind_addr = config.http_bind_address;
     let http_server = Server::try_bind(&bind_addr)

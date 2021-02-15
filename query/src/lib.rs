@@ -2,7 +2,8 @@
 #![warn(
     missing_debug_implementations,
     clippy::explicit_iter_loop,
-    clippy::use_self
+    clippy::use_self,
+    clippy::clone_on_ref_ptr
 )]
 
 use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;

@@ -363,10 +363,7 @@ async fn write<M>(req: Request<Body>) -> Result<Response<Body>, ApplicationError
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
-    let server = req
-        .data::<Arc<AppServer<M>>>()
-        .expect("server state")
-        .clone();
+    let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
 
     let query = req.uri().query().context(ExpectedQueryString)?;
 
@@ -424,10 +421,7 @@ struct ReadInfo {
 async fn read<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
-    let server = req
-        .data::<Arc<AppServer<M>>>()
-        .expect("server state")
-        .clone();
+    let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
     let query = req.uri().query().context(ExpectedQueryString {})?;
 
     let read_info: ReadInfo = serde_urlencoded::from_str(query).context(InvalidQueryString {
@@ -465,10 +459,7 @@ async fn list_databases<M>(req: Request<Body>) -> Result<Response<Body>, Applica
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
-    let server = req
-        .data::<Arc<AppServer<M>>>()
-        .expect("server state")
-        .clone();
+    let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
 
     let names = server.db_names_sorted().await;
     let json = serde_json::to_string(&ListDatabasesResponse { names })
@@ -480,10 +471,7 @@ where
 async fn create_database<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
-    let server = req
-        .data::<Arc<AppServer<M>>>()
-        .expect("server state")
-        .clone();
+    let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
 
     // with routerify, we shouldn't have gotten here without this being set
     let db_name = req
@@ -506,10 +494,7 @@ async fn create_database<M: ConnectionManager + Send + Sync + Debug + 'static>(
 async fn get_database<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
-    let server = req
-        .data::<Arc<AppServer<M>>>()
-        .expect("server state")
-        .clone();
+    let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
 
     // with routerify, we shouldn't have gotten here without this being set
     let db_name_str = req
@@ -536,10 +521,7 @@ async fn get_database<M: ConnectionManager + Send + Sync + Debug + 'static>(
 async fn get_wal_meta<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
-    let server = req
-        .data::<Arc<AppServer<M>>>()
-        .expect("server state")
-        .clone();
+    let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
 
     let db_name_str = req
         .param("name")
@@ -596,10 +578,7 @@ async fn get_wal_meta<M: ConnectionManager + Send + Sync + Debug + 'static>(
 async fn set_writer<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
-    let server = req
-        .data::<Arc<AppServer<M>>>()
-        .expect("server state")
-        .clone();
+    let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
 
     // Read the request body
     let body = parse_body(req).await?;
@@ -643,10 +622,7 @@ struct DatabaseInfo {
 async fn list_partitions<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
-    let server = req
-        .data::<Arc<AppServer<M>>>()
-        .expect("server state")
-        .clone();
+    let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
     let query = req.uri().query().context(ExpectedQueryString {})?;
 
     let info: DatabaseInfo = serde_urlencoded::from_str(query).context(InvalidQueryString {
@@ -689,10 +665,7 @@ async fn snapshot_partition<M: ConnectionManager + Send + Sync + Debug + 'static
 ) -> Result<Response<Body>, ApplicationError> {
     use object_store::path::ObjectStorePath;
 
-    let server = req
-        .data::<Arc<AppServer<M>>>()
-        .expect("server state")
-        .clone();
+    let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
     let query = req.uri().query().context(ExpectedQueryString {})?;
 
     let snapshot: SnapshotInfo = serde_urlencoded::from_str(query).context(InvalidQueryString {
@@ -709,7 +682,7 @@ async fn snapshot_partition<M: ConnectionManager + Send + Sync + Debug + 'static
         bucket: &snapshot.bucket,
     })?;
 
-    let store = server.store.clone();
+    let store = Arc::clone(&server.store);
 
     let mut metadata_path = store.new_path();
     metadata_path.push_dir(&db_name.to_string());
@@ -770,7 +743,7 @@ mod tests {
             ConnectionManagerImpl {},
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
-        let server_url = test_server(test_storage.clone());
+        let server_url = test_server(Arc::clone(&test_storage));
 
         let client = Client::new();
         let response = client.get(&format!("{}/ping", server_url)).send().await;
@@ -791,7 +764,7 @@ mod tests {
             .create_database("MyOrg_MyBucket", DatabaseRules::new())
             .await
             .unwrap();
-        let server_url = test_server(test_storage.clone());
+        let server_url = test_server(Arc::clone(&test_storage));
 
         let client = Client::new();
 
@@ -849,7 +822,7 @@ mod tests {
             .create_database("MyOrg_MyBucket", DatabaseRules::new())
             .await
             .unwrap();
-        let server_url = test_server(test_storage.clone());
+        let server_url = test_server(Arc::clone(&test_storage));
 
         let client = Client::new();
         let lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=65.2,bottom_degrees=50.4 1568756160";
@@ -896,7 +869,7 @@ mod tests {
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
         server.set_id(1);
-        let server_url = test_server(server.clone());
+        let server_url = test_server(Arc::clone(&server));
 
         let data = r#"{"id":42}"#;
 
@@ -919,7 +892,7 @@ mod tests {
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
         server.set_id(1);
-        let server_url = test_server(server.clone());
+        let server_url = test_server(Arc::clone(&server));
 
         let database_names: Vec<String> = vec!["foo_bar", "foo_baz"]
             .iter()
@@ -954,7 +927,7 @@ mod tests {
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
         server.set_id(1);
-        let server_url = test_server(server.clone());
+        let server_url = test_server(Arc::clone(&server));
 
         let data = r#"{}"#;
 
@@ -984,7 +957,7 @@ mod tests {
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
         server.set_id(1);
-        let server_url = test_server(server.clone());
+        let server_url = test_server(Arc::clone(&server));
 
         let database_name = "foo_bar";
         let rules = DatabaseRules {
@@ -1014,7 +987,7 @@ mod tests {
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
         server.set_id(1);
-        let server_url = test_server(server.clone());
+        let server_url = test_server(Arc::clone(&server));
 
         let database_name = "foo_bar";
         let rules = DatabaseRules {

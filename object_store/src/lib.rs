@@ -4,7 +4,8 @@
     missing_debug_implementations,
     missing_docs,
     clippy::explicit_iter_loop,
-    clippy::use_self
+    clippy::use_self,
+    clippy::clone_on_ref_ptr
 )]
 
 //! # object_store

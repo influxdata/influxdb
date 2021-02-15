@@ -42,8 +42,10 @@ where
     let stream = TcpListenerStream::new(socket);
 
     tonic::transport::Server::builder()
-        .add_service(IOxTestingServer::new(GrpcService::new(storage.clone())))
-        .add_service(StorageServer::new(GrpcService::new(storage.clone())))
+        .add_service(IOxTestingServer::new(GrpcService::new(Arc::clone(
+            &storage,
+        ))))
+        .add_service(StorageServer::new(GrpcService::new(Arc::clone(&storage))))
         .add_service(FlightServiceServer::new(GrpcService::new(storage)))
         .serve_with_incoming(stream)
         .await

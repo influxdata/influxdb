@@ -152,7 +152,7 @@ impl PerformQuery {
 
         Ok(Some(flight_data_to_arrow_batch(
             &data,
-            schema.clone(),
+            Arc::clone(&schema),
             &dictionaries_by_field,
         )?))
     }
