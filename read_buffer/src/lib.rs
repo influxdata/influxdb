@@ -2,6 +2,7 @@
 #![allow(dead_code)]
 #![allow(clippy::too_many_arguments)]
 #![allow(unused_variables)]
+#![warn(clippy::clone_on_ref_ptr)]
 pub(crate) mod chunk;
 pub(crate) mod column;
 pub(crate) mod row_group;
