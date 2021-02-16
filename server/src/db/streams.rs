@@ -93,7 +93,7 @@ impl MutableBufferChunkStream {
 
 impl RecordBatchStream for MutableBufferChunkStream {
     fn schema(&self) -> SchemaRef {
-        self.schema.clone()
+        Arc::clone(&self.schema)
     }
 }
 
@@ -127,7 +127,7 @@ impl ReadFilterResultsStream {
 
 impl RecordBatchStream for ReadFilterResultsStream {
     fn schema(&self) -> SchemaRef {
-        self.schema.clone()
+        Arc::clone(&self.schema)
     }
 }
 

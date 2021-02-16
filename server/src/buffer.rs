@@ -165,7 +165,7 @@ impl Buffer {
             let segment = mem::replace(&mut self.open_segment, Segment::new(next_id));
             let segment = Arc::new(segment);
 
-            self.closed_segments.push(segment.clone());
+            self.closed_segments.push(Arc::clone(&segment));
             closed_segment = Some(segment);
         }
 
@@ -192,7 +192,7 @@ impl Buffer {
                 writes.reverse();
                 return writes;
             }
-            writes.push(w.clone());
+            writes.push(Arc::clone(&w));
         }
 
         for s in self.closed_segments.iter().rev() {
@@ -201,7 +201,7 @@ impl Buffer {
                     writes.reverse();
                     return writes;
                 }
-                writes.push(w.clone());
+                writes.push(Arc::clone(&w));
             }
         }
 
@@ -225,7 +225,7 @@ impl Buffer {
                     writes.reverse();
                     return writes;
                 }
-                writes.push(w.clone());
+                writes.push(Arc::clone(&w));
             }
         }
 
@@ -237,7 +237,7 @@ impl Buffer {
                         writes.reverse();
                         return writes;
                     }
-                    writes.push(w.clone());
+                    writes.push(Arc::clone(&w));
                 }
             }
         }
