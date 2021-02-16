@@ -1,5 +1,5 @@
-use std::sync::Arc;
 use std::{collections::BTreeSet, convert::TryFrom};
+use std::{mem::size_of, sync::Arc};
 
 use arrow_deps::arrow;
 
@@ -486,6 +486,18 @@ pub enum OwnedValue {
     Scalar(Scalar),
 }
 
+impl OwnedValue {
+    /// The size in bytes of this value.
+    pub fn size(&self) -> usize {
+        let self_size = size_of::<Self>();
+        match self {
+            Self::String(s) => s.len() + self_size,
+            Self::ByteArray(arr) => arr.len() + self_size,
+            _ => self_size,
+        }
+    }
+}
+
 impl PartialEq<Value<'_>> for OwnedValue {
     fn eq(&self, other: &Value<'_>) -> bool {
         match (&self, other) {
@@ -795,5 +807,25 @@ impl EncodedValues {
             Self::I64(v) => v.reserve(additional),
             Self::U32(v) => v.reserve(additional),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn size() {
+        let v1 = OwnedValue::Null;
+        assert_eq!(v1.size(), 32);
+
+        let v1 = OwnedValue::Scalar(Scalar::I64(22));
+        assert_eq!(v1.size(), 32);
+
+        let v1 = OwnedValue::String("11morebytes".to_owned());
+        assert_eq!(v1.size(), 43);
+
+        let v1 = OwnedValue::ByteArray(vec![2, 44, 252]);
+        assert_eq!(v1.size(), 35);
     }
 }

@@ -5,7 +5,7 @@ pub mod float;
 pub mod integer;
 pub mod string;
 
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, mem::size_of};
 
 use croaring::Bitmap;
 use either::Either;
@@ -48,6 +48,53 @@ impl Column {
     //
     //  Meta information about the column
     //
+
+    /// The size in bytes of the column.
+    pub fn size(&self) -> u64 {
+        // Since `MetaData` is generic each value in the range can have a
+        // different size, so just do the calculations here where we know each
+        // `T`.
+        match &self {
+            Column::String(meta, data) => {
+                let mut meta_size =
+                    (size_of::<Option<(String, String)>>() + size_of::<ColumnProperties>()) as u64;
+                if let Some((min, max)) = &meta.range {
+                    meta_size += (min.len() + max.len()) as u64;
+                };
+                meta_size + data.size()
+            }
+            Column::Float(meta, data) => {
+                let meta_size =
+                    (size_of::<Option<(f64, f64)>>() + size_of::<ColumnProperties>()) as u64;
+                meta_size + data.size()
+            }
+            Column::Integer(meta, data) => {
+                let meta_size =
+                    (size_of::<Option<(i64, i64)>>() + size_of::<ColumnProperties>()) as u64;
+                meta_size + data.size()
+            }
+            Column::Unsigned(meta, data) => {
+                let meta_size =
+                    (size_of::<Option<(u64, u64)>>() + size_of::<ColumnProperties>()) as u64;
+                meta_size + data.size()
+            }
+            Column::Bool(meta, data) => {
+                let meta_size =
+                    (size_of::<Option<(bool, bool)>>() + size_of::<ColumnProperties>()) as u64;
+                meta_size + data.size()
+            }
+            Column::ByteArray(meta, data) => {
+                let mut meta_size = (size_of::<Option<(Vec<u8>, Vec<u8>)>>()
+                    + size_of::<ColumnProperties>()) as u64;
+                if let Some((min, max)) = &meta.range {
+                    meta_size += (min.len() + max.len()) as u64;
+                };
+
+                meta_size + data.size()
+            }
+        }
+    }
+
     pub fn num_rows(&self) -> u32 {
         match &self {
             Column::String(_, data) => data.num_rows(),
