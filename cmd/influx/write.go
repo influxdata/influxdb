@@ -130,7 +130,7 @@ func (b *writeFlagsBuilder) cmd() *cobra.Command {
 	cmd.PersistentFlags().StringVar(&b.Encoding, "encoding", "UTF-8", "Character encoding of input files or stdin")
 	cmd.PersistentFlags().StringVar(&b.ErrorsFile, "errors-file", "", "The path to the file to write rejected rows to")
 	cmd.PersistentFlags().StringVar(&b.RateLimit, "rate-limit", "", "Throttles write, examples: \"5 MB / 5 min\" , \"17kBs\". \"\" (default) disables throttling.")
-	cmd.PersistentFlags().BoolVar(&b.Compressed, "compressed", false, "Indicates that the file is compressed")
+	cmd.PersistentFlags().BoolVar(&b.Compressed, "compressed", false, "Indicates that the input is GZIP-compressed. Defaults to false unless a '.gz' extension")
 
 	cmdDryRun := b.newCmd("dryrun", b.writeDryrunE, false)
 	cmdDryRun.Args = cobra.MaximumNArgs(1)
