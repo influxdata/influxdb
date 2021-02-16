@@ -5,7 +5,7 @@ pub mod float;
 pub mod integer;
 pub mod string;
 
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, mem::size_of};
 
 use croaring::Bitmap;
 use either::Either;
@@ -48,14 +48,61 @@ impl Column {
     //
     //  Meta information about the column
     //
+
+    /// The estimated size in bytes of the column.
+    pub fn size(&self) -> u64 {
+        // Since `MetaData` is generic each value in the range can have a
+        // different size, so just do the calculations here where we know each
+        // `T`.
+        match &self {
+            Column::String(meta, data) => {
+                let mut meta_size =
+                    (size_of::<Option<(String, String)>>() + size_of::<ColumnProperties>()) as u64;
+                if let Some((min, max)) = &meta.range {
+                    meta_size += (min.len() + max.len()) as u64;
+                };
+                meta_size + data.size()
+            }
+            Column::Float(meta, data) => {
+                let meta_size =
+                    (size_of::<Option<(f64, f64)>>() + size_of::<ColumnProperties>()) as u64;
+                meta_size + data.size()
+            }
+            Column::Integer(meta, data) => {
+                let meta_size =
+                    (size_of::<Option<(i64, i64)>>() + size_of::<ColumnProperties>()) as u64;
+                meta_size + data.size()
+            }
+            Column::Unsigned(meta, data) => {
+                let meta_size =
+                    (size_of::<Option<(u64, u64)>>() + size_of::<ColumnProperties>()) as u64;
+                meta_size + data.size()
+            }
+            Column::Bool(meta, data) => {
+                let meta_size =
+                    (size_of::<Option<(bool, bool)>>() + size_of::<ColumnProperties>()) as u64;
+                meta_size + data.size()
+            }
+            Column::ByteArray(meta, data) => {
+                let mut meta_size = (size_of::<Option<(Vec<u8>, Vec<u8>)>>()
+                    + size_of::<ColumnProperties>()) as u64;
+                if let Some((min, max)) = &meta.range {
+                    meta_size += (min.len() + max.len()) as u64;
+                };
+
+                meta_size + data.size()
+            }
+        }
+    }
+
     pub fn num_rows(&self) -> u32 {
         match &self {
-            Column::String(meta, _) => meta.rows,
-            Column::Float(meta, _) => meta.rows,
-            Column::Integer(meta, _) => meta.rows,
-            Column::Unsigned(meta, _) => meta.rows,
-            Column::Bool(meta, _) => meta.rows,
-            Column::ByteArray(meta, _) => meta.rows,
+            Column::String(_, data) => data.num_rows(),
+            Column::Float(_, data) => data.num_rows(),
+            Column::Integer(_, data) => data.num_rows(),
+            Column::Unsigned(_, data) => data.num_rows(),
+            Column::Bool(_, data) => data.num_rows(),
+            Column::ByteArray(_, data) => data.num_rows(),
         }
     }
 
@@ -69,10 +116,6 @@ impl Column {
             Column::Bool(_, _) => LogicalDataType::Boolean,
             Column::ByteArray(_, _) => LogicalDataType::Binary,
         }
-    }
-
-    pub fn size(&self) -> u64 {
-        0
     }
 
     /// Returns the (min, max)  values stored in this column
@@ -652,12 +695,6 @@ pub struct MetaData<T>
 where
     T: PartialOrd + std::fmt::Debug,
 {
-    // The total size of the column in bytes.
-    size: u64,
-
-    // The total number of rows in the column.
-    rows: u32,
-
     // The minimum and maximum value for this column.
     range: Option<(T, T)>,
 
@@ -735,9 +772,7 @@ impl From<arrow::array::StringArray> for Column {
     fn from(arr: arrow::array::StringArray) -> Self {
         let data = StringEncoding::from(arr);
         let meta = MetaData {
-            rows: data.num_rows(),
             range: data.column_range(),
-            size: data.size(),
             properties: ColumnProperties {
                 has_pre_computed_row_ids: data.has_pre_computed_row_id_sets(),
             },
@@ -751,9 +786,7 @@ impl From<&[Option<&str>]> for Column {
     fn from(arr: &[Option<&str>]) -> Self {
         let data = StringEncoding::from(arr);
         let meta = MetaData {
-            rows: data.num_rows(),
             range: data.column_range(),
-            size: data.size(),
             properties: ColumnProperties {
                 has_pre_computed_row_ids: data.has_pre_computed_row_id_sets(),
             },
@@ -778,9 +811,7 @@ impl From<&[&str]> for Column {
     fn from(arr: &[&str]) -> Self {
         let data = StringEncoding::from(arr);
         let meta = MetaData {
-            rows: data.num_rows(),
             range: data.column_range(),
-            size: data.size(),
             properties: ColumnProperties {
                 has_pre_computed_row_ids: data.has_pre_computed_row_id_sets(),
             },
@@ -804,8 +835,6 @@ impl From<&[u64]> for Column {
 
         let data = IntegerEncoding::from(arr);
         let meta = MetaData {
-            size: data.size(),
-            rows: data.num_rows(),
             range: Some((min, max)),
             properties: ColumnProperties::default(),
         };
@@ -857,8 +886,6 @@ impl From<arrow::array::UInt64Array> for Column {
 
         let data = IntegerEncoding::from(arr);
         let meta = MetaData {
-            size: data.size(),
-            rows: data.num_rows(),
             range,
             properties: ColumnProperties::default(),
         };
@@ -881,8 +908,6 @@ impl From<&[i64]> for Column {
 
         let data = IntegerEncoding::from(arr);
         let meta = MetaData {
-            size: data.size(),
-            rows: data.num_rows(),
             range: Some((min, max)),
             properties: ColumnProperties::default(),
         };
@@ -934,8 +959,6 @@ impl From<arrow::array::Int64Array> for Column {
 
         let data = IntegerEncoding::from(arr);
         let meta = MetaData {
-            size: data.size(),
-            rows: data.num_rows(),
             range,
             properties: ColumnProperties::default(),
         };
@@ -957,8 +980,6 @@ impl From<&[f64]> for Column {
 
         let data = FloatEncoding::from(arr);
         let meta = MetaData {
-            size: data.size(),
-            rows: data.num_rows(),
             range: Some((min, max)),
             properties: ColumnProperties::default(),
         };
@@ -1010,8 +1031,6 @@ impl From<arrow::array::Float64Array> for Column {
 
         let data = fixed_null::FixedNull::<arrow::datatypes::Float64Type>::from(arr);
         let meta = MetaData {
-            size: data.size(),
-            rows: data.num_rows(),
             range,
             ..MetaData::default()
         };
@@ -1059,8 +1078,6 @@ impl From<arrow::array::BooleanArray> for Column {
 
         let data = BooleanEncoding::from(arr);
         let meta = MetaData {
-            size: data.size(),
-            rows: data.num_rows(),
             range,
             ..MetaData::default()
         };
@@ -1130,6 +1147,16 @@ impl RowIDs {
             return arr;
         }
         panic!("cannot unwrap RowIDs to Vector");
+    }
+
+    /// An estimation of the size in bytes needed to store `self`.
+    pub fn size(&self) -> usize {
+        match self {
+            RowIDs::Bitmap(bm) => std::mem::size_of::<Bitmap>() + bm.get_serialized_size_in_bytes(),
+            RowIDs::Vector(v) => {
+                std::mem::size_of::<Vec<u32>>() + (std::mem::size_of::<u32>() * v.len())
+            }
+        }
     }
 
     // Converts the RowIDs to a Vec<u32>. This is expensive and should only be
@@ -1243,8 +1270,6 @@ mod test {
             assert_eq!(
                 meta,
                 super::MetaData::<String> {
-                    size: 317,
-                    rows: 4,
                     range: Some(("hello".to_string(), "world".to_string())),
                     properties: ColumnProperties {
                         has_pre_computed_row_ids: true
@@ -1271,8 +1296,6 @@ mod test {
             assert_eq!(
                 meta,
                 super::MetaData::<String> {
-                    size: 301,
-                    rows: 2,
                     range: Some(("hello".to_string(), "world".to_string())),
                     properties: ColumnProperties {
                         has_pre_computed_row_ids: true
@@ -1336,8 +1359,6 @@ mod test {
         let input = &[0, -12, u16::MAX as i64, 5];
         let col = Column::from(&input[..]);
         if let Column::Integer(meta, IntegerEncoding::I64I32(_)) = col {
-            assert_eq!(meta.size, 40); // 4 i32s (16b) and a vec (24b)
-            assert_eq!(meta.rows, 4);
             assert_eq!(meta.range, Some((-12, u16::MAX as i64)));
         } else {
             panic!("invalid variant");
@@ -1368,8 +1389,6 @@ mod test {
         let input = &[13, 12, u16::MAX as u64, 5];
         let col = Column::from(&input[..]);
         if let Column::Unsigned(meta, IntegerEncoding::U64U16(_)) = col {
-            assert_eq!(meta.size, 32); // 4 u16s (8b) and a vec (24b)
-            assert_eq!(meta.rows, 4);
             assert_eq!(meta.range, Some((5, u16::MAX as u64)));
         } else {
             panic!("invalid variant");

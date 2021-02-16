@@ -86,11 +86,19 @@ impl RLE {
 
         let index_entry_size = size_of::<Vec<String>>() // container size
             + (size_of::<String>() * self.index_entries.len()) // elements size
-            + decoded_keys_size; // heal allocated strings size
+            + decoded_keys_size; // heap allocated strings size
 
-        // TODO(edd): The Bitmaps on-heap size!!
+        // The total size (an upper bound estimate) of all the bitmaps
+        // in the column.
+        let row_ids_bitmaps_size = self
+            .index_row_ids
+            .values()
+            .map(|row_ids| row_ids.size())
+            .sum::<usize>();
+
         let index_row_ids_size = size_of::<BTreeMap<u32, Bitmap>>()
-            + ((size_of::<u32>() + size_of::<Bitmap>()) * self.index_row_ids.len());
+            + (size_of::<u32>() * self.index_row_ids.len())
+            + row_ids_bitmaps_size;
 
         let run_lengths_size = size_of::<Vec<(u32, u32)>>() + // container size
             (size_of::<(u32, u32)>() * self.run_lengths.len()); // each run-length size
@@ -994,16 +1002,24 @@ mod test {
         enc.push_none();
         enc.push_none();
 
-        // keys - 14 bytes.
-        // entry_index is 24 + ((24+4) * 3) + 14 == 122
-        // index_entry is 24 + (24*4) + 14 == 134
-        // index_row_ids is 24 + (4 + 0?? * 4) == 40 ??????
-        // run lengths is 24 + (8*5) == 64
-        // 360
+        // `entry_index` is 24 + ((24+4) * 3) + 14 == 122
+        //
+        // Note: there are 4 index entries to account for NULL entry.
+        // `index_entry` is 24 + (24*4) + 14 == 134
+        //
+        // bitmaps for east, north, south and NULL entries.
+        // `index_row_ids` is 24 + (4 * 4) + (108b for bitmaps) == 148
+        //
+        // `run lengths` is 24 + (8*5) == 64
+        //
+        // `contains_null` - 1 byte
+        // `num_rows` - 4 bytes
+        //
+        // 473
 
         // TODO(edd): there some mystery bytes in the bitmap implementation.
         // need to figure out how to measure these
-        assert_eq!(enc.size(), 397);
+        assert_eq!(enc.size(), 473);
     }
 
     #[test]

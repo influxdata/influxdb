@@ -72,7 +72,7 @@ impl Table {
         Self {
             name: name.into(),
             table_data: RwLock::new(RowGroupData {
-                meta: Arc::new(MetaData::new(rg.metadata())),
+                meta: Arc::new(MetaData::new(&rg)),
                 data: vec![Arc::new(rg)],
             }),
         }
@@ -85,7 +85,7 @@ impl Table {
         // `meta` can't be modified whilst protected by an Arc so create a new one.
         row_groups.meta = Arc::new(MetaData::update_with(
             MetaData::clone(&row_groups.meta), // clone meta-data not Arc
-            rg.metadata(),
+            &rg,
         ));
 
         // Add the new row group data to the table.
@@ -126,7 +126,9 @@ impl Table {
 
     /// The total size of the table in bytes.
     pub fn size(&self) -> u64 {
-        self.table_data.read().unwrap().meta.size
+        let base_size = std::mem::size_of::<Self>() + self.name.len();
+        // meta.size accounts for all the row group data.
+        base_size as u64 + self.table_data.read().unwrap().meta.size()
     }
 
     // Returns the total number of row groups in this table.
@@ -570,24 +572,39 @@ struct MetaData {
 }
 
 impl MetaData {
-    pub fn new(meta: &row_group::MetaData) -> Self {
+    pub fn new(rg: &row_group::RowGroup) -> Self {
         Self {
-            size: meta.size,
-            rows: meta.rows as u64,
-            columns: meta.columns.clone(),
-            column_names: meta.columns.keys().cloned().collect(),
-            time_range: Some(meta.time_range),
+            size: rg.size(),
+            rows: rg.rows() as u64,
+            columns: rg.metadata().columns.clone(),
+            column_names: rg.metadata().columns.keys().cloned().collect(),
+            time_range: Some(rg.metadata().time_range),
         }
     }
 
+    /// Returns the estimated size in bytes of the `MetaData` struct and all of
+    /// the row group data associated with a `Table`.
+    pub fn size(&self) -> u64 {
+        let base_size = std::mem::size_of::<Self>();
+        let columns_meta_size = self
+            .columns
+            .iter()
+            .map(|(k, v)| k.len() + v.size())
+            .sum::<usize>();
+
+        let column_names_size = self.column_names.iter().map(|c| c.len()).sum::<usize>();
+        (base_size + columns_meta_size + column_names_size) as u64 + self.size
+    }
+
     /// Create a new `MetaData` by consuming `this` and incorporating `other`.
-    pub fn update_with(mut this: Self, other: &row_group::MetaData) -> Self {
+    pub fn update_with(mut this: Self, rg: &row_group::RowGroup) -> Self {
+        let other = rg.metadata();
         // The incoming row group must have exactly the same schema as the
         // existing row groups in the table.
         assert_eq!(&this.columns, &other.columns);
 
         // update size, rows, column ranges, time range
-        this.size += other.size;
+        this.size += rg.size();
         this.rows += other.rows as u64;
 
         // The incoming row group must have exactly the same schema as the
@@ -687,9 +704,9 @@ impl From<&Vec<Arc<RowGroup>>> for MetaData {
             panic!("row groups required for meta data construction");
         }
 
-        let mut meta = Self::new(row_groups[0].metadata());
+        let mut meta = Self::new(&row_groups[0]);
         for row_group in row_groups.iter().skip(1) {
-            meta = Self::update_with(meta, row_group.metadata());
+            meta = Self::update_with(meta, &row_group);
         }
 
         meta
@@ -909,8 +926,6 @@ impl std::fmt::Display for DisplayReadAggregateResults<'_> {
 mod test {
     use super::*;
 
-    use row_group::ColumnMeta;
-
     use crate::column::Column;
     use crate::row_group::{BinaryExpr, ColumnType, ReadAggregateResult};
     use crate::schema;
@@ -919,67 +934,47 @@ mod test {
 
     #[test]
     fn meta_data_update_with() {
-        let rg_meta = row_group::MetaData {
-            size: 100,
-            rows: 2000,
-            columns: vec![(
-                "region".to_owned(),
-                ColumnMeta {
-                    typ: schema::ColumnType::Tag("region".to_owned()),
-                    logical_data_type: schema::LogicalDataType::String,
-                    range: (
-                        OwnedValue::String("north".to_owned()),
-                        OwnedValue::String("south".to_owned()),
-                    ),
-                },
-            )]
-            .into_iter()
-            .collect::<BTreeMap<_, _>>(),
-            time_range: (10, 3000),
-        };
+        let mut columns = BTreeMap::new();
+        columns.insert(
+            "time".to_string(),
+            ColumnType::create_time(&[100, 200, 300]),
+        );
+        columns.insert(
+            "region".to_string(),
+            ColumnType::create_tag(&["west", "west", "north"]),
+        );
+        let rg = RowGroup::new(3, columns);
 
-        let mut meta = MetaData::new(&rg_meta);
-        assert_eq!(meta.rows, 2000);
-        assert_eq!(meta.size, 100);
-        assert_eq!(meta.time_range, Some((10, 3000)));
+        let mut meta = MetaData::new(&rg);
+        assert_eq!(meta.rows, 3);
+        let meta_size = meta.size;
+        assert!(meta_size > 0);
+        assert_eq!(meta.time_range, Some((100, 300)));
         assert_eq!(
             meta.columns.get("region").unwrap().range,
             (
                 OwnedValue::String("north".to_owned()),
-                OwnedValue::String("south".to_owned())
+                OwnedValue::String("west".to_owned())
             )
         );
 
-        meta = MetaData::update_with(
-            meta,
-            &row_group::MetaData {
-                size: 300,
-                rows: 1500,
-                columns: vec![(
-                    "region".to_owned(),
-                    ColumnMeta {
-                        typ: schema::ColumnType::Tag("region".to_owned()),
-                        logical_data_type: schema::LogicalDataType::String,
-                        range: (
-                            OwnedValue::String("east".to_owned()),
-                            OwnedValue::String("north".to_owned()),
-                        ),
-                    },
-                )]
-                .into_iter()
-                .collect::<BTreeMap<_, _>>(),
-                time_range: (10, 3500),
-            },
+        let mut columns = BTreeMap::new();
+        columns.insert("time".to_string(), ColumnType::create_time(&[10, 400]));
+        columns.insert(
+            "region".to_string(),
+            ColumnType::create_tag(&["east", "south"]),
         );
+        let rg = RowGroup::new(2, columns);
 
-        assert_eq!(meta.rows, 3500);
-        assert_eq!(meta.size, 400);
-        assert_eq!(meta.time_range, Some((10, 3500)));
+        meta = MetaData::update_with(meta, &rg);
+        assert_eq!(meta.rows, 5);
+        assert!(meta.size > meta_size);
+        assert_eq!(meta.time_range, Some((10, 400)));
         assert_eq!(
             meta.columns.get("region").unwrap().range,
             (
                 OwnedValue::String("east".to_owned()),
-                OwnedValue::String("south".to_owned())
+                OwnedValue::String("west".to_owned())
             )
         );
     }

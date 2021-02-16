@@ -79,9 +79,6 @@ struct PartitionData {
     // identified by a partition key
     partitions: BTreeMap<String, Partition>,
 
-    // The current total size of the database.
-    size: u64,
-
     // Total number of rows in the database.
     rows: u64,
 }
@@ -108,7 +105,6 @@ impl Database {
 
         // Take lock on partitions and update.
         let mut partition_data = self.data.write().unwrap();
-        partition_data.size += row_group.size();
         partition_data.rows += row_group.rows() as u64;
 
         // create a new chunk if one doesn't exist, or add the table data to
@@ -141,7 +137,6 @@ impl Database {
             .remove(partition_key)
             .context(PartitionNotFound { key: partition_key })?;
 
-        partition_data.size -= partition.size();
         partition_data.rows -= partition.rows();
         Ok(())
     }
@@ -156,7 +151,6 @@ impl Database {
             .context(PartitionNotFound { key: partition_key })?;
 
         partition.drop_chunk(chunk_id).map(|chunk| {
-            partition_data.size -= chunk.size();
             partition_data.rows -= chunk.rows();
             // don't return chunk from `drop_chunk`
         })
@@ -185,8 +179,17 @@ impl Database {
             .unwrap_or_default()
     }
 
+    /// Returns the total estimated size in bytes of the database.
     pub fn size(&self) -> u64 {
-        self.data.read().unwrap().size
+        let base_size = std::mem::size_of::<Self>();
+
+        let partition_data = self.data.read().unwrap();
+        base_size as u64
+            + partition_data
+                .partitions
+                .iter()
+                .map(|(name, partition)| name.len() as u64 + partition.size())
+                .sum::<u64>()
     }
 
     pub fn rows(&self) -> u64 {
@@ -502,7 +505,7 @@ impl fmt::Debug for Database {
         let partition_data = self.data.read().unwrap();
         f.debug_struct("Database")
             .field("partitions", &partition_data.partitions.keys())
-            .field("size", &partition_data.size)
+            .field("size", &self.size())
             .finish()
     }
 }
@@ -512,9 +515,6 @@ struct ChunkData {
     // The collection of chunks in the partition. Each chunk is uniquely
     // identified by a chunk id.
     chunks: BTreeMap<u32, Chunk>,
-
-    // The current total size of the partition.
-    size: u64,
 
     // The current number of row groups in this partition.
     row_groups: usize,
@@ -537,7 +537,6 @@ impl Partition {
         Self {
             key: partition_key.to_owned(),
             data: RwLock::new(ChunkData {
-                size: chunk.size(),
                 row_groups: chunk.row_groups(),
                 rows: chunk.rows(),
                 chunks: vec![(chunk.id(), chunk)].into_iter().collect(),
@@ -555,7 +554,6 @@ impl Partition {
     fn upsert_chunk(&mut self, chunk_id: u32, table_name: String, row_group: RowGroup) {
         let mut chunk_data = self.data.write().unwrap();
 
-        chunk_data.size += row_group.size();
         chunk_data.row_groups += 1;
         chunk_data.rows += row_group.rows() as u64;
 
@@ -581,7 +579,6 @@ impl Partition {
             .remove(&chunk_id)
             .context(ChunkNotFound { id: chunk_id })?;
 
-        chunk_data.size -= chunk.size();
         chunk_data.rows -= chunk.rows();
         chunk_data.row_groups -= chunk.row_groups();
         Ok(chunk)
@@ -624,8 +621,18 @@ impl Partition {
         self.data.read().unwrap().rows
     }
 
+    /// The total estimated size in bytes of the `Partition` and all contained
+    /// data.
     pub fn size(&self) -> u64 {
-        self.data.read().unwrap().size
+        let base_size = std::mem::size_of::<Self>() + self.key.len();
+
+        let chunk_data = self.data.read().unwrap();
+        base_size as u64
+            + chunk_data
+                .chunks
+                .values()
+                .map(|chunk| std::mem::size_of::<u32>() as u64 + chunk.size())
+                .sum::<u64>()
     }
 }
 
