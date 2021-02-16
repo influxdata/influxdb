@@ -2,7 +2,10 @@
 import React, {PureComponent} from 'react'
 
 const supportLinks = [
-  {link: 'https://docs.influxdata.com/influxdb/latest/', title: '📜 Documentation'},
+  {
+    link: 'https://docs.influxdata.com/influxdb/latest/',
+    title: '📜 Documentation',
+  },
   {link: 'https://community.influxdata.com', title: '💭 Community Forum'},
   {
     link:
