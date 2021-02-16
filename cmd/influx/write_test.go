@@ -226,7 +226,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		{
 			name: "read LP data from URL",
 			flags: writeFlagsBuilder{
-				URLs: []string{server.URL + "/a?data=" + url.QueryEscape(lpContents)},
+				URLs: []string{fmt.Sprintf("%s/a?data=%s", server.URL, url.QueryEscape(lpContents))},
 			},
 			lines: []string{
 				lpContents,
@@ -372,7 +372,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		{
 			name: "read data from .csv URL + transform to line protocol",
 			flags: writeFlagsBuilder{
-				URLs: []string{server.URL + "/a.csv?data=" + url.QueryEscape(csvContents)},
+				URLs: []string{fmt.Sprintf("%s/a.csv?data=%s", server.URL, url.QueryEscape(csvContents))},
 			},
 			lines: []string{
 				"f1 b=f2,c=f3,d=f4",
@@ -409,7 +409,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		{
 			name: "read data from .csv URL + change header line + transform to line protocol",
 			flags: writeFlagsBuilder{
-				URLs:       []string{server.URL + "/a.csv?data=" + url.QueryEscape(csvContents)},
+				URLs:       []string{fmt.Sprintf("%s/a.csv?data=%s", server.URL, url.QueryEscape(csvContents))},
 				Headers:    []string{"k,j,_measurement,i"},
 				SkipHeader: 1,
 			},
@@ -420,7 +420,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		{
 			name: "read data from having text/csv URL resource + transform to line protocol",
 			flags: writeFlagsBuilder{
-				URLs: []string{server.URL + "/a?Content-Type=text/csv&data=" + url.QueryEscape(csvContents)},
+				URLs: []string{fmt.Sprintf("%s/a?Content-Type=text/csv&data=%s", server.URL, url.QueryEscape(csvContents))},
 			},
 			lines: []string{
 				"f1 b=f2,c=f3,d=f4",
