@@ -189,7 +189,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			},
 		},
 		{
-			name: "read LP data from stdin",
+			name:  "read LP data from stdin",
 			flags: writeFlagsBuilder{},
 			stdIn: strings.NewReader(stdInLpContents),
 			lines: []string{
@@ -207,8 +207,8 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			},
 		},
 		{
-			name: "read LP data from stdin using '-' argument",
-			flags: writeFlagsBuilder{},
+			name:      "read LP data from stdin using '-' argument",
+			flags:     writeFlagsBuilder{},
 			stdIn:     strings.NewReader(stdInLpContents),
 			arguments: []string{"-"},
 			lines: []string{
@@ -216,8 +216,8 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			},
 		},
 		{
-			name: "read LP data from 1st argument",
-			flags: writeFlagsBuilder{},
+			name:      "read LP data from 1st argument",
+			flags:     writeFlagsBuilder{},
 			arguments: []string{stdInLpContents},
 			lines: []string{
 				stdInLpContents,
@@ -235,7 +235,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		{
 			name: "read compressed LP data from URL",
 			flags: writeFlagsBuilder{
-				URLs: []string{fmt.Sprintf("%s/a?data=%s&compress=true", server.URL, url.QueryEscape(lpContents))},
+				URLs:       []string{fmt.Sprintf("%s/a?data=%s&compress=true", server.URL, url.QueryEscape(lpContents))},
 				Compressed: true,
 			},
 			lines: []string{
@@ -340,7 +340,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		{
 			name: "read compressed CSV data from stdin + transform to line protocol",
 			flags: writeFlagsBuilder{
-				Format: inputFormatCsv,
+				Format:     inputFormatCsv,
 				Compressed: true,
 			},
 			stdIn: stdInCsvGzipContents,
@@ -381,7 +381,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		{
 			name: "read compressed CSV data from URL + transform to line protocol",
 			flags: writeFlagsBuilder{
-				URLs: []string{fmt.Sprintf("%s/a.csv?data=%s&compress=true", server.URL, url.QueryEscape(csvContents))},
+				URLs:       []string{fmt.Sprintf("%s/a.csv?data=%s&compress=true", server.URL, url.QueryEscape(csvContents))},
 				Compressed: true,
 			},
 			lines: []string{
