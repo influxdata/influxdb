@@ -31,7 +31,17 @@ type Source struct {
 	alloc *memory.Allocator
 	stats cursors.CursorStats
 
+	label string
+
 	runner runner
+}
+
+func (s *Source) Label() string {
+	return s.label
+}
+
+func (s *Source) SetLabel(l string) {
+	s.label = l
 }
 
 func (s *Source) Run(ctx context.Context) {

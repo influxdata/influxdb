@@ -3,7 +3,6 @@ module github.com/influxdata/influxdb
 go 1.13
 
 require (
-	cloud.google.com/go/bigtable v1.3.0 // indirect
 	collectd.org v0.3.0
 	github.com/BurntSushi/toml v0.3.1
 	github.com/apache/arrow/go/arrow v0.0.0-20200923215132-ac86123a3f01
@@ -16,7 +15,7 @@ require (
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/snappy v0.0.1
 	github.com/google/go-cmp v0.5.0
-	github.com/influxdata/flux v0.80.0
+	github.com/influxdata/flux v0.90.0
 	github.com/influxdata/influxql v1.1.1-0.20210223160523-b6ab99450c93
 	github.com/influxdata/pkg-config v0.2.6
 	github.com/influxdata/roaring v0.4.13-0.20180809181101-fc520f41fab6
