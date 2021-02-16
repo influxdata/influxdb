@@ -9,9 +9,7 @@ use arrow_deps::{
         array::{ArrayRef, Int64Array, Int64Builder},
         datatypes::DataType,
     },
-    datafusion::{
-        logical_plan::Expr, physical_plan::functions::ScalarFunctionImplementation, prelude::*,
-    },
+    datafusion::{logical_plan::Expr, physical_plan::functions::make_scalar_function, prelude::*},
 };
 
 use crate::group_by::WindowDuration;
@@ -81,8 +79,10 @@ pub fn make_window_bound_expr(
     // Bind a copy of the arguments in a closure
     let every = every.clone();
     let offset = offset.clone();
-    let func_ptr: ScalarFunctionImplementation =
-        Arc::new(move |args| window_bounds(args, &every, &offset));
+
+    // TODO provide optimized implementations (that took every/offset
+    // as a constant rather than arrays)
+    let func_ptr = make_scalar_function(move |args| window_bounds(args, &every, &offset));
 
     let udf = create_udf(
         "window_bounds",
