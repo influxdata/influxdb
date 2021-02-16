@@ -1,21 +1,22 @@
-use super::rpc::GrpcService;
+use std::{pin::Pin, sync::Arc};
+
+use futures::Stream;
+use serde::Deserialize;
+use snafu::{OptionExt, ResultExt, Snafu};
+use tonic::{Request, Response, Streaming};
+use tracing::error;
 
 use arrow_deps::{
     arrow,
     arrow_flight::{
-        self, flight_service_server::FlightService, Action, ActionType, Criteria, Empty,
-        FlightData, FlightDescriptor, FlightInfo, HandshakeRequest, HandshakeResponse, PutResult,
-        SchemaResult, Ticket,
+        self,
+        flight_service_server::{FlightService as Flight, FlightServiceServer as FlightServer},
+        Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
+        HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
     },
     datafusion::physical_plan::collect,
 };
-use futures::Stream;
 use query::{frontend::sql::SQLQueryPlanner, DatabaseStore};
-use serde::Deserialize;
-use snafu::{OptionExt, ResultExt, Snafu};
-use std::{pin::Pin, sync::Arc};
-use tonic::{Request, Response, Streaming};
-use tracing::error;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -84,8 +85,18 @@ struct ReadInfo {
     sql_query: String,
 }
 
+/// Concrete implementation of the gRPC Arrow Flight Service API
+#[derive(Debug)]
+struct FlightService<T: DatabaseStore> {
+    pub db_store: Arc<T>,
+}
+
+pub fn make_server<T: DatabaseStore + 'static>(db_store: Arc<T>) -> FlightServer<impl Flight> {
+    FlightServer::new(FlightService { db_store })
+}
+
 #[tonic::async_trait]
-impl<T> FlightService for GrpcService<T>
+impl<T> Flight for FlightService<T>
 where
     T: DatabaseStore + 'static,
 {

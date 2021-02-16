@@ -9,16 +9,16 @@ use super::{
     },
     expr::{self, AddRPCNode, Loggable, SpecialTagKeys},
     input::GrpcInputs,
-    GrpcService,
+    StorageService,
 };
 use data_types::{error::ErrorLogger, names::org_and_bucket_to_database, DatabaseName};
 use generated_types::{
-    google::protobuf::Empty, i_ox_testing_server::IOxTesting, storage_server::Storage,
-    CapabilitiesResponse, Capability, Int64ValuesResponse, MeasurementFieldsRequest,
-    MeasurementFieldsResponse, MeasurementNamesRequest, MeasurementTagKeysRequest,
-    MeasurementTagValuesRequest, Predicate, ReadFilterRequest, ReadGroupRequest, ReadResponse,
-    ReadSeriesCardinalityRequest, ReadWindowAggregateRequest, StringValuesResponse, TagKeysRequest,
-    TagValuesRequest, TestErrorRequest, TestErrorResponse, TimestampRange,
+    google::protobuf::Empty, storage_server::Storage, CapabilitiesResponse, Capability,
+    Int64ValuesResponse, MeasurementFieldsRequest, MeasurementFieldsResponse,
+    MeasurementNamesRequest, MeasurementTagKeysRequest, MeasurementTagValuesRequest, Predicate,
+    ReadFilterRequest, ReadGroupRequest, ReadResponse, ReadSeriesCardinalityRequest,
+    ReadWindowAggregateRequest, StringValuesResponse, TagKeysRequest, TagValuesRequest,
+    TimestampRange,
 };
 use query::{
     exec::fieldlist::FieldList,
@@ -33,7 +33,7 @@ use std::{collections::HashMap, sync::Arc};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -203,24 +203,9 @@ impl Error {
     }
 }
 
-#[tonic::async_trait]
-/// Implements the protobuf defined IOx rpc service for a DatabaseStore
-impl<T> IOxTesting for GrpcService<T>
-where
-    T: DatabaseStore + 'static,
-{
-    async fn test_error(
-        &self,
-        _req: tonic::Request<TestErrorRequest>,
-    ) -> Result<tonic::Response<TestErrorResponse>, Status> {
-        warn!("Got a test_error request. About to panic");
-        panic!("This is a test panic");
-    }
-}
-
 /// Implementes the protobuf defined Storage service for a DatabaseStore
 #[tonic::async_trait]
-impl<T> Storage for GrpcService<T>
+impl<T> Storage for StorageService<T>
 where
     T: DatabaseStore + 'static,
 {
@@ -1145,11 +1130,13 @@ mod tests {
 
     use generated_types::{
         aggregate::AggregateType, i_ox_testing_client, node, read_response::frame, storage_client,
-        Aggregate as RPCAggregate, Duration as RPCDuration, Node, ReadSource, Window as RPCWindow,
+        Aggregate as RPCAggregate, Duration as RPCDuration, Node, ReadSource, TestErrorRequest,
+        Window as RPCWindow,
     };
 
     use generated_types::google::protobuf::Any;
     use prost::Message;
+    use tokio_stream::wrappers::TcpListenerStream;
 
     type IOxTestingClient = i_ox_testing_client::IOxTestingClient<tonic::transport::Channel>;
     type StorageClient = storage_client::StorageClient<tonic::transport::Channel>;
@@ -1757,7 +1744,7 @@ mod tests {
         // Note we don't include the actual line / column in the
         // expected panic message to avoid needing to update the test
         // whenever the source code file changed.
-        let expected_error = "panicked at 'This is a test panic', src/influxdb_ioxd/rpc/service.rs";
+        let expected_error = "panicked at 'This is a test panic', src/influxdb_ioxd/rpc/testing.rs";
         assert!(
             captured_logs.contains(expected_error),
             "Logs did not contain expected panic message '{}'. They were\n{}",
@@ -2598,7 +2585,7 @@ mod tests {
     }
 
     impl Fixture {
-        /// Start up a test rpc server listening on `port`, returning
+        /// Start up a test storage server listening on `port`, returning
         /// a fixture with the test server and clients
         async fn new() -> Result<Self, FixtureError> {
             let test_storage = Arc::new(TestDatabaseStore::new());
@@ -2612,14 +2599,32 @@ mod tests {
             // Pull the assigned port out of the socket
             let bind_addr = socket.local_addr().unwrap();
 
-            println!("Starting InfluxDB IOx rpc test server on {:?}", bind_addr);
+            println!(
+                "Starting InfluxDB IOx storage test server on {:?}",
+                bind_addr
+            );
 
-            let server = super::super::make_server(socket, Arc::clone(&test_storage));
+            let router = tonic::transport::Server::builder()
+                .add_service(crate::influxdb_ioxd::rpc::testing::make_server())
+                .add_service(crate::influxdb_ioxd::rpc::storage::make_server(Arc::clone(
+                    &test_storage,
+                )));
+
+            let server = async move {
+                let stream = TcpListenerStream::new(socket);
+
+                router
+                    .serve_with_incoming(stream)
+                    .await
+                    .log_if_error("Running Tonic Server")
+            };
+
             tokio::task::spawn(server);
 
             let iox_client = connect_to_server::<IOxTestingClient>(bind_addr)
                 .await
                 .context(Tonic)?;
+
             let storage_client = StorageClientWrapper::new(
                 connect_to_server::<StorageClient>(bind_addr)
                     .await

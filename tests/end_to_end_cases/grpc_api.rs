@@ -26,7 +26,7 @@ pub async fn test(storage_client: &mut StorageClient<Channel>, scenario: &Scenar
     measurement_fields_endpoint(storage_client, scenario).await;
 }
 
-/// Validate that capabilities rpc endpoint is hooked up
+/// Validate that capabilities storage endpoint is hooked up
 async fn capabilities_endpoint(storage_client: &mut StorageClient<Channel>) {
     let capabilities_response = storage_client.capabilities(Empty {}).await.unwrap();
     let capabilities_response = capabilities_response.into_inner();

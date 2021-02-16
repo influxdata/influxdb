@@ -1,27 +1,23 @@
-use tracing::{error, info, warn};
-
 use std::fs;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-mod flight;
-pub mod http;
-pub mod rpc;
-
-use server::{ConnectionManagerImpl as ConnectionManager, Server as AppServer};
-
 use hyper::Server;
-use object_store::{self, gcp::GoogleCloudStorage, ObjectStore};
-
 use snafu::{ResultExt, Snafu};
+use tracing::{error, info, warn};
 
+use object_store::{self, gcp::GoogleCloudStorage, ObjectStore};
 use panic_logging::SendPanicsToTracing;
+use server::{ConnectionManagerImpl as ConnectionManager, Server as AppServer};
 
 use crate::commands::{
     config::{load_config, Config},
     logging::LoggingLevel,
 };
+
+mod http;
+mod rpc;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
