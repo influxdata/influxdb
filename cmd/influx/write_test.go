@@ -170,8 +170,8 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		{
 			name: "read compressed LP data from file",
 			flags: writeFlagsBuilder{
-				Files:      []string{gzipLpFileNoExt},
-				Compressed: true,
+				Files:       []string{gzipLpFileNoExt},
+				Compression: inputCompressionGzip,
 			},
 			firstLineCorrection: 0,
 			lines: []string{
@@ -199,7 +199,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		{
 			name: "read compressed LP data from stdin",
 			flags: writeFlagsBuilder{
-				Compressed: true,
+				Compression: inputCompressionGzip,
 			},
 			stdIn: stdInLpGzipContents,
 			lines: []string{
@@ -235,8 +235,8 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		{
 			name: "read compressed LP data from URL",
 			flags: writeFlagsBuilder{
-				URLs:       []string{fmt.Sprintf("%s/a?data=%s&compress=true", server.URL, url.QueryEscape(lpContents))},
-				Compressed: true,
+				URLs:        []string{fmt.Sprintf("%s/a?data=%s&compress=true", server.URL, url.QueryEscape(lpContents))},
+				Compression: inputCompressionGzip,
 			},
 			lines: []string{
 				lpContents,
@@ -273,8 +273,8 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		{
 			name: "read compressed CSV data from file + transform to line protocol",
 			flags: writeFlagsBuilder{
-				Files:      []string{gzipCsvFileNoExt},
-				Compressed: true,
+				Files:       []string{gzipCsvFileNoExt},
+				Compression: inputCompressionGzip,
 			},
 			firstLineCorrection: 0,
 			lines: []string{
@@ -340,8 +340,8 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		{
 			name: "read compressed CSV data from stdin + transform to line protocol",
 			flags: writeFlagsBuilder{
-				Format:     inputFormatCsv,
-				Compressed: true,
+				Format:      inputFormatCsv,
+				Compression: inputCompressionGzip,
 			},
 			stdIn: stdInCsvGzipContents,
 			lines: []string{
@@ -381,8 +381,8 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		{
 			name: "read compressed CSV data from URL + transform to line protocol",
 			flags: writeFlagsBuilder{
-				URLs:       []string{fmt.Sprintf("%s/a.csv?data=%s&compress=true", server.URL, url.QueryEscape(csvContents))},
-				Compressed: true,
+				URLs:        []string{fmt.Sprintf("%s/a.csv?data=%s&compress=true", server.URL, url.QueryEscape(csvContents))},
+				Compression: inputCompressionGzip,
 			},
 			lines: []string{
 				"f1 b=f2,c=f3,d=f4",
