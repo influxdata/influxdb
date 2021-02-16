@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"github.com/influxdata/flux/runtime"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/memory"
@@ -15,7 +16,7 @@ type FluxControllerMock struct {
 func NewFluxControllerMock() *FluxControllerMock {
 	return &FluxControllerMock{
 		QueryFn: func(ctx context.Context, compiler flux.Compiler) (query flux.Query, e error) {
-			p, err := compiler.Compile(ctx)
+			p, err := compiler.Compile(ctx, runtime.Default)
 			if err != nil {
 				return nil, err
 			}

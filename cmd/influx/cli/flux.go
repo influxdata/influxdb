@@ -40,5 +40,10 @@ func getFluxREPL(u url.URL, username, password string) (*repl.REPL, error) {
 	}
 	c.Username = username
 	c.Password = password
-	return repl.New(context.Background(), flux.NewDefaultDependencies(), &replQuerier{client: c}), nil
+
+	deps := flux.NewDefaultDependencies()
+	deps.Deps.HTTPClient = c
+
+	// might need: deps.Inject(ctx)
+	return repl.New(context.Background(), deps), nil
 }
