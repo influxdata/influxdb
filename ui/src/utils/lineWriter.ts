@@ -67,7 +67,7 @@ export class LineWriter {
     let tagString = ''
     Object.keys(tags)
       // Sort keys for a little extra perf
-      // https://v2.docs.influxdata.com/v2.0/write-data/best-practices/optimize-writes/#sort-tags-by-key
+      // https://docs.influxdata.com/influxdb/latest/write-data/best-practices/optimize-writes/#sort-tags-by-key
       .sort((a, b) => a.localeCompare(b))
       .forEach((tagKey, i, tagKeys) => {
         const tagValue = tags[tagKey]

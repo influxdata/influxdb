@@ -14,7 +14,7 @@ import (
 	"golang.org/x/text/encoding/ianaindex"
 )
 
-// see https://v2.docs.influxdata.com/v2.0/reference/syntax/annotated-csv/#valid-data-types
+// see https://docs.influxdata.com/influxdb/latest/reference/syntax/annotated-csv/#data-types
 const (
 	stringDatatype       = "string"
 	doubleDatatype       = "double"
