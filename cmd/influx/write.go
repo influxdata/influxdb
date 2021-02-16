@@ -56,7 +56,6 @@ type writeFlagsBuilder struct {
 	ErrorsFile                 string
 	RateLimit                  string
 	Compression                string
-	ErrorThreshold             uint64
 }
 
 func newWriteFlagsBuilder(svcFn buildWriteSvcFn, f *globalFlags, opt genericCLIOpts) *writeFlagsBuilder {
