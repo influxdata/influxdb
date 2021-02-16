@@ -61,7 +61,7 @@ export class SelectCollectorsStep extends PureComponent<Props> {
           <h5 className="wizard-step--sub-title">
             Looking for other things to monitor? Check out our 200+ other &nbsp;
             <a
-              href="https://docs.influxdata.com/telegraf/v1.17/plugins/#input-plugins"
+              href="https://docs.influxdata.com/telegraf/latest/plugins/#input-plugins"
               target="_blank"
             >
               Telegraf Plugins
