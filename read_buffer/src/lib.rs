@@ -179,7 +179,7 @@ impl Database {
             .unwrap_or_default()
     }
 
-    /// Returns the total size in bytes of the database.
+    /// Returns the total estimated size in bytes of the database.
     pub fn size(&self) -> u64 {
         let base_size = std::mem::size_of::<Self>();
 
@@ -621,7 +621,8 @@ impl Partition {
         self.data.read().unwrap().rows
     }
 
-    /// The total size in bytes of the `Partition` and all contained data.
+    /// The total estimated size in bytes of the `Partition` and all contained
+    /// data.
     pub fn size(&self) -> u64 {
         let base_size = std::mem::size_of::<Self>() + self.key.len();
 

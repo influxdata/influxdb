@@ -49,7 +49,7 @@ impl Column {
     //  Meta information about the column
     //
 
-    /// The size in bytes of the column.
+    /// The estimated size in bytes of the column.
     pub fn size(&self) -> u64 {
         // Since `MetaData` is generic each value in the range can have a
         // different size, so just do the calculations here where we know each

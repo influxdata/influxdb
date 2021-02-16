@@ -83,7 +83,8 @@ impl Chunk {
         self.id
     }
 
-    /// The total size in bytes of this `Chunk` and all contained data.
+    /// The total estimated size in bytes of this `Chunk` and all contained
+    /// data.
     pub fn size(&self) -> u64 {
         let base_size = std::mem::size_of::<Self>();
 

@@ -582,8 +582,8 @@ impl MetaData {
         }
     }
 
-    /// Returns the size of the `MetaData` struct and all of the row group data
-    /// associated with a `Table`.
+    /// Returns the estimated size in bytes of the `MetaData` struct and all of
+    /// the row group data associated with a `Table`.
     pub fn size(&self) -> u64 {
         let base_size = std::mem::size_of::<Self>();
         let columns_meta_size = self

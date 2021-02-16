@@ -135,7 +135,7 @@ impl RowGroup {
         }
     }
 
-    /// The total size in bytes of the read group
+    /// The total estimated size in bytes of the read group
     pub fn size(&self) -> u64 {
         let base_size = std::mem::size_of::<Self>()
             + self
@@ -1423,8 +1423,8 @@ pub struct MetaData {
 }
 
 impl MetaData {
-    /// Returns the size of the meta data and all column data associated with
-    /// a `RowGroup`.
+    /// Returns the estimated size in bytes of the meta data and all column data
+    /// associated with a `RowGroup`.
     pub fn size(&self) -> u64 {
         let base_size = std::mem::size_of::<Self>();
 
