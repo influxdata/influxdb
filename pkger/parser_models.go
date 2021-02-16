@@ -553,6 +553,8 @@ const (
 	fieldChartTickPrefix                 = "tickPrefix"
 	fieldChartTickSuffix                 = "tickSuffix"
 	fieldChartTimeFormat                 = "timeFormat"
+	fieldChartYLabelColumnSeparator      = "yLabelColumnSeparator"
+	fieldChartYLabelColumns              = "yLabelColumns"
 	fieldChartYSeriesColumns             = "ySeriesColumns"
 	fieldChartUpperColumn                = "upperColumn"
 	fieldChartMainColumn                 = "mainColumn"
@@ -600,6 +602,8 @@ type chart struct {
 	Queries                    queries
 	Axes                       axes
 	Geom                       string
+	YLabelColumnSeparator      string
+	YLabelColumns              []string
 	YSeriesColumns             []string
 	XCol, YCol                 string
 	GenerateXAxisTicks         []string
@@ -720,11 +724,14 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Type:                       influxdb.ViewPropertyTypeMosaic,
 			Queries:                    c.Queries.influxDashQueries(),
 			ViewColors:                 c.Colors.strings(),
+			HoverDimension:             c.HoverDimension,
 			XColumn:                    c.XCol,
 			GenerateXAxisTicks:         c.GenerateXAxisTicks,
 			XTotalTicks:                c.XTotalTicks,
 			XTickStart:                 c.XTickStart,
 			XTickStep:                  c.XTickStep,
+			YLabelColumnSeparator:      c.YLabelColumnSeparator,
+			YLabelColumns:              c.YLabelColumns,
 			YSeriesColumns:             c.YSeriesColumns,
 			XDomain:                    c.Axes.get("x").Domain,
 			YDomain:                    c.Axes.get("y").Domain,

@@ -18,13 +18,19 @@ spec:
         - xTickStart
         - xTickStep
       xCol: _time
+      hoverDimension: "y"
       xTotalTicks: 15
       xTickStart: 0
       xTickStep: 1000
       yCol: _value
       width:  6
       height: 3
-      ySeriesColumns: ["_value", "foo"]
+      yLabelColumnSeparator: ","
+      yLabelColumns:
+        - foo
+      ySeriesColumns:
+        - _value
+        - foo
       legendColorizeRows: true
       legendOpacity: 1.0
       legendOrientationThreshold: 5

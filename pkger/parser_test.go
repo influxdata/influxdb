@@ -1286,6 +1286,7 @@ spec:
 						props, ok := actualChart.Properties.(influxdb.MosaicViewProperties)
 						require.True(t, ok)
 						assert.Equal(t, "mosaic note", props.Note)
+						assert.Equal(t, "y", props.HoverDimension)
 						assert.True(t, props.ShowNoteWhenEmpty)
 
 						require.Len(t, props.Queries, 1)
@@ -1294,6 +1295,8 @@ spec:
 						assert.Equal(t, expectedQuery, q.Text)
 						assert.Equal(t, "advanced", q.EditMode)
 
+						assert.Equal(t, ",", props.YLabelColumnSeparator)
+						assert.Equal(t, []string{"foo"}, props.YLabelColumns)
 						assert.Equal(t, []string{"_value", "foo"}, props.YSeriesColumns)
 						assert.Equal(t, []float64{0, 10}, props.XDomain)
 						assert.Equal(t, []float64{0, 100}, props.YDomain)
