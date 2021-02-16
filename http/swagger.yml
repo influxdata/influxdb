@@ -9241,6 +9241,12 @@ components:
         xTickStep:
           type: number
           format: float
+        yLabelColumnSeparator:
+          type: string
+        yLabelColumns:
+          type: array
+          items:
+            type: string
         ySeriesColumns:
           type: array
           items:
@@ -9271,6 +9277,9 @@ components:
           type: string
         ySuffix:
           type: string
+        hoverDimension:
+          type: string
+          enum: [auto, x, y, xy]
         legendColorizeRows:
           type: boolean
         legendOpacity:

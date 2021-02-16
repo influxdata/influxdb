@@ -934,6 +934,8 @@ type MosaicViewProperties struct {
 	XTotalTicks                int              `json:"xTotalTicks"`
 	XTickStart                 float64          `json:"xTickStart"`
 	XTickStep                  float64          `json:"xTickStep"`
+	YLabelColumnSeparator      string           `json:"yLabelColumnSeparator"`
+	YLabelColumns              []string         `json:"yLabelColumns"`
 	YSeriesColumns             []string         `json:"ySeriesColumns"`
 	XDomain                    []float64        `json:"xDomain,omitempty"`
 	YDomain                    []float64        `json:"yDomain,omitempty"`
@@ -946,6 +948,7 @@ type MosaicViewProperties struct {
 	Note                       string           `json:"note"`
 	ShowNoteWhenEmpty          bool             `json:"showNoteWhenEmpty"`
 	TimeFormat                 string           `json:"timeFormat"`
+	HoverDimension             string           `json:"hoverDimension"`
 	LegendColorizeRows         bool             `json:"legendColorizeRows"`
 	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
