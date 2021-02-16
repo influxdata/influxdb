@@ -145,7 +145,7 @@ impl Db {
         self.read_buffer
             .chunk_ids(partition_key)
             .into_iter()
-            .map(|chunk_id| DBChunk::new_rb(self.read_buffer.clone(), partition_key, chunk_id))
+            .map(|chunk_id| DBChunk::new_rb(Arc::clone(&self.read_buffer), partition_key, chunk_id))
             .collect()
     }
 
@@ -176,7 +176,7 @@ impl Db {
             .context(ReadBufferDrop)?;
 
         Ok(DBChunk::new_rb(
-            self.read_buffer.clone(),
+            Arc::clone(&self.read_buffer),
             partition_key,
             chunk_id,
         ))
@@ -222,7 +222,7 @@ impl Db {
         }
 
         Ok(DBChunk::new_rb(
-            self.read_buffer.clone(),
+            Arc::clone(&self.read_buffer),
             partition_key,
             mb_chunk.id,
         ))

@@ -249,7 +249,7 @@ impl PartitionChunk for DBChunk {
                 let schema: Schema = self.table_schema(table_name, selection.clone()).await?;
 
                 Ok(Box::pin(MutableBufferChunkStream::new(
-                    chunk.clone(),
+                    Arc::clone(&chunk),
                     schema.as_arrow(),
                     table_name,
                 )))

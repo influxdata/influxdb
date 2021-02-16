@@ -300,7 +300,7 @@ where
     );
     let snapshot = Arc::new(snapshot);
 
-    let return_snapshot = snapshot.clone();
+    let return_snapshot = Arc::clone(&snapshot);
 
     tokio::spawn(async move {
         info!(
@@ -355,7 +355,7 @@ impl Seek for MemWriter {
 impl TryClone for MemWriter {
     fn try_clone(&self) -> std::io::Result<Self> {
         Ok(Self {
-            mem: self.mem.clone(),
+            mem: Arc::clone(&self.mem),
         })
     }
 }
@@ -393,12 +393,12 @@ mem,host=A,region=west used=45 1
         let mut data_path = store.new_path();
         data_path.push_dir("data");
 
-        let chunk = db.chunks("1970-01-01T00").await[0].clone();
+        let chunk = Arc::clone(&db.chunks("1970-01-01T00").await[0]);
 
         let snapshot = snapshot_chunk(
             metadata_path.clone(),
             data_path,
-            store.clone(),
+            Arc::clone(&store),
             "testaroo",
             chunk,
             Some(tx),

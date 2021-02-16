@@ -63,7 +63,8 @@
 #![warn(
     missing_debug_implementations,
     clippy::explicit_iter_loop,
-    clippy::use_self
+    clippy::use_self,
+    clippy::clone_on_ref_ptr
 )]
 
 pub mod buffer;
@@ -251,8 +252,8 @@ impl<M: ConnectionManager> Server<M> {
             .common_prefixes
             .into_iter()
             .map(|mut path| {
-                let store = self.store.clone();
-                let config = self.config.clone();
+                let store = Arc::clone(&self.store);
+                let config = Arc::clone(&self.config);
 
                 path.set_file_name(DB_RULES_FILE_NAME);
 
@@ -353,13 +354,13 @@ impl<M: ConnectionManager> Server<M> {
                 // succeed while a WAL buffer write fails, which would then
                 // return an error. A single lock is probably undesirable, but
                 // we need to figure out what semantics we want.
-                wal_buffer.append(write.clone()).context(WalError)?
+                wal_buffer.append(Arc::clone(&write)).context(WalError)?
             };
 
             if let Some(segment) = segment {
                 if persist {
                     let writer_id = self.require_id()?;
-                    let store = self.store.clone();
+                    let store = Arc::clone(&self.store);
                     segment
                         .persist_bytes_in_background(
                             &self.segment_persistence_registry,
@@ -478,7 +479,7 @@ where
     }
 
     fn executor(&self) -> Arc<Executor> {
-        self.executor.clone()
+        Arc::clone(&self.executor)
     }
 }
 
@@ -607,7 +608,7 @@ mod tests {
     async fn create_database_persists_rules() {
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let server = Server::new(manager, store.clone());
+        let server = Server::new(manager, Arc::clone(&store));
         server.set_id(1);
 
         let name = "bananas";
@@ -782,7 +783,7 @@ mod tests {
         let remote_id = "serverA";
         manager
             .remotes
-            .insert(remote_id.to_string(), remote.clone());
+            .insert(remote_id.to_string(), Arc::clone(&remote));
 
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
 
@@ -841,7 +842,7 @@ partition_key:
         let remote_id = "serverA";
         manager
             .remotes
-            .insert(remote_id.to_string(), remote.clone());
+            .insert(remote_id.to_string(), Arc::clone(&remote));
 
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
 
@@ -904,7 +905,7 @@ partition_key:
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
 
-        let server = Server::new(manager, store.clone());
+        let server = Server::new(manager, Arc::clone(&store));
         server.set_id(1);
         let db_name = "my_db";
         let rules = DatabaseRules {
@@ -974,7 +975,7 @@ partition_key:
         type RemoteServer = TestRemoteServer;
 
         async fn remote_server(&self, id: &str) -> Result<Arc<TestRemoteServer>, Self::Error> {
-            Ok(self.remotes.get(id).unwrap().clone())
+            Ok(Arc::clone(&self.remotes.get(id).unwrap()))
         }
     }
 
