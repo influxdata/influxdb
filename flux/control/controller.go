@@ -2,6 +2,7 @@ package control
 
 import (
 	"context"
+	"github.com/influxdata/flux/runtime"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
@@ -40,7 +41,7 @@ func (c *Controller) Query(ctx context.Context, compiler flux.Compiler) (flux.Qu
 		ctx = dep.Inject(ctx)
 	}
 
-	p, err := compiler.Compile(ctx)
+	p, err := compiler.Compile(ctx, runtime.Default)
 	if err != nil {
 		return nil, err
 	}

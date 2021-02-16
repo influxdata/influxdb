@@ -2,6 +2,8 @@ package influxdb
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
@@ -108,17 +110,17 @@ func (PushDownFilterRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node,
 		return pn, false, nil
 	}
 
-	bodyExpr, ok := filterSpec.Fn.Fn.Block.Body.(semantic.Expression)
+	bodyExpr, ok := filterSpec.Fn.Fn.GetFunctionBodyExpression()
 	if !ok {
 		return pn, false, nil
 	}
 
-	if len(filterSpec.Fn.Fn.Block.Parameters.List) != 1 {
+	if len(filterSpec.Fn.Fn.Parameters.List) != 1 {
 		// I would expect that type checking would catch this, but just to be safe...
 		return pn, false, nil
 	}
 
-	paramName := filterSpec.Fn.Fn.Block.Parameters.List[0].Key.Name
+	paramName := filterSpec.Fn.Fn.Parameters.List[0].Key.Name
 
 	pushable, notPushable, err := semantic.PartitionPredicates(bodyExpr, func(e semantic.Expression) (bool, error) {
 		return isPushableExpr(paramName, e)
@@ -133,15 +135,16 @@ func (PushDownFilterRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node,
 	}
 	pushable, _ = rewritePushableExpr(pushable)
 
+	pushablePredicate, err := ToStoragePredicate(pushable, paramName)
+
 	newFromSpec := fromSpec.Copy().(*ReadRangePhysSpec)
-	if newFromSpec.FilterSet {
-		newBody := semantic.ExprsToConjunction(newFromSpec.Filter.Block.Body.(semantic.Expression), pushable)
-		newFromSpec.Filter.Block.Body = newBody
+	if newFromSpec.Predicate != nil {
+		newFromSpec.Predicate, err = MergePredicates(ast.AndOperator, fromSpec.Predicate, pushablePredicate)
+		if err != nil {
+			return nil, false, err
+		}
 	} else {
-		newFromSpec.FilterSet = true
-		// NOTE: We loose the scope here, but that is ok because we can't push down the scope to storage.
-		newFromSpec.Filter = filterSpec.Fn.Fn.Copy().(*semantic.FunctionExpression)
-		newFromSpec.Filter.Block.Body = pushable
+		newFromSpec.Predicate = pushablePredicate
 	}
 
 	if notPushable == nil {
@@ -159,7 +162,11 @@ func (PushDownFilterRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node,
 	}
 
 	newFilterSpec := filterSpec.Copy().(*universe.FilterProcedureSpec)
-	newFilterSpec.Fn.Fn.Block.Body = notPushable
+	newFilterSpec.Fn.Fn.Block.Body = []semantic.Statement{
+		&semantic.ReturnStatement{
+			Argument: notPushable,
+		},
+	}
 	if err := pn.ReplaceSpec(newFilterSpec); err != nil {
 		return nil, false, err
 	}
@@ -185,6 +192,22 @@ func (rule PushDownReadTagKeysRule) Pattern() plan.Pattern {
 				plan.Pat(ReadRangePhysKind))))
 }
 
+func hasFieldRef(node *datatypes.Node) bool {
+	if node == nil {
+		return false
+	}
+	// NodeType should imply the type, panic if it doesn't
+	if node.NodeType == datatypes.NodeTypeTagRef && node.Value.(*datatypes.Node_TagRefValue).TagRefValue == models.FieldKeyTagKey {
+		return true
+	}
+	for _, c := range node.Children {
+		if hasFieldRef(c) {
+			return true
+		}
+	}
+	return false
+}
+
 func (rule PushDownReadTagKeysRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
 	// Retrieve the nodes and specs for all of the predecessors.
 	distinctSpec := pn.ProcedureSpec().(*universe.DistinctProcedureSpec)
@@ -202,7 +225,7 @@ func (rule PushDownReadTagKeysRule) Rewrite(ctx context.Context, pn plan.Node) (
 
 	// The tag keys mechanism doesn't know about fields so we cannot
 	// push down _field comparisons in 1.x.
-	if hasFieldExpr(fromSpec.Filter) {
+	if hasFieldRef(fromSpec.Predicate.Root) {
 		return pn, false, nil
 	}
 

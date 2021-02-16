@@ -3,12 +3,12 @@ package influxdb
 import (
 	"context"
 	"errors"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"strings"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/plan"
-	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxql"
@@ -52,12 +52,9 @@ type ReadRangePhysSpec struct {
 	Bucket   string
 	BucketID string
 
-	// FilterSet is set to true if there is a filter.
-	FilterSet bool
-	// Filter is the filter to use when calling into
-	// storage. It must be possible to push down this
-	// filter.
-	Filter *semantic.FunctionExpression
+	// Predicate is the filtering predicate for calling into storage.
+	// It must not be mutated.
+	Predicate *datatypes.Predicate
 
 	Bounds flux.Bounds
 }
@@ -71,10 +68,7 @@ func (s *ReadRangePhysSpec) Copy() plan.ProcedureSpec {
 	ns.Bucket = s.Bucket
 	ns.BucketID = s.BucketID
 
-	ns.FilterSet = s.FilterSet
-	if ns.FilterSet {
-		ns.Filter = s.Filter.Copy().(*semantic.FunctionExpression)
-	}
+	ns.Predicate= s.Predicate
 
 	ns.Bounds = s.Bounds
 

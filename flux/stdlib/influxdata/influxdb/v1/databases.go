@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/influxdata/flux/runtime"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
@@ -16,13 +17,15 @@ import (
 	"github.com/influxdata/influxql"
 )
 
+// This looks dodgy - we should maybe use a new kind for the new op?
 const DatabasesKind = v1.DatabasesKind
 
 type DatabasesOpSpec struct {
 }
 
 func init() {
-	flux.ReplacePackageValue("influxdata/influxdb/v1", DatabasesKind, flux.FunctionValue(DatabasesKind, createDatabasesOpSpec, v1.DatabasesSignature))
+	databasesSignature := runtime.MustLookupBuiltinType("influxdata/influxdb/v1", "databases")
+	runtime.ReplacePackageValue("influxdata/influxdb/v1", DatabasesKind, flux.MustValue(flux.FunctionValue(DatabasesKind, createDatabasesOpSpec, databasesSignature)))
 	flux.RegisterOpSpec(DatabasesKind, newDatabasesOp)
 	plan.RegisterProcedureSpec(DatabasesKind, newDatabasesProcedure, DatabasesKind)
 }

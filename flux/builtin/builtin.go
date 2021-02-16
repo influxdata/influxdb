@@ -4,9 +4,9 @@
 package builtin
 
 import (
+	"github.com/influxdata/flux/runtime"
 	"sync"
 
-	"github.com/influxdata/flux"
 	_ "github.com/influxdata/flux/stdlib"
 	_ "github.com/influxdata/influxdb/flux/stdlib"
 )
@@ -18,6 +18,6 @@ var once sync.Once
 // and is idempotent.
 func Initialize() {
 	once.Do(func() {
-		flux.FinalizeBuiltIns()
+		runtime.FinalizeBuiltIns()
 	})
 }
