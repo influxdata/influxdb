@@ -104,7 +104,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 	lpFile := createTempFile(t, "txt", []byte(lpContents), false)
 	gzipLpFile := createTempFile(t, "txt.gz", []byte(lpContents), true)
 	gzipLpFileNoExt := createTempFile(t, "lp", []byte(lpContents), true)
-	stdInLpContents := "f1 x=1,b=2,c=3"
+	stdInLpContents := "stdin3 i=stdin1,j=stdin2,k=stdin4"
 	stdInLpGzipContents := &bytes.Buffer{}
 	stdInLpGzipWriter := gzip.NewWriter(stdInLpGzipContents)
 	_, err := stdInLpGzipWriter.Write([]byte(stdInLpContents))
@@ -189,6 +189,17 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			},
 		},
 		{
+			name: "read compressed an uncompressed LP data from file in the same call",
+			flags: writeFlagsBuilder{
+				Files: []string{gzipLpFile, lpFile},
+			},
+			firstLineCorrection: 0,
+			lines: []string{
+				lpContents,
+				lpContents,
+			},
+		},
+		{
 			name:  "read LP data from stdin",
 			flags: writeFlagsBuilder{},
 			stdIn: strings.NewReader(stdInLpContents),
@@ -267,7 +278,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			},
 			firstLineCorrection: 0, // no changes
 			lines: []string{
-				"f1 b=f2,c=f3,d=f4",
+				lpContents,
 			},
 		},
 		{
@@ -334,7 +345,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			},
 			stdIn: strings.NewReader(stdInCsvContents),
 			lines: []string{
-				"stdin3 i=stdin1,j=stdin2,k=stdin4",
+				stdInLpContents,
 			},
 		},
 		{
@@ -345,7 +356,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			},
 			stdIn: stdInCsvGzipContents,
 			lines: []string{
-				"stdin3 i=stdin1,j=stdin2,k=stdin4",
+				stdInLpContents,
 			},
 		},
 		{
@@ -356,7 +367,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			stdIn:     strings.NewReader(stdInCsvContents),
 			arguments: []string{"-"},
 			lines: []string{
-				"stdin3 i=stdin1,j=stdin2,k=stdin4",
+				stdInLpContents,
 			},
 		},
 		{
@@ -366,7 +377,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			},
 			arguments: []string{stdInCsvContents},
 			lines: []string{
-				"stdin3 i=stdin1,j=stdin2,k=stdin4",
+				stdInLpContents,
 			},
 		},
 		{
@@ -375,7 +386,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 				URLs: []string{fmt.Sprintf("%s/a.csv?data=%s", server.URL, url.QueryEscape(csvContents))},
 			},
 			lines: []string{
-				"f1 b=f2,c=f3,d=f4",
+				lpContents,
 			},
 		},
 		{
@@ -385,7 +396,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 				Compression: inputCompressionGzip,
 			},
 			lines: []string{
-				"f1 b=f2,c=f3,d=f4",
+				lpContents,
 			},
 		},
 		{
@@ -394,7 +405,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 				URLs: []string{fmt.Sprintf("%s/a.csv.gz?data=%s&compress=true", server.URL, url.QueryEscape(csvContents))},
 			},
 			lines: []string{
-				"f1 b=f2,c=f3,d=f4",
+				lpContents,
 			},
 		},
 		{
@@ -403,7 +414,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 				URLs: []string{fmt.Sprintf("%s/a.csv?data=%s&compress=true&encoding=gzip", server.URL, url.QueryEscape(csvContents))},
 			},
 			lines: []string{
-				"f1 b=f2,c=f3,d=f4",
+				lpContents,
 			},
 		},
 		{
@@ -418,12 +429,21 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			},
 		},
 		{
-			name: "read data from having text/csv URL resource + transform to line protocol",
+			name: "read data from URL with text/csv Content-Type + transform to line protocol",
 			flags: writeFlagsBuilder{
 				URLs: []string{fmt.Sprintf("%s/a?Content-Type=text/csv&data=%s", server.URL, url.QueryEscape(csvContents))},
 			},
 			lines: []string{
-				"f1 b=f2,c=f3,d=f4",
+				lpContents,
+			},
+		},
+		{
+			name: "read compressed data from URL with text/csv Content-Type and gzip Content-Encoding + transform to line protocol",
+			flags: writeFlagsBuilder{
+				URLs: []string{fmt.Sprintf("%s/a?Content-Type=text/csv&data=%s&compress=true&encoding=gzip", server.URL, url.QueryEscape(csvContents))},
+			},
+			lines: []string{
+				lpContents,
 			},
 		},
 		{
@@ -433,7 +453,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 				RateLimit: "1MBs",
 			},
 			lines: []string{
-				"f1 b=f2,c=f3,d=f4",
+				lpContents,
 			},
 		},
 	}
