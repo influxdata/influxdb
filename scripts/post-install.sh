@@ -60,10 +60,10 @@ upgrade, execute the following:
 sudo /usr/share/influxdb/influxdb2-upgrade.sh
 
 Visit our website for complete details on the v1 to v2 upgrade process:
-https://docs.influxdata.com/influxdb/v2.0/upgrade/v1-to-v2/
+https://docs.influxdata.com/influxdb/latest/upgrade/v1-to-v2/
 
 For new or upgrade installations, please review the getting started guide:
-https://docs.influxdata.com/influxdb/v2.0/get-started/
+https://docs.influxdata.com/influxdb/latest/get-started/
 
 EOF
 }

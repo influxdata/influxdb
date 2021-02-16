@@ -166,7 +166,7 @@ func (b *cmdTemplateBuilder) cmdApply() *cobra.Command {
 			--filter resource=Dashboard:$DASHBOARD_TMPL_NAME
 
 	For information about finding and using InfluxDB templates, see
-	https://docs.influxdata.com/influxdb/v2.0/reference/cli/influx/apply/.
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/apply/.
 
 	For more templates created by the community, see
 	https://github.com/influxdata/community-templates.
@@ -343,7 +343,7 @@ func (b *cmdTemplateBuilder) cmdExport() *cobra.Command {
 	resource flag and then provide the IDs.
 
 	For information about exporting InfluxDB templates, see
-	https://docs.influxdata.com/influxdb/v2.0/reference/cli/influx/export/
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/export/
 `
 	cmd.AddCommand(
 		b.cmdExportAll(),
@@ -472,9 +472,9 @@ func (b *cmdTemplateBuilder) cmdExportAll() *cobra.Command {
 			--filter=labelName=Foo
 
 	For information about exporting InfluxDB templates, see
-	https://docs.influxdata.com/influxdb/v2.0/reference/cli/influx/export/
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/export/
 	and
-	https://docs.influxdata.com/influxdb/v2.0/reference/cli/influx/export/all/
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/export/all/
 `
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created template; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
@@ -540,9 +540,9 @@ func (b *cmdTemplateBuilder) cmdExportStack() *cobra.Command {
 		influx export stack $STACK_ID
 
 	For information about exporting InfluxDB templates, see
-	https://docs.influxdata.com/influxdb/v2.0/reference/cli/influx/export/
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/export/
 	and
-	https://docs.influxdata.com/influxdb/v2.0/reference/cli/influx/export/stack/
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/export/stack/
 `
 	cmd.Args = cobra.ExactValidArgs(1)
 
@@ -638,7 +638,7 @@ func (b *cmdTemplateBuilder) cmdStacks() *cobra.Command {
 		influx stacks --stack-id=$STACK_ID --stack-name=$STACK_NAME
 
 	For information about Stacks and how they integrate with InfluxDB templates, see
-	https://docs.influxdata.com/influxdb/v2.0/reference/cli/influx/stacks/
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/stacks/
 `
 
 	cmd.AddCommand(
@@ -667,9 +667,9 @@ func (b *cmdTemplateBuilder) cmdStackInit() *cobra.Command {
 		influx stacks init -n $STACK_NAME -u $PATH_TO_TEMPLATE
 
 	For information about how stacks work with InfluxDB templates, see
-	https://docs.influxdata.com/influxdb/v2.0/reference/cli/influx/stacks/
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/stacks/
 	and
-	https://docs.influxdata.com/influxdb/v2.0/reference/cli/influx/stacks/init/
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/stacks/init/
 `
 
 	cmd.Flags().StringVarP(&b.name, "stack-name", "n", "", "Name given to created stack")
@@ -860,9 +860,9 @@ func (b *cmdTemplateBuilder) cmdStackUpdate() *cobra.Command {
 			--export-file /path/to/file.yml
 
 	For information about how stacks work with InfluxDB templates, see
-	https://docs.influxdata.com/influxdb/v2.0/reference/cli/influx/stacks/
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/stacks/
 	and
-	https://docs.influxdata.com/influxdb/v2.0/reference/cli/influx/stacks/update/
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/stacks/update/
 `
 
 	cmd.Flags().StringVarP(&b.stackID, "stack-id", "i", "", "ID of stack")

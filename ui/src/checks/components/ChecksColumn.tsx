@@ -62,7 +62,7 @@ const ChecksColumn: FunctionComponent<Props> = ({
       <br />
       <br />
       <a
-        href="https://docs.influxdata.com/influxdb/v2.0/monitor-alert/checks/create/"
+        href="https://docs.influxdata.com/influxdb/latest/monitor-alert/checks/create/"
         target="_blank"
       >
         Read Documentation
