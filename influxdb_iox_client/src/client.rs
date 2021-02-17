@@ -40,7 +40,7 @@ pub use flight::PerformQuery;
 ///     .expect("failed to create database");
 /// # }
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Client {
     pub(crate) http: reqwest::Client,
 
