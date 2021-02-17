@@ -11,7 +11,7 @@ use async_trait::async_trait;
 use data_types::{
     data::ReplicatedWrite, partition_metadata::TableSummary, schema::Schema, selection::Selection,
 };
-use exec::{stringset::StringSet, Executor, FieldListPlan, SeriesSetPlans};
+use exec::{stringset::StringSet, Executor, SeriesSetPlans};
 use plan::stringset::StringSetPlan;
 
 use std::{fmt::Debug, sync::Arc};
@@ -54,12 +54,6 @@ pub trait Database: Debug + Send + Sync {
     // ----------
     // The functions below are slated for removal (migration into a gRPC query
     // frontend) ---------
-
-    /// Returns a plan that produces a list of column names in this
-    /// database which store fields (as defined in the data written
-    /// via `write_lines`), and which have at least one row which
-    /// matches the conditions listed on `predicate`.
-    async fn field_column_names(&self, predicate: Predicate) -> Result<FieldListPlan, Self::Error>;
 
     /// Returns a plan which finds the distinct values in the
     /// `column_name` column of this database which pass the

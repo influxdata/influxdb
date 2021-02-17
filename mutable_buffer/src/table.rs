@@ -614,39 +614,6 @@ impl Table {
         ))
     }
 
-    /// Creates a plan that produces an output table with rows that
-    /// match the predicate for all fields in the table.
-    ///
-    /// The output looks like (field0, field1, ..., time)
-    ///
-    /// The data is not sorted in any particular order
-    ///
-    /// The created plan looks like:
-    ///
-    ///    Projection (select the field columns needed)
-    ///        Filter(predicate) [optional]
-    ///          InMemoryScan
-    pub fn field_names_plan(
-        &self,
-        chunk_predicate: &ChunkPredicate,
-        chunk: &Chunk,
-    ) -> Result<LogicalPlan> {
-        // Scan and Filter
-        let plan_builder = self.scan_with_predicates(chunk_predicate, chunk)?;
-
-        // Selection
-        let select_exprs = self
-            .field_and_time_column_names(chunk_predicate, chunk)
-            .into_iter()
-            .map(|c| c.into_expr())
-            .collect::<Vec<_>>();
-
-        let plan_builder = plan_builder.project(&select_exprs).context(BuildingPlan)?;
-
-        // and finally create the plan
-        plan_builder.build().context(BuildingPlan)
-    }
-
     // Returns (tag_columns, field_columns) vectors with the names of
     // all tag and field columns, respectively, after any predicates
     // have been applied. The vectors are sorted by lexically by name.
@@ -688,42 +655,6 @@ impl Table {
         field_columns.sort();
 
         Ok((tag_columns, field_columns))
-    }
-
-    // Returns (field_columns and time) in sorted order
-    fn field_and_time_column_names(
-        &self,
-        chunk_predicate: &ChunkPredicate,
-        chunk: &Chunk,
-    ) -> ArcStringVec {
-        let mut field_columns = self
-            .columns
-            .iter()
-            .filter_map(|(column_id, column)| {
-                match column {
-                    Column::Tag(_, _) => None, // skip tags
-                    _ => {
-                        if chunk_predicate.should_include_field(*column_id)
-                            || chunk_predicate.is_time_column(*column_id)
-                        {
-                            let column_name = chunk
-                                .dictionary
-                                .lookup_id(*column_id)
-                                .expect("Find column name in dictionary");
-                            Some(Arc::new(column_name.to_string()))
-                        } else {
-                            None
-                        }
-                    }
-                }
-            })
-            .collect::<Vec<_>>();
-
-        // Sort the field columns too so that the output always comes
-        // out in a predictable order
-        field_columns.sort();
-
-        field_columns
     }
 
     /// Returns the column selection for all the columns in this table, orderd
@@ -2086,47 +2017,6 @@ mod tests {
             "| Boston | MA    | 1585699200000000000 | 70.5 |",
             "| Boston | MA    | 1588291200000000000 | 72.5 |",
             "+--------+-------+---------------------+------+",
-        ];
-
-        assert_eq!(expected, results, "expected output");
-    }
-
-    #[tokio::test]
-    async fn test_field_name_plan() {
-        let mut chunk = Chunk::new(42);
-        let dictionary = &mut chunk.dictionary;
-        let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
-
-        let lp_lines = vec![
-            // Order this so field3 comes before field2
-            // (and thus the columns need to get reordered)
-            "h2o,tag1=foo,tag2=bar field1=70.6,field3=2 100",
-            "h2o,tag1=foo,tag2=bar field1=70.4,field2=\"ss\" 100",
-            "h2o,tag1=foo,tag2=bar field1=70.5,field2=\"ss\" 100",
-            "h2o,tag1=foo,tag2=bar field1=70.6,field4=true 1000",
-        ];
-
-        write_lines_to_table(&mut table, dictionary, lp_lines);
-
-        let predicate = PredicateBuilder::default().timestamp_range(0, 200).build();
-
-        let chunk_predicate = chunk.compile_predicate(&predicate).unwrap();
-
-        let field_names_set_plan = table
-            .field_names_plan(&chunk_predicate, &chunk)
-            .expect("creating the field_name plan");
-
-        // run the created plan, ensuring the output is as expected
-        let results = run_plan(field_names_set_plan).await;
-
-        let expected = vec![
-            "+--------+--------+--------+--------+------+",
-            "| field1 | field2 | field3 | field4 | time |",
-            "+--------+--------+--------+--------+------+",
-            "| 70.6   |        | 2      |        | 100  |",
-            "| 70.4   | ss     |        |        | 100  |",
-            "| 70.5   | ss     |        |        | 100  |",
-            "+--------+--------+--------+--------+------+",
         ];
 
         assert_eq!(expected, results, "expected output");

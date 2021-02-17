@@ -1,13 +1,22 @@
 //! This module provides a reference implementaton of `query::DatabaseSource`
 //! and `query::Database` for use in testing.
+//!
+//! AKA it is a Mock
 
-use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
+use arrow_deps::{
+    arrow::{
+        array::{ArrayRef, Int64Array, StringArray},
+        datatypes::DataType,
+        record_batch::RecordBatch,
+    },
+    datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream},
+};
 
 use crate::{exec::Executor, group_by::GroupByAndAggregate, plan::stringset::StringSetPlan};
 use crate::{
     exec::{
         stringset::{StringSet, StringSetRef},
-        FieldListPlan, SeriesSetPlans,
+        SeriesSetPlans,
     },
     Database, DatabaseStore, PartitionChunk, Predicate,
 };
@@ -64,12 +73,6 @@ pub struct TestDatabase {
 
     /// The last request for `query_series`
     query_groups_request: Arc<Mutex<Option<QueryGroupsRequest>>>,
-
-    /// Responses to return on the next request to `field_column_values`
-    field_columns_value: Arc<Mutex<Option<FieldListPlan>>>,
-
-    /// The last request for `query_series`
-    field_columns_request: Arc<Mutex<Option<FieldColumnsRequest>>>,
 }
 
 /// Records the parameters passed to a column values request
@@ -96,13 +99,6 @@ pub struct QueryGroupsRequest {
     pub predicate: String,
     /// The requested aggregate
     pub gby_agg: GroupByAndAggregate,
-}
-
-/// Records the parameters passed to a `field_columns` request
-#[derive(Debug, PartialEq, Clone)]
-pub struct FieldColumnsRequest {
-    /// Stringified '{:?}' version of the predicate
-    pub predicate: String,
 }
 
 #[derive(Snafu, Debug)]
@@ -233,21 +229,6 @@ impl TestDatabase {
             .expect("mutex poisoned")
             .take()
     }
-
-    /// Set the FieldSet plan that will be returned
-    pub fn set_field_colum_names_values(&self, plan: FieldListPlan) {
-        *(Arc::clone(&self.field_columns_value)
-            .lock()
-            .expect("mutex poisoned")) = Some(plan);
-    }
-
-    /// Get the parameters from the last column name request
-    pub fn get_field_columns_request(&self) -> Option<FieldColumnsRequest> {
-        Arc::clone(&self.field_columns_request)
-            .lock()
-            .expect("mutex poisoned")
-            .take()
-    }
 }
 
 /// returns true if this line is within the range of the timestamp
@@ -305,27 +286,6 @@ impl Database for TestDatabase {
             .expect("mutex poisoned")
             .push(write.clone());
         Ok(())
-    }
-
-    async fn field_column_names(&self, predicate: Predicate) -> Result<FieldListPlan, Self::Error> {
-        // save the request
-        let predicate = predicate_to_test_string(&predicate);
-
-        let field_columns_request = Some(FieldColumnsRequest { predicate });
-
-        *Arc::clone(&self.field_columns_request)
-            .lock()
-            .expect("mutex poisoned") = field_columns_request;
-
-        // pull out the saved columns
-        Arc::clone(&self.field_columns_value)
-            .lock()
-            .expect("mutex poisoned")
-            .take()
-            // Turn None into an error
-            .context(General {
-                message: "No saved field_column_name in TestDatabase",
-            })
     }
 
     /// Return the mocked out column values, recording the request
@@ -428,6 +388,9 @@ pub struct TestChunk {
     /// Column names: table_name -> Schema
     table_schemas: BTreeMap<String, Schema>,
 
+    /// RecordBatches that are returned on each request
+    table_data: BTreeMap<String, Vec<Arc<RecordBatch>>>,
+
     /// A saved error that is returned instead of actual results
     saved_error: Option<String>,
 }
@@ -463,7 +426,7 @@ impl TestChunk {
 
     /// Register an tag column with the test chunk
     pub fn with_tag_column(
-        mut self,
+        self,
         table_name: impl Into<String>,
         column_name: impl Into<String>,
     ) -> Self {
@@ -474,6 +437,43 @@ impl TestChunk {
         // merge it in to any existing schema
         let new_column_schema = SchemaBuilder::new().tag(&column_name).build().unwrap();
 
+        self.add_schema_to_table(table_name, new_column_schema)
+    }
+
+    /// Register a timetamp column with the test chunk
+    pub fn with_time_column(self, table_name: impl Into<String>) -> Self {
+        let table_name = table_name.into();
+
+        // make a new schema with the specified column and
+        // merge it in to any existing schema
+        let new_column_schema = SchemaBuilder::new().timestamp().build().unwrap();
+
+        self.add_schema_to_table(table_name, new_column_schema)
+    }
+
+    /// Register an int field column with the test chunk
+    pub fn with_int_field_column(
+        self,
+        table_name: impl Into<String>,
+        column_name: impl Into<String>,
+    ) -> Self {
+        let column_name = column_name.into();
+
+        // make a new schema with the specified column and
+        // merge it in to any existing schema
+        let new_column_schema = SchemaBuilder::new()
+            .field(&column_name, DataType::Int64)
+            .build()
+            .unwrap();
+        self.add_schema_to_table(table_name, new_column_schema)
+    }
+
+    fn add_schema_to_table(
+        mut self,
+        table_name: impl Into<String>,
+        new_column_schema: Schema,
+    ) -> Self {
+        let table_name = table_name.into();
         let mut merger = SchemaMerger::new().merge(new_column_schema).unwrap();
 
         if let Some(existing_schema) = self.table_schemas.remove(&table_name) {
@@ -496,6 +496,37 @@ impl TestChunk {
             //.map(|v| v.clone())
             .cloned()
     }
+
+    /// Prepares this chunk to return a specific record batch with one
+    /// row of non null data.
+    pub fn with_one_row_of_null_data(mut self, table_name: impl Into<String>) -> Self {
+        let table_name = table_name.into();
+        let schema = self
+            .table_schemas
+            .get(&table_name)
+            .expect("table must exist in TestChunk");
+
+        // create arays
+        let columns = schema
+            .iter()
+            .map(|(_influxdb_column_type, field)| match field.data_type() {
+                DataType::Int64 => Arc::new(Int64Array::from(vec![1000])) as ArrayRef,
+                DataType::Utf8 => Arc::new(StringArray::from(vec!["MA"])) as ArrayRef,
+                _ => unimplemented!(
+                    "Unimplemented data type for test database: {:?}",
+                    field.data_type()
+                ),
+            })
+            .collect::<Vec<_>>();
+
+        let batch = RecordBatch::try_new(schema.into(), columns).expect("made record batch");
+
+        self.table_data
+            .entry(table_name)
+            .or_default()
+            .push(Arc::new(batch));
+        self
+    }
 }
 
 #[async_trait]
@@ -514,11 +545,21 @@ impl PartitionChunk for TestChunk {
 
     async fn read_filter(
         &self,
-        _table_name: &str,
-        _predicate: &Predicate,
+        table_name: &str,
+        predicate: &Predicate,
         _selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, Self::Error> {
-        unimplemented!()
+        self.check_error()?;
+
+        // save the predicate
+        self.predicate
+            .lock()
+            .expect("mutex poisoned")
+            .replace(predicate.clone());
+
+        let batches = self.table_data.get(table_name).expect("Table had data");
+        let stream = SizedRecordBatchStream::new(batches[0].schema(), batches.clone());
+        Ok(Box::pin(stream))
     }
 
     async fn table_names(
@@ -562,8 +603,8 @@ impl PartitionChunk for TestChunk {
             })
     }
 
-    fn has_table(&self, _table_name: &str) -> bool {
-        unimplemented!()
+    fn has_table(&self, table_name: &str) -> bool {
+        self.table_schemas.contains_key(table_name)
     }
 
     async fn column_names(

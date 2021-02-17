@@ -13,7 +13,7 @@ use crate::query_tests::scenarios::*;
 /// Creates and loads several database scenarios using the db_setup
 /// function.
 ///
-/// runs table_tag_column_names(predicate) and compares it to the expected
+/// runs table_column_names(predicate) and compares it to the expected
 /// output
 macro_rules! run_tag_column_names_test_case {
     ($DB_SETUP:expr, $PREDICATE:expr, $EXPECTED_NAMES:expr) => {
@@ -21,7 +21,9 @@ macro_rules! run_tag_column_names_test_case {
         let predicate = $PREDICATE;
         let expected_names = $EXPECTED_NAMES;
         for scenario in $DB_SETUP.make().await {
-            let DBScenario { scenario_name, db } = scenario;
+            let DBScenario {
+                scenario_name, db, ..
+            } = scenario;
             println!("Running scenario '{}'", scenario_name);
             println!("Predicate: '{:#?}'", predicate);
             let planner = InfluxRPCPlanner::new();

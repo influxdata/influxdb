@@ -5,7 +5,7 @@ use std::{
 
 use arrow_deps::datafusion::{
     error::{DataFusionError, Result as DatafusionResult},
-    logical_plan::{Expr, ExpressionVisitor, LogicalPlanBuilder, Operator, Recursion},
+    logical_plan::{Expr, ExpressionVisitor, LogicalPlan, LogicalPlanBuilder, Operator, Recursion},
     prelude::col,
 };
 use data_types::{
@@ -17,7 +17,10 @@ use tracing::debug;
 
 use crate::{
     exec::{make_schema_pivot, stringset::StringSet},
-    plan::stringset::{Error as StringSetError, StringSetPlan, StringSetPlanBuilder},
+    plan::{
+        fieldlist::FieldListPlan,
+        stringset::{Error as StringSetError, StringSetPlan, StringSetPlanBuilder},
+    },
     predicate::{Predicate, PredicateBuilder},
     provider::ProviderBuilder,
     util::schema_has_all_expr_columns,
@@ -188,40 +191,10 @@ impl InfluxRPCPlanner {
         // entirely using the metadata
         let mut need_full_plans = BTreeMap::new();
 
-        let no_tables = StringSet::new();
         let mut known_columns = BTreeSet::new();
         for chunk in self.filtered_chunks(database, &predicate).await? {
             // try and get the table names that have rows that match the predicate
-            let table_names = chunk
-                .table_names(&predicate, &no_tables)
-                .await
-                .map_err(|e| Box::new(e) as _)
-                .context(TableNamePlan)?;
-
-            debug!(table_names=?table_names, chunk_id = chunk.id(), "chunk tables");
-
-            let table_names = match table_names {
-                Some(table_names) => {
-                    debug!("found table names with original predicate");
-                    table_names
-                }
-                None => {
-                    // couldn't find table names with predicate, get all chunk tables,
-                    // fall back to filtering ourself
-                    let table_name_predicate = if let Some(table_names) = &predicate.table_names {
-                        PredicateBuilder::new().tables(table_names).build()
-                    } else {
-                        Predicate::default()
-                    };
-                    chunk
-                        .table_names(&table_name_predicate, &no_tables)
-                        .await
-                        .map_err(|e| Box::new(e) as _)
-                        .context(InternalTableNamePlanForDefault)?
-                        // unwrap the Option
-                        .context(InternalTableNameCannotGetPlanForDefault)?
-                }
-            };
+            let table_names = self.chunk_table_names(chunk.as_ref(), &predicate).await?;
 
             for table_name in table_names {
                 debug!(
@@ -296,6 +269,97 @@ impl InfluxRPCPlanner {
             .context(CreatingStringSet)
     }
 
+    /// Returns a plan that produces a list of columns and their
+    /// datatypes (as defined in the data written via `write_lines`),
+    /// and which have more than zero rows which pass the conditions
+    /// specified by `predicate`.
+    pub async fn field_columns<D>(
+        &self,
+        database: &D,
+        predicate: Predicate,
+    ) -> Result<FieldListPlan>
+    where
+        D: Database + 'static,
+    {
+        debug!(predicate=?predicate, "planning field_columns");
+
+        // Algorithm is to run a "select field_cols from table where
+        // <predicate> type plan for each table in the chunks"
+        //
+        // The executor then figures out which columns have non-null
+        // values and stops the plan executing once it has them
+
+        // map table -> Vec<Arc<Chunk>>
+        let mut table_chunks = BTreeMap::new();
+        let chunks = self.filtered_chunks(database, &predicate).await?;
+        for chunk in chunks {
+            let table_names = self.chunk_table_names(chunk.as_ref(), &predicate).await?;
+            for table_name in table_names {
+                table_chunks
+                    .entry(table_name)
+                    .or_insert_with(Vec::new)
+                    .push(Arc::clone(&chunk));
+            }
+        }
+
+        let mut field_list_plan = FieldListPlan::new();
+        for (table_name, chunks) in table_chunks {
+            if let Some(plan) = self
+                .field_columns_plan(&table_name, &predicate, chunks)
+                .await?
+            {
+                field_list_plan = field_list_plan.append(plan);
+            }
+        }
+
+        Ok(field_list_plan)
+    }
+
+    /// Find all the table names in the specified chunk that pass the predicate
+    async fn chunk_table_names<C>(
+        &self,
+        chunk: &C,
+        predicate: &Predicate,
+    ) -> Result<BTreeSet<String>>
+    where
+        C: PartitionChunk + 'static,
+    {
+        let no_tables = StringSet::new();
+
+        // try and get the table names that have rows that match the predicate
+        let table_names = chunk
+            .table_names(&predicate, &no_tables)
+            .await
+            .map_err(|e| Box::new(e) as _)
+            .context(TableNamePlan)?;
+
+        debug!(table_names=?table_names, chunk_id = chunk.id(), "chunk tables");
+
+        let table_names = match table_names {
+            Some(table_names) => {
+                debug!("found table names with original predicate");
+                table_names
+            }
+            None => {
+                // couldn't find table names with predicate, get all chunk tables,
+                // fall back to filtering ourself
+                let table_name_predicate = if let Some(table_names) = &predicate.table_names {
+                    PredicateBuilder::new().tables(table_names).build()
+                } else {
+                    Predicate::default()
+                };
+                chunk
+                    .table_names(&table_name_predicate, &no_tables)
+                    .await
+                    .map_err(|e| Box::new(e) as _)
+                    .context(InternalTableNamePlanForDefault)?
+                    // unwrap the Option
+                    .context(InternalTableNameCannotGetPlanForDefault)?
+            }
+        };
+        Ok(table_names)
+    }
+
     /// removes any columns from Names that are not "Tag"s in the Influx Data
     /// Model
     fn restrict_to_tags(&self, schema: &Schema, names: BTreeSet<String>) -> BTreeSet<String> {
@@ -313,9 +377,11 @@ impl InfluxRPCPlanner {
     ///
     /// The created plan looks like:
     ///
+    /// ```text
     ///  Extension(PivotSchema)
     ///    Filter(predicate)
     ///      TableScan (of chunks)
+    /// ```
     async fn tag_column_names_plan<C>(
         &self,
         table_name: &str,
@@ -325,6 +391,123 @@ impl InfluxRPCPlanner {
     where
         C: PartitionChunk + 'static,
     {
+        let scan_and_filter = self.scan_and_filter(table_name, predicate, chunks).await?;
+
+        let TableScanAndFilter {
+            plan_builder,
+            schema,
+        } = match scan_and_filter {
+            None => return Ok(None),
+            Some(t) => t,
+        };
+
+        // now, select only the tag columns
+        let select_exprs = schema
+            .iter()
+            .filter_map(|(influx_column_type, field)| {
+                if matches!(influx_column_type, Some(InfluxColumnType::Tag)) {
+                    Some(col(field.name()))
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let plan = plan_builder
+            .project(&select_exprs)
+            .context(BuildingPlan)?
+            .build()
+            .context(BuildingPlan)?;
+
+        // And finally pivot the plan
+        let plan = make_schema_pivot(plan);
+        debug!(table_name=table_name, plan=%plan.display_indent_schema(),
+               "created column_name plan for table");
+
+        Ok(Some(plan.into()))
+    }
+
+    /// Creates a DataFusion LogicalPlan that returns the timestamp
+    /// and all field columns for a specified table:
+    ///
+    /// The output looks like (field0, field1, ..., time)
+    ///
+    /// The data is not sorted in any particular order
+    ///
+    /// returns `None` if the table contains no rows that would pass
+    /// the predicate.
+    ///
+    /// The created plan looks like:
+    ///
+    /// ```text
+    ///  Projection (select the field columns needed)
+    ///      Filter(predicate) [optional]
+    ///        InMemoryScan
+    /// ```
+    async fn field_columns_plan<C>(
+        &self,
+        table_name: &str,
+        predicate: &Predicate,
+        chunks: Vec<Arc<C>>,
+    ) -> Result<Option<LogicalPlan>>
+    where
+        C: PartitionChunk + 'static,
+    {
+        let scan_and_filter = self.scan_and_filter(table_name, predicate, chunks).await?;
+        let TableScanAndFilter {
+            plan_builder,
+            schema,
+        } = match scan_and_filter {
+            None => return Ok(None),
+            Some(t) => t,
+        };
+
+        // Selection of only fields and time
+        let select_exprs = schema
+            .iter()
+            .filter_map(|(influx_column_type, field)| match influx_column_type {
+                Some(InfluxColumnType::Field(_)) => Some(col(field.name())),
+                Some(InfluxColumnType::Timestamp) => Some(col(field.name())),
+                Some(_) => None,
+                None => None,
+            })
+            .collect::<Vec<_>>();
+
+        let plan = plan_builder
+            .project(&select_exprs)
+            .context(BuildingPlan)?
+            .build()
+            .context(BuildingPlan)?;
+
+        Ok(Some(plan))
+    }
+
+    /// Create a plan that scans the specified table, and applies any
+    /// filtering specified on the predicate, if any.
+    ///
+    /// If the table can produce no rows based on predicate
+    /// evaluation, returns Ok(None)
+    ///
+    /// The created plan looks like:
+    ///
+    /// ```text
+    ///   Filter(predicate) [optional]
+    ///     InMemoryScan
+    /// ```
+    async fn scan_and_filter<C>(
+        &self,
+        table_name: &str,
+        predicate: &Predicate,
+        chunks: Vec<Arc<C>>,
+    ) -> Result<Option<TableScanAndFilter>>
+    where
+        C: PartitionChunk + 'static,
+    {
+        // Scan all columns to begin with (datafusion projection
+        // pushdown optimization will prune out uneeded columns later)
+        let projection = None;
+        let selection = Selection::All;
+
         // Prepare the scan of the table
         let mut builder = ProviderBuilder::new(table_name);
         for chunk in chunks {
@@ -339,7 +522,7 @@ impl InfluxRPCPlanner {
             );
 
             let chunk_table_schema = chunk
-                .table_schema(table_name, Selection::All)
+                .table_schema(table_name, selection.clone())
                 .await
                 .map_err(|e| Box::new(e) as _)
                 .context(GettingTableSchema {
@@ -355,10 +538,6 @@ impl InfluxRPCPlanner {
         let provider = builder.build().context(CreatingProvider { table_name })?;
         let schema = provider.iox_schema();
 
-        // Scan all columns to begin with (datafusion projection
-        // pushdown optimization will prune out uneeded columns later)
-        let projection = None;
-
         let mut plan_builder = LogicalPlanBuilder::scan(table_name, Arc::new(provider), projection)
             .context(BuildingPlan)?;
 
@@ -369,40 +548,25 @@ impl InfluxRPCPlanner {
             // to evaluate the predicate (if not, it means no rows can
             // match and thus we should skip this plan)
             if !schema_has_all_expr_columns(&schema, &filter_expr) {
-                debug!(table_name=table_name, schema=?schema, filter_expr=?filter_expr, "Skipping table as schema doesn't have all filter_expr columns");
+                debug!(table_name=table_name,
+                       schema=?schema,
+                       filter_expr=?filter_expr,
+                       "Skipping table as schema doesn't have all filter_expr columns");
                 return Ok(None);
             }
             // Assuming that if a table doesn't have all the columns
             // in an expression it can't be true isn't correct for
             // certain predicates (e.g. IS NOT NULL), so error out
-            // here until we have proper support for that
+            // here until we have proper support for that case
             check_predicate_support(&filter_expr)?;
 
             plan_builder = plan_builder.filter(filter_expr).context(BuildingPlan)?;
         }
 
-        // now, select only the tag columns
-        let select_exprs = schema
-            .iter()
-            .filter_map(|(influx_column_type, field)| {
-                if matches!(influx_column_type, Some(InfluxColumnType::Tag)) {
-                    Some(col(field.name()))
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-
-        let plan_builder = plan_builder.project(&select_exprs).context(BuildingPlan)?;
-
-        let plan = plan_builder.build().context(BuildingPlan)?;
-
-        // And finally pivot the plan
-        let plan = make_schema_pivot(plan);
-        debug!(table_name=table_name, plan=%plan.display_indent_schema(),
-               "created column_name plan for table");
-
-        Ok(Some(plan.into()))
+        Ok(Some(TableScanAndFilter {
+            plan_builder,
+            schema,
+        }))
     }
 
     /// Returns a list of chunks across all partitions which may
@@ -504,4 +668,11 @@ impl ExpressionVisitor for SupportVisitor {
             ))),
         }
     }
+}
+
+struct TableScanAndFilter {
+    /// Represents plan that scans a table and applies optional filtering
+    plan_builder: LogicalPlanBuilder,
+    /// The IOx schema of the result
+    schema: Schema,
 }

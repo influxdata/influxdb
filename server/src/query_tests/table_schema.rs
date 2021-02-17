@@ -19,7 +19,9 @@ macro_rules! run_table_schema_test_case {
         let expected_schema = $EXPECTED_SCHEMA;
 
         for scenario in $DB_SETUP.make().await {
-            let DBScenario { scenario_name, db } = scenario;
+            let DBScenario {
+                scenario_name, db, ..
+            } = scenario;
             println!("Running scenario '{}'", scenario_name);
             println!(
                 "Getting schema for table '{}', selection {:?}",

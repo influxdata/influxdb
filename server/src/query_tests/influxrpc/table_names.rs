@@ -17,7 +17,9 @@ macro_rules! run_table_names_test_case {
         test_helpers::maybe_start_logging();
         let predicate = $PREDICATE;
         for scenario in $DB_SETUP.make().await {
-            let DBScenario { scenario_name, db } = scenario;
+            let DBScenario {
+                scenario_name, db, ..
+            } = scenario;
             println!("Running scenario '{}'", scenario_name);
             println!("Predicate: '{:#?}'", predicate);
             let planner = InfluxRPCPlanner::new();
