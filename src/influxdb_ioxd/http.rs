@@ -265,6 +265,7 @@ where
         .get("/iox/api/v1/databases/:name", get_database::<M>)
         .get("/iox/api/v1/databases/:name/wal/meta", get_wal_meta::<M>)
         .put("/iox/api/v1/id", set_writer::<M>)
+        .get("/iox/api/v1/id", get_writer::<M>)
         .get("/api/v1/partitions", list_partitions::<M>)
         .post("/api/v1/snapshot", snapshot_partition::<M>)
         // Specify the error handler to handle any errors caused by
@@ -604,6 +605,36 @@ async fn set_writer<M: ConnectionManager + Send + Sync + Debug + 'static>(
     Ok(response)
 }
 
+#[tracing::instrument(level = "debug")]
+async fn get_writer<M: ConnectionManager + Send + Sync + Debug + 'static>(
+    req: Request<Body>,
+) -> Result<Response<Body>, ApplicationError> {
+    let id = {
+        let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
+        server.require_id()
+    };
+
+    // Parse the JSON body into a structure
+    #[derive(Serialize)]
+    struct WriterIdBody {
+        id: u32,
+    }
+
+    let body = WriterIdBody {
+        id: id.unwrap_or(0),
+    };
+
+    // Build a HTTP 200 response
+    let response = Response::builder()
+        .status(StatusCode::OK)
+        .body(Body::from(
+            serde_json::to_string(&body).expect("json encoding should not fail"),
+        ))
+        .expect("builder should be successful");
+
+    Ok(response)
+}
+
 // Route to test that the server is alive
 #[tracing::instrument(level = "debug")]
 async fn ping(req: Request<Body>) -> Result<Response<Body>, ApplicationError> {
@@ -874,6 +905,7 @@ mod tests {
         let data = r#"{"id":42}"#;
 
         let client = Client::new();
+
         let response = client
             .put(&format!("{}/iox/api/v1/id", server_url))
             .body(data)
@@ -883,6 +915,14 @@ mod tests {
         check_response("set_writer_id", response, StatusCode::OK, data).await;
 
         assert_eq!(server.require_id().expect("should be set"), 42);
+
+        // Check get_writer_id
+        let response = client
+            .get(&format!("{}/iox/api/v1/id", server_url))
+            .send()
+            .await;
+
+        check_response("get_writer_id", response, StatusCode::OK, data).await;
     }
 
     #[tokio::test]
