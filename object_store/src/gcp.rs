@@ -306,15 +306,22 @@ mod test {
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
 
-        let result = get_nonexistent_object(&integration, Some(location)).await?;
+        let err = get_nonexistent_object(&integration, Some(location))
+            .await
+            .unwrap_err();
 
-        assert_eq!(
-            result,
-            Bytes::from(format!(
-                "No such object: {}/{}",
-                bucket_name, NON_EXISTENT_NAME
-            ))
-        );
+        if let Some(Error::UnableToGetData {
+            source,
+            bucket,
+            location,
+        }) = err.downcast_ref::<Error>()
+        {
+            assert!(matches!(source, cloud_storage::Error::Reqwest(_)));
+            assert_eq!(bucket, &bucket_name);
+            assert_eq!(location, NON_EXISTENT_NAME);
+        } else {
+            panic!("unexpected error type")
+        }
 
         Ok(())
     }
@@ -327,9 +334,17 @@ mod test {
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
 
-        let result = get_nonexistent_object(&integration, Some(location)).await?;
+        let err = get_nonexistent_object(&integration, Some(location))
+            .await
+            .unwrap_err();
 
-        assert_eq!(result, Bytes::from("Not Found"));
+        if let Some(Error::UnableToStreamListData { source, bucket }) = err.downcast_ref::<Error>()
+        {
+            assert!(matches!(source, cloud_storage::Error::Google(_)));
+            assert_eq!(bucket, bucket_name);
+        } else {
+            panic!("unexpected error type")
+        }
 
         Ok(())
     }
