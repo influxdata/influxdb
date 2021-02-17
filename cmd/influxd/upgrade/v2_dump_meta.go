@@ -8,15 +8,19 @@ import (
 	"text/tabwriter"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/fluxinit"
 	"github.com/influxdata/influxdb/v2/internal/fs"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 )
 
 var v2DumpMetaCommand = &cobra.Command{
-	Use:   "v2-dump-meta",
-	Short: "Dump InfluxDB 2.x influxd.bolt",
+	Use:    "v2-dump-meta",
+	Short:  "Dump InfluxDB 2.x influxd.bolt",
+	Args:   cobra.NoArgs,
+	Hidden: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		fluxinit.FluxInit()
 		ctx := context.Background()
 		svc, err := newInfluxDBv2(ctx, &v2DumpMetaOptions, zap.NewNop())
 		if err != nil {

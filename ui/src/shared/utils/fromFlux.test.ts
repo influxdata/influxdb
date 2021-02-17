@@ -18,7 +18,7 @@ describe('fromFlux', () => {
 #default,_result,,,,,,,,,
 ,result,table,_start,_stop,_time,_value,_field,_measurement,cpu,host
 ,,2,2019-02-01T23:38:32.524234Z,2019-02-01T23:39:02.524234Z,2019-02-01T23:38:33Z,thirty,usage_guest,cpu,cpu0,oox4k.local
-,,3,2019-02-01T23:38:32.524234Z,2019-02-01T23:39:02.524234Z,2019-02-01T23:38:43Z,fourty,usage_guest,cpu,cpu0,oox4k.local`
+,,3,2019-02-01T23:38:32.524234Z,2019-02-01T23:39:02.524234Z,2019-02-01T23:38:43Z,forty,usage_guest,cpu,cpu0,oox4k.local`
 
     const actual = fromFlux(CSV)
 
@@ -61,7 +61,7 @@ describe('fromFlux', () => {
       undefined,
       undefined,
       'thirty',
-      'fourty',
+      'forty',
     ])
 
     expect(actual.table.columns['_field'].data).toEqual([

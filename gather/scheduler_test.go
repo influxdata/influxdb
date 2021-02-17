@@ -3,15 +3,14 @@ package gather
 import (
 	"context"
 	"net/http/httptest"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
-	influxlogger "github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/mock"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestScheduler(t *testing.T) {
@@ -19,7 +18,7 @@ func TestScheduler(t *testing.T) {
 	totalGatherJobs := 3
 
 	// Create top level logger
-	logger := influxlogger.New(os.Stdout)
+	logger := zaptest.NewLogger(t)
 	ts := httptest.NewServer(&mockHTTPHandler{
 		responseMap: map[string]string{
 			"/metrics": sampleRespSmall,

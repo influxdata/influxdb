@@ -8,10 +8,12 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/pkg/fs"
 	bolt "go.etcd.io/bbolt"
 	"go.uber.org/zap"
 )
@@ -22,6 +24,7 @@ var _ kv.SchemaStore = (*KVStore)(nil)
 // KVStore is a kv.Store backed by boltdb.
 type KVStore struct {
 	path string
+	mu   sync.RWMutex
 	db   *bolt.DB
 	log  *zap.Logger
 
@@ -53,6 +56,11 @@ func NewKVStore(log *zap.Logger, path string, opts ...KVOption) *KVStore {
 	return store
 }
 
+// tempPath returns the path to the temporary file used by Restore().
+func (s *KVStore) tempPath() string {
+	return s.path + ".tmp"
+}
+
 // Open creates boltDB file it doesn't exists and opens it otherwise.
 func (s *KVStore) Open(ctx context.Context) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
@@ -67,30 +75,46 @@ func (s *KVStore) Open(ctx context.Context) error {
 		return err
 	}
 
+	// Remove any temporary file created during a failed restore.
+	if err := os.Remove(s.tempPath()); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("unable to remove boltdb partial restore file: %w", err)
+	}
+
 	// Open database file.
-	db, err := bolt.Open(s.path, 0600, &bolt.Options{Timeout: 1 * time.Second})
-	if err != nil {
+	if err := s.openDB(); err != nil {
 		return fmt.Errorf("unable to open boltdb file %v", err)
 	}
-	s.db = db
-
-	db.NoSync = s.noSync
 
 	s.log.Info("Resources opened", zap.String("path", s.path))
 	return nil
 }
 
+func (s *KVStore) openDB() (err error) {
+	if s.db, err = bolt.Open(s.path, 0600, &bolt.Options{Timeout: 1 * time.Second}); err != nil {
+		return fmt.Errorf("unable to open boltdb file %v", err)
+	}
+	s.db.NoSync = s.noSync
+	return nil
+}
+
 // Close the connection to the bolt database
 func (s *KVStore) Close() error {
-	if s.db != nil {
-		return s.db.Close()
+	if db := s.DB(); db != nil {
+		return db.Close()
 	}
 	return nil
 }
 
+// DB returns a reference to the current Bolt database.
+func (s *KVStore) DB() *bolt.DB {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.db
+}
+
 // Flush removes all bolt keys within each bucket.
 func (s *KVStore) Flush(ctx context.Context) {
-	_ = s.db.Update(
+	_ = s.DB().Update(
 		func(tx *bolt.Tx) error {
 			return tx.ForEach(func(name []byte, b *bolt.Bucket) error {
 				s.cleanBucket(tx, b)
@@ -117,6 +141,8 @@ func (s *KVStore) cleanBucket(tx *bolt.Tx, b *bolt.Bucket) {
 
 // WithDB sets the boltdb on the store.
 func (s *KVStore) WithDB(db *bolt.DB) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.db = db
 }
 
@@ -125,7 +151,7 @@ func (s *KVStore) View(ctx context.Context, fn func(tx kv.Tx) error) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	return s.db.View(func(tx *bolt.Tx) error {
+	return s.DB().View(func(tx *bolt.Tx) error {
 		return fn(&Tx{
 			tx:  tx,
 			ctx: ctx,
@@ -138,7 +164,7 @@ func (s *KVStore) Update(ctx context.Context, fn func(tx kv.Tx) error) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	return s.db.Update(func(tx *bolt.Tx) error {
+	return s.DB().Update(func(tx *bolt.Tx) error {
 		return fn(&Tx{
 			tx:  tx,
 			ctx: ctx,
@@ -149,7 +175,7 @@ func (s *KVStore) Update(ctx context.Context, fn func(tx kv.Tx) error) error {
 // CreateBucket creates a bucket in the underlying boltdb store if it
 // does not already exist
 func (s *KVStore) CreateBucket(ctx context.Context, name []byte) error {
-	return s.db.Update(func(tx *bolt.Tx) error {
+	return s.DB().Update(func(tx *bolt.Tx) error {
 		_, err := tx.CreateBucketIfNotExists(name)
 		return err
 	})
@@ -158,7 +184,7 @@ func (s *KVStore) CreateBucket(ctx context.Context, name []byte) error {
 // DeleteBucket creates a bucket in the underlying boltdb store if it
 // does not already exist
 func (s *KVStore) DeleteBucket(ctx context.Context, name []byte) error {
-	return s.db.Update(func(tx *bolt.Tx) error {
+	return s.DB().Update(func(tx *bolt.Tx) error {
 		if err := tx.DeleteBucket(name); err != nil && !errors.Is(err, bolt.ErrBucketNotFound) {
 			return err
 		}
@@ -172,10 +198,49 @@ func (s *KVStore) Backup(ctx context.Context, w io.Writer) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	return s.db.View(func(tx *bolt.Tx) error {
+	return s.DB().View(func(tx *bolt.Tx) error {
 		_, err := tx.WriteTo(w)
 		return err
 	})
+}
+
+// Restore replaces the underlying database with the data from r.
+func (s *KVStore) Restore(ctx context.Context, r io.Reader) error {
+	if err := func() error {
+		f, err := os.Create(s.tempPath())
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+
+		if _, err := io.Copy(f, r); err != nil {
+			return err
+		} else if err := f.Sync(); err != nil {
+			return err
+		} else if err := f.Close(); err != nil {
+			return err
+		}
+
+		// Swap and reopen under lock.
+		s.mu.Lock()
+		defer s.mu.Unlock()
+
+		if err := s.db.Close(); err != nil {
+			return err
+		}
+
+		// Atomically swap temporary file with current DB file.
+		if err := fs.RenameFileWithReplacement(s.tempPath(), s.path); err != nil {
+			return err
+		}
+
+		// Reopen with new database file.
+		return s.openDB()
+	}(); err != nil {
+		os.Remove(s.tempPath()) // clean up on error
+		return err
+	}
+	return nil
 }
 
 // Tx is a light wrapper around a boltdb transaction. It implements kv.Tx.

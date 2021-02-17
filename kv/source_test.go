@@ -6,6 +6,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/mock"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
@@ -32,7 +33,7 @@ func initBoltSourceService(f influxdbtesting.SourceFields, t *testing.T) (influx
 
 func initSourceService(s kv.SchemaStore, f influxdbtesting.SourceFields, t *testing.T) (influxdb.SourceService, string, func()) {
 	ctx := context.Background()
-	svc := kv.NewService(zaptest.NewLogger(t), s)
+	svc := kv.NewService(zaptest.NewLogger(t), s, &mock.OrganizationService{})
 	svc.IDGenerator = f.IDGenerator
 
 	for _, b := range f.Sources {

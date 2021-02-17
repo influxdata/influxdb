@@ -16,6 +16,7 @@ func New(n Node) (influxdb.Predicate, error) {
 	if n == nil {
 		return nil, nil
 	}
+
 	dt, err := n.ToDataType()
 	if err != nil {
 		return nil, err

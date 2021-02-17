@@ -994,6 +994,21 @@ func (di DatabaseInfo) clone() DatabaseInfo {
 	return other
 }
 
+// MarshalBinary encodes dbi to a binary format.
+func (dbi *DatabaseInfo) MarshalBinary() ([]byte, error) {
+	return proto.Marshal(dbi.marshal())
+}
+
+// UnmarshalBinary decodes dbi from a binary format.
+func (dbi *DatabaseInfo) UnmarshalBinary(data []byte) error {
+	var pb internal.DatabaseInfo
+	if err := proto.Unmarshal(data, &pb); err != nil {
+		return err
+	}
+	dbi.unmarshal(&pb)
+	return nil
+}
+
 // marshal serializes to a protobuf representation.
 func (di DatabaseInfo) marshal() *internal.DatabaseInfo {
 	pb := &internal.DatabaseInfo{}
@@ -1384,8 +1399,12 @@ func (sgi ShardGroupInfo) clone() ShardGroupInfo {
 }
 
 // ShardFor returns the ShardInfo for a Point hash.
-func (sgi *ShardGroupInfo) ShardFor(hash uint64) ShardInfo {
-	return sgi.Shards[hash%uint64(len(sgi.Shards))]
+func (sgi *ShardGroupInfo) ShardFor(p models.Point) ShardInfo {
+	if len(sgi.Shards) == 1 {
+		return sgi.Shards[0]
+	}
+
+	return sgi.Shards[p.HashID()%uint64(len(sgi.Shards))]
 }
 
 // marshal serializes to a protobuf representation.

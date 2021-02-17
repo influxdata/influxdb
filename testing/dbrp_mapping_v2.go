@@ -735,7 +735,7 @@ func FindManyDBRPMappingsV2(
 			fields: DBRPMappingFieldsV2{
 				DBRPMappingsV2: []*influxdb.DBRPMappingV2{
 					{
-						ID:              100,
+						ID:              MustIDBase16("0000000000000100"),
 						Database:        "database",
 						RetentionPolicy: "retention_policyA",
 						Default:         false,
@@ -743,7 +743,7 @@ func FindManyDBRPMappingsV2(
 						BucketID:        MustIDBase16(dbrpBucketAID),
 					},
 					{
-						ID:              200,
+						ID:              MustIDBase16("0000000000000200"),
 						Database:        "database",
 						RetentionPolicy: "retention_policyB",
 						Default:         true,
@@ -751,7 +751,7 @@ func FindManyDBRPMappingsV2(
 						BucketID:        MustIDBase16(dbrpBucketBID),
 					},
 					{
-						ID:              300,
+						ID:              MustIDBase16("0000000000000300"),
 						Database:        "database",
 						RetentionPolicy: "retention_policyB",
 						Default:         true,
@@ -770,7 +770,7 @@ func FindManyDBRPMappingsV2(
 			wants: wants{
 				dbrpMappings: []*influxdb.DBRPMappingV2{
 					{
-						ID:              200,
+						ID:              MustIDBase16("0000000000000200"),
 						Database:        "database",
 						RetentionPolicy: "retention_policyB",
 						Default:         true,

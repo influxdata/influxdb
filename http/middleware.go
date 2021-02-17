@@ -125,6 +125,12 @@ func ignoreMethod(ignoredMethods ...string) isValidMethodFn {
 	}
 }
 
+const (
+	prefixSetup                      = "/api/v2/setup"
+	organizationsIDSecretsPath       = "/api/v2/orgs/:id/secrets"
+	organizationsIDSecretsDeletePath = "/api/v2/orgs/:id/secrets/delete"
+)
+
 // TODO(@jsteenb2): make this a stronger type that handlers can register routes that should not be logged.
 var blacklistEndpoints = map[string]isValidMethodFn{
 	prefixSignIn:                     ignoreMethod(),
@@ -134,6 +140,7 @@ var blacklistEndpoints = map[string]isValidMethodFn{
 	usersPasswordPath:                ignoreMethod(),
 	"/api/v2/packages/apply":         ignoreMethod(),
 	prefixWrite:                      ignoreMethod("POST"),
+	"/write":                         ignoreMethod("POST"),
 	organizationsIDSecretsPath:       ignoreMethod("PATCH"),
 	organizationsIDSecretsDeletePath: ignoreMethod("POST"),
 	prefixSetup:                      ignoreMethod("POST"),
@@ -152,16 +159,4 @@ func (b *bodyEchoer) Read(p []byte) (int, error) {
 
 func (b *bodyEchoer) Close() error {
 	return b.rc.Close()
-}
-
-func applyMW(h http.Handler, m ...kithttp.Middleware) http.Handler {
-	if len(m) < 1 {
-		return h
-	}
-	wrapped := h
-
-	for i := len(m) - 1; i >= 0; i-- {
-		wrapped = m[i](wrapped)
-	}
-	return wrapped
 }

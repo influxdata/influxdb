@@ -24,7 +24,7 @@ export interface State {
 
   // A parsed representation of the whichever search input is currently being
   // used to filter results (not necessarily derived from the current text
-  // input, which may not be valid / parseable)
+  // input, which may not be valid / parsable)
   searchExpr: SearchExpr | null
 
   // A timeout ID used to debounce performing the search on user input

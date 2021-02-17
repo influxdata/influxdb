@@ -52,10 +52,6 @@ const (
 	// block in a TSM file
 	DefaultMaxPointsPerBlock = 1000
 
-	// DefaultMaxSeriesPerDatabase is the maximum number of series a node can hold per database.
-	// This limit only applies to the "inmem" index.
-	DefaultMaxSeriesPerDatabase = 1000000
-
 	// DefaultMaxValuesPerTag is the maximum number of values a tag can have within a measurement.
 	DefaultMaxValuesPerTag = 100000
 
@@ -106,16 +102,6 @@ type Config struct {
 
 	// Limits
 
-	// MaxSeriesPerDatabase is the maximum number of series a node can hold per database.
-	// When this limit is exceeded, writes return a 'max series per database exceeded' error.
-	// A value of 0 disables the limit. This limit only applies when using the "inmem" index.
-	MaxSeriesPerDatabase int `toml:"max-series-per-database"`
-
-	// MaxValuesPerTag is the maximum number of tag values a single tag key can have within
-	// a measurement.  When the limit is execeeded, writes return an error.
-	// A value of 0 disables the limit.
-	MaxValuesPerTag int `toml:"max-values-per-tag"`
-
 	// MaxConcurrentCompactions is the maximum number of concurrent level and full compactions
 	// that can be running at one time across all shards.  Compactions scheduled to run when the
 	// limit is reached are blocked until a running compaction completes.  Snapshot compactions are
@@ -135,7 +121,7 @@ type Config struct {
 
 	// SeriesFileMaxConcurrentSnapshotCompactions is the maximum number of concurrent snapshot compactions
 	// that can be running at one time across all series partitions in a database. Snapshots scheduled
-	// to run when the limit is reached are blocked until a running snaphsot completes.  Only snapshot
+	// to run when the limit is reached are blocked until a running snapshot completes.  Only snapshot
 	// compactions are affected by this limit. A value of 0 limits snapshot compactions to the lesser of
 	// 8 (series file partition quantity) and runtime.GOMAXPROCS(0).
 	SeriesFileMaxConcurrentSnapshotCompactions int `toml:"series-file-max-concurrent-snapshot-compactions"`
@@ -164,8 +150,6 @@ func NewConfig() Config {
 		CompactThroughput:              toml.Size(DefaultCompactThroughput),
 		CompactThroughputBurst:         toml.Size(DefaultCompactThroughputBurst),
 
-		MaxSeriesPerDatabase:     DefaultMaxSeriesPerDatabase,
-		MaxValuesPerTag:          DefaultMaxValuesPerTag,
 		MaxConcurrentCompactions: DefaultMaxConcurrentCompactions,
 
 		MaxIndexLogFileSize:  toml.Size(DefaultMaxIndexLogFileSize),
@@ -233,8 +217,6 @@ func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
 		"cache-snapshot-memory-size":             c.CacheSnapshotMemorySize,
 		"cache-snapshot-write-cold-duration":     c.CacheSnapshotWriteColdDuration,
 		"compact-full-write-cold-duration":       c.CompactFullWriteColdDuration,
-		"max-series-per-database":                c.MaxSeriesPerDatabase,
-		"max-values-per-tag":                     c.MaxValuesPerTag,
 		"max-concurrent-compactions":             c.MaxConcurrentCompactions,
 		"max-index-log-file-size":                c.MaxIndexLogFileSize,
 		"series-id-set-cache-size":               c.SeriesIDSetCacheSize,

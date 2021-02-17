@@ -15,9 +15,8 @@ import (
 	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/kv"
+	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/query"
-	_ "github.com/influxdata/influxdb/v2/query/builtin"
 )
 
 type fakeQueryService struct {
@@ -132,7 +131,7 @@ func (s *fakeQueryService) FailNextQuery(forced error) {
 func (s *fakeQueryService) WaitForQueryLive(t *testing.T, script string) {
 	t.Helper()
 
-	const attempts = 10
+	const attempts = 100
 	ast := makeAST(script)
 	astUTC := makeAST(script)
 	astUTC.Now = ast.Now.UTC()
@@ -140,7 +139,7 @@ func (s *fakeQueryService) WaitForQueryLive(t *testing.T, script string) {
 	specUTC := makeASTString(astUTC)
 	for i := 0; i < attempts; i++ {
 		if i != 0 {
-			time.Sleep(5 * time.Millisecond)
+			time.Sleep(10 * time.Millisecond)
 		}
 
 		s.mu.Lock()
@@ -255,16 +254,16 @@ type testCreds struct {
 	Auth          *influxdb.Authorization
 }
 
-func createCreds(t *testing.T, i *kv.Service) testCreds {
+func createCreds(t *testing.T, orgSvc influxdb.OrganizationService, userSvc influxdb.UserService, authSvc influxdb.AuthorizationService) testCreds {
 	t.Helper()
 
 	org := &influxdb.Organization{Name: t.Name() + "-org"}
-	if err := i.CreateOrganization(context.Background(), org); err != nil {
+	if err := orgSvc.CreateOrganization(context.Background(), org); err != nil {
 		t.Fatal(err)
 	}
 
 	user := &influxdb.User{Name: t.Name() + "-user"}
-	if err := i.CreateUser(context.Background(), user); err != nil {
+	if err := userSvc.CreateUser(context.Background(), user); err != nil {
 		t.Fatal(err)
 	}
 
@@ -282,7 +281,7 @@ func createCreds(t *testing.T, i *kv.Service) testCreds {
 		Token:       "hifriend!",
 		Permissions: []influxdb.Permission{*readPerm, *writePerm},
 	}
-	if err := i.CreateAuthorization(context.Background(), auth); err != nil {
+	if err := authSvc.CreateAuthorization(context.Background(), auth); err != nil {
 		t.Fatal(err)
 	}
 

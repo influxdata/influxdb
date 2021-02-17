@@ -32,8 +32,8 @@ func cmdQuery(f *globalFlags, opts genericCLIOpts) *cobra.Command {
 	cmd.Long = `Execute a Flux query provided via the first argument or a file or stdin`
 	cmd.Args = cobra.MaximumNArgs(1)
 
-	f.registerFlags(cmd)
-	queryFlags.org.register(cmd, true)
+	f.registerFlags(opts.viper, cmd)
+	queryFlags.org.register(opts.viper, cmd, true)
 	cmd.Flags().StringVarP(&queryFlags.file, "file", "f", "", "Path to Flux query file")
 	cmd.Flags().BoolVarP(&queryFlags.raw, "raw", "r", false, "Display raw query results")
 
@@ -115,7 +115,8 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 	req.Header.Set("Authorization", "Token "+flags.config().Token)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := http.DefaultClient.Do(req)
+	client := ihttp.NewClient(u.Scheme, flags.skipVerify)
+	resp, err := client.Do(req)
 	if err != nil {
 		return err
 	}

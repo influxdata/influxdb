@@ -21,7 +21,7 @@ var _ chronograf.DashboardsStore = &Dashboards{}
 // Dashboards are JSON dashboards stored in the filesystem
 type Dashboards struct {
 	Dir     string                                      // Dir is the directory containing the dashboards.
-	Load    func(string, interface{}) error             // Load loads string name and dashbaord passed in as interface
+	Load    func(string, interface{}) error             // Load loads string name and dashboard passed in as interface
 	Create  func(string, interface{}) error             // Create will write dashboard to file.
 	ReadDir func(dirname string) ([]os.FileInfo, error) // ReadDir reads the directory named by dirname and returns a list of directory entries sorted by filename.
 	Remove  func(name string) error                     // Remove file

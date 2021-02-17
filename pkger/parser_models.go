@@ -423,6 +423,7 @@ type chartKind string
 const (
 	chartKindUnknown            chartKind = ""
 	chartKindGauge              chartKind = "gauge"
+	chartKindGeo                chartKind = "geo"
 	chartKindHeatMap            chartKind = "heatmap"
 	chartKindHistogram          chartKind = "histogram"
 	chartKindMarkdown           chartKind = "markdown"
@@ -437,7 +438,7 @@ const (
 
 func (c chartKind) ok() bool {
 	switch c {
-	case chartKindGauge, chartKindHeatMap, chartKindHistogram,
+	case chartKindGauge, chartKindGeo, chartKindHeatMap, chartKindHistogram,
 		chartKindMarkdown, chartKindMosaic, chartKindScatter,
 		chartKindSingleStat, chartKindSingleStatPlusLine, chartKindTable,
 		chartKindXY, chartKindBand:
@@ -558,11 +559,27 @@ const (
 	fieldChartLowerColumn                = "lowerColumn"
 	fieldChartWidth                      = "width"
 	fieldChartXCol                       = "xCol"
+	fieldChartGenerateXAxisTicks         = "generateXAxisTicks"
+	fieldChartXTotalTicks                = "xTotalTicks"
+	fieldChartXTickStart                 = "xTickStart"
+	fieldChartXTickStep                  = "xTickStep"
 	fieldChartXPos                       = "xPos"
 	fieldChartYCol                       = "yCol"
+	fieldChartGenerateYAxisTicks         = "generateYAxisTicks"
+	fieldChartYTotalTicks                = "yTotalTicks"
+	fieldChartYTickStart                 = "yTickStart"
+	fieldChartYTickStep                  = "yTickStep"
 	fieldChartYPos                       = "yPos"
+	fieldChartLegendColorizeRows         = "legendColorizeRows"
 	fieldChartLegendOpacity              = "legendOpacity"
 	fieldChartLegendOrientationThreshold = "legendOrientationThreshold"
+	fieldChartGeoCenterLon               = "lon"
+	fieldChartGeoCenterLat               = "lat"
+	fieldChartGeoZoom                    = "zoom"
+	fieldChartGeoMapStyle                = "mapStyle"
+	fieldChartGeoAllowPanAndZoom         = "allowPanAndZoom"
+	fieldChartGeoDetectCoordinateFields  = "detectCoordinateFields"
+	fieldChartGeoLayers                  = "geoLayers"
 )
 
 type chart struct {
@@ -585,6 +602,11 @@ type chart struct {
 	Geom                       string
 	YSeriesColumns             []string
 	XCol, YCol                 string
+	GenerateXAxisTicks         []string
+	GenerateYAxisTicks         []string
+	XTotalTicks, YTotalTicks   int
+	XTickStart, YTickStart     float64
+	XTickStep, YTickStep       float64
 	UpperColumn                string
 	MainColumn                 string
 	LowerColumn                string
@@ -597,8 +619,15 @@ type chart struct {
 	FillColumns                []string
 	TableOptions               tableOptions
 	TimeFormat                 string
+	LegendColorizeRows         bool
 	LegendOpacity              float64
 	LegendOrientationThreshold int
+	Zoom                       float64
+	Center                     center
+	MapStyle                   string
+	AllowPanAndZoom            bool
+	DetectCoordinateFields     bool
+	GeoLayers                  geoLayers
 }
 
 func (c *chart) properties() influxdb.ViewProperties {
@@ -619,6 +648,20 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Note:              c.Note,
 			ShowNoteWhenEmpty: c.NoteOnEmpty,
 		}
+	case chartKindGeo:
+		return influxdb.GeoViewProperties{
+			Type:                   influxdb.ViewPropertyTypeGeo,
+			Queries:                c.Queries.influxDashQueries(),
+			Center:                 influxdb.Datum{Lat: c.Center.Lat, Lon: c.Center.Lon},
+			Zoom:                   c.Zoom,
+			MapStyle:               c.MapStyle,
+			AllowPanAndZoom:        c.AllowPanAndZoom,
+			DetectCoordinateFields: c.DetectCoordinateFields,
+			ViewColor:              c.Colors.influxViewColors(),
+			GeoLayers:              c.GeoLayers.influxGeoLayers(),
+			Note:                   c.Note,
+			ShowNoteWhenEmpty:      c.NoteOnEmpty,
+		}
 	case chartKindHeatMap:
 		return influxdb.HeatmapViewProperties{
 			Type:                       influxdb.ViewPropertyTypeHeatMap,
@@ -626,7 +669,15 @@ func (c *chart) properties() influxdb.ViewProperties {
 			ViewColors:                 c.Colors.strings(),
 			BinSize:                    int32(c.BinSize),
 			XColumn:                    c.XCol,
+			GenerateXAxisTicks:         c.GenerateXAxisTicks,
+			XTotalTicks:                c.XTotalTicks,
+			XTickStart:                 c.XTickStart,
+			XTickStep:                  c.XTickStep,
 			YColumn:                    c.YCol,
+			GenerateYAxisTicks:         c.GenerateYAxisTicks,
+			YTotalTicks:                c.YTotalTicks,
+			YTickStart:                 c.YTickStart,
+			YTickStep:                  c.YTickStep,
 			XDomain:                    c.Axes.get("x").Domain,
 			YDomain:                    c.Axes.get("y").Domain,
 			XPrefix:                    c.Axes.get("x").Prefix,
@@ -638,6 +689,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Note:                       c.Note,
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			TimeFormat:                 c.TimeFormat,
+			LegendColorizeRows:         c.LegendColorizeRows,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -654,6 +706,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			BinCount:                   c.BinCount,
 			Note:                       c.Note,
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
+			LegendColorizeRows:         c.LegendColorizeRows,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -668,6 +721,10 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Queries:                    c.Queries.influxDashQueries(),
 			ViewColors:                 c.Colors.strings(),
 			XColumn:                    c.XCol,
+			GenerateXAxisTicks:         c.GenerateXAxisTicks,
+			XTotalTicks:                c.XTotalTicks,
+			XTickStart:                 c.XTickStart,
+			XTickStep:                  c.XTickStep,
 			YSeriesColumns:             c.YSeriesColumns,
 			XDomain:                    c.Axes.get("x").Domain,
 			YDomain:                    c.Axes.get("y").Domain,
@@ -680,6 +737,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Note:                       c.Note,
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			TimeFormat:                 c.TimeFormat,
+			LegendColorizeRows:         c.LegendColorizeRows,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -691,7 +749,15 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Legend:                     c.Legend.influxLegend(),
 			HoverDimension:             c.HoverDimension,
 			XColumn:                    c.XCol,
+			GenerateXAxisTicks:         c.GenerateXAxisTicks,
+			XTotalTicks:                c.XTotalTicks,
+			XTickStart:                 c.XTickStart,
+			XTickStep:                  c.XTickStep,
 			YColumn:                    c.YCol,
+			GenerateYAxisTicks:         c.GenerateYAxisTicks,
+			YTotalTicks:                c.YTotalTicks,
+			YTickStart:                 c.YTickStart,
+			YTickStep:                  c.YTickStep,
 			UpperColumn:                c.UpperColumn,
 			MainColumn:                 c.MainColumn,
 			LowerColumn:                c.LowerColumn,
@@ -700,6 +766,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Note:                       c.Note,
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			TimeFormat:                 c.TimeFormat,
+			LegendColorizeRows:         c.LegendColorizeRows,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -709,7 +776,15 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Queries:                    c.Queries.influxDashQueries(),
 			ViewColors:                 c.Colors.strings(),
 			XColumn:                    c.XCol,
+			GenerateXAxisTicks:         c.GenerateXAxisTicks,
+			XTotalTicks:                c.XTotalTicks,
+			XTickStart:                 c.XTickStart,
+			XTickStep:                  c.XTickStep,
 			YColumn:                    c.YCol,
+			GenerateYAxisTicks:         c.GenerateYAxisTicks,
+			YTotalTicks:                c.YTotalTicks,
+			YTickStart:                 c.YTickStart,
+			YTickStep:                  c.YTickStep,
 			XDomain:                    c.Axes.get("x").Domain,
 			YDomain:                    c.Axes.get("y").Domain,
 			XPrefix:                    c.Axes.get("x").Prefix,
@@ -721,6 +796,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Note:                       c.Note,
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			TimeFormat:                 c.TimeFormat,
+			LegendColorizeRows:         c.LegendColorizeRows,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -735,12 +811,10 @@ func (c *chart) properties() influxdb.ViewProperties {
 				IsEnforced: c.EnforceDecimals,
 				Digits:     int32(c.DecimalPlaces),
 			},
-			Note:                       c.Note,
-			ShowNoteWhenEmpty:          c.NoteOnEmpty,
-			Queries:                    c.Queries.influxDashQueries(),
-			ViewColors:                 c.Colors.influxViewColors(),
-			LegendOpacity:              float64(c.LegendOpacity),
-			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
+			Note:              c.Note,
+			ShowNoteWhenEmpty: c.NoteOnEmpty,
+			Queries:           c.Queries.influxDashQueries(),
+			ViewColors:        c.Colors.influxViewColors(),
 		}
 	case chartKindSingleStatPlusLine:
 		return influxdb.LinePlusSingleStatProperties{
@@ -754,7 +828,15 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Note:                       c.Note,
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			XColumn:                    c.XCol,
+			GenerateXAxisTicks:         c.GenerateXAxisTicks,
+			XTotalTicks:                c.XTotalTicks,
+			XTickStart:                 c.XTickStart,
+			XTickStep:                  c.XTickStep,
 			YColumn:                    c.YCol,
+			GenerateYAxisTicks:         c.GenerateYAxisTicks,
+			YTotalTicks:                c.YTotalTicks,
+			YTickStart:                 c.YTickStart,
+			YTickStep:                  c.YTickStep,
 			ShadeBelow:                 c.Shade,
 			HoverDimension:             c.HoverDimension,
 			Legend:                     c.Legend.influxLegend(),
@@ -762,6 +844,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			ViewColors:                 c.Colors.influxViewColors(),
 			Axes:                       c.Axes.influxAxes(),
 			Position:                   c.Position,
+			LegendColorizeRows:         c.LegendColorizeRows,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -802,7 +885,15 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Note:                       c.Note,
 			ShowNoteWhenEmpty:          c.NoteOnEmpty,
 			XColumn:                    c.XCol,
+			GenerateXAxisTicks:         c.GenerateXAxisTicks,
+			XTotalTicks:                c.XTotalTicks,
+			XTickStart:                 c.XTickStart,
+			XTickStep:                  c.XTickStep,
 			YColumn:                    c.YCol,
+			GenerateYAxisTicks:         c.GenerateYAxisTicks,
+			YTotalTicks:                c.YTotalTicks,
+			YTickStart:                 c.YTickStart,
+			YTickStep:                  c.YTickStep,
 			ShadeBelow:                 c.Shade,
 			HoverDimension:             c.HoverDimension,
 			Legend:                     c.Legend.influxLegend(),
@@ -812,6 +903,7 @@ func (c *chart) properties() influxdb.ViewProperties {
 			Geom:                       c.Geom,
 			Position:                   c.Position,
 			TimeFormat:                 c.TimeFormat,
+			LegendColorizeRows:         c.LegendColorizeRows,
 			LegendOpacity:              float64(c.LegendOpacity),
 			LegendOrientationThreshold: int(c.LegendOrientationThreshold),
 		}
@@ -923,6 +1015,82 @@ type fieldOption struct {
 	FieldName   string
 	DisplayName string
 	Visible     bool
+}
+
+type center struct {
+	Lat float64
+	Lon float64
+}
+
+type geoLayer struct {
+	Type               string
+	RadiusField        string
+	ColorField         string
+	IntensityField     string
+	ViewColors         colors
+	Radius             int32
+	Blur               int32
+	RadiusDimension    *axis
+	ColorDimension     *axis
+	IntensityDimension *axis
+	InterpolateColors  bool
+	TrackWidth         int32
+	Speed              int32
+	RandomColors       bool
+	IsClustered        bool
+}
+
+const (
+	fieldChartGeoLayerType               = "layerType"
+	fieldChartGeoLayerRadiusField        = "radiusField"
+	fieldChartGeoLayerIntensityField     = "intensityField"
+	fieldChartGeoLayerColorField         = "colorField"
+	fieldChartGeoLayerViewColors         = "viewColors"
+	fieldChartGeoLayerRadius             = "radius"
+	fieldChartGeoLayerBlur               = "blur"
+	fieldChartGeoLayerRadiusDimension    = "radiusDimension"
+	fieldChartGeoLayerColorDimension     = "colorDimension"
+	fieldChartGeoLayerIntensityDimension = "intensityDimension"
+	fieldChartGeoLayerInterpolateColors  = "interpolateColors"
+	fieldChartGeoLayerTrackWidth         = "trackWidth"
+	fieldChartGeoLayerSpeed              = "speed"
+	fieldChartGeoLayerRandomColors       = "randomColors"
+	fieldChartGeoLayerIsClustered        = "isClustered"
+)
+
+type geoLayers []*geoLayer
+
+func (l geoLayers) influxGeoLayers() []influxdb.GeoLayer {
+	var iGeoLayers []influxdb.GeoLayer
+	for _, ll := range l {
+		geoLayer := influxdb.GeoLayer{
+			Type:              ll.Type,
+			RadiusField:       ll.RadiusField,
+			ColorField:        ll.ColorField,
+			IntensityField:    ll.IntensityField,
+			Radius:            ll.Radius,
+			Blur:              ll.Blur,
+			InterpolateColors: ll.InterpolateColors,
+			TrackWidth:        ll.TrackWidth,
+			Speed:             ll.Speed,
+			RandomColors:      ll.RandomColors,
+			IsClustered:       ll.IsClustered,
+		}
+		if ll.RadiusDimension != nil {
+			geoLayer.RadiusDimension = influxAxis(*ll.RadiusDimension, true)
+		}
+		if ll.ColorDimension != nil {
+			geoLayer.ColorDimension = influxAxis(*ll.ColorDimension, true)
+		}
+		if ll.IntensityDimension != nil {
+			geoLayer.IntensityDimension = influxAxis(*ll.IntensityDimension, true)
+		}
+		if ll.ViewColors != nil {
+			geoLayer.ViewColors = ll.ViewColors.influxViewColors()
+		}
+		iGeoLayers = append(iGeoLayers, geoLayer)
+	}
+	return iGeoLayers
 }
 
 const (
@@ -1164,17 +1332,25 @@ func (a axes) get(name string) axis {
 	return axis{}
 }
 
+func influxAxis(ax axis, nilBounds bool) influxdb.Axis {
+	bounds := []string{}
+	if nilBounds {
+		bounds = nil
+	}
+	return influxdb.Axis{
+		Bounds: bounds,
+		Label:  ax.Label,
+		Prefix: ax.Prefix,
+		Suffix: ax.Suffix,
+		Base:   ax.Base,
+		Scale:  ax.Scale,
+	}
+}
+
 func (a axes) influxAxes() map[string]influxdb.Axis {
 	m := make(map[string]influxdb.Axis)
 	for _, ax := range a {
-		m[ax.Name] = influxdb.Axis{
-			Bounds: []string{},
-			Label:  ax.Label,
-			Prefix: ax.Prefix,
-			Suffix: ax.Suffix,
-			Base:   ax.Base,
-			Scale:  ax.Scale,
-		}
+		m[ax.Name] = influxAxis(ax, false)
 	}
 	return m
 }
@@ -2141,8 +2317,8 @@ func (v *variable) summarize() SummaryVariable {
 
 func (v *variable) influxVarArgs() *influxdb.VariableArguments {
 	// this zero value check is for situations where we want to marshal/unmarshal
-	// a variable and not have the invalid args blow up during unmarshaling. When
-	// that validation is decoupled from the unmarshaling, we can clean this up.
+	// a variable and not have the invalid args blow up during unmarshalling. When
+	// that validation is decoupled from the unmarshalling, we can clean this up.
 	if v.Type == "" {
 		return nil
 	}

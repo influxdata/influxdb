@@ -33,6 +33,7 @@ const Logout: FC<Props> = ({history}) => {
       }
     }
     dispatch(reset())
+    dispatch({type: 'USER_LOGGED_OUT'})
     handleSignOut()
   }, [dispatch, history])
 

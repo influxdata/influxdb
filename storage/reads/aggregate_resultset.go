@@ -4,7 +4,7 @@ import (
 	"context"
 	"math"
 
-	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/interval"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
@@ -18,7 +18,7 @@ type windowAggregateResultSet struct {
 	req          *datatypes.ReadWindowAggregateRequest
 	seriesCursor SeriesCursor
 	seriesRow    SeriesRow
-	arrayCursors *arrayCursors
+	arrayCursors multiShardCursors
 	cursor       cursors.Cursor
 	err          error
 }
@@ -57,7 +57,7 @@ func NewWindowAggregateResultSet(ctx context.Context, req *datatypes.ReadWindowA
 		ctx:          ctx,
 		req:          req,
 		seriesCursor: cursor,
-		arrayCursors: newArrayCursors(ctx, req.Range.Start, req.Range.End, ascending),
+		arrayCursors: newMultiShardArrayCursors(ctx, req.Range.Start, req.Range.End, ascending),
 	}
 	return results, nil
 }
@@ -110,13 +110,12 @@ func (r *windowAggregateResultSet) createCursor(seriesRow SeriesRow) (cursors.Cu
 		offsetDur = convertNsecs(offset)
 	}
 
-	window := execute.Window{
-		Every:  everyDur,
-		Period: periodDur,
-		Offset: offsetDur,
+	window, err := interval.NewWindow(everyDur, periodDur, offsetDur)
+	if err != nil {
+		return nil, err
 	}
 
-	if window.Every.Nanoseconds() == math.MaxInt64 {
+	if everyDur.Nanoseconds() == math.MaxInt64 {
 		// This means to aggregate over whole series for the query's time range
 		return newAggregateArrayCursor(r.ctx, agg, cursor)
 	} else {

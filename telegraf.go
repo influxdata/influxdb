@@ -32,10 +32,6 @@ var (
 
 // TelegrafConfigStore represents a service for managing telegraf config data.
 type TelegrafConfigStore interface {
-	// UserResourceMappingService must be part of all TelegrafConfigStore service,
-	// for create, search, delete.
-	UserResourceMappingService
-
 	// FindTelegrafConfigByID returns a single telegraf config by ID.
 	FindTelegrafConfigByID(ctx context.Context, id ID) (*TelegrafConfig, error)
 
@@ -58,7 +54,6 @@ type TelegrafConfigStore interface {
 type TelegrafConfigFilter struct {
 	OrgID        *ID
 	Organization *string
-	UserResourceMappingFilter
 }
 
 // TelegrafConfig stores telegraf config for one telegraf instance.

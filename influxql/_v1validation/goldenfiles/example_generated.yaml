@@ -1,0 +1,22 @@
+description: |
+  This test suite demonstrates how to use the generated
+  option for producing a dataset based on TOML schema.
+
+tests:
+  - query: "select sum(f0) from m0"
+    result: |
+      name,tags,time,sum
+      m0,,0,10
+
+generated:
+  start: "1000000000000"
+  end:   "5000000000000"
+  toml: |
+    [[measurements]]
+    name = "m0"
+    tags = [
+      { name = "tag0", source = [ "host1" ] },
+    ]
+    fields = [
+      { name = "f0", count = 10, source = 1 },
+    ]

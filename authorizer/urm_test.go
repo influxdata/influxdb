@@ -23,7 +23,7 @@ func (s *OrgService) FindResourceOrganizationID(ctx context.Context, rt influxdb
 func TestURMService_FindUserResourceMappings(t *testing.T) {
 	type fields struct {
 		UserResourceMappingService influxdb.UserResourceMappingService
-		OrgService                 authorizer.OrganizationService
+		OrgService                 authorizer.OrgIDResolver
 	}
 	type args struct {
 		permission influxdb.Permission
@@ -146,7 +146,7 @@ func TestURMService_FindUserResourceMappings(t *testing.T) {
 func TestURMService_WriteUserResourceMapping(t *testing.T) {
 	type fields struct {
 		UserResourceMappingService influxdb.UserResourceMappingService
-		OrgService                 authorizer.OrganizationService
+		OrgService                 authorizer.OrgIDResolver
 	}
 	type args struct {
 		permission influxdb.Permission

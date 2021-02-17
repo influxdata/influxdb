@@ -1,0 +1,14 @@
+tests:
+  - query: "select * from m0 where time >= 30000000000 AND time < 50000000000"
+    billing:
+      point_count: 1
+    result: |
+      name,tags,time,f0,f1,t0
+      m0,,30000000000,0,10,tv0
+      m0,,40000000000,1,20,tv1
+
+dataset: |
+  m0,t0=tv0 f0=0i,f1=10i 30000000000
+  m0,t0=tv1 f0=1i,f1=20i 40000000000
+  m0,t0=tv1 f0=2i,f1=30i 70000000000
+  m1,t0=tv0 f0=0i,f1=10i 40000000000

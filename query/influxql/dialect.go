@@ -82,7 +82,7 @@ type EncodingFormat int
 const (
 	// JSON marshals the response to JSON octets.
 	JSON EncodingFormat = iota
-	// JSONPretty marshals the response to JSON octets with idents.
+	// JSONPretty marshals the response to JSON octets with indents.
 	JSONPretty
 	// CSV marshals the response to CSV.
 	CSV

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"io/ioutil"
 	nethttp "net/http"
 	"os"
@@ -16,17 +15,23 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
-	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/bolt"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
+	dashboardTransport "github.com/influxdata/influxdb/v2/dashboards/transport"
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/v2/label"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"github.com/influxdata/influxdb/v2/pkger"
 	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/tenant"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/spf13/viper"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 // TestLauncher is a test wrapper for launcher.Launcher.
@@ -37,33 +42,37 @@ type TestLauncher struct {
 	Path string
 
 	// Initialized after calling the Setup() helper.
-	User   *platform.User
-	Org    *platform.Organization
-	Bucket *platform.Bucket
-	Auth   *platform.Authorization
+	User   *influxdb.User
+	Org    *influxdb.Organization
+	Bucket *influxdb.Bucket
+	Auth   *influxdb.Authorization
 
 	httpClient *httpc.Client
-
-	// Standard in/out/err buffers.
-	Stdin  bytes.Buffer
-	Stdout bytes.Buffer
-	Stderr bytes.Buffer
 
 	// Flag to act as standard server: disk store, no-e2e testing flag
 	realServer bool
 }
 
+// RunAndSetupNewLauncherOrFail shorcuts the most common pattern used in testing,
+// building a new TestLauncher, running it, and setting it up with an initial user.
+func RunAndSetupNewLauncherOrFail(ctx context.Context, tb testing.TB, setters ...OptSetter) *TestLauncher {
+	tb.Helper()
+
+	l := NewTestLauncher()
+	l.RunOrFail(tb, ctx, setters...)
+	defer func() {
+		// If setup fails, shut down the launcher.
+		if tb.Failed() {
+			l.Shutdown(ctx)
+		}
+	}()
+	l.SetupOrFail(tb)
+	return l
+}
+
 // NewTestLauncher returns a new instance of TestLauncher.
-func NewTestLauncher(flagger feature.Flagger) *TestLauncher {
+func NewTestLauncher() *TestLauncher {
 	l := &TestLauncher{Launcher: NewLauncher()}
-	l.Launcher.Stdin = &l.Stdin
-	l.Launcher.Stdout = &l.Stdout
-	l.Launcher.Stderr = &l.Stderr
-	l.Launcher.flagger = flagger
-	if testing.Verbose() {
-		l.Launcher.Stdout = io.MultiWriter(l.Launcher.Stdout, os.Stdout)
-		l.Launcher.Stderr = io.MultiWriter(l.Launcher.Stderr, os.Stderr)
-	}
 
 	path, err := ioutil.TempDir("", "")
 	if err != nil {
@@ -74,47 +83,54 @@ func NewTestLauncher(flagger feature.Flagger) *TestLauncher {
 }
 
 // NewTestLauncherServer returns a new instance of TestLauncher configured as real server (disk store, no e2e flag).
-func NewTestLauncherServer(flagger feature.Flagger) *TestLauncher {
-	l := NewTestLauncher(flagger)
+func NewTestLauncherServer() *TestLauncher {
+	l := NewTestLauncher()
 	l.realServer = true
 	return l
 }
 
-// RunTestLauncherOrFail initializes and starts the server.
-func RunTestLauncherOrFail(tb testing.TB, ctx context.Context, flagger feature.Flagger, args ...string) *TestLauncher {
-	tb.Helper()
-	l := NewTestLauncher(flagger)
+type OptSetter = func(o *InfluxdOpts)
 
-	if err := l.Run(ctx, args...); err != nil {
+func (tl *TestLauncher) SetFlagger(flagger feature.Flagger) {
+	tl.Launcher.flagger = flagger
+}
+
+// Run executes the program, failing the test if the launcher fails to start.
+func (tl *TestLauncher) RunOrFail(tb testing.TB, ctx context.Context, setters ...OptSetter) {
+	if err := tl.Run(tb, ctx, setters...); err != nil {
 		tb.Fatal(err)
 	}
-	return l
 }
 
 // Run executes the program with additional arguments to set paths and ports.
 // Passed arguments will overwrite/add to the default ones.
-func (tl *TestLauncher) Run(ctx context.Context, args ...string) error {
-	largs := make([]string, 0, len(args)+8)
+func (tl *TestLauncher) Run(tb zaptest.TestingT, ctx context.Context, setters ...OptSetter) error {
+	opts := newOpts(viper.New())
 	if !tl.realServer {
-		largs = append(largs, "--store", "memory")
-		largs = append(largs, "--e2e-testing")
+		opts.StoreType = "memory"
+		opts.Testing = true
 	}
-	largs = append(largs, "--testing-always-allow-setup")
-	largs = append(largs, "--bolt-path", filepath.Join(tl.Path, bolt.DefaultFilename))
-	largs = append(largs, "--engine-path", filepath.Join(tl.Path, "engine"))
-	largs = append(largs, "--http-bind-address", "127.0.0.1:0")
-	largs = append(largs, "--log-level", "debug")
-	largs = append(largs, args...)
-	return tl.Launcher.Run(ctx, largs...)
+	opts.TestingAlwaysAllowSetup = true
+	opts.BoltPath = filepath.Join(tl.Path, bolt.DefaultFilename)
+	opts.EnginePath = filepath.Join(tl.Path, "engine")
+	opts.HttpBindAddress = "127.0.0.1:0"
+	opts.LogLevel = zap.DebugLevel
+	opts.ReportingDisabled = true
+
+	for _, setter := range setters {
+		setter(opts)
+	}
+
+	// Set up top-level logger to write into the test-case.
+	tl.Launcher.log = zaptest.NewLogger(tb, zaptest.Level(opts.LogLevel)).With(zap.String("test_name", tb.Name()))
+	return tl.Launcher.run(ctx, opts)
 }
 
 // Shutdown stops the program and cleans up temporary paths.
 func (tl *TestLauncher) Shutdown(ctx context.Context) error {
-	if tl.running {
-		tl.Cancel()
-		tl.Launcher.Shutdown(ctx)
-	}
-	return os.RemoveAll(tl.Path)
+	defer os.RemoveAll(tl.Path)
+	tl.Cancel()
+	return tl.Launcher.Shutdown(ctx)
 }
 
 // ShutdownOrFail stops the program and cleans up temporary paths. Fail on error.
@@ -127,7 +143,7 @@ func (tl *TestLauncher) ShutdownOrFail(tb testing.TB, ctx context.Context) {
 
 // Setup creates a new user, bucket, org, and auth token.
 func (tl *TestLauncher) Setup() error {
-	results, err := tl.OnBoard(&platform.OnboardingRequest{
+	results, err := tl.OnBoard(&influxdb.OnboardingRequest{
 		User:     "USER",
 		Password: "PASSWORD",
 		Org:      "ORG",
@@ -153,13 +169,13 @@ func (tl *TestLauncher) SetupOrFail(tb testing.TB) {
 
 // OnBoard attempts an on-boarding request.
 // The on-boarding status is also reset to allow multiple user/org/buckets to be created.
-func (tl *TestLauncher) OnBoard(req *platform.OnboardingRequest) (*platform.OnboardingResults, error) {
+func (tl *TestLauncher) OnBoard(req *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
 	return tl.apibackend.OnboardingService.OnboardInitialUser(context.Background(), req)
 }
 
 // OnBoardOrFail attempts an on-boarding request or fails on error.
 // The on-boarding status is also reset to allow multiple user/org/buckets to be created.
-func (tl *TestLauncher) OnBoardOrFail(tb testing.TB, req *platform.OnboardingRequest) *platform.OnboardingResults {
+func (tl *TestLauncher) OnBoardOrFail(tb testing.TB, req *influxdb.OnboardingRequest) *influxdb.OnboardingResults {
 	tb.Helper()
 	res, err := tl.OnBoard(req)
 	if err != nil {
@@ -169,7 +185,7 @@ func (tl *TestLauncher) OnBoardOrFail(tb testing.TB, req *platform.OnboardingReq
 }
 
 // WriteOrFail attempts a write to the organization and bucket identified by to or fails if there is an error.
-func (tl *TestLauncher) WriteOrFail(tb testing.TB, to *platform.OnboardingResults, data string) {
+func (tl *TestLauncher) WriteOrFail(tb testing.TB, to *influxdb.OnboardingResults, data string) {
 	tb.Helper()
 	resp, err := nethttp.DefaultClient.Do(tl.NewHTTPRequestOrFail(tb, "POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", to.Org.ID, to.Bucket.ID), to.Auth.Token, data))
 	if err != nil {
@@ -295,7 +311,7 @@ func (tl *TestLauncher) QueryAndNopConsume(ctx context.Context, req *query.Reque
 
 // FluxQueryOrFail performs a query to the specified organization and returns the results
 // or fails if there is an error.
-func (tl *TestLauncher) FluxQueryOrFail(tb testing.TB, org *platform.Organization, token string, query string) string {
+func (tl *TestLauncher) FluxQueryOrFail(tb testing.TB, org *influxdb.Organization, token string, query string) string {
 	tb.Helper()
 
 	b, err := http.SimpleQuery(tl.URL(), query, org.Name, token)
@@ -308,7 +324,7 @@ func (tl *TestLauncher) FluxQueryOrFail(tb testing.TB, org *platform.Organizatio
 
 // QueryFlux returns the csv response from a flux query.
 // It also removes all the \r to make it easier to write tests.
-func (tl *TestLauncher) QueryFlux(tb testing.TB, org *platform.Organization, token, query string) string {
+func (tl *TestLauncher) QueryFlux(tb testing.TB, org *influxdb.Organization, token, query string) string {
 	tb.Helper()
 
 	b, err := http.SimpleQuery(tl.URL(), query, org.Name, token)
@@ -362,23 +378,19 @@ func (tl *TestLauncher) FluxQueryService() *http.FluxQueryService {
 	return &http.FluxQueryService{Addr: tl.URL(), Token: tl.Auth.Token}
 }
 
-func (tl *TestLauncher) BucketService(tb testing.TB) *http.BucketService {
+func (tl *TestLauncher) BucketService(tb testing.TB) *tenant.BucketClientService {
 	tb.Helper()
-	return &http.BucketService{Client: tl.HTTPClient(tb)}
+	return &tenant.BucketClientService{Client: tl.HTTPClient(tb)}
 }
 
-func (tl *TestLauncher) CheckService() platform.CheckService {
-	return tl.kvService
+func (tl *TestLauncher) DashboardService(tb testing.TB) influxdb.DashboardService {
+	tb.Helper()
+	return &dashboardTransport.DashboardService{Client: tl.HTTPClient(tb)}
 }
 
-func (tl *TestLauncher) DashboardService(tb testing.TB) *http.DashboardService {
+func (tl *TestLauncher) LabelService(tb testing.TB) influxdb.LabelService {
 	tb.Helper()
-	return &http.DashboardService{Client: tl.HTTPClient(tb)}
-}
-
-func (tl *TestLauncher) LabelService(tb testing.TB) *http.LabelService {
-	tb.Helper()
-	return &http.LabelService{Client: tl.HTTPClient(tb)}
+	return &label.LabelClientService{Client: tl.HTTPClient(tb)}
 }
 
 func (tl *TestLauncher) NotificationEndpointService(tb testing.TB) *http.NotificationEndpointService {
@@ -386,19 +398,21 @@ func (tl *TestLauncher) NotificationEndpointService(tb testing.TB) *http.Notific
 	return http.NewNotificationEndpointService(tl.HTTPClient(tb))
 }
 
-func (tl *TestLauncher) NotificationRuleService() platform.NotificationRuleStore {
-	return tl.kvService
+func (tl *TestLauncher) NotificationRuleService(tb testing.TB) influxdb.NotificationRuleStore {
+	tb.Helper()
+	return http.NewNotificationRuleService(tl.HTTPClient(tb))
 }
 
-func (tl *TestLauncher) OrgService(tb testing.TB) platform.OrganizationService {
-	return tl.kvService
+func (tl *TestLauncher) OrgService(tb testing.TB) influxdb.OrganizationService {
+	tb.Helper()
+	return &tenant.OrgClientService{Client: tl.HTTPClient(tb)}
 }
 
 func (tl *TestLauncher) PkgerService(tb testing.TB) pkger.SVC {
 	return &pkger.HTTPRemoteService{Client: tl.HTTPClient(tb)}
 }
 
-func (tl *TestLauncher) TaskServiceKV() platform.TaskService {
+func (tl *TestLauncher) TaskServiceKV(tb testing.TB) influxdb.TaskService {
 	return tl.kvService
 }
 
@@ -416,7 +430,7 @@ func (tl *TestLauncher) AuthorizationService(tb testing.TB) *http.AuthorizationS
 	return &http.AuthorizationService{Client: tl.HTTPClient(tb)}
 }
 
-func (tl *TestLauncher) TaskService(tb testing.TB) *http.TaskService {
+func (tl *TestLauncher) TaskService(tb testing.TB) influxdb.TaskService {
 	return &http.TaskService{Client: tl.HTTPClient(tb)}
 }
 

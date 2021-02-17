@@ -35,9 +35,26 @@ and use the old zookeeper connection method.
   # insecure_skip_verify = false
 
   ## SASL authentication credentials.  These settings should typically be used
-  ## with TLS encryption enabled using the "enable_tls" option.
+  ## with TLS encryption enabled
   # sasl_username = "kafka"
   # sasl_password = "secret"
+
+  ## Optional SASL:
+  ## one of: OAUTHBEARER, PLAIN, SCRAM-SHA-256, SCRAM-SHA-512, GSSAPI
+  ## (defaults to PLAIN)
+  # sasl_mechanism = ""
+
+  ## used if sasl_mechanism is GSSAPI (experimental)
+  # sasl_gssapi_service_name = ""
+  # ## One of: KRB5_USER_AUTH and KRB5_KEYTAB_AUTH
+  # sasl_gssapi_auth_type = "KRB5_USER_AUTH"
+  # sasl_gssapi_kerberos_config_path = "/"
+  # sasl_gssapi_realm = "realm"
+  # sasl_gssapi_key_tab_path = ""
+  # sasl_gssapi_disable_pafxfast = false
+
+  ## used if sasl_mechanism is OAUTHBEARER (experimental)
+  # sasl_access_token = ""
 
   ## SASL protocol version.  When connecting to Azure EventHub set to 0.
   # sasl_version = 1
@@ -45,6 +62,14 @@ and use the old zookeeper connection method.
   ## Name of the consumer group.
   # consumer_group = "telegraf_metrics_consumers"
 
+  ## Compression codec represents the various compression codecs recognized by
+  ## Kafka in messages.
+  ##  0 : None
+  ##  1 : Gzip
+  ##  2 : Snappy
+  ##  3 : LZ4
+  ##  4 : ZSTD
+  # compression_codec = 0
   ## Initial offset position; one of "oldest" or "newest".
   # offset = "oldest"
 

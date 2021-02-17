@@ -73,7 +73,7 @@ var (
 	// ErrUnknownFieldType is returned when the type of a field cannot be determined.
 	ErrUnknownFieldType = errors.New("unknown field type")
 
-	// ErrShardNotIdle is returned when an operation requring the shard to be idle/cold is
+	// ErrShardNotIdle is returned when an operation requiring the shard to be idle/cold is
 	// attempted on a hot shard.
 	ErrShardNotIdle = errors.New("shard not idle")
 
@@ -315,8 +315,14 @@ func (s *Shard) Open() error {
 		if err != nil {
 			return err
 		}
-
 		idx.WithLogger(s.baseLogger)
+
+		// Check if the index needs to be rebuilt before Open() initializes
+		// its file system layout.
+		var shouldReindex bool
+		if _, err := os.Stat(ipath); os.IsNotExist(err) {
+			shouldReindex = true
+		}
 
 		// Open index.
 		if err := idx.Open(); err != nil {
@@ -340,8 +346,12 @@ func (s *Shard) Open() error {
 		if err := e.Open(); err != nil {
 			return err
 		}
+		if shouldReindex {
+			if err := e.Reindex(); err != nil {
+				return err
+			}
+		}
 
-		// Load metadata index for the inmem index only.
 		if err := e.LoadMetadataIndex(s.id, s.index); err != nil {
 			return err
 		}
@@ -476,7 +486,7 @@ func (s *Shard) SetCompactionsEnabled(enabled bool) {
 func (s *Shard) DiskSize() (int64, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	// We don't use engine() becuase we still want to report the shard's disk
+	// We don't use engine() because we still want to report the shard's disk
 	// size even if the shard has been disabled.
 	if s._engine == nil {
 		return 0, ErrEngineClosed
@@ -704,8 +714,6 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error
 		if err := mf.CreateFieldIfNotExists([]byte(f.Field.Name), f.Field.Type); err != nil {
 			return err
 		}
-
-		s.index.SetFieldName(f.Measurement, f.Field.Name)
 	}
 
 	if len(fieldsToCreate) > 0 {
@@ -1125,12 +1133,12 @@ func (s *Shard) Import(r io.Reader, basePath string) error {
 
 // CreateSnapshot will return a path to a temp directory
 // containing hard links to the underlying shard files.
-func (s *Shard) CreateSnapshot() (string, error) {
+func (s *Shard) CreateSnapshot(skipCacheOk bool) (string, error) {
 	engine, err := s.Engine()
 	if err != nil {
 		return "", err
 	}
-	return engine.CreateSnapshot()
+	return engine.CreateSnapshot(skipCacheOk)
 }
 
 // ForEachMeasurementName iterates over each measurement in the shard.
@@ -1675,7 +1683,7 @@ func (fs *MeasurementFieldSet) Fields(name []byte) *MeasurementFields {
 	return mf
 }
 
-// FieldsByString returns fields for a measurment by name.
+// FieldsByString returns fields for a measurement by name.
 func (fs *MeasurementFieldSet) FieldsByString(name string) *MeasurementFields {
 	fs.mu.RLock()
 	mf := fs.fields[name]

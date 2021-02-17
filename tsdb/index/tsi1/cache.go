@@ -134,9 +134,9 @@ func (c *TagValueSeriesIDCache) Put(name, key, value []byte, ss *tsdb.SeriesIDSe
 		goto EVICT
 	}
 
-	// No map for the measurement - first tag key for the measurment.
+	// No map for the measurement - first tag key for the measurement.
 	c.cache[string(name)] = map[string]map[string]*list.Element{
-		string(key): map[string]*list.Element{string(value): listElement},
+		string(key): {string(value): listElement},
 	}
 
 EVICT:

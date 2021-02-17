@@ -79,6 +79,7 @@ type Dashboard struct {
 	Description    string        `json:"description"`
 	Cells          []*Cell       `json:"cells"`
 	Meta           DashboardMeta `json:"meta"`
+	OwnerID        *ID           `json:"owner,omitempty"`
 }
 
 // DashboardMeta contains meta information about dashboards
@@ -197,6 +198,7 @@ type DashboardFilter struct {
 	IDs            []*ID
 	OrganizationID *ID
 	Organization   *string
+	OwnerID        *ID
 }
 
 // QueryParams turns a dashboard filter into query params
@@ -216,6 +218,10 @@ func (f DashboardFilter) QueryParams() map[string][]string {
 
 	if f.Organization != nil {
 		qp.Add("org", *f.Organization)
+	}
+
+	if f.OwnerID != nil {
+		qp.Add("owner", f.OwnerID.String())
 	}
 
 	return qp
@@ -377,6 +383,7 @@ const (
 	ViewPropertyTypeXY                 = "xy"
 	ViewPropertyTypeMosaic             = "mosaic"
 	ViewPropertyTypeBand               = "band"
+	ViewPropertyTypeGeo                = "geo"
 )
 
 // ViewProperties is used to mark other structures as conforming to a View.
@@ -444,6 +451,12 @@ func UnmarshalViewPropertiesJSON(b []byte) (ViewProperties, error) {
 				return nil, err
 			}
 			vis = gv
+		case ViewPropertyTypeGeo:
+			var gvw GeoViewProperties
+			if err := json.Unmarshal(v.B, &gvw); err != nil {
+				return nil, err
+			}
+			vis = gvw
 		case ViewPropertyTypeTable:
 			var tv TableViewProperties
 			if err := json.Unmarshal(v.B, &tv); err != nil {
@@ -542,6 +555,14 @@ func MarshalViewPropertiesJSON(v ViewProperties) ([]byte, error) {
 			Shape: "chronograf-v2",
 
 			GaugeViewProperties: vis,
+		}
+	case GeoViewProperties:
+		s = struct {
+			Shape string `json:"shape"`
+			GeoViewProperties
+		}{
+			Shape:             "chronograf-v2",
+			GeoViewProperties: vis,
 		}
 	case XYViewProperties:
 		s = struct {
@@ -717,11 +738,20 @@ type LinePlusSingleStatProperties struct {
 	Note                       string           `json:"note"`
 	ShowNoteWhenEmpty          bool             `json:"showNoteWhenEmpty"`
 	XColumn                    string           `json:"xColumn"`
+	GenerateXAxisTicks         []string         `json:"generateXAxisTicks"`
+	XTotalTicks                int              `json:"xTotalTicks"`
+	XTickStart                 float64          `json:"xTickStart"`
+	XTickStep                  float64          `json:"xTickStep"`
 	YColumn                    string           `json:"yColumn"`
+	GenerateYAxisTicks         []string         `json:"generateYAxisTicks"`
+	YTotalTicks                int              `json:"yTotalTicks"`
+	YTickStart                 float64          `json:"yTickStart"`
+	YTickStep                  float64          `json:"yTickStep"`
 	ShadeBelow                 bool             `json:"shadeBelow"`
 	Position                   string           `json:"position"`
 	TimeFormat                 string           `json:"timeFormat"`
 	HoverDimension             string           `json:"hoverDimension"`
+	LegendColorizeRows         bool             `json:"legendColorizeRows"`
 	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
@@ -737,11 +767,20 @@ type XYViewProperties struct {
 	Note                       string           `json:"note"`
 	ShowNoteWhenEmpty          bool             `json:"showNoteWhenEmpty"`
 	XColumn                    string           `json:"xColumn"`
+	GenerateXAxisTicks         []string         `json:"generateXAxisTicks"`
+	XTotalTicks                int              `json:"xTotalTicks"`
+	XTickStart                 float64          `json:"xTickStart"`
+	XTickStep                  float64          `json:"xTickStep"`
 	YColumn                    string           `json:"yColumn"`
+	GenerateYAxisTicks         []string         `json:"generateYAxisTicks"`
+	YTotalTicks                int              `json:"yTotalTicks"`
+	YTickStart                 float64          `json:"yTickStart"`
+	YTickStep                  float64          `json:"yTickStep"`
 	ShadeBelow                 bool             `json:"shadeBelow"`
 	Position                   string           `json:"position"`
 	TimeFormat                 string           `json:"timeFormat"`
 	HoverDimension             string           `json:"hoverDimension"`
+	LegendColorizeRows         bool             `json:"legendColorizeRows"`
 	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
@@ -759,10 +798,19 @@ type BandViewProperties struct {
 	TimeFormat                 string           `json:"timeFormat"`
 	HoverDimension             string           `json:"hoverDimension"`
 	XColumn                    string           `json:"xColumn"`
+	GenerateXAxisTicks         []string         `json:"generateXAxisTicks"`
+	XTotalTicks                int              `json:"xTotalTicks"`
+	XTickStart                 float64          `json:"xTickStart"`
+	XTickStep                  float64          `json:"xTickStep"`
 	YColumn                    string           `json:"yColumn"`
+	GenerateYAxisTicks         []string         `json:"generateYAxisTicks"`
+	YTotalTicks                int              `json:"yTotalTicks"`
+	YTickStart                 float64          `json:"yTickStart"`
+	YTickStep                  float64          `json:"yTickStep"`
 	UpperColumn                string           `json:"upperColumn"`
 	MainColumn                 string           `json:"mainColumn"`
 	LowerColumn                string           `json:"lowerColumn"`
+	LegendColorizeRows         bool             `json:"legendColorizeRows"`
 	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
@@ -773,24 +821,23 @@ type CheckViewProperties struct {
 	CheckID                    string           `json:"checkID"`
 	Queries                    []DashboardQuery `json:"queries"`
 	ViewColors                 []string         `json:"colors"`
+	LegendColorizeRows         bool             `json:"legendColorizeRows"`
 	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
 
 // SingleStatViewProperties represents options for single stat view in Chronograf
 type SingleStatViewProperties struct {
-	Type                       string           `json:"type"`
-	Queries                    []DashboardQuery `json:"queries"`
-	Prefix                     string           `json:"prefix"`
-	TickPrefix                 string           `json:"tickPrefix"`
-	Suffix                     string           `json:"suffix"`
-	TickSuffix                 string           `json:"tickSuffix"`
-	ViewColors                 []ViewColor      `json:"colors"`
-	DecimalPlaces              DecimalPlaces    `json:"decimalPlaces"`
-	Note                       string           `json:"note"`
-	ShowNoteWhenEmpty          bool             `json:"showNoteWhenEmpty"`
-	LegendOpacity              float64          `json:"legendOpacity"`
-	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
+	Type              string           `json:"type"`
+	Queries           []DashboardQuery `json:"queries"`
+	Prefix            string           `json:"prefix"`
+	TickPrefix        string           `json:"tickPrefix"`
+	Suffix            string           `json:"suffix"`
+	TickSuffix        string           `json:"tickSuffix"`
+	ViewColors        []ViewColor      `json:"colors"`
+	DecimalPlaces     DecimalPlaces    `json:"decimalPlaces"`
+	Note              string           `json:"note"`
+	ShowNoteWhenEmpty bool             `json:"showNoteWhenEmpty"`
 }
 
 // HistogramViewProperties represents options for histogram view in Chronograf
@@ -806,6 +853,7 @@ type HistogramViewProperties struct {
 	BinCount                   int              `json:"binCount"`
 	Note                       string           `json:"note"`
 	ShowNoteWhenEmpty          bool             `json:"showNoteWhenEmpty"`
+	LegendColorizeRows         bool             `json:"legendColorizeRows"`
 	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
@@ -817,7 +865,15 @@ type HeatmapViewProperties struct {
 	ViewColors                 []string         `json:"colors"`
 	BinSize                    int32            `json:"binSize"`
 	XColumn                    string           `json:"xColumn"`
+	GenerateXAxisTicks         []string         `json:"generateXAxisTicks"`
+	XTotalTicks                int              `json:"xTotalTicks"`
+	XTickStart                 float64          `json:"xTickStart"`
+	XTickStep                  float64          `json:"xTickStep"`
 	YColumn                    string           `json:"yColumn"`
+	GenerateYAxisTicks         []string         `json:"generateYAxisTicks"`
+	YTotalTicks                int              `json:"yTotalTicks"`
+	YTickStart                 float64          `json:"yTickStart"`
+	YTickStep                  float64          `json:"yTickStep"`
 	XDomain                    []float64        `json:"xDomain,omitempty"`
 	YDomain                    []float64        `json:"yDomain,omitempty"`
 	XAxisLabel                 string           `json:"xAxisLabel"`
@@ -829,6 +885,7 @@ type HeatmapViewProperties struct {
 	Note                       string           `json:"note"`
 	ShowNoteWhenEmpty          bool             `json:"showNoteWhenEmpty"`
 	TimeFormat                 string           `json:"timeFormat"`
+	LegendColorizeRows         bool             `json:"legendColorizeRows"`
 	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
@@ -841,7 +898,15 @@ type ScatterViewProperties struct {
 	FillColumns                []string         `json:"fillColumns"`
 	SymbolColumns              []string         `json:"symbolColumns"`
 	XColumn                    string           `json:"xColumn"`
+	GenerateXAxisTicks         []string         `json:"generateXAxisTicks"`
+	XTotalTicks                int              `json:"xTotalTicks"`
+	XTickStart                 float64          `json:"xTickStart"`
+	XTickStep                  float64          `json:"xTickStep"`
 	YColumn                    string           `json:"yColumn"`
+	GenerateYAxisTicks         []string         `json:"generateYAxisTicks"`
+	YTotalTicks                int              `json:"yTotalTicks"`
+	YTickStart                 float64          `json:"yTickStart"`
+	YTickStep                  float64          `json:"yTickStep"`
 	XDomain                    []float64        `json:"xDomain,omitempty"`
 	YDomain                    []float64        `json:"yDomain,omitempty"`
 	XAxisLabel                 string           `json:"xAxisLabel"`
@@ -853,6 +918,7 @@ type ScatterViewProperties struct {
 	Note                       string           `json:"note"`
 	ShowNoteWhenEmpty          bool             `json:"showNoteWhenEmpty"`
 	TimeFormat                 string           `json:"timeFormat"`
+	LegendColorizeRows         bool             `json:"legendColorizeRows"`
 	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
@@ -864,6 +930,10 @@ type MosaicViewProperties struct {
 	ViewColors                 []string         `json:"colors"`
 	FillColumns                []string         `json:"fillColumns"`
 	XColumn                    string           `json:"xColumn"`
+	GenerateXAxisTicks         []string         `json:"generateXAxisTicks"`
+	XTotalTicks                int              `json:"xTotalTicks"`
+	XTickStart                 float64          `json:"xTickStart"`
+	XTickStep                  float64          `json:"xTickStep"`
 	YSeriesColumns             []string         `json:"ySeriesColumns"`
 	XDomain                    []float64        `json:"xDomain,omitempty"`
 	YDomain                    []float64        `json:"yDomain,omitempty"`
@@ -876,6 +946,7 @@ type MosaicViewProperties struct {
 	Note                       string           `json:"note"`
 	ShowNoteWhenEmpty          bool             `json:"showNoteWhenEmpty"`
 	TimeFormat                 string           `json:"timeFormat"`
+	LegendColorizeRows         bool             `json:"legendColorizeRows"`
 	LegendOpacity              float64          `json:"legendOpacity"`
 	LegendOrientationThreshold int              `json:"legendOrientationThreshold"`
 }
@@ -892,6 +963,49 @@ type GaugeViewProperties struct {
 	DecimalPlaces     DecimalPlaces    `json:"decimalPlaces"`
 	Note              string           `json:"note"`
 	ShowNoteWhenEmpty bool             `json:"showNoteWhenEmpty"`
+}
+
+// Geographical coordinates
+type Datum struct {
+	Lat float64 `json:"lat"`
+	Lon float64 `json:"lon"`
+}
+
+// Single visualization layer properties of a chronograf map widget
+type GeoLayer struct {
+	Type           string `json:"type"`
+	RadiusField    string `json:"radiusField"`
+	ColorField     string `json:"colorField"`
+	IntensityField string `json:"intensityField"`
+	// circle layer properties
+	ViewColors         []ViewColor `json:"colors"`
+	Radius             int32       `json:"radius"`
+	Blur               int32       `json:"blur"`
+	RadiusDimension    Axis        `json:"radiusDimension,omitempty"`
+	ColorDimension     Axis        `json:"colorDimension,omitempty"`
+	IntensityDimension Axis        `json:"intensityDimension,omitempty"`
+	InterpolateColors  bool        `json:"interpolateColors"`
+	// track layer properties
+	TrackWidth   int32 `json:"trackWidth"`
+	Speed        int32 `json:"speed"`
+	RandomColors bool  `json:"randomColors"`
+	// point layer properties
+	IsClustered bool `json:"isClustered"`
+}
+
+// GeoViewProperties represents options for map view in Chronograf
+type GeoViewProperties struct {
+	Type                   string           `json:"type"`
+	Queries                []DashboardQuery `json:"queries"`
+	Center                 Datum            `json:"center"`
+	Zoom                   float64          `json:"zoom"`
+	MapStyle               string           `json:"mapStyle"`
+	AllowPanAndZoom        bool             `json:"allowPanAndZoom"`
+	DetectCoordinateFields bool             `json:"detectCoordinateFields"`
+	ViewColor              []ViewColor      `json:"colors"`
+	GeoLayers              []GeoLayer       `json:"layers"`
+	Note                   string           `json:"note"`
+	ShowNoteWhenEmpty      bool             `json:"showNoteWhenEmpty"`
 }
 
 // TableViewProperties represents options for table view in Chronograf
@@ -941,6 +1055,7 @@ func (HeatmapViewProperties) viewProperties()        {}
 func (ScatterViewProperties) viewProperties()        {}
 func (MosaicViewProperties) viewProperties()         {}
 func (GaugeViewProperties) viewProperties()          {}
+func (GeoViewProperties) viewProperties()            {}
 func (TableViewProperties) viewProperties()          {}
 func (MarkdownViewProperties) viewProperties()       {}
 func (LogViewProperties) viewProperties()            {}
@@ -955,6 +1070,7 @@ func (v HeatmapViewProperties) GetType() string        { return v.Type }
 func (v ScatterViewProperties) GetType() string        { return v.Type }
 func (v MosaicViewProperties) GetType() string         { return v.Type }
 func (v GaugeViewProperties) GetType() string          { return v.Type }
+func (v GeoViewProperties) GetType() string            { return v.Type }
 func (v TableViewProperties) GetType() string          { return v.Type }
 func (v MarkdownViewProperties) GetType() string       { return v.Type }
 func (v LogViewProperties) GetType() string            { return v.Type }

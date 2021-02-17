@@ -10,7 +10,7 @@ type serverContextKey string
 // server is making the requet via context
 const ServerContextKey = serverContextKey("server")
 
-// hasServerContext speficies if the context contains
+// hasServerContext specifies if the context contains
 // the ServerContextKey and that the value stored there is true
 func hasServerContext(ctx context.Context) bool {
 	// prevents panic in case of nil context

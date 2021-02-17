@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"path"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -67,7 +68,7 @@ type (
 		Resources    []StackResource
 	}
 
-	// StackResource is a record for an individual resource side effect genereated from
+	// StackResource is a record for an individual resource side effect generated from
 	// applying a template.
 	StackResource struct {
 		APIVersion   string
@@ -933,6 +934,24 @@ type ImpactSummary struct {
 	StackID influxdb.ID
 	Diff    Diff
 	Summary Summary
+}
+
+var reCommunityTemplatesValidAddr = regexp.MustCompile(`(?:https://raw.githubusercontent.com/influxdata/community-templates/master/)(?P<name>\w+)(?:/.*)`)
+
+func (i *ImpactSummary) communityName() string {
+	if len(i.Sources) == 0 {
+		return "custom"
+	}
+
+	// pull name `name` from community url https://raw.githubusercontent.com/influxdata/community-templates/master/name/name_template.yml
+	for j := range i.Sources {
+		finds := reCommunityTemplatesValidAddr.FindStringSubmatch(i.Sources[j])
+		if len(finds) == 2 {
+			return finds[1]
+		}
+	}
+
+	return "custom"
 }
 
 // DryRun provides a dry run of the template application. The template will be marked verified
@@ -3536,10 +3555,11 @@ func (r *rollbackCoordinator) runTilEnd(ctx context.Context, orgID, userID influ
 				defer cancel()
 
 				defer func() {
-					if recover() != nil {
+					if err := recover(); err != nil {
 						r.logger.Error(
 							"panic applying "+resource,
 							zap.String("stack_trace", fmt.Sprintf("%+v", stack.Trace())),
+							zap.Reflect("panic", err),
 						)
 						errStr.add(errMsg{
 							resource: resource,

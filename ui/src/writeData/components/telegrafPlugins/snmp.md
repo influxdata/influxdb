@@ -56,7 +56,9 @@ information.
   # sec_level = "authNoPriv"
   ## Context Name.
   # context_name = ""
-  ## Privacy protocol used for encrypted messages; one of "DES", "AES" or "".
+  ## Privacy protocol used for encrypted messages; one of "DES", "AES", "AES192", "AES192C", "AES256", "AES256C", or "".
+  ### Protocols "AES192", "AES192", "AES256", and "AES256C" require the underlying net-snmp tools 
+  ### to be compiled with --enable-blumenthal-aes (http://www.net-snmp.org/docs/INSTALL.html)
   # priv_protocol = ""
   ## Privacy password used for encrypted messages.
   # priv_password = ""
@@ -113,15 +115,21 @@ option operate similar to the `snmpget` utility.
     # is_tag = false
 
     ## Apply one of the following conversions to the variable value:
-    ##   float(X) Convert the input value into a float and divides by the
-    ##            Xth power of 10. Effectively just moves the decimal left
-    ##            X places. For example a value of `123` with `float(2)`
-    ##            will result in `1.23`.
-    ##   float:   Convert the value into a float with no adjustment. Same
-    ##            as `float(0)`.
-    ##   int:     Convert the value into an integer.
-    ##   hwaddr:  Convert the value to a MAC address.
-    ##   ipaddr:  Convert the value to an IP address.
+    ##   float(X):    Convert the input value into a float and divides by the
+    ##                Xth power of 10. Effectively just moves the decimal left
+    ##                X places. For example a value of `123` with `float(2)`
+    ##                will result in `1.23`.
+    ##   float:       Convert the value into a float with no adjustment. Same
+    ##                as `float(0)`.
+    ##   int:         Convert the value into an integer.
+    ##   hwaddr:      Convert the value to a MAC address.
+    ##   ipaddr:      Convert the value to an IP address.
+    ##   hextoint:X:Y Convert a hex string value to integer. Where X is the Endian
+    ##                and Y the bit size. For example: hextoint:LittleEndian:uint64
+    ##                or hextoint:BigEndian:uint32. Valid options for the Endian are:
+    ##                BigEndian and LittleEndian. For the bit size: uint16, uint32
+    ##                and uint64.
+    ##                      
     # conversion = ""
 ```
 
@@ -184,6 +192,10 @@ One [metric][] is created for each row of the SNMP table.
       ## path segments). Truncates the index after this point to remove non-fixed
       ## value or length index suffixes.
       # oid_index_length = 0
+
+      ## Specifies if the value of given field should be snmptranslated
+      ## by default no field values are translated
+      # translate = true
 ```
 
 ### Troubleshooting

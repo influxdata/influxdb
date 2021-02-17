@@ -1,6 +1,7 @@
 package launcher_test
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	nethttp "net/http"
@@ -16,7 +17,9 @@ import (
 )
 
 func TestStorage_WriteAndQuery(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
+	l := launcher.NewTestLauncher()
+	l.RunOrFail(t, ctx)
+	defer l.ShutdownOrFail(t, ctx)
 
 	org1 := l.OnBoardOrFail(t, &influxdb.OnboardingRequest{
 		User:     "USER-1",
@@ -30,8 +33,6 @@ func TestStorage_WriteAndQuery(t *testing.T) {
 		Org:      "ORG-02",
 		Bucket:   "BUCKET",
 	})
-
-	defer l.ShutdownOrFail(t, ctx)
 
 	// Execute single write against the server.
 	l.WriteOrFail(t, org1, `m,k=v1 f=100i 946684800000000000`)
@@ -53,8 +54,7 @@ func TestStorage_WriteAndQuery(t *testing.T) {
 }
 
 func TestLauncher_WriteAndQuery(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
-	l.SetupOrFail(t)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	// Execute single write against the server.
@@ -91,8 +91,7 @@ func TestLauncher_WriteAndQuery(t *testing.T) {
 }
 
 func TestLauncher_BucketDelete(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
-	l.SetupOrFail(t)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	// Execute single write against the server.
@@ -156,9 +155,52 @@ func TestLauncher_BucketDelete(t *testing.T) {
 	}
 }
 
+func TestLauncher_DeleteWithPredicate(t *testing.T) {
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
+	defer l.ShutdownOrFail(t, ctx)
+
+	// Write data to server.
+	if resp, err := nethttp.DefaultClient.Do(l.MustNewHTTPRequest("POST", fmt.Sprintf("/api/v2/write?org=%s&bucket=%s", l.Org.ID, l.Bucket.ID),
+		"cpu,region=us-east-1 v=1 946684800000000000\n"+
+			"cpu,region=us-west-1 v=1 946684800000000000\n"+
+			"mem,region=us-west-1 v=1 946684800000000000\n",
+	)); err != nil {
+		t.Fatal(err)
+	} else if err := resp.Body.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	// Execute single write against the server.
+	s := http.DeleteService{
+		Addr:  l.URL(),
+		Token: l.Auth.Token,
+	}
+	if err := s.DeleteBucketRangePredicate(context.Background(), http.DeleteRequest{
+		OrgID:     l.Org.ID.String(),
+		BucketID:  l.Bucket.ID.String(),
+		Start:     "2000-01-01T00:00:00Z",
+		Stop:      "2000-01-02T00:00:00Z",
+		Predicate: `_measurement="cpu" AND region="us-west-1"`,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// Query server to ensure write persists.
+	qs := `from(bucket:"BUCKET") |> range(start:2000-01-01T00:00:00Z,stop:2000-01-02T00:00:00Z)`
+	exp := `,result,table,_start,_stop,_time,_value,_field,_measurement,region` + "\r\n" +
+		`,_result,0,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,1,v,cpu,us-east-1` + "\r\n" +
+		`,_result,1,2000-01-01T00:00:00Z,2000-01-02T00:00:00Z,2000-01-01T00:00:00Z,1,v,mem,us-west-1` + "\r\n\r\n"
+
+	buf, err := http.SimpleQuery(l.URL(), qs, l.Org.Name, l.Auth.Token)
+	if err != nil {
+		t.Fatalf("unexpected error querying server: %v", err)
+	} else if diff := cmp.Diff(string(buf), exp); diff != "" {
+		t.Fatal(diff)
+	}
+}
+
 func TestLauncher_UpdateRetentionPolicy(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
-	l.SetupOrFail(t)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	bucket, err := l.BucketService(t).FindBucket(ctx, influxdb.BucketFilter{ID: &l.Bucket.ID})

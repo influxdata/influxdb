@@ -3,11 +3,11 @@ package internal
 import (
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/task/options"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/task/options"
 	"github.com/tcnksm/go-input"
 )
 

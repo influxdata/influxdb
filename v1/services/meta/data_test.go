@@ -74,7 +74,7 @@ func Test_Data_DropDatabase(t *testing.T) {
 func Test_Data_CreateDatabase(t *testing.T) {
 	data := meta.Data{}
 
-	// Test creating a database succeedes.
+	// Test creating a database succeeds.
 	if err := data.CreateDatabase("foo"); err != nil {
 		t.Fatal(err)
 	}

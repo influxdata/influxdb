@@ -6,6 +6,8 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
+	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/tenant"
 	influxdbtesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
@@ -29,8 +31,14 @@ func initBoltTargetService(f influxdbtesting.TargetFields, t *testing.T) (influx
 
 func initScraperTargetStoreService(s kv.SchemaStore, f influxdbtesting.TargetFields, t *testing.T) (influxdb.ScraperTargetStoreService, string, func()) {
 	ctx := context.Background()
-	svc := kv.NewService(zaptest.NewLogger(t), s)
-	svc.IDGenerator = f.IDGenerator
+	tenantStore := tenant.NewStore(s)
+	tenantSvc := tenant.NewService(tenantStore)
+
+	svc := kv.NewService(zaptest.NewLogger(t), s, tenantSvc)
+
+	if f.IDGenerator != nil {
+		svc.IDGenerator = f.IDGenerator
+	}
 
 	for _, target := range f.Targets {
 		if err := svc.PutTarget(ctx, target); err != nil {
@@ -39,9 +47,11 @@ func initScraperTargetStoreService(s kv.SchemaStore, f influxdbtesting.TargetFie
 	}
 
 	for _, o := range f.Organizations {
-		if err := svc.PutOrganization(ctx, o); err != nil {
-			t.Fatalf("failed to populate organization")
-		}
+		mock.SetIDForFunc(&tenantStore.OrgIDGen, o.ID, func() {
+			if err := tenantSvc.CreateOrganization(ctx, o); err != nil {
+				t.Fatalf("failed to populate organization")
+			}
+		})
 	}
 
 	return svc, kv.OpPrefix, func() {
@@ -51,7 +61,7 @@ func initScraperTargetStoreService(s kv.SchemaStore, f influxdbtesting.TargetFie
 			}
 		}
 		for _, o := range f.Organizations {
-			if err := svc.DeleteOrganization(ctx, o.ID); err != nil {
+			if err := tenantSvc.DeleteOrganization(ctx, o.ID); err != nil {
 				t.Logf("failed to remove orgs: %v", err)
 			}
 		}

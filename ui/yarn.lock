@@ -752,10 +752,10 @@
   resolved "https://registry.yarnpkg.com/@influxdata/clockface/-/clockface-2.3.4.tgz#9c496601253e1d49cbeae29a7b9cfb54862785f6"
   integrity sha512-mmz3YElK8Ho+1onEafuas6sVhIT638JA4NbDTO3bVJgK1TG7AnU4rQP+c6fj7vZSfvrIwtOwGaMONJTaww5o6w==
 
-"@influxdata/flux-lsp-browser@0.5.20":
-  version "0.5.20"
-  resolved "https://registry.yarnpkg.com/@influxdata/flux-lsp-browser/-/flux-lsp-browser-0.5.20.tgz#150d261bab869e130f6d00ee73ea4e859e8969e4"
-  integrity sha512-gUy19t/QndkJPmyv7Lb56zXxaW5v7R9TslTHt0hB0GJjo7lmYkRfkD7DELdFHrD2e/CLtcNQBnczIMIGkII8Bw==
+"@influxdata/flux-lsp-browser@^0.5.32":
+  version "0.5.32"
+  resolved "https://registry.yarnpkg.com/@influxdata/flux-lsp-browser/-/flux-lsp-browser-0.5.32.tgz#84fdff1dae1a10f1a80195b4380dd7b320ba4906"
+  integrity sha512-ExAAlQs2Yi2WrRScCuargVKztIMjswRzlRfhDevrqRIlEHMbiCGyVDzx3t20fKgy6ODdf6wvRMkaL7tc8Vmc5w==
 
 "@influxdata/flux@^0.5.1":
   version "0.5.1"
@@ -8482,10 +8482,10 @@ pako@~1.0.5:
   resolved "https://registry.yarnpkg.com/pako/-/pako-1.0.11.tgz#6c9599d340d54dfd3946380252a35705a6b992bf"
   integrity sha512-4hLB8Py4zZce5s4yd9XzopqwVv/yGNhV1Bl8NTmCq1763HeK2+EwVTv+leGeL13Dnh2wfbqowVPXCIO0z4taYw==
 
-papaparse@^4.6.3:
-  version "4.6.3"
-  resolved "https://registry.yarnpkg.com/papaparse/-/papaparse-4.6.3.tgz#742e5eaaa97fa6c7e1358d2934d8f18f44aee781"
-  integrity sha512-LRq7BrHC2kHPBYSD50aKuw/B/dGcg29omyJbKWY3KsYUZU69RKwaBHu13jGmCYBtOc4odsLCrFyk6imfyNubJQ==
+papaparse@^5.2.0:
+  version "5.2.0"
+  resolved "https://registry.yarnpkg.com/papaparse/-/papaparse-5.2.0.tgz#97976a1b135c46612773029153dc64995caa3b7b"
+  integrity sha512-ylq1wgUSnagU+MKQtNeVqrPhZuMYBvOSL00DHycFTCxownF95gpLAk1HiHdUW77N8yxRq1qHXLdlIPyBSG9NSA==
 
 parallel-transform@^1.1.0:
   version "1.2.0"

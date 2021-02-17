@@ -117,7 +117,7 @@ func concatSetupTable(table *CsvTable, row []string) error {
 			if placeholderColumn := table.Column(columnLabel); placeholderColumn == nil {
 				return CsvColumnError{
 					Column: col.Label,
-					Err: fmt.Errorf("'%s' references an uknown column '%s', available columns are: %v",
+					Err: fmt.Errorf("'%s' references an unknown column '%s', available columns are: %v",
 						template, columnLabel, strings.Join(table.ColumnLabels(), ",")),
 				}
 			}

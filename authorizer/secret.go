@@ -14,7 +14,7 @@ type SecretService struct {
 	s influxdb.SecretService
 }
 
-// NewSecretService constructs an instance of an authorizing secret serivce.
+// NewSecretService constructs an instance of an authorizing secret service.
 func NewSecretService(s influxdb.SecretService) *SecretService {
 	return &SecretService{
 		s: s,

@@ -10,6 +10,7 @@ import (
 	_ "github.com/influxdata/pkg-config"
 	_ "github.com/kevinburke/go-bindata/go-bindata"
 	_ "github.com/mna/pigeon"
+	_ "golang.org/x/tools/cmd/goimports"
 	_ "golang.org/x/tools/cmd/stringer"
 	_ "honnef.co/go/tools/cmd/staticcheck"
 )

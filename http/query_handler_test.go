@@ -30,6 +30,7 @@ import (
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/query/mock"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -326,7 +327,8 @@ var _ metric.EventRecorder = noopEventRecorder{}
 func TestFluxHandler_PostQuery_Errors(t *testing.T) {
 	defer tracetesting.SetupInMemoryTracing(t.Name())()
 
-	orgSVC := newInMemKVSVC(t)
+	store := NewTestInmemStore(t)
+	orgSVC := tenant.NewService(tenant.NewStore(store))
 	b := &FluxBackend{
 		HTTPErrorHandler:    kithttp.ErrorHandler(0),
 		log:                 zaptest.NewLogger(t),

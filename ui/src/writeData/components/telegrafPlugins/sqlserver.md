@@ -48,22 +48,54 @@ GO
   ##   See https://github.com/denisenkom/go-mssqldb for detailed connection
   ##   parameters, in particular, tls connections can be created like so:
   ##   "encrypt=true;certificate=<cert>;hostNameInCertificate=<SqlServer host fqdn>"
-  # servers = [
-  #  "Server=192.168.1.10;Port=1433;User Id=<user>;Password=<pw>;app name=telegraf;log=1;",
-  # ]
+  servers = [
+    "Server=192.168.1.10;Port=1433;User Id=<user>;Password=<pw>;app name=telegraf;log=1;",
+  ]
 
-  ## This enables a specific set of queries depending on the database type. If specified, it replaces azuredb = true/false and query_version = 2
-  ## In the config file, the sql server plugin section should be repeated  each with a set of servers for a specific database_type.
-  ## Possible values for database_type are  
-  ## "AzureSQLDB" 
-  ## "SQLServer"
-  ## "AzureSQLManagedInstance"
+  ## "database_type" enables a specific set of queries depending on the database type. If specified, it replaces azuredb = true/false and query_version = 2
+  ## In the config file, the sql server plugin section should be repeated each with a set of servers for a specific database_type.
+  ## Possible values for database_type are - "AzureSQLDB" or "AzureSQLManagedInstance" or "SQLServer"
+
+  ## Queries enabled by default for database_type = "AzureSQLDB" are - 
+  ## AzureSQLDBResourceStats, AzureSQLDBResourceGovernance, AzureSQLDBWaitStats, AzureSQLDBDatabaseIO, AzureSQLDBServerProperties, 
+  ## AzureSQLDBOsWaitstats, AzureSQLDBMemoryClerks, AzureSQLDBPerformanceCounters, AzureSQLDBRequests, AzureSQLDBSchedulers
+
   # database_type = "AzureSQLDB"
 
+  ## A list of queries to include. If not specified, all the above listed queries are used.
+  # include_query = []
+
+  ## A list of queries to explicitly ignore.
+  # exclude_query = []
+
+  ## Queries enabled by default for database_type = "AzureSQLManagedInstance" are - 
+  ## AzureSQLMIResourceStats, AzureSQLMIResourceGovernance, AzureSQLMIDatabaseIO, AzureSQLMIServerProperties, AzureSQLMIOsWaitstats, 
+  ## AzureSQLMIMemoryClerks, AzureSQLMIPerformanceCounters, AzureSQLMIRequests, AzureSQLMISchedulers
+
+  # database_type = "AzureSQLManagedInstance"
+
+  # include_query = []
+
+  # exclude_query = []
+
+  ## Queries enabled by default for database_type = "SQLServer" are - 
+  ## SQLServerPerformanceCounters, SQLServerWaitStatsCategorized, SQLServerDatabaseIO, SQLServerProperties, SQLServerMemoryClerks, 
+  ## SQLServerSchedulers, SQLServerRequests, SQLServerVolumeSpace, SQLServerCpu
+
+  database_type = "SQLServer"
+
+  include_query = []
+
+  ## SQLServerAvailabilityReplicaStates and SQLServerDatabaseReplicaStates are optional queries and hence excluded here as default
+  exclude_query = ["SQLServerAvailabilityReplicaStates", "SQLServerDatabaseReplicaStates"]
+
+  ## Following are old config settings, you may use them only if you are using the earlier flavor of queries, however it is recommended to use 
+  ## the new mechanism of identifying the database_type there by use it's corresponding queries
+
   ## Optional parameter, setting this to 2 will use a new version
-  ## of the collection queries that break compatibility with the original dashboards.
-  ## Version 2 - is compatible from SQL Server 2008 Sp3 and later versions and also for SQL Azure DB
-  ## Version 2 is in the process of being deprecated, please consider using database_type.
+  ## of the collection queries that break compatibility with the original
+  ## dashboards.
+  ## Version 2 - is compatible from SQL Server 2012 and later versions and also for SQL Azure DB
   # query_version = 2
 
   ## If you are using AzureDB, setting this to true will gather resource utilization metrics
@@ -105,6 +137,9 @@ GO
    ## - SQLServerRequests
    ## - SQLServerVolumeSpace
    ## - SQLServerCpu
+   ## and following as optional (if mentioned in the include_query list)
+   ## - SQLServerAvailabilityReplicaStates
+   ## - SQLServerDatabaseReplicaStates
 
   ## Version 2 by default collects the following queries
   ## Version 2 is being deprecated, please consider using database_type.
@@ -131,13 +166,6 @@ GO
   ## - VolumeSpace
   ## - PerformanceMetrics
 
-
-
-  ## A list of queries to include. If not specified, all the above listed queries are used.
-  # include_query = []
-
-  ## A list of queries to explicitly ignore.
-  exclude_query = [ 'Schedulers' , 'SqlRequests' ]
 
 
 
@@ -176,7 +204,7 @@ The new (version 2) metrics provide:
   - *Memory*: PLE, Page reads/sec, Page writes/sec, + more
   - *TempDB*: Free space, Version store usage, Active temp tables, temp table creation rate, + more
   - *Resource Governor*: CPU Usage, Requests/sec, Queued Requests, and Blocked tasks per workload group + more
-- *Server properties*: Number of databases in all possible states (online, offline, suspect, etc.), cpu count, physical memory, SQL Server service uptime, and SQL Server version. In the case of Azure SQL relevent properties such as Tier, #Vcores, Memory etc.
+- *Server properties*: Number of databases in all possible states (online, offline, suspect, etc.), cpu count, physical memory, SQL Server service uptime, and SQL Server version. In the case of Azure SQL relevant properties such as Tier, #Vcores, Memory etc.
 - *Wait stats*: Wait time in ms, number of waiting tasks, resource wait time, signal wait time, max wait time in ms, wait type, and wait category. The waits are categorized using the same categories used in Query Store.
 - *Schedulers* - This captures `sys.dm_os_schedulers`.
 - *SqlRequests* - This captures a snapshot of `sys.dm_exec_requests` and `sys.dm_exec_sessions` that gives you running requests as well as wait types and
@@ -205,7 +233,7 @@ These are metrics for Azure SQL Database (single database) and are very similar 
 - AzureSQLDBMemoryClerks: Memory clerk breakdown from `sys.dm_os_memory_clerks`.
 = AzureSQLDBResourceGovernance: Relevant properties indicatign resource limits from `sys.dm_user_db_resource_governance`
 - AzureSQLDBPerformanceCounters: A select list of performance counters from `sys.dm_os_performance_counters` including cloud specific counters for SQL Hyperscale.
-- AzureSQLDBServerProperties: Relevant Azure SQL relevent properties from  such as Tier, #Vcores, Memory etc, storage, etc.
+- AzureSQLDBServerProperties: Relevant Azure SQL relevant properties from  such as Tier, #Vcores, Memory etc, storage, etc.
 - AzureSQLDBWaitstats: Wait time in ms from `sys.dm_db_wait_stats`, number of waiting tasks, resource wait time, signal wait time, max wait time in ms, wait type, and wait category. The waits are categorized using the same categories used in Query Store. These waits are collected only as of the end of the a statement. and for a specific database only.
 - *AzureSQLOsWaitstats*: Wait time in ms from `sys.dm_os_wait_stats`, number of waiting tasks, resource wait time, signal wait time, max wait time in ms, wait type, and wait category. The waits are categorized using the same categories used in Query Store. These waits are collected as they occur and instance wide
 - *AzureSQLDBRequests: Requests which are blocked or have a wait type from `sys.dm_exec_sessions` and `sys.dm_exec_requests`
@@ -218,7 +246,7 @@ These are metrics for Azure SQL Managed instance, are very similar to version 2 
 - AzureSQLMIMemoryClerks: Memory clerk breakdown from `sys.dm_os_memory_clerks`.
 - AzureSQLMIResourceGovernance: Relevant properties indicatign resource limits from `sys.dm_instance_resource_governance`
 - AzureSQLMIPerformanceCounters: A select list of performance counters from `sys.dm_os_performance_counters` including cloud specific counters for SQL Hyperscale.
-- AzureSQLMIServerProperties: Relevant Azure SQL relevent properties such as Tier, #Vcores, Memory etc, storage, etc.
+- AzureSQLMIServerProperties: Relevant Azure SQL relevant properties such as Tier, #Vcores, Memory etc, storage, etc.
 - AzureSQLMIOsWaitstats: Wait time in ms from `sys.dm_os_wait_stats`, number of waiting tasks, resource wait time, signal wait time, max wait time in ms, wait type, and wait category. The waits are categorized using the same categories used in Query Store. These waits are collected as they occur and instance wide
 - AzureSQLMIRequests: Requests which are blocked or have a wait type from `sys.dm_exec_sessions` and `sys.dm_exec_requests`
 - AzureSQLMISchedulers - This captures `sys.dm_os_schedulers` snapshots.
@@ -233,13 +261,15 @@ These are metrics for Azure SQL Managed instance, are very similar to version 2 
   - *Memory*: PLE, Page reads/sec, Page writes/sec, + more
   - *TempDB*: Free space, Version store usage, Active temp tables, temp table creation rate, + more
   - *Resource Governor*: CPU Usage, Requests/sec, Queued Requests, and Blocked tasks per workload group + more
-- SQLServerProperties: Number of databases in all possible states (online, offline, suspect, etc.), cpu count, physical memory, SQL Server service uptime, and SQL Server version. In the case of Azure SQL relevent properties such as Tier, #Vcores, Memory etc.
+- SQLServerProperties: Number of databases in all possible states (online, offline, suspect, etc.), cpu count, physical memory, SQL Server service uptime, and SQL Server version. In the case of Azure SQL relevant properties such as Tier, #Vcores, Memory etc.
 - SQLServerWaitStatsCategorized: Wait time in ms, number of waiting tasks, resource wait time, signal wait time, max wait time in ms, wait type, and wait category. The waits are categorized using the same categories used in Query Store.
 - SQLServerSchedulers - This captures `sys.dm_os_schedulers`.
 - SQLServerRequests - This captures a snapshot of `sys.dm_exec_requests` and `sys.dm_exec_sessions` that gives you running requests as well as wait types and
   blocking sessions.
 - SQLServerVolumeSpace - uses `sys.dm_os_volume_stats` to get total, used and occupied space on every disk that contains a data or log file. (Note that even if enabled it won't get any data from Azure SQL Database or SQL Managed Instance). It is pointless to run this with high frequency (ie: every 10s), but it won't cause any problem.
 - SQLServerCpu - uses the buffer ring (`sys.dm_os_ring_buffers`) to get CPU data, the table is updated once per minute. (Note that even if enabled it won't get any data from Azure SQL Database or SQL Managed Instance).
+- SQLServerAvailabilityReplicaStates: Collects availability replica state information from `sys.dm_hadr_availability_replica_states` for a High Availability / Disaster Recovery (HADR) setup
+- SQLServerDatabaseReplicaStates: Collects database replica state information from `sys.dm_hadr_database_replica_states` for a High Availability / Disaster Recovery (HADR) setup
 
 
 #### Output Measures

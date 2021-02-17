@@ -749,12 +749,32 @@ func convertCellView(cell influxdb.Cell) chart {
 		setNoteFixes(p.Note, p.ShowNoteWhenEmpty, p.Prefix, p.Suffix)
 		ch.TickPrefix = p.TickPrefix
 		ch.TickSuffix = p.TickSuffix
+	case influxdb.GeoViewProperties:
+		ch.Kind = chartKindGeo
+		ch.Queries = convertQueries(p.Queries)
+		ch.Zoom = p.Zoom
+		ch.Center = center{Lat: p.Center.Lat, Lon: p.Center.Lon}
+		ch.MapStyle = p.MapStyle
+		ch.AllowPanAndZoom = p.AllowPanAndZoom
+		ch.DetectCoordinateFields = p.DetectCoordinateFields
+		ch.Colors = convertColors(p.ViewColor)
+		ch.GeoLayers = convertGeoLayers(p.GeoLayers)
+		ch.Note = p.Note
+		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
 	case influxdb.HeatmapViewProperties:
 		ch.Kind = chartKindHeatMap
 		ch.Queries = convertQueries(p.Queries)
 		ch.Colors = stringsToColors(p.ViewColors)
 		ch.XCol = p.XColumn
+		ch.GenerateXAxisTicks = p.GenerateXAxisTicks
+		ch.XTotalTicks = p.XTotalTicks
+		ch.XTickStart = p.XTickStart
+		ch.XTickStep = p.XTickStep
 		ch.YCol = p.YColumn
+		ch.GenerateYAxisTicks = p.GenerateYAxisTicks
+		ch.YTotalTicks = p.YTotalTicks
+		ch.YTickStart = p.YTickStart
+		ch.YTickStep = p.YTickStep
 		ch.Axes = []axis{
 			{Label: p.XAxisLabel, Prefix: p.XPrefix, Suffix: p.XSuffix, Name: "x", Domain: p.XDomain},
 			{Label: p.YAxisLabel, Prefix: p.YPrefix, Suffix: p.YSuffix, Name: "y", Domain: p.YDomain},
@@ -762,6 +782,7 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.Note = p.Note
 		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
 		ch.BinSize = int(p.BinSize)
+		ch.LegendColorizeRows = p.LegendColorizeRows
 		ch.LegendOpacity = float64(p.LegendOpacity)
 		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.HistogramViewProperties:
@@ -775,6 +796,7 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
 		ch.BinCount = p.BinCount
 		ch.Position = p.Position
+		ch.LegendColorizeRows = p.LegendColorizeRows
 		ch.LegendOpacity = float64(p.LegendOpacity)
 		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.MarkdownViewProperties:
@@ -788,8 +810,17 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.Shade = p.ShadeBelow
 		ch.HoverDimension = p.HoverDimension
 		ch.XCol = p.XColumn
+		ch.GenerateXAxisTicks = p.GenerateXAxisTicks
+		ch.XTotalTicks = p.XTotalTicks
+		ch.XTickStart = p.XTickStart
+		ch.XTickStep = p.XTickStep
 		ch.YCol = p.YColumn
+		ch.GenerateYAxisTicks = p.GenerateYAxisTicks
+		ch.YTotalTicks = p.YTotalTicks
+		ch.YTickStart = p.YTickStart
+		ch.YTickStep = p.YTickStep
 		ch.Position = p.Position
+		ch.LegendColorizeRows = p.LegendColorizeRows
 		ch.LegendOpacity = float64(p.LegendOpacity)
 		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.SingleStatViewProperties:
@@ -797,13 +828,15 @@ func convertCellView(cell influxdb.Cell) chart {
 		setNoteFixes(p.Note, p.ShowNoteWhenEmpty, p.Prefix, p.Suffix)
 		ch.TickPrefix = p.TickPrefix
 		ch.TickSuffix = p.TickSuffix
-		ch.LegendOpacity = float64(p.LegendOpacity)
-		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.MosaicViewProperties:
 		ch.Kind = chartKindMosaic
 		ch.Queries = convertQueries(p.Queries)
 		ch.Colors = stringsToColors(p.ViewColors)
 		ch.XCol = p.XColumn
+		ch.GenerateXAxisTicks = p.GenerateXAxisTicks
+		ch.XTotalTicks = p.XTotalTicks
+		ch.XTickStart = p.XTickStart
+		ch.XTickStep = p.XTickStep
 		ch.YSeriesColumns = p.YSeriesColumns
 		ch.Axes = []axis{
 			{Label: p.XAxisLabel, Prefix: p.XPrefix, Suffix: p.XSuffix, Name: "x", Domain: p.XDomain},
@@ -811,6 +844,7 @@ func convertCellView(cell influxdb.Cell) chart {
 		}
 		ch.Note = p.Note
 		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
+		ch.LegendColorizeRows = p.LegendColorizeRows
 		ch.LegendOpacity = float64(p.LegendOpacity)
 		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.ScatterViewProperties:
@@ -818,13 +852,22 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.Queries = convertQueries(p.Queries)
 		ch.Colors = stringsToColors(p.ViewColors)
 		ch.XCol = p.XColumn
+		ch.GenerateXAxisTicks = p.GenerateXAxisTicks
+		ch.XTotalTicks = p.XTotalTicks
+		ch.XTickStart = p.XTickStart
+		ch.XTickStep = p.XTickStep
 		ch.YCol = p.YColumn
+		ch.GenerateYAxisTicks = p.GenerateYAxisTicks
+		ch.YTotalTicks = p.YTotalTicks
+		ch.YTickStart = p.YTickStart
+		ch.YTickStep = p.YTickStep
 		ch.Axes = []axis{
 			{Label: p.XAxisLabel, Prefix: p.XPrefix, Suffix: p.XSuffix, Name: "x", Domain: p.XDomain},
 			{Label: p.YAxisLabel, Prefix: p.YPrefix, Suffix: p.YSuffix, Name: "y", Domain: p.YDomain},
 		}
 		ch.Note = p.Note
 		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
+		ch.LegendColorizeRows = p.LegendColorizeRows
 		ch.LegendOpacity = float64(p.LegendOpacity)
 		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.TableViewProperties:
@@ -852,10 +895,19 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.Geom = p.Geom
 		ch.HoverDimension = p.HoverDimension
 		ch.XCol = p.XColumn
+		ch.GenerateXAxisTicks = p.GenerateXAxisTicks
+		ch.XTotalTicks = p.XTotalTicks
+		ch.XTickStart = p.XTickStart
+		ch.XTickStep = p.XTickStep
 		ch.YCol = p.YColumn
+		ch.GenerateYAxisTicks = p.GenerateYAxisTicks
+		ch.YTotalTicks = p.YTotalTicks
+		ch.YTickStart = p.YTickStart
+		ch.YTickStep = p.YTickStep
 		ch.UpperColumn = p.UpperColumn
 		ch.MainColumn = p.MainColumn
 		ch.LowerColumn = p.LowerColumn
+		ch.LegendColorizeRows = p.LegendColorizeRows
 		ch.LegendOpacity = float64(p.LegendOpacity)
 		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	case influxdb.XYViewProperties:
@@ -867,8 +919,17 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.Shade = p.ShadeBelow
 		ch.HoverDimension = p.HoverDimension
 		ch.XCol = p.XColumn
+		ch.GenerateXAxisTicks = p.GenerateXAxisTicks
+		ch.XTotalTicks = p.XTotalTicks
+		ch.XTickStart = p.XTickStart
+		ch.XTickStep = p.XTickStep
 		ch.YCol = p.YColumn
+		ch.GenerateYAxisTicks = p.GenerateYAxisTicks
+		ch.YTotalTicks = p.YTotalTicks
+		ch.YTickStart = p.YTickStart
+		ch.YTickStep = p.YTickStep
 		ch.Position = p.Position
+		ch.LegendColorizeRows = p.LegendColorizeRows
 		ch.LegendOpacity = float64(p.LegendOpacity)
 		ch.LegendOrientationThreshold = int(p.LegendOrientationThreshold)
 	}
@@ -925,6 +986,51 @@ func convertChartToResource(ch chart) Resource {
 		r[fieldChartFillColumns] = ch.FillColumns
 	}
 
+	if len(ch.GenerateXAxisTicks) > 0 {
+		r[fieldChartGenerateXAxisTicks] = ch.GenerateXAxisTicks
+	}
+
+	if len(ch.GenerateYAxisTicks) > 0 {
+		r[fieldChartGenerateYAxisTicks] = ch.GenerateYAxisTicks
+	}
+	if len(ch.GeoLayers) > 0 {
+		geoLayers := make([]Resource, 0, len(ch.GeoLayers))
+		for _, l := range ch.GeoLayers {
+			lRes := make(Resource)
+			geoLayers = append(geoLayers, lRes)
+			assignNonZeroStrings(lRes, map[string]string{
+				fieldChartGeoLayerType:           l.Type,
+				fieldChartGeoLayerRadiusField:    l.RadiusField,
+				fieldChartGeoLayerIntensityField: l.IntensityField,
+				fieldChartGeoLayerColorField:     l.ColorField,
+			})
+			assignNonZeroInts(lRes, map[string]int{
+				fieldChartGeoLayerRadius:     int(l.Radius),
+				fieldChartGeoLayerBlur:       int(l.Blur),
+				fieldChartGeoLayerSpeed:      int(l.Speed),
+				fieldChartGeoLayerTrackWidth: int(l.TrackWidth),
+			})
+			assignNonZeroBools(lRes, map[string]bool{
+				fieldChartGeoLayerRandomColors:      l.RandomColors,
+				fieldChartGeoLayerIsClustered:       l.IsClustered,
+				fieldChartGeoLayerInterpolateColors: l.InterpolateColors,
+			})
+			if len(l.ViewColors) > 0 {
+				lRes[fieldChartGeoLayerViewColors] = l.ViewColors
+			}
+			if l.RadiusDimension != nil {
+				lRes[fieldChartGeoLayerRadiusDimension] = l.RadiusDimension
+			}
+			if l.ColorDimension != nil {
+				lRes[fieldChartGeoLayerColorDimension] = l.ColorDimension
+			}
+			if l.IntensityDimension != nil {
+				lRes[fieldChartGeoLayerIntensityDimension] = l.IntensityDimension
+			}
+		}
+		r[fieldChartGeoLayers] = geoLayers
+	}
+
 	if zero := new(tableOptions); ch.TableOptions != *zero {
 		tRes := make(Resource)
 		assignNonZeroBools(tRes, map[string]bool{
@@ -955,8 +1061,11 @@ func convertChartToResource(ch chart) Resource {
 	}
 
 	assignNonZeroBools(r, map[string]bool{
-		fieldChartNoteOnEmpty: ch.NoteOnEmpty,
-		fieldChartShade:       ch.Shade,
+		fieldChartNoteOnEmpty:               ch.NoteOnEmpty,
+		fieldChartShade:                     ch.Shade,
+		fieldChartLegendColorizeRows:        ch.LegendColorizeRows,
+		fieldChartGeoAllowPanAndZoom:        ch.AllowPanAndZoom,
+		fieldChartGeoDetectCoordinateFields: ch.DetectCoordinateFields,
 	})
 
 	assignNonZeroStrings(r, map[string]string{
@@ -971,11 +1080,14 @@ func convertChartToResource(ch chart) Resource {
 		fieldChartTickSuffix:     ch.TickSuffix,
 		fieldChartTimeFormat:     ch.TimeFormat,
 		fieldChartHoverDimension: ch.HoverDimension,
+		fieldChartGeoMapStyle:    ch.MapStyle,
 	})
 
 	assignNonZeroInts(r, map[string]int{
 		fieldChartXPos:                       ch.XPos,
+		fieldChartXTotalTicks:                ch.XTotalTicks,
 		fieldChartYPos:                       ch.YPos,
+		fieldChartYTotalTicks:                ch.YTotalTicks,
 		fieldChartBinCount:                   ch.BinCount,
 		fieldChartBinSize:                    ch.BinSize,
 		fieldChartLegendOrientationThreshold: ch.LegendOrientationThreshold,
@@ -983,22 +1095,33 @@ func convertChartToResource(ch chart) Resource {
 
 	assignNonZeroFloats(r, map[string]float64{
 		fieldChartLegendOpacity: ch.LegendOpacity,
+		fieldChartXTickStart:    ch.XTickStart,
+		fieldChartXTickStep:     ch.XTickStep,
+		fieldChartYTickStart:    ch.YTickStart,
+		fieldChartYTickStep:     ch.YTickStep,
+		fieldChartGeoCenterLon:  ch.Center.Lon,
+		fieldChartGeoCenterLat:  ch.Center.Lat,
+		fieldChartGeoZoom:       ch.Zoom,
 	})
 
 	return r
 }
 
+func convertAxis(name string, a influxdb.Axis) *axis {
+	return &axis{
+		Base:   a.Base,
+		Label:  a.Label,
+		Name:   name,
+		Prefix: a.Prefix,
+		Scale:  a.Scale,
+		Suffix: a.Suffix,
+	}
+}
+
 func convertAxes(iAxes map[string]influxdb.Axis) axes {
 	out := make(axes, 0, len(iAxes))
 	for name, a := range iAxes {
-		out = append(out, axis{
-			Base:   a.Base,
-			Label:  a.Label,
-			Name:   name,
-			Prefix: a.Prefix,
-			Scale:  a.Scale,
-			Suffix: a.Suffix,
-		})
+		out = append(out, *convertAxis(name, a))
 	}
 	return out
 }
@@ -1021,6 +1144,30 @@ func convertQueries(iQueries []influxdb.DashboardQuery) queries {
 	out := make(queries, 0, len(iQueries))
 	for _, iq := range iQueries {
 		out = append(out, query{Query: strings.TrimSpace(iq.Text)})
+	}
+	return out
+}
+
+func convertGeoLayers(iLayers []influxdb.GeoLayer) geoLayers {
+	out := make(geoLayers, 0, len(iLayers))
+	for _, ic := range iLayers {
+		out = append(out, &geoLayer{
+			Type:               ic.Type,
+			RadiusField:        ic.RadiusField,
+			ColorField:         ic.ColorField,
+			IntensityField:     ic.IntensityField,
+			ViewColors:         convertColors(ic.ViewColors),
+			Radius:             ic.Radius,
+			Blur:               ic.Blur,
+			RadiusDimension:    convertAxis("radius", ic.RadiusDimension),
+			ColorDimension:     convertAxis("color", ic.ColorDimension),
+			IntensityDimension: convertAxis("intensity", ic.IntensityDimension),
+			InterpolateColors:  ic.InterpolateColors,
+			TrackWidth:         ic.TrackWidth,
+			Speed:              ic.Speed,
+			RandomColors:       ic.RandomColors,
+			IsClustered:        ic.IsClustered,
+		})
 	}
 	return out
 }

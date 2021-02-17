@@ -86,7 +86,7 @@ func (s *Service) FindSourceByID(ctx context.Context, id platform.ID) (*platform
 	return src, nil
 }
 
-// FindSources retrives all sources that match an arbitrary source filter.
+// FindSources retrieves all sources that match an arbitrary source filter.
 // Filters using ID, or OrganizationID and source Name should be efficient.
 // Other filters will do a linear scan across all sources searching for a match.
 func (s *Service) FindSources(ctx context.Context, opt platform.FindOptions) ([]*platform.Source, int, error) {

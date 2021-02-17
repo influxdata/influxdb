@@ -21,9 +21,9 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
 	internal2 "github.com/influxdata/influxdb/v2/cmd/internal"
-	ihttp "github.com/influxdata/influxdb/v2/http"
 	ierror "github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/pkger"
+	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
 	input "github.com/tcnksm/go-input"
@@ -166,13 +166,13 @@ func (b *cmdTemplateBuilder) cmdApply() *cobra.Command {
 			--filter resource=Dashboard:$DASHBOARD_TMPL_NAME
 
 	For information about finding and using InfluxDB templates, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/apply/.
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/apply/.
 
 	For more templates created by the community, see
 	https://github.com/influxdata/community-templates.
 `
 
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 	b.registerTemplateFileFlags(cmd)
 	b.registerTemplatePrintOpts(cmd)
 	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "Disable output printing")
@@ -343,7 +343,7 @@ func (b *cmdTemplateBuilder) cmdExport() *cobra.Command {
 	resource flag and then provide the IDs.
 
 	For information about exporting InfluxDB templates, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/export/
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/export/
 `
 	cmd.AddCommand(
 		b.cmdExportAll(),
@@ -472,15 +472,15 @@ func (b *cmdTemplateBuilder) cmdExportAll() *cobra.Command {
 			--filter=labelName=Foo
 
 	For information about exporting InfluxDB templates, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/export
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/export/
 	and
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/export/all
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/export/all/
 `
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created template; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
 	cmd.Flags().StringArrayVar(&b.filters, "filter", nil, "Filter exported resources by labelName or resourceKind (format: --filter=labelName=example)")
 
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 
 	return cmd
 }
@@ -540,14 +540,14 @@ func (b *cmdTemplateBuilder) cmdExportStack() *cobra.Command {
 		influx export stack $STACK_ID
 
 	For information about exporting InfluxDB templates, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/export
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/export/
 	and
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/export/stack/
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/export/stack/
 `
 	cmd.Args = cobra.ExactValidArgs(1)
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created template; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 
 	return cmd
 }
@@ -612,9 +612,9 @@ func (b *cmdTemplateBuilder) cmdStacks() *cobra.Command {
 	cmd := b.newCmd("stacks [flags]", b.stackListRunEFn)
 	cmd.Flags().StringArrayVar(&b.stackIDs, "stack-id", nil, "Stack ID to filter by")
 	cmd.Flags().StringArrayVar(&b.names, "stack-name", nil, "Stack name to filter by")
-	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
 
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 
 	cmd.Short = "List stack(s) and associated templates. Subcommands manage stacks."
 	cmd.Long = `
@@ -638,7 +638,7 @@ func (b *cmdTemplateBuilder) cmdStacks() *cobra.Command {
 		influx stacks --stack-id=$STACK_ID --stack-name=$STACK_NAME
 
 	For information about Stacks and how they integrate with InfluxDB templates, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/stacks
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/stacks/
 `
 
 	cmd.AddCommand(
@@ -667,17 +667,17 @@ func (b *cmdTemplateBuilder) cmdStackInit() *cobra.Command {
 		influx stacks init -n $STACK_NAME -u $PATH_TO_TEMPLATE
 
 	For information about how stacks work with InfluxDB templates, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/stacks/
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/stacks/
 	and
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/stacks/init/
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/stacks/init/
 `
 
 	cmd.Flags().StringVarP(&b.name, "stack-name", "n", "", "Name given to created stack")
 	cmd.Flags().StringVarP(&b.description, "stack-description", "d", "", "Description given to created stack")
 	cmd.Flags().StringArrayVarP(&b.urls, "template-url", "u", nil, "Template urls to associate with new stack")
-	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
 
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 
 	return cmd
 }
@@ -756,9 +756,9 @@ func (b *cmdTemplateBuilder) cmdStackRemove() *cobra.Command {
 	cmd.Flags().StringArrayVar(&b.stackIDs, "stack-id", nil, "Stack IDs to be removed")
 	cmd.Flags().BoolVar(&b.force, "force", false, "Remove stack without confirmation prompt")
 	cmd.MarkFlagRequired("stack-id")
-	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
 
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 
 	return cmd
 }
@@ -860,9 +860,9 @@ func (b *cmdTemplateBuilder) cmdStackUpdate() *cobra.Command {
 			--export-file /path/to/file.yml
 
 	For information about how stacks work with InfluxDB templates, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/stacks
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/stacks/
 	and
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/stacks/update/
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/stacks/update/
 `
 
 	cmd.Flags().StringVarP(&b.stackID, "stack-id", "i", "", "ID of stack")
@@ -872,7 +872,7 @@ func (b *cmdTemplateBuilder) cmdStackUpdate() *cobra.Command {
 	cmd.Flags().StringArrayVarP(&b.urls, "template-url", "u", nil, "Template urls to associate with stack")
 	cmd.Flags().StringArrayVar(&b.updateStackOpts.addResources, "addResource", nil, "Additional resources to associate with stack")
 	cmd.Flags().StringVarP(&b.file, "export-file", "f", "", "Destination for exported template")
-	registerPrintOptions(cmd, &b.hideHeaders, &b.json)
+	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
 
 	return cmd
 }
@@ -888,10 +888,19 @@ func (b *cmdTemplateBuilder) stackUpdateRunEFn(cmd *cobra.Command, args []string
 		return ierror.Wrap(err, "required stack id is invalid")
 	}
 
+	var name, description *string
+
+	if cmd.Flags().Lookup("stack-name").Changed {
+		name = &b.name
+	}
+	if cmd.Flags().Lookup("stack-description").Changed {
+		description = &b.description
+	}
+
 	update := pkger.StackUpdate{
 		ID:           *stackID,
-		Name:         &b.name,
-		Description:  &b.description,
+		Name:         name,
+		Description:  description,
 		TemplateURLs: b.urls,
 	}
 
@@ -968,14 +977,14 @@ func (b *cmdTemplateBuilder) writeStack(stack pkger.Stack) error {
 
 func (b *cmdTemplateBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
 	cmd := b.genericCLIOpts.newCmd(use, runE, true)
-	b.globalFlags.registerFlags(cmd)
+	b.globalFlags.registerFlags(b.viper, cmd)
 	return cmd
 }
 
 func (b *cmdTemplateBuilder) registerTemplatePrintOpts(cmd *cobra.Command) {
 	cmd.Flags().BoolVar(&b.disableColor, "disable-color", false, "Disable color in output")
 	cmd.Flags().BoolVar(&b.disableTableBorders, "disable-table-borders", false, "Disable table borders")
-	registerPrintOptions(cmd, nil, &b.json)
+	registerPrintOptions(b.viper, cmd, nil, &b.json)
 }
 
 func (b *cmdTemplateBuilder) registerTemplateFileFlags(cmd *cobra.Command) {
@@ -1235,7 +1244,7 @@ func newPkgerSVC() (pkger.SVC, influxdb.OrganizationService, error) {
 		return nil, nil, err
 	}
 
-	orgSvc := &ihttp.OrganizationService{
+	orgSvc := &tenant.OrgClientService{
 		Client: httpClient,
 	}
 

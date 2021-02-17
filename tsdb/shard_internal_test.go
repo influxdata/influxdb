@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -14,16 +13,16 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxql"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestShard_MapType(t *testing.T) {
 	var sh *TempShard
 
 	setup := func(index string) {
-		sh = NewTempShard(index)
+		sh = NewTempShard(t, index)
 
 		if err := sh.Open(); err != nil {
 			t.Fatal(err)
@@ -156,7 +155,7 @@ _reserved,region=uswest value="foo" 0
 func TestShard_MeasurementsByRegex(t *testing.T) {
 	var sh *TempShard
 	setup := func(index string) {
-		sh = NewTempShard(index)
+		sh = NewTempShard(t, index)
 		if err := sh.Open(); err != nil {
 			t.Fatal(err)
 		}
@@ -213,7 +212,9 @@ type TempShard struct {
 }
 
 // NewTempShard returns a new instance of TempShard with temp paths.
-func NewTempShard(index string) *TempShard {
+func NewTempShard(tb testing.TB, index string) *TempShard {
+	tb.Helper()
+
 	// Create temporary path for data and WAL.
 	dir, err := ioutil.TempDir("", "influxdb-tsdb-")
 	if err != nil {
@@ -222,7 +223,7 @@ func NewTempShard(index string) *TempShard {
 
 	// Create series file.
 	sfile := NewSeriesFile(filepath.Join(dir, "db0", SeriesFileDirectory))
-	sfile.Logger = logger.New(os.Stdout)
+	sfile.Logger = zaptest.NewLogger(tb)
 	if err := sfile.Open(); err != nil {
 		panic(err)
 	}
@@ -231,9 +232,6 @@ func NewTempShard(index string) *TempShard {
 	opt := NewEngineOptions()
 	opt.IndexVersion = index
 	opt.Config.WALDir = filepath.Join(dir, "wal")
-	if index == InmemIndexName {
-		opt.InmemIndex, _ = NewInmemIndex(path.Base(dir), sfile)
-	}
 
 	return &TempShard{
 		Shard: NewShard(0,

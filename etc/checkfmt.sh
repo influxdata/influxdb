@@ -1,12 +1,15 @@
 #!/bin/bash
 
+go install golang.org/x/tools/cmd/goimports
+
 HAS_FMT_ERR=0
 # For every Go file in the project, excluding vendor...
-for file in $(go list -f '{{$dir := .Dir}}{{range .GoFiles}}{{printf "%s/%s\n" $dir .}}{{end}}' ./...); do
+
+for file in $(go list -f '{{$dir := .Dir}}{{range .GoFiles}}{{printf "%s/%s\n" $dir .}}{{end}}{{range .TestGoFiles}}{{printf "%s/%s\n" $dir .}}{{end}}{{range .IgnoredGoFiles}}{{printf "%s/%s\n" $dir .}}{{end}}{{range .CgoFiles}}{{printf "%s/%s\n" $dir .}}{{end}}' ./... ); do
   # ... if file does not contain standard generated code comment (https://golang.org/s/generatedcode)...
   if ! grep -Exq '^// Code generated .* DO NOT EDIT\.$' $file; then
-    FMT_OUT="$(gofmt -l -d -e $file)" # gofmt exits 0 regardless of whether it's formatted.
-    # ... and if gofmt had any output...
+    FMT_OUT="$(goimports -l -d $file)"
+    # ... and if goimports had any output...
     if [[ -n "$FMT_OUT" ]]; then
       if [ "$HAS_FMT_ERR" -eq "0" ]; then
         # Only print this once.

@@ -35,12 +35,12 @@ func (s *SessionService) FindSession(ctx context.Context, key string) (*platform
 	return s.FindSessionFn(ctx, key)
 }
 
-// CreateSession creates a sesion for a user with the users maximal privileges.
+// CreateSession creates a session for a user with the users maximal privileges.
 func (s *SessionService) CreateSession(ctx context.Context, user string) (*platform.Session, error) {
 	return s.CreateSessionFn(ctx, user)
 }
 
-// ExpireSession exires the session provided at key.
+// ExpireSession expires the session provided at key.
 func (s *SessionService) ExpireSession(ctx context.Context, key string) error {
 	return s.ExpireSessionFn(ctx, key)
 }

@@ -163,21 +163,41 @@ type notificationRuleResponse struct {
 	LastRunError    string                `json:"LastRunError,omitempty"`
 }
 
+type ruleResponseMeta struct {
+	Labels          []influxdb.Label      `json:"labels"`
+	Links           notificationRuleLinks `json:"links"`
+	Status          string                `json:"status"`
+	LatestCompleted time.Time             `json:"latestCompleted,omitempty"`
+	LatestScheduled time.Time             `json:"latestScheduled,omitempty"`
+	LastRunStatus   string                `json:"lastRunStatus,omitempty"`
+	LastRunError    string                `json:"lastRunError,omitempty"`
+}
+
+func (resp *notificationRuleResponse) UnmarshalJSON(v []byte) (err error) {
+	var responseMeta ruleResponseMeta
+	if err = json.Unmarshal(v, &responseMeta); err != nil {
+		return
+	}
+
+	resp.Labels = responseMeta.Labels
+	resp.Links = responseMeta.Links
+	resp.Status = responseMeta.Status
+	resp.LatestCompleted = responseMeta.LatestCompleted
+	resp.LatestScheduled = responseMeta.LatestScheduled
+	resp.LastRunStatus = responseMeta.LastRunStatus
+	resp.LastRunError = responseMeta.LastRunError
+
+	resp.NotificationRule, err = rule.UnmarshalJSON(v)
+	return
+}
+
 func (resp notificationRuleResponse) MarshalJSON() ([]byte, error) {
 	b1, err := json.Marshal(resp.NotificationRule)
 	if err != nil {
 		return nil, err
 	}
 
-	b2, err := json.Marshal(struct {
-		Labels          []influxdb.Label      `json:"labels"`
-		Links           notificationRuleLinks `json:"links"`
-		Status          string                `json:"status"`
-		LatestCompleted time.Time             `json:"latestCompleted,omitempty"`
-		LatestScheduled time.Time             `json:"latestScheduled,omitempty"`
-		LastRunStatus   string                `json:"lastRunStatus,omitempty"`
-		LastRunError    string                `json:"lastRunError,omitempty"`
-	}{
+	b2, err := json.Marshal(ruleResponseMeta{
 		Links:           resp.Links,
 		Labels:          resp.Labels,
 		Status:          resp.Status,
@@ -711,20 +731,12 @@ func (h *NotificationRuleHandler) handleDeleteNotificationRule(w http.ResponseWr
 // NotificationRuleService is an http client that implements the NotificationRuleStore interface
 type NotificationRuleService struct {
 	Client *httpc.Client
-	*UserResourceMappingService
-	*OrganizationService
 }
 
 // NewNotificationRuleService wraps an httpc.Client in a NotificationRuleService
 func NewNotificationRuleService(client *httpc.Client) *NotificationRuleService {
 	return &NotificationRuleService{
 		Client: client,
-		UserResourceMappingService: &UserResourceMappingService{
-			Client: client,
-		},
-		OrganizationService: &OrganizationService{
-			Client: client,
-		},
 	}
 }
 
@@ -825,6 +837,7 @@ func (s *NotificationRuleService) FindNotificationRules(ctx context.Context, fil
 	for _, r := range resp.NotificationRules {
 		rules = append(rules, r.rule)
 	}
+
 	return rules, len(rules), nil
 }
 

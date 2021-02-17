@@ -1,33 +1,44 @@
 package upgrade
 
 import (
-	"bufio"
+	"context"
 	"errors"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 	"reflect"
-	"runtime"
-	"strings"
+	"sort"
 	"testing"
 	"unsafe"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/authorization"
+	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kv/migration"
+	"github.com/influxdata/influxdb/v2/kv/migration/all"
+	"github.com/influxdata/influxdb/v2/pkg/testing/assert"
+	"github.com/influxdata/influxdb/v2/tenant"
+	authv1 "github.com/influxdata/influxdb/v2/v1/authorization"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/influxdata/influxql"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
+	"golang.org/x/crypto/bcrypt"
 )
 
-func TestGenerateScript(t *testing.T) {
+func TestUpgradeSecurity(t *testing.T) {
 
 	type testCase struct {
 		name    string
 		users   []meta.UserInfo
-		db2ids  map[string][]string
-		skipExe bool
-		want    string
+		db2ids  map[string][]influxdb.ID
 		wantErr error
+		want    []*influxdb.Authorization
+	}
+
+	hash := func(password string) string {
+		hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+		require.NoError(t, err)
+		return string(hash)
 	}
 
 	var testCases = []testCase{
@@ -37,14 +48,17 @@ func TestGenerateScript(t *testing.T) {
 				{ // not upgraded because admin
 					Name:  "superman",
 					Admin: true,
+					Hash:  hash("superman@123"),
 				},
 				{ // not upgraded because no privileges
 					Name:  "loser",
 					Admin: false,
+					Hash:  hash("loser@123"),
 				},
 				{
 					Name:  "weatherman",
 					Admin: false,
+					Hash:  hash("weatherman@123"),
 					Privileges: map[string]influxql.Privilege{
 						"water": influxql.AllPrivileges,
 						"air":   influxql.AllPrivileges,
@@ -53,6 +67,7 @@ func TestGenerateScript(t *testing.T) {
 				{
 					Name:  "hitgirl",
 					Admin: false,
+					Hash:  hash("hitgirl@123"),
 					Privileges: map[string]influxql.Privilege{
 						"hits": influxql.WritePrivilege,
 					},
@@ -60,6 +75,7 @@ func TestGenerateScript(t *testing.T) {
 				{
 					Name:  "boss@hits.org", // special name
 					Admin: false,
+					Hash:  hash("boss@123"),
 					Privileges: map[string]influxql.Privilege{
 						"hits": influxql.AllPrivileges,
 					},
@@ -67,18 +83,40 @@ func TestGenerateScript(t *testing.T) {
 				{
 					Name:  "viewer",
 					Admin: false,
+					Hash:  hash("viewer@123"),
 					Privileges: map[string]influxql.Privilege{
 						"water": influxql.ReadPrivilege,
 						"air":   influxql.ReadPrivilege,
 					},
 				},
 			},
-			db2ids: map[string][]string{
-				"water": {"33f9d67bc9cbc5b7", "33f9d67bc9cbc5b8", "33f9d67bc9cbc5b9"},
-				"air":   {"43f9d67bc9cbc5b7", "43f9d67bc9cbc5b8", "43f9d67bc9cbc5b9"},
-				"hits":  {"53f9d67bc9cbc5b7"},
+			db2ids: map[string][]influxdb.ID{
+				"water": {0x33f9d67bc9cbc5b7, 0x33f9d67bc9cbc5b8, 0x33f9d67bc9cbc5b9},
+				"air":   {0x43f9d67bc9cbc5b7, 0x43f9d67bc9cbc5b8, 0x43f9d67bc9cbc5b9},
+				"hits":  {0x53f9d67bc9cbc5b7},
 			},
-			want: testScriptShOrdinary,
+			want: []*influxdb.Authorization{
+				{
+					Token:       "boss@hits.org",
+					Status:      "active",
+					Description: "boss@hits.org's Legacy Token",
+				},
+				{
+					Token:       "hitgirl",
+					Status:      "active",
+					Description: "hitgirl's Legacy Token",
+				},
+				{
+					Token:       "viewer",
+					Status:      "active",
+					Description: "viewer's Legacy Token",
+				},
+				{
+					Token:       "weatherman",
+					Status:      "active",
+					Description: "weatherman's Legacy Token",
+				},
+			},
 		},
 		{
 			name: "missing buckets",
@@ -86,6 +124,7 @@ func TestGenerateScript(t *testing.T) {
 				{
 					Name:  "weatherman",
 					Admin: false,
+					Hash:  hash("weatherman@123"),
 					Privileges: map[string]influxql.Privilege{
 						"water": influxql.AllPrivileges,
 						"air":   influxql.AllPrivileges,
@@ -98,22 +137,15 @@ func TestGenerateScript(t *testing.T) {
 		{
 			name:  "no users",
 			users: []meta.UserInfo{},
-			want:  "",
 		},
-	}
-
-	var shSuffix, mockInfluxCode string
-	if runtime.GOOS == "win" {
-		shSuffix = ".cmd"
-		mockInfluxCode = testMockInfluxWin
-	} else {
-		shSuffix = ".sh"
-		mockInfluxCode = testMockInfluxUnix
 	}
 
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) { // better do not run in parallel
+			ctx := context.Background()
+			log := zaptest.NewLogger(t)
+
 			// mock v1 meta
 			v1 := &influxDBv1{
 				meta: &meta.Client{},
@@ -121,42 +153,100 @@ func TestGenerateScript(t *testing.T) {
 			data := &meta.Data{
 				Users: tc.users,
 			}
-			// inject users into mock v1 meta client
 			f := reflect.ValueOf(v1.meta).Elem().Field(4)
 			f = reflect.NewAt(f.Type(), unsafe.Pointer(f.UnsafeAddr())).Elem()
 			f.Set(reflect.ValueOf(data))
 
-			// script output file
-			tmpfile, err := ioutil.TempFile(t.TempDir(), "upgrade-security-*"+shSuffix)
+			// mock v2 meta
+			kvStore := inmem.NewKVStore()
+			migrator, err := migration.NewMigrator(zap.NewNop(), kvStore, all.Migrations[:]...)
 			require.NoError(t, err)
-			require.NoError(t, tmpfile.Close())
-
-			// mock influx command path
-			testExePath, err := os.Executable()
+			err = migrator.Up(ctx)
 			require.NoError(t, err)
-			mockInfluxExePath := filepath.Join(filepath.Dir(testExePath), "influx")
 
-			// options passed on cmdline
-			targetOptions := optionsV2{
-				userName:           "admin",
-				orgName:            "demo",
-				token:              "ABC007==",
-				securityScriptPath: tmpfile.Name(),
-				influx2CommandPath: mockInfluxExePath,
+			authStoreV1, err := authv1.NewStore(kvStore)
+			require.NoError(t, err)
+
+			tenantStore := tenant.NewStore(kvStore)
+			tenantSvc := tenant.NewService(tenantStore)
+
+			authStoreV2, err := authorization.NewStore(kvStore)
+			require.NoError(t, err)
+
+			v2 := &influxDBv2{
+				authSvc: authv1.NewService(authStoreV1, tenantSvc),
+				onboardSvc: tenant.NewOnboardService(
+					tenantSvc,
+					authorization.NewService(authStoreV2, tenantSvc),
+				),
 			}
 
-			// create mock v2.x influx executable
-			if !tc.skipExe {
-				file, err := os.OpenFile(mockInfluxExePath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0777)
-				require.NoError(t, err)
-				_, err = file.WriteString(mockInfluxCode)
-				require.NoError(t, err)
-				file.Close()
-				defer os.Remove(mockInfluxExePath)
+			// onboard admin
+			oReq := &influxdb.OnboardingRequest{
+				User:            "admin",
+				Password:        "12345678",
+				Org:             "testers",
+				Bucket:          "def",
+				RetentionPeriod: influxdb.InfiniteRetention,
+			}
+			oResp, err := setupAdmin(ctx, v2, oReq)
+			require.NoError(t, err)
+
+			// target options
+			targetOptions := optionsV2{
+				userName: oReq.User,
+				orgName:  oReq.Org,
+				token:    oResp.Auth.Token,
+				orgID:    oResp.Auth.OrgID,
+				userID:   oResp.Auth.UserID,
+			}
+
+			// fill in expected permissions now that we know IDs
+			for _, want := range tc.want {
+				for _, user := range tc.users {
+					if want.Token == user.Name { // v1 username is v2 token
+						var permissions []influxdb.Permission
+						for db, privilege := range user.Privileges {
+							ids, ok := tc.db2ids[db]
+							require.True(t, ok)
+							for _, id := range ids {
+								id := id
+								resource := influxdb.Resource{
+									Type:  influxdb.BucketsResourceType,
+									OrgID: &targetOptions.orgID,
+									ID:    &id,
+								}
+								switch privilege {
+								case influxql.ReadPrivilege:
+									permissions = append(permissions, influxdb.Permission{
+										Action:   influxdb.ReadAction,
+										Resource: resource,
+									})
+								case influxql.WritePrivilege:
+									permissions = append(permissions, influxdb.Permission{
+										Action:   influxdb.WriteAction,
+										Resource: resource,
+									})
+								case influxql.AllPrivileges:
+									permissions = append(permissions, influxdb.Permission{
+										Action:   influxdb.ReadAction,
+										Resource: resource,
+									})
+									permissions = append(permissions, influxdb.Permission{
+										Action:   influxdb.WriteAction,
+										Resource: resource,
+									})
+								}
+							}
+						}
+						want.Permissions = permissions
+					}
+				}
 			}
 
 			// command execution
-			err = generateSecurityScript(v1, targetOptions, tc.db2ids, zaptest.NewLogger(t))
+			n, err := upgradeUsers(ctx, v1, v2, &targetOptions, tc.db2ids, log)
+			assert.Equal(t, len(tc.want), n, "Upgraded count must match")
 			if err != nil {
 				if tc.wantErr != nil {
 					if diff := cmp.Diff(tc.wantErr.Error(), err.Error()); diff != "" {
@@ -168,98 +258,35 @@ func TestGenerateScript(t *testing.T) {
 			} else if tc.wantErr != nil {
 				t.Fatalf("should have failed with %v", tc.wantErr)
 			}
-
-			// validate result by comparing arrays of non-empty lines of wanted vs actual output
-			parse := func(content string) []string {
-				var lines []string
-				scanner := bufio.NewScanner(strings.NewReader(content))
-				for scanner.Scan() {
-					line := strings.TrimSpace(scanner.Text())
-					if line != "" {
-						lines = append(lines, line)
-					}
+			for _, want := range tc.want {
+				actual, err := v2.authSvc.FindAuthorizationByToken(ctx, want.Token)
+				require.NoError(t, err)
+				if diff := cmp.Diff(targetOptions.orgID, actual.OrgID); diff != "" {
+					t.Fatal(diff)
 				}
-				return lines
-			}
-			bs, err := ioutil.ReadFile(tmpfile.Name())
-			if err != nil {
-				t.Fatal(err)
-			}
-			if strings.Contains(tc.want, "?") {
-				// Generated security script contains path to `influx` executable
-				// and this must be updated with test executable build path in the wanted result.
-				exePath, err := os.Executable()
-				if err != nil {
-					t.Fatal(err)
+				if diff := cmp.Diff(targetOptions.userID, actual.UserID); diff != "" {
+					t.Fatal(diff)
 				}
-				tc.want = strings.Replace(tc.want, "?", filepath.Dir(exePath), -1)
-			}
-			expected := parse(tc.want)
-			actual := parse(string(bs))
-			if diff := cmp.Diff(expected, actual); diff != "" {
-				t.Fatal(diff)
+				if diff := cmp.Diff(want.Token, actual.Token); diff != "" {
+					t.Fatal(diff)
+				}
+				if diff := cmp.Diff(want.Description, actual.Description); diff != "" {
+					t.Fatal(diff)
+				}
+				if diff := cmp.Diff(want.Status, actual.Status); diff != "" {
+					t.Fatal(diff)
+				}
+				sort.Slice(want.Permissions, func(i, j int) bool {
+					return *(want.Permissions[i].Resource.ID) < *(want.Permissions[j].Resource.ID)
+				})
+				sort.Slice(actual.Permissions, func(i, j int) bool {
+					return *(actual.Permissions[i].Resource.ID) < *(actual.Permissions[j].Resource.ID)
+				})
+				if diff := cmp.Diff(want.Permissions, actual.Permissions); diff != "" {
+					t.Logf("permissions mismatch for user %s", want.Token)
+					t.Fatal(diff)
+				}
 			}
 		})
 	}
 }
-
-var testScriptShOrdinary = `#!/bin/sh
-
-UPGRADE_USER_boss_hits_org=yes # user boss@hits.org
-UPGRADE_USER_hitgirl=yes # user hitgirl
-UPGRADE_USER_viewer=yes # user viewer
-UPGRADE_USER_weatherman=yes # user weatherman
-
-# user superman is 1.x admin and will not be upgraded automatically
-# user loser has no privileges and will be skipped
-
-#
-# SCRIPT VARS
-#
-
-INFLUX=?/influx
-INFLUX_TOKEN=ABC007==
-LOG="${0%.*}.$(date +%Y%m%d-%H%M%S).log"
-
-#
-# USERS UPGRADES
-#
-
-if [ "$UPGRADE_USER_boss_hits_org" = "yes" ]; then
-    echo Creating authorization token for user boss@hits.org...
-    env INFLUX_TOKEN=$INFLUX_TOKEN $INFLUX auth create --user=admin --org=demo --description="boss@hits.org" --read-bucket=53f9d67bc9cbc5b7 --write-bucket=53f9d67bc9cbc5b7
-fi 2>&1 | tee -a $LOG
-
-if [ "$UPGRADE_USER_hitgirl" = "yes" ]; then
-    echo Creating authorization token for user hitgirl...
-    env INFLUX_TOKEN=$INFLUX_TOKEN $INFLUX auth create --user=admin --org=demo --description="hitgirl" --write-bucket=53f9d67bc9cbc5b7
-fi 2>&1 | tee -a $LOG
-
-if [ "$UPGRADE_USER_viewer" = "yes" ]; then
-    echo Creating authorization token for user viewer...
-    env INFLUX_TOKEN=$INFLUX_TOKEN $INFLUX auth create --user=admin --org=demo --description="viewer" --read-bucket=43f9d67bc9cbc5b7 --read-bucket=43f9d67bc9cbc5b8 --read-bucket=43f9d67bc9cbc5b9 --read-bucket=33f9d67bc9cbc5b7 --read-bucket=33f9d67bc9cbc5b8 --read-bucket=33f9d67bc9cbc5b9
-fi 2>&1 | tee -a $LOG
-
-if [ "$UPGRADE_USER_weatherman" = "yes" ]; then
-    echo Creating authorization token for user weatherman...
-    env INFLUX_TOKEN=$INFLUX_TOKEN $INFLUX auth create --user=admin --org=demo --description="weatherman" --read-bucket=43f9d67bc9cbc5b7 --write-bucket=43f9d67bc9cbc5b7 --read-bucket=43f9d67bc9cbc5b8 --write-bucket=43f9d67bc9cbc5b8 --read-bucket=43f9d67bc9cbc5b9 --write-bucket=43f9d67bc9cbc5b9 --read-bucket=33f9d67bc9cbc5b7 --write-bucket=33f9d67bc9cbc5b7 --read-bucket=33f9d67bc9cbc5b8 --write-bucket=33f9d67bc9cbc5b8 --read-bucket=33f9d67bc9cbc5b9 --write-bucket=33f9d67bc9cbc5b9
-fi 2>&1 | tee -a $LOG
-
-echo
-echo Output saved to $LOG
-`
-
-var testMockInfluxUnix = `#!/bin/sh
-if [ "$1" = "version" ]; then
-    echo Influx CLI 2.0.0
-else
-    exit 1
-fi
-`
-var testMockInfluxWin = `@echo off
-IF /I "%1" == "version" (
-    echo "Influx CLI 2.0.0"
-) else (
-    exit 1
-)
-`

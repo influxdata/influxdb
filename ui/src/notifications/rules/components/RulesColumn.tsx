@@ -59,7 +59,7 @@ const NotificationRulesColumn: FunctionComponent<Props> = ({
       <br />
       <br />
       <a
-        href="https://v2.docs.influxdata.com/v2.0/monitor-alert/notification-rules/create"
+        href="https://docs.influxdata.com/influxdb/latest/monitor-alert/notification-rules/create/"
         target="_blank"
       >
         Read Documentation
@@ -73,7 +73,7 @@ const NotificationRulesColumn: FunctionComponent<Props> = ({
 
   const buttonTitleText = !!endpoints.length
     ? 'Create a Notification Rule'
-    : 'You need at least 1 Notifcation Endpoint to create a Notification Rule'
+    : 'You need at least 1 Notification Endpoint to create a Notification Rule'
 
   const createButton = (
     <Button

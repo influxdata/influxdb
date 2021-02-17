@@ -10,17 +10,26 @@ import (
 	influxlogger "github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/prometheus"
 	"github.com/influxdata/influxdb/v2/telemetry"
+	"github.com/spf13/viper"
 	"go.uber.org/zap"
 )
 
 var (
-	log  = influxlogger.New(os.Stdout)
 	addr string
 )
 
 func main() {
+	logconf := influxlogger.NewConfig()
+	log, err := logconf.New(os.Stdout)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "Failed to configure logger: %v", err)
+		os.Exit(1)
+	}
+
 	prog := &cli.Program{
-		Run:  run,
+		Run: func() error {
+			return run(log)
+		},
 		Name: "telemetryd",
 		Opts: []cli.Opt{
 			{
@@ -31,7 +40,9 @@ func main() {
 			},
 		},
 	}
-	cmd := cli.NewCommand(prog)
+
+	v := viper.New()
+	cmd := cli.NewCommand(v, prog)
 
 	var exitCode int
 	if err := cmd.Execute(); err != nil {
@@ -47,8 +58,8 @@ func main() {
 	os.Exit(exitCode)
 }
 
-func run() error {
-	log := log.With(zap.String("service", "telemetryd"))
+func run(log *zap.Logger) error {
+	log = log.With(zap.String("service", "telemetryd"))
 	store := telemetry.NewLogStore(log)
 	svc := telemetry.NewPushGateway(log, store)
 	// Print data as line protocol

@@ -5,7 +5,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
-	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/dashboards/transport"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/spf13/cobra"
 )
@@ -51,7 +51,7 @@ func (b *cmdDashboardBuilder) cmdDashboards() *cobra.Command {
 		influx dashboards -i $ID1 -i $ID2
 `
 
-	b.org.register(cmd, false)
+	b.org.register(b.viper, cmd, false)
 	cmd.Flags().StringArrayVarP(&b.ids, "id", "i", nil, "Dashboard ID to retrieve.")
 
 	return cmd
@@ -134,7 +134,7 @@ func writeDashboardRows(tabW *internal.TabWriter, dashboards ...*influxdb.Dashbo
 func (b *cmdDashboardBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
 	cmd := b.genericCLIOpts.newCmd(use, runE, true)
 	b.genericCLIOpts.registerPrintOptions(cmd)
-	b.globalFlags.registerFlags(cmd)
+	b.globalFlags.registerFlags(b.viper, cmd)
 	return cmd
 }
 
@@ -147,7 +147,7 @@ func newDashboardSVCs() (influxdb.DashboardService, influxdb.OrganizationService
 	orgSVC := &tenant.OrgClientService{
 		Client: httpClient,
 	}
-	dashSVC := &http.DashboardService{
+	dashSVC := &transport.DashboardService{
 		Client: httpClient,
 	}
 	return dashSVC, orgSVC, nil

@@ -3,7 +3,6 @@ package tsi1
 import (
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -775,13 +774,8 @@ func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) erro
 	return nil
 }
 
-// InitializeSeries is a no-op. This only applies to the in-memory index.
-func (i *Index) InitializeSeries(keys, names [][]byte, tags []models.Tags) error {
-	return nil
-}
-
 // DropSeries drops the provided series from the index.  If cascade is true
-// and this is the last series to the measurement, the measurment will also be dropped.
+// and this is the last series to the measurement, the measurement will also be dropped.
 func (i *Index) DropSeries(seriesID uint64, key []byte, cascade bool) error {
 	// Remove from partition.
 	if err := i.partition(key).DropSeries(seriesID); err != nil {
@@ -824,11 +818,8 @@ func (i *Index) DropSeries(seriesID uint64, key []byte, cascade bool) error {
 	return nil
 }
 
-// DropSeriesGlobal is a no-op on the tsi1 index.
-func (i *Index) DropSeriesGlobal(key []byte) error { return nil }
-
 // DropMeasurementIfSeriesNotExist drops a measurement only if there are no more
-// series for the measurment.
+// series for the measurement.
 func (i *Index) DropMeasurementIfSeriesNotExist(name []byte) (bool, error) {
 	// Check if that was the last series for the measurement in the entire index.
 	if ok, err := i.MeasurementHasSeries(name); err != nil {
@@ -1108,28 +1099,4 @@ func (i *Index) RetainFileSet() (*FileSet, error) {
 		fs.files = append(fs.files, pfs.files...)
 	}
 	return fs, nil
-}
-
-// SetFieldName is a no-op on this index.
-func (i *Index) SetFieldName(measurement []byte, name string) {}
-
-// Rebuild rebuilds an index. It's a no-op for this index.
-func (i *Index) Rebuild() {}
-
-// IsIndexDir returns true if directory contains at least one partition directory.
-func IsIndexDir(path string) (bool, error) {
-	fis, err := ioutil.ReadDir(path)
-	if err != nil {
-		return false, err
-	}
-	for _, fi := range fis {
-		if !fi.IsDir() {
-			continue
-		} else if ok, err := IsPartitionDir(filepath.Join(path, fi.Name())); err != nil {
-			return false, err
-		} else if ok {
-			return true, nil
-		}
-	}
-	return false, nil
 }

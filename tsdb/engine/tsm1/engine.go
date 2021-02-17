@@ -33,7 +33,6 @@ import (
 	"github.com/influxdata/influxdb/v2/pkg/tracing"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	_ "github.com/influxdata/influxdb/v2/tsdb/index"
-	"github.com/influxdata/influxdb/v2/tsdb/index/inmem"
 	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/influxdata/influxql"
 	"go.uber.org/zap"
@@ -234,15 +233,14 @@ func NewEngine(id uint64, idx tsdb.Index, path string, walPath string, sfile *ts
 		planner.SetFileStore(fs)
 	}
 
-	logger := zap.NewNop()
 	stats := &EngineStatistics{}
 	e := &Engine{
 		id:           id,
 		path:         path,
 		index:        idx,
 		sfile:        sfile,
-		logger:       logger,
-		traceLogger:  logger,
+		logger:       zap.NewNop(),
+		traceLogger:  zap.NewNop(),
 		traceLogging: opt.Config.TraceLoggingEnabled,
 
 		WAL:   wal,
@@ -570,10 +568,6 @@ func (e *Engine) ScheduleFullCompaction() error {
 // Path returns the path the engine was opened with.
 func (e *Engine) Path() string { return e.path }
 
-func (e *Engine) SetFieldName(measurement []byte, name string) {
-	e.index.SetFieldName(measurement, name)
-}
-
 func (e *Engine) MeasurementExists(name []byte) (bool, error) {
 	return e.index.MeasurementExists(name)
 }
@@ -810,9 +804,8 @@ func (e *Engine) LoadMetadataIndex(shardID uint64, index tsdb.Index) error {
 	// Save reference to index for iterator creation.
 	e.index = index
 
-	// If we have the cached fields index on disk and we're using TSI, we
-	// can skip scanning all the TSM files.
-	if e.index.Type() != inmem.IndexName && !e.fieldset.IsEmpty() {
+	// If we have the cached fields index on disk, we can skip scanning all the TSM files.
+	if !e.fieldset.IsEmpty() {
 		return nil
 	}
 
@@ -915,25 +908,14 @@ func (e *Engine) Free() error {
 // of the files in the archive. It will force a snapshot of the WAL first
 // then perform the backup with a read lock against the file store. This means
 // that new TSM files will not be able to be created in this shard while the
-// backup is running. For shards that are still acively getting writes, this
-// could cause the WAL to backup, increasing memory usage and evenutally rejecting writes.
+// backup is running. For shards that are still actively getting writes, this
+// could cause the WAL to backup, increasing memory usage and eventually rejecting writes.
 func (e *Engine) Backup(w io.Writer, basePath string, since time.Time) error {
 	var err error
 	var path string
-	for i := 0; i < 3; i++ {
-		path, err = e.CreateSnapshot()
-		if err != nil {
-			switch err {
-			case ErrSnapshotInProgress:
-				backoff := time.Duration(math.Pow(32, float64(i))) * time.Millisecond
-				time.Sleep(backoff)
-			default:
-				return err
-			}
-		}
-	}
-	if err == ErrSnapshotInProgress {
-		e.logger.Warn("Snapshotter busy: Backup proceeding without snapshot contents.")
+	path, err = e.CreateSnapshot(true)
+	if err != nil {
+		return err
 	}
 	// Remove the temporary snapshot dir
 	defer os.RemoveAll(path)
@@ -997,7 +979,7 @@ func (e *Engine) timeStampFilterTarFile(start, end time.Time) func(f os.FileInfo
 }
 
 func (e *Engine) Export(w io.Writer, basePath string, start time.Time, end time.Time) error {
-	path, err := e.CreateSnapshot()
+	path, err := e.CreateSnapshot(false)
 	if err != nil {
 		return err
 	}
@@ -1199,15 +1181,7 @@ func (e *Engine) readFileFromBackup(tr *tar.Reader, shardRelativePath string, as
 		return "", nil
 	}
 
-	nativeFileName := filepath.FromSlash(hdr.Name)
-	// Skip file if it does not have a matching prefix.
-	if !strings.HasPrefix(nativeFileName, shardRelativePath) {
-		return "", nil
-	}
-	filename, err := filepath.Rel(shardRelativePath, nativeFileName)
-	if err != nil {
-		return "", err
-	}
+	filename := filepath.Base(filepath.FromSlash(hdr.Name))
 
 	// If this is a directory entry (usually just `index` for tsi), create it an move on.
 	if hdr.Typeflag == tar.TypeDir {
@@ -1263,18 +1237,7 @@ func (e *Engine) addToIndexFromKey(keys [][]byte, fieldTypes []influxql.DataType
 		tags = append(tags, models.ParseTags(keys[i]))
 	}
 
-	// Build in-memory index, if necessary.
-	if e.index.Type() == inmem.IndexName {
-		if err := e.index.InitializeSeries(keys, names, tags); err != nil {
-			return err
-		}
-	} else {
-		if err := e.index.CreateSeriesListIfNotExists(keys, names, tags); err != nil {
-			return err
-		}
-	}
-
-	return nil
+	return e.index.CreateSeriesListIfNotExists(keys, names, tags)
 }
 
 // WritePoints writes metadata and point data into the engine.
@@ -1497,7 +1460,6 @@ func (e *Engine) DeleteSeriesRangeWithPredicate(itr tsdb.SeriesIterator, predica
 		}
 	}
 
-	e.index.Rebuild()
 	return nil
 }
 
@@ -1758,19 +1720,9 @@ func (e *Engine) deleteSeriesRange(seriesKeys [][]byte, min, max int64) error {
 		// in any shard.
 		var err error
 		ids.ForEach(func(id uint64) {
-			name, tags := e.sfile.Series(id)
 			if err1 := e.sfile.DeleteSeriesID(id); err1 != nil {
 				err = err1
 				return
-			}
-
-			// In the case of the inmem index the series can be removed across
-			// the global index (all shards).
-			if index, ok := e.index.(*inmem.ShardIndex); ok {
-				key := models.MakeKey(name, tags)
-				if e := index.Index.DropSeriesGlobal(key); e != nil {
-					err = e
-				}
 			}
 		})
 		if err != nil {
@@ -1910,9 +1862,19 @@ func (e *Engine) WriteSnapshot() (err error) {
 }
 
 // CreateSnapshot will create a temp directory that holds
-// temporary hardlinks to the underylyng shard files.
-func (e *Engine) CreateSnapshot() (string, error) {
-	if err := e.WriteSnapshot(); err != nil {
+// temporary hardlinks to the underlying shard files.
+// skipCacheOk controls whether it is permissible to fail writing out
+// in-memory cache data when a previous snapshot is in progress.
+func (e *Engine) CreateSnapshot(skipCacheOk bool) (string, error) {
+	err := e.WriteSnapshot()
+	for i := 0; i < 3 && err == ErrSnapshotInProgress; i += 1 {
+		backoff := time.Duration(math.Pow(32, float64(i))) * time.Millisecond
+		time.Sleep(backoff)
+		err = e.WriteSnapshot()
+	}
+	if err == ErrSnapshotInProgress && skipCacheOk {
+		e.logger.Warn("Snapshotter busy: proceeding without cache contents")
+	} else if err != nil {
 		return "", err
 	}
 
@@ -2433,10 +2395,6 @@ func (e *Engine) CreateIterator(ctx context.Context, measurement string, opt que
 	return newMergeFinalizerIterator(ctx, itrs, opt, e.logger)
 }
 
-type indexTagSets interface {
-	TagSets(name []byte, options query.IteratorOptions) ([]*query.TagSet, error)
-}
-
 func (e *Engine) createCallIterator(ctx context.Context, measurement string, call *influxql.Call, opt query.IteratorOptions) ([]query.Iterator, error) {
 	ref, _ := call.Args[0].(*influxql.VarRef)
 
@@ -2451,13 +2409,8 @@ func (e *Engine) createCallIterator(ctx context.Context, measurement string, cal
 		tagSets []*query.TagSet
 		err     error
 	)
-	if e.index.Type() == tsdb.InmemIndexName {
-		ts := e.index.(indexTagSets)
-		tagSets, err = ts.TagSets([]byte(measurement), opt)
-	} else {
-		indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-		tagSets, err = indexSet.TagSets(e.sfile, []byte(measurement), opt)
-	}
+	indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
+	tagSets, err = indexSet.TagSets(e.sfile, []byte(measurement), opt)
 
 	if err != nil {
 		return nil, err
@@ -2531,13 +2484,8 @@ func (e *Engine) createVarRefIterator(ctx context.Context, measurement string, o
 		tagSets []*query.TagSet
 		err     error
 	)
-	if e.index.Type() == tsdb.InmemIndexName {
-		ts := e.index.(indexTagSets)
-		tagSets, err = ts.TagSets([]byte(measurement), opt)
-	} else {
-		indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
-		tagSets, err = indexSet.TagSets(e.sfile, []byte(measurement), opt)
-	}
+	indexSet := tsdb.IndexSet{Indexes: []tsdb.Index{e.index}, SeriesFile: e.sfile}
+	tagSets, err = indexSet.TagSets(e.sfile, []byte(measurement), opt)
 
 	if err != nil {
 		return nil, err
@@ -3053,7 +3001,7 @@ func (e *Engine) IteratorCost(measurement string, opt query.IteratorOptions) (qu
 }
 
 // Type returns FieldType for a series.  If the series does not
-// exist, ErrUnkownFieldType is returned.
+// exist, ErrUnknownFieldType is returned.
 func (e *Engine) Type(series []byte) (models.FieldType, error) {
 	if typ, err := e.Cache.Type(series); err == nil {
 		return typ, nil
@@ -3147,4 +3095,78 @@ func varRefSliceRemove(a []influxql.VarRef, v string) []influxql.VarRef {
 		}
 	}
 	return other
+}
+
+const reindexBatchSize = 10000
+
+func (e *Engine) Reindex() error {
+	keys := make([][]byte, reindexBatchSize)
+	seriesKeys := make([][]byte, reindexBatchSize)
+	names := make([][]byte, reindexBatchSize)
+	tags := make([]models.Tags, reindexBatchSize)
+
+	n := 0
+
+	reindexBatch := func() error {
+		if n == 0 {
+			return nil
+		}
+
+		for i, key := range keys[:n] {
+			seriesKeys[i], _ = SeriesAndFieldFromCompositeKey(key)
+			names[i], tags[i] = models.ParseKeyBytes(seriesKeys[i])
+			e.traceLogger.Debug(
+				"Read series during reindexing",
+				logger.Shard(e.id),
+				zap.String("name", string(names[i])),
+				zap.String("tags", tags[i].String()),
+			)
+		}
+
+		e.logger.Debug("Reindexing data batch", logger.Shard(e.id), zap.Int("batch_size", n))
+		if err := e.index.CreateSeriesListIfNotExists(seriesKeys[:n], names[:n], tags[:n]); err != nil {
+			return err
+		}
+
+		n = 0
+		return nil
+	}
+	reindexKey := func(key []byte) error {
+		keys[n] = key
+		n++
+
+		if n < reindexBatchSize {
+			return nil
+		}
+		return reindexBatch()
+	}
+
+	// Index data stored in TSM files.
+	e.logger.Info("Reindexing TSM data", logger.Shard(e.id))
+	if err := e.FileStore.WalkKeys(nil, func(key []byte, _ byte) error {
+		return reindexKey(key)
+	}); err != nil {
+		return err
+	}
+
+	// Make sure all TSM data is indexed.
+	if err := reindexBatch(); err != nil {
+		return err
+	}
+
+	if !e.WALEnabled {
+		// All done.
+		return nil
+	}
+
+	// Reindex data stored in the WAL cache.
+	e.logger.Info("Reindexing WAL data", logger.Shard(e.id))
+	for _, key := range e.Cache.Keys() {
+		if err := reindexKey(key); err != nil {
+			return err
+		}
+	}
+
+	// Make sure all WAL data is indexed.
+	return reindexBatch()
 }

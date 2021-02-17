@@ -68,6 +68,9 @@
   ## Maximum socket buffer size in bytes, once the buffer fills up, metrics
   ## will start dropping.  Defaults to the OS default.
   # read_buffer_size = 65535
+
+  ## Max duration (TTL) for each metric to stay cached/reported without being updated.
+  # max_ttl = "10h"
 ```
 
 ### Description
@@ -192,6 +195,7 @@ the accuracy of percentiles but also increases the memory usage and cpu time.
 measurements and tags.
 - **parse_data_dog_tags** boolean: Enable parsing of tags in DataDog's dogstatsd format (http://docs.datadoghq.com/guides/dogstatsd/)
 - **datadog_extensions** boolean: Enable parsing of DataDog's extensions to dogstatsd format (http://docs.datadoghq.com/guides/dogstatsd/)
+- **max_ttl** config.Duration: Max duration (TTL) for each metric to stay cached/reported without being updated.
 
 ### Statsd bucket -> InfluxDB line-protocol Templates
 

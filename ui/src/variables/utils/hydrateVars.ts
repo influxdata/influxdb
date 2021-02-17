@@ -547,7 +547,7 @@ export const hydrateVars = (
       node.variable.selected = node.variable.selected || []
 
       // ensure that the selected value defaults propegate for
-      // nested queryies.
+      // nested queries.
       if (
         node.variable.arguments.type === 'query' ||
         node.variable.arguments.type === 'constant'

@@ -46,7 +46,7 @@ func cmdPing(f *globalFlags, opts genericCLIOpts) *cobra.Command {
 	cmd := opts.newCmd("ping", runE, true)
 	cmd.Short = "Check the InfluxDB /health endpoint"
 	cmd.Long = `Checks the health of a running InfluxDB instance by querying /health. Does not require valid token.`
-	f.registerFlags(cmd, "token")
+	f.registerFlags(opts.viper, cmd, "token")
 
 	return cmd
 }

@@ -123,7 +123,7 @@ func (h *LabelHandler) handleGetLabels(w http.ResponseWriter, r *http.Request) {
 		h.HandleHTTPError(ctx, err, w)
 		return
 	}
-	h.log.Debug("Labels retrived", zap.String("labels", fmt.Sprint(labels)))
+	h.log.Debug("Labels retrieved", zap.String("labels", fmt.Sprint(labels)))
 	err = encodeResponse(ctx, w, http.StatusOK, newLabelsResponse(labels))
 	if err != nil {
 		h.HandleHTTPError(ctx, err, w)
@@ -637,6 +637,10 @@ func (s *LabelService) DeleteLabelMapping(ctx context.Context, m *influxdb.Label
 	}
 
 	return s.Client.
-		Delete(resourceIDPath(m.ResourceType, m.ResourceID, "labels")).
+		Delete(resourceIDMappingPath(m.ResourceType, m.ResourceID, "labels", m.LabelID)).
 		Do(ctx)
+}
+
+func resourceIDMappingPath(resourceType influxdb.ResourceType, resourceID influxdb.ID, p string, labelID influxdb.ID) string {
+	return path.Join("/api/v2/", string(resourceType), resourceID.String(), p, labelID.String())
 }

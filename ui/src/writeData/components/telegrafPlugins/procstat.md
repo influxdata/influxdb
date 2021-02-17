@@ -44,6 +44,9 @@ Processes can be selected for monitoring using one of several methods:
   ## When true add the full cmdline as a tag.
   # cmdline_tag = false
 
+  ## Mode to use when calculating CPU usage. Can be one of 'solaris' or 'irix'.
+  # mode = "irix"
+
   ## Add the PID as a tag instead of as a field.  When collecting multiple
   ## processes with otherwise matching tags this setting should be enabled to
   ## ensure each process has a unique identity.
@@ -63,15 +66,6 @@ Processes can be selected for monitoring using one of several methods:
 
 Preliminary support for Windows has been added, however you may prefer using
 the `win_perf_counters` input plugin as a more mature alternative.
-
-When using the `pid_finder = "native"` in Windows, the pattern lookup method is
-implemented as a WMI query.  The pattern allows fuzzy matching using only
-[WMI query patterns](https://msdn.microsoft.com/en-us/library/aa392263(v=vs.85).aspx):
-```toml
-[[inputs.procstat]]
-  pattern = "%influx%"
-  pid_finder = "native"
-```
 
 ### Metrics:
 
