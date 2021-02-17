@@ -145,7 +145,7 @@ pub async fn main(logging_level: LoggingLevel, config: Option<Config>) -> Result
         .serve(router_service);
     info!(bind_address=?bind_addr, "HTTP server listening");
 
-    println!("InfluxDB IOx server ready");
+    info!("InfluxDB IOx server ready");
 
     // Wait for both the servers to complete
     let (grpc_server, server) = futures::future::join(grpc_server, http_server).await;
