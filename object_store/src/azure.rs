@@ -68,7 +68,7 @@ impl ObjectStoreApi for MicrosoftAzure {
         CloudPath::default()
     }
 
-    async fn put<S>(&self, location: &Self::Path, bytes: S, length: usize) -> Result<()>
+    async fn put<S>(&self, location: &Self::Path, bytes: S, length: Option<usize>) -> Result<()>
     where
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
@@ -79,13 +79,15 @@ impl ObjectStoreApi for MicrosoftAzure {
             .await
             .expect("Should have been able to collect streaming data");
 
-        ensure!(
-            temporary_non_streaming.len() == length,
-            DataDoesNotMatchLength {
-                actual: temporary_non_streaming.len(),
-                expected: length,
-            }
-        );
+        if let Some(length) = length {
+            ensure!(
+                temporary_non_streaming.len() == length,
+                DataDoesNotMatchLength {
+                    actual: temporary_non_streaming.len(),
+                    expected: length,
+                }
+            );
+        }
 
         self.container_client
             .as_blob_client(&location)

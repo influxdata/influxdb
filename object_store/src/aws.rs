@@ -1,6 +1,7 @@
 //! This module contains the IOx implementation for using S3 as the object
 //! store.
 use crate::{
+    buffer::slurp_stream_tempfile,
     path::{cloud::CloudPath, DELIMITER},
     ListResult, ObjectMeta, ObjectStoreApi,
 };
@@ -94,6 +95,9 @@ pub enum Error {
         source: chrono::ParseError,
         bucket: String,
     },
+
+    #[snafu(display("Unable to buffer data into temporary file, Error: {}", source))]
+    UnableToBufferStream { source: std::io::Error },
 }
 
 /// Configuration for connecting to [Amazon S3](https://aws.amazon.com/s3/).
@@ -120,11 +124,20 @@ impl ObjectStoreApi for AmazonS3 {
         CloudPath::default()
     }
 
-    async fn put<S>(&self, location: &Self::Path, bytes: S, length: usize) -> Result<()>
+    async fn put<S>(&self, location: &Self::Path, bytes: S, length: Option<usize>) -> Result<()>
     where
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
-        let bytes = ByteStream::new_with_size(bytes, length);
+        let bytes = match length {
+            Some(length) => ByteStream::new_with_size(bytes, length),
+            None => {
+                let bytes = slurp_stream_tempfile(bytes)
+                    .await
+                    .context(UnableToBufferStream)?;
+                let length = bytes.size();
+                ByteStream::new_with_size(bytes, length)
+            }
+        };
 
         let put_request = rusoto_s3::PutObjectRequest {
             bucket: self.bucket_name.clone(),
@@ -582,7 +595,7 @@ mod tests {
             .put(
                 &location,
                 futures::stream::once(async move { stream_data }),
-                data.len(),
+                Some(data.len()),
             )
             .await
             .unwrap_err();
@@ -618,7 +631,7 @@ mod tests {
             .put(
                 &location,
                 futures::stream::once(async move { stream_data }),
-                data.len(),
+                Some(data.len()),
             )
             .await
             .unwrap_err();

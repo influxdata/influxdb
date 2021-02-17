@@ -24,11 +24,13 @@ rusoto_s3 = "0.46.0"
 snafu = { version = "0.6.10", features = ["futures"] }
 tokio = { version = "1.0", features = ["macros", "fs"] }
 # Filesystem integration
-tokio-util = "0.6.2"
+tokio-util = { version = "0.6.3", features = [ "io" ] }
 reqwest = "0.11"
 # Filesystem integration
 walkdir = "2"
+tempfile = "3.1.0"
 
 [dev-dependencies] # In alphabetical order
 dotenv = "0.15.0"
 tempfile = "3.1.0"
+futures-test = "0.3.12"

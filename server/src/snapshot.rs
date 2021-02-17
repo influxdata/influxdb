@@ -194,7 +194,7 @@ where
             .put(
                 &partition_meta_path,
                 futures::stream::once(async move { stream_data }),
-                len,
+                Some(len),
             )
             .await
             .context(WritingToObjectStore)?;
@@ -247,7 +247,7 @@ where
             .put(
                 &file_name,
                 futures::stream::once(async move { stream_data }),
-                len,
+                Some(len),
             )
             .await
             .context(WritingToObjectStore)

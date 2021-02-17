@@ -216,7 +216,7 @@ impl<M: ConnectionManager> Server<M> {
             .put(
                 &location,
                 futures::stream::once(async move { stream_data }),
-                len,
+                Some(len),
             )
             .await
             .context(StoreError)?;

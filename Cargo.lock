@@ -1208,6 +1208,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "futures-test"
+version = "0.3.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b30f48f6b9cd26d8739965d6e3345c511718884fb223795b80dc71d24a9ea9a"
+dependencies = [
+ "futures-core",
+ "futures-executor",
+ "futures-io",
+ "futures-sink",
+ "futures-task",
+ "futures-util",
+ "once_cell",
+ "pin-project 1.0.5",
+ "pin-utils",
+]
+
+[[package]]
 name = "futures-util"
 version = "0.3.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2135,6 +2152,7 @@ dependencies = [
  "cloud-storage",
  "dotenv",
  "futures",
+ "futures-test",
  "itertools 0.9.0",
  "percent-encoding",
  "reqwest",
