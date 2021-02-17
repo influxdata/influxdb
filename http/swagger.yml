@@ -6481,43 +6481,15 @@ components:
     TraceSpan:
       $ref: "./swagger/components/parameters/TraceSpan.yml"
     Offset:
-      in: query
-      name: offset
-      required: false
-      schema:
-        type: integer
-        minimum: 0
+      $ref: "./swagger/components/parameters/Offset.yml"
     Limit:
-      in: query
-      name: limit
-      required: false
-      schema:
-        type: integer
-        minimum: 1
-        maximum: 100
-        default: 20
+      $ref: "./swagger/components/parameters/Limit.yml"
     Descending:
-      in: query
-      name: descending
-      required: false
-      schema:
-        type: boolean
-        default: false
+      $ref: "./swagger/components/parameters/Descending.yml"
     SortBy:
-      in: query
-      name: sortBy
-      required: false
-      schema:
-        type: string
+      $ref: "./swagger/components/parameters/SortBy.yml"
     After:
-      in: query
-      name: after
-      required: false
-      schema:
-        type: string
-      description: >
-        The last resource ID from which to seek from (but not including).
-        This is to be used instead of `offset`.
+      $ref: "./swagger/components/parameters/After.yml"
   schemas:
     LanguageRequest:
       description: Flux query to be analyzed.
