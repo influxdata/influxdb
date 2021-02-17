@@ -46,9 +46,9 @@ ifdef VERSION
 endif
 
 # Allow for `go test` to be swapped out by other tooling, i.e. `gotestsum`
-GO_TEST_CMD=go test
+GO_TEST_CMD?=go test
 # Allow for a subset of tests to be specified.
-GO_TEST_PATHS=./...
+GO_TEST_PATHS?=./...
 
 # Test vars can be used by all recursive Makefiles
 export PKG_CONFIG:=$(PWD)/scripts/pkg-config.sh

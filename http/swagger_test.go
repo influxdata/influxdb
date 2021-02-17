@@ -4,11 +4,14 @@ import (
 	"context"
 	"testing"
 
-	"github.com/getkin/kin-openapi/openapi3"
+	"github.com/deepmap/oapi-codegen/pkg/util"
 )
 
 func TestValidSwagger(t *testing.T) {
-	swagger, err := openapi3.NewSwaggerLoader().LoadSwaggerFromFile("./swagger.yml")
+	// util.LoadSwagger sets `IsExternalRefsAllowed` to true on the loader.
+	// oapi-codegen is being used here because it is what is used to generate
+	// the client code despite the same underlying openapi3 library being used.
+	swagger, err := util.LoadSwagger("./swagger.yml")
 	if err != nil {
 		t.Fatalf("unable to load swagger specification: %v", err)
 	}

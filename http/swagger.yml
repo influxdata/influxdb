@@ -8676,7 +8676,8 @@ components:
         write:
           type: string
           format: uri
-    $ref: "./swagger/components/schemas/Error.yml"
+    Error:
+      $ref: "./swagger/components/schemas/Error.yml"
     LineProtocolError:
       properties:
         code:
