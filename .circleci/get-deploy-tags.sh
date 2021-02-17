@@ -23,27 +23,25 @@ DOCKER_IMAGE_TAG=${1}
 DOCKER_IMAGE="quay.io/influxdb/fusion"
 APP_NAME="IOx"
 
-DOCKER_IMAGE_INFO="$(docker images "${DOCKER_IMAGE}" --format '{{.Tag}} {{.Digest}}' | grep "${DOCKER_IMAGE_TAG}" )"
+DOCKER_IMAGE_DIGEST="$(docker image inspect "${DOCKER_IMAGE}:${DOCKER_IMAGE_TAG}" --format '{{ if eq (len .RepoDigests) 1 }}{{index .RepoDigests 0}}{{ end }}')"
 
 # validate that only one image with same git sha as tag is present, if not,
 # write an error out and request developers to manually re-run the workflow
-if [ "$(echo "${DOCKER_IMAGE_INFO}" | wc -l)" != "1" ] ; then
-	echo >&2 "Unable to determine unique SHA256 checksum of images - available:"
+if [ "${DOCKER_IMAGE_DIGEST}" = "" ] ; then
+	echo >&2 "Unable to determine unique SHA256 checksum of images."
 	echo >&2 ""
-	echo >&2 "${DOCKER_IMAGE_INFO}"
-	echo >&2 ""
-	echo >&2 "Please re-run the workflow in CircleCI"
+	echo >&2 "Please re-run the workflow in CircleCI."
 	exit 1
 fi
 jq --null-input --sort-keys \
-	--arg tagDigest "${DOCKER_IMAGE_INFO}" \
-	--arg imgPrefix "${DOCKER_IMAGE}" \
+	--arg imgTag "${DOCKER_IMAGE}:${DOCKER_IMAGE_TAG}" \
+	--arg imgDigest "${DOCKER_IMAGE_DIGEST}" \
 	--arg appKey "$APP_NAME" \
-	'$tagDigest | split(" ") as $td | {
+	'{
 		Images: {
 			($appKey): {
-				Tag: ($imgPrefix + ":" + $td[0]),
-				Digest: ($imgPrefix + "@" + $td[1]),
+				Tag: $imgTag,
+				Digest: $imgDigest,
 			},
 		},
 		PublishedAt: (now | todateiso8601)
