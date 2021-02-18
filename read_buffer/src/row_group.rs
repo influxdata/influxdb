@@ -46,7 +46,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// A `RowGroup` is an immutable horizontal chunk of a single `Table`. By
-/// definition it has the same schema as all the other read groups in the table.
+/// definition it has the same schema as all the other row groups in the table.
 /// All the columns within the `RowGroup` must have the same number of logical
 /// rows.
 pub struct RowGroup {
@@ -135,7 +135,7 @@ impl RowGroup {
         }
     }
 
-    /// The total estimated size in bytes of the read group
+    /// The total estimated size in bytes of the row group
     pub fn size(&self) -> u64 {
         let base_size = std::mem::size_of::<Self>()
             + self
@@ -2196,13 +2196,13 @@ west,4
         // columns
         read_group_all_rows_all_rle(&row_group);
 
-        // test read group queries that group on fewer than five columns.
+        // test row group queries that group on fewer than five columns.
         read_group_hash_u128_key(&row_group);
 
-        // test read group queries that use a vector-based group key.
+        // test row group queries that use a vector-based group key.
         read_group_hash_vec_key(&row_group);
 
-        // test read group queries that only group on one column.
+        // test row group queries that only group on one column.
         read_group_single_groupby_column(&row_group);
     }
 
