@@ -221,10 +221,10 @@ func (t *Tombstoner) TombstoneStats() TombstoneStat {
 
 	t.mu.Lock()
 	t.tombstoneStats = TombstoneStat{
-		TombstoneExists:  true,
-		Path:         t.tombstonePath(),
-		LastModified: stat.ModTime().UnixNano(),
-		Size:         uint32(stat.Size()),
+		TombstoneExists: true,
+		Path:            t.tombstonePath(),
+		LastModified:    stat.ModTime().UnixNano(),
+		Size:            uint32(stat.Size()),
 	}
 	stats := t.tombstoneStats
 	t.mu.Unlock()
