@@ -129,7 +129,7 @@ impl SQLQueryPlanner {
                 .context(CreatingTableProvider { table_name })?;
 
             ctx.inner_mut()
-                .register_table(&table_name, Box::new(provider));
+                .register_table(&table_name, Arc::new(provider));
         }
 
         ctx.prepare_sql(query).await.context(Preparing)
