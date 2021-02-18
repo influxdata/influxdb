@@ -237,7 +237,7 @@ checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 [[package]]
 name = "azure_core"
 version = "0.1.0"
-source = "git+https://github.com/Azure/azure-sdk-for-rust.git?rev=5ecad7216e1f04c5ff41e7de4667f006664c8cca#5ecad7216e1f04c5ff41e7de4667f006664c8cca"
+source = "git+https://github.com/Azure/azure-sdk-for-rust.git?rev=14ff9326bb1ba07f98733a548988eccd4532b945#14ff9326bb1ba07f98733a548988eccd4532b945"
 dependencies = [
  "RustyXML",
  "async-trait",
@@ -266,7 +266,7 @@ dependencies = [
 [[package]]
 name = "azure_storage"
 version = "0.1.0"
-source = "git+https://github.com/Azure/azure-sdk-for-rust.git?rev=5ecad7216e1f04c5ff41e7de4667f006664c8cca#5ecad7216e1f04c5ff41e7de4667f006664c8cca"
+source = "git+https://github.com/Azure/azure-sdk-for-rust.git?rev=14ff9326bb1ba07f98733a548988eccd4532b945#14ff9326bb1ba07f98733a548988eccd4532b945"
 dependencies = [
  "RustyXML",
  "azure_core",
@@ -289,6 +289,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "smallvec",
+ "thiserror",
  "time 0.2.25",
  "url",
  "uuid",
