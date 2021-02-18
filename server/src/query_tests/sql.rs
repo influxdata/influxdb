@@ -16,7 +16,9 @@ macro_rules! run_sql_test_case {
         test_helpers::maybe_start_logging();
         let sql = $SQL.to_string();
         for scenario in $DB_SETUP.make().await {
-            let DBScenario { scenario_name, db } = scenario;
+            let DBScenario {
+                scenario_name, db, ..
+            } = scenario;
             println!("Running scenario '{}'", scenario_name);
             println!("SQL: '{:#?}'", sql);
             let planner = SQLQueryPlanner::new();

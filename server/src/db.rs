@@ -277,18 +277,6 @@ impl Database for Db {
             .context(MutableBufferWrite)
     }
 
-    async fn field_column_names(
-        &self,
-        predicate: query::predicate::Predicate,
-    ) -> Result<query::exec::FieldListPlan, Self::Error> {
-        self.mutable_buffer
-            .as_ref()
-            .context(DatabaseNotReadable)?
-            .field_column_names(predicate)
-            .await
-            .context(MutableBufferRead)
-    }
-
     async fn column_values(
         &self,
         column_name: &str,

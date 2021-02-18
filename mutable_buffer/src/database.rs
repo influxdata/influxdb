@@ -2,7 +2,7 @@ use generated_types::wal;
 use query::group_by::GroupByAndAggregate;
 use query::group_by::WindowDuration;
 use query::{
-    exec::{stringset::StringSet, FieldListPlan, SeriesSetPlan, SeriesSetPlans},
+    exec::{stringset::StringSet, SeriesSetPlan, SeriesSetPlans},
     predicate::Predicate,
     Database,
 };
@@ -211,15 +211,6 @@ impl Database for MutableBufferDb {
         };
 
         Ok(())
-    }
-
-    /// return all field names in this database, while applying optional
-    /// predicates
-    async fn field_column_names(&self, predicate: Predicate) -> Result<FieldListPlan, Self::Error> {
-        let mut filter = ChunkTableFilter::new(predicate);
-        let mut visitor = TableFieldPredVisitor::new();
-        self.accept(&mut filter, &mut visitor)?;
-        Ok(visitor.into_fieldlist_plan())
     }
 
     /// return all column values in this database, while applying optional
@@ -537,39 +528,6 @@ impl ChunkTableFilter {
     }
 }
 
-/// return a plan that selects all values from field columns after
-/// applying timestamp and other predicates
-#[derive(Debug)]
-struct TableFieldPredVisitor {
-    // As Each table can be spread across multiple Chunks, we
-    // collect all the relevant plans and Union them together.
-    plans: Vec<LogicalPlan>,
-}
-
-impl Visitor for TableFieldPredVisitor {
-    fn pre_visit_table(
-        &mut self,
-        table: &Table,
-        chunk: &Chunk,
-        filter: &mut ChunkTableFilter,
-    ) -> Result<()> {
-        self.plans
-            .push(table.field_names_plan(filter.chunk_predicate(), chunk)?);
-        Ok(())
-    }
-}
-
-impl TableFieldPredVisitor {
-    fn new() -> Self {
-        let plans = Vec::new();
-        Self { plans }
-    }
-
-    fn into_fieldlist_plan(self) -> FieldListPlan {
-        FieldListPlan::Plans(self.plans)
-    }
-}
-
 /// return all values in the `column_name` column
 /// in this database, while applying the timestamp range
 ///
@@ -823,7 +781,6 @@ mod tests {
     use super::*;
     use data_types::selection::Selection;
     use query::{
-        exec::fieldlist::{Field, FieldList},
         exec::{
             field::FieldIndexes,
             seriesset::{Error as SeriesSetError, SeriesSet, SeriesSetItem},
@@ -834,10 +791,7 @@ mod tests {
     };
 
     use arrow_deps::{
-        arrow::{
-            array::{Array, StringArray},
-            datatypes::DataType,
-        },
+        arrow::array::{Array, StringArray},
         datafusion::prelude::*,
     };
     use influxdb_line_protocol::{parse_lines, ParsedLine};
@@ -1270,155 +1224,6 @@ mod tests {
             err.to_string(),
             "Operator NotEq not yet supported in IOx MutableBuffer"
         );
-    }
-
-    #[tokio::test]
-    async fn test_field_columns() -> Result {
-        // Ensure that the database queries are hooked up correctly
-
-        let db = MutableBufferDb::new("column_namedb");
-
-        let lp_data = vec![
-            "h2o,state=MA,city=Boston temp=70.4 50",
-            "h2o,state=MA,city=Boston other_temp=70.4 250",
-            "h2o,state=CA,city=Boston other_temp=72.4 350",
-            "o2,state=MA,city=Boston temp=53.4,reading=51 50",
-        ]
-        .join("\n");
-
-        let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
-        write_lines(&db, &lines).await;
-
-        // write a new lp_line that is in a new day and thus a new partititon
-        let nanoseconds_per_day: i64 = 1_000_000_000 * 60 * 60 * 24;
-
-        let lp_data = vec![format!(
-            "h2o,state=MA,city=Boston temp=70.4,moisture=43.0 {}",
-            nanoseconds_per_day * 10
-        )]
-        .join("\n");
-        let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
-        write_lines(&db, &lines).await;
-
-        // ensure there are 2 chunks
-        assert_eq!(db.len(), 2);
-
-        // setup to run the execution plan (
-        let executor = Executor::default();
-
-        let predicate = PredicateBuilder::default()
-            .table("NoSuchTable")
-            .add_expr(col("state").eq(lit("MA"))) // state=MA
-            .build();
-
-        // make sure table filtering works (no tables match)
-        let plan = db
-            .field_column_names(predicate)
-            .await
-            .expect("Created field_columns plan successfully");
-
-        let fieldlists = executor
-            .to_field_list(plan)
-            .await
-            .expect("Running fieldlist plan");
-        assert!(fieldlists.fields.is_empty());
-
-        // get only fields from h20 (but both chunks)
-        let predicate = PredicateBuilder::default()
-            .table("h2o")
-            .add_expr(col("state").eq(lit("MA"))) // state=MA
-            .build();
-
-        let plan = db
-            .field_column_names(predicate)
-            .await
-            .expect("Created field_columns plan successfully");
-
-        let actual = executor
-            .to_field_list(plan)
-            .await
-            .expect("Running fieldlist plan");
-
-        let expected = FieldList {
-            fields: vec![
-                Field {
-                    name: "moisture".into(),
-                    data_type: DataType::Float64,
-                    last_timestamp: nanoseconds_per_day * 10,
-                },
-                Field {
-                    name: "other_temp".into(),
-                    data_type: DataType::Float64,
-                    last_timestamp: 250,
-                },
-                Field {
-                    name: "temp".into(),
-                    data_type: DataType::Float64,
-                    last_timestamp: nanoseconds_per_day * 10,
-                },
-            ],
-        };
-
-        assert_eq!(
-            expected, actual,
-            "Expected:\n{:#?}\nActual:\n{:#?}",
-            expected, actual
-        );
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_field_columns_timestamp_predicate() -> Result {
-        // check the appropriate filters are applied in the datafusion plans
-        let db = MutableBufferDb::new("column_namedb");
-
-        let lp_data = vec![
-            "h2o,state=MA,city=Boston temp=70.4 50",
-            "h2o,state=MA,city=Boston other_temp=70.4 250",
-            "h2o,state=CA,city=Boston other_temp=72.4 350",
-            "o2,state=MA,city=Boston temp=53.4,reading=51 50",
-        ]
-        .join("\n");
-
-        let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
-        write_lines(&db, &lines).await;
-
-        // setup to run the execution plan (
-        let executor = Executor::default();
-
-        let predicate = PredicateBuilder::default()
-            .table("h2o")
-            .timestamp_range(200, 300)
-            .add_expr(col("state").eq(lit("MA"))) // state=MA
-            .build();
-
-        let plan = db
-            .field_column_names(predicate)
-            .await
-            .expect("Created field_columns plan successfully");
-
-        let actual = executor
-            .to_field_list(plan)
-            .await
-            .expect("Running fieldlist plan");
-
-        // Should only have other_temp as a field
-        let expected = FieldList {
-            fields: vec![Field {
-                name: "other_temp".into(),
-                data_type: DataType::Float64,
-                last_timestamp: 250,
-            }],
-        };
-
-        assert_eq!(
-            expected, actual,
-            "Expected:\n{:#?}\nActual:\n{:#?}",
-            expected, actual
-        );
-
-        Ok(())
     }
 
     #[tokio::test]
