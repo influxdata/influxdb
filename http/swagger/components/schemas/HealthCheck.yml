@@ -10,7 +10,7 @@ properties:
   checks:
     type: array
     items:
-      $ref: "./HealthCheck.yml"
+      type: string
   status:
     type: string
     enum:

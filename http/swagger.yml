@@ -6491,7 +6491,540 @@ components:
     After:
       $ref: "./swagger/components/parameters/After.yml"
   schemas:
-    $ref: "./swagger/components/schemas/_index.yml"
+    LanguageRequest:
+      $ref: "./swagger/components/schemas/LanguageRequest.yml"
+    Query:
+      $ref: "./swagger/components/schemas/Query.yml"
+    InfluxQLQuery:
+      $ref: "./swagger/components/schemas/InfluxQLQuery.yml"
+    Package:
+      $ref: "./swagger/components/schemas/Package.yml"
+    File:
+      $ref: "./swagger/components/schemas/File.yml"
+    PackageClause:
+      $ref: "./swagger/components/schemas/PackageClause.yml"
+    ImportDeclaration:
+      $ref: "./swagger/components/schemas/ImportDeclaration.yml"
+    DeletePredicateRequest:
+      $ref: "./swagger/components/schemas/DeletePredicateRequest.yml"
+    Node:
+      $ref: "./swagger/components/schemas/Node.yml"
+    Block:
+      $ref: "./swagger/components/schemas/Block.yml"
+    Statement:
+      $ref: "./swagger/components/schemas/Statement.yml"
+    BadStatement:
+      $ref: "./swagger/components/schemas/BadStatement.yml"
+    VariableAssignment:
+      $ref: "./swagger/components/schemas/VariableAssignment.yml"
+    MemberAssignment:
+      $ref: "./swagger/components/schemas/MemberAssignment.yml"
+    ExpressionStatement:
+      $ref: "./swagger/components/schemas/ExpressionStatement.yml"
+    ReturnStatement:
+      $ref: "./swagger/components/schemas/ReturnStatement.yml"
+    OptionStatement:
+      $ref: "./swagger/components/schemas/OptionStatement.yml"
+    BuiltinStatement:
+      $ref: "./swagger/components/schemas/BuiltinStatement.yml"
+    TestStatement:
+      $ref: "./swagger/components/schemas/TestStatement.yml"
+    Expression:
+      $ref: "./swagger/components/schemas/Expression.yml"
+    ArrayExpression:
+      $ref: "./swagger/components/schemas/ArrayExpression.yml"
+    DictExpression:
+      $ref: "./swagger/components/schemas/DictExpression.yml"
+    DictItem:
+      $ref: "./swagger/components/schemas/DictItem.yml"
+    FunctionExpression:
+      $ref: "./swagger/components/schemas/FunctionExpression.yml"
+    BinaryExpression:
+      $ref: "./swagger/components/schemas/BinaryExpression.yml"
+    CallExpression:
+      $ref: "./swagger/components/schemas/CallExpression.yml"
+    ConditionalExpression:
+      $ref: "./swagger/components/schemas/ConditionalExpression.yml"
+    LogicalExpression:
+      $ref: "./swagger/components/schemas/LogicalExpression.yml"
+    MemberExpression:
+      $ref: "./swagger/components/schemas/MemberExpression.yml"
+    IndexExpression:
+      $ref: "./swagger/components/schemas/IndexExpression.yml"
+    ObjectExpression:
+      $ref: "./swagger/components/schemas/ObjectExpression.yml"
+    ParenExpression:
+      $ref: "./swagger/components/schemas/ParenExpression.yml"
+    PipeExpression:
+      $ref: "./swagger/components/schemas/PipeExpression.yml"
+    UnaryExpression:
+      $ref: "./swagger/components/schemas/UnaryExpression.yml"
+    BooleanLiteral:
+      $ref: "./swagger/components/schemas/BooleanLiteral.yml"
+    DateTimeLiteral:
+      $ref: "./swagger/components/schemas/DateTimeLiteral.yml"
+    DurationLiteral:
+      $ref: "./swagger/components/schemas/DurationLiteral.yml"
+    FloatLiteral:
+      $ref: "./swagger/components/schemas/FloatLiteral.yml"
+    IntegerLiteral:
+      $ref: "./swagger/components/schemas/IntegerLiteral.yml"
+    PipeLiteral:
+      $ref: "./swagger/components/schemas/PipeLiteral.yml"
+    RegexpLiteral:
+      $ref: "./swagger/components/schemas/RegexpLiteral.yml"
+    StringLiteral:
+      $ref: "./swagger/components/schemas/StringLiteral.yml"
+    UnsignedIntegerLiteral:
+      $ref: "./swagger/components/schemas/UnsignedIntegerLiteral.yml"
+    Duration:
+      $ref: "./swagger/components/schemas/Duration.yml"
+    Property:
+      $ref: "./swagger/components/schemas/Property.yml"
+    PropertyKey:
+      $ref: "./swagger/components/schemas/PropertyKey.yml"
+    Identifier:
+      $ref: "./swagger/components/schemas/Identifier.yml"
+    NodeType:
+      $ref: "./swagger/components/schemas/NodeType.yml"
+    Dialect:
+      $ref: "./swagger/components/schemas/Dialect.yml"
+    Permission:
+      $ref: "./swagger/components/schemas/Permission.yml"
+    Resource:
+      $ref: "./swagger/components/schemas/Resource.yml"
+    AuthorizationUpdateRequest:
+      $ref: "./swagger/components/schemas/AuthorizationUpdateRequest.yml"
+    Authorization:
+      $ref: "./swagger/components/schemas/Authorization.yml"
+    Authorizations:
+      $ref: "./swagger/components/schemas/Authorizations.yml"
+    PostBucketRequest:
+      $ref: "./swagger/components/schemas/PostBucketRequest.yml"
+    Bucket:
+      $ref: "./swagger/components/schemas/Bucket.yml"
+    Buckets:
+      $ref: "./swagger/components/schemas/Buckets.yml"
+    RetentionRules:
+      $ref: "./swagger/components/schemas/RetentionRules.yml"
+    RetentionRule:
+      $ref: "./swagger/components/schemas/RetentionRule.yml"
+    Link:
+      $ref: "./swagger/components/schemas/Link.yml"
+    Links:
+      $ref: "./swagger/components/schemas/Links.yml"
+    Logs:
+      $ref: "./swagger/components/schemas/Logs.yml"
+    LogEvent:
+      $ref: "./swagger/components/schemas/LogEvent.yml"
+    Organization:
+      $ref: "./swagger/components/schemas/Organization.yml"
+    Organizations:
+      $ref: "./swagger/components/schemas/Organizations.yml"
+    TemplateApply:
+      $ref: "./swagger/components/schemas/TemplateApply.yml"
+    TemplateKind:
+      $ref: "./swagger/components/schemas/TemplateKind.yml"
+    TemplateExportByID:
+      $ref: "./swagger/components/schemas/TemplateExportByID.yml"
+    TemplateExportByName:
+      $ref: "./swagger/components/schemas/TemplateExportByName.yml"
+    Template:
+      $ref: "./swagger/components/schemas/Template.yml"
+    TemplateEnvReferences:
+      $ref: "./swagger/components/schemas/TemplateEnvReferences.yml"
+    TemplateSummary:
+      $ref: "./swagger/components/schemas/TemplateSummary.yml"
+    TemplateSummaryLabel:
+      $ref: "./swagger/components/schemas/TemplateSummaryLabel.yml"
+    TemplateChart:
+      $ref: "./swagger/components/schemas/TemplateChart.yml"
+    Stack:
+      $ref: "./swagger/components/schemas/Stack.yml"
+    Runs:
+      $ref: "./swagger/components/schemas/Runs.yml"
+    Run:
+      $ref: "./swagger/components/schemas/Run.yml"
+    RunManually:
+      $ref: "./swagger/components/schemas/RunManually.yml"
+    Tasks:
+      $ref: "./swagger/components/schemas/Tasks.yml"
+    Task:
+      $ref: "./swagger/components/schemas/Task.yml"
+    TaskStatusType:
+      $ref: "./swagger/components/schemas/TaskStatusType.yml"
+    User:
+      $ref: "./swagger/components/schemas/User.yml"
+    Users:
+      $ref: "./swagger/components/schemas/Users.yml"
+    Flags:
+      $ref: "./swagger/components/schemas/Flags.yml"
+    ResourceMember:
+      $ref: "./swagger/components/schemas/ResourceMember.yml"
+    ResourceMembers:
+      $ref: "./swagger/components/schemas/ResourceMembers.yml"
+    ResourceOwner:
+      $ref: "./swagger/components/schemas/ResourceOwner.yml"
+    ResourceOwners:
+      $ref: "./swagger/components/schemas/ResourceOwners.yml"
+    FluxSuggestions:
+      $ref: "./swagger/components/schemas/FluxSuggestions.yml"
+    FluxSuggestion:
+      $ref: "./swagger/components/schemas/FluxSuggestion.yml"
+    Routes:
+      $ref: "./swagger/components/schemas/Routes.yml"
+    Error:
+      $ref: "./swagger/components/schemas/Error.yml"
+    LineProtocolError:
+      $ref: "./swagger/components/schemas/LineProtocolError.yml"
+    LineProtocolLengthError:
+      $ref: "./swagger/components/schemas/LineProtocolLengthError.yml"
+    Field:
+      $ref: "./swagger/components/schemas/Field.yml"
+    BuilderConfig:
+      $ref: "./swagger/components/schemas/BuilderConfig.yml"
+    BuilderTagsType:
+      $ref: "./swagger/components/schemas/BuilderTagsType.yml"
+    BuilderAggregateFunctionType:
+      $ref: "./swagger/components/schemas/BuilderAggregateFunctionType.yml"
+    BuilderFunctionsType:
+      $ref: "./swagger/components/schemas/BuilderFunctionsType.yml"
+    DashboardQuery:
+      $ref: "./swagger/components/schemas/DashboardQuery.yml"
+    QueryEditMode:
+      $ref: "./swagger/components/schemas/QueryEditMode.yml"
+    Axis:
+      $ref: "./swagger/components/schemas/Axis.yml"
+    AxisScale:
+      $ref: "./swagger/components/schemas/AxisScale.yml"
+    DashboardColor:
+      $ref: "./swagger/components/schemas/DashboardColor.yml"
+    RenamableField:
+      $ref: "./swagger/components/schemas/RenamableField.yml"
+    XYViewProperties:
+      $ref: "./swagger/components/schemas/XYViewProperties.yml"
+    XYGeom:
+      $ref: "./swagger/components/schemas/XYGeom.yml"
+    BandViewProperties:
+      $ref: "./swagger/components/schemas/BandViewProperties.yml"
+    LinePlusSingleStatProperties:
+      $ref: "./swagger/components/schemas/LinePlusSingleStatProperties.yml"
+    MosaicViewProperties:
+      $ref: "./swagger/components/schemas/MosaicViewProperties.yml"
+    ScatterViewProperties:
+      $ref: "./swagger/components/schemas/ScatterViewProperties.yml"
+    HeatmapViewProperties:
+      $ref: "./swagger/components/schemas/HeatmapViewProperties.yml"
+    SingleStatViewProperties:
+      $ref: "./swagger/components/schemas/SingleStatViewProperties.yml"
+    HistogramViewProperties:
+      $ref: "./swagger/components/schemas/HistogramViewProperties.yml"
+    GaugeViewProperties:
+      $ref: "./swagger/components/schemas/GaugeViewProperties.yml"
+    TableViewProperties:
+      $ref: "./swagger/components/schemas/TableViewProperties.yml"
+    MarkdownViewProperties:
+      $ref: "./swagger/components/schemas/MarkdownViewProperties.yml"
+    CheckViewProperties:
+      $ref: "./swagger/components/schemas/CheckViewProperties.yml"
+    GeoViewLayer:
+      $ref: "./swagger/components/schemas/GeoViewLayer.yml"
+    GeoViewLayerProperties:
+      $ref: "./swagger/components/schemas/GeoViewLayerProperties.yml"
+    GeoCircleViewLayer:
+      $ref: "./swagger/components/schemas/GeoCircleViewLayer.yml"
+    GeoPointMapViewLayer:
+      $ref: "./swagger/components/schemas/GeoPointMapViewLayer.yml"
+    GeoTrackMapViewLayer:
+      $ref: "./swagger/components/schemas/GeoTrackMapViewLayer.yml"
+    GeoHeatMapViewLayer:
+      $ref: "./swagger/components/schemas/GeoHeatMapViewLayer.yml"
+    GeoViewProperties:
+      $ref: "./swagger/components/schemas/GeoViewProperties.yml"
+    Axes:
+      $ref: "./swagger/components/schemas/Axes.yml"
+    Legend:
+      $ref: "./swagger/components/schemas/Legend.yml"
+    DecimalPlaces:
+      $ref: "./swagger/components/schemas/DecimalPlaces.yml"
+    ConstantVariableProperties:
+      $ref: "./swagger/components/schemas/ConstantVariableProperties.yml"
+    MapVariableProperties:
+      $ref: "./swagger/components/schemas/MapVariableProperties.yml"
+    QueryVariableProperties:
+      $ref: "./swagger/components/schemas/QueryVariableProperties.yml"
+    Variable:
+      $ref: "./swagger/components/schemas/Variable.yml"
+    Variables:
+      $ref: "./swagger/components/schemas/Variables.yml"
+    VariableProperties:
+      $ref: "./swagger/components/schemas/VariableProperties.yml"
+    ViewProperties:
+      $ref: "./swagger/components/schemas/ViewProperties.yml"
+    View:
+      $ref: "./swagger/components/schemas/View.yml"
+    Views:
+      $ref: "./swagger/components/schemas/Views.yml"
+    CellUpdate:
+      $ref: "./swagger/components/schemas/CellUpdate.yml"
+    CreateCell:
+      $ref: "./swagger/components/schemas/CreateCell.yml"
+    AnalyzeQueryResponse:
+      $ref: "./swagger/components/schemas/AnalyzeQueryResponse.yml"
+    CellWithViewProperties:
+      $ref: "./swagger/components/schemas/CellWithViewProperties.yml"
+    Cell:
+      $ref: "./swagger/components/schemas/Cell.yml"
+    CellsWithViewProperties:
+      $ref: "./swagger/components/schemas/CellsWithViewProperties.yml"
+    Cells:
+      $ref: "./swagger/components/schemas/Cells.yml"
+    Secrets:
+      $ref: "./swagger/components/schemas/Secrets.yml"
+    SecretKeys:
+      $ref: "./swagger/components/schemas/SecretKeys.yml"
+    SecretKeysResponse:
+      $ref: "./swagger/components/schemas/SecretKeysResponse.yml"
+    CreateDashboardRequest:
+      $ref: "./swagger/components/schemas/CreateDashboardRequest.yml"
+    DashboardWithViewProperties:
+      $ref: "./swagger/components/schemas/DashboardWithViewProperties.yml"
+    Dashboard:
+      $ref: "./swagger/components/schemas/Dashboard.yml"
+    Dashboards:
+      $ref: "./swagger/components/schemas/Dashboards.yml"
+    Source:
+      $ref: "./swagger/components/schemas/Source.yml"
+    Sources:
+      $ref: "./swagger/components/schemas/Sources.yml"
+    ScraperTargetRequest:
+      $ref: "./swagger/components/schemas/ScraperTargetRequest.yml"
+    ScraperTargetResponse:
+      $ref: "./swagger/components/schemas/ScraperTargetResponse.yml"
+    ScraperTargetResponses:
+      $ref: "./swagger/components/schemas/ScraperTargetResponses.yml"
+    DocumentMeta:
+      $ref: "./swagger/components/schemas/DocumentMeta.yml"
+    Document:
+      $ref: "./swagger/components/schemas/Document.yml"
+    DocumentCreate:
+      $ref: "./swagger/components/schemas/DocumentCreate.yml"
+    DocumentUpdate:
+      $ref: "./swagger/components/schemas/DocumentUpdate.yml"
+    DocumentListEntry:
+      $ref: "./swagger/components/schemas/DocumentListEntry.yml"
+    Documents:
+      $ref: "./swagger/components/schemas/Documents.yml"
+    TelegrafRequest:
+      $ref: "./swagger/components/schemas/TelegrafRequest.yml"
+    TelegrafRequestPlugin:
+      $ref: "./swagger/components/schemas/TelegrafRequestPlugin.yml"
+    TelegrafPluginInputCpu:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputCpu.yml"
+    TelegrafPluginInputDisk:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputDisk.yml"
+    TelegrafPluginInputDiskio:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputDiskio.yml"
+    TelegrafPluginInputDocker:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputDocker.yml"
+    TelegrafPluginInputFile:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputFile.yml"
+    TelegrafPluginInputKernel:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputKernel.yml"
+    TelegrafPluginInputKubernetes:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputKubernetes.yml"
+    TelegrafPluginInputLogParser:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputLogParser.yml"
+    TelegrafPluginInputMem:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputMem.yml"
+    TelegrafPluginInputNetResponse:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputNetResponse.yml"
+    TelegrafPluginInputNet:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputNet.yml"
+    TelegrafPluginInputNginx:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputNginx.yml"
+    TelegrafPluginInputProcesses:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputProcesses.yml"
+    TelegrafPluginInputProcstat:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputProcstat.yml"
+    TelegrafPluginInputPrometheus:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputPrometheus.yml"
+    TelegrafPluginInputRedis:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputRedis.yml"
+    TelegrafPluginInputSyslog:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputSyslog.yml"
+    TelegrafPluginInputSwap:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputSwap.yml"
+    TelegrafPluginInputSystem:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputSystem.yml"
+    TelegrafPluginInputTail:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputTail.yml"
+    TelegrafPluginOutputFile:
+      $ref: "./swagger/components/schemas/TelegrafPluginOutputFile.yml"
+    TelegrafPluginOutputInfluxDBV2:
+      $ref: "./swagger/components/schemas/TelegrafPluginOutputInfluxDBV2.yml"
+    Telegraf:
+      $ref: "./swagger/components/schemas/Telegraf.yml"
+    Telegrafs:
+      $ref: "./swagger/components/schemas/Telegrafs.yml"
+    TelegrafPlugin:
+      $ref: "./swagger/components/schemas/TelegrafPlugin.yml"
+    TelegrafPlugins:
+      $ref: "./swagger/components/schemas/TelegrafPlugins.yml"
+    TelegrafPluginInputDockerConfig:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputDockerConfig.yml"
+    TelegrafPluginInputFileConfig:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputFileConfig.yml"
+    TelegrafPluginInputKubernetesConfig:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputKubernetesConfig.yml"
+    TelegrafPluginInputLogParserConfig:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputLogParserConfig.yml"
+    TelegrafPluginInputProcstatConfig:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputProcstatConfig.yml"
+    TelegrafPluginInputPrometheusConfig:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputPrometheusConfig.yml"
+    TelegrafPluginInputRedisConfig:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputRedisConfig.yml"
+    TelegrafPluginInputSyslogConfig:
+      $ref: "./swagger/components/schemas/TelegrafPluginInputSyslogConfig.yml"
+    TelegrafPluginOutputFileConfig:
+      $ref: "./swagger/components/schemas/TelegrafPluginOutputFileConfig.yml"
+    TelegrafPluginOutputInfluxDBV2Config:
+      $ref: "./swagger/components/schemas/TelegrafPluginOutputInfluxDBV2Config.yml"
+    IsOnboarding:
+      $ref: "./swagger/components/schemas/IsOnboarding.yml"
+    OnboardingRequest:
+      $ref: "./swagger/components/schemas/OnboardingRequest.yml"
+    OnboardingResponse:
+      $ref: "./swagger/components/schemas/OnboardingResponse.yml"
+    PasswordResetBody:
+      $ref: "./swagger/components/schemas/PasswordResetBody.yml"
+    AddResourceMemberRequestBody:
+      $ref: "./swagger/components/schemas/AddResourceMemberRequestBody.yml"
+    Ready:
+      $ref: "./swagger/components/schemas/Ready.yml"
+    HealthCheck:
+      $ref: "./swagger/components/schemas/HealthCheck.yml"
+    Labels:
+      $ref: "./swagger/components/schemas/Labels.yml"
+    Label:
+      $ref: "./swagger/components/schemas/Label.yml"
+    LabelCreateRequest:
+      $ref: "./swagger/components/schemas/LabelCreateRequest.yml"
+    LabelUpdate:
+      $ref: "./swagger/components/schemas/LabelUpdate.yml"
+    LabelMapping:
+      $ref: "./swagger/components/schemas/LabelMapping.yml"
+    LabelsResponse:
+      $ref: "./swagger/components/schemas/LabelsResponse.yml"
+    LabelResponse:
+      $ref: "./swagger/components/schemas/LabelResponse.yml"
+    ASTResponse:
+      $ref: "./swagger/components/schemas/ASTResponse.yml"
+    WritePrecision:
+      $ref: "./swagger/components/schemas/WritePrecision.yml"
+    TaskCreateRequest:
+      $ref: "./swagger/components/schemas/TaskCreateRequest.yml"
+    TaskUpdateRequest:
+      $ref: "./swagger/components/schemas/TaskUpdateRequest.yml"
+    FluxResponse:
+      $ref: "./swagger/components/schemas/FluxResponse.yml"
+    CheckPatch:
+      $ref: "./swagger/components/schemas/CheckPatch.yml"
+    CheckDiscriminator:
+      $ref: "./swagger/components/schemas/CheckDiscriminator.yml"
+    Check:
+      $ref: "./swagger/components/schemas/Check.yml"
+    PostCheck:
+      $ref: "./swagger/components/schemas/PostCheck.yml"
+    Checks:
+      $ref: "./swagger/components/schemas/Checks.yml"
+    CheckBase:
+      $ref: "./swagger/components/schemas/CheckBase.yml"
+    ThresholdCheck:
+      $ref: "./swagger/components/schemas/ThresholdCheck.yml"
+    Threshold:
+      $ref: "./swagger/components/schemas/Threshold.yml"
+    DeadmanCheck:
+      $ref: "./swagger/components/schemas/DeadmanCheck.yml"
+    CustomCheck:
+      $ref: "./swagger/components/schemas/CustomCheck.yml"
+    ThresholdBase:
+      $ref: "./swagger/components/schemas/ThresholdBase.yml"
+    GreaterThreshold:
+      $ref: "./swagger/components/schemas/GreaterThreshold.yml"
+    LesserThreshold:
+      $ref: "./swagger/components/schemas/LesserThreshold.yml"
+    RangeThreshold:
+      $ref: "./swagger/components/schemas/RangeThreshold.yml"
+    CheckStatusLevel:
+      $ref: "./swagger/components/schemas/CheckStatusLevel.yml"
+    RuleStatusLevel:
+      $ref: "./swagger/components/schemas/RuleStatusLevel.yml"
+    NotificationRuleUpdate:
+      $ref: "./swagger/components/schemas/NotificationRuleUpdate.yml"
+    NotificationRuleDiscriminator:
+      $ref: "./swagger/components/schemas/NotificationRuleDiscriminator.yml"
+    NotificationRule:
+      $ref: "./swagger/components/schemas/NotificationRule.yml"
+    PostNotificationRule:
+      $ref: "./swagger/components/schemas/PostNotificationRule.yml"
+    NotificationRules:
+      $ref: "./swagger/components/schemas/NotificationRules.yml"
+    NotificationRuleBase:
+      $ref: "./swagger/components/schemas/NotificationRuleBase.yml"
+    TagRule:
+      $ref: "./swagger/components/schemas/TagRule.yml"
+    StatusRule:
+      $ref: "./swagger/components/schemas/StatusRule.yml"
+    HTTPNotificationRuleBase:
+      $ref: "./swagger/components/schemas/HTTPNotificationRuleBase.yml"
+    HTTPNotificationRule:
+      $ref: "./swagger/components/schemas/HTTPNotificationRule.yml"
+    SlackNotificationRuleBase:
+      $ref: "./swagger/components/schemas/SlackNotificationRuleBase.yml"
+    SlackNotificationRule:
+      $ref: "./swagger/components/schemas/SlackNotificationRule.yml"
+    SMTPNotificationRule:
+      $ref: "./swagger/components/schemas/SMTPNotificationRule.yml"
+    SMTPNotificationRuleBase:
+      $ref: "./swagger/components/schemas/SMTPNotificationRuleBase.yml"
+    PagerDutyNotificationRule:
+      $ref: "./swagger/components/schemas/PagerDutyNotificationRule.yml"
+    PagerDutyNotificationRuleBase:
+      $ref: "./swagger/components/schemas/PagerDutyNotificationRuleBase.yml"
+    TelegramNotificationRule:
+      $ref: "./swagger/components/schemas/TelegramNotificationRule.yml"
+    TelegramNotificationRuleBase:
+      $ref: "./swagger/components/schemas/TelegramNotificationRuleBase.yml"
+    NotificationEndpointUpdate:
+      $ref: "./swagger/components/schemas/NotificationEndpointUpdate.yml"
+    NotificationEndpointDiscrimator:
+      $ref: "./swagger/components/schemas/NotificationEndpointDiscrimator.yml"
+    NotificationEndpoint:
+      $ref: "./swagger/components/schemas/NotificationEndpoint.yml"
+    PostNotificationEndpoint:
+      $ref: "./swagger/components/schemas/PostNotificationEndpoint.yml"
+    NotificationEndpoints:
+      $ref: "./swagger/components/schemas/NotificationEndpoints.yml"
+    NotificationEndpointBase:
+      $ref: "./swagger/components/schemas/NotificationEndpointBase.yml"
+    SlackNotificationEndpoint:
+      $ref: "./swagger/components/schemas/SlackNotificationEndpoint.yml"
+    PagerDutyNotificationEndpoint:
+      $ref: "./swagger/components/schemas/PagerDutyNotificationEndpoint.yml"
+    HTTPNotificationEndpoint:
+      $ref: "./swagger/components/schemas/HTTPNotificationEndpoint.yml"
+    TelegramNotificationEndpoint:
+      $ref: "./swagger/components/schemas/TelegramNotificationEndpoint.yml"
+    NotificationEndpointType:
+      $ref: "./swagger/components/schemas/NotificationEndpointType.yml"
+    DBRP:
+      $ref: "./swagger/components/schemas/DBRP.yml"
+    DBRPs:
+      $ref: "./swagger/components/schemas/DBRPs.yml"
+    DBRPUpdate:
+      $ref: "./swagger/components/schemas/DBRPUpdate.yml"
   securitySchemes:
     BasicAuth:
       type: http
