@@ -10,22 +10,20 @@ import (
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/runtime"
-	v1 "github.com/influxdata/flux/stdlib/influxdata/influxdb/v1"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxql"
 )
 
-// This looks dodgy - we should maybe use a new kind for the new op?
-const DatabasesKind = v1.DatabasesKind
+const DatabasesKind = "influxDBDatabases"
 
 type DatabasesOpSpec struct {
 }
 
 func init() {
 	databasesSignature := runtime.MustLookupBuiltinType("influxdata/influxdb/v1", "databases")
-	runtime.ReplacePackageValue("influxdata/influxdb/v1", DatabasesKind, flux.MustValue(flux.FunctionValue(DatabasesKind, createDatabasesOpSpec, databasesSignature)))
+	runtime.ReplacePackageValue("influxdata/influxdb/v1", "databases", flux.MustValue(flux.FunctionValue(DatabasesKind, createDatabasesOpSpec, databasesSignature)))
 	flux.RegisterOpSpec(DatabasesKind, newDatabasesOp)
 	plan.RegisterProcedureSpec(DatabasesKind, newDatabasesProcedure, DatabasesKind)
 }

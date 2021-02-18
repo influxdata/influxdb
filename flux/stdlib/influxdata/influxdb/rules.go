@@ -225,7 +225,7 @@ func (rule PushDownReadTagKeysRule) Rewrite(ctx context.Context, pn plan.Node) (
 
 	// The tag keys mechanism doesn't know about fields so we cannot
 	// push down _field comparisons in 1.x.
-	if hasFieldRef(fromSpec.Predicate.Root) {
+	if fromSpec.Predicate != nil && hasFieldRef(fromSpec.Predicate.Root) {
 		return pn, false, nil
 	}
 
