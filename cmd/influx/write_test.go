@@ -406,7 +406,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		{
 			name: "read compressed CSV data from stdin using '-' argument + transform to line protocol",
 			flags: writeFlagsBuilder{
-				Format: inputFormatCsv,
+				Format:      inputFormatCsv,
 				Compression: inputCompressionGzip,
 			},
 			stdIn:     gzipStdin(stdInCsvContents),
