@@ -202,6 +202,66 @@ func OnboardInitialUser(
 				},
 			},
 		},
+		{
+			name: "using old key name for retention period should work",
+			fields: OnboardingFields{
+				IDGenerator: &loopIDGenerator{
+					s: []string{oneID, twoID, threeID, fourID},
+				},
+				TimeGenerator:  mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
+				TokenGenerator: mock.NewTokenGenerator(oneToken, nil),
+				IsOnboarding:   true,
+			},
+			args: args{
+				request: &platform.OnboardingRequest{
+					User:                 "admin",
+					Org:                  "org1",
+					Bucket:               "bucket1",
+					Password:             "password1",
+					RetentionPeriodHours: time.Hour * 24 * 7, // 1 week
+				},
+			},
+			wants: wants{
+				results: &platform.OnboardingResults{
+					User: &platform.User{
+						ID:     MustIDBase16(oneID),
+						Name:   "admin",
+						Status: platform.Active,
+					},
+					Org: &platform.Organization{
+						ID:   MustIDBase16(twoID),
+						Name: "org1",
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+						},
+					},
+					Bucket: &platform.Bucket{
+						ID:              MustIDBase16(threeID),
+						Name:            "bucket1",
+						OrgID:           MustIDBase16(twoID),
+						RetentionPeriod: time.Hour * 24 * 7,
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+						},
+					},
+					Auth: &platform.Authorization{
+						ID:          MustIDBase16(fourID),
+						Token:       oneToken,
+						Status:      platform.Active,
+						UserID:      MustIDBase16(oneID),
+						Description: "admin's Token",
+						OrgID:       MustIDBase16(twoID),
+						Permissions: platform.OperPermissions(),
+						CRUDLog: platform.CRUDLog{
+							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+						},
+					},
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

@@ -136,12 +136,17 @@ func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.Onboardi
 		return nil, err
 	}
 
+	rp := req.RetentionPeriod
+	if rp == 0 {
+		rp = req.RetentionPeriodHours
+	}
+
 	// create orgs buckets
 	ub := &influxdb.Bucket{
 		OrgID:           org.ID,
 		Name:            req.Bucket,
 		Type:            influxdb.BucketTypeUser,
-		RetentionPeriod: req.RetentionPeriod,
+		RetentionPeriod: rp,
 	}
 
 	if err := s.service.CreateBucket(ctx, ub); err != nil {
