@@ -170,7 +170,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		{
 			name: "read data from LP file using non-UTF encoding",
 			flags: writeFlagsBuilder{
-				Files: []string{lpFile},
+				Files:    []string{lpFile},
 				Encoding: "ISO_8859-1",
 			},
 			firstLineCorrection: 0,
@@ -192,9 +192,9 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		{
 			name: "read compressed data from LP file using non-UTF encoding",
 			flags: writeFlagsBuilder{
-				Files: []string{gzipLpFileNoExt},
+				Files:       []string{gzipLpFileNoExt},
 				Compression: inputCompressionGzip,
-				Encoding: "ISO_8859-1",
+				Encoding:    "ISO_8859-1",
 			},
 			firstLineCorrection: 0,
 			lines: []string{
@@ -250,8 +250,8 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			},
 		},
 		{
-			name:      "read compressed LP data from stdin using '-' argument",
-			flags:     writeFlagsBuilder{
+			name: "read compressed LP data from stdin using '-' argument",
+			flags: writeFlagsBuilder{
 				Compression: inputCompressionGzip,
 			},
 			stdIn:     stdInLpGzipContents,
