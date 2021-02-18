@@ -1,0 +1,7 @@
+description: Declares a Flux test case
+type: object
+properties:
+  type:
+    $ref: "#/components/schemas/NodeType"
+  assignment:
+    $ref: "#/components/schemas/VariableAssignment"

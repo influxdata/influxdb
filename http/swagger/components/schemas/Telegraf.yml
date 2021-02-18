@@ -1,0 +1,28 @@
+type: object
+allOf:
+  - $ref: "#/components/schemas/TelegrafRequest"
+  - type: object
+    properties:
+      id:
+        type: string
+        readOnly: true
+      links:
+        type: object
+        readOnly: true
+        example:
+          self: "/api/v2/telegrafs/1"
+          lables: "/api/v2/telegrafs/1/labels"
+          owners: "/api/v2/telegrafs/1/owners"
+          members: "/api/v2/telegrafs/1/members"
+        properties:
+          self:
+            $ref: "#/components/schemas/Link"
+          labels:
+            $ref: "#/components/schemas/Link"
+          members:
+            $ref: "#/components/schemas/Link"
+          owners:
+            $ref: "#/components/schemas/Link"
+      labels:
+        readOnly: true
+        $ref: "#/components/schemas/Labels"

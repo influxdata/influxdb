@@ -1,0 +1,22 @@
+type: object
+required:
+  - name
+  - status
+properties:
+  name:
+    type: string
+  message:
+    type: string
+  checks:
+    type: array
+    items:
+      $ref: "#/components/schemas/HealthCheck"
+  status:
+    type: string
+    enum:
+      - pass
+      - fail
+  version:
+    type: string
+  commit:
+    type: string

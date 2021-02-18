@@ -1,0 +1,9 @@
+allOf:
+  - $ref: "#/components/schemas/User"
+  - type: object
+    properties:
+      role:
+        type: string
+        default: owner
+        enum:
+          - owner

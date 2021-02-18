@@ -1,0 +1,14 @@
+oneOf:
+  - $ref: "#/components/schemas/SlackNotificationRule"
+  - $ref: "#/components/schemas/SMTPNotificationRule"
+  - $ref: "#/components/schemas/PagerDutyNotificationRule"
+  - $ref: "#/components/schemas/HTTPNotificationRule"
+  - $ref: "#/components/schemas/TelegramNotificationRule"
+discriminator:
+  propertyName: type
+  mapping:
+    slack: "#/components/schemas/SlackNotificationRule"
+    smtp: "#/components/schemas/SMTPNotificationRule"
+    pagerduty: "#/components/schemas/PagerDutyNotificationRule"
+    http: "#/components/schemas/HTTPNotificationRule"
+    telegram: "#/components/schemas/TelegramNotificationRule"

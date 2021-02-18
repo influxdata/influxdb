@@ -1,0 +1,47 @@
+type: object
+required:
+  - type
+  - queries
+  - colors
+  - shape
+  - note
+  - showNoteWhenEmpty
+  - prefix
+  - tickPrefix
+  - suffix
+  - tickSuffix
+  - legend
+  - decimalPlaces
+properties:
+  type:
+    type: string
+    enum: [single-stat]
+  queries:
+    type: array
+    items:
+      $ref: "#/components/schemas/DashboardQuery"
+  colors:
+    description: Colors define color encoding of data into a visualization
+    type: array
+    items:
+      $ref: "#/components/schemas/DashboardColor"
+  shape:
+    type: string
+    enum: ["chronograf-v2"]
+  note:
+    type: string
+  showNoteWhenEmpty:
+    description: If true, will display note when empty
+    type: boolean
+  prefix:
+    type: string
+  tickPrefix:
+    type: string
+  suffix:
+    type: string
+  tickSuffix:
+    type: string
+  legend:
+    $ref: "#/components/schemas/Legend"
+  decimalPlaces:
+    $ref: "#/components/schemas/DecimalPlaces"

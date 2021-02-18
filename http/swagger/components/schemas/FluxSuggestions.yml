@@ -1,0 +1,6 @@
+type: object
+properties:
+  funcs:
+    type: array
+    items:
+      $ref: "#/components/schemas/FluxSuggestion"

@@ -1,0 +1,12 @@
+description: Represents a function call
+type: object
+properties:
+  type:
+    $ref: "#/components/schemas/NodeType"
+  callee:
+    $ref: "#/components/schemas/Expression"
+  arguments:
+    description: Function arguments
+    type: array
+    items:
+      $ref: "#/components/schemas/Expression"

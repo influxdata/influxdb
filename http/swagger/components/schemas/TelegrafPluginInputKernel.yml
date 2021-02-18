@@ -1,0 +1,13 @@
+type: object
+required:
+  - name
+  - type
+properties:
+  name:
+    type: string
+    enum: ["kernel"]
+  type:
+    type: string
+    enum: ["input"]
+  comment:
+    type: string

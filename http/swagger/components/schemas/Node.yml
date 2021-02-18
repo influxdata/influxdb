@@ -1,0 +1,3 @@
+oneOf:
+  - $ref: "#/components/schemas/Expression"
+  - $ref: "#/components/schemas/Block"

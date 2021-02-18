@@ -1,0 +1,20 @@
+description: Represents a source from a single file
+type: object
+properties:
+  type:
+    $ref: "#/components/schemas/NodeType"
+  name:
+    description: The name of the file.
+    type: string
+  package:
+    $ref: "#/components/schemas/PackageClause"
+  imports:
+    description: A list of package imports
+    type: array
+    items:
+      $ref: "#/components/schemas/ImportDeclaration"
+  body:
+    description: List of Flux statements
+    type: array
+    items:
+      $ref: "#/components/schemas/Statement"

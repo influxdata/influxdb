@@ -1,0 +1,20 @@
+type: object
+properties:
+  meta:
+    $ref: "#/components/schemas/DocumentMeta"
+  content:
+    type: object
+  org:
+    type: string
+    description: The organization Name. Specify either `orgID` or `org`.
+  orgID:
+    type: string
+    description: The organization Name. Specify either `orgID` or `org`.
+  labels:
+    type: array
+    description: An array of label IDs to be added as labels to the document.
+    items:
+      type: string
+required:
+  - meta
+  - content

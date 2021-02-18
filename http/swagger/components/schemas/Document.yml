@@ -1,0 +1,24 @@
+type: object
+properties:
+  id:
+    type: string
+    readOnly: true
+  meta:
+    $ref: "#/components/schemas/DocumentMeta"
+  content:
+    type: object
+  labels:
+    $ref: "#/components/schemas/Labels"
+  links:
+    type: object
+    readOnly: true
+    example:
+      self: "/api/v2/documents/templates/1"
+    properties:
+      self:
+        description: The document URL.
+        $ref: "#/components/schemas/Link"
+required:
+  - id
+  - meta
+  - content

@@ -1,0 +1,5 @@
+type: object
+oneOf:
+  - $ref: "#/components/schemas/QueryVariableProperties"
+  - $ref: "#/components/schemas/ConstantVariableProperties"
+  - $ref: "#/components/schemas/MapVariableProperties"

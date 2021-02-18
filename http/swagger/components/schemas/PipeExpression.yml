@@ -1,0 +1,9 @@
+description: Call expression with pipe argument
+type: object
+properties:
+  type:
+    $ref: "#/components/schemas/NodeType"
+  argument:
+    $ref: "#/components/schemas/Expression"
+  call:
+    $ref: "#/components/schemas/CallExpression"

@@ -1,0 +1,2 @@
+type: string
+enum: [active, inactive]

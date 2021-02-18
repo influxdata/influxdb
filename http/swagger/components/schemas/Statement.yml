@@ -1,0 +1,9 @@
+oneOf:
+  - $ref: "#/components/schemas/BadStatement"
+  - $ref: "#/components/schemas/VariableAssignment"
+  - $ref: "#/components/schemas/MemberAssignment"
+  - $ref: "#/components/schemas/ExpressionStatement"
+  - $ref: "#/components/schemas/ReturnStatement"
+  - $ref: "#/components/schemas/OptionStatement"
+  - $ref: "#/components/schemas/BuiltinStatement"
+  - $ref: "#/components/schemas/TestStatement"

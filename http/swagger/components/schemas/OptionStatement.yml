@@ -1,0 +1,9 @@
+description: A single variable declaration
+type: object
+properties:
+  type:
+    $ref: "#/components/schemas/NodeType"
+  assignment:
+    oneOf:
+      - $ref: "#/components/schemas/VariableAssignment"
+      - $ref: "#/components/schemas/MemberAssignment"

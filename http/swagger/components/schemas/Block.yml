@@ -1,0 +1,10 @@
+description: A set of statements
+type: object
+properties:
+  type:
+    $ref: "#/components/schemas/NodeType"
+  body:
+    description: Block body
+    type: array
+    items:
+      $ref: "#/components/schemas/Statement"

@@ -1,0 +1,7 @@
+description: Represents boolean values
+type: object
+properties:
+  type:
+    $ref: "#/components/schemas/NodeType"
+  value:
+    type: boolean

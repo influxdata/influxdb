@@ -1,0 +1,10 @@
+oneOf:
+  - $ref: "#/components/schemas/DeadmanCheck"
+  - $ref: "#/components/schemas/ThresholdCheck"
+  - $ref: "#/components/schemas/CustomCheck"
+discriminator:
+  propertyName: type
+  mapping:
+    deadman: "#/components/schemas/DeadmanCheck"
+    threshold: "#/components/schemas/ThresholdCheck"
+    custom: "#/components/schemas/CustomCheck"

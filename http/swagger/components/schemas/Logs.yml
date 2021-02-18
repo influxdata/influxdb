@@ -1,0 +1,7 @@
+type: object
+properties:
+  events:
+    readOnly: true
+    type: array
+    items:
+      $ref: "#/components/schemas/LogEvent"

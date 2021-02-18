@@ -1,0 +1,9 @@
+type: object
+properties:
+  links:
+    readOnly: true
+    $ref: "#/components/schemas/Links"
+  buckets:
+    type: array
+    items:
+      $ref: "#/components/schemas/Bucket"

@@ -1,0 +1,16 @@
+description: The delete predicate request.
+type: object
+required: [start, stop]
+properties:
+  start:
+    description: RFC3339Nano
+    type: string
+    format: date-time
+  stop:
+    description: RFC3339Nano
+    type: string
+    format: date-time
+  predicate:
+    description: InfluxQL-like delete statement
+    example: tag1="value1" and (tag2="value2" and tag3!="value3")
+    type: string

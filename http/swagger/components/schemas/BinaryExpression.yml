@@ -1,0 +1,11 @@
+description: uses binary operators to act on two operands in an expression
+type: object
+properties:
+  type:
+    $ref: "#/components/schemas/NodeType"
+  operator:
+    type: string
+  left:
+    $ref: "#/components/schemas/Expression"
+  right:
+    $ref: "#/components/schemas/Expression"

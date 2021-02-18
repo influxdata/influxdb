@@ -1,0 +1,6 @@
+type: object
+oneOf:
+  - $ref: "#/components/schemas/GeoCircleViewLayer"
+  - $ref: "#/components/schemas/GeoHeatMapViewLayer"
+  - $ref: "#/components/schemas/GeoPointMapViewLayer"
+  - $ref: "#/components/schemas/GeoTrackMapViewLayer"

@@ -1,0 +1,7 @@
+description: A valid Flux identifier
+type: object
+properties:
+  type:
+    $ref: "#/components/schemas/NodeType"
+  name:
+    type: string

@@ -1,0 +1,11 @@
+description: Selects one of two expressions, `Alternate` or `Consequent`, depending on a third boolean expression, `Test`
+type: object
+properties:
+  type:
+    $ref: "#/components/schemas/NodeType"
+  test:
+    $ref: "#/components/schemas/Expression"
+  alternate:
+    $ref: "#/components/schemas/Expression"
+  consequent:
+    $ref: "#/components/schemas/Expression"

@@ -1,0 +1,6 @@
+type: object
+properties:
+  labels:
+    $ref: "#/components/schemas/Labels"
+  links:
+    $ref: "#/components/schemas/Links"

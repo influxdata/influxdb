@@ -1,0 +1,10 @@
+type: object
+properties:
+  currentLevel:
+    $ref: "#/components/schemas/RuleStatusLevel"
+  previousLevel:
+    $ref: "#/components/schemas/RuleStatusLevel"
+  count:
+    type: integer
+  period:
+    type: string

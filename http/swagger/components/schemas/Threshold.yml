@@ -1,0 +1,10 @@
+oneOf:
+  - $ref: "#/components/schemas/GreaterThreshold"
+  - $ref: "#/components/schemas/LesserThreshold"
+  - $ref: "#/components/schemas/RangeThreshold"
+discriminator:
+  propertyName: type
+  mapping:
+    greater: "#/components/schemas/GreaterThreshold"
+    lesser: "#/components/schemas/LesserThreshold"
+    range: "#/components/schemas/RangeThreshold"

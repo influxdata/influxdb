@@ -1,0 +1,9 @@
+description: Uses operators to act on a single operand in an expression
+type: object
+properties:
+  type:
+    $ref: "#/components/schemas/NodeType"
+  operator:
+    type: string
+  argument:
+    $ref: "#/components/schemas/Expression"

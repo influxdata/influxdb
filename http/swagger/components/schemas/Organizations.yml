@@ -1,0 +1,8 @@
+type: object
+properties:
+  links:
+    $ref: "#/components/schemas/Links"
+  orgs:
+    type: array
+    items:
+      $ref: "#/components/schemas/Organization"

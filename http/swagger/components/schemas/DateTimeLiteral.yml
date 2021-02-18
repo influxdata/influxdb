@@ -1,0 +1,7 @@
+description: Represents an instant in time with nanosecond precision using the syntax of golang's RFC3339 Nanosecond variant
+type: object
+properties:
+  type:
+    $ref: "#/components/schemas/NodeType"
+  value:
+    type: string

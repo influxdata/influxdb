@@ -1,0 +1,7 @@
+type: object
+properties:
+  urls:
+    type: array
+    items:
+      type: string
+      format: uri

@@ -1,0 +1,9 @@
+description: Represents accessing a property of an object
+type: object
+properties:
+  type:
+    $ref: "#/components/schemas/NodeType"
+  object:
+    $ref: "#/components/schemas/Expression"
+  property:
+    $ref: "#/components/schemas/PropertyKey"

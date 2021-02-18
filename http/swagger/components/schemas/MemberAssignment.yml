@@ -1,0 +1,9 @@
+description: Object property assignment
+type: object
+properties:
+  type:
+    $ref: "#/components/schemas/NodeType"
+  member:
+    $ref: "#/components/schemas/MemberExpression"
+  init:
+    $ref: "#/components/schemas/Expression"

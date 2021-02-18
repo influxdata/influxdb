@@ -1,0 +1,11 @@
+description: Represents the rule conditions that collectively evaluate to either true or false
+type: object
+properties:
+  type:
+    $ref: "#/components/schemas/NodeType"
+  operator:
+    type: string
+  left:
+    $ref: "#/components/schemas/Expression"
+  right:
+    $ref: "#/components/schemas/Expression"

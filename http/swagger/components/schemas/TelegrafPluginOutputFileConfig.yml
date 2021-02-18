@@ -1,0 +1,14 @@
+type: object
+required:
+  - files
+properties:
+  files:
+    type: array
+    items:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [stdout, path]
+        path:
+          type: string

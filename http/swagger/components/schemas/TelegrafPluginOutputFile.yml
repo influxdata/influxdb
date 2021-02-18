@@ -1,0 +1,16 @@
+type: object
+required:
+  - name
+  - type
+  - config
+properties:
+  name:
+    type: string
+    enum: ["file"]
+  type:
+    type: string
+    enum: ["output"]
+  comment:
+    type: string
+  config:
+    $ref: "#/components/schemas/TelegrafPluginOutputFileConfig"

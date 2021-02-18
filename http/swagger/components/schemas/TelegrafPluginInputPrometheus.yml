@@ -1,0 +1,16 @@
+type: object
+required:
+  - name
+  - type
+  - config
+properties:
+  name:
+    type: string
+    enum: ["prometheus"]
+  type:
+    type: string
+    enum: ["input"]
+  comment:
+    type: string
+  config:
+    $ref: "#/components/schemas/TelegrafPluginInputPrometheusConfig"

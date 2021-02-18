@@ -1,0 +1,10 @@
+type: object
+properties:
+  user:
+    $ref: "#/components/schemas/User"
+  org:
+    $ref: "#/components/schemas/Organization"
+  bucket:
+    $ref: "#/components/schemas/Bucket"
+  auth:
+    $ref: "#/components/schemas/Authorization"

@@ -1,0 +1,7 @@
+properties:
+  notificationEndpoints:
+    type: array
+    items:
+      $ref: "#/components/schemas/NotificationEndpoint"
+  links:
+    $ref: "#/components/schemas/Links"

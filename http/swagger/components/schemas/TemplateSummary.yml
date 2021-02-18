@@ -1,0 +1,614 @@
+type: object
+properties:
+  sources:
+    type: array
+    items:
+      type: string
+  stackID:
+    type: string
+  summary:
+    type: object
+    properties:
+      buckets:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              type: string
+            orgID:
+              type: string
+            kind:
+              $ref: "#/components/schemas/TemplateKind"
+            templateMetaName:
+              type: string
+            name:
+              type: string
+            description:
+              type: string
+            retentionPeriod:
+              type: integer
+            labelAssociations:
+              type: array
+              items:
+                $ref: "#/components/schemas/TemplateSummaryLabel"
+            envReferences:
+              $ref: "#/components/schemas/TemplateEnvReferences"
+      checks:
+        type: array
+        items:
+          allOf:
+            - $ref: "#/components/schemas/CheckDiscriminator"
+            - type: object
+              properties:
+                kind:
+                  $ref: "#/components/schemas/TemplateKind"
+                templateMetaName:
+                  type: string
+                labelAssociations:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/TemplateSummaryLabel"
+                envReferences:
+                  $ref: "#/components/schemas/TemplateEnvReferences"
+      dashboards:
+        type: array
+        items:
+          type: object
+          properties:
+            id:
+              type: "string"
+            orgID:
+              type: "string"
+            kind:
+              $ref: "#/components/schemas/TemplateKind"
+            templateMetaName:
+              type: string
+            name:
+              type: "string"
+            description:
+              type: "string"
+            labelAssociations:
+              type: array
+              items:
+                $ref: "#/components/schemas/TemplateSummaryLabel"
+            charts:
+              type: array
+              items:
+                $ref: "#/components/schemas/TemplateChart"
+            envReferences:
+              $ref: "#/components/schemas/TemplateEnvReferences"
+      labels:
+        type: array
+        items:
+          $ref: "#/components/schemas/TemplateSummaryLabel"
+      labelMappings:
+        type: array
+        items:
+          type: object
+          properties:
+            status:
+              type: string
+            resourceTemplateMetaName:
+              type: string
+            resourceName:
+              type: string
+            resourceID:
+              type: string
+            resourceType:
+              type: string
+            labelTemplateMetaName:
+              type: string
+            labelName:
+              type: string
+            labelID:
+              type: string
+      missingEnvRefs:
+        type: array
+        items:
+          type: string
+      missingSecrets:
+        type: array
+        items:
+          type: string
+      notificationEndpoints:
+        type: array
+        items:
+          allOf:
+            - $ref: "#/components/schemas/NotificationEndpointDiscrimator"
+            - type: object
+              properties:
+                kind:
+                  $ref: "#/components/schemas/TemplateKind"
+                templateMetaName:
+                  type: string
+                labelAssociations:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/TemplateSummaryLabel"
+                envReferences:
+                  $ref: "#/components/schemas/TemplateEnvReferences"
+      notificationRules:
+        type: array
+        items:
+          type: object
+          properties:
+            kind:
+              $ref: "#/components/schemas/TemplateKind"
+            templateMetaName:
+              type: string
+            name:
+              type: string
+            description:
+              type: string
+            endpointTemplateMetaName:
+              type: string
+            endpointID:
+              type: string
+            endpointType:
+              type: string
+            every:
+              type: string
+            offset:
+              type: string
+            messageTemplate:
+              type: string
+            status:
+              type: string
+            statusRules:
+              type: array
+              items:
+                type: object
+                properties:
+                  currentLevel:
+                    type: string
+                  previousLevel:
+                    type: string
+            tagRules:
+              type: array
+              items:
+                type: object
+                properties:
+                  key:
+                    type: string
+                  value:
+                    type: string
+                  operator:
+                    type: string
+            labelAssociations:
+              type: array
+              items:
+                $ref: "#/components/schemas/TemplateSummaryLabel"
+            envReferences:
+              $ref: "#/components/schemas/TemplateEnvReferences"
+      tasks:
+        type: array
+        items:
+          type: object
+          properties:
+            kind:
+              $ref: "#/components/schemas/TemplateKind"
+            templateMetaName:
+              type: string
+            id:
+              type: string
+            name:
+              type: string
+            cron:
+              type: string
+            description:
+              type: string
+            every:
+              type: string
+            offset:
+              type: string
+            query:
+              type: string
+            status:
+              type: string
+            envReferences:
+              $ref: "#/components/schemas/TemplateEnvReferences"
+      telegrafConfigs:
+        type: array
+        items:
+          allOf:
+            - $ref: "#/components/schemas/TelegrafRequest"
+            - type: object
+              properties:
+                kind:
+                  $ref: "#/components/schemas/TemplateKind"
+                templateMetaName:
+                  type: string
+                labelAssociations:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/TemplateSummaryLabel"
+                envReferences:
+                  $ref: "#/components/schemas/TemplateEnvReferences"
+      variables:
+        type: array
+        items:
+          type: object
+          properties:
+            kind:
+              $ref: "#/components/schemas/TemplateKind"
+            templateMetaName:
+              type: string
+            id:
+              type: string
+            orgID:
+              type: string
+            name:
+              type: string
+            description:
+              type: string
+            arguments:
+              $ref: "#/components/schemas/VariableProperties"
+            labelAssociations:
+              type: array
+              items:
+                $ref: "#/components/schemas/TemplateSummaryLabel"
+            envReferences:
+              $ref: "#/components/schemas/TemplateEnvReferences"
+  diff:
+    type: object
+    properties:
+      buckets:
+        type: array
+        items:
+          type: object
+          properties:
+            kind:
+              $ref: "#/components/schemas/TemplateKind"
+            stateStatus:
+              type: string
+            id:
+              type: string
+            templateMetaName:
+              type: string
+            new:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                retentionRules:
+                  $ref: "#/components/schemas/RetentionRules"
+            old:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                retentionRules:
+                  $ref: "#/components/schemas/RetentionRules"
+      checks:
+        type: array
+        items:
+          type: object
+          properties:
+            kind:
+              $ref: "#/components/schemas/TemplateKind"
+            stateStatus:
+              type: string
+            id:
+              type: string
+            templateMetaName:
+              type: string
+            new:
+              $ref: "#/components/schemas/CheckDiscriminator"
+            old:
+              $ref: "#/components/schemas/CheckDiscriminator"
+      dashboards:
+        type: array
+        items:
+          type: object
+          properties:
+            stateStatus:
+              type: string
+            id:
+              type: string
+            kind:
+              $ref: "#/components/schemas/TemplateKind"
+            templateMetaName:
+              type: string
+            new:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                charts:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/TemplateChart"
+            old:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                charts:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/TemplateChart"
+      labels:
+        type: array
+        items:
+          type: object
+          properties:
+            stateStatus:
+              type: string
+            kind:
+              $ref: "#/components/schemas/TemplateKind"
+            id:
+              type: string
+            templateMetaName:
+              type: string
+            new:
+              type: object
+              properties:
+                name:
+                  type: string
+                color:
+                  type: string
+                description:
+                  type: string
+            old:
+              type: object
+              properties:
+                name:
+                  type: string
+                color:
+                  type: string
+                description:
+                  type: string
+      labelMappings:
+        type: array
+        items:
+          type: object
+          properties:
+            status:
+              type: string
+            resourceType:
+              type: string
+            resourceID:
+              type: string
+            resourceTemplateMetaName:
+              type: string
+            resourceName:
+              type: string
+            labelID:
+              type: string
+            labelTemplateMetaName:
+              type: string
+            labelName:
+              type: string
+      notificationEndpoints:
+        type: array
+        items:
+          type: object
+          properties:
+            kind:
+              $ref: "#/components/schemas/TemplateKind"
+            stateStatus:
+              type: string
+            id:
+              type: string
+            templateMetaName:
+              type: string
+            new:
+              $ref: "#/components/schemas/NotificationEndpointDiscrimator"
+            old:
+              $ref: "#/components/schemas/NotificationEndpointDiscrimator"
+      notificationRules:
+        type: array
+        items:
+          type: object
+          properties:
+            kind:
+              $ref: "#/components/schemas/TemplateKind"
+            stateStatus:
+              type: string
+            id:
+              type: string
+            templateMetaName:
+              type: string
+            new:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                endpointName:
+                  type: string
+                endpointID:
+                  type: string
+                endpointType:
+                  type: string
+                every:
+                  type: string
+                offset:
+                  type: string
+                messageTemplate:
+                  type: string
+                status:
+                  type: string
+                statusRules:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      currentLevel:
+                        type: string
+                      previousLevel:
+                        type: string
+                tagRules:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      key:
+                        type: string
+                      value:
+                        type: string
+                      operator:
+                        type: string
+            old:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                endpointName:
+                  type: string
+                endpointID:
+                  type: string
+                endpointType:
+                  type: string
+                every:
+                  type: string
+                offset:
+                  type: string
+                messageTemplate:
+                  type: string
+                status:
+                  type: string
+                statusRules:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      currentLevel:
+                        type: string
+                      previousLevel:
+                        type: string
+                tagRules:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      key:
+                        type: string
+                      value:
+                        type: string
+                      operator:
+                        type: string
+      tasks:
+        type: array
+        items:
+          type: object
+          properties:
+            kind:
+              $ref: "#/components/schemas/TemplateKind"
+            stateStatus:
+              type: string
+            id:
+              type: string
+            templateMetaName:
+              type: string
+            new:
+              type: object
+              properties:
+                name:
+                  type: string
+                cron:
+                  type: string
+                description:
+                  type: string
+                every:
+                  type: string
+                offset:
+                  type: string
+                query:
+                  type: string
+                status:
+                  type: string
+            old:
+              type: object
+              properties:
+                name:
+                  type: string
+                cron:
+                  type: string
+                description:
+                  type: string
+                every:
+                  type: string
+                offset:
+                  type: string
+                query:
+                  type: string
+                status:
+                  type: string
+      telegrafConfigs:
+        type: array
+        items:
+          type: object
+          properties:
+            kind:
+              $ref: "#/components/schemas/TemplateKind"
+            stateStatus:
+              type: string
+            id:
+              type: string
+            templateMetaName:
+              type: string
+            new:
+              $ref: "#/components/schemas/TelegrafRequest"
+            old:
+              $ref: "#/components/schemas/TelegrafRequest"
+      variables:
+        type: array
+        items:
+          type: object
+          properties:
+            kind:
+              $ref: "#/components/schemas/TemplateKind"
+            stateStatus:
+              type: string
+            id:
+              type: string
+            templateMetaName:
+              type: string
+            new:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                args:
+                  $ref: "#/components/schemas/VariableProperties"
+            old:
+              type: object
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+                args:
+                  $ref: "#/components/schemas/VariableProperties"
+  errors:
+    type: array
+    items:
+      type: object
+      properties:
+        kind:
+          $ref: "#/components/schemas/TemplateKind"
+        reason:
+          type: string
+        fields:
+          type: array
+          items:
+            type: string
+        indexes:
+          type: array
+          items:
+            type: integer

@@ -1,0 +1,7 @@
+properties:
+  notificationRules:
+    type: array
+    items:
+      $ref: "#/components/schemas/NotificationRule"
+  links:
+    $ref: "#/components/schemas/Links"

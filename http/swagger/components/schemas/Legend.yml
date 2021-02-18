@@ -1,0 +1,18 @@
+description: Legend define encoding of data into a view's legend
+type: object
+properties:
+  type:
+    description: The style of the legend.
+    type: string
+    enum:
+      - static
+  orientation:
+    description: >-
+      orientation is the location of the legend with respect to the view
+      graph
+    type: string
+    enum:
+      - top
+      - bottom
+      - left
+      - right

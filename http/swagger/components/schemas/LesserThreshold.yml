@@ -1,0 +1,11 @@
+allOf:
+  - $ref: "#/components/schemas/ThresholdBase"
+  - type: object
+    required: [type, value]
+    properties:
+      type:
+        type: string
+        enum: [lesser]
+      value:
+        type: number
+        format: float

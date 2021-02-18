@@ -1,0 +1,43 @@
+type: object
+allOf:
+  - $ref: "#/components/schemas/CreateDashboardRequest"
+  - type: object
+    properties:
+      links:
+        type: object
+        example:
+          self: "/api/v2/dashboards/1"
+          cells: "/api/v2/dashboards/1/cells"
+          owners: "/api/v2/dashboards/1/owners"
+          members: "/api/v2/dashboards/1/members"
+          labels: "/api/v2/dashboards/1/labels"
+          org: "/api/v2/labels/1"
+        properties:
+          self:
+            $ref: "#/components/schemas/Link"
+          cells:
+            $ref: "#/components/schemas/Link"
+          members:
+            $ref: "#/components/schemas/Link"
+          owners:
+            $ref: "#/components/schemas/Link"
+          labels:
+            $ref: "#/components/schemas/Link"
+          org:
+            $ref: "#/components/schemas/Link"
+      id:
+        readOnly: true
+        type: string
+      meta:
+        type: object
+        properties:
+          createdAt:
+            type: string
+            format: date-time
+          updatedAt:
+            type: string
+            format: date-time
+      cells:
+        $ref: "#/components/schemas/Cells"
+      labels:
+        $ref: "#/components/schemas/Labels"

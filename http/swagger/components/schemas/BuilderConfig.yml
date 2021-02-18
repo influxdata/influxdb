@@ -1,0 +1,21 @@
+type: object
+properties:
+  buckets:
+    type: array
+    items:
+      type: string
+  tags:
+    type: array
+    items:
+      $ref: "#/components/schemas/BuilderTagsType"
+  functions:
+    type: array
+    items:
+      $ref: "#/components/schemas/BuilderFunctionsType"
+  aggregateWindow:
+    type: object
+    properties:
+      period:
+        type: string
+      fillValues:
+        type: boolean

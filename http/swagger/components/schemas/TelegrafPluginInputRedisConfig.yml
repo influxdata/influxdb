@@ -1,0 +1,8 @@
+type: object
+properties:
+  servers:
+    type: array
+    items:
+      type: string
+  password:
+    type: string

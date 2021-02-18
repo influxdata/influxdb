@@ -1,0 +1,6 @@
+type: object
+properties:
+  meta:
+    $ref: "#/components/schemas/DocumentMeta"
+  content:
+    type: object

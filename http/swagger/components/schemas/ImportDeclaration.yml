@@ -1,0 +1,9 @@
+description: Declares a package import
+type: object
+properties:
+  type:
+    $ref: "#/components/schemas/NodeType"
+  as:
+    $ref: "#/components/schemas/Identifier"
+  path:
+    $ref: "#/components/schemas/StringLiteral"

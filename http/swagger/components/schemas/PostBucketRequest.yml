@@ -1,0 +1,12 @@
+properties:
+  orgID:
+    type: string
+  name:
+    type: string
+  description:
+    type: string
+  rp:
+    type: string
+  retentionRules:
+    $ref: "#/components/schemas/RetentionRules"
+required: [orgID, name, retentionRules]

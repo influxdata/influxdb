@@ -1,0 +1,9 @@
+description: The value associated with a key
+type: object
+properties:
+  type:
+    $ref: "#/components/schemas/NodeType"
+  key:
+    $ref: "#/components/schemas/PropertyKey"
+  value:
+    $ref: "#/components/schemas/Expression"

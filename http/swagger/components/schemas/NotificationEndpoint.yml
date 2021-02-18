@@ -1,0 +1,2 @@
+allOf:
+  - $ref: "#/components/schemas/NotificationEndpointDiscrimator"

@@ -1,0 +1,6 @@
+type: object
+properties:
+  configurations:
+    type: array
+    items:
+      $ref: "#/components/schemas/Telegraf"

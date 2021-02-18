@@ -1,0 +1,9 @@
+type: object
+allOf:
+  - $ref: "#/components/schemas/Cell"
+  - type: object
+    properties:
+      name:
+        type: string
+      properties:
+        $ref: "#/components/schemas/ViewProperties"

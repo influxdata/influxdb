@@ -1,0 +1,9 @@
+type: object
+properties:
+  next:
+    $ref: "#/components/schemas/Link"
+  self:
+    $ref: "#/components/schemas/Link"
+  prev:
+    $ref: "#/components/schemas/Link"
+required: [self]

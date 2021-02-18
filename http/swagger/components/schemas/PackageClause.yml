@@ -1,0 +1,7 @@
+description: Defines a package identifier
+type: object
+properties:
+  type:
+    $ref: "#/components/schemas/NodeType"
+  name:
+    $ref: "#/components/schemas/Identifier"

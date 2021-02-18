@@ -1,0 +1,7 @@
+description: Represents integer numbers
+type: object
+properties:
+  type:
+    $ref: "#/components/schemas/NodeType"
+  value:
+    type: string

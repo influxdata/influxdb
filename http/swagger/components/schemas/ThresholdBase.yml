@@ -1,0 +1,6 @@
+properties:
+  level:
+    $ref: "#/components/schemas/CheckStatusLevel"
+  allValues:
+    description: If true, only alert if all values meet threshold.
+    type: boolean

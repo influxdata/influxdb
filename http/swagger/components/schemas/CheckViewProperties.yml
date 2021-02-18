@@ -1,0 +1,34 @@
+type: object
+required:
+  - type
+  - shape
+  - checkID
+  - queries
+  - colors
+properties:
+  type:
+    type: string
+    enum: [check]
+  shape:
+    type: string
+    enum: ["chronograf-v2"]
+  checkID:
+    type: string
+  check:
+    $ref: "#/components/schemas/Check"
+  queries:
+    type: array
+    items:
+      $ref: "#/components/schemas/DashboardQuery"
+  colors:
+    description: Colors define color encoding of data into a visualization
+    type: array
+    items:
+      $ref: "#/components/schemas/DashboardColor"
+  legendColorizeRows:
+    type: boolean
+  legendOpacity:
+    type: number
+    format: float
+  legendOrientationThreshold:
+    type: integer

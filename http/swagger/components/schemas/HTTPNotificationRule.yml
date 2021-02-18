@@ -1,0 +1,3 @@
+allOf:
+  - $ref: "#/components/schemas/NotificationRuleBase"
+  - $ref: "#/components/schemas/HTTPNotificationRuleBase"

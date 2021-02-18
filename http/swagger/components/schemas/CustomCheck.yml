@@ -1,0 +1,8 @@
+allOf:
+  - $ref: "#/components/schemas/CheckBase"
+  - type: object
+    properties:
+      type:
+        type: string
+        enum: [custom]
+    required: [type]

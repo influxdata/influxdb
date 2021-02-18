@@ -1,0 +1,61 @@
+properties:
+  links:
+    type: object
+    readOnly: true
+    example:
+      labels: "/api/v2/buckets/1/labels"
+      members: "/api/v2/buckets/1/members"
+      org: "/api/v2/orgs/2"
+      owners: "/api/v2/buckets/1/owners"
+      self: "/api/v2/buckets/1"
+      write: "/api/v2/write?org=2&bucket=1"
+    properties:
+      labels:
+        description: URL to retrieve labels for this bucket
+        $ref: "#/components/schemas/Link"
+      members:
+        description: URL to retrieve members that can read this bucket
+        $ref: "#/components/schemas/Link"
+      org:
+        description: URL to retrieve parent organization for this bucket
+        $ref: "#/components/schemas/Link"
+      owners:
+        description: URL to retrieve owners that can read and write to this bucket.
+        $ref: "#/components/schemas/Link"
+      self:
+        description: URL for this bucket
+        $ref: "#/components/schemas/Link"
+      write:
+        description: URL to write line protocol for this bucket
+        $ref: "#/components/schemas/Link"
+  id:
+    readOnly: true
+    type: string
+  type:
+    readOnly: true
+    type: string
+    default: user
+    enum:
+      - user
+      - system
+  name:
+    type: string
+  description:
+    type: string
+  orgID:
+    type: string
+  rp:
+    type: string
+  createdAt:
+    type: string
+    format: date-time
+    readOnly: true
+  updatedAt:
+    type: string
+    format: date-time
+    readOnly: true
+  retentionRules:
+    $ref: "#/components/schemas/RetentionRules"
+  labels:
+    $ref: "#/components/schemas/Labels"
+required: [name, retentionRules]

@@ -1,0 +1,33 @@
+type: object
+properties:
+  stackID:
+    type: string
+  orgIDs:
+    type: array
+    items:
+      type: object
+      properties:
+        orgID:
+          type: string
+        resourceFilters:
+          type: object
+          properties:
+            byLabel:
+              type: array
+              items:
+                type: string
+            byResourceKind:
+              type: array
+              items:
+                $ref: "#/components/schemas/TemplateKind"
+  resources:
+    type: object
+    properties:
+      id:
+        type: string
+      kind:
+        $ref: "#/components/schemas/TemplateKind"
+      name:
+        type: string
+        description: "if defined with id, name is used for resource exported by id. if defined independently, resources strictly matching name are exported"
+    required: [id, kind]

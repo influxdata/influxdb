@@ -1,0 +1,9 @@
+type: object
+properties:
+  links:
+    readOnly: true
+    $ref: "#/components/schemas/Links"
+  tasks:
+    type: array
+    items:
+      $ref: "#/components/schemas/Task"

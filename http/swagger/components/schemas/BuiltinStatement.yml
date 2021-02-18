@@ -1,0 +1,7 @@
+description: Declares a builtin identifier and its type
+type: object
+properties:
+  type:
+    $ref: "#/components/schemas/NodeType"
+  id:
+    $ref: "#/components/schemas/Identifier"

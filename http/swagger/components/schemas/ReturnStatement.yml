@@ -1,0 +1,7 @@
+description: Defines an expression to return
+type: object
+properties:
+  type:
+    $ref: "#/components/schemas/NodeType"
+  argument:
+    $ref: "#/components/schemas/Expression"

@@ -1,0 +1,6 @@
+type: string
+enum:
+  - ms
+  - s
+  - us
+  - ns

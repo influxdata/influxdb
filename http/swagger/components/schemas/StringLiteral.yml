@@ -1,0 +1,7 @@
+description: Expressions begin and end with double quote marks
+type: object
+properties:
+  type:
+    $ref: "#/components/schemas/NodeType"
+  value:
+    type: string

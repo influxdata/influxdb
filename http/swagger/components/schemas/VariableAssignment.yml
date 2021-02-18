@@ -1,0 +1,9 @@
+description: Represents the declaration of a variable
+type: object
+properties:
+  type:
+    $ref: "#/components/schemas/NodeType"
+  id:
+    $ref: "#/components/schemas/Identifier"
+  init:
+    $ref: "#/components/schemas/Expression"

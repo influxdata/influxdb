@@ -1,0 +1,53 @@
+properties:
+  links:
+    type: object
+    readOnly: true
+    example:
+      self: "/api/v2/orgs/1"
+      members: "/api/v2/orgs/1/members"
+      owners: "/api/v2/orgs/1/owners"
+      labels: "/api/v2/orgs/1/labels"
+      secrets: "/api/v2/orgs/1/secrets"
+      buckets: "/api/v2/buckets?org=myorg"
+      tasks: "/api/v2/tasks?org=myorg"
+      dashboards: "/api/v2/dashboards?org=myorg"
+    properties:
+      self:
+        $ref: "#/components/schemas/Link"
+      members:
+        $ref: "#/components/schemas/Link"
+      owners:
+        $ref: "#/components/schemas/Link"
+      labels:
+        $ref: "#/components/schemas/Link"
+      secrets:
+        $ref: "#/components/schemas/Link"
+      buckets:
+        $ref: "#/components/schemas/Link"
+      tasks:
+        $ref: "#/components/schemas/Link"
+      dashboards:
+        $ref: "#/components/schemas/Link"
+  id:
+    readOnly: true
+    type: string
+  name:
+    type: string
+  description:
+    type: string
+  createdAt:
+    type: string
+    format: date-time
+    readOnly: true
+  updatedAt:
+    type: string
+    format: date-time
+    readOnly: true
+  status:
+    description: If inactive the organization is inactive.
+    default: active
+    type: string
+    enum:
+      - active
+      - inactive
+required: [name]

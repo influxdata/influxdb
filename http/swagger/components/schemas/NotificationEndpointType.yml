@@ -1,0 +1,2 @@
+type: string
+enum: ["slack", "pagerduty", "http", "telegram"]

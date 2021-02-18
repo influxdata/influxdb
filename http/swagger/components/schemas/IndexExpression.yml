@@ -1,0 +1,9 @@
+description: Represents indexing into an array
+type: object
+properties:
+  type:
+    $ref: "#/components/schemas/NodeType"
+  array:
+    $ref: "#/components/schemas/Expression"
+  index:
+    $ref: "#/components/schemas/Expression"

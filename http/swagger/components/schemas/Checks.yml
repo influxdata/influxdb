@@ -1,0 +1,7 @@
+properties:
+  checks:
+    type: array
+    items:
+      $ref: "#/components/schemas/Check"
+  links:
+    $ref: "#/components/schemas/Links"

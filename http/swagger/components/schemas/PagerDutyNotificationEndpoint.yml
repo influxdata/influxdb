@@ -1,0 +1,10 @@
+type: object
+allOf:
+  - $ref: "#/components/schemas/NotificationEndpointBase"
+  - type: object
+    required: [routingKey]
+    properties:
+      clientURL:
+        type: string
+      routingKey:
+        type: string
