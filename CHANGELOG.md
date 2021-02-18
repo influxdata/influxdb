@@ -13,6 +13,7 @@
 1. [19936](https://github.com/influxdata/influxdb/pull/19936): Fix use-after-free bug in series ID iterator. Thanks @foobar!
 1. [20585](https://github.com/influxdata/influxdb/pull/20585): Fix TSM WAL segement size check. Thanks @foobar!
 1. [20754](https://github.com/influxdata/influxdb/pull/20754): Update references to docs site to use current URLs.
+1. [20774](https://github.com/influxdata/influxdb/pull/20774): Rename `retentionPeriodHrs` in onboarding API for clarify. The old key name is still accepted, but deprecated.
 
 ## v2.0.4 [2021-02-08]
 
