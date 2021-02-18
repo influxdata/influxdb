@@ -297,39 +297,35 @@ mod tests {
         () => {
             dotenv::dotenv().ok();
 
-            let account = env::var("AZURE_STORAGE_ACCOUNT");
-            let container = env::var("AZURE_STORAGE_CONTAINER");
+            let required_vars = [
+                "AZURE_STORAGE_ACCOUNT",
+                "AZURE_STORAGE_CONTAINER",
+                "AZURE_STORAGE_MASTER_KEY",
+            ];
+            let unset_vars: Vec<_> = required_vars
+                .iter()
+                .filter_map(|&name| match env::var(name) {
+                    Ok(_) => None,
+                    Err(_) => Some(name),
+                })
+                .collect();
+            let unset_var_names = unset_vars.join(", ");
+
             let force = std::env::var("TEST_INTEGRATION");
 
-            match (account.is_ok(), container.is_ok(), force.is_ok()) {
-                (false, false, true) => {
-                    panic!(
-                        "TEST_INTEGRATION is set, \
-                            but AZURE_STORAGE_ACCOUNT and AZURE_STORAGE_CONTAINER are not"
-                    )
-                }
-                (false, true, true) => {
-                    panic!("TEST_INTEGRATION is set, but AZURE_STORAGE_ACCOUNT is not")
-                }
-                (true, false, true) => {
-                    panic!("TEST_INTEGRATION is set, but AZURE_STORAGE_CONTAINER is not")
-                }
-                (false, false, false) => {
-                    eprintln!(
-                        "skipping integration test - set \
-                               AZURE_STORAGE_ACCOUNT and AZURE_STORAGE_CONTAINER to run"
-                    );
-                    return Ok(());
-                }
-                (false, true, false) => {
-                    eprintln!("skipping integration test - set AZURE_STORAGE_ACCOUNT to run");
-                    return Ok(());
-                }
-                (true, false, false) => {
-                    eprintln!("skipping integration test - set AZURE_STROAGE_CONTAINER to run");
-                    return Ok(());
-                }
-                _ => {}
+            if force.is_ok() && !unset_var_names.is_empty() {
+                panic!(
+                    "TEST_INTEGRATION is set, \
+                        but variable(s) {} need to be set",
+                    unset_var_names
+                )
+            } else if force.is_err() && !unset_var_names.is_empty() {
+                eprintln!(
+                    "skipping Azure integration test - set \
+                           {} to run",
+                    unset_var_names
+                );
+                return Ok(());
             }
         };
     }
