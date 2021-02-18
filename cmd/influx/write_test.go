@@ -168,10 +168,33 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			},
 		},
 		{
+			name: "read data from LP file using non-UTF encoding",
+			flags: writeFlagsBuilder{
+				Files: []string{lpFile},
+				Encoding: "ISO_8859-1",
+			},
+			firstLineCorrection: 0,
+			lines: []string{
+				lpContents,
+			},
+		},
+		{
 			name: "read compressed LP data from file",
 			flags: writeFlagsBuilder{
 				Files:       []string{gzipLpFileNoExt},
 				Compression: inputCompressionGzip,
+			},
+			firstLineCorrection: 0,
+			lines: []string{
+				lpContents,
+			},
+		},
+		{
+			name: "read compressed data from LP file using non-UTF encoding",
+			flags: writeFlagsBuilder{
+				Files: []string{gzipLpFileNoExt},
+				Compression: inputCompressionGzip,
+				Encoding: "ISO_8859-1",
 			},
 			firstLineCorrection: 0,
 			lines: []string{
@@ -189,7 +212,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			},
 		},
 		{
-			name: "read compressed an uncompressed LP data from file in the same call",
+			name: "read compressed and uncompressed LP data from file in the same call",
 			flags: writeFlagsBuilder{
 				Files: []string{gzipLpFile, lpFile},
 			},
@@ -221,6 +244,17 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			name:      "read LP data from stdin using '-' argument",
 			flags:     writeFlagsBuilder{},
 			stdIn:     strings.NewReader(stdInLpContents),
+			arguments: []string{"-"},
+			lines: []string{
+				stdInLpContents,
+			},
+		},
+		{
+			name:      "read compressed LP data from stdin using '-' argument",
+			flags:     writeFlagsBuilder{
+				Compression: inputCompressionGzip,
+			},
+			stdIn:     stdInLpGzipContents,
 			arguments: []string{"-"},
 			lines: []string{
 				stdInLpContents,

@@ -178,7 +178,6 @@ func (b *writeFlagsBuilder) createLineReader(ctx context.Context, cmd *cobra.Com
 	// utility to manage common steps used to decode / decompress input sources,
 	// while tracking resources that must be cleaned-up after reading.
 	addReader := func(r io.Reader, name string, compressed bool) error {
-		r = decode(r)
 		if compressed {
 			rcz, err := gzip.NewReader(r)
 			if err != nil {
@@ -187,7 +186,7 @@ func (b *writeFlagsBuilder) createLineReader(ctx context.Context, cmd *cobra.Com
 			closers = append(closers, rcz)
 			r = rcz
 		}
-		readers = append(readers, r, strings.NewReader("\n"))
+		readers = append(readers, decode(r), strings.NewReader("\n"))
 		return nil
 	}
 
