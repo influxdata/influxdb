@@ -100,27 +100,26 @@ func Test_writeFlags_dump(t *testing.T) {
 func Test_writeFlags_createLineReader(t *testing.T) {
 	defer removeTempFiles()
 
+	gzipStdin := func(uncompressed string) io.Reader {
+		contents := &bytes.Buffer{}
+		writer := gzip.NewWriter(contents)
+		_, err := writer.Write([]byte(uncompressed))
+		require.NoError(t, err)
+		require.NoError(t, writer.Close())
+		return contents
+	}
+
 	lpContents := "f1 b=f2,c=f3,d=f4"
 	lpFile := createTempFile(t, "txt", []byte(lpContents), false)
 	gzipLpFile := createTempFile(t, "txt.gz", []byte(lpContents), true)
 	gzipLpFileNoExt := createTempFile(t, "lp", []byte(lpContents), true)
 	stdInLpContents := "stdin3 i=stdin1,j=stdin2,k=stdin4"
-	stdInLpGzipContents := &bytes.Buffer{}
-	stdInLpGzipWriter := gzip.NewWriter(stdInLpGzipContents)
-	_, err := stdInLpGzipWriter.Write([]byte(stdInLpContents))
-	require.NoError(t, err)
-	require.NoError(t, stdInLpGzipWriter.Close())
 
 	csvContents := "_measurement,b,c,d\nf1,f2,f3,f4"
 	csvFile := createTempFile(t, "csv", []byte(csvContents), false)
 	gzipCsvFile := createTempFile(t, "csv.gz", []byte(csvContents), true)
 	gzipCsvFileNoExt := createTempFile(t, "csv", []byte(csvContents), true)
 	stdInCsvContents := "i,j,_measurement,k\nstdin1,stdin2,stdin3,stdin4"
-	stdInCsvGzipContents := &bytes.Buffer{}
-	stdInCsvGzipWriter := gzip.NewWriter(stdInCsvGzipContents)
-	_, err = stdInCsvGzipWriter.Write([]byte(stdInCsvContents))
-	require.NoError(t, err)
-	require.NoError(t, stdInCsvGzipWriter.Close())
 
 	// use a test HTTP server to provide CSV data
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
@@ -235,7 +234,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			flags: writeFlagsBuilder{
 				Compression: inputCompressionGzip,
 			},
-			stdIn: stdInLpGzipContents,
+			stdIn: gzipStdin(stdInLpContents),
 			lines: []string{
 				stdInLpContents,
 			},
@@ -254,7 +253,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			flags: writeFlagsBuilder{
 				Compression: inputCompressionGzip,
 			},
-			stdIn:     stdInLpGzipContents,
+			stdIn:     gzipStdin(stdInLpContents),
 			arguments: []string{"-"},
 			lines: []string{
 				stdInLpContents,
@@ -388,7 +387,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 				Format:      inputFormatCsv,
 				Compression: inputCompressionGzip,
 			},
-			stdIn: stdInCsvGzipContents,
+			stdIn: gzipStdin(stdInCsvContents),
 			lines: []string{
 				stdInLpContents,
 			},
@@ -399,6 +398,18 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 				Format: inputFormatCsv,
 			},
 			stdIn:     strings.NewReader(stdInCsvContents),
+			arguments: []string{"-"},
+			lines: []string{
+				stdInLpContents,
+			},
+		},
+		{
+			name: "read compressed CSV data from stdin using '-' argument + transform to line protocol",
+			flags: writeFlagsBuilder{
+				Format: inputFormatCsv,
+				Compression: inputCompressionGzip,
+			},
+			stdIn:     gzipStdin(stdInCsvContents),
 			arguments: []string{"-"},
 			lines: []string{
 				stdInLpContents,
