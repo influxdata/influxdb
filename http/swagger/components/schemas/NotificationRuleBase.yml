@@ -44,7 +44,7 @@ properties:
     format: date-time
     readOnly: true
   status:
-    $ref: "#/components/schemas/TaskStatusType"
+    $ref: "./TaskStatusType.yml"
   name:
     description: Human-readable name describing the notification rule.
     type: string
@@ -68,7 +68,7 @@ properties:
     description: List of tag rules the notification rule attempts to match.
     type: array
     items:
-      $ref: "#/components/schemas/TagRule"
+      $ref: "./TagRule.yml"
   description:
     description: An optional description of the notification rule.
     type: string
@@ -77,9 +77,9 @@ properties:
     type: array
     minItems: 1
     items:
-      $ref: "#/components/schemas/StatusRule"
+      $ref: "./StatusRule.yml"
   labels:
-    $ref: "#/components/schemas/Labels"
+    $ref: "./Labels.yml"
   links:
     type: object
     readOnly: true
@@ -92,16 +92,16 @@ properties:
     properties:
       self:
         description: URL for this endpoint.
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       labels:
         description: URL to retrieve labels for this notification rule.
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       members:
         description: URL to retrieve members for this notification rule.
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       owners:
         description: URL to retrieve owners for this notification rule.
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       query:
         description: URL to retrieve flux script for this notification rule.
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"

@@ -1,2 +1,2 @@
 allOf:
-  - $ref: "#/components/schemas/NotificationRuleDiscriminator"
+  - $ref: "./NotificationRuleDiscriminator.yml"

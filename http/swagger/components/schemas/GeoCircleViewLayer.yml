@@ -1,5 +1,5 @@
 allOf:
-  - $ref: "#/components/schemas/GeoViewLayerProperties"
+  - $ref: "./GeoViewLayerProperties.yml"
   - type: object
     required: [radiusField, radiusDimension, colorField, colorDimension, colors]
     properties:
@@ -7,17 +7,17 @@ allOf:
         type: string
         description: Radius field
       radiusDimension:
-        $ref: '#/components/schemas/Axis'
+        $ref: './Axis.yml'
       colorField:
         type: string
         description: Circle color field
       colorDimension:
-        $ref: '#/components/schemas/Axis'
+        $ref: './Axis.yml'
       colors:
         description: Colors define color encoding of data into a visualization
         type: array
         items:
-          $ref: "#/components/schemas/DashboardColor"
+          $ref: "./DashboardColor.yml"
       radius:
         description: Maximum radius size in pixels
         type: integer

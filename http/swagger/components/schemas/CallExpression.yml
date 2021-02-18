@@ -2,11 +2,11 @@ description: Represents a function call
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   callee:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
   arguments:
     description: Function arguments
     type: array
     items:
-      $ref: "#/components/schemas/Expression"
+      $ref: "./Expression.yml"

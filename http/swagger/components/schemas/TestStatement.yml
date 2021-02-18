@@ -2,6 +2,6 @@ description: Declares a Flux test case
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   assignment:
-    $ref: "#/components/schemas/VariableAssignment"
+    $ref: "./VariableAssignment.yml"

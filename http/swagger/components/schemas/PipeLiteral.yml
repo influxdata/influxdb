@@ -2,4 +2,4 @@ description: Represents a specialized literal value, indicating the left hand va
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"

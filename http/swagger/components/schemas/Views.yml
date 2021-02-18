@@ -8,4 +8,4 @@ properties:
   views:
     type: array
     items:
-      $ref: "#/components/schemas/View"
+      $ref: "./View.yml"

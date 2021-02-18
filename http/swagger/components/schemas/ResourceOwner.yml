@@ -1,5 +1,5 @@
 allOf:
-  - $ref: "#/components/schemas/User"
+  - $ref: "./User.yml"
   - type: object
     properties:
       role:

@@ -2,10 +2,10 @@ description: uses binary operators to act on two operands in an expression
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   operator:
     type: string
   left:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
   right:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"

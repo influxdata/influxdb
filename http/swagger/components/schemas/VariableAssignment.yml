@@ -2,8 +2,8 @@ description: Represents the declaration of a variable
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   id:
-    $ref: "#/components/schemas/Identifier"
+    $ref: "./Identifier.yml"
   init:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"

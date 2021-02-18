@@ -2,8 +2,8 @@ description: Declares a package import
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   as:
-    $ref: "#/components/schemas/Identifier"
+    $ref: "./Identifier.yml"
   path:
-    $ref: "#/components/schemas/StringLiteral"
+    $ref: "./StringLiteral.yml"

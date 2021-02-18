@@ -1,5 +1,5 @@
 allOf:
-  - $ref: "#/components/schemas/CheckBase"
+  - $ref: "./CheckBase.yml"
   - type: object
     required: [type]
     properties:
@@ -16,7 +16,7 @@ allOf:
         description: If only zero values reported since time, trigger an alert
         type: boolean
       level:
-        $ref: "#/components/schemas/CheckStatusLevel"
+        $ref: "./CheckStatusLevel.yml"
       every:
         description: Check repetition interval.
         type: string

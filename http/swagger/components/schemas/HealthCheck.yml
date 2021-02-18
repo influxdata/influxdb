@@ -10,7 +10,7 @@ properties:
   checks:
     type: array
     items:
-      $ref: "#/components/schemas/HealthCheck"
+      $ref: "./HealthCheck.yml"
   status:
     type: string
     enum:

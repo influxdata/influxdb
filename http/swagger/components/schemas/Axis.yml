@@ -24,4 +24,4 @@ properties:
     type: string
     enum: ["", "2", "10"]
   scale:
-    $ref: "#/components/schemas/AxisScale"
+    $ref: "./AxisScale.yml"

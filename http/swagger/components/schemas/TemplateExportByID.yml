@@ -19,14 +19,14 @@ properties:
             byResourceKind:
               type: array
               items:
-                $ref: "#/components/schemas/TemplateKind"
+                $ref: "./TemplateKind.yml"
   resources:
     type: object
     properties:
       id:
         type: string
       kind:
-        $ref: "#/components/schemas/TemplateKind"
+        $ref: "./TemplateKind.yml"
       name:
         type: string
         description: "if defined with id, name is used for resource exported by id. if defined independently, resources strictly matching name are exported"

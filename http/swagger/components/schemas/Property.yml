@@ -2,8 +2,8 @@ description: The value associated with a key
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   key:
-    $ref: "#/components/schemas/PropertyKey"
+    $ref: "./PropertyKey.yml"
   value:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"

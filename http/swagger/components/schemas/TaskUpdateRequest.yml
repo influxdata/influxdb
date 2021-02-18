@@ -1,7 +1,7 @@
 type: object
 properties:
   status:
-    $ref: "#/components/schemas/TaskStatusType"
+    $ref: "./TaskStatusType.yml"
   flux:
     description: The Flux script to run for this task.
     type: string

@@ -2,8 +2,8 @@ type: object
 properties:
   links:
     readOnly: true
-    $ref: "#/components/schemas/Links"
+    $ref: "./Links.yml"
   authorizations:
     type: array
     items:
-      $ref: "#/components/schemas/Authorization"
+      $ref: "./Authorization.yml"

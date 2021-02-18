@@ -7,7 +7,7 @@ properties:
   queries:
     type: array
     items:
-      $ref: "#/components/schemas/DashboardQuery"
+      $ref: "./DashboardQuery.yml"
   shape:
     type: string
     enum: ['chronograf-v2']
@@ -50,9 +50,9 @@ properties:
     description: Colors define color encoding of data into a visualization
     type: array
     items:
-      $ref: "#/components/schemas/DashboardColor"
+      $ref: "./DashboardColor.yml"
   layers:
     description: List of individual layers shown in the map
     type: array
     items:
-      $ref: "#/components/schemas/GeoViewLayer"
+      $ref: "./GeoViewLayer.yml"

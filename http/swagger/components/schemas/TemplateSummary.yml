@@ -19,7 +19,7 @@ properties:
             orgID:
               type: string
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             templateMetaName:
               type: string
             name:
@@ -31,26 +31,26 @@ properties:
             labelAssociations:
               type: array
               items:
-                $ref: "#/components/schemas/TemplateSummaryLabel"
+                $ref: "./TemplateSummaryLabel.yml"
             envReferences:
-              $ref: "#/components/schemas/TemplateEnvReferences"
+              $ref: "./TemplateEnvReferences.yml"
       checks:
         type: array
         items:
           allOf:
-            - $ref: "#/components/schemas/CheckDiscriminator"
+            - $ref: "./CheckDiscriminator.yml"
             - type: object
               properties:
                 kind:
-                  $ref: "#/components/schemas/TemplateKind"
+                  $ref: "./TemplateKind.yml"
                 templateMetaName:
                   type: string
                 labelAssociations:
                   type: array
                   items:
-                    $ref: "#/components/schemas/TemplateSummaryLabel"
+                    $ref: "./TemplateSummaryLabel.yml"
                 envReferences:
-                  $ref: "#/components/schemas/TemplateEnvReferences"
+                  $ref: "./TemplateEnvReferences.yml"
       dashboards:
         type: array
         items:
@@ -61,7 +61,7 @@ properties:
             orgID:
               type: "string"
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             templateMetaName:
               type: string
             name:
@@ -71,17 +71,17 @@ properties:
             labelAssociations:
               type: array
               items:
-                $ref: "#/components/schemas/TemplateSummaryLabel"
+                $ref: "./TemplateSummaryLabel.yml"
             charts:
               type: array
               items:
-                $ref: "#/components/schemas/TemplateChart"
+                $ref: "./TemplateChart.yml"
             envReferences:
-              $ref: "#/components/schemas/TemplateEnvReferences"
+              $ref: "./TemplateEnvReferences.yml"
       labels:
         type: array
         items:
-          $ref: "#/components/schemas/TemplateSummaryLabel"
+          $ref: "./TemplateSummaryLabel.yml"
       labelMappings:
         type: array
         items:
@@ -115,26 +115,26 @@ properties:
         type: array
         items:
           allOf:
-            - $ref: "#/components/schemas/NotificationEndpointDiscrimator"
+            - $ref: "./NotificationEndpointDiscrimator.yml"
             - type: object
               properties:
                 kind:
-                  $ref: "#/components/schemas/TemplateKind"
+                  $ref: "./TemplateKind.yml"
                 templateMetaName:
                   type: string
                 labelAssociations:
                   type: array
                   items:
-                    $ref: "#/components/schemas/TemplateSummaryLabel"
+                    $ref: "./TemplateSummaryLabel.yml"
                 envReferences:
-                  $ref: "#/components/schemas/TemplateEnvReferences"
+                  $ref: "./TemplateEnvReferences.yml"
       notificationRules:
         type: array
         items:
           type: object
           properties:
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             templateMetaName:
               type: string
             name:
@@ -178,16 +178,16 @@ properties:
             labelAssociations:
               type: array
               items:
-                $ref: "#/components/schemas/TemplateSummaryLabel"
+                $ref: "./TemplateSummaryLabel.yml"
             envReferences:
-              $ref: "#/components/schemas/TemplateEnvReferences"
+              $ref: "./TemplateEnvReferences.yml"
       tasks:
         type: array
         items:
           type: object
           properties:
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             templateMetaName:
               type: string
             id:
@@ -207,31 +207,31 @@ properties:
             status:
               type: string
             envReferences:
-              $ref: "#/components/schemas/TemplateEnvReferences"
+              $ref: "./TemplateEnvReferences.yml"
       telegrafConfigs:
         type: array
         items:
           allOf:
-            - $ref: "#/components/schemas/TelegrafRequest"
+            - $ref: "./TelegrafRequest.yml"
             - type: object
               properties:
                 kind:
-                  $ref: "#/components/schemas/TemplateKind"
+                  $ref: "./TemplateKind.yml"
                 templateMetaName:
                   type: string
                 labelAssociations:
                   type: array
                   items:
-                    $ref: "#/components/schemas/TemplateSummaryLabel"
+                    $ref: "./TemplateSummaryLabel.yml"
                 envReferences:
-                  $ref: "#/components/schemas/TemplateEnvReferences"
+                  $ref: "./TemplateEnvReferences.yml"
       variables:
         type: array
         items:
           type: object
           properties:
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             templateMetaName:
               type: string
             id:
@@ -243,13 +243,13 @@ properties:
             description:
               type: string
             arguments:
-              $ref: "#/components/schemas/VariableProperties"
+              $ref: "./VariableProperties.yml"
             labelAssociations:
               type: array
               items:
-                $ref: "#/components/schemas/TemplateSummaryLabel"
+                $ref: "./TemplateSummaryLabel.yml"
             envReferences:
-              $ref: "#/components/schemas/TemplateEnvReferences"
+              $ref: "./TemplateEnvReferences.yml"
   diff:
     type: object
     properties:
@@ -259,7 +259,7 @@ properties:
           type: object
           properties:
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             stateStatus:
               type: string
             id:
@@ -274,7 +274,7 @@ properties:
                 description:
                   type: string
                 retentionRules:
-                  $ref: "#/components/schemas/RetentionRules"
+                  $ref: "./RetentionRules.yml"
             old:
               type: object
               properties:
@@ -283,14 +283,14 @@ properties:
                 description:
                   type: string
                 retentionRules:
-                  $ref: "#/components/schemas/RetentionRules"
+                  $ref: "./RetentionRules.yml"
       checks:
         type: array
         items:
           type: object
           properties:
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             stateStatus:
               type: string
             id:
@@ -298,9 +298,9 @@ properties:
             templateMetaName:
               type: string
             new:
-              $ref: "#/components/schemas/CheckDiscriminator"
+              $ref: "./CheckDiscriminator.yml"
             old:
-              $ref: "#/components/schemas/CheckDiscriminator"
+              $ref: "./CheckDiscriminator.yml"
       dashboards:
         type: array
         items:
@@ -311,7 +311,7 @@ properties:
             id:
               type: string
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             templateMetaName:
               type: string
             new:
@@ -324,7 +324,7 @@ properties:
                 charts:
                   type: array
                   items:
-                    $ref: "#/components/schemas/TemplateChart"
+                    $ref: "./TemplateChart.yml"
             old:
               type: object
               properties:
@@ -335,7 +335,7 @@ properties:
                 charts:
                   type: array
                   items:
-                    $ref: "#/components/schemas/TemplateChart"
+                    $ref: "./TemplateChart.yml"
       labels:
         type: array
         items:
@@ -344,7 +344,7 @@ properties:
             stateStatus:
               type: string
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             id:
               type: string
             templateMetaName:
@@ -394,7 +394,7 @@ properties:
           type: object
           properties:
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             stateStatus:
               type: string
             id:
@@ -402,16 +402,16 @@ properties:
             templateMetaName:
               type: string
             new:
-              $ref: "#/components/schemas/NotificationEndpointDiscrimator"
+              $ref: "./NotificationEndpointDiscrimator.yml"
             old:
-              $ref: "#/components/schemas/NotificationEndpointDiscrimator"
+              $ref: "./NotificationEndpointDiscrimator.yml"
       notificationRules:
         type: array
         items:
           type: object
           properties:
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             stateStatus:
               type: string
             id:
@@ -506,7 +506,7 @@ properties:
           type: object
           properties:
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             stateStatus:
               type: string
             id:
@@ -553,7 +553,7 @@ properties:
           type: object
           properties:
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             stateStatus:
               type: string
             id:
@@ -561,16 +561,16 @@ properties:
             templateMetaName:
               type: string
             new:
-              $ref: "#/components/schemas/TelegrafRequest"
+              $ref: "./TelegrafRequest.yml"
             old:
-              $ref: "#/components/schemas/TelegrafRequest"
+              $ref: "./TelegrafRequest.yml"
       variables:
         type: array
         items:
           type: object
           properties:
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             stateStatus:
               type: string
             id:
@@ -585,7 +585,7 @@ properties:
                 description:
                   type: string
                 args:
-                  $ref: "#/components/schemas/VariableProperties"
+                  $ref: "./VariableProperties.yml"
             old:
               type: object
               properties:
@@ -594,14 +594,14 @@ properties:
                 description:
                   type: string
                 args:
-                  $ref: "#/components/schemas/VariableProperties"
+                  $ref: "./VariableProperties.yml"
   errors:
     type: array
     items:
       type: object
       properties:
         kind:
-          $ref: "#/components/schemas/TemplateKind"
+          $ref: "./TemplateKind.yml"
         reason:
           type: string
         fields:

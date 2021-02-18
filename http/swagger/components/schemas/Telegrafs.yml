@@ -3,4 +3,4 @@ properties:
   configurations:
     type: array
     items:
-      $ref: "#/components/schemas/Telegraf"
+      $ref: "./Telegraf.yml"

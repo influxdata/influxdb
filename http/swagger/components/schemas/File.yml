@@ -2,19 +2,19 @@ description: Represents a source from a single file
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   name:
     description: The name of the file.
     type: string
   package:
-    $ref: "#/components/schemas/PackageClause"
+    $ref: "./PackageClause.yml"
   imports:
     description: A list of package imports
     type: array
     items:
-      $ref: "#/components/schemas/ImportDeclaration"
+      $ref: "./ImportDeclaration.yml"
   body:
     description: List of Flux statements
     type: array
     items:
-      $ref: "#/components/schemas/Statement"
+      $ref: "./Statement.yml"

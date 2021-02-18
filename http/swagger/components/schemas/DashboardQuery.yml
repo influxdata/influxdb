@@ -4,8 +4,8 @@ properties:
     type: string
     description: The text of the Flux query.
   editMode:
-    $ref: "#/components/schemas/QueryEditMode"
+    $ref: "./QueryEditMode.yml"
   name:
     type: string
   builderConfig:
-    $ref: "#/components/schemas/BuilderConfig"
+    $ref: "./BuilderConfig.yml"

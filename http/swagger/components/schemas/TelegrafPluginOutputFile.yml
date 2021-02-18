@@ -13,4 +13,4 @@ properties:
   comment:
     type: string
   config:
-    $ref: "#/components/schemas/TelegrafPluginOutputFileConfig"
+    $ref: "./TelegrafPluginOutputFileConfig.yml"

@@ -6,4 +6,4 @@ properties:
       - read
       - write
   resource:
-    $ref: "#/components/schemas/Resource"
+    $ref: "./Resource.yml"

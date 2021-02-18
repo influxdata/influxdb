@@ -2,10 +2,10 @@ description: Represents the rule conditions that collectively evaluate to either
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   operator:
     type: string
   left:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
   right:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"

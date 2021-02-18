@@ -2,6 +2,6 @@ description: Represents floating point numbers according to the double represent
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   value:
     type: number

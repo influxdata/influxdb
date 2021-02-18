@@ -13,4 +13,4 @@ properties:
   comment:
     type: string
   config:
-    $ref: "#/components/schemas/TelegrafPluginInputPrometheusConfig"
+    $ref: "./TelegrafPluginInputPrometheusConfig.yml"

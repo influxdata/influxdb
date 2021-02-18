@@ -7,4 +7,4 @@ properties:
     items:
       type: string
   aggregateFunctionType:
-    $ref: "#/components/schemas/BuilderAggregateFunctionType"
+    $ref: "./BuilderAggregateFunctionType.yml"

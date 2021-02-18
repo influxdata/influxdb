@@ -2,8 +2,8 @@ type: object
 properties:
   links:
     readOnly: true
-    $ref: "#/components/schemas/Links"
+    $ref: "./Links.yml"
   tasks:
     type: array
     items:
-      $ref: "#/components/schemas/Task"
+      $ref: "./Task.yml"

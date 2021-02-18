@@ -1,6 +1,6 @@
 type: object
 properties:
   labels:
-    $ref: "#/components/schemas/Labels"
+    $ref: "./Labels.yml"
   links:
-    $ref: "#/components/schemas/Links"
+    $ref: "./Links.yml"

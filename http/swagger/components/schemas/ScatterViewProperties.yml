@@ -27,7 +27,7 @@ properties:
   queries:
     type: array
     items:
-      $ref: "#/components/schemas/DashboardQuery"
+      $ref: "./DashboardQuery.yml"
   colors:
     description: Colors define color encoding of data into a visualization
     type: array

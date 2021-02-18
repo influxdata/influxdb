@@ -5,7 +5,7 @@ properties:
   orgID:
     type: string
   kind:
-    $ref: "#/components/schemas/TemplateKind"
+    $ref: "./TemplateKind.yml"
   templateMetaName:
     type: string
   name:
@@ -18,4 +18,4 @@ properties:
       description:
         type: string
   envReferences:
-    $ref: "#/components/schemas/TemplateEnvReferences"
+    $ref: "./TemplateEnvReferences.yml"

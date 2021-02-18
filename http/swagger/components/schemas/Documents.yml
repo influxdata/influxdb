@@ -3,4 +3,4 @@ properties:
   documents:
     type: array
     items:
-      $ref: "#/components/schemas/DocumentListEntry"
+      $ref: "./DocumentListEntry.yml"

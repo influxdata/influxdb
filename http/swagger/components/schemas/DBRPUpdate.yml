@@ -8,4 +8,4 @@ properties:
   default:
     type: boolean
   links:
-    $ref: "#/components/schemas/Links"
+    $ref: "./Links.yml"

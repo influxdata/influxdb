@@ -19,9 +19,9 @@ properties:
     description: An optional description of the task.
     type: string
   status:
-    $ref: "#/components/schemas/TaskStatusType"
+    $ref: "./TaskStatusType.yml"
   labels:
-    $ref: "#/components/schemas/Labels"
+    $ref: "./Labels.yml"
   authorizationID:
     description: The ID of the authorization used when this task communicates with the query engine.
     type: string
@@ -72,15 +72,15 @@ properties:
       logs: "/api/v2/tasks/1/logs"
     properties:
       self:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       owners:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       members:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       runs:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       logs:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       labels:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
 required: [id, name, orgID, flux]

@@ -2,7 +2,7 @@ description: A pair consisting of length of time and the unit of time measured. 
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   magnitude:
     type: integer
   unit:

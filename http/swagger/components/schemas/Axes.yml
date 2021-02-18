@@ -3,6 +3,6 @@ type: object
 required: ["x", "y"]
 properties:
   x:
-    $ref: "#/components/schemas/Axis"
+    $ref: "./Axis.yml"
   "y": # Quoted to prevent YAML parser from interpreting y as shorthand for true.
-    $ref: "#/components/schemas/Axis"
+    $ref: "./Axis.yml"

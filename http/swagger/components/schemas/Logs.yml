@@ -4,4 +4,4 @@ properties:
     readOnly: true
     type: array
     items:
-      $ref: "#/components/schemas/LogEvent"
+      $ref: "./LogEvent.yml"

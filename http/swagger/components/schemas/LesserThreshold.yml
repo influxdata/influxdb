@@ -1,5 +1,5 @@
 allOf:
-  - $ref: "#/components/schemas/ThresholdBase"
+  - $ref: "./ThresholdBase.yml"
   - type: object
     required: [type, value]
     properties:

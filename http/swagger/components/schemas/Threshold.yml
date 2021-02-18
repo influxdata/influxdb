@@ -1,10 +1,10 @@
 oneOf:
-  - $ref: "#/components/schemas/GreaterThreshold"
-  - $ref: "#/components/schemas/LesserThreshold"
-  - $ref: "#/components/schemas/RangeThreshold"
+  - $ref: "./GreaterThreshold.yml"
+  - $ref: "./LesserThreshold.yml"
+  - $ref: "./RangeThreshold.yml"
 discriminator:
   propertyName: type
   mapping:
-    greater: "#/components/schemas/GreaterThreshold"
-    lesser: "#/components/schemas/LesserThreshold"
-    range: "#/components/schemas/RangeThreshold"
+    greater: "./GreaterThreshold.yml"
+    lesser: "./LesserThreshold.yml"
+    range: "./RangeThreshold.yml"

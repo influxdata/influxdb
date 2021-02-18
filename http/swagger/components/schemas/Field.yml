@@ -25,4 +25,4 @@ properties:
     description: Args are the arguments to the function
     type: array
     items:
-      $ref: "#/components/schemas/Field"
+      $ref: "./Field.yml"

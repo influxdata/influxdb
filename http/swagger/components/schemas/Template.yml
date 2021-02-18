@@ -5,7 +5,7 @@ items:
     apiVersion:
       type: string
     kind:
-      $ref: "#/components/schemas/TemplateKind"
+      $ref: "./TemplateKind.yml"
     meta:
       type: object
       properties:

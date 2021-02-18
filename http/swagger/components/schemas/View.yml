@@ -14,4 +14,4 @@ properties:
   name:
     type: string
   properties:
-    $ref: "#/components/schemas/ViewProperties"
+    $ref: "./ViewProperties.yml"

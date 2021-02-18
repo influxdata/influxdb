@@ -1,9 +1,9 @@
 type: object
 properties:
   currentLevel:
-    $ref: "#/components/schemas/RuleStatusLevel"
+    $ref: "./RuleStatusLevel.yml"
   previousLevel:
-    $ref: "#/components/schemas/RuleStatusLevel"
+    $ref: "./RuleStatusLevel.yml"
   count:
     type: integer
   period:

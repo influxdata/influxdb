@@ -1,10 +1,10 @@
 oneOf:
-  - $ref: "#/components/schemas/DeadmanCheck"
-  - $ref: "#/components/schemas/ThresholdCheck"
-  - $ref: "#/components/schemas/CustomCheck"
+  - $ref: "./DeadmanCheck.yml"
+  - $ref: "./ThresholdCheck.yml"
+  - $ref: "./CustomCheck.yml"
 discriminator:
   propertyName: type
   mapping:
-    deadman: "#/components/schemas/DeadmanCheck"
-    threshold: "#/components/schemas/ThresholdCheck"
-    custom: "#/components/schemas/CustomCheck"
+    deadman: "./DeadmanCheck.yml"
+    threshold: "./ThresholdCheck.yml"
+    custom: "./CustomCheck.yml"

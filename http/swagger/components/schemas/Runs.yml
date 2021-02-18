@@ -1,8 +1,8 @@
 type: object
 properties:
   links:
-    $ref: "#/components/schemas/Links"
+    $ref: "./Links.yml"
   runs:
     type: array
     items:
-      $ref: "#/components/schemas/Run"
+      $ref: "./Run.yml"

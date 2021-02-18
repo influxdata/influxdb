@@ -2,8 +2,8 @@ description: Represents accessing a property of an object
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   object:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
   property:
-    $ref: "#/components/schemas/PropertyKey"
+    $ref: "./PropertyKey.yml"

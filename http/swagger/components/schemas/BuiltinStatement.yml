@@ -2,6 +2,6 @@ description: Declares a builtin identifier and its type
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   id:
-    $ref: "#/components/schemas/Identifier"
+    $ref: "./Identifier.yml"

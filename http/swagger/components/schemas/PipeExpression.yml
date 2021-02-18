@@ -2,8 +2,8 @@ description: Call expression with pipe argument
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   argument:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
   call:
-    $ref: "#/components/schemas/CallExpression"
+    $ref: "./CallExpression.yml"

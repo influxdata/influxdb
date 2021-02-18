@@ -2,6 +2,6 @@ description: May consist of an expression that does not return a value and is ex
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   expression:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"

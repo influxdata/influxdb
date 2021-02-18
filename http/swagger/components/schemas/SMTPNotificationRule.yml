@@ -1,3 +1,3 @@
 allOf:
-  - $ref: "#/components/schemas/NotificationRuleBase"
-  - $ref: "#/components/schemas/SMTPNotificationRuleBase"
+  - $ref: "./NotificationRuleBase.yml"
+  - $ref: "./SMTPNotificationRuleBase.yml"

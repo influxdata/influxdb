@@ -9,4 +9,4 @@ properties:
   width:
     type: integer
   properties: # field name is properties
-    $ref: "#/components/schemas/ViewProperties"
+    $ref: "./ViewProperties.yml"

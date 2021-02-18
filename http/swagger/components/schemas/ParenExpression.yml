@@ -2,6 +2,6 @@ description: Represents an expression wrapped in parenthesis
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   expression:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"

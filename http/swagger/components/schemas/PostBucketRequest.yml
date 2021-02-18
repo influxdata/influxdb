@@ -8,5 +8,5 @@ properties:
   rp:
     type: string
   retentionRules:
-    $ref: "#/components/schemas/RetentionRules"
+    $ref: "./RetentionRules.yml"
 required: [orgID, name, retentionRules]

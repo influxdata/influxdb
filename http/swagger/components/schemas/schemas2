@@ -16,7 +16,7 @@ required:
   - query
 properties:
   extern:
-    $ref: "#/components/schemas/File"
+    $ref: "./File.yml"
   query:
     description: Query script to execute.
     type: string
@@ -26,7 +26,7 @@ properties:
     enum:
       - flux
   dialect:
-    $ref: "#/components/schemas/Dialect"
+    $ref: "./Dialect.yml"
   now:
     description: Specifies the time that should be reported as "now" in the query. Default is the server's now time.
     type: string
@@ -57,7 +57,7 @@ description: Represents a complete package source tree.
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   path:
     description: Package import path
     type: string
@@ -68,7 +68,7 @@ properties:
     description: Package files
     type: array
     items:
-      $ref: "#/components/schemas/File"
+      $ref: "./File.yml"
 EOF
 
 cat > File.yml <<-"EOF"
@@ -76,22 +76,22 @@ description: Represents a source from a single file
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   name:
     description: The name of the file.
     type: string
   package:
-    $ref: "#/components/schemas/PackageClause"
+    $ref: "./PackageClause.yml"
   imports:
     description: A list of package imports
     type: array
     items:
-      $ref: "#/components/schemas/ImportDeclaration"
+      $ref: "./ImportDeclaration.yml"
   body:
     description: List of Flux statements
     type: array
     items:
-      $ref: "#/components/schemas/Statement"
+      $ref: "./Statement.yml"
 EOF
 
 cat > PackageClause.yml <<-"EOF"
@@ -99,9 +99,9 @@ description: Defines a package identifier
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   name:
-    $ref: "#/components/schemas/Identifier"
+    $ref: "./Identifier.yml"
 EOF
 
 cat > ImportDeclaration.yml <<-"EOF"
@@ -109,11 +109,11 @@ description: Declares a package import
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   as:
-    $ref: "#/components/schemas/Identifier"
+    $ref: "./Identifier.yml"
   path:
-    $ref: "#/components/schemas/StringLiteral"
+    $ref: "./StringLiteral.yml"
 EOF
 
 cat > DeletePredicateRequest.yml <<-"EOF"
@@ -137,8 +137,8 @@ EOF
 
 cat > Node.yml <<-"EOF"
 oneOf:
-  - $ref: "#/components/schemas/Expression"
-  - $ref: "#/components/schemas/Block"
+  - $ref: "./Expression.yml"
+  - $ref: "./Block.yml"
 EOF
 
 cat > Block.yml <<-"EOF"
@@ -146,24 +146,24 @@ description: A set of statements
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   body:
     description: Block body
     type: array
     items:
-      $ref: "#/components/schemas/Statement"
+      $ref: "./Statement.yml"
 EOF
 
 cat > Statement.yml <<-"EOF"
 oneOf:
-  - $ref: "#/components/schemas/BadStatement"
-  - $ref: "#/components/schemas/VariableAssignment"
-  - $ref: "#/components/schemas/MemberAssignment"
-  - $ref: "#/components/schemas/ExpressionStatement"
-  - $ref: "#/components/schemas/ReturnStatement"
-  - $ref: "#/components/schemas/OptionStatement"
-  - $ref: "#/components/schemas/BuiltinStatement"
-  - $ref: "#/components/schemas/TestStatement"
+  - $ref: "./BadStatement.yml"
+  - $ref: "./VariableAssignment.yml"
+  - $ref: "./MemberAssignment.yml"
+  - $ref: "./ExpressionStatement.yml"
+  - $ref: "./ReturnStatement.yml"
+  - $ref: "./OptionStatement.yml"
+  - $ref: "./BuiltinStatement.yml"
+  - $ref: "./TestStatement.yml"
 EOF
 
 cat > BadStatement.yml <<-"EOF"
@@ -171,7 +171,7 @@ description: A placeholder for statements for which no correct statement nodes c
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   text:
     description: Raw source text
     type: string
@@ -182,11 +182,11 @@ description: Represents the declaration of a variable
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   id:
-    $ref: "#/components/schemas/Identifier"
+    $ref: "./Identifier.yml"
   init:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
 EOF
 
 cat > MemberAssignment.yml <<-"EOF"
@@ -194,11 +194,11 @@ description: Object property assignment
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   member:
-    $ref: "#/components/schemas/MemberExpression"
+    $ref: "./MemberExpression.yml"
   init:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
 EOF
 
 cat > ExpressionStatement.yml <<-"EOF"
@@ -206,9 +206,9 @@ description: May consist of an expression that does not return a value and is ex
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   expression:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
 EOF
 
 cat > ReturnStatement.yml <<-"EOF"
@@ -216,9 +216,9 @@ description: Defines an expression to return
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   argument:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
 EOF
 
 cat > OptionStatement.yml <<-"EOF"
@@ -226,11 +226,11 @@ description: A single variable declaration
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   assignment:
     oneOf:
-      - $ref: "#/components/schemas/VariableAssignment"
-      - $ref: "#/components/schemas/MemberAssignment"
+      - $ref: "./VariableAssignment.yml"
+      - $ref: "./MemberAssignment.yml"
 EOF
 
 cat > BuiltinStatement.yml <<-"EOF"
@@ -238,9 +238,9 @@ description: Declares a builtin identifier and its type
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   id:
-    $ref: "#/components/schemas/Identifier"
+    $ref: "./Identifier.yml"
 EOF
 
 cat > TestStatement.yml <<-"EOF"
@@ -248,36 +248,36 @@ description: Declares a Flux test case
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   assignment:
-    $ref: "#/components/schemas/VariableAssignment"
+    $ref: "./VariableAssignment.yml"
 EOF
 
 cat > Expression.yml <<-"EOF"
 oneOf:
-  - $ref: "#/components/schemas/ArrayExpression"
-  - $ref: "#/components/schemas/DictExpression"
-  - $ref: "#/components/schemas/FunctionExpression"
-  - $ref: "#/components/schemas/BinaryExpression"
-  - $ref: "#/components/schemas/CallExpression"
-  - $ref: "#/components/schemas/ConditionalExpression"
-  - $ref: "#/components/schemas/LogicalExpression"
-  - $ref: "#/components/schemas/MemberExpression"
-  - $ref: "#/components/schemas/IndexExpression"
-  - $ref: "#/components/schemas/ObjectExpression"
-  - $ref: "#/components/schemas/ParenExpression"
-  - $ref: "#/components/schemas/PipeExpression"
-  - $ref: "#/components/schemas/UnaryExpression"
-  - $ref: "#/components/schemas/BooleanLiteral"
-  - $ref: "#/components/schemas/DateTimeLiteral"
-  - $ref: "#/components/schemas/DurationLiteral"
-  - $ref: "#/components/schemas/FloatLiteral"
-  - $ref: "#/components/schemas/IntegerLiteral"
-  - $ref: "#/components/schemas/PipeLiteral"
-  - $ref: "#/components/schemas/RegexpLiteral"
-  - $ref: "#/components/schemas/StringLiteral"
-  - $ref: "#/components/schemas/UnsignedIntegerLiteral"
-  - $ref: "#/components/schemas/Identifier"
+  - $ref: "./ArrayExpression.yml"
+  - $ref: "./DictExpression.yml"
+  - $ref: "./FunctionExpression.yml"
+  - $ref: "./BinaryExpression.yml"
+  - $ref: "./CallExpression.yml"
+  - $ref: "./ConditionalExpression.yml"
+  - $ref: "./LogicalExpression.yml"
+  - $ref: "./MemberExpression.yml"
+  - $ref: "./IndexExpression.yml"
+  - $ref: "./ObjectExpression.yml"
+  - $ref: "./ParenExpression.yml"
+  - $ref: "./PipeExpression.yml"
+  - $ref: "./UnaryExpression.yml"
+  - $ref: "./BooleanLiteral.yml"
+  - $ref: "./DateTimeLiteral.yml"
+  - $ref: "./DurationLiteral.yml"
+  - $ref: "./FloatLiteral.yml"
+  - $ref: "./IntegerLiteral.yml"
+  - $ref: "./PipeLiteral.yml"
+  - $ref: "./RegexpLiteral.yml"
+  - $ref: "./StringLiteral.yml"
+  - $ref: "./UnsignedIntegerLiteral.yml"
+  - $ref: "./Identifier.yml"
 EOF
 
 cat > ArrayExpression.yml <<-"EOF"
@@ -285,12 +285,12 @@ description: Used to create and directly specify the elements of an array object
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   elements:
     description: Elements of the array
     type: array
     items:
-      $ref: "#/components/schemas/Expression"
+      $ref: "./Expression.yml"
 EOF
 
 cat > DictExpression.yml <<-"EOF"
@@ -298,12 +298,12 @@ description: Used to create and directly specify the elements of a dictionary
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   elements:
     description: Elements of the dictionary
     type: array
     items:
-      $ref: "#/components/schemas/DictItem"
+      $ref: "./DictItem.yml"
 EOF
 
 cat > DictItem.yml <<-"EOF"
@@ -311,11 +311,11 @@ description: A key/value pair in a dictionary
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   key:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
   val:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
 EOF
 
 cat > FunctionExpression.yml <<-"EOF"
@@ -323,14 +323,14 @@ description: Function expression
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   params:
     description: Function parameters
     type: array
     items:
-      $ref: "#/components/schemas/Property"
+      $ref: "./Property.yml"
   body:
-    $ref: "#/components/schemas/Node"
+    $ref: "./Node.yml"
 EOF
 
 cat > BinaryExpression.yml <<-"EOF"
@@ -338,13 +338,13 @@ description: uses binary operators to act on two operands in an expression
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   operator:
     type: string
   left:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
   right:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
 EOF
 
 cat > CallExpression.yml <<-"EOF"
@@ -352,14 +352,14 @@ description: Represents a function call
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   callee:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
   arguments:
     description: Function arguments
     type: array
     items:
-      $ref: "#/components/schemas/Expression"
+      $ref: "./Expression.yml"
 EOF
 
 cat > ConditionalExpression.yml <<-"EOF"
@@ -367,13 +367,13 @@ description: Selects one of two expressions, `Alternate` or `Consequent`, depend
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   test:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
   alternate:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
   consequent:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
 EOF
 
 cat > LogicalExpression.yml <<-"EOF"
@@ -381,13 +381,13 @@ description: Represents the rule conditions that collectively evaluate to either
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   operator:
     type: string
   left:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
   right:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
 EOF
 
 cat > MemberExpression.yml <<-"EOF"
@@ -395,11 +395,11 @@ description: Represents accessing a property of an object
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   object:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
   property:
-    $ref: "#/components/schemas/PropertyKey"
+    $ref: "./PropertyKey.yml"
 EOF
 
 cat > IndexExpression.yml <<-"EOF"
@@ -407,11 +407,11 @@ description: Represents indexing into an array
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   array:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
   index:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
 EOF
 
 cat > ObjectExpression.yml <<-"EOF"
@@ -419,12 +419,12 @@ description: Allows the declaration of an anonymous object within a declaration
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   properties:
     description: Object properties
     type: array
     items:
-      $ref: "#/components/schemas/Property"
+      $ref: "./Property.yml"
 EOF
 
 cat > ParenExpression.yml <<-"EOF"
@@ -432,9 +432,9 @@ description: Represents an expression wrapped in parenthesis
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   expression:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
 EOF
 
 cat > PipeExpression.yml <<-"EOF"
@@ -442,11 +442,11 @@ description: Call expression with pipe argument
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   argument:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
   call:
-    $ref: "#/components/schemas/CallExpression"
+    $ref: "./CallExpression.yml"
 EOF
 
 cat > UnaryExpression.yml <<-"EOF"
@@ -454,11 +454,11 @@ description: Uses operators to act on a single operand in an expression
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   operator:
     type: string
   argument:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
 EOF
 
 cat > BooleanLiteral.yml <<-"EOF"
@@ -466,7 +466,7 @@ description: Represents boolean values
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   value:
     type: boolean
 EOF
@@ -476,7 +476,7 @@ description: Represents an instant in time with nanosecond precision using the s
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   value:
     type: string
 EOF
@@ -486,12 +486,12 @@ description: Represents the elapsed time between two instants as an int64 nanose
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   values:
     description: Duration values
     type: array
     items:
-      $ref: "#/components/schemas/Duration"
+      $ref: "./Duration.yml"
 EOF
 
 cat > FloatLiteral.yml <<-"EOF"
@@ -499,7 +499,7 @@ description: Represents floating point numbers according to the double represent
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   value:
     type: number
 EOF
@@ -509,7 +509,7 @@ description: Represents integer numbers
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   value:
     type: string
 EOF
@@ -519,7 +519,7 @@ description: Represents a specialized literal value, indicating the left hand va
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
 EOF
 
 cat > RegexpLiteral.yml <<-"EOF"
@@ -527,7 +527,7 @@ description: Expressions begin and end with `/` and are regular expressions with
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   value:
     type: string
 EOF
@@ -537,7 +537,7 @@ description: Expressions begin and end with double quote marks
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   value:
     type: string
 EOF
@@ -547,7 +547,7 @@ description: Represents integer numbers
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   value:
     type: string
 EOF
@@ -557,7 +557,7 @@ description: A pair consisting of length of time and the unit of time measured. 
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   magnitude:
     type: integer
   unit:
@@ -569,17 +569,17 @@ description: The value associated with a key
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   key:
-    $ref: "#/components/schemas/PropertyKey"
+    $ref: "./PropertyKey.yml"
   value:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
 EOF
 
 cat > PropertyKey.yml <<-"EOF"
 oneOf:
-  - $ref: "#/components/schemas/Identifier"
-  - $ref: "#/components/schemas/StringLiteral"
+  - $ref: "./Identifier.yml"
+  - $ref: "./StringLiteral.yml"
 EOF
 
 cat > Identifier.yml <<-"EOF"
@@ -587,7 +587,7 @@ description: A valid Flux identifier
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   name:
     type: string
 EOF
@@ -645,7 +645,7 @@ properties:
       - read
       - write
   resource:
-    $ref: "#/components/schemas/Resource"
+    $ref: "./Resource.yml"
 EOF
 
 cat > Resource.yml <<-"EOF"
@@ -708,7 +708,7 @@ EOF
 cat > Authorization.yml <<-"EOF"
 required: [orgID, permissions]
 allOf:
-  - $ref: "#/components/schemas/AuthorizationUpdateRequest"
+  - $ref: "./AuthorizationUpdateRequest.yml"
   - type: object
     properties:
       createdAt:
@@ -727,7 +727,7 @@ allOf:
         minItems: 1
         description: List of permissions for an auth.  An auth must have at least one Permission.
         items:
-          $ref: "#/components/schemas/Permission"
+          $ref: "./Permission.yml"
       id:
         readOnly: true
         type: string
@@ -756,10 +756,10 @@ allOf:
         properties:
           self:
             readOnly: true
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           user:
             readOnly: true
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
 EOF
 
 cat > Authorizations.yml <<-"EOF"
@@ -767,11 +767,11 @@ type: object
 properties:
   links:
     readOnly: true
-    $ref: "#/components/schemas/Links"
+    $ref: "./Links.yml"
   authorizations:
     type: array
     items:
-      $ref: "#/components/schemas/Authorization"
+      $ref: "./Authorization.yml"
 EOF
 
 cat > PostBucketRequest.yml <<-"EOF"
@@ -785,7 +785,7 @@ properties:
   rp:
     type: string
   retentionRules:
-    $ref: "#/components/schemas/RetentionRules"
+    $ref: "./RetentionRules.yml"
 required: [orgID, name, retentionRules]
 EOF
 
@@ -804,22 +804,22 @@ properties:
     properties:
       labels:
         description: URL to retrieve labels for this bucket
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       members:
         description: URL to retrieve members that can read this bucket
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       org:
         description: URL to retrieve parent organization for this bucket
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       owners:
         description: URL to retrieve owners that can read and write to this bucket.
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       self:
         description: URL for this bucket
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       write:
         description: URL to write line protocol for this bucket
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
   id:
     readOnly: true
     type: string
@@ -847,9 +847,9 @@ properties:
     format: date-time
     readOnly: true
   retentionRules:
-    $ref: "#/components/schemas/RetentionRules"
+    $ref: "./RetentionRules.yml"
   labels:
-    $ref: "#/components/schemas/Labels"
+    $ref: "./Labels.yml"
 required: [name, retentionRules]
 EOF
 
@@ -858,18 +858,18 @@ type: object
 properties:
   links:
     readOnly: true
-    $ref: "#/components/schemas/Links"
+    $ref: "./Links.yml"
   buckets:
     type: array
     items:
-      $ref: "#/components/schemas/Bucket"
+      $ref: "./Bucket.yml"
 EOF
 
 cat > RetentionRules.yml <<-"EOF"
 type: array
 description: Rules to expire or retain data.  No rules means data never expires.
 items:
-  $ref: "#/components/schemas/RetentionRule"
+  $ref: "./RetentionRule.yml"
 EOF
 
 cat > RetentionRule.yml <<-"EOF"
@@ -899,11 +899,11 @@ cat > Links.yml <<-"EOF"
 type: object
 properties:
   next:
-    $ref: "#/components/schemas/Link"
+    $ref: "./Link.yml"
   self:
-    $ref: "#/components/schemas/Link"
+    $ref: "./Link.yml"
   prev:
-    $ref: "#/components/schemas/Link"
+    $ref: "./Link.yml"
 required: [self]
 EOF
 
@@ -914,7 +914,7 @@ properties:
     readOnly: true
     type: array
     items:
-      $ref: "#/components/schemas/LogEvent"
+      $ref: "./LogEvent.yml"
 EOF
 
 cat > LogEvent.yml <<-"EOF"
@@ -948,21 +948,21 @@ properties:
       dashboards: "/api/v2/dashboards?org=myorg"
     properties:
       self:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       members:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       owners:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       labels:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       secrets:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       buckets:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       tasks:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       dashboards:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
   id:
     readOnly: true
     type: string
@@ -992,11 +992,11 @@ cat > Organizations.yml <<-"EOF"
 type: object
 properties:
   links:
-    $ref: "#/components/schemas/Links"
+    $ref: "./Links.yml"
   orgs:
     type: array
     items:
-      $ref: "#/components/schemas/Organization"
+      $ref: "./Organization.yml"
 EOF
 
 cat > TemplateApply.yml <<-"EOF"
@@ -1018,7 +1018,7 @@ properties:
         items:
           type: string
       contents:
-        $ref: "#/components/schemas/Template"
+        $ref: "./Template.yml"
   templates:
     type: array
     items:
@@ -1031,7 +1031,7 @@ properties:
           items:
             type: string
         contents:
-          $ref: "#/components/schemas/Template"
+          $ref: "./Template.yml"
   envRefs:
     type: object
     additionalProperties:
@@ -1067,7 +1067,7 @@ properties:
               type: object
               properties:
                 kind:
-                  $ref: "#/components/schemas/TemplateKind"
+                  $ref: "./TemplateKind.yml"
               required: ["kind"]
         - type: object
           properties:
@@ -1078,7 +1078,7 @@ properties:
               type: object
               properties:
                 kind:
-                  $ref: "#/components/schemas/TemplateKind"
+                  $ref: "./TemplateKind.yml"
                 resourceTemplateName:
                   type: string
               required: ["kind", "resourceTemplateName"]
@@ -1125,14 +1125,14 @@ properties:
             byResourceKind:
               type: array
               items:
-                $ref: "#/components/schemas/TemplateKind"
+                $ref: "./TemplateKind.yml"
   resources:
     type: object
     properties:
       id:
         type: string
       kind:
-        $ref: "#/components/schemas/TemplateKind"
+        $ref: "./TemplateKind.yml"
       name:
         type: string
         description: "if defined with id, name is used for resource exported by id. if defined independently, resources strictly matching name are exported"
@@ -1161,12 +1161,12 @@ properties:
             byResourceKind:
               type: array
               items:
-                $ref: "#/components/schemas/TemplateKind"
+                $ref: "./TemplateKind.yml"
   resources:
     type: object
     properties:
       kind:
-        $ref: "#/components/schemas/TemplateKind"
+        $ref: "./TemplateKind.yml"
       name:
         type: string
     required: [name, kind]
@@ -1180,7 +1180,7 @@ items:
     apiVersion:
       type: string
     kind:
-      $ref: "#/components/schemas/TemplateKind"
+      $ref: "./TemplateKind.yml"
     meta:
       type: object
       properties:
@@ -1242,7 +1242,7 @@ properties:
             orgID:
               type: string
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             templateMetaName:
               type: string
             name:
@@ -1254,26 +1254,26 @@ properties:
             labelAssociations:
               type: array
               items:
-                $ref: "#/components/schemas/TemplateSummaryLabel"
+                $ref: "./TemplateSummaryLabel.yml"
             envReferences:
-              $ref: "#/components/schemas/TemplateEnvReferences"
+              $ref: "./TemplateEnvReferences.yml"
       checks:
         type: array
         items:
           allOf:
-            - $ref: "#/components/schemas/CheckDiscriminator"
+            - $ref: "./CheckDiscriminator.yml"
             - type: object
               properties:
                 kind:
-                  $ref: "#/components/schemas/TemplateKind"
+                  $ref: "./TemplateKind.yml"
                 templateMetaName:
                   type: string
                 labelAssociations:
                   type: array
                   items:
-                    $ref: "#/components/schemas/TemplateSummaryLabel"
+                    $ref: "./TemplateSummaryLabel.yml"
                 envReferences:
-                  $ref: "#/components/schemas/TemplateEnvReferences"
+                  $ref: "./TemplateEnvReferences.yml"
       dashboards:
         type: array
         items:
@@ -1284,7 +1284,7 @@ properties:
             orgID:
               type: "string"
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             templateMetaName:
               type: string
             name:
@@ -1294,17 +1294,17 @@ properties:
             labelAssociations:
               type: array
               items:
-                $ref: "#/components/schemas/TemplateSummaryLabel"
+                $ref: "./TemplateSummaryLabel.yml"
             charts:
               type: array
               items:
-                $ref: "#/components/schemas/TemplateChart"
+                $ref: "./TemplateChart.yml"
             envReferences:
-              $ref: "#/components/schemas/TemplateEnvReferences"
+              $ref: "./TemplateEnvReferences.yml"
       labels:
         type: array
         items:
-          $ref: "#/components/schemas/TemplateSummaryLabel"
+          $ref: "./TemplateSummaryLabel.yml"
       labelMappings:
         type: array
         items:
@@ -1338,26 +1338,26 @@ properties:
         type: array
         items:
           allOf:
-            - $ref: "#/components/schemas/NotificationEndpointDiscrimator"
+            - $ref: "./NotificationEndpointDiscrimator.yml"
             - type: object
               properties:
                 kind:
-                  $ref: "#/components/schemas/TemplateKind"
+                  $ref: "./TemplateKind.yml"
                 templateMetaName:
                   type: string
                 labelAssociations:
                   type: array
                   items:
-                    $ref: "#/components/schemas/TemplateSummaryLabel"
+                    $ref: "./TemplateSummaryLabel.yml"
                 envReferences:
-                  $ref: "#/components/schemas/TemplateEnvReferences"
+                  $ref: "./TemplateEnvReferences.yml"
       notificationRules:
         type: array
         items:
           type: object
           properties:
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             templateMetaName:
               type: string
             name:
@@ -1401,16 +1401,16 @@ properties:
             labelAssociations:
               type: array
               items:
-                $ref: "#/components/schemas/TemplateSummaryLabel"
+                $ref: "./TemplateSummaryLabel.yml"
             envReferences:
-              $ref: "#/components/schemas/TemplateEnvReferences"
+              $ref: "./TemplateEnvReferences.yml"
       tasks:
         type: array
         items:
           type: object
           properties:
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             templateMetaName:
               type: string
             id:
@@ -1430,31 +1430,31 @@ properties:
             status:
               type: string
             envReferences:
-              $ref: "#/components/schemas/TemplateEnvReferences"
+              $ref: "./TemplateEnvReferences.yml"
       telegrafConfigs:
         type: array
         items:
           allOf:
-            - $ref: "#/components/schemas/TelegrafRequest"
+            - $ref: "./TelegrafRequest.yml"
             - type: object
               properties:
                 kind:
-                  $ref: "#/components/schemas/TemplateKind"
+                  $ref: "./TemplateKind.yml"
                 templateMetaName:
                   type: string
                 labelAssociations:
                   type: array
                   items:
-                    $ref: "#/components/schemas/TemplateSummaryLabel"
+                    $ref: "./TemplateSummaryLabel.yml"
                 envReferences:
-                  $ref: "#/components/schemas/TemplateEnvReferences"
+                  $ref: "./TemplateEnvReferences.yml"
       variables:
         type: array
         items:
           type: object
           properties:
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             templateMetaName:
               type: string
             id:
@@ -1466,13 +1466,13 @@ properties:
             description:
               type: string
             arguments:
-              $ref: "#/components/schemas/VariableProperties"
+              $ref: "./VariableProperties.yml"
             labelAssociations:
               type: array
               items:
-                $ref: "#/components/schemas/TemplateSummaryLabel"
+                $ref: "./TemplateSummaryLabel.yml"
             envReferences:
-              $ref: "#/components/schemas/TemplateEnvReferences"
+              $ref: "./TemplateEnvReferences.yml"
   diff:
     type: object
     properties:
@@ -1482,7 +1482,7 @@ properties:
           type: object
           properties:
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             stateStatus:
               type: string
             id:
@@ -1497,7 +1497,7 @@ properties:
                 description:
                   type: string
                 retentionRules:
-                  $ref: "#/components/schemas/RetentionRules"
+                  $ref: "./RetentionRules.yml"
             old:
               type: object
               properties:
@@ -1506,14 +1506,14 @@ properties:
                 description:
                   type: string
                 retentionRules:
-                  $ref: "#/components/schemas/RetentionRules"
+                  $ref: "./RetentionRules.yml"
       checks:
         type: array
         items:
           type: object
           properties:
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             stateStatus:
               type: string
             id:
@@ -1521,9 +1521,9 @@ properties:
             templateMetaName:
               type: string
             new:
-              $ref: "#/components/schemas/CheckDiscriminator"
+              $ref: "./CheckDiscriminator.yml"
             old:
-              $ref: "#/components/schemas/CheckDiscriminator"
+              $ref: "./CheckDiscriminator.yml"
       dashboards:
         type: array
         items:
@@ -1534,7 +1534,7 @@ properties:
             id:
               type: string
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             templateMetaName:
               type: string
             new:
@@ -1547,7 +1547,7 @@ properties:
                 charts:
                   type: array
                   items:
-                    $ref: "#/components/schemas/TemplateChart"
+                    $ref: "./TemplateChart.yml"
             old:
               type: object
               properties:
@@ -1558,7 +1558,7 @@ properties:
                 charts:
                   type: array
                   items:
-                    $ref: "#/components/schemas/TemplateChart"
+                    $ref: "./TemplateChart.yml"
       labels:
         type: array
         items:
@@ -1567,7 +1567,7 @@ properties:
             stateStatus:
               type: string
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             id:
               type: string
             templateMetaName:
@@ -1617,7 +1617,7 @@ properties:
           type: object
           properties:
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             stateStatus:
               type: string
             id:
@@ -1625,16 +1625,16 @@ properties:
             templateMetaName:
               type: string
             new:
-              $ref: "#/components/schemas/NotificationEndpointDiscrimator"
+              $ref: "./NotificationEndpointDiscrimator.yml"
             old:
-              $ref: "#/components/schemas/NotificationEndpointDiscrimator"
+              $ref: "./NotificationEndpointDiscrimator.yml"
       notificationRules:
         type: array
         items:
           type: object
           properties:
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             stateStatus:
               type: string
             id:
@@ -1729,7 +1729,7 @@ properties:
           type: object
           properties:
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             stateStatus:
               type: string
             id:
@@ -1776,7 +1776,7 @@ properties:
           type: object
           properties:
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             stateStatus:
               type: string
             id:
@@ -1784,16 +1784,16 @@ properties:
             templateMetaName:
               type: string
             new:
-              $ref: "#/components/schemas/TelegrafRequest"
+              $ref: "./TelegrafRequest.yml"
             old:
-              $ref: "#/components/schemas/TelegrafRequest"
+              $ref: "./TelegrafRequest.yml"
       variables:
         type: array
         items:
           type: object
           properties:
             kind:
-              $ref: "#/components/schemas/TemplateKind"
+              $ref: "./TemplateKind.yml"
             stateStatus:
               type: string
             id:
@@ -1808,7 +1808,7 @@ properties:
                 description:
                   type: string
                 args:
-                  $ref: "#/components/schemas/VariableProperties"
+                  $ref: "./VariableProperties.yml"
             old:
               type: object
               properties:
@@ -1817,14 +1817,14 @@ properties:
                 description:
                   type: string
                 args:
-                  $ref: "#/components/schemas/VariableProperties"
+                  $ref: "./VariableProperties.yml"
   errors:
     type: array
     items:
       type: object
       properties:
         kind:
-          $ref: "#/components/schemas/TemplateKind"
+          $ref: "./TemplateKind.yml"
         reason:
           type: string
         fields:
@@ -1845,7 +1845,7 @@ properties:
   orgID:
     type: string
   kind:
-    $ref: "#/components/schemas/TemplateKind"
+    $ref: "./TemplateKind.yml"
   templateMetaName:
     type: string
   name:
@@ -1858,7 +1858,7 @@ properties:
       description:
         type: string
   envReferences:
-    $ref: "#/components/schemas/TemplateEnvReferences"
+    $ref: "./TemplateEnvReferences.yml"
 EOF
 
 cat > TemplateChart.yml <<-"EOF"
@@ -1873,7 +1873,7 @@ properties:
   width:
     type: integer
   properties: # field name is properties
-    $ref: "#/components/schemas/ViewProperties"
+    $ref: "./ViewProperties.yml"
 EOF
 
 cat > Stack.yml <<-"EOF"
@@ -1912,7 +1912,7 @@ properties:
               resourceID:
                 type: string
               kind:
-                $ref: "#/components/schemas/TemplateKind"
+                $ref: "./TemplateKind.yml"
               templateMetaName:
                 type: string
               associations:
@@ -1921,7 +1921,7 @@ properties:
                   type: object
                   properties:
                     kind:
-                      $ref: "#/components/schemas/TemplateKind"
+                      $ref: "./TemplateKind.yml"
                     metaName:
                       type: string
               links:
@@ -1943,11 +1943,11 @@ cat > Runs.yml <<-"EOF"
 type: object
 properties:
   links:
-    $ref: "#/components/schemas/Links"
+    $ref: "./Links.yml"
   runs:
     type: array
     items:
-      $ref: "#/components/schemas/Run"
+      $ref: "./Run.yml"
 EOF
 
 cat > Run.yml <<-"EOF"
@@ -2032,11 +2032,11 @@ type: object
 properties:
   links:
     readOnly: true
-    $ref: "#/components/schemas/Links"
+    $ref: "./Links.yml"
   tasks:
     type: array
     items:
-      $ref: "#/components/schemas/Task"
+      $ref: "./Task.yml"
 EOF
 
 cat > Task.yml <<-"EOF"
@@ -2061,9 +2061,9 @@ properties:
     description: An optional description of the task.
     type: string
   status:
-    $ref: "#/components/schemas/TaskStatusType"
+    $ref: "./TaskStatusType.yml"
   labels:
-    $ref: "#/components/schemas/Labels"
+    $ref: "./Labels.yml"
   authorizationID:
     description: The ID of the authorization used when this task communicates with the query engine.
     type: string
@@ -2114,17 +2114,17 @@ properties:
       logs: "/api/v2/tasks/1/logs"
     properties:
       self:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       owners:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       members:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       runs:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       logs:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       labels:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
 required: [id, name, orgID, flux]
 EOF
 
@@ -2173,7 +2173,7 @@ properties:
   users:
     type: array
     items:
-      $ref: "#/components/schemas/User"
+      $ref: "./User.yml"
 EOF
 
 cat > Flags.yml <<-"EOF"
@@ -2183,7 +2183,7 @@ EOF
 
 cat > ResourceMember.yml <<-"EOF"
 allOf:
-  - $ref: "#/components/schemas/User"
+  - $ref: "./User.yml"
   - type: object
     properties:
       role:
@@ -2205,12 +2205,12 @@ properties:
   users:
     type: array
     items:
-      $ref: "#/components/schemas/ResourceMember"
+      $ref: "./ResourceMember.yml"
 EOF
 
 cat > ResourceOwner.yml <<-"EOF"
 allOf:
-  - $ref: "#/components/schemas/User"
+  - $ref: "./User.yml"
   - type: object
     properties:
       role:
@@ -2232,7 +2232,7 @@ properties:
   users:
     type: array
     items:
-      $ref: "#/components/schemas/ResourceOwner"
+      $ref: "./ResourceOwner.yml"
 EOF
 
 cat > FluxSuggestions.yml <<-"EOF"
@@ -2241,7 +2241,7 @@ properties:
   funcs:
     type: array
     items:
-      $ref: "#/components/schemas/FluxSuggestion"
+      $ref: "./FluxSuggestion.yml"
 EOF
 
 cat > FluxSuggestion.yml <<-"EOF"
@@ -2338,7 +2338,7 @@ properties:
 EOF
 
 cat > Error.yml <<-"EOF"
-$ref: "#/components/schemas/swagger/components/schemas/Error"
+$ref: "./swagger.yml/components/schemas/Error"
 EOF
 
 cat > LineProtocolError.yml <<-"EOF"
@@ -2422,7 +2422,7 @@ properties:
     description: Args are the arguments to the function
     type: array
     items:
-      $ref: "#/components/schemas/Field"
+      $ref: "./Field.yml"
 EOF
 
 cat > BuilderConfig.yml <<-"EOF"
@@ -2435,11 +2435,11 @@ properties:
   tags:
     type: array
     items:
-      $ref: "#/components/schemas/BuilderTagsType"
+      $ref: "./BuilderTagsType.yml"
   functions:
     type: array
     items:
-      $ref: "#/components/schemas/BuilderFunctionsType"
+      $ref: "./BuilderFunctionsType.yml"
   aggregateWindow:
     type: object
     properties:
@@ -2459,7 +2459,7 @@ properties:
     items:
       type: string
   aggregateFunctionType:
-    $ref: "#/components/schemas/BuilderAggregateFunctionType"
+    $ref: "./BuilderAggregateFunctionType.yml"
 EOF
 
 cat > BuilderAggregateFunctionType.yml <<-"EOF"
@@ -2481,11 +2481,11 @@ properties:
     type: string
     description: The text of the Flux query.
   editMode:
-    $ref: "#/components/schemas/QueryEditMode"
+    $ref: "./QueryEditMode.yml"
   name:
     type: string
   builderConfig:
-    $ref: "#/components/schemas/BuilderConfig"
+    $ref: "./BuilderConfig.yml"
 EOF
 
 cat > QueryEditMode.yml <<-"EOF"
@@ -2520,7 +2520,7 @@ properties:
     type: string
     enum: ["", "2", "10"]
   scale:
-    $ref: "#/components/schemas/AxisScale"
+    $ref: "./AxisScale.yml"
 EOF
 
 cat > AxisScale.yml <<-"EOF"
@@ -2599,12 +2599,12 @@ properties:
   queries:
     type: array
     items:
-      $ref: "#/components/schemas/DashboardQuery"
+      $ref: "./DashboardQuery.yml"
   colors:
     description: Colors define color encoding of data into a visualization
     type: array
     items:
-      $ref: "#/components/schemas/DashboardColor"
+      $ref: "./DashboardColor.yml"
   shape:
     type: string
     enum: ["chronograf-v2"]
@@ -2614,9 +2614,9 @@ properties:
     description: If true, will display note when empty
     type: boolean
   axes:
-    $ref: "#/components/schemas/Axes"
+    $ref: "./Axes.yml"
   legend:
-    $ref: "#/components/schemas/Legend"
+    $ref: "./Legend.yml"
   xColumn:
     type: string
   generateXAxisTicks:
@@ -2654,7 +2654,7 @@ properties:
     type: string
     enum: [overlaid, stacked]
   geom:
-    $ref: "#/components/schemas/XYGeom"
+    $ref: "./XYGeom.yml"
   legendColorizeRows:
     type: boolean
   legendOpacity:
@@ -2690,12 +2690,12 @@ properties:
   queries:
     type: array
     items:
-      $ref: "#/components/schemas/DashboardQuery"
+      $ref: "./DashboardQuery.yml"
   colors:
     description: Colors define color encoding of data into a visualization
     type: array
     items:
-      $ref: "#/components/schemas/DashboardColor"
+      $ref: "./DashboardColor.yml"
   shape:
     type: string
     enum: ["chronograf-v2"]
@@ -2705,9 +2705,9 @@ properties:
     description: If true, will display note when empty
     type: boolean
   axes:
-    $ref: "#/components/schemas/Axes"
+    $ref: "./Axes.yml"
   legend:
-    $ref: "#/components/schemas/Legend"
+    $ref: "./Legend.yml"
   xColumn:
     type: string
   generateXAxisTicks:
@@ -2746,7 +2746,7 @@ properties:
     type: string
     enum: [auto, x, y, xy]
   geom:
-    $ref: "#/components/schemas/XYGeom"
+    $ref: "./XYGeom.yml"
   legendColorizeRows:
     type: boolean
   legendOpacity:
@@ -2780,12 +2780,12 @@ properties:
   queries:
     type: array
     items:
-      $ref: "#/components/schemas/DashboardQuery"
+      $ref: "./DashboardQuery.yml"
   colors:
     description: Colors define color encoding of data into a visualization
     type: array
     items:
-      $ref: "#/components/schemas/DashboardColor"
+      $ref: "./DashboardColor.yml"
   shape:
     type: string
     enum: ["chronograf-v2"]
@@ -2795,9 +2795,9 @@ properties:
     description: If true, will display note when empty
     type: boolean
   axes:
-    $ref: "#/components/schemas/Axes"
+    $ref: "./Axes.yml"
   legend:
-    $ref: "#/components/schemas/Legend"
+    $ref: "./Legend.yml"
   xColumn:
     type: string
   generateXAxisTicks:
@@ -2839,7 +2839,7 @@ properties:
   suffix:
     type: string
   decimalPlaces:
-    $ref: "#/components/schemas/DecimalPlaces"
+    $ref: "./DecimalPlaces.yml"
   legendColorizeRows:
     type: boolean
   legendOpacity:
@@ -2878,7 +2878,7 @@ properties:
   queries:
     type: array
     items:
-      $ref: "#/components/schemas/DashboardQuery"
+      $ref: "./DashboardQuery.yml"
   colors:
     description: Colors define color encoding of data into a visualization
     type: array
@@ -2984,7 +2984,7 @@ properties:
   queries:
     type: array
     items:
-      $ref: "#/components/schemas/DashboardQuery"
+      $ref: "./DashboardQuery.yml"
   colors:
     description: Colors define color encoding of data into a visualization
     type: array
@@ -3094,7 +3094,7 @@ properties:
   queries:
     type: array
     items:
-      $ref: "#/components/schemas/DashboardQuery"
+      $ref: "./DashboardQuery.yml"
   colors:
     description: Colors define color encoding of data into a visualization
     type: array
@@ -3191,12 +3191,12 @@ properties:
   queries:
     type: array
     items:
-      $ref: "#/components/schemas/DashboardQuery"
+      $ref: "./DashboardQuery.yml"
   colors:
     description: Colors define color encoding of data into a visualization
     type: array
     items:
-      $ref: "#/components/schemas/DashboardColor"
+      $ref: "./DashboardColor.yml"
   shape:
     type: string
     enum: ["chronograf-v2"]
@@ -3214,9 +3214,9 @@ properties:
   tickSuffix:
     type: string
   legend:
-    $ref: "#/components/schemas/Legend"
+    $ref: "./Legend.yml"
   decimalPlaces:
-    $ref: "#/components/schemas/DecimalPlaces"
+    $ref: "./DecimalPlaces.yml"
 EOF
 
 cat > HistogramViewProperties.yml <<-"EOF"
@@ -3241,12 +3241,12 @@ properties:
   queries:
     type: array
     items:
-      $ref: "#/components/schemas/DashboardQuery"
+      $ref: "./DashboardQuery.yml"
   colors:
     description: Colors define color encoding of data into a visualization
     type: array
     items:
-      $ref: "#/components/schemas/DashboardColor"
+      $ref: "./DashboardColor.yml"
   shape:
     type: string
     enum: ["chronograf-v2"]
@@ -3306,12 +3306,12 @@ properties:
   queries:
     type: array
     items:
-      $ref: "#/components/schemas/DashboardQuery"
+      $ref: "./DashboardQuery.yml"
   colors:
     description: Colors define color encoding of data into a visualization
     type: array
     items:
-      $ref: "#/components/schemas/DashboardColor"
+      $ref: "./DashboardColor.yml"
   shape:
     type: string
     enum: ["chronograf-v2"]
@@ -3329,9 +3329,9 @@ properties:
   tickSuffix:
     type: string
   legend:
-    $ref: "#/components/schemas/Legend"
+    $ref: "./Legend.yml"
   decimalPlaces:
-    $ref: "#/components/schemas/DecimalPlaces"
+    $ref: "./DecimalPlaces.yml"
 EOF
 
 cat > TableViewProperties.yml <<-"EOF"
@@ -3354,12 +3354,12 @@ properties:
   queries:
     type: array
     items:
-      $ref: "#/components/schemas/DashboardQuery"
+      $ref: "./DashboardQuery.yml"
   colors:
     description: Colors define color encoding of data into a visualization
     type: array
     items:
-      $ref: "#/components/schemas/DashboardColor"
+      $ref: "./DashboardColor.yml"
   shape:
     type: string
     enum: ["chronograf-v2"]
@@ -3376,7 +3376,7 @@ properties:
           indicating whether the time axis will be displayed vertically
         type: boolean
       sortBy:
-        $ref: "#/components/schemas/RenamableField"
+        $ref: "./RenamableField.yml"
       wrapping:
         description: Wrapping describes the text wrapping style to be used in table views
         type: string
@@ -3395,14 +3395,14 @@ properties:
       customization options
     type: array
     items:
-      $ref: "#/components/schemas/RenamableField"
+      $ref: "./RenamableField.yml"
   timeFormat:
     description: >-
       timeFormat describes the display format for time values according to
       moment.js date formatting
     type: string
   decimalPlaces:
-    $ref: "#/components/schemas/DecimalPlaces"
+    $ref: "./DecimalPlaces.yml"
 EOF
 
 cat > MarkdownViewProperties.yml <<-"EOF"
@@ -3440,16 +3440,16 @@ properties:
   checkID:
     type: string
   check:
-    $ref: "#/components/schemas/Check"
+    $ref: "./Check.yml"
   queries:
     type: array
     items:
-      $ref: "#/components/schemas/DashboardQuery"
+      $ref: "./DashboardQuery.yml"
   colors:
     description: Colors define color encoding of data into a visualization
     type: array
     items:
-      $ref: "#/components/schemas/DashboardColor"
+      $ref: "./DashboardColor.yml"
   legendColorizeRows:
     type: boolean
   legendOpacity:
@@ -3462,10 +3462,10 @@ EOF
 cat > GeoViewLayer.yml <<-"EOF"
 type: object
 oneOf:
-  - $ref: "#/components/schemas/GeoCircleViewLayer"
-  - $ref: "#/components/schemas/GeoHeatMapViewLayer"
-  - $ref: "#/components/schemas/GeoPointMapViewLayer"
-  - $ref: "#/components/schemas/GeoTrackMapViewLayer"
+  - $ref: "./GeoCircleViewLayer.yml"
+  - $ref: "./GeoHeatMapViewLayer.yml"
+  - $ref: "./GeoPointMapViewLayer.yml"
+  - $ref: "./GeoTrackMapViewLayer.yml"
 EOF
 
 cat > GeoViewLayerProperties.yml <<-"EOF"
@@ -3479,7 +3479,7 @@ EOF
 
 cat > GeoCircleViewLayer.yml <<-"EOF"
 allOf:
-  - $ref: "#/components/schemas/GeoViewLayerProperties"
+  - $ref: "./GeoViewLayerProperties.yml"
   - type: object
     required: [radiusField, radiusDimension, colorField, colorDimension, colors]
     properties:
@@ -3487,17 +3487,17 @@ allOf:
         type: string
         description: Radius field
       radiusDimension:
-        $ref: '#/components/schemas/Axis'
+        $ref: './Axis.yml'
       colorField:
         type: string
         description: Circle color field
       colorDimension:
-        $ref: '#/components/schemas/Axis'
+        $ref: './Axis.yml'
       colors:
         description: Colors define color encoding of data into a visualization
         type: array
         items:
-          $ref: "#/components/schemas/DashboardColor"
+          $ref: "./DashboardColor.yml"
       radius:
         description: Maximum radius size in pixels
         type: integer
@@ -3508,7 +3508,7 @@ EOF
 
 cat > GeoPointMapViewLayer.yml <<-"EOF"
 allOf:
-  - $ref: "#/components/schemas/GeoViewLayerProperties"
+  - $ref: "./GeoViewLayerProperties.yml"
   - type: object
     required: [colorField, colorDimension, colors]
     properties:
@@ -3516,12 +3516,12 @@ allOf:
         type: string
         description: Marker color field
       colorDimension:
-        $ref: '#/components/schemas/Axis'
+        $ref: './Axis.yml'
       colors:
         description: Colors define color encoding of data into a visualization
         type: array
         items:
-          $ref: "#/components/schemas/DashboardColor"
+          $ref: "./DashboardColor.yml"
       isClustered:
         description: Cluster close markers together
         type: boolean
@@ -3529,7 +3529,7 @@ EOF
 
 cat > GeoTrackMapViewLayer.yml <<-"EOF"
 allOf:
-  - $ref: "#/components/schemas/GeoViewLayerProperties"
+  - $ref: "./GeoViewLayerProperties.yml"
   - type: object
     required: [trackWidth, speed, randomColors, trackPointVisualization]
 properties:
@@ -3546,12 +3546,12 @@ properties:
     description: Colors define color encoding of data into a visualization
     type: array
     items:
-        $ref: "#/components/schemas/DashboardColor"
+        $ref: "./DashboardColor.yml"
 EOF
 
 cat > GeoHeatMapViewLayer.yml <<-"EOF"
 allOf:
-  - $ref: "#/components/schemas/GeoViewLayerProperties"
+  - $ref: "./GeoViewLayerProperties.yml"
   - type: object
     required: [intensityField, intensityDimension, radius, blur, colors]
     properties:
@@ -3559,7 +3559,7 @@ allOf:
         type: string
         description: Intensity field
       intensityDimension:
-        $ref: '#/components/schemas/Axis'
+        $ref: './Axis.yml'
       radius:
         description: Radius size in pixels
         type: integer
@@ -3570,7 +3570,7 @@ allOf:
         description: Colors define color encoding of data into a visualization
         type: array
         items:
-          $ref: "#/components/schemas/DashboardColor"
+          $ref: "./DashboardColor.yml"
 EOF
 
 cat > GeoViewProperties.yml <<-"EOF"
@@ -3583,7 +3583,7 @@ properties:
   queries:
     type: array
     items:
-      $ref: "#/components/schemas/DashboardQuery"
+      $ref: "./DashboardQuery.yml"
   shape:
     type: string
     enum: ['chronograf-v2']
@@ -3626,12 +3626,12 @@ properties:
     description: Colors define color encoding of data into a visualization
     type: array
     items:
-      $ref: "#/components/schemas/DashboardColor"
+      $ref: "./DashboardColor.yml"
   layers:
     description: List of individual layers shown in the map
     type: array
     items:
-      $ref: "#/components/schemas/GeoViewLayer"
+      $ref: "./GeoViewLayer.yml"
 EOF
 
 cat > Axes.yml <<-"EOF"
@@ -3640,9 +3640,9 @@ type: object
 required: ["x", "y"]
 properties:
   x:
-    $ref: "#/components/schemas/Axis"
+    $ref: "./Axis.yml"
   "y": # Quoted to prevent YAML parser from interpreting y as shorthand for true.
-    $ref: "#/components/schemas/Axis"
+    $ref: "./Axis.yml"
 EOF
 
 cat > Legend.yml <<-"EOF"
@@ -3749,9 +3749,9 @@ properties:
     items:
       type: string
   labels:
-    $ref: "#/components/schemas/Labels"
+    $ref: "./Labels.yml"
   arguments:
-    $ref: "#/components/schemas/VariableProperties"
+    $ref: "./VariableProperties.yml"
   createdAt:
     type: string
     format: date-time
@@ -3798,32 +3798,32 @@ properties:
   variables:
     type: array
     items:
-      $ref: "#/components/schemas/Variable"
+      $ref: "./Variable.yml"
 EOF
 
 cat > VariableProperties.yml <<-"EOF"
 type: object
 oneOf:
-  - $ref: "#/components/schemas/QueryVariableProperties"
-  - $ref: "#/components/schemas/ConstantVariableProperties"
-  - $ref: "#/components/schemas/MapVariableProperties"
+  - $ref: "./QueryVariableProperties.yml"
+  - $ref: "./ConstantVariableProperties.yml"
+  - $ref: "./MapVariableProperties.yml"
 EOF
 
 cat > ViewProperties.yml <<-"EOF"
 oneOf:
-  - $ref: "#/components/schemas/LinePlusSingleStatProperties"
-  - $ref: "#/components/schemas/XYViewProperties"
-  - $ref: "#/components/schemas/SingleStatViewProperties"
-  - $ref: "#/components/schemas/HistogramViewProperties"
-  - $ref: "#/components/schemas/GaugeViewProperties"
-  - $ref: "#/components/schemas/TableViewProperties"
-  - $ref: "#/components/schemas/MarkdownViewProperties"
-  - $ref: "#/components/schemas/CheckViewProperties"
-  - $ref: "#/components/schemas/ScatterViewProperties"
-  - $ref: "#/components/schemas/HeatmapViewProperties"
-  - $ref: "#/components/schemas/MosaicViewProperties"
-  - $ref: "#/components/schemas/BandViewProperties"
-  - $ref: "#/components/schemas/GeoViewProperties"
+  - $ref: "./LinePlusSingleStatProperties.yml"
+  - $ref: "./XYViewProperties.yml"
+  - $ref: "./SingleStatViewProperties.yml"
+  - $ref: "./HistogramViewProperties.yml"
+  - $ref: "./GaugeViewProperties.yml"
+  - $ref: "./TableViewProperties.yml"
+  - $ref: "./MarkdownViewProperties.yml"
+  - $ref: "./CheckViewProperties.yml"
+  - $ref: "./ScatterViewProperties.yml"
+  - $ref: "./HeatmapViewProperties.yml"
+  - $ref: "./MosaicViewProperties.yml"
+  - $ref: "./BandViewProperties.yml"
+  - $ref: "./GeoViewProperties.yml"
 EOF
 
 cat > View.yml <<-"EOF"
@@ -3843,7 +3843,7 @@ properties:
   name:
     type: string
   properties:
-    $ref: "#/components/schemas/ViewProperties"
+    $ref: "./ViewProperties.yml"
 EOF
 
 cat > Views.yml <<-"EOF"
@@ -3857,7 +3857,7 @@ properties:
   views:
     type: array
     items:
-      $ref: "#/components/schemas/View"
+      $ref: "./View.yml"
 EOF
 
 cat > CellUpdate.yml <<-"EOF"
@@ -3920,13 +3920,13 @@ EOF
 cat > CellWithViewProperties.yml <<-"EOF"
 type: object
 allOf:
-  - $ref: "#/components/schemas/Cell"
+  - $ref: "./Cell.yml"
   - type: object
     properties:
       name:
         type: string
       properties:
-        $ref: "#/components/schemas/ViewProperties"
+        $ref: "./ViewProperties.yml"
 EOF
 
 cat > Cell.yml <<-"EOF"
@@ -3961,13 +3961,13 @@ EOF
 cat > CellsWithViewProperties.yml <<-"EOF"
 type: array
 items:
-  $ref: "#/components/schemas/CellWithViewProperties"
+  $ref: "./CellWithViewProperties.yml"
 EOF
 
 cat > Cells.yml <<-"EOF"
 type: array
 items:
-  $ref: "#/components/schemas/Cell"
+  $ref: "./Cell.yml"
 EOF
 
 cat > Secrets.yml <<-"EOF"
@@ -3988,7 +3988,7 @@ EOF
 
 cat > SecretKeysResponse.yml <<-"EOF"
 allOf:
-  - $ref: "#/components/schemas/SecretKeys"
+  - $ref: "./SecretKeys.yml"
   - type: object
     properties:
       links:
@@ -4020,7 +4020,7 @@ EOF
 cat > DashboardWithViewProperties.yml <<-"EOF"
 type: object
 allOf:
-  - $ref: "#/components/schemas/CreateDashboardRequest"
+  - $ref: "./CreateDashboardRequest.yml"
   - type: object
     properties:
       links:
@@ -4034,17 +4034,17 @@ allOf:
           org: "/api/v2/labels/1"
         properties:
           self:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           cells:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           members:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           owners:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           labels:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           org:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
       id:
         readOnly: true
         type: string
@@ -4058,15 +4058,15 @@ allOf:
             type: string
             format: date-time
       cells:
-        $ref: "#/components/schemas/CellsWithViewProperties"
+        $ref: "./CellsWithViewProperties.yml"
       labels:
-        $ref: "#/components/schemas/Labels"
+        $ref: "./Labels.yml"
 EOF
 
 cat > Dashboard.yml <<-"EOF"
 type: object
 allOf:
-  - $ref: "#/components/schemas/CreateDashboardRequest"
+  - $ref: "./CreateDashboardRequest.yml"
   - type: object
     properties:
       links:
@@ -4080,17 +4080,17 @@ allOf:
           org: "/api/v2/labels/1"
         properties:
           self:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           cells:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           members:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           owners:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           labels:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           org:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
       id:
         readOnly: true
         type: string
@@ -4104,20 +4104,20 @@ allOf:
             type: string
             format: date-time
       cells:
-        $ref: "#/components/schemas/Cells"
+        $ref: "./Cells.yml"
       labels:
-        $ref: "#/components/schemas/Labels"
+        $ref: "./Labels.yml"
 EOF
 
 cat > Dashboards.yml <<-"EOF"
 type: object
 properties:
   links:
-    $ref: "#/components/schemas/Links"
+    $ref: "./Links.yml"
   dashboards:
     type: array
     items:
-      $ref: "#/components/schemas/Dashboard"
+      $ref: "./Dashboard.yml"
 EOF
 
 cat > Source.yml <<-"EOF"
@@ -4187,7 +4187,7 @@ properties:
   sources:
     type: array
     items:
-      $ref: "#/components/schemas/Source"
+      $ref: "./Source.yml"
 EOF
 
 cat > ScraperTargetRequest.yml <<-"EOF"
@@ -4219,7 +4219,7 @@ EOF
 cat > ScraperTargetResponse.yml <<-"EOF"
 type: object
 allOf:
-  - $ref: "#/components/schemas/ScraperTargetRequest"
+  - $ref: "./ScraperTargetRequest.yml"
   - type: object
     properties:
       id:
@@ -4242,15 +4242,15 @@ allOf:
           organization: "/api/v2/orgs/1"
         properties:
           self:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           members:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           owners:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           bucket:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           organization:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
 EOF
 
 cat > ScraperTargetResponses.yml <<-"EOF"
@@ -4259,7 +4259,7 @@ properties:
   configurations:
     type: array
     items:
-      $ref: "#/components/schemas/ScraperTargetResponse"
+      $ref: "./ScraperTargetResponse.yml"
 EOF
 
 cat > DocumentMeta.yml <<-"EOF"
@@ -4295,11 +4295,11 @@ properties:
     type: string
     readOnly: true
   meta:
-    $ref: "#/components/schemas/DocumentMeta"
+    $ref: "./DocumentMeta.yml"
   content:
     type: object
   labels:
-    $ref: "#/components/schemas/Labels"
+    $ref: "./Labels.yml"
   links:
     type: object
     readOnly: true
@@ -4308,7 +4308,7 @@ properties:
     properties:
       self:
         description: The document URL.
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
 required:
   - id
   - meta
@@ -4319,7 +4319,7 @@ cat > DocumentCreate.yml <<-"EOF"
 type: object
 properties:
   meta:
-    $ref: "#/components/schemas/DocumentMeta"
+    $ref: "./DocumentMeta.yml"
   content:
     type: object
   org:
@@ -4342,7 +4342,7 @@ cat > DocumentUpdate.yml <<-"EOF"
 type: object
 properties:
   meta:
-    $ref: "#/components/schemas/DocumentMeta"
+    $ref: "./DocumentMeta.yml"
   content:
     type: object
 EOF
@@ -4354,9 +4354,9 @@ properties:
     type: string
     readOnly: true
   meta:
-    $ref: "#/components/schemas/DocumentMeta"
+    $ref: "./DocumentMeta.yml"
   labels:
-    $ref: "#/components/schemas/Labels"
+    $ref: "./Labels.yml"
   links:
     type: object
     readOnly: true
@@ -4365,7 +4365,7 @@ properties:
     properties:
       self:
         description: The document URL.
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
 required:
   - id
   - meta
@@ -4377,7 +4377,7 @@ properties:
   documents:
     type: array
     items:
-      $ref: "#/components/schemas/DocumentListEntry"
+      $ref: "./DocumentListEntry.yml"
 EOF
 
 cat > TelegrafRequest.yml <<-"EOF"
@@ -4402,19 +4402,19 @@ EOF
 
 cat > TelegrafRequestPlugin.yml <<-"EOF"
 oneOf:
-  - $ref: "#/components/schemas/TelegrafPluginInputCpu"
-  - $ref: "#/components/schemas/TelegrafPluginInputDisk"
-  - $ref: "#/components/schemas/TelegrafPluginInputDiskio"
-  - $ref: "#/components/schemas/TelegrafPluginInputDocker"
-  - $ref: "#/components/schemas/TelegrafPluginInputFile"
-  - $ref: "#/components/schemas/TelegrafPluginInputKubernetes"
-  - $ref: "#/components/schemas/TelegrafPluginInputLogParser"
-  - $ref: "#/components/schemas/TelegrafPluginInputProcstat"
-  - $ref: "#/components/schemas/TelegrafPluginInputPrometheus"
-  - $ref: "#/components/schemas/TelegrafPluginInputRedis"
-  - $ref: "#/components/schemas/TelegrafPluginInputSyslog"
-  - $ref: "#/components/schemas/TelegrafPluginOutputFile"
-  - $ref: "#/components/schemas/TelegrafPluginOutputInfluxDBV2"
+  - $ref: "./TelegrafPluginInputCpu.yml"
+  - $ref: "./TelegrafPluginInputDisk.yml"
+  - $ref: "./TelegrafPluginInputDiskio.yml"
+  - $ref: "./TelegrafPluginInputDocker.yml"
+  - $ref: "./TelegrafPluginInputFile.yml"
+  - $ref: "./TelegrafPluginInputKubernetes.yml"
+  - $ref: "./TelegrafPluginInputLogParser.yml"
+  - $ref: "./TelegrafPluginInputProcstat.yml"
+  - $ref: "./TelegrafPluginInputPrometheus.yml"
+  - $ref: "./TelegrafPluginInputRedis.yml"
+  - $ref: "./TelegrafPluginInputSyslog.yml"
+  - $ref: "./TelegrafPluginOutputFile.yml"
+  - $ref: "./TelegrafPluginOutputInfluxDBV2.yml"
 EOF
 
 cat > TelegrafPluginInputCpu.yml <<-"EOF"
@@ -4481,7 +4481,7 @@ properties:
   comment:
     type: string
   config:
-    $ref: "#/components/schemas/TelegrafPluginInputDockerConfig"
+    $ref: "./TelegrafPluginInputDockerConfig.yml"
 EOF
 
 cat > TelegrafPluginInputFile.yml <<-"EOF"
@@ -4500,7 +4500,7 @@ properties:
   comment:
     type: string
   config:
-    $ref: "#/components/schemas/TelegrafPluginInputFileConfig"
+    $ref: "./TelegrafPluginInputFileConfig.yml"
 EOF
 
 cat > TelegrafPluginInputKernel.yml <<-"EOF"
@@ -4535,7 +4535,7 @@ properties:
   comment:
     type: string
   config:
-    $ref: "#/components/schemas/TelegrafPluginInputKubernetesConfig"
+    $ref: "./TelegrafPluginInputKubernetesConfig.yml"
 EOF
 
 cat > TelegrafPluginInputLogParser.yml <<-"EOF"
@@ -4554,7 +4554,7 @@ properties:
   comment:
     type: string
   config:
-    $ref: "#/components/schemas/TelegrafPluginInputLogParserConfig"
+    $ref: "./TelegrafPluginInputLogParserConfig.yml"
 EOF
 
 cat > TelegrafPluginInputMem.yml <<-"EOF"
@@ -4653,7 +4653,7 @@ properties:
   comment:
     type: string
   config:
-    $ref: "#/components/schemas/TelegrafPluginInputProcstatConfig"
+    $ref: "./TelegrafPluginInputProcstatConfig.yml"
 EOF
 
 cat > TelegrafPluginInputPrometheus.yml <<-"EOF"
@@ -4672,7 +4672,7 @@ properties:
   comment:
     type: string
   config:
-    $ref: "#/components/schemas/TelegrafPluginInputPrometheusConfig"
+    $ref: "./TelegrafPluginInputPrometheusConfig.yml"
 EOF
 
 cat > TelegrafPluginInputRedis.yml <<-"EOF"
@@ -4691,7 +4691,7 @@ properties:
   comment:
     type: string
   config:
-    $ref: "#/components/schemas/TelegrafPluginInputRedisConfig"
+    $ref: "./TelegrafPluginInputRedisConfig.yml"
 EOF
 
 cat > TelegrafPluginInputSyslog.yml <<-"EOF"
@@ -4710,7 +4710,7 @@ properties:
   comment:
     type: string
   config:
-    $ref: "#/components/schemas/TelegrafPluginInputSyslogConfig"
+    $ref: "./TelegrafPluginInputSyslogConfig.yml"
 EOF
 
 cat > TelegrafPluginInputSwap.yml <<-"EOF"
@@ -4777,7 +4777,7 @@ properties:
   comment:
     type: string
   config:
-    $ref: "#/components/schemas/TelegrafPluginOutputFileConfig"
+    $ref: "./TelegrafPluginOutputFileConfig.yml"
 EOF
 
 cat > TelegrafPluginOutputInfluxDBV2.yml <<-"EOF"
@@ -4796,13 +4796,13 @@ properties:
   comment:
     type: string
   config:
-    $ref: "#/components/schemas/TelegrafPluginOutputInfluxDBV2Config"
+    $ref: "./TelegrafPluginOutputInfluxDBV2Config.yml"
 EOF
 
 cat > Telegraf.yml <<-"EOF"
 type: object
 allOf:
-  - $ref: "#/components/schemas/TelegrafRequest"
+  - $ref: "./TelegrafRequest.yml"
   - type: object
     properties:
       id:
@@ -4818,16 +4818,16 @@ allOf:
           members: "/api/v2/telegrafs/1/members"
         properties:
           self:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           labels:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           members:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           owners:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
       labels:
         readOnly: true
-        $ref: "#/components/schemas/Labels"
+        $ref: "./Labels.yml"
 EOF
 
 cat > Telegrafs.yml <<-"EOF"
@@ -4836,7 +4836,7 @@ properties:
   configurations:
     type: array
     items:
-      $ref: "#/components/schemas/Telegraf"
+      $ref: "./Telegraf.yml"
 EOF
 
 cat > TelegrafPlugin.yml <<-"EOF"
@@ -4862,7 +4862,7 @@ properties:
   plugins:
     type: array
     items:
-      $ref: "#/components/schemas/TelegrafPlugin"
+      $ref: "./TelegrafPlugin.yml"
 EOF
 
 cat > TelegrafPluginInputDockerConfig.yml <<-"EOF"
@@ -5004,13 +5004,13 @@ cat > OnboardingResponse.yml <<-"EOF"
 type: object
 properties:
   user:
-    $ref: "#/components/schemas/User"
+    $ref: "./User.yml"
   org:
-    $ref: "#/components/schemas/Organization"
+    $ref: "./Organization.yml"
   bucket:
-    $ref: "#/components/schemas/Bucket"
+    $ref: "./Bucket.yml"
   auth:
-    $ref: "#/components/schemas/Authorization"
+    $ref: "./Authorization.yml"
 EOF
 
 cat > PasswordResetBody.yml <<-"EOF"
@@ -5061,7 +5061,7 @@ properties:
   checks:
     type: array
     items:
-      $ref: "#/components/schemas/HealthCheck"
+      $ref: "./HealthCheck.yml"
   status:
     type: string
     enum:
@@ -5076,7 +5076,7 @@ EOF
 cat > Labels.yml <<-"EOF"
 type: array
 items:
-  $ref: "#/components/schemas/Label"
+  $ref: "./Label.yml"
 EOF
 
 cat > Label.yml <<-"EOF"
@@ -5138,18 +5138,18 @@ cat > LabelsResponse.yml <<-"EOF"
 type: object
 properties:
   labels:
-    $ref: "#/components/schemas/Labels"
+    $ref: "./Labels.yml"
   links:
-    $ref: "#/components/schemas/Links"
+    $ref: "./Links.yml"
 EOF
 
 cat > LabelResponse.yml <<-"EOF"
 type: object
 properties:
   label:
-    $ref: "#/components/schemas/Label"
+    $ref: "./Label.yml"
   links:
-    $ref: "#/components/schemas/Links"
+    $ref: "./Links.yml"
 EOF
 
 cat > ASTResponse.yml <<-"EOF"
@@ -5157,7 +5157,7 @@ description: Contains the AST for the supplied Flux query
 type: object
 properties:
   ast:
-    $ref: "#/components/schemas/Package"
+    $ref: "./Package.yml"
 EOF
 
 cat > WritePrecision.yml <<-"EOF"
@@ -5179,7 +5179,7 @@ properties:
     description: The name of the organization that owns this Task.
     type: string
   status:
-    $ref: "#/components/schemas/TaskStatusType"
+    $ref: "./TaskStatusType.yml"
   flux:
     description: The Flux script to run for this task.
     type: string
@@ -5193,7 +5193,7 @@ cat > TaskUpdateRequest.yml <<-"EOF"
 type: object
 properties:
   status:
-    $ref: "#/components/schemas/TaskStatusType"
+    $ref: "./TaskStatusType.yml"
   flux:
     description: The Flux script to run for this task.
     type: string
@@ -5237,25 +5237,25 @@ EOF
 
 cat > CheckDiscriminator.yml <<-"EOF"
 oneOf:
-  - $ref: "#/components/schemas/DeadmanCheck"
-  - $ref: "#/components/schemas/ThresholdCheck"
-  - $ref: "#/components/schemas/CustomCheck"
+  - $ref: "./DeadmanCheck.yml"
+  - $ref: "./ThresholdCheck.yml"
+  - $ref: "./CustomCheck.yml"
 discriminator:
   propertyName: type
   mapping:
-    deadman: "#/components/schemas/DeadmanCheck"
-    threshold: "#/components/schemas/ThresholdCheck"
-    custom: "#/components/schemas/CustomCheck"
+    deadman: "./DeadmanCheck.yml"
+    threshold: "./ThresholdCheck.yml"
+    custom: "./CustomCheck.yml"
 EOF
 
 cat > Check.yml <<-"EOF"
 allOf:
-  - $ref: "#/components/schemas/CheckDiscriminator"
+  - $ref: "./CheckDiscriminator.yml"
 EOF
 
 cat > PostCheck.yml <<-"EOF"
 allOf:
-  - $ref: "#/components/schemas/CheckDiscriminator"
+  - $ref: "./CheckDiscriminator.yml"
 EOF
 
 cat > Checks.yml <<-"EOF"
@@ -5263,9 +5263,9 @@ properties:
   checks:
     type: array
     items:
-      $ref: "#/components/schemas/Check"
+      $ref: "./Check.yml"
   links:
-    $ref: "#/components/schemas/Links"
+    $ref: "./Links.yml"
 EOF
 
 cat > CheckBase.yml <<-"EOF"
@@ -5291,9 +5291,9 @@ properties:
     format: date-time
     readOnly: true
   query:
-    $ref: "#/components/schemas/DashboardQuery"
+    $ref: "./DashboardQuery.yml"
   status:
-    $ref: "#/components/schemas/TaskStatusType"
+    $ref: "./TaskStatusType.yml"
   description:
     description: An optional description of the check.
     type: string
@@ -5313,7 +5313,7 @@ properties:
     readOnly: true
     type: string
   labels:
-    $ref: "#/components/schemas/Labels"
+    $ref: "./Labels.yml"
   links:
     type: object
     readOnly: true
@@ -5326,25 +5326,25 @@ properties:
     properties:
       self:
         description: URL for this check
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       labels:
         description: URL to retrieve labels for this check
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       members:
         description: URL to retrieve members for this check
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       owners:
         description: URL to retrieve owners for this check
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       query:
         description: URL to retrieve flux script for this check
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
 required: [name, orgID, query]
 EOF
 
 cat > ThresholdCheck.yml <<-"EOF"
 allOf:
-  - $ref: "#/components/schemas/CheckBase"
+  - $ref: "./CheckBase.yml"
   - type: object
     required: [type]
     properties:
@@ -5354,7 +5354,7 @@ allOf:
       thresholds:
         type: array
         items:
-          $ref: "#/components/schemas/Threshold"
+          $ref: "./Threshold.yml"
       every:
         description: Check repetition interval.
         type: string
@@ -5378,20 +5378,20 @@ EOF
 
 cat > Threshold.yml <<-"EOF"
 oneOf:
-  - $ref: "#/components/schemas/GreaterThreshold"
-  - $ref: "#/components/schemas/LesserThreshold"
-  - $ref: "#/components/schemas/RangeThreshold"
+  - $ref: "./GreaterThreshold.yml"
+  - $ref: "./LesserThreshold.yml"
+  - $ref: "./RangeThreshold.yml"
 discriminator:
   propertyName: type
   mapping:
-    greater: "#/components/schemas/GreaterThreshold"
-    lesser: "#/components/schemas/LesserThreshold"
-    range: "#/components/schemas/RangeThreshold"
+    greater: "./GreaterThreshold.yml"
+    lesser: "./LesserThreshold.yml"
+    range: "./RangeThreshold.yml"
 EOF
 
 cat > DeadmanCheck.yml <<-"EOF"
 allOf:
-  - $ref: "#/components/schemas/CheckBase"
+  - $ref: "./CheckBase.yml"
   - type: object
     required: [type]
     properties:
@@ -5408,7 +5408,7 @@ allOf:
         description: If only zero values reported since time, trigger an alert
         type: boolean
       level:
-        $ref: "#/components/schemas/CheckStatusLevel"
+        $ref: "./CheckStatusLevel.yml"
       every:
         description: Check repetition interval.
         type: string
@@ -5432,7 +5432,7 @@ EOF
 
 cat > CustomCheck.yml <<-"EOF"
 allOf:
-  - $ref: "#/components/schemas/CheckBase"
+  - $ref: "./CheckBase.yml"
   - type: object
     properties:
       type:
@@ -5444,7 +5444,7 @@ EOF
 cat > ThresholdBase.yml <<-"EOF"
 properties:
   level:
-    $ref: "#/components/schemas/CheckStatusLevel"
+    $ref: "./CheckStatusLevel.yml"
   allValues:
     description: If true, only alert if all values meet threshold.
     type: boolean
@@ -5452,7 +5452,7 @@ EOF
 
 cat > GreaterThreshold.yml <<-"EOF"
 allOf:
-  - $ref: "#/components/schemas/ThresholdBase"
+  - $ref: "./ThresholdBase.yml"
   - type: object
     required: [type, value]
     properties:
@@ -5466,7 +5466,7 @@ EOF
 
 cat > LesserThreshold.yml <<-"EOF"
 allOf:
-  - $ref: "#/components/schemas/ThresholdBase"
+  - $ref: "./ThresholdBase.yml"
   - type: object
     required: [type, value]
     properties:
@@ -5480,7 +5480,7 @@ EOF
 
 cat > RangeThreshold.yml <<-"EOF"
 allOf:
-  - $ref: "#/components/schemas/ThresholdBase"
+  - $ref: "./ThresholdBase.yml"
   - type: object
     required: [type, min, max, within]
     properties:
@@ -5525,29 +5525,29 @@ EOF
 
 cat > NotificationRuleDiscriminator.yml <<-"EOF"
 oneOf:
-  - $ref: "#/components/schemas/SlackNotificationRule"
-  - $ref: "#/components/schemas/SMTPNotificationRule"
-  - $ref: "#/components/schemas/PagerDutyNotificationRule"
-  - $ref: "#/components/schemas/HTTPNotificationRule"
-  - $ref: "#/components/schemas/TelegramNotificationRule"
+  - $ref: "./SlackNotificationRule.yml"
+  - $ref: "./SMTPNotificationRule.yml"
+  - $ref: "./PagerDutyNotificationRule.yml"
+  - $ref: "./HTTPNotificationRule.yml"
+  - $ref: "./TelegramNotificationRule.yml"
 discriminator:
   propertyName: type
   mapping:
-    slack: "#/components/schemas/SlackNotificationRule"
-    smtp: "#/components/schemas/SMTPNotificationRule"
-    pagerduty: "#/components/schemas/PagerDutyNotificationRule"
-    http: "#/components/schemas/HTTPNotificationRule"
-    telegram: "#/components/schemas/TelegramNotificationRule"
+    slack: "./SlackNotificationRule.yml"
+    smtp: "./SMTPNotificationRule.yml"
+    pagerduty: "./PagerDutyNotificationRule.yml"
+    http: "./HTTPNotificationRule.yml"
+    telegram: "./TelegramNotificationRule.yml"
 EOF
 
 cat > NotificationRule.yml <<-"EOF"
 allOf:
-  - $ref: "#/components/schemas/NotificationRuleDiscriminator"
+  - $ref: "./NotificationRuleDiscriminator.yml"
 EOF
 
 cat > PostNotificationRule.yml <<-"EOF"
 allOf:
-  - $ref: "#/components/schemas/NotificationRuleDiscriminator"
+  - $ref: "./NotificationRuleDiscriminator.yml"
 EOF
 
 cat > NotificationRules.yml <<-"EOF"
@@ -5555,9 +5555,9 @@ properties:
   notificationRules:
     type: array
     items:
-      $ref: "#/components/schemas/NotificationRule"
+      $ref: "./NotificationRule.yml"
   links:
-    $ref: "#/components/schemas/Links"
+    $ref: "./Links.yml"
 EOF
 
 cat > NotificationRuleBase.yml <<-"EOF"
@@ -5607,7 +5607,7 @@ properties:
     format: date-time
     readOnly: true
   status:
-    $ref: "#/components/schemas/TaskStatusType"
+    $ref: "./TaskStatusType.yml"
   name:
     description: Human-readable name describing the notification rule.
     type: string
@@ -5631,7 +5631,7 @@ properties:
     description: List of tag rules the notification rule attempts to match.
     type: array
     items:
-      $ref: "#/components/schemas/TagRule"
+      $ref: "./TagRule.yml"
   description:
     description: An optional description of the notification rule.
     type: string
@@ -5640,9 +5640,9 @@ properties:
     type: array
     minItems: 1
     items:
-      $ref: "#/components/schemas/StatusRule"
+      $ref: "./StatusRule.yml"
   labels:
-    $ref: "#/components/schemas/Labels"
+    $ref: "./Labels.yml"
   links:
     type: object
     readOnly: true
@@ -5655,19 +5655,19 @@ properties:
     properties:
       self:
         description: URL for this endpoint.
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       labels:
         description: URL to retrieve labels for this notification rule.
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       members:
         description: URL to retrieve members for this notification rule.
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       owners:
         description: URL to retrieve owners for this notification rule.
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       query:
         description: URL to retrieve flux script for this notification rule.
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
 EOF
 
 cat > TagRule.yml <<-"EOF"
@@ -5686,9 +5686,9 @@ cat > StatusRule.yml <<-"EOF"
 type: object
 properties:
   currentLevel:
-    $ref: "#/components/schemas/RuleStatusLevel"
+    $ref: "./RuleStatusLevel.yml"
   previousLevel:
-    $ref: "#/components/schemas/RuleStatusLevel"
+    $ref: "./RuleStatusLevel.yml"
   count:
     type: integer
   period:
@@ -5708,8 +5708,8 @@ EOF
 
 cat > HTTPNotificationRule.yml <<-"EOF"
 allOf:
-  - $ref: "#/components/schemas/NotificationRuleBase"
-  - $ref: "#/components/schemas/HTTPNotificationRuleBase"
+  - $ref: "./NotificationRuleBase.yml"
+  - $ref: "./HTTPNotificationRuleBase.yml"
 EOF
 
 cat > SlackNotificationRuleBase.yml <<-"EOF"
@@ -5727,14 +5727,14 @@ EOF
 
 cat > SlackNotificationRule.yml <<-"EOF"
 allOf:
-  - $ref: "#/components/schemas/NotificationRuleBase"
-  - $ref: "#/components/schemas/SlackNotificationRuleBase"
+  - $ref: "./NotificationRuleBase.yml"
+  - $ref: "./SlackNotificationRuleBase.yml"
 EOF
 
 cat > SMTPNotificationRule.yml <<-"EOF"
 allOf:
-  - $ref: "#/components/schemas/NotificationRuleBase"
-  - $ref: "#/components/schemas/SMTPNotificationRuleBase"
+  - $ref: "./NotificationRuleBase.yml"
+  - $ref: "./SMTPNotificationRuleBase.yml"
 EOF
 
 cat > SMTPNotificationRuleBase.yml <<-"EOF"
@@ -5754,8 +5754,8 @@ EOF
 
 cat > PagerDutyNotificationRule.yml <<-"EOF"
 allOf:
-  - $ref: "#/components/schemas/NotificationRuleBase"
-  - $ref: "#/components/schemas/PagerDutyNotificationRuleBase"
+  - $ref: "./NotificationRuleBase.yml"
+  - $ref: "./PagerDutyNotificationRuleBase.yml"
 EOF
 
 cat > PagerDutyNotificationRuleBase.yml <<-"EOF"
@@ -5771,8 +5771,8 @@ EOF
 
 cat > TelegramNotificationRule.yml <<-"EOF"
 allOf:
-  - $ref: "#/components/schemas/NotificationRuleBase"
-  - $ref: "#/components/schemas/TelegramNotificationRuleBase"
+  - $ref: "./NotificationRuleBase.yml"
+  - $ref: "./TelegramNotificationRuleBase.yml"
 EOF
 
 cat > TelegramNotificationRuleBase.yml <<-"EOF"
@@ -5814,27 +5814,27 @@ EOF
 
 cat > NotificationEndpointDiscrimator.yml <<-"EOF"
 oneOf:
-  - $ref: "#/components/schemas/SlackNotificationEndpoint"
-  - $ref: "#/components/schemas/PagerDutyNotificationEndpoint"
-  - $ref: "#/components/schemas/HTTPNotificationEndpoint"
-  - $ref: "#/components/schemas/TelegramNotificationEndpoint"
+  - $ref: "./SlackNotificationEndpoint.yml"
+  - $ref: "./PagerDutyNotificationEndpoint.yml"
+  - $ref: "./HTTPNotificationEndpoint.yml"
+  - $ref: "./TelegramNotificationEndpoint.yml"
 discriminator:
   propertyName: type
   mapping:
-    slack: "#/components/schemas/SlackNotificationEndpoint"
-    pagerduty: "#/components/schemas/PagerDutyNotificationEndpoint"
-    http: "#/components/schemas/HTTPNotificationEndpoint"
-    telegram: "#/components/schemas/TelegramNotificationEndpoint"
+    slack: "./SlackNotificationEndpoint.yml"
+    pagerduty: "./PagerDutyNotificationEndpoint.yml"
+    http: "./HTTPNotificationEndpoint.yml"
+    telegram: "./TelegramNotificationEndpoint.yml"
 EOF
 
 cat > NotificationEndpoint.yml <<-"EOF"
 allOf:
-  - $ref: "#/components/schemas/NotificationEndpointDiscrimator"
+  - $ref: "./NotificationEndpointDiscrimator.yml"
 EOF
 
 cat > PostNotificationEndpoint.yml <<-"EOF"
 allOf:
-  - $ref: "#/components/schemas/NotificationEndpointDiscrimator"
+  - $ref: "./NotificationEndpointDiscrimator.yml"
 EOF
 
 cat > NotificationEndpoints.yml <<-"EOF"
@@ -5842,9 +5842,9 @@ properties:
   notificationEndpoints:
     type: array
     items:
-      $ref: "#/components/schemas/NotificationEndpoint"
+      $ref: "./NotificationEndpoint.yml"
   links:
-    $ref: "#/components/schemas/Links"
+    $ref: "./Links.yml"
 EOF
 
 cat > NotificationEndpointBase.yml <<-"EOF"
@@ -5876,7 +5876,7 @@ properties:
     type: string
     enum: ["active", "inactive"]
   labels:
-    $ref: "#/components/schemas/Labels"
+    $ref: "./Labels.yml"
   links:
     type: object
     readOnly: true
@@ -5888,24 +5888,24 @@ properties:
     properties:
       self:
         description: URL for this endpoint.
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       labels:
         description: URL to retrieve labels for this endpoint.
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       members:
         description: URL to retrieve members for this endpoint.
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       owners:
         description: URL to retrieve owners for this endpoint.
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
   type:
-    $ref: "#/components/schemas/NotificationEndpointType"
+    $ref: "./NotificationEndpointType.yml"
 EOF
 
 cat > SlackNotificationEndpoint.yml <<-"EOF"
 type: object
 allOf:
-  - $ref: "#/components/schemas/NotificationEndpointBase"
+  - $ref: "./NotificationEndpointBase.yml"
   - type: object
     properties:
       url:
@@ -5919,7 +5919,7 @@ EOF
 cat > PagerDutyNotificationEndpoint.yml <<-"EOF"
 type: object
 allOf:
-  - $ref: "#/components/schemas/NotificationEndpointBase"
+  - $ref: "./NotificationEndpointBase.yml"
   - type: object
     required: [routingKey]
     properties:
@@ -5932,7 +5932,7 @@ EOF
 cat > HTTPNotificationEndpoint.yml <<-"EOF"
 type: object
 allOf:
-  - $ref: "#/components/schemas/NotificationEndpointBase"
+  - $ref: "./NotificationEndpointBase.yml"
   - type: object
     required: [url, authMethod, method]
     properties:
@@ -5962,7 +5962,7 @@ EOF
 cat > TelegramNotificationEndpoint.yml <<-"EOF"
 type: object
 allOf:
-  - $ref: "#/components/schemas/NotificationEndpointBase"
+  - $ref: "./NotificationEndpointBase.yml"
   - type: object
     required: [token, channel]
     properties:
@@ -6005,7 +6005,7 @@ properties:
     type: boolean
     description: Specify if this mapping represents the default retention policy for the database specificed.
   links:
-    $ref: "#/components/schemas/Links"
+    $ref: "./Links.yml"
 oneOf:
   - required:
     - orgID
@@ -6024,7 +6024,7 @@ properties:
   content:
     type: array
     items:
-      $ref: "#/components/schemas/DBRP"
+      $ref: "./DBRP.yml"
 EOF
 
 cat > DBRPUpdate.yml <<-"EOF"
@@ -6038,6 +6038,6 @@ properties:
   default:
     type: boolean
   links:
-    $ref: "#/components/schemas/Links"
+    $ref: "./Links.yml"
 EOF
 

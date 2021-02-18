@@ -12,22 +12,22 @@ properties:
     properties:
       labels:
         description: URL to retrieve labels for this bucket
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       members:
         description: URL to retrieve members that can read this bucket
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       org:
         description: URL to retrieve parent organization for this bucket
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       owners:
         description: URL to retrieve owners that can read and write to this bucket.
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       self:
         description: URL for this bucket
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       write:
         description: URL to write line protocol for this bucket
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
   id:
     readOnly: true
     type: string
@@ -55,7 +55,7 @@ properties:
     format: date-time
     readOnly: true
   retentionRules:
-    $ref: "#/components/schemas/RetentionRules"
+    $ref: "./RetentionRules.yml"
   labels:
-    $ref: "#/components/schemas/Labels"
+    $ref: "./Labels.yml"
 required: [name, retentionRules]

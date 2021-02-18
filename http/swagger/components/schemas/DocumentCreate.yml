@@ -1,7 +1,7 @@
 type: object
 properties:
   meta:
-    $ref: "#/components/schemas/DocumentMeta"
+    $ref: "./DocumentMeta.yml"
   content:
     type: object
   org:

@@ -1,6 +1,6 @@
 type: object
 allOf:
-  - $ref: "#/components/schemas/NotificationEndpointBase"
+  - $ref: "./NotificationEndpointBase.yml"
   - type: object
     required: [routingKey]
     properties:

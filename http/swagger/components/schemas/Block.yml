@@ -2,9 +2,9 @@ description: A set of statements
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   body:
     description: Block body
     type: array
     items:
-      $ref: "#/components/schemas/Statement"
+      $ref: "./Statement.yml"

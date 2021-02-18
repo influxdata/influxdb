@@ -2,8 +2,8 @@ description: Represents indexing into an array
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   array:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
   index:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"

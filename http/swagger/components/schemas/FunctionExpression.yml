@@ -2,11 +2,11 @@ description: Function expression
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   params:
     description: Function parameters
     type: array
     items:
-      $ref: "#/components/schemas/Property"
+      $ref: "./Property.yml"
   body:
-    $ref: "#/components/schemas/Node"
+    $ref: "./Node.yml"

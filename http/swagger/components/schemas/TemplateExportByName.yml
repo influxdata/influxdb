@@ -19,12 +19,12 @@ properties:
             byResourceKind:
               type: array
               items:
-                $ref: "#/components/schemas/TemplateKind"
+                $ref: "./TemplateKind.yml"
   resources:
     type: object
     properties:
       kind:
-        $ref: "#/components/schemas/TemplateKind"
+        $ref: "./TemplateKind.yml"
       name:
         type: string
     required: [name, kind]

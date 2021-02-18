@@ -31,9 +31,9 @@ properties:
     items:
       type: string
   labels:
-    $ref: "#/components/schemas/Labels"
+    $ref: "./Labels.yml"
   arguments:
-    $ref: "#/components/schemas/VariableProperties"
+    $ref: "./VariableProperties.yml"
   createdAt:
     type: string
     format: date-time

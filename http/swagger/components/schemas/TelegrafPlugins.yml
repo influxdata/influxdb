@@ -7,4 +7,4 @@ properties:
   plugins:
     type: array
     items:
-      $ref: "#/components/schemas/TelegrafPlugin"
+      $ref: "./TelegrafPlugin.yml"

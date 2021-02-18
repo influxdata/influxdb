@@ -1,2 +1,2 @@
 allOf:
-  - $ref: "#/components/schemas/CheckDiscriminator"
+  - $ref: "./CheckDiscriminator.yml"

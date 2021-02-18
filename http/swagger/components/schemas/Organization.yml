@@ -13,21 +13,21 @@ properties:
       dashboards: "/api/v2/dashboards?org=myorg"
     properties:
       self:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       members:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       owners:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       labels:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       secrets:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       buckets:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       tasks:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       dashboards:
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
   id:
     readOnly: true
     type: string

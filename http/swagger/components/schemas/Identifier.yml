@@ -2,6 +2,6 @@ description: A valid Flux identifier
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   name:
     type: string

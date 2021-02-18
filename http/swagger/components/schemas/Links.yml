@@ -1,9 +1,9 @@
 type: object
 properties:
   next:
-    $ref: "#/components/schemas/Link"
+    $ref: "./Link.yml"
   self:
-    $ref: "#/components/schemas/Link"
+    $ref: "./Link.yml"
   prev:
-    $ref: "#/components/schemas/Link"
+    $ref: "./Link.yml"
 required: [self]

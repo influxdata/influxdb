@@ -2,9 +2,9 @@ description: Allows the declaration of an anonymous object within a declaration
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   properties:
     description: Object properties
     type: array
     items:
-      $ref: "#/components/schemas/Property"
+      $ref: "./Property.yml"

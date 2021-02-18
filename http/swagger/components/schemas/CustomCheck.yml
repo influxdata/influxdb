@@ -1,5 +1,5 @@
 allOf:
-  - $ref: "#/components/schemas/CheckBase"
+  - $ref: "./CheckBase.yml"
   - type: object
     properties:
       type:

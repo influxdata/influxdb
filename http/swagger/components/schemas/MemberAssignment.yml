@@ -2,8 +2,8 @@ description: Object property assignment
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   member:
-    $ref: "#/components/schemas/MemberExpression"
+    $ref: "./MemberExpression.yml"
   init:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"

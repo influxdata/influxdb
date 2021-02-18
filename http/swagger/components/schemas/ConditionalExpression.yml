@@ -2,10 +2,10 @@ description: Selects one of two expressions, `Alternate` or `Consequent`, depend
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   test:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
   alternate:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"
   consequent:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"

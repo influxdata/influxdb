@@ -20,9 +20,9 @@ properties:
     format: date-time
     readOnly: true
   query:
-    $ref: "#/components/schemas/DashboardQuery"
+    $ref: "./DashboardQuery.yml"
   status:
-    $ref: "#/components/schemas/TaskStatusType"
+    $ref: "./TaskStatusType.yml"
   description:
     description: An optional description of the check.
     type: string
@@ -42,7 +42,7 @@ properties:
     readOnly: true
     type: string
   labels:
-    $ref: "#/components/schemas/Labels"
+    $ref: "./Labels.yml"
   links:
     type: object
     readOnly: true
@@ -55,17 +55,17 @@ properties:
     properties:
       self:
         description: URL for this check
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       labels:
         description: URL to retrieve labels for this check
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       members:
         description: URL to retrieve members for this check
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       owners:
         description: URL to retrieve owners for this check
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       query:
         description: URL to retrieve flux script for this check
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
 required: [name, orgID, query]

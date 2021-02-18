@@ -2,6 +2,6 @@ description: Defines a package identifier
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   name:
-    $ref: "#/components/schemas/Identifier"
+    $ref: "./Identifier.yml"

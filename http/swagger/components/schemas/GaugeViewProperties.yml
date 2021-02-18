@@ -21,12 +21,12 @@ properties:
   queries:
     type: array
     items:
-      $ref: "#/components/schemas/DashboardQuery"
+      $ref: "./DashboardQuery.yml"
   colors:
     description: Colors define color encoding of data into a visualization
     type: array
     items:
-      $ref: "#/components/schemas/DashboardColor"
+      $ref: "./DashboardColor.yml"
   shape:
     type: string
     enum: ["chronograf-v2"]
@@ -44,6 +44,6 @@ properties:
   tickSuffix:
     type: string
   legend:
-    $ref: "#/components/schemas/Legend"
+    $ref: "./Legend.yml"
   decimalPlaces:
-    $ref: "#/components/schemas/DecimalPlaces"
+    $ref: "./DecimalPlaces.yml"

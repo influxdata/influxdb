@@ -21,12 +21,12 @@ properties:
   queries:
     type: array
     items:
-      $ref: "#/components/schemas/DashboardQuery"
+      $ref: "./DashboardQuery.yml"
   colors:
     description: Colors define color encoding of data into a visualization
     type: array
     items:
-      $ref: "#/components/schemas/DashboardColor"
+      $ref: "./DashboardColor.yml"
   shape:
     type: string
     enum: ["chronograf-v2"]
@@ -36,9 +36,9 @@ properties:
     description: If true, will display note when empty
     type: boolean
   axes:
-    $ref: "#/components/schemas/Axes"
+    $ref: "./Axes.yml"
   legend:
-    $ref: "#/components/schemas/Legend"
+    $ref: "./Legend.yml"
   xColumn:
     type: string
   generateXAxisTicks:
@@ -80,7 +80,7 @@ properties:
   suffix:
     type: string
   decimalPlaces:
-    $ref: "#/components/schemas/DecimalPlaces"
+    $ref: "./DecimalPlaces.yml"
   legendColorizeRows:
     type: boolean
   legendOpacity:

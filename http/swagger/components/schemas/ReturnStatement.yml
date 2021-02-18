@@ -2,6 +2,6 @@ description: Defines an expression to return
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   argument:
-    $ref: "#/components/schemas/Expression"
+    $ref: "./Expression.yml"

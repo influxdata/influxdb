@@ -35,4 +35,4 @@ properties:
   variables:
     type: array
     items:
-      $ref: "#/components/schemas/Variable"
+      $ref: "./Variable.yml"

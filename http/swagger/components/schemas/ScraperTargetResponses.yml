@@ -3,4 +3,4 @@ properties:
   configurations:
     type: array
     items:
-      $ref: "#/components/schemas/ScraperTargetResponse"
+      $ref: "./ScraperTargetResponse.yml"

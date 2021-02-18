@@ -17,12 +17,12 @@ properties:
   queries:
     type: array
     items:
-      $ref: "#/components/schemas/DashboardQuery"
+      $ref: "./DashboardQuery.yml"
   colors:
     description: Colors define color encoding of data into a visualization
     type: array
     items:
-      $ref: "#/components/schemas/DashboardColor"
+      $ref: "./DashboardColor.yml"
   shape:
     type: string
     enum: ["chronograf-v2"]
@@ -39,7 +39,7 @@ properties:
           indicating whether the time axis will be displayed vertically
         type: boolean
       sortBy:
-        $ref: "#/components/schemas/RenamableField"
+        $ref: "./RenamableField.yml"
       wrapping:
         description: Wrapping describes the text wrapping style to be used in table views
         type: string
@@ -58,11 +58,11 @@ properties:
       customization options
     type: array
     items:
-      $ref: "#/components/schemas/RenamableField"
+      $ref: "./RenamableField.yml"
   timeFormat:
     description: >-
       timeFormat describes the display format for time values according to
       moment.js date formatting
     type: string
   decimalPlaces:
-    $ref: "#/components/schemas/DecimalPlaces"
+    $ref: "./DecimalPlaces.yml"

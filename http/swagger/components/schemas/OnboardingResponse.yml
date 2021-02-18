@@ -1,10 +1,10 @@
 type: object
 properties:
   user:
-    $ref: "#/components/schemas/User"
+    $ref: "./User.yml"
   org:
-    $ref: "#/components/schemas/Organization"
+    $ref: "./Organization.yml"
   bucket:
-    $ref: "#/components/schemas/Bucket"
+    $ref: "./Bucket.yml"
   auth:
-    $ref: "#/components/schemas/Authorization"
+    $ref: "./Authorization.yml"

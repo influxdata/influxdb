@@ -1,3 +1,3 @@
 oneOf:
-  - $ref: "#/components/schemas/Identifier"
-  - $ref: "#/components/schemas/StringLiteral"
+  - $ref: "./Identifier.yml"
+  - $ref: "./StringLiteral.yml"

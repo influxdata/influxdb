@@ -4,7 +4,7 @@ required:
   - query
 properties:
   extern:
-    $ref: "#/components/schemas/File"
+    $ref: "./File.yml"
   query:
     description: Query script to execute.
     type: string
@@ -14,7 +14,7 @@ properties:
     enum:
       - flux
   dialect:
-    $ref: "#/components/schemas/Dialect"
+    $ref: "./Dialect.yml"
   now:
     description: Specifies the time that should be reported as "now" in the query. Default is the server's now time.
     type: string

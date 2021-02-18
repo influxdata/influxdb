@@ -1,5 +1,5 @@
 allOf:
-  - $ref: "#/components/schemas/GeoViewLayerProperties"
+  - $ref: "./GeoViewLayerProperties.yml"
   - type: object
     required: [trackWidth, speed, randomColors, trackPointVisualization]
 properties:
@@ -16,4 +16,4 @@ properties:
     description: Colors define color encoding of data into a visualization
     type: array
     items:
-        $ref: "#/components/schemas/DashboardColor"
+        $ref: "./DashboardColor.yml"

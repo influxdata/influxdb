@@ -23,7 +23,7 @@ properties:
     type: boolean
     description: Specify if this mapping represents the default retention policy for the database specificed.
   links:
-    $ref: "#/components/schemas/Links"
+    $ref: "./Links.yml"
 oneOf:
   - required:
     - orgID

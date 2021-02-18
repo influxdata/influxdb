@@ -1,5 +1,5 @@
 allOf:
-  - $ref: "#/components/schemas/GeoViewLayerProperties"
+  - $ref: "./GeoViewLayerProperties.yml"
   - type: object
     required: [colorField, colorDimension, colors]
     properties:
@@ -7,12 +7,12 @@ allOf:
         type: string
         description: Marker color field
       colorDimension:
-        $ref: '#/components/schemas/Axis'
+        $ref: './Axis.yml'
       colors:
         description: Colors define color encoding of data into a visualization
         type: array
         items:
-          $ref: "#/components/schemas/DashboardColor"
+          $ref: "./DashboardColor.yml"
       isClustered:
         description: Cluster close markers together
         type: boolean

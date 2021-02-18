@@ -1,6 +1,6 @@
 type: object
 allOf:
-  - $ref: "#/components/schemas/CreateDashboardRequest"
+  - $ref: "./CreateDashboardRequest.yml"
   - type: object
     properties:
       links:
@@ -14,17 +14,17 @@ allOf:
           org: "/api/v2/labels/1"
         properties:
           self:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           cells:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           members:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           owners:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           labels:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           org:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
       id:
         readOnly: true
         type: string
@@ -38,6 +38,6 @@ allOf:
             type: string
             format: date-time
       cells:
-        $ref: "#/components/schemas/CellsWithViewProperties"
+        $ref: "./CellsWithViewProperties.yml"
       labels:
-        $ref: "#/components/schemas/Labels"
+        $ref: "./Labels.yml"

@@ -1,14 +1,14 @@
 oneOf:
-  - $ref: "#/components/schemas/SlackNotificationRule"
-  - $ref: "#/components/schemas/SMTPNotificationRule"
-  - $ref: "#/components/schemas/PagerDutyNotificationRule"
-  - $ref: "#/components/schemas/HTTPNotificationRule"
-  - $ref: "#/components/schemas/TelegramNotificationRule"
+  - $ref: "./SlackNotificationRule.yml"
+  - $ref: "./SMTPNotificationRule.yml"
+  - $ref: "./PagerDutyNotificationRule.yml"
+  - $ref: "./HTTPNotificationRule.yml"
+  - $ref: "./TelegramNotificationRule.yml"
 discriminator:
   propertyName: type
   mapping:
-    slack: "#/components/schemas/SlackNotificationRule"
-    smtp: "#/components/schemas/SMTPNotificationRule"
-    pagerduty: "#/components/schemas/PagerDutyNotificationRule"
-    http: "#/components/schemas/HTTPNotificationRule"
-    telegram: "#/components/schemas/TelegramNotificationRule"
+    slack: "./SlackNotificationRule.yml"
+    smtp: "./SMTPNotificationRule.yml"
+    pagerduty: "./PagerDutyNotificationRule.yml"
+    http: "./HTTPNotificationRule.yml"
+    telegram: "./TelegramNotificationRule.yml"

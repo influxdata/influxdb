@@ -2,7 +2,7 @@ description: Represents a complete package source tree.
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   path:
     description: Package import path
     type: string
@@ -13,4 +13,4 @@ properties:
     description: Package files
     type: array
     items:
-      $ref: "#/components/schemas/File"
+      $ref: "./File.yml"

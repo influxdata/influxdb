@@ -9,4 +9,4 @@ properties:
   users:
     type: array
     items:
-      $ref: "#/components/schemas/ResourceMember"
+      $ref: "./ResourceMember.yml"

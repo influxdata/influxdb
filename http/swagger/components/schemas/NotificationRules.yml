@@ -2,6 +2,6 @@ properties:
   notificationRules:
     type: array
     items:
-      $ref: "#/components/schemas/NotificationRule"
+      $ref: "./NotificationRule.yml"
   links:
-    $ref: "#/components/schemas/Links"
+    $ref: "./Links.yml"

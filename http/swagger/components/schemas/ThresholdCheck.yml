@@ -1,5 +1,5 @@
 allOf:
-  - $ref: "#/components/schemas/CheckBase"
+  - $ref: "./CheckBase.yml"
   - type: object
     required: [type]
     properties:
@@ -9,7 +9,7 @@ allOf:
       thresholds:
         type: array
         items:
-          $ref: "#/components/schemas/Threshold"
+          $ref: "./Threshold.yml"
       every:
         description: Check repetition interval.
         type: string

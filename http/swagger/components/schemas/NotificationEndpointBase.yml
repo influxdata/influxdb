@@ -26,7 +26,7 @@ properties:
     type: string
     enum: ["active", "inactive"]
   labels:
-    $ref: "#/components/schemas/Labels"
+    $ref: "./Labels.yml"
   links:
     type: object
     readOnly: true
@@ -38,15 +38,15 @@ properties:
     properties:
       self:
         description: URL for this endpoint.
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       labels:
         description: URL to retrieve labels for this endpoint.
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       members:
         description: URL to retrieve members for this endpoint.
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
       owners:
         description: URL to retrieve owners for this endpoint.
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
   type:
-    $ref: "#/components/schemas/NotificationEndpointType"
+    $ref: "./NotificationEndpointType.yml"

@@ -4,11 +4,11 @@ properties:
     type: string
     readOnly: true
   meta:
-    $ref: "#/components/schemas/DocumentMeta"
+    $ref: "./DocumentMeta.yml"
   content:
     type: object
   labels:
-    $ref: "#/components/schemas/Labels"
+    $ref: "./Labels.yml"
   links:
     type: object
     readOnly: true
@@ -17,7 +17,7 @@ properties:
     properties:
       self:
         description: The document URL.
-        $ref: "#/components/schemas/Link"
+        $ref: "./Link.yml"
 required:
   - id
   - meta

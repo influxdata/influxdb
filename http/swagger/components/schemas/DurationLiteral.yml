@@ -2,9 +2,9 @@ description: Represents the elapsed time between two instants as an int64 nanose
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   values:
     description: Duration values
     type: array
     items:
-      $ref: "#/components/schemas/Duration"
+      $ref: "./Duration.yml"

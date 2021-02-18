@@ -7,11 +7,11 @@ properties:
   tags:
     type: array
     items:
-      $ref: "#/components/schemas/BuilderTagsType"
+      $ref: "./BuilderTagsType.yml"
   functions:
     type: array
     items:
-      $ref: "#/components/schemas/BuilderFunctionsType"
+      $ref: "./BuilderFunctionsType.yml"
   aggregateWindow:
     type: object
     properties:

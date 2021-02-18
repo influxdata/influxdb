@@ -1,6 +1,6 @@
 type: object
 allOf:
-  - $ref: "#/components/schemas/TelegrafRequest"
+  - $ref: "./TelegrafRequest.yml"
   - type: object
     properties:
       id:
@@ -16,13 +16,13 @@ allOf:
           members: "/api/v2/telegrafs/1/members"
         properties:
           self:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           labels:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           members:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           owners:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
       labels:
         readOnly: true
-        $ref: "#/components/schemas/Labels"
+        $ref: "./Labels.yml"

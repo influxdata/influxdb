@@ -2,6 +2,6 @@ properties:
   checks:
     type: array
     items:
-      $ref: "#/components/schemas/Check"
+      $ref: "./Check.yml"
   links:
-    $ref: "#/components/schemas/Links"
+    $ref: "./Links.yml"

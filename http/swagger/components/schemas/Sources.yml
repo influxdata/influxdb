@@ -9,4 +9,4 @@ properties:
   sources:
     type: array
     items:
-      $ref: "#/components/schemas/Source"
+      $ref: "./Source.yml"

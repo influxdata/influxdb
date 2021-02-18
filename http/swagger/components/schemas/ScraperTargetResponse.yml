@@ -1,6 +1,6 @@
 type: object
 allOf:
-  - $ref: "#/components/schemas/ScraperTargetRequest"
+  - $ref: "./ScraperTargetRequest.yml"
   - type: object
     properties:
       id:
@@ -23,12 +23,12 @@ allOf:
           organization: "/api/v2/orgs/1"
         properties:
           self:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           members:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           owners:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           bucket:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           organization:
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"

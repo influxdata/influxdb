@@ -2,7 +2,7 @@ description: A placeholder for statements for which no correct statement nodes c
 type: object
 properties:
   type:
-    $ref: "#/components/schemas/NodeType"
+    $ref: "./NodeType.yml"
   text:
     description: Raw source text
     type: string

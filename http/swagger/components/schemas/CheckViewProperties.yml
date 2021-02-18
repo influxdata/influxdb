@@ -15,16 +15,16 @@ properties:
   checkID:
     type: string
   check:
-    $ref: "#/components/schemas/Check"
+    $ref: "./Check.yml"
   queries:
     type: array
     items:
-      $ref: "#/components/schemas/DashboardQuery"
+      $ref: "./DashboardQuery.yml"
   colors:
     description: Colors define color encoding of data into a visualization
     type: array
     items:
-      $ref: "#/components/schemas/DashboardColor"
+      $ref: "./DashboardColor.yml"
   legendColorizeRows:
     type: boolean
   legendOpacity:

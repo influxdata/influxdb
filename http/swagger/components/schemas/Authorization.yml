@@ -1,6 +1,6 @@
 required: [orgID, permissions]
 allOf:
-  - $ref: "#/components/schemas/AuthorizationUpdateRequest"
+  - $ref: "./AuthorizationUpdateRequest.yml"
   - type: object
     properties:
       createdAt:
@@ -19,7 +19,7 @@ allOf:
         minItems: 1
         description: List of permissions for an auth.  An auth must have at least one Permission.
         items:
-          $ref: "#/components/schemas/Permission"
+          $ref: "./Permission.yml"
       id:
         readOnly: true
         type: string
@@ -48,7 +48,7 @@ allOf:
         properties:
           self:
             readOnly: true
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"
           user:
             readOnly: true
-            $ref: "#/components/schemas/Link"
+            $ref: "./Link.yml"

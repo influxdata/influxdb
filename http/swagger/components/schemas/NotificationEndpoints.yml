@@ -2,6 +2,6 @@ properties:
   notificationEndpoints:
     type: array
     items:
-      $ref: "#/components/schemas/NotificationEndpoint"
+      $ref: "./NotificationEndpoint.yml"
   links:
-    $ref: "#/components/schemas/Links"
+    $ref: "./Links.yml"
