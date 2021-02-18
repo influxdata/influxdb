@@ -3,7 +3,6 @@ package influxdb
 import (
 	"context"
 	"errors"
-	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"strings"
 
 	"github.com/influxdata/flux"
@@ -11,6 +10,7 @@ import (
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxql"
 )
 
@@ -68,7 +68,7 @@ func (s *ReadRangePhysSpec) Copy() plan.ProcedureSpec {
 	ns.Bucket = s.Bucket
 	ns.BucketID = s.BucketID
 
-	ns.Predicate= s.Predicate
+	ns.Predicate = s.Predicate
 
 	ns.Bounds = s.Bounds
 

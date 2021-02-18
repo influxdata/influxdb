@@ -2,10 +2,10 @@ package internal
 
 import (
 	"context"
-	"github.com/influxdata/flux/runtime"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/memory"
+	"github.com/influxdata/flux/runtime"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

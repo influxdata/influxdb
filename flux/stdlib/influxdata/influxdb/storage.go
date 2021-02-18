@@ -3,12 +3,12 @@ package influxdb
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/storage/reads/datatypes"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 	"github.com/influxdata/influxql"
 	"github.com/pkg/errors"

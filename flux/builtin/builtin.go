@@ -4,9 +4,9 @@
 package builtin
 
 import (
-	"github.com/influxdata/flux/runtime"
 	"sync"
 
+	"github.com/influxdata/flux/runtime"
 	_ "github.com/influxdata/flux/stdlib"
 	_ "github.com/influxdata/influxdb/flux/stdlib"
 )

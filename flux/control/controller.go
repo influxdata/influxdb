@@ -2,11 +2,11 @@ package control
 
 import (
 	"context"
-	"github.com/influxdata/flux/runtime"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/memory"
+	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/flux/builtin"
 	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"

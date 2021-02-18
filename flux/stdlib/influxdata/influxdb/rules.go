@@ -2,8 +2,6 @@ package influxdb
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/storage/reads/datatypes"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
@@ -11,6 +9,8 @@ import (
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/stdlib/universe"
+	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
 )
 
 func init() {

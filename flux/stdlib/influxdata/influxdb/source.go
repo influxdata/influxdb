@@ -3,12 +3,12 @@ package influxdb
 import (
 	"context"
 	"errors"
-	"github.com/influxdata/flux/metadata"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
+	"github.com/influxdata/flux/metadata"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
@@ -56,7 +56,7 @@ func (s *Source) AddTransformation(t execute.Transformation) {
 }
 
 func (s *Source) Metadata() metadata.Metadata {
-	return metadata.Metadata {
+	return metadata.Metadata{
 		"influxdb/scanned-bytes":  []interface{}{s.stats.ScannedBytes},
 		"influxdb/scanned-values": []interface{}{s.stats.ScannedValues},
 	}

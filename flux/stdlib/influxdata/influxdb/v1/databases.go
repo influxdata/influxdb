@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/influxdata/flux/runtime"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
+	"github.com/influxdata/flux/runtime"
 	v1 "github.com/influxdata/flux/stdlib/influxdata/influxdb/v1"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
