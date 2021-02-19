@@ -226,6 +226,7 @@ func (t *Tombstoner) TombstoneStats() TombstoneStat {
 		LastModified:    stat.ModTime().UnixNano(),
 		Size:            uint32(stat.Size()),
 	}
+	t.statsLoaded = true
 	stats := t.tombstoneStats
 	t.mu.Unlock()
 
