@@ -1,6 +1,7 @@
-type: string
-enum:
-  - ms
-  - s
-  - us
-  - ns
+WritePrecision:
+  type: string
+  enum:
+    - ms
+    - s
+    - us
+    - ns

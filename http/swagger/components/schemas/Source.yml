@@ -1,52 +1,53 @@
-type: object
-properties:
-  links:
-    type: object
-    properties:
-      self:
-        type: string
-      query:
-        type: string
-      health:
-        type: string
-      buckets:
-        type: string
-  id:
-    type: string
-  orgID:
-    type: string
-  default:
-    type: boolean
-  name:
-    type: string
-  type:
-    type: string
-    enum: ["v1", "v2", "self"]
-  url:
-    type: string
-    format: uri
-  insecureSkipVerify:
-    type: boolean
-  telegraf:
-    type: string
-  token:
-    type: string
-  username:
-    type: string
-  password:
-    type: string
-  sharedSecret:
-    type: string
-  metaUrl:
-    type: string
-    format: uri
-  defaultRP:
-    type: string
-  languages:
-    type: array
-    readOnly: true
-    items:
+Source:
+  type: object
+  properties:
+    links:
+      type: object
+      properties:
+        self:
+          type: string
+        query:
+          type: string
+        health:
+          type: string
+        buckets:
+          type: string
+    id:
       type: string
-      enum:
-        - flux
-        - influxql
+    orgID:
+      type: string
+    default:
+      type: boolean
+    name:
+      type: string
+    type:
+      type: string
+      enum: ["v1", "v2", "self"]
+    url:
+      type: string
+      format: uri
+    insecureSkipVerify:
+      type: boolean
+    telegraf:
+      type: string
+    token:
+      type: string
+    username:
+      type: string
+    password:
+      type: string
+    sharedSecret:
+      type: string
+    metaUrl:
+      type: string
+      format: uri
+    defaultRP:
+      type: string
+    languages:
+      type: array
+      readOnly: true
+      items:
+        type: string
+        enum:
+          - flux
+          - influxql

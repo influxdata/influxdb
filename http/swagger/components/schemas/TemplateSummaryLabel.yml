@@ -1,21 +1,22 @@
-type: object
-properties:
-  id:
-    type: string
-  orgID:
-    type: string
-  kind:
-    $ref: "./TemplateKind.yml"
-  templateMetaName:
-    type: string
-  name:
-    type: string
+TemplateSummaryLabel:
+  type: object
   properties:
-    type: object
+    id:
+      type: string
+    orgID:
+      type: string
+    kind:
+      $ref: "./TemplateKind.yml"
+    templateMetaName:
+      type: string
+    name:
+      type: string
     properties:
-      color:
-        type: string
-      description:
-        type: string
-  envReferences:
-    $ref: "./TemplateEnvReferences.yml"
+      type: object
+      properties:
+        color:
+          type: string
+        description:
+          type: string
+    envReferences:
+      $ref: "./TemplateEnvReferences.yml"

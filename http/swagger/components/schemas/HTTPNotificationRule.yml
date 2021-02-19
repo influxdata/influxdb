@@ -1,3 +1,4 @@
-allOf:
-  - $ref: "./NotificationRuleBase.yml"
-  - $ref: "./HTTPNotificationRuleBase.yml"
+HTTPNotificationRule:
+  allOf:
+    - $ref: "./NotificationRuleBase.yml"
+    - $ref: "./HTTPNotificationRuleBase.yml"

@@ -1,3 +1,4 @@
-type: array
-items:
-  $ref: "./Cell.yml"
+Cells:
+  type: array
+  items:
+    $ref: "./Cell.yml"

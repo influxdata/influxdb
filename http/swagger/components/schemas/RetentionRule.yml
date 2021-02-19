@@ -1,13 +1,14 @@
-type: object
-properties:
-  type:
-    type: string
-    default: expire
-    enum:
-      - expire
-  everySeconds:
-    type: integer
-    description: Duration in seconds for how long data will be kept in the database.
-    example: 86400
-    minimum: 1
-required: [type, everySeconds]
+RetentionRule:
+  type: object
+  properties:
+    type:
+      type: string
+      default: expire
+      enum:
+        - expire
+    everySeconds:
+      type: integer
+      description: Duration in seconds for how long data will be kept in the database.
+      example: 86400
+      minimum: 1
+  required: [type, everySeconds]

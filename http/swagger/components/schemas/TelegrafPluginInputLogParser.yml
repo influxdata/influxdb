@@ -1,16 +1,17 @@
-type: object
-required:
-  - name
-  - type
-  - config
-properties:
-  name:
-    type: string
-    enum: ["logparser"]
-  type:
-    type: string
-    enum: ["input"]
-  comment:
-    type: string
-  config:
-    $ref: "./TelegrafPluginInputLogParserConfig.yml"
+TelegrafPluginInputLogParser:
+  type: object
+  required:
+    - name
+    - type
+    - config
+  properties:
+    name:
+      type: string
+      enum: ["logparser"]
+    type:
+      type: string
+      enum: ["input"]
+    comment:
+      type: string
+    config:
+      $ref: "./TelegrafPluginInputLogParserConfig.yml"

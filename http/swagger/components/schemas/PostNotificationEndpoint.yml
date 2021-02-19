@@ -1,2 +1,3 @@
-allOf:
-  - $ref: "./NotificationEndpointDiscrimator.yml"
+PostNotificationEndpoint:
+  allOf:
+    - $ref: "./NotificationEndpointDiscrimator.yml"

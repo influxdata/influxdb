@@ -1,15 +1,16 @@
-type: array
-items:
-  type: object
-  properties:
-    apiVersion:
-      type: string
-    kind:
-      $ref: "./TemplateKind.yml"
-    meta:
-      type: object
-      properties:
-        name:
-          type: string
-    spec:
-      type: object
+Template:
+  type: array
+  items:
+    type: object
+    properties:
+      apiVersion:
+        type: string
+      kind:
+        $ref: "./TemplateKind.yml"
+      meta:
+        type: object
+        properties:
+          name:
+            type: string
+      spec:
+        type: object

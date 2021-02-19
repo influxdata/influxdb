@@ -1,16 +1,17 @@
-type: object
-required:
-  - name
-  - type
-  - config
-properties:
-  name:
-    type: string
-    enum: ["redis"]
-  type:
-    type: string
-    enum: ["input"]
-  comment:
-    type: string
-  config:
-    $ref: "./TelegrafPluginInputRedisConfig.yml"
+TelegrafPluginInputRedis:
+  type: object
+  required:
+    - name
+    - type
+    - config
+  properties:
+    name:
+      type: string
+      enum: ["redis"]
+    type:
+      type: string
+      enum: ["input"]
+    comment:
+      type: string
+    config:
+      $ref: "./TelegrafPluginInputRedisConfig.yml"

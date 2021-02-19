@@ -1,11 +1,12 @@
-properties:
-  database:
-    type: string
-    description: InfluxDB v1 database
-  retention_policy:
-    type: string
-    description: InfluxDB v1 retention policy
-  default:
-    type: boolean
-  links:
-    $ref: "./Links.yml"
+DBRPUpdate:
+  properties:
+    database:
+      type: string
+      description: InfluxDB v1 database
+    retention_policy:
+      type: string
+      description: InfluxDB v1 retention policy
+    default:
+      type: boolean
+    links:
+      $ref: "./Links.yml"

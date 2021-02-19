@@ -1,6 +1,7 @@
-type: object
-properties:
-  funcs:
-    type: array
-    items:
-      $ref: "./FluxSuggestion.yml"
+FluxSuggestions:
+  type: object
+  properties:
+    funcs:
+      type: array
+      items:
+        $ref: "./FluxSuggestion.yml"

@@ -1,86 +1,87 @@
-type: object
-properties:
-  id:
-    readOnly: true
-    type: string
-  type:
-    description: The type of task, this can be used for filtering tasks on list actions.
-    type: string
-  orgID:
-    description: The ID of the organization that owns this Task.
-    type: string
-  org:
-    description: The name of the organization that owns this Task.
-    type: string
-  name:
-    description: The name of the task.
-    type: string
-  description:
-    description: An optional description of the task.
-    type: string
-  status:
-    $ref: "./TaskStatusType.yml"
-  labels:
-    $ref: "./Labels.yml"
-  authorizationID:
-    description: The ID of the authorization used when this task communicates with the query engine.
-    type: string
-  flux:
-    description: The Flux script to run for this task.
-    type: string
-  every:
-    description: A simple task repetition schedule; parsed from Flux.
-    type: string
-  cron:
-    description: A task repetition schedule in the form '* * * * * *'; parsed from Flux.
-    type: string
-  offset:
-    description: Duration to delay after the schedule, before executing the task; parsed from flux, if set to zero it will remove this option and use 0 as the default.
-    type: string
-  latestCompleted:
-    description: Timestamp of latest scheduled, completed run, RFC3339.
-    type: string
-    format: date-time
-    readOnly: true
-  lastRunStatus:
-    readOnly: true
-    type: string
-    enum:
-      - failed
-      - success
-      - canceled
-  lastRunError:
-    readOnly: true
-    type: string
-  createdAt:
-    type: string
-    format: date-time
-    readOnly: true
-  updatedAt:
-    type: string
-    format: date-time
-    readOnly: true
-  links:
-    type: object
-    readOnly: true
-    example:
-      self: "/api/v2/tasks/1"
-      owners: "/api/v2/tasks/1/owners"
-      members: "/api/v2/tasks/1/members"
-      labels: "/api/v2/tasks/1/labels"
-      runs: "/api/v2/tasks/1/runs"
-      logs: "/api/v2/tasks/1/logs"
-    properties:
-      self:
-        $ref: "./Link.yml"
-      owners:
-        $ref: "./Link.yml"
-      members:
-        $ref: "./Link.yml"
-      runs:
-        $ref: "./Link.yml"
-      logs:
-        $ref: "./Link.yml"
-      labels:
-        $ref: "./Link.yml"
-required: [id, name, orgID, flux]
+Task:
+  type: object
+  properties:
+    id:
+      readOnly: true
+      type: string
+    type:
+      description: The type of task, this can be used for filtering tasks on list actions.
+      type: string
+    orgID:
+      description: The ID of the organization that owns this Task.
+      type: string
+    org:
+      description: The name of the organization that owns this Task.
+      type: string
+    name:
+      description: The name of the task.
+      type: string
+    description:
+      description: An optional description of the task.
+      type: string
+    status:
+      $ref: "./TaskStatusType.yml"
+    labels:
+      $ref: "./Labels.yml"
+    authorizationID:
+      description: The ID of the authorization used when this task communicates with the query engine.
+      type: string
+    flux:
+      description: The Flux script to run for this task.
+      type: string
+    every:
+      description: A simple task repetition schedule; parsed from Flux.
+      type: string
+    cron:
+      description: A task repetition schedule in the form '* * * * * *'; parsed from Flux.
+      type: string
+    offset:
+      description: Duration to delay after the schedule, before executing the task; parsed from flux, if set to zero it will remove this option and use 0 as the default.
+      type: string
+    latestCompleted:
+      description: Timestamp of latest scheduled, completed run, RFC3339.
+      type: string
+      format: date-time
+      readOnly: true
+    lastRunStatus:
+      readOnly: true
+      type: string
+      enum:
+        - failed
+        - success
+        - canceled
+    lastRunError:
+      readOnly: true
+      type: string
+    createdAt:
+      type: string
+      format: date-time
+      readOnly: true
+    updatedAt:
+      type: string
+      format: date-time
+      readOnly: true
+    links:
+      type: object
+      readOnly: true
+      example:
+        self: "/api/v2/tasks/1"
+        owners: "/api/v2/tasks/1/owners"
+        members: "/api/v2/tasks/1/members"
+        labels: "/api/v2/tasks/1/labels"
+        runs: "/api/v2/tasks/1/runs"
+        logs: "/api/v2/tasks/1/logs"
+      properties:
+        self:
+          $ref: "./Link.yml"
+        owners:
+          $ref: "./Link.yml"
+        members:
+          $ref: "./Link.yml"
+        runs:
+          $ref: "./Link.yml"
+        logs:
+          $ref: "./Link.yml"
+        labels:
+          $ref: "./Link.yml"
+  required: [id, name, orgID, flux]

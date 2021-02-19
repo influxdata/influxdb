@@ -1,22 +1,23 @@
-type: object
-required:
-  - name
-  - status
-properties:
-  name:
-    type: string
-  message:
-    type: string
-  checks:
-    type: array
-    items:
+HealthCheck:
+  type: object
+  required:
+    - name
+    - status
+  properties:
+    name:
       type: string
-  status:
-    type: string
-    enum:
-      - pass
-      - fail
-  version:
-    type: string
-  commit:
-    type: string
+    message:
+      type: string
+    checks:
+      type: array
+      items:
+        $ref: "./HealthCheck.yml"
+    status:
+      type: string
+      enum:
+        - pass
+        - fail
+    version:
+      type: string
+    commit:
+      type: string

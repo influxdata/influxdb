@@ -1,16 +1,17 @@
-type: object
-required:
-  - name
-  - type
-  - config
-properties:
-  name:
-    type: string
-    enum: ["kubernetes"]
-  type:
-    type: string
-    enum: ["input"]
-  comment:
-    type: string
-  config:
-    $ref: "./TelegrafPluginInputKubernetesConfig.yml"
+TelegrafPluginInputKubernetes:
+  type: object
+  required:
+    - name
+    - type
+    - config
+  properties:
+    name:
+      type: string
+      enum: ["kubernetes"]
+    type:
+      type: string
+      enum: ["input"]
+    comment:
+      type: string
+    config:
+      $ref: "./TelegrafPluginInputKubernetesConfig.yml"

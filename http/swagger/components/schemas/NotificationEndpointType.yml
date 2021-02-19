@@ -1,2 +1,3 @@
-type: string
-enum: ["slack", "pagerduty", "http", "telegram"]
+NotificationEndpointType:
+  type: string
+  enum: ["slack", "pagerduty", "http", "telegram"]

@@ -1,3 +1,4 @@
-type: array
-items:
-  $ref: "./Label.yml"
+Labels:
+  type: array
+  items:
+    $ref: "./Label.yml"

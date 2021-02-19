@@ -1,18 +1,19 @@
-type: object
-required:
-  - urls
-  - token
-  - organization
-  - bucket
-properties:
-  urls:
-    type: array
-    items:
+TelegrafPluginOutputInfluxDBV2Config:
+  type: object
+  required:
+    - urls
+    - token
+    - organization
+    - bucket
+  properties:
+    urls:
+      type: array
+      items:
+        type: string
+        format: uri
+    token:
       type: string
-      format: uri
-  token:
-    type: string
-  organization:
-    type: string
-  bucket:
-    type: string
+    organization:
+      type: string
+    bucket:
+      type: string

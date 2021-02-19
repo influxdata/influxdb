@@ -1,5 +1,6 @@
-properties:
-  content:
-    type: array
-    items:
-      $ref: "./DBRP.yml"
+DBRPs:
+  properties:
+    content:
+      type: array
+      items:
+        $ref: "./DBRP.yml"

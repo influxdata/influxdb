@@ -1,7 +1,8 @@
-type: object
-properties:
-  urls:
-    type: array
-    items:
-      type: string
-      format: uri
+TelegrafPluginInputPrometheusConfig:
+  type: object
+  properties:
+    urls:
+      type: array
+      items:
+        type: string
+        format: uri

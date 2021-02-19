@@ -1,22 +1,23 @@
-type: object
-properties:
-  status:
-    $ref: "./TaskStatusType.yml"
-  flux:
-    description: The Flux script to run for this task.
-    type: string
-  name:
-    description: Override the 'name' option in the flux script.
-    type: string
-  every:
-    description: Override the 'every' option in the flux script.
-    type: string
-  cron:
-    description: Override the 'cron' option in the flux script.
-    type: string
-  offset:
-    description: Override the 'offset' option in the flux script.
-    type: string
-  description:
-    description: An optional description of the task.
-    type: string
+TaskUpdateRequest:
+  type: object
+  properties:
+    status:
+      $ref: "./TaskStatusType.yml"
+    flux:
+      description: The Flux script to run for this task.
+      type: string
+    name:
+      description: Override the 'name' option in the flux script.
+      type: string
+    every:
+      description: Override the 'every' option in the flux script.
+      type: string
+    cron:
+      description: Override the 'cron' option in the flux script.
+      type: string
+    offset:
+      description: Override the 'offset' option in the flux script.
+      type: string
+    description:
+      description: An optional description of the task.
+      type: string

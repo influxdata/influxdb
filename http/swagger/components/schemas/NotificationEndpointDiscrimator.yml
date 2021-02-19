@@ -1,12 +1,13 @@
-oneOf:
-  - $ref: "./SlackNotificationEndpoint.yml"
-  - $ref: "./PagerDutyNotificationEndpoint.yml"
-  - $ref: "./HTTPNotificationEndpoint.yml"
-  - $ref: "./TelegramNotificationEndpoint.yml"
-discriminator:
-  propertyName: type
-  mapping:
-    slack: "./SlackNotificationEndpoint.yml"
-    pagerduty: "./PagerDutyNotificationEndpoint.yml"
-    http: "./HTTPNotificationEndpoint.yml"
-    telegram: "./TelegramNotificationEndpoint.yml"
+NotificationEndpointDiscrimator:
+  oneOf:
+    - $ref: "./SlackNotificationEndpoint.yml"
+    - $ref: "./PagerDutyNotificationEndpoint.yml"
+    - $ref: "./HTTPNotificationEndpoint.yml"
+    - $ref: "./TelegramNotificationEndpoint.yml"
+  discriminator:
+    propertyName: type
+    mapping:
+      slack: "./SlackNotificationEndpoint.yml"
+      pagerduty: "./PagerDutyNotificationEndpoint.yml"
+      http: "./HTTPNotificationEndpoint.yml"
+      telegram: "./TelegramNotificationEndpoint.yml"

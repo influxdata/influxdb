@@ -1,4 +1,5 @@
-type: object
-properties:
-  server:
-    type: string
+TelegrafPluginInputSyslogConfig:
+  type: object
+  properties:
+    server:
+      type: string

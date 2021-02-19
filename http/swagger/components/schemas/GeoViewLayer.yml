@@ -1,6 +1,7 @@
-type: object
-oneOf:
-  - $ref: "./GeoCircleViewLayer.yml"
-  - $ref: "./GeoHeatMapViewLayer.yml"
-  - $ref: "./GeoPointMapViewLayer.yml"
-  - $ref: "./GeoTrackMapViewLayer.yml"
+GeoViewLayer:
+  type: object
+  oneOf:
+    - $ref: "./GeoCircleViewLayer.yml"
+    - $ref: "./GeoHeatMapViewLayer.yml"
+    - $ref: "./GeoPointMapViewLayer.yml"
+    - $ref: "./GeoTrackMapViewLayer.yml"

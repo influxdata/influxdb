@@ -1,614 +1,615 @@
-type: object
-properties:
-  sources:
-    type: array
-    items:
+TemplateSummary:
+  type: object
+  properties:
+    sources:
+      type: array
+      items:
+        type: string
+    stackID:
       type: string
-  stackID:
-    type: string
-  summary:
-    type: object
-    properties:
-      buckets:
-        type: array
-        items:
-          type: object
-          properties:
-            id:
-              type: string
-            orgID:
-              type: string
-            kind:
-              $ref: "./TemplateKind.yml"
-            templateMetaName:
-              type: string
-            name:
-              type: string
-            description:
-              type: string
-            retentionPeriod:
-              type: integer
-            labelAssociations:
-              type: array
-              items:
-                $ref: "./TemplateSummaryLabel.yml"
-            envReferences:
-              $ref: "./TemplateEnvReferences.yml"
-      checks:
-        type: array
-        items:
-          allOf:
-            - $ref: "./CheckDiscriminator.yml"
-            - type: object
-              properties:
-                kind:
-                  $ref: "./TemplateKind.yml"
-                templateMetaName:
-                  type: string
-                labelAssociations:
-                  type: array
-                  items:
-                    $ref: "./TemplateSummaryLabel.yml"
-                envReferences:
-                  $ref: "./TemplateEnvReferences.yml"
-      dashboards:
-        type: array
-        items:
-          type: object
-          properties:
-            id:
-              type: "string"
-            orgID:
-              type: "string"
-            kind:
-              $ref: "./TemplateKind.yml"
-            templateMetaName:
-              type: string
-            name:
-              type: "string"
-            description:
-              type: "string"
-            labelAssociations:
-              type: array
-              items:
-                $ref: "./TemplateSummaryLabel.yml"
-            charts:
-              type: array
-              items:
-                $ref: "./TemplateChart.yml"
-            envReferences:
-              $ref: "./TemplateEnvReferences.yml"
-      labels:
-        type: array
-        items:
-          $ref: "./TemplateSummaryLabel.yml"
-      labelMappings:
-        type: array
-        items:
-          type: object
-          properties:
-            status:
-              type: string
-            resourceTemplateMetaName:
-              type: string
-            resourceName:
-              type: string
-            resourceID:
-              type: string
-            resourceType:
-              type: string
-            labelTemplateMetaName:
-              type: string
-            labelName:
-              type: string
-            labelID:
-              type: string
-      missingEnvRefs:
-        type: array
-        items:
-          type: string
-      missingSecrets:
-        type: array
-        items:
-          type: string
-      notificationEndpoints:
-        type: array
-        items:
-          allOf:
-            - $ref: "./NotificationEndpointDiscrimator.yml"
-            - type: object
-              properties:
-                kind:
-                  $ref: "./TemplateKind.yml"
-                templateMetaName:
-                  type: string
-                labelAssociations:
-                  type: array
-                  items:
-                    $ref: "./TemplateSummaryLabel.yml"
-                envReferences:
-                  $ref: "./TemplateEnvReferences.yml"
-      notificationRules:
-        type: array
-        items:
-          type: object
-          properties:
-            kind:
-              $ref: "./TemplateKind.yml"
-            templateMetaName:
-              type: string
-            name:
-              type: string
-            description:
-              type: string
-            endpointTemplateMetaName:
-              type: string
-            endpointID:
-              type: string
-            endpointType:
-              type: string
-            every:
-              type: string
-            offset:
-              type: string
-            messageTemplate:
-              type: string
-            status:
-              type: string
-            statusRules:
-              type: array
-              items:
-                type: object
-                properties:
-                  currentLevel:
-                    type: string
-                  previousLevel:
-                    type: string
-            tagRules:
-              type: array
-              items:
-                type: object
-                properties:
-                  key:
-                    type: string
-                  value:
-                    type: string
-                  operator:
-                    type: string
-            labelAssociations:
-              type: array
-              items:
-                $ref: "./TemplateSummaryLabel.yml"
-            envReferences:
-              $ref: "./TemplateEnvReferences.yml"
-      tasks:
-        type: array
-        items:
-          type: object
-          properties:
-            kind:
-              $ref: "./TemplateKind.yml"
-            templateMetaName:
-              type: string
-            id:
-              type: string
-            name:
-              type: string
-            cron:
-              type: string
-            description:
-              type: string
-            every:
-              type: string
-            offset:
-              type: string
-            query:
-              type: string
-            status:
-              type: string
-            envReferences:
-              $ref: "./TemplateEnvReferences.yml"
-      telegrafConfigs:
-        type: array
-        items:
-          allOf:
-            - $ref: "./TelegrafRequest.yml"
-            - type: object
-              properties:
-                kind:
-                  $ref: "./TemplateKind.yml"
-                templateMetaName:
-                  type: string
-                labelAssociations:
-                  type: array
-                  items:
-                    $ref: "./TemplateSummaryLabel.yml"
-                envReferences:
-                  $ref: "./TemplateEnvReferences.yml"
-      variables:
-        type: array
-        items:
-          type: object
-          properties:
-            kind:
-              $ref: "./TemplateKind.yml"
-            templateMetaName:
-              type: string
-            id:
-              type: string
-            orgID:
-              type: string
-            name:
-              type: string
-            description:
-              type: string
-            arguments:
-              $ref: "./VariableProperties.yml"
-            labelAssociations:
-              type: array
-              items:
-                $ref: "./TemplateSummaryLabel.yml"
-            envReferences:
-              $ref: "./TemplateEnvReferences.yml"
-  diff:
-    type: object
-    properties:
-      buckets:
-        type: array
-        items:
-          type: object
-          properties:
-            kind:
-              $ref: "./TemplateKind.yml"
-            stateStatus:
-              type: string
-            id:
-              type: string
-            templateMetaName:
-              type: string
-            new:
-              type: object
-              properties:
-                name:
-                  type: string
-                description:
-                  type: string
-                retentionRules:
-                  $ref: "./RetentionRules.yml"
-            old:
-              type: object
-              properties:
-                name:
-                  type: string
-                description:
-                  type: string
-                retentionRules:
-                  $ref: "./RetentionRules.yml"
-      checks:
-        type: array
-        items:
-          type: object
-          properties:
-            kind:
-              $ref: "./TemplateKind.yml"
-            stateStatus:
-              type: string
-            id:
-              type: string
-            templateMetaName:
-              type: string
-            new:
-              $ref: "./CheckDiscriminator.yml"
-            old:
-              $ref: "./CheckDiscriminator.yml"
-      dashboards:
-        type: array
-        items:
-          type: object
-          properties:
-            stateStatus:
-              type: string
-            id:
-              type: string
-            kind:
-              $ref: "./TemplateKind.yml"
-            templateMetaName:
-              type: string
-            new:
-              type: object
-              properties:
-                name:
-                  type: string
-                description:
-                  type: string
-                charts:
-                  type: array
-                  items:
-                    $ref: "./TemplateChart.yml"
-            old:
-              type: object
-              properties:
-                name:
-                  type: string
-                description:
-                  type: string
-                charts:
-                  type: array
-                  items:
-                    $ref: "./TemplateChart.yml"
-      labels:
-        type: array
-        items:
-          type: object
-          properties:
-            stateStatus:
-              type: string
-            kind:
-              $ref: "./TemplateKind.yml"
-            id:
-              type: string
-            templateMetaName:
-              type: string
-            new:
-              type: object
-              properties:
-                name:
-                  type: string
-                color:
-                  type: string
-                description:
-                  type: string
-            old:
-              type: object
-              properties:
-                name:
-                  type: string
-                color:
-                  type: string
-                description:
-                  type: string
-      labelMappings:
-        type: array
-        items:
-          type: object
-          properties:
-            status:
-              type: string
-            resourceType:
-              type: string
-            resourceID:
-              type: string
-            resourceTemplateMetaName:
-              type: string
-            resourceName:
-              type: string
-            labelID:
-              type: string
-            labelTemplateMetaName:
-              type: string
-            labelName:
-              type: string
-      notificationEndpoints:
-        type: array
-        items:
-          type: object
-          properties:
-            kind:
-              $ref: "./TemplateKind.yml"
-            stateStatus:
-              type: string
-            id:
-              type: string
-            templateMetaName:
-              type: string
-            new:
-              $ref: "./NotificationEndpointDiscrimator.yml"
-            old:
-              $ref: "./NotificationEndpointDiscrimator.yml"
-      notificationRules:
-        type: array
-        items:
-          type: object
-          properties:
-            kind:
-              $ref: "./TemplateKind.yml"
-            stateStatus:
-              type: string
-            id:
-              type: string
-            templateMetaName:
-              type: string
-            new:
-              type: object
-              properties:
-                name:
-                  type: string
-                description:
-                  type: string
-                endpointName:
-                  type: string
-                endpointID:
-                  type: string
-                endpointType:
-                  type: string
-                every:
-                  type: string
-                offset:
-                  type: string
-                messageTemplate:
-                  type: string
-                status:
-                  type: string
-                statusRules:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      currentLevel:
-                        type: string
-                      previousLevel:
-                        type: string
-                tagRules:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      key:
-                        type: string
-                      value:
-                        type: string
-                      operator:
-                        type: string
-            old:
-              type: object
-              properties:
-                name:
-                  type: string
-                description:
-                  type: string
-                endpointName:
-                  type: string
-                endpointID:
-                  type: string
-                endpointType:
-                  type: string
-                every:
-                  type: string
-                offset:
-                  type: string
-                messageTemplate:
-                  type: string
-                status:
-                  type: string
-                statusRules:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      currentLevel:
-                        type: string
-                      previousLevel:
-                        type: string
-                tagRules:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      key:
-                        type: string
-                      value:
-                        type: string
-                      operator:
-                        type: string
-      tasks:
-        type: array
-        items:
-          type: object
-          properties:
-            kind:
-              $ref: "./TemplateKind.yml"
-            stateStatus:
-              type: string
-            id:
-              type: string
-            templateMetaName:
-              type: string
-            new:
-              type: object
-              properties:
-                name:
-                  type: string
-                cron:
-                  type: string
-                description:
-                  type: string
-                every:
-                  type: string
-                offset:
-                  type: string
-                query:
-                  type: string
-                status:
-                  type: string
-            old:
-              type: object
-              properties:
-                name:
-                  type: string
-                cron:
-                  type: string
-                description:
-                  type: string
-                every:
-                  type: string
-                offset:
-                  type: string
-                query:
-                  type: string
-                status:
-                  type: string
-      telegrafConfigs:
-        type: array
-        items:
-          type: object
-          properties:
-            kind:
-              $ref: "./TemplateKind.yml"
-            stateStatus:
-              type: string
-            id:
-              type: string
-            templateMetaName:
-              type: string
-            new:
-              $ref: "./TelegrafRequest.yml"
-            old:
-              $ref: "./TelegrafRequest.yml"
-      variables:
-        type: array
-        items:
-          type: object
-          properties:
-            kind:
-              $ref: "./TemplateKind.yml"
-            stateStatus:
-              type: string
-            id:
-              type: string
-            templateMetaName:
-              type: string
-            new:
-              type: object
-              properties:
-                name:
-                  type: string
-                description:
-                  type: string
-                args:
-                  $ref: "./VariableProperties.yml"
-            old:
-              type: object
-              properties:
-                name:
-                  type: string
-                description:
-                  type: string
-                args:
-                  $ref: "./VariableProperties.yml"
-  errors:
-    type: array
-    items:
+    summary:
       type: object
       properties:
-        kind:
-          $ref: "./TemplateKind.yml"
-        reason:
-          type: string
-        fields:
+        buckets:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              orgID:
+                type: string
+              kind:
+                $ref: "./TemplateKind.yml"
+              templateMetaName:
+                type: string
+              name:
+                type: string
+              description:
+                type: string
+              retentionPeriod:
+                type: integer
+              labelAssociations:
+                type: array
+                items:
+                  $ref: "./TemplateSummaryLabel.yml"
+              envReferences:
+                $ref: "./TemplateEnvReferences.yml"
+        checks:
+          type: array
+          items:
+            allOf:
+              - $ref: "./CheckDiscriminator.yml"
+              - type: object
+                properties:
+                  kind:
+                    $ref: "./TemplateKind.yml"
+                  templateMetaName:
+                    type: string
+                  labelAssociations:
+                    type: array
+                    items:
+                      $ref: "./TemplateSummaryLabel.yml"
+                  envReferences:
+                    $ref: "./TemplateEnvReferences.yml"
+        dashboards:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: "string"
+              orgID:
+                type: "string"
+              kind:
+                $ref: "./TemplateKind.yml"
+              templateMetaName:
+                type: string
+              name:
+                type: "string"
+              description:
+                type: "string"
+              labelAssociations:
+                type: array
+                items:
+                  $ref: "./TemplateSummaryLabel.yml"
+              charts:
+                type: array
+                items:
+                  $ref: "./TemplateChart.yml"
+              envReferences:
+                $ref: "./TemplateEnvReferences.yml"
+        labels:
+          type: array
+          items:
+            $ref: "./TemplateSummaryLabel.yml"
+        labelMappings:
+          type: array
+          items:
+            type: object
+            properties:
+              status:
+                type: string
+              resourceTemplateMetaName:
+                type: string
+              resourceName:
+                type: string
+              resourceID:
+                type: string
+              resourceType:
+                type: string
+              labelTemplateMetaName:
+                type: string
+              labelName:
+                type: string
+              labelID:
+                type: string
+        missingEnvRefs:
           type: array
           items:
             type: string
-        indexes:
+        missingSecrets:
           type: array
           items:
-            type: integer
+            type: string
+        notificationEndpoints:
+          type: array
+          items:
+            allOf:
+              - $ref: "./NotificationEndpointDiscrimator.yml"
+              - type: object
+                properties:
+                  kind:
+                    $ref: "./TemplateKind.yml"
+                  templateMetaName:
+                    type: string
+                  labelAssociations:
+                    type: array
+                    items:
+                      $ref: "./TemplateSummaryLabel.yml"
+                  envReferences:
+                    $ref: "./TemplateEnvReferences.yml"
+        notificationRules:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                $ref: "./TemplateKind.yml"
+              templateMetaName:
+                type: string
+              name:
+                type: string
+              description:
+                type: string
+              endpointTemplateMetaName:
+                type: string
+              endpointID:
+                type: string
+              endpointType:
+                type: string
+              every:
+                type: string
+              offset:
+                type: string
+              messageTemplate:
+                type: string
+              status:
+                type: string
+              statusRules:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    currentLevel:
+                      type: string
+                    previousLevel:
+                      type: string
+              tagRules:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    key:
+                      type: string
+                    value:
+                      type: string
+                    operator:
+                      type: string
+              labelAssociations:
+                type: array
+                items:
+                  $ref: "./TemplateSummaryLabel.yml"
+              envReferences:
+                $ref: "./TemplateEnvReferences.yml"
+        tasks:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                $ref: "./TemplateKind.yml"
+              templateMetaName:
+                type: string
+              id:
+                type: string
+              name:
+                type: string
+              cron:
+                type: string
+              description:
+                type: string
+              every:
+                type: string
+              offset:
+                type: string
+              query:
+                type: string
+              status:
+                type: string
+              envReferences:
+                $ref: "./TemplateEnvReferences.yml"
+        telegrafConfigs:
+          type: array
+          items:
+            allOf:
+              - $ref: "./TelegrafRequest.yml"
+              - type: object
+                properties:
+                  kind:
+                    $ref: "./TemplateKind.yml"
+                  templateMetaName:
+                    type: string
+                  labelAssociations:
+                    type: array
+                    items:
+                      $ref: "./TemplateSummaryLabel.yml"
+                  envReferences:
+                    $ref: "./TemplateEnvReferences.yml"
+        variables:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                $ref: "./TemplateKind.yml"
+              templateMetaName:
+                type: string
+              id:
+                type: string
+              orgID:
+                type: string
+              name:
+                type: string
+              description:
+                type: string
+              arguments:
+                $ref: "./VariableProperties.yml"
+              labelAssociations:
+                type: array
+                items:
+                  $ref: "./TemplateSummaryLabel.yml"
+              envReferences:
+                $ref: "./TemplateEnvReferences.yml"
+    diff:
+      type: object
+      properties:
+        buckets:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                $ref: "./TemplateKind.yml"
+              stateStatus:
+                type: string
+              id:
+                type: string
+              templateMetaName:
+                type: string
+              new:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  description:
+                    type: string
+                  retentionRules:
+                    $ref: "./RetentionRules.yml"
+              old:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  description:
+                    type: string
+                  retentionRules:
+                    $ref: "./RetentionRules.yml"
+        checks:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                $ref: "./TemplateKind.yml"
+              stateStatus:
+                type: string
+              id:
+                type: string
+              templateMetaName:
+                type: string
+              new:
+                $ref: "./CheckDiscriminator.yml"
+              old:
+                $ref: "./CheckDiscriminator.yml"
+        dashboards:
+          type: array
+          items:
+            type: object
+            properties:
+              stateStatus:
+                type: string
+              id:
+                type: string
+              kind:
+                $ref: "./TemplateKind.yml"
+              templateMetaName:
+                type: string
+              new:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  description:
+                    type: string
+                  charts:
+                    type: array
+                    items:
+                      $ref: "./TemplateChart.yml"
+              old:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  description:
+                    type: string
+                  charts:
+                    type: array
+                    items:
+                      $ref: "./TemplateChart.yml"
+        labels:
+          type: array
+          items:
+            type: object
+            properties:
+              stateStatus:
+                type: string
+              kind:
+                $ref: "./TemplateKind.yml"
+              id:
+                type: string
+              templateMetaName:
+                type: string
+              new:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  color:
+                    type: string
+                  description:
+                    type: string
+              old:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  color:
+                    type: string
+                  description:
+                    type: string
+        labelMappings:
+          type: array
+          items:
+            type: object
+            properties:
+              status:
+                type: string
+              resourceType:
+                type: string
+              resourceID:
+                type: string
+              resourceTemplateMetaName:
+                type: string
+              resourceName:
+                type: string
+              labelID:
+                type: string
+              labelTemplateMetaName:
+                type: string
+              labelName:
+                type: string
+        notificationEndpoints:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                $ref: "./TemplateKind.yml"
+              stateStatus:
+                type: string
+              id:
+                type: string
+              templateMetaName:
+                type: string
+              new:
+                $ref: "./NotificationEndpointDiscrimator.yml"
+              old:
+                $ref: "./NotificationEndpointDiscrimator.yml"
+        notificationRules:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                $ref: "./TemplateKind.yml"
+              stateStatus:
+                type: string
+              id:
+                type: string
+              templateMetaName:
+                type: string
+              new:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  description:
+                    type: string
+                  endpointName:
+                    type: string
+                  endpointID:
+                    type: string
+                  endpointType:
+                    type: string
+                  every:
+                    type: string
+                  offset:
+                    type: string
+                  messageTemplate:
+                    type: string
+                  status:
+                    type: string
+                  statusRules:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        currentLevel:
+                          type: string
+                        previousLevel:
+                          type: string
+                  tagRules:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                        value:
+                          type: string
+                        operator:
+                          type: string
+              old:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  description:
+                    type: string
+                  endpointName:
+                    type: string
+                  endpointID:
+                    type: string
+                  endpointType:
+                    type: string
+                  every:
+                    type: string
+                  offset:
+                    type: string
+                  messageTemplate:
+                    type: string
+                  status:
+                    type: string
+                  statusRules:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        currentLevel:
+                          type: string
+                        previousLevel:
+                          type: string
+                  tagRules:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        key:
+                          type: string
+                        value:
+                          type: string
+                        operator:
+                          type: string
+        tasks:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                $ref: "./TemplateKind.yml"
+              stateStatus:
+                type: string
+              id:
+                type: string
+              templateMetaName:
+                type: string
+              new:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  cron:
+                    type: string
+                  description:
+                    type: string
+                  every:
+                    type: string
+                  offset:
+                    type: string
+                  query:
+                    type: string
+                  status:
+                    type: string
+              old:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  cron:
+                    type: string
+                  description:
+                    type: string
+                  every:
+                    type: string
+                  offset:
+                    type: string
+                  query:
+                    type: string
+                  status:
+                    type: string
+        telegrafConfigs:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                $ref: "./TemplateKind.yml"
+              stateStatus:
+                type: string
+              id:
+                type: string
+              templateMetaName:
+                type: string
+              new:
+                $ref: "./TelegrafRequest.yml"
+              old:
+                $ref: "./TelegrafRequest.yml"
+        variables:
+          type: array
+          items:
+            type: object
+            properties:
+              kind:
+                $ref: "./TemplateKind.yml"
+              stateStatus:
+                type: string
+              id:
+                type: string
+              templateMetaName:
+                type: string
+              new:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  description:
+                    type: string
+                  args:
+                    $ref: "./VariableProperties.yml"
+              old:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  description:
+                    type: string
+                  args:
+                    $ref: "./VariableProperties.yml"
+    errors:
+      type: array
+      items:
+        type: object
+        properties:
+          kind:
+            $ref: "./TemplateKind.yml"
+          reason:
+            type: string
+          fields:
+            type: array
+            items:
+              type: string
+          indexes:
+            type: array
+            items:
+              type: integer

@@ -1,6 +1,7 @@
-type: object
-properties:
-  documents:
-    type: array
-    items:
-      $ref: "./DocumentListEntry.yml"
+Documents:
+  type: object
+  properties:
+    documents:
+      type: array
+      items:
+        $ref: "./DocumentListEntry.yml"

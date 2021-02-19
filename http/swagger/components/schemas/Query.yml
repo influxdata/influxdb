@@ -1,21 +1,22 @@
-description: Query influx using the Flux language
-type: object
-required:
-  - query
-properties:
-  extern:
-    $ref: "./File.yml"
-  query:
-    description: Query script to execute.
-    type: string
-  type:
-    description: The type of query. Must be "flux".
-    type: string
-    enum:
-      - flux
-  dialect:
-    $ref: "./Dialect.yml"
-  now:
-    description: Specifies the time that should be reported as "now" in the query. Default is the server's now time.
-    type: string
-    format: date-time
+Query:
+  description: Query influx using the Flux language
+  type: object
+  required:
+    - query
+  properties:
+    extern:
+      $ref: "./File.yml"
+    query:
+      description: Query script to execute.
+      type: string
+    type:
+      description: The type of query. Must be "flux".
+      type: string
+      enum:
+        - flux
+    dialect:
+      $ref: "./Dialect.yml"
+    now:
+      description: Specifies the time that should be reported as "now" in the query. Default is the server's now time.
+      type: string
+      format: date-time

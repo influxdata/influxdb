@@ -1,3 +1,4 @@
-oneOf:
-  - $ref: "./Expression.yml"
-  - $ref: "./Block.yml"
+Node:
+  oneOf:
+    - $ref: "./Expression.yml"
+    - $ref: "./Block.yml"

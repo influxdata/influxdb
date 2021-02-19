@@ -1,6 +1,7 @@
-type: object
-properties:
-  configurations:
-    type: array
-    items:
-      $ref: "./Telegraf.yml"
+Telegrafs:
+  type: object
+  properties:
+    configurations:
+      type: array
+      items:
+        $ref: "./Telegraf.yml"

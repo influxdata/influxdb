@@ -1,2 +1,3 @@
-allOf:
-  - $ref: "./CheckDiscriminator.yml"
+Check:
+  allOf:
+    - $ref: "./CheckDiscriminator.yml"

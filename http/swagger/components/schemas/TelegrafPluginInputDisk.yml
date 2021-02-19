@@ -1,13 +1,14 @@
-type: object
-required:
-  - name
-  - type
-properties:
-  name:
-    type: string
-    enum: ["disk"]
-  type:
-    type: string
-    enum: ["input"]
-  comment:
-    type: string
+TelegrafPluginInputDisk:
+  type: object
+  required:
+    - name
+    - type
+  properties:
+    name:
+      type: string
+      enum: ["disk"]
+    type:
+      type: string
+      enum: ["input"]
+    comment:
+      type: string

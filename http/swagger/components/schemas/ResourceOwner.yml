@@ -1,9 +1,10 @@
-allOf:
-  - $ref: "./User.yml"
-  - type: object
-    properties:
-      role:
-        type: string
-        default: owner
-        enum:
-          - owner
+ResourceOwner:
+  allOf:
+    - $ref: "./User.yml"
+    - type: object
+      properties:
+        role:
+          type: string
+          default: owner
+          enum:
+            - owner

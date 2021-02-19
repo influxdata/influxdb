@@ -1,10 +1,11 @@
-type: object
-properties:
-  key:
-    type: string
-  values:
-    type: array
-    items:
+BuilderTagsType:
+  type: object
+  properties:
+    key:
       type: string
-  aggregateFunctionType:
-    $ref: "./BuilderAggregateFunctionType.yml"
+    values:
+      type: array
+      items:
+        type: string
+    aggregateFunctionType:
+      $ref: "./BuilderAggregateFunctionType.yml"

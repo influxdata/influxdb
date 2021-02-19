@@ -1,4 +1,5 @@
-type: object
-properties:
-  exe:
-    type: string
+TelegrafPluginInputProcstatConfig:
+  type: object
+  properties:
+    exe:
+      type: string

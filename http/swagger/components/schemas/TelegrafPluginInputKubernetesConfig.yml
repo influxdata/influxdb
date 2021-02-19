@@ -1,5 +1,6 @@
-type: object
-properties:
-  url:
-    type: string
-    format: uri
+TelegrafPluginInputKubernetesConfig:
+  type: object
+  properties:
+    url:
+      type: string
+      format: uri

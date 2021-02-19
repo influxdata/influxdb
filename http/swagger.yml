@@ -6585,8 +6585,6 @@ components:
       $ref: "./swagger/components/schemas/PropertyKey.yml"
     Identifier:
       $ref: "./swagger/components/schemas/Identifier.yml"
-    NodeType:
-      $ref: "./swagger/components/schemas/NodeType.yml"
     Dialect:
       $ref: "./swagger/components/schemas/Dialect.yml"
     Permission:

@@ -1,10 +1,11 @@
-type: object
-properties:
-  version:
-    type: string
-  os:
-    type: string
-  plugins:
-    type: array
-    items:
-      $ref: "./TelegrafPlugin.yml"
+TelegrafPlugins:
+  type: object
+  properties:
+    version:
+      type: string
+    os:
+      type: string
+    plugins:
+      type: array
+      items:
+        $ref: "./TelegrafPlugin.yml"

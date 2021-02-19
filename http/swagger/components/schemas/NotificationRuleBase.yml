@@ -1,107 +1,108 @@
-type: object
-required:
-  - id
-  - orgID
-  - status
-  - name
-  - tagRules
-  - statusRules
-  - endpointID
-properties:
-  latestCompleted:
-    description: Timestamp of latest scheduled, completed run, RFC3339.
-    type: string
-    format: date-time
-    readOnly: true
-  lastRunStatus:
-    readOnly: true
-    type: string
-    enum:
-      - failed
-      - success
-      - canceled
-  lastRunError:
-    readOnly: true
-    type: string
-  id:
-    readOnly: true
-    type: string
-  endpointID:
-    type: string
-  orgID:
-    description: The ID of the organization that owns this notification rule.
-    type: string
-  ownerID:
-    description: The ID of creator used to create this notification rule.
-    type: string
-    readOnly: true
-  createdAt:
-    type: string
-    format: date-time
-    readOnly: true
-  updatedAt:
-    type: string
-    format: date-time
-    readOnly: true
-  status:
-    $ref: "./TaskStatusType.yml"
-  name:
-    description: Human-readable name describing the notification rule.
-    type: string
-  sleepUntil:
-    type: string
-  every:
-    description: The notification repetition interval.
-    type: string
-  offset:
-    description: Duration to delay after the schedule, before executing check.
-    type: string
-  runbookLink:
-    type: string
-  limitEvery:
-    description: Don't notify me more than <limit> times every <limitEvery> seconds. If set, limit cannot be empty.
-    type: integer
-  limit:
-    description: Don't notify me more than <limit> times every <limitEvery> seconds. If set, limitEvery cannot be empty.
-    type: integer
-  tagRules:
-    description: List of tag rules the notification rule attempts to match.
-    type: array
-    items:
-      $ref: "./TagRule.yml"
-  description:
-    description: An optional description of the notification rule.
-    type: string
-  statusRules:
-    description: List of status rules the notification rule attempts to match.
-    type: array
-    minItems: 1
-    items:
-      $ref: "./StatusRule.yml"
-  labels:
-    $ref: "./Labels.yml"
-  links:
-    type: object
-    readOnly: true
-    example:
-      self: "/api/v2/notificationRules/1"
-      labels: "/api/v2/notificationRules/1/labels"
-      members: "/api/v2/notificationRules/1/members"
-      owners: "/api/v2/notificationRules/1/owners"
-      query: "/api/v2/notificationRules/1/query"
-    properties:
-      self:
-        description: URL for this endpoint.
-        $ref: "./Link.yml"
-      labels:
-        description: URL to retrieve labels for this notification rule.
-        $ref: "./Link.yml"
-      members:
-        description: URL to retrieve members for this notification rule.
-        $ref: "./Link.yml"
-      owners:
-        description: URL to retrieve owners for this notification rule.
-        $ref: "./Link.yml"
-      query:
-        description: URL to retrieve flux script for this notification rule.
-        $ref: "./Link.yml"
+NotificationRuleBase:
+  type: object
+  required:
+    - id
+    - orgID
+    - status
+    - name
+    - tagRules
+    - statusRules
+    - endpointID
+  properties:
+    latestCompleted:
+      description: Timestamp of latest scheduled, completed run, RFC3339.
+      type: string
+      format: date-time
+      readOnly: true
+    lastRunStatus:
+      readOnly: true
+      type: string
+      enum:
+        - failed
+        - success
+        - canceled
+    lastRunError:
+      readOnly: true
+      type: string
+    id:
+      readOnly: true
+      type: string
+    endpointID:
+      type: string
+    orgID:
+      description: The ID of the organization that owns this notification rule.
+      type: string
+    ownerID:
+      description: The ID of creator used to create this notification rule.
+      type: string
+      readOnly: true
+    createdAt:
+      type: string
+      format: date-time
+      readOnly: true
+    updatedAt:
+      type: string
+      format: date-time
+      readOnly: true
+    status:
+      $ref: "./TaskStatusType.yml"
+    name:
+      description: Human-readable name describing the notification rule.
+      type: string
+    sleepUntil:
+      type: string
+    every:
+      description: The notification repetition interval.
+      type: string
+    offset:
+      description: Duration to delay after the schedule, before executing check.
+      type: string
+    runbookLink:
+      type: string
+    limitEvery:
+      description: Don't notify me more than <limit> times every <limitEvery> seconds. If set, limit cannot be empty.
+      type: integer
+    limit:
+      description: Don't notify me more than <limit> times every <limitEvery> seconds. If set, limitEvery cannot be empty.
+      type: integer
+    tagRules:
+      description: List of tag rules the notification rule attempts to match.
+      type: array
+      items:
+        $ref: "./TagRule.yml"
+    description:
+      description: An optional description of the notification rule.
+      type: string
+    statusRules:
+      description: List of status rules the notification rule attempts to match.
+      type: array
+      minItems: 1
+      items:
+        $ref: "./StatusRule.yml"
+    labels:
+      $ref: "./Labels.yml"
+    links:
+      type: object
+      readOnly: true
+      example:
+        self: "/api/v2/notificationRules/1"
+        labels: "/api/v2/notificationRules/1/labels"
+        members: "/api/v2/notificationRules/1/members"
+        owners: "/api/v2/notificationRules/1/owners"
+        query: "/api/v2/notificationRules/1/query"
+      properties:
+        self:
+          description: URL for this endpoint.
+          $ref: "./Link.yml"
+        labels:
+          description: URL to retrieve labels for this notification rule.
+          $ref: "./Link.yml"
+        members:
+          description: URL to retrieve members for this notification rule.
+          $ref: "./Link.yml"
+        owners:
+          description: URL to retrieve owners for this notification rule.
+          $ref: "./Link.yml"
+        query:
+          description: URL to retrieve flux script for this notification rule.
+          $ref: "./Link.yml"

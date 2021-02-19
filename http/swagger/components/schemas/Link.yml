@@ -1,4 +1,5 @@
-type: string
-format: uri
-readOnly: true
-description: URI of resource.
+Link:
+  type: string
+  format: uri
+  readOnly: true
+  description: URI of resource.

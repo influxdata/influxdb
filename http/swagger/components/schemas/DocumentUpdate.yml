@@ -1,6 +1,7 @@
-type: object
-properties:
-  meta:
-    $ref: "./DocumentMeta.yml"
-  content:
-    type: object
+DocumentUpdate:
+  type: object
+  properties:
+    meta:
+      $ref: "./DocumentMeta.yml"
+    content:
+      type: object

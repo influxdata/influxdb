@@ -1,24 +1,25 @@
-type: object
-properties:
-  id:
-    type: string
-    readOnly: true
-  meta:
-    $ref: "./DocumentMeta.yml"
-  content:
-    type: object
-  labels:
-    $ref: "./Labels.yml"
-  links:
-    type: object
-    readOnly: true
-    example:
-      self: "/api/v2/documents/templates/1"
-    properties:
-      self:
-        description: The document URL.
-        $ref: "./Link.yml"
-required:
-  - id
-  - meta
-  - content
+Document:
+  type: object
+  properties:
+    id:
+      type: string
+      readOnly: true
+    meta:
+      $ref: "./DocumentMeta.yml"
+    content:
+      type: object
+    labels:
+      $ref: "./Labels.yml"
+    links:
+      type: object
+      readOnly: true
+      example:
+        self: "/api/v2/documents/templates/1"
+      properties:
+        self:
+          description: The document URL.
+          $ref: "./Link.yml"
+  required:
+    - id
+    - meta
+    - content

@@ -1,38 +1,39 @@
-type: object
-example:
-  variables:
-    - id: "1221432"
-      name: ":ok:"
-      selected:
-        - hello
-      arguments:
-        type: constant
-        values:
-          - howdy
+Variables:
+  type: object
+  example:
+    variables:
+      - id: "1221432"
+        name: ":ok:"
+        selected:
           - hello
-          - hi
-          - yo
-          - oy
-    - id: "1221432"
-      name: ":ok:"
-      selected:
-        - c
-      arguments:
-        type: map
-        values:
-          a: fdjaklfdjkldsfjlkjdsa
-          b: dfaksjfkljekfajekdljfas
-          c: fdjksajfdkfeawfeea
-    - id: "1221432"
-      name: ":ok:"
-      selected:
-        - host
-      arguments:
-        type: query
-        query: 'from(bucket: "foo") |> showMeasurements()'
-        language: flux
-properties:
-  variables:
-    type: array
-    items:
-      $ref: "./Variable.yml"
+        arguments:
+          type: constant
+          values:
+            - howdy
+            - hello
+            - hi
+            - yo
+            - oy
+      - id: "1221432"
+        name: ":ok:"
+        selected:
+          - c
+        arguments:
+          type: map
+          values:
+            a: fdjaklfdjkldsfjlkjdsa
+            b: dfaksjfkljekfajekdljfas
+            c: fdjksajfdkfeawfeea
+      - id: "1221432"
+        name: ":ok:"
+        selected:
+          - host
+        arguments:
+          type: query
+          query: 'from(bucket: "foo") |> showMeasurements()'
+          language: flux
+  properties:
+    variables:
+      type: array
+      items:
+        $ref: "./Variable.yml"

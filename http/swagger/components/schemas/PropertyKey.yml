@@ -1,3 +1,4 @@
-oneOf:
-  - $ref: "./Identifier.yml"
-  - $ref: "./StringLiteral.yml"
+PropertyKey:
+  oneOf:
+    - $ref: "./Identifier.yml"
+    - $ref: "./StringLiteral.yml"

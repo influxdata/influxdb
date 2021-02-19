@@ -1,2 +1,3 @@
-type: string
-enum: ["builder", "advanced"]
+QueryEditMode:
+  type: string
+  enum: ["builder", "advanced"]

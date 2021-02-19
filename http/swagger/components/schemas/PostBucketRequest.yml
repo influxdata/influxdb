@@ -1,12 +1,13 @@
-properties:
-  orgID:
-    type: string
-  name:
-    type: string
-  description:
-    type: string
-  rp:
-    type: string
-  retentionRules:
-    $ref: "./RetentionRules.yml"
-required: [orgID, name, retentionRules]
+PostBucketRequest:
+  properties:
+    orgID:
+      type: string
+    name:
+      type: string
+    description:
+      type: string
+    rp:
+      type: string
+    retentionRules:
+      $ref: "./RetentionRules.yml"
+  required: [orgID, name, retentionRules]

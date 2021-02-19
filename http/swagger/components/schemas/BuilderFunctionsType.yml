@@ -1,4 +1,5 @@
-type: object
-properties:
-  name:
-    type: string
+BuilderFunctionsType:
+  type: object
+  properties:
+    name:
+      type: string

@@ -1,2 +1,3 @@
-type: string
-enum: [active, inactive]
+TaskStatusType:
+  type: string
+  enum: [active, inactive]

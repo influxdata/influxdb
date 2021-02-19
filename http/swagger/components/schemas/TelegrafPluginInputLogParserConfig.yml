@@ -1,6 +1,7 @@
-type: object
-properties:
-  files:
-    type: array
-    items:
-      type: string
+TelegrafPluginInputLogParserConfig:
+  type: object
+  properties:
+    files:
+      type: array
+      items:
+        type: string

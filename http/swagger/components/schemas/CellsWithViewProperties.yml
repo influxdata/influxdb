@@ -1,3 +1,4 @@
-type: array
-items:
-  $ref: "./CellWithViewProperties.yml"
+CellsWithViewProperties:
+  type: array
+  items:
+    $ref: "./CellWithViewProperties.yml"

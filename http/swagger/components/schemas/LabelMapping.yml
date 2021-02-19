@@ -1,4 +1,5 @@
-type: object
-properties:
-  labelID:
-    type: string
+LabelMapping:
+  type: object
+  properties:
+    labelID:
+      type: string

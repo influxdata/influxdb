@@ -1,30 +1,31 @@
-type: object
-properties:
-  stackID:
-    type: string
-  orgIDs:
-    type: array
-    items:
+TemplateExportByName:
+  type: object
+  properties:
+    stackID:
+      type: string
+    orgIDs:
+      type: array
+      items:
+        type: object
+        properties:
+          orgID:
+            type: string
+          resourceFilters:
+            type: object
+            properties:
+              byLabel:
+                type: array
+                items:
+                  type: string
+              byResourceKind:
+                type: array
+                items:
+                  $ref: "./TemplateKind.yml"
+    resources:
       type: object
       properties:
-        orgID:
+        kind:
+          $ref: "./TemplateKind.yml"
+        name:
           type: string
-        resourceFilters:
-          type: object
-          properties:
-            byLabel:
-              type: array
-              items:
-                type: string
-            byResourceKind:
-              type: array
-              items:
-                $ref: "./TemplateKind.yml"
-  resources:
-    type: object
-    properties:
-      kind:
-        $ref: "./TemplateKind.yml"
-      name:
-        type: string
-    required: [name, kind]
+      required: [name, kind]

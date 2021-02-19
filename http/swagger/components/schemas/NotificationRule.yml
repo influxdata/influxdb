@@ -1,2 +1,3 @@
-allOf:
-  - $ref: "./NotificationRuleDiscriminator.yml"
+NotificationRule:
+  allOf:
+    - $ref: "./NotificationRuleDiscriminator.yml"

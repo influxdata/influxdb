@@ -1,4 +1,5 @@
-description: Rendered flux that backs the check or notification.
-properties:
-  flux:
-    type: string
+FluxResponse:
+  description: Rendered flux that backs the check or notification.
+  properties:
+    flux:
+      type: string
