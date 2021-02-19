@@ -6,6 +6,7 @@
 1. [20621](https://github.com/influxdata/influxdb/pull/20621): Add Swift client library to the data loading section of the UI.
 1. [20307](https://github.com/influxdata/influxdb/pull/20307): Add `influx task retry-failed` command to rerun failed runs.
 1. [20759](https://github.com/influxdata/influxdb/pull/20759): Add additional properties for Mosaic Graph.
+1. [20763](https://github.com/influxdata/influxdb/pull/20763): Add `--compression` option to `influx write` to support GZIP inputs.
 
 ### Bug Fixes
 
