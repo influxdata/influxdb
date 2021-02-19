@@ -1,62 +1,61 @@
-"/tasks/{taskID}/owners":
-  get:
-    operationId: GetTasksIDOwners
-    tags:
-      - Users
-      - Tasks
-    summary: List all owners of a task
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: taskID
-        schema:
-          type: string
-        required: true
-        description: The task ID.
-    responses:
-      "200":
-        description: A list of users who have owner privileges for a task
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/ResourceOwners.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-  post:
-    operationId: PostTasksIDOwners
-    tags:
-      - Users
-      - Tasks
-    summary: Add an owner to a task
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: taskID
-        schema:
-          type: string
-        required: true
-        description: The task ID.
-    requestBody:
-      description: User to add as owner
+get:
+  operationId: GetTasksIDOwners
+  tags:
+    - Users
+    - Tasks
+  summary: List all owners of a task
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: taskID
+      schema:
+        type: string
       required: true
+      description: The task ID.
+  responses:
+    "200":
+      description: A list of users who have owner privileges for a task
       content:
         application/json:
           schema:
-            $ref: "../components/schemas/AddResourceMemberRequestBody.yml"
-    responses:
-      "201":
-        description: Added to task owners
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/ResourceOwner.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+            $ref: "#/components/schemas/ResourceOwners"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+post:
+  operationId: PostTasksIDOwners
+  tags:
+    - Users
+    - Tasks
+  summary: Add an owner to a task
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: taskID
+      schema:
+        type: string
+      required: true
+      description: The task ID.
+  requestBody:
+    description: User to add as owner
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "#/components/schemas/AddResourceMemberRequestBody"
+  responses:
+    "201":
+      description: Added to task owners
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ResourceOwner"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

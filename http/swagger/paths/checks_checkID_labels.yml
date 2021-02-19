@@ -1,60 +1,59 @@
-"/checks/{checkID}/labels":
-  get:
-    operationId: GetChecksIDLabels
-    tags:
-      - Checks
-    summary: List all labels for a check
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: checkID
-        schema:
-          type: string
-        required: true
-        description: The check ID.
-    responses:
-      "200":
-        description: A list of all labels for a check
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/LabelsResponse.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-  post:
-    operationId: PostChecksIDLabels
-    tags:
-      - Checks
-    summary: Add a label to a check
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: checkID
-        schema:
-          type: string
-        required: true
-        description: The check ID.
-    requestBody:
-      description: Label to add
+get:
+  operationId: GetChecksIDLabels
+  tags:
+    - Checks
+  summary: List all labels for a check
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: checkID
+      schema:
+        type: string
       required: true
+      description: The check ID.
+  responses:
+    "200":
+      description: A list of all labels for a check
       content:
         application/json:
           schema:
-            $ref: "../components/schemas/LabelMapping.yml"
-    responses:
-      "201":
-        description: The label was added to the check
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/LabelResponse.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+            $ref: "#/components/schemas/LabelsResponse"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+post:
+  operationId: PostChecksIDLabels
+  tags:
+    - Checks
+  summary: Add a label to a check
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: checkID
+      schema:
+        type: string
+      required: true
+      description: The check ID.
+  requestBody:
+    description: Label to add
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "#/components/schemas/LabelMapping"
+  responses:
+    "201":
+      description: The label was added to the check
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/LabelResponse"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

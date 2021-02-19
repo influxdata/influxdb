@@ -1,83 +1,82 @@
-/dashboards:
-  post:
-    operationId: PostDashboards
-    tags:
-      - Dashboards
-    summary: Create a dashboard
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-    requestBody:
-      description: Dashboard to create
-      required: true
+post:
+  operationId: PostDashboards
+  tags:
+    - Dashboards
+  summary: Create a dashboard
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+  requestBody:
+    description: Dashboard to create
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "#/components/schemas/CreateDashboardRequest"
+  responses:
+    "201":
+      description: Added dashboard
       content:
         application/json:
           schema:
-            $ref: "../components/schemas/CreateDashboardRequest.yml"
-    responses:
-      "201":
-        description: Added dashboard
-        content:
-          application/json:
-            schema:
-              oneOf:
-                - $ref: "../components/schemas/DashboardWithViewProperties.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-  get:
-    operationId: GetDashboards
-    tags:
-      - Dashboards
-    summary: Get all dashboards
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - $ref: "../components/parameters/Offset.yml"
-      - $ref: "../components/parameters/Limit.yml"
-      - $ref: "../components/parameters/Descending.yml"
-      - in: query
-        name: owner
-        description: The owner ID.
-        schema:
+            oneOf:
+              - $ref: "#/components/schemas/DashboardWithViewProperties"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+get:
+  operationId: GetDashboards
+  tags:
+    - Dashboards
+  summary: Get all dashboards
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - $ref: "#/components/parameters/Offset"
+    - $ref: "#/components/parameters/Limit"
+    - $ref: "#/components/parameters/Descending"
+    - in: query
+      name: owner
+      description: The owner ID.
+      schema:
+        type: string
+    - in: query
+      name: sortBy
+      description: The column to sort by.
+      schema:
+        type: string
+        enum:
+          - "ID"
+          - "CreatedAt"
+          - "UpdatedAt"
+    - in: query
+      name: id
+      description: List of dashboard IDs to return. If both `id` and `owner` are specified, only `id` is used.
+      schema:
+        type: array
+        items:
           type: string
-      - in: query
-        name: sortBy
-        description: The column to sort by.
-        schema:
-          type: string
-          enum:
-            - "ID"
-            - "CreatedAt"
-            - "UpdatedAt"
-      - in: query
-        name: id
-        description: List of dashboard IDs to return. If both `id` and `owner` are specified, only `id` is used.
-        schema:
-          type: array
-          items:
-            type: string
-      - in: query
-        name: orgID
-        description: The organization ID.
-        schema:
-          type: string
-      - in: query
-        name: org
-        description: The organization name.
-        schema:
-          type: string
-    responses:
-      "200":
-        description: All dashboards
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Dashboards.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+    - in: query
+      name: orgID
+      description: The organization ID.
+      schema:
+        type: string
+    - in: query
+      name: org
+      description: The organization name.
+      schema:
+        type: string
+  responses:
+    "200":
+      description: All dashboards
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Dashboards"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

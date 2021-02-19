@@ -1,20 +1,19 @@
-/query/suggestions:
-  get:
-    operationId: GetQuerySuggestions
-    tags:
-      - Query
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-    responses:
-      "200":
-        description: Suggestions for next functions in call chain
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/FluxSuggestions.yml"
-      default:
-        description: Any response other than 200 is an internal server error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+get:
+  operationId: GetQuerySuggestions
+  tags:
+    - Query
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+  responses:
+    "200":
+      description: Suggestions for next functions in call chain
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/FluxSuggestions"
+    default:
+      description: Any response other than 200 is an internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

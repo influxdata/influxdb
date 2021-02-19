@@ -1,62 +1,61 @@
-"/telegrafs/{telegrafID}/owners":
-  get:
-    operationId: GetTelegrafsIDOwners
-    tags:
-      - Users
-      - Telegrafs
-    summary: List all owners of a Telegraf config
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: telegrafID
-        schema:
-          type: string
-        required: true
-        description: The Telegraf config ID.
-    responses:
-      "200":
-        description: A list of Telegraf config owners
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/ResourceOwners.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-  post:
-    operationId: PostTelegrafsIDOwners
-    tags:
-      - Users
-      - Telegrafs
-    summary: Add an owner to a Telegraf config
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: telegrafID
-        schema:
-          type: string
-        required: true
-        description: The Telegraf config ID.
-    requestBody:
-      description: User to add as owner
+get:
+  operationId: GetTelegrafsIDOwners
+  tags:
+    - Users
+    - Telegrafs
+  summary: List all owners of a Telegraf config
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: telegrafID
+      schema:
+        type: string
       required: true
+      description: The Telegraf config ID.
+  responses:
+    "200":
+      description: A list of Telegraf config owners
       content:
         application/json:
           schema:
-            $ref: "../components/schemas/AddResourceMemberRequestBody.yml"
-    responses:
-      "201":
-        description: Telegraf config owner added
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/ResourceOwner.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+            $ref: "#/components/schemas/ResourceOwners"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+post:
+  operationId: PostTelegrafsIDOwners
+  tags:
+    - Users
+    - Telegrafs
+  summary: Add an owner to a Telegraf config
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: telegrafID
+      schema:
+        type: string
+      required: true
+      description: The Telegraf config ID.
+  requestBody:
+    description: User to add as owner
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "#/components/schemas/AddResourceMemberRequestBody"
+  responses:
+    "201":
+      description: Telegraf config owner added
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ResourceOwner"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

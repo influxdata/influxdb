@@ -1,66 +1,65 @@
-/orgs:
-  get:
-    operationId: GetOrgs
-    tags:
-      - Organizations
-    summary: List all organizations
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - $ref: "../components/parameters/Offset.yml"
-      - $ref: "../components/parameters/Limit.yml"
-      - $ref: "../components/parameters/Descending.yml"
-      - in: query
-        name: org
-        schema:
-          type: string
-        description: Filter organizations to a specific organization name.
-      - in: query
-        name: orgID
-        schema:
-          type: string
-        description: Filter organizations to a specific organization ID.
-      - in: query
-        name: userID
-        schema:
-          type: string
-        description: Filter organizations to a specific user ID.
-    responses:
-      "200":
-        description: A list of organizations
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Organizations.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-  post:
-    operationId: PostOrgs
-    tags:
-      - Organizations
-    summary: Create an organization
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-    requestBody:
-      description: Organization to create
-      required: true
+get:
+  operationId: GetOrgs
+  tags:
+    - Organizations
+  summary: List all organizations
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - $ref: "#/components/parameters/Offset"
+    - $ref: "#/components/parameters/Limit"
+    - $ref: "#/components/parameters/Descending"
+    - in: query
+      name: org
+      schema:
+        type: string
+      description: Filter organizations to a specific organization name.
+    - in: query
+      name: orgID
+      schema:
+        type: string
+      description: Filter organizations to a specific organization ID.
+    - in: query
+      name: userID
+      schema:
+        type: string
+      description: Filter organizations to a specific user ID.
+  responses:
+    "200":
+      description: A list of organizations
       content:
         application/json:
           schema:
-            $ref: "../components/schemas/Organization.yml"
-    responses:
-      "201":
-        description: Organization created
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Organization.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+            $ref: "#/components/schemas/Organizations"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+post:
+  operationId: PostOrgs
+  tags:
+    - Organizations
+  summary: Create an organization
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+  requestBody:
+    description: Organization to create
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "#/components/schemas/Organization"
+  responses:
+    "201":
+      description: Organization created
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Organization"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

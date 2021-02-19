@@ -1,62 +1,61 @@
-"/scrapers/{scraperTargetID}/owners":
-  get:
-    operationId: GetScrapersIDOwners
-    tags:
-      - Users
-      - ScraperTargets
-    summary: List all owners of a scraper target
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: scraperTargetID
-        schema:
-          type: string
-        required: true
-        description: The scraper target ID.
-    responses:
-      "200":
-        description: A list of scraper target owners
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/ResourceOwners.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-  post:
-    operationId: PostScrapersIDOwners
-    tags:
-      - Users
-      - ScraperTargets
-    summary: Add an owner to a scraper target
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: scraperTargetID
-        schema:
-          type: string
-        required: true
-        description: The scraper target ID.
-    requestBody:
-      description: User to add as owner
+get:
+  operationId: GetScrapersIDOwners
+  tags:
+    - Users
+    - ScraperTargets
+  summary: List all owners of a scraper target
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: scraperTargetID
+      schema:
+        type: string
       required: true
+      description: The scraper target ID.
+  responses:
+    "200":
+      description: A list of scraper target owners
       content:
         application/json:
           schema:
-            $ref: "../components/schemas/AddResourceMemberRequestBody.yml"
-    responses:
-      "201":
-        description: Scraper target owner added
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/ResourceOwner.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+            $ref: "#/components/schemas/ResourceOwners"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+post:
+  operationId: PostScrapersIDOwners
+  tags:
+    - Users
+    - ScraperTargets
+  summary: Add an owner to a scraper target
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: scraperTargetID
+      schema:
+        type: string
+      required: true
+      description: The scraper target ID.
+  requestBody:
+    description: User to add as owner
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "#/components/schemas/AddResourceMemberRequestBody"
+  responses:
+    "201":
+      description: Scraper target owner added
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ResourceOwner"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

@@ -1,21 +1,20 @@
-/signout:
-  post:
-    operationId: PostSignout
-    summary: Expire the current session
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-    responses:
-      "204":
-        description: Session successfully expired
-      "401":
-        description: Unauthorized access
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-      default:
-        description: Unsuccessful session expiry
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+post:
+  operationId: PostSignout
+  summary: Expire the current session
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+  responses:
+    "204":
+      description: Session successfully expired
+    "401":
+      description: Unauthorized access
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    default:
+      description: Unsuccessful session expiry
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

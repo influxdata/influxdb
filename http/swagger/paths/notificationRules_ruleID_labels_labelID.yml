@@ -1,35 +1,34 @@
-"/notificationRules/{ruleID}/labels/{labelID}":
-  delete:
-    operationId: DeleteNotificationRulesIDLabelsID
-    tags:
-      - NotificationRules
-    summary: Delete label from a notification rule
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: ruleID
-        schema:
-          type: string
-        required: true
-        description: The notification rule ID.
-      - in: path
-        name: labelID
-        schema:
-          type: string
-        required: true
-        description: The ID of the label to delete.
-    responses:
-      "204":
-        description: Delete has been accepted
-      "404":
-        description: Rule or label not found
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+delete:
+  operationId: DeleteNotificationRulesIDLabelsID
+  tags:
+    - NotificationRules
+  summary: Delete label from a notification rule
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: ruleID
+      schema:
+        type: string
+      required: true
+      description: The notification rule ID.
+    - in: path
+      name: labelID
+      schema:
+        type: string
+      required: true
+      description: The ID of the label to delete.
+  responses:
+    "204":
+      description: Delete has been accepted
+    "404":
+      description: Rule or label not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

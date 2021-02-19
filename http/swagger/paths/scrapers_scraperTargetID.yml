@@ -1,82 +1,81 @@
-"/scrapers/{scraperTargetID}":
-  get:
-    operationId: GetScrapersID
-    tags:
-      - ScraperTargets
-    summary: Get a scraper target by ID
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: scraperTargetID
-        required: true
-        schema:
-          type: string
-        description: The scraper target ID.
-    responses:
-      "200":
-        description: Scraper target updated
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/ScraperTargetResponse.yml"
-      default:
-        description: Internal server error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-  delete:
-    operationId: DeleteScrapersID
-    tags:
-      - ScraperTargets
-    summary: Delete a scraper target
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: scraperTargetID
-        required: true
-        schema:
-          type: string
-        description: The scraper target ID.
-    responses:
-      "204":
-        description: Scraper target deleted
-      default:
-        description: Internal server error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-  patch:
-    operationId: PatchScrapersID
-    summary: Update a scraper target
-    tags:
-      - ScraperTargets
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: scraperTargetID
-        required: true
-        schema:
-          type: string
-        description: The scraper target ID.
-    requestBody:
-      description: Scraper target update to apply
+get:
+  operationId: GetScrapersID
+  tags:
+    - ScraperTargets
+  summary: Get a scraper target by ID
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: scraperTargetID
       required: true
+      schema:
+        type: string
+      description: The scraper target ID.
+  responses:
+    "200":
+      description: Scraper target updated
       content:
         application/json:
           schema:
-            $ref: "../components/schemas/ScraperTargetRequest.yml"
-    responses:
-      "200":
-        description: Scraper target updated
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/ScraperTargetResponse.yml"
-      default:
-        description: Internal server error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+            $ref: "#/components/schemas/ScraperTargetResponse"
+    default:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+delete:
+  operationId: DeleteScrapersID
+  tags:
+    - ScraperTargets
+  summary: Delete a scraper target
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: scraperTargetID
+      required: true
+      schema:
+        type: string
+      description: The scraper target ID.
+  responses:
+    "204":
+      description: Scraper target deleted
+    default:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+patch:
+  operationId: PatchScrapersID
+  summary: Update a scraper target
+  tags:
+    - ScraperTargets
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: scraperTargetID
+      required: true
+      schema:
+        type: string
+      description: The scraper target ID.
+  requestBody:
+    description: Scraper target update to apply
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "#/components/schemas/ScraperTargetRequest"
+  responses:
+    "200":
+      description: Scraper target updated
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ScraperTargetResponse"
+    default:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

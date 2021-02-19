@@ -1,33 +1,32 @@
-/query/ast:
-  post:
-    operationId: PostQueryAst
-    description: Analyzes flux query and generates a query specification.
-    tags:
-      - Query
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: header
-        name: Content-Type
+post:
+  operationId: PostQueryAst
+  description: Analyzes flux query and generates a query specification.
+  tags:
+    - Query
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: header
+      name: Content-Type
+      schema:
+        type: string
+        enum:
+          - application/json
+  requestBody:
+    description: Analyzed Flux query to generate abstract syntax tree.
+    content:
+      application/json:
         schema:
-          type: string
-          enum:
-            - application/json
-    requestBody:
-      description: Analyzed Flux query to generate abstract syntax tree.
+          $ref: "#/components/schemas/LanguageRequest"
+  responses:
+    "200":
+      description: Abstract syntax tree of flux query.
       content:
         application/json:
           schema:
-            $ref: "../components/schemas/LanguageRequest.yml"
-    responses:
-      "200":
-        description: Abstract syntax tree of flux query.
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/ASTResponse.yml"
-      default:
-        description: Any response other than 200 is an internal server error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+            $ref: "#/components/schemas/ASTResponse"
+    default:
+      description: Any response other than 200 is an internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

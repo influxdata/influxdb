@@ -1,121 +1,120 @@
-"/variables/{variableID}":
-  get:
-    operationId: GetVariablesID
-    tags:
-      - Variables
-    summary: Get a variable
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: variableID
-        required: true
-        schema:
-          type: string
-        description: The variable ID.
-    responses:
-      "200":
-        description: Variable found
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Variable.yml"
-      "404":
-        description: Variable not found
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-      default:
-        description: Internal server error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-  delete:
-    operationId: DeleteVariablesID
-    tags:
-      - Variables
-    summary: Delete a variable
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: variableID
-        required: true
-        schema:
-          type: string
-        description: The variable ID.
-    responses:
-      "204":
-        description: Variable deleted
-      default:
-        description: Internal server error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-  patch:
-    operationId: PatchVariablesID
-    summary: Update a variable
-    tags:
-      - Variables
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: variableID
-        required: true
-        schema:
-          type: string
-        description: The variable ID.
-    requestBody:
-      description: Variable update to apply
+get:
+  operationId: GetVariablesID
+  tags:
+    - Variables
+  summary: Get a variable
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: variableID
       required: true
+      schema:
+        type: string
+      description: The variable ID.
+  responses:
+    "200":
+      description: Variable found
       content:
         application/json:
           schema:
-            $ref: "../components/schemas/Variable.yml"
-    responses:
-      "200":
-        description: Variable updated
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Variable.yml"
-      default:
-        description: Internal server error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-  put:
-    operationId: PutVariablesID
-    summary: Replace a variable
-    tags:
-      - Variables
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: variableID
-        required: true
-        schema:
-          type: string
-        description: The variable ID.
-    requestBody:
-      description: Variable to replace
-      required: true
+            $ref: "#/components/schemas/Variable"
+    "404":
+      description: Variable not found
       content:
         application/json:
           schema:
-            $ref: "../components/schemas/Variable.yml"
-    responses:
-      "200":
-        description: Variable updated
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Variable.yml"
-      default:
-        description: Internal server error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+            $ref: "#/components/schemas/Error"
+    default:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+delete:
+  operationId: DeleteVariablesID
+  tags:
+    - Variables
+  summary: Delete a variable
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: variableID
+      required: true
+      schema:
+        type: string
+      description: The variable ID.
+  responses:
+    "204":
+      description: Variable deleted
+    default:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+patch:
+  operationId: PatchVariablesID
+  summary: Update a variable
+  tags:
+    - Variables
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: variableID
+      required: true
+      schema:
+        type: string
+      description: The variable ID.
+  requestBody:
+    description: Variable update to apply
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "#/components/schemas/Variable"
+  responses:
+    "200":
+      description: Variable updated
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Variable"
+    default:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+put:
+  operationId: PutVariablesID
+  summary: Replace a variable
+  tags:
+    - Variables
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: variableID
+      required: true
+      schema:
+        type: string
+      description: The variable ID.
+  requestBody:
+    description: Variable to replace
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "#/components/schemas/Variable"
+  responses:
+    "200":
+      description: Variable updated
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Variable"
+    default:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

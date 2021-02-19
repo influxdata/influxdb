@@ -1,35 +1,34 @@
-"/tasks/{taskID}/labels/{labelID}":
-  delete:
-    operationId: DeleteTasksIDLabelsID
-    tags:
-      - Tasks
-    summary: Delete a label from a task
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: taskID
-        schema:
-          type: string
-        required: true
-        description: The task ID.
-      - in: path
-        name: labelID
-        schema:
-          type: string
-        required: true
-        description: The label ID.
-    responses:
-      "204":
-        description: Delete has been accepted
-      "404":
-        description: Task not found
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+delete:
+  operationId: DeleteTasksIDLabelsID
+  tags:
+    - Tasks
+  summary: Delete a label from a task
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: taskID
+      schema:
+        type: string
+      required: true
+      description: The task ID.
+    - in: path
+      name: labelID
+      schema:
+        type: string
+      required: true
+      description: The label ID.
+  responses:
+    "204":
+      description: Delete has been accepted
+    "404":
+      description: Task not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

@@ -1,109 +1,108 @@
-/stacks/{stack_id}:
-  get:
-    operationId: ReadStack
-    tags:
-      - InfluxDB Templates
-    summary: Grab a stack by its ID
-    parameters:
-      - in: path
-        name: stack_id
-        required: true
-        schema:
-          type: string
-        description: The stack id
-    responses:
-      "200":
-        description: Read an influx stack by ID
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Stack.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-  patch:
-    operationId: UpdateStack
-    tags:
-      - InfluxDB Templates
-    summary: Update an InfluxDB Stack
-    parameters:
-      - in: path
-        name: stack_id
-        required: true
-        schema:
-          type: string
-        description: The stack id
-    requestBody:
-      description: Influx stack to update.
+get:
+  operationId: ReadStack
+  tags:
+    - InfluxDB Templates
+  summary: Grab a stack by its ID
+  parameters:
+    - in: path
+      name: stack_id
       required: true
+      schema:
+        type: string
+      description: The stack id
+  responses:
+    "200":
+      description: Read an influx stack by ID
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              name:
-                type: string
-                nullable: true
-              description:
-                type: string
-                nullable: true
-              templateURLs:
-                type: array
-                items:
-                  type: string
-                nullable: true
-              additionalResources:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    resourceID:
-                      type: string
-                    kind:
-                      type: string
-                    templateMetaName:
-                      type: string
-                  required: ["kind", "resourceID"]
-    responses:
-      "200":
-        description: Influx stack updated
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Stack.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-  delete:
-    operationId: DeleteStack
-    tags:
-      - InfluxDB Templates
-    summary: Delete a stack and remove all its associated resources
-    parameters:
-      - in: path
-        name: stack_id
-        required: true
+            $ref: "#/components/schemas/Stack"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+patch:
+  operationId: UpdateStack
+  tags:
+    - InfluxDB Templates
+  summary: Update an InfluxDB Stack
+  parameters:
+    - in: path
+      name: stack_id
+      required: true
+      schema:
+        type: string
+      description: The stack id
+  requestBody:
+    description: Influx stack to update.
+    required: true
+    content:
+      application/json:
         schema:
-          type: string
-        description: The stack id
-      - in: query
-        name: orgID
-        required: true
-        schema:
-          type: string
-        description: The organization id of the user
-    responses:
-      "204":
-        description: Stack and all its associated resources are deleted
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+          type: object
+          properties:
+            name:
+              type: string
+              nullable: true
+            description:
+              type: string
+              nullable: true
+            templateURLs:
+              type: array
+              items:
+                type: string
+              nullable: true
+            additionalResources:
+              type: array
+              items:
+                type: object
+                properties:
+                  resourceID:
+                    type: string
+                  kind:
+                    type: string
+                  templateMetaName:
+                    type: string
+                required: ["kind", "resourceID"]
+  responses:
+    "200":
+      description: Influx stack updated
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Stack"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+delete:
+  operationId: DeleteStack
+  tags:
+    - InfluxDB Templates
+  summary: Delete a stack and remove all its associated resources
+  parameters:
+    - in: path
+      name: stack_id
+      required: true
+      schema:
+        type: string
+      description: The stack id
+    - in: query
+      name: orgID
+      required: true
+      schema:
+        type: string
+      description: The organization id of the user
+  responses:
+    "204":
+      description: Stack and all its associated resources are deleted
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

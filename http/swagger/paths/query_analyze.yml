@@ -1,42 +1,41 @@
-/query/analyze:
-  post:
-    operationId: PostQueryAnalyze
-    tags:
-      - Query
-    summary: Analyze an InfluxQL or Flux query
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: header
-        name: Content-Type
+post:
+  operationId: PostQueryAnalyze
+  tags:
+    - Query
+  summary: Analyze an InfluxQL or Flux query
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: header
+      name: Content-Type
+      schema:
+        type: string
+        enum:
+          - application/json
+  requestBody:
+    description: Flux or InfluxQL query to analyze
+    content:
+      application/json:
         schema:
-          type: string
-          enum:
-            - application/json
-    requestBody:
-      description: Flux or InfluxQL query to analyze
+          $ref: "#/components/schemas/Query"
+  responses:
+    "200":
+      description: Query analyze results. Errors will be empty if the query is valid.
       content:
         application/json:
           schema:
-            $ref: "../components/schemas/Query.yml"
-    responses:
-      "200":
-        description: Query analyze results. Errors will be empty if the query is valid.
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/AnalyzeQueryResponse.yml"
-      default:
-        description: Internal server error
-        headers:
-          X-Influx-Error:
-            description: Error string describing the problem
-            schema:
-              type: string
-          X-Influx-Reference:
-            description: Reference code unique to the error type
-            schema:
-              type: integer
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+            $ref: "#/components/schemas/AnalyzeQueryResponse"
+    default:
+      description: Internal server error
+      headers:
+        X-Influx-Error:
+          description: Error string describing the problem
+          schema:
+            type: string
+        X-Influx-Reference:
+          description: Reference code unique to the error type
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

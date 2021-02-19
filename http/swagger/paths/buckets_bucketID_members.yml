@@ -1,62 +1,61 @@
-"/buckets/{bucketID}/members":
-  get:
-    operationId: GetBucketsIDMembers
-    tags:
-      - Users
-      - Buckets
-    summary: List all users with member privileges for a bucket
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: bucketID
-        schema:
-          type: string
-        required: true
-        description: The bucket ID.
-    responses:
-      "200":
-        description: A list of bucket members
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/ResourceMembers.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-  post:
-    operationId: PostBucketsIDMembers
-    tags:
-      - Users
-      - Buckets
-    summary: Add a member to a bucket
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: bucketID
-        schema:
-          type: string
-        required: true
-        description: The bucket ID.
-    requestBody:
-      description: User to add as member
+get:
+  operationId: GetBucketsIDMembers
+  tags:
+    - Users
+    - Buckets
+  summary: List all users with member privileges for a bucket
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: bucketID
+      schema:
+        type: string
       required: true
+      description: The bucket ID.
+  responses:
+    "200":
+      description: A list of bucket members
       content:
         application/json:
           schema:
-            $ref: "../components/schemas/AddResourceMemberRequestBody.yml"
-    responses:
-      "201":
-        description: Member added to bucket
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/ResourceMember.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+            $ref: "#/components/schemas/ResourceMembers"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+post:
+  operationId: PostBucketsIDMembers
+  tags:
+    - Users
+    - Buckets
+  summary: Add a member to a bucket
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: bucketID
+      schema:
+        type: string
+      required: true
+      description: The bucket ID.
+  requestBody:
+    description: User to add as member
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "#/components/schemas/AddResourceMemberRequestBody"
+  responses:
+    "201":
+      description: Member added to bucket
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ResourceMember"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

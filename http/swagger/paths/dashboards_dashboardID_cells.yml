@@ -1,81 +1,80 @@
-"/dashboards/{dashboardID}/cells":
-  put:
-    operationId: PutDashboardsIDCells
-    tags:
-      - Cells
-      - Dashboards
-    summary: Replace cells in a dashboard
-    description: Replaces all cells in a dashboard. This is used primarily to update the positional information of all cells.
-    requestBody:
+put:
+  operationId: PutDashboardsIDCells
+  tags:
+    - Cells
+    - Dashboards
+  summary: Replace cells in a dashboard
+  description: Replaces all cells in a dashboard. This is used primarily to update the positional information of all cells.
+  requestBody:
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "#/components/schemas/Cells"
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: dashboardID
+      schema:
+        type: string
       required: true
+      description: The ID of the dashboard to update.
+  responses:
+    "201":
+      description: Replaced dashboard cells
       content:
         application/json:
           schema:
-            $ref: "../components/schemas/Cells.yml"
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: dashboardID
-        schema:
-          type: string
-        required: true
-        description: The ID of the dashboard to update.
-    responses:
-      "201":
-        description: Replaced dashboard cells
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Dashboard.yml"
-      "404":
-        description: Dashboard not found
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-  post:
-    operationId: PostDashboardsIDCells
-    tags:
-      - Cells
-      - Dashboards
-    summary: Create a dashboard cell
-    requestBody:
-      description: Cell that will be added
-      required: true
+            $ref: "#/components/schemas/Dashboard"
+    "404":
+      description: Dashboard not found
       content:
         application/json:
           schema:
-            $ref: "../components/schemas/CreateCell.yml"
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: dashboardID
+            $ref: "#/components/schemas/Error"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+post:
+  operationId: PostDashboardsIDCells
+  tags:
+    - Cells
+    - Dashboards
+  summary: Create a dashboard cell
+  requestBody:
+    description: Cell that will be added
+    required: true
+    content:
+      application/json:
         schema:
-          type: string
-        required: true
-        description: The ID of the dashboard to update.
-    responses:
-      "201":
-        description: Cell successfully added
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Cell.yml"
-      "404":
-        description: Dashboard not found
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+          $ref: "#/components/schemas/CreateCell"
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: dashboardID
+      schema:
+        type: string
+      required: true
+      description: The ID of the dashboard to update.
+  responses:
+    "201":
+      description: Cell successfully added
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Cell"
+    "404":
+      description: Dashboard not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

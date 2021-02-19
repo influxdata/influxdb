@@ -1,33 +1,32 @@
-"/tasks/{taskID}/runs/{runID}/logs":
-  get:
-    operationId: GetTasksIDRunsIDLogs
-    tags:
-      - Tasks
-    summary: Retrieve all logs for a run
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: taskID
-        schema:
-          type: string
-        required: true
-        description: ID of task to get logs for.
-      - in: path
-        name: runID
-        schema:
-          type: string
-        required: true
-        description: ID of run to get logs for.
-    responses:
-      "200":
-        description: All logs for a run
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Logs.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+get:
+  operationId: GetTasksIDRunsIDLogs
+  tags:
+    - Tasks
+  summary: Retrieve all logs for a run
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: taskID
+      schema:
+        type: string
+      required: true
+      description: ID of task to get logs for.
+    - in: path
+      name: runID
+      schema:
+        type: string
+      required: true
+      description: ID of run to get logs for.
+  responses:
+    "200":
+      description: All logs for a run
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Logs"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

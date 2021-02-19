@@ -1,35 +1,34 @@
-"/buckets/{bucketID}/labels/{labelID}":
-  delete:
-    operationId: DeleteBucketsIDLabelsID
-    tags:
-      - Buckets
-    summary: Delete a label from a bucket
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: bucketID
-        schema:
-          type: string
-        required: true
-        description: The bucket ID.
-      - in: path
-        name: labelID
-        schema:
-          type: string
-        required: true
-        description: The ID of the label to delete.
-    responses:
-      "204":
-        description: Delete has been accepted
-      "404":
-        description: Bucket not found
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+delete:
+  operationId: DeleteBucketsIDLabelsID
+  tags:
+    - Buckets
+  summary: Delete a label from a bucket
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: bucketID
+      schema:
+        type: string
+      required: true
+      description: The bucket ID.
+    - in: path
+      name: labelID
+      schema:
+        type: string
+      required: true
+      description: The ID of the label to delete.
+  responses:
+    "204":
+      description: Delete has been accepted
+    "404":
+      description: Bucket not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

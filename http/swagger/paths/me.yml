@@ -1,21 +1,20 @@
-/me:
-  get:
-    operationId: GetMe
-    tags:
-      - Users
-    summary: Return the current authenticated user
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-    responses:
-      "200":
-        description: Currently authenticated user
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/User.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+get:
+  operationId: GetMe
+  tags:
+    - Users
+  summary: Return the current authenticated user
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+  responses:
+    "200":
+      description: Currently authenticated user
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/User"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

@@ -1,72 +1,71 @@
-/buckets:
-  get:
-    operationId: GetBuckets
-    tags:
-      - Buckets
-    summary: List all buckets
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - $ref: "../components/parameters/Offset.yml"
-      - $ref: "../components/parameters/Limit.yml"
-      - $ref: "../components/parameters/After.yml"
-      - in: query
-        name: org
-        description: The organization name.
-        schema:
-          type: string
-      - in: query
-        name: orgID
-        description: The organization ID.
-        schema:
-          type: string
-      - in: query
-        name: name
-        description: Only returns buckets with a specific name.
-        schema:
-          type: string
-    responses:
-      "200":
-        description: A list of buckets
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Buckets.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-  post:
-    operationId: PostBuckets
-    tags:
-      - Buckets
-    summary: Create a bucket
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-    requestBody:
-      description: Bucket to create
-      required: true
+get:
+  operationId: GetBuckets
+  tags:
+    - Buckets
+  summary: List all buckets
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - $ref: "#/components/parameters/Offset"
+    - $ref: "#/components/parameters/Limit"
+    - $ref: "#/components/parameters/After"
+    - in: query
+      name: org
+      description: The organization name.
+      schema:
+        type: string
+    - in: query
+      name: orgID
+      description: The organization ID.
+      schema:
+        type: string
+    - in: query
+      name: name
+      description: Only returns buckets with a specific name.
+      schema:
+        type: string
+  responses:
+    "200":
+      description: A list of buckets
       content:
         application/json:
           schema:
-            $ref: "../components/schemas/PostBucketRequest.yml"
-    responses:
-      "201":
-        description: Bucket created
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Bucket.yml"
-      422:
-        description: Request body failed validation
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+            $ref: "#/components/schemas/Buckets"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+post:
+  operationId: PostBuckets
+  tags:
+    - Buckets
+  summary: Create a bucket
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+  requestBody:
+    description: Bucket to create
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "#/components/schemas/PostBucketRequest"
+  responses:
+    "201":
+      description: Bucket created
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Bucket"
+    422:
+      description: Request body failed validation
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

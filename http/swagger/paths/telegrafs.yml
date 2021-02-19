@@ -1,52 +1,51 @@
-/telegrafs:
-  get:
-    operationId: GetTelegrafs
-    tags:
-      - Telegrafs
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: query
-        name: orgID
-        description: The organization ID the Telegraf config belongs to.
-        schema:
-          type: string
-    responses:
-      "200":
-        description: A list of Telegraf configs
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Telegrafs.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-  post:
-    operationId: PostTelegrafs
-    tags:
-      - Telegrafs
-    summary: Create a Telegraf config
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-    requestBody:
-      description: Telegraf config to create
-      required: true
+get:
+  operationId: GetTelegrafs
+  tags:
+    - Telegrafs
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: query
+      name: orgID
+      description: The organization ID the Telegraf config belongs to.
+      schema:
+        type: string
+  responses:
+    "200":
+      description: A list of Telegraf configs
       content:
         application/json:
           schema:
-            $ref: "../components/schemas/TelegrafRequest.yml"
-    responses:
-      "201":
-        description: Telegraf config created
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Telegraf.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+            $ref: "#/components/schemas/Telegrafs"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+post:
+  operationId: PostTelegrafs
+  tags:
+    - Telegrafs
+  summary: Create a Telegraf config
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+  requestBody:
+    description: Telegraf config to create
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "#/components/schemas/TelegrafRequest"
+  responses:
+    "201":
+      description: Telegraf config created
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Telegraf"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

@@ -1,23 +1,22 @@
-/telegraf/plugins:
-  get:
-    operationId: GetTelegrafPlugins
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: query
-        name: type
-        description: The type of plugin desired.
-        schema:
-          type: string
-    responses:
-      "200":
-        description: A list of Telegraf plugins.
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/TelegrafPlugins.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+get:
+  operationId: GetTelegrafPlugins
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: query
+      name: type
+      description: The type of plugin desired.
+      schema:
+        type: string
+  responses:
+    "200":
+      description: A list of Telegraf plugins.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/TelegrafPlugins"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

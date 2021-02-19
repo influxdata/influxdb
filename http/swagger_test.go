@@ -2,9 +2,12 @@ package http
 
 import (
 	"context"
+	"encoding/json"
+	"io/ioutil"
 	"testing"
 
 	"github.com/deepmap/oapi-codegen/pkg/util"
+	"github.com/stretchr/testify/require"
 )
 
 func TestValidSwagger(t *testing.T) {
@@ -19,4 +22,8 @@ func TestValidSwagger(t *testing.T) {
 	if err := swagger.Validate(context.Background()); err != nil {
 		t.Errorf("invalid swagger specification: %v", err)
 	}
+
+	b, err := json.MarshalIndent(swagger, "", "  ")
+	require.NoError(t, err)
+	ioutil.WriteFile("./swagger.json", b, 0644)
 }

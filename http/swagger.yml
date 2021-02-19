@@ -147,6 +147,8 @@ paths:
     $ref: "./swagger/paths/orgs_orgID.yml"
   "/orgs/{orgID}/secrets":
     $ref: "./swagger/paths/orgs_orgID_secrets.yml"
+  "/orgs/{orgID}/secrets/delete": # had to make this because swagger wouldn't let me have a request body with a DELETE
+    $ref: "./swagger/paths/orgs_orgID_secrets_delete.yml"
   "/orgs/{orgID}/members":
     $ref: "./swagger/paths/orgs_orgID_members.yml"
   "/orgs/{orgID}/members/{userID}":

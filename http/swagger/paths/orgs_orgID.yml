@@ -1,88 +1,87 @@
-"/orgs/{orgID}":
-  get:
-    operationId: GetOrgsID
-    tags:
-      - Organizations
-    summary: Retrieve an organization
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: orgID
-        schema:
-          type: string
-        required: true
-        description: The ID of the organization to get.
-    responses:
-      "200":
-        description: Organization details
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Organization.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-  patch:
-    operationId: PatchOrgsID
-    tags:
-      - Organizations
-    summary: Update an organization
-    requestBody:
-      description: Organization update to apply
+get:
+  operationId: GetOrgsID
+  tags:
+    - Organizations
+  summary: Retrieve an organization
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: orgID
+      schema:
+        type: string
       required: true
+      description: The ID of the organization to get.
+  responses:
+    "200":
+      description: Organization details
       content:
         application/json:
           schema:
-            $ref: "../components/schemas/Organization.yml"
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: orgID
+            $ref: "#/components/schemas/Organization"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+patch:
+  operationId: PatchOrgsID
+  tags:
+    - Organizations
+  summary: Update an organization
+  requestBody:
+    description: Organization update to apply
+    required: true
+    content:
+      application/json:
         schema:
-          type: string
-        required: true
-        description: The ID of the organization to get.
-    responses:
-      "200":
-        description: Organization updated
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Organization.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-  delete:
-    operationId: DeleteOrgsID
-    tags:
-      - Organizations
-    summary: Delete an organization
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: orgID
-        schema:
-          type: string
-        required: true
-        description: The ID of the organization to delete.
-    responses:
-      "204":
-        description: Delete has been accepted
-      "404":
-        description: Organization not found
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+          $ref: "#/components/schemas/Organization"
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: orgID
+      schema:
+        type: string
+      required: true
+      description: The ID of the organization to get.
+  responses:
+    "200":
+      description: Organization updated
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Organization"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+delete:
+  operationId: DeleteOrgsID
+  tags:
+    - Organizations
+  summary: Delete an organization
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: orgID
+      schema:
+        type: string
+      required: true
+      description: The ID of the organization to delete.
+  responses:
+    "204":
+      description: Delete has been accepted
+    "404":
+      description: Organization not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

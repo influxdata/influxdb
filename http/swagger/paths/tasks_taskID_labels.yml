@@ -1,60 +1,59 @@
-"/tasks/{taskID}/labels":
-  get:
-    operationId: GetTasksIDLabels
-    tags:
-      - Tasks
-    summary: List all labels for a task
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: taskID
-        schema:
-          type: string
-        required: true
-        description: The task ID.
-    responses:
-      "200":
-        description: A list of all labels for a task
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/LabelsResponse.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-  post:
-    operationId: PostTasksIDLabels
-    tags:
-      - Tasks
-    summary: Add a label to a task
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: taskID
-        schema:
-          type: string
-        required: true
-        description: The task ID.
-    requestBody:
-      description: Label to add
+get:
+  operationId: GetTasksIDLabels
+  tags:
+    - Tasks
+  summary: List all labels for a task
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: taskID
+      schema:
+        type: string
       required: true
+      description: The task ID.
+  responses:
+    "200":
+      description: A list of all labels for a task
       content:
         application/json:
           schema:
-            $ref: "../components/schemas/LabelMapping.yml"
-    responses:
-      "201":
-        description: A list of all labels for a task
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/LabelResponse.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+            $ref: "#/components/schemas/LabelsResponse"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+post:
+  operationId: PostTasksIDLabels
+  tags:
+    - Tasks
+  summary: Add a label to a task
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: taskID
+      schema:
+        type: string
+      required: true
+      description: The task ID.
+  requestBody:
+    description: Label to add
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "#/components/schemas/LabelMapping"
+  responses:
+    "201":
+      description: A list of all labels for a task
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/LabelResponse"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

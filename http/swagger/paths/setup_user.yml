@@ -1,29 +1,28 @@
-/setup/user:
-  post:
-    operationId: PostSetupUser
-    tags:
-      - Setup
-    summary: Set up a new user, org and bucket
-    description: Post an onboarding request to set up a new user, org and bucket.
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-    requestBody:
-      description: Source to create
-      required: true
+post:
+  operationId: PostSetupUser
+  tags:
+    - Setup
+  summary: Set up a new user, org and bucket
+  description: Post an onboarding request to set up a new user, org and bucket.
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+  requestBody:
+    description: Source to create
+    required: true
+    content:
+      application/json:
+        schema:
+          $ref: "#/components/schemas/OnboardingRequest"
+  responses:
+    "201":
+      description: Created default user, bucket, org
       content:
         application/json:
           schema:
-            $ref: "../components/schemas/OnboardingRequest.yml"
-    responses:
-      "201":
-        description: Created default user, bucket, org
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/OnboardingResponse.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+            $ref: "#/components/schemas/OnboardingResponse"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

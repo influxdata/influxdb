@@ -1,94 +1,93 @@
-/labels/{labelID}:
-  get:
-    operationId: GetLabelsID
-    tags:
-      - Labels
-    summary: Get a label
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: labelID
-        schema:
-          type: string
-        required: true
-        description: The ID of the label to update.
-    responses:
-      "200":
-        description: A label
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/LabelResponse.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-  patch:
-    operationId: PatchLabelsID
-    tags:
-      - Labels
-    summary: Update a label
-    requestBody:
-      description: Label update
+get:
+  operationId: GetLabelsID
+  tags:
+    - Labels
+  summary: Get a label
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: labelID
+      schema:
+        type: string
       required: true
+      description: The ID of the label to update.
+  responses:
+    "200":
+      description: A label
       content:
         application/json:
           schema:
-            $ref: "../components/schemas/LabelUpdate.yml"
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: labelID
+            $ref: "#/components/schemas/LabelResponse"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+patch:
+  operationId: PatchLabelsID
+  tags:
+    - Labels
+  summary: Update a label
+  requestBody:
+    description: Label update
+    required: true
+    content:
+      application/json:
         schema:
-          type: string
-        required: true
-        description: The ID of the label to update.
-    responses:
-      "200":
-        description: Updated label
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/LabelResponse.yml"
-      "404":
-        description: Label not found
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-  delete:
-    operationId: DeleteLabelsID
-    tags:
-      - Labels
-    summary: Delete a label
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: labelID
-        schema:
-          type: string
-        required: true
-        description: The ID of the label to delete.
-    responses:
-      "204":
-        description: Delete has been accepted
-      "404":
-        description: Label not found
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+          $ref: "#/components/schemas/LabelUpdate"
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: labelID
+      schema:
+        type: string
+      required: true
+      description: The ID of the label to update.
+  responses:
+    "200":
+      description: Updated label
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/LabelResponse"
+    "404":
+      description: Label not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+delete:
+  operationId: DeleteLabelsID
+  tags:
+    - Labels
+  summary: Delete a label
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: labelID
+      schema:
+        type: string
+      required: true
+      description: The ID of the label to delete.
+  responses:
+    "204":
+      description: Delete has been accepted
+    "404":
+      description: Label not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

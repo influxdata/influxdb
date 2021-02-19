@@ -1,82 +1,81 @@
-/authorizations/{authID}:
-  get:
-    operationId: GetAuthorizationsID
-    tags:
-      - Authorizations
-    summary: Retrieve an authorization
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: authID
-        schema:
-          type: string
-        required: true
-        description: The ID of the authorization to get.
-    responses:
-      "200":
-        description: Authorization details
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Authorization.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-  patch:
-    operationId: PatchAuthorizationsID
-    tags:
-      - Authorizations
-    summary: Update an authorization to be active or inactive
-    requestBody:
-      description: Authorization to update
+get:
+  operationId: GetAuthorizationsID
+  tags:
+    - Authorizations
+  summary: Retrieve an authorization
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: authID
+      schema:
+        type: string
       required: true
+      description: The ID of the authorization to get.
+  responses:
+    "200":
+      description: Authorization details
       content:
         application/json:
           schema:
-            $ref: "../components/schemas/AuthorizationUpdateRequest.yml"
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: authID
+            $ref: "#/components/schemas/Authorization"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+patch:
+  operationId: PatchAuthorizationsID
+  tags:
+    - Authorizations
+  summary: Update an authorization to be active or inactive
+  requestBody:
+    description: Authorization to update
+    required: true
+    content:
+      application/json:
         schema:
-          type: string
-        required: true
-        description: The ID of the authorization to update.
-    responses:
-      "200":
-        description: The active or inactie authorization
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Authorization.yml"
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
-  delete:
-    operationId: DeleteAuthorizationsID
-    tags:
-      - Authorizations
-    summary: Delete an authorization
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: authID
-        schema:
-          type: string
-        required: true
-        description: The ID of the authorization to delete.
-    responses:
-      "204":
-        description: Authorization deleted
-      default:
-        description: Unexpected error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+          $ref: "#/components/schemas/AuthorizationUpdateRequest"
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: authID
+      schema:
+        type: string
+      required: true
+      description: The ID of the authorization to update.
+  responses:
+    "200":
+      description: The active or inactie authorization
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Authorization"
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+delete:
+  operationId: DeleteAuthorizationsID
+  tags:
+    - Authorizations
+  summary: Delete an authorization
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: authID
+      schema:
+        type: string
+      required: true
+      description: The ID of the authorization to delete.
+  responses:
+    "204":
+      description: Authorization deleted
+    default:
+      description: Unexpected error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

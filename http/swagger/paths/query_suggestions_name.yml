@@ -1,26 +1,25 @@
-"/query/suggestions/{name}":
-  get:
-    operationId: GetQuerySuggestionsName
-    tags:
-      - Query
-    parameters:
-      - $ref: "../components/parameters/TraceSpan.yml"
-      - in: path
-        name: name
-        schema:
-          type: string
-        required: true
-        description: The name of the branching suggestion.
-    responses:
-      "200":
-        description: Suggestions for next functions in call chain
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/FluxSuggestion.yml"
-      default:
-        description: Any response other than 200 is an internal server error
-        content:
-          application/json:
-            schema:
-              $ref: "../components/schemas/Error.yml"
+get:
+  operationId: GetQuerySuggestionsName
+  tags:
+    - Query
+  parameters:
+    - $ref: "#/components/parameters/TraceSpan"
+    - in: path
+      name: name
+      schema:
+        type: string
+      required: true
+      description: The name of the branching suggestion.
+  responses:
+    "200":
+      description: Suggestions for next functions in call chain
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/FluxSuggestion"
+    default:
+      description: Any response other than 200 is an internal server error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
