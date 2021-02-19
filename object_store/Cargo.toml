@@ -7,9 +7,9 @@ edition = "2018"
 [dependencies] # In alphabetical order
 async-trait = "0.1.42"
 # Microsoft Azure Blob storage integration
-# In order to support tokio 1.0 needed to pull in unreleased azure sdk
-azure_core = { git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "5ecad7216e1f04c5ff41e7de4667f006664c8cca" }
-azure_storage = { git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "5ecad7216e1f04c5ff41e7de4667f006664c8cca", default-features = false, features = ["table", "blob"] }
+# In order to support tokio 1.0 and delimiters, needed to pull in unreleased azure sdk
+azure_core = { git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "14ff9326bb1ba07f98733a548988eccd4532b945" }
+azure_storage = { git = "https://github.com/Azure/azure-sdk-for-rust.git", rev = "14ff9326bb1ba07f98733a548988eccd4532b945", default-features = false, features = ["table", "blob", "queue"] }
 bytes = "1.0"
 chrono = "0.4"
 # Google Cloud Storage integration
