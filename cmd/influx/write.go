@@ -209,11 +209,12 @@ func (b *writeFlagsBuilder) createLineReader(ctx context.Context, cmd *cobra.Com
 			}
 			closers = append(closers, f)
 
-			compressed := b.Compression == "gzip" || (len(b.Compression) == 0 && strings.HasSuffix(file, ".gz"))
+			fname := file
+			compressed := b.Compression == "gzip" || (len(b.Compression) == 0 && strings.HasSuffix(fname, ".gz"))
 			if compressed {
-				file = strings.TrimSuffix(file, ".gz")
+				fname = strings.TrimSuffix(fname, ".gz")
 			}
-			if len(b.Format) == 0 && strings.HasSuffix(file, ".csv") {
+			if len(b.Format) == 0 && strings.HasSuffix(fname, ".csv") {
 				b.Format = inputFormatCsv
 			}
 
