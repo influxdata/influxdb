@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func fatal(t *testing.T, msg string, err error) {
@@ -465,9 +467,7 @@ func TestTSMReader_MMAP_TombstoneOutsideTimeRange(t *testing.T) {
 		t.Fatalf("HasTombstones mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := len(r.TombstoneFiles()), 0; got != exp {
-		t.Fatalf("TombstoneFiles len mismatch: got %v, exp %v", got, exp)
-	}
+	require.False(t, r.TombstoneStats().TombstoneExists)
 }
 
 func TestTSMReader_MMAP_TombstoneOutsideKeyRange(t *testing.T) {
@@ -529,10 +529,7 @@ func TestTSMReader_MMAP_TombstoneOutsideKeyRange(t *testing.T) {
 		t.Fatalf("HasTombstones mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := len(r.TombstoneFiles()), 0; got != exp {
-		t.Fatalf("TombstoneFiles len mismatch: got %v, exp %v", got, exp)
-
-	}
+	require.False(t, r.TombstoneStats().TombstoneExists)
 }
 
 func TestTSMReader_MMAP_TombstoneOverlapKeyRange(t *testing.T) {
@@ -598,9 +595,7 @@ func TestTSMReader_MMAP_TombstoneOverlapKeyRange(t *testing.T) {
 		t.Fatalf("HasTombstones mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := len(r.TombstoneFiles()), 1; got != exp {
-		t.Fatalf("TombstoneFiles len mismatch: got %v, exp %v", got, exp)
-	}
+	require.True(t, r.TombstoneStats().TombstoneExists)
 }
 
 func TestTSMReader_MMAP_TombstoneFullRange(t *testing.T) {

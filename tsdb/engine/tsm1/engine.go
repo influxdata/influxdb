@@ -929,7 +929,6 @@ func (e *Engine) timeStampFilterTarFile(start, end time.Time) func(f os.FileInfo
 			return intar.StreamFile(fi, shardRelativePath, fullPath, tw)
 		}
 
-		var tombstonePath string
 		f, err := os.Open(fullPath)
 		if err != nil {
 			return err
@@ -940,9 +939,8 @@ func (e *Engine) timeStampFilterTarFile(start, end time.Time) func(f os.FileInfo
 		}
 
 		// Grab the tombstone file if one exists.
-		if r.HasTombstones() {
-			tombstonePath = filepath.Base(r.TombstoneFiles()[0].Path)
-			return intar.StreamFile(fi, shardRelativePath, tombstonePath, tw)
+		if ts := r.TombstoneStats(); ts.TombstoneExists {
+			return intar.StreamFile(fi, shardRelativePath, filepath.Base(ts.Path), tw)
 		}
 
 		min, max := r.TimeRange()
