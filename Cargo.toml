@@ -68,7 +68,6 @@ flate2 = "1.0"
 futures = "0.3.1"
 http = "0.2.0"
 hyper = "0.14"
-lazy_static = "1.4.0"
 opentelemetry = { version = "0.12", default-features = false, features = ["trace", "tokio-support"] }
 opentelemetry-jaeger = { version = "0.11", features = ["tokio"] }
 prost = "0.7"

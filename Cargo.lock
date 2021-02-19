@@ -1553,7 +1553,6 @@ dependencies = [
  "influxdb_line_protocol",
  "influxdb_tsm",
  "ingest",
- "lazy_static",
  "logfmt",
  "mem_qe",
  "mutable_buffer",
@@ -1778,7 +1777,7 @@ dependencies = [
 name = "logfmt"
 version = "0.1.0"
 dependencies = [
- "lazy_static",
+ "once_cell",
  "regex",
  "tracing",
  "tracing-subscriber",

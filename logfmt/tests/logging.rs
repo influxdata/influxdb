@@ -3,6 +3,7 @@
 // that.... So punting on that for now
 
 use logfmt::LogFmtLayer;
+use once_cell::sync::Lazy;
 use regex::Regex;
 use std::{
     error::Error,
@@ -12,8 +13,6 @@ use std::{
 };
 use tracing::{debug, error, info, span, trace, warn, Level};
 use tracing_subscriber::{fmt::MakeWriter, prelude::*};
-
-use lazy_static::lazy_static;
 
 /// Compares the captured messages with the expected messages,
 /// normalizing for time and location
@@ -277,17 +276,15 @@ thread_local! {
     static LOG_LINES: Mutex<Cursor<Vec<u8>>> = Mutex::new(Cursor::new(Vec::new()));
 }
 
-lazy_static! {
-    // Since we can only setup logging once, we need to have gloabl to
-    // use it among test cases
-    static ref GLOBAL_WRITER: Mutex<CapturedWriter> = {
-        let capture = CapturedWriter::default();
-        tracing_subscriber::registry()
-            .with(LogFmtLayer::new(capture.clone()))
-            .init();
-        Mutex::new(capture)
-    };
-}
+// Since we can only setup logging once, we need to have gloabl to
+// use it among test cases
+static GLOBAL_WRITER: Lazy<Mutex<CapturedWriter>> = Lazy::new(|| {
+    let capture = CapturedWriter::default();
+    tracing_subscriber::registry()
+        .with(LogFmtLayer::new(capture.clone()))
+        .init();
+    Mutex::new(capture)
+});
 
 // This thing captures log lines
 #[derive(Default, Clone)]
