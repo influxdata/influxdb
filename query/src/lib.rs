@@ -44,12 +44,12 @@ pub trait Database: Debug + Send + Sync {
     async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error>;
 
     /// Return the partition keys for data in this DB
-    async fn partition_keys(&self) -> Result<Vec<String>, Self::Error>;
+    fn partition_keys(&self) -> Result<Vec<String>, Self::Error>;
 
     /// Returns a covering set of chunks in the specified partition. A
     /// covering set means that together the chunks make up a single
     /// complete copy of the data being queried.
-    async fn chunks(&self, partition_key: &str) -> Vec<Arc<Self::Chunk>>;
+    fn chunks(&self, partition_key: &str) -> Vec<Arc<Self::Chunk>>;
 
     // ----------
     // The functions below are slated for removal (migration into a gRPC query

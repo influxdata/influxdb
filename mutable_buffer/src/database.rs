@@ -266,7 +266,7 @@ impl Database for MutableBufferDb {
     }
 
     /// Return the partition keys for data in this DB
-    async fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
+    fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
         let partitions = self.partitions.read().expect("mutex poisoned");
         let keys = partitions.keys().cloned().collect();
         Ok(keys)
@@ -274,7 +274,7 @@ impl Database for MutableBufferDb {
 
     /// Return the list of chunks, in order of id, for the specified
     /// partition_key
-    async fn chunks(&self, partition_key: &str) -> Vec<Arc<Chunk>> {
+    fn chunks(&self, partition_key: &str) -> Vec<Arc<Chunk>> {
         let partition = self.get_partition(partition_key);
         let partition = partition.read().expect("mutex poisoned");
         partition.chunks()

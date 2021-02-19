@@ -362,13 +362,13 @@ impl Database for TestDatabase {
     }
 
     /// Return the partition keys for data in this DB
-    async fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
+    fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
         let partitions = self.partitions.lock().expect("mutex poisoned");
         let keys = partitions.keys().cloned().collect();
         Ok(keys)
     }
 
-    async fn chunks(&self, partition_key: &str) -> Vec<Arc<Self::Chunk>> {
+    fn chunks(&self, partition_key: &str) -> Vec<Arc<Self::Chunk>> {
         let partitions = self.partitions.lock().expect("mutex poisoned");
         if let Some(chunks) = partitions.get(partition_key) {
             chunks.values().cloned().collect()

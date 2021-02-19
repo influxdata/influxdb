@@ -36,8 +36,8 @@ impl DBSetup for NoData {
         // listing partitions (which may create an entry in a map)
         // in an empty database
         let db = make_db();
-        assert_eq!(db.mutable_buffer_chunks(partition_key).await.len(), 1); // only open chunk
-        assert_eq!(db.read_buffer_chunks(partition_key).await.len(), 0);
+        assert_eq!(db.mutable_buffer_chunks(partition_key).len(), 1); // only open chunk
+        assert_eq!(db.read_buffer_chunks(partition_key).len(), 0);
         let scenario2 = DBScenario {
             scenario_name: "New, Empty Database after partitions are listed".into(),
             db,
@@ -55,9 +55,9 @@ impl DBSetup for NoData {
             .await
             .unwrap();
 
-        assert_eq!(db.mutable_buffer_chunks(partition_key).await.len(), 1);
+        assert_eq!(db.mutable_buffer_chunks(partition_key).len(), 1);
 
-        assert_eq!(db.read_buffer_chunks(partition_key).await.len(), 0); // only open chunk
+        assert_eq!(db.read_buffer_chunks(partition_key).len(), 0); // only open chunk
 
         let scenario3 = DBScenario {
             scenario_name: "Empty Database after drop chunk".into(),
