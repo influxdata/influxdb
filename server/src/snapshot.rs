@@ -194,7 +194,7 @@ where
             .put(
                 &partition_meta_path,
                 futures::stream::once(async move { stream_data }),
-                len,
+                Some(len),
             )
             .await
             .context(WritingToObjectStore)?;
@@ -247,7 +247,7 @@ where
             .put(
                 &file_name,
                 futures::stream::once(async move { stream_data }),
-                len,
+                Some(len),
             )
             .await
             .context(WritingToObjectStore)
@@ -393,7 +393,7 @@ mem,host=A,region=west used=45 1
         let mut data_path = store.new_path();
         data_path.push_dir("data");
 
-        let chunk = Arc::clone(&db.chunks("1970-01-01T00").await[0]);
+        let chunk = Arc::clone(&db.chunks("1970-01-01T00")[0]);
 
         let snapshot = snapshot_chunk(
             metadata_path.clone(),

@@ -101,7 +101,7 @@ checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
 [[package]]
 name = "arrow"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=e2d6c057684b587151afffe50f7eaef94533e017#e2d6c057684b587151afffe50f7eaef94533e017"
+source = "git+https://github.com/apache/arrow.git?rev=ad4504e8e85eb8e5babe0f01ca8cf9947499fc40#ad4504e8e85eb8e5babe0f01ca8cf9947499fc40"
 dependencies = [
  "cfg_aliases",
  "chrono",
@@ -124,7 +124,7 @@ dependencies = [
 [[package]]
 name = "arrow-flight"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=e2d6c057684b587151afffe50f7eaef94533e017#e2d6c057684b587151afffe50f7eaef94533e017"
+source = "git+https://github.com/apache/arrow.git?rev=ad4504e8e85eb8e5babe0f01ca8cf9947499fc40#ad4504e8e85eb8e5babe0f01ca8cf9947499fc40"
 dependencies = [
  "arrow",
  "bytes",
@@ -237,7 +237,7 @@ checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 [[package]]
 name = "azure_core"
 version = "0.1.0"
-source = "git+https://github.com/Azure/azure-sdk-for-rust.git?rev=5ecad7216e1f04c5ff41e7de4667f006664c8cca#5ecad7216e1f04c5ff41e7de4667f006664c8cca"
+source = "git+https://github.com/Azure/azure-sdk-for-rust.git?rev=14ff9326bb1ba07f98733a548988eccd4532b945#14ff9326bb1ba07f98733a548988eccd4532b945"
 dependencies = [
  "RustyXML",
  "async-trait",
@@ -266,7 +266,7 @@ dependencies = [
 [[package]]
 name = "azure_storage"
 version = "0.1.0"
-source = "git+https://github.com/Azure/azure-sdk-for-rust.git?rev=5ecad7216e1f04c5ff41e7de4667f006664c8cca#5ecad7216e1f04c5ff41e7de4667f006664c8cca"
+source = "git+https://github.com/Azure/azure-sdk-for-rust.git?rev=14ff9326bb1ba07f98733a548988eccd4532b945#14ff9326bb1ba07f98733a548988eccd4532b945"
 dependencies = [
  "RustyXML",
  "azure_core",
@@ -289,6 +289,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "smallvec",
+ "thiserror",
  "time 0.2.25",
  "url",
  "uuid",
@@ -849,7 +850,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=e2d6c057684b587151afffe50f7eaef94533e017#e2d6c057684b587151afffe50f7eaef94533e017"
+source = "git+https://github.com/apache/arrow.git?rev=ad4504e8e85eb8e5babe0f01ca8cf9947499fc40#ad4504e8e85eb8e5babe0f01ca8cf9947499fc40"
 dependencies = [
  "ahash 0.7.0",
  "arrow",
@@ -1205,6 +1206,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "13de07eb8ea81ae445aca7b69f5f7bf15d7bf4912d8ca37d6645c77ae8a58d86"
 dependencies = [
  "once_cell",
+]
+
+[[package]]
+name = "futures-test"
+version = "0.3.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b30f48f6b9cd26d8739965d6e3345c511718884fb223795b80dc71d24a9ea9a"
+dependencies = [
+ "futures-core",
+ "futures-executor",
+ "futures-io",
+ "futures-sink",
+ "futures-task",
+ "futures-util",
+ "once_cell",
+ "pin-project 1.0.5",
+ "pin-utils",
 ]
 
 [[package]]
@@ -2135,6 +2153,7 @@ dependencies = [
  "cloud-storage",
  "dotenv",
  "futures",
+ "futures-test",
  "itertools 0.9.0",
  "percent-encoding",
  "reqwest",
@@ -2283,7 +2302,7 @@ dependencies = [
 [[package]]
 name = "parquet"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=e2d6c057684b587151afffe50f7eaef94533e017#e2d6c057684b587151afffe50f7eaef94533e017"
+source = "git+https://github.com/apache/arrow.git?rev=ad4504e8e85eb8e5babe0f01ca8cf9947499fc40#ad4504e8e85eb8e5babe0f01ca8cf9947499fc40"
 dependencies = [
  "arrow",
  "base64 0.12.3",

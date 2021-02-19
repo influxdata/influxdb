@@ -672,7 +672,7 @@ mod test {
         )
         .unwrap();
         let mut ctx = ExecutionContext::new();
-        ctx.register_table("t", Box::new(provider));
+        ctx.register_table("t", Arc::new(provider));
 
         let df = ctx.table("t").unwrap();
         let df = df.aggregate(&[], &aggs).unwrap();

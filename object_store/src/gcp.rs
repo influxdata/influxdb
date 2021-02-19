@@ -84,7 +84,7 @@ impl ObjectStoreApi for GoogleCloudStorage {
         CloudPath::default()
     }
 
-    async fn put<S>(&self, location: &Self::Path, bytes: S, length: usize) -> Result<()>
+    async fn put<S>(&self, location: &Self::Path, bytes: S, length: Option<usize>) -> Result<()>
     where
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
@@ -95,13 +95,15 @@ impl ObjectStoreApi for GoogleCloudStorage {
             .expect("Should have been able to collect streaming data")
             .to_vec();
 
-        ensure!(
-            temporary_non_streaming.len() == length,
-            DataDoesNotMatchLength {
-                actual: temporary_non_streaming.len(),
-                expected: length,
-            }
-        );
+        if let Some(length) = length {
+            ensure!(
+                temporary_non_streaming.len() == length,
+                DataDoesNotMatchLength {
+                    actual: temporary_non_streaming.len(),
+                    expected: length,
+                }
+            );
+        }
 
         let location = location.to_raw();
         let location_copy = location.clone();
@@ -363,7 +365,7 @@ mod test {
             .put(
                 &location,
                 futures::stream::once(async move { stream_data }),
-                data.len(),
+                Some(data.len()),
             )
             .await;
         assert!(result.is_ok());

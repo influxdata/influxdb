@@ -399,7 +399,7 @@ impl Segment {
                     .put(
                         &location,
                         futures::stream::once(async move { stream_data }),
-                        len,
+                        Some(len),
                     )
                     .await
                 {

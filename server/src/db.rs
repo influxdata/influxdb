@@ -126,11 +126,10 @@ impl Db {
 
     // Return a list of all chunks in the mutable_buffer (that can
     // potentially be migrated into the read buffer or object store)
-    pub async fn mutable_buffer_chunks(&self, partition_key: &str) -> Vec<Arc<DBChunk>> {
+    pub fn mutable_buffer_chunks(&self, partition_key: &str) -> Vec<Arc<DBChunk>> {
         let chunks = if let Some(mutable_buffer) = self.mutable_buffer.as_ref() {
             mutable_buffer
                 .chunks(partition_key)
-                .await
                 .into_iter()
                 .map(DBChunk::new_mb)
                 .collect()
@@ -141,7 +140,7 @@ impl Db {
     }
 
     /// List chunks that are currently in the read buffer
-    pub async fn read_buffer_chunks(&self, partition_key: &str) -> Vec<Arc<DBChunk>> {
+    pub fn read_buffer_chunks(&self, partition_key: &str) -> Vec<Arc<DBChunk>> {
         self.read_buffer
             .chunk_ids(partition_key)
             .into_iter()
@@ -247,14 +246,14 @@ impl Database for Db {
     type Chunk = DBChunk;
 
     /// Return a covering set of chunks for a particular partition
-    async fn chunks(&self, partition_key: &str) -> Vec<Arc<Self::Chunk>> {
+    fn chunks(&self, partition_key: &str) -> Vec<Arc<Self::Chunk>> {
         // return a coverting set of chunks. TODO include read buffer
         // chunks and take them preferentially from the read buffer.
         // returns a coverting set of chunks -- aka take chunks from read buffer
         // preferentially
-        let mutable_chunk_iter = self.mutable_buffer_chunks(partition_key).await.into_iter();
+        let mutable_chunk_iter = self.mutable_buffer_chunks(partition_key).into_iter();
 
-        let read_buffer_chunk_iter = self.read_buffer_chunks(partition_key).await.into_iter();
+        let read_buffer_chunk_iter = self.read_buffer_chunks(partition_key).into_iter();
 
         let chunks: BTreeMap<_, _> = mutable_chunk_iter
             .chain(read_buffer_chunk_iter)
@@ -315,12 +314,11 @@ impl Database for Db {
             .context(MutableBufferRead)
     }
 
-    async fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
+    fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
         self.mutable_buffer
             .as_ref()
             .context(DatabaseNotReadable)?
             .partition_keys()
-            .await
             .context(MutableBufferRead)
     }
 }
@@ -380,7 +378,7 @@ mod tests {
         let db = make_db();
         let mut writer = TestLPWriter::default();
         writer.write_lp_string(&db, "cpu bar=1 10").await.unwrap();
-        assert_eq!(vec!["1970-01-01T00"], db.partition_keys().await.unwrap());
+        assert_eq!(vec!["1970-01-01T00"], db.partition_keys().unwrap());
 
         let mb_chunk = db.rollover_partition("1970-01-01T00").await.unwrap();
         assert_eq!(mb_chunk.id(), 0);
@@ -436,8 +434,8 @@ mod tests {
 
         // we should have chunks in both the mutable buffer and read buffer
         // (Note the currently open chunk is not listed)
-        assert_eq!(mutable_chunk_ids(&db, partition_key).await, vec![0, 1]);
-        assert_eq!(read_buffer_chunk_ids(&db, partition_key).await, vec![0]);
+        assert_eq!(mutable_chunk_ids(&db, partition_key), vec![0, 1]);
+        assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![0]);
 
         // data should be readable
         let expected = vec![
@@ -456,8 +454,8 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(mutable_chunk_ids(&db, partition_key).await, vec![1]);
-        assert_eq!(read_buffer_chunk_ids(&db, partition_key).await, vec![0]);
+        assert_eq!(mutable_chunk_ids(&db, partition_key), vec![1]);
+        assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![0]);
 
         let batches = run_query(&db, "select * from cpu").await;
         assert_table_eq!(&expected, &batches);
@@ -467,7 +465,7 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(
-            read_buffer_chunk_ids(&db, partition_key).await,
+            read_buffer_chunk_ids(&db, partition_key),
             vec![] as Vec<u32>
         );
 
@@ -487,9 +485,9 @@ mod tests {
         writer.write_lp_string(&db, "cpu bar=1 10").await.unwrap();
         writer.write_lp_string(&db, "cpu bar=1 20").await.unwrap();
 
-        assert_eq!(mutable_chunk_ids(&db, partition_key).await, vec![0]);
+        assert_eq!(mutable_chunk_ids(&db, partition_key), vec![0]);
         assert_eq!(
-            read_buffer_chunk_ids(&db, partition_key).await,
+            read_buffer_chunk_ids(&db, partition_key),
             vec![] as Vec<u32>
         );
 
@@ -507,8 +505,8 @@ mod tests {
 
         writer.write_lp_string(&db, "cpu bar=1 40").await.unwrap();
 
-        assert_eq!(mutable_chunk_ids(&db, partition_key).await, vec![0, 1, 2]);
-        assert_eq!(read_buffer_chunk_ids(&db, partition_key).await, vec![1]);
+        assert_eq!(mutable_chunk_ids(&db, partition_key), vec![0, 1, 2]);
+        assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![1]);
     }
 
     // run a sql query against the database, returning the results as record batches
@@ -521,10 +519,9 @@ mod tests {
         collect(physical_plan).await.unwrap()
     }
 
-    async fn mutable_chunk_ids(db: &Db, partition_key: &str) -> Vec<u32> {
+    fn mutable_chunk_ids(db: &Db, partition_key: &str) -> Vec<u32> {
         let mut chunk_ids: Vec<u32> = db
             .mutable_buffer_chunks(partition_key)
-            .await
             .iter()
             .map(|chunk| chunk.id())
             .collect();
@@ -532,10 +529,9 @@ mod tests {
         chunk_ids
     }
 
-    async fn read_buffer_chunk_ids(db: &Db, partition_key: &str) -> Vec<u32> {
+    fn read_buffer_chunk_ids(db: &Db, partition_key: &str) -> Vec<u32> {
         let mut chunk_ids: Vec<u32> = db
             .read_buffer_chunks(partition_key)
-            .await
             .iter()
             .map(|chunk| chunk.id())
             .collect();
