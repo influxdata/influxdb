@@ -145,15 +145,7 @@ impl DBSetup for OneMeasurementManyFields {
                    h2o,tag1=foo,tag2=bar field1=70.5,field2=\"ss\" 100\n\
                    h2o,tag1=foo,tag2=bar field1=70.6,field4=true 1000";
 
-        // Can't use all one chunks scenarios until read buffer supports string fields
-        //
-        // ---- query_tests::influxrpc::field_columns::test_field_name_plan stdout ----
-        // thread 'query_tests::influxrpc::field_columns::test_field_name_plan' panicked
-        // at 'not implemented: data type Utf8 currently not supported for field
-        // columns', read_buffer/src/row_group.rs:1014:31 note: run with
-        // `RUST_BACKTRACE=1` environment variable to display a backtrace
-
-        //make_one_chunk_scenarios(partition_key, data).await
+        make_one_chunk_scenarios(partition_key, data).await;
 
         make_one_chunk_no_read_buffer_scenarios(partition_key, data).await
     }

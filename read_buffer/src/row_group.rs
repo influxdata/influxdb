@@ -1019,6 +1019,9 @@ impl From<RecordBatch> for RowGroup {
                         arrow::datatypes::DataType::Boolean => {
                             Column::from(arrow::array::BooleanArray::from(arrow_column.data()))
                         }
+                        arrow::datatypes::DataType::Utf8 => {
+                            Column::from(arrow::array::StringArray::from(arrow_column.data()))
+                        }
                         dt => unimplemented!(
                             "data type {:?} currently not supported for field columns",
                             dt
