@@ -524,7 +524,7 @@ func (t *TSMReader) Size() uint32 {
 func (t *TSMReader) LastModified() int64 {
 	t.mu.RLock()
 	lm := t.lastModified
-	for _, ts := range t.tombstoner.TombstoneFiles() {
+	if ts := t.tombstoner.TombstoneStats(); ts.TombstoneExists {
 		if ts.LastModified > lm {
 			lm = ts.LastModified
 		}
@@ -542,9 +542,9 @@ func (t *TSMReader) HasTombstones() bool {
 }
 
 // TombstoneFiles returns any tombstone files associated with this TSM file.
-func (t *TSMReader) TombstoneFiles() []FileStat {
+func (t *TSMReader) TombstoneStats() TombstoneStat {
 	t.mu.RLock()
-	fs := t.tombstoner.TombstoneFiles()
+	fs := t.tombstoner.TombstoneStats()
 	t.mu.RUnlock()
 	return fs
 }
