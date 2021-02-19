@@ -2739,8 +2739,8 @@ func TestFileStore_CreateSnapshot(t *testing.T) {
 		if _, err := os.Stat(p); os.IsNotExist(err) {
 			t.Fatalf("unable to find file %q", p)
 		}
-		for _, tf := range f.TombstoneFiles() {
-			p := filepath.Join(s, filepath.Base(tf.Path))
+		if ts := f.TombstoneStats(); ts.TombstoneExists {
+			p := filepath.Join(s, filepath.Base(ts.Path))
 			t.Logf("checking for existence of hard link %q", p)
 			if _, err := os.Stat(p); os.IsNotExist(err) {
 				t.Fatalf("unable to find file %q", p)
