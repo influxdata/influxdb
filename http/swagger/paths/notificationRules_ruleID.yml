@@ -1,0 +1,133 @@
+"/notificationRules/{ruleID}":
+  get:
+    operationId: GetNotificationRulesID
+    tags:
+      - NotificationRules
+    summary: Get a notification rule
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: path
+        name: ruleID
+        schema:
+          type: string
+        required: true
+        description: The notification rule ID.
+    responses:
+      "200":
+        description: The notification rule requested
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/NotificationRule.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+  put:
+    operationId: PutNotificationRulesID
+    tags:
+      - NotificationRules
+    summary: Update a notification rule
+    requestBody:
+      description: Notification rule update to apply
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas/NotificationRule.yml"
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: path
+        name: ruleID
+        schema:
+          type: string
+        required: true
+        description: The notification rule ID.
+    responses:
+      "200":
+        description: An updated notification rule
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/NotificationRule.yml"
+      "404":
+        description: The notification rule was not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+  patch:
+    operationId: PatchNotificationRulesID
+    tags:
+      - NotificationRules
+    summary: Update a notification rule
+    requestBody:
+      description: Notification rule update to apply
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas/NotificationRuleUpdate.yml"
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: path
+        name: ruleID
+        schema:
+          type: string
+        required: true
+        description: The notification rule ID.
+    responses:
+      "200":
+        description: An updated notification rule
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/NotificationRule.yml"
+      "404":
+        description: The notification rule was not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+  delete:
+    operationId: DeleteNotificationRulesID
+    tags:
+      - NotificationRules
+    summary: Delete a notification rule
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: path
+        name: ruleID
+        schema:
+          type: string
+        required: true
+        description: The notification rule ID.
+    responses:
+      "204":
+        description: Delete has been accepted
+      "404":
+        description: The check was not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"

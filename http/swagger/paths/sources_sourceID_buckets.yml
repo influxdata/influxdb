@@ -1,0 +1,39 @@
+/sources/{sourceID}/buckets:
+  get:
+    operationId: GetSourcesIDBuckets
+    tags:
+      - Sources
+      - Buckets
+    summary: Get buckets in a source
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: path
+        name: sourceID
+        schema:
+          type: string
+        required: true
+        description: The source ID.
+      - in: query
+        name: org
+        description: The organization name.
+        schema:
+          type: string
+    responses:
+      "200":
+        description: A source
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Buckets.yml"
+      "404":
+        description: Source not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"

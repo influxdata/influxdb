@@ -1,0 +1,33 @@
+"/tasks/{taskID}/runs/{runID}/retry":
+  post:
+    operationId: PostTasksIDRunsIDRetry
+    tags:
+      - Tasks
+    summary: Retry a task run
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: path
+        name: taskID
+        schema:
+          type: string
+        required: true
+        description: The task ID.
+      - in: path
+        name: runID
+        schema:
+          type: string
+        required: true
+        description: The run ID.
+    responses:
+      "200":
+        description: Run that has been queued
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Run.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"

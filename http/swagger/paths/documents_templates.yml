@@ -1,0 +1,57 @@
+/documents/templates:
+  get:
+    operationId: GetDocumentsTemplates
+    tags:
+      - Templates
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: query
+        name: org
+        description: Specifies the name of the organization of the template.
+        schema:
+          type: string
+      - in: query
+        name: orgID
+        description: Specifies the organization ID of the template.
+        schema:
+          type: string
+    responses:
+      "200":
+        description: A list of template documents
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Documents.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+  post:
+    operationId: PostDocumentsTemplates
+    tags:
+      - Templates
+    summary: Create a template
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+    requestBody:
+      description: Template that will be created
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas/DocumentCreate.yml"
+    responses:
+      "201":
+        description: Template created
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Document.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"

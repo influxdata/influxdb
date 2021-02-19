@@ -1,0 +1,35 @@
+"/notificationEndpoints/{endpointID}/labels/{labelID}":
+  delete:
+    operationId: DeleteNotificationEndpointsIDLabelsID
+    tags:
+      - NotificationEndpoints
+    summary: Delete a label from a notification endpoint
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: path
+        name: endpointID
+        schema:
+          type: string
+        required: true
+        description: The notification endpoint ID.
+      - in: path
+        name: labelID
+        schema:
+          type: string
+        required: true
+        description: The ID of the label to delete.
+    responses:
+      "204":
+        description: Delete has been accepted
+      "404":
+        description: Endpoint or label not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"

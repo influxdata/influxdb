@@ -1,0 +1,53 @@
+/sources:
+  post:
+    operationId: PostSources
+    tags:
+      - Sources
+    summary: Create a source
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+    requestBody:
+      description: Source to create
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas/Source.yml"
+    responses:
+      "201":
+        description: Created Source
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Source.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+  get:
+    operationId: GetSources
+    tags:
+      - Sources
+    summary: Get all sources
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: query
+        name: org
+        description: The organization name.
+        schema:
+          type: string
+    responses:
+      "200":
+        description: All sources
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Sources.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"

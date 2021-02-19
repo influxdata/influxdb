@@ -1,0 +1,39 @@
+"/checks/{checkID}/query":
+  get:
+    operationId: GetChecksIDQuery
+    tags:
+      - Checks
+    summary: Get a check query
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: path
+        name: checkID
+        schema:
+          type: string
+        required: true
+        description: The check ID.
+    responses:
+      "200":
+        description: The check query requested
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/FluxResponse.yml"
+      "400":
+        description: Invalid request
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+      "404":
+        description: Check not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"

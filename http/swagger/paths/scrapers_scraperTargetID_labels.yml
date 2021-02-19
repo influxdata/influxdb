@@ -1,0 +1,60 @@
+"/scrapers/{scraperTargetID}/labels":
+  get:
+    operationId: GetScrapersIDLabels
+    tags:
+      - ScraperTargets
+    summary: List all labels for a scraper target
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: path
+        name: scraperTargetID
+        schema:
+          type: string
+        required: true
+        description: The scraper target ID.
+    responses:
+      "200":
+        description: A list of all labels for a scraper target
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/LabelsResponse.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+  post:
+    operationId: PostScrapersIDLabels
+    tags:
+      - ScraperTargets
+    summary: Add a label to a scraper target
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: path
+        name: scraperTargetID
+        schema:
+          type: string
+        required: true
+        description: The scraper target ID.
+    requestBody:
+      description: Label to add
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas/LabelMapping.yml"
+    responses:
+      "201":
+        description: The newly added label
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/LabelResponse.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"

@@ -1,0 +1,54 @@
+/checks:
+  get:
+    operationId: GetChecks
+    tags:
+      - Checks
+    summary: Get all checks
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - $ref: "../components/parameters/Offset.yml"
+      - $ref: "../components/parameters/Limit.yml"
+      - in: query
+        name: orgID
+        required: true
+        description: Only show checks that belong to a specific organization ID.
+        schema:
+          type: string
+    responses:
+      "200":
+        description: A list of checks
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Checks.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+  post:
+    operationId: CreateCheck
+    tags:
+      - Checks
+    summary: Add new check
+    requestBody:
+      description: Check to create
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas/PostCheck.yml"
+    responses:
+      "201":
+        description: Check created
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Check.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"

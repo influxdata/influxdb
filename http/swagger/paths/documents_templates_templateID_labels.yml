@@ -1,0 +1,60 @@
+"/documents/templates/{templateID}/labels":
+  get:
+    operationId: GetDocumentsTemplatesIDLabels
+    tags:
+      - Templates
+    summary: List all labels for a template
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: path
+        name: templateID
+        schema:
+          type: string
+        required: true
+        description: The template ID.
+    responses:
+      "200":
+        description: A list of all labels for a template
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/LabelsResponse.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+  post:
+    operationId: PostDocumentsTemplatesIDLabels
+    tags:
+      - Templates
+    summary: Add a label to a template
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: path
+        name: templateID
+        schema:
+          type: string
+        required: true
+        description: The template ID.
+    requestBody:
+      description: Label to add
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas/LabelMapping.yml"
+    responses:
+      "201":
+        description: The label added to the template
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/LabelResponse.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"

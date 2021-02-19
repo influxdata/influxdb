@@ -1,0 +1,23 @@
+/ready:
+  servers:
+    - url: /
+  get:
+    operationId: GetReady
+    tags:
+      - Ready
+    summary: Get the readiness of an instance at startup
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+    responses:
+      "200":
+        description: The instance is ready
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Ready.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"

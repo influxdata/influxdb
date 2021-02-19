@@ -1,0 +1,29 @@
+/signin:
+  post:
+    operationId: PostSignin
+    summary: Exchange basic auth credentials for session
+    security:
+      - BasicAuth: []
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+    responses:
+      "204":
+        description: Successfully authenticated
+      "401":
+        description: Unauthorized access
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+      "403":
+        description: user account is disabled
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+      default:
+        description: Unsuccessful authentication
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"

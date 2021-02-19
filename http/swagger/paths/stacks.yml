@@ -1,0 +1,77 @@
+/stacks:
+  get:
+    operationId: ListStacks
+    tags:
+      - InfluxDB Templates
+    summary: Grab a list of installed InfluxDB Templates
+    parameters:
+      - in: query
+        name: orgID
+        required: true
+        schema:
+          type: string
+        description: The organization id of the stacks
+      - in: query
+        name: name
+        schema:
+          type: string
+        description: A collection of names to filter the list by.
+      - in: query
+        name: stackID
+        schema:
+          type: string
+        description: A collection of stackIDs to filter the list by.
+    responses:
+      "200":
+        description: Influx stacks found
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                stacks:
+                  type: array
+                  items:
+                    $ref: "../components/schemas/Stack.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+  post:
+    operationId: CreateStack
+    tags:
+      - InfluxDB Templates
+    summary: Create a new stack
+    requestBody:
+      description: Stack to create.
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              orgID:
+                type: string
+              name:
+                type: string
+              description:
+                type: string
+              urls:
+                type: array
+                items:
+                  type: string
+    responses:
+      "201":
+        description: InfluxDB Stack created
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Stack.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"

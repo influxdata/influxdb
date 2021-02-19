@@ -1,0 +1,62 @@
+"/buckets/{bucketID}/owners":
+  get:
+    operationId: GetBucketsIDOwners
+    tags:
+      - Users
+      - Buckets
+    summary: List all owners of a bucket
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: path
+        name: bucketID
+        schema:
+          type: string
+        required: true
+        description: The bucket ID.
+    responses:
+      "200":
+        description: A list of bucket owners
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/ResourceOwners.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+  post:
+    operationId: PostBucketsIDOwners
+    tags:
+      - Users
+      - Buckets
+    summary: Add an owner to a bucket
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: path
+        name: bucketID
+        schema:
+          type: string
+        required: true
+        description: The bucket ID.
+    requestBody:
+      description: User to add as owner
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas/AddResourceMemberRequestBody.yml"
+    responses:
+      "201":
+        description: Bucket owner added
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/ResourceOwner.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"

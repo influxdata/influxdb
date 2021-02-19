@@ -1,0 +1,80 @@
+"/documents/templates/{templateID}":
+  get:
+    operationId: GetDocumentsTemplatesID
+    tags:
+      - Templates
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: path
+        name: templateID
+        schema:
+          type: string
+        required: true
+        description: The template ID.
+    responses:
+      "200":
+        description: The template requested
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Document.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+  put:
+    operationId: PutDocumentsTemplatesID
+    tags:
+      - Templates
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: path
+        name: templateID
+        schema:
+          type: string
+        required: true
+        description: The template ID.
+    requestBody:
+      description: Template that will be updated
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas/DocumentUpdate.yml"
+    responses:
+      "200":
+        description: The newly updated template
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Document.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+  delete:
+    operationId: DeleteDocumentsTemplatesID
+    tags:
+      - Templates
+    summary: Delete a template
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: path
+        name: templateID
+        schema:
+          type: string
+        required: true
+        description: The template ID.
+    responses:
+      "204":
+        description: Delete has been accepted
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"

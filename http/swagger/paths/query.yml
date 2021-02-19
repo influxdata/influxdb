@@ -1,0 +1,92 @@
+/query:
+  post:
+    operationId: PostQuery
+    tags:
+      - Query
+    summary: Query InfluxDB
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: header
+        name: Accept-Encoding
+        description: The Accept-Encoding request HTTP header advertises which content encoding, usually a compression algorithm, the client is able to understand.
+        schema:
+          type: string
+          description: Specifies that the query response in the body should be encoded with gzip or not encoded with identity.
+          default: identity
+          enum:
+            - gzip
+            - identity
+      - in: header
+        name: Content-Type
+        schema:
+          type: string
+          enum:
+            - application/json
+            - application/vnd.flux
+      - in: query
+        name: org
+        description: Specifies the name of the organization executing the query. Takes either the ID or Name interchangeably. If both `orgID` and `org` are specified, `org` takes precedence.
+        schema:
+          type: string
+      - in: query
+        name: orgID
+        description: Specifies the ID of the organization executing the query. If both `orgID` and `org` are specified, `org` takes precedence.
+        schema:
+          type: string
+    requestBody:
+      description: Flux query or specification to execute
+      content:
+        application/json:
+          schema:
+            oneOf:
+              
+
+              - $ref: "../components/schemas/InfluxQLQuery.yml"
+        application/vnd.flux:
+          schema:
+            type: string
+    responses:
+      "200":
+        description: Query results
+        headers:
+          Content-Encoding:
+            description: The Content-Encoding entity header is used to compress the media-type.  When present, its value indicates which encodings were applied to the entity-body
+            schema:
+              type: string
+              description: Specifies that the response in the body is encoded with gzip or not encoded with identity.
+              default: identity
+              enum:
+                - gzip
+                - identity
+          Trace-Id:
+            description: The Trace-Id header reports the request's trace ID, if one was generated.
+            schema:
+              type: string
+              description: Specifies the request's trace ID.
+        content:
+          text/csv:
+            schema:
+              type: string
+              example: >
+                result,table,_start,_stop,_time,region,host,_value
+                mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:00Z,east,A,15.43
+                mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:20Z,east,B,59.25
+                mean,0,2018-05-08T20:50:00Z,2018-05-08T20:51:00Z,2018-05-08T20:50:40Z,east,C,52.62
+          application/vnd.influx.arrow:
+            schema:
+              type: string
+              format: binary
+      "429":
+        description: Token is temporarily over quota. The Retry-After header describes when to try the read again.
+        headers:
+          Retry-After:
+            description: A non-negative decimal integer indicating the seconds to delay after the response is received.
+            schema:
+              type: integer
+              format: int32
+      default:
+        description: Error processing query
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"

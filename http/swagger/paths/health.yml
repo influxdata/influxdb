@@ -1,0 +1,29 @@
+/health:
+  servers:
+    - url: /
+  get:
+    operationId: GetHealth
+    tags:
+      - Health
+    summary: Get the health of an instance
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+    responses:
+      "200":
+        description: The instance is healthy
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/HealthCheck.yml"
+      "503":
+        description: The instance is unhealthy
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/HealthCheck.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"

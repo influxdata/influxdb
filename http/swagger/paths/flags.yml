@@ -1,0 +1,21 @@
+/flags:
+  get:
+    operationId: GetFlags
+    tags:
+      - Users
+    summary: Return the feature flags for the currently authenticated user
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+    responses:
+      "200":
+        description: Feature flags for the currently authenticated user
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Flags.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"

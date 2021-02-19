@@ -1,0 +1,100 @@
+/sources/{sourceID}:
+  delete:
+    operationId: DeleteSourcesID
+    tags:
+      - Sources
+    summary: Delete a source
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: path
+        name: sourceID
+        schema:
+          type: string
+        required: true
+        description: The source ID.
+    responses:
+      "204":
+        description: Delete has been accepted
+      "404":
+        description: View not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+  patch:
+    operationId: PatchSourcesID
+    tags:
+      - Sources
+    summary: Update a Source
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: path
+        name: sourceID
+        schema:
+          type: string
+        required: true
+        description: The source ID.
+    requestBody:
+      description: Source update
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas/Source.yml"
+    responses:
+      "200":
+        description: Created Source
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Source.yml"
+      "404":
+        description: Source not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+  get:
+    operationId: GetSourcesID
+    tags:
+      - Sources
+    summary: Get a source
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: path
+        name: sourceID
+        schema:
+          type: string
+        required: true
+        description: The source ID.
+    responses:
+      "200":
+        description: A source
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Source.yml"
+      "404":
+        description: Source not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"

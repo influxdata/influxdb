@@ -1,0 +1,51 @@
+/labels:
+  post:
+    operationId: PostLabels
+    tags:
+      - Labels
+    summary: Create a label
+    requestBody:
+      description: Label to create
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "../components/schemas/LabelCreateRequest.yml"
+    responses:
+      "201":
+        description: Added label
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/LabelResponse.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+  get:
+    operationId: GetLabels
+    tags:
+      - Labels
+    summary: Get all labels
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: query
+        name: orgID
+        description: The organization ID.
+        schema:
+          type: string
+    responses:
+      "200":
+        description: All labels
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/LabelsResponse.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"

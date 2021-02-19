@@ -1,0 +1,35 @@
+"/telegrafs/{telegrafID}/labels/{labelID}":
+  delete:
+    operationId: DeleteTelegrafsIDLabelsID
+    tags:
+      - Telegrafs
+    summary: Delete a label from a Telegraf config
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: path
+        name: telegrafID
+        schema:
+          type: string
+        required: true
+        description: The Telegraf config ID.
+      - in: path
+        name: labelID
+        schema:
+          type: string
+        required: true
+        description: The label ID.
+    responses:
+      "204":
+        description: Delete has been accepted
+      "404":
+        description: Telegraf config not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"

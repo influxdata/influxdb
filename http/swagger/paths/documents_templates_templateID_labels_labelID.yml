@@ -1,0 +1,35 @@
+"/documents/templates/{templateID}/labels/{labelID}":
+  delete:
+    operationId: DeleteDocumentsTemplatesIDLabelsID
+    tags:
+      - Templates
+    summary: Delete a label from a template
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: path
+        name: templateID
+        schema:
+          type: string
+        required: true
+        description: The template ID.
+      - in: path
+        name: labelID
+        schema:
+          type: string
+        required: true
+        description: The label ID.
+    responses:
+      "204":
+        description: Delete has been accepted
+      "404":
+        description: Template not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"

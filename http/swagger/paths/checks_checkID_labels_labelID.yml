@@ -1,0 +1,35 @@
+"/checks/{checkID}/labels/{labelID}":
+  delete:
+    operationId: DeleteChecksIDLabelsID
+    tags:
+      - Checks
+    summary: Delete label from a check
+    parameters:
+      - $ref: "../components/parameters/TraceSpan.yml"
+      - in: path
+        name: checkID
+        schema:
+          type: string
+        required: true
+        description: The check ID.
+      - in: path
+        name: labelID
+        schema:
+          type: string
+        required: true
+        description: The ID of the label to delete.
+    responses:
+      "204":
+        description: Delete has been accepted
+      "404":
+        description: Check or label not found
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
+      default:
+        description: Unexpected error
+        content:
+          application/json:
+            schema:
+              $ref: "../components/schemas/Error.yml"
