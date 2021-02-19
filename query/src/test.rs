@@ -33,11 +33,12 @@ use data_types::{
 use influxdb_line_protocol::{parse_lines, ParsedLine};
 
 use async_trait::async_trait;
+use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
     collections::{BTreeMap, BTreeSet},
     fmt::Write,
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 
 #[derive(Debug, Default)]
@@ -124,15 +125,12 @@ impl TestDatabase {
 
     /// Get all lines written to this database
     pub fn get_lines(&self) -> Vec<String> {
-        self.saved_lines.lock().expect("mutex poisoned").clone()
+        self.saved_lines.lock().clone()
     }
 
     /// Get all replicated writs to this database
     pub fn get_writes(&self) -> Vec<ReplicatedWrite> {
-        self.replicated_writes
-            .lock()
-            .expect("mutex poisoned")
-            .clone()
+        self.replicated_writes.lock().clone()
     }
 
     /// Parse line protocol and add it as new lines to this
@@ -146,7 +144,7 @@ impl TestDatabase {
         writer.write_lines(self, &parsed_lines).await.unwrap();
 
         // Writes parsed lines into this database
-        let mut saved_lines = self.saved_lines.lock().expect("mutex poisoned");
+        let mut saved_lines = self.saved_lines.lock();
         for line in parsed_lines {
             saved_lines.push(line.to_string())
         }
@@ -154,7 +152,7 @@ impl TestDatabase {
 
     /// Add a test chunk to the database
     pub fn add_chunk(&self, partition_key: &str, chunk: Arc<TestChunk>) {
-        let mut partitions = self.partitions.lock().expect("mutex poisoned");
+        let mut partitions = self.partitions.lock();
         let chunks = partitions
             .entry(partition_key.to_string())
             .or_insert_with(BTreeMap::new);
@@ -165,7 +163,6 @@ impl TestDatabase {
     pub fn get_chunk(&self, partition_key: &str, id: u32) -> Option<Arc<TestChunk>> {
         self.partitions
             .lock()
-            .expect("mutex poisoned")
             .get(partition_key)
             .and_then(|p| p.get(&id).cloned())
     }
@@ -176,9 +173,7 @@ impl TestDatabase {
         let column_names = column_names.into_iter().collect::<StringSet>();
         let column_names = Arc::new(column_names);
 
-        *(Arc::clone(&self.column_names)
-            .lock()
-            .expect("mutex poisoned")) = Some(column_names)
+        *Arc::clone(&self.column_names).lock() = Some(column_names)
     }
 
     /// Set the list of column values that will be returned on a call to
@@ -187,47 +182,32 @@ impl TestDatabase {
         let column_values = column_values.into_iter().collect::<StringSet>();
         let column_values = Arc::new(column_values);
 
-        *(Arc::clone(&self.column_values)
-            .lock()
-            .expect("mutex poisoned")) = Some(column_values)
+        *Arc::clone(&self.column_values).lock() = Some(column_values)
     }
 
     /// Get the parameters from the last column name request
     pub fn get_column_values_request(&self) -> Option<ColumnValuesRequest> {
-        Arc::clone(&self.column_values_request)
-            .lock()
-            .expect("mutex poisoned")
-            .take()
+        Arc::clone(&self.column_values_request).lock().take()
     }
 
     /// Set the series that will be returned on a call to query_series
     pub fn set_query_series_values(&self, plan: SeriesSetPlans) {
-        *(Arc::clone(&self.query_series_values)
-            .lock()
-            .expect("mutex poisoned")) = Some(plan);
+        *Arc::clone(&self.query_series_values).lock() = Some(plan);
     }
 
     /// Get the parameters from the last column name request
     pub fn get_query_series_request(&self) -> Option<QuerySeriesRequest> {
-        Arc::clone(&self.query_series_request)
-            .lock()
-            .expect("mutex poisoned")
-            .take()
+        Arc::clone(&self.query_series_request).lock().take()
     }
 
     /// Set the series that will be returned on a call to query_groups
     pub fn set_query_groups_values(&self, plan: SeriesSetPlans) {
-        *(Arc::clone(&self.query_groups_values)
-            .lock()
-            .expect("mutex poisoned")) = Some(plan);
+        *Arc::clone(&self.query_groups_values).lock() = Some(plan);
     }
 
     /// Get the parameters from the last column name request
     pub fn get_query_groups_request(&self) -> Option<QueryGroupsRequest> {
-        Arc::clone(&self.query_groups_request)
-            .lock()
-            .expect("mutex poisoned")
-            .take()
+        Arc::clone(&self.query_groups_request).lock().take()
     }
 }
 
@@ -281,10 +261,7 @@ impl Database for TestDatabase {
 
     /// Adds the replicated write to this database
     async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
-        self.replicated_writes
-            .lock()
-            .expect("mutex poisoned")
-            .push(write.clone());
+        self.replicated_writes.lock().push(write.clone());
         Ok(())
     }
 
@@ -302,14 +279,11 @@ impl Database for TestDatabase {
             predicate,
         });
 
-        *Arc::clone(&self.column_values_request)
-            .lock()
-            .expect("mutex poisoned") = new_column_values_request;
+        *Arc::clone(&self.column_values_request).lock() = new_column_values_request;
 
         // pull out the saved columns
         let column_values = Arc::clone(&self.column_values)
             .lock()
-            .expect("mutex poisoned")
             .take()
             // Turn None into an error
             .context(General {
@@ -324,13 +298,10 @@ impl Database for TestDatabase {
 
         let new_queries_series_request = Some(QuerySeriesRequest { predicate });
 
-        *Arc::clone(&self.query_series_request)
-            .lock()
-            .expect("mutex poisoned") = new_queries_series_request;
+        *Arc::clone(&self.query_series_request).lock() = new_queries_series_request;
 
         Arc::clone(&self.query_series_values)
             .lock()
-            .expect("mutex poisoned")
             .take()
             // Turn None into an error
             .context(General {
@@ -347,13 +318,10 @@ impl Database for TestDatabase {
 
         let new_queries_groups_request = Some(QueryGroupsRequest { predicate, gby_agg });
 
-        *Arc::clone(&self.query_groups_request)
-            .lock()
-            .expect("mutex poisoned") = new_queries_groups_request;
+        *Arc::clone(&self.query_groups_request).lock() = new_queries_groups_request;
 
         Arc::clone(&self.query_groups_values)
             .lock()
-            .expect("mutex poisoned")
             .take()
             // Turn None into an error
             .context(General {
@@ -363,13 +331,13 @@ impl Database for TestDatabase {
 
     /// Return the partition keys for data in this DB
     fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
-        let partitions = self.partitions.lock().expect("mutex poisoned");
+        let partitions = self.partitions.lock();
         let keys = partitions.keys().cloned().collect();
         Ok(keys)
     }
 
     fn chunks(&self, partition_key: &str) -> Vec<Arc<Self::Chunk>> {
-        let partitions = self.partitions.lock().expect("mutex poisoned");
+        let partitions = self.partitions.lock();
         if let Some(chunks) = partitions.get(partition_key) {
             chunks.values().cloned().collect()
         } else {
@@ -383,7 +351,7 @@ pub struct TestChunk {
     id: u32,
 
     /// A copy of the captured predicate passed
-    predicate: std::sync::Mutex<Option<Predicate>>,
+    predicate: Mutex<Option<Predicate>>,
 
     /// Column names: table_name -> Schema
     table_schemas: BTreeMap<String, Schema>,
@@ -491,7 +459,6 @@ impl TestChunk {
     pub fn predicate(&self) -> Option<Predicate> {
         self.predicate
             .lock()
-            .expect("mutex poisoned")
             .as_ref()
             //.map(|v| v.clone())
             .cloned()
@@ -552,10 +519,7 @@ impl PartitionChunk for TestChunk {
         self.check_error()?;
 
         // save the predicate
-        self.predicate
-            .lock()
-            .expect("mutex poisoned")
-            .replace(predicate.clone());
+        self.predicate.lock().replace(predicate.clone());
 
         let batches = self.table_data.get(table_name).expect("Table had data");
         let stream = SizedRecordBatchStream::new(batches[0].schema(), batches.clone());
@@ -570,10 +534,7 @@ impl PartitionChunk for TestChunk {
         self.check_error()?;
 
         // save the predicate
-        self.predicate
-            .lock()
-            .expect("mutex poisoned")
-            .replace(predicate.clone());
+        self.predicate.lock().replace(predicate.clone());
 
         // do basic filtering based on table name predicate.
         let names = self
@@ -615,10 +576,7 @@ impl PartitionChunk for TestChunk {
         self.check_error()?;
 
         // save the predicate
-        self.predicate
-            .lock()
-            .expect("mutex poisoned")
-            .replace(predicate.clone());
+        self.predicate.lock().replace(predicate.clone());
 
         let column_names = self.table_schemas.get(table_name).map(|schema| {
             schema
@@ -668,14 +626,14 @@ impl DatabaseStore for TestDatabaseStore {
 
     /// List the database names.
     async fn db_names_sorted(&self) -> Vec<String> {
-        let databases = self.databases.lock().expect("mutex poisoned");
+        let databases = self.databases.lock();
 
         databases.keys().cloned().collect()
     }
 
     /// Retrieve the database specified name
     async fn db(&self, name: &str) -> Option<Arc<Self::Database>> {
-        let databases = self.databases.lock().expect("mutex poisoned");
+        let databases = self.databases.lock();
 
         databases.get(name).cloned()
     }
@@ -683,7 +641,7 @@ impl DatabaseStore for TestDatabaseStore {
     /// Retrieve the database specified by name, creating it if it
     /// doesn't exist.
     async fn db_or_create(&self, name: &str) -> Result<Arc<Self::Database>, Self::Error> {
-        let mut databases = self.databases.lock().expect("mutex poisoned");
+        let mut databases = self.databases.lock();
 
         if let Some(db) = databases.get(name) {
             Ok(Arc::clone(&db))

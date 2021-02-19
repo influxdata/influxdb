@@ -1638,6 +1638,7 @@ dependencies = [
  "influxdb_line_protocol",
  "influxdb_tsm",
  "packers",
+ "parking_lot",
  "snafu",
  "test_helpers",
  "tracing",
@@ -1796,6 +1797,7 @@ name = "logfmt"
 version = "0.1.0"
 dependencies = [
  "once_cell",
+ "parking_lot",
  "regex",
  "tracing",
  "tracing-subscriber",
@@ -2661,6 +2663,7 @@ dependencies = [
  "data_types",
  "futures",
  "influxdb_line_protocol",
+ "parking_lot",
  "snafu",
  "sqlparser 0.6.1",
  "test_helpers",
@@ -3293,6 +3296,7 @@ dependencies = [
  "influxdb_line_protocol",
  "mutable_buffer",
  "object_store",
+ "parking_lot",
  "pin-project 1.0.5",
  "query",
  "read_buffer",
@@ -3612,6 +3616,7 @@ name = "test_helpers"
 version = "0.1.0"
 dependencies = [
  "dotenv",
+ "parking_lot",
  "tempfile",
  "tracing",
  "tracing-subscriber",

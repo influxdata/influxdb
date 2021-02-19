@@ -551,7 +551,7 @@ async fn get_wal_meta<M: ConnectionManager + Send + Sync + Debug + 'static>(
         .wal_buffer
         .as_ref()
         .context(WALNotFound { name: &db_name_str })?;
-    let wal_buffer = wal.lock().expect("mutex poisoned");
+    let wal_buffer = wal.lock();
 
     let segments = wal_buffer
         .segments(query.offset)
