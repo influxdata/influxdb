@@ -586,7 +586,6 @@ impl InfluxRPCPlanner {
 
         let partition_keys = database
             .partition_keys()
-            .await
             .map_err(|e| Box::new(e) as _)
             .context(ListingPartitions)?;
 
@@ -594,7 +593,7 @@ impl InfluxRPCPlanner {
 
         for key in partition_keys {
             // TODO prune partitions somehow
-            let partition_chunks = database.chunks(&key).await;
+            let partition_chunks = database.chunks(&key);
             for chunk in partition_chunks {
                 let could_pass_predicate = chunk
                     .could_pass_predicate(predicate)

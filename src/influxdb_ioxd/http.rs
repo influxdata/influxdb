@@ -668,14 +668,13 @@ async fn list_partitions<M: ConnectionManager + Send + Sync + Debug + 'static>(
         bucket: &info.bucket,
     })?;
 
-    let partition_keys = db
-        .partition_keys()
-        .await
-        .map_err(|e| Box::new(e) as _)
-        .context(BucketByName {
-            org: &info.org,
-            bucket_name: &info.bucket,
-        })?;
+    let partition_keys =
+        db.partition_keys()
+            .map_err(|e| Box::new(e) as _)
+            .context(BucketByName {
+                org: &info.org,
+                bucket_name: &info.bucket,
+            })?;
 
     let result = serde_json::to_string(&partition_keys).context(JsonGenerationError)?;
 
