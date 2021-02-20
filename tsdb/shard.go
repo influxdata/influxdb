@@ -801,26 +801,6 @@ func (s *Shard) MeasurementNamesByRegex(re *regexp.Regexp) ([][]byte, error) {
 	return engine.MeasurementNamesByRegex(re)
 }
 
-// MeasurementTagKeysByExpr returns all the tag keys for the provided expression.
-func (s *Shard) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[string]struct{}, error) {
-	engine, err := s.Engine()
-	if err != nil {
-		return nil, err
-	}
-	return engine.MeasurementTagKeysByExpr(name, expr)
-}
-
-// MeasurementTagKeyValuesByExpr returns all the tag keys values for the
-// provided expression.
-func (s *Shard) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte, key []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
-	index, err := s.Index()
-	if err != nil {
-		return nil, err
-	}
-	indexSet := IndexSet{Indexes: []Index{index}, SeriesFile: s.sfile}
-	return indexSet.MeasurementTagKeyValuesByExpr(auth, name, key, expr, keysSorted)
-}
-
 // MeasurementFields returns fields for a measurement.
 // TODO(edd): This method is currently only being called from tests; do we
 // really need it?

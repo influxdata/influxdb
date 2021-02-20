@@ -1617,35 +1617,23 @@ func (s *Store) TagKeys(ctx context.Context, auth query.Authorizer, shardIDs []u
 		return nil, nil
 	}
 
-	measurementExpr := influxql.CloneExpr(cond)
-	measurementExpr = influxql.Reduce(influxql.RewriteExpr(measurementExpr, func(e influxql.Expr) influxql.Expr {
+	// take out the _name = 'mymeasurement' clause from 'FROM' clause
+	measurementExpr, filterExpr, err := PartitionExpr(influxql.CloneExpr(cond), func(e influxql.Expr) (bool, error) {
 		switch e := e.(type) {
 		case *influxql.BinaryExpr:
 			switch e.Op {
 			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
 				tag, ok := e.LHS.(*influxql.VarRef)
-				if !ok || tag.Val != "_name" {
-					return nil
+				if ok && tag.Val == "_name" {
+					return true, nil
 				}
 			}
 		}
-		return e
-	}), nil)
-
-	filterExpr := influxql.CloneExpr(cond)
-	filterExpr = influxql.Reduce(influxql.RewriteExpr(filterExpr, func(e influxql.Expr) influxql.Expr {
-		switch e := e.(type) {
-		case *influxql.BinaryExpr:
-			switch e.Op {
-			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
-				tag, ok := e.LHS.(*influxql.VarRef)
-				if !ok || influxql.IsSystemName(tag.Val) {
-					return nil
-				}
-			}
-		}
-		return e
-	}), nil)
+		return false, nil
+	})
+	if err != nil {
+		return nil, err
+	}
 
 	// Get all the shards we're interested in.
 	is := IndexSet{Indexes: make([]Index, 0, len(shardIDs))}
@@ -1788,6 +1776,32 @@ func (a tagValuesSlice) Len() int           { return len(a) }
 func (a tagValuesSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a tagValuesSlice) Less(i, j int) bool { return bytes.Compare(a[i].name, a[j].name) == -1 }
 
+func isTagKeyClause(e influxql.Expr) (bool, error) {
+	switch e := e.(type) {
+	case *influxql.BinaryExpr:
+		switch e.Op {
+		case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
+			tag, ok := e.LHS.(*influxql.VarRef)
+			if ok && tag.Val == "_tagKey" {
+				return true, nil
+			}
+		case influxql.OR, influxql.AND:
+			ok1, err := isTagKeyClause(e.LHS)
+			if err != nil {
+				return false, err
+			}
+			ok2, err := isTagKeyClause(e.RHS)
+			if err != nil {
+				return false, err
+			}
+			return ok1 && ok2, nil
+		}
+	case *influxql.ParenExpr:
+		return isTagKeyClause(e.Expr)
+	}
+	return false, nil
+}
+
 // TagValues returns the tag keys and values for the provided shards, where the
 // tag values satisfy the provided condition.
 func (s *Store) TagValues(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]TagValues, error) {
@@ -1795,35 +1809,29 @@ func (s *Store) TagValues(ctx context.Context, auth query.Authorizer, shardIDs [
 		return nil, errors.New("a condition is required")
 	}
 
-	measurementExpr := influxql.CloneExpr(cond)
-	measurementExpr = influxql.Reduce(influxql.RewriteExpr(measurementExpr, func(e influxql.Expr) influxql.Expr {
+	// take out the _name = 'mymeasurement' clause from 'FROM' clause
+	measurementExpr, remainingExpr, err := PartitionExpr(influxql.CloneExpr(cond), func(e influxql.Expr) (bool, error) {
 		switch e := e.(type) {
 		case *influxql.BinaryExpr:
 			switch e.Op {
 			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
 				tag, ok := e.LHS.(*influxql.VarRef)
-				if !ok || tag.Val != "_name" {
-					return nil
+				if ok && tag.Val == "_name" {
+					return true, nil
 				}
 			}
 		}
-		return e
-	}), nil)
+		return false, nil
+	})
+	if err != nil {
+		return nil, err
+	}
 
-	filterExpr := influxql.CloneExpr(cond)
-	filterExpr = influxql.Reduce(influxql.RewriteExpr(filterExpr, func(e influxql.Expr) influxql.Expr {
-		switch e := e.(type) {
-		case *influxql.BinaryExpr:
-			switch e.Op {
-			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
-				tag, ok := e.LHS.(*influxql.VarRef)
-				if !ok || influxql.IsSystemName(tag.Val) {
-					return nil
-				}
-			}
-		}
-		return e
-	}), nil)
+	// take out the _tagKey = 'mykey' clause from 'WITH KEY' / 'WITH KEY IN' clause
+	_, filterExpr, err := PartitionExpr(remainingExpr, isTagKeyClause)
+	if err != nil {
+		return nil, err
+	}
 
 	// Build index set to work on.
 	is := IndexSet{Indexes: make([]Index, 0, len(shardIDs))}
