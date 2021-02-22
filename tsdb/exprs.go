@@ -47,9 +47,9 @@ func ExprsToConjunction(exprs ...influxql.Expr) influxql.Expr {
 	expr := exprs[0]
 	for _, e := range exprs[1:] {
 		expr = &influxql.BinaryExpr{
-			LHS:     expr,
-			RHS:    e,
-			Op: influxql.AND,
+			LHS: expr,
+			RHS: e,
+			Op:  influxql.AND,
 		}
 	}
 

@@ -7983,6 +7983,24 @@ func TestServer_Query_ShowTagKeys(t *testing.T) {
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["tagKey"],"values":[["host"],["region"]]},{"name":"gpu","columns":["tagKey"],"values":[["host"],["region"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
+		// TODO: WITH KEY + rewriting instead of _tagKey =
+		&Query{
+			name:    `show tag keys on db0 with key`,
+			command: "SHOW TAG KEYS ON db0 where _tagKey =~ /ho/",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["tagKey"],"values":[["host"]]},{"name":"disk","columns":["tagKey"],"values":[["host"]]},{"name":"gpu","columns":["tagKey"],"values":[["host"]]}]}]}`,
+		},
+		&Query{
+			name:    "show tag keys from with key",
+			command: "SHOW TAG KEYS FROM cpu where _tagKey = 'host'",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["tagKey"],"values":[["host"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "show tag keys from regex with key",
+			command: "SHOW TAG KEYS FROM /[cg]pu/ where _tagKey =~ /[rh]/",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["tagKey"],"values":[["host"],["region"]]},{"name":"gpu","columns":["tagKey"],"values":[["host"],["region"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
 		&Query{
 			name:    "show tag keys measurement not found",
 			command: "SHOW TAG KEYS FROM doesntexist",
