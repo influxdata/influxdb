@@ -5,13 +5,14 @@ use std::{
     collections::BTreeMap,
     sync::{
         atomic::{AtomicU64, Ordering},
-        Arc, Mutex,
+        Arc,
     },
 };
 
 use async_trait::async_trait;
 use data_types::{data::ReplicatedWrite, database_rules::DatabaseRules, selection::Selection};
 use mutable_buffer::MutableBufferDb;
+use parking_lot::Mutex;
 use query::{plan::stringset::StringSetPlan, Database, PartitionChunk};
 use read_buffer::Database as ReadBufferDb;
 use serde::{Deserialize, Serialize};

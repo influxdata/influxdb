@@ -345,7 +345,7 @@ impl<M: ConnectionManager> Server<M> {
         if let Some(wal_buffer) = &db.wal_buffer {
             let persist;
             let segment = {
-                let mut wal_buffer = wal_buffer.lock().expect("mutex poisoned");
+                let mut wal_buffer = wal_buffer.lock();
                 persist = wal_buffer.persist;
 
                 // TODO: address this issue?
@@ -573,10 +573,10 @@ mod tests {
     use futures::TryStreamExt;
     use influxdb_line_protocol::parse_lines;
     use object_store::{memory::InMemory, path::ObjectStorePath};
+    use parking_lot::Mutex;
     use query::frontend::sql::SQLQueryPlanner;
     use snafu::Snafu;
     use std::collections::BTreeMap;
-    use std::sync::Mutex;
 
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T = (), E = TestError> = std::result::Result<T, E>;
@@ -805,7 +805,7 @@ mod tests {
         let lines = parsed_lines("cpu bar=1 10");
         server.write_lines("foo", &lines).await.unwrap();
 
-        let writes = remote.writes.lock().unwrap().get(db_name).unwrap().clone();
+        let writes = remote.writes.lock().get(db_name).unwrap().clone();
 
         let write_text = r#"
 writer:1, sequence:1, checksum:226387645
@@ -820,7 +820,7 @@ partition_key:
         let lines = parsed_lines("mem,server=A,region=west user=232 12");
         server.write_lines("foo", &lines).await.unwrap();
 
-        let writes = remote.writes.lock().unwrap().get(db_name).unwrap().clone();
+        let writes = remote.writes.lock().get(db_name).unwrap().clone();
         assert_eq!(2, writes.len());
 
         let write_text = r#"
@@ -870,7 +870,7 @@ partition_key:
         let lines = parsed_lines("cpu bar=1 10");
         server.write_lines("foo", &lines).await.unwrap();
 
-        let writes = remote.writes.lock().unwrap().get(db_name).unwrap().clone();
+        let writes = remote.writes.lock().get(db_name).unwrap().clone();
 
         let write_text = r#"
 writer:1, sequence:1, checksum:226387645
@@ -885,7 +885,7 @@ partition_key:
         let lines = parsed_lines("mem,server=A,region=west user=232 12");
         server.write_lines("foo", &lines).await.unwrap();
 
-        let writes = remote.writes.lock().unwrap().get(db_name).unwrap().clone();
+        let writes = remote.writes.lock().get(db_name).unwrap().clone();
         assert_eq!(2, writes.len());
 
         let write_text = r#"
@@ -993,7 +993,7 @@ partition_key:
             db: &str,
             replicated_write: &ReplicatedWrite,
         ) -> Result<(), Self::Error> {
-            let mut writes = self.writes.lock().unwrap();
+            let mut writes = self.writes.lock();
             let entries = writes.entry(db.to_string()).or_insert_with(Vec::new);
             entries.push(replicated_write.clone());
 

@@ -12,16 +12,16 @@ use std::{
     collections::BTreeMap,
     convert::{TryFrom, TryInto},
     mem,
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
 
-//use byteorder::{ByteOrder, LittleEndian, WriteBytesExt};
 use crate::tracker::{TrackedFutureExt, TrackerRegistry};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use crc32fast::Hasher;
 use data_types::database_rules::WalBufferConfig;
 use data_types::wal::{SegmentPersistence, SegmentSummary, WriterSummary};
+use parking_lot::Mutex;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use tracing::{error, info, warn};
 
@@ -363,13 +363,13 @@ impl Segment {
 
     /// sets the persistence metadata for this segment
     pub fn set_persisted(&self, persisted: SegmentPersistence) {
-        let mut self_persisted = self.persisted.lock().expect("mutex poisoned");
+        let mut self_persisted = self.persisted.lock();
         *self_persisted = Some(persisted);
     }
 
     /// returns persistence metadata for this segment if persisted
     pub fn persisted(&self) -> Option<SegmentPersistence> {
-        self.persisted.lock().expect("mutex poisoned").clone()
+        self.persisted.lock().clone()
     }
 
     /// Spawns a tokio task that will continuously try to persist the bytes to
@@ -457,7 +457,7 @@ impl Segment {
 
     /// returns a summary of the data stored within this segment
     pub fn summary(&self) -> SegmentSummary {
-        let persisted = self.persisted.lock().expect("mutex poisoned").clone();
+        let persisted = self.persisted.lock().clone();
 
         SegmentSummary {
             size: self.size,
