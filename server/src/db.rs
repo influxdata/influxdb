@@ -248,8 +248,8 @@ impl Db {
                     let key = p.key();
                     db.drop_partition(key);
                     info!(
-                        "dropped partition {} from mutable buffer to free {} bytes",
-                        key, partition_size
+                        partition_key = key,
+                        partition_size, "dropped partition from mutable buffer",
                     );
                     if size < config.buffer_size {
                         return Ok(());
