@@ -4,7 +4,8 @@
     missing_debug_implementations,
     missing_docs,
     clippy::explicit_iter_loop,
-    clippy::use_self
+    clippy::use_self,
+    clippy::clone_on_ref_ptr
 )]
 
 //! # object_store
@@ -17,6 +18,7 @@
 
 pub mod aws;
 pub mod azure;
+mod buffer;
 pub mod disk;
 pub mod gcp;
 pub mod memory;
@@ -53,7 +55,7 @@ pub trait ObjectStoreApi: Send + Sync + 'static {
         &self,
         location: &Self::Path,
         bytes: S,
-        length: usize,
+        length: Option<usize>,
     ) -> Result<(), Self::Error>
     where
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static;
@@ -129,7 +131,7 @@ impl ObjectStoreApi for ObjectStore {
         }
     }
 
-    async fn put<S>(&self, location: &Self::Path, bytes: S, length: usize) -> Result<()>
+    async fn put<S>(&self, location: &Self::Path, bytes: S, length: Option<usize>) -> Result<()>
     where
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
@@ -484,7 +486,7 @@ mod tests {
             .put(
                 &location,
                 futures::stream::once(async move { stream_data }),
-                data.len(),
+                Some(data.len()),
             )
             .await?;
 
@@ -550,7 +552,7 @@ mod tests {
                 .put(
                     f,
                     futures::stream::once(async move { stream_data }),
-                    data.len(),
+                    Some(data.len()),
                 )
                 .await
                 .unwrap();

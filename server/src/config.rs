@@ -128,7 +128,7 @@ pub(crate) struct CreateDatabaseHandle<'a> {
 
 impl<'a> CreateDatabaseHandle<'a> {
     pub(crate) fn commit(self) {
-        self.config.commit(&self.name, self.db.clone())
+        self.config.commit(&self.name, Arc::clone(&self.db))
     }
 }
 

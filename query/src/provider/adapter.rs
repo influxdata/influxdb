@@ -1,10 +1,12 @@
 //! Holds a stream that ensures chunks have the same (uniform) schema
+use std::sync::Arc;
 
 use snafu::Snafu;
 use std::task::{Context, Poll};
 
 use arrow_deps::{
     arrow::{
+        array::new_null_array,
         datatypes::{DataType, SchemaRef},
         error::Result as ArrowResult,
         record_batch::RecordBatch,
@@ -12,8 +14,6 @@ use arrow_deps::{
     datafusion::physical_plan::{RecordBatchStream, SendableRecordBatchStream},
 };
 use futures::Stream;
-
-use super::make_null::make_null_column;
 
 /// Database schema creation / validation errors.
 #[derive(Debug, Snafu)]
@@ -181,18 +181,18 @@ impl SchemaAdapterStream {
             .mappings
             .iter()
             .map(|mapping| match mapping {
-                ColumnMapping::FromInput(input_index) => Ok(batch.column(*input_index).clone()),
-                ColumnMapping::MakeNull(data_type) => make_null_column(data_type, batch.num_rows()),
+                ColumnMapping::FromInput(input_index) => Arc::clone(&batch.column(*input_index)),
+                ColumnMapping::MakeNull(data_type) => new_null_array(data_type, batch.num_rows()),
             })
-            .collect::<ArrowResult<Vec<_>>>()?;
+            .collect::<Vec<_>>();
 
-        RecordBatch::try_new(self.output_schema.clone(), output_columns)
+        RecordBatch::try_new(Arc::clone(&self.output_schema), output_columns)
     }
 }
 
 impl RecordBatchStream for SchemaAdapterStream {
     fn schema(&self) -> SchemaRef {
-        self.output_schema.clone()
+        Arc::clone(&self.output_schema)
     }
 }
 

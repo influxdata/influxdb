@@ -194,7 +194,7 @@ impl Schema {
 
     /// Return a valid Arrow `SchemaRef` representing this `Schema`
     pub fn as_arrow(&self) -> ArrowSchemaRef {
-        self.inner.clone()
+        Arc::clone(&self.inner)
     }
 
     /// Create and validate a new Schema, creating metadata to
@@ -296,7 +296,8 @@ impl Schema {
         self.inner.fields().is_empty()
     }
 
-    /// Returns an iterator over all the columns of this schema, in order
+    /// Returns an iterator of (Option<InfluxColumnType>, &Field) for
+    /// all the columns of this schema, in order
     pub fn iter(&self) -> SchemaIter<'_> {
         SchemaIter {
             schema: self,
@@ -637,7 +638,7 @@ mod test {
         ]));
 
         // Given a schema created from arrow record batch with no metadata
-        let schema: Schema = arrow_schema.clone().try_into().unwrap();
+        let schema: Schema = Arc::clone(&arrow_schema).try_into().unwrap();
         assert_eq!(schema.len(), 2);
 
         // It still works, but has no lp column types

@@ -7,7 +7,8 @@
     missing_copy_implementations,
     missing_debug_implementations,
     clippy::explicit_iter_loop,
-    clippy::use_self
+    clippy::use_self,
+    clippy::clone_on_ref_ptr
 )]
 
 use data_types::{
@@ -1211,7 +1212,7 @@ mod tests {
                 format!("Created writer for measurement {}", measurement_name),
             );
             Ok(Box::new(NoOpWriter::new(
-                self.log.clone(),
+                Arc::clone(&self.log),
                 measurement_name.to_string(),
             )))
         }
@@ -1443,7 +1444,7 @@ mod tests {
     #[test]
     fn measurement_writer_buffering() -> Result<(), Error> {
         let log = Arc::new(Mutex::new(WriterLog::new()));
-        let table_writer = Box::new(NoOpWriter::new(log.clone(), String::from("cpu")));
+        let table_writer = Box::new(NoOpWriter::new(Arc::clone(&log), String::from("cpu")));
 
         let schema = InfluxSchemaBuilder::new()
             .saw_measurement("cpu")
@@ -1682,7 +1683,7 @@ mod tests {
 
         let settings = ConversionSettings::default();
         let mut converter =
-            LineProtocolConverter::new(settings, NoOpWriterSource::new(log.clone()));
+            LineProtocolConverter::new(settings, NoOpWriterSource::new(Arc::clone(&log)));
         converter
             .convert(parsed_lines)
             .expect("conversion ok")
@@ -1718,7 +1719,7 @@ mod tests {
         };
 
         let mut converter =
-            LineProtocolConverter::new(settings, NoOpWriterSource::new(log.clone()));
+            LineProtocolConverter::new(settings, NoOpWriterSource::new(Arc::clone(&log)));
 
         converter
             .convert(parsed_lines)
@@ -2072,7 +2073,7 @@ mod tests {
         decoder.read_to_end(&mut buf).unwrap();
 
         let log = Arc::new(Mutex::new(WriterLog::new()));
-        let mut converter = TSMFileConverter::new(NoOpWriterSource::new(log.clone()));
+        let mut converter = TSMFileConverter::new(NoOpWriterSource::new(Arc::clone(&log)));
         let index_steam = BufReader::new(Cursor::new(&buf));
         let block_stream = BufReader::new(Cursor::new(&buf));
         converter
@@ -2125,7 +2126,7 @@ mod tests {
         block_streams.push(BufReader::new(Cursor::new(&buf_b)));
 
         let log = Arc::new(Mutex::new(WriterLog::new()));
-        let mut converter = TSMFileConverter::new(NoOpWriterSource::new(log.clone()));
+        let mut converter = TSMFileConverter::new(NoOpWriterSource::new(Arc::clone(&log)));
 
         converter.convert(index_streams, block_streams).unwrap();
 

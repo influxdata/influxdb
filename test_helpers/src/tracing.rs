@@ -30,7 +30,9 @@ impl TracingCapture {
         let logs = Arc::new(Mutex::new(Vec::new()));
 
         // Register a subscriber to actually capture the log messages
-        let my_subscriber = TracingCaptureSubscriber { logs: logs.clone() };
+        let my_subscriber = TracingCaptureSubscriber {
+            logs: Arc::clone(&logs),
+        };
 
         // install the subscriber (is uninstalled when the guard is dropped)
         let guard = tracing::subscriber::set_default(my_subscriber);

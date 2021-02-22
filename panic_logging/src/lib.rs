@@ -5,7 +5,8 @@
 #![warn(
     missing_debug_implementations,
     clippy::explicit_iter_loop,
-    clippy::use_self
+    clippy::use_self,
+    clippy::clone_on_ref_ptr
 )]
 
 use std::{fmt, panic, sync::Arc};
@@ -32,7 +33,7 @@ pub struct SendPanicsToTracing {
 impl SendPanicsToTracing {
     pub fn new() -> Self {
         let current_panic_hook: PanicFunctionPtr = Arc::new(panic::take_hook());
-        let old_panic_hook = Some(current_panic_hook.clone());
+        let old_panic_hook = Some(Arc::clone(&current_panic_hook));
         panic::set_hook(Box::new(move |info| {
             tracing_panic_hook(&current_panic_hook, info)
         }));

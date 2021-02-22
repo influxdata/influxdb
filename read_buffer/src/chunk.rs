@@ -56,7 +56,6 @@ pub struct Chunk {
 
 // Tie data and meta-data together so that they can be wrapped in RWLock.
 struct TableData {
-    size: u64, // size in bytes of the chunk
     rows: u64, // Total number of rows across all tables
 
     // Total number of row groups across all tables in the chunk.
@@ -72,7 +71,6 @@ impl Chunk {
         Self {
             id,
             chunk_data: RwLock::new(TableData {
-                size: table.size(),
                 rows: table.rows(),
                 row_groups: table.row_groups(),
                 data: vec![(table.name().to_owned(), table)].into_iter().collect(),
@@ -85,9 +83,18 @@ impl Chunk {
         self.id
     }
 
-    /// The total size in bytes of all row groups in all tables in this chunk.
+    /// The total estimated size in bytes of this `Chunk` and all contained
+    /// data.
     pub fn size(&self) -> u64 {
-        self.chunk_data.read().unwrap().size
+        let base_size = std::mem::size_of::<Self>();
+
+        let table_data = self.chunk_data.read().unwrap();
+        base_size as u64
+            + table_data
+                .data
+                .iter()
+                .map(|(k, table)| k.len() as u64 + table.size())
+                .sum::<u64>()
     }
 
     /// The total number of rows in all row groups in all tables in this chunk.
@@ -127,7 +134,6 @@ impl Chunk {
         let mut chunk_data = self.chunk_data.write().unwrap();
 
         // update the meta-data for this chunk with contents of row group.
-        chunk_data.size += row_group.size();
         chunk_data.rows += row_group.rows() as u64;
         chunk_data.row_groups += 1;
 
@@ -153,7 +159,6 @@ impl Chunk {
 
         // Remove table and update chunk meta-data if table exists.
         if let Some(table) = chunk_data.data.remove(name) {
-            chunk_data.size -= table.size();
             chunk_data.rows -= table.rows();
             chunk_data.row_groups -= table.row_groups();
         }
@@ -327,6 +332,8 @@ mod test {
         assert_eq!(chunk.rows(), 6);
         assert_eq!(chunk.row_groups(), 1);
         assert_eq!(chunk.tables(), 1);
+        let chunk_size = chunk.size();
+        assert!(chunk_size > 0);
 
         // Add a row group to the same table in the Chunk.
         let columns = vec![("time", ColumnType::create_time(&[-2_i64, 2, 8]))]
@@ -334,7 +341,9 @@ mod test {
             .map(|(k, v)| (k.to_owned(), v))
             .collect();
         let rg = RowGroup::new(3, columns);
+        let rg_size = rg.size();
         chunk.upsert_table("table_1", rg);
+        assert_eq!(chunk.size(), chunk_size + rg_size);
 
         assert_eq!(chunk.rows(), 9);
         assert_eq!(chunk.row_groups(), 2);
@@ -353,16 +362,19 @@ mod test {
         assert_eq!(chunk.tables(), 2);
 
         // Drop table_1
+        let chunk_size = chunk.size();
         chunk.drop_table("table_1");
         assert_eq!(chunk.rows(), 2);
         assert_eq!(chunk.row_groups(), 1);
         assert_eq!(chunk.tables(), 1);
+        assert!(chunk.size() < chunk_size);
 
         // Drop table_2 - empty table
         chunk.drop_table("table_2");
         assert_eq!(chunk.rows(), 0);
         assert_eq!(chunk.row_groups(), 0);
         assert_eq!(chunk.tables(), 0);
+        assert_eq!(chunk.size(), 64); // base size of `Chunk`
 
         // Drop table_2 - no-op
         chunk.drop_table("table_2");

@@ -164,11 +164,18 @@ impl ExecutionPlan for SchemaPivotExec {
     }
 
     fn schema(&self) -> SchemaRef {
-        self.schema.clone()
+        Arc::clone(&self.schema)
     }
 
     fn output_partitioning(&self) -> Partitioning {
-        Partitioning::UnknownPartitioning(1)
+        use Partitioning::*;
+        match self.input.output_partitioning() {
+            RoundRobinBatch(num_partitions) => RoundRobinBatch(num_partitions),
+            // as this node transforms the output schema,  whatever partitioning
+            // was present on the input is lost on the output
+            Hash(_, num_partitions) => UnknownPartitioning(num_partitions),
+            UnknownPartitioning(num_partitions) => UnknownPartitioning(num_partitions),
+        }
     }
 
     fn required_child_distribution(&self) -> Distribution {
@@ -176,7 +183,7 @@ impl ExecutionPlan for SchemaPivotExec {
     }
 
     fn children(&self) -> Vec<Arc<dyn ExecutionPlan>> {
-        vec![self.input.clone()]
+        vec![Arc::clone(&self.input)]
     }
 
     fn with_new_children(
@@ -185,8 +192,8 @@ impl ExecutionPlan for SchemaPivotExec {
     ) -> Result<Arc<dyn ExecutionPlan>> {
         match children.len() {
             1 => Ok(Arc::new(Self {
-                input: children[0].clone(),
-                schema: self.schema.clone(),
+                input: Arc::clone(&children[0]),
+                schema: Arc::clone(&self.schema),
             })),
             _ => Err(DataFusionError::Internal(
                 "SchemaPivotExec wrong number of children".to_string(),
@@ -196,7 +203,7 @@ impl ExecutionPlan for SchemaPivotExec {
 
     /// Execute one partition and return an iterator over RecordBatch
     async fn execute(&self, partition: usize) -> Result<SendableRecordBatchStream> {
-        if 0 != partition {
+        if self.output_partitioning().partition_count() <= partition {
             return Err(DataFusionError::Internal(format!(
                 "SchemaPivotExec invalid partition {}",
                 partition
@@ -443,7 +450,7 @@ mod tests {
         StringSetRef::new(stringset)
     }
 
-    /// Create a schema piv
+    /// Create a schema pivot node with a single input
     fn make_schema_pivot(input_schema: SchemaRef, data: Vec<RecordBatch>) -> SchemaPivotExec {
         let input = make_memory_exec(input_schema, data);
         let output_schema = Arc::new(make_schema_pivot_output_schema().as_ref().clone().into());
@@ -512,7 +519,7 @@ mod tests {
                 .map(|test_batch| {
                     let a_vec = test_batch.a.iter().copied().collect::<Vec<_>>();
                     RecordBatch::try_new(
-                        schema.clone(),
+                        Arc::clone(&schema),
                         vec![
                             Arc::new(Int64Array::from(a_vec)),
                             to_string_array(test_batch.b),

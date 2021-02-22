@@ -1,3 +1,5 @@
+#![allow(clippy::clone_on_ref_ptr)]
+
 //! This crate exists to add a dependency on (likely as yet
 //! unpublished) versions of arrow / parquet / datafusion so we can
 //! manage the version used by InfluxDB IOx in a single crate.

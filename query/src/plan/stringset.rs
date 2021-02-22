@@ -60,11 +60,19 @@ impl From<StringSet> for StringSetPlan {
 }
 
 impl From<Vec<LogicalPlan>> for StringSetPlan {
-    /// Create a DataFusion LogicalPlan node, each of which must
-    /// produce a single output Utf8 column. The output of each plan
-    /// will be included into the final set.
+    /// Create StringSet plan from a DataFusion LogicalPlan node, each
+    /// of which must produce a single output Utf8 column. The output
+    /// of each plan will be included into the final set.
     fn from(plans: Vec<LogicalPlan>) -> Self {
         Self::Plan(plans)
+    }
+}
+
+impl From<LogicalPlan> for StringSetPlan {
+    /// Create a StringSet plan from a single DataFusion LogicalPlan
+    /// node which produces a single output Utf8 column.
+    fn from(plan: LogicalPlan) -> Self {
+        Self::Plan(vec![plan])
     }
 }
 

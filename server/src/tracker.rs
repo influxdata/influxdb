@@ -38,7 +38,7 @@ pub struct TrackerRegistry<T> {
 impl<T> Clone for TrackerRegistry<T> {
     fn clone(&self) -> Self {
         Self {
-            inner: self.inner.clone(),
+            inner: Arc::clone(&self.inner),
         }
     }
 }

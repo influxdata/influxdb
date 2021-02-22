@@ -2,7 +2,8 @@
 #![warn(
     missing_debug_implementations,
     clippy::explicit_iter_loop,
-    clippy::use_self
+    clippy::use_self,
+    clippy::clone_on_ref_ptr
 )]
 
 use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
@@ -10,7 +11,7 @@ use async_trait::async_trait;
 use data_types::{
     data::ReplicatedWrite, partition_metadata::TableSummary, schema::Schema, selection::Selection,
 };
-use exec::{stringset::StringSet, Executor, FieldListPlan, SeriesSetPlans};
+use exec::{stringset::StringSet, Executor, SeriesSetPlans};
 use plan::stringset::StringSetPlan;
 
 use std::{fmt::Debug, sync::Arc};
@@ -43,28 +44,16 @@ pub trait Database: Debug + Send + Sync {
     async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error>;
 
     /// Return the partition keys for data in this DB
-    async fn partition_keys(&self) -> Result<Vec<String>, Self::Error>;
+    fn partition_keys(&self) -> Result<Vec<String>, Self::Error>;
 
     /// Returns a covering set of chunks in the specified partition. A
     /// covering set means that together the chunks make up a single
     /// complete copy of the data being queried.
-    async fn chunks(&self, partition_key: &str) -> Vec<Arc<Self::Chunk>>;
+    fn chunks(&self, partition_key: &str) -> Vec<Arc<Self::Chunk>>;
 
     // ----------
     // The functions below are slated for removal (migration into a gRPC query
     // frontend) ---------
-
-    /// Returns a plan that produces the names of "tag" columns (as
-    /// defined in the data written via `write_lines`)) names in this
-    /// database, and have more than zero rows which pass the
-    /// conditions specified by `predicate`.
-    async fn tag_column_names(&self, predicate: Predicate) -> Result<StringSetPlan, Self::Error>;
-
-    /// Returns a plan that produces a list of column names in this
-    /// database which store fields (as defined in the data written
-    /// via `write_lines`), and which have at least one row which
-    /// matches the conditions listed on `predicate`.
-    async fn field_column_names(&self, predicate: Predicate) -> Result<FieldListPlan, Self::Error>;
 
     /// Returns a plan which finds the distinct values in the
     /// `column_name` column of this database which pass the
@@ -122,7 +111,7 @@ pub trait PartitionChunk: Debug + Send + Sync {
     }
 
     /// Returns true if this chunk contains data for the specified table
-    async fn has_table(&self, table_name: &str) -> bool;
+    fn has_table(&self, table_name: &str) -> bool;
 
     /// Returns all table names from this chunk that have at least one
     /// row that matches the `predicate` and are not already in `known_tables`.
@@ -138,6 +127,16 @@ pub trait PartitionChunk: Debug + Send + Sync {
         &self,
         predicate: &Predicate,
         known_tables: &StringSet,
+    ) -> Result<Option<StringSet>, Self::Error>;
+
+    /// Returns a set of Strings with column names from the specified
+    /// table that have at least one row that matches `predicate`, if
+    /// the predicate can be evaluated entirely on the metadata of
+    /// this Chunk.
+    async fn column_names(
+        &self,
+        table_name: &str,
+        predicate: &Predicate,
     ) -> Result<Option<StringSet>, Self::Error>;
 
     /// Returns the Schema for a table in this chunk, with the

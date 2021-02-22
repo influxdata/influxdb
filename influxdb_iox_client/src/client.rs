@@ -40,7 +40,7 @@ pub use flight::PerformQuery;
 ///     .expect("failed to create database");
 /// # }
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Client {
     pub(crate) http: reqwest::Client,
 
@@ -135,6 +135,26 @@ impl Client {
         }
     }
 
+    /// Get the server's writer ID.
+    pub async fn get_writer_id(&self) -> Result<u32, Error> {
+        const GET_WRITER_PATH: &str = "iox/api/v1/id";
+
+        let url = self.url_for(GET_WRITER_PATH);
+
+        // TODO: move this into a shared type
+        #[derive(serde::Deserialize)]
+        struct WriterIdBody {
+            id: u32,
+        }
+
+        let r = self.http.request(Method::GET, url).send().await?;
+
+        match r {
+            r if r.status() == 200 => Ok(r.json::<WriterIdBody>().await?.id),
+            r => Err(ServerErrorResponse::from_response(r).await.into()),
+        }
+    }
+
     /// List databases.
     pub async fn list_databases(&self) -> Result<ListDatabasesResponse, Error> {
         const LIST_DATABASES_PATH: &str = "iox/api/v1/databases";
@@ -219,13 +239,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_set_writer_id() {
+    async fn test_set_get_writer_id() {
+        const TEST_ID: u32 = 42;
+
         let endpoint = maybe_skip_integration!();
         let c = ClientBuilder::default().build(endpoint).unwrap();
 
-        c.set_writer_id(NonZeroU32::new(42).unwrap())
+        c.set_writer_id(NonZeroU32::new(TEST_ID).unwrap())
             .await
             .expect("set ID failed");
+
+        let got = c.get_writer_id().await.expect("get ID failed");
+
+        assert_eq!(got, TEST_ID);
     }
 
     #[tokio::test]

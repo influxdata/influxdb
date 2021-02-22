@@ -66,7 +66,7 @@ impl IntoStringSet for Vec<RecordBatch> {
             ensure!(
                 fields.len() == 1,
                 InternalSchemaWasNotString {
-                    schema: schema.clone(),
+                    schema: Arc::clone(&schema),
                 }
             );
 
@@ -75,7 +75,7 @@ impl IntoStringSet for Vec<RecordBatch> {
             ensure!(
                 field.data_type() == &DataType::Utf8,
                 InternalSchemaWasNotString {
-                    schema: schema.clone(),
+                    schema: Arc::clone(&schema),
                 }
             );
 

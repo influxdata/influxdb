@@ -2,11 +2,13 @@
 #![allow(dead_code)]
 #![allow(clippy::too_many_arguments)]
 #![allow(unused_variables)]
+#![warn(clippy::clone_on_ref_ptr)]
 pub(crate) mod chunk;
 pub(crate) mod column;
 pub(crate) mod row_group;
 mod schema;
 pub(crate) mod table;
+pub(crate) mod value;
 
 use std::{
     collections::{btree_map::Entry, BTreeMap, BTreeSet},
@@ -77,9 +79,6 @@ struct PartitionData {
     // identified by a partition key
     partitions: BTreeMap<String, Partition>,
 
-    // The current total size of the database.
-    size: u64,
-
     // Total number of rows in the database.
     rows: u64,
 }
@@ -106,7 +105,6 @@ impl Database {
 
         // Take lock on partitions and update.
         let mut partition_data = self.data.write().unwrap();
-        partition_data.size += row_group.size();
         partition_data.rows += row_group.rows() as u64;
 
         // create a new chunk if one doesn't exist, or add the table data to
@@ -139,7 +137,6 @@ impl Database {
             .remove(partition_key)
             .context(PartitionNotFound { key: partition_key })?;
 
-        partition_data.size -= partition.size();
         partition_data.rows -= partition.rows();
         Ok(())
     }
@@ -154,7 +151,6 @@ impl Database {
             .context(PartitionNotFound { key: partition_key })?;
 
         partition.drop_chunk(chunk_id).map(|chunk| {
-            partition_data.size -= chunk.size();
             partition_data.rows -= chunk.rows();
             // don't return chunk from `drop_chunk`
         })
@@ -183,8 +179,17 @@ impl Database {
             .unwrap_or_default()
     }
 
+    /// Returns the total estimated size in bytes of the database.
     pub fn size(&self) -> u64 {
-        self.data.read().unwrap().size
+        let base_size = std::mem::size_of::<Self>();
+
+        let partition_data = self.data.read().unwrap();
+        base_size as u64
+            + partition_data
+                .partitions
+                .iter()
+                .map(|(name, partition)| name.len() as u64 + partition.size())
+                .sum::<u64>()
     }
 
     pub fn rows(&self) -> u64 {
@@ -500,7 +505,7 @@ impl fmt::Debug for Database {
         let partition_data = self.data.read().unwrap();
         f.debug_struct("Database")
             .field("partitions", &partition_data.partitions.keys())
-            .field("size", &partition_data.size)
+            .field("size", &self.size())
             .finish()
     }
 }
@@ -510,9 +515,6 @@ struct ChunkData {
     // The collection of chunks in the partition. Each chunk is uniquely
     // identified by a chunk id.
     chunks: BTreeMap<u32, Chunk>,
-
-    // The current total size of the partition.
-    size: u64,
 
     // The current number of row groups in this partition.
     row_groups: usize,
@@ -535,7 +537,6 @@ impl Partition {
         Self {
             key: partition_key.to_owned(),
             data: RwLock::new(ChunkData {
-                size: chunk.size(),
                 row_groups: chunk.row_groups(),
                 rows: chunk.rows(),
                 chunks: vec![(chunk.id(), chunk)].into_iter().collect(),
@@ -553,7 +554,6 @@ impl Partition {
     fn upsert_chunk(&mut self, chunk_id: u32, table_name: String, row_group: RowGroup) {
         let mut chunk_data = self.data.write().unwrap();
 
-        chunk_data.size += row_group.size();
         chunk_data.row_groups += 1;
         chunk_data.rows += row_group.rows() as u64;
 
@@ -579,7 +579,6 @@ impl Partition {
             .remove(&chunk_id)
             .context(ChunkNotFound { id: chunk_id })?;
 
-        chunk_data.size -= chunk.size();
         chunk_data.rows -= chunk.rows();
         chunk_data.row_groups -= chunk.row_groups();
         Ok(chunk)
@@ -622,8 +621,18 @@ impl Partition {
         self.data.read().unwrap().rows
     }
 
+    /// The total estimated size in bytes of the `Partition` and all contained
+    /// data.
     pub fn size(&self) -> u64 {
-        self.data.read().unwrap().size
+        let base_size = std::mem::size_of::<Self>() + self.key.len();
+
+        let chunk_data = self.data.read().unwrap();
+        base_size as u64
+            + chunk_data
+                .chunks
+                .values()
+                .map(|chunk| std::mem::size_of::<u32>() as u64 + chunk.size())
+                .sum::<u64>()
     }
 }
 
@@ -774,11 +783,11 @@ mod test {
         array::{
             ArrayRef, BinaryArray, BooleanArray, Float64Array, Int64Array, StringArray, UInt64Array,
         },
-        datatypes::DataType::{Boolean, Float64, Int64, UInt64},
+        datatypes::DataType::{Boolean, Float64, Int64, UInt64, Utf8},
     };
-
-    use column::Values;
     use data_types::schema::builder::SchemaBuilder;
+
+    use crate::value::Values;
 
     // helper to make the `database_update_chunk` test simpler to read.
     fn gen_recordbatch() -> RecordBatch {
@@ -1152,6 +1161,7 @@ mod test {
                 .non_null_field("counter", Float64)
                 .field("sketchy_sensor", Int64)
                 .non_null_field("active", Boolean)
+                .field("msg", Utf8)
                 .timestamp()
                 .build()
                 .unwrap();
@@ -1162,6 +1172,11 @@ mod test {
                 Arc::new(Float64Array::from(vec![1.2, 300.3, 4500.3])),
                 Arc::new(Int64Array::from(vec![None, Some(33), Some(44)])),
                 Arc::new(BooleanArray::from(vec![true, false, false])),
+                Arc::new(StringArray::from(vec![
+                    Some("message a"),
+                    Some("message b"),
+                    None,
+                ])),
                 Arc::new(Int64Array::from(vec![i, 2 * i, 3 * i])),
             ];
 
@@ -1203,6 +1218,11 @@ mod test {
             &exp_sketchy_sensor_values,
         );
         assert_rb_column_equals(&first_row_group, "active", &exp_active_values);
+        assert_rb_column_equals(
+            &first_row_group,
+            "msg",
+            &Values::String(vec![Some("message a")]),
+        );
         assert_rb_column_equals(&first_row_group, "time", &Values::I64(vec![100])); // first row from first record batch
 
         let second_row_group = itr.next().unwrap();
@@ -1305,6 +1325,7 @@ mod test {
                 .non_null_field("counter", UInt64)
                 .field("sketchy_sensor", UInt64)
                 .non_null_field("active", Boolean)
+                .non_null_field("msg", Utf8)
                 .timestamp()
                 .build()
                 .unwrap();
@@ -1316,6 +1337,7 @@ mod test {
                 Arc::new(UInt64Array::from(vec![1000, 3000, 5000])),
                 Arc::new(UInt64Array::from(vec![Some(44), None, Some(55)])),
                 Arc::new(BooleanArray::from(vec![true, true, false])),
+                Arc::new(StringArray::from(vec![Some("msg a"), Some("msg b"), None])),
                 Arc::new(Int64Array::from(vec![i, 20 + i, 30 + i])),
             ];
 
@@ -1354,6 +1376,7 @@ mod test {
                     ("active", AggregateType::Count),
                     ("active", AggregateType::Min),
                     ("active", AggregateType::Max),
+                    ("msg", AggregateType::Max),
                 ],
             )
             .unwrap();
@@ -1372,6 +1395,7 @@ mod test {
         assert_rb_column_equals(&result, "active_count", &Values::U64(vec![3]));
         assert_rb_column_equals(&result, "active_min", &Values::Bool(vec![Some(false)]));
         assert_rb_column_equals(&result, "active_max", &Values::Bool(vec![Some(true)]));
+        assert_rb_column_equals(&result, "msg_max", &Values::String(vec![Some("msg b")]));
 
         //
         // With group keys
@@ -1429,7 +1453,8 @@ mod test {
 /// It should not be imported into any non-testing or benchmarking crates.
 pub mod benchmarks {
     pub use crate::column::{
-        cmp::Operator, dictionary, fixed::Fixed, fixed_null::FixedNull, Column, RowIDs,
+        cmp::Operator, encoding::dictionary, encoding::fixed::Fixed,
+        encoding::fixed_null::FixedNull, Column, RowIDs,
     };
 
     pub use crate::row_group::{ColumnType, RowGroup};
