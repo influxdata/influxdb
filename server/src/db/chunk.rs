@@ -246,7 +246,7 @@ impl PartitionChunk for DBChunk {
                 // Note Mutable buffer doesn't support predicate
                 // pushdown (other than pruning out the entire chunk
                 // via `might_pass_predicate)
-                let schema: Schema = self.table_schema(table_name, selection.clone()).await?;
+                let schema: Schema = self.table_schema(table_name, selection).await?;
 
                 Ok(Box::pin(MutableBufferChunkStream::new(
                     Arc::clone(&chunk),
