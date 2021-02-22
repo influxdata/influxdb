@@ -1,8 +1,11 @@
 //! This module contains the IOx implementation for using Azure Blob storage as
 //! the object store.
-use crate::{path::cloud::CloudPath, ListResult, ObjectStoreApi};
+use crate::{
+    path::{cloud::CloudPath, DELIMITER},
+    ListResult, ObjectMeta, ObjectStoreApi,
+};
 use async_trait::async_trait;
-use azure_core::HttpClient;
+use azure_core::prelude::*;
 use azure_storage::{
     clients::{
         AsBlobClient, AsContainerClient, AsStorageClient, ContainerClient, StorageAccountClient,
@@ -15,8 +18,8 @@ use futures::{
     FutureExt, Stream, StreamExt, TryStreamExt,
 };
 use snafu::{ensure, ResultExt, Snafu};
-use std::io;
 use std::sync::Arc;
+use std::{convert::TryInto, io};
 
 /// A specialized `Result` for Azure object store-related errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -68,7 +71,7 @@ impl ObjectStoreApi for MicrosoftAzure {
         CloudPath::default()
     }
 
-    async fn put<S>(&self, location: &Self::Path, bytes: S, length: usize) -> Result<()>
+    async fn put<S>(&self, location: &Self::Path, bytes: S, length: Option<usize>) -> Result<()>
     where
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
@@ -79,17 +82,19 @@ impl ObjectStoreApi for MicrosoftAzure {
             .await
             .expect("Should have been able to collect streaming data");
 
-        ensure!(
-            temporary_non_streaming.len() == length,
-            DataDoesNotMatchLength {
-                actual: temporary_non_streaming.len(),
-                expected: length,
-            }
-        );
+        if let Some(length) = length {
+            ensure!(
+                temporary_non_streaming.len() == length,
+                DataDoesNotMatchLength {
+                    actual: temporary_non_streaming.len(),
+                    expected: length,
+                }
+            );
+        }
 
         self.container_client
             .as_blob_client(&location)
-            .put_block_blob(&temporary_non_streaming)
+            .put_block_blob(temporary_non_streaming)
             .execute()
             .await
             .context(UnableToPutData {
@@ -166,15 +171,15 @@ impl ObjectStoreApi for MicrosoftAzure {
                 Err(err) => return Some((Err(err), state)),
             };
 
-            let next_state = if let Some(marker) = resp.incomplete_vector.next_marker() {
+            let next_state = if let Some(marker) = resp.next_marker {
                 ListState::HasMore(marker.as_str().to_string())
             } else {
                 ListState::Done
             };
 
             let names = resp
-                .incomplete_vector
-                .vector
+                .blobs
+                .blobs
                 .into_iter()
                 .map(|blob| CloudPath::raw(blob.name))
                 .collect();
@@ -184,8 +189,55 @@ impl ObjectStoreApi for MicrosoftAzure {
         .boxed())
     }
 
-    async fn list_with_delimiter(&self, _prefix: &Self::Path) -> Result<ListResult<Self::Path>> {
-        unimplemented!();
+    async fn list_with_delimiter(&self, prefix: &Self::Path) -> Result<ListResult<Self::Path>> {
+        let mut request = self.container_client.list_blobs();
+
+        let prefix = prefix.to_raw();
+
+        request = request.delimiter(Delimiter::new(DELIMITER));
+        request = request.prefix(&*prefix);
+
+        let resp = request.execute().await.context(UnableToListData)?;
+
+        let next_token = resp.next_marker.as_ref().map(|m| m.as_str().to_string());
+
+        let common_prefixes = resp
+            .blobs
+            .blob_prefix
+            .map(|prefixes| {
+                prefixes
+                    .iter()
+                    .map(|prefix| CloudPath::raw(&prefix.name))
+                    .collect()
+            })
+            .unwrap_or_else(Vec::new);
+
+        let objects = resp
+            .blobs
+            .blobs
+            .into_iter()
+            .map(|blob| {
+                let location = CloudPath::raw(blob.name);
+                let last_modified = blob.properties.last_modified;
+                let size = blob
+                    .properties
+                    .content_length
+                    .try_into()
+                    .expect("unsupported size on this platform");
+
+                ObjectMeta {
+                    location,
+                    last_modified,
+                    size,
+                }
+            })
+            .collect();
+
+        Ok(ListResult {
+            next_token,
+            common_prefixes,
+            objects,
+        })
     }
 }
 
@@ -233,7 +285,7 @@ impl MicrosoftAzure {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::tests::put_get_delete_list;
+    use crate::tests::{list_with_delimiter, put_get_delete_list};
     use std::env;
 
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -245,39 +297,35 @@ mod tests {
         () => {
             dotenv::dotenv().ok();
 
-            let account = env::var("AZURE_STORAGE_ACCOUNT");
-            let container = env::var("AZURE_STORAGE_CONTAINER");
+            let required_vars = [
+                "AZURE_STORAGE_ACCOUNT",
+                "AZURE_STORAGE_CONTAINER",
+                "AZURE_STORAGE_MASTER_KEY",
+            ];
+            let unset_vars: Vec<_> = required_vars
+                .iter()
+                .filter_map(|&name| match env::var(name) {
+                    Ok(_) => None,
+                    Err(_) => Some(name),
+                })
+                .collect();
+            let unset_var_names = unset_vars.join(", ");
+
             let force = std::env::var("TEST_INTEGRATION");
 
-            match (account.is_ok(), container.is_ok(), force.is_ok()) {
-                (false, false, true) => {
-                    panic!(
-                        "TEST_INTEGRATION is set, \
-                            but AZURE_STROAGE_ACCOUNT and AZURE_STORAGE_CONTAINER are not"
-                    )
-                }
-                (false, true, true) => {
-                    panic!("TEST_INTEGRATION is set, but AZURE_STORAGE_ACCOUNT is not")
-                }
-                (true, false, true) => {
-                    panic!("TEST_INTEGRATION is set, but AZURE_STORAGE_CONTAINER is not")
-                }
-                (false, false, false) => {
-                    eprintln!(
-                        "skipping integration test - set \
-                               AZURE_STROAGE_ACCOUNT and AZURE_STORAGE_CONTAINER to run"
-                    );
-                    return Ok(());
-                }
-                (false, true, false) => {
-                    eprintln!("skipping integration test - set AZURE_STORAGE_ACCOUNT to run");
-                    return Ok(());
-                }
-                (true, false, false) => {
-                    eprintln!("skipping integration test - set AZURE_STROAGE_CONTAINER to run");
-                    return Ok(());
-                }
-                _ => {}
+            if force.is_ok() && !unset_var_names.is_empty() {
+                panic!(
+                    "TEST_INTEGRATION is set, \
+                        but variable(s) {} need to be set",
+                    unset_var_names
+                )
+            } else if force.is_err() && !unset_var_names.is_empty() {
+                eprintln!(
+                    "skipping Azure integration test - set \
+                           {} to run",
+                    unset_var_names
+                );
+                return Ok(());
             }
         };
     }
@@ -291,6 +339,7 @@ mod tests {
         let integration = MicrosoftAzure::new_from_env(container_name);
 
         put_get_delete_list(&integration).await?;
+        list_with_delimiter(&integration).await?;
 
         Ok(())
     }

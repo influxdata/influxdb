@@ -460,14 +460,17 @@ impl Database {
         Ok(names)
     }
 
-    /// Returns the distinct set of column names (tag keys) that satisfy the
-    /// provided predicate.
+    /// Returns the distinct set of column names that satisfy the provided
+    /// predicate. Columns can be limited via a selection, which means callers
+    /// that know they are only interested in certain columns can specify those
+    /// and reduce total execution time.
     pub fn column_names(
         &self,
         partition_key: &str,
         table_name: &str,
         chunk_ids: &[u32],
         predicate: Predicate,
+        only_columns: Selection<'_>,
     ) -> Result<Option<BTreeSet<String>>> {
         let partition_data = self.data.read().unwrap();
 
@@ -493,7 +496,7 @@ impl Database {
             // the dst buffer is pushed into each chunk's `column_names`
             // implementation ensuring that we short-circuit any tables where
             // we have already determined column names.
-            chunk.column_names(table_name, &predicate, dst)
+            chunk.column_names(table_name, &predicate, only_columns, dst)
         });
 
         Ok(Some(names))
@@ -783,7 +786,7 @@ mod test {
         array::{
             ArrayRef, BinaryArray, BooleanArray, Float64Array, Int64Array, StringArray, UInt64Array,
         },
-        datatypes::DataType::{Boolean, Float64, Int64, UInt64},
+        datatypes::DataType::{Boolean, Float64, Int64, UInt64, Utf8},
     };
     use data_types::schema::builder::SchemaBuilder;
 
@@ -1092,7 +1095,13 @@ mod test {
 
         // Just query against the first chunk.
         let result = db
-            .column_names("hour_1", "Utopia", &[22], Predicate::default())
+            .column_names(
+                "hour_1",
+                "Utopia",
+                &[22],
+                Predicate::default(),
+                Selection::All,
+            )
             .unwrap();
 
         assert_eq!(
@@ -1100,14 +1109,26 @@ mod test {
             Some(to_set(&["counter", "region", "sketchy_sensor", "time"]))
         );
         let result = db
-            .column_names("hour_1", "Utopia", &[40], Predicate::default())
+            .column_names(
+                "hour_1",
+                "Utopia",
+                &[40],
+                Predicate::default(),
+                Selection::All,
+            )
             .unwrap();
 
         assert_eq!(result, Some(to_set(&["active", "time"])));
 
         // And now the union across all chunks.
         let result = db
-            .column_names("hour_1", "Utopia", &[22, 40], Predicate::default())
+            .column_names(
+                "hour_1",
+                "Utopia",
+                &[22, 40],
+                Predicate::default(),
+                Selection::All,
+            )
             .unwrap();
 
         assert_eq!(
@@ -1128,6 +1149,7 @@ mod test {
                 "Utopia",
                 &[22, 40],
                 Predicate::new(vec![BinaryExpr::from(("time", "=", 30_i64))]),
+                Selection::All,
             )
             .unwrap();
 
@@ -1141,6 +1163,7 @@ mod test {
                 "Utopia",
                 &[22, 40],
                 Predicate::new(vec![BinaryExpr::from(("active", "=", true))]),
+                Selection::All,
             )
             .unwrap();
 
@@ -1161,6 +1184,7 @@ mod test {
                 .non_null_field("counter", Float64)
                 .field("sketchy_sensor", Int64)
                 .non_null_field("active", Boolean)
+                .field("msg", Utf8)
                 .timestamp()
                 .build()
                 .unwrap();
@@ -1171,6 +1195,11 @@ mod test {
                 Arc::new(Float64Array::from(vec![1.2, 300.3, 4500.3])),
                 Arc::new(Int64Array::from(vec![None, Some(33), Some(44)])),
                 Arc::new(BooleanArray::from(vec![true, false, false])),
+                Arc::new(StringArray::from(vec![
+                    Some("message a"),
+                    Some("message b"),
+                    None,
+                ])),
                 Arc::new(Int64Array::from(vec![i, 2 * i, 3 * i])),
             ];
 
@@ -1212,6 +1241,11 @@ mod test {
             &exp_sketchy_sensor_values,
         );
         assert_rb_column_equals(&first_row_group, "active", &exp_active_values);
+        assert_rb_column_equals(
+            &first_row_group,
+            "msg",
+            &Values::String(vec![Some("message a")]),
+        );
         assert_rb_column_equals(&first_row_group, "time", &Values::I64(vec![100])); // first row from first record batch
 
         let second_row_group = itr.next().unwrap();
@@ -1314,6 +1348,7 @@ mod test {
                 .non_null_field("counter", UInt64)
                 .field("sketchy_sensor", UInt64)
                 .non_null_field("active", Boolean)
+                .non_null_field("msg", Utf8)
                 .timestamp()
                 .build()
                 .unwrap();
@@ -1325,6 +1360,7 @@ mod test {
                 Arc::new(UInt64Array::from(vec![1000, 3000, 5000])),
                 Arc::new(UInt64Array::from(vec![Some(44), None, Some(55)])),
                 Arc::new(BooleanArray::from(vec![true, true, false])),
+                Arc::new(StringArray::from(vec![Some("msg a"), Some("msg b"), None])),
                 Arc::new(Int64Array::from(vec![i, 20 + i, 30 + i])),
             ];
 
@@ -1363,6 +1399,7 @@ mod test {
                     ("active", AggregateType::Count),
                     ("active", AggregateType::Min),
                     ("active", AggregateType::Max),
+                    ("msg", AggregateType::Max),
                 ],
             )
             .unwrap();
@@ -1381,6 +1418,7 @@ mod test {
         assert_rb_column_equals(&result, "active_count", &Values::U64(vec![3]));
         assert_rb_column_equals(&result, "active_min", &Values::Bool(vec![Some(false)]));
         assert_rb_column_equals(&result, "active_max", &Values::Bool(vec![Some(true)]));
+        assert_rb_column_equals(&result, "msg_max", &Values::String(vec![Some("msg b")]));
 
         //
         // With group keys

@@ -45,7 +45,7 @@ impl ObjectStoreApi for InMemory {
         DirsAndFileName::default()
     }
 
-    async fn put<S>(&self, location: &Self::Path, bytes: S, length: usize) -> Result<()>
+    async fn put<S>(&self, location: &Self::Path, bytes: S, length: Option<usize>) -> Result<()>
     where
         S: Stream<Item = io::Result<Bytes>> + Send + Sync + 'static,
     {
@@ -55,13 +55,15 @@ impl ObjectStoreApi for InMemory {
             .await
             .context(UnableToStreamDataIntoMemory)?;
 
-        ensure!(
-            content.len() == length,
-            DataDoesNotMatchLength {
-                actual: content.len(),
-                expected: length,
-            }
-        );
+        if let Some(length) = length {
+            ensure!(
+                content.len() == length,
+                DataDoesNotMatchLength {
+                    actual: content.len(),
+                    expected: length,
+                }
+            );
+        }
 
         let content = content.freeze();
 
@@ -201,7 +203,7 @@ mod tests {
         let bytes = stream::once(async { Ok(Bytes::from("hello world")) });
         let mut location = integration.new_path();
         location.set_file_name("junk");
-        let res = integration.put(&location, bytes, 0).await;
+        let res = integration.put(&location, bytes, Some(0)).await;
 
         assert!(matches!(
             res.err().unwrap(),
@@ -210,6 +212,34 @@ mod tests {
                 actual: 11,
             }
         ));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn unknown_length() -> Result<()> {
+        let integration = InMemory::new();
+
+        let data = Bytes::from("arbitrary data");
+        let stream_data = std::io::Result::Ok(data.clone());
+
+        let mut location = integration.new_path();
+        location.set_file_name("some_file");
+        integration
+            .put(
+                &location,
+                futures::stream::once(async move { stream_data }),
+                None,
+            )
+            .await?;
+
+        let read_data = integration
+            .get(&location)
+            .await?
+            .map_ok(|b| bytes::BytesMut::from(&b[..]))
+            .try_concat()
+            .await?;
+        assert_eq!(&*read_data, data);
 
         Ok(())
     }

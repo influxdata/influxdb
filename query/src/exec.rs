@@ -28,7 +28,7 @@ use tokio::sync::mpsc::{self, error::SendError};
 
 use snafu::{ResultExt, Snafu};
 
-use crate::plan::stringset::StringSetPlan;
+use crate::plan::{fieldlist::FieldListPlan, stringset::StringSetPlan};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -170,14 +170,6 @@ impl From<Vec<SeriesSetPlan>> for SeriesSetPlans {
     }
 }
 
-/// A plan that can be run to produce a sequence of FieldLists
-/// DataFusion plans or a known set of results
-#[derive(Debug)]
-pub enum FieldListPlan {
-    Known(Result<FieldList>),
-    Plans(Vec<LogicalPlan>),
-}
-
 /// Handles executing plans, and marshalling the results into rust
 /// native structures.
 #[derive(Debug, Default)]
@@ -295,46 +287,43 @@ impl Executor {
 
     /// Executes `plan` and return the resulting FieldList
     pub async fn to_field_list(&self, plan: FieldListPlan) -> Result<FieldList> {
-        match plan {
-            FieldListPlan::Known(res) => res,
-            FieldListPlan::Plans(plans) => {
-                // Run the plans in parallel
-                let handles = plans
-                    .into_iter()
-                    .map(|plan| {
-                        let counters = Arc::clone(&self.counters);
+        let FieldListPlan { plans } = plan;
 
-                        tokio::task::spawn(async move {
-                            let ctx = IOxExecutionContext::new(counters);
-                            let physical_plan = ctx
-                                .prepare_plan(&plan)
-                                .await
-                                .context(DataFusionPhysicalPlanning)?;
+        // Run the plans in parallel
+        let handles = plans
+            .into_iter()
+            .map(|plan| {
+                let counters = Arc::clone(&self.counters);
 
-                            // TODO: avoid this buffering
-                            let fieldlist = ctx
-                                .collect(physical_plan)
-                                .await
-                                .context(FieldListExectuon)?
-                                .into_fieldlist()
-                                .context(FieldListConversion);
+                tokio::task::spawn(async move {
+                    let ctx = IOxExecutionContext::new(counters);
+                    let physical_plan = ctx
+                        .prepare_plan(&plan)
+                        .await
+                        .context(DataFusionPhysicalPlanning)?;
 
-                            Ok(fieldlist)
-                        })
-                    })
-                    .collect::<Vec<_>>();
+                    // TODO: avoid this buffering
+                    let fieldlist = ctx
+                        .collect(physical_plan)
+                        .await
+                        .context(FieldListExectuon)?
+                        .into_fieldlist()
+                        .context(FieldListConversion);
 
-                // collect them all up and combine them
-                let mut results = Vec::new();
-                for join_handle in handles {
-                    let fieldlist = join_handle.await.context(JoinError)???;
+                    Ok(fieldlist)
+                })
+            })
+            .collect::<Vec<_>>();
 
-                    results.push(fieldlist);
-                }
+        // collect them all up and combine them
+        let mut results = Vec::new();
+        for join_handle in handles {
+            let fieldlist = join_handle.await.context(JoinError)???;
 
-                results.into_fieldlist().context(FieldListConversion)
-            }
+            results.push(fieldlist);
         }
+
+        results.into_fieldlist().context(FieldListConversion)
     }
 
     /// Run the plan and return a record batch reader for reading the results
