@@ -575,12 +575,13 @@ mod tests {
         db.check_size_and_drop_partitions().unwrap();
         assert!(db.mutable_buffer.as_ref().unwrap().size() < 300);
 
-        let partitions = db
+        let mut partitions = db
             .mutable_buffer
             .as_ref()
             .unwrap()
             .partition_keys()
             .unwrap();
+        partitions.sort();
         assert_eq!(&partitions[0], "p2");
         assert_eq!(&partitions[1], "p3");
 
