@@ -122,8 +122,13 @@ You can see a list of the current configuration values by running `influxdb_iox
 --help`, as well as the specific subcommand config options such as `influxdb_iox
 server --help`.
 
-Should you desire specifying config via a file, you can do so using a `.env`
-formatted file in the working directory.
+Should you desire specifying config via a file, you can do so using a
+`.env` formatted file in the working directory. You can use the
+provided [example](docs/env.example) as a template if you want:
+
+```bash
+cp docs/env.example .env
+```
 
 
 ### Compiling and Starting the Server

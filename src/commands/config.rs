@@ -3,7 +3,6 @@
 
 use std::{net::SocketAddr, net::ToSocketAddrs, path::PathBuf};
 
-use lazy_static::lazy_static;
 use structopt::StructOpt;
 
 /// The default bind address for the HTTP API.
@@ -11,16 +10,6 @@ pub const DEFAULT_API_BIND_ADDR: &str = "127.0.0.1:8080";
 
 /// The default bind address for the gRPC.
 pub const DEFAULT_GRPC_BIND_ADDR: &str = "127.0.0.1:8082";
-
-lazy_static! {
-    static ref DEFAULT_DATA_DIR: String = dirs::home_dir()
-        .map(|mut path| {
-            path.push(".influxdb_iox");
-            path
-        })
-        .and_then(|dir| dir.to_str().map(|s| s.to_string()))
-        .unwrap();
-}
 
 #[derive(Debug, StructOpt)]
 #[structopt(

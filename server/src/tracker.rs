@@ -2,10 +2,11 @@ use std::collections::HashMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::task::{Context, Poll};
 
 use futures::prelude::*;
+use parking_lot::Mutex;
 use pin_project::{pin_project, pinned_drop};
 
 /// Every future registered with a `TrackerRegistry` is assigned a unique
@@ -67,13 +68,7 @@ impl<T> TrackerRegistry<T> {
     /// will only occur when the future yields (returns from poll)
     #[allow(dead_code)]
     pub fn terminate(&self, id: TrackerId) -> bool {
-        if let Some(meta) = self
-            .inner
-            .trackers
-            .lock()
-            .expect("lock poisoned")
-            .get_mut(&id)
-        {
+        if let Some(meta) = self.inner.trackers.lock().get_mut(&id) {
             meta.abort.abort();
             true
         } else {
@@ -82,18 +77,14 @@ impl<T> TrackerRegistry<T> {
     }
 
     fn untrack(&self, id: &TrackerId) {
-        self.inner
-            .trackers
-            .lock()
-            .expect("lock poisoned")
-            .remove(id);
+        self.inner.trackers.lock().remove(id);
     }
 
     fn track(&self, metadata: T) -> (TrackerId, future::AbortRegistration) {
         let id = TrackerId(self.inner.id.fetch_add(1, Ordering::Relaxed));
         let (abort_handle, abort_registration) = future::AbortHandle::new_pair();
 
-        self.inner.trackers.lock().expect("lock poisoned").insert(
+        self.inner.trackers.lock().insert(
             id,
             Tracker {
                 abort: abort_handle,
@@ -114,7 +105,6 @@ impl<T: Clone> TrackerRegistry<T> {
         self.inner
             .trackers
             .lock()
-            .expect("lock poisoned")
             .iter()
             .map(|(id, value)| (*id, value.data.clone()))
             .collect()
