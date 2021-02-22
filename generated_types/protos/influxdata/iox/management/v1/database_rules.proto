@@ -32,7 +32,7 @@ message PartitionTemplate {
 }
 
 message Matcher {
-  // Restrict selection to a specific table or table's specified by a regex
+  // Restrict selection to a specific table or tables specified by a regex
   oneof tableMatcher {
     string table = 1;
     string regex = 2;
@@ -91,7 +91,7 @@ message QueryConfig {
   // If set to `true`, this server should answer queries from one or more of
   // of its local write buffer and any read-only partitions that it knows
   // about. In this case, results will be merged with any others from the
-  // remote goups or read only partitions.
+  // remote goups or read-only partitions.
   bool queryLocal = 1;
 
   // Set `primary` to a host group if remote servers should be
@@ -123,7 +123,7 @@ message WalBufferConfig {
     ROLLOVER_UNKNOWN = 0;
 
     // Drop the old segment even though it hasn't been persisted. This part of
-    // the WAl will be lost on this server.
+    // the WAL will be lost on this server.
     ROLLOVER_DROP_OLD_SEGMENT = 1;
 
     // Drop the incoming write and fail silently. This favors making sure that
@@ -142,7 +142,7 @@ message WalBufferConfig {
   // below this threshold
   uint64 bufferSize = 1;
 
-  // WAL segments become read only after crossing over this size. Which means
+  // WAL segments become read-only after crossing over this size. Which means
   // that segments will always be >= this size. When old segments are
   // dropped from of memory, at least this much space will be freed from
   // the buffer.
