@@ -1,7 +1,7 @@
 //! This module contains helper methods for constructing replicated writes
 //! based on `DatabaseRules`.
 
-use crate::database_rules::DatabaseRules;
+use crate::database_rules::Partitioner;
 use crate::TIME_COLUMN_NAME;
 use generated_types::wal as wb;
 use influxdb_line_protocol::{FieldValue, ParsedLine};
@@ -164,11 +164,11 @@ pub fn lines_to_replicated_write(
     writer: u32,
     sequence: u64,
     lines: &[ParsedLine<'_>],
-    rules: &DatabaseRules,
+    partitioner: &impl Partitioner,
 ) -> ReplicatedWrite {
     let default_time = Utc::now();
     let entry_bytes = split_lines_into_write_entry_partitions(
-        |line| rules.partition_key(line, &default_time).unwrap(),
+        |line| partitioner.partition_key(line, &default_time).unwrap(),
         lines,
     );
 
