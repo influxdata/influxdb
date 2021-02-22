@@ -514,8 +514,9 @@ dependencies = [
 
 [[package]]
 name = "cloud-storage"
-version = "0.7.1"
-source = "git+https://github.com/integer32llc/cloud-storage-rs.git?branch=list-with-delimiter#ca7be2ff7d0a0dce5d130b7ed1f81c0e1f392c95"
+version = "0.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bce9e4bdb24400b2e2403aecceb676c355c0309e3476a79c80c34858fddd611f"
 dependencies = [
  "base64 0.13.0",
  "bytes",
