@@ -580,7 +580,6 @@ mod tests {
             .as_ref()
             .unwrap()
             .partition_keys()
-            .await
             .unwrap();
         assert_eq!(&partitions[0], "p2");
         assert_eq!(&partitions[1], "p3");
