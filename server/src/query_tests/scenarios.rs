@@ -145,9 +145,7 @@ impl DBSetup for OneMeasurementManyFields {
                    h2o,tag1=foo,tag2=bar field1=70.5,field2=\"ss\" 100\n\
                    h2o,tag1=foo,tag2=bar field1=70.6,field4=true 1000";
 
-        make_one_chunk_scenarios(partition_key, data).await;
-
-        make_one_chunk_no_read_buffer_scenarios(partition_key, data).await
+        make_one_chunk_scenarios(partition_key, data).await
     }
 }
 
@@ -231,36 +229,6 @@ async fn make_one_chunk_scenarios(partition_key: &str, data: &str) -> Vec<DBScen
     };
 
     vec![scenario1, scenario2, scenario3, scenario4]
-}
-
-/// This function loads two chunks of lp data into 2 different scenarios
-///
-/// It should be removed as the ReadBuffer gets more functionality. Right
-///
-/// Data in single open mutable buffer chunk
-/// Data in single closed mutable buffer chunk, one closed mutable chunk
-async fn make_one_chunk_no_read_buffer_scenarios(
-    partition_key: &str,
-    data: &str,
-) -> Vec<DBScenario> {
-    let db = make_db();
-    let mut writer = TestLPWriter::default();
-    writer.write_lp_string(&db, data).await.unwrap();
-    let scenario1 = DBScenario {
-        scenario_name: "Data in open chunk of mutable buffer".into(),
-        db,
-    };
-
-    let db = make_db();
-    let mut writer = TestLPWriter::default();
-    writer.write_lp_string(&db, data).await.unwrap();
-    db.rollover_partition(partition_key).await.unwrap();
-    let scenario2 = DBScenario {
-        scenario_name: "Data in closed chunk of mutable buffer".into(),
-        db,
-    };
-
-    vec![scenario1, scenario2]
 }
 
 /// This function loads two chunks of lp data into 4 different scenarios
