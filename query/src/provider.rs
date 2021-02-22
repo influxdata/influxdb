@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use arrow_deps::{
-    arrow::datatypes::SchemaRef,
+    arrow::datatypes::SchemaRef as ArrowSchemaRef,
     datafusion::{
         datasource::{
             datasource::{Statistics, TableProviderFilterPushDown},
@@ -14,33 +14,33 @@ use arrow_deps::{
         physical_plan::ExecutionPlan,
     },
 };
+use data_types::schema::{builder::SchemaMerger, Schema};
 
-use crate::{predicate::Predicate, PartitionChunk};
+use crate::{predicate::Predicate, util::project_schema, PartitionChunk};
 
-use snafu::{OptionExt, Snafu};
+use snafu::{ResultExt, Snafu};
 
+mod adapter;
 mod physical;
 use self::physical::IOxReadFilterNode;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display(
-        "Chunk schema not compatible for table '{}'. They must be identical. Existing: {:?}, New: {:?}",
-        table_name,
-        existing_schema,
-        chunk_schema
-    ))]
+    #[snafu(display("Chunk schema not compatible for table '{}': {}", table_name, source))]
     ChunkSchemaNotCompatible {
         table_name: String,
-        existing_schema: SchemaRef,
-        chunk_schema: SchemaRef,
+        source: data_types::schema::builder::Error,
     },
 
     #[snafu(display(
-        "Internal error: no chunks found in builder for table '{}'",
+        "Internal error: no chunks found in builder for table '{}': {}",
         table_name,
+        source,
     ))]
-    InternalNoChunks { table_name: String },
+    InternalNoChunks {
+        table_name: String,
+        source: data_types::schema::builder::Error,
+    },
 
     #[snafu(display("Internal error: No rows found in table '{}'", table_name))]
     InternalNoRowsInTable { table_name: String },
@@ -53,63 +53,92 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug)]
 pub struct ProviderBuilder<C: PartitionChunk + 'static> {
     table_name: Arc<String>,
-    schema: Option<SchemaRef>,
-    chunks: Vec<Arc<C>>,
+    schema_merger: SchemaMerger,
+    chunk_and_infos: Vec<ChunkInfo<C>>,
+}
+
+/// Holds the information needed to generate data for a specific chunk
+#[derive(Debug)]
+pub(crate) struct ChunkInfo<C>
+where
+    C: PartitionChunk + 'static,
+{
+    /// The schema of the table in just this chunk (the overall table
+    /// schema may have more columns if this chunk doesn't have
+    /// columns that are in other chunks)
+    chunk_table_schema: Schema,
+    chunk: Arc<C>,
+}
+
+// The #[derive(Clone)] clone was complaining about C not implementing
+// Clone, which didn't make sense
+// Tracked by https://github.com/rust-lang/rust/issues/26925
+impl<C> Clone for ChunkInfo<C>
+where
+    C: PartitionChunk + 'static,
+{
+    fn clone(&self) -> Self {
+        Self {
+            chunk_table_schema: self.chunk_table_schema.clone(),
+            chunk: Arc::clone(&self.chunk),
+        }
+    }
 }
 
 impl<C: PartitionChunk> ProviderBuilder<C> {
     pub fn new(table_name: impl Into<String>) -> Self {
         Self {
             table_name: Arc::new(table_name.into()),
-            schema: None,
-            chunks: Vec::new(),
+            schema_merger: SchemaMerger::new(),
+            chunk_and_infos: Vec::new(),
         }
     }
 
     /// Add a new chunk to this provider
-    pub fn add_chunk(mut self, chunk: Arc<C>, chunk_table_schema: SchemaRef) -> Result<Self> {
-        self.schema = Some(if let Some(existing_schema) = self.schema.take() {
-            self.check_schema(existing_schema, chunk_table_schema)?
-        } else {
-            chunk_table_schema
-        });
-        self.chunks.push(chunk);
-        Ok(self)
-    }
+    pub fn add_chunk(self, chunk: Arc<C>, chunk_table_schema: Schema) -> Result<Self> {
+        let Self {
+            table_name,
+            schema_merger,
+            mut chunk_and_infos,
+        } = self;
 
-    /// returns Ok(combined_schema) if the schema of chunk is compatible with
-    /// `existing_schema`, Err() with why otherwise
-    fn check_schema(
-        &self,
-        existing_schema: SchemaRef,
-        chunk_schema: SchemaRef,
-    ) -> Result<SchemaRef> {
-        // For now, use strict equality. Eventually should union the schema
-        if existing_schema != chunk_schema {
-            ChunkSchemaNotCompatible {
-                table_name: self.table_name.as_ref(),
-                existing_schema,
-                chunk_schema,
-            }
-            .fail()
-        } else {
-            Ok(chunk_schema)
-        }
+        let schema_merger =
+            schema_merger
+                .merge(chunk_table_schema.clone())
+                .context(ChunkSchemaNotCompatible {
+                    table_name: table_name.as_ref(),
+                })?;
+
+        let chunk_info = ChunkInfo {
+            chunk_table_schema,
+            chunk,
+        };
+        chunk_and_infos.push(chunk_info);
+
+        Ok(Self {
+            table_name,
+            schema_merger,
+            chunk_and_infos,
+        })
     }
 
     pub fn build(self) -> Result<ChunkTableProvider<C>> {
         let Self {
             table_name,
-            schema,
-            chunks,
+            schema_merger,
+            chunk_and_infos,
         } = self;
 
-        let schema = schema.context(InternalNoChunks {
-            table_name: table_name.as_ref(),
-        })?;
+        let iox_schema = schema_merger
+            .build()
+            .context(InternalNoChunks {
+                table_name: table_name.as_ref(),
+            })?
+            // sort so the columns are always in a consistent order
+            .sort_fields_by_name();
 
         // if the table was reported to exist, it should not be empty
-        if chunks.is_empty() {
+        if chunk_and_infos.is_empty() {
             return InternalNoRowsInTable {
                 table_name: table_name.as_ref(),
             }
@@ -118,8 +147,8 @@ impl<C: PartitionChunk> ProviderBuilder<C> {
 
         Ok(ChunkTableProvider {
             table_name,
-            schema,
-            chunks,
+            iox_schema,
+            chunk_and_infos,
         })
     }
 }
@@ -129,10 +158,24 @@ impl<C: PartitionChunk> ProviderBuilder<C> {
 /// This allows DataFusion to see data from Chunks as a single table, as well as
 /// push predicates and selections down to chunks
 #[derive(Debug)]
-pub struct ChunkTableProvider<C: PartitionChunk> {
+pub struct ChunkTableProvider<C: PartitionChunk + 'static> {
     table_name: Arc<String>,
-    schema: SchemaRef,
-    chunks: Vec<Arc<C>>,
+    /// The IOx schema (wrapper around Arrow Schemaref) for this table
+    iox_schema: Schema,
+    // The chunks and their corresponding schema
+    chunk_and_infos: Vec<ChunkInfo<C>>,
+}
+
+impl<C: PartitionChunk + 'static> ChunkTableProvider<C> {
+    /// Return the IOx schema view for the data provided by this provider
+    pub fn iox_schema(&self) -> Schema {
+        self.iox_schema.clone()
+    }
+
+    /// Return the Arrow schema view for the data provided by this provider
+    pub fn arrow_schema(&self) -> ArrowSchemaRef {
+        self.iox_schema.as_arrow()
+    }
 }
 
 impl<C: PartitionChunk + 'static> TableProvider for ChunkTableProvider<C> {
@@ -140,8 +183,9 @@ impl<C: PartitionChunk + 'static> TableProvider for ChunkTableProvider<C> {
         self
     }
 
-    fn schema(&self) -> SchemaRef {
-        self.schema.clone()
+    /// Schema with all available columns across all chunks
+    fn schema(&self) -> ArrowSchemaRef {
+        self.arrow_schema()
     }
 
     fn scan(
@@ -159,12 +203,14 @@ impl<C: PartitionChunk + 'static> TableProvider for ChunkTableProvider<C> {
         // optimization for providers which can offer them
         let predicate = Predicate::default();
 
+        // Figure out the schema of the requested output
+        let scan_schema = project_schema(self.arrow_schema(), projection);
+
         let plan = IOxReadFilterNode::new(
-            self.table_name.clone(),
-            self.schema.clone(),
-            self.chunks.clone(),
+            Arc::clone(&self.table_name),
+            scan_schema,
+            self.chunk_and_infos.clone(),
             predicate,
-            projection.clone(),
         );
 
         Ok(Arc::new(plan))

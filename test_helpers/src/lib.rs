@@ -3,10 +3,14 @@
     missing_copy_implementations,
     missing_debug_implementations,
     clippy::explicit_iter_loop,
-    clippy::use_self
+    clippy::use_self,
+    clippy::clone_on_ref_ptr
 )]
 
-use std::{env, f64, sync::Arc};
+use std::{
+    env, f64,
+    sync::{Arc, Once},
+};
 pub use tempfile;
 
 pub mod tracing;
@@ -80,9 +84,37 @@ pub fn tag_key_bytes_to_strings(bytes: Vec<u8>) -> String {
     }
 }
 
-pub fn enable_logging() {
-    std::env::set_var("RUST_LOG", "debug");
-    env_logger::init();
+static LOG_SETUP: Once = Once::new();
+
+/// Enables debug logging regardless of the value of RUST_LOG
+/// environment variable. If RUST_LOG isn't specifies, defaults to
+/// "debug"
+pub fn start_logging() {
+    // ensure the global has been initialized
+    LOG_SETUP.call_once(|| {
+        // honor any existing RUST_LOG level
+        if std::env::var("RUST_LOG").is_err() {
+            std::env::set_var("RUST_LOG", "debug");
+        }
+        // Configure the logger to write to stderr and install it
+        let output_stream = std::io::stderr;
+
+        use tracing_subscriber::{prelude::*, EnvFilter};
+
+        tracing_subscriber::registry()
+            .with(EnvFilter::from_default_env())
+            .with(tracing_subscriber::fmt::layer().with_writer(output_stream))
+            .init();
+    })
+}
+
+/// Enables debug logging if the RUST_LOG environment variable is
+/// set. Does nothing if RUST_LOG is not set. If enable_logging has
+/// been set previously, does nothing
+pub fn maybe_start_logging() {
+    if std::env::var("RUST_LOG").is_ok() {
+        start_logging()
+    }
 }
 
 #[macro_export]

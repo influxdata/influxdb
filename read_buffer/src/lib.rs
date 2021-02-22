@@ -2,11 +2,13 @@
 #![allow(dead_code)]
 #![allow(clippy::too_many_arguments)]
 #![allow(unused_variables)]
+#![warn(clippy::clone_on_ref_ptr)]
 pub(crate) mod chunk;
 pub(crate) mod column;
 pub(crate) mod row_group;
 mod schema;
 pub(crate) mod table;
+pub(crate) mod value;
 
 use std::{
     collections::{btree_map::Entry, BTreeMap, BTreeSet},
@@ -15,7 +17,7 @@ use std::{
     sync::RwLock,
 };
 
-use arrow_deps::{arrow::record_batch::RecordBatch, util::str_iter_to_batch};
+use arrow_deps::arrow::record_batch::RecordBatch;
 use data_types::{
     schema::{builder::SchemaMerger, Schema},
     selection::Selection,
@@ -29,14 +31,6 @@ pub use schema::*;
 use chunk::Chunk;
 use row_group::{ColumnName, RowGroup};
 use table::Table;
-
-/// The name of the column containing table names returned by a call to
-/// `table_names`.
-pub const TABLE_NAMES_COLUMN_NAME: &str = "table";
-
-/// The name of the column containing column names returned by a call to
-/// `column_names`.
-pub const COLUMN_NAMES_COLUMN_NAME: &str = "column";
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -85,9 +79,6 @@ struct PartitionData {
     // identified by a partition key
     partitions: BTreeMap<String, Partition>,
 
-    // The current total size of the database.
-    size: u64,
-
     // Total number of rows in the database.
     rows: u64,
 }
@@ -114,7 +105,6 @@ impl Database {
 
         // Take lock on partitions and update.
         let mut partition_data = self.data.write().unwrap();
-        partition_data.size += row_group.size();
         partition_data.rows += row_group.rows() as u64;
 
         // create a new chunk if one doesn't exist, or add the table data to
@@ -147,7 +137,6 @@ impl Database {
             .remove(partition_key)
             .context(PartitionNotFound { key: partition_key })?;
 
-        partition_data.size -= partition.size();
         partition_data.rows -= partition.rows();
         Ok(())
     }
@@ -162,7 +151,6 @@ impl Database {
             .context(PartitionNotFound { key: partition_key })?;
 
         partition.drop_chunk(chunk_id).map(|chunk| {
-            partition_data.size -= chunk.size();
             partition_data.rows -= chunk.rows();
             // don't return chunk from `drop_chunk`
         })
@@ -191,8 +179,17 @@ impl Database {
             .unwrap_or_default()
     }
 
+    /// Returns the total estimated size in bytes of the database.
     pub fn size(&self) -> u64 {
-        self.data.read().unwrap().size
+        let base_size = std::mem::size_of::<Self>();
+
+        let partition_data = self.data.read().unwrap();
+        base_size as u64
+            + partition_data
+                .partitions
+                .iter()
+                .map(|(name, partition)| name.len() as u64 + partition.size())
+                .sum::<u64>()
     }
 
     pub fn rows(&self) -> u64 {
@@ -425,14 +422,12 @@ impl Database {
 
     /// Returns the distinct set of table names that contain data that satisfies
     /// the provided predicate.
-    ///
-    /// TODO(edd): Implement predicate support.
     pub fn table_names(
         &self,
         partition_key: &str,
         chunk_ids: &[u32],
         predicate: Predicate,
-    ) -> Result<RecordBatch> {
+    ) -> Result<BTreeSet<String>> {
         let partition_data = self.data.read().unwrap();
 
         let partition = partition_data
@@ -461,12 +456,8 @@ impl Database {
                 // we need to.
                 names.append(&mut chunk.table_names(&predicate, &names));
                 names
-            })
-            // have a BTreeSet here, convert to an iterator of Some(&str)
-            .into_iter()
-            .map(Some);
-
-        str_iter_to_batch(TABLE_NAMES_COLUMN_NAME, names).context(ArrowError)
+            });
+        Ok(names)
     }
 
     /// Returns the distinct set of column names (tag keys) that satisfy the
@@ -477,7 +468,7 @@ impl Database {
         table_name: &str,
         chunk_ids: &[u32],
         predicate: Predicate,
-    ) -> Result<RecordBatch> {
+    ) -> Result<Option<BTreeSet<String>>> {
         let partition_data = self.data.read().unwrap();
 
         let partition = partition_data
@@ -498,18 +489,14 @@ impl Database {
             );
         }
 
-        let names = filtered_chunks
-            .iter()
-            .fold(BTreeSet::new(), |dst, chunk| {
-                // the dst buffer is pushed into each chunk's `column_names`
-                // implementation ensuring that we short-circuit any tables where
-                // we have already determined column names.
-                chunk.column_names(table_name, &predicate, dst)
-            }) // have a BTreeSet here, convert to an iterator of Some(&str)
-            .into_iter()
-            .map(Some);
+        let names = filtered_chunks.iter().fold(BTreeSet::new(), |dst, chunk| {
+            // the dst buffer is pushed into each chunk's `column_names`
+            // implementation ensuring that we short-circuit any tables where
+            // we have already determined column names.
+            chunk.column_names(table_name, &predicate, dst)
+        });
 
-        str_iter_to_batch(COLUMN_NAMES_COLUMN_NAME, names).context(ArrowError)
+        Ok(Some(names))
     }
 }
 
@@ -518,7 +505,7 @@ impl fmt::Debug for Database {
         let partition_data = self.data.read().unwrap();
         f.debug_struct("Database")
             .field("partitions", &partition_data.partitions.keys())
-            .field("size", &partition_data.size)
+            .field("size", &self.size())
             .finish()
     }
 }
@@ -528,9 +515,6 @@ struct ChunkData {
     // The collection of chunks in the partition. Each chunk is uniquely
     // identified by a chunk id.
     chunks: BTreeMap<u32, Chunk>,
-
-    // The current total size of the partition.
-    size: u64,
 
     // The current number of row groups in this partition.
     row_groups: usize,
@@ -553,7 +537,6 @@ impl Partition {
         Self {
             key: partition_key.to_owned(),
             data: RwLock::new(ChunkData {
-                size: chunk.size(),
                 row_groups: chunk.row_groups(),
                 rows: chunk.rows(),
                 chunks: vec![(chunk.id(), chunk)].into_iter().collect(),
@@ -571,7 +554,6 @@ impl Partition {
     fn upsert_chunk(&mut self, chunk_id: u32, table_name: String, row_group: RowGroup) {
         let mut chunk_data = self.data.write().unwrap();
 
-        chunk_data.size += row_group.size();
         chunk_data.row_groups += 1;
         chunk_data.rows += row_group.rows() as u64;
 
@@ -597,7 +579,6 @@ impl Partition {
             .remove(&chunk_id)
             .context(ChunkNotFound { id: chunk_id })?;
 
-        chunk_data.size -= chunk.size();
         chunk_data.rows -= chunk.rows();
         chunk_data.row_groups -= chunk.row_groups();
         Ok(chunk)
@@ -640,8 +621,18 @@ impl Partition {
         self.data.read().unwrap().rows
     }
 
+    /// The total estimated size in bytes of the `Partition` and all contained
+    /// data.
     pub fn size(&self) -> u64 {
-        self.data.read().unwrap().size
+        let base_size = std::mem::size_of::<Self>() + self.key.len();
+
+        let chunk_data = self.data.read().unwrap();
+        base_size as u64
+            + chunk_data
+                .chunks
+                .values()
+                .map(|chunk| std::mem::size_of::<u32>() as u64 + chunk.size())
+                .sum::<u64>()
     }
 }
 
@@ -792,11 +783,11 @@ mod test {
         array::{
             ArrayRef, BinaryArray, BooleanArray, Float64Array, Int64Array, StringArray, UInt64Array,
         },
-        datatypes::DataType::{Boolean, Float64, Int64, UInt64},
+        datatypes::DataType::{Boolean, Float64, Int64, UInt64, Utf8},
     };
-
-    use column::Values;
     use data_types::schema::builder::SchemaBuilder;
+
+    use crate::value::Values;
 
     // helper to make the `database_update_chunk` test simpler to read.
     fn gen_recordbatch() -> RecordBatch {
@@ -1024,35 +1015,30 @@ mod test {
     #[test]
     fn table_names() {
         let db = Database::new();
-        let res_col = TABLE_NAMES_COLUMN_NAME;
 
         db.upsert_partition("hour_1", 22, "Coolverine", gen_recordbatch());
         let data = db
             .table_names("hour_1", &[22], Predicate::default())
             .unwrap();
-        assert_rb_column_equals(&data, res_col, &Values::String(vec![Some("Coolverine")]));
+        assert_eq!(data, to_set(&["Coolverine"]));
 
         db.upsert_partition("hour_1", 22, "Coolverine", gen_recordbatch());
         let data = db
             .table_names("hour_1", &[22], Predicate::default())
             .unwrap();
-        assert_rb_column_equals(&data, res_col, &Values::String(vec![Some("Coolverine")]));
+        assert_eq!(data, to_set(&["Coolverine"]));
 
         db.upsert_partition("hour_1", 2, "Coolverine", gen_recordbatch());
         let data = db
             .table_names("hour_1", &[22], Predicate::default())
             .unwrap();
-        assert_rb_column_equals(&data, res_col, &Values::String(vec![Some("Coolverine")]));
+        assert_eq!(data, to_set(&["Coolverine"]));
 
         db.upsert_partition("hour_1", 2, "20 Size", gen_recordbatch());
         let data = db
             .table_names("hour_1", &[2, 22], Predicate::default())
             .unwrap();
-        assert_rb_column_equals(
-            &data,
-            res_col,
-            &Values::String(vec![Some("20 Size"), Some("Coolverine")]),
-        );
+        assert_eq!(data, to_set(&["20 Size", "Coolverine"]));
 
         let data = db
             .table_names(
@@ -1061,17 +1047,12 @@ mod test {
                 Predicate::new(vec![BinaryExpr::from(("region", ">", "north"))]),
             )
             .unwrap();
-        assert_rb_column_equals(
-            &data,
-            res_col,
-            &Values::String(vec![Some("20 Size"), Some("Coolverine")]),
-        );
+        assert_eq!(data, to_set(&["20 Size", "Coolverine"]));
     }
 
     #[test]
     fn column_names() {
         let db = Database::new();
-        let res_col = COLUMN_NAMES_COLUMN_NAME;
 
         let schema = SchemaBuilder::new()
             .non_null_tag("region")
@@ -1114,42 +1095,30 @@ mod test {
             .column_names("hour_1", "Utopia", &[22], Predicate::default())
             .unwrap();
 
-        assert_rb_column_equals(
-            &result,
-            res_col,
-            &Values::String(
-                vec!["counter", "region", "sketchy_sensor", "time"]
-                    .into_iter()
-                    .map(Some)
-                    .collect(),
-            ),
+        assert_eq!(
+            result,
+            Some(to_set(&["counter", "region", "sketchy_sensor", "time"]))
         );
-
-        // Now the second - different columns.
         let result = db
             .column_names("hour_1", "Utopia", &[40], Predicate::default())
             .unwrap();
 
-        assert_rb_column_equals(
-            &result,
-            res_col,
-            &Values::String(vec!["active", "time"].into_iter().map(Some).collect()),
-        );
+        assert_eq!(result, Some(to_set(&["active", "time"])));
 
         // And now the union across all chunks.
         let result = db
             .column_names("hour_1", "Utopia", &[22, 40], Predicate::default())
             .unwrap();
 
-        assert_rb_column_equals(
-            &result,
-            res_col,
-            &Values::String(
-                vec!["active", "counter", "region", "sketchy_sensor", "time"]
-                    .into_iter()
-                    .map(Some)
-                    .collect(),
-            ),
+        assert_eq!(
+            result,
+            Some(to_set(&[
+                "active",
+                "counter",
+                "region",
+                "sketchy_sensor",
+                "time"
+            ]))
         );
 
         // Testing predicates
@@ -1164,11 +1133,7 @@ mod test {
 
         // only time will be returned - "active" in the second chunk is NULL for
         // matching rows
-        assert_rb_column_equals(
-            &result,
-            res_col,
-            &Values::String(vec!["time"].into_iter().map(Some).collect()),
-        );
+        assert_eq!(result, Some(to_set(&["time"])));
 
         let result = db
             .column_names(
@@ -1181,11 +1146,7 @@ mod test {
 
         // there exists at least one row in the second chunk with a matching
         // non-null value across the active and time columns.
-        assert_rb_column_equals(
-            &result,
-            res_col,
-            &Values::String(vec!["active", "time"].into_iter().map(Some).collect()),
-        );
+        assert_eq!(result, Some(to_set(&["active", "time"])));
     }
 
     #[test]
@@ -1200,6 +1161,7 @@ mod test {
                 .non_null_field("counter", Float64)
                 .field("sketchy_sensor", Int64)
                 .non_null_field("active", Boolean)
+                .field("msg", Utf8)
                 .timestamp()
                 .build()
                 .unwrap();
@@ -1210,6 +1172,11 @@ mod test {
                 Arc::new(Float64Array::from(vec![1.2, 300.3, 4500.3])),
                 Arc::new(Int64Array::from(vec![None, Some(33), Some(44)])),
                 Arc::new(BooleanArray::from(vec![true, false, false])),
+                Arc::new(StringArray::from(vec![
+                    Some("message a"),
+                    Some("message b"),
+                    None,
+                ])),
                 Arc::new(Int64Array::from(vec![i, 2 * i, 3 * i])),
             ];
 
@@ -1251,6 +1218,11 @@ mod test {
             &exp_sketchy_sensor_values,
         );
         assert_rb_column_equals(&first_row_group, "active", &exp_active_values);
+        assert_rb_column_equals(
+            &first_row_group,
+            "msg",
+            &Values::String(vec![Some("message a")]),
+        );
         assert_rb_column_equals(&first_row_group, "time", &Values::I64(vec![100])); // first row from first record batch
 
         let second_row_group = itr.next().unwrap();
@@ -1353,6 +1325,7 @@ mod test {
                 .non_null_field("counter", UInt64)
                 .field("sketchy_sensor", UInt64)
                 .non_null_field("active", Boolean)
+                .non_null_field("msg", Utf8)
                 .timestamp()
                 .build()
                 .unwrap();
@@ -1364,6 +1337,7 @@ mod test {
                 Arc::new(UInt64Array::from(vec![1000, 3000, 5000])),
                 Arc::new(UInt64Array::from(vec![Some(44), None, Some(55)])),
                 Arc::new(BooleanArray::from(vec![true, true, false])),
+                Arc::new(StringArray::from(vec![Some("msg a"), Some("msg b"), None])),
                 Arc::new(Int64Array::from(vec![i, 20 + i, 30 + i])),
             ];
 
@@ -1402,6 +1376,7 @@ mod test {
                     ("active", AggregateType::Count),
                     ("active", AggregateType::Min),
                     ("active", AggregateType::Max),
+                    ("msg", AggregateType::Max),
                 ],
             )
             .unwrap();
@@ -1420,6 +1395,7 @@ mod test {
         assert_rb_column_equals(&result, "active_count", &Values::U64(vec![3]));
         assert_rb_column_equals(&result, "active_min", &Values::Bool(vec![Some(false)]));
         assert_rb_column_equals(&result, "active_max", &Values::Bool(vec![Some(true)]));
+        assert_rb_column_equals(&result, "msg_max", &Values::String(vec![Some("msg b")]));
 
         //
         // With group keys
@@ -1463,6 +1439,10 @@ mod test {
         assert_rb_column_equals(&result, "counter_sum", &Values::U64(vec![15000, 12000]));
         assert_rb_column_equals(&result, "counter_count", &Values::U64(vec![3, 6]));
     }
+
+    fn to_set(v: &[&str]) -> BTreeSet<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
 }
 
 /// THIS MODULE SHOULD ONLY BE IMPORTED FOR BENCHMARKS.
@@ -1473,7 +1453,8 @@ mod test {
 /// It should not be imported into any non-testing or benchmarking crates.
 pub mod benchmarks {
     pub use crate::column::{
-        cmp::Operator, dictionary, fixed::Fixed, fixed_null::FixedNull, Column, RowIDs,
+        cmp::Operator, encoding::dictionary, encoding::fixed::Fixed,
+        encoding::fixed_null::FixedNull, Column, RowIDs,
     };
 
     pub use crate::row_group::{ColumnType, RowGroup};

@@ -36,11 +36,10 @@ impl Bool {
         self.arr.null_count() > 0
     }
 
-    /// Returns the total size in bytes of the encoded data. Note, this method
-    /// is really an "accurate" estimation. It doesn't include for example the
-    /// size of the `Plain` struct receiver.
+    /// Returns an estimation of the total size in bytes used by this column
+    /// encoding.
     pub fn size(&self) -> u64 {
-        0
+        (std::mem::size_of::<BooleanArray>() + self.arr.get_array_memory_size()) as u64
     }
 
     //
@@ -340,6 +339,12 @@ mod test {
 
     fn some_vec<T: Copy>(v: Vec<T>) -> Vec<Option<T>> {
         v.iter().map(|x| Some(*x)).collect()
+    }
+
+    #[test]
+    fn size() {
+        let v = Bool::from(vec![None, None, Some(true), Some(false)].as_slice());
+        assert_eq!(v.size(), 240);
     }
 
     #[test]

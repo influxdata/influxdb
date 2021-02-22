@@ -4,10 +4,14 @@ use reqwest::Url;
 
 use crate::Client;
 
-/// The default User-Agent header sent by this client.
+#[cfg(feature = "flight")]
+use crate::FlightClient;
+
+/// The default User-Agent header sent by the HTTP client.
 pub const USER_AGENT: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO_PKG_VERSION"));
 
-/// Configure and construct a new [`Client`] instance.
+/// Configure and construct a new [`Client`] instance for using the IOx HTTP
+/// API.
 ///
 /// ```
 /// # use influxdb_iox_client::ClientBuilder;
@@ -36,7 +40,7 @@ impl std::default::Default for ClientBuilder {
 }
 
 impl ClientBuilder {
-    /// Construct the [`Client`] instance.
+    /// Construct the [`Client`] instance using the specified base URL.
     pub fn build<T>(self, base_url: T) -> Result<Client, Box<dyn std::error::Error>>
     where
         T: AsRef<str>,
@@ -100,6 +104,39 @@ impl ClientBuilder {
     /// [`connect_timeout`]: Self::connect_timeout
     pub fn timeout(self, timeout: Duration) -> Self {
         Self { timeout, ..self }
+    }
+}
+
+#[cfg(feature = "flight")]
+#[derive(Debug)]
+/// Configure and construct a new [`FlightClient`] instance for using the IOx
+/// Arrow Flight API.
+///
+/// ```
+/// # use influxdb_iox_client::FlightClientBuilder;
+///
+/// let c = FlightClientBuilder::default()
+///     .build("http://127.0.0.1:8080/");
+/// ```
+pub struct FlightClientBuilder {}
+
+#[cfg(feature = "flight")]
+impl Default for FlightClientBuilder {
+    fn default() -> Self {
+        Self {}
+    }
+}
+
+#[cfg(feature = "flight")]
+impl FlightClientBuilder {
+    /// Construct the [`FlightClient`] instance using the specified URL to the
+    /// server and port where the Arrow Flight API is available.
+    pub async fn build<T>(self, flight_url: T) -> Result<FlightClient, Box<dyn std::error::Error>>
+    where
+        T: std::convert::TryInto<tonic::transport::Endpoint>,
+        T::Error: Into<tonic::codegen::StdError>,
+    {
+        Ok(FlightClient::connect(flight_url).await.map_err(Box::new)?)
     }
 }
 

@@ -17,6 +17,7 @@ generated_types = { path = "../generated_types" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 mutable_buffer = { path = "../mutable_buffer" }
 object_store = { path = "../object_store" }
+pin-project = "1.0"
 query = { path = "../query" }
 read_buffer = { path = "../read_buffer" }
 serde = "1.0"

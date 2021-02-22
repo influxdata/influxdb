@@ -12,6 +12,7 @@ use arrow_deps::arrow::datatypes::{
     SchemaRef as ArrowSchemaRef,
 };
 
+/// The name of the timestamp column in the InfluxDB datamodel
 pub const TIME_COLUMN_NAME: &str = "time";
 
 pub mod builder;
@@ -92,6 +93,12 @@ pub enum Error {
     MergingSchemas {
         source: arrow_deps::arrow::error::ArrowError,
     },
+
+    #[snafu(display("Schema Selection error while selecting '{}': {}", column_name, source))]
+    SelectingColumns {
+        column_name: String,
+        source: arrow_deps::arrow::error::ArrowError,
+    },
 }
 
 fn nullable_to_str(nullability: bool) -> &'static str {
@@ -133,7 +140,7 @@ impl From<Schema> for ArrowSchemaRef {
 
 impl From<&Schema> for ArrowSchemaRef {
     fn from(s: &Schema) -> Self {
-        s.inner.clone()
+        s.as_arrow()
     }
 }
 
@@ -183,6 +190,11 @@ impl Schema {
             }
         }
         Ok(schema)
+    }
+
+    /// Return a valid Arrow `SchemaRef` representing this `Schema`
+    pub fn as_arrow(&self) -> ArrowSchemaRef {
+        Arc::clone(&self.inner)
     }
 
     /// Create and validate a new Schema, creating metadata to
@@ -284,7 +296,8 @@ impl Schema {
         self.inner.fields().is_empty()
     }
 
-    /// Returns an iterator over all the columns of this schema, in order
+    /// Returns an iterator of (Option<InfluxColumnType>, &Field) for
+    /// all the columns of this schema, in order
     pub fn iter(&self) -> SchemaIter<'_> {
         SchemaIter {
             schema: self,
@@ -625,7 +638,7 @@ mod test {
         ]));
 
         // Given a schema created from arrow record batch with no metadata
-        let schema: Schema = arrow_schema.clone().try_into().unwrap();
+        let schema: Schema = Arc::clone(&arrow_schema).try_into().unwrap();
         assert_eq!(schema.len(), 2);
 
         // It still works, but has no lp column types

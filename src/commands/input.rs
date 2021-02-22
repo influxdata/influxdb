@@ -273,7 +273,7 @@ impl InputPath {
         struct PathAndType {
             path: PathBuf,
             file_type: fs::FileType,
-        };
+        }
 
         let mut paths = VecDeque::new();
         let root_path = root_path.into();

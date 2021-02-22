@@ -9,16 +9,16 @@ use super::{
     },
     expr::{self, AddRPCNode, Loggable, SpecialTagKeys},
     input::GrpcInputs,
-    GrpcService,
+    StorageService,
 };
 use data_types::{error::ErrorLogger, names::org_and_bucket_to_database, DatabaseName};
 use generated_types::{
-    i_ox_testing_server::IOxTesting, storage_server::Storage, CapabilitiesResponse, Capability,
+    google::protobuf::Empty, storage_server::Storage, CapabilitiesResponse, Capability,
     Int64ValuesResponse, MeasurementFieldsRequest, MeasurementFieldsResponse,
     MeasurementNamesRequest, MeasurementTagKeysRequest, MeasurementTagValuesRequest, Predicate,
     ReadFilterRequest, ReadGroupRequest, ReadResponse, ReadSeriesCardinalityRequest,
     ReadWindowAggregateRequest, StringValuesResponse, TagKeysRequest, TagValuesRequest,
-    TestErrorRequest, TestErrorResponse, TimestampRange,
+    TimestampRange,
 };
 use query::{
     exec::fieldlist::FieldList,
@@ -33,7 +33,7 @@ use std::{collections::HashMap, sync::Arc};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -203,24 +203,9 @@ impl Error {
     }
 }
 
-#[tonic::async_trait]
-/// Implements the protobuf defined IOx rpc service for a DatabaseStore
-impl<T> IOxTesting for GrpcService<T>
-where
-    T: DatabaseStore + 'static,
-{
-    async fn test_error(
-        &self,
-        _req: tonic::Request<TestErrorRequest>,
-    ) -> Result<tonic::Response<TestErrorResponse>, Status> {
-        warn!("Got a test_error request. About to panic");
-        panic!("This is a test panic");
-    }
-}
-
 /// Implementes the protobuf defined Storage service for a DatabaseStore
 #[tonic::async_trait]
-impl<T> Storage for GrpcService<T>
+impl<T> Storage for StorageService<T>
 where
     T: DatabaseStore + 'static,
 {
@@ -249,9 +234,15 @@ where
             predicate.loggable()
         );
 
-        read_filter_impl(tx.clone(), self.db_store.clone(), db_name, range, predicate)
-            .await
-            .map_err(|e| e.to_status())?;
+        read_filter_impl(
+            tx.clone(),
+            Arc::clone(&self.db_store),
+            db_name,
+            range,
+            predicate,
+        )
+        .await
+        .map_err(|e| e.to_status())?;
 
         Ok(tonic::Response::new(ReceiverStream::new(rx)))
     }
@@ -302,7 +293,7 @@ where
 
         query_group_impl(
             tx.clone(),
-            self.db_store.clone(),
+            Arc::clone(&self.db_store),
             db_name,
             range,
             predicate,
@@ -352,7 +343,7 @@ where
 
         query_group_impl(
             tx.clone(),
-            self.db_store.clone(),
+            Arc::clone(&self.db_store),
             db_name,
             range,
             predicate,
@@ -392,7 +383,7 @@ where
         let measurement = None;
 
         let response = tag_keys_impl(
-            self.db_store.clone(),
+            Arc::clone(&self.db_store),
             db_name,
             measurement,
             range,
@@ -442,7 +433,7 @@ where
                 unimplemented!("tag_value for a measurement, with general predicate");
             }
 
-            measurement_name_impl(self.db_store.clone(), db_name, range).await
+            measurement_name_impl(Arc::clone(&self.db_store), db_name, range).await
         } else if tag_key.is_field() {
             info!(
                 "tag_values with tag_key=[xff] (field name) for database {}, range: {:?}, predicate: {} --> returning fields",
@@ -451,7 +442,8 @@ where
             );
 
             let fieldlist =
-                field_names_impl(self.db_store.clone(), db_name, None, range, predicate).await?;
+                field_names_impl(Arc::clone(&self.db_store), db_name, None, range, predicate)
+                    .await?;
 
             // Pick out the field names into a Vec<Vec<u8>>for return
             let values = fieldlist
@@ -473,7 +465,7 @@ where
             );
 
             tag_values_impl(
-                self.db_store.clone(),
+                Arc::clone(&self.db_store),
                 db_name,
                 tag_key,
                 measurement,
@@ -503,7 +495,7 @@ where
 
     async fn capabilities(
         &self,
-        _req: tonic::Request<()>,
+        _req: tonic::Request<Empty>,
     ) -> Result<tonic::Response<CapabilitiesResponse>, Status> {
         // Full list of go capabilities in
         // idpe/storage/read/capabilities.go (aka window aggregate /
@@ -573,7 +565,7 @@ where
             predicate.loggable()
         );
 
-        let response = measurement_name_impl(self.db_store.clone(), db_name, range)
+        let response = measurement_name_impl(Arc::clone(&self.db_store), db_name, range)
             .await
             .map_err(|e| e.to_status());
 
@@ -614,7 +606,7 @@ where
         let measurement = Some(measurement);
 
         let response = tag_keys_impl(
-            self.db_store.clone(),
+            Arc::clone(&self.db_store),
             db_name,
             measurement,
             range,
@@ -659,7 +651,7 @@ where
         let measurement = Some(measurement);
 
         let response = tag_values_impl(
-            self.db_store.clone(),
+            Arc::clone(&self.db_store),
             db_name,
             tag_key,
             measurement,
@@ -705,7 +697,7 @@ where
         let measurement = Some(measurement);
 
         let response = field_names_impl(
-            self.db_store.clone(),
+            Arc::clone(&self.db_store),
             db_name,
             measurement,
             range,
@@ -759,7 +751,7 @@ async fn measurement_name_impl<T>(
     range: Option<TimestampRange>,
 ) -> Result<StringValuesResponse>
 where
-    T: DatabaseStore,
+    T: DatabaseStore + 'static,
 {
     let predicate = PredicateBuilder::default().set_range(range).build();
     let db_name = db_name.as_ref();
@@ -803,7 +795,7 @@ async fn tag_keys_impl<T>(
     rpc_predicate: Option<Predicate>,
 ) -> Result<StringValuesResponse>
 where
-    T: DatabaseStore,
+    T: DatabaseStore + 'static,
 {
     let rpc_predicate_string = format!("{:?}", rpc_predicate);
 
@@ -820,15 +812,17 @@ where
         db_name: db_name.as_str(),
     })?;
 
-    let executor = db_store.executor();
+    let planner = InfluxRPCPlanner::new();
 
-    let tag_key_plan = db
-        .tag_column_names(predicate)
+    let tag_key_plan = planner
+        .tag_column_names(db.as_ref(), predicate)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(ListingColumns {
             db_name: db_name.as_str(),
         })?;
+
+    let executor = db_store.executor();
 
     let tag_keys = executor
         .to_string_set(tag_key_plan)
@@ -1067,7 +1061,7 @@ async fn field_names_impl<T>(
     rpc_predicate: Option<Predicate>,
 ) -> Result<FieldList>
 where
-    T: DatabaseStore,
+    T: DatabaseStore + 'static,
 {
     let rpc_predicate_string = format!("{:?}", rpc_predicate);
 
@@ -1086,13 +1080,15 @@ where
         .await
         .context(DatabaseNotFound { db_name })?;
 
-    let executor = db_store.executor();
+    let planner = InfluxRPCPlanner::new();
 
-    let field_list_plan = db
-        .field_column_names(predicate)
+    let field_list_plan = planner
+        .field_columns(db.as_ref(), predicate)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(ListingFields { db_name })?;
+
+    let executor = db_store.executor();
 
     let field_list = executor
         .to_field_list(field_list_plan)
@@ -1108,15 +1104,11 @@ mod tests {
     use super::super::id::ID;
 
     use super::*;
-    use arrow_deps::arrow::datatypes::DataType;
+    use arrow_deps::datafusion::logical_plan::{col, lit, Expr};
     use panic_logging::SendPanicsToTracing;
     use query::{
-        exec::fieldlist::{Field, FieldList},
-        exec::FieldListPlan,
         exec::SeriesSetPlans,
         group_by::{Aggregate as QueryAggregate, WindowDuration as QueryWindowDuration},
-        test::ColumnNamesRequest,
-        test::FieldColumnsRequest,
         test::QueryGroupsRequest,
         test::TestDatabaseStore,
         test::{ColumnValuesRequest, QuerySeriesRequest, TestChunk},
@@ -1126,7 +1118,7 @@ mod tests {
         net::{IpAddr, Ipv4Addr, SocketAddr},
         time::Duration,
     };
-    use test_helpers::{tag_key_bytes_to_strings, tracing::TracingCapture};
+    use test_helpers::{assert_contains, tag_key_bytes_to_strings, tracing::TracingCapture};
 
     use tonic::Code;
 
@@ -1134,10 +1126,13 @@ mod tests {
 
     use generated_types::{
         aggregate::AggregateType, i_ox_testing_client, node, read_response::frame, storage_client,
-        Aggregate as RPCAggregate, Duration as RPCDuration, Node, ReadSource, Window as RPCWindow,
+        Aggregate as RPCAggregate, Duration as RPCDuration, Node, ReadSource, TestErrorRequest,
+        Window as RPCWindow,
     };
 
+    use generated_types::google::protobuf::Any;
     use prost::Message;
+    use tokio_stream::wrappers::TcpListenerStream;
 
     type IOxTestingClient = i_ox_testing_client::IOxTestingClient<tonic::transport::Channel>;
     type StorageClient = storage_client::StorageClient<tonic::transport::Channel>;
@@ -1233,7 +1228,7 @@ mod tests {
             .await
             .expect("getting db")
             .get_chunk("my_partition_key", 0)
-            .and_then(|chunk| chunk.table_names_predicate());
+            .and_then(|chunk| chunk.predicate());
 
         let expected_predicate = Some(
             PredicateBuilder::default()
@@ -1259,11 +1254,19 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let test_db = fixture
+        // Note multiple tables / measureemnts:
+        let chunk = TestChunk::new(0)
+            .with_tag_column("m1", "k1")
+            .with_tag_column("m1", "k2")
+            .with_tag_column("m2", "k3")
+            .with_tag_column("m2", "k4");
+
+        fixture
             .test_storage
             .db_or_create(&db_info.db_name)
             .await
-            .expect("creating test database");
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClientWrapper::read_source(
             db_info.org_id,
@@ -1271,32 +1274,64 @@ mod tests {
             partition_id,
         ));
 
-        let tag_keys = vec!["k1", "k2", "k3", "k4"];
         let request = TagKeysRequest {
             tags_source: source.clone(),
             range: make_timestamp_range(150, 200),
             predicate: make_state_ma_predicate(),
         };
 
-        let expected_request =  ColumnNamesRequest {
-            predicate: "Predicate { exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into()
-        };
-
-        test_db.set_column_names(to_string_vec(&tag_keys));
-
         let actual_tag_keys = fixture.storage_client.tag_keys(request).await?;
-        let mut expected_tag_keys = vec!["_f(0xff)", "_m(0x00)"];
-        expected_tag_keys.extend(tag_keys.iter());
+        let expected_tag_keys = vec!["_f(0xff)", "_m(0x00)", "k1", "k2", "k3", "k4"];
+
+        assert_eq!(actual_tag_keys, expected_tag_keys,);
+
+        // also ensure the plumbing is hooked correctly and that the predicate made it
+        // down to the chunk
+        let actual_predicate = fixture
+            .test_storage
+            .db_or_create(&db_info.db_name)
+            .await
+            .expect("getting db")
+            .get_chunk("my_partition_key", 0)
+            .and_then(|chunk| chunk.predicate());
+
+        let expected_predicate = Some(
+            PredicateBuilder::default()
+                .timestamp_range(150, 200)
+                .add_expr(make_state_ma_expr())
+                .build(),
+        );
 
         assert_eq!(
-            actual_tag_keys, expected_tag_keys,
-            "unexpected tag keys while getting column names"
+            actual_predicate, expected_predicate,
+            "\nActual: {:?}\nExpected: {:?}",
+            actual_predicate, expected_predicate
         );
-        assert_eq!(
-            test_db.get_column_names_request(),
-            Some(expected_request),
-            "unexpected request while getting column names"
-        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_storage_rpc_tag_keys_error() -> Result<(), tonic::Status> {
+        // Start a test gRPC server on a randomally allocated port
+        let mut fixture = Fixture::new().await.expect("Connecting to test server");
+
+        let db_info = OrgAndBucket::new(123, 456);
+        let partition_id = 1;
+
+        let chunk = TestChunk::new(0).with_error("Sugar we are going down");
+
+        fixture
+            .test_storage
+            .db_or_create(&db_info.db_name)
+            .await
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk));
+
+        let source = Some(StorageClientWrapper::read_source(
+            db_info.org_id,
+            db_info.bucket_id,
+            partition_id,
+        ));
 
         // ---
         // test error
@@ -1307,23 +1342,8 @@ mod tests {
             predicate: None,
         };
 
-        // Note we don't set the column_names on the test database, so we expect an
-        // error
         let response = fixture.storage_client.tag_keys(request).await;
-        assert!(response.is_err());
-        let response_string = format!("{:?}", response);
-        let expected_error = "No saved column_names in TestDatabase";
-        assert!(
-            response_string.contains(expected_error),
-            "'{}' did not contain expected content '{}'",
-            response_string,
-            expected_error
-        );
-
-        let expected_request = Some(ColumnNamesRequest {
-            predicate: "Predicate {}".into(),
-        });
-        assert_eq!(test_db.get_column_names_request(), expected_request);
+        assert_contains!(response.unwrap_err().to_string(), "Sugar we are going down");
 
         Ok(())
     }
@@ -1333,17 +1353,27 @@ mod tests {
     /// interface and that the returned values are sent back via gRPC.
     #[tokio::test]
     async fn test_storage_rpc_measurement_tag_keys() -> Result<(), tonic::Status> {
+        test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let test_db = fixture
+        let chunk = TestChunk::new(0)
+            // predicate specifies m4, so this is filtered out
+            .with_tag_column("m1", "k0")
+            .with_tag_column("m4", "k1")
+            .with_tag_column("m4", "k2")
+            .with_tag_column("m4", "k3")
+            .with_tag_column("m4", "k4");
+
+        fixture
             .test_storage
             .db_or_create(&db_info.db_name)
             .await
-            .expect("creating test database");
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClientWrapper::read_source(
             db_info.org_id,
@@ -1351,18 +1381,9 @@ mod tests {
             partition_id,
         ));
 
-        #[derive(Debug)]
-        struct TestCase<'a> {
-            /// The tag keys to load into the database
-            tag_keys: Vec<&'a str>,
-            request: MeasurementTagKeysRequest,
-            expected_request: ColumnNamesRequest,
-        }
-
         // ---
         // Timestamp + Predicate
         // ---
-        let tag_keys = vec!["k1", "k2", "k3", "k4"];
         let request = MeasurementTagKeysRequest {
             measurement: "m4".into(),
             source: source.clone(),
@@ -1370,27 +1391,65 @@ mod tests {
             predicate: make_state_ma_predicate(),
         };
 
-        let expected_request =  ColumnNamesRequest {
-            predicate: "Predicate { table_names: m4 exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into()
-        };
-
-        test_db.set_column_names(to_string_vec(&tag_keys));
-
         let actual_tag_keys = fixture.storage_client.measurement_tag_keys(request).await?;
-
-        let mut expected_tag_keys = vec!["_f(0xff)", "_m(0x00)"];
-        expected_tag_keys.extend(tag_keys.iter());
+        let expected_tag_keys = vec!["_f(0xff)", "_m(0x00)", "k1", "k2", "k3", "k4"];
 
         assert_eq!(
             actual_tag_keys, expected_tag_keys,
             "unexpected tag keys while getting column names"
         );
 
-        assert_eq!(
-            test_db.get_column_names_request(),
-            Some(expected_request),
-            "unexpected request while getting column names"
+        // also ensure the plumbing is hooked correctly and that the predicate made it
+        // down to the chunk
+        let actual_predicate = fixture
+            .test_storage
+            .db_or_create(&db_info.db_name)
+            .await
+            .expect("getting db")
+            .get_chunk("my_partition_key", 0)
+            .and_then(|chunk| chunk.predicate());
+
+        let expected_predicate = Some(
+            PredicateBuilder::default()
+                .timestamp_range(150, 200)
+                .add_expr(make_state_ma_expr())
+                .table("m4")
+                .build(),
         );
+
+        assert_eq!(
+            actual_predicate, expected_predicate,
+            "\nActual: {:?}\nExpected: {:?}",
+            actual_predicate, expected_predicate
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_storage_rpc_measurement_tag_keys_error() -> Result<(), tonic::Status> {
+        test_helpers::maybe_start_logging();
+        // Start a test gRPC server on a randomally allocated port
+        let mut fixture = Fixture::new().await.expect("Connecting to test server");
+
+        let db_info = OrgAndBucket::new(123, 456);
+        let partition_id = 1;
+
+        let chunk = TestChunk::new(0)
+            // predicate specifies m4, so this is filtered out
+            .with_error("This is an error");
+
+        fixture
+            .test_storage
+            .db_or_create(&db_info.db_name)
+            .await
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk));
+
+        let source = Some(StorageClientWrapper::read_source(
+            db_info.org_id,
+            db_info.bucket_id,
+            partition_id,
+        ));
 
         // ---
         // test error
@@ -1402,23 +1461,8 @@ mod tests {
             predicate: None,
         };
 
-        // Note we don't set the column_names on the test database, so we expect an
-        // error
         let response = fixture.storage_client.measurement_tag_keys(request).await;
-        assert!(response.is_err());
-        let response_string = format!("{:?}", response);
-        let expected_error = "No saved column_names in TestDatabase";
-        assert!(
-            response_string.contains(expected_error),
-            "'{}' did not contain expected content '{}'",
-            response_string,
-            expected_error
-        );
-
-        let expected_request = Some(ColumnNamesRequest {
-            predicate: "Predicate { table_names: m5}".into(),
-        });
-        assert_eq!(test_db.get_column_names_request(), expected_request);
+        assert_contains!(response.unwrap_err().to_string(), "This is an error");
 
         Ok(())
     }
@@ -1462,15 +1506,8 @@ mod tests {
         test_db.set_column_values(to_string_vec(&tag_values));
 
         let actual_tag_values = fixture.storage_client.tag_values(request).await.unwrap();
-        assert_eq!(
-            actual_tag_values, tag_values,
-            "unexpected tag values while getting tag values"
-        );
-        assert_eq!(
-            test_db.get_column_values_request(),
-            Some(expected_request),
-            "unexpected request while getting tag values"
-        );
+        assert_eq!(actual_tag_values, tag_values,);
+        assert_eq!(test_db.get_column_values_request(), Some(expected_request),);
 
         // ---
         // test tag_key = _measurement means listing all measurement names
@@ -1497,27 +1534,45 @@ mod tests {
             actual_tag_values, tag_values,
             "unexpected tag values while getting tag values for measurement names"
         );
+    }
+
+    #[tokio::test]
+    async fn test_storage_rpc_tag_values_field() {
+        // Start a test gRPC server on a randomally allocated port
+        let mut fixture = Fixture::new().await.expect("Connecting to test server");
+
+        let db_info = OrgAndBucket::new(123, 456);
+        let partition_id = 1;
+
+        // Add a chunk with a field
+        let chunk = TestChunk::new(0)
+            .with_int_field_column("TheMeasurement", "Field1")
+            .with_time_column("TheMeasurement")
+            .with_tag_column("TheMeasurement", "state")
+            .with_one_row_of_null_data("TheMeasurement");
+
+        fixture
+            .test_storage
+            .db_or_create(&db_info.db_name)
+            .await
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk));
+
+        let source = Some(StorageClientWrapper::read_source(
+            db_info.org_id,
+            db_info.bucket_id,
+            partition_id,
+        ));
 
         // ---
         // test tag_key = _field means listing all field names
         // ---
         let request = TagValuesRequest {
             tags_source: source.clone(),
-            range: make_timestamp_range(1000, 1500),
-            predicate: None,
+            range: make_timestamp_range(0, 2000),
+            predicate: make_state_ma_predicate(),
             tag_key: [255].into(),
         };
-
-        // Setup a single field name (Field1)
-        let fieldlist = FieldList {
-            fields: vec![Field {
-                name: "Field1".into(),
-                data_type: DataType::Utf8,
-                last_timestamp: 1000,
-            }],
-        };
-        let fieldlist_plan = FieldListPlan::Known(Ok(fieldlist));
-        test_db.set_field_colum_names_values(fieldlist_plan);
 
         let expected_tag_values = vec!["Field1"];
         let actual_tag_values = fixture.storage_client.tag_values(request).await.unwrap();
@@ -1525,6 +1580,27 @@ mod tests {
             actual_tag_values, expected_tag_values,
             "unexpected tag values while getting tag values for field names"
         );
+    }
+
+    #[tokio::test]
+    async fn test_storage_rpc_tag_values_error() {
+        // Start a test gRPC server on a randomally allocated port
+        let mut fixture = Fixture::new().await.expect("Connecting to test server");
+
+        let db_info = OrgAndBucket::new(123, 456);
+        let partition_id = 1;
+
+        let test_db = fixture
+            .test_storage
+            .db_or_create(&db_info.db_name)
+            .await
+            .expect("creating test database");
+
+        let source = Some(StorageClientWrapper::read_source(
+            db_info.org_id,
+            db_info.bucket_id,
+            partition_id,
+        ));
 
         // ---
         // test error
@@ -1703,7 +1779,7 @@ mod tests {
         // Note we don't include the actual line / column in the
         // expected panic message to avoid needing to update the test
         // whenever the source code file changed.
-        let expected_error = "panicked at 'This is a test panic', src/influxdb_ioxd/rpc/service.rs";
+        let expected_error = "panicked at 'This is a test panic', src/influxdb_ioxd/rpc/testing.rs";
         assert!(
             captured_logs.contains(expected_error),
             "Logs did not contain expected panic message '{}'. They were\n{}",
@@ -2094,18 +2170,28 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_measurement_fields() -> Result<(), tonic::Status> {
+    async fn test_measurement_fields() {
+        test_helpers::maybe_start_logging();
+
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let test_db = fixture
+        // Add a chunk with a field
+        let chunk = TestChunk::new(0)
+            .with_int_field_column("TheMeasurement", "Field1")
+            .with_time_column("TheMeasurement")
+            .with_tag_column("TheMeasurement", "state")
+            .with_one_row_of_null_data("TheMeasurement");
+
+        fixture
             .test_storage
             .db_or_create(&db_info.db_name)
             .await
-            .expect("creating test database");
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClientWrapper::read_source(
             db_info.org_id,
@@ -2116,37 +2202,45 @@ mod tests {
         let request = MeasurementFieldsRequest {
             source: source.clone(),
             measurement: "TheMeasurement".into(),
-            range: make_timestamp_range(150, 200),
+            range: make_timestamp_range(0, 2000),
             predicate: make_state_ma_predicate(),
         };
 
-        let expected_request = FieldColumnsRequest {
-            predicate: "Predicate { table_names: TheMeasurement exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into()
-        };
-
-        let fieldlist = FieldList {
-            fields: vec![Field {
-                name: "Field1".into(),
-                data_type: DataType::Utf8,
-                last_timestamp: 1000,
-            }],
-        };
-
-        let fieldlist_plan = FieldListPlan::Known(Ok(fieldlist));
-        test_db.set_field_colum_names_values(fieldlist_plan);
-
-        let actual_fields = fixture.storage_client.measurement_fields(request).await?;
-        let expected_fields: Vec<String> = vec!["key: Field1, type: 3, timestamp: 1000".into()];
+        let actual_fields = fixture
+            .storage_client
+            .measurement_fields(request)
+            .await
+            .unwrap();
+        let expected_fields: Vec<String> = vec!["key: Field1, type: 1, timestamp: 1000".into()];
 
         assert_eq!(
             actual_fields, expected_fields,
-            "unexpected frames returned by measuremnt_fields"
+            "unexpected frames returned by measurement_fields"
         );
-        assert_eq!(
-            test_db.get_field_columns_request(),
-            Some(expected_request),
-            "unexpected request to measurement-fields"
-        );
+    }
+
+    #[tokio::test]
+    async fn test_measurement_fields_error() {
+        // Start a test gRPC server on a randomally allocated port
+        let mut fixture = Fixture::new().await.expect("Connecting to test server");
+
+        let db_info = OrgAndBucket::new(123, 456);
+        let partition_id = 1;
+
+        let chunk = TestChunk::new(0).with_error("Sugar we are going down");
+
+        fixture
+            .test_storage
+            .db_or_create(&db_info.db_name)
+            .await
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk));
+
+        let source = Some(StorageClientWrapper::read_source(
+            db_info.org_id,
+            db_info.bucket_id,
+            partition_id,
+        ));
 
         // ---
         // test error
@@ -2161,28 +2255,14 @@ mod tests {
         // Note we don't set the response on the test database, so we expect an error
         let response = fixture.storage_client.measurement_fields(request).await;
         assert!(response.is_err());
-        let response_string = format!("{:?}", response);
-        let expected_error = "No saved field_column_name in TestDatabase";
-        assert!(
-            response_string.contains(expected_error),
-            "'{}' did not contain expected content '{}'",
-            response_string,
-            expected_error
-        );
-
-        let expected_request = Some(FieldColumnsRequest {
-            predicate: "Predicate { table_names: TheMeasurement}".into(),
-        });
-        assert_eq!(test_db.get_field_columns_request(), expected_request);
-
-        Ok(())
+        assert_contains!(response.unwrap_err().to_string(), "Sugar we are going down");
     }
 
     fn make_timestamp_range(start: i64, end: i64) -> Option<TimestampRange> {
         Some(TimestampRange { start, end })
     }
 
-    /// return a predicate like
+    /// return a gRPC predicate like
     ///
     /// state="MA"
     fn make_state_ma_predicate() -> Option<Predicate> {
@@ -2204,6 +2284,13 @@ mod tests {
             ],
         };
         Some(Predicate { root: Some(root) })
+    }
+
+    /// return an DataFusion Expr predicate like
+    ///
+    /// state="MA"
+    fn make_state_ma_expr() -> Expr {
+        col("state").eq(lit("MA"))
     }
 
     /// Convert to a Vec<String> to facilitate comparison with results of client
@@ -2254,25 +2341,25 @@ mod tests {
         }
 
         /// Create a ReadSource suitable for constructing messages
-        fn read_source(org_id: u64, bucket_id: u64, partition_id: u64) -> prost_types::Any {
+        fn read_source(org_id: u64, bucket_id: u64, partition_id: u64) -> Any {
             let read_source = ReadSource {
                 org_id,
                 bucket_id,
                 partition_id,
             };
-            let mut d = Vec::new();
+            let mut d = bytes::BytesMut::new();
             read_source
                 .encode(&mut d)
                 .expect("encoded read source appropriately");
-            prost_types::Any {
+            Any {
                 type_url: "/TODO".to_string(),
-                value: d,
+                value: d.freeze(),
             }
         }
 
         /// return the capabilities of the server as a hash map
         async fn capabilities(&mut self) -> Result<HashMap<String, Vec<String>>, tonic::Status> {
-            let response = self.inner.capabilities(()).await?.into_inner();
+            let response = self.inner.capabilities(Empty {}).await?.into_inner();
 
             let CapabilitiesResponse { caps } = response;
 
@@ -2537,7 +2624,7 @@ mod tests {
     }
 
     impl Fixture {
-        /// Start up a test rpc server listening on `port`, returning
+        /// Start up a test storage server listening on `port`, returning
         /// a fixture with the test server and clients
         async fn new() -> Result<Self, FixtureError> {
             let test_storage = Arc::new(TestDatabaseStore::new());
@@ -2551,14 +2638,32 @@ mod tests {
             // Pull the assigned port out of the socket
             let bind_addr = socket.local_addr().unwrap();
 
-            println!("Starting InfluxDB IOx rpc test server on {:?}", bind_addr);
+            println!(
+                "Starting InfluxDB IOx storage test server on {:?}",
+                bind_addr
+            );
 
-            let server = super::super::make_server(socket, test_storage.clone());
+            let router = tonic::transport::Server::builder()
+                .add_service(crate::influxdb_ioxd::rpc::testing::make_server())
+                .add_service(crate::influxdb_ioxd::rpc::storage::make_server(Arc::clone(
+                    &test_storage,
+                )));
+
+            let server = async move {
+                let stream = TcpListenerStream::new(socket);
+
+                router
+                    .serve_with_incoming(stream)
+                    .await
+                    .log_if_error("Running Tonic Server")
+            };
+
             tokio::task::spawn(server);
 
             let iox_client = connect_to_server::<IOxTestingClient>(bind_addr)
                 .await
                 .context(Tonic)?;
+
             let storage_client = StorageClientWrapper::new(
                 connect_to_server::<StorageClient>(bind_addr)
                     .await

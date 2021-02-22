@@ -10,6 +10,7 @@ members = [
     "arrow_deps",
     "data_types",
     "generated_types",
+    "google_types",
     "influxdb_iox_client",
     "influxdb_line_protocol",
     "influxdb_tsm",
@@ -71,7 +72,6 @@ lazy_static = "1.4.0"
 opentelemetry = { version = "0.12", default-features = false, features = ["trace", "tokio-support"] }
 opentelemetry-jaeger = { version = "0.11", features = ["tokio"] }
 prost = "0.7"
-prost-types = "0.7"
 # Forked to upgrade hyper and tokio
 routerify = { git = "https://github.com/influxdata/routerify", rev = "274e250" }
 serde = { version = "1.0", features = ["derive"] }
@@ -87,17 +87,21 @@ tracing-futures = "0.2.4"
 tracing-opentelemetry = "0.11.0"
 tracing-subscriber = "0.2.15"
 
-[dev-dependencies] # In alphabetical order
+[dev-dependencies]
+# Workspace dependencies, in alphabetical order
+influxdb2_client = { path = "influxdb2_client" }
+influxdb_iox_client = { path = "influxdb_iox_client", features = ["flight"] }
+test_helpers = { path = "test_helpers" }
+
+# Crates.io dependencies, in alphabetical order
 assert_cmd = "1.0.0"
 criterion = "0.3"
 flate2 = "1.0"
 hex = "0.4.2"
-influxdb2_client = { path = "influxdb2_client" }
 predicates = "1.0.4"
 rand = "0.7.2"
 reqwest = "0.11"
 tempfile = "3.1.0"
-test_helpers = { path = "test_helpers" }
 
 [[bin]]
 name = "cpu_feature_check"

@@ -23,10 +23,12 @@ use schema_pivot::SchemaPivotNode;
 
 use fieldlist::{FieldList, IntoFieldList};
 use seriesset::{Error as SeriesSetError, SeriesSetConverter, SeriesSetItem};
-use stringset::{IntoStringSet, StringSet, StringSetRef};
+use stringset::{IntoStringSet, StringSetRef};
 use tokio::sync::mpsc::{self, error::SendError};
 
 use snafu::{ResultExt, Snafu};
+
+use crate::plan::{fieldlist::FieldListPlan, stringset::StringSetPlan};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -82,63 +84,6 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
-
-/// A plan which produces a logical set of Strings (e.g. tag
-/// values). This includes variants with pre-calculated results as
-/// well a variant that runs a full on DataFusion plan.
-#[derive(Debug)]
-pub enum StringSetPlan {
-    // If the results are known without having to run an actual datafusion plan
-    Known(Result<StringSetRef>),
-    /// A DataFusion plan(s) to execute. Each plan must produce
-    /// RecordBatches with exactly one String column, though the
-    /// the values produced by the plan may be repeated
-    ///
-    /// TODO: it would be cool to have a single datafusion LogicalPlan
-    /// that merged all the results together. However, no such Union
-    /// node exists at the time of writing, so we do the unioning in IOx
-    Plan(Vec<LogicalPlan>),
-}
-
-impl From<StringSetRef> for StringSetPlan {
-    /// Create a StringSetPlan from a StringSetRef
-    fn from(set: StringSetRef) -> Self {
-        Self::Known(Ok(set))
-    }
-}
-
-impl From<StringSet> for StringSetPlan {
-    /// Create a StringSetPlan from a StringSet result, wrapping the error type
-    /// appropriately
-    fn from(set: StringSet) -> Self {
-        Self::Known(Ok(StringSetRef::new(set)))
-    }
-}
-
-impl<E> From<Result<StringSetRef, E>> for StringSetPlan
-where
-    E: std::error::Error + Send + Sync + 'static,
-{
-    /// Create a StringSetPlan from a Result<StringSetRef> result, wrapping the
-    /// error type appropriately
-    fn from(result: Result<StringSetRef, E>) -> Self {
-        match result {
-            Ok(set) => Self::Known(Ok(set)),
-            Err(e) => Self::Known(Err(Error::Execution {
-                source: Box::new(e),
-            })),
-        }
-    }
-}
-
-impl From<Vec<LogicalPlan>> for StringSetPlan {
-    /// Create a DataFusion LogicalPlan node, each if which must
-    /// produce a single output Utf8 column. The output of each plan
-    /// will be included into the final set.
-    fn from(plans: Vec<LogicalPlan>) -> Self {
-        Self::Plan(plans)
-    }
-}
 
 /// A plan that can be run to produce a logical stream of time series,
 /// as represented as sequence of SeriesSets from a single DataFusion
@@ -225,14 +170,6 @@ impl From<Vec<SeriesSetPlan>> for SeriesSetPlans {
     }
 }
 
-/// A plan that can be run to produce a sequence of FieldLists
-/// DataFusion plans or a known set of results
-#[derive(Debug)]
-pub enum FieldListPlan {
-    Known(Result<FieldList>),
-    Plans(Vec<LogicalPlan>),
-}
-
 /// Handles executing plans, and marshalling the results into rust
 /// native structures.
 #[derive(Debug, Default)]
@@ -248,7 +185,7 @@ impl Executor {
     /// Executes this plan and returns the resulting set of strings
     pub async fn to_string_set(&self, plan: StringSetPlan) -> Result<StringSetRef> {
         match plan {
-            StringSetPlan::Known(res) => res,
+            StringSetPlan::Known(ss) => Ok(ss),
             StringSetPlan::Plan(plans) => self
                 .run_logical_plans(plans)
                 .await?
@@ -350,46 +287,43 @@ impl Executor {
 
     /// Executes `plan` and return the resulting FieldList
     pub async fn to_field_list(&self, plan: FieldListPlan) -> Result<FieldList> {
-        match plan {
-            FieldListPlan::Known(res) => res,
-            FieldListPlan::Plans(plans) => {
-                // Run the plans in parallel
-                let handles = plans
-                    .into_iter()
-                    .map(|plan| {
-                        let counters = self.counters.clone();
+        let FieldListPlan { plans } = plan;
 
-                        tokio::task::spawn(async move {
-                            let ctx = IOxExecutionContext::new(counters);
-                            let physical_plan = ctx
-                                .prepare_plan(&plan)
-                                .await
-                                .context(DataFusionPhysicalPlanning)?;
+        // Run the plans in parallel
+        let handles = plans
+            .into_iter()
+            .map(|plan| {
+                let counters = Arc::clone(&self.counters);
 
-                            // TODO: avoid this buffering
-                            let fieldlist = ctx
-                                .collect(physical_plan)
-                                .await
-                                .context(FieldListExectuon)?
-                                .into_fieldlist()
-                                .context(FieldListConversion);
+                tokio::task::spawn(async move {
+                    let ctx = IOxExecutionContext::new(counters);
+                    let physical_plan = ctx
+                        .prepare_plan(&plan)
+                        .await
+                        .context(DataFusionPhysicalPlanning)?;
 
-                            Ok(fieldlist)
-                        })
-                    })
-                    .collect::<Vec<_>>();
+                    // TODO: avoid this buffering
+                    let fieldlist = ctx
+                        .collect(physical_plan)
+                        .await
+                        .context(FieldListExectuon)?
+                        .into_fieldlist()
+                        .context(FieldListConversion);
 
-                // collect them all up and combine them
-                let mut results = Vec::new();
-                for join_handle in handles {
-                    let fieldlist = join_handle.await.context(JoinError)???;
+                    Ok(fieldlist)
+                })
+            })
+            .collect::<Vec<_>>();
 
-                    results.push(fieldlist);
-                }
+        // collect them all up and combine them
+        let mut results = Vec::new();
+        for join_handle in handles {
+            let fieldlist = join_handle.await.context(JoinError)???;
 
-                results.into_fieldlist().context(FieldListConversion)
-            }
+            results.push(fieldlist);
         }
+
+        results.into_fieldlist().context(FieldListConversion)
     }
 
     /// Run the plan and return a record batch reader for reading the results
@@ -399,7 +333,7 @@ impl Executor {
 
     /// Create a new execution context, suitable for executing a new query
     pub fn new_context(&self) -> IOxExecutionContext {
-        IOxExecutionContext::new(self.counters.clone())
+        IOxExecutionContext::new(Arc::clone(&self.counters))
     }
 
     /// plans and runs the plans in parallel and collects the results
@@ -411,7 +345,10 @@ impl Executor {
                 let ctx = self.new_context();
                 // TODO run these on some executor other than the main tokio pool
                 tokio::task::spawn(async move {
-                    let physical_plan = ctx.prepare_plan(&plan).await.expect("making logical plan");
+                    let physical_plan = ctx
+                        .prepare_plan(&plan)
+                        .await
+                        .context(DataFusionPhysicalPlanning)?;
 
                     // TODO: avoid this buffering
                     ctx.collect(physical_plan)
@@ -469,32 +406,11 @@ mod tests {
     #[tokio::test]
     async fn executor_known_string_set_plan_ok() -> Result<()> {
         let expected_strings = to_set(&["Foo", "Bar"]);
-        let result: Result<_> = Ok(expected_strings.clone());
-        let plan = result.into();
+        let plan = StringSetPlan::Known(Arc::clone(&expected_strings));
 
         let executor = Executor::default();
         let result_strings = executor.to_string_set(plan).await?;
         assert_eq!(result_strings, expected_strings);
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn executor_known_string_set_plan_err() -> Result<()> {
-        let result = InternalResultsExtraction {
-            message: "this is a test",
-        }
-        .fail();
-
-        let plan = result.into();
-
-        let executor = Executor::default();
-        let actual_result = executor.to_string_set(plan).await;
-        assert!(actual_result.is_err());
-        assert!(
-            format!("{:?}", actual_result).contains("this is a test"),
-            "Actual result: '{:?}'",
-            actual_result
-        );
         Ok(())
     }
 
@@ -518,8 +434,8 @@ mod tests {
         // Test with a single plan that produces one record batch
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Utf8, true)]));
         let data = to_string_array(&["foo", "bar", "baz", "foo"]);
-        let batch =
-            RecordBatch::try_new(schema.clone(), vec![data]).expect("created new record batch");
+        let batch = RecordBatch::try_new(Arc::clone(&schema), vec![data])
+            .expect("created new record batch");
         let scan = make_plan(schema, vec![batch]);
         let plan: StringSetPlan = vec![scan].into();
 
@@ -536,11 +452,11 @@ mod tests {
         // Test with a single plan that produces multiple record batches
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Utf8, true)]));
         let data1 = to_string_array(&["foo", "bar"]);
-        let batch1 =
-            RecordBatch::try_new(schema.clone(), vec![data1]).expect("created new record batch");
+        let batch1 = RecordBatch::try_new(Arc::clone(&schema), vec![data1])
+            .expect("created new record batch");
         let data2 = to_string_array(&["baz", "foo"]);
-        let batch2 =
-            RecordBatch::try_new(schema.clone(), vec![data2]).expect("created new record batch");
+        let batch2 = RecordBatch::try_new(Arc::clone(&schema), vec![data2])
+            .expect("created new record batch");
         let scan = make_plan(schema, vec![batch1, batch2]);
         let plan: StringSetPlan = vec![scan].into();
 
@@ -558,13 +474,13 @@ mod tests {
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Utf8, true)]));
 
         let data1 = to_string_array(&["foo", "bar"]);
-        let batch1 =
-            RecordBatch::try_new(schema.clone(), vec![data1]).expect("created new record batch");
-        let scan1 = make_plan(schema.clone(), vec![batch1]);
+        let batch1 = RecordBatch::try_new(Arc::clone(&schema), vec![data1])
+            .expect("created new record batch");
+        let scan1 = make_plan(Arc::clone(&schema), vec![batch1]);
 
         let data2 = to_string_array(&["baz", "foo"]);
-        let batch2 =
-            RecordBatch::try_new(schema.clone(), vec![data2]).expect("created new record batch");
+        let batch2 = RecordBatch::try_new(Arc::clone(&schema), vec![data2])
+            .expect("created new record batch");
         let scan2 = make_plan(schema, vec![batch2]);
 
         let plan: StringSetPlan = vec![scan1, scan2].into();
@@ -586,8 +502,8 @@ mod tests {
         builder.append_value("foo").unwrap();
         builder.append_null().unwrap();
         let data = Arc::new(builder.finish());
-        let batch =
-            RecordBatch::try_new(schema.clone(), vec![data]).expect("created new record batch");
+        let batch = RecordBatch::try_new(Arc::clone(&schema), vec![data])
+            .expect("created new record batch");
         let scan = make_plan(schema, vec![batch]);
         let plan: StringSetPlan = vec![scan].into();
 
@@ -614,8 +530,8 @@ mod tests {
         // Ensure that an incorect schema (an int) gives a reasonable error
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int64, true)]));
         let data = Arc::new(Int64Array::from(vec![1]));
-        let batch =
-            RecordBatch::try_new(schema.clone(), vec![data]).expect("created new record batch");
+        let batch = RecordBatch::try_new(Arc::clone(&schema), vec![data])
+            .expect("created new record batch");
         let scan = make_plan(schema, vec![batch]);
         let plan: StringSetPlan = vec![scan].into();
 
@@ -647,7 +563,7 @@ mod tests {
             Field::new("f2", DataType::Utf8, true),
         ]));
         let batch = RecordBatch::try_new(
-            schema.clone(),
+            Arc::clone(&schema),
             vec![
                 to_string_array(&["foo", "bar"]),
                 to_string_array(&["baz", "bzz"]),

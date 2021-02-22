@@ -3,15 +3,26 @@ use std::num::NonZeroU32;
 use data_types::database_rules::DatabaseRules;
 use reqwest::{Method, Url};
 
-use crate::errors::{CreateDatabaseError, Error, ServerErrorResponse};
+use crate::errors::{ClientError, CreateDatabaseError, Error, ServerErrorResponse};
+use data_types::{http::ListDatabasesResponse, DatabaseName};
+
+#[cfg(feature = "flight")]
+mod flight;
+
+// can't combine these into one statement that uses `{}` because of this bug in
+// the `unreachable_pub` lint: https://github.com/rust-lang/rust/issues/64762
+#[cfg(feature = "flight")]
+pub use flight::FlightClient;
+#[cfg(feature = "flight")]
+pub use flight::PerformQuery;
 
 // TODO: move DatabaseRules / WriterId to the API client
 
 /// An IOx HTTP API client.
 ///
-/// ```
-/// #[tokio::test]
-/// # async fn test() {
+/// ```no_run
+/// #[tokio::main]
+/// # async fn main() {
 /// use data_types::database_rules::DatabaseRules;
 /// use influxdb_iox_client::ClientBuilder;
 ///
@@ -24,12 +35,12 @@ use crate::errors::{CreateDatabaseError, Error, ServerErrorResponse};
 ///
 /// // Create a new database!
 /// client
-///     .create_database("bananas", &DatabaseRules::default())
+///     .create_database("bananas", &DatabaseRules::new())
 ///     .await
 ///     .expect("failed to create database");
 /// # }
 /// ```
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Client {
     pub(crate) http: reqwest::Client,
 
@@ -83,12 +94,7 @@ impl Client {
         name: impl AsRef<str>,
         rules: &DatabaseRules,
     ) -> Result<(), CreateDatabaseError> {
-        const DB_PATH: &str = "iox/api/v1/databases/";
-
-        let url = self
-            .url_for(DB_PATH)
-            .join(name.as_ref())
-            .map_err(|_| CreateDatabaseError::InvalidName)?;
+        let url = self.db_url(name.as_ref())?;
 
         let r = self
             .http
@@ -114,7 +120,7 @@ impl Client {
         #[derive(serde::Serialize)]
         struct WriterIdBody {
             id: u32,
-        };
+        }
 
         let r = self
             .http
@@ -125,6 +131,39 @@ impl Client {
 
         match r {
             r if r.status() == 200 => Ok(()),
+            r => Err(ServerErrorResponse::from_response(r).await.into()),
+        }
+    }
+
+    /// Get the server's writer ID.
+    pub async fn get_writer_id(&self) -> Result<u32, Error> {
+        const GET_WRITER_PATH: &str = "iox/api/v1/id";
+
+        let url = self.url_for(GET_WRITER_PATH);
+
+        // TODO: move this into a shared type
+        #[derive(serde::Deserialize)]
+        struct WriterIdBody {
+            id: u32,
+        }
+
+        let r = self.http.request(Method::GET, url).send().await?;
+
+        match r {
+            r if r.status() == 200 => Ok(r.json::<WriterIdBody>().await?.id),
+            r => Err(ServerErrorResponse::from_response(r).await.into()),
+        }
+    }
+
+    /// List databases.
+    pub async fn list_databases(&self) -> Result<ListDatabasesResponse, Error> {
+        const LIST_DATABASES_PATH: &str = "iox/api/v1/databases";
+        let url = self.url_for(LIST_DATABASES_PATH);
+
+        let r = self.http.request(Method::GET, url).send().await?;
+
+        match r {
+            r if r.status() == 200 => Ok(r.json::<ListDatabasesResponse>().await?),
             r => Err(ServerErrorResponse::from_response(r).await.into()),
         }
     }
@@ -146,6 +185,18 @@ impl Client {
         self.base
             .join(path)
             .expect("failed to construct request URL")
+    }
+
+    fn db_url(&self, database: &str) -> Result<Url, ClientError> {
+        const DB_PATH: &str = "iox/api/v1/databases/";
+
+        // Perform validation in the client as URL parser silently drops invalid
+        // characters
+        let name = DatabaseName::new(database).map_err(|_| ClientError::InvalidDatabaseName)?;
+
+        self.url_for(DB_PATH)
+            .join(name.as_ref())
+            .map_err(|_| ClientError::InvalidDatabaseName)
     }
 }
 
@@ -188,13 +239,19 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_set_writer_id() {
+    async fn test_set_get_writer_id() {
+        const TEST_ID: u32 = 42;
+
         let endpoint = maybe_skip_integration!();
         let c = ClientBuilder::default().build(endpoint).unwrap();
 
-        c.set_writer_id(NonZeroU32::new(42).unwrap())
+        c.set_writer_id(NonZeroU32::new(TEST_ID).unwrap())
             .await
             .expect("set ID failed");
+
+        let got = c.get_writer_id().await.expect("get ID failed");
+
+        assert_eq!(got, TEST_ID);
     }
 
     #[tokio::test]
@@ -202,13 +259,11 @@ mod tests {
         let endpoint = maybe_skip_integration!();
         let c = ClientBuilder::default().build(endpoint).unwrap();
 
-        let rand_name: String = thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(10)
-            .map(char::from)
-            .collect();
+        c.set_writer_id(NonZeroU32::new(42).unwrap())
+            .await
+            .expect("set ID failed");
 
-        c.create_database(rand_name, &DatabaseRules::default())
+        c.create_database(rand_name(), &DatabaseRules::new())
             .await
             .expect("create database failed");
     }
@@ -218,18 +273,18 @@ mod tests {
         let endpoint = maybe_skip_integration!();
         let c = ClientBuilder::default().build(endpoint).unwrap();
 
-        let rand_name: String = thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(10)
-            .map(char::from)
-            .collect();
+        c.set_writer_id(NonZeroU32::new(42).unwrap())
+            .await
+            .expect("set ID failed");
 
-        c.create_database(rand_name.clone(), &DatabaseRules::default())
+        let db_name = rand_name();
+
+        c.create_database(db_name.clone(), &DatabaseRules::new())
             .await
             .expect("create database failed");
 
         let err = c
-            .create_database(rand_name, &DatabaseRules::default())
+            .create_database(db_name, &DatabaseRules::new())
             .await
             .expect_err("create database failed");
 
@@ -241,12 +296,36 @@ mod tests {
         let endpoint = maybe_skip_integration!();
         let c = ClientBuilder::default().build(endpoint).unwrap();
 
+        c.set_writer_id(NonZeroU32::new(42).unwrap())
+            .await
+            .expect("set ID failed");
+
         let err = c
-            .create_database("bananas!", &DatabaseRules::default())
+            .create_database("my_example\ndb", &DatabaseRules::new())
             .await
             .expect_err("expected request to fail");
 
-        assert!(matches!(dbg!(err), CreateDatabaseError::InvalidName))
+        assert!(matches!(
+            dbg!(err),
+            CreateDatabaseError::ClientError(ClientError::InvalidDatabaseName)
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_list_databases() {
+        let endpoint = maybe_skip_integration!();
+        let c = ClientBuilder::default().build(endpoint).unwrap();
+
+        c.set_writer_id(NonZeroU32::new(42).unwrap())
+            .await
+            .expect("set ID failed");
+
+        let name = rand_name();
+        c.create_database(&name, &DatabaseRules::default())
+            .await
+            .expect("create database failed");
+        let r = c.list_databases().await.expect("list databases failed");
+        assert!(r.names.contains(&name));
     }
 
     #[test]
@@ -276,5 +355,13 @@ mod tests {
             .unwrap();
 
         c.url_for("/bananas");
+    }
+
+    fn rand_name() -> String {
+        thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(10)
+            .map(char::from)
+            .collect()
     }
 }

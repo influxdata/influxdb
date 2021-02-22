@@ -2,6 +2,7 @@ use crate::{create_database, substitute_nanos, Scenario};
 use futures::prelude::*;
 use generated_types::{
     aggregate::AggregateType,
+    google::protobuf::{Any, Empty},
     node::{Comparison, Type as NodeType, Value},
     read_group_request::Group,
     read_response::{frame::Data, *},
@@ -25,9 +26,9 @@ pub async fn test(storage_client: &mut StorageClient<Channel>, scenario: &Scenar
     measurement_fields_endpoint(storage_client, scenario).await;
 }
 
-/// Validate that capabilities rpc endpoint is hooked up
+/// Validate that capabilities storage endpoint is hooked up
 async fn capabilities_endpoint(storage_client: &mut StorageClient<Channel>) {
-    let capabilities_response = storage_client.capabilities(()).await.unwrap();
+    let capabilities_response = storage_client.capabilities(Empty {}).await.unwrap();
     let capabilities_response = capabilities_response.into_inner();
     assert_eq!(
         capabilities_response.caps.len(),
@@ -327,7 +328,7 @@ async fn load_read_group_data(client: &influxdb2_client::Client, scenario: &Scen
 // assumes that load_read_group_data has been previously run
 async fn test_read_group_none_agg(
     storage_client: &mut StorageClient<tonic::transport::Channel>,
-    read_source: &std::option::Option<prost_types::Any>,
+    read_source: &std::option::Option<Any>,
 ) {
     // read_group(group_keys: region, agg: None)
     let read_group_request = ReadGroupRequest {
@@ -380,7 +381,7 @@ async fn test_read_group_none_agg(
 /// Test that predicates make it through
 async fn test_read_group_none_agg_with_predicate(
     storage_client: &mut StorageClient<tonic::transport::Channel>,
-    read_source: &std::option::Option<prost_types::Any>,
+    read_source: &std::option::Option<Any>,
 ) {
     let read_group_request = ReadGroupRequest {
         read_source: read_source.clone(),
@@ -426,7 +427,7 @@ async fn test_read_group_none_agg_with_predicate(
 // load_read_group_data has been previously run
 async fn test_read_group_sum_agg(
     storage_client: &mut StorageClient<tonic::transport::Channel>,
-    read_source: &std::option::Option<prost_types::Any>,
+    read_source: &std::option::Option<Any>,
 ) {
     // read_group(group_keys: region, agg: Sum)
     let read_group_request = ReadGroupRequest {
@@ -481,7 +482,7 @@ async fn test_read_group_sum_agg(
 // load_read_group_data has been previously run
 async fn test_read_group_last_agg(
     storage_client: &mut StorageClient<tonic::transport::Channel>,
-    read_source: &std::option::Option<prost_types::Any>,
+    read_source: &std::option::Option<Any>,
 ) {
     // read_group(group_keys: region, agg: Last)
     let read_group_request = ReadGroupRequest {

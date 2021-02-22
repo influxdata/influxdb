@@ -99,6 +99,63 @@ The `cargo` build tool runs tests as well. Run:
 cargo test --workspace
 ```
 
+### Enabling logging in tests
+
+To enable logging to stderr during a run of `cargo test` set the Rust
+`RUST_LOG` environment varable. For example, to see all INFO messages:
+
+```shell
+RUST_LOG=info cargo test --workspace
+```
+
+Since this feature uses
+[`EnvFilter`](https://docs.rs/tracing-subscriber/0.2.15/tracing_subscriber/filter/struct.EnvFilter.html) internally, you
+can use all the features of that crate. For example, to disable the
+(somewhat noisy) logs in some h2 modules, you can use a value of
+`RUST_LOG` such as:
+
+```shell
+RUST_LOG=debug,hyper::proto::h1=info,h2=info cargo test --workspace
+```
+
+### Visually showing explain plans
+
+Some query plans are output in the log in [graphviz](https://graphviz.org/) format. To display them you can use the `tools/iplan` helper.
+
+For example, if you want to display this plan:
+
+```
+// Begin DataFusion GraphViz Plan (see https://graphviz.org)
+digraph {
+  subgraph cluster_1
+  {
+    graph[label="LogicalPlan"]
+    2[shape=box label="SchemaPivot"]
+    3[shape=box label="Projection: "]
+    2 -> 3 [arrowhead=none, arrowtail=normal, dir=back]
+    4[shape=box label="Filter: Int64(0) LtEq #time And #time Lt Int64(10000) And #host Eq Utf8(_server01_)"]
+    3 -> 4 [arrowhead=none, arrowtail=normal, dir=back]
+    5[shape=box label="TableScan: attributes projection=None"]
+    4 -> 5 [arrowhead=none, arrowtail=normal, dir=back]
+  }
+  subgraph cluster_6
+  {
+    graph[label="Detailed LogicalPlan"]
+    7[shape=box label="SchemaPivot\nSchema: [non_null_column:Utf8]"]
+    8[shape=box label="Projection: \nSchema: []"]
+    7 -> 8 [arrowhead=none, arrowtail=normal, dir=back]
+    9[shape=box label="Filter: Int64(0) LtEq #time And #time Lt Int64(10000) And #host Eq Utf8(_server01_)\nSchema: [color:Utf8;N, time:Int64]"]
+    8 -> 9 [arrowhead=none, arrowtail=normal, dir=back]
+    10[shape=box label="TableScan: attributes projection=None\nSchema: [color:Utf8;N, time:Int64]"]
+    9 -> 10 [arrowhead=none, arrowtail=normal, dir=back]
+  }
+}
+// End DataFusion GraphViz Plan
+```
+
+You can pipe it to `iplan` and render as a .pdf
+
+
 ## Running `rustfmt` and `clippy`
 
 CI will check the code formatting with [`rustfmt`] and Rust best practices with [`clippy`].

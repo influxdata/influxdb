@@ -1,27 +1,23 @@
-use tracing::{error, info, warn};
-
 use std::fs;
 use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-mod flight;
-pub mod http;
-pub mod rpc;
-
-use server::{ConnectionManagerImpl as ConnectionManager, Server as AppServer};
-
 use hyper::Server;
-use object_store::{self, gcp::GoogleCloudStorage, ObjectStore};
-
 use snafu::{ResultExt, Snafu};
+use tracing::{error, info, warn};
 
+use object_store::{self, gcp::GoogleCloudStorage, ObjectStore};
 use panic_logging::SendPanicsToTracing;
+use server::{ConnectionManagerImpl as ConnectionManager, Server as AppServer};
 
 use crate::commands::{
     config::{load_config, Config},
     logging::LoggingLevel,
 };
+
+mod http;
+mod rpc;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -135,13 +131,13 @@ pub async fn main(logging_level: LoggingLevel, config: Option<Config>) -> Result
         .await
         .context(StartListeningGrpc { grpc_bind_addr })?;
 
-    let grpc_server = self::rpc::make_server(socket, app_server.clone());
+    let grpc_server = self::rpc::make_server(socket, Arc::clone(&app_server));
 
     info!(bind_address=?grpc_bind_addr, "gRPC server listening");
 
     // Construct and start up HTTP server
 
-    let router_service = http::router_service(app_server.clone());
+    let router_service = http::router_service(Arc::clone(&app_server));
 
     let bind_addr = config.http_bind_address;
     let http_server = Server::try_bind(&bind_addr)
@@ -149,7 +145,8 @@ pub async fn main(logging_level: LoggingLevel, config: Option<Config>) -> Result
         .serve(router_service);
     info!(bind_address=?bind_addr, "HTTP server listening");
 
-    println!("InfluxDB IOx server ready");
+    let git_hash = option_env!("GIT_HASH").unwrap_or("UNKNOWN");
+    info!(git_hash, "InfluxDB IOx server ready");
 
     // Wait for both the servers to complete
     let (grpc_server, server) = futures::future::join(grpc_server, http_server).await;

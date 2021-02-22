@@ -1,6 +1,6 @@
 use thiserror::Error;
 
-use super::{ApiErrorCode, HttpError, ServerErrorResponse};
+use super::{ApiErrorCode, ClientError, HttpError, ServerErrorResponse};
 
 /// Error responses when creating a new IOx database.
 #[derive(Debug, Error)]
@@ -13,7 +13,7 @@ pub enum CreateDatabaseError {
     #[error("a database with the requested name already exists")]
     AlreadyExists,
 
-    /// An unknown server error occured.
+    /// An unknown server error occurred.
     ///
     /// The error string contains the error string returned by the server.
     #[error(transparent)]
@@ -22,6 +22,10 @@ pub enum CreateDatabaseError {
     /// A non-application HTTP request/response error occurred.
     #[error(transparent)]
     HttpError(#[from] HttpError),
+
+    /// An error occurred in the client.
+    #[error(transparent)]
+    ClientError(#[from] ClientError),
 }
 
 /// Convert a [`ServerErrorResponse`] into a [`CreateDatabaseError`].

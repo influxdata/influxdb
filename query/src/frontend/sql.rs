@@ -92,7 +92,6 @@ impl SQLQueryPlanner {
 
         let partition_keys = database
             .partition_keys()
-            .await
             .map_err(|e| Box::new(e) as _)
             .context(GettingDatabasePartition)?;
 
@@ -103,8 +102,8 @@ impl SQLQueryPlanner {
             let mut builder = ProviderBuilder::new(table_name);
 
             for partition_key in &partition_keys {
-                for chunk in database.chunks(partition_key).await {
-                    if chunk.has_table(table_name).await {
+                for chunk in database.chunks(partition_key) {
+                    if chunk.has_table(table_name) {
                         let chunk_id = chunk.id();
                         let chunk_table_schema = chunk
                             .table_schema(table_name, Selection::All)
@@ -115,12 +114,12 @@ impl SQLQueryPlanner {
                                 chunk_id,
                             })?;
 
-                        builder = builder
-                            .add_chunk(chunk, chunk_table_schema.into())
-                            .context(AddingChunkToProvider {
+                        builder = builder.add_chunk(chunk, chunk_table_schema).context(
+                            AddingChunkToProvider {
                                 table_name,
                                 chunk_id,
-                            })?
+                            },
+                        )?
                     }
                 }
             }
@@ -129,7 +128,7 @@ impl SQLQueryPlanner {
                 .context(CreatingTableProvider { table_name })?;
 
             ctx.inner_mut()
-                .register_table(&table_name, Box::new(provider));
+                .register_table(&table_name, Arc::new(provider));
         }
 
         ctx.prepare_sql(query).await.context(Preparing)

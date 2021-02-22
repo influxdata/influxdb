@@ -11,12 +11,12 @@ use hashbrown::{hash_map, HashMap};
 use itertools::Itertools;
 use snafu::{ResultExt, Snafu};
 
-use crate::column::{
-    cmp::Operator, AggregateResult, Column, EncodedValues, OwnedValue, RowIDs, RowIDsOption,
-    Scalar, Value, Values, ValuesIterator,
-};
+use crate::column::{cmp::Operator, Column, RowIDs, RowIDsOption};
 use crate::schema;
 use crate::schema::{AggregateType, LogicalDataType, ResultSchema};
+use crate::value::{
+    AggregateResult, EncodedValues, OwnedValue, Scalar, Value, Values, ValuesIterator,
+};
 use arrow_deps::arrow::record_batch::RecordBatch;
 use arrow_deps::{
     arrow, datafusion::logical_plan::Expr as DfExpr,
@@ -46,7 +46,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// A `RowGroup` is an immutable horizontal chunk of a single `Table`. By
-/// definition it has the same schema as all the other read groups in the table.
+/// definition it has the same schema as all the other row groups in the table.
 /// All the columns within the `RowGroup` must have the same number of logical
 /// rows.
 pub struct RowGroup {
@@ -69,13 +69,13 @@ impl RowGroup {
         let mut time_column = None;
 
         for (name, ct) in columns {
-            meta.size += ct.size();
             match ct {
                 ColumnType::Tag(c) => {
                     assert_eq!(c.num_rows(), rows);
 
                     meta.add_column(
                         &name,
+                        c.size(),
                         schema::ColumnType::Tag(name.clone()),
                         c.logical_datatype(),
                         c.column_range().unwrap(),
@@ -89,6 +89,7 @@ impl RowGroup {
 
                     meta.add_column(
                         &name,
+                        c.size(),
                         schema::ColumnType::Field(name.clone()),
                         c.logical_datatype(),
                         c.column_range().unwrap(),
@@ -110,6 +111,7 @@ impl RowGroup {
 
                     meta.add_column(
                         &name,
+                        c.size(),
                         schema::ColumnType::Timestamp(name.clone()),
                         c.logical_datatype(),
                         c.column_range().unwrap(),
@@ -133,9 +135,15 @@ impl RowGroup {
         }
     }
 
-    /// The total size in bytes of the read group
+    /// The total estimated size in bytes of the row group
     pub fn size(&self) -> u64 {
-        self.meta.size
+        let base_size = std::mem::size_of::<Self>()
+            + self
+                .all_columns_by_name
+                .iter()
+                .map(|(key, value)| key.len() + std::mem::size_of::<usize>())
+                .sum::<usize>();
+        base_size as u64 + self.meta.size()
     }
 
     /// The number of rows in the `RowGroup` (all columns have the same number
@@ -1011,6 +1019,9 @@ impl From<RecordBatch> for RowGroup {
                         arrow::datatypes::DataType::Boolean => {
                             Column::from(arrow::array::BooleanArray::from(arrow_column.data()))
                         }
+                        arrow::datatypes::DataType::Utf8 => {
+                            Column::from(arrow::array::StringArray::from(arrow_column.data()))
+                        }
                         dt => unimplemented!(
                             "data type {:?} currently not supported for field columns",
                             dt
@@ -1377,6 +1388,12 @@ pub struct ColumnMeta {
     pub range: (OwnedValue, OwnedValue),
 }
 
+impl ColumnMeta {
+    pub fn size(&self) -> usize {
+        std::mem::size_of::<Self>() + self.range.0.size() + self.range.1.size()
+    }
+}
+
 // column metadata is equivalent for two columns if their logical type and
 // semantic type are equivalent.
 impl PartialEq for ColumnMeta {
@@ -1387,10 +1404,10 @@ impl PartialEq for ColumnMeta {
 
 #[derive(Default, Debug)]
 pub struct MetaData {
-    // The total size of the table in bytes.
-    pub size: u64,
+    // The total size in bytes of all column data in the `RowGroup`.
+    pub columns_size: u64,
 
-    // The total number of rows in the table.
+    // The total number of rows in the `RowGroup`.
     pub rows: u32,
 
     // The distinct set of columns for this `RowGroup` (all of these columns
@@ -1401,8 +1418,7 @@ pub struct MetaData {
     // possibly match based on the range of values a column has.
     pub columns: BTreeMap<String, ColumnMeta>,
 
-    // The total time range of this table spanning all of the `RowGroup`s within
-    // the table.
+    // The total time range of this `RowGroup`.
     //
     // This can be used to skip the table entirely if the time range for a query
     // falls outside of this range.
@@ -1410,6 +1426,21 @@ pub struct MetaData {
 }
 
 impl MetaData {
+    /// Returns the estimated size in bytes of the meta data and all column data
+    /// associated with a `RowGroup`.
+    pub fn size(&self) -> u64 {
+        let base_size = std::mem::size_of::<Self>();
+
+        (base_size
+            // account for contents of meta data
+            + self
+                .columns
+                .iter()
+                .map(|(k, v)| k.len() + v.size())
+                .sum::<usize>()) as u64
+            + self.columns_size
+    }
+
     // helper function to determine if the provided binary expression could be
     // satisfied in the `RowGroup`, If this function returns `false` then there
     // no rows in the `RowGroup` would ever match the expression.
@@ -1451,6 +1482,7 @@ impl MetaData {
     pub fn add_column(
         &mut self,
         name: &str,
+        column_size: u64,
         col_type: schema::ColumnType,
         logical_data_type: LogicalDataType,
         range: (OwnedValue, OwnedValue),
@@ -1463,6 +1495,7 @@ impl MetaData {
                 range,
             },
         );
+        self.columns_size += column_size;
     }
 
     // Extract schema information for a set of columns.
@@ -1933,6 +1966,33 @@ mod test {
     }
 
     #[test]
+    fn size() {
+        let mut columns = BTreeMap::new();
+        let rc = ColumnType::Tag(Column::from(&[Some("west"), Some("west"), None, None][..]));
+        columns.insert("region".to_string(), rc);
+        let tc = ColumnType::Time(Column::from(&[100_i64, 200, 500, 600][..]));
+        columns.insert("time".to_string(), tc);
+
+        let row_group = RowGroup::new(4, columns);
+
+        let rg_size = row_group.size();
+        assert!(rg_size > 0);
+
+        let mut columns = BTreeMap::new();
+
+        let track = ColumnType::Tag(Column::from(
+            &[Some("Thinking"), Some("of"), Some("a"), Some("place")][..],
+        ));
+        columns.insert("track".to_string(), track);
+        let tc = ColumnType::Time(Column::from(&[100_i64, 200, 500, 600][..]));
+        columns.insert("time".to_string(), tc);
+
+        let row_group = RowGroup::new(4, columns);
+
+        assert!(row_group.size() > rg_size);
+    }
+
+    #[test]
     fn row_ids_from_predicates() {
         let mut columns = BTreeMap::new();
         let tc = ColumnType::Time(Column::from(&[100_i64, 200, 500, 600, 300, 300][..]));
@@ -2136,13 +2196,13 @@ west,4
         // columns
         read_group_all_rows_all_rle(&row_group);
 
-        // test read group queries that group on fewer than five columns.
+        // test row group queries that group on fewer than five columns.
         read_group_hash_u128_key(&row_group);
 
-        // test read group queries that use a vector-based group key.
+        // test row group queries that use a vector-based group key.
         read_group_hash_vec_key(&row_group);
 
-        // test read group queries that only group on one column.
+        // test row group queries that only group on one column.
         read_group_single_groupby_column(&row_group);
     }
 

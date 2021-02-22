@@ -27,11 +27,6 @@ pub struct DatabaseRules {
     /// db
     #[serde(default)]
     pub partition_template: PartitionTemplate,
-    /// If `store_locally` is set to `true`, this server will store writes and
-    /// replicated writes in a local write buffer database. This is step #4
-    /// from the diagram.
-    #[serde(default)]
-    pub store_locally: bool,
     /// The set of host groups that data should be replicated to. Which host a
     /// write goes to within a host group is determined by consistent hashing of
     /// the partition key. We'd use this to create a host group per
@@ -100,6 +95,14 @@ pub struct DatabaseRules {
     /// configuration.
     #[serde(default)]
     pub wal_buffer_config: Option<WalBufferConfig>,
+
+    /// Unless explicitly disabled by setting this to None (or null in JSON),
+    /// writes will go into a queryable in-memory database
+    /// called the Mutable Buffer. It is optimized to receive writes so they
+    /// can be batched together later to the Read Buffer or to Parquet files
+    /// in object storage.
+    #[serde(default = "MutableBufferConfig::default_option")]
+    pub mutable_buffer_config: Option<MutableBufferConfig>,
 }
 
 impl DatabaseRules {
@@ -110,6 +113,135 @@ impl DatabaseRules {
     ) -> Result<String> {
         self.partition_template.partition_key(line, default_time)
     }
+
+    pub fn new() -> Self {
+        Self {
+            mutable_buffer_config: MutableBufferConfig::default_option(),
+            ..Default::default()
+        }
+    }
+}
+
+/// MutableBufferConfig defines the configuration for the in-memory database
+/// that is hot for writes as they arrive. Operators can define rules for
+/// evicting data once the mutable buffer passes a set memory threshold.
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct MutableBufferConfig {
+    /// The size the mutable buffer should be limited to. Once the buffer gets
+    /// to this size it will drop partitions in the given order. If unable
+    /// to drop partitions (because of later rules in this config) it will
+    /// reject writes until it is able to drop partitions.
+    pub buffer_size: u64,
+    /// If set, the mutable buffer will not drop partitions that have chunks
+    /// that have not yet been persisted. Thus it will reject writes if it
+    /// is over size and is unable to drop partitions. The default is to
+    /// drop partitions in the sort order, regardless of whether they have
+    /// unpersisted chunks or not. The WAL Buffer can be used to ensure
+    /// persistence, but this may cause longer recovery times.
+    pub reject_if_not_persisted: bool,
+    /// Drop partitions to free up space in this order. Can be by the oldest
+    /// created at time, the longest since the last write, or the min or max of
+    /// some column.
+    pub partition_drop_order: PartitionSortRules,
+    /// Attempt to persist partitions after they haven't received a write for
+    /// this number of seconds. If not set, partitions won't be
+    /// automatically persisted.
+    pub persist_after_cold_seconds: Option<u32>,
+}
+
+const DEFAULT_MUTABLE_BUFFER_SIZE: u64 = 2_147_483_648; // 2 GB
+const DEFAULT_PERSIST_AFTER_COLD_SECONDS: u32 = 900; // 15 minutes
+
+impl MutableBufferConfig {
+    fn default_option() -> Option<Self> {
+        Some(Self::default())
+    }
+}
+
+impl Default for MutableBufferConfig {
+    fn default() -> Self {
+        Self {
+            buffer_size: DEFAULT_MUTABLE_BUFFER_SIZE,
+            // keep taking writes and drop partitions on the floor
+            reject_if_not_persisted: false,
+            partition_drop_order: PartitionSortRules {
+                order: Order::Desc,
+                sort: PartitionSort::CreatedAtTime,
+            },
+            // rollover the chunk and persist it after the partition has been cold for
+            // 15 minutes
+            persist_after_cold_seconds: Some(DEFAULT_PERSIST_AFTER_COLD_SECONDS),
+        }
+    }
+}
+
+/// This struct specifies the rules for the order to sort partitions
+/// from the mutable buffer. This is used to determine which order to drop them
+/// in. The last partition in the list will be dropped, until enough space has
+/// been freed up to be below the max size.
+///
+/// For example, to drop the partition that has been open longest:
+/// ```
+/// use data_types::database_rules::{PartitionSortRules, Order, PartitionSort};
+///
+/// let rules = PartitionSortRules{
+///     order: Order::Desc,
+///     sort: PartitionSort::CreatedAtTime,
+/// };
+/// ```
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct PartitionSortRules {
+    /// Sort partitions by this order. Last will be dropped.
+    pub order: Order,
+    /// Sort by either a column value, or when the partition was opened, or when
+    /// it last received a write.
+    pub sort: PartitionSort,
+}
+
+/// What to sort the partition by.
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub enum PartitionSort {
+    /// The last time the partition received a write.
+    LastWriteTime,
+    /// When the partition was opened in the mutable buffer.
+    CreatedAtTime,
+    /// A column name, its expected type, and whether to use the min or max
+    /// value. The ColumnType is necessary because the column can appear in
+    /// any number of tables and be of a different type. This specifies that
+    /// when sorting partitions, only columns with the given name and type
+    /// should be used for the purposes of determining the partition order. If a
+    /// partition doesn't have the given column in any way, the partition will
+    /// appear at the beginning of the list with a null value where all
+    /// partitions having null for that value will then be
+    /// sorted by created_at_time desc. So if none of the partitions in the
+    /// mutable buffer had this column with this type, then the partition
+    /// that was created first would appear last in the list and thus be the
+    /// first up to be dropped.
+    Column(String, ColumnType, ColumnValue),
+}
+
+/// The sort order.
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub enum Order {
+    Asc,
+    Desc,
+}
+
+/// Use columns of this type.
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub enum ColumnType {
+    I64,
+    U64,
+    F64,
+    String,
+    Bool,
+}
+
+/// Use either the min or max summary statistic.
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub enum ColumnValue {
+    Min,
+    Max,
 }
 
 /// WalBufferConfig defines the configuration for buffering data from the WAL in

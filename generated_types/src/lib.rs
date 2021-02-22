@@ -5,7 +5,8 @@
     unused_imports,
     clippy::redundant_static_lifetimes,
     clippy::redundant_closure,
-    clippy::redundant_field_names
+    clippy::redundant_field_names,
+    clippy::clone_on_ref_ptr
 )]
 
 include!(concat!(env!("OUT_DIR"), "/influxdata.platform.storage.rs"));
@@ -24,3 +25,5 @@ impl TimestampRange {
         }
     }
 }
+
+pub use google_types as google;

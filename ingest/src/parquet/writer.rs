@@ -148,10 +148,12 @@ where
         let writer_props = create_writer_props(&schema, compression_level);
         let parquet_schema = convert_to_parquet_schema(&schema)?;
 
-        let file_writer = SerializedFileWriter::new(writer, parquet_schema.clone(), writer_props)
-            .context(ParquetLibraryError {
-            message: String::from("Error trying to create a SerializedFileWriter"),
-        })?;
+        let file_writer =
+            SerializedFileWriter::new(writer, Arc::clone(&parquet_schema), writer_props).context(
+                ParquetLibraryError {
+                    message: String::from("Error trying to create a SerializedFileWriter"),
+                },
+            )?;
 
         let parquet_writer = Self {
             parquet_schema,

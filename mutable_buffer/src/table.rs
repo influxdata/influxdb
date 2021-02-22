@@ -1,11 +1,10 @@
 use generated_types::wal as wb;
 use query::{
-    exec::{field::FieldColumns, make_schema_pivot, SeriesSetPlan},
+    exec::{field::FieldColumns, SeriesSetPlan},
     func::selectors::{selector_first, selector_last, selector_max, selector_min, SelectorOutput},
     func::window::make_window_bound_expr,
     group_by::{Aggregate, WindowDuration},
 };
-use tracing::debug;
 
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -270,94 +269,6 @@ impl Table {
             Some(df_predicate) => plan_builder.filter(df_predicate).context(BuildingPlan),
             None => Ok(plan_builder),
         }
-    }
-
-    /// Creates a DataFusion LogicalPlan that returns column *names* as a
-    /// single column of Strings
-    ///
-    /// The created plan looks like:
-    ///
-    ///  Extension(PivotSchema)
-    ///    (Optional Projection to get rid of time)
-    ///        Filter(predicate)
-    ///          InMemoryScan
-    pub fn tag_column_names_plan(
-        &self,
-        chunk_predicate: &ChunkPredicate,
-        chunk: &Chunk,
-    ) -> Result<LogicalPlan> {
-        let need_time_column = chunk_predicate.range.is_some();
-
-        let time_column_id = chunk_predicate.time_column_id;
-
-        // figure out the tag columns
-        let mut cols = Vec::with_capacity(self.columns.len());
-        for (column_id, column) in &self.columns {
-            if column.is_tag() {
-                let column_name = chunk.dictionary.lookup_id(*column_id).context(
-                    ColumnIdNotFoundInDictionary {
-                        column_id: *column_id,
-                        chunk: chunk.id,
-                    },
-                )?;
-                cols.push(ColSelection {
-                    column_name,
-                    column_id: *column_id,
-                });
-            } else if need_time_column && *column_id == time_column_id {
-                cols.push(ColSelection {
-                    column_name: TIME_COLUMN_NAME,
-                    column_id: *column_id,
-                });
-            }
-        }
-
-        let selection = TableColSelection { cols };
-
-        // TODO avoid materializing here
-        let data = self.to_arrow_impl(chunk, &selection)?;
-
-        let schema = data.schema();
-
-        let projection = None;
-
-        let plan_builder = LogicalPlanBuilder::scan_memory(vec![vec![data]], schema, projection)
-            .context(BuildingPlan)?;
-
-        let plan_builder = Self::add_datafusion_predicate(plan_builder, chunk_predicate)?;
-
-        // add optional selection to remove time column
-        let plan_builder = if !need_time_column {
-            plan_builder
-        } else {
-            // Create expressions for all columns except time
-            let select_exprs = selection
-                .cols
-                .iter()
-                .filter_map(|col_selection| {
-                    if col_selection.column_name != TIME_COLUMN_NAME {
-                        Some(col(col_selection.column_name))
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>();
-
-            plan_builder.project(&select_exprs).context(BuildingPlan)?
-        };
-
-        let plan = plan_builder.build().context(BuildingPlan)?;
-
-        // And finally pivot the plan
-        let plan = make_schema_pivot(plan);
-
-        debug!(
-            "Created column_name plan for table '{}':\n{}",
-            chunk.dictionary.lookup_id(self.id).unwrap(),
-            plan.display_indent_schema()
-        );
-
-        Ok(plan)
     }
 
     /// Creates a DataFusion LogicalPlan that returns column *values* as a
@@ -703,39 +614,6 @@ impl Table {
         ))
     }
 
-    /// Creates a plan that produces an output table with rows that
-    /// match the predicate for all fields in the table.
-    ///
-    /// The output looks like (field0, field1, ..., time)
-    ///
-    /// The data is not sorted in any particular order
-    ///
-    /// The created plan looks like:
-    ///
-    ///    Projection (select the field columns needed)
-    ///        Filter(predicate) [optional]
-    ///          InMemoryScan
-    pub fn field_names_plan(
-        &self,
-        chunk_predicate: &ChunkPredicate,
-        chunk: &Chunk,
-    ) -> Result<LogicalPlan> {
-        // Scan and Filter
-        let plan_builder = self.scan_with_predicates(chunk_predicate, chunk)?;
-
-        // Selection
-        let select_exprs = self
-            .field_and_time_column_names(chunk_predicate, chunk)
-            .into_iter()
-            .map(|c| c.into_expr())
-            .collect::<Vec<_>>();
-
-        let plan_builder = plan_builder.project(&select_exprs).context(BuildingPlan)?;
-
-        // and finally create the plan
-        plan_builder.build().context(BuildingPlan)
-    }
-
     // Returns (tag_columns, field_columns) vectors with the names of
     // all tag and field columns, respectively, after any predicates
     // have been applied. The vectors are sorted by lexically by name.
@@ -777,42 +655,6 @@ impl Table {
         field_columns.sort();
 
         Ok((tag_columns, field_columns))
-    }
-
-    // Returns (field_columns and time) in sorted order
-    fn field_and_time_column_names(
-        &self,
-        chunk_predicate: &ChunkPredicate,
-        chunk: &Chunk,
-    ) -> ArcStringVec {
-        let mut field_columns = self
-            .columns
-            .iter()
-            .filter_map(|(column_id, column)| {
-                match column {
-                    Column::Tag(_, _) => None, // skip tags
-                    _ => {
-                        if chunk_predicate.should_include_field(*column_id)
-                            || chunk_predicate.is_time_column(*column_id)
-                        {
-                            let column_name = chunk
-                                .dictionary
-                                .lookup_id(*column_id)
-                                .expect("Find column name in dictionary");
-                            Some(Arc::new(column_name.to_string()))
-                        } else {
-                            None
-                        }
-                    }
-                }
-            })
-            .collect::<Vec<_>>();
-
-        // Sort the field columns too so that the output always comes
-        // out in a predictable order
-        field_columns.sort();
-
-        field_columns
     }
 
     /// Returns the column selection for all the columns in this table, orderd
@@ -1082,9 +924,23 @@ impl Table {
 
     /// returns true if there are any rows in column that are non-null
     /// and within the timestamp range specified by pred
-    pub fn column_matches_predicate<T>(
+    pub(crate) fn column_matches_predicate(
         &self,
-        column: &[Option<T>],
+        column: &Column,
+        chunk_predicate: &ChunkPredicate,
+    ) -> Result<bool> {
+        match column {
+            Column::F64(v, _) => self.column_value_matches_predicate(v, chunk_predicate),
+            Column::I64(v, _) => self.column_value_matches_predicate(v, chunk_predicate),
+            Column::String(v, _) => self.column_value_matches_predicate(v, chunk_predicate),
+            Column::Bool(v, _) => self.column_value_matches_predicate(v, chunk_predicate),
+            Column::Tag(v, _) => self.column_value_matches_predicate(v, chunk_predicate),
+        }
+    }
+
+    fn column_value_matches_predicate<T>(
+        &self,
+        column_value: &[Option<T>],
         chunk_predicate: &ChunkPredicate,
     ) -> Result<bool> {
         match chunk_predicate.range {
@@ -1093,7 +949,7 @@ impl Table {
                 let time_column_id = chunk_predicate.time_column_id;
                 let time_column = self.column(time_column_id)?;
                 time_column
-                    .has_non_null_i64_range(column, range.start, range.end)
+                    .has_non_null_i64_range(column_value, range.start, range.end)
                     .context(ColumnPredicateEvaluation {
                         column: time_column_id,
                     })
@@ -1179,7 +1035,7 @@ fn reorder_prefix(
 
     let mut new_tag_columns = prefix_map
         .iter()
-        .map(|&i| tag_columns[i].clone())
+        .map(|&i| Arc::clone(&tag_columns[i]))
         .collect::<Vec<_>>();
 
     new_tag_columns.extend(tag_columns.into_iter().enumerate().filter_map(|(i, c)| {
@@ -1294,7 +1150,7 @@ impl AggExprs {
                     )?);
 
                     field_list.push((
-                        field_name.clone(), // value name
+                        Arc::clone(field_name), // value name
                         time_column_name,
                     ));
                 }
@@ -2161,47 +2017,6 @@ mod tests {
             "| Boston | MA    | 1585699200000000000 | 70.5 |",
             "| Boston | MA    | 1588291200000000000 | 72.5 |",
             "+--------+-------+---------------------+------+",
-        ];
-
-        assert_eq!(expected, results, "expected output");
-    }
-
-    #[tokio::test]
-    async fn test_field_name_plan() {
-        let mut chunk = Chunk::new(42);
-        let dictionary = &mut chunk.dictionary;
-        let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
-
-        let lp_lines = vec![
-            // Order this so field3 comes before field2
-            // (and thus the columns need to get reordered)
-            "h2o,tag1=foo,tag2=bar field1=70.6,field3=2 100",
-            "h2o,tag1=foo,tag2=bar field1=70.4,field2=\"ss\" 100",
-            "h2o,tag1=foo,tag2=bar field1=70.5,field2=\"ss\" 100",
-            "h2o,tag1=foo,tag2=bar field1=70.6,field4=true 1000",
-        ];
-
-        write_lines_to_table(&mut table, dictionary, lp_lines);
-
-        let predicate = PredicateBuilder::default().timestamp_range(0, 200).build();
-
-        let chunk_predicate = chunk.compile_predicate(&predicate).unwrap();
-
-        let field_names_set_plan = table
-            .field_names_plan(&chunk_predicate, &chunk)
-            .expect("creating the field_name plan");
-
-        // run the created plan, ensuring the output is as expected
-        let results = run_plan(field_names_set_plan).await;
-
-        let expected = vec![
-            "+--------+--------+--------+--------+------+",
-            "| field1 | field2 | field3 | field4 | time |",
-            "+--------+--------+--------+--------+------+",
-            "| 70.6   |        | 2      |        | 100  |",
-            "| 70.4   | ss     |        |        | 100  |",
-            "| 70.5   | ss     |        |        | 100  |",
-            "+--------+--------+--------+--------+------+",
         ];
 
         assert_eq!(expected, results, "expected output");

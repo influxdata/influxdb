@@ -552,6 +552,24 @@ impl Plain {
         dst
     }
 
+    /// Returns the lexicographical minimum value in the column. None is
+    /// returned only if the column does not contain any non-null values.
+    pub fn column_min(&self) -> Option<&'_ String> {
+        if self.entries.len() > 1 {
+            return self.entries.get(1).unwrap().as_ref();
+        }
+        None
+    }
+
+    /// Returns the lexicographical maximum value in the column. None is
+    /// returned only if the column does not contain any non-null values.
+    pub fn column_max(&self) -> Option<&'_ String> {
+        if self.entries.len() > 1 {
+            return self.entries.last().unwrap().as_ref();
+        }
+        None
+    }
+
     /// Returns the lexicographical minimum value for the provided set of row
     /// ids. NULL values are not considered the minimum value if any non-null
     /// value exists at any of the provided row ids.

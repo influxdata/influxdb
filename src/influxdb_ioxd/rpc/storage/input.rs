@@ -1,9 +1,9 @@
 use tonic::Status;
 
 use generated_types::{
-    MeasurementFieldsRequest, MeasurementNamesRequest, MeasurementTagKeysRequest,
-    MeasurementTagValuesRequest, ReadFilterRequest, ReadGroupRequest, ReadSource,
-    ReadWindowAggregateRequest, TagKeysRequest, TagValuesRequest,
+    google::protobuf::Any, MeasurementFieldsRequest, MeasurementNamesRequest,
+    MeasurementTagKeysRequest, MeasurementTagValuesRequest, ReadFilterRequest, ReadGroupRequest,
+    ReadSource, ReadWindowAggregateRequest, TagKeysRequest, TagValuesRequest,
 };
 
 use super::id::ID;
@@ -14,9 +14,9 @@ use std::convert::TryInto;
 /// because for some requests the field is named `read_source` and for others it
 /// is `tags_source`.
 pub trait GrpcInputs {
-    fn read_source_field(&self) -> Option<&prost_types::Any>;
+    fn read_source_field(&self) -> Option<&Any>;
 
-    fn read_source_raw(&self) -> Result<&prost_types::Any, Status> {
+    fn read_source_raw(&self) -> Result<&Any, Status> {
         Ok(self
             .read_source_field()
             .ok_or_else(|| Status::invalid_argument("missing read_source"))?)
@@ -49,55 +49,55 @@ pub trait GrpcInputs {
 }
 
 impl GrpcInputs for ReadFilterRequest {
-    fn read_source_field(&self) -> Option<&prost_types::Any> {
+    fn read_source_field(&self) -> Option<&Any> {
         self.read_source.as_ref()
     }
 }
 
 impl GrpcInputs for ReadGroupRequest {
-    fn read_source_field(&self) -> Option<&prost_types::Any> {
+    fn read_source_field(&self) -> Option<&Any> {
         self.read_source.as_ref()
     }
 }
 
 impl GrpcInputs for TagKeysRequest {
-    fn read_source_field(&self) -> Option<&prost_types::Any> {
+    fn read_source_field(&self) -> Option<&Any> {
         self.tags_source.as_ref()
     }
 }
 
 impl GrpcInputs for TagValuesRequest {
-    fn read_source_field(&self) -> Option<&prost_types::Any> {
+    fn read_source_field(&self) -> Option<&Any> {
         self.tags_source.as_ref()
     }
 }
 
 impl GrpcInputs for MeasurementNamesRequest {
-    fn read_source_field(&self) -> Option<&prost_types::Any> {
+    fn read_source_field(&self) -> Option<&Any> {
         self.source.as_ref()
     }
 }
 
 impl GrpcInputs for MeasurementTagKeysRequest {
-    fn read_source_field(&self) -> Option<&prost_types::Any> {
+    fn read_source_field(&self) -> Option<&Any> {
         self.source.as_ref()
     }
 }
 
 impl GrpcInputs for MeasurementTagValuesRequest {
-    fn read_source_field(&self) -> Option<&prost_types::Any> {
+    fn read_source_field(&self) -> Option<&Any> {
         self.source.as_ref()
     }
 }
 
 impl GrpcInputs for MeasurementFieldsRequest {
-    fn read_source_field(&self) -> Option<&prost_types::Any> {
+    fn read_source_field(&self) -> Option<&Any> {
         self.source.as_ref()
     }
 }
 
 impl GrpcInputs for ReadWindowAggregateRequest {
-    fn read_source_field(&self) -> Option<&prost_types::Any> {
+    fn read_source_field(&self) -> Option<&Any> {
         self.read_source.as_ref()
     }
 }

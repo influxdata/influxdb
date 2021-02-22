@@ -5,7 +5,7 @@
 /// columns in the results.
 pub enum Selection<'a> {
     /// Return all columns (e.g. SELECT *)
-    /// The columns are returned in lexographical order by name
+    /// The columns are returned in an arbitrary order
     All,
 
     /// Return only the named columns

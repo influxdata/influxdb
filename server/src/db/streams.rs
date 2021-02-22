@@ -37,11 +37,10 @@ pub enum Error {
 /// Adapter which will produce record batches from a mutable buffer
 /// chunk on demand
 pub(crate) struct MutableBufferChunkStream {
-    /// Schema
+    /// Requested output schema (includes selection)
     schema: SchemaRef,
     chunk: Arc<MBChunk>,
     table_name: Arc<String>,
-    selection: OwnedSelection,
 
     /// Vector of record batches to send in reverse order (send data[len-1]
     /// next) Is None until the first call to poll_next
@@ -49,17 +48,11 @@ pub(crate) struct MutableBufferChunkStream {
 }
 
 impl MutableBufferChunkStream {
-    pub fn new(
-        chunk: Arc<MBChunk>,
-        schema: SchemaRef,
-        table_name: impl Into<String>,
-        selection: Selection<'_>,
-    ) -> Self {
+    pub fn new(chunk: Arc<MBChunk>, schema: SchemaRef, table_name: impl Into<String>) -> Self {
         Self {
             chunk,
             schema,
             table_name: Arc::new(table_name.into()),
-            selection: selection.into(),
             data: None,
         }
     }
@@ -67,14 +60,17 @@ impl MutableBufferChunkStream {
     // gets the next batch, as needed
     fn next_batch(&mut self) -> ArrowResult<Option<RecordBatch>> {
         if self.data.is_none() {
-            let selected_cols = match &self.selection {
-                OwnedSelection::Some(cols) => cols.iter().map(|s| s as &str).collect(),
-                OwnedSelection::All => vec![],
-            };
-            let selection = match &self.selection {
-                OwnedSelection::Some(_) => Selection::Some(&selected_cols),
-                OwnedSelection::All => Selection::All,
-            };
+            // Want all the columns in the schema. Note we don't
+            // use `Selection::All` here because the mutable buffer chunk would interpret it
+            // as "all columns in the table in that chunk" rather than
+            // all columns this query needs
+            let selected_cols = self
+                .schema
+                .fields()
+                .iter()
+                .map(|f| f.name() as &str)
+                .collect::<Vec<_>>();
+            let selection = Selection::Some(&selected_cols);
 
             let mut data = Vec::new();
             self.chunk
@@ -97,7 +93,7 @@ impl MutableBufferChunkStream {
 
 impl RecordBatchStream for MutableBufferChunkStream {
     fn schema(&self) -> SchemaRef {
-        self.schema.clone()
+        Arc::clone(&self.schema)
     }
 }
 
@@ -131,7 +127,7 @@ impl ReadFilterResultsStream {
 
 impl RecordBatchStream for ReadFilterResultsStream {
     fn schema(&self) -> SchemaRef {
-        self.schema.clone()
+        Arc::clone(&self.schema)
     }
 }
 
@@ -146,24 +142,4 @@ impl futures::Stream for ReadFilterResultsStream {
     }
 
     // TODO is there a useful size_hint to pass?
-}
-
-// Something which owns the column names for the selection
-enum OwnedSelection {
-    Some(Vec<String>),
-    All,
-}
-
-impl OwnedSelection {}
-
-impl From<Selection<'_>> for OwnedSelection {
-    fn from(s: Selection<'_>) -> Self {
-        match s {
-            Selection::All => Self::All,
-            Selection::Some(col_refs) => {
-                let cols = col_refs.iter().map(|s| s.to_string()).collect();
-                Self::Some(cols)
-            }
-        }
-    }
 }
