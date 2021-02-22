@@ -22,7 +22,10 @@ use arrow_deps::{
     arrow, datafusion::logical_plan::Expr as DfExpr,
     datafusion::scalar::ScalarValue as DFScalarValue,
 };
-use data_types::schema::{InfluxColumnType, Schema};
+use data_types::{
+    schema::{InfluxColumnType, Schema},
+    selection::Selection,
+};
 
 /// The name used for a timestamp column.
 pub const TIME_COLUMN_NAME: &str = data_types::TIME_COLUMN_NAME;
@@ -941,7 +944,12 @@ impl RowGroup {
     ///
     /// If you are familiar with InfluxDB, this is essentially an implementation
     /// of `SHOW TAG KEYS`.
-    pub fn column_names(&self, predicate: &Predicate, dst: &mut BTreeSet<String>) {
+    pub fn column_names(
+        &self,
+        predicate: &Predicate,
+        columns: Selection<'_>,
+        dst: &mut BTreeSet<String>,
+    ) {
         // Determine the set of columns in this row group that are not already
         // present in `dst`, i.e., they haven't been identified in other row
         // groups already.
@@ -951,7 +959,16 @@ impl RowGroup {
             .filter_map(|(name, &id)| match dst.contains(name) {
                 // N.B there is bool::then() but it's currently unstable.
                 true => None,
-                false => Some((name, &self.columns[id])),
+                false => match columns {
+                    Selection::All => Some((name, &self.columns[id])),
+                    Selection::Some(names) => {
+                        if names.iter().any(|selection| name == selection) {
+                            Some((name, &self.columns[id]))
+                        } else {
+                            None
+                        }
+                    }
+                },
             })
             .collect::<Vec<_>>();
 
@@ -1496,6 +1513,11 @@ impl MetaData {
             },
         );
         self.columns_size += column_size;
+    }
+
+    // Returns meta information about the column.
+    fn column_meta(&self, name: ColumnName<'_>) -> &ColumnMeta {
+        self.columns.get(name).unwrap()
     }
 
     // Extract schema information for a set of columns.
@@ -2837,16 +2859,21 @@ west,host-d,11,9
             &[Some("Thinking"), Some("of"), Some("a"), Some("place")][..],
         ));
         columns.insert("track".to_string(), track);
+        let temp = ColumnType::Field(Column::from(
+            &[Some("hot"), Some("cold"), Some("cold"), Some("warm")][..],
+        ));
+        columns.insert("temp".to_string(), temp);
+
         let tc = ColumnType::Time(Column::from(&[100_i64, 200, 500, 600][..]));
         columns.insert("time".to_string(), tc);
         let row_group = RowGroup::new(4, columns);
 
         // No predicate - just find a value in each column that matches.
         let mut dst = BTreeSet::new();
-        row_group.column_names(&Predicate::default(), &mut dst);
+        row_group.column_names(&Predicate::default(), Selection::All, &mut dst);
         assert_eq!(
             dst,
-            vec!["region", "time", "track"]
+            vec!["region", "temp", "time", "track"]
                 .into_iter()
                 .map(|s| s.to_owned())
                 .collect()
@@ -2856,6 +2883,7 @@ west,host-d,11,9
         let mut dst = BTreeSet::new();
         row_group.column_names(
             &Predicate::new(vec![BinaryExpr::from(("region", "=", "east"))]),
+            Selection::All,
             &mut dst,
         );
         assert!(dst.is_empty());
@@ -2865,16 +2893,17 @@ west,host-d,11,9
         let mut dst = BTreeSet::new();
         let names = row_group.column_names(
             &Predicate::new(vec![BinaryExpr::from(("track", "=", "place"))]),
+            Selection::All,
             &mut dst,
         );
         // query matches one row.
         //
-        // region, track, time
-        // NULL  , place, 600
+        // region, temp, track, time
+        // NULL  , warm, place, 600
         //
         assert_eq!(
             dst,
-            vec!["track", "time"]
+            vec!["temp", "time", "track",]
                 .into_iter()
                 .map(|s| s.to_owned())
                 .collect()
@@ -2886,16 +2915,35 @@ west,host-d,11,9
         let rc = ColumnType::Tag(Column::from(&[Some("prod")][..]));
         columns.insert("env".to_string(), rc);
         let tc = ColumnType::Time(Column::from(&[100_i64][..]));
+        let temp = ColumnType::Field(Column::from(&[Some("hot")][..]));
+        columns.insert("temp".to_string(), temp);
+
         columns.insert("time".to_string(), tc);
         let row_group = RowGroup::new(1, columns);
 
-        row_group.column_names(&Predicate::default(), &mut dst);
+        row_group.column_names(&Predicate::default(), Selection::All, &mut dst);
         assert_eq!(
             dst,
-            vec!["env", "time", "track"]
+            vec!["env", "temp", "time", "track"]
                 .into_iter()
                 .map(|s| s.to_owned())
                 .collect()
+        );
+
+        // just tag keys
+        dst.clear();
+        row_group.column_names(&Predicate::default(), Selection::Some(&["env"]), &mut dst);
+        assert_eq!(
+            dst.iter().cloned().collect::<Vec<_>>(),
+            vec!["env".to_owned()],
+        );
+
+        // just field keys
+        dst.clear();
+        row_group.column_names(&Predicate::default(), Selection::Some(&["temp"]), &mut dst);
+        assert_eq!(
+            dst.iter().cloned().collect::<Vec<_>>(),
+            vec!["temp".to_owned()],
         );
     }
 }

@@ -522,7 +522,7 @@ impl InfluxRPCPlanner {
             );
 
             let chunk_table_schema = chunk
-                .table_schema(table_name, selection.clone())
+                .table_schema(table_name, selection)
                 .await
                 .map_err(|e| Box::new(e) as _)
                 .context(GettingTableSchema {
