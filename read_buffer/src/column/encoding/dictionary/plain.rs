@@ -625,7 +625,21 @@ impl Plain {
         // totally ordered.
         dst.clear();
 
-        todo!()
+        for &row_id in row_ids {
+            let encoded_id = self.encoded_data[row_id as usize];
+            let value = &self.entries[encoded_id as usize].as_ref();
+
+            if !dst.contains(value) {
+                dst.insert(*value);
+            }
+
+            if dst.len() as u32 == self.cardinality() {
+                // no more distinct values to find.
+                return dst;
+            }
+        }
+
+        dst
     }
 
     //

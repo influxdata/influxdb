@@ -689,10 +689,6 @@ impl RLE {
 
         let mut i = 1;
         'by_row: for row_id in row_ids {
-            if row_id >= &self.num_rows {
-                return dst; // rows beyond the column size
-            }
-
             while curr_logical_row_id + curr_entry_rl <= *row_id {
                 // this encoded entry does not cover the row we need.
                 // move on to next entry

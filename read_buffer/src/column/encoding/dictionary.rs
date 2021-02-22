@@ -1031,19 +1031,31 @@ mod test {
 
     #[test]
     fn distinct_values() {
-        let mut enc = Encoding::RLE(RLE::default());
-        enc.push_additional(Some("east".to_string()), 100);
+        let encodings = vec![
+            Encoding::RLE(RLE::default()),
+            Encoding::Plain(Plain::default()),
+        ];
 
-        let values = enc.distinct_values((0..100).collect::<Vec<_>>().as_slice(), BTreeSet::new());
+        for enc in encodings {
+            _distinct_values(enc);
+        }
+    }
+
+    fn _distinct_values(mut enc: Encoding) {
+        let name = enc.debug_name();
+
+        enc.push_additional(Some("east".to_string()), 3);
+
+        let values = enc.distinct_values((0..3).collect::<Vec<_>>().as_slice(), BTreeSet::new());
         assert_eq!(
             values,
             vec![Some(&"east".to_string())]
                 .into_iter()
-                .collect::<BTreeSet<_>>()
+                .collect::<BTreeSet<_>>(),
+            "{}",
+            name,
         );
 
-        enc = Encoding::RLE(RLE::default());
-        enc.push_additional(Some("east".to_string()), 3); // 0, 1, 2
         enc.push_additional(Some("north".to_string()), 1); // 3
         enc.push_additional(Some("east".to_string()), 5); // 4, 5, 6, 7, 8
         enc.push_additional(Some("south".to_string()), 2); // 9, 10
@@ -1059,7 +1071,9 @@ mod test {
                 Some(&"south".to_string()),
             ]
             .into_iter()
-            .collect::<BTreeSet<_>>()
+            .collect::<BTreeSet<_>>(),
+            "{}",
+            name,
         );
 
         let values = enc.distinct_values((0..4).collect::<Vec<_>>().as_slice(), BTreeSet::new());
@@ -1067,7 +1081,9 @@ mod test {
             values,
             vec![Some(&"east".to_string()), Some(&"north".to_string()),]
                 .into_iter()
-                .collect::<BTreeSet<_>>()
+                .collect::<BTreeSet<_>>(),
+            "{}",
+            name,
         );
 
         let values = enc.distinct_values(&[3, 10], BTreeSet::new());
@@ -1075,11 +1091,10 @@ mod test {
             values,
             vec![Some(&"north".to_string()), Some(&"south".to_string()),]
                 .into_iter()
-                .collect::<BTreeSet<_>>()
+                .collect::<BTreeSet<_>>(),
+            "{}",
+            name,
         );
-
-        let values = enc.distinct_values(&[100], BTreeSet::new());
-        assert!(values.is_empty());
     }
 
     #[test]
