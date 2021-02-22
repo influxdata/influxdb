@@ -210,34 +210,22 @@ impl MutableBufferDb {
         &self,
         sort_rules: &PartitionSortRules,
     ) -> Vec<Arc<RwLock<Partition>>> {
-        let partitions: Vec<_> = {
+        let mut partitions: Vec<_> = {
             let partitions = self.partitions.read().expect("poisoned mutex");
             partitions.values().map(Arc::clone).collect()
         };
 
-        let mut partitions: Vec<_> = match &sort_rules.sort {
+        match &sort_rules.sort {
             PartitionSort::CreatedAtTime => {
-                let times: Vec<_> = partitions
-                    .iter()
-                    .map(|p| p.read().expect("mutex poisoned").created_at)
-                    .collect();
-                let mut pt: Vec<_> = partitions.into_iter().zip(times).collect();
-                pt.sort_by(|(_partition_a, time_a), (_partition_b, time_b)| time_a.cmp(time_b));
-                pt.into_iter().map(|(p, _)| p).collect()
+                partitions.sort_by_cached_key(|p| p.read().expect("mutex poisoned").created_at);
             }
             PartitionSort::LastWriteTime => {
-                let times: Vec<_> = partitions
-                    .iter()
-                    .map(|p| p.read().expect("mutex poisoned").last_write_at)
-                    .collect();
-                let mut pt: Vec<_> = partitions.into_iter().zip(times).collect();
-                pt.sort_by(|(_partition_a, time_a), (_partition_b, time_b)| time_a.cmp(time_b));
-                pt.into_iter().map(|(p, _)| p).collect()
+                partitions.sort_by_cached_key(|p| p.read().expect("mutex poisoned").last_write_at);
             }
             PartitionSort::Column(_name, _data_type, _val) => {
                 unimplemented!()
             }
-        };
+        }
 
         if sort_rules.order == Order::Desc {
             partitions.reverse();
