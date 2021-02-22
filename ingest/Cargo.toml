@@ -15,4 +15,5 @@ tracing = "0.1"
 
 [dev-dependencies] # In alphabetical order
 flate2 = "1.0"
+parking_lot = "0.11.1"
 test_helpers = { path = "../test_helpers" }

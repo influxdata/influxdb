@@ -273,6 +273,7 @@ impl Chunk {
         &self,
         table_name: &str,
         predicate: &Predicate,
+        columns: Selection<'_>,
         dst: BTreeSet<String>,
     ) -> BTreeSet<String> {
         let chunk_data = self.chunk_data.read().unwrap();
@@ -280,7 +281,7 @@ impl Chunk {
         // TODO(edd): same potential contention as `table_names` but I'm ok
         // with this for now.
         match chunk_data.data.get(table_name) {
-            Some(table) => table.column_names(predicate, dst),
+            Some(table) => table.column_names(predicate, columns, dst),
             None => dst,
         }
     }

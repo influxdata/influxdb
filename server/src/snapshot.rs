@@ -9,14 +9,17 @@ use data_types::{
     partition_metadata::{PartitionSummary, TableSummary},
     selection::Selection,
 };
-use futures::StreamExt;
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use query::{predicate::Predicate, PartitionChunk};
 
-use std::io::{Cursor, Seek, SeekFrom, Write};
-use std::sync::{Arc, Mutex};
+use std::{
+    io::{Cursor, Seek, SeekFrom, Write},
+    sync::Arc,
+};
 
 use bytes::Bytes;
+use futures::StreamExt;
+use parking_lot::Mutex;
 use snafu::{ResultExt, Snafu};
 use tokio::sync::oneshot;
 use tracing::{error, info};
@@ -119,7 +122,7 @@ where
 
     // returns the position of the next table
     fn next_table(&self) -> Option<(usize, &str)> {
-        let mut status = self.status.lock().expect("mutex poisoned");
+        let mut status = self.status.lock();
 
         status
             .table_states
@@ -132,7 +135,7 @@ where
     }
 
     fn mark_table_finished(&self, position: usize) {
-        let mut status = self.status.lock().expect("mutex poisoned");
+        let mut status = self.status.lock();
 
         if status.table_states.len() > position {
             status.table_states[position] = TableState::Finished;
@@ -140,12 +143,12 @@ where
     }
 
     fn mark_meta_written(&self) {
-        let mut status = self.status.lock().expect("mutex poisoned");
+        let mut status = self.status.lock();
         status.meta_written = true;
     }
 
     pub fn finished(&self) -> bool {
-        let status = self.status.lock().expect("mutex poisoned");
+        let status = self.status.lock();
 
         status
             .table_states
@@ -154,7 +157,7 @@ where
     }
 
     fn should_stop(&self) -> bool {
-        let status = self.status.lock().expect("mutex poisoned");
+        let status = self.status.lock();
         status.stop_on_next_update
     }
 
@@ -254,7 +257,7 @@ where
     }
 
     fn set_error(&self, e: Error) {
-        let mut status = self.status.lock().expect("mutex poisoned");
+        let mut status = self.status.lock();
         status.error = Some(e);
     }
 }
@@ -328,26 +331,25 @@ impl MemWriter {
     pub fn into_inner(self) -> Option<Vec<u8>> {
         Arc::try_unwrap(self.mem)
             .ok()
-            .and_then(|mutex| mutex.into_inner().ok())
-            .map(|cursor| cursor.into_inner())
+            .map(|mutex| mutex.into_inner().into_inner())
     }
 }
 
 impl Write for MemWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let mut inner = self.mem.lock().unwrap();
+        let mut inner = self.mem.lock();
         inner.write(buf)
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
-        let mut inner = self.mem.lock().unwrap();
+        let mut inner = self.mem.lock();
         inner.flush()
     }
 }
 
 impl Seek for MemWriter {
     fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
-        let mut inner = self.mem.lock().unwrap();
+        let mut inner = self.mem.lock();
         inner.seek(pos)
     }
 }

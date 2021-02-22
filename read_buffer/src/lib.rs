@@ -460,14 +460,17 @@ impl Database {
         Ok(names)
     }
 
-    /// Returns the distinct set of column names (tag keys) that satisfy the
-    /// provided predicate.
+    /// Returns the distinct set of column names that satisfy the provided
+    /// predicate. Columns can be limited via a selection, which means callers
+    /// that know they are only interested in certain columns can specify those
+    /// and reduce total execution time.
     pub fn column_names(
         &self,
         partition_key: &str,
         table_name: &str,
         chunk_ids: &[u32],
         predicate: Predicate,
+        only_columns: Selection<'_>,
     ) -> Result<Option<BTreeSet<String>>> {
         let partition_data = self.data.read().unwrap();
 
@@ -493,7 +496,7 @@ impl Database {
             // the dst buffer is pushed into each chunk's `column_names`
             // implementation ensuring that we short-circuit any tables where
             // we have already determined column names.
-            chunk.column_names(table_name, &predicate, dst)
+            chunk.column_names(table_name, &predicate, only_columns, dst)
         });
 
         Ok(Some(names))
@@ -1092,7 +1095,13 @@ mod test {
 
         // Just query against the first chunk.
         let result = db
-            .column_names("hour_1", "Utopia", &[22], Predicate::default())
+            .column_names(
+                "hour_1",
+                "Utopia",
+                &[22],
+                Predicate::default(),
+                Selection::All,
+            )
             .unwrap();
 
         assert_eq!(
@@ -1100,14 +1109,26 @@ mod test {
             Some(to_set(&["counter", "region", "sketchy_sensor", "time"]))
         );
         let result = db
-            .column_names("hour_1", "Utopia", &[40], Predicate::default())
+            .column_names(
+                "hour_1",
+                "Utopia",
+                &[40],
+                Predicate::default(),
+                Selection::All,
+            )
             .unwrap();
 
         assert_eq!(result, Some(to_set(&["active", "time"])));
 
         // And now the union across all chunks.
         let result = db
-            .column_names("hour_1", "Utopia", &[22, 40], Predicate::default())
+            .column_names(
+                "hour_1",
+                "Utopia",
+                &[22, 40],
+                Predicate::default(),
+                Selection::All,
+            )
             .unwrap();
 
         assert_eq!(
@@ -1128,6 +1149,7 @@ mod test {
                 "Utopia",
                 &[22, 40],
                 Predicate::new(vec![BinaryExpr::from(("time", "=", 30_i64))]),
+                Selection::All,
             )
             .unwrap();
 
@@ -1141,6 +1163,7 @@ mod test {
                 "Utopia",
                 &[22, 40],
                 Predicate::new(vec![BinaryExpr::from(("active", "=", true))]),
+                Selection::All,
             )
             .unwrap();
 
