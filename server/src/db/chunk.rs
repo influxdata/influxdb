@@ -339,7 +339,13 @@ impl PartitionChunk for DBChunk {
                 let chunk_ids = &[chunk_id];
 
                 let names = db
-                    .column_names(partition_key, table_name, chunk_ids, rb_predicate)
+                    .column_names(
+                        partition_key,
+                        table_name,
+                        chunk_ids,
+                        rb_predicate,
+                        Selection::All,
+                    )
                     .context(ReadBufferChunk { chunk_id })?;
 
                 Ok(names)
