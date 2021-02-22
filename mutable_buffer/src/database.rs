@@ -1,3 +1,7 @@
+use data_types::{
+    data::ReplicatedWrite,
+    database_rules::{PartitionSort, PartitionSortRules},
+};
 use generated_types::wal;
 use query::group_by::GroupByAndAggregate;
 use query::group_by::WindowDuration;
@@ -19,11 +23,11 @@ use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
 use arrow_deps::datafusion::{error::DataFusionError, logical_plan::LogicalPlan};
-use data_types::data::ReplicatedWrite;
 
 use crate::dictionary::Error as DictionaryError;
 
 use async_trait::async_trait;
+use data_types::database_rules::Order;
 use snafu::{ResultExt, Snafu};
 use std::sync::RwLock;
 
@@ -174,6 +178,14 @@ impl MutableBufferDb {
             .context(DroppingChunk { partition_key })
     }
 
+    /// drop the specified partition
+    pub fn drop_partition(&self, partition_key: &str) -> Option<Arc<RwLock<Partition>>> {
+        self.partitions
+            .write()
+            .expect("mutex poisoned")
+            .remove(partition_key)
+    }
+
     /// The approximate size in memory of all data in the mutable buffer, in
     /// bytes
     pub fn size(&self) -> usize {
@@ -191,6 +203,35 @@ impl MutableBufferDb {
         }
 
         size
+    }
+
+    /// Returns the partitions in the requested sort order
+    pub fn partitions_sorted_by(
+        &self,
+        sort_rules: &PartitionSortRules,
+    ) -> Vec<Arc<RwLock<Partition>>> {
+        let mut partitions: Vec<_> = {
+            let partitions = self.partitions.read().expect("poisoned mutex");
+            partitions.values().map(Arc::clone).collect()
+        };
+
+        match &sort_rules.sort {
+            PartitionSort::CreatedAtTime => {
+                partitions.sort_by_cached_key(|p| p.read().expect("mutex poisoned").created_at);
+            }
+            PartitionSort::LastWriteTime => {
+                partitions.sort_by_cached_key(|p| p.read().expect("mutex poisoned").last_write_at);
+            }
+            PartitionSort::Column(_name, _data_type, _val) => {
+                unimplemented!()
+            }
+        }
+
+        if sort_rules.order == Order::Desc {
+            partitions.reverse();
+        }
+
+        partitions
     }
 }
 
@@ -794,6 +835,7 @@ mod tests {
         arrow::array::{Array, StringArray},
         datafusion::prelude::*,
     };
+    use data_types::database_rules::Order;
     use influxdb_line_protocol::{parse_lines, ParsedLine};
     use test_helpers::{assert_contains, str_pair_vec_to_vec};
     use tokio::sync::mpsc;
@@ -1244,6 +1286,31 @@ mod tests {
         assert_eq!(429, db.size());
     }
 
+    #[tokio::test]
+    async fn partitions_sorted_by_times() {
+        let db = MutableBufferDb::new("foo");
+        write_lp_to_partition(&db, &["cpu val=1 2"], "p1").await;
+        write_lp_to_partition(&db, &["mem val=2 1"], "p2").await;
+        write_lp_to_partition(&db, &["cpu val=1 2"], "p1").await;
+        write_lp_to_partition(&db, &["mem val=2 1"], "p2").await;
+
+        let sort_rules = PartitionSortRules {
+            order: Order::Desc,
+            sort: PartitionSort::LastWriteTime,
+        };
+        let partitions = db.partitions_sorted_by(&sort_rules);
+        assert_eq!(partitions[0].read().unwrap().key(), "p2");
+        assert_eq!(partitions[1].read().unwrap().key(), "p1");
+
+        let sort_rules = PartitionSortRules {
+            order: Order::Asc,
+            sort: PartitionSort::CreatedAtTime,
+        };
+        let partitions = db.partitions_sorted_by(&sort_rules);
+        assert_eq!(partitions[0].read().unwrap().key(), "p1");
+        assert_eq!(partitions[1].read().unwrap().key(), "p2");
+    }
+
     /// Run the plan and gather the results in a order that can be compared
     async fn run_and_gather_results(
         plans: SeriesSetPlans,
@@ -1294,5 +1361,18 @@ mod tests {
     async fn write_lines(database: &MutableBufferDb, lines: &[ParsedLine<'_>]) {
         let mut writer = query::test::TestLPWriter::default();
         writer.write_lines(database, lines).await.unwrap()
+    }
+
+    async fn write_lp_to_partition(
+        database: &MutableBufferDb,
+        lp: &[&str],
+        partition_key: impl Into<String>,
+    ) {
+        let lp_data = lp.join("\n");
+        let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
+        let mut writer = query::test::TestLPWriter::default();
+        writer
+            .write_lines_to_partition(database, partition_key, &lines)
+            .await;
     }
 }
