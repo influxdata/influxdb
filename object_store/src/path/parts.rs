@@ -5,11 +5,17 @@ use super::DELIMITER;
 // percent_encode's API needs this as a byte
 const DELIMITER_BYTE: u8 = DELIMITER.as_bytes()[0];
 
+// special encoding of the empty string part.
+// Using '%' is the safest character since it will always be used in the
+// output of percent_encode no matter how we evolve the INVALID AsciiSet over
+// time.
+const EMPTY: &str = "%";
+
 /// The PathPart type exists to validate the directory/file names that form part
 /// of a path.
 ///
-/// A PathPart instance is guaranteed to contain no `/` characters as it can
-/// only be constructed by going through the `try_from` impl.
+/// A PathPart instance is guaranteed to be non-empty and to contain no `/`
+/// characters as it can only be constructed by going through the `from` impl.
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, Debug, Default)]
 pub struct PathPart(pub(super) String);
 
@@ -48,6 +54,12 @@ impl From<&str> for PathPart {
             // to be equal to `.` or `..` to prevent file system traversal shenanigans.
             "." => Self(String::from("%2E")),
             ".." => Self(String::from("%2E%2E")),
+
+            // Every string except the empty string will be percent encoded.
+            // The empty string will be transformed into a sentinel value EMPTY
+            // which can safely be a prefix of an encoded value since it will be
+            // fully matched at decode time (see impl Display for PathPart).
+            "" => Self(String::from(EMPTY)),
             other => Self(percent_encode(other.as_bytes(), INVALID).to_string()),
         }
     }
@@ -55,10 +67,13 @@ impl From<&str> for PathPart {
 
 impl std::fmt::Display for PathPart {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        percent_decode_str(&self.0)
-            .decode_utf8()
-            .expect("Valid UTF-8 that came from String")
-            .fmt(f)
+        match &self.0[..] {
+            EMPTY => "".fmt(f),
+            _ => percent_decode_str(&self.0)
+                .decode_utf8()
+                .expect("Valid UTF-8 that came from String")
+                .fmt(f),
+        }
     }
 }
 
@@ -103,5 +118,22 @@ mod tests {
         let part: PathPart = "..".into();
         assert_eq!(part, PathPart(String::from("%2E%2E")));
         assert_eq!(part.to_string(), "..");
+    }
+
+    #[test]
+    fn path_part_cant_be_empty() {
+        let part: PathPart = "".into();
+        assert_eq!(part, PathPart(String::from(EMPTY)));
+        assert_eq!(part.to_string(), "");
+    }
+
+    #[test]
+    fn empty_is_safely_encoded() {
+        let part: PathPart = EMPTY.into();
+        assert_eq!(
+            part,
+            PathPart(percent_encode(EMPTY.as_bytes(), INVALID).to_string())
+        );
+        assert_eq!(part.to_string(), EMPTY);
     }
 }
