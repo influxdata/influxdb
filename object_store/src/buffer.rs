@@ -10,7 +10,7 @@ use tokio::fs::File;
 use tokio::io::{copy, AsyncRead, AsyncSeek, AsyncSeekExt, AsyncWrite};
 use tokio_util::io::{ReaderStream, StreamReader};
 
-/// Returns a BufferedStream backend by a temporary file.
+/// Returns a BufferedStream backed by a temporary file.
 ///
 /// The temporary file will be deleted when the result stream
 /// is dropped.
@@ -22,7 +22,7 @@ where
     BufferedStream::new(tmp, bytes).await
 }
 
-/// Returns a BufferedStream backend by a in-memory buffer.
+/// Returns a BufferedStream backed by a in-memory buffer.
 #[allow(dead_code)]
 pub async fn slurp_stream_memory<S>(bytes: S) -> Result<BufferedStream<Cursor<Vec<u8>>>>
 where
