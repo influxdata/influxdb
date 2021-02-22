@@ -212,7 +212,7 @@ impl MutableBufferDb {
     ) -> Vec<Arc<RwLock<Partition>>> {
         let partitions: Vec<_> = {
             let partitions = self.partitions.read().expect("poisoned mutex");
-            partitions.values().cloned().collect()
+            partitions.values().map(Arc::clone).collect()
         };
 
         let mut partitions: Vec<_> = match &sort_rules.sort {
