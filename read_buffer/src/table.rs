@@ -13,7 +13,6 @@ use snafu::{ensure, Snafu};
 use crate::row_group::{self, ColumnName, GroupKey, Predicate, RowGroup};
 use crate::schema::{AggregateType, ColumnType, LogicalDataType, ResultSchema};
 use crate::value::{AggregateResult, Scalar, Value};
-
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("cannot drop last row group in table; drop table"))]
@@ -431,10 +430,12 @@ impl Table {
     ///
     /// Optionally a predicate may be provided. In such a case only column names
     /// will be returned belonging to columns whom have at least one non-null
-    /// value for any row satisfying the predicate.
+    /// value for any row satisfying the predicate. Finally, the caller can
+    /// specify a set of column names to limit execution to only those.
     pub fn column_names(
         &self,
         predicate: &Predicate,
+        columns: Selection<'_>,
         mut dst: BTreeSet<String>,
     ) -> BTreeSet<String> {
         let table_data = self.table_data.read().unwrap();
@@ -459,7 +460,7 @@ impl Table {
         // lock.
         let (_, row_groups) = self.filter_row_groups(predicate);
         for row_group in row_groups {
-            row_group.column_names(predicate, &mut dst);
+            row_group.column_names(predicate, columns, &mut dst);
         }
 
         dst
@@ -1296,6 +1297,7 @@ west,host-b,100
 
         let rc = ColumnType::Tag(Column::from(&["west", "south", "north"][..]));
         columns.insert("region".to_string(), rc);
+
         let rg = RowGroup::new(3, columns);
         let mut table = Table::new("cpu".to_owned(), rg);
 
@@ -1306,6 +1308,7 @@ west,host-b,100
 
         let rc = ColumnType::Tag(Column::from(vec![Some("north"), None, None].as_slice()));
         columns.insert("region".to_string(), rc);
+
         let rg = RowGroup::new(3, columns);
         table.add_row_group(rg);
 
@@ -1322,7 +1325,7 @@ west,host-b,100
         // NULL,   400
 
         let mut dst: BTreeSet<String> = BTreeSet::new();
-        dst = table.column_names(&Predicate::default(), dst);
+        dst = table.column_names(&Predicate::default(), Selection::All, dst);
 
         assert_eq!(
             dst.iter().cloned().collect::<Vec<_>>(),
@@ -1330,7 +1333,7 @@ west,host-b,100
         );
 
         // re-run and get the same answer
-        dst = table.column_names(&Predicate::default(), dst);
+        dst = table.column_names(&Predicate::default(), Selection::All, dst);
         assert_eq!(
             dst.iter().cloned().collect::<Vec<_>>(),
             vec!["region".to_owned(), "time".to_owned()],
@@ -1340,6 +1343,7 @@ west,host-b,100
         // region from previous results.
         dst = table.column_names(
             &Predicate::new(vec![BinaryExpr::from(("time", ">=", 300_i64))]),
+            Selection::All,
             dst,
         );
         assert_eq!(
@@ -1350,6 +1354,7 @@ west,host-b,100
         // wipe the destination buffer and region won't show up
         dst = table.column_names(
             &Predicate::new(vec![BinaryExpr::from(("time", ">=", 300_i64))]),
+            Selection::All,
             BTreeSet::new(),
         );
         assert_eq!(
