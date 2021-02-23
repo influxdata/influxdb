@@ -24,7 +24,7 @@ message PartitionTemplate {
       string column = 2;
       string time = 3;
       ColumnFormat regex = 4;
-      ColumnFormat strfTime = 5;
+      ColumnFormat strf_time = 5;
     }
   }
 
@@ -33,7 +33,7 @@ message PartitionTemplate {
 
 message Matcher {
   // Restrict selection to a specific table or tables specified by a regex
-  oneof tableMatcher {
+  oneof table_matcher {
     string table = 1;
     string regex = 2;
   }
@@ -43,7 +43,7 @@ message Matcher {
 
 message ReplicationConfig {
   message Replication {
-    string hostGroupId = 1;
+    string host_group_id = 1;
   }
 
   // The set of host groups that data should be replicated to. Which host a
@@ -62,19 +62,19 @@ message ReplicationConfig {
   // is returned. This can be overridden on a per request basis.
   // Replication will continue to write to the other host groups in the
   // background.
-  uint32 replicationCount = 2;
+  uint32 replication_count = 2;
 
   // How long the replication queue can get before either rejecting writes or
   // dropping missed writes. The queue is kept in memory on a
   // per-database basis. A queue size of zero means it will only try to
   // replicate synchronously and drop any failures.
-  uint64 replicationQueueMaxSize = 3;
+  uint64 replication_queue_max_size = 3;
 }
 
 message SubscriptionConfig {
   message Subscription {
     string name = 1;
-    string hostGroupId = 2;
+    string host_group_id = 2;
     Matcher matcher = 3;
   }
 
@@ -92,7 +92,7 @@ message QueryConfig {
   // of its local write buffer and any read-only partitions that it knows
   // about. In this case, results will be merged with any others from the
   // remote goups or read-only partitions.
-  bool queryLocal = 1;
+  bool query_local = 1;
 
   // Set `primary` to a host group if remote servers should be
   // issued queries for this database. All hosts in the group should be
@@ -115,12 +115,12 @@ message QueryConfig {
   // collection of partitions and then telling it to also pull
   // data from the replication servers (writes that haven't been snapshotted
   // into a partition).
-  repeated string readOnlyPartitions = 4;
+  repeated string read_only_partitions = 4;
 }
 
 message WalBufferConfig {
   enum Rollover {
-    ROLLOVER_UNKNOWN = 0;
+    ROLLOVER_UNSPECIFIED = 0;
 
     // Drop the old segment even though it hasn't been persisted. This part of
     // the WAL will be lost on this server.
@@ -140,13 +140,13 @@ message WalBufferConfig {
   // this size it will drop old segments to remain below this size, but
   // still try to hold as much in memory as possible while remaining
   // below this threshold
-  uint64 bufferSize = 1;
+  uint64 buffer_size = 1;
 
   // WAL segments become read-only after crossing over this size. Which means
   // that segments will always be >= this size. When old segments are
   // dropped from of memory, at least this much space will be freed from
   // the buffer.
-  uint64 segmentSize = 2;
+  uint64 segment_size = 2;
 
   // What should happen if a write comes in that would exceed the WAL buffer
   // size and the oldest segment that could be dropped hasn't yet been
@@ -159,23 +159,23 @@ message WalBufferConfig {
   // can be set so that old segments are dropped even if they haven't been
   // persisted. This setting is also useful for cases where persistence
   // isn't being used and this is only for in-memory buffering.
-  Rollover bufferRollover = 3;
+  Rollover buffer_rollover = 3;
 
   // If set to true, buffer segments will be written to object storage.
-  bool persistSegments = 4;
+  bool persist_segments = 4;
 
   // If set, segments will be rolled over after this period of time even
   // if they haven't hit the size threshold. This allows them to be written
   // out to object storage as they must be immutable first.
-  google.protobuf.Duration closeSegmentAfter = 5;
+  google.protobuf.Duration close_segment_after = 5;
 }
 
 message MutableBufferConfig {
   message PartitionDropOrder {
     message ColumnSort {
-      string columnName = 1;
-      ColumnType columnType = 2;
-      Aggregate columnValue = 3;
+      string column_name = 1;
+      ColumnType column_type = 2;
+      Aggregate column_value = 3;
     }
 
     // Sort partitions by this order. Last will be dropped first.
@@ -184,10 +184,10 @@ message MutableBufferConfig {
     // Configure sort key
     oneof sort {
       // The last time the partition received a write.
-      google.protobuf.Empty lastWriteTime = 2;
+      google.protobuf.Empty last_write_time = 2;
 
       // When the partition was opened in the mutable buffer.
-      google.protobuf.Empty createdAtTime = 3;
+      google.protobuf.Empty created_at_time = 3;
 
       // A column name, its expected type, and whether to use the min or max
       // value. The ColumnType is necessary because the column can appear in
@@ -208,7 +208,7 @@ message MutableBufferConfig {
   // to this size it will drop partitions in the given order. If unable
   // to drop partitions (because of later rules in this config) it will
   // reject writes until it is able to drop partitions.
-  uint64 bufferSize = 1;
+  uint64 buffer_size = 1;
 
   // If set, the mutable buffer will not drop partitions that have chunks
   // that have not yet been persisted. Thus it will reject writes if it
@@ -216,15 +216,15 @@ message MutableBufferConfig {
   // drop partitions in the sort order, regardless of whether they have
   // unpersisted chunks or not. The WAL Buffer can be used to ensure
   // persistence, but this may cause longer recovery times.
-  bool rejectIfNotPersisted = 2;
+  bool reject_if_not_persisted = 2;
 
   // Configure order to drop partitions in
-  PartitionDropOrder partitionDropOrder = 3;
+  PartitionDropOrder partition_drop_order = 3;
 
   // Attempt to persist partitions after they haven't received a write for
   // this number of seconds. If not set, partitions won't be
   // automatically persisted.
-  uint32 persistAfterColdSeconds = 4;
+  uint32 persist_after_cold_seconds = 4;
 }
 
 message DatabaseRules {
@@ -232,20 +232,20 @@ message DatabaseRules {
   string name = 1;
 
   // Template that generates a partition key for each row inserted into the database
-  PartitionTemplate partitionTemplate = 2;
+  PartitionTemplate partition_template = 2;
 
   // Synchronous replication configuration for this database
-  ReplicationConfig replicationConfig = 3;
+  ReplicationConfig replication_config = 3;
 
   // Asynchronous pull-based subscription configuration for this database
-  SubscriptionConfig subscriptionConfig = 4;
+  SubscriptionConfig subscription_config = 4;
 
   // Query configuration for this database
-  QueryConfig queryConfig = 5;
+  QueryConfig query_config = 5;
 
   // WAL configuration for this database
-  WalBufferConfig walBufferConfig = 6;
+  WalBufferConfig wal_buffer_config = 6;
 
   // Mutable buffer configuration for this database
-  MutableBufferConfig mutableBufferConfig = 7;
+  MutableBufferConfig mutable_buffer_config = 7;
 }

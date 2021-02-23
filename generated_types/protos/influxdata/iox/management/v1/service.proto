@@ -4,19 +4,19 @@ package influxdata.iox.management.v1;
 import "google/protobuf/empty.proto";
 import "influxdata/iox/management/v1/database_rules.proto";
 
-service Management {
-  rpc Ping(google.protobuf.Empty) returns (google.protobuf.Empty);
+service ManagementService {
+  rpc GetWriterId(GetWriterIdRequest) returns (GetWriterIdResponse);
 
-  rpc GetWriterId(google.protobuf.Empty) returns (GetWriterIdResponse);
+  rpc UpdateWriterId(UpdateWriterIdRequest) returns (UpdateWriterIdResponse);
 
-  rpc UpdateWriterId(UpdateWriterIdRequest) returns (google.protobuf.Empty);
-
-  rpc ListDatabases(google.protobuf.Empty) returns (ListDatabasesResponse);
+  rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
 
   rpc GetDatabase(GetDatabaseRequest) returns (GetDatabaseResponse);
 
-  rpc CreateDatabase(CreateDatabaseRequest) returns (google.protobuf.Empty);
+  rpc CreateDatabase(CreateDatabaseRequest) returns (CreateDatabaseResponse);
 }
+
+message GetWriterIdRequest {}
 
 message GetWriterIdResponse {
   uint32 id = 1;
@@ -25,6 +25,10 @@ message GetWriterIdResponse {
 message UpdateWriterIdRequest {
   uint32 id = 1;
 }
+
+message UpdateWriterIdResponse {}
+
+message ListDatabasesRequest {}
 
 message ListDatabasesResponse {
   repeated string names = 1;
@@ -41,3 +45,5 @@ message GetDatabaseResponse {
 message CreateDatabaseRequest {
   DatabaseRules rules = 1;
 }
+
+message CreateDatabaseResponse {}

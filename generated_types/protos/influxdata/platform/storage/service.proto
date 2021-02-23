@@ -9,7 +9,7 @@ package influxdata.platform.storage;
 
 import "google/protobuf/empty.proto";
 import "influxdata/platform/storage/storage_common.proto";
-import "com/github/influxdata/idpe/storage/read/storage_common_idpe.proto";
+import "influxdata/platform/storage/storage_common_idpe.proto";
 
 service Storage {
     // ReadFilter performs a filter operation at storage
