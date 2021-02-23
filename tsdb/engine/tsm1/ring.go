@@ -47,11 +47,14 @@ type ring struct {
 // power of 2, and for performance reasons should be larger than the number of
 // cores on the host. The supported set of values for n is:
 //
-//     {1, 2, 4, 8, 16, 32, 64, 128, 256}.
+//     {1, 2, 4, 8, 16}.
 //
 func newring(n int) (*ring, error) {
 	if n <= 0 || n > partitions {
-		return nil, fmt.Errorf("invalid number of paritions: %d", n)
+		return nil, fmt.Errorf("invalid number of partitions: %d", n)
+	}
+	if n&(n-1) != 0 {
+		return nil, fmt.Errorf("partitions %d is not a power of two", n)
 	}
 
 	r := ring{
@@ -78,7 +81,7 @@ func (r *ring) reset() {
 	for _, partition := range r.partitions {
 		partition.reset()
 	}
-	r.keysHint = 0
+	atomic.StoreInt64(&r.keysHint, 0)
 }
 
 // getPartition retrieves the hash ring partition associated with the provided
@@ -110,8 +113,11 @@ func (r *ring) add(key []byte, entry *entry) {
 // remove is safe for use by multiple goroutines.
 func (r *ring) remove(key []byte) {
 	r.getPartition(key).remove(key)
-	if r.keysHint > 0 {
-		atomic.AddInt64(&r.keysHint, -1)
+	for {
+		prev := atomic.LoadInt64(&r.keysHint)
+		if prev <= 0 || atomic.CompareAndSwapInt64(&r.keysHint, prev, prev-1) {
+			break
+		}
 	}
 }
 
@@ -129,6 +135,8 @@ func (r *ring) keys(sorted bool) [][]byte {
 	return keys
 }
 
+// count returns the number of values in the ring
+// count is not accurate since it doesn't use read lock when iterating over partitions
 func (r *ring) count() int {
 	var n int
 	for _, p := range r.partitions {
@@ -202,7 +210,6 @@ func (r *ring) applySerial(f func([]byte, *entry) error) error {
 }
 
 func (r *ring) split(n int) []storer {
-	var keys int
 	storers := make([]storer, n)
 	for i := 0; i < n; i++ {
 		storers[i], _ = newring(len(r.partitions))
@@ -211,7 +218,6 @@ func (r *ring) split(n int) []storer {
 	for i, p := range r.partitions {
 		r := storers[i%n].(*ring)
 		r.partitions[i] = p
-		keys += len(p.store)
 	}
 	return storers
 }
