@@ -226,12 +226,12 @@ func onboardingRequest(ui *input.UI) (*influxdb.OnboardingRequest, error) {
 	}
 
 	req := &influxdb.OnboardingRequest{
-		User:            setupFlags.username,
-		Password:        setupFlags.password,
-		Org:             setupFlags.org,
-		Bucket:          setupFlags.bucket,
-		RetentionPeriod: influxdb.InfiniteRetention,
-		Token:           setupFlags.token,
+		User:                   setupFlags.username,
+		Password:               setupFlags.password,
+		Org:                    setupFlags.org,
+		Bucket:                 setupFlags.bucket,
+		RetentionPeriodSeconds: influxdb.InfiniteRetention,
+		Token:                  setupFlags.token,
 	}
 
 	if setupFlags.retention != "" {
@@ -239,7 +239,12 @@ func onboardingRequest(ui *input.UI) (*influxdb.OnboardingRequest, error) {
 		if err != nil {
 			return nil, err
 		}
-		req.RetentionPeriod = dur
+		secs := dur / time.Second
+		nanos := dur % time.Second
+		if nanos > 0 {
+			return nil, fmt.Errorf("retention policy %q is too precise, must be divisible by 1s", setupFlags.retention)
+		}
+		req.RetentionPeriodSeconds = int64(secs)
 	}
 
 	if setupFlags.force {
@@ -268,7 +273,7 @@ func onboardingRequest(ui *input.UI) (*influxdb.OnboardingRequest, error) {
 				"Please type your retention period in hours.\nOr press ENTER for infinite", infiniteStr)
 			rp, err := strconv.Atoi(rpStr)
 			if rp >= 0 && err == nil {
-				req.RetentionPeriod = time.Duration(rp) * time.Hour
+				req.RetentionPeriodSeconds = int64((time.Duration(rp) * time.Hour).Seconds())
 				break
 			}
 		}
@@ -276,8 +281,8 @@ func onboardingRequest(ui *input.UI) (*influxdb.OnboardingRequest, error) {
 
 	if confirmed := internal2.GetConfirm(ui, func() string {
 		rp := "infinite"
-		if req.RetentionPeriod > 0 {
-			rp = fmt.Sprintf("%d hrs", req.RetentionPeriod/time.Hour)
+		if req.RetentionPeriodSeconds > 0 {
+			rp = fmt.Sprintf("%s", time.Duration(req.RetentionPeriodSeconds)*time.Second)
 		}
 		return fmt.Sprintf(`
 You have entered:

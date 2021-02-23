@@ -30,12 +30,12 @@ func onboardingRequest(ui *input.UI, options *options) (*influxdb.OnboardingRequ
 	}
 
 	req := &influxdb.OnboardingRequest{
-		User:            options.target.userName,
-		Password:        options.target.password,
-		Org:             options.target.orgName,
-		Bucket:          options.target.bucket,
-		RetentionPeriod: influxdb.InfiniteRetention,
-		Token:           options.target.token,
+		User:                   options.target.userName,
+		Password:               options.target.password,
+		Org:                    options.target.orgName,
+		Bucket:                 options.target.bucket,
+		RetentionPeriodSeconds: influxdb.InfiniteRetention,
+		Token:                  options.target.token,
 	}
 
 	if options.target.retention != "" {
@@ -43,7 +43,12 @@ func onboardingRequest(ui *input.UI, options *options) (*influxdb.OnboardingRequ
 		if err != nil {
 			return nil, err
 		}
-		req.RetentionPeriod = dur
+		secs := dur / time.Second
+		nanos := dur % time.Second
+		if nanos > 0 {
+			return nil, fmt.Errorf("retention policy %q is too precise, must be divisible by 1s", options.target.retention)
+		}
+		req.RetentionPeriodSeconds = int64(secs)
 	}
 
 	if options.force {
@@ -72,7 +77,7 @@ func onboardingRequest(ui *input.UI, options *options) (*influxdb.OnboardingRequ
 				"Please type your retention period in hours.\nOr press ENTER for infinite", infiniteStr)
 			rp, err := strconv.Atoi(rpStr)
 			if rp >= 0 && err == nil {
-				req.RetentionPeriod = time.Duration(rp) * time.Hour
+				req.RetentionPeriodSeconds = int64((time.Duration(rp) * time.Hour).Seconds())
 				break
 			}
 		}
@@ -80,8 +85,8 @@ func onboardingRequest(ui *input.UI, options *options) (*influxdb.OnboardingRequ
 
 	if confirmed := internal.GetConfirm(ui, func() string {
 		rp := "infinite"
-		if req.RetentionPeriod > 0 {
-			rp = fmt.Sprintf("%d hrs", req.RetentionPeriod/time.Hour)
+		if req.RetentionPeriodSeconds > 0 {
+			rp = fmt.Sprintf("%s", time.Duration(req.RetentionPeriodSeconds)*time.Second)
 		}
 		return fmt.Sprintf(`
 You have entered:
