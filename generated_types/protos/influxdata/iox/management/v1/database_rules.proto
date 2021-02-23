@@ -32,13 +32,14 @@ message PartitionTemplate {
 }
 
 message Matcher {
+  // A query predicate to filter rows
+  string predicate = 1;
   // Restrict selection to a specific table or tables specified by a regex
   oneof table_matcher {
-    string table = 1;
-    string regex = 2;
+    google.protobuf.Empty all = 2;
+    string table = 3;
+    string regex = 4;
   }
-  // A query predicate to filter rows
-  string predicate = 3;
 }
 
 message ReplicationConfig {

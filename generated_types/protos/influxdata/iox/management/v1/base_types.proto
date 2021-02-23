@@ -28,4 +28,3 @@ message HostGroup {
   // connection strings for remote hosts.
   repeated string hosts = 2;
 }
-
