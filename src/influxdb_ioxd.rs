@@ -7,7 +7,7 @@ use hyper::Server;
 use snafu::{ResultExt, Snafu};
 use tracing::{error, info, warn};
 
-use object_store::{self, gcp::GoogleCloudStorage, ObjectStore};
+use object_store::{self, aws::AmazonS3, gcp::GoogleCloudStorage, ObjectStore};
 use panic_logging::SendPanicsToTracing;
 use server::{ConnectionManagerImpl as ConnectionManager, Server as AppServer};
 
@@ -97,6 +97,10 @@ pub async fn main(logging_level: LoggingLevel, config: Option<Config>) -> Result
     let object_store = if let Some(bucket_name) = &config.gcp_bucket {
         info!("Using GCP bucket {} for storage", bucket_name);
         ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(bucket_name))
+    } else if let Some(bucket_name) = &config.s3_bucket {
+        info!("Using S3 bucket {} for storage", bucket_name);
+        // rusoto::Region's default takes the value from the AWS_DEFAULT_REGION env var.
+        ObjectStore::new_amazon_s3(AmazonS3::new(Default::default(), bucket_name))
     } else if let Some(db_dir) = db_dir {
         info!("Using local dir {:?} for storage", db_dir);
         fs::create_dir_all(db_dir).context(CreatingDatabaseDirectory { path: db_dir })?;

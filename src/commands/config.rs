@@ -96,6 +96,12 @@ pub struct Config {
     #[structopt(long = "--gcp-bucket", env = "INFLUXDB_IOX_GCP_BUCKET")]
     pub gcp_bucket: Option<String>,
 
+    /// If using S3 for the object store, this item, as well
+    /// as AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_DEFAULT_REGION must
+    /// be set.
+    #[structopt(long = "--s3-bucket", env = "INFLUXDB_IOX_S3_BUCKET")]
+    pub s3_bucket: Option<String>,
+
     /// If set, Jaeger traces are emitted to this host
     /// using the OpenTelemetry tracer.
     ///
