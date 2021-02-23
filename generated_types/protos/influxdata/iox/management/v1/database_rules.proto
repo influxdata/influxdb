@@ -43,10 +43,6 @@ message Matcher {
 }
 
 message ReplicationConfig {
-  message Replication {
-    string host_group_id = 1;
-  }
-
   // The set of host groups that data should be replicated to. Which host a
   // write goes to within a host group is determined by consistent hashing of
   // the partition key. We'd use this to create a host group per
