@@ -20,11 +20,11 @@ const partitions = 16
 // ring is implemented as a crude hash ring, in so much that you can have
 // variable numbers of members in the ring, and the appropriate member for a
 // given series key can always consistently be found. Unlike a true hash ring
-// though, this ring is not resizeable—there must be at most 256 members in the
+// though, this ring is not resizeable—there must be at most 16 members in the
 // ring, and the number of members must always be a power of 2.
 //
 // ring works as follows: Each member of the ring contains a single store, which
-// contains a map of series keys to entries. A ring always has 256 partitions,
+// contains a map of series keys to entries. A ring always has 16 partitions,
 // and a member takes up one or more of these partitions (depending on how many
 // members are specified to be in the ring)
 //
