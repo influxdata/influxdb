@@ -107,7 +107,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Plans queries that originate from the InfluxDB Storage gRPC
 /// interface, which are in terms of the InfluxDB Data model (e.g.
 /// `ParsedLine`). The query methods on this trait such as
-/// `tag_columns` are specific to this data model.
+/// `tag_keys` are specific to this data model.
 ///
 /// The IOx storage engine implements this trait to provide Timeseries
 /// specific queries, but also provides more generic access to the
@@ -165,19 +165,15 @@ impl InfluxRPCPlanner {
         Ok(plan)
     }
 
-    /// Returns a set of plans that produces the names of "tag" column (as
-    /// defined in the InfluxDB Data model) names in this database
-    /// that have more than zero rows which pass the conditions
-    /// specified by `predicate`.
-    pub async fn tag_column_names<D>(
-        &self,
-        database: &D,
-        predicate: Predicate,
-    ) -> Result<StringSetPlan>
+    /// Returns a set of plans that produces the names of "tag"
+    /// columns (as defined in the InfluxDB Data model) names in this
+    /// database that have more than zero rows which pass the
+    /// conditions specified by `predicate`.
+    pub async fn tag_keys<D>(&self, database: &D, predicate: Predicate) -> Result<StringSetPlan>
     where
         D: Database + 'static,
     {
-        debug!(predicate=?predicate, "planning tag_column_names");
+        debug!(predicate=?predicate, "planning tag_keys");
 
         // The basic algorithm is:
         //
@@ -252,9 +248,7 @@ impl InfluxRPCPlanner {
             // were already known to have data (based on the contents of known_columns)
 
             for (table_name, chunks) in need_full_plans.into_iter() {
-                let plan = self
-                    .tag_column_names_plan(&table_name, &predicate, chunks)
-                    .await?;
+                let plan = self.tag_keys_plan(&table_name, &predicate, chunks).await?;
 
                 if let Some(plan) = plan {
                     builder = builder.append(plan)
@@ -382,7 +376,7 @@ impl InfluxRPCPlanner {
     ///    Filter(predicate)
     ///      TableScan (of chunks)
     /// ```
-    async fn tag_column_names_plan<C>(
+    async fn tag_keys_plan<C>(
         &self,
         table_name: &str,
         predicate: &Predicate,

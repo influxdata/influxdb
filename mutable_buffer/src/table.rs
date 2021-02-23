@@ -303,7 +303,7 @@ impl Table {
     /// The output looks like:
     /// (tag_col1, tag_col2, ... field1, field2, ... timestamp)
     ///
-    /// The order of the tag_columns is orderd by name.
+    /// The order of the tag_columns is ordered by name.
     ///
     /// The data is sorted on tag_col1, tag_col2, ...) so that all
     /// rows for a particular series (groups where all tags are the

@@ -285,7 +285,11 @@ impl ObjectStoreApi for ObjectStore {
                 .map_ok(|list_result| list_result.map_paths(path::Path::AmazonS3))
                 .await
                 .context(AwsObjectStoreError),
-            (GoogleCloudStorage(_gcs), _) => unimplemented!(),
+            (GoogleCloudStorage(gcs), path::Path::GoogleCloudStorage(prefix)) => gcs
+                .list_with_delimiter(prefix)
+                .map_ok(|list_result| list_result.map_paths(path::Path::GoogleCloudStorage))
+                .await
+                .context(GcsObjectStoreError),
             (InMemory(in_mem), path::Path::InMemory(prefix)) => in_mem
                 .list_with_delimiter(prefix)
                 .map_ok(|list_result| list_result.map_paths(path::Path::InMemory))
