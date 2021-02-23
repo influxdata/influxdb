@@ -71,7 +71,7 @@ jobs:
           args: --workspace
 
   lints:
-    name: Lints
+    name: Rust Lints
     runs-on: ubuntu-latest
     container:
       image: quay.io/influxdb/rust:ci
@@ -91,3 +91,13 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           args: --all-targets --workspace -- -D warnings
+
+  protobuf:
+    name: Protobuf Lints
+    runs-on: ubuntu-latest
+    container:
+      image: bufbuild/buf
+    steps:
+      - uses: actions/checkout@v2
+      - name: Lint IOx protobuf
+        run: buf lint

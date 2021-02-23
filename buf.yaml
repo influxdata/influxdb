@@ -1,0 +1,17 @@
+version: v1beta1
+build:
+  roots:
+    - generated_types/protos/
+  excludes:
+    - generated_types/protos/com
+    - generated_types/protos/influxdata/platform
+
+lint:
+  use:
+    - DEFAULT
+    - STYLE_DEFAULT
+
+breaking:
+  use:
+    - WIRE
+    - WIRE_JSON
