@@ -815,7 +815,7 @@ where
     let planner = InfluxRPCPlanner::new();
 
     let tag_key_plan = planner
-        .tag_column_names(db.as_ref(), predicate)
+        .tag_keys(db.as_ref(), predicate)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(ListingColumns {
