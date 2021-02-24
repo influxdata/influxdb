@@ -119,18 +119,18 @@ func benchmarkRingWrite(b *testing.B, r *ring, n int) {
 	}
 }
 
-func BenchmarkRing_write_1_100(b *testing.B)      { benchmarkRingWrite(b, MustNewRing(1), 100) }
-func BenchmarkRing_write_1_1000(b *testing.B)     { benchmarkRingWrite(b, MustNewRing(1), 1000) }
-func BenchmarkRing_write_1_10000(b *testing.B)    { benchmarkRingWrite(b, MustNewRing(1), 10000) }
-func BenchmarkRing_write_1_100000(b *testing.B)   { benchmarkRingWrite(b, MustNewRing(1), 100000) }
-func BenchmarkRing_write_4_100(b *testing.B)      { benchmarkRingWrite(b, MustNewRing(4), 100) }
-func BenchmarkRing_write_4_1000(b *testing.B)     { benchmarkRingWrite(b, MustNewRing(4), 1000) }
-func BenchmarkRing_write_4_10000(b *testing.B)    { benchmarkRingWrite(b, MustNewRing(4), 10000) }
-func BenchmarkRing_write_4_100000(b *testing.B)   { benchmarkRingWrite(b, MustNewRing(4), 100000) }
-func BenchmarkRing_write_16_100(b *testing.B)     { benchmarkRingWrite(b, MustNewRing(16), 100) }
-func BenchmarkRing_write_16_1000(b *testing.B)    { benchmarkRingWrite(b, MustNewRing(16), 1000) }
-func BenchmarkRing_write_16_10000(b *testing.B)   { benchmarkRingWrite(b, MustNewRing(16), 10000) }
-func BenchmarkRing_write_16_100000(b *testing.B)  { benchmarkRingWrite(b, MustNewRing(16), 100000) }
+func BenchmarkRing_write_1_100(b *testing.B)     { benchmarkRingWrite(b, MustNewRing(1), 100) }
+func BenchmarkRing_write_1_1000(b *testing.B)    { benchmarkRingWrite(b, MustNewRing(1), 1000) }
+func BenchmarkRing_write_1_10000(b *testing.B)   { benchmarkRingWrite(b, MustNewRing(1), 10000) }
+func BenchmarkRing_write_1_100000(b *testing.B)  { benchmarkRingWrite(b, MustNewRing(1), 100000) }
+func BenchmarkRing_write_4_100(b *testing.B)     { benchmarkRingWrite(b, MustNewRing(4), 100) }
+func BenchmarkRing_write_4_1000(b *testing.B)    { benchmarkRingWrite(b, MustNewRing(4), 1000) }
+func BenchmarkRing_write_4_10000(b *testing.B)   { benchmarkRingWrite(b, MustNewRing(4), 10000) }
+func BenchmarkRing_write_4_100000(b *testing.B)  { benchmarkRingWrite(b, MustNewRing(4), 100000) }
+func BenchmarkRing_write_16_100(b *testing.B)    { benchmarkRingWrite(b, MustNewRing(16), 100) }
+func BenchmarkRing_write_16_1000(b *testing.B)   { benchmarkRingWrite(b, MustNewRing(16), 1000) }
+func BenchmarkRing_write_16_10000(b *testing.B)  { benchmarkRingWrite(b, MustNewRing(16), 10000) }
+func BenchmarkRing_write_16_100000(b *testing.B) { benchmarkRingWrite(b, MustNewRing(16), 100000) }
 
 func MustNewRing(n int) *ring {
 	r, err := newring(n)
