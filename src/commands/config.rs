@@ -301,15 +301,6 @@ mod tests {
             clap::ErrorKind::ValueValidation
         );
 
-        assert_eq!(
-            Config::from_iter_safe(strip_server(
-                to_vec(&["cmd", "server", "--api-bind", "badhost.badtld:1234"]).into_iter(),
-            ))
-            .map_err(|e| e.kind)
-            .expect_err("must fail"),
-            clap::ErrorKind::ValueValidation
-        );
-
         Ok(())
     }
 }
