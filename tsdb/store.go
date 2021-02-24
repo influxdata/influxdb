@@ -1617,7 +1617,7 @@ func (s *Store) TagKeys(ctx context.Context, auth query.Authorizer, shardIDs []u
 	}
 
 	// take out the _name = 'mymeasurement' clause from 'FROM' clause
-	measurementExpr, remainingExpr, err := PartitionExpr(influxql.CloneExpr(cond), func(e influxql.Expr) (bool, error) {
+	measurementExpr, remainingExpr, err := influxql.PartitionExpr(influxql.CloneExpr(cond), func(e influxql.Expr) (bool, error) {
 		switch e := e.(type) {
 		case *influxql.BinaryExpr:
 			switch e.Op {
@@ -1635,7 +1635,7 @@ func (s *Store) TagKeys(ctx context.Context, auth query.Authorizer, shardIDs []u
 	}
 
 	// take out the _tagKey = 'mykey' clause from 'WITH KEY' clause
-	tagKeyExpr, filterExpr, err := PartitionExpr(remainingExpr, isTagKeyClause)
+	tagKeyExpr, filterExpr, err := influxql.PartitionExpr(remainingExpr, isTagKeyClause)
 	if err != nil {
 		return nil, err
 	}
@@ -1819,7 +1819,7 @@ func (s *Store) TagValues(ctx context.Context, auth query.Authorizer, shardIDs [
 	}
 
 	// take out the _name = 'mymeasurement' clause from 'FROM' clause
-	measurementExpr, remainingExpr, err := PartitionExpr(influxql.CloneExpr(cond), func(e influxql.Expr) (bool, error) {
+	measurementExpr, remainingExpr, err := influxql.PartitionExpr(influxql.CloneExpr(cond), func(e influxql.Expr) (bool, error) {
 		switch e := e.(type) {
 		case *influxql.BinaryExpr:
 			switch e.Op {
@@ -1837,7 +1837,7 @@ func (s *Store) TagValues(ctx context.Context, auth query.Authorizer, shardIDs [
 	}
 
 	// take out the _tagKey = 'mykey' clause from 'WITH KEY' / 'WITH KEY IN' clause
-	tagKeyExpr, filterExpr, err := PartitionExpr(remainingExpr, isTagKeyClause)
+	tagKeyExpr, filterExpr, err := influxql.PartitionExpr(remainingExpr, isTagKeyClause)
 	if err != nil {
 		return nil, err
 	}

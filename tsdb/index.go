@@ -2456,7 +2456,7 @@ func (is IndexSet) matchTagValueNotEqualNotEmptySeriesIDIterator(name, key []byt
 func (is IndexSet) tagValuesByKeyAndExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr) ([]map[string]struct{}, error) {
 	database := is.Database()
 
-	valueExpr, remainingExpr, err := PartitionExpr(influxql.CloneExpr(expr), func(e influxql.Expr) (bool, error) {
+	valueExpr, remainingExpr, err := influxql.PartitionExpr(influxql.CloneExpr(expr), func(e influxql.Expr) (bool, error) {
 		switch e := e.(type) {
 		case *influxql.BinaryExpr:
 			switch e.Op {
