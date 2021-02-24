@@ -15,6 +15,7 @@
 1. [20585](https://github.com/influxdata/influxdb/pull/20585): Fix TSM WAL segement size check. Thanks @foobar!
 1. [20754](https://github.com/influxdata/influxdb/pull/20754): Update references to docs site to use current URLs.
 1. [20773](https://github.com/influxdata/influxdb/pull/20773): Fix data race in TSM engine when inspecting tombstone stats.
+1. [20797](https://github.com/influxdata/influxdb/pull/20797): Fix data race in TSM cache. Thanks @StoneYunZhao!
 
 ## v2.0.4 [2021-02-08]
 
