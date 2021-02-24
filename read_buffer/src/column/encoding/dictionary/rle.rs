@@ -664,9 +664,9 @@ impl RLE {
     /// increasing set.
     pub fn distinct_values<'a>(
         &'a self,
-        row_ids: &[u32],
-        mut dst: BTreeSet<Option<&'a String>>,
-    ) -> BTreeSet<Option<&'a String>> {
+        row_ids: impl Iterator<Item = u32>,
+        mut dst: BTreeSet<Option<&'a str>>,
+    ) -> BTreeSet<Option<&'a str>> {
         // TODO(edd): Perf... We can improve on this if we know the column is
         // totally ordered.
         dst.clear();
@@ -689,7 +689,7 @@ impl RLE {
 
         let mut i = 1;
         'by_row: for row_id in row_ids {
-            while curr_logical_row_id + curr_entry_rl <= *row_id {
+            while curr_logical_row_id + curr_entry_rl <= row_id {
                 // this encoded entry does not cover the row we need.
                 // move on to next entry
                 curr_logical_row_id += curr_entry_rl;

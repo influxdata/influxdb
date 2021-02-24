@@ -237,9 +237,9 @@ impl Encoding {
     /// increasing set.
     fn distinct_values<'a>(
         &'a self,
-        row_ids: &[u32],
-        dst: BTreeSet<Option<&'a String>>,
-    ) -> BTreeSet<Option<&'a String>> {
+        row_ids: impl Iterator<Item = u32>,
+        dst: BTreeSet<Option<&'a str>>,
+    ) -> BTreeSet<Option<&'a str>> {
         match self {
             Encoding::RLE(enc) => enc.distinct_values(row_ids, dst),
             Encoding::Plain(enc) => enc.distinct_values(row_ids, dst),
@@ -1046,12 +1046,10 @@ mod test {
 
         enc.push_additional(Some("east".to_string()), 3);
 
-        let values = enc.distinct_values((0..3).collect::<Vec<_>>().as_slice(), BTreeSet::new());
+        let values = enc.distinct_values((0..3).collect::<Vec<_>>().into_iter(), BTreeSet::new());
         assert_eq!(
             values,
-            vec![Some(&"east".to_string())]
-                .into_iter()
-                .collect::<BTreeSet<_>>(),
+            vec![Some("east")].into_iter().collect::<BTreeSet<_>>(),
             "{}",
             name,
         );
@@ -1061,35 +1059,30 @@ mod test {
         enc.push_additional(Some("south".to_string()), 2); // 9, 10
         enc.push_none(); // 11
 
-        let values = enc.distinct_values((0..12).collect::<Vec<_>>().as_slice(), BTreeSet::new());
+        let values = enc.distinct_values((0..12).collect::<Vec<_>>().into_iter(), BTreeSet::new());
         assert_eq!(
             values,
-            vec![
-                None,
-                Some(&"east".to_string()),
-                Some(&"north".to_string()),
-                Some(&"south".to_string()),
-            ]
-            .into_iter()
-            .collect::<BTreeSet<_>>(),
-            "{}",
-            name,
-        );
-
-        let values = enc.distinct_values((0..4).collect::<Vec<_>>().as_slice(), BTreeSet::new());
-        assert_eq!(
-            values,
-            vec![Some(&"east".to_string()), Some(&"north".to_string()),]
+            vec![None, Some("east"), Some("north"), Some("south"),]
                 .into_iter()
                 .collect::<BTreeSet<_>>(),
             "{}",
             name,
         );
 
-        let values = enc.distinct_values(&[3, 10], BTreeSet::new());
+        let values = enc.distinct_values((0..4).collect::<Vec<_>>().into_iter(), BTreeSet::new());
         assert_eq!(
             values,
-            vec![Some(&"north".to_string()), Some(&"south".to_string()),]
+            vec![Some("east"), Some("north"),]
+                .into_iter()
+                .collect::<BTreeSet<_>>(),
+            "{}",
+            name,
+        );
+
+        let values = enc.distinct_values(vec![3, 10].into_iter(), BTreeSet::new());
+        assert_eq!(
+            values,
+            vec![Some("north"), Some("south"),]
                 .into_iter()
                 .collect::<BTreeSet<_>>(),
             "{}",

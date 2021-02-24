@@ -13,7 +13,7 @@ use either::Either;
 use arrow_deps::{arrow, arrow::array::Array};
 
 use crate::schema::LogicalDataType;
-use crate::value::{EncodedValues, OwnedValue, Scalar, Value, ValueSet, Values};
+use crate::value::{EncodedValues, OwnedValue, Scalar, Value, Values};
 use boolean::BooleanEncoding;
 use encoding::{bool, dictionary, fixed_null};
 use float::FloatEncoding;
@@ -240,18 +240,24 @@ impl Column {
     }
 
     // The distinct set of values found at the logical row ids.
-    pub fn distinct_values(&self, row_ids: &[u32]) -> ValueSet<'_> {
-        assert!(
-            row_ids.len() as u32 <= self.num_rows(),
-            "too many row ids {:?} provided for column with {:?} rows",
-            row_ids.len(),
-            self.num_rows()
-        );
-
+    pub fn distinct_values(&self, row_ids: impl Iterator<Item = u32>) -> BTreeSet<Option<&'_ str>> {
         match &self {
             Column::String(_, data) => data.distinct_values(row_ids),
-            Column::ByteArray(_, _) => todo!(),
-            _ => unimplemented!("distinct values is not implemented for this type"),
+            Column::Float(_, _) => {
+                unimplemented!("distinct values is not implemented for Float column")
+            }
+            Column::Integer(_, _) => {
+                unimplemented!("distinct values is not implemented for Integer column")
+            }
+            Column::Unsigned(_, _) => {
+                unimplemented!("distinct values is not implemented for Unsigned column")
+            }
+            Column::Bool(_, _) => {
+                unimplemented!("distinct values is not implemented for Bool column")
+            }
+            Column::ByteArray(_, _) => {
+                unimplemented!("distinct values is not implemented for ByteArray column")
+            }
         }
     }
 
@@ -679,7 +685,7 @@ impl Column {
 
     /// Determines if the column contains other values than those provided in
     /// `values`.
-    pub fn contains_other_values(&self, values: &BTreeSet<Option<&String>>) -> bool {
+    pub fn has_other_values(&self, values: &BTreeSet<String>) -> bool {
         todo!()
     }
 }
@@ -1107,10 +1113,11 @@ pub enum RowIDsOption {
 impl RowIDsOption {
     /// Returns the `Some` variant or panics.
     pub fn unwrap(&self) -> &RowIDs {
-        if let Self::Some(ids) = self {
-            return ids;
+        match &self {
+            RowIDsOption::None(_) => panic!("cannot unwrap RowIDsOption to RowIDs"),
+            RowIDsOption::Some(ids) => ids,
+            RowIDsOption::All(ids) => ids,
         }
-        panic!("cannot unwrap RowIDsOption to RowIDs");
     }
 }
 
@@ -1156,6 +1163,15 @@ impl RowIDs {
             RowIDs::Vector(v) => {
                 std::mem::size_of::<Vec<u32>>() + (std::mem::size_of::<u32>() * v.len())
             }
+        }
+    }
+
+    /// Returns an iterator over the contents of the RowIDs.
+    pub fn iter(&self) -> RowIDsIterator<'_> {
+        match self {
+            RowIDs::Bitmap(bm) => RowIDsIterator::new(bm.iter()),
+            // we want an iterator of u32 rather than &u32.
+            RowIDs::Vector(vec) => RowIDsIterator::new(vec.iter().cloned()),
         }
     }
 
@@ -1238,6 +1254,24 @@ impl RowIDs {
             }
             (_, _) => unimplemented!("currently unsupported"),
         };
+    }
+}
+
+pub struct RowIDsIterator<'a> {
+    itr: Box<dyn Iterator<Item = u32> + 'a>,
+}
+
+impl<'a> RowIDsIterator<'a> {
+    fn new(itr: impl Iterator<Item = u32> + 'a) -> Self {
+        Self { itr: Box::new(itr) }
+    }
+}
+
+impl Iterator for RowIDsIterator<'_> {
+    type Item = u32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.itr.next()
     }
 }
 
@@ -1484,15 +1518,21 @@ mod test {
             Some("world"),
         ];
 
-        let hello = "hello".to_string();
-        let world = "world".to_string();
         let mut exp = BTreeSet::new();
-        exp.insert(Some(&hello));
-        exp.insert(Some(&world));
+        exp.insert(Some("hello"));
+        exp.insert(Some("world"));
         exp.insert(None);
 
         let col = Column::from(&input[..]);
-        assert_eq!(col.distinct_values(&[0, 1, 2, 3, 4]), ValueSet::String(exp));
+        assert_eq!(col.distinct_values(vec![0, 1, 2, 3, 4].into_iter()), exp);
+        assert_eq!(
+            col.distinct_values(RowIDs::Vector(vec![0, 1, 2, 3, 4]).iter()),
+            exp
+        );
+
+        let mut bm = Bitmap::create();
+        bm.add_many(&[0, 1, 2, 3, 4]);
+        assert_eq!(col.distinct_values(RowIDs::Bitmap(bm).iter()), exp);
     }
 
     #[test]

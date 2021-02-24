@@ -618,19 +618,19 @@ impl Plain {
     /// increasing set.
     pub fn distinct_values<'a>(
         &'a self,
-        row_ids: &[u32],
-        mut dst: BTreeSet<Option<&'a String>>,
-    ) -> BTreeSet<Option<&'a String>> {
+        row_ids: impl Iterator<Item = u32>,
+        mut dst: BTreeSet<Option<&'a str>>,
+    ) -> BTreeSet<Option<&'a str>> {
         // TODO(edd): Perf... We can improve on this if we know the column is
         // totally ordered.
         dst.clear();
 
-        for &row_id in row_ids {
+        for row_id in row_ids {
             let encoded_id = self.encoded_data[row_id as usize];
-            let value = &self.entries[encoded_id as usize].as_ref();
 
-            if !dst.contains(value) {
-                dst.insert(*value);
+            let value = self.entries[encoded_id as usize].as_deref();
+            if !dst.contains(&value) {
+                dst.insert(value);
             }
 
             if dst.len() as u32 == self.cardinality() {

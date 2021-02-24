@@ -3,8 +3,8 @@ use std::collections::BTreeSet;
 use arrow_deps::arrow::{self, array::Array};
 use either::Either;
 
+use super::cmp;
 use super::encoding::dictionary::{Encoding, Plain, RLE};
-use super::{cmp, ValueSet};
 use crate::column::{RowIDs, Value, Values};
 
 // Edd's totally made up magic constant. This determines whether we would use
@@ -142,10 +142,10 @@ impl StringEncoding {
     /// Returns the distinct set of values found at the provided row ids.
     ///
     /// TODO(edd): perf - pooling of destination sets.
-    pub fn distinct_values(&self, row_ids: &[u32]) -> ValueSet<'_> {
+    pub fn distinct_values(&self, row_ids: impl Iterator<Item = u32>) -> BTreeSet<Option<&'_ str>> {
         match &self {
-            Self::RLEDictionary(c) => ValueSet::String(c.distinct_values(row_ids, BTreeSet::new())),
-            Self::Dictionary(c) => ValueSet::String(c.distinct_values(row_ids, BTreeSet::new())),
+            Self::RLEDictionary(c) => c.distinct_values(row_ids, BTreeSet::new()),
+            Self::Dictionary(c) => c.distinct_values(row_ids, BTreeSet::new()),
         }
     }
 

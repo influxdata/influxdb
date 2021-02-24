@@ -992,6 +992,62 @@ impl RowGroup {
             }
         }
     }
+
+    /// Returns the distinct set of values for the selected columns, constrained
+    /// by an optional predicate.
+    pub fn column_values<'a>(
+        &'a self,
+        predicate: &Predicate,
+        columns: &[ColumnName<'_>],
+        mut dst: BTreeMap<String, BTreeSet<String>>,
+    ) -> BTreeMap<String, BTreeSet<String>> {
+        // Build up candidate columns
+        let candidate_columns = self
+            .all_columns_by_name
+            .iter()
+            // Filter any columns that are not present in the `Selection`.
+            .filter_map(|(name, &id)| {
+                if columns.iter().any(|selection| name == selection) {
+                    Some((name, &self.columns[id]))
+                } else {
+                    None
+                }
+            })
+            // Further filter candidate columns by removing any columns that we
+            // can prove we already have all the distinct values for.
+            .filter(|(name, column)| {
+                match dst.get(*name) {
+                    // process the column if we haven't got all the distinct
+                    // values.
+                    Some(values) => column.has_other_values(values),
+                    // no existing values for this column - we will need to
+                    // process it.
+                    None => true,
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let row_ids = self.row_ids_from_predicate(predicate);
+        for (name, column) in candidate_columns {
+            // If no rows match there is nothing to do, if some rows match then
+            // extract an iterator of those IDs. If all rows match then create
+            // an iterator of all rows without materialising them.
+            let row_itr: Box<dyn Iterator<Item = u32>> = match &row_ids {
+                RowIDsOption::None(_) => return dst,
+                RowIDsOption::Some(row_ids) => Box::new(row_ids.iter()),
+                RowIDsOption::All(_) => Box::new(0..self.rows()),
+            };
+
+            let results = dst.entry(name.clone()).or_default();
+            for value in column.distinct_values(row_itr).iter() {
+                if value.is_some() && !results.contains(value.unwrap()) {
+                    results.insert(value.unwrap().to_owned());
+                }
+            }
+        }
+
+        dst
+    }
 }
 
 /// Initialise a `RowGroup` from an Arrow RecordBatch.
@@ -2945,5 +3001,67 @@ west,host-d,11,9
             dst.iter().cloned().collect::<Vec<_>>(),
             vec!["temp".to_owned()],
         );
+    }
+
+    fn to_map<'a>(arr: Vec<(&str, &[&'a str])>) -> BTreeMap<String, BTreeSet<String>> {
+        arr.iter()
+            .map(|(k, values)| {
+                (
+                    k.to_string(),
+                    values
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect::<BTreeSet<_>>(),
+                )
+            })
+            .collect::<BTreeMap<_, _>>()
+    }
+
+    #[test]
+    fn column_values() {
+        // Build a row group.
+        let mut columns = BTreeMap::new();
+        let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3][..]));
+        columns.insert("time".to_string(), tc);
+
+        let rc = ColumnType::Tag(Column::from(&["west", "south", "north"][..]));
+        columns.insert("region".to_string(), rc);
+
+        let ec = ColumnType::Tag(Column::from(&["prod", "stag", "stag"][..]));
+        columns.insert("env".to_string(), ec);
+
+        let rg = RowGroup::new(3, columns);
+
+        let result = rg.column_values(&Predicate::default(), &["region"], BTreeMap::new());
+        assert_eq!(
+            result,
+            to_map(vec![("region", &["north", "west", "south"])])
+        );
+
+        let result = rg.column_values(&Predicate::default(), &["env", "region"], BTreeMap::new());
+        assert_eq!(
+            result,
+            to_map(vec![
+                ("env", &["prod", "stag"]),
+                ("region", &["north", "west", "south"])
+            ])
+        );
+
+        let result = rg.column_values(
+            &Predicate::new(vec![BinaryExpr::from(("time", ">", 1_i64))]),
+            &["env", "region"],
+            BTreeMap::new(),
+        );
+        assert_eq!(
+            result,
+            to_map(vec![("env", &["stag"]), ("region", &["north", "south"])])
+        );
+
+        let result = rg.column_values(
+            &Predicate::new(vec![BinaryExpr::from(("time", ">", 4_i64))]),
+            &["env", "region"],
+            BTreeMap::new(),
+        );
+        assert_eq!(result, to_map(vec![]));
     }
 }
