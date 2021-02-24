@@ -63,7 +63,7 @@ pub struct DatabaseRules {
     /// If set to `true`, this server should answer queries from one or more of
     /// of its local write buffer and any read-only partitions that it knows
     /// about. In this case, results will be merged with any others from the
-    /// remote goups or read only partitions.
+    /// remote goups or read-only partitions.
     #[serde(default)]
     pub query_local: bool,
     /// Set `primary_query_group` to a host group if remote servers should be
@@ -269,7 +269,7 @@ pub struct WalBufferConfig {
     /// still try to hold as much in memory as possible while remaining
     /// below this threshold
     pub buffer_size: u64,
-    /// WAL segments become read only after crossing over this size. Which means
+    /// WAL segments become read-only after crossing over this size. Which means
     /// that segments will always be >= this size. When old segments are
     /// dropped from of memory, at least this much space will be freed from
     /// the buffer.
@@ -300,7 +300,7 @@ pub struct WalBufferConfig {
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Copy)]
 pub enum WalBufferRollover {
     /// Drop the old segment even though it hasn't been persisted. This part of
-    /// the WAl will be lost on this server.
+    /// the WAL will be lost on this server.
     DropOldSegment,
     /// Drop the incoming write and fail silently. This favors making sure that
     /// older WAL data will be backed up.

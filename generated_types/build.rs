@@ -10,7 +10,7 @@ type Error = Box<dyn std::error::Error>;
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 fn main() -> Result<()> {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("protos");
 
     generate_grpc_types(&root)?;
     generate_wal_types(&root)?;
@@ -20,16 +20,25 @@ fn main() -> Result<()> {
 
 /// Schema used with IOx specific gRPC requests
 ///
-/// Creates `influxdata.platform.storage.rs` and
-/// `com.github.influxdata.idpe.storage.read.rs`
+/// Creates
+/// - `influxdata.platform.storage.rs`
+/// - `com.github.influxdata.idpe.storage.read.rs`
+/// - `influxdata.iox.management.v1.rs`
 fn generate_grpc_types(root: &Path) -> Result<()> {
+    let storage_path = root.join("influxdata/platform/storage");
+    let idpe_path = root.join("com/github/influxdata/idpe/storage/read");
+    let management_path = root.join("influxdata/iox/management/v1");
+
     let proto_files = vec![
-        root.join("test.proto"),
-        root.join("predicate.proto"),
-        root.join("storage_common.proto"),
-        root.join("storage_common_idpe.proto"),
-        root.join("service.proto"),
-        root.join("source.proto"),
+        storage_path.join("test.proto"),
+        storage_path.join("predicate.proto"),
+        storage_path.join("storage_common.proto"),
+        storage_path.join("service.proto"),
+        storage_path.join("storage_common_idpe.proto"),
+        idpe_path.join("source.proto"),
+        management_path.join("base_types.proto"),
+        management_path.join("database_rules.proto"),
+        management_path.join("service.proto"),
     ];
 
     // Tell cargo to recompile if any of these proto files are changed
