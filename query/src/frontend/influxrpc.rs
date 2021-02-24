@@ -3,16 +3,21 @@ use std::{
     sync::Arc,
 };
 
-use arrow_deps::datafusion::{
-    error::{DataFusionError, Result as DatafusionResult},
-    logical_plan::{Expr, ExpressionVisitor, LogicalPlan, LogicalPlanBuilder, Operator, Recursion},
-    prelude::col,
+use arrow_deps::{
+    arrow::datatypes::DataType,
+    datafusion::{
+        error::{DataFusionError, Result as DatafusionResult},
+        logical_plan::{
+            Expr, ExpressionVisitor, LogicalPlan, LogicalPlanBuilder, Operator, Recursion,
+        },
+        prelude::col,
+    },
 };
 use data_types::{
     schema::{InfluxColumnType, Schema},
     selection::Selection,
 };
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use tracing::debug;
 
 use crate::{
@@ -44,6 +49,11 @@ pub enum Error {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
+    #[snafu(display("gRPC planner got error finding column values: {}", source))]
+    FindingColumnValues {
+        source: Box<dyn std::error::Error + Send + Sync>,
+    },
+
     #[snafu(display(
         "gRPC planner got internal error making table_name with default predicate: {}",
         source
@@ -68,7 +78,7 @@ pub enum Error {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
-    #[snafu(display("gRPC planner got error creating string set: {}", source))]
+    #[snafu(display("gRPC planner got error creating string set plan: {}", source))]
     CreatingStringSet { source: StringSetError },
 
     #[snafu(display(
@@ -81,13 +91,13 @@ pub enum Error {
         source: crate::provider::Error,
     },
 
-    #[snafu(display("Error building plan: {}", source))]
+    #[snafu(display("gRPC planner got error building plan: {}", source))]
     BuildingPlan {
         source: arrow_deps::datafusion::error::DataFusionError,
     },
 
     #[snafu(display(
-        "Error getting table schema for table '{}' in chunk {}: {}",
+        "gRPC planner got error getting table schema for table '{}' in chunk {}: {}",
         table_name,
         chunk_id,
         source
@@ -98,8 +108,28 @@ pub enum Error {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
-    #[snafu(display("Unsupported predicate: {}", source))]
+    #[snafu(display("gRPC planner error: unsupported predicate: {}", source))]
     UnsupportedPredicate { source: DataFusionError },
+
+    #[snafu(display(
+        "gRPC planner error: column '{}' is not a tag, it is {:?}",
+        tag_name,
+        influx_column_type
+    ))]
+    InvalidTagColumn {
+        tag_name: String,
+        influx_column_type: Option<InfluxColumnType>,
+    },
+
+    #[snafu(display(
+        "Internal error: tag column '{}' is not Utf8 type, it is {:?} ",
+        tag_name,
+        data_type
+    ))]
+    InternalInvalidTagType {
+        tag_name: String,
+        data_type: DataType,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -259,6 +289,155 @@ impl InfluxRPCPlanner {
         // add the known columns we could find from metadata only
         builder
             .append(known_columns.into())
+            .build()
+            .context(CreatingStringSet)
+    }
+
+    /// Returns a plan which finds the distinct, non-null tag values
+    /// in the specified `tag_name` column of this database which pass
+    /// the conditions specified by `predicate`.
+    pub async fn tag_values<D>(
+        &self,
+        database: &D,
+        tag_name: &str,
+        predicate: Predicate,
+    ) -> Result<StringSetPlan>
+    where
+        D: Database + 'static,
+    {
+        debug!(predicate=?predicate, tag_name, "planning tag_values");
+
+        // The basic algorithm is:
+        //
+        // 1. Find all the potential tables in the chunks
+        //
+        // 2. For each table/chunk pair, figure out which have
+        // distinct values that can be found from only metadata and
+        // which need full plans
+
+        // Key is table name, value is set of chunks which had data
+        // for that table but that we couldn't evaluate the predicate
+        // entirely using the metadata
+        let mut need_full_plans = BTreeMap::new();
+
+        let mut known_values = BTreeSet::new();
+        for chunk in self.filtered_chunks(database, &predicate).await? {
+            let table_names = self.chunk_table_names(chunk.as_ref(), &predicate).await?;
+
+            for table_name in table_names {
+                debug!(
+                    table_name = table_name.as_str(),
+                    chunk_id = chunk.id(),
+                    "finding columns in table"
+                );
+
+                // use schema to validate column type
+                let schema = chunk
+                    .table_schema(&table_name, Selection::All)
+                    .await
+                    .expect("to be able to get table schema");
+
+                // Skip this table if the tag_name is not a column in this table
+                let idx = if let Some(idx) = schema.find_index_of(tag_name) {
+                    idx
+                } else {
+                    continue;
+                };
+
+                // Validate that this really is a Tag column
+                let (influx_column_type, field) = schema.field(idx);
+                ensure!(
+                    matches!(influx_column_type, Some(InfluxColumnType::Tag)),
+                    InvalidTagColumn {
+                        tag_name,
+                        influx_column_type,
+                    }
+                );
+                ensure!(
+                    field.data_type() == &DataType::Utf8,
+                    InternalInvalidTagType {
+                        tag_name,
+                        data_type: field.data_type().clone(),
+                    }
+                );
+
+                // try and get the list of values directly from metadata
+                let maybe_values = chunk
+                    .column_values(&table_name, tag_name, &predicate)
+                    .await
+                    .map_err(|e| Box::new(e) as _)
+                    .context(FindingColumnValues)?;
+
+                match maybe_values {
+                    Some(mut names) => {
+                        debug!(names=?names, chunk_id = chunk.id(), "column values found from metadata");
+                        known_values.append(&mut names);
+                    }
+                    None => {
+                        debug!(
+                            table_name = table_name.as_str(),
+                            chunk_id = chunk.id(),
+                            "need full plan to find column values"
+                        );
+                        // can't get columns only from metadata, need
+                        // a general purpose plan
+                        need_full_plans
+                            .entry(table_name)
+                            .or_insert_with(Vec::new)
+                            .push(Arc::clone(&chunk));
+                    }
+                }
+            }
+        }
+
+        let mut builder = StringSetPlanBuilder::new();
+
+        let select_exprs = vec![col(tag_name)];
+
+        // At this point, we have a set of tag_values we know at plan
+        // time in `known_columns`, and some tables in chunks that we
+        // need to run a plan to find what values pass the predicate.
+        for (table_name, chunks) in need_full_plans.into_iter() {
+            let scan_and_filter = self
+                .scan_and_filter(&table_name, &predicate, chunks)
+                .await?;
+
+            // if we have any data to scan, make a plan!
+            if let Some(TableScanAndFilter {
+                plan_builder,
+                schema: _,
+            }) = scan_and_filter
+            {
+                // TODO use Expr::is_null() here when this
+                // https://issues.apache.org/jira/browse/ARROW-11742
+                // is completed.
+                let tag_name_is_not_null = Expr::IsNotNull(Box::new(col(tag_name)));
+
+                // TODO: optimize this to use "DISINCT" or do
+                // something more intelligent that simply fetching all
+                // the values and reducing them in the query Executor
+                //
+                // Until then, simply use a plan which looks like:
+                //
+                //    Projection
+                //      Filter(is not null)
+                //        Filter(predicate)
+                //          InMemoryScan
+                let plan = plan_builder
+                    .project(&select_exprs)
+                    .context(BuildingPlan)?
+                    .filter(tag_name_is_not_null)
+                    .context(BuildingPlan)?
+                    .build()
+                    .context(BuildingPlan)?;
+
+                builder = builder.append(plan.into());
+            }
+        }
+
+        // add the known values we could find from metadata only
+        builder
+            .append(known_values.into())
             .build()
             .context(CreatingStringSet)
     }

@@ -12,7 +12,6 @@ use data_types::{
     data::ReplicatedWrite, partition_metadata::TableSummary, schema::Schema, selection::Selection,
 };
 use exec::{stringset::StringSet, Executor, SeriesSetPlans};
-use plan::stringset::StringSetPlan;
 
 use std::{fmt::Debug, sync::Arc};
 
@@ -54,15 +53,6 @@ pub trait Database: Debug + Send + Sync {
     // ----------
     // The functions below are slated for removal (migration into a gRPC query
     // frontend) ---------
-
-    /// Returns a plan which finds the distinct values in the
-    /// `column_name` column of this database which pass the
-    /// conditions specified by `predicate`.
-    async fn column_values(
-        &self,
-        column_name: &str,
-        predicate: Predicate,
-    ) -> Result<StringSetPlan, Self::Error>;
 
     /// Returns a plan that finds all rows rows which pass the
     /// conditions specified by `predicate` in the form of logical
@@ -132,10 +122,22 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// Returns a set of Strings with column names from the specified
     /// table that have at least one row that matches `predicate`, if
     /// the predicate can be evaluated entirely on the metadata of
-    /// this Chunk.
+    /// this Chunk. Returns `None` otherwise
     async fn column_names(
         &self,
         table_name: &str,
+        predicate: &Predicate,
+    ) -> Result<Option<StringSet>, Self::Error>;
+
+    /// Return a set of Strings containing the distinct values in the
+    /// specified columns. If the predicate can be evaluated entirely
+    /// on the metadata of this Chunk. Returns `None` otherwise
+    ///
+    /// The requested columns must all have String type.
+    async fn column_values(
+        &self,
+        table_name: &str,
+        column_name: &str,
         predicate: &Predicate,
     ) -> Result<Option<StringSet>, Self::Error>;
 

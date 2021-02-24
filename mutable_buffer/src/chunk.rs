@@ -24,9 +24,11 @@ use query::{
     util::{make_range_expr, AndExprBuilder},
 };
 
-use crate::dictionary::{Dictionary, Error as DictionaryError};
-use crate::table::Table;
-
+use crate::{
+    column::Column,
+    dictionary::{Dictionary, Error as DictionaryError},
+    table::Table,
+};
 use async_trait::async_trait;
 use snafu::{OptionExt, ResultExt, Snafu};
 
@@ -47,6 +49,12 @@ pub enum Error {
     #[snafu(display("Error checking predicate in table {}: {}", table_id, source))]
     PredicateCheck {
         table_id: u32,
+        source: crate::table::Error,
+    },
+
+    #[snafu(display("Error checking predicate in table '{}': {}", table_name, source))]
+    NamedTablePredicateCheck {
+        table_name: String,
         source: crate::table::Error,
     },
 
@@ -85,12 +93,36 @@ pub enum Error {
     #[snafu(display("Attempt to write table batch without a name"))]
     TableWriteWithoutName,
 
+    #[snafu(display("Value ID {} not found in dictionary of chunk {}", value_id, chunk_id))]
+    InternalColumnValueIdNotFoundInDictionary {
+        value_id: u32,
+        chunk_id: u64,
+        source: DictionaryError,
+    },
+
     #[snafu(display("Column ID {} not found in dictionary of chunk {}", column_id, chunk))]
     ColumnIdNotFoundInDictionary {
         column_id: u32,
         chunk: u64,
         source: DictionaryError,
     },
+
+    #[snafu(display(
+        "Column name {} not found in dictionary of chunk {}",
+        column_name,
+        chunk_id
+    ))]
+    ColumnNameNotFoundInDictionary {
+        column_name: String,
+        chunk_id: u64,
+        source: DictionaryError,
+    },
+
+    #[snafu(display(
+        "Column '{}' is not a string tag column and thus can not list values",
+        column_name
+    ))]
+    UnsupportedColumnTypeForListingValues { column_name: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -311,13 +343,7 @@ impl Chunk {
             return Ok(None);
         }
 
-        let table_name_id =
-            self.dictionary
-                .id(table_name)
-                .context(InternalTableNotFoundInDictionary {
-                    table_name,
-                    chunk_id: self.id(),
-                })?;
+        let table_name_id = self.table_name_id(table_name)?;
 
         let mut chunk_column_ids = BTreeSet::new();
 
@@ -350,6 +376,115 @@ impl Chunk {
         }
 
         Ok(Some(column_names))
+    }
+
+    /// Return the id of the table in the chunk's dictionary
+    fn table_name_id(&self, table_name: &str) -> Result<u32> {
+        self.dictionary
+            .id(table_name)
+            .context(InternalTableNotFoundInDictionary {
+                table_name,
+                chunk_id: self.id(),
+            })
+    }
+
+    /// Returns the strings of the specified Tag column that satisfy
+    /// the predicate, if they can be determined entirely using metadata.
+    ///
+    /// If the predicate cannot be evaluated entirely with metadata,
+    /// return `Ok(None)`.
+    pub fn tag_column_values(
+        &self,
+        table_name: &str,
+        column_name: &str,
+        chunk_predicate: &ChunkPredicate,
+    ) -> Result<Option<BTreeSet<String>>> {
+        // No support for general purpose expressions
+        if !chunk_predicate.chunk_exprs.is_empty() {
+            return Ok(None);
+        }
+        let chunk_id = self.id();
+
+        let table_name_id = self.table_name_id(table_name)?;
+
+        // Is this table even in the chunk?
+        let table = self
+            .tables
+            .get(&table_name_id)
+            .context(NamedTableNotFoundInChunk {
+                table_name,
+                chunk_id,
+            })?;
+
+        // See if we can rule out the table entire on metadata
+        let could_match = table
+            .could_match_predicate(chunk_predicate)
+            .context(NamedTablePredicateCheck { table_name })?;
+
+        if !could_match {
+            // No columns could match, return empty set
+            return Ok(Default::default());
+        }
+
+        let column_id =
+            self.dictionary
+                .lookup_value(column_name)
+                .context(ColumnNameNotFoundInDictionary {
+                    column_name,
+                    chunk_id,
+                })?;
+
+        let column = table
+            .column(column_id)
+            .context(NamedTableError { table_name })?;
+
+        if let Column::Tag(column, _) = column {
+            // if we have a timestamp predicate, find all values
+            // where the timestamp is within range. Otherwise take
+            // all values.
+
+            // Collect matching ids into BTreeSet to deduplicate on
+            // ids *before* looking up Strings
+            let column_value_ids: BTreeSet<u32> = match chunk_predicate.range {
+                None => {
+                    // take all non-null values
+                    column.iter().filter_map(|&s| s).collect()
+                }
+                Some(range) => {
+                    // filter out all values that don't match the timestmap
+                    let time_column = table
+                        .column_i64(chunk_predicate.time_column_id)
+                        .context(NamedTableError { table_name })?;
+
+                    column
+                        .iter()
+                        .zip(time_column.iter())
+                        .filter_map(|(&column_value_id, &timestamp_value)| {
+                            if range.contains_opt(timestamp_value) {
+                                column_value_id
+                            } else {
+                                None
+                            }
+                        })
+                        .collect()
+                }
+            };
+
+            // convert all the (deduplicated) ids to Strings
+            let column_values = column_value_ids
+                .into_iter()
+                .map(|value_id| {
+                    let value = self.dictionary.lookup_id(value_id).context(
+                        InternalColumnValueIdNotFoundInDictionary { value_id, chunk_id },
+                    )?;
+                    Ok(value.to_string())
+                })
+                .collect::<Result<BTreeSet<String>>>()?;
+
+            Ok(Some(column_values))
+        } else {
+            UnsupportedColumnTypeForListingValues { column_name }.fail()
+        }
     }
 
     /// Translates `predicate` into per-chunk ids that can be
@@ -608,6 +743,15 @@ impl query::PartitionChunk for Chunk {
     async fn column_names(
         &self,
         _table_name: &str,
+        _predicate: &Predicate,
+    ) -> Result<Option<StringSet>, Self::Error> {
+        unimplemented!("This function is slated for removal")
+    }
+
+    async fn column_values(
+        &self,
+        _table_name: &str,
+        _column_name: &str,
         _predicate: &Predicate,
     ) -> Result<Option<StringSet>, Self::Error> {
         unimplemented!("This function is slated for removal")

@@ -12,7 +12,7 @@ use arrow_deps::{
     datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream},
 };
 
-use crate::{exec::Executor, group_by::GroupByAndAggregate, plan::stringset::StringSetPlan};
+use crate::{exec::Executor, group_by::GroupByAndAggregate};
 use crate::{
     exec::{
         stringset::{StringSet, StringSetRef},
@@ -59,12 +59,6 @@ pub struct TestDatabase {
     /// `column_names` to return upon next request
     column_names: Arc<Mutex<Option<StringSetRef>>>,
 
-    /// `column_values` to return upon next request
-    column_values: Arc<Mutex<Option<StringSetRef>>>,
-
-    /// The last request for `column_values`
-    column_values_request: Arc<Mutex<Option<ColumnValuesRequest>>>,
-
     /// Responses to return on the next request to `query_series`
     query_series_values: Arc<Mutex<Option<SeriesSetPlans>>>,
 
@@ -76,16 +70,6 @@ pub struct TestDatabase {
 
     /// The last request for `query_series`
     query_groups_request: Arc<Mutex<Option<QueryGroupsRequest>>>,
-}
-
-/// Records the parameters passed to a column values request
-#[derive(Debug, PartialEq, Clone)]
-pub struct ColumnValuesRequest {
-    /// The name of the requested column
-    pub column_name: String,
-
-    /// Stringified '{:?}' version of the predicate
-    pub predicate: String,
 }
 
 /// Records the parameters passed to a `query_series` request
@@ -178,20 +162,6 @@ impl TestDatabase {
         *Arc::clone(&self.column_names).lock() = Some(column_names)
     }
 
-    /// Set the list of column values that will be returned on a call to
-    /// column_values
-    pub fn set_column_values(&self, column_values: Vec<String>) {
-        let column_values = column_values.into_iter().collect::<StringSet>();
-        let column_values = Arc::new(column_values);
-
-        *Arc::clone(&self.column_values).lock() = Some(column_values)
-    }
-
-    /// Get the parameters from the last column name request
-    pub fn get_column_values_request(&self) -> Option<ColumnValuesRequest> {
-        Arc::clone(&self.column_values_request).lock().take()
-    }
-
     /// Set the series that will be returned on a call to query_series
     pub fn set_query_series_values(&self, plan: SeriesSetPlans) {
         *Arc::clone(&self.query_series_values).lock() = Some(plan);
@@ -265,34 +235,6 @@ impl Database for TestDatabase {
     async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
         self.replicated_writes.lock().push(write.clone());
         Ok(())
-    }
-
-    /// Return the mocked out column values, recording the request
-    async fn column_values(
-        &self,
-        column_name: &str,
-        predicate: Predicate,
-    ) -> Result<StringSetPlan, Self::Error> {
-        // save the request
-        let predicate = predicate_to_test_string(&predicate);
-
-        let new_column_values_request = Some(ColumnValuesRequest {
-            column_name: column_name.into(),
-            predicate,
-        });
-
-        *Arc::clone(&self.column_values_request).lock() = new_column_values_request;
-
-        // pull out the saved columns
-        let column_values = Arc::clone(&self.column_values)
-            .lock()
-            .take()
-            // Turn None into an error
-            .context(General {
-                message: "No saved column_values in TestDatabase",
-            })?;
-
-        Ok(StringSetPlan::Known(column_values))
     }
 
     async fn query_series(&self, predicate: Predicate) -> Result<SeriesSetPlans, Self::Error> {
@@ -564,6 +506,16 @@ impl PartitionChunk for TestChunk {
             .context(General {
                 message: format!("TestChunk had no schema for table {}", table_name),
             })
+    }
+
+    async fn column_values(
+        &self,
+        _table_name: &str,
+        _column_name: &str,
+        _predicate: &Predicate,
+    ) -> Result<Option<StringSet>, Self::Error> {
+        // Model not being able to get column values from metadata
+        Ok(None)
     }
 
     fn has_table(&self, table_name: &str) -> bool {

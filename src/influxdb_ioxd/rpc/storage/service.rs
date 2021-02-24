@@ -852,7 +852,7 @@ async fn tag_values_impl<T>(
     rpc_predicate: Option<Predicate>,
 ) -> Result<StringValuesResponse>
 where
-    T: DatabaseStore,
+    T: DatabaseStore + 'static,
 {
     let rpc_predicate_string = format!("{:?}", rpc_predicate);
 
@@ -873,10 +873,12 @@ where
         .await
         .context(DatabaseNotFound { db_name })?;
 
+    let planner = InfluxRPCPlanner::new();
+
     let executor = db_store.executor();
 
-    let tag_value_plan = db
-        .column_values(tag_name, predicate)
+    let tag_value_plan = planner
+        .tag_values(db.as_ref(), tag_name, predicate)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(ListingTagValues { db_name, tag_name })?;
@@ -1111,7 +1113,7 @@ mod tests {
         group_by::{Aggregate as QueryAggregate, WindowDuration as QueryWindowDuration},
         test::QueryGroupsRequest,
         test::TestDatabaseStore,
-        test::{ColumnValuesRequest, QuerySeriesRequest, TestChunk},
+        test::{QuerySeriesRequest, TestChunk},
     };
     use std::{
         convert::TryFrom,
@@ -1478,11 +1480,18 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let test_db = fixture
+        // Add a chunk with a field
+        let chunk = TestChunk::new(0)
+            .with_time_column("TheMeasurement")
+            .with_tag_column("TheMeasurement", "state")
+            .with_one_row_of_null_data("TheMeasurement");
+
+        fixture
             .test_storage
             .db_or_create(&db_info.db_name)
             .await
-            .expect("creating test database");
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClientWrapper::read_source(
             db_info.org_id,
@@ -1490,24 +1499,35 @@ mod tests {
             partition_id,
         ));
 
-        let tag_values = vec!["k1", "k2", "k3", "k4"];
         let request = TagValuesRequest {
             tags_source: source.clone(),
-            range: make_timestamp_range(150, 200),
+            range: make_timestamp_range(150, 2000),
             predicate: make_state_ma_predicate(),
-            tag_key: "the_tag_key".into(),
+            tag_key: "state".into(),
         };
-
-        let expected_request = ColumnValuesRequest {
-            predicate: "Predicate { exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into(),
-            column_name: "the_tag_key".into(),
-        };
-
-        test_db.set_column_values(to_string_vec(&tag_values));
 
         let actual_tag_values = fixture.storage_client.tag_values(request).await.unwrap();
-        assert_eq!(actual_tag_values, tag_values,);
-        assert_eq!(test_db.get_column_values_request(), Some(expected_request),);
+        assert_eq!(actual_tag_values, vec!["MA"]);
+    }
+
+    /// test the plumbing of the RPC layer for tag_values
+    ///
+    /// For the special case of
+    ///
+    /// tag_key = _measurement means listing all measurement names
+    #[tokio::test]
+    async fn test_storage_rpc_tag_values_with_measurement() {
+        // Start a test gRPC server on a randomally allocated port
+        let mut fixture = Fixture::new().await.expect("Connecting to test server");
+
+        let db_info = OrgAndBucket::new(123, 456);
+        let partition_id = 1;
+
+        let source = Some(StorageClientWrapper::read_source(
+            db_info.org_id,
+            db_info.bucket_id,
+            partition_id,
+        ));
 
         // ---
         // test tag_key = _measurement means listing all measurement names
@@ -1590,11 +1610,14 @@ mod tests {
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let test_db = fixture
+        let chunk = TestChunk::new(0).with_error("Sugar we are going down");
+
+        fixture
             .test_storage
             .db_or_create(&db_info.db_name)
             .await
-            .expect("creating test database");
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClientWrapper::read_source(
             db_info.org_id,
@@ -1612,24 +1635,19 @@ mod tests {
             tag_key: "the_tag_key".into(),
         };
 
-        // Note we don't set the column_names on the test database, so we expect an
-        // error
-        let response = fixture.storage_client.tag_values(request).await;
-        assert!(response.is_err());
-        let response_string = format!("{:?}", response);
-        let expected_error = "No saved column_values in TestDatabase";
+        let response_string = fixture
+            .storage_client
+            .tag_values(request)
+            .await
+            .unwrap_err()
+            .to_string();
+        let expected_error = "Sugar we are going down";
         assert!(
             response_string.contains(expected_error),
             "'{}' did not contain expected content '{}'",
             response_string,
             expected_error
         );
-
-        let expected_request = Some(ColumnValuesRequest {
-            predicate: "Predicate {}".into(),
-            column_name: "the_tag_key".into(),
-        });
-        assert_eq!(test_db.get_column_values_request(), expected_request);
 
         // ---
         // test error with non utf8 value
@@ -1641,9 +1659,12 @@ mod tests {
             tag_key: [0, 255].into(), // this is not a valid UTF-8 string
         };
 
-        let response = fixture.storage_client.tag_values(request).await;
-        assert!(response.is_err());
-        let response_string = format!("{:?}", response);
+        let response_string = fixture
+            .storage_client
+            .tag_values(request)
+            .await
+            .unwrap_err()
+            .to_string();
         let expected_error = "Error converting tag_key to UTF-8 in tag_values request";
         assert!(
             response_string.contains(expected_error),
@@ -1653,22 +1674,27 @@ mod tests {
         );
     }
 
-    /// test the plumbing of the RPC layer for measurement_tag_values--
-    /// specifically that the right parameters are passed into the Database
-    /// interface and that the returned values are sent back via gRPC.
+    /// test the plumbing of the RPC layer for measurement_tag_values
     #[tokio::test]
     async fn test_storage_rpc_measurement_tag_values() {
-        // Start a test gRPC server on a randomally allocated port
+        test_helpers::maybe_start_logging();
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let test_db = fixture
+        // Add a chunk with a field
+        let chunk = TestChunk::new(0)
+            .with_time_column("TheMeasurement")
+            .with_tag_column("TheMeasurement", "state")
+            .with_one_row_of_null_data("TheMeasurement");
+
+        fixture
             .test_storage
             .db_or_create(&db_info.db_name)
             .await
-            .expect("creating test database");
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClientWrapper::read_source(
             db_info.org_id,
@@ -1676,21 +1702,13 @@ mod tests {
             partition_id,
         ));
 
-        let tag_values = vec!["k1", "k2", "k3", "k4"];
         let request = MeasurementTagValuesRequest {
-            measurement: "m4".into(),
+            measurement: "TheMeasurement".into(),
             source: source.clone(),
-            range: make_timestamp_range(150, 200),
+            range: make_timestamp_range(150, 2000),
             predicate: make_state_ma_predicate(),
-            tag_key: "the_tag_key".into(),
+            tag_key: "state".into(),
         };
-
-        let expected_request = ColumnValuesRequest {
-            predicate: "Predicate { table_names: m4 exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into(),
-            column_name: "the_tag_key".into(),
-        };
-
-        test_db.set_column_values(to_string_vec(&tag_values));
 
         let actual_tag_values = fixture
             .storage_client
@@ -1699,15 +1717,34 @@ mod tests {
             .unwrap();
 
         assert_eq!(
-            actual_tag_values, tag_values,
+            actual_tag_values,
+            vec!["MA"],
             "unexpected tag values while getting tag values",
         );
+    }
 
-        assert_eq!(
-            test_db.get_column_values_request(),
-            Some(expected_request),
-            "unexpected request while getting tag values",
-        );
+    #[tokio::test]
+    async fn test_storage_rpc_measurement_tag_values_error() {
+        test_helpers::maybe_start_logging();
+        let mut fixture = Fixture::new().await.expect("Connecting to test server");
+
+        let db_info = OrgAndBucket::new(123, 456);
+        let partition_id = 1;
+
+        let chunk = TestChunk::new(0).with_error("Sugar we are going down");
+
+        fixture
+            .test_storage
+            .db_or_create(&db_info.db_name)
+            .await
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk));
+
+        let source = Some(StorageClientWrapper::read_source(
+            db_info.org_id,
+            db_info.bucket_id,
+            partition_id,
+        ));
 
         // ---
         // test error
@@ -1722,22 +1759,19 @@ mod tests {
 
         // Note we don't set the column_names on the test database, so we expect an
         // error
-        let response = fixture.storage_client.measurement_tag_values(request).await;
-        assert!(response.is_err());
-        let response_string = format!("{:?}", response);
-        let expected_error = "No saved column_values in TestDatabase";
+        let response_string = fixture
+            .storage_client
+            .measurement_tag_values(request)
+            .await
+            .unwrap_err()
+            .to_string();
+        let expected_error = "Sugar we are going down";
         assert!(
             response_string.contains(expected_error),
             "'{}' did not contain expected content '{}'",
             response_string,
             expected_error
         );
-
-        let expected_request = Some(ColumnValuesRequest {
-            predicate: "Predicate { table_names: m5}".into(),
-            column_name: "the_tag_key".into(),
-        });
-        assert_eq!(test_db.get_column_values_request(), expected_request);
     }
 
     #[tokio::test]
