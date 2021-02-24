@@ -1,0 +1,27 @@
+# Testing
+
+This document covers details that are only relevant if you are developing IOx and running the tests.
+
+## Object storage
+
+### To run the tests or not run the tests
+
+If you are testing integration with some or all of the object storage options, you'll have more
+setup to do.
+
+By default, `cargo test --workspace` does not run any tests that actually contact any cloud
+services: tests that do contact the services will silently pass.
+
+To ensure you've configured object storage integration testing correctly, you can run
+`TEST_INTEGRATION=1 cargo test --workspace`, which will run the tests that contact the cloud
+services and fail them if the required environment variables aren't set.
+
+If you don't specify the `TEST_INTEGRATION` environment variable but you do configure some or all
+of the object stores, the relevant tests will run.
+
+### Configuration differences when running the tests
+
+When running `influxdb_iox server`, you can pick one object store to use. When running the tests,
+you can run them against all the possible object stores. There's still only one
+`INFLUXDB_IOX_BUCKET` variable, though, so that will set the bucket name for all configured object
+stores. Use the same bucket name when setting up the different services.
