@@ -86,7 +86,7 @@ func onboardingRequest(ui *input.UI, options *options) (*influxdb.OnboardingRequ
 	if confirmed := internal.GetConfirm(ui, func() string {
 		rp := "infinite"
 		if req.RetentionPeriodSeconds > 0 {
-			rp = fmt.Sprintf("%s", time.Duration(req.RetentionPeriodSeconds)*time.Second)
+			rp = (time.Duration(req.RetentionPeriodSeconds)*time.Second).String()
 		}
 		return fmt.Sprintf(`
 You have entered:
