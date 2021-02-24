@@ -15,7 +15,7 @@ use crate::query_tests::scenarios::*;
 ///
 /// runs table_column_names(predicate) and compares it to the expected
 /// output
-macro_rules! run_tag_column_names_test_case {
+macro_rules! run_tag_keys_test_case {
     ($DB_SETUP:expr, $PREDICATE:expr, $EXPECTED_NAMES:expr) => {
         test_helpers::maybe_start_logging();
         let predicate = $PREDICATE;
@@ -30,7 +30,7 @@ macro_rules! run_tag_column_names_test_case {
             let executor = Executor::new();
 
             let plan = planner
-                .tag_column_names(&db, predicate.clone())
+                .tag_keys(&db, predicate.clone())
                 .await
                 .expect("built plan successfully");
             let names = executor
@@ -54,7 +54,7 @@ macro_rules! run_tag_column_names_test_case {
 async fn list_tag_columns_no_predicate() {
     let predicate = PredicateBuilder::default().build();
     let expected_tag_keys = vec!["borough", "city", "county", "state"];
-    run_tag_column_names_test_case!(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys);
+    run_tag_keys_test_case!(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys);
 }
 
 #[tokio::test]
@@ -63,7 +63,7 @@ async fn list_tag_columns_timestamp() {
         .timestamp_range(150, 201)
         .build();
     let expected_tag_keys = vec!["city", "state"];
-    run_tag_column_names_test_case!(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys);
+    run_tag_keys_test_case!(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys);
 }
 #[tokio::test]
 async fn list_tag_columns_predicate() {
@@ -71,7 +71,7 @@ async fn list_tag_columns_predicate() {
         .add_expr(col("state").eq(lit("MA"))) // state=MA
         .build();
     let expected_tag_keys = vec!["city", "county", "state"];
-    run_tag_column_names_test_case!(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys);
+    run_tag_keys_test_case!(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys);
 }
 
 #[tokio::test]
@@ -81,14 +81,14 @@ async fn list_tag_columns_timestamp_and_predicate() {
         .add_expr(col("state").eq(lit("MA"))) // state=MA
         .build();
     let expected_tag_keys = vec!["city", "state"];
-    run_tag_column_names_test_case!(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys);
+    run_tag_keys_test_case!(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys);
 }
 
 #[tokio::test]
 async fn list_tag_columns_measurement_name() {
     let predicate = PredicateBuilder::default().table("o2").build();
     let expected_tag_keys = vec!["borough", "city", "state"];
-    run_tag_column_names_test_case!(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys);
+    run_tag_keys_test_case!(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys);
 }
 
 #[tokio::test]
@@ -98,7 +98,7 @@ async fn list_tag_columns_measurement_name_and_timestamp() {
         .timestamp_range(150, 201)
         .build();
     let expected_tag_keys = vec!["city", "state"];
-    run_tag_column_names_test_case!(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys);
+    run_tag_keys_test_case!(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys);
 }
 
 #[tokio::test]
@@ -108,7 +108,7 @@ async fn list_tag_columns_measurement_name_and_predicate() {
         .add_expr(col("state").eq(lit("NY"))) // state=NY
         .build();
     let expected_tag_keys = vec!["borough", "city", "state"];
-    run_tag_column_names_test_case!(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys);
+    run_tag_keys_test_case!(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys);
 }
 
 #[tokio::test]
@@ -119,7 +119,7 @@ async fn list_tag_columns_measurement_name_and_predicate_and_timestamp() {
         .add_expr(col("state").eq(lit("NY"))) // state=NY
         .build();
     let expected_tag_keys = vec!["city", "state"];
-    run_tag_column_names_test_case!(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys);
+    run_tag_keys_test_case!(TwoMeasurementsManyNulls {}, predicate, expected_tag_keys);
 }
 
 #[tokio::test]
@@ -129,7 +129,7 @@ async fn list_tag_name_end_to_end() {
         .add_expr(col("host").eq(lit("server01")))
         .build();
     let expected_tag_keys = vec!["host", "name", "region"];
-    run_tag_column_names_test_case!(EndToEndTest {}, predicate, expected_tag_keys);
+    run_tag_keys_test_case!(EndToEndTest {}, predicate, expected_tag_keys);
 }
 
 fn to_stringset(v: &[&str]) -> StringSetRef {

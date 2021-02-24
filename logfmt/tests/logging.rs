@@ -3,17 +3,16 @@
 // that.... So punting on that for now
 
 use logfmt::LogFmtLayer;
+use once_cell::sync::Lazy;
+use parking_lot::Mutex;
 use regex::Regex;
 use std::{
     error::Error,
     fmt,
     io::{self, Cursor},
-    sync::Mutex,
 };
 use tracing::{debug, error, info, span, trace, warn, Level};
 use tracing_subscriber::{fmt::MakeWriter, prelude::*};
-
-use lazy_static::lazy_static;
 
 /// Compares the captured messages with the expected messages,
 /// normalizing for time and location
@@ -277,17 +276,15 @@ thread_local! {
     static LOG_LINES: Mutex<Cursor<Vec<u8>>> = Mutex::new(Cursor::new(Vec::new()));
 }
 
-lazy_static! {
-    // Since we can only setup logging once, we need to have gloabl to
-    // use it among test cases
-    static ref GLOBAL_WRITER: Mutex<CapturedWriter> = {
-        let capture = CapturedWriter::default();
-        tracing_subscriber::registry()
-            .with(LogFmtLayer::new(capture.clone()))
-            .init();
-        Mutex::new(capture)
-    };
-}
+// Since we can only setup logging once, we need to have gloabl to
+// use it among test cases
+static GLOBAL_WRITER: Lazy<Mutex<CapturedWriter>> = Lazy::new(|| {
+    let capture = CapturedWriter::default();
+    tracing_subscriber::registry()
+        .with(LogFmtLayer::new(capture.clone()))
+        .init();
+    Mutex::new(capture)
+});
 
 // This thing captures log lines
 #[derive(Default, Clone)]
@@ -297,14 +294,14 @@ struct CapturedWriter {
 
 impl CapturedWriter {
     fn new() -> Self {
-        let global_writer = GLOBAL_WRITER.lock().expect("mutex poisoned");
+        let global_writer = GLOBAL_WRITER.lock();
         global_writer.clone().clear()
     }
 
     /// Clear all thread local state
     fn clear(self) -> Self {
         LOG_LINES.with(|lines| {
-            let mut cursor = lines.lock().expect("mutex poisoned");
+            let mut cursor = lines.lock();
             cursor.get_mut().clear()
         });
         self
@@ -312,7 +309,7 @@ impl CapturedWriter {
 
     fn to_strings(&self) -> Vec<String> {
         LOG_LINES.with(|lines| {
-            let cursor = lines.lock().expect("mutex poisoned");
+            let cursor = lines.lock();
             let bytes: Vec<u8> = cursor.get_ref().clone();
             String::from_utf8(bytes)
                 .expect("valid utf8")
@@ -335,14 +332,14 @@ impl fmt::Display for CapturedWriter {
 impl std::io::Write for CapturedWriter {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         LOG_LINES.with(|lines| {
-            let mut cursor = lines.lock().expect("mutex poisoned");
+            let mut cursor = lines.lock();
             cursor.write(buf)
         })
     }
 
     fn flush(&mut self) -> std::io::Result<()> {
         LOG_LINES.with(|lines| {
-            let mut cursor = lines.lock().expect("mutex poisoned");
+            let mut cursor = lines.lock();
             cursor.flush()
         })
     }

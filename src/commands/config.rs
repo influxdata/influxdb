@@ -3,7 +3,6 @@
 
 use std::{net::SocketAddr, net::ToSocketAddrs, path::PathBuf};
 
-use lazy_static::lazy_static;
 use structopt::StructOpt;
 
 /// The default bind address for the HTTP API.
@@ -11,16 +10,6 @@ pub const DEFAULT_API_BIND_ADDR: &str = "127.0.0.1:8080";
 
 /// The default bind address for the gRPC.
 pub const DEFAULT_GRPC_BIND_ADDR: &str = "127.0.0.1:8082";
-
-lazy_static! {
-    static ref DEFAULT_DATA_DIR: String = dirs::home_dir()
-        .map(|mut path| {
-            path.push(".influxdb_iox");
-            path
-        })
-        .and_then(|dir| dir.to_str().map(|s| s.to_string()))
-        .unwrap();
-}
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -106,6 +95,12 @@ pub struct Config {
     /// as SERVICE_ACCOUNT must be set.
     #[structopt(long = "--gcp-bucket", env = "INFLUXDB_IOX_GCP_BUCKET")]
     pub gcp_bucket: Option<String>,
+
+    /// If using S3 for the object store, this item, as well
+    /// as AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_DEFAULT_REGION must
+    /// be set.
+    #[structopt(long = "--s3-bucket", env = "INFLUXDB_IOX_S3_BUCKET")]
+    pub s3_bucket: Option<String>,
 
     /// If set, Jaeger traces are emitted to this host
     /// using the OpenTelemetry tracer.

@@ -46,7 +46,7 @@ impl fmt::Display for Config {
 fn lines_to_replicated_write(c: &mut Criterion) {
     run_group("lines_to_replicated_write", c, |lines, rules, config, b| {
         b.iter(|| {
-            let write = lines_to_rw(0, 0, &lines, &rules);
+            let write = lines_to_rw(0, 0, &lines, rules);
             assert_eq!(write.entry_count(), config.partition_count);
         });
     });
@@ -57,7 +57,7 @@ fn replicated_write_into_bytes(c: &mut Criterion) {
         "replicated_write_into_bytes",
         c,
         |lines, rules, config, b| {
-            let write = lines_to_rw(0, 0, &lines, &rules);
+            let write = lines_to_rw(0, 0, &lines, rules);
             assert_eq!(write.entry_count(), config.partition_count);
 
             b.iter(|| {
@@ -71,7 +71,7 @@ fn replicated_write_into_bytes(c: &mut Criterion) {
 // buffer or read buffer, which won't use the replicated write structure anyway
 fn bytes_into_struct(c: &mut Criterion) {
     run_group("bytes_into_struct", c, |lines, rules, config, b| {
-        let write = lines_to_rw(0, 0, &lines, &rules);
+        let write = lines_to_rw(0, 0, &lines, rules);
         assert_eq!(write.entry_count(), config.partition_count);
         let data = write.bytes();
 

@@ -1,9 +1,7 @@
 //! Utilities for testing tracing
-use std::{
-    fmt,
-    sync::{Arc, Mutex},
-};
+use std::{fmt, sync::Arc};
 
+use parking_lot::Mutex;
 use tracing::{
     field::Field,
     span::{Attributes, Id, Record},
@@ -44,7 +42,7 @@ impl TracingCapture {
 impl fmt::Display for TracingCapture {
     /// Retrieves the contents of all captured traces as a string
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let logs = self.logs.lock().expect("locked mutex");
+        let logs = self.logs.lock();
         write!(f, "{}", logs.join("\n"))
     }
 }
@@ -72,7 +70,7 @@ impl Subscriber for TracingCaptureSubscriber {
             string: String::new(),
         };
         event.record(&mut v);
-        let mut logs = self.logs.lock().expect("got span mutex lock");
+        let mut logs = self.logs.lock();
         logs.push(v.string);
     }
 

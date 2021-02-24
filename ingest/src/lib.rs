@@ -1104,12 +1104,10 @@ mod tests {
     use test_helpers::approximately_equal;
 
     use flate2::read::GzDecoder;
+    use parking_lot::Mutex;
     use std::fs::File;
-    use std::io::BufReader;
-    use std::io::Cursor;
-    use std::io::Read;
-
-    use std::sync::{Arc, Mutex};
+    use std::io::{BufReader, Cursor, Read};
+    use std::sync::Arc;
 
     /// Record what happens when the writer is created so we can
     /// inspect it as part of the tests. It uses string manipulation
@@ -1126,13 +1124,13 @@ mod tests {
 
     /// copies the events out of the shared log
     fn get_events(log: &Arc<Mutex<WriterLog>>) -> Vec<String> {
-        let log_mut = log.lock().expect("got the lock for log");
+        let log_mut = log.lock();
         log_mut.events.to_vec()
     }
 
     /// Adds a new event to the log
     fn log_event(log: &Arc<Mutex<WriterLog>>, event: String) {
-        let mut mut_log = log.lock().expect("get the log for writing");
+        let mut mut_log = log.lock();
         mut_log.events.push(event);
     }
 

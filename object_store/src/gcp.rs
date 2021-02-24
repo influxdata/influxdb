@@ -1,14 +1,14 @@
 //! This module contains the IOx implementation for using Google Cloud Storage
 //! as the object store.
-use crate::{path::cloud::CloudPath, ListResult, ObjectStoreApi};
+use crate::{
+    path::{cloud::CloudPath, DELIMITER},
+    ListResult, ObjectMeta, ObjectStoreApi,
+};
 use async_trait::async_trait;
 use bytes::Bytes;
-use futures::{
-    stream::{self, BoxStream},
-    Stream, StreamExt, TryStreamExt,
-};
+use futures::{stream::BoxStream, Stream, StreamExt, TryStreamExt};
 use snafu::{ensure, futures::TryStreamExt as _, ResultExt, Snafu};
-use std::io;
+use std::{convert::TryFrom, io};
 
 /// A specialized `Result` for Google Cloud Storage object store-related errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -158,31 +158,21 @@ impl ObjectStoreApi for GoogleCloudStorage {
         &'a self,
         prefix: Option<&'a Self::Path>,
     ) -> Result<BoxStream<'a, Result<Vec<Self::Path>>>> {
-        let objects = match prefix {
-            Some(prefix) => {
-                let cloud_prefix = prefix.to_raw();
-                let list = cloud_storage::Object::list_prefix(&self.bucket_name, &cloud_prefix)
-                    .await
-                    .context(UnableToListData {
-                        bucket: &self.bucket_name,
-                    })?;
-
-                // TODO: Remove collect when the path no longer needs
-                // to be converted into an owned object that would be
-                // dropped too early.
-                stream::iter(list.collect::<Vec<_>>().await).left_stream()
-            }
-            None => cloud_storage::Object::list(&self.bucket_name)
-                .await
-                .context(UnableToListData {
-                    bucket: &self.bucket_name,
-                })?
-                .right_stream(),
+        let converted_prefix = prefix.map(|p| p.to_raw());
+        let list_request = cloud_storage::ListRequest {
+            prefix: converted_prefix,
+            ..Default::default()
         };
+        let object_lists = cloud_storage::Object::list(&self.bucket_name, list_request)
+            .await
+            .context(UnableToListData {
+                bucket: &self.bucket_name,
+            })?;
 
-        let objects = objects
+        let objects = object_lists
             .map_ok(|list| {
-                list.into_iter()
+                list.items
+                    .into_iter()
                     .map(|o| CloudPath::raw(o.name))
                     .collect::<Vec<_>>()
             })
@@ -193,8 +183,57 @@ impl ObjectStoreApi for GoogleCloudStorage {
         Ok(objects.boxed())
     }
 
-    async fn list_with_delimiter(&self, _prefix: &Self::Path) -> Result<ListResult<Self::Path>> {
-        unimplemented!();
+    async fn list_with_delimiter(&self, prefix: &Self::Path) -> Result<ListResult<Self::Path>> {
+        let converted_prefix = prefix.to_raw();
+        let list_request = cloud_storage::ListRequest {
+            prefix: Some(converted_prefix),
+            delimiter: Some(DELIMITER.to_string()),
+            ..Default::default()
+        };
+
+        let mut object_lists = Box::pin(
+            cloud_storage::Object::list(&self.bucket_name, list_request)
+                .await
+                .context(UnableToListData {
+                    bucket: &self.bucket_name,
+                })?,
+        );
+
+        let result = match object_lists.next().await {
+            None => ListResult {
+                objects: vec![],
+                common_prefixes: vec![],
+                next_token: None,
+            },
+            Some(list_response) => {
+                let list_response = list_response.context(UnableToStreamListData {
+                    bucket: &self.bucket_name,
+                })?;
+
+                ListResult {
+                    objects: list_response
+                        .items
+                        .iter()
+                        .map(|object| {
+                            let location = CloudPath::raw(&object.name);
+                            let last_modified = object.updated;
+                            let size = usize::try_from(object.size)
+                                .expect("unsupported size on this platform");
+
+                            ObjectMeta {
+                                location,
+                                last_modified,
+                                size,
+                            }
+                        })
+                        .collect(),
+                    common_prefixes: list_response.prefixes.iter().map(CloudPath::raw).collect(),
+                    next_token: list_response.next_page_token,
+                }
+            }
+        };
+
+        Ok(result)
     }
 }
 
@@ -211,7 +250,7 @@ impl GoogleCloudStorage {
 mod test {
     use super::*;
     use crate::{
-        tests::{get_nonexistent_object, put_get_delete_list},
+        tests::{get_nonexistent_object, list_with_delimiter, put_get_delete_list},
         GoogleCloudStorage, ObjectStoreApi, ObjectStorePath,
     };
     use bytes::Bytes;
@@ -256,6 +295,7 @@ mod test {
 
         let integration = GoogleCloudStorage::new(&bucket_name);
         put_get_delete_list(&integration).await?;
+        list_with_delimiter(&integration).await?;
         Ok(())
     }
 
@@ -268,15 +308,22 @@ mod test {
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
 
-        let result = get_nonexistent_object(&integration, Some(location)).await?;
+        let err = get_nonexistent_object(&integration, Some(location))
+            .await
+            .unwrap_err();
 
-        assert_eq!(
-            result,
-            Bytes::from(format!(
-                "No such object: {}/{}",
-                bucket_name, NON_EXISTENT_NAME
-            ))
-        );
+        if let Some(Error::UnableToGetData {
+            source,
+            bucket,
+            location,
+        }) = err.downcast_ref::<Error>()
+        {
+            assert!(matches!(source, cloud_storage::Error::Reqwest(_)));
+            assert_eq!(bucket, &bucket_name);
+            assert_eq!(location, NON_EXISTENT_NAME);
+        } else {
+            panic!("unexpected error type")
+        }
 
         Ok(())
     }
@@ -289,9 +336,17 @@ mod test {
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
 
-        let result = get_nonexistent_object(&integration, Some(location)).await?;
+        let err = get_nonexistent_object(&integration, Some(location))
+            .await
+            .unwrap_err();
 
-        assert_eq!(result, Bytes::from("Not Found"));
+        if let Some(Error::UnableToStreamListData { source, bucket }) = err.downcast_ref::<Error>()
+        {
+            assert!(matches!(source, cloud_storage::Error::Google(_)));
+            assert_eq!(bucket, bucket_name);
+        } else {
+            panic!("unexpected error type")
+        }
 
         Ok(())
     }
@@ -361,14 +416,27 @@ mod test {
         let data = Bytes::from("arbitrary data");
         let stream_data = std::io::Result::Ok(data.clone());
 
-        let result = integration
+        let err = integration
             .put(
                 &location,
                 futures::stream::once(async move { stream_data }),
                 Some(data.len()),
             )
-            .await;
-        assert!(result.is_ok());
+            .await
+            .unwrap_err();
+
+        if let Error::UnableToPutData {
+            source,
+            bucket,
+            location,
+        } = err
+        {
+            assert!(matches!(source, cloud_storage::Error::Other(_)));
+            assert_eq!(bucket, bucket_name);
+            assert_eq!(location, NON_EXISTENT_NAME);
+        } else {
+            panic!("unexpected error type");
+        }
 
         Ok(())
     }

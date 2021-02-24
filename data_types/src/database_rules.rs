@@ -122,6 +122,21 @@ impl DatabaseRules {
     }
 }
 
+/// Generates a partition key based on the line and the default time.
+pub trait Partitioner {
+    fn partition_key(
+        &self,
+        _line: &ParsedLine<'_>,
+        _default_time: &DateTime<Utc>,
+    ) -> Result<String>;
+}
+
+impl Partitioner for DatabaseRules {
+    fn partition_key(&self, line: &ParsedLine<'_>, default_time: &DateTime<Utc>) -> Result<String> {
+        self.partition_key(&line, &default_time)
+    }
+}
+
 /// MutableBufferConfig defines the configuration for the in-memory database
 /// that is hot for writes as they arrive. Operators can define rules for
 /// evicting data once the mutable buffer passes a set memory threshold.
@@ -131,7 +146,7 @@ pub struct MutableBufferConfig {
     /// to this size it will drop partitions in the given order. If unable
     /// to drop partitions (because of later rules in this config) it will
     /// reject writes until it is able to drop partitions.
-    pub buffer_size: u64,
+    pub buffer_size: usize,
     /// If set, the mutable buffer will not drop partitions that have chunks
     /// that have not yet been persisted. Thus it will reject writes if it
     /// is over size and is unable to drop partitions. The default is to
@@ -149,7 +164,7 @@ pub struct MutableBufferConfig {
     pub persist_after_cold_seconds: Option<u32>,
 }
 
-const DEFAULT_MUTABLE_BUFFER_SIZE: u64 = 2_147_483_648; // 2 GB
+const DEFAULT_MUTABLE_BUFFER_SIZE: usize = 2_147_483_648; // 2 GB
 const DEFAULT_PERSIST_AFTER_COLD_SECONDS: u32 = 900; // 15 minutes
 
 impl MutableBufferConfig {
