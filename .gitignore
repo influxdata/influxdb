@@ -4,3 +4,4 @@
 .env
 *.tsm
 **/.DS_Store
+**/.vscode

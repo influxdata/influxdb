@@ -137,6 +137,7 @@ pub trait PartitionChunk: Debug + Send + Sync {
         &self,
         table_name: &str,
         predicate: &Predicate,
+        columns: Selection<'_>,
     ) -> Result<Option<StringSet>, Self::Error>;
 
     /// Returns the Schema for a table in this chunk, with the
