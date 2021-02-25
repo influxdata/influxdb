@@ -166,7 +166,6 @@ const (
 type storer interface {
 	entry(key []byte) *entry                        // Get an entry by its key.
 	write(key []byte, values Values) (bool, error)  // Write an entry to the store.
-	add(key []byte, entry *entry)                   // Add a new entry to the store.
 	remove(key []byte)                              // Remove an entry from the store.
 	keys(sorted bool) [][]byte                      // Return an optionally sorted slice of entry keys.
 	apply(f func([]byte, *entry) error) error       // Apply f to all entries in the store in parallel.
@@ -833,7 +832,6 @@ type emptyStore struct{}
 
 func (e emptyStore) entry(key []byte) *entry                        { return nil }
 func (e emptyStore) write(key []byte, values Values) (bool, error)  { return false, nil }
-func (e emptyStore) add(key []byte, entry *entry)                   {}
 func (e emptyStore) remove(key []byte)                              {}
 func (e emptyStore) keys(sorted bool) [][]byte                      { return nil }
 func (e emptyStore) apply(f func([]byte, *entry) error) error       { return nil }
