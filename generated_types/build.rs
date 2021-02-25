@@ -28,6 +28,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
     let storage_path = root.join("influxdata/platform/storage");
     let idpe_path = root.join("com/github/influxdata/idpe/storage/read");
     let management_path = root.join("influxdata/iox/management/v1");
+    let grpc_path = root.join("grpc/health/v1");
 
     let proto_files = vec![
         storage_path.join("test.proto"),
@@ -39,6 +40,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         management_path.join("base_types.proto"),
         management_path.join("database_rules.proto"),
         management_path.join("service.proto"),
+        grpc_path.join("service.proto"),
     ];
 
     // Tell cargo to recompile if any of these proto files are changed

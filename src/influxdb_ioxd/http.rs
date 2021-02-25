@@ -259,6 +259,7 @@ where
         })) // this endpoint is for API backward compatibility with InfluxDB 2.x
         .post("/api/v2/write", write::<M>)
         .get("/ping", ping)
+        .get("/health", health)
         .get("/api/v2/read", read::<M>)
         .get("/iox/api/v1/databases", list_databases::<M>)
         .put("/iox/api/v1/databases/:name", create_database::<M>)
@@ -686,8 +687,14 @@ async fn get_writer<M: ConnectionManager + Send + Sync + Debug + 'static>(
 
 // Route to test that the server is alive
 #[tracing::instrument(level = "debug")]
-async fn ping(req: Request<Body>) -> Result<Response<Body>, ApplicationError> {
+async fn ping(_: Request<Body>) -> Result<Response<Body>, ApplicationError> {
     let response_body = "PONG";
+    Ok(Response::new(Body::from(response_body.to_string())))
+}
+
+#[tracing::instrument(level = "debug")]
+async fn health(_: Request<Body>) -> Result<Response<Body>, ApplicationError> {
+    let response_body = "OK";
     Ok(Response::new(Body::from(response_body.to_string())))
 }
 
@@ -829,6 +836,22 @@ mod tests {
 
         // Print the response so if the test fails, we have a log of what went wrong
         check_response("ping", response, StatusCode::OK, "PONG").await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_health() -> Result<()> {
+        let test_storage = Arc::new(AppServer::new(
+            ConnectionManagerImpl {},
+            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
+        ));
+        let server_url = test_server(Arc::clone(&test_storage));
+
+        let client = Client::new();
+        let response = client.get(&format!("{}/health", server_url)).send().await;
+
+        // Print the response so if the test fails, we have a log of what went wrong
+        check_response("health", response, StatusCode::OK, "OK").await;
         Ok(())
     }
 

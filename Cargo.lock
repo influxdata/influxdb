@@ -1590,6 +1590,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tonic",
+ "tonic-health",
  "tracing",
  "tracing-futures",
  "tracing-opentelemetry",
@@ -1604,6 +1605,7 @@ dependencies = [
  "arrow_deps",
  "data_types",
  "futures-util",
+ "generated_types",
  "rand 0.8.3",
  "reqwest",
  "serde",
@@ -3905,6 +3907,21 @@ dependencies = [
  "prost-build",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "tonic-health"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a93d6649c8f5436d65337af08887a516183a096d785ef1fc3acf69ed60dbec6b"
+dependencies = [
+ "async-stream",
+ "bytes",
+ "prost",
+ "tokio",
+ "tokio-stream",
+ "tonic",
+ "tonic-build",
 ]
 
 [[package]]

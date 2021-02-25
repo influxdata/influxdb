@@ -30,7 +30,22 @@ where
 {
     let stream = TcpListenerStream::new(socket);
 
+    let (mut health_reporter, health_service) = tonic_health::server::health_reporter();
+
+    let services = [
+        generated_types::STORAGE_SERVICE,
+        generated_types::IOX_TESTING_SERVICE,
+        generated_types::ARROW_SERVICE,
+    ];
+
+    for service in &services {
+        health_reporter
+            .set_service_status(service, tonic_health::ServingStatus::Serving)
+            .await;
+    }
+
     tonic::transport::Server::builder()
+        .add_service(health_service)
         .add_service(testing::make_server())
         .add_service(storage::make_server(Arc::clone(&server)))
         .add_service(flight::make_server(server))

@@ -196,6 +196,22 @@ all data in the `company` organization's `sensors` bucket for the `processes` me
 curl -v -G -d 'org=company' -d 'bucket=sensors' --data-urlencode 'sql_query=select * from processes' "http://127.0.0.1:8080/api/v2/read"
 ```
 
+### Health Checks
+
+The HTTP API exposes a healthcheck endpoint at `/health`
+
+```shell
+$ curl http://127.0.0.1:8080/health
+OK
+```
+
+The gRPC API implements the [gRPC Health Checking Protocol](https://github.com/grpc/grpc/blob/master/doc/health-checking.md). This can be tested with [grpc-health-probe](https://github.com/grpc-ecosystem/grpc-health-probe)
+
+```shell
+$ grpc_health_probe -addr 127.0.0.1:8082 -service influxdata.platform.storage.Storage
+status: SERVING
+```
+
 ## Contributing
 
 We welcome community contributions from anyone!
