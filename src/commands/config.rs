@@ -101,7 +101,7 @@ pub struct Config {
 Possible values (case insensitive):
 
 * memory (default): Effectively no object persistence.
-* file: Stores objects in the local filesystem. Must also set `--database_directory`.
+* file: Stores objects in the local filesystem. Must also set `--data-dir`.
 * s3: Amazon S3. Must also set `--bucket`, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and
    AWS_DEFAULT_REGION.
 * google: Google Cloud Storage. Must also set `--bucket` and SERVICE_ACCOUNT.
