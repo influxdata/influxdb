@@ -873,7 +873,6 @@ func mustMarshalEntry(entry WALEntry) (WalEntryType, []byte) {
 type TestStore struct {
 	entryf       func(key []byte) *entry
 	writef       func(key []byte, values Values) (bool, error)
-	addf         func(key []byte, entry *entry)
 	removef      func(key []byte)
 	keysf        func(sorted bool) [][]byte
 	applyf       func(f func([]byte, *entry) error) error
@@ -886,7 +885,6 @@ type TestStore struct {
 func NewTestStore() *TestStore                                      { return &TestStore{} }
 func (s *TestStore) entry(key []byte) *entry                        { return s.entryf(key) }
 func (s *TestStore) write(key []byte, values Values) (bool, error)  { return s.writef(key, values) }
-func (s *TestStore) add(key []byte, entry *entry)                   { s.addf(key, entry) }
 func (s *TestStore) remove(key []byte)                              { s.removef(key) }
 func (s *TestStore) keys(sorted bool) [][]byte                      { return s.keysf(sorted) }
 func (s *TestStore) apply(f func([]byte, *entry) error) error       { return s.applyf(f) }
