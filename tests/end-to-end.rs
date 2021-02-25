@@ -377,6 +377,27 @@ impl TestServer {
         // different ports but both need to be up for the test to run
         let try_grpc_connect = async {
             let mut interval = tokio::time::interval(Duration::from_millis(500));
+
+            loop {
+                match influxdb_iox_client::health::Client::connect(GRPC_URL_BASE).await {
+                    Ok(mut client) => {
+                        println!("Successfully connected to server");
+
+                        match client.check_storage().await {
+                            Ok(_) => {
+                                println!("Storage service is running");
+                                break;
+                            }
+                            Err(e) => println!("Error checking storage service status: {}", e),
+                        }
+                    }
+                    Err(e) => {
+                        println!("Waiting for gRPC API to be up: {}", e);
+                    }
+                }
+                interval.tick().await;
+            }
+
             loop {
                 match StorageClient::connect(GRPC_URL_BASE).await {
                     Ok(storage_client) => {
@@ -387,7 +408,7 @@ impl TestServer {
                         return;
                     }
                     Err(e) => {
-                        println!("Waiting for gRPC server to be up: {}", e);
+                        println!("Failed to create storage client: {}", e)
                     }
                 }
                 interval.tick().await;
@@ -396,7 +417,7 @@ impl TestServer {
 
         let try_http_connect = async {
             let client = reqwest::Client::new();
-            let url = format!("{}/ping", HTTP_BASE);
+            let url = format!("{}/health", HTTP_BASE);
             let mut interval = tokio::time::interval(Duration::from_millis(500));
             loop {
                 match client.get(&url).send().await {

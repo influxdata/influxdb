@@ -52,12 +52,28 @@ mod pb {
             }
         }
     }
+
+    // Needed because of https://github.com/hyperium/tonic/issues/471
+    pub mod grpc {
+        pub mod health {
+            pub mod v1 {
+                include!(concat!(env!("OUT_DIR"), "/grpc.health.v1.rs"));
+            }
+        }
+    }
 }
 
 include!(concat!(env!("OUT_DIR"), "/wal_generated.rs"));
+
+/// gRPC Storage Service
+pub const STORAGE_SERVICE: &str = "influxdata.platform.storage.Storage";
+/// gRPC Testing Service
+pub const IOX_TESTING_SERVICE: &str = "influxdata.platform.storage.IOxTesting";
+/// gRPC Arrow Flight Service
+pub const ARROW_SERVICE: &str = "arrow.flight.protocol.FlightService";
 
 pub use pb::com::github::influxdata::idpe::storage::read::*;
 pub use pb::influxdata::platform::storage::*;
 
 pub use google_types as google;
-pub use pb::influxdata;
+pub use pb::{grpc, influxdata};

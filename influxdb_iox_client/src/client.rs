@@ -9,6 +9,9 @@ use data_types::{http::ListDatabasesResponse, DatabaseName};
 #[cfg(feature = "flight")]
 mod flight;
 
+/// Client for the gRPC health checking API
+pub mod health;
+
 // can't combine these into one statement that uses `{}` because of this bug in
 // the `unreachable_pub` lint: https://github.com/rust-lang/rust/issues/64762
 #[cfg(feature = "flight")]

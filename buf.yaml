@@ -5,6 +5,7 @@ build:
   excludes:
     - generated_types/protos/com
     - generated_types/protos/influxdata/platform
+    - generated_types/protos/grpc
 
 lint:
   use:
