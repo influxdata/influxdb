@@ -298,14 +298,14 @@ func (fs *FileSet) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (ma
 			}
 			return nil, nil
 		default:
-			return nil, fmt.Errorf("invalid operator")
+			return nil, fmt.Errorf("invalid operator for tag keys by expression")
 		}
 
 	case *influxql.ParenExpr:
 		return fs.MeasurementTagKeysByExpr(name, e.Expr)
 	}
 
-	return nil, fmt.Errorf("%#v", expr)
+	return nil, fmt.Errorf("Invalid measurement tag keys expression: %#v", expr)
 }
 
 // tagKeysByFilter will filter the tag keys for the measurement.

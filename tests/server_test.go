@@ -7984,6 +7984,23 @@ func TestServer_Query_ShowTagKeys(t *testing.T) {
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
+			name:    `show tag keys on db0 with key`,
+			command: "SHOW TAG KEYS ON db0 WITH KEY =~ /ho/",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["tagKey"],"values":[["host"]]},{"name":"disk","columns":["tagKey"],"values":[["host"]]},{"name":"gpu","columns":["tagKey"],"values":[["host"]]}]}]}`,
+		},
+		&Query{
+			name:    "show tag keys from with key",
+			command: "SHOW TAG KEYS FROM cpu WITH KEY = host",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["tagKey"],"values":[["host"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "show tag keys from regex with key in",
+			command: "SHOW TAG KEYS FROM /[cg]pu/ WITH KEY IN (host, region) ",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"cpu","columns":["tagKey"],"values":[["host"],["region"]]},{"name":"gpu","columns":["tagKey"],"values":[["host"],["region"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
 			name:    "show tag keys measurement not found",
 			command: "SHOW TAG KEYS FROM doesntexist",
 			exp:     `{"results":[{"statement_id":0}]}`,
@@ -8016,6 +8033,12 @@ func TestServer_Query_ShowTagKeys(t *testing.T) {
 			name:    "show tag keys with time where",
 			command: "SHOW TAG KEYS WHERE host = 'server03' AND time > 0",
 			exp:     `{"results":[{"statement_id":0,"series":[{"name":"disk","columns":["tagKey"],"values":[["host"],["region"]]},{"name":"gpu","columns":["tagKey"],"values":[["host"],["region"]]}]}]}`,
+			params:  url.Values{"db": []string{"db0"}},
+		},
+		&Query{
+			name:    "show tag keys with key with time where",
+			command: "SHOW TAG KEYS WITH KEY = host WHERE host = 'server03' AND time > 0",
+			exp:     `{"results":[{"statement_id":0,"series":[{"name":"disk","columns":["tagKey"],"values":[["host"]]},{"name":"gpu","columns":["tagKey"],"values":[["host"]]}]}]}`,
 			params:  url.Values{"db": []string{"db0"}},
 		},
 		&Query{
