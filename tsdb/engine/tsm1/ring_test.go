@@ -51,7 +51,12 @@ var strSliceRes [][]byte
 func benchmarkRingkeys(b *testing.B, r *ring, keys int) {
 	// Add some keys
 	for i := 0; i < keys; i++ {
-		r.add([]byte(fmt.Sprintf("cpu,host=server-%d value=1", i)), &entry{})
+		r.write([]byte(fmt.Sprintf("cpu,host=server-%d value=1", i)), Values([]Value{
+			IntegerValue{
+				unixnano: 1,
+				value:    int64(i),
+			},
+		}))
 	}
 
 	b.ReportAllocs()
@@ -72,7 +77,12 @@ func benchmarkRingGetPartition(b *testing.B, r *ring, keys int) {
 	// Add some keys
 	for i := 0; i < keys; i++ {
 		vals[i] = []byte(fmt.Sprintf("cpu,host=server-%d field1=value1,field2=value2,field4=value4,field5=value5,field6=value6,field7=value7,field8=value1,field9=value2,field10=value4,field11=value5,field12=value6,field13=value7", i))
-		r.add(vals[i], nil)
+		r.write([]byte(fmt.Sprintf("cpu,host=server-%d value=1", i)), Values([]Value{
+			IntegerValue{
+				unixnano: 1,
+				value:    int64(i),
+			},
+		}))
 	}
 
 	b.ReportAllocs()
