@@ -3,7 +3,6 @@ package tsm1
 import (
 	"fmt"
 	"sync"
-	"sync/atomic"
 
 	"github.com/cespare/xxhash"
 	"github.com/influxdata/influxdb/pkg/bytesutil"
@@ -32,12 +31,6 @@ const partitions = 16
 // key is hashed and the first 8 bits are used as an index to the ring.
 //
 type ring struct {
-	// Number of keys within the ring. This is used to provide a hint for
-	// allocating the return values in keys(). It will not be perfectly accurate
-	// since it doesn't consider adding duplicate keys, or trying to remove non-
-	// existent keys.
-	keysHint int64
-
 	// The unique set of partitions in the ring.
 	// len(partitions) <= len(continuum)
 	partitions []*partition
@@ -81,7 +74,6 @@ func (r *ring) reset() {
 	for _, partition := range r.partitions {
 		partition.reset()
 	}
-	atomic.StoreInt64(&r.keysHint, 0)
 }
 
 // getPartition retrieves the hash ring partition associated with the provided
@@ -103,28 +95,16 @@ func (r *ring) write(key []byte, values Values) (bool, error) {
 	return r.getPartition(key).write(key, values)
 }
 
-// add adds an entry to the ring.
-func (r *ring) add(key []byte, entry *entry) {
-	r.getPartition(key).add(key, entry)
-	atomic.AddInt64(&r.keysHint, 1)
-}
-
 // remove deletes the entry for the given key.
 // remove is safe for use by multiple goroutines.
 func (r *ring) remove(key []byte) {
 	r.getPartition(key).remove(key)
-	for {
-		prev := atomic.LoadInt64(&r.keysHint)
-		if prev <= 0 || atomic.CompareAndSwapInt64(&r.keysHint, prev, prev-1) {
-			break
-		}
-	}
 }
 
 // keys returns all the keys from all partitions in the hash ring. The returned
 // keys will be in order if sorted is true.
 func (r *ring) keys(sorted bool) [][]byte {
-	keys := make([][]byte, 0, atomic.LoadInt64(&r.keysHint))
+	keys := make([][]byte, 0)
 	for _, p := range r.partitions {
 		keys = append(keys, p.keys()...)
 	}
@@ -265,13 +245,6 @@ func (p *partition) write(key []byte, values Values) (bool, error) {
 
 	p.store[string(key)] = e
 	return true, nil
-}
-
-// add adds a new entry for key to the partition.
-func (p *partition) add(key []byte, entry *entry) {
-	p.mu.Lock()
-	p.store[string(key)] = entry
-	p.mu.Unlock()
 }
 
 // remove deletes the entry associated with the provided key.
