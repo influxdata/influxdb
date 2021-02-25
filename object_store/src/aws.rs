@@ -419,26 +419,26 @@ mod tests {
             dotenv::dotenv().ok();
 
             let region = env::var("AWS_DEFAULT_REGION");
-            let bucket_name = env::var("INFLUXDB_IOX_S3_BUCKET");
+            let bucket_name = env::var("INFLUXDB_IOX_BUCKET");
             let force = std::env::var("TEST_INTEGRATION");
 
             match (region.is_ok(), bucket_name.is_ok(), force.is_ok()) {
                 (false, false, true) => {
                     panic!(
                         "TEST_INTEGRATION is set, \
-                            but AWS_DEFAULT_REGION and INFLUXDB_IOX_S3_BUCKET are not"
+                            but AWS_DEFAULT_REGION and INFLUXDB_IOX_BUCKET are not"
                     )
                 }
                 (false, true, true) => {
                     panic!("TEST_INTEGRATION is set, but AWS_DEFAULT_REGION is not")
                 }
                 (true, false, true) => {
-                    panic!("TEST_INTEGRATION is set, but INFLUXDB_IOX_S3_BUCKET is not")
+                    panic!("TEST_INTEGRATION is set, but INFLUXDB_IOX_BUCKET is not")
                 }
                 (false, false, false) => {
                     eprintln!(
                         "skipping integration test - set \
-                               AWS_DEFAULT_REGION and INFLUXDB_IOX_S3_BUCKET to run"
+                               AWS_DEFAULT_REGION and INFLUXDB_IOX_BUCKET to run"
                     );
                     return Ok(());
                 }
@@ -447,7 +447,7 @@ mod tests {
                     return Ok(());
                 }
                 (true, false, false) => {
-                    eprintln!("skipping integration test - set INFLUXDB_IOX_S3_BUCKET to run");
+                    eprintln!("skipping integration test - set INFLUXDB_IOX_BUCKET to run");
                     return Ok(());
                 }
                 _ => {}
@@ -466,8 +466,8 @@ mod tests {
             "The environment variable AWS_DEFAULT_REGION must be set \
                  to a value like `us-east-2`"
         })?;
-        let bucket_name = env::var("INFLUXDB_IOX_S3_BUCKET")
-            .map_err(|_| "The environment variable INFLUXDB_IOX_S3_BUCKET must be set")?;
+        let bucket_name = env::var("INFLUXDB_IOX_BUCKET")
+            .map_err(|_| "The environment variable INFLUXDB_IOX_BUCKET must be set")?;
 
         Ok((region.parse()?, bucket_name))
     }

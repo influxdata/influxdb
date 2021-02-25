@@ -299,7 +299,7 @@ mod tests {
 
             let required_vars = [
                 "AZURE_STORAGE_ACCOUNT",
-                "AZURE_STORAGE_CONTAINER",
+                "INFLUXDB_IOX_BUCKET",
                 "AZURE_STORAGE_MASTER_KEY",
             ];
             let unset_vars: Vec<_> = required_vars
@@ -334,8 +334,8 @@ mod tests {
     async fn azure_blob_test() -> Result<()> {
         maybe_skip_integration!();
 
-        let container_name = env::var("AZURE_STORAGE_CONTAINER")
-            .map_err(|_| "The environment variable AZURE_STORAGE_CONTAINER must be set")?;
+        let container_name = env::var("INFLUXDB_IOX_BUCKET")
+            .map_err(|_| "The environment variable INFLUXDB_IOX_BUCKET must be set")?;
         let integration = MicrosoftAzure::new_from_env(container_name);
 
         put_get_delete_list(&integration).await?;
