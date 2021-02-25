@@ -1458,7 +1458,7 @@ func (is IndexSet) measurementNamesByExpr(auth query.Authorizer, expr influxql.E
 	case *influxql.ParenExpr:
 		return is.measurementNamesByExpr(auth, e.Expr)
 	default:
-		return nil, fmt.Errorf("%#v", expr)
+		return nil, fmt.Errorf("Invalid measurement expression %#v", expr)
 	}
 }
 
@@ -2819,43 +2819,40 @@ func (is IndexSet) matchTagValueNotEqualNotEmptySeriesIDIterator(name, key []byt
 	return DifferenceSeriesIDIterators(mitr, MergeSeriesIDIterators(itrs...)), nil
 }
 
-// TagValuesByKeyAndExpr retrieves tag values for the provided tag keys.
+// tagValuesByKeyAndExpr retrieves tag values for the provided tag keys.
 //
-// TagValuesByKeyAndExpr returns sets of values for each key, indexable by the
+// tagValuesByKeyAndExpr returns sets of values for each key, indexable by the
 // position of the tag key in the keys argument.
 //
 // N.B tagValuesByKeyAndExpr relies on keys being sorted in ascending
 // lexicographic order.
-func (is IndexSet) TagValuesByKeyAndExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr, fieldset *MeasurementFieldSet) ([]map[string]struct{}, error) {
-	release := is.SeriesFile.Retain()
-	defer release()
-	return is.tagValuesByKeyAndExpr(auth, name, keys, expr)
-}
-
-// tagValuesByKeyAndExpr retrieves tag values for the provided tag keys. See
-// TagValuesByKeyAndExpr for more details.
 //
 // tagValuesByKeyAndExpr guarantees to never take any locks on the underlying
 // series file.
 func (is IndexSet) tagValuesByKeyAndExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr) ([]map[string]struct{}, error) {
 	database := is.Database()
 
-	valueExpr := influxql.CloneExpr(expr)
-	valueExpr = influxql.Reduce(influxql.RewriteExpr(valueExpr, func(e influxql.Expr) influxql.Expr {
+	valueExpr, remainingExpr, err := influxql.PartitionExpr(influxql.CloneExpr(expr), func(e influxql.Expr) (bool, error) {
 		switch e := e.(type) {
 		case *influxql.BinaryExpr:
 			switch e.Op {
 			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
 				tag, ok := e.LHS.(*influxql.VarRef)
-				if !ok || tag.Val != "value" {
-					return nil
+				if ok && tag.Val == "value" {
+					return true, nil
 				}
 			}
 		}
-		return e
-	}), nil)
+		return false, nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if remainingExpr == nil {
+		remainingExpr = &influxql.BooleanLiteral{Val: true}
+	}
 
-	itr, err := is.seriesByExprIterator(name, expr)
+	itr, err := is.seriesByExprIterator(name, remainingExpr)
 	if err != nil {
 		return nil, err
 	} else if itr == nil {
@@ -2886,6 +2883,18 @@ func (is IndexSet) tagValuesByKeyAndExpr(auth query.Authorizer, name []byte, key
 			return nil, err
 		} else if e.SeriesID == 0 {
 			break
+		}
+
+		if e.Expr != nil {
+			// We don't yet have code that correctly processes expressions that
+			// seriesByExprIterator doesn't handle
+			lit, ok := e.Expr.(*influxql.BooleanLiteral)
+			if !ok {
+				return nil, fmt.Errorf("Expression too complex for metaquery: %v", e.Expr)
+			}
+			if !lit.Val {
+				continue
+			}
 		}
 
 		buf := is.SeriesFile.SeriesKey(e.SeriesID)
