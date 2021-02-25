@@ -41,7 +41,6 @@ func (s *HTTP) Do(hreq *http.Request) (*http.Response, error) {
 
 	hreq.Header.Set("Content-Type", "application/json")
 	hreq.Header.Set("Accept", "text/csv")
-	// ?? hreq = hreq.WithContext(ctx)
 
 	hc := newClient(s.url.Scheme, s.InsecureSkipVerify)
 	return hc.Do(hreq)
