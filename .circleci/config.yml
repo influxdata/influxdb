@@ -86,7 +86,7 @@ jobs:
   # out for parallel CI runs!
   #
   # To change the contents of the build container, modify docker/Dockerfile.ci
-  # To change the final release container, modify docker/Dockerfile.perf
+  # To change the final release container, modify docker/Dockerfile.iox
   perf_image:
     docker:
       - image: quay.io/influxdb/rust:ci
@@ -105,7 +105,7 @@ jobs:
           echo "$QUAY_PASS" | docker login quay.io --username $QUAY_USER --password-stdin
       - run: |
           BRANCH=$(git rev-parse --abbrev-ref HEAD | tr '/' '.')
-          docker build -t quay.io/influxdb/fusion:$BRANCH -f docker/Dockerfile.perf .
+          docker build -t quay.io/influxdb/fusion:$BRANCH -f docker/Dockerfile.iox .
           docker push quay.io/influxdb/fusion:$BRANCH
           echo "export BRANCH=${BRANCH}" >> $BASH_ENV
       - run:
