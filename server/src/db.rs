@@ -309,7 +309,7 @@ impl Database for Db {
     async fn query_series(
         &self,
         predicate: query::predicate::Predicate,
-    ) -> Result<query::exec::SeriesSetPlans, Self::Error> {
+    ) -> Result<query::plan::seriesset::SeriesSetPlans, Self::Error> {
         self.mutable_buffer
             .as_ref()
             .context(DatabaseNotReadable)?
@@ -322,7 +322,7 @@ impl Database for Db {
         &self,
         predicate: query::predicate::Predicate,
         gby_agg: query::group_by::GroupByAndAggregate,
-    ) -> Result<query::exec::SeriesSetPlans, Self::Error> {
+    ) -> Result<query::plan::seriesset::SeriesSetPlans, Self::Error> {
         self.mutable_buffer
             .as_ref()
             .context(DatabaseNotReadable)?

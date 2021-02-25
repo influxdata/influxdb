@@ -11,7 +11,8 @@ use async_trait::async_trait;
 use data_types::{
     data::ReplicatedWrite, partition_metadata::TableSummary, schema::Schema, selection::Selection,
 };
-use exec::{stringset::StringSet, Executor, SeriesSetPlans};
+use exec::{stringset::StringSet, Executor};
+use plan::seriesset::SeriesSetPlans;
 
 use std::{fmt::Debug, sync::Arc};
 

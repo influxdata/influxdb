@@ -3,14 +3,13 @@ use data_types::{
     database_rules::{PartitionSort, PartitionSortRules},
 };
 use generated_types::wal;
-use query::group_by::Aggregate;
 use query::group_by::GroupByAndAggregate;
 use query::group_by::WindowDuration;
 use query::{
-    exec::{SeriesSetPlan, SeriesSetPlans},
-    predicate::Predicate,
-    Database,
+    group_by::Aggregate,
+    plan::seriesset::{SeriesSetPlan, SeriesSetPlans},
 };
+use query::{predicate::Predicate, Database};
 
 use crate::column::Column;
 use crate::table::Table;

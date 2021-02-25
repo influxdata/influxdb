@@ -12,14 +12,11 @@ use arrow_deps::{
     datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream},
 };
 
-use crate::{exec::Executor, group_by::GroupByAndAggregate};
 use crate::{
-    exec::{
-        stringset::{StringSet, StringSetRef},
-        SeriesSetPlans,
-    },
+    exec::stringset::{StringSet, StringSetRef},
     Database, DatabaseStore, PartitionChunk, Predicate,
 };
+use crate::{exec::Executor, group_by::GroupByAndAggregate, plan::seriesset::SeriesSetPlans};
 
 use data_types::{
     data::{lines_to_replicated_write, ReplicatedWrite},

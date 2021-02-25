@@ -1109,8 +1109,8 @@ mod tests {
     use arrow_deps::datafusion::logical_plan::{col, lit, Expr};
     use panic_logging::SendPanicsToTracing;
     use query::{
-        exec::SeriesSetPlans,
         group_by::{Aggregate as QueryAggregate, WindowDuration as QueryWindowDuration},
+        plan::seriesset::SeriesSetPlans,
         test::QueryGroupsRequest,
         test::TestDatabaseStore,
         test::{QuerySeriesRequest, TestChunk},

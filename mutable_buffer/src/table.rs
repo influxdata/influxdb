@@ -1,9 +1,10 @@
 use generated_types::wal as wb;
 use query::{
-    exec::{field::FieldColumns, SeriesSetPlan},
+    exec::field::FieldColumns,
     func::selectors::{selector_first, selector_last, selector_max, selector_min, SelectorOutput},
     func::window::make_window_bound_expr,
     group_by::{Aggregate, WindowDuration},
+    plan::seriesset::SeriesSetPlan,
 };
 
 use std::{
