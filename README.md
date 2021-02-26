@@ -176,6 +176,30 @@ The server will, by default, start an HTTP API server on port `8080` and a gRPC 
 
 ### Writing and Reading Data
 
+Each IOx instance requires a writer ID.
+This can be set three ways:
+- set an environment variable `INFLUXDB_IOX_ID=42`
+- set a flag `--writer-id 42`
+- send an HTTP PUT request:
+```
+curl --request PUT \
+  --url http://localhost:8080/iox/api/v1/id \
+  --header 'Content-Type: application/json' \
+  --data '{
+  "id": 42
+  }'
+```
+
+To write data, you need a destination database.
+This is set via HTTP PUT, identifying the database by org `company` and bucket `sensors`:
+```
+curl --request PUT \
+  --url http://localhost:8080/iox/api/v1/databases/company_sensors \
+  --header 'Content-Type: application/json' \
+  --data '{
+}'
+```
+
 Data can be stored in InfluxDB IOx by sending it in [line protocol] format to the `/api/v2/write`
 endpoint. Data is stored by organization and bucket names. Here's an example using [`curl`] with
 the organization name `company` and the bucket name `sensors` that will send the data in the
