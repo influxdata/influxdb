@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"path/filepath"
 	"strconv"
 	"time"
@@ -239,8 +240,7 @@ func onboardingRequest(ui *input.UI) (*influxdb.OnboardingRequest, error) {
 		if err != nil {
 			return nil, err
 		}
-		secs := dur / time.Second
-		nanos := dur % time.Second
+		secs, nanos := math.Modf(dur.Seconds())
 		if nanos > 0 {
 			return nil, fmt.Errorf("retention policy %q is too precise, must be divisible by 1s", setupFlags.retention)
 		}

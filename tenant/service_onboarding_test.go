@@ -220,10 +220,10 @@ func TestOnboardService_RetentionPolicyDeprecated(t *testing.T) {
 
 	retention := 72 * time.Hour
 	onboard, err := svc.OnboardInitialUser(ctx, &influxdb.OnboardingRequest{
-		User:                   "name",
-		Org:                    "name",
-		Bucket:                 "name",
-		RetentionPeriodHours: retention,
+		User:                      "name",
+		Org:                       "name",
+		Bucket:                    "name",
+		RetentionPeriodDeprecated: retention,
 	})
 
 	if err != nil {
