@@ -13,7 +13,7 @@ use async_trait::async_trait;
 use data_types::{data::ReplicatedWrite, database_rules::DatabaseRules, selection::Selection};
 use mutable_buffer::MutableBufferDb;
 use parking_lot::Mutex;
-use query::{plan::stringset::StringSetPlan, Database, PartitionChunk};
+use query::{Database, PartitionChunk};
 use read_buffer::Database as ReadBufferDb;
 use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -306,23 +306,10 @@ impl Database for Db {
             .context(MutableBufferWrite)
     }
 
-    async fn column_values(
-        &self,
-        column_name: &str,
-        predicate: query::predicate::Predicate,
-    ) -> Result<StringSetPlan, Self::Error> {
-        self.mutable_buffer
-            .as_ref()
-            .context(DatabaseNotReadable)?
-            .column_values(column_name, predicate)
-            .await
-            .context(MutableBufferRead)
-    }
-
     async fn query_series(
         &self,
         predicate: query::predicate::Predicate,
-    ) -> Result<query::exec::SeriesSetPlans, Self::Error> {
+    ) -> Result<query::plan::seriesset::SeriesSetPlans, Self::Error> {
         self.mutable_buffer
             .as_ref()
             .context(DatabaseNotReadable)?
@@ -335,7 +322,7 @@ impl Database for Db {
         &self,
         predicate: query::predicate::Predicate,
         gby_agg: query::group_by::GroupByAndAggregate,
-    ) -> Result<query::exec::SeriesSetPlans, Self::Error> {
+    ) -> Result<query::plan::seriesset::SeriesSetPlans, Self::Error> {
         self.mutable_buffer
             .as_ref()
             .context(DatabaseNotReadable)?

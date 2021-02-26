@@ -1,9 +1,10 @@
 use generated_types::wal as wb;
 use query::{
-    exec::{field::FieldColumns, SeriesSetPlan},
+    exec::field::FieldColumns,
     func::selectors::{selector_first, selector_last, selector_max, selector_min, SelectorOutput},
     func::window::make_window_bound_expr,
     group_by::{Aggregate, WindowDuration},
+    plan::seriesset::SeriesSetPlan,
 };
 
 use std::{
@@ -35,7 +36,7 @@ use arrow_deps::{
     },
     datafusion::{
         self,
-        logical_plan::{Expr, LogicalPlan, LogicalPlanBuilder},
+        logical_plan::{Expr, LogicalPlanBuilder},
         prelude::*,
     },
 };
@@ -223,7 +224,7 @@ impl Table {
     }
 
     /// Returns a reference to the specified column
-    fn column(&self, column_id: u32) -> Result<&Column> {
+    pub(crate) fn column(&self, column_id: u32) -> Result<&Column> {
         self.columns.get(&column_id).context(ColumnIdNotFound {
             id: column_id,
             table_id: self.id,
@@ -269,32 +270,6 @@ impl Table {
             Some(df_predicate) => plan_builder.filter(df_predicate).context(BuildingPlan),
             None => Ok(plan_builder),
         }
-    }
-
-    /// Creates a DataFusion LogicalPlan that returns column *values* as a
-    /// single column of Strings
-    ///
-    /// The created plan looks like:
-    ///
-    ///    Projection
-    ///        Filter(predicate)
-    ///          InMemoryScan
-    pub fn tag_values_plan(
-        &self,
-        column_name: &str,
-        chunk_predicate: &ChunkPredicate,
-        chunk: &Chunk,
-    ) -> Result<LogicalPlan> {
-        // Scan and Filter
-        let plan_builder = self.scan_with_predicates(chunk_predicate, chunk)?;
-
-        let select_exprs = vec![col(column_name)];
-
-        plan_builder
-            .project(&select_exprs)
-            .context(BuildingPlan)?
-            .build()
-            .context(BuildingPlan)
     }
 
     /// Creates a SeriesSet plan that produces an output table with rows that
@@ -503,10 +478,7 @@ impl Table {
                         column_name: col_name,
                         chunk: chunk.id,
                     })?;
-            let column = self.columns.get(&column_id).context(ColumnIdNotFound {
-                id: column_id,
-                table_id: self.id,
-            })?;
+            let column = self.column(column_id)?;
 
             Ok(column.data_type())
         })?;
@@ -735,10 +707,7 @@ impl Table {
 
         for col in &selection.cols {
             let column_name = col.column_name;
-            let column = self.columns.get(&col.column_id).context(ColumnIdNotFound {
-                id: col.column_id,
-                table_id: self.id,
-            })?;
+            let column = self.column(col.column_id)?;
 
             schema_builder = match column {
                 Column::String(_, _) => schema_builder.field(column_name, ArrowDataType::Utf8),
@@ -769,10 +738,7 @@ impl Table {
         let mut columns = Vec::with_capacity(selection.cols.len());
 
         for col in &selection.cols {
-            let column = self.columns.get(&col.column_id).context(ColumnIdNotFound {
-                id: col.column_id,
-                table_id: self.id,
-            })?;
+            let column = self.column(col.column_id)?;
 
             let array = match column {
                 Column::String(vals, _) => {
@@ -1221,6 +1187,7 @@ impl<'a> TableColSelection<'a> {
 mod tests {
 
     use arrow::util::pretty::pretty_format_batches;
+    use arrow_deps::datafusion::logical_plan::LogicalPlan;
     use data_types::data::split_lines_into_write_entry_partitions;
     use influxdb_line_protocol::{parse_lines, ParsedLine};
     use query::{

@@ -12,7 +12,7 @@ use panic_logging::SendPanicsToTracing;
 use server::{ConnectionManagerImpl as ConnectionManager, Server as AppServer};
 
 use crate::commands::{
-    config::{load_config, Config},
+    config::{load_config, Config, ObjectStore as ObjStoreOpt},
     logging::LoggingLevel,
 };
 
@@ -64,6 +64,12 @@ pub enum Error {
 
     #[snafu(display("Error serving RPC: {}", source))]
     ServingRPC { source: self::rpc::Error },
+
+    #[snafu(display("Specifed {} for the object store, but not a bucket", object_store))]
+    InvalidCloudObjectStoreConfiguration { object_store: ObjStoreOpt },
+
+    #[snafu(display("Specified file for the object store, but not a database directory"))]
+    InvalidFileObjectStoreConfiguration,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -92,22 +98,53 @@ pub async fn main(logging_level: LoggingLevel, config: Option<Config>) -> Result
     let f = SendPanicsToTracing::new();
     std::mem::forget(f);
 
-    let db_dir = &config.database_directory;
-
-    let object_store = if let Some(bucket_name) = &config.gcp_bucket {
-        info!("Using GCP bucket {} for storage", bucket_name);
-        ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(bucket_name))
-    } else if let Some(bucket_name) = &config.s3_bucket {
-        info!("Using S3 bucket {} for storage", bucket_name);
-        // rusoto::Region's default takes the value from the AWS_DEFAULT_REGION env var.
-        ObjectStore::new_amazon_s3(AmazonS3::new(Default::default(), bucket_name))
-    } else if let Some(db_dir) = db_dir {
-        info!("Using local dir {:?} for storage", db_dir);
-        fs::create_dir_all(db_dir).context(CreatingDatabaseDirectory { path: db_dir })?;
-        ObjectStore::new_file(object_store::disk::File::new(&db_dir))
-    } else {
-        warn!("NO PERSISTENCE: using memory for object storage");
-        ObjectStore::new_in_memory(object_store::memory::InMemory::new())
+    let object_store = match (
+        config.object_store,
+        config.bucket,
+        config.database_directory,
+    ) {
+        (Some(ObjStoreOpt::Google), Some(bucket), _) => {
+            info!("Using GCP bucket {} for storage", bucket);
+            ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(bucket))
+        }
+        (Some(ObjStoreOpt::Google), None, _) => {
+            return InvalidCloudObjectStoreConfiguration {
+                object_store: ObjStoreOpt::Google,
+            }
+            .fail();
+        }
+        (Some(ObjStoreOpt::S3), Some(bucket), _) => {
+            info!("Using S3 bucket {} for storage", bucket);
+            // rusoto::Region's default takes the value from the AWS_DEFAULT_REGION env var.
+            ObjectStore::new_amazon_s3(AmazonS3::new(Default::default(), bucket))
+        }
+        (Some(ObjStoreOpt::S3), None, _) => {
+            return InvalidCloudObjectStoreConfiguration {
+                object_store: ObjStoreOpt::S3,
+            }
+            .fail();
+        }
+        (Some(ObjStoreOpt::File), _, Some(ref db_dir)) => {
+            info!("Using local dir {:?} for storage", db_dir);
+            fs::create_dir_all(db_dir).context(CreatingDatabaseDirectory { path: db_dir })?;
+            ObjectStore::new_file(object_store::disk::File::new(&db_dir))
+        }
+        (Some(ObjStoreOpt::File), _, None) => {
+            return InvalidFileObjectStoreConfiguration.fail();
+        }
+        (Some(ObjStoreOpt::Azure), Some(_bucket), _) => {
+            unimplemented!();
+        }
+        (Some(ObjStoreOpt::Azure), None, _) => {
+            return InvalidCloudObjectStoreConfiguration {
+                object_store: ObjStoreOpt::Azure,
+            }
+            .fail();
+        }
+        (Some(ObjStoreOpt::Memory), _, _) | (None, _, _) => {
+            warn!("NO PERSISTENCE: using memory for object storage");
+            ObjectStore::new_in_memory(object_store::memory::InMemory::new())
+        }
     };
     let object_storage = Arc::new(object_store);
 

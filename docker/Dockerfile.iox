@@ -1,7 +1,11 @@
 ###
-# Dockerfile for the image used in CI performance tests
+# Dockerfile used for deploying IOx
 ##
-FROM rust:slim-buster
+FROM debian:buster-slim
+
+RUN apt-get update \
+    && apt-get install -y libssl1.1 libgcc1 libc6 \
+	&& rm -rf /var/lib/{apt,dpkg,cache,log}
 
 RUN groupadd -g 1500 rust \
   && useradd -u 1500 -g rust -s /bin/bash -m rust
@@ -15,4 +19,4 @@ COPY target/release/influxdb_iox /usr/bin/influxdb_iox
 
 EXPOSE 8080 8082
 
-CMD ["influxdb_iox"]
+ENTRYPOINT ["influxdb_iox"]

@@ -1,5 +1,6 @@
-//! This module contains a partial implementation of the /v2 HTTP api
-//! routes for InfluxDB IOx.
+//! This module contains the HTTP api for InfluxDB IOx, including a
+//! partial implementation of the /v2 HTTP api routes from InfluxDB
+//! for compatibility.
 //!
 //! Note that these routes are designed to be just helpers for now,
 //! and "close enough" to the real /v2 api to be able to test InfluxDB IOx
@@ -10,7 +11,7 @@
 //! database names and may remove this quasi /v2 API.
 
 // Influx crates
-use arrow_deps::{arrow, datafusion::physical_plan::collect};
+use arrow_deps::datafusion::physical_plan::collect;
 use data_types::{
     database_rules::DatabaseRules,
     http::{ListDatabasesResponse, WalMetadataQuery},
@@ -25,7 +26,7 @@ use server::{ConnectionManager, Server as AppServer};
 // External crates
 use bytes::{Bytes, BytesMut};
 use futures::{self, StreamExt};
-use http::header::CONTENT_ENCODING;
+use http::header::{CONTENT_ENCODING, CONTENT_TYPE};
 use hyper::{Body, Method, Request, Response, StatusCode};
 use routerify::{prelude::*, Middleware, RequestInfo, Router, RouterError, RouterService};
 use serde::{Deserialize, Serialize};
@@ -34,6 +35,9 @@ use tracing::{debug, error, info};
 
 use data_types::http::WalMetadataResponse;
 use std::{fmt::Debug, str, sync::Arc};
+
+mod format;
+use format::QueryOutputFormat;
 
 #[derive(Debug, Snafu)]
 pub enum ApplicationError {
@@ -86,7 +90,9 @@ pub enum ApplicationError {
     #[snafu(display("Expected query string in request, but none was provided"))]
     ExpectedQueryString {},
 
-    #[snafu(display("Invalid query string '{}': {}", query_string, source))]
+    /// Error for when we could not parse the http query uri (e.g.
+    /// `?foo=bar&bar=baz)`
+    #[snafu(display("Invalid query string in HTTP URI '{}': {}", query_string, source))]
     InvalidQueryString {
         query_string: String,
         source: serde_urlencoded::de::Error,
@@ -151,6 +157,21 @@ pub enum ApplicationError {
 
     #[snafu(display("Database {} does not have a WAL", name))]
     WALNotFound { name: String },
+
+    #[snafu(display("Internal error creating HTTP response:  {}", source))]
+    CreatingResponse { source: http::Error },
+
+    #[snafu(display(
+        "Error formatting results of SQL query '{}' using '{:?}': {}",
+        q,
+        format,
+        source
+    ))]
+    FormattingResult {
+        q: String,
+        format: QueryOutputFormat,
+        source: format::Error,
+    },
 }
 
 impl ApplicationError {
@@ -181,6 +202,8 @@ impl ApplicationError {
             Self::DatabaseNameError { .. } => self.bad_request(),
             Self::DatabaseNotFound { .. } => self.not_found(),
             Self::WALNotFound { .. } => self.not_found(),
+            Self::CreatingResponse { .. } => self.internal_error(),
+            Self::FormattingResult { .. } => self.internal_error(),
         }
     }
 
@@ -259,10 +282,11 @@ where
         })) // this endpoint is for API backward compatibility with InfluxDB 2.x
         .post("/api/v2/write", write::<M>)
         .get("/ping", ping)
-        .get("/api/v2/read", read::<M>)
+        .get("/health", health)
         .get("/iox/api/v1/databases", list_databases::<M>)
         .put("/iox/api/v1/databases/:name", create_database::<M>)
         .get("/iox/api/v1/databases/:name", get_database::<M>)
+        .get("/iox/api/v1/databases/:name/query", query::<M>)
         .get("/iox/api/v1/databases/:name/wal/meta", get_wal_meta::<M>)
         .put("/iox/api/v1/id", set_writer::<M>)
         .get("/iox/api/v1/id", get_writer::<M>)
@@ -406,53 +430,67 @@ where
         .unwrap())
 }
 
-#[derive(Deserialize, Debug)]
-/// Body of the request to the /read endpoint
-struct ReadInfo {
-    org: String,
-    bucket: String,
-    // TODO This is currently a "SQL" request -- should be updated to conform
-    // to the V2 API for reading (using timestamps, etc).
-    sql_query: String,
+#[derive(Deserialize, Debug, PartialEq)]
+/// Parsed URI Parameters of the request to the .../query endpoint
+struct QueryParams {
+    q: String,
+    #[serde(default)]
+    format: QueryOutputFormat,
 }
 
-// TODO: figure out how to stream read results out rather than rendering the
-// whole thing in mem
 #[tracing::instrument(level = "debug")]
-async fn read<M: ConnectionManager + Send + Sync + Debug + 'static>(
+async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
     req: Request<Body>,
 ) -> Result<Response<Body>, ApplicationError> {
     let server = Arc::clone(&req.data::<Arc<AppServer<M>>>().expect("server state"));
-    let query = req.uri().query().context(ExpectedQueryString {})?;
 
-    let read_info: ReadInfo = serde_urlencoded::from_str(query).context(InvalidQueryString {
-        query_string: query,
-    })?;
+    let uri_query = req.uri().query().context(ExpectedQueryString {})?;
+
+    let QueryParams { q, format } =
+        serde_urlencoded::from_str(uri_query).context(InvalidQueryString {
+            query_string: uri_query,
+        })?;
+
+    let db_name_str = req
+        .param("name")
+        .expect("db name must have been set by routerify")
+        .clone();
+
+    let db_name = DatabaseName::new(&db_name_str).context(DatabaseNameError)?;
+    debug!(uri = ?req.uri(), %q, ?format, %db_name, "running SQL query");
+
+    let db = server
+        .db(&db_name)
+        .await
+        .context(DatabaseNotFound { name: &db_name_str })?;
 
     let planner = SQLQueryPlanner::default();
     let executor = server.executor();
 
-    let db_name = org_and_bucket_to_database(&read_info.org, &read_info.bucket)
-        .context(BucketMappingError)?;
-
-    let db = server.db(&db_name).await.context(BucketNotFound {
-        org: read_info.org.clone(),
-        bucket: read_info.bucket.clone(),
-    })?;
-
     let physical_plan = planner
-        .query(db.as_ref(), &read_info.sql_query, executor.as_ref())
+        .query(db.as_ref(), &q, executor.as_ref())
         .await
-        .context(PlanningSQLQuery { query })?;
+        .context(PlanningSQLQuery { query: &q })?;
 
+    // TODO: stream read results out rather than rendering the
+    // whole thing in mem
     let batches = collect(physical_plan)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(Query { db_name })?;
 
-    let results = arrow::util::pretty::pretty_format_batches(&batches).unwrap();
+    let results = format
+        .format(&batches)
+        .context(FormattingResult { q, format })?;
 
-    Ok(Response::new(Body::from(results.into_bytes())))
+    let body = Body::from(results.into_bytes());
+
+    let response = Response::builder()
+        .header(CONTENT_TYPE, format.content_type())
+        .body(body)
+        .context(CreatingResponse)?;
+
+    Ok(response)
 }
 
 #[tracing::instrument(level = "debug")]
@@ -637,8 +675,14 @@ async fn get_writer<M: ConnectionManager + Send + Sync + Debug + 'static>(
 
 // Route to test that the server is alive
 #[tracing::instrument(level = "debug")]
-async fn ping(req: Request<Body>) -> Result<Response<Body>, ApplicationError> {
+async fn ping(_: Request<Body>) -> Result<Response<Body>, ApplicationError> {
     let response_body = "PONG";
+    Ok(Response::new(Body::from(response_body.to_string())))
+}
+
+#[tracing::instrument(level = "debug")]
+async fn health(_: Request<Body>) -> Result<Response<Body>, ApplicationError> {
+    let response_body = "OK";
     Ok(Response::new(Body::from(response_body.to_string())))
 }
 
@@ -749,7 +793,6 @@ mod tests {
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
     use arrow_deps::{arrow::record_batch::RecordBatch, assert_table_eq};
-    use http::header;
     use query::exec::Executor;
     use reqwest::{Client, Response};
 
@@ -780,6 +823,22 @@ mod tests {
 
         // Print the response so if the test fails, we have a log of what went wrong
         check_response("ping", response, StatusCode::OK, "PONG").await;
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_health() -> Result<()> {
+        let test_storage = Arc::new(AppServer::new(
+            ConnectionManagerImpl {},
+            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
+        ));
+        let server_url = test_server(Arc::clone(&test_storage));
+
+        let client = Client::new();
+        let response = client.get(&format!("{}/health", server_url)).send().await;
+
+        // Print the response so if the test fails, we have a log of what went wrong
+        check_response("health", response, StatusCode::OK, "OK").await;
         Ok(())
     }
 
@@ -833,6 +892,139 @@ mod tests {
         Ok(())
     }
 
+    /// Sets up a test database with some data for testing the query endpoint
+    /// returns a client for communicting with the server, and the server
+    /// endpoint
+    async fn setup_test_data() -> (Client, String) {
+        let test_storage: Arc<AppServer<ConnectionManagerImpl>> = Arc::new(AppServer::new(
+            ConnectionManagerImpl {},
+            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
+        ));
+        test_storage.set_id(1);
+        test_storage
+            .create_database("MyOrg_MyBucket", DatabaseRules::new())
+            .await
+            .unwrap();
+        let server_url = test_server(Arc::clone(&test_storage));
+
+        let client = Client::new();
+
+        let lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=65.2,bottom_degrees=50.4 1568756160";
+
+        // send write data
+        let bucket_name = "MyBucket";
+        let org_name = "MyOrg";
+        let response = client
+            .post(&format!(
+                "{}/api/v2/write?bucket={}&org={}",
+                server_url, bucket_name, org_name
+            ))
+            .body(lp_data)
+            .send()
+            .await;
+
+        check_response("write", response, StatusCode::NO_CONTENT, "").await;
+        (client, server_url)
+    }
+
+    #[tokio::test]
+    async fn test_query_pretty() -> Result<()> {
+        let (client, server_url) = setup_test_data().await;
+
+        // send query data
+        let response = client
+            .get(&format!(
+                "{}/iox/api/v1/databases/MyOrg_MyBucket/query?q={}",
+                server_url, "select%20*%20from%20h2o_temperature"
+            ))
+            .send()
+            .await;
+
+        assert_eq!(get_content_type(&response), "text/plain");
+
+        let res = "+----------------+--------------+-------+-----------------+------------+\n\
+                   | bottom_degrees | location     | state | surface_degrees | time       |\n\
+                   +----------------+--------------+-------+-----------------+------------+\n\
+                   | 50.4           | santa_monica | CA    | 65.2            | 1568756160 |\n\
+                   +----------------+--------------+-------+-----------------+------------+\n";
+        check_response("query", response, StatusCode::OK, res).await;
+
+        // same response is expected if we explicitly request 'format=pretty'
+        let response = client
+            .get(&format!(
+                "{}/iox/api/v1/databases/MyOrg_MyBucket/query?q={}&format=pretty",
+                server_url, "select%20*%20from%20h2o_temperature"
+            ))
+            .send()
+            .await;
+        assert_eq!(get_content_type(&response), "text/plain");
+
+        check_response("query", response, StatusCode::OK, res).await;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_query_csv() -> Result<()> {
+        let (client, server_url) = setup_test_data().await;
+
+        // send query data
+        let response = client
+            .get(&format!(
+                "{}/iox/api/v1/databases/MyOrg_MyBucket/query?q={}&format=csv",
+                server_url, "select%20*%20from%20h2o_temperature"
+            ))
+            .send()
+            .await;
+
+        assert_eq!(get_content_type(&response), "text/csv");
+
+        let res = "bottom_degrees,location,state,surface_degrees,time\n\
+                   50.4,santa_monica,CA,65.2,1568756160\n";
+        check_response("query", response, StatusCode::OK, res).await;
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_query_json() -> Result<()> {
+        let (client, server_url) = setup_test_data().await;
+
+        // send a second line of data to demontrate how that works
+        let lp_data = "h2o_temperature,location=Boston,state=MA surface_degrees=50.2 1568756160";
+
+        // send write data
+        let bucket_name = "MyBucket";
+        let org_name = "MyOrg";
+        let response = client
+            .post(&format!(
+                "{}/api/v2/write?bucket={}&org={}",
+                server_url, bucket_name, org_name
+            ))
+            .body(lp_data)
+            .send()
+            .await;
+
+        check_response("write", response, StatusCode::NO_CONTENT, "").await;
+
+        // send query data
+        let response = client
+            .get(&format!(
+                "{}/iox/api/v1/databases/MyOrg_MyBucket/query?q={}&format=json",
+                server_url, "select%20*%20from%20h2o_temperature"
+            ))
+            .send()
+            .await;
+
+        assert_eq!(get_content_type(&response), "application/json");
+
+        // Note two json records: one record on each line
+        let res = r#"[{"bottom_degrees":50.4,"location":"santa_monica","state":"CA","surface_degrees":65.2,"time":1568756160},{"location":"Boston","state":"MA","surface_degrees":50.2,"time":1568756160}]"#;
+        check_response("query", response, StatusCode::OK, res).await;
+
+        Ok(())
+    }
+
     fn gzip_str(s: &str) -> Vec<u8> {
         use flate2::{write::GzEncoder, Compression};
         use std::io::Write;
@@ -865,7 +1057,7 @@ mod tests {
                 "{}/api/v2/write?bucket={}&org={}",
                 server_url, bucket_name, org_name
             ))
-            .header(header::CONTENT_ENCODING, "gzip")
+            .header(CONTENT_ENCODING, "gzip")
             .body(gzip_str(lp_data))
             .send()
             .await;
@@ -1119,6 +1311,19 @@ mod tests {
         assert_eq!(r4.segments.len(), 0);
     }
 
+    fn get_content_type(response: &Result<Response, reqwest::Error>) -> String {
+        if let Ok(response) = response {
+            response
+                .headers()
+                .get(CONTENT_TYPE)
+                .map(|v| v.to_str().unwrap())
+                .unwrap_or("")
+                .to_string()
+        } else {
+            "".to_string()
+        }
+    }
+
     /// checks a http response against expected results
     async fn check_response(
         description: &str,
@@ -1190,5 +1395,60 @@ mod tests {
         let physical_plan = planner.query(db, query, &executor).await.unwrap();
 
         collect(physical_plan).await.unwrap()
+    }
+
+    #[test]
+    fn query_params_format_default() {
+        // default to pretty format when not otherwise specified
+        assert_eq!(
+            serde_urlencoded::from_str("q=foo"),
+            Ok(QueryParams {
+                q: "foo".to_string(),
+                format: QueryOutputFormat::Pretty
+            })
+        );
+    }
+
+    #[test]
+    fn query_params_format_pretty() {
+        assert_eq!(
+            serde_urlencoded::from_str("q=foo&format=pretty"),
+            Ok(QueryParams {
+                q: "foo".to_string(),
+                format: QueryOutputFormat::Pretty
+            })
+        );
+    }
+
+    #[test]
+    fn query_params_format_csv() {
+        assert_eq!(
+            serde_urlencoded::from_str("q=foo&format=csv"),
+            Ok(QueryParams {
+                q: "foo".to_string(),
+                format: QueryOutputFormat::CSV
+            })
+        );
+    }
+
+    #[test]
+    fn query_params_format_json() {
+        assert_eq!(
+            serde_urlencoded::from_str("q=foo&format=json"),
+            Ok(QueryParams {
+                q: "foo".to_string(),
+                format: QueryOutputFormat::JSON
+            })
+        );
+    }
+
+    #[test]
+    fn query_params_bad_format() {
+        assert_eq!(
+            serde_urlencoded::from_str::<QueryParams>("q=foo&format=jsob")
+                .unwrap_err()
+                .to_string(),
+            "unknown variant `jsob`, expected one of `pretty`, `csv`, `json`"
+        );
     }
 }

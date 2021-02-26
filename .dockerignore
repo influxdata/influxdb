@@ -1,0 +1,4 @@
+# Ignore everything
+**
+# Except
+!target/release/influxdb_iox

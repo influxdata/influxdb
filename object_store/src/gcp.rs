@@ -267,15 +267,15 @@ mod test {
         () => {
             dotenv::dotenv().ok();
 
-            let bucket_name = env::var("GCS_BUCKET_NAME");
+            let bucket_name = env::var("INFLUXDB_IOX_BUCKET");
             let force = std::env::var("TEST_INTEGRATION");
 
             match (bucket_name.is_ok(), force.is_ok()) {
                 (false, true) => {
-                    panic!("TEST_INTEGRATION is set, but GCS_BUCKET_NAME is not")
+                    panic!("TEST_INTEGRATION is set, but INFLUXDB_IOX_BUCKET is not")
                 }
                 (false, false) => {
-                    eprintln!("skipping integration test - set GCS_BUCKET_NAME to run");
+                    eprintln!("skipping integration test - set INFLUXDB_IOX_BUCKET to run");
                     return Ok(());
                 }
                 _ => {}
@@ -284,8 +284,8 @@ mod test {
     }
 
     fn bucket_name() -> Result<String> {
-        Ok(env::var("GCS_BUCKET_NAME")
-            .map_err(|_| "The environment variable GCS_BUCKET_NAME must be set")?)
+        Ok(env::var("INFLUXDB_IOX_BUCKET")
+            .map_err(|_| "The environment variable INFLUXDB_IOX_BUCKET must be set")?)
     }
 
     #[tokio::test]

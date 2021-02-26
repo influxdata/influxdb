@@ -1,8 +1,8 @@
 //! Implementation of command line option for manipulating and showing server
 //! config
 
+use clap::arg_enum;
 use std::{net::SocketAddr, net::ToSocketAddrs, path::PathBuf};
-
 use structopt::StructOpt;
 
 /// The default bind address for the HTTP API.
@@ -91,16 +91,37 @@ pub struct Config {
     #[structopt(long = "--data-dir", env = "INFLUXDB_IOX_DB_DIR")]
     pub database_directory: Option<PathBuf>,
 
+    #[structopt(
+        long = "--object-store",
+        env = "INFLUXDB_IOX_OBJECT_STORE",
+        possible_values = &ObjectStore::variants(),
+        case_insensitive = true,
+        long_help = r#"Which object storage to use. If not specified, defaults to memory.
+
+Possible values (case insensitive):
+
+* memory (default): Effectively no object persistence.
+* file: Stores objects in the local filesystem. Must also set `--data-dir`.
+* s3: Amazon S3. Must also set `--bucket`, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and
+   AWS_DEFAULT_REGION.
+* google: Google Cloud Storage. Must also set `--bucket` and SERVICE_ACCOUNT.
+* azure: Microsoft Azure blob storage. Must also set `--bucket`, AZURE_STORAGE_ACCOUNT,
+   and AZURE_STORAGE_MASTER_KEY.
+        "#,
+    )]
+    pub object_store: Option<ObjectStore>,
+
+    /// Name of the bucket to use for the object store. Must also set
+    /// `--object_store` to a cloud object storage to have any effect.
+    ///
     /// If using Google Cloud Storage for the object store, this item, as well
     /// as SERVICE_ACCOUNT must be set.
-    #[structopt(long = "--gcp-bucket", env = "INFLUXDB_IOX_GCP_BUCKET")]
-    pub gcp_bucket: Option<String>,
-
+    ///
     /// If using S3 for the object store, this item, as well
     /// as AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_DEFAULT_REGION must
     /// be set.
-    #[structopt(long = "--s3-bucket", env = "INFLUXDB_IOX_S3_BUCKET")]
-    pub s3_bucket: Option<String>,
+    #[structopt(long = "--bucket", env = "INFLUXDB_IOX_BUCKET")]
+    pub bucket: Option<String>,
 
     /// If set, Jaeger traces are emitted to this host
     /// using the OpenTelemetry tracer.
@@ -165,6 +186,17 @@ fn strip_server(args: impl Iterator<Item = String>) -> Vec<String> {
             }
         })
         .collect::<Vec<_>>()
+}
+
+arg_enum! {
+    #[derive(Debug, Copy, Clone, PartialEq)]
+    pub enum ObjectStore {
+        Memory,
+        File,
+        S3,
+        Google,
+        Azure,
+    }
 }
 
 /// How to format output logging messages
@@ -295,15 +327,6 @@ mod tests {
         assert_eq!(
             Config::from_iter_safe(strip_server(
                 to_vec(&["cmd", "server", "--api-bind", "!@INv_a1d(ad0/resp_!"]).into_iter(),
-            ))
-            .map_err(|e| e.kind)
-            .expect_err("must fail"),
-            clap::ErrorKind::ValueValidation
-        );
-
-        assert_eq!(
-            Config::from_iter_safe(strip_server(
-                to_vec(&["cmd", "server", "--api-bind", "badhost.badtld:1234"]).into_iter(),
             ))
             .map_err(|e| e.kind)
             .expect_err("must fail"),

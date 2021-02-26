@@ -1,0 +1,49 @@
+syntax = "proto3";
+package influxdata.iox.management.v1;
+
+import "google/protobuf/empty.proto";
+import "influxdata/iox/management/v1/database_rules.proto";
+
+service ManagementService {
+  rpc GetWriterId(GetWriterIdRequest) returns (GetWriterIdResponse);
+
+  rpc UpdateWriterId(UpdateWriterIdRequest) returns (UpdateWriterIdResponse);
+
+  rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
+
+  rpc GetDatabase(GetDatabaseRequest) returns (GetDatabaseResponse);
+
+  rpc CreateDatabase(CreateDatabaseRequest) returns (CreateDatabaseResponse);
+}
+
+message GetWriterIdRequest {}
+
+message GetWriterIdResponse {
+  uint32 id = 1;
+}
+
+message UpdateWriterIdRequest {
+  uint32 id = 1;
+}
+
+message UpdateWriterIdResponse {}
+
+message ListDatabasesRequest {}
+
+message ListDatabasesResponse {
+  repeated string names = 1;
+}
+
+message GetDatabaseRequest {
+  string name = 1;
+}
+
+message GetDatabaseResponse {
+  DatabaseRules rules = 1;
+}
+
+message CreateDatabaseRequest {
+  DatabaseRules rules = 1;
+}
+
+message CreateDatabaseResponse {}

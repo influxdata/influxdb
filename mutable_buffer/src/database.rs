@@ -6,11 +6,10 @@ use generated_types::wal;
 use query::group_by::GroupByAndAggregate;
 use query::group_by::WindowDuration;
 use query::{
-    exec::{stringset::StringSet, SeriesSetPlan, SeriesSetPlans},
-    predicate::Predicate,
-    Database,
+    group_by::Aggregate,
+    plan::seriesset::{SeriesSetPlan, SeriesSetPlans},
 };
-use query::{group_by::Aggregate, plan::stringset::StringSetPlan};
+use query::{predicate::Predicate, Database};
 
 use crate::column::Column;
 use crate::table::Table;
@@ -19,10 +18,10 @@ use crate::{
     partition::Partition,
 };
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use arrow_deps::datafusion::{error::DataFusionError, logical_plan::LogicalPlan};
+use arrow_deps::datafusion::error::DataFusionError;
 
 use crate::dictionary::Error as DictionaryError;
 
@@ -45,30 +44,6 @@ pub enum Error {
         chunk: u64,
         source: DictionaryError,
     },
-
-    #[snafu(display(
-        "Column name {} not found in dictionary of chunk {}",
-        column_name,
-        chunk
-    ))]
-    ColumnNameNotFoundInDictionary {
-        column_name: String,
-        chunk: u64,
-        source: DictionaryError,
-    },
-
-    #[snafu(display("Value ID {} not found in dictionary of chunk {}", value_id, chunk))]
-    ColumnValueIdNotFoundInDictionary {
-        value_id: u32,
-        chunk: u64,
-        source: DictionaryError,
-    },
-
-    #[snafu(display(
-        "Column '{}' is not a tag column and thus can not list values",
-        column_name
-    ))]
-    UnsupportedColumnTypeForListingValues { column_name: String },
 
     #[snafu(display("id conversion error"))]
     IdConversionError { source: std::num::TryFromIntError },
@@ -252,27 +227,6 @@ impl Database for MutableBufferDb {
         };
 
         Ok(())
-    }
-
-    /// return all column values in this database, while applying optional
-    /// predicates
-    async fn column_values(
-        &self,
-        column_name: &str,
-        predicate: Predicate,
-    ) -> Result<StringSetPlan, Self::Error> {
-        let has_exprs = predicate.has_exprs();
-        let mut filter = ChunkTableFilter::new(predicate);
-
-        if has_exprs {
-            let mut visitor = ValuePredVisitor::new(column_name);
-            self.accept(&mut filter, &mut visitor)?;
-            Ok(visitor.plans.into())
-        } else {
-            let mut visitor = ValueVisitor::new(column_name);
-            self.accept(&mut filter, &mut visitor)?;
-            Ok(visitor.column_values.into())
-        }
     }
 
     async fn query_series(&self, predicate: Predicate) -> Result<SeriesSetPlans, Self::Error> {
@@ -569,152 +523,6 @@ impl ChunkTableFilter {
     }
 }
 
-/// return all values in the `column_name` column
-/// in this database, while applying the timestamp range
-///
-/// Potential optimizations: Run this in parallel (in different
-/// futures) for each chunk / table, rather than a single one
-/// -- but that will require building up parallel hash tables.
-struct ValueVisitor<'a> {
-    column_name: &'a str,
-    // what column id we are looking for
-    column_id: Option<u32>,
-    chunk_value_ids: BTreeSet<u32>,
-    column_values: StringSet,
-}
-
-impl<'a> ValueVisitor<'a> {
-    fn new(column_name: &'a str) -> Self {
-        Self {
-            column_name,
-            column_id: None,
-            column_values: StringSet::new(),
-            chunk_value_ids: BTreeSet::new(),
-        }
-    }
-}
-
-impl<'a> Visitor for ValueVisitor<'a> {
-    fn pre_visit_chunk(&mut self, chunk: &Chunk) -> Result<()> {
-        self.chunk_value_ids.clear();
-
-        self.column_id = Some(chunk.dictionary.lookup_value(self.column_name).context(
-            ColumnNameNotFoundInDictionary {
-                column_name: self.column_name,
-                chunk: chunk.id,
-            },
-        )?);
-
-        Ok(())
-    }
-
-    fn visit_column(
-        &mut self,
-        table: &Table,
-        column_id: u32,
-        column: &Column,
-        filter: &mut ChunkTableFilter,
-    ) -> Result<()> {
-        if Some(column_id) != self.column_id {
-            return Ok(());
-        }
-
-        match column {
-            Column::Tag(column, _) => {
-                // if we have a timestamp prediate, find all values
-                // where the timestamp is within range. Otherwise take
-                // all values.
-                let chunk_predicate = filter.chunk_predicate();
-                match chunk_predicate.range {
-                    None => {
-                        // take all non-null values
-                        column.iter().filter_map(|&s| s).for_each(|value_id| {
-                            self.chunk_value_ids.insert(value_id);
-                        });
-                    }
-                    Some(range) => {
-                        // filter out all values that don't match the timestmap
-                        let time_column = table.column_i64(chunk_predicate.time_column_id)?;
-
-                        column
-                            .iter()
-                            .zip(time_column.iter())
-                            .filter_map(|(&column_value_id, &timestamp_value)| {
-                                if range.contains_opt(timestamp_value) {
-                                    column_value_id
-                                } else {
-                                    None
-                                }
-                            })
-                            .for_each(|value_id| {
-                                self.chunk_value_ids.insert(value_id);
-                            });
-                    }
-                }
-                Ok(())
-            }
-            _ => UnsupportedColumnTypeForListingValues {
-                column_name: self.column_name,
-            }
-            .fail(),
-        }
-    }
-
-    fn post_visit_chunk(&mut self, chunk: &Chunk) -> Result<()> {
-        // convert all the chunk's column_ids to Strings
-        for &value_id in &self.chunk_value_ids {
-            let value = chunk.dictionary.lookup_id(value_id).context(
-                ColumnValueIdNotFoundInDictionary {
-                    value_id,
-                    chunk: chunk.id,
-                },
-            )?;
-
-            if !self.column_values.contains(value) {
-                self.column_values.insert(value.to_string());
-            }
-        }
-        Ok(())
-    }
-}
-
-/// return all column values for the specified column in this
-/// database, while applying the timestamp range and predicate
-struct ValuePredVisitor<'a> {
-    column_name: &'a str,
-    plans: Vec<LogicalPlan>,
-}
-
-impl<'a> ValuePredVisitor<'a> {
-    fn new(column_name: &'a str) -> Self {
-        Self {
-            column_name,
-            plans: Vec::new(),
-        }
-    }
-}
-
-impl<'a> Visitor for ValuePredVisitor<'a> {
-    // TODO try and rule out entire tables based on the same critera
-    // as explained on NamePredVisitor
-    fn pre_visit_table(
-        &mut self,
-        table: &Table,
-        chunk: &Chunk,
-        filter: &mut ChunkTableFilter,
-    ) -> Result<()> {
-        // skip table entirely if there are no rows that fall in the timestamp
-        if table.could_match_predicate(filter.chunk_predicate())? {
-            self.plans.push(table.tag_values_plan(
-                self.column_name,
-                filter.chunk_predicate(),
-                chunk,
-            )?);
-        }
-        Ok(())
-    }
-}
-
 /// Return DataFusion plans to calculate which series pass the
 /// specified predicate.
 struct SeriesVisitor {
@@ -843,10 +651,6 @@ mod tests {
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T = (), E = TestError> = std::result::Result<T, E>;
 
-    fn to_set(v: &[&str]) -> BTreeSet<String> {
-        v.iter().map(|s| s.to_string()).collect::<BTreeSet<_>>()
-    }
-
     #[tokio::test]
     async fn missing_tags_are_null() -> Result {
         let db = MutableBufferDb::new("mydb");
@@ -907,158 +711,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn list_column_values() -> Result {
-        let db = MutableBufferDb::new("column_namedb");
-
-        let lp_data = "h2o,state=CA,city=LA temp=70.4 100\n\
-                       h2o,state=MA,city=Boston temp=72.4 250\n\
-                       o2,state=MA,city=Boston temp=50.4 200\n\
-                       o2,state=CA temp=79.0 300\n\
-                       o2,state=NY temp=60.8 400\n";
-
-        let lines: Vec<_> = parse_lines(lp_data).map(|l| l.unwrap()).collect();
-        write_lines(&db, &lines).await;
-
-        #[derive(Debug)]
-        struct TestCase<'a> {
-            description: &'a str,
-            column_name: &'a str,
-            predicate: Predicate,
-            expected_column_values: Result<Vec<&'a str>>,
-        }
-
-        let test_cases = vec![
-            TestCase {
-                description: "No predicates, 'state' col",
-                column_name: "state",
-                predicate: PredicateBuilder::default().build(),
-                expected_column_values: Ok(vec!["CA", "MA", "NY"]),
-            },
-            TestCase {
-                description: "No predicates, 'city' col",
-                column_name: "city",
-                predicate: PredicateBuilder::default().build(),
-                expected_column_values: Ok(vec!["Boston", "LA"]),
-            },
-            TestCase {
-                description: "Restrictions: timestamp",
-                column_name: "state",
-                predicate: PredicateBuilder::default().timestamp_range(50, 201).build(),
-                expected_column_values: Ok(vec!["CA", "MA"]),
-            },
-            TestCase {
-                description: "Restrictions: predicate",
-                column_name: "city",
-                predicate: PredicateBuilder::default()
-                    .add_expr(col("state").eq(lit("MA"))) // state=MA
-                    .build(),
-                expected_column_values: Ok(vec!["Boston"]),
-            },
-            TestCase {
-                description: "Restrictions: timestamp and predicate",
-                column_name: "state",
-                predicate: PredicateBuilder::default()
-                    .timestamp_range(150, 301)
-                    .add_expr(col("state").eq(lit("MA"))) // state=MA
-                    .build(),
-                expected_column_values: Ok(vec!["MA"]),
-            },
-            TestCase {
-                description: "Restrictions: measurement name",
-                column_name: "state",
-                predicate: PredicateBuilder::default().table("h2o").build(),
-                expected_column_values: Ok(vec!["CA", "MA"]),
-            },
-            TestCase {
-                description: "Restrictions: measurement name, with nulls",
-                column_name: "city",
-                predicate: PredicateBuilder::default().table("o2").build(),
-                expected_column_values: Ok(vec!["Boston"]),
-            },
-            TestCase {
-                description: "Restrictions: measurement name and timestamp",
-                column_name: "state",
-                predicate: PredicateBuilder::default()
-                    .table("o2")
-                    .timestamp_range(50, 201)
-                    .build(),
-                expected_column_values: Ok(vec!["MA"]),
-            },
-            TestCase {
-                description: "Restrictions: measurement name and predicate",
-                column_name: "state",
-                predicate: PredicateBuilder::default()
-                    .table("o2")
-                    .add_expr(col("state").eq(lit("NY"))) // state=NY
-                    .build(),
-                expected_column_values: Ok(vec!["NY"]),
-            },
-            TestCase {
-                description: "Restrictions: measurement name, timestamp and predicate",
-                column_name: "state",
-                predicate: PredicateBuilder::default()
-                    .table("o2")
-                    .timestamp_range(1, 550)
-                    .add_expr(col("state").eq(lit("NY"))) // state=NY
-                    .build(),
-                expected_column_values: Ok(vec!["NY"]),
-            },
-            TestCase {
-                description: "Restrictions: measurement name, timestamp and predicate: no match",
-                column_name: "state",
-                predicate: PredicateBuilder::default()
-                    .table("o2")
-                    .timestamp_range(1, 300) // filters out the NY row
-                    .add_expr(col("state").eq(lit("NY"))) // state=NY
-                    .build(),
-                expected_column_values: Ok(vec![]),
-            },
-        ];
-
-        for test_case in test_cases.into_iter() {
-            let test_case_str = format!("{:#?}", test_case);
-            println!("Running test case: {:?}", test_case);
-
-            let column_values_plan = db
-                .column_values(test_case.column_name, test_case.predicate)
-                .await
-                .expect("Created tag_values plan successfully");
-
-            // run the execution plan (
-            let executor = Executor::default();
-            let actual_column_values = executor.to_string_set(column_values_plan).await;
-
-            let is_match = if let Ok(expected_column_values) = &test_case.expected_column_values {
-                let expected_column_values = to_set(expected_column_values);
-                if let Ok(actual_column_values) = &actual_column_values {
-                    **actual_column_values == expected_column_values
-                } else {
-                    false
-                }
-            } else if let Err(e) = &actual_column_values {
-                // use string compare to compare errors to avoid having to build exact errors
-                format!("{:?}", e) == format!("{:?}", test_case.expected_column_values)
-            } else {
-                false
-            };
-
-            assert!(
-                is_match,
-                "Mismatch\n\
-                     actual_column_values: \n\
-                     {:?}\n\
-                     expected_column_values: \n\
-                     {:?}\n\
-                     Test_case: \n\
-                     {}",
-                actual_column_values, test_case.expected_column_values, test_case_str
-            );
-        }
-
-        Ok(())
-    }
-
-    #[tokio::test]
     async fn test_query_series() -> Result {
         // This test checks that everything is wired together
         // correctly.  There are more detailed tests in table.rs that
@@ -1088,7 +740,7 @@ mod tests {
         let plans = db
             .query_series(predicate)
             .await
-            .expect("Created tag_values plan successfully");
+            .expect("Created query_series plan successfully");
 
         let results = run_and_gather_results(plans).await;
 
@@ -1164,7 +816,7 @@ mod tests {
         let plans = db
             .query_series(predicate)
             .await
-            .expect("Created tag_values plan successfully");
+            .expect("Created query_series plan successfully");
 
         let results = run_and_gather_results(plans).await;
 
@@ -1207,7 +859,7 @@ mod tests {
         let plans = db
             .query_series(predicate)
             .await
-            .expect("Created tag_values plan successfully");
+            .expect("Created query_series plan successfully");
 
         let results = run_and_gather_results(plans).await;
         assert!(results.is_empty());
@@ -1220,7 +872,7 @@ mod tests {
         let plans = db
             .query_series(predicate)
             .await
-            .expect("Created tag_values plan successfully");
+            .expect("Created query_series plan successfully");
 
         let results = run_and_gather_results(plans).await;
         assert_eq!(results.len(), 1);
@@ -1234,7 +886,7 @@ mod tests {
         let plans = db
             .query_series(predicate)
             .await
-            .expect("Created tag_values plan successfully");
+            .expect("Created query_series plan successfully");
 
         let results = run_and_gather_results(plans).await;
         assert!(results.is_empty());
