@@ -197,7 +197,6 @@ curl --request PUT \
   --url http://localhost:8080/iox/api/v1/databases/company_sensors \
   --header 'Content-Type: application/json' \
   --data '{
-	"store_locally": true
 }'
 ```
 
