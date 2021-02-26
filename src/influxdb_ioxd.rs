@@ -158,52 +158,55 @@ impl TryFrom<&Config> for ObjectStore {
     type Error = Error;
 
     fn try_from(config: &Config) -> Result<Self, Self::Error> {
-        let os = match (
-            config.object_store,
-            config.bucket.as_ref(),
-            config.database_directory.as_ref(),
-        ) {
-            (Some(ObjStoreOpt::Google), Some(bucket), _) => {
-                Self::new_google_cloud_storage(GoogleCloudStorage::new(bucket))
+        match config.object_store {
+            Some(ObjStoreOpt::Memory) | None => {
+                Ok(Self::new_in_memory(object_store::memory::InMemory::new()))
             }
-            (Some(ObjStoreOpt::Google), None, _) => {
-                return InvalidCloudObjectStoreConfiguration {
+
+            Some(ObjStoreOpt::Google) => match config.bucket.as_ref() {
+                Some(bucket) => Ok(Self::new_google_cloud_storage(GoogleCloudStorage::new(
+                    bucket,
+                ))),
+                None => InvalidCloudObjectStoreConfiguration {
                     object_store: ObjStoreOpt::Google,
                 }
-                .fail();
-            }
-            (Some(ObjStoreOpt::S3), Some(bucket), _) => {
-                // rusoto::Region's default takes the value from the AWS_DEFAULT_REGION env var.
-                Self::new_amazon_s3(AmazonS3::new(Default::default(), bucket))
-            }
-            (Some(ObjStoreOpt::S3), None, _) => {
-                return InvalidCloudObjectStoreConfiguration {
-                    object_store: ObjStoreOpt::S3,
+                .fail(),
+            },
+
+            Some(ObjStoreOpt::S3) => {
+                match config.bucket.as_ref() {
+                    Some(bucket) => {
+                        // rusoto::Region's default takes the value from the AWS_DEFAULT_REGION env
+                        // var.
+                        Ok(Self::new_amazon_s3(AmazonS3::new(
+                            Default::default(),
+                            bucket,
+                        )))
+                    }
+                    None => InvalidCloudObjectStoreConfiguration {
+                        object_store: ObjStoreOpt::S3,
+                    }
+                    .fail(),
                 }
-                .fail();
             }
-            (Some(ObjStoreOpt::File), _, Some(ref db_dir)) => {
-                fs::create_dir_all(db_dir).context(CreatingDatabaseDirectory { path: db_dir })?;
-                Self::new_file(object_store::disk::File::new(&db_dir))
-            }
-            (Some(ObjStoreOpt::File), _, None) => {
-                return InvalidFileObjectStoreConfiguration.fail();
-            }
-            (Some(ObjStoreOpt::Azure), Some(_bucket), _) => {
-                unimplemented!();
-            }
-            (Some(ObjStoreOpt::Azure), None, _) => {
-                return InvalidCloudObjectStoreConfiguration {
+
+            Some(ObjStoreOpt::Azure) => match config.bucket.as_ref() {
+                Some(_bucket) => unimplemented!(),
+                None => InvalidCloudObjectStoreConfiguration {
                     object_store: ObjStoreOpt::Azure,
                 }
-                .fail();
-            }
-            (Some(ObjStoreOpt::Memory), _, _) | (None, _, _) => {
-                Self::new_in_memory(object_store::memory::InMemory::new())
-            }
-        };
+                .fail(),
+            },
 
-        Ok(os)
+            Some(ObjStoreOpt::File) => match config.database_directory.as_ref() {
+                Some(db_dir) => {
+                    fs::create_dir_all(db_dir)
+                        .context(CreatingDatabaseDirectory { path: db_dir })?;
+                    Ok(Self::new_file(object_store::disk::File::new(&db_dir)))
+                }
+                None => InvalidFileObjectStoreConfiguration.fail(),
+            },
+        }
     }
 }
 
