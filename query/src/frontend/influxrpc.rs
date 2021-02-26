@@ -235,15 +235,10 @@ impl InfluxRPCPlanner {
                     .await
                     .expect("to be able to get table schema");
                 let column_names: Vec<&str> = schema
-                    .iter()
-                    .filter_map(|(influx_column_type, field)| {
-                        if matches!(influx_column_type, Some(InfluxColumnType::Tag)) {
-                            Some(field.name().as_str())
-                        } else {
-                            None
-                        }
-                    })
+                    .tags_iter()
+                    .map(|f| f.name().as_str())
                     .collect::<Vec<&str>>();
+
                 let selection = Selection::Some(&column_names);
 
                 // filter the columns further from the predicate
