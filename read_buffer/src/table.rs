@@ -17,6 +17,9 @@ use crate::value::{AggregateResult, Scalar, Value};
 pub enum Error {
     #[snafu(display("cannot drop last row group in table; drop table"))]
     EmptyTableError {},
+
+    #[snafu(display("unsupported column operation on {}: {}", column_name, msg))]
+    UnsupportedColumnOperation { msg: String, column_name: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -466,27 +469,35 @@ impl Table {
         dst
     }
 
-    /// Returns the distinct set of tag values (column values) for each provided
-    /// tag key, where each returned value lives in a row matching the provided
-    /// optional predicates and time range.
+    /// Returns the distinct set of column values for each provided column,
+    /// where each returned value sits in a row matching the provided
+    /// predicate. All values are deduplicated across row groups in the table.
     ///
-    /// As a special case, if `tag_keys` is empty then all distinct values for
-    /// all columns (tag keys) are returned for the chunk.
-    pub fn tag_values<'a>(
-        &self,
-        time_range: (i64, i64),
-        predicates: &[(&str, &str)],
-        tag_keys: &[String],
-        found_tag_values: &BTreeMap<String, BTreeSet<&String>>,
-    ) -> BTreeMap<ColumnName<'a>, BTreeSet<&String>> {
-        // identify segments where time range, predicates and tag keys match
-        // could match using segment meta data, and then execute against those
-        // segments and merge results.
-        //
-        // For each segment push the tag values that have already been found for
-        // the tag key down in an attempt to reduce execution against columns
-        // that only have values that have already been found.
-        todo!();
+    /// If the predicate is empty then all distinct values are returned.
+    pub fn column_values<'a>(
+        &'a self,
+        predicate: &Predicate,
+        columns: &[ColumnName<'_>],
+        mut dst: BTreeMap<String, BTreeSet<String>>,
+    ) -> Result<BTreeMap<String, BTreeSet<String>>> {
+        let (meta, row_groups) = self.filter_row_groups(predicate);
+
+        // Validate that only supported columns present in `columns`.
+        for (name, (ct, data_type)) in columns.iter().zip(meta.schema_for_column_names(columns)) {
+            ensure!(
+                matches!(ct, ColumnType::Tag(_)),
+                UnsupportedColumnOperation {
+                    msg: format!("column type must be ColumnType::Tag, got {:?}", ct),
+                    column_name: name.to_string(),
+                },
+            )
+        }
+
+        for row_group in row_groups {
+            dst = row_group.column_values(predicate, columns, dst)
+        }
+
+        Ok(dst)
     }
 
     /// Determines if this table could satisfy the provided predicate.

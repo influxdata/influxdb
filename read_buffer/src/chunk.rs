@@ -4,7 +4,7 @@ use std::{
 };
 
 use data_types::selection::Selection;
-use snafu::Snafu;
+use snafu::{ResultExt, Snafu};
 
 use crate::row_group::RowGroup;
 use crate::row_group::{ColumnName, Predicate};
@@ -18,6 +18,9 @@ type TableName = String;
 pub enum Error {
     #[snafu(display("table '{}' does not exist", table_name))]
     TableNotFound { table_name: String },
+
+    #[snafu(display("error processing table: {}", source))]
+    TableError { source: table::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -286,26 +289,29 @@ impl Chunk {
         }
     }
 
-    /// Returns the distinct set of tag values (column values) for each provided
-    /// tag key, where each returned value lives in a row matching the provided
-    /// optional predicates and time range.
+    /// Returns the distinct set of column values for each provided column,
+    /// where each returned value sits in a row matching the provided
+    /// predicate. All values are deduplicated across row groups in the table.
     ///
-    /// As a special case, if `tag_keys` is empty then all distinct values for
-    /// all columns (tag keys) are returned for the chunk.
-    pub fn tag_values(
-        &self,
-        table_name: String,
-        predicate: Predicate,
-        tag_keys: &[ColumnName<'_>],
-        found_tag_values: &BTreeMap<ColumnName<'_>, BTreeSet<&String>>,
-    ) -> BTreeMap<ColumnName<'_>, BTreeSet<&String>> {
-        // Lookup table by name and dispatch execution to the table for that
-        // if the chunk's time range overlaps the requested time range.
-        //
-        // This method also has the ability to short-circuit execution against
-        // columns if those columns only contain values that have already been
-        // found.
-        todo!();
+    /// If the predicate is empty then all distinct values are returned for the
+    /// table.
+    pub fn column_values<'a>(
+        &'a self,
+        table_name: &str,
+        predicate: &Predicate,
+        columns: &[ColumnName<'_>],
+        dst: BTreeMap<String, BTreeSet<String>>,
+    ) -> Result<BTreeMap<String, BTreeSet<String>>> {
+        let chunk_data = self.chunk_data.read().unwrap();
+
+        // TODO(edd): same potential contention as `table_names` but I'm ok
+        // with this for now.
+        match chunk_data.data.get(table_name) {
+            Some(table) => table
+                .column_values(predicate, columns, dst)
+                .context(TableError),
+            None => Ok(dst),
+        }
     }
 }
 

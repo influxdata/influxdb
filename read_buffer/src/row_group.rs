@@ -3005,7 +3005,7 @@ west,host-d,11,9
         );
     }
 
-    fn to_map<'a>(arr: Vec<(&str, &[&'a str])>) -> BTreeMap<String, BTreeSet<String>> {
+    fn to_map(arr: Vec<(&str, &[&str])>) -> BTreeMap<String, BTreeSet<String>> {
         arr.iter()
             .map(|(k, values)| {
                 (

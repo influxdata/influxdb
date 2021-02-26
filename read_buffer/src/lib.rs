@@ -388,34 +388,6 @@ impl Database {
         })
     }
 
-    ///
-    /// NOTE: this is going to contain a specialised execution path for
-    /// essentially doing:
-    ///
-    /// SELECT DISTINCT(column_name) WHERE XYZ
-    ///
-    /// In the future the `ReadBuffer` should just probably just add this
-    /// special execution to read_filter queries with `DISTINCT` expressions
-    /// on the selector columns.
-    ///
-    /// Returns the distinct set of tag values (column values) for each provided
-    /// column, which *must* be considered a tag key.
-    ///
-    /// As a special case, if `tag_keys` is empty then all distinct values for
-    /// all columns (tag keys) are returned for the provided chunks.
-    pub fn tag_values(
-        &self,
-        partition_key: &str,
-        table_name: &str,
-        chunk_ids: &[u32],
-        predicate: Predicate,
-        select_columns: Selection<'_>,
-    ) -> Result<TagValuesResults> {
-        Err(Error::UnsupportedOperation {
-            msg: "`tag_values` call not yet hooked up".to_owned(),
-        })
-    }
-
     //
     // ---- Schema API queries
     //
@@ -500,6 +472,61 @@ impl Database {
         });
 
         Ok(Some(names))
+    }
+
+    /// Returns the distinct set of column values that satisfy the provided
+    /// predicate for each of the column names provided.
+    ///
+    /// `columns` must only contain columns that have the InfluxData tag
+    /// semantic type.
+    pub fn column_values(
+        &self,
+        partition_key: &str,
+        table_name: &str,
+        chunk_ids: &[u32],
+        predicate: Predicate,
+        columns: Selection<'_>,
+    ) -> Result<BTreeMap<String, BTreeSet<String>>> {
+        let columns = match columns {
+            Selection::All => {
+                return UnsupportedOperation {
+                    msg: "column_values does not support All columns".to_owned(),
+                }
+                .fail();
+            }
+            Selection::Some(columns) => columns,
+        };
+        let partition_data = self.data.read().unwrap();
+
+        let partition = partition_data
+            .partitions
+            .get(partition_key)
+            .ok_or_else(|| Error::PartitionNotFound {
+                key: partition_key.to_owned(),
+            })?;
+
+        let chunk_data = partition.data.read().unwrap();
+        let mut filtered_chunks = Vec::with_capacity(chunk_ids.len());
+        for id in chunk_ids {
+            filtered_chunks.push(
+                chunk_data
+                    .chunks
+                    .get(id)
+                    .ok_or_else(|| Error::ChunkNotFound { id: *id })?,
+            );
+        }
+
+        // `values` is pushed into each chunk's `column_values` implementation
+        // ensuring that we short-circuit any tables or columns where we have
+        // already determined all column values.
+        let mut values = BTreeMap::new();
+        for chunk in filtered_chunks {
+            values = chunk
+                .column_values(table_name, &predicate, columns, values)
+                .context(ChunkError)?;
+        }
+
+        Ok(values)
     }
 }
 
@@ -1465,6 +1492,137 @@ mod test {
 
     fn to_set(v: &[&str]) -> BTreeSet<String> {
         v.iter().map(|s| s.to_string()).collect()
+    }
+
+    fn to_map(arr: Vec<(&str, &[&str])>) -> BTreeMap<String, BTreeSet<String>> {
+        arr.iter()
+            .map(|(k, values)| {
+                (
+                    k.to_string(),
+                    values
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect::<BTreeSet<_>>(),
+                )
+            })
+            .collect::<BTreeMap<_, _>>()
+    }
+
+    #[test]
+    fn column_values() {
+        let db = Database::new();
+
+        let schema = SchemaBuilder::new()
+            .non_null_tag("region")
+            .timestamp()
+            .build()
+            .unwrap()
+            .into();
+
+        let data: Vec<ArrayRef> = vec![
+            Arc::new(StringArray::from(vec!["north", "south", "east"])),
+            Arc::new(Int64Array::from(vec![11111111, 222222, 3333])),
+        ];
+
+        // Add the above table to a chunk and partition
+        let rb = RecordBatch::try_new(schema, data).unwrap();
+        db.upsert_partition("hour_1", 22, "my_table", rb);
+
+        // Add a different but compatible table to a different chunk in the same
+        // partition.
+        let schema = SchemaBuilder::new()
+            .tag("env")
+            .timestamp()
+            .build()
+            .unwrap()
+            .into();
+
+        let data: Vec<ArrayRef> = vec![
+            Arc::new(StringArray::from(vec![Some("prod"), None, Some("stag")])),
+            Arc::new(Int64Array::from(vec![10, 20, 30])),
+        ];
+        let rb = RecordBatch::try_new(schema, data).unwrap();
+        db.upsert_partition("hour_1", 40, "my_table", rb);
+
+        // Just query against the first chunk.
+        let result = db
+            .column_values(
+                "hour_1",
+                "my_table",
+                &[22],
+                Predicate::default(),
+                Selection::Some(&["region", "env"]),
+            )
+            .unwrap();
+
+        assert_eq!(
+            result,
+            to_map(vec![("region", &["north", "south", "east"])]) // no env in this chunk
+        );
+
+        // And now the union across all chunks.
+        let result = db
+            .column_values(
+                "hour_1",
+                "my_table",
+                &[22, 40],
+                Predicate::default(),
+                Selection::Some(&["region", "env"]),
+            )
+            .unwrap();
+
+        assert_eq!(
+            result,
+            to_map(vec![
+                ("region", &["north", "south", "east"]),
+                ("env", &["prod", "stag"]) // column_values returns non-null values.
+            ])
+        );
+
+        // With a predicate
+        let result = db
+            .column_values(
+                "hour_1",
+                "my_table",
+                &[22, 40],
+                Predicate::new(vec![
+                    BinaryExpr::from(("time", ">=", 20_i64)),
+                    BinaryExpr::from(("time", "<=", 3333_i64)),
+                ]),
+                Selection::Some(&["region", "env"]),
+            )
+            .unwrap();
+
+        assert_eq!(
+            result,
+            to_map(vec![
+                ("region", &["east"]),
+                ("env", &["stag"]) // column_values returns non-null values.
+            ])
+        );
+
+        // Error when All column selection provided.
+        assert!(matches!(
+            db.column_values("x", "x", &[22, 40], Predicate::default(), Selection::All),
+            Err(Error::UnsupportedOperation { msg })
+        ));
+
+        // Error when unsupported column pushed down.
+        assert!(matches!(
+            db.column_values(
+                "hour_1",
+                "my_table",
+                &[22, 40],
+                Predicate::default(),
+                Selection::Some(&["time"])
+            ),
+            Err(Error::ChunkError {
+                source:
+                    chunk::Error::TableError {
+                        source: table::Error::UnsupportedColumnOperation { .. },
+                    },
+            })
+        ));
     }
 }
 
