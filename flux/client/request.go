@@ -8,7 +8,6 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
-	"github.com/influxdata/flux/repl"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -20,7 +19,6 @@ type Controller interface {
 
 // QueryRequest is a flux query request.
 type QueryRequest struct {
-	Spec    *flux.Spec   `json:"spec,omitempty"`
 	Query   string       `json:"query"`
 	Type    string       `json:"type"`
 	Dialect QueryDialect `json:"dialect"`
@@ -55,8 +53,8 @@ func (r QueryRequest) WithDefaults() QueryRequest {
 
 // Validate checks the query request and returns an error if the request is invalid.
 func (r QueryRequest) Validate() error {
-	if r.Query == "" && r.Spec == nil {
-		return errors.New(`request body requires either spec or query`)
+	if r.Query == "" {
+		return errors.New(`request body requires query`)
 	}
 
 	if r.Type != "flux" {
@@ -109,10 +107,6 @@ func (r QueryRequest) ProxyRequest() *ProxyRequest {
 	if r.Query != "" {
 		compiler = lang.FluxCompiler{
 			Query: r.Query,
-		}
-	} else if r.Spec != nil {
-		compiler = repl.Compiler{
-			Spec: r.Spec,
 		}
 	}
 

@@ -211,12 +211,8 @@ func (c *CommandLine) Run() error {
 	c.Version()
 
 	if c.Type == QueryLanguageFlux {
-		repl, err := getFluxREPL(c.URL, c.ClientConfig.Username, c.ClientConfig.Password)
-		if err != nil {
-			return err
-		}
-		repl.Run()
-		os.Exit(0)
+		// TODO(lesam): steal 2.x flux client
+		return fmt.Errorf("ERROR: flux repl missing due to flux upgrade")
 	}
 
 	c.Line = liner.NewLiner()
@@ -1182,13 +1178,8 @@ func (c *CommandLine) ExecuteFluxQuery(query string) error {
 			}
 		}()
 	}
-
-	repl, err := getFluxREPL(c.URL, c.ClientConfig.Username, c.ClientConfig.Password)
-	if err != nil {
-		return err
-	}
-
-	return repl.Input(query)
+	// TODO(lesam): steal 2.x flux client
+	return fmt.Errorf("ERROR: flux repl missing due to flux upgrade")
 }
 
 type QueryLanguage uint8
