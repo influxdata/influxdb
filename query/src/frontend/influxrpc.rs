@@ -222,7 +222,7 @@ impl InfluxRPCPlanner {
                     .await
                     .map_err(|e| Box::new(e) as _)
                     .context(FindingColumnNames)?;
-                
+
                 match maybe_names {
                     Some(mut names) => {
                         debug!(names=?names, chunk_id = chunk.id(), "column names found from metadata");
