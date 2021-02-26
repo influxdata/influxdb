@@ -48,7 +48,7 @@ const HTTP_BIND_ADDR: &str = http_bind_addr!();
 const GRPC_BIND_ADDR: &str = grpc_bind_addr!();
 
 const HTTP_BASE: &str = concat!("http://", http_bind_addr!());
-const API_BASE: &str = concat!("http://", http_bind_addr!(), "/api/v2");
+const IOX_API_V1_BASE: &str = concat!("http://", http_bind_addr!(), "/iox/api/v1");
 const GRPC_URL_BASE: &str = concat!("http://", grpc_bind_addr!(), "/");
 
 const TOKEN: &str = "InfluxDB IOx doesn't have authentication yet";
