@@ -683,10 +683,21 @@ impl Column {
         }
     }
 
-    /// Determines if the column contains other values than those provided in
-    /// `values`.
-    pub fn has_other_values(&self, values: &BTreeSet<String>) -> bool {
-        todo!()
+    /// Determines if the column contains any string values that are not present
+    /// in the provided `values` argument.
+    pub fn has_other_non_null_string_values(&self, values: &BTreeSet<String>) -> bool {
+        match self {
+            Column::String(_, data) => data.has_other_non_null_values(values),
+            Column::Float(_, _) => unimplemented!("operation not supported on `Float` column"),
+            Column::Integer(_, _) => unimplemented!("operation not supported on `Integer` column"),
+            Column::Unsigned(_, _) => {
+                unimplemented!("operation not supported on `Unsigned` column")
+            }
+            Column::Bool(_, _) => unimplemented!("operation not supported on `Bool` column"),
+            Column::ByteArray(_, _) => {
+                unimplemented!("operation not supported on `ByteArray` column")
+            }
+        }
     }
 }
 

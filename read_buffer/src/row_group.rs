@@ -1019,7 +1019,7 @@ impl RowGroup {
                 match dst.get(*name) {
                     // process the column if we haven't got all the distinct
                     // values.
-                    Some(values) => column.has_other_values(values),
+                    Some(values) => column.has_other_non_null_string_values(values),
                     // no existing values for this column - we will need to
                     // process it.
                     None => true,
@@ -1039,9 +1039,11 @@ impl RowGroup {
             };
 
             let results = dst.entry(name.clone()).or_default();
-            for value in column.distinct_values(row_itr).iter() {
-                if value.is_some() && !results.contains(value.unwrap()) {
-                    results.insert(value.unwrap().to_owned());
+            for value in column.distinct_values(row_itr).into_iter() {
+                if let Some(v) = value {
+                    if !results.contains(v) {
+                        results.insert(v.to_owned());
+                    }
                 }
             }
         }
@@ -3051,6 +3053,21 @@ west,host-d,11,9
             &Predicate::new(vec![BinaryExpr::from(("time", ">", 1_i64))]),
             &["env", "region"],
             BTreeMap::new(),
+        );
+        assert_eq!(
+            result,
+            to_map(vec![("env", &["stag"]), ("region", &["north", "south"])])
+        );
+
+        let mut dst = BTreeMap::new();
+        dst.insert(
+            "env".to_owned(),
+            vec!["stag".to_owned()].into_iter().collect::<BTreeSet<_>>(),
+        );
+        let result = rg.column_values(
+            &Predicate::new(vec![BinaryExpr::from(("time", ">", 1_i64))]),
+            &["env", "region"],
+            dst,
         );
         assert_eq!(
             result,

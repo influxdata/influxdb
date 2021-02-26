@@ -91,6 +91,15 @@ impl StringEncoding {
         }
     }
 
+    /// Determines if the column contains any values other than those provided.
+    /// Short-circuits execution as soon as it finds a value not in `values`.
+    pub fn has_other_non_null_values(&self, values: &BTreeSet<String>) -> bool {
+        match &self {
+            Self::RLEDictionary(c) => c.has_other_non_null_values(values),
+            Self::Dictionary(c) => c.has_other_non_null_values(values),
+        }
+    }
+
     /// Returns the logical value found at the provided row id.
     pub fn value(&self, row_id: u32) -> Value<'_> {
         match &self {
