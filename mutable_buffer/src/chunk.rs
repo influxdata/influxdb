@@ -337,6 +337,7 @@ impl Chunk {
         &self,
         table_name: &str,
         chunk_predicate: &ChunkPredicate,
+        selection: Selection<'_>,
     ) -> Result<Option<BTreeSet<String>>> {
         // No support for general purpose expressions
         if !chunk_predicate.chunk_exprs.is_empty() {
@@ -360,6 +361,16 @@ impl Chunk {
             }
         }
 
+        // Only return subset of these selection_cols if not all_cols
+        let mut all_cols = true;
+        let selection_cols = match selection {
+            Selection::All => &[""],
+            Selection::Some(cols) => {
+                all_cols = false;
+                cols
+            }
+        };
+
         let mut column_names = BTreeSet::new();
         for &column_id in &chunk_column_ids {
             let column_name =
@@ -370,7 +381,10 @@ impl Chunk {
                         chunk: self.id,
                     })?;
 
-            if !column_names.contains(column_name) {
+            if !column_names.contains(column_name)
+                && (all_cols || selection_cols.contains(&column_name))
+            {
+                // only use columns in selection_cols
                 column_names.insert(column_name.to_string());
             }
         }
@@ -744,6 +758,7 @@ impl query::PartitionChunk for Chunk {
         &self,
         _table_name: &str,
         _predicate: &Predicate,
+        _columns: Selection<'_>,
     ) -> Result<Option<StringSet>, Self::Error> {
         unimplemented!("This function is slated for removal")
     }

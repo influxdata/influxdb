@@ -228,25 +228,29 @@ impl InfluxRPCPlanner {
                     chunk_id = chunk.id(),
                     "finding columns in table"
                 );
-                // try and get the list of columns directly from metadata
+
+                // get only tag columns from metadata
+                let schema = chunk
+                    .table_schema(&table_name, Selection::All)
+                    .await
+                    .expect("to be able to get table schema");
+                let column_names: Vec<&str> = schema
+                    .tags_iter()
+                    .map(|f| f.name().as_str())
+                    .collect::<Vec<&str>>();
+
+                let selection = Selection::Some(&column_names);
+
+                // filter the columns further from the predicate
                 let maybe_names = chunk
-                    .column_names(&table_name, &predicate)
+                    .column_names(&table_name, &predicate, selection)
                     .await
                     .map_err(|e| Box::new(e) as _)
                     .context(FindingColumnNames)?;
 
                 match maybe_names {
-                    Some(names) => {
+                    Some(mut names) => {
                         debug!(names=?names, chunk_id = chunk.id(), "column names found from metadata");
-
-                        // can restrict the output to only the tag columns
-                        let schema = chunk
-                            .table_schema(&table_name, Selection::All)
-                            .await
-                            .expect("to be able to get table schema");
-                        let mut names = self.restrict_to_tags(&schema, names);
-                        debug!(names=?names, chunk_id = chunk.id(), "column names found from metadata");
-
                         known_columns.append(&mut names);
                     }
                     None => {
@@ -531,18 +535,6 @@ impl InfluxRPCPlanner {
             }
         };
         Ok(table_names)
-    }
-
-    /// removes any columns from Names that are not "Tag"s in the Influx Data
-    /// Model
-    fn restrict_to_tags(&self, schema: &Schema, names: BTreeSet<String>) -> BTreeSet<String> {
-        names
-            .into_iter()
-            .filter(|col_name| {
-                let idx = schema.find_index_of(col_name).unwrap();
-                matches!(schema.field(idx), (Some(InfluxColumnType::Tag), _))
-            })
-            .collect()
     }
 
     /// Creates a DataFusion LogicalPlan that returns column *names* as a
