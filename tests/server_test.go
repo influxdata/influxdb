@@ -3,8 +3,14 @@ package tests
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/csv"
+	"github.com/influxdata/flux/execute/table"
+	"github.com/influxdata/flux/parser"
+	"io/ioutil"
 	"math/rand"
 	"net/http"
 	"net/url"
@@ -19,7 +25,10 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/stdlib"
 	"github.com/influxdata/influxdb/coordinator"
+	fluxClient "github.com/influxdata/influxdb/flux/client"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/prometheus/prometheus/prompb"
@@ -9848,7 +9857,480 @@ func TestServer_Prometheus_Write(t *testing.T) {
 	}
 }
 
+func TestFluxBasicEndToEnd(t *testing.T) {
+	config := NewConfig()
+	config.HTTPD.FluxEnabled = true
+	s := OpenServer(config)
+	defer s.Close()
+
+	s.CreateDatabase(t.Name())
+	defer s.DropDatabase(t.Name())
+	u, err := url.Parse(s.URL())
+	assert.NoError(t, err)
+	u.Path = "/api/v2/query"
+	httpClient := &http.Client{}
+
+	{
+		// Query with json body
+		query := fluxClient.QueryRequest{}.WithDefaults()
+		query.Query = `import "influxdata/influxdb/v1" v1.databases()`
+		j, err := json.Marshal(query)
+		assert.NoError(t, err)
+		req, err := http.NewRequest("POST", u.String(), bytes.NewBuffer(j))
+		req.Header.Set("Content-Type", "application/json")
+		assert.NoError(t, err)
+		resp, err := httpClient.Do(req)
+		assert.NoError(t, err)
+		defer resp.Body.Close()
+		b, err := ioutil.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		assert.Equal(t,
+			strings.ReplaceAll(`,result,table,organizationID,databaseName,retentionPolicy,retentionPeriod,default,bucketId
+,_result,0,,TestFluxBasicEndToEnd,autogen,0,true,
+
+`, "\n", "\r\n"),
+			string(b))
+	}
+	{
+		// Query with json body, with annotations
+		query := fluxClient.QueryRequest{}.WithDefaults()
+		query.Query = `import "influxdata/influxdb/v1" v1.databases()`
+		query.Dialect.Annotations = csv.DefaultDialect().Annotations
+		j, err := json.Marshal(query)
+		assert.NoError(t, err)
+		req, err := http.NewRequest("POST", u.String(), bytes.NewBuffer(j))
+		req.Header.Set("Content-Type", "application/json")
+		assert.NoError(t, err)
+		resp, err := httpClient.Do(req)
+		assert.NoError(t, err)
+		defer resp.Body.Close()
+		b, err := ioutil.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		assert.Equal(t,
+			strings.ReplaceAll(`#datatype,string,long,string,string,string,long,boolean,string
+#group,false,false,true,false,false,false,false,false
+#default,_result,,,,,,,
+,result,table,organizationID,databaseName,retentionPolicy,retentionPeriod,default,bucketId
+,,0,,TestFluxBasicEndToEnd,autogen,0,true,
+
+`, "\n", "\r\n"),
+			string(b))
+		assert.NoError(t, err)
+	}
+	{
+		// Query with raw flux
+		assert.NoError(t, err)
+		req, err := http.NewRequest("POST", u.String(), bytes.NewBuffer([]byte(`import "influxdata/influxdb/v1" v1.databases()`)))
+		req.Header.Set("Content-Type", "application/vnd.flux")
+		assert.NoError(t, err)
+		resp, err := httpClient.Do(req)
+		assert.NoError(t, err)
+		defer resp.Body.Close()
+		b, err := ioutil.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		assert.Equal(t,
+			strings.ReplaceAll(`,result,table,organizationID,databaseName,retentionPolicy,retentionPeriod,default,bucketId
+,_result,0,,TestFluxBasicEndToEnd,autogen,0,true,
+
+`, "\n", "\r\n"),
+			string(b))
+	}
+	{
+		// Make sure runFluxBuiltinTest complains when it finds a diff
+		testFluxTmpl := `package universe_test
+import "testing"
+option now = () => (2030-01-01T00:00:00Z)
+
+inData = "#datatype,string,long,string,string,dateTime:RFC3339,unsignedLong
+#group,false,false,true,true,false,false
+#default,_result,,,,,
+,result,table,_measurement,_field,_time,_value
+,,0,Sgf,DlXwgrw,2018-12-18T22:11:05Z,70
+,,0,Sgf,DlXwgrw,2018-12-18T22:11:15Z,50"
+
+outData = "#datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,string,string,unsignedLong
+#group,false,false,true,true,true,true,false
+#default,_result,,,,,,
+,result,table,_start,_stop,_measurement,_field,_value
+,,0,2018-12-01T00:00:00Z,2030-01-01T00:00:00Z,Sgf,DlXwgrw,%d"
+t_sum = (table=<-) => (table |> range(start: 2018-12-01T00:00:00Z) |> sum())
+test _sum = () => ({input: testing.loadStorage(csv: inData), want: testing.loadMem(csv: outData), fn: t_sum})
+`
+		// This test passes: 70+50=120
+		databasePass := t.Name() + "_pass"
+		s.CreateDatabase(databasePass)
+		defer s.DropDatabase(databasePass)
+		file := mustParse(fmt.Sprintf(testFluxTmpl, 120))
+		bucket := databasePass + "/autogen"
+		runFluxBuiltinTest(t, file, u, bucket, false)
+		err := runFluxBuiltinTest(t, file, u, bucket, true)
+		assert.NoError(t, err)
+
+		// We want to make sure the end to end tests are doing something. We assert that the test runner returns
+		// an error on diffs
+		databaseFail := t.Name() + "_fail"
+		s.CreateDatabase(databaseFail)
+		defer s.DropDatabase(databaseFail)
+		file = mustParse(fmt.Sprintf(testFluxTmpl, 121))
+		bucket = databaseFail + "/autogen"
+		runFluxBuiltinTest(t, file, u, bucket, false)
+		err = runFluxBuiltinTest(t, file, u, bucket, true)
+		assert.EqualError(t, err, "test failed - diff table in output")
+	}
+}
+
+
+
+var FluxEndToEndSkipList = map[string]map[string]string{
+	"universe": {
+		// TODO(adam) determine the reason for these test failures.
+		"cov":                      "Reason TBD",
+		"covariance":               "Reason TBD",
+		"cumulative_sum":           "Reason TBD",
+		"cumulative_sum_default":   "Reason TBD",
+		"cumulative_sum_noop":      "Reason TBD",
+		"drop_non_existent":        "Reason TBD",
+		"first":                    "Reason TBD",
+		"highestAverage":           "Reason TBD",
+		"highestMax":               "Reason TBD",
+		"histogram":                "Reason TBD",
+		"histogram_normalize":      "Reason TBD",
+		"histogram_quantile":       "Reason TBD",
+		"join":                     "Reason TBD",
+		"join_across_measurements": "Reason TBD",
+		"join_agg":                 "Reason TBD",
+		"keep_non_existent":        "Reason TBD",
+		"key_values":               "Reason TBD",
+		"key_values_host_name":     "Reason TBD",
+		"last":                     "Reason TBD",
+		"lowestAverage":            "Reason TBD",
+		"max":                      "Reason TBD",
+		"min":                      "Reason TBD",
+		"sample":                   "Reason TBD",
+		"selector_preserve_time":   "Reason TBD",
+		"shift":                    "Reason TBD",
+		"shift_negative_duration":  "Reason TBD",
+		"task_per_line":            "Reason TBD",
+		"top":                      "Reason TBD",
+		"union":                    "Reason TBD",
+		"union_heterogeneous":      "Reason TBD",
+		"unique":                   "Reason TBD",
+		"distinct":                 "Reason TBD",
+
+		// it appears these occur when writing the input data.  `to` may not be null safe.
+		"fill_bool":   "failed to read meta data: panic: interface conversion: interface {} is nil, not uint64",
+		"fill_float":  "failed to read meta data: panic: interface conversion: interface {} is nil, not uint64",
+		"fill_int":    "failed to read meta data: panic: interface conversion: interface {} is nil, not uint64",
+		"fill_string": "failed to read meta data: panic: interface conversion: interface {} is nil, not uint64",
+		"fill_time":   "failed to read meta data: panic: interface conversion: interface {} is nil, not uint64",
+		"fill_uint":   "failed to read meta data: panic: interface conversion: interface {} is nil, not uint64",
+		"window_null": "failed to read meta data: panic: interface conversion: interface {} is nil, not float64",
+
+		// these may just be missing calls to range() in the tests.  easy to fix in a new PR.
+		"group_nulls":         "unbounded test",
+		"integral":            "unbounded test",
+		"integral_columns":    "unbounded test",
+		"map":                 "unbounded test",
+		"join_missing_on_col": "unbounded test",
+		"join_use_previous":   "unbounded test (https://github.com/influxdata/flux/issues/2996)",
+		"join_panic":          "unbounded test (https://github.com/influxdata/flux/issues/3465)",
+		"rowfn_with_import":   "unbounded test",
+
+		// the following tests have a difference between the CSV-decoded input table, and the storage-retrieved version of that table
+		"columns":            "group key mismatch",
+		"set":                "column order mismatch",
+		"simple_max":         "_stop missing from expected output",
+		"derivative":         "time bounds mismatch (engine uses now() instead of bounds on input table)",
+		"difference_columns": "data write/read path loses columns x and y",
+		"keys":               "group key mismatch",
+
+		// failed to read meta data errors: the CSV encoding is incomplete probably due to data schema errors.  needs more detailed investigation to find root cause of error
+		// "filter_by_regex":             "failed to read metadata",
+		// "filter_by_tags":              "failed to read metadata",
+		"group":                       "failed to read metadata",
+		"group_except":                "failed to read metadata",
+		"group_ungroup":               "failed to read metadata",
+		"pivot_mean":                  "failed to read metadata",
+		"histogram_quantile_minvalue": "failed to read meta data: no column with label _measurement exists",
+		"increase":                    "failed to read meta data: table has no _value column",
+
+		"string_max":                  "error: invalid use of function: *functions.MaxSelector has no implementation for type string (https://github.com/influxdata/platform/issues/224)",
+		"null_as_value":               "null not supported as value in influxql (https://github.com/influxdata/platform/issues/353)",
+		"string_interp":               "string interpolation not working as expected in flux (https://github.com/influxdata/platform/issues/404)",
+		"to":                          "to functions are not supported in the testing framework (https://github.com/influxdata/flux/issues/77)",
+		"covariance_missing_column_1": "need to support known errors in new test framework (https://github.com/influxdata/flux/issues/536)",
+		"covariance_missing_column_2": "need to support known errors in new test framework (https://github.com/influxdata/flux/issues/536)",
+		"drop_before_rename":          "need to support known errors in new test framework (https://github.com/influxdata/flux/issues/536)",
+		"drop_referenced":             "need to support known errors in new test framework (https://github.com/influxdata/flux/issues/536)",
+		"yield":                       "yield requires special test case (https://github.com/influxdata/flux/issues/535)",
+
+		"window_group_mean_ungroup": "window trigger optimization modifies sort order of its output tables (https://github.com/influxdata/flux/issues/1067)",
+
+		"median_column": "failing in different ways (https://github.com/influxdata/influxdb/issues/13909)",
+		"dynamic_query": "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
+
+		"to_int":  "dateTime conversion issue: https://github.com/influxdata/influxdb/issues/14575",
+		"to_uint": "dateTime conversion issue: https://github.com/influxdata/influxdb/issues/14575",
+
+		"holt_winters_panic": "Expected output is an empty table which breaks the testing framework (https://github.com/influxdata/influxdb/issues/14749)",
+		"map_nulls":          "to cannot write null values",
+	},
+	"array": {
+		"from":       "test not meant to be consumed by influxdb",
+		"from_group": "test not meant to be consumed by influxdb",
+	},
+	"experimental": {
+		"set":       "Reason TBD",
+		"join":      "unbounded test",
+		"alignTime": "unbounded test",
+	},
+	"experimental/geo": {
+		"filterRowsNotStrict": "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
+		"filterRowsStrict":    "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
+		"gridFilterLevel":     "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
+		"gridFilter":          "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
+		"groupByArea":         "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
+		"filterRowsPivoted":   "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
+		"shapeDataWithFilter": "tableFind does not work in e2e tests: https://github.com/influxdata/influxdb/issues/13975",
+		"shapeData":           "test run before to() is finished: https://github.com/influxdata/influxdb/issues/13975",
+	},
+	"regexp": {
+		"replaceAllString": "Reason TBD",
+	},
+	"http": {
+		"http_endpoint": "need ability to test side effects in e2e tests: (https://github.com/influxdata/flux/issues/1723)",
+	},
+	"influxdata/influxdb/schema": {
+		"show_tag_keys": "failing due to bug in test, unskip this after upgrading from Flux v0.91.0",
+	},
+	"influxdata/influxdb/monitor": {
+		"state_changes_big_any_to_any":     "unbounded test",
+		"state_changes_big_info_to_ok":     "unbounded test",
+		"state_changes_big_ok_to_info":     "unbounded test",
+		"state_changes_any_to_any":         "test run before to() is finished: https://github.com/influxdata/influxdb/issues/13975",
+		"state_changes_info_to_any":        "test run before to() is finished: https://github.com/influxdata/influxdb/issues/13975",
+		"state_changes_invalid_any_to_any": "test run before to() is finished: https://github.com/influxdata/influxdb/issues/13975",
+		"state_changes":                    "test run before to() is finished: https://github.com/influxdata/influxdb/issues/13975",
+	},
+	"influxdata/influxdb/secrets": {
+		"secrets": "Cannot inject custom deps into the test framework so the secrets don't lookup correctly",
+	},
+	"internal/promql": {
+		"join": "unbounded test",
+	},
+	"testing/chronograf": {
+		"buckets":                "unbounded test",
+		"aggregate_window_count": "flakey test: https://github.com/influxdata/influxdb/issues/18463",
+	},
+	"testing/kapacitor": {
+		"fill_default": "unknown field type for f1",
+	},
+	"testing/pandas": {
+		"extract_regexp_findStringIndex": "pandas. map does not correctly handled returned arrays (https://github.com/influxdata/flux/issues/1387)",
+		"partition_strings_splitN":       "pandas. map does not correctly handled returned arrays (https://github.com/influxdata/flux/issues/1387)",
+	},
+	"testing/promql": {
+		"emptyTable":                    "tests a source",
+		"year":                          "flakey test: https://github.com/influxdata/influxdb/issues/15667",
+		"extrapolatedRate_counter_rate": "option \"testing.loadStorage\" reassigned: https://github.com/influxdata/flux/issues/3155",
+		"extrapolatedRate_nocounter":    "option \"testing.loadStorage\" reassigned: https://github.com/influxdata/flux/issues/3155",
+		"extrapolatedRate_norate":       "option \"testing.loadStorage\" reassigned: https://github.com/influxdata/flux/issues/3155",
+		"linearRegression_nopredict":    "option \"testing.loadStorage\" reassigned: https://github.com/influxdata/flux/issues/3155",
+		"linearRegression_predict":      "option \"testing.loadStorage\" reassigned: https://github.com/influxdata/flux/issues/3155",
+	},
+	"testing/influxql": {
+		"cumulative_sum": "invalid test data requires loadStorage to be overridden. See https://github.com/influxdata/flux/issues/3145",
+		"elapsed":        "failing since split with Flux upgrade: https://github.com/influxdata/influxdb/issues/19568",
+	},
+	"contrib/RohanSreerama5/naiveBayesClassifier": {
+		"bayes": "error calling tableFind: ",
+	},
+}
+
+func TestFluxEndToEnd(t *testing.T) {
+	runEndToEnd(t, stdlib.FluxTestPackages)
+}
+
+func runEndToEnd(t *testing.T, pkgs []*ast.Package){
+	config := NewConfig()
+	config.HTTPD.FluxEnabled = true
+	s := OpenServer(config)
+	defer s.Close()
+
+	for _, pkg := range pkgs {
+		test := func(t *testing.T, f func(t *testing.T)) {
+			t.Run(pkg.Path, f)
+		}
+		if pkg.Path == "universe" {
+			test = func(t *testing.T, f func(t *testing.T)) {
+				f(t)
+			}
+		}
+
+		test(t, func(t *testing.T){
+			for _, file := range pkg.Files {
+				name := strings.TrimSuffix(file.Name, "_test.flux")
+				t.Run(name, func(t *testing.T) {
+					if reason, ok := FluxEndToEndSkipList[pkg.Path][name]; ok {
+						t.Skip(reason)
+					}
+					// Set up the database & URL
+					// We don't properly support slashes in database names for flux queries
+					databaseName := strings.ReplaceAll(t.Name(), "/", "_")
+					s.CreateDatabase(databaseName)
+					defer s.DropDatabase(databaseName)
+					u, err := url.Parse(s.URL())
+					assert.NoError(t, err)
+					u.Path = "/api/v2/query"
+					bucket := databaseName + "/autogen"
+
+					// Run the end to end test. The first time we ignore the results, but as a side
+					// effect the data is loaded into the TSDB store. The second test runs with `from`
+					// gathering data from TSDB.
+					runFluxBuiltinTest(t, file, u, bucket, false)
+					err = runFluxBuiltinTest(t, file, u, bucket, true)
+				})
+			}
+		})
+	}
+}
+
+func makeTestPackage(file *ast.File) *ast.Package {
+	file = file.Copy().(*ast.File)
+	file.Package.Name.Name = "main"
+	pkg := &ast.Package{
+		Package: "main",
+		Files:   []*ast.File{file},
+	}
+	return pkg
+}
+
+// This options definition puts to() in the path of the CSV input. The tests
+// get run in this case and they would normally pass, if we checked the
+// results, but don't look at them.
+var writeOptSource = `
+import "testing"
+import c "csv"
+
+option testing.loadStorage = (csv) => {
+        return c.from(csv: csv) |> to(bucket: bucket)
+}
+`
+
+// This options definition is for the second run, the test run. It loads the
+// data from previously written bucket. We check the results after running this
+// second pass and report on them.
+var readOptSource = `
+import "testing"
+import c "csv"
+
+option testing.loadStorage = (csv) => {
+        return from(bucket: bucket)
+}
+`
+
+var writeOptAST *ast.File
+var readOptAST *ast.File
+
+func mustParse(flux string) *ast.File {
+	pkg := parser.ParseSource(flux)
+	if ast.Check(pkg) > 0 {
+		panic(ast.GetError(pkg))
+	}
+	return pkg.Files[0]
+}
+
+func runFluxBuiltinTest(t *testing.T, file *ast.File, u *url.URL, bucket string, readTest bool) error {
+	var options *ast.File
+	if readTest {
+		// load input data from database
+		options = readOptAST.Copy().(*ast.File)
+	} else {
+		// load input data from csv and store it to the database
+		options = writeOptAST.Copy().(*ast.File)
+	}
+
+	// Allow the script to refer to a bucket as a variable
+	bucketOpt := &ast.OptionStatement{
+		Assignment: &ast.VariableAssignment{
+			ID: &ast.Identifier{Name: "bucket"},
+			Init: &ast.StringLiteral{Value: bucket},
+		},
+	}
+	options.Body = append([]ast.Statement{bucketOpt}, options.Body...)
+
+	pkg := makeTestPackage(file)
+	pkg.Files = append(pkg.Files, options)
+
+	inspectCalls := stdlib.TestingInspectCalls(pkg)
+	if len(inspectCalls.Body) == 0 {
+		t.Skip("No tests in builtin test package")
+	}
+	pkg.Files = append(pkg.Files, inspectCalls)
+
+	parsedQuery, err := json.Marshal(pkg)
+	if err != nil {
+		return err
+	}
+
+	httpClient := &http.Client{}
+	// Query with json body
+	query := fluxClient.QueryRequest{}.WithDefaults()
+	query.AST = parsedQuery
+	query.Dialect.Annotations = csv.DefaultDialect().Annotations
+	j, err := json.Marshal(query)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest("POST", u.String(), bytes.NewBuffer(j))
+	req.Header.Set("Content-Type", "application/json")
+	if err != nil {
+		return err
+	}
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+
+	if resp.StatusCode / 100 != 2 {
+		b, _ := ioutil.ReadAll(resp.Body)
+		t.Log("Bad response from flux:", string(b))
+		return fmt.Errorf("Bad status code %d from flux query", resp.StatusCode)
+	}
+
+	decoder := csv.NewMultiResultDecoder(csv.ResultDecoderConfig{})
+	itr, err := decoder.Decode(resp.Body)
+	defer itr.Release() // will close body
+	if err != nil {
+		return err
+	}
+
+	wasDiff := false
+	for itr.More() {
+		v := itr.Next()
+		if v.Name() == "diff" {
+			wasDiff = true
+		}
+		if err := v.Tables().Do(func(tbl flux.Table) error {
+			if readTest {
+				t.Log(table.Stringify(tbl))
+			}
+			return nil
+		}); err != nil {
+			return err
+		}
+	}
+	assert.NoError(t, itr.Err())
+	if wasDiff && readTest {
+		return errors.New("test failed - diff table in output")
+	}
+	return nil
+}
+
 func init() {
 	// Force uint support to be enabled for testing.
 	models.EnableUintSupport()
+
+	writeOptAST = mustParse(writeOptSource)
+	readOptAST = mustParse(readOptSource)
 }

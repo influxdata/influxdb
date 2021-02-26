@@ -1373,6 +1373,7 @@ func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request, user me
 
 	pr := req.ProxyRequest()
 
+
 	// Logging
 	var (
 		stats flux.Statistics
@@ -1429,6 +1430,8 @@ func (h *Handler) serveFluxQuery(w http.ResponseWriter, r *http.Request, user me
 		}
 	}
 }
+
+
 
 func (h *Handler) logFluxQuery(n int64, stats flux.Statistics, compiler flux.Compiler, err error) {
 	var q string

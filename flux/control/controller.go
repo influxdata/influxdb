@@ -17,10 +17,10 @@ import (
 type MetaClient = coordinator.MetaClient
 type Authorizer = influxdb.Authorizer
 
-func NewController(mc MetaClient, reader influxdb.Reader, auth Authorizer, authEnabled bool, logger *zap.Logger) *Controller {
+func NewController(mc MetaClient, reader influxdb.Reader, auth Authorizer, authEnabled bool, writer influxdb.PointsWriter, logger *zap.Logger) *Controller {
 	builtin.Initialize()
 
-	storageDeps, err := influxdb.NewDependencies(mc, reader, auth, authEnabled)
+	storageDeps, err := influxdb.NewDependencies(mc, reader, auth, authEnabled, writer)
 	if err != nil {
 		panic(err)
 	}

@@ -2,7 +2,10 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/query"
+	"time"
 	"unicode/utf8"
 
 	"github.com/influxdata/flux"
@@ -19,9 +22,31 @@ type Controller interface {
 
 // QueryRequest is a flux query request.
 type QueryRequest struct {
-	Query   string       `json:"query"`
-	Type    string       `json:"type"`
-	Dialect QueryDialect `json:"dialect"`
+	Type  string `json:"type"`
+	Query string `json:"query"`
+
+	// Flux fields
+	Extern  json.RawMessage `json:"extern,omitempty"`
+	AST     json.RawMessage `json:"ast,omitempty"`
+	Dialect QueryDialect    `json:"dialect"`
+	Now     time.Time       `json:"now"`
+
+	// PreferNoContent specifies if the Response to this request should
+	// contain any result. This is done for avoiding unnecessary
+	// bandwidth consumption in certain cases. For example, when the
+	// query produces side effects and the results do not matter. E.g.:
+	// 	from(...) |> ... |> to()
+	// For example, tasks do not use the results of queries, but only
+	// care about their side effects.
+	// To obtain a QueryRequest with no result, add the header
+	// `Prefer: return-no-content` to the HTTP request.
+	PreferNoContent bool
+	// PreferNoContentWithError is the same as above, but it forces the
+	// Response to contain an error if that is a Flux runtime error encoded
+	// in the response body.
+	// To obtain a QueryRequest with no result but runtime errors,
+	// add the header `Prefer: return-no-content-with-error` to the HTTP request.
+	PreferNoContentWithError bool
 }
 
 // QueryDialect is the formatting options for the query response.
@@ -53,8 +78,8 @@ func (r QueryRequest) WithDefaults() QueryRequest {
 
 // Validate checks the query request and returns an error if the request is invalid.
 func (r QueryRequest) Validate() error {
-	if r.Query == "" {
-		return errors.New(`request body requires query`)
+	if r.Query == "" && r.AST == nil {
+		return errors.New(`request body requires either query or AST`)
 	}
 
 	if r.Type != "flux" {
@@ -102,12 +127,26 @@ type ProxyRequest struct {
 
 // ProxyRequest returns a request to proxy from the flux.
 func (r QueryRequest) ProxyRequest() *ProxyRequest {
+	n := r.Now
+	if n.IsZero() {
+		n = time.Now()
+	}
+
 	// Query is preferred over spec
 	var compiler flux.Compiler
 	if r.Query != "" {
 		compiler = lang.FluxCompiler{
 			Query: r.Query,
+			Extern: r.Extern,
+			Now: n,
 		}
+	} else if len(r.AST) > 0 {
+		c := lang.ASTCompiler{
+			Extern: r.Extern,
+			AST:    r.AST,
+			Now:    n,
+		}
+		compiler = c
 	}
 
 	delimiter, _ := utf8.DecodeRuneInString(r.Dialect.Delimiter)
@@ -117,14 +156,30 @@ func (r QueryRequest) ProxyRequest() *ProxyRequest {
 		noHeader = !*r.Dialect.Header
 	}
 
-	cfg := csv.DefaultEncoderConfig()
-	cfg.NoHeader = noHeader
-	cfg.Delimiter = delimiter
+	var dialect flux.Dialect
+	if r.PreferNoContent {
+		dialect = &query.NoContentDialect{}
+	} else {
+		// TODO(nathanielc): Use commentPrefix and dateTimeFormat
+		// once they are supported.
+		encConfig := csv.ResultEncoderConfig{
+			NoHeader:    noHeader,
+			Delimiter:   delimiter,
+			Annotations: r.Dialect.Annotations,
+		}
+		if r.PreferNoContentWithError {
+			dialect = &query.NoContentWithErrorDialect{
+				ResultEncoderConfig: encConfig,
+			}
+		} else {
+			dialect = &csv.Dialect{
+				ResultEncoderConfig: encConfig,
+			}
+		}
+	}
 
 	return &ProxyRequest{
 		Compiler: compiler,
-		Dialect: csv.Dialect{
-			ResultEncoderConfig: cfg,
-		},
+		Dialect: dialect,
 	}
 }
