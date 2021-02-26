@@ -11,6 +11,9 @@ pub const DEFAULT_API_BIND_ADDR: &str = "127.0.0.1:8080";
 /// The default bind address for the gRPC.
 pub const DEFAULT_GRPC_BIND_ADDR: &str = "127.0.0.1:8082";
 
+/// The default AWS region for Amazon S3 based object storage.
+pub const DEFAULT_AWS_REGION: &str = "us-east-1";
+
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "server",
@@ -102,8 +105,8 @@ Possible values (case insensitive):
 
 * memory (default): Effectively no object persistence.
 * file: Stores objects in the local filesystem. Must also set `--data-dir`.
-* s3: Amazon S3. Must also set `--bucket`, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and
-   AWS_DEFAULT_REGION.
+* s3: Amazon S3. Must also set `--bucket`, `--aws-access-key-id`, `--aws-secret-access-key`, and
+   possibly `--aws-region`.
 * google: Google Cloud Storage. Must also set `--bucket` and SERVICE_ACCOUNT.
 * azure: Microsoft Azure blob storage. Must also set `--bucket`, AZURE_STORAGE_ACCOUNT,
    and AZURE_STORAGE_MASTER_KEY.
@@ -112,16 +115,51 @@ Possible values (case insensitive):
     pub object_store: Option<ObjectStore>,
 
     /// Name of the bucket to use for the object store. Must also set
-    /// `--object_store` to a cloud object storage to have any effect.
+    /// `--object-store` to a cloud object storage to have any effect.
     ///
     /// If using Google Cloud Storage for the object store, this item, as well
     /// as SERVICE_ACCOUNT must be set.
     ///
-    /// If using S3 for the object store, this item, as well
-    /// as AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_DEFAULT_REGION must
-    /// be set.
+    /// If using S3 for the object store, must set this item as well
+    /// as `--aws-access-key-id` and `--aws-secret-access-key`. Can also set
+    /// `--aws-region` if not using the default region.
     #[structopt(long = "--bucket", env = "INFLUXDB_IOX_BUCKET")]
     pub bucket: Option<String>,
+
+    /// When using Amazon S3 as the object store, set this to an access key that
+    /// has permission to read from and write to the specified S3 bucket.
+    ///
+    /// Must also set `--object-store=s3`, `--bucket`, and
+    /// `--aws-secret-access-key`. Can also set `--aws-region` if not using
+    /// the default region.
+    ///
+    /// Prefer the environment variable over the command line flag in shared
+    /// environments.
+    #[structopt(long = "--aws-access-key-id", env = "AWS_ACCESS_KEY_ID")]
+    pub aws_access_key_id: Option<String>,
+
+    /// When using Amazon S3 as the object store, set this to the secret access
+    /// key that goes with the specified access key ID.
+    ///
+    /// Must also set `--object-store=s3`, `--bucket`, `--aws-access-key-id`.
+    /// Can also set `--aws-region` if not using the default region.
+    ///
+    /// Prefer the environment variable over the command line flag in shared
+    /// environments.
+    #[structopt(long = "--aws-secret-access-key", env = "AWS_SECRET_ACCESS_KEY")]
+    pub aws_secret_access_key: Option<String>,
+
+    /// When using Amazon S3 as the object store, set this to the region
+    /// that goes with the specified bucket if different from the default.
+    ///
+    /// Must also set `--object-store=s3`, `--bucket`, `--aws-access-key-id`,
+    /// and `--aws-secret-access-key`.
+    #[structopt(
+        long = "--aws-region",
+        env = "AWS_REGION",
+        default_value = DEFAULT_AWS_REGION,
+    )]
+    pub aws_region: String,
 
     /// If set, Jaeger traces are emitted to this host
     /// using the OpenTelemetry tracer.

@@ -62,8 +62,21 @@ pub enum Error {
     #[snafu(display("Specifed {} for the object store, but not a bucket", object_store))]
     InvalidCloudObjectStoreConfiguration { object_store: ObjStoreOpt },
 
+    #[snafu(display(
+        "Specifed {} for the object store, required configuration missing for {}",
+        object_store,
+        missing
+    ))]
+    MissingObjectStoreConfig {
+        object_store: ObjStoreOpt,
+        missing: String,
+    },
+
     #[snafu(display("Specified file for the object store, but not a database directory"))]
     InvalidFileObjectStoreConfiguration,
+
+    #[snafu(display("Amazon S3 configuration was invalid: {}", source))]
+    InvalidS3Config { source: object_store::aws::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -176,19 +189,37 @@ impl TryFrom<&Config> for ObjectStore {
             },
 
             Some(ObjStoreOpt::S3) => {
-                match config.bucket.as_ref() {
-                    Some(bucket) => {
-                        // rusoto::Region's default takes the value from the AWS_DEFAULT_REGION env
-                        // var.
-                        Ok(Self::new_amazon_s3(AmazonS3::new(
-                            Default::default(),
-                            bucket,
-                        )))
+                match (
+                    config.bucket.as_ref(),
+                    config.aws_access_key_id.as_ref(),
+                    config.aws_secret_access_key.as_ref(),
+                    config.aws_region.as_str(),
+                ) {
+                    (Some(bucket), Some(key_id), Some(secret_key), region) => {
+                        Ok(Self::new_amazon_s3(
+                            AmazonS3::new(key_id, secret_key, region, bucket)
+                                .context(InvalidS3Config)?,
+                        ))
                     }
-                    None => InvalidCloudObjectStoreConfiguration {
-                        object_store: ObjStoreOpt::S3,
+                    (bucket, key_id, secret_key, _) => {
+                        let mut missing_args = vec![];
+
+                        if bucket.is_none() {
+                            missing_args.push("bucket");
+                        }
+                        if key_id.is_none() {
+                            missing_args.push("aws-access-key-id");
+                        }
+                        if secret_key.is_none() {
+                            missing_args.push("aws-secret-access-key");
+                        }
+
+                        MissingObjectStoreConfig {
+                            object_store: ObjStoreOpt::S3,
+                            missing: missing_args.join(", "),
+                        }
+                        .fail()
                     }
-                    .fail(),
                 }
             }
 
@@ -240,5 +271,41 @@ mod tests {
             object_store,
             ObjectStore(ObjectStoreIntegration::InMemory(_))
         ));
+    }
+
+    #[test]
+    fn valid_s3_config() {
+        let config = Config::from_iter_safe(&[
+            "server",
+            "--object-store",
+            "s3",
+            "--bucket",
+            "mybucket",
+            "--aws-access-key-id",
+            "NotARealAWSAccessKey",
+            "--aws-secret-access-key",
+            "NotARealAWSSecretAccessKey",
+        ])
+        .unwrap();
+
+        let object_store = ObjectStore::try_from(&config).unwrap();
+
+        assert!(matches!(
+            object_store,
+            ObjectStore(ObjectStoreIntegration::AmazonS3(_))
+        ));
+    }
+
+    #[test]
+    fn s3_config_missing_params() {
+        let config = Config::from_iter_safe(&["server", "--object-store", "s3"]).unwrap();
+
+        let err = ObjectStore::try_from(&config).unwrap_err().to_string();
+
+        assert_eq!(
+            err,
+            "Specifed S3 for the object store, required configuration missing for \
+            bucket, aws-access-key-id, aws-secret-access-key"
+        );
     }
 }
