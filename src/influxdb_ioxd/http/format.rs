@@ -2,13 +2,9 @@
 
 use serde::Deserialize;
 use snafu::{ResultExt, Snafu};
-use std::io::Write;
-
-use serde_json::Value;
 
 use arrow_deps::arrow::{
-    self, csv::WriterBuilder, error::ArrowError, json::writer::record_batches_to_json_rows,
-    record_batch::RecordBatch,
+    self, csv::WriterBuilder, error::ArrowError, json::ArrayWriter, record_batch::RecordBatch,
 };
 
 #[derive(Debug, Snafu)]
@@ -21,12 +17,6 @@ pub enum Error {
 
     #[snafu(display("Arrow json printing error: {}", source))]
     JsonArrow { source: ArrowError },
-
-    #[snafu(display("Json conversion error: {}", source))]
-    JsonConversion { source: serde_json::Error },
-
-    #[snafu(display("IO error during Json conversion: {}", source))]
-    JsonWrite { source: std::io::Error },
 
     #[snafu(display("Error converting CSV output to UTF-8: {}", source))]
     CsvUtf8 { source: std::string::FromUtf8Error },
@@ -126,117 +116,12 @@ fn batches_to_json(batches: &[RecordBatch]) -> Result<String> {
     let mut bytes = vec![];
 
     {
-        let mut writer = JsonArrayWriter::new(&mut bytes);
-        writer.write_batches(batches)?;
-        writer.finish()?;
+        let mut writer = ArrayWriter::new(&mut bytes);
+        writer.write_batches(batches).context(CsvArrow)?;
+        writer.finish().context(CsvArrow)?;
     }
 
     let json = String::from_utf8(bytes).context(JsonUtf8)?;
 
     Ok(json)
-}
-
-/// Writes out well formed JSON arays in a streaming fashion
-///
-/// [{"foo": "bar"}, {"foo": "baz"}]
-///
-/// This is based on the arrow JSON writer (json::writer::Writer)
-///
-/// TODO contribute this back to arrow: https://issues.apache.org/jira/browse/ARROW-11773
-struct JsonArrayWriter<W>
-where
-    W: Write,
-{
-    started: bool,
-    finished: bool,
-    writer: W,
-}
-
-impl<W> JsonArrayWriter<W>
-where
-    W: Write,
-{
-    fn new(writer: W) -> Self {
-        Self {
-            writer,
-            started: false,
-            finished: false,
-        }
-    }
-
-    /// Consume self and return the inner writer
-    #[cfg(test)]
-    pub fn into_inner(self) -> W {
-        self.writer
-    }
-
-    pub fn write_row(&mut self, row: &Value) -> Result<()> {
-        if !self.started {
-            self.writer.write_all(b"[").context(JsonWrite)?;
-            self.started = true;
-        } else {
-            self.writer.write_all(b",").context(JsonWrite)?;
-        }
-        self.writer
-            .write_all(&serde_json::to_vec(row).context(JsonConversion)?)
-            .context(JsonWrite)?;
-        Ok(())
-    }
-
-    pub fn write_batches(&mut self, batches: &[RecordBatch]) -> Result<()> {
-        for row in record_batches_to_json_rows(batches) {
-            self.write_row(&Value::Object(row))?;
-        }
-        Ok(())
-    }
-
-    /// tell the writer there are is no more data to come so it can
-    /// write the final `'['`
-    pub fn finish(&mut self) -> Result<()> {
-        if self.started && !self.finished {
-            self.writer.write_all(b"]").context(JsonWrite)?;
-            self.finished = true;
-        }
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use serde_json::json;
-
-    use super::*;
-
-    #[test]
-    fn json_writer_empty() {
-        let mut writer = JsonArrayWriter::new(vec![] as Vec<u8>);
-        writer.finish().unwrap();
-        assert_eq!(String::from_utf8(writer.into_inner()).unwrap(), "");
-    }
-
-    #[test]
-    fn json_writer_one_row() {
-        let mut writer = JsonArrayWriter::new(vec![] as Vec<u8>);
-        let v = json!({ "an": "object" });
-        writer.write_row(&v).unwrap();
-        writer.finish().unwrap();
-        assert_eq!(
-            String::from_utf8(writer.into_inner()).unwrap(),
-            r#"[{"an":"object"}]"#
-        );
-    }
-
-    #[test]
-    fn json_writer_two_rows() {
-        let mut writer = JsonArrayWriter::new(vec![] as Vec<u8>);
-        let v = json!({ "an": "object" });
-        writer.write_row(&v).unwrap();
-        let v = json!({ "another": "object" });
-        writer.write_row(&v).unwrap();
-        writer.finish().unwrap();
-        assert_eq!(
-            String::from_utf8(writer.into_inner()).unwrap(),
-            r#"[{"an":"object"},{"another":"object"}]"#
-        );
-    }
 }
