@@ -242,6 +242,11 @@ func (l *WAL) Open() error {
 			}
 		}
 	}
+
+	if l.currentSegmentWriter != nil {
+		totalOldDiskSize -= int64(l.currentSegmentWriter.size)
+	}
+
 	atomic.StoreInt64(&l.stats.OldBytes, totalOldDiskSize)
 
 	l.closing = make(chan struct{})
@@ -379,6 +384,11 @@ func (l *WAL) Remove(files []string) error {
 
 		totalOldDiskSize += stat.Size()
 	}
+
+	if l.currentSegmentWriter != nil {
+		totalOldDiskSize -= int64(l.currentSegmentWriter.size)
+	}
+
 	atomic.StoreInt64(&l.stats.OldBytes, totalOldDiskSize)
 
 	return nil
@@ -565,7 +575,8 @@ func (l *WAL) newSegmentFile() error {
 		if err := l.currentSegmentWriter.close(); err != nil {
 			return err
 		}
-		atomic.StoreInt64(&l.stats.OldBytes, int64(l.currentSegmentWriter.size))
+
+		atomic.AddInt64(&l.stats.OldBytes, int64(l.currentSegmentWriter.size))
 	}
 
 	fileName := filepath.Join(l.path, fmt.Sprintf("%s%05d.%s", WALFilePrefix, l.currentSegmentID, WALFileExtension))
