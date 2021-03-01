@@ -293,6 +293,7 @@ impl Chunk {
     /// where each returned value sits in a row matching the provided
     /// predicate. All values are deduplicated across row groups in the table.
     ///
+    /// All specified columns must be of `String` type
     /// If the predicate is empty then all distinct values are returned for the
     /// table.
     pub fn column_values<'a>(
