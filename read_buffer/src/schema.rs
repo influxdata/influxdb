@@ -80,7 +80,7 @@ impl Display for ResultSchema {
         }
 
         // write out group by columns, if any
-        for (i, (name, _)) in self.group_columns.iter().enumerate() {
+        for (name, _) in self.group_columns.iter() {
             write!(f, "{},", name)?;
         }
 

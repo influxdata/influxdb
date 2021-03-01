@@ -288,8 +288,8 @@ impl IntegerEncoding {
                 c.row_ids_filter_range((low.1.as_u8(), low.0), (high.1.as_u8(), high.0), dst)
             }
 
-            Self::I64I64N(c) => todo!(),
-            Self::U64U64N(c) => todo!(),
+            Self::I64I64N(_) => todo!(),
+            Self::U64U64N(_) => todo!(),
         }
     }
 
@@ -441,41 +441,6 @@ impl From<arrow::array::Int64Array> for IntegerEncoding {
             return Self::from(arr.values());
         }
 
-        // determine min and max values.
-        let mut min: Option<i64> = None;
-        let mut max: Option<i64> = None;
-
-        for i in 0..arr.len() {
-            if arr.is_null(i) {
-                continue;
-            }
-
-            let v = arr.value(i);
-            match min {
-                Some(m) => {
-                    if v < m {
-                        min = Some(v);
-                    }
-                }
-                None => min = Some(v),
-            };
-
-            match max {
-                Some(m) => {
-                    if v > m {
-                        max = Some(v)
-                    }
-                }
-                None => max = Some(v),
-            };
-        }
-
-        let range = match (min, max) {
-            (None, None) => None,
-            (Some(min), Some(max)) => Some((min, max)),
-            _ => unreachable!("min/max must both be Some or None"),
-        };
-
         // TODO(edd): currently fixed null only supports 64-bit logical/physical
         // types. Need to add support for storing as smaller physical types.
         Self::I64I64N(FixedNull::<arrow::datatypes::Int64Type>::from(arr))
@@ -502,15 +467,11 @@ impl From<&[u64]> for IntegerEncoding {
         // datatypes that can safely represent the provided logical data
         match (min, max) {
             // encode as u8 values
-            (min, max) if max <= u8::MAX as u64 => IntegerEncoding::U64U8(Fixed::<u8>::from(arr)),
+            (_, max) if max <= u8::MAX as u64 => IntegerEncoding::U64U8(Fixed::<u8>::from(arr)),
             // encode as u16 values
-            (min, max) if max <= u16::MAX as u64 => {
-                IntegerEncoding::U64U16(Fixed::<u16>::from(arr))
-            }
+            (_, max) if max <= u16::MAX as u64 => IntegerEncoding::U64U16(Fixed::<u16>::from(arr)),
             // encode as u32 values
-            (min, max) if max <= u32::MAX as u64 => {
-                IntegerEncoding::U64U32(Fixed::<u32>::from(arr))
-            }
+            (_, max) if max <= u32::MAX as u64 => IntegerEncoding::U64U32(Fixed::<u32>::from(arr)),
             // otherwise, encode with the same physical type (u64)
             (_, _) => IntegerEncoding::U64U64(Fixed::<u64>::from(arr)),
         }
@@ -526,41 +487,6 @@ impl From<arrow::array::UInt64Array> for IntegerEncoding {
         if arr.null_count() == 0 {
             return Self::from(arr.values());
         }
-
-        // determine min and max values.
-        let mut min: Option<u64> = None;
-        let mut max: Option<u64> = None;
-
-        for i in 0..arr.len() {
-            if arr.is_null(i) {
-                continue;
-            }
-
-            let v = arr.value(i);
-            match min {
-                Some(m) => {
-                    if v < m {
-                        min = Some(v);
-                    }
-                }
-                None => min = Some(v),
-            };
-
-            match max {
-                Some(m) => {
-                    if v > m {
-                        max = Some(v)
-                    }
-                }
-                None => max = Some(v),
-            };
-        }
-
-        let range = match (min, max) {
-            (None, None) => None,
-            (Some(min), Some(max)) => Some((min, max)),
-            _ => unreachable!("min/max must both be Some or None"),
-        };
 
         // TODO(edd): currently fixed null only supports 64-bit logical/physical
         // types. Need to add support for storing as smaller physical types.
@@ -593,5 +519,10 @@ mod test {
             IntegerEncoding::I64I32(Fixed::<i32>::from(cases[5].as_slice())),
             IntegerEncoding::I64I64(Fixed::<i64>::from(cases[6].as_slice())),
         ];
+
+        for (_case, _exp) in cases.iter().zip(exp.iter()) {
+            // TODO - add debug
+            //assert_eq!(IntegerEncoding::from(&case), exp);
+        }
     }
 }

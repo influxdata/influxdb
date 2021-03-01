@@ -1,8 +1,6 @@
 #![deny(rust_2018_idioms)]
-#![allow(dead_code)]
-#![allow(clippy::too_many_arguments)]
-#![allow(unused_variables)]
 #![warn(clippy::clone_on_ref_ptr)]
+#![allow(dead_code, clippy::too_many_arguments)]
 pub(crate) mod chunk;
 pub(crate) mod column;
 pub(crate) mod row_group;
@@ -375,13 +373,13 @@ impl Database {
     /// nanoseconds.
     pub fn read_window_aggregate(
         &self,
-        partition_key: &str,
-        table_name: &str,
-        chunk_ids: &[u32],
-        predicate: Predicate,
-        group_columns: Selection<'_>,
-        aggregates: Vec<(ColumnName<'_>, AggregateType)>,
-        window: u64,
+        _partition_key: &str,
+        _table_name: &str,
+        _chunk_ids: &[u32],
+        _predicate: Predicate,
+        _group_columns: Selection<'_>,
+        _aggregates: Vec<(ColumnName<'_>, AggregateType)>,
+        _window: u64,
     ) -> Result<ReadWindowAggregateResults> {
         Err(Error::UnsupportedOperation {
             msg: "`read_aggregate_window` not yet implemented".to_owned(),
@@ -1604,7 +1602,7 @@ mod test {
         // Error when All column selection provided.
         assert!(matches!(
             db.column_values("x", "x", &[22, 40], Predicate::default(), Selection::All),
-            Err(Error::UnsupportedOperation { msg })
+            Err(Error::UnsupportedOperation { .. })
         ));
 
         // Error when unsupported column pushed down.

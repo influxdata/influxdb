@@ -225,7 +225,6 @@ impl Bool {
         let mut found = false;
         let mut count = 0;
         for i in 0..self.num_rows() as usize {
-            let mut cmp_result: bool;
             let cmp_result = self.arr.value(i) == value;
 
             if (self.arr.is_null(i) || cmp_result != desired) && found {

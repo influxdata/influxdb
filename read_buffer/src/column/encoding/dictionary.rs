@@ -106,14 +106,6 @@ impl Encoding {
         }
     }
 
-    // All row ids that have either NULL or not NULL values.
-    fn row_ids_is_null(&self, is_null: bool, dst: RowIDs) -> RowIDs {
-        match self {
-            Encoding::RLE(enc) => enc.row_ids_null(dst),
-            Encoding::Plain(enc) => enc.row_ids_null(dst),
-        }
-    }
-
     // The set of row ids for each distinct value in the column.
     fn group_row_ids(&self) -> Either<Vec<&RowIDs>, Vec<RowIDs>> {
         match self {
