@@ -55,12 +55,12 @@ func NewPipeline(tb testing.TB, opts ...launcher.OptSetter) *Pipeline {
 
 	// setup default operator
 	res := p.Launcher.OnBoardOrFail(tb, &influxdb.OnboardingRequest{
-		User:            DefaultUsername,
-		Password:        DefaultPassword,
-		Org:             DefaultOrgName,
-		Bucket:          DefaultBucketName,
-		RetentionPeriod: 0, // infinite retention period
-		Token:           OperToken,
+		User:                   DefaultUsername,
+		Password:               DefaultPassword,
+		Org:                    DefaultOrgName,
+		Bucket:                 DefaultBucketName,
+		RetentionPeriodSeconds: influxdb.InfiniteRetention,
+		Token:                  OperToken,
 	})
 
 	p.DefaultOrgID = res.Org.ID
