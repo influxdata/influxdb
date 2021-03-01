@@ -1,12 +1,14 @@
 //! This module contains code to report compression statistics for storage files
 
+use snafu::{ResultExt, Snafu};
+use structopt::StructOpt;
+use tracing::info;
+
 use ingest::parquet::{error::IOxParquetError, stats as parquet_stats};
 use packers::{
     stats::{FileSetStatsBuilder, FileStats},
     Name,
 };
-use snafu::{ResultExt, Snafu};
-use tracing::info;
 
 use crate::commands::input::{FileType, InputPath, InputReader};
 
@@ -24,23 +26,27 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Describes what statistics are desired
-#[derive(Debug)]
-pub struct StatsConfig {
-    /// The path to start searching from
-    pub input_path: String,
+/// Print out storage statistics information to stdout.
+///
+/// If a directory is specified, checks all files recursively
+#[derive(Debug, StructOpt)]
+pub struct Config {
+    /// The input filename or directory to read from
+    input: String,
 
-    /// Are detailed file-by-file statistics desired?
-    pub per_file: bool,
+    /// Include detailed information per column
+    #[structopt(long)]
+    per_column: bool,
 
-    /// Are detailed column-by-column statistics desired?
-    pub per_column: bool,
+    /// Include detailed information per file
+    #[structopt(long)]
+    per_file: bool,
 }
 
 /// Print statistics about all the files rooted at input_path
-pub async fn stats(config: &StatsConfig) -> Result<()> {
+pub async fn stats(config: &Config) -> Result<()> {
     info!("stats starting for {:?}", config);
-    let input_path = InputPath::new(&config.input_path, |p| {
+    let input_path = InputPath::new(&config.input, |p| {
         p.extension() == Some(std::ffi::OsStr::new("parquet"))
     })
     .context(OpenInput)?;
@@ -76,7 +82,7 @@ pub async fn stats(config: &StatsConfig) -> Result<()> {
 }
 
 /// Print statistics about the file name in input_filename to stdout
-pub async fn stats_for_file(config: &StatsConfig, input_reader: InputReader) -> Result<FileStats> {
+pub async fn stats_for_file(config: &Config, input_reader: InputReader) -> Result<FileStats> {
     let input_name = String::from(input_reader.name());
     let file_stats = match input_reader.file_type() {
         FileType::LineProtocol => {

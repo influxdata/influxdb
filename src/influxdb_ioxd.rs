@@ -12,8 +12,8 @@ use panic_logging::SendPanicsToTracing;
 use server::{ConnectionManagerImpl as ConnectionManager, Server as AppServer};
 
 use crate::commands::{
-    config::{load_config, Config, ObjectStore as ObjStoreOpt},
     logging::LoggingLevel,
+    server::{load_config, Config, ObjectStore as ObjStoreOpt},
 };
 
 mod http;

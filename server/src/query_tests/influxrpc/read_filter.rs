@@ -14,7 +14,7 @@ use query::{
         Executor,
     },
     frontend::influxrpc::InfluxRPCPlanner,
-    predicate::{Predicate, PredicateBuilder},
+    predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE},
 };
 use tokio::sync::mpsc;
 
@@ -149,7 +149,7 @@ fn dump_series_set(s: SeriesSet) -> Vec<String> {
 
 #[tokio::test]
 async fn test_read_filter_no_data_no_pred() {
-    let predicate = Predicate::default();
+    let predicate = EMPTY_PREDICATE;
     let expected_results = vec![] as Vec<&str>;
 
     run_read_filter_test_case!(NoData {}, predicate, expected_results);
@@ -157,7 +157,7 @@ async fn test_read_filter_no_data_no_pred() {
 
 #[tokio::test]
 async fn test_read_filter_data_no_pred() {
-    let predicate = Predicate::default();
+    let predicate = EMPTY_PREDICATE;
     let expected_results = vec![
         "SeriesSet",
         "table_name: h2o",
