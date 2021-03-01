@@ -26,11 +26,11 @@ func TestOnboardingValidation(t *testing.T) {
 	ts := authorizer.NewTaskService(zaptest.NewLogger(t), mockTaskService(3, 2, 1))
 
 	r, err := onboard.OnboardInitialUser(context.Background(), &influxdb.OnboardingRequest{
-		User:            "Setec Astronomy",
-		Password:        "too many secrets",
-		Org:             "thing",
-		Bucket:          "holder",
-		RetentionPeriod: 1,
+		User:                   "Setec Astronomy",
+		Password:               "too many secrets",
+		Org:                    "thing",
+		Bucket:                 "holder",
+		RetentionPeriodSeconds: 1,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -126,11 +126,11 @@ func TestValidations(t *testing.T) {
 	svc, onboard := setup(t)
 
 	r, err := onboard.OnboardInitialUser(context.Background(), &influxdb.OnboardingRequest{
-		User:            "Setec Astronomy",
-		Password:        "too many secrets",
-		Org:             "thing",
-		Bucket:          "holder",
-		RetentionPeriod: 1,
+		User:                   "Setec Astronomy",
+		Password:               "too many secrets",
+		Org:                    "thing",
+		Bucket:                 "holder",
+		RetentionPeriodSeconds: 1,
 	})
 	if err != nil {
 		t.Fatal(err)
