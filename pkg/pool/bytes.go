@@ -45,7 +45,7 @@ func (p *Bytes) Put(c []byte) {
 // LimitedBytes is a pool of byte slices that can be re-used.  Slices in
 // this pool will not be garbage collected when not in use.  The pool will
 // hold onto a fixed number of byte slices of a maximum size.  If the pool
-// is empty and max pool size has not been allocated yet, it will return a
+// is empty or the required size is larger than max size, it will return a
 // new byte slice.  Byte slices added to the pool that are over the max size
 // are dropped.
 type LimitedBytes struct {
