@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2/toml"
-	"github.com/influxdata/influxdb/v2/v1/monitor/diagnostics"
 )
 
 const (
@@ -205,21 +204,4 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
-}
-
-// Diagnostics returns a diagnostics representation of a subset of the Config.
-func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
-	return diagnostics.RowFromMap(map[string]interface{}{
-		"dir":                                    c.Dir,
-		"wal-dir":                                c.WALDir,
-		"wal-fsync-delay":                        c.WALFsyncDelay,
-		"cache-max-memory-size":                  c.CacheMaxMemorySize,
-		"cache-snapshot-memory-size":             c.CacheSnapshotMemorySize,
-		"cache-snapshot-write-cold-duration":     c.CacheSnapshotWriteColdDuration,
-		"compact-full-write-cold-duration":       c.CompactFullWriteColdDuration,
-		"max-concurrent-compactions":             c.MaxConcurrentCompactions,
-		"max-index-log-file-size":                c.MaxIndexLogFileSize,
-		"series-id-set-cache-size":               c.SeriesIDSetCacheSize,
-		"series-file-max-concurrent-compactions": c.SeriesFileMaxConcurrentSnapshotCompactions,
-	}), nil
 }

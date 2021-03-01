@@ -3,8 +3,6 @@ package meta
 import (
 	"errors"
 	"time"
-
-	"github.com/influxdata/influxdb/v2/v1/monitor/diagnostics"
 )
 
 const (
@@ -37,11 +35,4 @@ func (c *Config) Validate() error {
 		return errors.New("Meta.Dir must be specified")
 	}
 	return nil
-}
-
-// Diagnostics returns a diagnostics representation of a subset of the Config.
-func (c *Config) Diagnostics() (*diagnostics.Diagnostics, error) {
-	return diagnostics.RowFromMap(map[string]interface{}{
-		"dir": c.Dir,
-	}), nil
 }
