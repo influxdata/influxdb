@@ -10,7 +10,7 @@ use data_types::{
     selection::Selection,
 };
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
-use query::{predicate::Predicate, PartitionChunk};
+use query::{predicate::EMPTY_PREDICATE, PartitionChunk};
 
 use std::{
     io::{Cursor, Seek, SeekFrom, Write},
@@ -164,10 +164,9 @@ where
     async fn run(&self, notify: Option<oneshot::Sender<()>>) -> Result<()> {
         while let Some((pos, table_name)) = self.next_table() {
             // get all the data in this chunk:
-            let predicate = Predicate::default();
             let stream = self
                 .chunk
-                .read_filter(table_name, &predicate, Selection::All)
+                .read_filter(table_name, &EMPTY_PREDICATE, Selection::All)
                 .await
                 .map_err(|e| Box::new(e) as _)
                 .context(PartitionError)?;

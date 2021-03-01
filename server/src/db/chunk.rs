@@ -261,7 +261,7 @@ impl PartitionChunk for DBChunk {
                 // Note MutableBuffer doesn't support predicate
                 // pushdown (other than pruning out the entire chunk
                 // via `might_pass_predicate)
-                if predicate != &Predicate::default() {
+                if !predicate.is_empty() {
                     return InternalPredicateNotSupported {
                         predicate: predicate.clone(),
                     }
