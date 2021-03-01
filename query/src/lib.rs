@@ -55,15 +55,6 @@ pub trait Database: Debug + Send + Sync {
     // The functions below are slated for removal (migration into a gRPC query
     // frontend) ---------
 
-    /// Returns a plan that finds all rows rows which pass the
-    /// conditions specified by `predicate` in the form of logical
-    /// time series.
-    ///
-    /// A time series is defined by the unique values in a set of
-    /// "tag_columns" for each field in the "field_columns", orderd by
-    /// the time column.
-    async fn query_series(&self, predicate: Predicate) -> Result<SeriesSetPlans, Self::Error>;
-
     /// Returns a plan that finds rows which pass the conditions
     /// specified by `predicate` and have been logically grouped and
     /// aggregate according to `gby_agg`.
@@ -153,7 +144,10 @@ pub trait PartitionChunk: Debug + Send + Sync {
     ) -> Result<Schema, Self::Error>;
 
     /// Provides access to raw `PartitionChunk` data as an
-    /// asynchronous stream of `RecordBatch`es.
+    /// asynchronous stream of `RecordBatch`es filtered by a *required*
+    /// predicate. Note that not all chunks can evaluate all types of
+    /// predicates and this function will return an error
+    /// if requested to evaluate with a predicate that is not supported
     ///
     /// This is the analog of the `TableProvider` in DataFusion
     ///

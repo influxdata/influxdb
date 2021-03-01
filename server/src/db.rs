@@ -306,18 +306,6 @@ impl Database for Db {
             .context(MutableBufferWrite)
     }
 
-    async fn query_series(
-        &self,
-        predicate: query::predicate::Predicate,
-    ) -> Result<query::plan::seriesset::SeriesSetPlans, Self::Error> {
-        self.mutable_buffer
-            .as_ref()
-            .context(DatabaseNotReadable)?
-            .query_series(predicate)
-            .await
-            .context(MutableBufferRead)
-    }
-
     async fn query_groups(
         &self,
         predicate: query::predicate::Predicate,

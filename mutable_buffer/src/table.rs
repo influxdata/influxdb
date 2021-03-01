@@ -39,6 +39,7 @@ use arrow_deps::{
         logical_plan::{Expr, LogicalPlanBuilder},
         prelude::*,
     },
+    util::IntoExpr,
 };
 
 #[derive(Debug, Snafu)]
@@ -270,25 +271,6 @@ impl Table {
             Some(df_predicate) => plan_builder.filter(df_predicate).context(BuildingPlan),
             None => Ok(plan_builder),
         }
-    }
-
-    /// Creates a SeriesSet plan that produces an output table with rows that
-    /// match the predicate
-    ///
-    /// The output looks like:
-    /// (tag_col1, tag_col2, ... field1, field2, ... timestamp)
-    ///
-    /// The order of the tag_columns is ordered by name.
-    ///
-    /// The data is sorted on tag_col1, tag_col2, ...) so that all
-    /// rows for a particular series (groups where all tags are the
-    /// same) occur together in the plan
-    pub fn series_set_plan(
-        &self,
-        chunk_predicate: &ChunkPredicate,
-        chunk: &Chunk,
-    ) -> Result<SeriesSetPlan> {
-        self.series_set_plan_impl(chunk_predicate, None, chunk)
     }
 
     /// Creates the plans for computing series set, ensuring that
@@ -1016,39 +998,6 @@ fn reorder_prefix(
     Ok(new_tag_columns)
 }
 
-/// Traits to help creating DataFuson expressions from strings
-trait IntoExpr {
-    /// Creates a DataFuson expr
-    fn into_expr(&self) -> Expr;
-
-    /// creates a DataFusion SortExpr
-    fn into_sort_expr(&self) -> Expr {
-        Expr::Sort {
-            expr: Box::new(self.into_expr()),
-            asc: true, // Sort ASCENDING
-            nulls_first: true,
-        }
-    }
-}
-
-impl IntoExpr for Arc<String> {
-    fn into_expr(&self) -> Expr {
-        col(self.as_ref())
-    }
-}
-
-impl IntoExpr for str {
-    fn into_expr(&self) -> Expr {
-        col(self)
-    }
-}
-
-impl IntoExpr for Expr {
-    fn into_expr(&self) -> Expr {
-        self.clone()
-    }
-}
-
 struct AggExprs {
     agg_exprs: Vec<Expr>,
     field_columns: FieldColumns,
@@ -1413,7 +1362,7 @@ mod tests {
         let predicate = PredicateBuilder::default().build();
         let chunk_predicate = chunk.compile_predicate(&predicate).unwrap();
         let series_set_plan = table
-            .series_set_plan(&chunk_predicate, &chunk)
+            .series_set_plan_impl(&chunk_predicate, None, &chunk)
             .expect("creating the series set plan");
 
         assert_eq!(series_set_plan.table_name.as_ref(), "table_name");
@@ -1461,7 +1410,7 @@ mod tests {
         let predicate = PredicateBuilder::default().build();
         let chunk_predicate = chunk.compile_predicate(&predicate).unwrap();
         let series_set_plan = table
-            .series_set_plan(&chunk_predicate, &chunk)
+            .series_set_plan_impl(&chunk_predicate, None, &chunk)
             .expect("creating the series set plan");
 
         assert_eq!(series_set_plan.table_name.as_ref(), "table_name");
@@ -1514,7 +1463,7 @@ mod tests {
         let chunk_predicate = chunk.compile_predicate(&predicate).unwrap();
 
         let series_set_plan = table
-            .series_set_plan(&chunk_predicate, &chunk)
+            .series_set_plan_impl(&chunk_predicate, None, &chunk)
             .expect("creating the series set plan");
 
         assert_eq!(series_set_plan.table_name.as_ref(), "table_name");

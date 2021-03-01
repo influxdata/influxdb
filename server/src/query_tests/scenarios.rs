@@ -183,7 +183,7 @@ impl DBSetup for EndToEndTest {
 /// Data in single closed mutable buffer chunk, one closed mutable chunk
 /// Data in both read buffer and mutable buffer chunk
 /// Data in one only read buffer chunk
-async fn make_one_chunk_scenarios(partition_key: &str, data: &str) -> Vec<DBScenario> {
+pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) -> Vec<DBScenario> {
     let db = make_db();
     let mut writer = TestLPWriter::default();
     writer.write_lp_string(&db, data).await.unwrap();

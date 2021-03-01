@@ -229,13 +229,6 @@ impl Database for MutableBufferDb {
         Ok(())
     }
 
-    async fn query_series(&self, predicate: Predicate) -> Result<SeriesSetPlans, Self::Error> {
-        let mut filter = ChunkTableFilter::new(predicate);
-        let mut visitor = SeriesVisitor::new();
-        self.accept(&mut filter, &mut visitor)?;
-        Ok(visitor.plans.into())
-    }
-
     async fn query_groups(
         &self,
         predicate: Predicate,
@@ -523,32 +516,6 @@ impl ChunkTableFilter {
     }
 }
 
-/// Return DataFusion plans to calculate which series pass the
-/// specified predicate.
-struct SeriesVisitor {
-    plans: Vec<SeriesSetPlan>,
-}
-
-impl SeriesVisitor {
-    fn new() -> Self {
-        Self { plans: Vec::new() }
-    }
-}
-
-impl Visitor for SeriesVisitor {
-    fn pre_visit_table(
-        &mut self,
-        table: &Table,
-        chunk: &Chunk,
-        filter: &mut ChunkTableFilter,
-    ) -> Result<()> {
-        self.plans
-            .push(table.series_set_plan(filter.chunk_predicate(), chunk)?);
-
-        Ok(())
-    }
-}
-
 /// Return DataFusion plans to calculate series that pass the
 /// specified predicate, grouped according to grouped_columns
 struct GroupsVisitor {
@@ -629,24 +596,10 @@ impl Visitor for WindowGroupsVisitor {
 mod tests {
     use super::*;
     use data_types::selection::Selection;
-    use query::{
-        exec::{
-            field::FieldIndexes,
-            seriesset::{Error as SeriesSetError, SeriesSet, SeriesSetItem},
-            Executor,
-        },
-        predicate::PredicateBuilder,
-        Database,
-    };
 
-    use arrow_deps::{
-        arrow::array::{Array, StringArray},
-        datafusion::prelude::*,
-    };
+    use arrow_deps::arrow::array::{Array, StringArray};
     use data_types::database_rules::Order;
     use influxdb_line_protocol::{parse_lines, ParsedLine};
-    use test_helpers::{assert_contains, str_pair_vec_to_vec};
-    use tokio::sync::mpsc;
 
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T = (), E = TestError> = std::result::Result<T, E>;
@@ -711,216 +664,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_query_series() -> Result {
-        // This test checks that everything is wired together
-        // correctly.  There are more detailed tests in table.rs that
-        // test the generated queries.
-        let db = MutableBufferDb::new("column_namedb");
-
-        let mut lp_lines = vec![
-            "h2o,state=MA,city=Boston temp=70.4 100", // to row 2
-            "h2o,state=MA,city=Boston temp=72.4 250", // to row 1
-            "h2o,state=CA,city=LA temp=90.0 200",     // to row 0
-            "h2o,state=CA,city=LA temp=90.0 350",     // to row 3
-            "o2,state=MA,city=Boston temp=50.4,reading=50 100", // to row 5
-            "o2,state=MA,city=Boston temp=53.4,reading=51 250", // to row 4
-        ];
-
-        // Swap around  data is not inserted in series order
-        lp_lines.swap(0, 2);
-        lp_lines.swap(4, 5);
-
-        let lp_data = lp_lines.join("\n");
-
-        let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
-        write_lines(&db, &lines).await;
-
-        let predicate = Predicate::default();
-
-        let plans = db
-            .query_series(predicate)
-            .await
-            .expect("Created query_series plan successfully");
-
-        let results = run_and_gather_results(plans).await;
-
-        assert_eq!(results.len(), 3);
-
-        let series_set0 = results[0].as_ref().expect("Correctly converted");
-        assert_eq!(*series_set0.table_name, "h2o");
-        assert_eq!(
-            series_set0.tags,
-            str_pair_vec_to_vec(&[("city", "Boston"), ("state", "MA")])
-        );
-        assert_eq!(
-            series_set0.field_indexes,
-            FieldIndexes::from_timestamp_and_value_indexes(3, &[2])
-        );
-        assert_eq!(series_set0.start_row, 0);
-        assert_eq!(series_set0.num_rows, 2);
-
-        let series_set1 = results[1].as_ref().expect("Correctly converted");
-        assert_eq!(*series_set1.table_name, "h2o");
-        assert_eq!(
-            series_set1.tags,
-            str_pair_vec_to_vec(&[("city", "LA"), ("state", "CA")])
-        );
-        assert_eq!(
-            series_set1.field_indexes,
-            FieldIndexes::from_timestamp_and_value_indexes(3, &[2])
-        );
-        assert_eq!(series_set1.start_row, 2);
-        assert_eq!(series_set1.num_rows, 2);
-
-        let series_set2 = results[2].as_ref().expect("Correctly converted");
-        assert_eq!(*series_set2.table_name, "o2");
-        assert_eq!(
-            series_set2.tags,
-            str_pair_vec_to_vec(&[("city", "Boston"), ("state", "MA")])
-        );
-        assert_eq!(
-            series_set2.field_indexes,
-            FieldIndexes::from_timestamp_and_value_indexes(4, &[2, 3])
-        );
-        assert_eq!(series_set2.start_row, 0);
-        assert_eq!(series_set2.num_rows, 2);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_query_series_filter() -> Result {
-        // check the appropriate filters are applied in the datafusion plans
-        let db = MutableBufferDb::new("column_namedb");
-
-        let lp_lines = vec![
-            "h2o,state=MA,city=Boston temp=70.4 100",
-            "h2o,state=MA,city=Boston temp=72.4 250",
-            "h2o,state=CA,city=LA temp=90.0 200",
-            "h2o,state=CA,city=LA temp=90.0 350",
-            "o2,state=MA,city=Boston temp=50.4,reading=50 100",
-            "o2,state=MA,city=Boston temp=53.4,reading=51 250",
-        ];
-
-        let lp_data = lp_lines.join("\n");
-
-        let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
-        write_lines(&db, &lines).await;
-
-        // filter out one row in h20
-        let predicate = PredicateBuilder::default()
-            .timestamp_range(200, 300)
-            .add_expr(col("state").eq(lit("CA"))) // state=CA
-            .build();
-
-        let plans = db
-            .query_series(predicate)
-            .await
-            .expect("Created query_series plan successfully");
-
-        let results = run_and_gather_results(plans).await;
-
-        assert_eq!(results.len(), 1);
-
-        let series_set0 = results[0].as_ref().expect("Correctly converted");
-        assert_eq!(*series_set0.table_name, "h2o");
-        assert_eq!(
-            series_set0.tags,
-            str_pair_vec_to_vec(&[("city", "LA"), ("state", "CA")])
-        );
-        assert_eq!(
-            series_set0.field_indexes,
-            FieldIndexes::from_timestamp_and_value_indexes(3, &[2])
-        );
-        assert_eq!(series_set0.start_row, 0);
-        assert_eq!(series_set0.num_rows, 1); // only has one row!
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_query_series_pred_refers_to_column_not_in_table() -> Result {
-        let db = MutableBufferDb::new("column_namedb");
-
-        let lp_lines = vec![
-            "h2o,state=MA,city=Boston temp=70.4 100",
-            "h2o,state=MA,city=Boston temp=72.4 250",
-        ];
-
-        let lp_data = lp_lines.join("\n");
-
-        let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
-        write_lines(&db, &lines).await;
-
-        let predicate = PredicateBuilder::default()
-            .add_expr(col("tag_not_in_h20").eq(lit("foo")))
-            .build();
-
-        let plans = db
-            .query_series(predicate)
-            .await
-            .expect("Created query_series plan successfully");
-
-        let results = run_and_gather_results(plans).await;
-        assert!(results.is_empty());
-
-        // predicate with no columns,
-        let predicate = PredicateBuilder::default()
-            .add_expr(lit("foo").eq(lit("foo")))
-            .build();
-
-        let plans = db
-            .query_series(predicate)
-            .await
-            .expect("Created query_series plan successfully");
-
-        let results = run_and_gather_results(plans).await;
-        assert_eq!(results.len(), 1);
-
-        // predicate with both a column that does and does not appear
-        let predicate = PredicateBuilder::default()
-            .add_expr(col("state").eq(lit("MA")))
-            .add_expr(col("tag_not_in_h20").eq(lit("foo")))
-            .build();
-
-        let plans = db
-            .query_series(predicate)
-            .await
-            .expect("Created query_series plan successfully");
-
-        let results = run_and_gather_results(plans).await;
-        assert!(results.is_empty());
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn test_query_series_pred_neq() {
-        let db = MutableBufferDb::new("column_namedb");
-
-        let lp_lines = vec![
-            "h2o,state=MA,city=Boston temp=70.4 100",
-            "h2o,state=MA,city=Boston temp=72.4 250",
-        ];
-
-        let lp_data = lp_lines.join("\n");
-
-        let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
-        write_lines(&db, &lines).await;
-
-        let predicate = PredicateBuilder::default()
-            .add_expr(col("state").not_eq(lit("MA")))
-            .build();
-
-        // Should err as the neq path isn't implemented yet
-        let err = db.query_series(predicate).await.unwrap_err();
-        assert_contains!(
-            err.to_string(),
-            "Operator NotEq not yet supported in IOx MutableBuffer"
-        );
-    }
-
-    #[tokio::test]
     async fn db_size() {
         let db = MutableBufferDb::new("column_namedb");
 
@@ -961,52 +704,6 @@ mod tests {
         let partitions = db.partitions_sorted_by(&sort_rules);
         assert_eq!(partitions[0].read().unwrap().key(), "p1");
         assert_eq!(partitions[1].read().unwrap().key(), "p2");
-    }
-
-    /// Run the plan and gather the results in a order that can be compared
-    async fn run_and_gather_results(
-        plans: SeriesSetPlans,
-    ) -> Vec<Result<SeriesSet, SeriesSetError>> {
-        // Use a channel sufficiently large to buffer the series
-        let (tx, mut rx) = mpsc::channel(100);
-
-        // setup to run the execution plan (
-        let executor = Executor::default();
-        executor
-            .to_series_set(plans, tx)
-            .await
-            .expect("Running series set plan");
-
-        // gather up the sets and compare them
-        let mut results = Vec::new();
-        while let Some(r) = rx.recv().await {
-            results.push(r.map(|item| {
-                if let SeriesSetItem::Data(series_set) = item {
-                    series_set
-                }
-                else {
-                    panic!("Unexpected result from converting. Expected SeriesSetItem::Data, got: {:?}", item)
-                }
-            })
-            );
-        }
-
-        // sort the results so that we can reliably compare
-        results.sort_by(|r1, r2| {
-            match (r1, r2) {
-                (Ok(r1), Ok(r2)) => r1
-                    .table_name
-                    .cmp(&r2.table_name)
-                    .then(r1.tags.cmp(&r2.tags)),
-                // default sort by string representation
-                (r1, r2) => format!("{:?}", r1).cmp(&format!("{:?}", r2)),
-            }
-        });
-
-        // Print to stdout / test log to facilitate debugging if fails on CI
-        println!("The results are: {:#?}", results);
-
-        results
     }
 
     /// write lines into this database

@@ -911,7 +911,7 @@ async fn read_filter_impl<'a, T>(
     rpc_predicate: Option<Predicate>,
 ) -> Result<()>
 where
-    T: DatabaseStore,
+    T: DatabaseStore + 'static,
 {
     let rpc_predicate_string = format!("{:?}", rpc_predicate);
 
@@ -935,8 +935,10 @@ where
 
     let executor = db_store.executor();
 
-    let series_plan = db
-        .query_series(predicate)
+    let planner = InfluxRPCPlanner::new();
+
+    let series_plan = planner
+        .read_filter(db.as_ref(), predicate)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(PlanningFilteringSeries { db_name })?;
@@ -1112,8 +1114,8 @@ mod tests {
         group_by::{Aggregate as QueryAggregate, WindowDuration as QueryWindowDuration},
         plan::seriesset::SeriesSetPlans,
         test::QueryGroupsRequest,
+        test::TestChunk,
         test::TestDatabaseStore,
-        test::{QuerySeriesRequest, TestChunk},
     };
     use std::{
         convert::TryFrom,
@@ -1840,18 +1842,25 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_read_filter() -> Result<(), tonic::Status> {
+    async fn test_read_filter() {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let test_db = fixture
+        // Add a chunk with a field
+        let chunk = TestChunk::new(0)
+            .with_time_column("TheMeasurement")
+            .with_tag_column("TheMeasurement", "state")
+            .with_one_row_of_null_data("TheMeasurement");
+
+        fixture
             .test_storage
             .db_or_create(&db_info.db_name)
             .await
-            .expect("creating test database");
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClientWrapper::read_source(
             db_info.org_id,
@@ -1861,31 +1870,43 @@ mod tests {
 
         let request = ReadFilterRequest {
             read_source: source.clone(),
-            range: make_timestamp_range(150, 200),
+            range: make_timestamp_range(0, 10000),
             predicate: make_state_ma_predicate(),
         };
 
-        let expected_request = QuerySeriesRequest {
-            predicate: "Predicate { exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into()
-        };
+        let actual_frames = fixture.storage_client.read_filter(request).await.unwrap();
 
-        let dummy_series_set_plan = SeriesSetPlans::from(vec![]);
-        test_db.set_query_series_values(dummy_series_set_plan);
-
-        let actual_frames = fixture.storage_client.read_filter(request).await?;
-
-        // TODO: encode this in the test case or something
+        // TODO: encode the actual output in the test case or something
         let expected_frames: Vec<String> = vec!["0 frames".into()];
 
         assert_eq!(
             actual_frames, expected_frames,
             "unexpected frames returned by query_series",
         );
-        assert_eq!(
-            test_db.get_query_series_request(),
-            Some(expected_request),
-            "unexpected request to query_series",
-        );
+    }
+
+    #[tokio::test]
+    async fn test_read_filter_error() {
+        // Start a test gRPC server on a randomally allocated port
+        let mut fixture = Fixture::new().await.expect("Connecting to test server");
+
+        let db_info = OrgAndBucket::new(123, 456);
+        let partition_id = 1;
+
+        let chunk = TestChunk::new(0).with_error("Sugar we are going down");
+
+        fixture
+            .test_storage
+            .db_or_create(&db_info.db_name)
+            .await
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk));
+
+        let source = Some(StorageClientWrapper::read_source(
+            db_info.org_id,
+            db_info.bucket_id,
+            partition_id,
+        ));
 
         // ---
         // test error
@@ -1898,22 +1919,7 @@ mod tests {
 
         // Note we don't set the response on the test database, so we expect an error
         let response = fixture.storage_client.read_filter(request).await;
-        assert!(response.is_err());
-        let response_string = format!("{:?}", response);
-        let expected_error = "No saved query_series in TestDatabase";
-        assert!(
-            response_string.contains(expected_error),
-            "'{}' did not contain expected content '{}'",
-            response_string,
-            expected_error
-        );
-
-        let expected_request = Some(QuerySeriesRequest {
-            predicate: "Predicate {}".into(),
-        });
-        assert_eq!(test_db.get_query_series_request(), expected_request);
-
-        Ok(())
+        assert_contains!(response.unwrap_err().to_string(), "Sugar we are going down");
     }
 
     #[tokio::test]

@@ -7,6 +7,10 @@ use crate::exec::field::FieldColumns;
 /// A plan that can be run to produce a logical stream of time series,
 /// as represented as sequence of SeriesSets from a single DataFusion
 /// plan, optionally grouped in some way.
+///
+/// TODO: remove the tag/field designations below and attach a
+/// `Schema` to the plan (which has the tag and field column
+/// information natively)
 #[derive(Debug)]
 pub struct SeriesSetPlan {
     /// The table name this came from

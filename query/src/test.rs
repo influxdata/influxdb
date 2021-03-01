@@ -56,24 +56,11 @@ pub struct TestDatabase {
     /// `column_names` to return upon next request
     column_names: Arc<Mutex<Option<StringSetRef>>>,
 
-    /// Responses to return on the next request to `query_series`
-    query_series_values: Arc<Mutex<Option<SeriesSetPlans>>>,
-
-    /// The last request for `query_series`
-    query_series_request: Arc<Mutex<Option<QuerySeriesRequest>>>,
-
     /// Responses to return on the next request to `query_groups`
     query_groups_values: Arc<Mutex<Option<SeriesSetPlans>>>,
 
     /// The last request for `query_series`
     query_groups_request: Arc<Mutex<Option<QueryGroupsRequest>>>,
-}
-
-/// Records the parameters passed to a `query_series` request
-#[derive(Debug, PartialEq, Clone)]
-pub struct QuerySeriesRequest {
-    /// Stringified '{:?}' version of the predicate
-    pub predicate: String,
 }
 
 /// Records the parameters passed to a `query_groups` request
@@ -159,16 +146,6 @@ impl TestDatabase {
         *Arc::clone(&self.column_names).lock() = Some(column_names)
     }
 
-    /// Set the series that will be returned on a call to query_series
-    pub fn set_query_series_values(&self, plan: SeriesSetPlans) {
-        *Arc::clone(&self.query_series_values).lock() = Some(plan);
-    }
-
-    /// Get the parameters from the last column name request
-    pub fn get_query_series_request(&self) -> Option<QuerySeriesRequest> {
-        Arc::clone(&self.query_series_request).lock().take()
-    }
-
     /// Set the series that will be returned on a call to query_groups
     pub fn set_query_groups_values(&self, plan: SeriesSetPlans) {
         *Arc::clone(&self.query_groups_values).lock() = Some(plan);
@@ -232,22 +209,6 @@ impl Database for TestDatabase {
     async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
         self.replicated_writes.lock().push(write.clone());
         Ok(())
-    }
-
-    async fn query_series(&self, predicate: Predicate) -> Result<SeriesSetPlans, Self::Error> {
-        let predicate = predicate_to_test_string(&predicate);
-
-        let new_queries_series_request = Some(QuerySeriesRequest { predicate });
-
-        *Arc::clone(&self.query_series_request).lock() = new_queries_series_request;
-
-        Arc::clone(&self.query_series_values)
-            .lock()
-            .take()
-            // Turn None into an error
-            .context(General {
-                message: "No saved query_series in TestDatabase",
-            })
     }
 
     async fn query_groups(

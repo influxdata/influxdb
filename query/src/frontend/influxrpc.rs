@@ -12,6 +12,7 @@ use arrow_deps::{
         },
         prelude::col,
     },
+    util::IntoExpr,
 };
 use data_types::{
     schema::{InfluxColumnType, Schema},
@@ -24,6 +25,7 @@ use crate::{
     exec::{make_schema_pivot, stringset::StringSet},
     plan::{
         fieldlist::FieldListPlan,
+        seriesset::{SeriesSetPlan, SeriesSetPlans},
         stringset::{Error as StringSetError, StringSetPlan, StringSetPlanBuilder},
     },
     predicate::{Predicate, PredicateBuilder},
@@ -492,6 +494,60 @@ impl InfluxRPCPlanner {
         Ok(field_list_plan)
     }
 
+    /// Returns a plan that finds all rows which pass the
+    /// conditions specified by `predicate` in the form of logical
+    /// time series.
+    ///
+    /// A time series is defined by the unique values in a set of
+    /// "tag_columns" for each field in the "field_columns", ordered by
+    /// the time column.
+    ///
+    /// The output looks like:
+    /// ```text
+    /// (tag_col1, tag_col2, ... field1, field2, ... timestamp)
+    /// ```
+    ///
+    /// The  tag_columns are ordered by name.
+    ///
+    /// The data is sorted on (tag_col1, tag_col2, ...) so that all
+    /// rows for a particular series (groups where all tags are the
+    /// same) occur together in the plan
+
+    pub async fn read_filter<D>(&self, database: &D, predicate: Predicate) -> Result<SeriesSetPlans>
+    where
+        D: Database + 'static,
+    {
+        debug!(predicate=?predicate, "planning read_filter");
+
+        // group tables by chunk, pruning if possible
+        // key is table name, values are chunks
+        let mut table_chunks = BTreeMap::new();
+
+        for chunk in self.filtered_chunks(database, &predicate).await? {
+            let table_names = self.chunk_table_names(chunk.as_ref(), &predicate).await?;
+            for table_name in table_names.into_iter() {
+                table_chunks
+                    .entry(table_name)
+                    .or_insert_with(Vec::new)
+                    .push(Arc::clone(&chunk));
+            }
+        }
+
+        // now, build up plans for each table
+        let mut ss_plans = Vec::with_capacity(table_chunks.len());
+        for (table_name, chunks) in table_chunks {
+            let ss_plan = self
+                .read_filter_plan(table_name, &predicate, chunks)
+                .await?;
+            // If we have to do real work, add it to the list of plans
+            if let Some(ss_plan) = ss_plan {
+                ss_plans.push(ss_plan);
+            }
+        }
+
+        Ok(ss_plans.into())
+    }
+
     /// Find all the table names in the specified chunk that pass the predicate
     async fn chunk_table_names<C>(
         &self,
@@ -645,6 +701,83 @@ impl InfluxRPCPlanner {
             .context(BuildingPlan)?;
 
         Ok(Some(plan))
+    }
+
+    /// Creates a plan for computing series sets for a given table,
+    /// returning None if the predicate rules out matching any rows in
+    /// the table
+    ///
+    /// The created plan looks like:
+    ///
+    ///    Projection (select the columns needed)
+    ///      Order by (tag_columns, timestamp_column)
+    ///        Filter(predicate)
+    ///          InMemoryScan
+    async fn read_filter_plan<C>(
+        &self,
+        table_name: impl Into<String>,
+        predicate: &Predicate,
+        chunks: Vec<Arc<C>>,
+    ) -> Result<Option<SeriesSetPlan>>
+    where
+        C: PartitionChunk + 'static,
+    {
+        let table_name = table_name.into();
+        let scan_and_filter = self.scan_and_filter(&table_name, predicate, chunks).await?;
+
+        let TableScanAndFilter {
+            plan_builder,
+            schema,
+        } = match scan_and_filter {
+            None => return Ok(None),
+            Some(t) => t,
+        };
+
+        let tags_and_timestamp: Vec<Expr> = schema
+            .tags_iter()
+            .chain(schema.time_iter())
+            .map(|field| field.name().into_sort_expr())
+            .collect();
+
+        // Order by
+        let plan_builder = plan_builder
+            .sort(&tags_and_timestamp)
+            .context(BuildingPlan)?;
+
+        // Select away anything that isn't in the influx data model
+        let tags_fields_and_timestamps: Vec<Expr> = schema
+            .tags_iter()
+            .chain(schema.fields_iter())
+            .chain(schema.time_iter())
+            .map(|field| field.name().into_expr())
+            .collect();
+
+        let plan_builder = plan_builder
+            .project(&tags_fields_and_timestamps)
+            .context(BuildingPlan)?;
+
+        let plan = plan_builder.build().context(BuildingPlan)?;
+
+        let tag_columns = schema
+            .tags_iter()
+            .map(|field| Arc::new(field.name().to_string()))
+            .collect();
+
+        let field_columns = schema
+            .fields_iter()
+            .map(|field| Arc::new(field.name().to_string()))
+            .collect();
+
+        // TODO: remove the use of tag_columns and field_column names
+        // and instead use the schema directly)
+        let ss_plan = SeriesSetPlan::new_from_shared_timestamp(
+            Arc::new(table_name),
+            plan,
+            tag_columns,
+            field_columns,
+        );
+
+        Ok(Some(ss_plan))
     }
 
     /// Create a plan that scans the specified table, and applies any

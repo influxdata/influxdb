@@ -4,6 +4,7 @@ use mutable_buffer::chunk::Chunk as MBChunk;
 use query::{exec::stringset::StringSet, predicate::Predicate, PartitionChunk};
 use read_buffer::Database as ReadBufferDb;
 use snafu::{ResultExt, Snafu};
+use tracing::debug;
 
 use std::sync::Arc;
 
@@ -30,8 +31,14 @@ pub enum Error {
     #[snafu(display("Internal error restricting schema: {}", source))]
     InternalSelectingSchema { source: data_types::schema::Error },
 
-    #[snafu(display("Internal Predicate Conversion Error: {}", source))]
-    InternalPredicateConversion { source: super::pred::Error },
+    #[snafu(display("Predicate conversion error: {}", source))]
+    PredicateConversion { source: super::pred::Error },
+
+    #[snafu(display(
+        "Internal error: mutable buffer does not support predicate pushdown, but got: {:?}",
+        predicate
+    ))]
+    InternalPredicateNotSupported { predicate: Predicate },
 
     #[snafu(display("internal error creating plan: {}", source))]
     InternalPlanCreation {
@@ -113,9 +120,13 @@ impl PartitionChunk for DBChunk {
                 if chunk.is_empty() {
                     Some(StringSet::new())
                 } else {
-                    let chunk_predicate = chunk
-                        .compile_predicate(predicate)
-                        .context(MutableBufferChunk)?;
+                    let chunk_predicate = match chunk.compile_predicate(predicate) {
+                        Ok(chunk_predicate) => chunk_predicate,
+                        Err(e) => {
+                            debug!(?predicate, %e, "mutable buffer predicate not supported for table_names, falling back");
+                            return Ok(None);
+                        }
+                    };
 
                     // we don't support arbitrary expressions in chunk predicate yet
                     if !chunk_predicate.chunk_exprs.is_empty() {
@@ -139,11 +150,15 @@ impl PartitionChunk for DBChunk {
             } => {
                 let chunk_id = *chunk_id;
 
-                // TODO: figure out if this predicate was "not
-                // supported" or "actual error". If not supported,
-                // should return Ok(None)
-                let rb_predicate =
-                    to_read_buffer_predicate(&predicate).context(InternalPredicateConversion)?;
+                // If not supported, ReadBuffer can't answer with
+                // metadata only
+                let rb_predicate = match to_read_buffer_predicate(&predicate) {
+                    Ok(rb_predicate) => rb_predicate,
+                    Err(e) => {
+                        debug!(?predicate, %e, "read buffer predicate not supported for table_names, falling back");
+                        return Ok(None);
+                    }
+                };
 
                 let names = db
                     .table_names(partition_key, &[chunk_id], rb_predicate)
@@ -243,9 +258,15 @@ impl PartitionChunk for DBChunk {
     ) -> Result<SendableRecordBatchStream, Self::Error> {
         match self {
             Self::MutableBuffer { chunk } => {
-                // Note Mutable buffer doesn't support predicate
+                // Note MutableBuffer doesn't support predicate
                 // pushdown (other than pruning out the entire chunk
                 // via `might_pass_predicate)
+                if predicate != &Predicate::default() {
+                    return InternalPredicateNotSupported {
+                        predicate: predicate.clone(),
+                    }
+                    .fail();
+                }
                 let schema: Schema = self.table_schema(table_name, selection).await?;
 
                 Ok(Box::pin(MutableBufferChunkStream::new(
@@ -260,8 +281,9 @@ impl PartitionChunk for DBChunk {
                 chunk_id,
             } => {
                 let chunk_id = *chunk_id;
+                // Error converting to a rb_predicate needs to fail
                 let rb_predicate =
-                    to_read_buffer_predicate(&predicate).context(InternalPredicateConversion)?;
+                    to_read_buffer_predicate(&predicate).context(PredicateConversion)?;
 
                 let chunk_ids = &[chunk_id];
 
@@ -320,9 +342,13 @@ impl PartitionChunk for DBChunk {
     ) -> Result<Option<StringSet>, Self::Error> {
         match self {
             Self::MutableBuffer { chunk } => {
-                let chunk_predicate = chunk
-                    .compile_predicate(predicate)
-                    .context(MutableBufferChunk)?;
+                let chunk_predicate = match chunk.compile_predicate(predicate) {
+                    Ok(chunk_predicate) => chunk_predicate,
+                    Err(e) => {
+                        debug!(?predicate, %e, "mutable buffer predicate not supported for column_names, falling back");
+                        return Ok(None);
+                    }
+                };
 
                 chunk
                     .column_names(table_name, &chunk_predicate, columns)
@@ -334,8 +360,13 @@ impl PartitionChunk for DBChunk {
                 chunk_id,
             } => {
                 let chunk_id = *chunk_id;
-                let rb_predicate =
-                    to_read_buffer_predicate(&predicate).context(InternalPredicateConversion)?;
+                let rb_predicate = match to_read_buffer_predicate(&predicate) {
+                    Ok(rb_predicate) => rb_predicate,
+                    Err(e) => {
+                        debug!(?predicate, %e, "read buffer predicate not supported for column_names, falling back");
+                        return Ok(None);
+                    }
+                };
 
                 let chunk_ids = &[chunk_id];
 
@@ -361,9 +392,13 @@ impl PartitionChunk for DBChunk {
             Self::MutableBuffer { chunk } => {
                 use mutable_buffer::chunk::Error::UnsupportedColumnTypeForListingValues;
 
-                let chunk_predicate = chunk
-                    .compile_predicate(predicate)
-                    .context(MutableBufferChunk)?;
+                let chunk_predicate = match chunk.compile_predicate(predicate) {
+                    Ok(chunk_predicate) => chunk_predicate,
+                    Err(e) => {
+                        debug!(?predicate, %e, "mutable buffer predicate not supported for column_values, falling back");
+                        return Ok(None);
+                    }
+                };
 
                 let values = chunk.tag_column_values(table_name, column_name, &chunk_predicate);
 
