@@ -31,6 +31,18 @@ We're also hosting monthly tech talks and community office hours on the project 
 To compile and run InfluxDB IOx from source, you'll need a Rust compiler and a `flatc` FlatBuffers
 compiler.
 
+### Build a Docker Image
+
+To build a Docker image in one command:
+```
+docker build .
+```
+
+To enable caching, and to respect `Dockerfile.dockerignore`, we strongly suggest that you [enable BuildKit](https://docs.docker.com/develop/develop-images/build_enhancements/#to-enable-buildkit-builds).
+- Use Docker version 18.09 or later
+- Enable BuildKit by default by setting `{ "features": { "buildkit": true } }`
+  - ...or run `docker build .` with env var `DOCKER_BUILDKIT=1`
+
 ### Cloning the Repository
 
 Using `git`, check out the code by cloning this repository. If you use the `git` command line, this
