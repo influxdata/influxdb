@@ -268,11 +268,11 @@ impl Table {
     /// results by one minute, window should be set to 600_000_000_000.
     pub fn aggregate_window<'a>(
         &self,
-        time_range: (i64, i64),
-        predicates: &[(&str, &str)],
-        group_columns: Vec<ColumnName<'a>>,
-        aggregates: Vec<(ColumnName<'a>, AggregateType)>,
-        window: i64,
+        _time_range: (i64, i64),
+        _predicates: &[(&str, &str)],
+        _group_columns: Vec<ColumnName<'a>>,
+        _aggregates: Vec<(ColumnName<'a>, AggregateType)>,
+        _window: i64,
     ) -> BTreeMap<GroupKey<'_>, Vec<(ColumnName<'a>, AggregateResult<'_>)>> {
         // identify segments where time range and predicates match could match
         // using segment meta data, and then execute against those segments and
@@ -357,7 +357,7 @@ impl Table {
     // Note: this returns an option at the moment because there is an assumption
     // that timestamps could be NULL. I think we could add a constraint to make
     // timestamps non-null.
-    fn first(&self, column_name: &str, time_lower_bound: i64) -> Option<(i64, Value<'_>)> {
+    fn first(&self, _column_name: &str, _time_lower_bound: i64) -> Option<(i64, Value<'_>)> {
         // Find the segment(s) that best satisfy the lower time bound. These will
         // be the segments (or more likely, segment) that has the lowest min
         // time-range.
@@ -373,7 +373,7 @@ impl Table {
 
     /// The inverse of `first`. Of note here is that the returned value must
     /// have a
-    fn last(&self, column_name: &str, time_upper_bound: i64) -> Option<(i64, Value<'_>)> {
+    fn last(&self, _column_name: &str, _time_upper_bound: i64) -> Option<(i64, Value<'_>)> {
         // Find the segment(s) that best satisfy the upper time bound. These will
         // be the segments (or more likely, segment) that has the highest max
         // time-range.
@@ -388,7 +388,7 @@ impl Table {
     }
 
     /// The minimum non-null value in the column for the table.
-    fn min(&self, column_name: &str, time_range: (i64, i64)) -> Value<'_> {
+    fn min(&self, _column_name: &str, _time_range: (i64, i64)) -> Value<'_> {
         // Loop over segments, skipping any that don't satisfy the time range.
         // Any segments completely overlapped can have a candidate min taken
         // directly from their zone map. Partially overlapped segments will be
@@ -399,7 +399,7 @@ impl Table {
     }
 
     /// The maximum non-null value in the column for the table.
-    fn max(&self, column_name: &str, time_range: (i64, i64)) -> Value<'_> {
+    fn max(&self, _column_name: &str, _time_range: (i64, i64)) -> Value<'_> {
         // Loop over segments, skipping any that don't satisfy the time range.
         // Any segments completely overlapped can have a candidate max taken
         // directly from their zone map. Partially overlapped segments will be
@@ -410,7 +410,7 @@ impl Table {
     }
 
     /// The number of non-null values in the column for the table.
-    fn count(&self, column_name: &str, time_range: (i64, i64)) -> u64 {
+    fn count(&self, _column_name: &str, _time_range: (i64, i64)) -> u64 {
         // Loop over segments, skipping any that don't satisfy the time range.
         // Execute appropriate aggregation call on each segment and aggregate
         // the results.
@@ -418,7 +418,7 @@ impl Table {
     }
 
     /// The total sum of non-null values in the column for the table.
-    fn sum(&self, column_name: &str, time_range: (i64, i64)) -> Option<Scalar> {
+    fn sum(&self, _column_name: &str, _time_range: (i64, i64)) -> Option<Scalar> {
         // Loop over segments, skipping any that don't satisfy the time range.
         // Execute appropriate aggregation call on each segment and aggregate
         // the results.
@@ -483,7 +483,7 @@ impl Table {
         let (meta, row_groups) = self.filter_row_groups(predicate);
 
         // Validate that only supported columns present in `columns`.
-        for (name, (ct, data_type)) in columns.iter().zip(meta.schema_for_column_names(columns)) {
+        for (name, (ct, _)) in columns.iter().zip(meta.schema_for_column_names(columns)) {
             ensure!(
                 matches!(ct, ColumnType::Tag(_)),
                 UnsupportedColumnOperation {
@@ -673,7 +673,7 @@ impl MetaData {
     fn schema_for_all_columns(&self) -> Vec<(ColumnType, LogicalDataType)> {
         self.columns
             .iter()
-            .map(|(name, schema)| (schema.typ.clone(), schema.logical_data_type))
+            .map(|(_, schema)| (schema.typ.clone(), schema.logical_data_type))
             .collect::<Vec<_>>()
     }
 

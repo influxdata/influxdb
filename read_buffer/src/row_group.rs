@@ -143,8 +143,8 @@ impl RowGroup {
         let base_size = std::mem::size_of::<Self>()
             + self
                 .all_columns_by_name
-                .iter()
-                .map(|(key, value)| key.len() + std::mem::size_of::<usize>())
+                .keys()
+                .map(|key| key.len() + std::mem::size_of::<usize>())
                 .sum::<usize>();
         base_size as u64 + self.meta.size()
     }
@@ -339,7 +339,7 @@ impl RowGroup {
         for expr in predicate.iter() {
             // N.B column should always exist because validation of predicates
             // should happen at the `Table` level.
-            let (col_name, col) = self.column_name_and_column(expr.column());
+            let (_, col) = self.column_name_and_column(expr.column());
 
             // Explanation of how this buffer pattern works. The idea is that
             // the buffer should be returned to the caller so it can be re-used
@@ -442,10 +442,9 @@ impl RowGroup {
                 return result;
             } // no matching rows
             RowIDsOption::Some(row_ids) => Some(row_ids.to_vec()),
-            RowIDsOption::All(row_ids) => None,
+            RowIDsOption::All(_) => None,
         };
 
-        let group_cols_num = result.schema.group_columns.len();
         let agg_cols_num = result.schema.aggregate_columns.len();
 
         // materialise all *encoded* values for each column we are grouping on.
@@ -477,7 +476,7 @@ impl RowGroup {
 
         // Materialise values in aggregate columns.
         let mut aggregate_columns_data = Vec::with_capacity(agg_cols_num);
-        for (col_type, agg_type, _) in &result.schema.aggregate_columns {
+        for (col_type, _, _) in &result.schema.aggregate_columns {
             let col = self.column_by_name(col_type.as_str());
 
             // TODO(edd): this materialises a column per aggregate. If there are
@@ -819,7 +818,6 @@ impl RowGroup {
     ) {
         assert_eq!(dst.schema().group_columns.len(), 1);
         let column = self.column_by_name(dst.schema.group_column_names_iter().next().unwrap());
-        let total_rows = groupby_encoded_ids.len();
 
         // Allocate a vector to hold aggregates that can be updated as rows are
         // processed. An extra group is required because encoded ids are
@@ -877,9 +875,9 @@ impl RowGroup {
     // can be calculated by reading the rows in order.
     fn read_group_sorted_stream(
         &self,
-        predicates: &Predicate,
-        group_column: ColumnName<'_>,
-        aggregates: &[(ColumnName<'_>, AggregateType)],
+        _predicates: &Predicate,
+        _group_column: ColumnName<'_>,
+        _aggregates: &[(ColumnName<'_>, AggregateType)],
     ) {
         todo!()
     }
@@ -905,7 +903,7 @@ impl RowGroup {
             false => match self.row_ids_from_predicate(predicate) {
                 RowIDsOption::Some(row_ids) => row_ids.to_vec(),
                 RowIDsOption::None(_) => vec![],
-                RowIDsOption::All(row_ids) => {
+                RowIDsOption::All(_) => {
                     // see above comment.
                     (0..self.rows()).into_iter().collect::<Vec<u32>>()
                 }
@@ -1784,7 +1782,6 @@ impl<'row_group> ReadAggregateResult<'row_group> {
         }
 
         let self_group_keys = self.cardinality();
-        let other_group_keys = other.cardinality();
         let self_len = self.rows();
         let other_len = other.rows();
         let mut result = Self::with_capacity(self.schema, self_len.max(other_len));
@@ -1911,7 +1908,7 @@ impl TryFrom<ReadAggregateResult<'_>> for RecordBatch {
         //
         // TODO(edd): I don't like this *at all*. I'm going to refactor the way
         // aggregates are produced.
-        for (i, (_, agg_type, data_type)) in result.schema.aggregate_columns.iter().enumerate() {
+        for (i, (_, _, data_type)) in result.schema.aggregate_columns.iter().enumerate() {
             match data_type {
                 LogicalDataType::Integer => {
                     let mut builder = array::Int64Builder::new(result.cardinality());
@@ -2225,7 +2222,6 @@ west,4
             &["method", "region", "time"],
             &Predicate::with_time_range(&[], -19, 1),
         );
-        let expected = "";
         assert!(results.is_empty());
     }
 
@@ -2845,6 +2841,7 @@ west,host-d,11,9
             schema: schema.clone(),
             ..Default::default()
         };
+        result = result.merge(other_result.clone());
 
         assert_eq!(
             result,
@@ -2949,7 +2946,7 @@ west,host-d,11,9
         // A predicate, that matches some rows. Columns with non-null values at
         // those rows should be returned.
         let mut dst = BTreeSet::new();
-        let names = row_group.column_names(
+        row_group.column_names(
             &Predicate::new(vec![BinaryExpr::from(("track", "=", "place"))]),
             Selection::All,
             &mut dst,

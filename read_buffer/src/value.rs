@@ -345,7 +345,7 @@ macro_rules! typed_scalar_converters {
                 match &self {
                     Self::I64(v) => $type::try_from(*v).unwrap(),
                     Self::U64(v) => $type::try_from(*v).unwrap(),
-                    Self::F64(v) => panic!("cannot convert Self::F64"),
+                    Self::F64(_) => panic!("cannot convert Self::F64"),
                     Self::Null => panic!("cannot convert Scalar::Null"),
                 }
             }
@@ -354,7 +354,7 @@ macro_rules! typed_scalar_converters {
                 match &self {
                     Self::I64(v) => $type::try_from(*v).ok(),
                     Self::U64(v) => $type::try_from(*v).ok(),
-                    Self::F64(v) => panic!("cannot convert Self::F64"),
+                    Self::F64(_) => panic!("cannot convert Self::F64"),
                     Self::Null => None,
                 }
             }
@@ -776,7 +776,7 @@ impl EncodedValues {
     /// Takes a `Vec<u32>` out of the enum.
     pub fn take_u32(&mut self) -> Vec<u32> {
         std::mem::take(match self {
-            Self::I64(a) => panic!("cannot take Vec<u32> out of I64 variant"),
+            Self::I64(_) => panic!("cannot take Vec<u32> out of I64 variant"),
             Self::U32(arr) => arr,
         })
     }

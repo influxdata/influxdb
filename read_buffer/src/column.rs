@@ -63,22 +63,22 @@ impl Column {
                 };
                 meta_size + data.size()
             }
-            Column::Float(meta, data) => {
+            Column::Float(_, data) => {
                 let meta_size =
                     (size_of::<Option<(f64, f64)>>() + size_of::<ColumnProperties>()) as u64;
                 meta_size + data.size()
             }
-            Column::Integer(meta, data) => {
+            Column::Integer(_, data) => {
                 let meta_size =
                     (size_of::<Option<(i64, i64)>>() + size_of::<ColumnProperties>()) as u64;
                 meta_size + data.size()
             }
-            Column::Unsigned(meta, data) => {
+            Column::Unsigned(_, data) => {
                 let meta_size =
                     (size_of::<Option<(u64, u64)>>() + size_of::<ColumnProperties>()) as u64;
                 meta_size + data.size()
             }
-            Column::Bool(meta, data) => {
+            Column::Bool(_, data) => {
                 let meta_size =
                     (size_of::<Option<(bool, bool)>>() + size_of::<ColumnProperties>()) as u64;
                 meta_size + data.size()
@@ -335,7 +335,7 @@ impl Column {
             Column::Integer(_, data) => data.row_ids_filter(op, value.scalar(), dst),
             Column::Unsigned(_, data) => data.row_ids_filter(op, value.scalar(), dst),
             Column::Bool(_, data) => data.row_ids_filter(op, value.bool(), dst),
-            Column::ByteArray(_, data) => todo!(),
+            Column::ByteArray(_, _) => todo!(),
         };
 
         if row_ids.is_empty() {
@@ -387,14 +387,14 @@ impl Column {
 
         // Check the column for all rows that satisfy the predicate.
         let row_ids = match &self {
-            Column::String(_, data) => unimplemented!("not supported on string columns yet"),
+            Column::String(_, _) => unimplemented!("not supported on string columns yet"),
             Column::Float(_, data) => data.row_ids_filter_range(low_scalar, high_scalar, dst),
             Column::Integer(_, data) => data.row_ids_filter_range(low_scalar, high_scalar, dst),
             Column::Unsigned(_, data) => {
                 data.row_ids_filter_range((&low.0, low.1.scalar()), (&high.0, high.1.scalar()), dst)
             }
-            Column::Bool(_, data) => unimplemented!("filter_range not supported on boolean column"),
-            Column::ByteArray(_, data) => todo!(),
+            Column::Bool(_, _) => unimplemented!("filter_range not supported on boolean column"),
+            Column::ByteArray(_, _) => todo!(),
         };
 
         if row_ids.is_empty() {
@@ -483,7 +483,7 @@ impl Column {
                 Value::Boolean(b) => meta.might_contain_value(*b),
                 v => panic!("cannot compare boolean to {:?}", v),
             },
-            Column::ByteArray(meta, _) => todo!(),
+            Column::ByteArray(_, _) => todo!(),
         }
     }
 
@@ -552,7 +552,7 @@ impl Column {
                     v => panic!("cannot compare on boolean column using {:?}", v),
                 }
             }
-            Column::ByteArray(meta, _) => todo!(),
+            Column::ByteArray(_, _) => todo!(),
         }
     }
 
@@ -560,7 +560,7 @@ impl Column {
     // values in the column.
     fn predicate_matches_no_values(&self, op: &cmp::Operator, value: &Value<'_>) -> bool {
         match &self {
-            Column::String(meta, data) => {
+            Column::String(meta, _) => {
                 if let Value::String(other) = value {
                     meta.match_no_values(op, *other)
                 } else {
@@ -572,11 +572,11 @@ impl Column {
             //   * Convert that scalar to a primitive value based on the logical type used for the
             //     metadata on the column.
             //   * See if one can prove none of the column can match the predicate.
-            Column::Float(meta, data) => meta.match_no_values(op, value.scalar().as_f64()),
-            Column::Integer(meta, data) => meta.match_no_values(op, value.scalar().as_i64()),
-            Column::Unsigned(meta, data) => meta.match_no_values(op, value.scalar().as_u64()),
-            Column::Bool(meta, data) => meta.match_no_values(op, value.bool()),
-            Column::ByteArray(meta, _) => todo!(),
+            Column::Float(meta, _) => meta.match_no_values(op, value.scalar().as_f64()),
+            Column::Integer(meta, _) => meta.match_no_values(op, value.scalar().as_i64()),
+            Column::Unsigned(meta, _) => meta.match_no_values(op, value.scalar().as_u64()),
+            Column::Bool(meta, _) => meta.match_no_values(op, value.bool()),
+            Column::ByteArray(_, _) => todo!(),
         }
     }
 
@@ -1197,7 +1197,7 @@ impl RowIDs {
 
     pub fn as_slice(&self) -> &[u32] {
         match self {
-            Self::Bitmap(bm) => panic!("not supported yet"),
+            Self::Bitmap(_) => panic!("as_slice not supported on bitmap variant"),
             Self::Vector(arr) => arr.as_slice(),
         }
     }
