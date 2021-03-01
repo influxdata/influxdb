@@ -244,19 +244,19 @@ impl Column {
         match &self {
             Column::String(_, data) => data.distinct_values(row_ids),
             Column::Float(_, _) => {
-                unimplemented!("distinct values is not implemented for Float column")
+                unimplemented!("distinct values is unimplemented for Float column")
             }
             Column::Integer(_, _) => {
-                unimplemented!("distinct values is not implemented for Integer column")
+                unimplemented!("distinct values is unimplemented for Integer column")
             }
             Column::Unsigned(_, _) => {
-                unimplemented!("distinct values is not implemented for Unsigned column")
+                unimplemented!("distinct values is unimplemented for Unsigned column")
             }
             Column::Bool(_, _) => {
-                unimplemented!("distinct values is not implemented for Bool column")
+                unimplemented!("distinct values is unimplemented for Bool column")
             }
             Column::ByteArray(_, _) => {
-                unimplemented!("distinct values is not implemented for ByteArray column")
+                unimplemented!("distinct values is unimplemented for ByteArray column")
             }
         }
     }
