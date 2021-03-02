@@ -920,7 +920,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			m.reg,
 			http.WithLog(httpLogger),
 			http.WithAPIHandler(platformHandler),
-			http.WithPprofEnabled(opts.ProfilingEnabled),
+			http.WithPprofEnabled(!opts.ProfilingDisabled),
 		)
 
 		if opts.LogLevel == zap.DebugLevel {

@@ -116,7 +116,6 @@ func (tl *TestLauncher) Run(tb zaptest.TestingT, ctx context.Context, setters ..
 	opts.HttpBindAddress = "127.0.0.1:0"
 	opts.LogLevel = zap.DebugLevel
 	opts.ReportingDisabled = true
-	opts.ProfilingEnabled = true
 
 	for _, setter := range setters {
 		setter(opts)

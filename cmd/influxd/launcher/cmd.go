@@ -76,7 +76,7 @@ func setCmdDescriptions(cmd *cobra.Command) {
 func cmdRunE(ctx context.Context, o *InfluxdOpts) func() error {
 	return func() error {
 		// Set this as early as possible, since it affects global profiling rates.
-		pprof.SetGlobalProfiling(o.ProfilingEnabled)
+		pprof.SetGlobalProfiling(!o.ProfilingDisabled)
 
 		fluxinit.FluxInit()
 
@@ -133,7 +133,7 @@ type InfluxdOpts struct {
 	SessionLength        int // in minutes
 	SessionRenewDisabled bool
 
-	ProfilingEnabled bool
+	ProfilingDisabled bool
 
 	NatsPort            int
 	NatsMaxPayloadBytes int
@@ -179,7 +179,7 @@ func newOpts(viper *viper.Viper) *InfluxdOpts {
 		SessionLength:        60, // 60 minutes
 		SessionRenewDisabled: false,
 
-		ProfilingEnabled: false,
+		ProfilingDisabled: false,
 
 		StoreType:   BoltStore,
 		SecretStore: BoltStore,
@@ -505,10 +505,10 @@ func (o *InfluxdOpts) bindCliOpts() []cli.Opt {
 
 		// Pprof config
 		{
-			DestP:   &o.ProfilingEnabled,
-			Flag:    "pprof-enabled",
-			Desc:    "If true, expose debugging information over HTTP at /debug/pprof",
-			Default: o.ProfilingEnabled,
+			DestP:   &o.ProfilingDisabled,
+			Flag:    "pprof-disabled",
+			Desc:    "Don't expose debugging information over HTTP at /debug/pprof",
+			Default: o.ProfilingDisabled,
 		},
 	}
 }
