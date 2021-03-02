@@ -173,19 +173,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-compression"
-version = "0.3.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b72c1f1154e234325b50864a349b9c8e56939e266a4c307c0f159812df2f9537"
-dependencies = [
- "flate2",
- "futures-core",
- "memchr",
- "pin-project-lite",
- "tokio",
-]
-
-[[package]]
 name = "async-stream"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1587,11 +1574,11 @@ name = "influxdb_iox_client"
 version = "0.1.0"
 dependencies = [
  "arrow_deps",
- "data_types",
  "futures-util",
  "generated_types",
+ "http",
+ "hyper",
  "rand 0.8.3",
- "reqwest",
  "serde",
  "serde_json",
  "thiserror",
@@ -2897,7 +2884,6 @@ version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0460542b551950620a3648c6aa23318ac6b3cd779114bd873209e6e8b5eb1c34"
 dependencies = [
- "async-compression",
  "base64 0.13.0",
  "bytes",
  "encoding_rs",
@@ -2923,7 +2909,6 @@ dependencies = [
  "tokio",
  "tokio-native-tls",
  "tokio-rustls",
- "tokio-util",
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",

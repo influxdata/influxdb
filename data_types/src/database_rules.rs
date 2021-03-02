@@ -259,6 +259,8 @@ impl MutableBufferConfig {
     }
 }
 
+// TODO: Remove this when deprecating HTTP API - cannot be used in gRPC as no
+// explicit NULL support
 impl Default for MutableBufferConfig {
     fn default() -> Self {
         Self {
@@ -388,7 +390,7 @@ pub enum PartitionSort {
 
 impl Default for PartitionSort {
     fn default() -> Self {
-        Self::LastWriteTime
+        Self::CreatedAtTime
     }
 }
 
@@ -446,7 +448,7 @@ pub enum Order {
 
 impl Default for Order {
     fn default() -> Self {
-        Self::Asc
+        Self::Desc
     }
 }
 

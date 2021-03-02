@@ -39,6 +39,32 @@ use std::{fmt::Debug, str, sync::Arc};
 mod format;
 use format::QueryOutputFormat;
 
+/// Constants used in API error codes.
+///
+/// Expressing this as a enum prevents reuse of discriminants, and as they're
+/// effectively consts this uses UPPER_SNAKE_CASE.
+#[allow(non_camel_case_types)]
+#[derive(Debug, PartialEq)]
+pub enum ApiErrorCode {
+    /// An unknown/unhandled error
+    UNKNOWN = 100,
+
+    /// The database name in the request is invalid.
+    DB_INVALID_NAME = 101,
+
+    /// The database referenced already exists.
+    DB_ALREADY_EXISTS = 102,
+
+    /// The database referenced does not exist.
+    DB_NOT_FOUND = 103,
+}
+
+impl From<ApiErrorCode> for u32 {
+    fn from(v: ApiErrorCode) -> Self {
+        v as Self
+    }
+}
+
 #[derive(Debug, Snafu)]
 pub enum ApplicationError {
     // Internal (unexpected) errors
@@ -237,8 +263,6 @@ impl ApplicationError {
 
     /// Map the error type into an API error code.
     fn api_error_code(&self) -> u32 {
-        use influxdb_iox_client::errors::ApiErrorCode;
-
         match self {
             Self::DatabaseNameError { .. } => ApiErrorCode::DB_INVALID_NAME,
             Self::DatabaseNotFound { .. } => ApiErrorCode::DB_NOT_FOUND,

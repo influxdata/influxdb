@@ -1,3 +1,10 @@
+use std::{convert::TryFrom, sync::Arc};
+
+use futures_util::stream::StreamExt;
+use serde::Serialize;
+use thiserror::Error;
+use tonic::Streaming;
+
 use arrow_deps::{
     arrow::{
         array::Array,
@@ -10,25 +17,55 @@ use arrow_deps::{
         Ticket,
     },
 };
-use futures_util::stream::StreamExt;
-use serde::Serialize;
-use std::{convert::TryFrom, sync::Arc};
-use tonic::Streaming;
 
-use crate::errors::{GrpcError, GrpcQueryError};
+use crate::connection::Connection;
+
+/// Error responses when querying an IOx database using the Arrow Flight gRPC
+/// API.
+#[derive(Debug, Error)]
+pub enum Error {
+    /// An error occurred while serializing the query.
+    #[error(transparent)]
+    QuerySerializeError(#[from] serde_json::Error),
+
+    /// There were no FlightData messages returned when we expected to get one
+    /// containing a Schema.
+    #[error("no FlightData containing a Schema returned")]
+    NoSchema,
+
+    /// An error involving an Arrow operation occurred.
+    #[error(transparent)]
+    ArrowError(#[from] arrow_deps::arrow::error::ArrowError),
+
+    /// The data contained invalid Flatbuffers.
+    #[error("Invalid Flatbuffer: `{0}`")]
+    InvalidFlatbuffer(String),
+
+    /// The message header said it was a dictionary batch, but interpreting the
+    /// message as a dictionary batch returned `None`. Indicates malformed
+    /// Flight data from the server.
+    #[error("Message with header of type dictionary batch could not return a dictionary batch")]
+    CouldNotGetDictionaryBatch,
+
+    /// An unknown server error occurred. Contains the `tonic::Status` returned
+    /// from the server.
+    #[error(transparent)]
+    GrpcError(#[from] tonic::Status),
+}
 
 /// An IOx Arrow Flight gRPC API client.
 ///
 /// ```rust,no_run
 /// #[tokio::main]
 /// # async fn main() {
-/// use data_types::database_rules::DatabaseRules;
-/// use influxdb_iox_client::FlightClientBuilder;
+/// use influxdb_iox_client::{connection::Builder, flight::Client};
 ///
-/// let mut client = FlightClientBuilder::default()
+/// let connection = Builder::default()
 ///     .build("http://127.0.0.1:8082")
 ///     .await
 ///     .expect("client should be valid");
+///
+/// let mut client = Client::new(connection);
 ///
 /// let mut query_results = client
 ///     .perform_query("my_database", "select * from cpu_load")
@@ -43,19 +80,16 @@ use crate::errors::{GrpcError, GrpcQueryError};
 /// # }
 /// ```
 #[derive(Debug)]
-pub struct FlightClient {
-    inner: FlightServiceClient<tonic::transport::Channel>,
+pub struct Client {
+    inner: FlightServiceClient<Connection>,
 }
 
-impl FlightClient {
-    pub(crate) async fn connect<D>(dst: D) -> Result<Self, GrpcError>
-    where
-        D: std::convert::TryInto<tonic::transport::Endpoint>,
-        D::Error: Into<tonic::codegen::StdError>,
-    {
-        Ok(Self {
-            inner: FlightServiceClient::connect(dst).await?,
-        })
+impl Client {
+    /// Creates a new client with the provided connection
+    pub fn new(channel: Connection) -> Self {
+        Self {
+            inner: FlightServiceClient::new(channel),
+        }
     }
 
     /// Query the given database with the given SQL query, and return a
@@ -64,7 +98,7 @@ impl FlightClient {
         &mut self,
         database_name: impl Into<String>,
         sql_query: impl Into<String>,
-    ) -> Result<PerformQuery, GrpcQueryError> {
+    ) -> Result<PerformQuery, Error> {
         PerformQuery::new(self, database_name.into(), sql_query.into()).await
     }
 }
@@ -88,10 +122,10 @@ pub struct PerformQuery {
 
 impl PerformQuery {
     pub(crate) async fn new(
-        flight: &mut FlightClient,
+        flight: &mut Client,
         database_name: String,
         sql_query: String,
-    ) -> Result<Self, GrpcQueryError> {
+    ) -> Result<Self, Error> {
         let query = ReadInfo {
             database_name,
             sql_query,
@@ -102,7 +136,7 @@ impl PerformQuery {
         };
         let mut response = flight.inner.do_get(t).await?.into_inner();
 
-        let flight_data_schema = response.next().await.ok_or(GrpcQueryError::NoSchema)??;
+        let flight_data_schema = response.next().await.ok_or(Error::NoSchema)??;
         let schema = Arc::new(Schema::try_from(&flight_data_schema)?);
 
         let dictionaries_by_field = vec![None; schema.fields().len()];
@@ -116,7 +150,7 @@ impl PerformQuery {
 
     /// Returns the next `RecordBatch` available for this query, or `None` if
     /// there are no further results available.
-    pub async fn next(&mut self) -> Result<Option<RecordBatch>, GrpcQueryError> {
+    pub async fn next(&mut self) -> Result<Option<RecordBatch>, Error> {
         let Self {
             schema,
             dictionaries_by_field,
@@ -129,14 +163,14 @@ impl PerformQuery {
         };
 
         let mut message = ipc::root_as_message(&data.data_header[..])
-            .map_err(|e| GrpcQueryError::InvalidFlatbuffer(e.to_string()))?;
+            .map_err(|e| Error::InvalidFlatbuffer(e.to_string()))?;
 
         while message.header_type() == ipc::MessageHeader::DictionaryBatch {
             reader::read_dictionary(
                 &data.data_body,
                 message
                     .header_as_dictionary_batch()
-                    .ok_or(GrpcQueryError::CouldNotGetDictionaryBatch)?,
+                    .ok_or(Error::CouldNotGetDictionaryBatch)?,
                 &schema,
                 dictionaries_by_field,
             )?;
@@ -147,7 +181,7 @@ impl PerformQuery {
             };
 
             message = ipc::root_as_message(&data.data_header[..])
-                .map_err(|e| GrpcQueryError::InvalidFlatbuffer(e.to_string()))?;
+                .map_err(|e| Error::InvalidFlatbuffer(e.to_string()))?;
         }
 
         Ok(Some(flight_data_to_arrow_batch(

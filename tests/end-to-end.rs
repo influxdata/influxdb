@@ -17,17 +17,23 @@
 // - Creating a unique org_id per test
 // - Stopping the server after all relevant tests are run
 
-use assert_cmd::prelude::*;
-use data_types::{database_rules::DatabaseRules, names::org_and_bucket_to_database, DatabaseName};
-use futures::prelude::*;
-use generated_types::{storage_client::StorageClient, ReadSource, TimestampRange};
-use prost::Message;
 use std::convert::TryInto;
 use std::process::{Child, Command};
 use std::str;
 use std::time::{Duration, SystemTime};
 use std::u32;
+
+use assert_cmd::prelude::*;
+use futures::prelude::*;
+use prost::Message;
 use tempfile::TempDir;
+
+use data_types::{names::org_and_bucket_to_database, DatabaseName};
+use end_to_end_cases::*;
+use generated_types::{
+    influxdata::iox::management::v1::DatabaseRules, storage_client::StorageClient, ReadSource,
+    TimestampRange,
+};
 
 // These port numbers are chosen to not collide with a development ioxd server
 // running locally.
@@ -57,7 +63,6 @@ type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 mod end_to_end_cases;
-use end_to_end_cases::*;
 
 #[tokio::test]
 async fn read_and_write_data() {
@@ -66,7 +71,12 @@ async fn read_and_write_data() {
 
     let http_client = reqwest::Client::new();
     let influxdb2 = influxdb2_client::Client::new(HTTP_BASE, TOKEN);
-    let mut storage_client = StorageClient::connect(GRPC_URL_BASE).await.unwrap();
+    let grpc = influxdb_iox_client::connection::Builder::default()
+        .build(GRPC_URL_BASE)
+        .await
+        .unwrap();
+    let mut storage_client = StorageClient::new(grpc.clone());
+    let mut management_client = influxdb_iox_client::management::Client::new(grpc);
 
     // These tests share data; TODO: a better way to indicate this
     {
@@ -74,19 +84,25 @@ async fn read_and_write_data() {
             .set_org_id("0000111100001111")
             .set_bucket_id("1111000011110000");
 
-        create_database(&http_client, &scenario.database_name()).await;
+        create_database(&mut management_client, &scenario.database_name()).await;
 
         let expected_read_data = load_data(&influxdb2, &scenario).await;
         let sql_query = "select * from cpu_load_short";
 
         read_api::test(&http_client, &scenario, sql_query, &expected_read_data).await;
-        grpc_api::test(&mut storage_client, &scenario).await;
+        storage_api::test(&mut storage_client, &scenario).await;
         flight_api::test(&scenario, sql_query, &expected_read_data).await;
     }
 
     // These tests manage their own data
-    grpc_api::read_group_test(&http_client, &influxdb2, &mut storage_client).await;
-    grpc_api::read_window_aggregate_test(&http_client, &influxdb2, &mut storage_client).await;
+    storage_api::read_group_test(&mut management_client, &influxdb2, &mut storage_client).await;
+    storage_api::read_window_aggregate_test(
+        &mut management_client,
+        &influxdb2,
+        &mut storage_client,
+    )
+    .await;
+    management_api::test(&mut management_client).await;
     test_http_error_messages(&influxdb2).await.unwrap();
 }
 
@@ -178,17 +194,16 @@ impl Scenario {
     }
 }
 
-async fn create_database(client: &reqwest::Client, database_name: &str) {
-    let rules = DatabaseRules::new();
-    let data = serde_json::to_vec(&rules).unwrap();
-
+async fn create_database(
+    client: &mut influxdb_iox_client::management::Client,
+    database_name: &str,
+) {
     client
-        .put(&format!(
-            "{}/iox/api/v1/databases/{}",
-            HTTP_BASE, database_name
-        ))
-        .body(data)
-        .send()
+        .create_database(DatabaseRules {
+            name: database_name.to_string(),
+            mutable_buffer_config: Some(Default::default()),
+            ..Default::default()
+        })
         .await
         .unwrap();
 }
@@ -379,36 +394,27 @@ impl TestServer {
             let mut interval = tokio::time::interval(Duration::from_millis(500));
 
             loop {
-                match influxdb_iox_client::health::Client::connect(GRPC_URL_BASE).await {
-                    Ok(mut client) => {
+                match influxdb_iox_client::connection::Builder::default()
+                    .build(GRPC_URL_BASE)
+                    .await
+                {
+                    Ok(connection) => {
                         println!("Successfully connected to server");
 
-                        match client.check_storage().await {
+                        let mut health = influxdb_iox_client::health::Client::new(connection);
+
+                        match health.check_storage().await {
                             Ok(_) => {
                                 println!("Storage service is running");
-                                break;
+                                return;
                             }
-                            Err(e) => println!("Error checking storage service status: {}", e),
+                            Err(e) => {
+                                println!("Error checking storage service status: {}", e);
+                            }
                         }
                     }
                     Err(e) => {
                         println!("Waiting for gRPC API to be up: {}", e);
-                    }
-                }
-                interval.tick().await;
-            }
-
-            loop {
-                match StorageClient::connect(GRPC_URL_BASE).await {
-                    Ok(storage_client) => {
-                        println!(
-                            "Successfully connected storage_client: {:?}",
-                            storage_client
-                        );
-                        return;
-                    }
-                    Err(e) => {
-                        println!("Failed to create storage client: {}", e)
                     }
                 }
                 interval.tick().await;
