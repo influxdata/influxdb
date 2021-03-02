@@ -11143,8 +11143,14 @@ components:
           type: string
         bucket:
           type: string
+        retentionPeriodSeconds:
+          type: integer
         retentionPeriodHrs:
           type: integer
+          deprecated: true
+          description: >
+            Retention period *in nanoseconds* for the new bucket. This key's name has been misleading since OSS 2.0 GA,
+            please transition to use `retentionPeriodSeconds`
       required:
         - username
         - org
