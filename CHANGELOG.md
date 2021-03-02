@@ -23,7 +23,7 @@ the endpoint has been removed. Use the `/metrics` endpoint to collect system sta
 1. [20872](https://github.com/influxdata/influxdb/pull/20872): Respect 24 hour clock formats in the UI and allow more choices
 1. [20860](https://github.com/influxdata/influxdb/pull/20860): Remove unauthenticated, unsupported `/debug/vars` HTTP endpoint.
 1. [20839](https://github.com/influxdata/influxdb/pull/20839): Fix TSM WAL segment size check. Thanks @foobar!
-1. [20754](https://github.com/influxdata/influxdb/pull/20754): Update references to docs site to use current URLs.
+1. [20841](https://github.com/influxdata/influxdb/pull/20841): Update references to docs site to use current URLs.
 
 ## v2.0.4 [2021-02-08]
 ----------------------
