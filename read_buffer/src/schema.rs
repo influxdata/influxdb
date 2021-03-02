@@ -155,12 +155,12 @@ pub enum LogicalDataType {
 impl From<&LogicalDataType> for arrow::datatypes::DataType {
     fn from(logical_type: &LogicalDataType) -> Self {
         match logical_type {
-            LogicalDataType::Integer => arrow::datatypes::DataType::Int64,
-            LogicalDataType::Unsigned => arrow::datatypes::DataType::UInt64,
-            LogicalDataType::Float => arrow::datatypes::DataType::Float64,
-            LogicalDataType::String => arrow::datatypes::DataType::Utf8,
-            LogicalDataType::Binary => arrow::datatypes::DataType::Binary,
-            LogicalDataType::Boolean => arrow::datatypes::DataType::Boolean,
+            LogicalDataType::Integer => Self::Int64,
+            LogicalDataType::Unsigned => Self::UInt64,
+            LogicalDataType::Float => Self::Float64,
+            LogicalDataType::String => Self::Utf8,
+            LogicalDataType::Binary => Self::Binary,
+            LogicalDataType::Boolean => Self::Boolean,
         }
     }
 }
@@ -168,14 +168,14 @@ impl From<&LogicalDataType> for arrow::datatypes::DataType {
 impl From<&LogicalDataType> for InfluxFieldType {
     fn from(logical_type: &LogicalDataType) -> Self {
         match logical_type {
-            LogicalDataType::Integer => InfluxFieldType::Integer,
-            LogicalDataType::Unsigned => InfluxFieldType::UInteger,
-            LogicalDataType::Float => InfluxFieldType::Float,
-            LogicalDataType::String => InfluxFieldType::String,
+            LogicalDataType::Integer => Self::Integer,
+            LogicalDataType::Unsigned => Self::UInteger,
+            LogicalDataType::Float => Self::Float,
+            LogicalDataType::String => Self::String,
             LogicalDataType::Binary => {
                 unimplemented!("binary data type cannot be represented as InfluxFieldType")
             }
-            LogicalDataType::Boolean => InfluxFieldType::Boolean,
+            LogicalDataType::Boolean => Self::Boolean,
         }
     }
 }
@@ -202,12 +202,12 @@ impl std::fmt::Display for AggregateType {
             f,
             "{}",
             match self {
-                AggregateType::Count => "count",
-                AggregateType::First => "first",
-                AggregateType::Last => "last",
-                AggregateType::Min => "min",
-                AggregateType::Max => "max",
-                AggregateType::Sum => "sum",
+                Self::Count => "count",
+                Self::First => "first",
+                Self::Last => "last",
+                Self::Min => "min",
+                Self::Max => "max",
+                Self::Sum => "sum",
             }
         )
     }
@@ -226,10 +226,10 @@ pub enum ColumnType {
 impl ColumnType {
     pub fn as_str(&self) -> &str {
         match self {
-            ColumnType::Tag(name) => name.as_str(),
-            ColumnType::Field(name) => name.as_str(),
-            ColumnType::Timestamp(name) => name.as_str(),
-            ColumnType::Other(name) => name.as_str(),
+            Self::Tag(name) => name.as_str(),
+            Self::Field(name) => name.as_str(),
+            Self::Timestamp(name) => name.as_str(),
+            Self::Other(name) => name.as_str(),
         }
     }
 }
@@ -240,10 +240,10 @@ impl Display for ColumnType {
             f,
             "{}",
             match self {
-                ColumnType::Tag(name) => name,
-                ColumnType::Field(name) => name,
-                ColumnType::Timestamp(name) => name,
-                ColumnType::Other(name) => name,
+                Self::Tag(name) => name,
+                Self::Field(name) => name,
+                Self::Timestamp(name) => name,
+                Self::Other(name) => name,
             }
         )
     }

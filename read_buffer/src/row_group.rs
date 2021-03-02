@@ -1437,9 +1437,9 @@ impl ColumnType {
     // The total size in bytes of the column
     pub fn size(&self) -> u64 {
         match &self {
-            ColumnType::Tag(c) => c.size(),
-            ColumnType::Field(c) => c.size(),
-            ColumnType::Time(c) => c.size(),
+            Self::Tag(c) => c.size(),
+            Self::Field(c) => c.size(),
+            Self::Time(c) => c.size(),
         }
     }
 
@@ -1651,8 +1651,7 @@ impl TryFrom<ReadFilterResult<'_>> for RecordBatch {
         // try_new only returns an error if the schema is invalid or the number
         // of rows on columns differ. We have full control over both so there
         // should never be an error to return...
-        arrow::record_batch::RecordBatch::try_new(arrow_schema, columns)
-            .map_err(|source| Error::ArrowError { source })
+        Self::try_new(arrow_schema, columns).map_err(|source| Error::ArrowError { source })
     }
 }
 
@@ -1972,7 +1971,7 @@ impl TryFrom<ReadAggregateResult<'_>> for RecordBatch {
         // try_new only returns an error if the schema is invalid or the number
         // of rows on columns differ. We have full control over both so there
         // should never be an error to return...
-        arrow::record_batch::RecordBatch::try_new(arrow_schema, columns).context(ArrowError)
+        Self::try_new(arrow_schema, columns).context(ArrowError)
     }
 }
 

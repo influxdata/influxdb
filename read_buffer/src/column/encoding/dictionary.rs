@@ -22,36 +22,36 @@ pub enum Encoding {
 impl Encoding {
     pub fn debug_name(&self) -> &'static str {
         match &self {
-            Encoding::RLE(_) => "RLE encoder",
-            Encoding::Plain(_) => "plain encoder",
+            Self::RLE(_) => "RLE encoder",
+            Self::Plain(_) => "plain encoder",
         }
     }
 
     pub fn size(&self) -> u64 {
         match &self {
-            Encoding::RLE(enc) => enc.size(),
-            Encoding::Plain(enc) => enc.size(),
+            Self::RLE(enc) => enc.size(),
+            Self::Plain(enc) => enc.size(),
         }
     }
 
     pub fn num_rows(&self) -> u32 {
         match &self {
-            Encoding::RLE(enc) => enc.num_rows(),
-            Encoding::Plain(enc) => enc.num_rows(),
+            Self::RLE(enc) => enc.num_rows(),
+            Self::Plain(enc) => enc.num_rows(),
         }
     }
 
     pub fn push(&mut self, v: String) {
         match self {
-            Encoding::RLE(ref mut enc) => enc.push(v),
-            Encoding::Plain(ref mut enc) => enc.push(v),
+            Self::RLE(ref mut enc) => enc.push(v),
+            Self::Plain(ref mut enc) => enc.push(v),
         }
     }
 
     pub fn push_none(&mut self) {
         match self {
-            Encoding::RLE(ref mut enc) => enc.push_none(),
-            Encoding::Plain(ref mut enc) => enc.push_none(),
+            Self::RLE(ref mut enc) => enc.push_none(),
+            Self::Plain(ref mut enc) => enc.push_none(),
         }
     }
 
@@ -60,16 +60,16 @@ impl Encoding {
     /// remains sorted.
     pub fn push_additional(&mut self, v: Option<String>, additional: u32) {
         match self {
-            Encoding::RLE(ref mut env) => env.push_additional(v, additional),
-            Encoding::Plain(ref mut env) => env.push_additional(v, additional),
+            Self::RLE(ref mut env) => env.push_additional(v, additional),
+            Self::Plain(ref mut env) => env.push_additional(v, additional),
         }
     }
 
     /// Determine if NULL is encoded in the column.
     fn contains_null(&self) -> bool {
         match self {
-            Encoding::RLE(enc) => enc.contains_null(),
-            Encoding::Plain(enc) => enc.contains_null(),
+            Self::RLE(enc) => enc.contains_null(),
+            Self::Plain(enc) => enc.contains_null(),
         }
     }
 
@@ -83,8 +83,8 @@ impl Encoding {
     /// the provided predicate.
     pub fn row_ids_filter(&self, value: &str, op: &cmp::Operator, dst: RowIDs) -> RowIDs {
         match self {
-            Encoding::RLE(enc) => enc.row_ids_filter(value, op, dst),
-            Encoding::Plain(enc) => enc.row_ids_filter(value, op, dst),
+            Self::RLE(enc) => enc.row_ids_filter(value, op, dst),
+            Self::Plain(enc) => enc.row_ids_filter(value, op, dst),
         }
     }
 
@@ -92,8 +92,8 @@ impl Encoding {
     /// that null.
     fn row_ids_null(&self, dst: RowIDs) -> RowIDs {
         match self {
-            Encoding::RLE(enc) => enc.row_ids_null(dst),
-            Encoding::Plain(enc) => enc.row_ids_null(dst),
+            Self::RLE(enc) => enc.row_ids_null(dst),
+            Self::Plain(enc) => enc.row_ids_null(dst),
         }
     }
 
@@ -101,16 +101,16 @@ impl Encoding {
     /// that are not null.
     fn row_ids_not_null(&self, dst: RowIDs) -> RowIDs {
         match self {
-            Encoding::RLE(enc) => enc.row_ids_not_null(dst),
-            Encoding::Plain(enc) => enc.row_ids_not_null(dst),
+            Self::RLE(enc) => enc.row_ids_not_null(dst),
+            Self::Plain(enc) => enc.row_ids_not_null(dst),
         }
     }
 
     // The set of row ids for each distinct value in the column.
     fn group_row_ids(&self) -> Either<Vec<&RowIDs>, Vec<RowIDs>> {
         match self {
-            Encoding::RLE(enc) => Either::Left(enc.group_row_ids()),
-            Encoding::Plain(enc) => Either::Right(enc.group_row_ids()),
+            Self::RLE(enc) => Either::Left(enc.group_row_ids()),
+            Self::Plain(enc) => Either::Right(enc.group_row_ids()),
         }
     }
 
@@ -122,8 +122,8 @@ impl Encoding {
 
     pub fn dictionary(&self) -> Vec<&String> {
         match self {
-            Encoding::RLE(enc) => enc.dictionary(),
-            Encoding::Plain(enc) => enc.dictionary(),
+            Self::RLE(enc) => enc.dictionary(),
+            Self::Plain(enc) => enc.dictionary(),
         }
     }
 
@@ -133,8 +133,8 @@ impl Encoding {
     /// value at a valid location.
     fn value(&self, row_id: u32) -> Option<&String> {
         match self {
-            Encoding::RLE(enc) => enc.value(row_id),
-            Encoding::Plain(enc) => enc.value(row_id),
+            Self::RLE(enc) => enc.value(row_id),
+            Self::Plain(enc) => enc.value(row_id),
         }
     }
 
@@ -143,8 +143,8 @@ impl Encoding {
     /// Panics if there is no decoded value for the provided id
     fn decode_id(&self, encoded_id: u32) -> Option<&str> {
         match self {
-            Encoding::RLE(enc) => enc.decode_id(encoded_id),
-            Encoding::Plain(enc) => enc.decode_id(encoded_id),
+            Self::RLE(enc) => enc.decode_id(encoded_id),
+            Self::Plain(enc) => enc.decode_id(encoded_id),
         }
     }
 
@@ -159,8 +159,8 @@ impl Encoding {
         dst: Vec<Option<&'a str>>,
     ) -> Vec<Option<&'a str>> {
         match self {
-            Encoding::RLE(enc) => enc.values(row_ids, dst),
-            Encoding::Plain(enc) => enc.values(row_ids, dst),
+            Self::RLE(enc) => enc.values(row_ids, dst),
+            Self::Plain(enc) => enc.values(row_ids, dst),
         }
     }
 
@@ -169,8 +169,8 @@ impl Encoding {
     /// value exists at any of the provided row ids.
     fn min<'a>(&'a self, row_ids: &[u32]) -> Option<&'a String> {
         match self {
-            Encoding::RLE(enc) => enc.min(row_ids),
-            Encoding::Plain(enc) => enc.min(row_ids),
+            Self::RLE(enc) => enc.min(row_ids),
+            Self::Plain(enc) => enc.min(row_ids),
         }
     }
 
@@ -179,8 +179,8 @@ impl Encoding {
     /// value exists at any of the provided row ids.
     fn max<'a>(&'a self, row_ids: &[u32]) -> Option<&'a String> {
         match self {
-            Encoding::RLE(enc) => enc.max(row_ids),
-            Encoding::Plain(enc) => enc.max(row_ids),
+            Self::RLE(enc) => enc.max(row_ids),
+            Self::Plain(enc) => enc.max(row_ids),
         }
     }
 
@@ -188,8 +188,8 @@ impl Encoding {
     /// returned only if the column does not contain any non-null values.
     pub fn column_min(&self) -> Option<&'_ String> {
         match self {
-            Encoding::RLE(enc) => enc.column_min(),
-            Encoding::Plain(enc) => enc.column_min(),
+            Self::RLE(enc) => enc.column_min(),
+            Self::Plain(enc) => enc.column_min(),
         }
     }
 
@@ -197,8 +197,8 @@ impl Encoding {
     /// returned only if the column does not contain any non-null values.
     pub fn column_max(&self) -> Option<&'_ String> {
         match self {
-            Encoding::RLE(enc) => enc.column_max(),
-            Encoding::Plain(enc) => enc.column_max(),
+            Self::RLE(enc) => enc.column_max(),
+            Self::Plain(enc) => enc.column_max(),
         }
     }
 
@@ -206,8 +206,8 @@ impl Encoding {
     /// row ids.
     fn count(&self, row_ids: &[u32]) -> u32 {
         match self {
-            Encoding::RLE(enc) => enc.count(row_ids),
-            Encoding::Plain(enc) => enc.count(row_ids),
+            Self::RLE(enc) => enc.count(row_ids),
+            Self::Plain(enc) => enc.count(row_ids),
         }
     }
 
@@ -217,8 +217,8 @@ impl Encoding {
     /// NULL values are represented by None.
     fn all_values<'a>(&'a mut self, dst: Vec<Option<&'a str>>) -> Vec<Option<&'a str>> {
         match self {
-            Encoding::RLE(enc) => enc.all_values(dst),
-            Encoding::Plain(enc) => enc.all_values(dst),
+            Self::RLE(enc) => enc.all_values(dst),
+            Self::Plain(enc) => enc.all_values(dst),
         }
     }
 
@@ -233,8 +233,8 @@ impl Encoding {
         dst: BTreeSet<Option<&'a str>>,
     ) -> BTreeSet<Option<&'a str>> {
         match self {
-            Encoding::RLE(enc) => enc.distinct_values(row_ids, dst),
-            Encoding::Plain(enc) => enc.distinct_values(row_ids, dst),
+            Self::RLE(enc) => enc.distinct_values(row_ids, dst),
+            Self::Plain(enc) => enc.distinct_values(row_ids, dst),
         }
     }
 
@@ -249,8 +249,8 @@ impl Encoding {
     /// Encoded values for NULL values are included.
     fn encoded_values(&self, row_ids: &[u32], dst: Vec<u32>) -> Vec<u32> {
         match self {
-            Encoding::RLE(enc) => enc.encoded_values(row_ids, dst),
-            Encoding::Plain(enc) => enc.encoded_values(row_ids, dst),
+            Self::RLE(enc) => enc.encoded_values(row_ids, dst),
+            Self::Plain(enc) => enc.encoded_values(row_ids, dst),
         }
     }
 
@@ -258,8 +258,8 @@ impl Encoding {
     /// for any NULL values.
     fn all_encoded_values(&self, dst: Vec<u32>) -> Vec<u32> {
         match self {
-            Encoding::RLE(enc) => enc.all_encoded_values(dst),
-            Encoding::Plain(enc) => enc.all_encoded_values(dst),
+            Self::RLE(enc) => enc.all_encoded_values(dst),
+            Self::Plain(enc) => enc.all_encoded_values(dst),
         }
     }
 
@@ -280,8 +280,8 @@ impl Encoding {
     /// column's dictionary in the provided set of values.
     fn has_other_non_null_values(&self, values: &BTreeSet<String>) -> bool {
         match self {
-            Encoding::RLE(enc) => enc.has_other_non_null_values(values),
-            Encoding::Plain(enc) => enc.has_other_non_null_values(values),
+            Self::RLE(enc) => enc.has_other_non_null_values(values),
+            Self::Plain(enc) => enc.has_other_non_null_values(values),
         }
     }
 
@@ -292,8 +292,8 @@ impl Encoding {
     /// increasing set.
     fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
         match self {
-            Encoding::RLE(enc) => enc.has_non_null_value(row_ids),
-            Encoding::Plain(enc) => enc.has_non_null_value(row_ids),
+            Self::RLE(enc) => enc.has_non_null_value(row_ids),
+            Self::Plain(enc) => enc.has_non_null_value(row_ids),
         }
     }
 }

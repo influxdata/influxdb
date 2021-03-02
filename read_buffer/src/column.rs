@@ -55,7 +55,7 @@ impl Column {
         // different size, so just do the calculations here where we know each
         // `T`.
         match &self {
-            Column::String(meta, data) => {
+            Self::String(meta, data) => {
                 let mut meta_size =
                     (size_of::<Option<(String, String)>>() + size_of::<ColumnProperties>()) as u64;
                 if let Some((min, max)) = &meta.range {
@@ -63,27 +63,27 @@ impl Column {
                 };
                 meta_size + data.size()
             }
-            Column::Float(_, data) => {
+            Self::Float(_, data) => {
                 let meta_size =
                     (size_of::<Option<(f64, f64)>>() + size_of::<ColumnProperties>()) as u64;
                 meta_size + data.size()
             }
-            Column::Integer(_, data) => {
+            Self::Integer(_, data) => {
                 let meta_size =
                     (size_of::<Option<(i64, i64)>>() + size_of::<ColumnProperties>()) as u64;
                 meta_size + data.size()
             }
-            Column::Unsigned(_, data) => {
+            Self::Unsigned(_, data) => {
                 let meta_size =
                     (size_of::<Option<(u64, u64)>>() + size_of::<ColumnProperties>()) as u64;
                 meta_size + data.size()
             }
-            Column::Bool(_, data) => {
+            Self::Bool(_, data) => {
                 let meta_size =
                     (size_of::<Option<(bool, bool)>>() + size_of::<ColumnProperties>()) as u64;
                 meta_size + data.size()
             }
-            Column::ByteArray(meta, data) => {
+            Self::ByteArray(meta, data) => {
                 let mut meta_size = (size_of::<Option<(Vec<u8>, Vec<u8>)>>()
                     + size_of::<ColumnProperties>()) as u64;
                 if let Some((min, max)) = &meta.range {
@@ -97,74 +97,74 @@ impl Column {
 
     pub fn num_rows(&self) -> u32 {
         match &self {
-            Column::String(_, data) => data.num_rows(),
-            Column::Float(_, data) => data.num_rows(),
-            Column::Integer(_, data) => data.num_rows(),
-            Column::Unsigned(_, data) => data.num_rows(),
-            Column::Bool(_, data) => data.num_rows(),
-            Column::ByteArray(_, data) => data.num_rows(),
+            Self::String(_, data) => data.num_rows(),
+            Self::Float(_, data) => data.num_rows(),
+            Self::Integer(_, data) => data.num_rows(),
+            Self::Unsigned(_, data) => data.num_rows(),
+            Self::Bool(_, data) => data.num_rows(),
+            Self::ByteArray(_, data) => data.num_rows(),
         }
     }
 
     /// Returns the logical data-type associated with the column.
     pub fn logical_datatype(&self) -> LogicalDataType {
         match self {
-            Column::String(_, _) => LogicalDataType::String,
-            Column::Float(_, _) => LogicalDataType::Float,
-            Column::Integer(_, _) => LogicalDataType::Integer,
-            Column::Unsigned(_, _) => LogicalDataType::Unsigned,
-            Column::Bool(_, _) => LogicalDataType::Boolean,
-            Column::ByteArray(_, _) => LogicalDataType::Binary,
+            Self::String(_, _) => LogicalDataType::String,
+            Self::Float(_, _) => LogicalDataType::Float,
+            Self::Integer(_, _) => LogicalDataType::Integer,
+            Self::Unsigned(_, _) => LogicalDataType::Unsigned,
+            Self::Bool(_, _) => LogicalDataType::Boolean,
+            Self::ByteArray(_, _) => LogicalDataType::Binary,
         }
     }
 
     /// Returns the (min, max)  values stored in this column
     pub fn column_range(&self) -> Option<(OwnedValue, OwnedValue)> {
         match &self {
-            Column::String(meta, _) => match &meta.range {
+            Self::String(meta, _) => match &meta.range {
                 Some(range) => Some((
                     OwnedValue::String(range.0.clone()),
                     OwnedValue::String(range.1.clone()),
                 )),
                 None => None,
             },
-            Column::Float(meta, _) => match meta.range {
+            Self::Float(meta, _) => match meta.range {
                 Some(range) => Some((
                     OwnedValue::Scalar(Scalar::F64(range.0)),
                     OwnedValue::Scalar(Scalar::F64(range.1)),
                 )),
                 None => None,
             },
-            Column::Integer(meta, _) => match meta.range {
+            Self::Integer(meta, _) => match meta.range {
                 Some(range) => Some((
                     OwnedValue::Scalar(Scalar::I64(range.0)),
                     OwnedValue::Scalar(Scalar::I64(range.1)),
                 )),
                 None => None,
             },
-            Column::Unsigned(meta, _) => match meta.range {
+            Self::Unsigned(meta, _) => match meta.range {
                 Some(range) => Some((
                     OwnedValue::Scalar(Scalar::U64(range.0)),
                     OwnedValue::Scalar(Scalar::U64(range.1)),
                 )),
                 None => None,
             },
-            Column::Bool(meta, _) => match meta.range {
+            Self::Bool(meta, _) => match meta.range {
                 Some(range) => Some((OwnedValue::Boolean(range.0), OwnedValue::Boolean(range.1))),
                 None => None,
             },
-            Column::ByteArray(_, _) => todo!(),
+            Self::ByteArray(_, _) => todo!(),
         }
     }
 
     pub fn properties(&self) -> &ColumnProperties {
         match &self {
-            Column::String(meta, _) => &meta.properties,
-            Column::Float(meta, _) => &meta.properties,
-            Column::Integer(meta, _) => &meta.properties,
-            Column::Unsigned(meta, _) => &meta.properties,
-            Column::Bool(meta, _) => &meta.properties,
-            Column::ByteArray(meta, _) => &meta.properties,
+            Self::String(meta, _) => &meta.properties,
+            Self::Float(meta, _) => &meta.properties,
+            Self::Integer(meta, _) => &meta.properties,
+            Self::Unsigned(meta, _) => &meta.properties,
+            Self::Bool(meta, _) => &meta.properties,
+            Self::ByteArray(meta, _) => &meta.properties,
         }
     }
 
@@ -190,12 +190,12 @@ impl Column {
         );
 
         match &self {
-            Column::String(_, data) => data.value(row_id),
-            Column::Float(_, data) => data.value(row_id),
-            Column::Integer(_, data) => data.value(row_id),
-            Column::Unsigned(_, data) => data.value(row_id),
-            Column::Bool(_, data) => data.value(row_id),
-            Column::ByteArray(_, _) => todo!(),
+            Self::String(_, data) => data.value(row_id),
+            Self::Float(_, data) => data.value(row_id),
+            Self::Integer(_, data) => data.value(row_id),
+            Self::Unsigned(_, data) => data.value(row_id),
+            Self::Bool(_, data) => data.value(row_id),
+            Self::ByteArray(_, _) => todo!(),
         }
     }
 
@@ -209,32 +209,32 @@ impl Column {
         );
 
         match &self {
-            Column::String(_, data) => data.values(row_ids),
-            Column::Float(_, data) => data.values(row_ids),
-            Column::Integer(_, data) => data.values(row_ids),
-            Column::Unsigned(_, data) => data.values(row_ids),
-            Column::Bool(_, data) => data.values(row_ids),
-            Column::ByteArray(_, _) => todo!(),
+            Self::String(_, data) => data.values(row_ids),
+            Self::Float(_, data) => data.values(row_ids),
+            Self::Integer(_, data) => data.values(row_ids),
+            Self::Unsigned(_, data) => data.values(row_ids),
+            Self::Bool(_, data) => data.values(row_ids),
+            Self::ByteArray(_, _) => todo!(),
         }
     }
 
     /// All logical values in the column.
     pub fn all_values(&self) -> Values<'_> {
         match &self {
-            Column::String(_, data) => data.all_values(),
-            Column::Float(_, data) => data.all_values(),
-            Column::Integer(_, data) => data.all_values(),
-            Column::Unsigned(_, data) => data.all_values(),
-            Column::Bool(_, data) => data.all_values(),
-            Column::ByteArray(_, _) => todo!(),
+            Self::String(_, data) => data.all_values(),
+            Self::Float(_, data) => data.all_values(),
+            Self::Integer(_, data) => data.all_values(),
+            Self::Unsigned(_, data) => data.all_values(),
+            Self::Bool(_, data) => data.all_values(),
+            Self::ByteArray(_, _) => todo!(),
         }
     }
 
     /// The value present at the provided logical row id.
     pub fn decode_id(&self, encoded_id: u32) -> Value<'_> {
         match &self {
-            Column::String(_, data) => data.decode_id(encoded_id),
-            Column::ByteArray(_, _) => todo!(),
+            Self::String(_, data) => data.decode_id(encoded_id),
+            Self::ByteArray(_, _) => todo!(),
             _ => panic!("unsupported operation"),
         }
     }
@@ -242,20 +242,20 @@ impl Column {
     // The distinct set of values found at the logical row ids.
     pub fn distinct_values(&self, row_ids: impl Iterator<Item = u32>) -> BTreeSet<Option<&'_ str>> {
         match &self {
-            Column::String(_, data) => data.distinct_values(row_ids),
-            Column::Float(_, _) => {
+            Self::String(_, data) => data.distinct_values(row_ids),
+            Self::Float(_, _) => {
                 unimplemented!("distinct values is unimplemented for Float column")
             }
-            Column::Integer(_, _) => {
+            Self::Integer(_, _) => {
                 unimplemented!("distinct values is unimplemented for Integer column")
             }
-            Column::Unsigned(_, _) => {
+            Self::Unsigned(_, _) => {
                 unimplemented!("distinct values is unimplemented for Unsigned column")
             }
-            Column::Bool(_, _) => {
+            Self::Bool(_, _) => {
                 unimplemented!("distinct values is unimplemented for Bool column")
             }
-            Column::ByteArray(_, _) => {
+            Self::ByteArray(_, _) => {
                 unimplemented!("distinct values is unimplemented for ByteArray column")
             }
         }
@@ -304,7 +304,7 @@ impl Column {
 
     pub fn grouped_row_ids(&self) -> Either<Vec<&RowIDs>, Vec<RowIDs>> {
         match &self {
-            Column::String(_, data) => data.group_row_ids(),
+            Self::String(_, data) => data.group_row_ids(),
             _ => unimplemented!("grouping not yet implemented"),
         }
     }
@@ -330,12 +330,12 @@ impl Column {
 
         // Check the column for all rows that satisfy the predicate.
         let row_ids = match &self {
-            Column::String(_, data) => data.row_ids_filter(op, value.string(), dst),
-            Column::Float(_, data) => data.row_ids_filter(op, value.scalar(), dst),
-            Column::Integer(_, data) => data.row_ids_filter(op, value.scalar(), dst),
-            Column::Unsigned(_, data) => data.row_ids_filter(op, value.scalar(), dst),
-            Column::Bool(_, data) => data.row_ids_filter(op, value.bool(), dst),
-            Column::ByteArray(_, _) => todo!(),
+            Self::String(_, data) => data.row_ids_filter(op, value.string(), dst),
+            Self::Float(_, data) => data.row_ids_filter(op, value.scalar(), dst),
+            Self::Integer(_, data) => data.row_ids_filter(op, value.scalar(), dst),
+            Self::Unsigned(_, data) => data.row_ids_filter(op, value.scalar(), dst),
+            Self::Bool(_, data) => data.row_ids_filter(op, value.bool(), dst),
+            Self::ByteArray(_, _) => todo!(),
         };
 
         if row_ids.is_empty() {
@@ -387,14 +387,14 @@ impl Column {
 
         // Check the column for all rows that satisfy the predicate.
         let row_ids = match &self {
-            Column::String(_, _) => unimplemented!("not supported on string columns yet"),
-            Column::Float(_, data) => data.row_ids_filter_range(low_scalar, high_scalar, dst),
-            Column::Integer(_, data) => data.row_ids_filter_range(low_scalar, high_scalar, dst),
-            Column::Unsigned(_, data) => {
+            Self::String(_, _) => unimplemented!("not supported on string columns yet"),
+            Self::Float(_, data) => data.row_ids_filter_range(low_scalar, high_scalar, dst),
+            Self::Integer(_, data) => data.row_ids_filter_range(low_scalar, high_scalar, dst),
+            Self::Unsigned(_, data) => {
                 data.row_ids_filter_range((&low.0, low.1.scalar()), (&high.0, high.1.scalar()), dst)
             }
-            Column::Bool(_, _) => unimplemented!("filter_range not supported on boolean column"),
-            Column::ByteArray(_, _) => todo!(),
+            Self::Bool(_, _) => unimplemented!("filter_range not supported on boolean column"),
+            Self::ByteArray(_, _) => todo!(),
         };
 
         if row_ids.is_empty() {
@@ -451,7 +451,7 @@ impl Column {
     // TODO(edd): currently this only handles non-null values.
     fn might_contain_value(&self, value: &Value<'_>) -> bool {
         match &self {
-            Column::String(meta, _) => {
+            Self::String(meta, _) => {
                 if let Value::String(other) = value {
                     meta.might_contain_value(*other)
                 } else {
@@ -466,24 +466,24 @@ impl Column {
             //     be stored in the column at all -> false.
             //   * Otherwise if the value falls inside the range of values in the column range then
             //     it may be in the column -> true.
-            Column::Float(meta, _) => value
+            Self::Float(meta, _) => value
                 .scalar()
                 .try_as_f64()
                 .map_or_else(|| false, |v| meta.might_contain_value(v)),
-            Column::Integer(meta, _) => value
+            Self::Integer(meta, _) => value
                 .scalar()
                 .try_as_i64()
                 .map_or_else(|| false, |v| meta.might_contain_value(v)),
-            Column::Unsigned(meta, _) => value
+            Self::Unsigned(meta, _) => value
                 .scalar()
                 .try_as_u64()
                 .map_or_else(|| false, |v| meta.might_contain_value(v)),
-            Column::Bool(meta, _) => match value {
+            Self::Bool(meta, _) => match value {
                 Value::Null => false,
                 Value::Boolean(b) => meta.might_contain_value(*b),
                 v => panic!("cannot compare boolean to {:?}", v),
             },
-            Column::ByteArray(_, _) => todo!(),
+            Self::ByteArray(_, _) => todo!(),
         }
     }
 
@@ -493,7 +493,7 @@ impl Column {
     // TODO(edd): this doesn't handle operators that compare to a NULL value yet.
     fn predicate_matches_all_values(&self, op: &cmp::Operator, value: &Value<'_>) -> bool {
         match &self {
-            Column::String(meta, data) => {
+            Self::String(meta, data) => {
                 if data.contains_null() {
                     false
                 } else if let Value::String(other) = value {
@@ -511,7 +511,7 @@ impl Column {
             //   * If the value can't be safely converted then -> false.
             //   * Otherwise if the value falls inside the range of values in the column range then
             //     check if all values satisfy the predicate.
-            Column::Float(meta, data) => {
+            Self::Float(meta, data) => {
                 if data.contains_null() {
                     return false;
                 }
@@ -521,7 +521,7 @@ impl Column {
                     .try_as_f64()
                     .map_or_else(|| false, |v| meta.might_match_all_values(op, v))
             }
-            Column::Integer(meta, data) => {
+            Self::Integer(meta, data) => {
                 if data.contains_null() {
                     return false;
                 }
@@ -531,7 +531,7 @@ impl Column {
                     .try_as_i64()
                     .map_or_else(|| false, |v| meta.might_match_all_values(op, v))
             }
-            Column::Unsigned(meta, data) => {
+            Self::Unsigned(meta, data) => {
                 if data.contains_null() {
                     return false;
                 }
@@ -541,7 +541,7 @@ impl Column {
                     .try_as_u64()
                     .map_or_else(|| false, |v| meta.might_match_all_values(op, v))
             }
-            Column::Bool(meta, data) => {
+            Self::Bool(meta, data) => {
                 if data.contains_null() {
                     return false;
                 }
@@ -552,7 +552,7 @@ impl Column {
                     v => panic!("cannot compare on boolean column using {:?}", v),
                 }
             }
-            Column::ByteArray(_, _) => todo!(),
+            Self::ByteArray(_, _) => todo!(),
         }
     }
 
@@ -560,7 +560,7 @@ impl Column {
     // values in the column.
     fn predicate_matches_no_values(&self, op: &cmp::Operator, value: &Value<'_>) -> bool {
         match &self {
-            Column::String(meta, _) => {
+            Self::String(meta, _) => {
                 if let Value::String(other) = value {
                     meta.match_no_values(op, *other)
                 } else {
@@ -572,11 +572,11 @@ impl Column {
             //   * Convert that scalar to a primitive value based on the logical type used for the
             //     metadata on the column.
             //   * See if one can prove none of the column can match the predicate.
-            Column::Float(meta, _) => meta.match_no_values(op, value.scalar().as_f64()),
-            Column::Integer(meta, _) => meta.match_no_values(op, value.scalar().as_i64()),
-            Column::Unsigned(meta, _) => meta.match_no_values(op, value.scalar().as_u64()),
-            Column::Bool(meta, _) => meta.match_no_values(op, value.bool()),
-            Column::ByteArray(_, _) => todo!(),
+            Self::Float(meta, _) => meta.match_no_values(op, value.scalar().as_f64()),
+            Self::Integer(meta, _) => meta.match_no_values(op, value.scalar().as_i64()),
+            Self::Unsigned(meta, _) => meta.match_no_values(op, value.scalar().as_u64()),
+            Self::Bool(meta, _) => meta.match_no_values(op, value.bool()),
+            Self::ByteArray(_, _) => todo!(),
         }
     }
 
@@ -589,12 +589,12 @@ impl Column {
         assert!(row_ids.len() as u32 <= self.num_rows());
 
         match &self {
-            Column::String(_, data) => data.min(row_ids),
-            Column::Float(_, data) => data.min(row_ids),
-            Column::Integer(_, data) => data.min(row_ids),
-            Column::Unsigned(_, data) => data.min(row_ids),
-            Column::Bool(_, data) => data.min(row_ids),
-            Column::ByteArray(_, _) => todo!(),
+            Self::String(_, data) => data.min(row_ids),
+            Self::Float(_, data) => data.min(row_ids),
+            Self::Integer(_, data) => data.min(row_ids),
+            Self::Unsigned(_, data) => data.min(row_ids),
+            Self::Bool(_, data) => data.min(row_ids),
+            Self::ByteArray(_, _) => todo!(),
         }
     }
 
@@ -603,12 +603,12 @@ impl Column {
         assert!(row_ids.len() as u32 <= self.num_rows());
 
         match &self {
-            Column::String(_, data) => data.max(row_ids),
-            Column::Float(_, data) => data.max(row_ids),
-            Column::Integer(_, data) => data.max(row_ids),
-            Column::Unsigned(_, data) => data.max(row_ids),
-            Column::Bool(_, data) => data.max(row_ids),
-            Column::ByteArray(_, _) => todo!(),
+            Self::String(_, data) => data.max(row_ids),
+            Self::Float(_, data) => data.max(row_ids),
+            Self::Integer(_, data) => data.max(row_ids),
+            Self::Unsigned(_, data) => data.max(row_ids),
+            Self::Bool(_, data) => data.max(row_ids),
+            Self::ByteArray(_, _) => todo!(),
         }
     }
 
@@ -621,9 +621,9 @@ impl Column {
         assert!(row_ids.len() as u32 <= self.num_rows());
 
         match &self {
-            Column::Float(_, data) => data.sum(row_ids),
-            Column::Integer(_, data) => data.sum(row_ids),
-            Column::Unsigned(_, data) => data.sum(row_ids),
+            Self::Float(_, data) => data.sum(row_ids),
+            Self::Integer(_, data) => data.sum(row_ids),
+            Self::Unsigned(_, data) => data.sum(row_ids),
             _ => panic!("cannot sum non-numerical column type"),
         }
     }
@@ -633,12 +633,12 @@ impl Column {
         assert!(row_ids.len() as u32 <= self.num_rows());
 
         match &self {
-            Column::String(_, data) => data.count(row_ids),
-            Column::Float(_, data) => data.count(row_ids),
-            Column::Integer(_, data) => data.count(row_ids),
-            Column::Unsigned(_, data) => data.count(row_ids),
-            Column::Bool(_, data) => data.count(row_ids),
-            Column::ByteArray(_, _) => todo!(),
+            Self::String(_, data) => data.count(row_ids),
+            Self::Float(_, data) => data.count(row_ids),
+            Self::Integer(_, data) => data.count(row_ids),
+            Self::Unsigned(_, data) => data.count(row_ids),
+            Self::Bool(_, data) => data.count(row_ids),
+            Self::ByteArray(_, _) => todo!(),
         }
     }
 
@@ -649,12 +649,12 @@ impl Column {
     /// Determines if this column contains any NULL values.
     pub fn contains_null(&self) -> bool {
         match &self {
-            Column::String(_, data) => data.contains_null(),
-            Column::Float(_, data) => data.contains_null(),
-            Column::Integer(_, data) => data.contains_null(),
-            Column::Unsigned(_, data) => data.contains_null(),
-            Column::Bool(_, data) => data.contains_null(),
-            Column::ByteArray(_, _) => todo!(),
+            Self::String(_, data) => data.contains_null(),
+            Self::Float(_, data) => data.contains_null(),
+            Self::Integer(_, data) => data.contains_null(),
+            Self::Unsigned(_, data) => data.contains_null(),
+            Self::Bool(_, data) => data.contains_null(),
+            Self::ByteArray(_, _) => todo!(),
         }
     }
 
@@ -662,24 +662,24 @@ impl Column {
     /// row ids.
     pub fn has_non_null_value(&self, row_ids: &[u32]) -> bool {
         match &self {
-            Column::String(_, data) => data.has_non_null_value(row_ids),
-            Column::Float(_, data) => data.has_non_null_value(row_ids),
-            Column::Integer(_, data) => data.has_non_null_value(row_ids),
-            Column::Unsigned(_, data) => data.has_non_null_value(row_ids),
-            Column::Bool(_, data) => data.has_non_null_value(row_ids),
-            Column::ByteArray(_, _) => todo!(),
+            Self::String(_, data) => data.has_non_null_value(row_ids),
+            Self::Float(_, data) => data.has_non_null_value(row_ids),
+            Self::Integer(_, data) => data.has_non_null_value(row_ids),
+            Self::Unsigned(_, data) => data.has_non_null_value(row_ids),
+            Self::Bool(_, data) => data.has_non_null_value(row_ids),
+            Self::ByteArray(_, _) => todo!(),
         }
     }
 
     /// Determines if the column has a non-null value on any row.
     pub fn has_any_non_null_value(&self) -> bool {
         match &self {
-            Column::String(_, data) => data.has_any_non_null_value(),
-            Column::Float(_, data) => data.has_any_non_null_value(),
-            Column::Integer(_, data) => data.has_any_non_null_value(),
-            Column::Unsigned(_, data) => data.has_any_non_null_value(),
-            Column::Bool(_, data) => data.has_any_non_null_value(),
-            Column::ByteArray(_, _) => todo!(),
+            Self::String(_, data) => data.has_any_non_null_value(),
+            Self::Float(_, data) => data.has_any_non_null_value(),
+            Self::Integer(_, data) => data.has_any_non_null_value(),
+            Self::Unsigned(_, data) => data.has_any_non_null_value(),
+            Self::Bool(_, data) => data.has_any_non_null_value(),
+            Self::ByteArray(_, _) => todo!(),
         }
     }
 
@@ -687,14 +687,14 @@ impl Column {
     /// in the provided `values` argument.
     pub fn has_other_non_null_string_values(&self, values: &BTreeSet<String>) -> bool {
         match self {
-            Column::String(_, data) => data.has_other_non_null_values(values),
-            Column::Float(_, _) => unimplemented!("operation not supported on `Float` column"),
-            Column::Integer(_, _) => unimplemented!("operation not supported on `Integer` column"),
-            Column::Unsigned(_, _) => {
+            Self::String(_, data) => data.has_other_non_null_values(values),
+            Self::Float(_, _) => unimplemented!("operation not supported on `Float` column"),
+            Self::Integer(_, _) => unimplemented!("operation not supported on `Integer` column"),
+            Self::Unsigned(_, _) => {
                 unimplemented!("operation not supported on `Unsigned` column")
             }
-            Column::Bool(_, _) => unimplemented!("operation not supported on `Bool` column"),
-            Column::ByteArray(_, _) => {
+            Self::Bool(_, _) => unimplemented!("operation not supported on `Bool` column"),
+            Self::ByteArray(_, _) => {
                 unimplemented!("operation not supported on `ByteArray` column")
             }
         }
@@ -795,7 +795,7 @@ impl From<arrow::array::StringArray> for Column {
             },
         };
 
-        Column::String(meta, data)
+        Self::String(meta, data)
     }
 }
 
@@ -809,7 +809,7 @@ impl From<&[Option<&str>]> for Column {
             },
         };
 
-        Column::String(meta, data)
+        Self::String(meta, data)
     }
 }
 
@@ -834,7 +834,7 @@ impl From<&[&str]> for Column {
             },
         };
 
-        Column::String(meta, data)
+        Self::String(meta, data)
     }
 }
 
@@ -907,7 +907,7 @@ impl From<arrow::array::UInt64Array> for Column {
             properties: ColumnProperties::default(),
         };
 
-        Column::Unsigned(meta, data)
+        Self::Unsigned(meta, data)
     }
 }
 
@@ -980,7 +980,7 @@ impl From<arrow::array::Int64Array> for Column {
             properties: ColumnProperties::default(),
         };
 
-        Column::Integer(meta, data)
+        Self::Integer(meta, data)
     }
 }
 
@@ -1001,7 +1001,7 @@ impl From<&[f64]> for Column {
             properties: ColumnProperties::default(),
         };
 
-        Column::Float(meta, data)
+        Self::Float(meta, data)
     }
 }
 
@@ -1052,7 +1052,7 @@ impl From<arrow::array::Float64Array> for Column {
             ..MetaData::default()
         };
 
-        Column::Float(meta, FloatEncoding::FixedNull64(data))
+        Self::Float(meta, FloatEncoding::FixedNull64(data))
     }
 }
 
@@ -1098,7 +1098,7 @@ impl From<arrow::array::BooleanArray> for Column {
             range,
             ..MetaData::default()
         };
-        Column::Bool(meta, data)
+        Self::Bool(meta, data)
     }
 }
 
@@ -1125,9 +1125,9 @@ impl RowIDsOption {
     /// Returns the `Some` variant or panics.
     pub fn unwrap(&self) -> &RowIDs {
         match &self {
-            RowIDsOption::None(_) => panic!("cannot unwrap RowIDsOption to RowIDs"),
-            RowIDsOption::Some(ids) => ids,
-            RowIDsOption::All(ids) => ids,
+            Self::None(_) => panic!("cannot unwrap RowIDsOption to RowIDs"),
+            Self::Some(ids) => ids,
+            Self::All(ids) => ids,
         }
     }
 }
@@ -1170,8 +1170,8 @@ impl RowIDs {
     /// An estimation of the size in bytes needed to store `self`.
     pub fn size(&self) -> usize {
         match self {
-            RowIDs::Bitmap(bm) => std::mem::size_of::<Bitmap>() + bm.get_serialized_size_in_bytes(),
-            RowIDs::Vector(v) => {
+            Self::Bitmap(bm) => std::mem::size_of::<Bitmap>() + bm.get_serialized_size_in_bytes(),
+            Self::Vector(v) => {
                 std::mem::size_of::<Vec<u32>>() + (std::mem::size_of::<u32>() * v.len())
             }
         }
@@ -1180,9 +1180,9 @@ impl RowIDs {
     /// Returns an iterator over the contents of the RowIDs.
     pub fn iter(&self) -> RowIDsIterator<'_> {
         match self {
-            RowIDs::Bitmap(bm) => RowIDsIterator::new(bm.iter()),
+            Self::Bitmap(bm) => RowIDsIterator::new(bm.iter()),
             // we want an iterator of u32 rather than &u32.
-            RowIDs::Vector(vec) => RowIDsIterator::new(vec.iter().cloned()),
+            Self::Vector(vec) => RowIDsIterator::new(vec.iter().cloned()),
         }
     }
 
@@ -1245,16 +1245,16 @@ impl RowIDs {
         }
     }
 
-    pub fn intersect(&mut self, other: &RowIDs) {
+    pub fn intersect(&mut self, other: &Self) {
         match (self, other) {
-            (Self::Bitmap(_self), RowIDs::Bitmap(ref other)) => _self.and_inplace(other),
+            (Self::Bitmap(_self), Self::Bitmap(ref other)) => _self.and_inplace(other),
             (_, _) => unimplemented!("currently unsupported"),
         };
     }
 
-    pub fn union(&mut self, other: &RowIDs) {
+    pub fn union(&mut self, other: &Self) {
         match (self, other) {
-            (Self::Bitmap(inner), RowIDs::Bitmap(other)) => inner.or_inplace(other),
+            (Self::Bitmap(inner), Self::Bitmap(other)) => inner.or_inplace(other),
             // N.B this seems very inefficient. It should only be used for testing.
             (Self::Vector(inner), Self::Bitmap(other)) => {
                 let mut bm: Bitmap = inner.iter().cloned().collect();
