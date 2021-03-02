@@ -438,6 +438,7 @@ storage-validate-keys = false
 storage-wal-fsync-delay = "0s"
 tls-cert = "/etc/ssl/influxdb.pem"
 tls-key = ""
+pprof-enabled = true
 `
 
 var testConfigV2obsoleteArrays = `reporting-disabled = true

@@ -43,6 +43,7 @@ var configMapRules = map[string]string{
 	"http.bind-address":                                    "http-bind-address",
 	"http.https-certificate":                               "tls-cert",
 	"http.https-private-key":                               "tls-key",
+	"http.pprof-enabled":                                   "pprof-enabled",
 }
 
 // configValueTransforms is a map from 2.x config keys to transformation functions
