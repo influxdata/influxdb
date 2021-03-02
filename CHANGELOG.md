@@ -24,7 +24,7 @@ the endpoint has been removed. Use the `/metrics` endpoint to collect system sta
 1. [20860](https://github.com/influxdata/influxdb/pull/20860): Remove unauthenticated, unsupported `/debug/vars` HTTP endpoint.
 1. [20839](https://github.com/influxdata/influxdb/pull/20839): Fix TSM WAL segment size check. Thanks @foobar!
 1. [20841](https://github.com/influxdata/influxdb/pull/20841): Update references to docs site to use current URLs.
-1. [19936](https://github.com/influxdata/influxdb/pull/19936): Fix use-after-free bug in series ID iterator. Thanks @foobar!
+1. [20837](https://github.com/influxdata/influxdb/pull/20837): Fix use-after-free bug in series ID iterator. Thanks @foobar!
 
 ## v2.0.4 [2021-02-08]
 ----------------------
