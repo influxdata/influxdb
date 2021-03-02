@@ -15,7 +15,7 @@ the endpoint has been removed. Use the `/metrics` endpoint to collect system sta
 1. [20307](https://github.com/influxdata/influxdb/pull/20307): Add `influx task retry-failed` command to rerun failed runs.
 1. [20759](https://github.com/influxdata/influxdb/pull/20759): Add additional properties for Mosaic Graph.
 1. [20763](https://github.com/influxdata/influxdb/pull/20763): Add `--compression` option to `influx write` to support GZIP inputs.
-1. [20827](https://github.com/influxdata/influxdb/pull/20827): Add `--pprof-disabled` option to `influxd` to expose profiling information over HTTP.
+1. [20827](https://github.com/influxdata/influxdb/pull/20827): Add `--pprof-disabled` option to `influxd` to disable exposing profiling information over HTTP.
 1. [20827](https://github.com/influxdata/influxdb/pull/20827): Add `/debug/pprof/all` HTTP endpoint to gather all profiles at once.
 1. [20827](https://github.com/influxdata/influxdb/pull/20827): Upgrade `http.pprof-enabled` config in `influxd upgrade`.
 
