@@ -22,6 +22,13 @@ const getLegibleTextColor = bgColorHex => {
 
 const findNearestCrossedThreshold = (colors, lastValue) => {
   const sortedColors = _.sortBy(colors, color => Number(color.value))
+
+  // If the value is less than zero, clamp to the lowest value
+  // See https://github.com/influxdata/influxdb/issues/20750
+  if (lastValue < 0) {
+    return sortedColors[0]
+  }
+
   const nearestCrossedThreshold = sortedColors
     .filter(color => lastValue >= color.value)
     .pop()
