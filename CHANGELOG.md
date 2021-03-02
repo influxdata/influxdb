@@ -25,6 +25,7 @@ the endpoint has been removed. Use the `/metrics` endpoint to collect system sta
 1. [20839](https://github.com/influxdata/influxdb/pull/20839): Fix TSM WAL segment size check. Thanks @foobar!
 1. [20841](https://github.com/influxdata/influxdb/pull/20841): Update references to docs site to use current URLs.
 1. [20837](https://github.com/influxdata/influxdb/pull/20837): Fix use-after-free bug in series ID iterator. Thanks @foobar!
+1. [20809](https://github.com/influxdata/influxdb/pull/20809): Fix InfluxDB port in Flux function UI examples. Thanks @sunjincheng121!
 
 ## v2.0.4 [2021-02-08]
 ----------------------

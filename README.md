@@ -151,7 +151,7 @@ Once setup is complete, a configuration profile is created to allow you to inter
 ```bash
 $ bin/$(uname -s | tr '[:upper:]' '[:lower:]')/influx config
 Active	Name	URL			            Org
-*	    default	http://localhost:9999	InfluxData
+*	    default	http://localhost:8086	InfluxData
 ```
 
 ## Writing Data
