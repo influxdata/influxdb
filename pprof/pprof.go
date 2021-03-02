@@ -31,8 +31,8 @@ func SetGlobalProfiling(enabled bool) {
 //	- blocking profile
 //	- mutex profile
 //	- heap profile
-//  - allocations profile
-//  - (optionally) trace profile
+//	- allocations profile
+//	- (optionally) trace profile
 //	- (optionally) CPU profile
 //
 // All information is added to a tar archive and then compressed, before being
