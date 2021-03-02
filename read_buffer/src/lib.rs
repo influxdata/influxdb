@@ -1,5 +1,5 @@
 #![deny(rust_2018_idioms)]
-#![warn(clippy::clone_on_ref_ptr)]
+#![warn(clippy::clone_on_ref_ptr, clippy::use_self)]
 #![allow(dead_code, clippy::too_many_arguments)]
 pub(crate) mod chunk;
 pub(crate) mod column;

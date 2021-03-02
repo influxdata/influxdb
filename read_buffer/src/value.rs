@@ -381,43 +381,43 @@ impl Scalar {
 
     pub fn as_f64(&self) -> f64 {
         match &self {
-            Scalar::F64(v) => *v,
+            Self::F64(v) => *v,
             _ => unimplemented!("converting integer Scalar to f64 unsupported"),
         }
     }
 
     pub fn try_as_f64(&self) -> Option<f64> {
         match &self {
-            Scalar::F64(v) => Some(*v),
+            Self::F64(v) => Some(*v),
             _ => unimplemented!("converting integer Scalar to f64 unsupported"),
         }
     }
 }
 
 impl std::ops::AddAssign<&Scalar> for Scalar {
-    fn add_assign(&mut self, rhs: &Scalar) {
+    fn add_assign(&mut self, rhs: &Self) {
         if rhs.is_null() {
             // Adding NULL does nothing.
             return;
         }
 
         match self {
-            Scalar::F64(v) => {
-                if let Scalar::F64(other) = rhs {
+            Self::F64(v) => {
+                if let Self::F64(other) = rhs {
                     *v += *other;
                 } else {
                     panic!("invalid AddAssign types");
                 };
             }
-            Scalar::I64(v) => {
-                if let Scalar::I64(other) = rhs {
+            Self::I64(v) => {
+                if let Self::I64(other) = rhs {
                     *v += *other;
                 } else {
                     panic!("invalid AddAssign types");
                 };
             }
-            Scalar::U64(v) => {
-                if let Scalar::U64(other) = rhs {
+            Self::U64(v) => {
+                if let Self::U64(other) = rhs {
                     *v += *other;
                 } else {
                     panic!("invalid AddAssign types");
@@ -460,10 +460,10 @@ impl<'a> std::ops::AddAssign<&Scalar> for &mut Scalar {
 impl std::fmt::Display for Scalar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Scalar::Null => write!(f, "NULL"),
-            Scalar::I64(v) => write!(f, "{}", v),
-            Scalar::U64(v) => write!(f, "{}", v),
-            Scalar::F64(v) => write!(f, "{}", v),
+            Self::Null => write!(f, "NULL"),
+            Self::I64(v) => write!(f, "{}", v),
+            Self::U64(v) => write!(f, "{}", v),
+            Self::F64(v) => write!(f, "{}", v),
         }
     }
 }
@@ -501,10 +501,10 @@ impl OwnedValue {
 impl PartialEq<Value<'_>> for OwnedValue {
     fn eq(&self, other: &Value<'_>) -> bool {
         match (&self, other) {
-            (OwnedValue::String(a), Value::String(b)) => a == b,
-            (OwnedValue::Scalar(a), Value::Scalar(b)) => a == b,
-            (OwnedValue::Boolean(a), Value::Boolean(b)) => a == b,
-            (OwnedValue::ByteArray(a), Value::ByteArray(b)) => a == b,
+            (Self::String(a), Value::String(b)) => a == b,
+            (Self::Scalar(a), Value::Scalar(b)) => a == b,
+            (Self::Boolean(a), Value::Boolean(b)) => a == b,
+            (Self::ByteArray(a), Value::ByteArray(b)) => a == b,
             _ => false,
         }
     }
@@ -513,10 +513,10 @@ impl PartialEq<Value<'_>> for OwnedValue {
 impl PartialOrd<Value<'_>> for OwnedValue {
     fn partial_cmp(&self, other: &Value<'_>) -> Option<std::cmp::Ordering> {
         match (&self, other) {
-            (OwnedValue::String(a), Value::String(b)) => Some(a.as_str().cmp(b)),
-            (OwnedValue::Scalar(a), Value::Scalar(b)) => a.partial_cmp(b),
-            (OwnedValue::Boolean(a), Value::Boolean(b)) => a.partial_cmp(b),
-            (OwnedValue::ByteArray(a), Value::ByteArray(b)) => a.as_slice().partial_cmp(*b),
+            (Self::String(a), Value::String(b)) => Some(a.as_str().cmp(b)),
+            (Self::Scalar(a), Value::Scalar(b)) => a.partial_cmp(b),
+            (Self::Boolean(a), Value::Boolean(b)) => a.partial_cmp(b),
+            (Self::ByteArray(a), Value::ByteArray(b)) => a.as_slice().partial_cmp(*b),
             _ => None,
         }
     }

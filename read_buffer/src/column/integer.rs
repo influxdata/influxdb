@@ -467,13 +467,13 @@ impl From<&[u64]> for IntegerEncoding {
         // datatypes that can safely represent the provided logical data
         match (min, max) {
             // encode as u8 values
-            (_, max) if max <= u8::MAX as u64 => IntegerEncoding::U64U8(Fixed::<u8>::from(arr)),
+            (_, max) if max <= u8::MAX as u64 => Self::U64U8(Fixed::<u8>::from(arr)),
             // encode as u16 values
-            (_, max) if max <= u16::MAX as u64 => IntegerEncoding::U64U16(Fixed::<u16>::from(arr)),
+            (_, max) if max <= u16::MAX as u64 => Self::U64U16(Fixed::<u16>::from(arr)),
             // encode as u32 values
-            (_, max) if max <= u32::MAX as u64 => IntegerEncoding::U64U32(Fixed::<u32>::from(arr)),
+            (_, max) if max <= u32::MAX as u64 => Self::U64U32(Fixed::<u32>::from(arr)),
             // otherwise, encode with the same physical type (u64)
-            (_, _) => IntegerEncoding::U64U64(Fixed::<u64>::from(arr)),
+            (_, _) => Self::U64U64(Fixed::<u64>::from(arr)),
         }
     }
 }
@@ -490,7 +490,7 @@ impl From<arrow::array::UInt64Array> for IntegerEncoding {
 
         // TODO(edd): currently fixed null only supports 64-bit logical/physical
         // types. Need to add support for storing as smaller physical types.
-        IntegerEncoding::U64U64N(FixedNull::<arrow::datatypes::UInt64Type>::from(arr))
+        Self::U64U64N(FixedNull::<arrow::datatypes::UInt64Type>::from(arr))
     }
 }
 
