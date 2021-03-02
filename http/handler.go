@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	_ "net/http/pprof" // used for debug pprof at the default path.
 
 	"github.com/go-chi/chi"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/v2/pprof"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -41,10 +41,10 @@ type (
 	handlerOpts struct {
 		log            *zap.Logger
 		apiHandler     http.Handler
-		debugHandler   http.Handler
 		healthHandler  http.Handler
 		metricsHandler http.Handler
 		readyHandler   http.Handler
+		pprofEnabled   bool
 	}
 
 	HandlerOptFn func(opts *handlerOpts)
@@ -62,9 +62,9 @@ func WithAPIHandler(h http.Handler) HandlerOptFn {
 	}
 }
 
-func WithDebugHandler(h http.Handler) HandlerOptFn {
+func WithPprofEnabled(enabled bool) HandlerOptFn {
 	return func(opts *handlerOpts) {
-		opts.debugHandler = h
+		opts.pprofEnabled = enabled
 	}
 }
 
@@ -92,10 +92,10 @@ func WithReadyHandler(h http.Handler) HandlerOptFn {
 func NewHandlerFromRegistry(name string, reg *prom.Registry, opts ...HandlerOptFn) *Handler {
 	opt := handlerOpts{
 		log:            zap.NewNop(),
-		debugHandler:   http.DefaultServeMux,
 		healthHandler:  http.HandlerFunc(HealthHandler),
 		metricsHandler: reg.HTTPHandler(),
 		readyHandler:   ReadyHandler(),
+		pprofEnabled:   false,
 	}
 	for _, o := range opts {
 		o(&opt)
@@ -113,12 +113,10 @@ func NewHandlerFromRegistry(name string, reg *prom.Registry, opts ...HandlerOptF
 		r.Use(
 			kithttp.Metrics(name, h.requests, h.requestDur),
 		)
-		{
-			r.Mount(MetricsPath, opt.metricsHandler)
-			r.Mount(ReadyPath, opt.readyHandler)
-			r.Mount(HealthPath, opt.healthHandler)
-			r.Mount(DebugPath, opt.debugHandler)
-		}
+		r.Mount(MetricsPath, opt.metricsHandler)
+		r.Mount(ReadyPath, opt.readyHandler)
+		r.Mount(HealthPath, opt.healthHandler)
+		r.Mount(DebugPath, pprof.NewHTTPHandler(opt.pprofEnabled))
 	})
 
 	// gather metrics and traces for everything else
@@ -127,9 +125,7 @@ func NewHandlerFromRegistry(name string, reg *prom.Registry, opts ...HandlerOptF
 			kithttp.Trace(name),
 			kithttp.Metrics(name, h.requests, h.requestDur),
 		)
-		{
-			r.Mount("/", opt.apiHandler)
-		}
+		r.Mount("/", opt.apiHandler)
 	})
 
 	h.r = r
@@ -182,7 +178,7 @@ func logEncodingError(log *zap.Logger, r *http.Request, err error) {
 	// If we encounter an error while encoding the response to an http request
 	// the best thing we can do is log that error, as we may have already written
 	// the headers for the http request in question.
-	log.Info("Error encoding response",
+	log.Error("Error encoding response",
 		zap.String("path", r.URL.Path),
 		zap.String("method", r.Method),
 		zap.Error(err))
