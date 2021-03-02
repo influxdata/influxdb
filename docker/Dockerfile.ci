@@ -53,9 +53,7 @@ RUN locale-gen C.UTF-8 || true
 ENV LANG=C.UTF-8
 
 RUN rustup toolchain install nightly-2020-11-19
-RUN rustup toolchain install nightly-2021-02-12
 RUN rustup component add rustfmt clippy --toolchain nightly-2020-11-19
-RUN rustup component add rustfmt clippy --toolchain nightly-2021-02-12
 
 RUN groupadd -g 1500 rust \
   && useradd -u 1500 -g rust -s /bin/bash -m rust \
