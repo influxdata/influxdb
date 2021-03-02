@@ -34,6 +34,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub enum Column {
     F64(Vec<Option<f64>>, StatValues<f64>),
     I64(Vec<Option<i64>>, StatValues<i64>),
+    U64(Vec<Option<u64>>, StatValues<u64>),
     String(Vec<Option<String>>, StatValues<String>),
     Bool(Vec<Option<bool>>, StatValues<bool>),
     Tag(Vec<Option<u32>>, StatValues<String>),
@@ -65,6 +66,15 @@ impl Column {
                 let mut vals = vec![None; capacity];
                 vals.push(Some(val));
                 Self::I64(vals, StatValues::new(val))
+            }
+            U64Value => {
+                let val = value
+                    .value_as_u64value()
+                    .expect("u64 value should be present")
+                    .value();
+                let mut vals = vec![None; capacity];
+                vals.push(Some(val));
+                Self::U64(vals, StatValues::new(val))
             }
             StringValue => {
                 let val = value
@@ -109,6 +119,7 @@ impl Column {
         match self {
             Self::F64(v, _) => v.len(),
             Self::I64(v, _) => v.len(),
+            Self::U64(v, _) => v.len(),
             Self::String(v, _) => v.len(),
             Self::Bool(v, _) => v.len(),
             Self::Tag(v, _) => v.len(),
@@ -123,6 +134,7 @@ impl Column {
         match self {
             Self::F64(_, _) => "f64",
             Self::I64(_, _) => "i64",
+            Self::U64(_, _) => "u64",
             Self::String(_, _) => "String",
             Self::Bool(_, _) => "bool",
             Self::Tag(_, _) => "tag",
@@ -134,6 +146,7 @@ impl Column {
         match self {
             Self::F64(..) => ArrowDataType::Float64,
             Self::I64(..) => ArrowDataType::Int64,
+            Self::U64(..) => ArrowDataType::UInt64,
             Self::String(..) => ArrowDataType::Utf8,
             Self::Bool(..) => ArrowDataType::Boolean,
             Self::Tag(..) => ArrowDataType::Utf8,
@@ -179,6 +192,15 @@ impl Column {
                 }
                 None => false,
             },
+            Self::U64(vals, stats) => match value.value_as_u64value() {
+                Some(u64_val) => {
+                    let u64_val = u64_val.value();
+                    vals.push(Some(u64_val));
+                    stats.update(u64_val);
+                    true
+                }
+                None => false,
+            },
             Self::F64(vals, stats) => match value.value_as_f64value() {
                 Some(f64_val) => {
                     let f64_val = f64_val.value();
@@ -212,6 +234,11 @@ impl Column {
                 }
             }
             Self::I64(v, _) => {
+                if v.len() == len {
+                    v.push(None);
+                }
+            }
+            Self::U64(v, _) => {
                 if v.len() == len {
                     v.push(None);
                 }
@@ -289,6 +316,9 @@ impl Column {
             }
             Self::I64(v, stats) => {
                 mem::size_of::<Option<i64>>() * v.len() + mem::size_of_val(&stats)
+            }
+            Self::U64(v, stats) => {
+                mem::size_of::<Option<u64>>() * v.len() + mem::size_of_val(&stats)
             }
             Self::Bool(v, stats) => {
                 mem::size_of::<Option<bool>>() * v.len() + mem::size_of_val(&stats)

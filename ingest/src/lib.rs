@@ -310,6 +310,7 @@ impl<'a> MeasurementSampler<'a> {
                 let field_type = match field_value {
                     FieldValue::F64(_) => InfluxFieldType::Float,
                     FieldValue::I64(_) => InfluxFieldType::Integer,
+                    FieldValue::U64(_) => InfluxFieldType::UInteger,
                     FieldValue::String(_) => InfluxFieldType::String,
                     FieldValue::Boolean(_) => InfluxFieldType::Boolean,
                 };
@@ -473,6 +474,9 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
                     }
                     FieldValue::I64(i) => {
                         packer.i64_packer_mut().push(i);
+                    }
+                    FieldValue::U64(i) => {
+                        packer.u64_packer_mut().push(i);
                     }
                     FieldValue::String(ref s) => {
                         packer.bytes_packer_mut().push(ByteArray::from(s.as_str()));

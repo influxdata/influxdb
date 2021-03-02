@@ -317,6 +317,7 @@ fn add_line<'a>(
     for (column, value) in &line.field_set {
         let val = match value {
             FieldValue::I64(v) => add_i64_value(fbb, column.as_str(), *v),
+            FieldValue::U64(v) => add_u64_value(fbb, column.as_str(), *v),
             FieldValue::F64(v) => add_f64_value(fbb, column.as_str(), *v),
             FieldValue::Boolean(v) => add_bool_value(fbb, column.as_str(), *v),
             FieldValue::String(v) => add_string_value(fbb, column.as_str(), v.as_str()),
@@ -391,6 +392,16 @@ fn add_i64_value<'a>(
     let iv = wb::I64Value::create(fbb, &wb::I64ValueArgs { value });
 
     add_value(fbb, column, wb::ColumnValue::I64Value, iv.as_union_value())
+}
+
+fn add_u64_value<'a>(
+    fbb: &mut FlatBufferBuilder<'a>,
+    column: &str,
+    value: u64,
+) -> flatbuffers::WIPOffset<wb::Value<'a>> {
+    let iv = wb::U64Value::create(fbb, &wb::U64ValueArgs { value });
+
+    add_value(fbb, column, wb::ColumnValue::U64Value, iv.as_union_value())
 }
 
 fn add_bool_value<'a>(

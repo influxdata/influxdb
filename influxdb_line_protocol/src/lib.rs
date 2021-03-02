@@ -50,6 +50,12 @@ pub enum Error {
         value: String,
     },
 
+    #[snafu(display(r#"Unable to parse unsigned integer value '{}'"#, value))]
+    UIntegerValueInvalid {
+        source: std::num::ParseIntError,
+        value: String,
+    },
+
     #[snafu(display(r#"Unable to parse floating-point value '{}'"#, value))]
     FloatValueInvalid {
         source: std::num::ParseFloatError,
@@ -333,10 +339,11 @@ pub type FieldSet<'a> = SmallVec<[(EscapedStr<'a>, FieldValue<'a>); 4]>;
 pub type TagSet<'a> = SmallVec<[(EscapedStr<'a>, EscapedStr<'a>); 8]>;
 
 /// Allowed types of Fields in a `ParsedLine`. One of the types described in
-/// https://docs.influxdata.com/influxdb/v1.8/write_protocols/line_protocol_tutorial/#data-types
+/// https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/#data-types-and-format
 #[derive(Debug, Clone, PartialEq)]
 pub enum FieldValue<'a> {
     I64(i64),
+    U64(u64),
     F64(f64),
     String(EscapedStr<'a>),
     Boolean(bool),
@@ -349,6 +356,7 @@ impl<'a> Display for FieldValue<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::I64(v) => write!(f, "{}i", v),
+            Self::U64(v) => write!(f, "{}u", v),
             Self::F64(v) => write!(f, "{}", v),
             Self::String(v) => escape_and_write_value(f, v, FIELD_VALUE_STRING_DELIMITERS),
             Self::Boolean(v) => write!(f, "{}", v),
@@ -644,17 +652,25 @@ fn field_key(i: &str) -> IResult<&str, EscapedStr<'_>> {
 
 fn field_value(i: &str) -> IResult<&str, FieldValue<'_>> {
     let int = map(field_integer_value, FieldValue::I64);
+    let uint = map(field_uinteger_value, FieldValue::U64);
     let float = map(field_float_value, FieldValue::F64);
     let string = map(field_string_value, FieldValue::String);
     let boolv = map(field_bool_value, FieldValue::Boolean);
 
-    alt((int, float, string, boolv))(i)
+    alt((int, uint, float, string, boolv))(i)
 }
 
 fn field_integer_value(i: &str) -> IResult<&str, i64> {
-    let tagged_value = terminated(integral_value_common, tag("i"));
+    let tagged_value = terminated(integral_value_signed, tag("i"));
     map_fail(tagged_value, |value| {
         value.parse().context(IntegerValueInvalid { value })
+    })(i)
+}
+
+fn field_uinteger_value(i: &str) -> IResult<&str, u64> {
+    let tagged_value = terminated(digit1, tag("u"));
+    map_fail(tagged_value, |value| {
+        value.parse().context(UIntegerValueInvalid { value })
     })(i)
 }
 
@@ -666,25 +682,25 @@ fn field_float_value(i: &str) -> IResult<&str, f64> {
 }
 
 fn field_float_value_with_decimal(i: &str) -> IResult<&str, &str> {
-    recognize(separated_pair(integral_value_common, tag("."), digit1))(i)
+    recognize(separated_pair(integral_value_signed, tag("."), digit1))(i)
 }
 
 fn field_float_value_no_decimal(i: &str) -> IResult<&str, &str> {
-    integral_value_common(i)
+    integral_value_signed(i)
 }
 
-fn integral_value_common(i: &str) -> IResult<&str, &str> {
+fn integral_value_signed(i: &str) -> IResult<&str, &str> {
     recognize(preceded(opt(tag("-")), digit1))(i)
 }
 
 fn timestamp(i: &str) -> IResult<&str, i64> {
-    map_fail(integral_value_common, |value| {
+    map_fail(integral_value_signed, |value| {
         value.parse().context(TimestampValueInvalid { value })
     })(i)
 }
 
 fn field_string_value(i: &str) -> IResult<&str, EscapedStr<'_>> {
-    // https://docs.influxdata.com/influxdb/v1.8/write_protocols/line_protocol_tutorial/#data-types
+    // https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/#data-types-and-format
     // For string field values, backslash is only used to escape itself(\) or double
     // quotes.
     let string_data = alt((
@@ -707,7 +723,7 @@ fn field_string_value(i: &str) -> IResult<&str, EscapedStr<'_>> {
 }
 
 fn field_bool_value(i: &str) -> IResult<&str, bool> {
-    // https://docs.influxdata.com/influxdb/v1.8/write_protocols/line_protocol_tutorial/#data-types
+    // https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/#data-types-and-format
     // "specify TRUE with t, T, true, True, or TRUE. Specify FALSE with f, F, false,
     // False, or FALSE
     alt((
@@ -1913,7 +1929,8 @@ her"#,
 
     #[test]
     fn field_value_display() -> Result {
-        assert_eq!(FieldValue::I64(42).to_string(), "42i");
+        assert_eq!(FieldValue::I64(-42).to_string(), "-42i");
+        assert_eq!(FieldValue::U64(42).to_string(), "42u");
         assert_eq!(FieldValue::F64(42.11).to_string(), "42.11");
         assert_eq!(
             FieldValue::String(EscapedStr::from("foo")).to_string(),
