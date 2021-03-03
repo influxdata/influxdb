@@ -108,8 +108,8 @@ Possible values (case insensitive):
 * s3: Amazon S3. Must also set `--bucket`, `--aws-access-key-id`, `--aws-secret-access-key`, and
    possibly `--aws-region`.
 * google: Google Cloud Storage. Must also set `--bucket` and `--google-service-account`.
-* azure: Microsoft Azure blob storage. Must also set `--bucket`, AZURE_STORAGE_ACCOUNT,
-   and AZURE_STORAGE_MASTER_KEY.
+* azure: Microsoft Azure blob storage. Must also set `--bucket`, `--azure-storage-account`,
+   and `--azure-storage-master-key`.
         "#,
     )]
     pub object_store: Option<ObjectStore>,
@@ -123,6 +123,11 @@ Possible values (case insensitive):
     /// If using S3 for the object store, must set this item as well
     /// as `--aws-access-key-id` and `--aws-secret-access-key`. Can also set
     /// `--aws-region` if not using the default region.
+    ///
+    /// If using Azure for the object store, set this item to the name of a
+    /// container you've created in the associated storage account, under
+    /// Blob Service > Containers. Must also set `--azure-storage-account` and
+    /// `--azure-storage-master-key`.
     #[structopt(long = "--bucket", env = "INFLUXDB_IOX_BUCKET")]
     pub bucket: Option<String>,
 
@@ -167,6 +172,25 @@ Possible values (case insensitive):
     /// Must also set `--object-store=google` and `--bucket`.
     #[structopt(long = "--google-service-account", env = "GOOGLE_SERVICE_ACCOUNT")]
     pub google_service_account: Option<String>,
+
+    /// When using Microsoft Azure as the object store, set this to the
+    /// name you see when going to All Services > Storage accounts > [name].
+    ///
+    /// Must also set `--object-store=azure`, `--bucket`, and
+    /// `--azure-storage-master-key`.
+    #[structopt(long = "--azure-storage-account", env = "AZURE_STORAGE_ACCOUNT")]
+    pub azure_storage_account: Option<String>,
+
+    /// When using Microsoft Azure as the object store, set this to one of the
+    /// Key values in the Storage account's Settings > Access keys.
+    ///
+    /// Must also set `--object-store=azure`, `--bucket`, and
+    /// `--azure-storage-account`.
+    ///
+    /// Prefer the environment variable over the command line flag in shared
+    /// environments.
+    #[structopt(long = "--azure-storage-master-key", env = "AZURE_STORAGE_MASTER_KEY")]
+    pub azure_storage_master_key: Option<String>,
 
     /// If set, Jaeger traces are emitted to this host
     /// using the OpenTelemetry tracer.

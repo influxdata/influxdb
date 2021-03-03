@@ -3,7 +3,9 @@ use crate::commands::{
     server::{load_config, Config, ObjectStore as ObjStoreOpt},
 };
 use hyper::Server;
-use object_store::{self, aws::AmazonS3, gcp::GoogleCloudStorage, ObjectStore};
+use object_store::{
+    self, aws::AmazonS3, azure::MicrosoftAzure, gcp::GoogleCloudStorage, ObjectStore,
+};
 use panic_logging::SendPanicsToTracing;
 use server::{ConnectionManagerImpl as ConnectionManager, Server as AppServer};
 use snafu::{ResultExt, Snafu};
@@ -239,13 +241,40 @@ impl TryFrom<&Config> for ObjectStore {
                 }
             }
 
-            Some(ObjStoreOpt::Azure) => match config.bucket.as_ref() {
-                Some(_bucket) => unimplemented!(),
-                None => InvalidCloudObjectStoreConfiguration {
-                    object_store: ObjStoreOpt::Azure,
+            Some(ObjStoreOpt::Azure) => {
+                match (
+                    config.bucket.as_ref(),
+                    config.azure_storage_account.as_ref(),
+                    config.azure_storage_master_key.as_ref(),
+                ) {
+                    (Some(bucket), Some(storage_account), Some(master_key)) => {
+                        Ok(Self::new_microsoft_azure(MicrosoftAzure::new(
+                            storage_account,
+                            master_key,
+                            bucket,
+                        )))
+                    }
+                    (bucket, storage_account, master_key) => {
+                        let mut missing_args = vec![];
+
+                        if bucket.is_none() {
+                            missing_args.push("bucket");
+                        }
+                        if storage_account.is_none() {
+                            missing_args.push("azure-storage-account");
+                        }
+                        if master_key.is_none() {
+                            missing_args.push("azure-storage-master-key");
+                        }
+
+                        MissingObjectStoreConfig {
+                            object_store: ObjStoreOpt::Azure,
+                            missing: missing_args.join(", "),
+                        }
+                        .fail()
+                    }
                 }
-                .fail(),
-            },
+            }
 
             Some(ObjStoreOpt::File) => match config.database_directory.as_ref() {
                 Some(db_dir) => {
@@ -356,6 +385,42 @@ mod tests {
             err,
             "Specifed Google for the object store, required configuration missing for \
             bucket, google-service-account"
+        );
+    }
+
+    #[test]
+    fn valid_azure_config() {
+        let config = Config::from_iter_safe(&[
+            "server",
+            "--object-store",
+            "azure",
+            "--bucket",
+            "mybucket",
+            "--azure-storage-account",
+            "NotARealStorageAccount",
+            "--azure-storage-master-key",
+            "NotARealKey",
+        ])
+        .unwrap();
+
+        let object_store = ObjectStore::try_from(&config).unwrap();
+
+        assert!(matches!(
+            object_store,
+            ObjectStore(ObjectStoreIntegration::MicrosoftAzure(_))
+        ));
+    }
+
+    #[test]
+    fn azure_config_missing_params() {
+        let config = Config::from_iter_safe(&["server", "--object-store", "azure"]).unwrap();
+
+        let err = ObjectStore::try_from(&config).unwrap_err().to_string();
+
+        assert_eq!(
+            err,
+            "Specifed Azure for the object store, required configuration missing for \
+            bucket, azure-storage-account, azure-storage-master-key"
         );
     }
 }
