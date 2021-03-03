@@ -23,18 +23,6 @@ pub enum Error {
         source: std::io::Error,
     },
 
-    #[snafu(display("Unable to initialize database in directory {:?}:  {}", db_dir, source))]
-    InitializingMutableBuffer {
-        db_dir: PathBuf,
-        source: Box<dyn std::error::Error + Send + Sync>,
-    },
-
-    #[snafu(display("Unable to restore WAL from directory {:?}:  {}", dir, source))]
-    RestoringMutableBuffer {
-        dir: PathBuf,
-        source: Box<dyn std::error::Error + Send + Sync>,
-    },
-
     #[snafu(display(
         "Unable to bind to listen for HTTP requests on {}: {}",
         bind_addr,
@@ -61,9 +49,6 @@ pub enum Error {
     #[snafu(display("Error serving RPC: {}", source))]
     ServingRPC { source: self::rpc::Error },
 
-    #[snafu(display("Specifed {} for the object store, but not a bucket", object_store))]
-    InvalidCloudObjectStoreConfiguration { object_store: ObjStoreOpt },
-
     #[snafu(display(
         "Specifed {} for the object store, required configuration missing for {}",
         object_store,
@@ -74,9 +59,9 @@ pub enum Error {
         missing: String,
     },
 
-    #[snafu(display("Specified file for the object store, but not a database directory"))]
-    InvalidFileObjectStoreConfiguration,
-
+    // Creating a new S3 object store can fail if the region is *specified* but
+    // not *parseable* as a rusoto `Region`. The other object store constructors
+    // don't return `Result`.
     #[snafu(display("Amazon S3 configuration was invalid: {}", source))]
     InvalidS3Config { source: object_store::aws::Error },
 }
