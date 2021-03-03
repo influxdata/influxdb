@@ -24,7 +24,7 @@ impl DBSetup for TwoMeasurementsMultiSeries {
     async fn make(&self) -> Vec<DBScenario> {
         let partition_key = "1970-01-01T00";
 
-        let mut data = vec![
+        let mut lp_lines = vec![
             "h2o,state=MA,city=Boston temp=70.4 100", // to row 2
             "h2o,state=MA,city=Boston temp=72.4 250", // to row 1
             "h2o,state=CA,city=LA temp=90.0 200",     // to row 0
@@ -34,10 +34,10 @@ impl DBSetup for TwoMeasurementsMultiSeries {
         ];
 
         // Swap around  data is not inserted in series order
-        data.swap(0, 2);
-        data.swap(4, 5);
+        lp_lines.swap(0, 2);
+        lp_lines.swap(4, 5);
 
-        make_one_chunk_scenarios(partition_key, &data.join("\n")).await
+        make_one_chunk_scenarios(partition_key, &lp_lines.join("\n")).await
     }
 }
 
@@ -355,7 +355,7 @@ impl DBSetup for MeasurementsSortableTags {
     async fn make(&self) -> Vec<DBScenario> {
         let partition_key = "1970-01-01T00";
 
-        let data = vec![
+        let lp_lines = vec![
             "h2o,zz_tag=A,state=MA,city=Kingston temp=70.1 800",
             "h2o,state=MA,city=Kingston,zz_tag=B temp=70.2 100",
             "h2o,state=CA,city=Boston temp=70.3 250",
@@ -363,7 +363,7 @@ impl DBSetup for MeasurementsSortableTags {
             "h2o,state=MA,city=Boston temp=70.5,other=5.0 250",
         ];
 
-        make_one_chunk_scenarios(partition_key, &data.join("\n")).await
+        make_one_chunk_scenarios(partition_key, &lp_lines.join("\n")).await
     }
 }
 
