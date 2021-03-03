@@ -282,7 +282,11 @@ impl TryFrom<&Config> for ObjectStore {
                         .context(CreatingDatabaseDirectory { path: db_dir })?;
                     Ok(Self::new_file(object_store::disk::File::new(&db_dir)))
                 }
-                None => InvalidFileObjectStoreConfiguration.fail(),
+                None => MissingObjectStoreConfig {
+                    object_store: ObjStoreOpt::File,
+                    missing: "data-dir",
+                }
+                .fail(),
             },
         }
     }
@@ -293,6 +297,7 @@ mod tests {
     use super::*;
     use object_store::ObjectStoreIntegration;
     use structopt::StructOpt;
+    use tempfile::TempDir;
 
     #[test]
     fn default_object_store_is_memory() {
@@ -421,6 +426,40 @@ mod tests {
             err,
             "Specifed Azure for the object store, required configuration missing for \
             bucket, azure-storage-account, azure-storage-master-key"
+        );
+    }
+
+    #[test]
+    fn valid_file_config() {
+        let root = TempDir::new().unwrap();
+
+        let config = Config::from_iter_safe(&[
+            "server",
+            "--object-store",
+            "file",
+            "--data-dir",
+            root.path().to_str().unwrap(),
+        ])
+        .unwrap();
+
+        let object_store = ObjectStore::try_from(&config).unwrap();
+
+        assert!(matches!(
+            object_store,
+            ObjectStore(ObjectStoreIntegration::File(_))
+        ));
+    }
+
+    #[test]
+    fn file_config_missing_params() {
+        let config = Config::from_iter_safe(&["server", "--object-store", "file"]).unwrap();
+
+        let err = ObjectStore::try_from(&config).unwrap_err().to_string();
+
+        assert_eq!(
+            err,
+            "Specifed File for the object store, required configuration missing for \
+            data-dir"
         );
     }
 }
