@@ -38,6 +38,7 @@ or `/query` HTTP endpoints.
 1. [20967](https://github.com/influxdata/influxdb/pull/20967): Log error details when `influxd upgrade` fails to migrate databases.
 1. [20966](https://github.com/influxdata/influxdb/pull/20966): Prevent time field names from being formatted in the Table visualization.
 1. [20918](https://github.com/influxdata/influxdb/pull/20918): Deprecate misleading `retentionPeriodHrs` key in onboarding API.
+1. [20811](https://github.com/influxdata/influxdb/pull/20811): Fix TSM WAL segment size computing. Thanks @StoneYunZhao!
 
 ## v2.0.4 [2021-02-08]
 ----------------------
