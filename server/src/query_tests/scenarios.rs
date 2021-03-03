@@ -74,11 +74,13 @@ pub struct TwoMeasurements {}
 impl DBSetup for TwoMeasurements {
     async fn make(&self) -> Vec<DBScenario> {
         let partition_key = "1970-01-01T00";
-        let data = "cpu,region=west user=23.2 100\n\
-                    cpu,region=west user=21.0 150\n\
-                    disk,region=east bytes=99i 200";
+        let lp_lines = vec![
+            "cpu,region=west user=23.2 100",
+            "cpu,region=west user=21.0 150",
+            "disk,region=east bytes=99i 200",
+        ];
 
-        make_one_chunk_scenarios(partition_key, data).await
+        make_one_chunk_scenarios(partition_key, &lp_lines.join("\n")).await
     }
 }
 
@@ -89,12 +91,16 @@ pub struct MultiChunkSchemaMerge {}
 impl DBSetup for MultiChunkSchemaMerge {
     async fn make(&self) -> Vec<DBScenario> {
         let partition_key = "1970-01-01T00";
-        let data1 = "cpu,region=west user=23.2,system=5.0 100\n\
-                     cpu,region=west user=21.0,system=6.0 150";
-        let data2 = "cpu,region=east,host=foo user=23.2 100\n\
-                     cpu,region=west,host=bar user=21.0 250";
+        let lp_lines1 = vec![
+            "cpu,region=west user=23.2,system=5.0 100",
+            "cpu,region=west user=21.0,system=6.0 150",
+        ];
+        let lp_lines2 = [
+            "cpu,region=east,host=foo user=23.2 100",
+            "cpu,region=west,host=bar user=21.0 250",
+        ];
 
-        make_two_chunk_scenarios(partition_key, data1, data2).await
+        make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }
 }
 
@@ -104,15 +110,19 @@ pub struct TwoMeasurementsManyNulls {}
 impl DBSetup for TwoMeasurementsManyNulls {
     async fn make(&self) -> Vec<DBScenario> {
         let partition_key = "1970-01-01T00";
-        let data1 = "h2o,state=CA,city=LA,county=LA temp=70.4 100\n\
-                        h2o,state=MA,city=Boston,county=Suffolk temp=72.4 250\n\
-                        o2,state=MA,city=Boston temp=50.4 200\n\
-                        o2,state=CA temp=79.0 300\n";
-        let data2 = "o2,state=NY temp=60.8 400\n\
-                        o2,state=NY,city=NYC temp=61.0 500\n\
-                        o2,state=NY,city=NYC,borough=Brooklyn temp=61.0 600\n";
+        let lp_lines1 = vec![
+            "h2o,state=CA,city=LA,county=LA temp=70.4 100",
+            "h2o,state=MA,city=Boston,county=Suffolk temp=72.4 250",
+            "o2,state=MA,city=Boston temp=50.4 200",
+            "o2,state=CA temp=79.0 300\n",
+        ];
+        let lp_lines2 = [
+            "o2,state=NY temp=60.8 400",
+            "o2,state=NY,city=NYC temp=61.0 500",
+            "o2,state=NY,city=NYC,borough=Brooklyn temp=61.0 600",
+        ];
 
-        make_two_chunk_scenarios(partition_key, data1, data2).await
+        make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }
 }
 
@@ -122,13 +132,16 @@ impl DBSetup for TwoMeasurementsManyFields {
     async fn make(&self) -> Vec<DBScenario> {
         let partition_key = "1970-01-01T00";
 
-        let data1 = "h2o,state=MA,city=Boston temp=70.4 50\n\
-                        h2o,state=MA,city=Boston other_temp=70.4 250\n\
-                        h2o,state=CA,city=Boston other_temp=72.4 350\n\
-                        o2,state=MA,city=Boston temp=53.4,reading=51 50\n\
-                        o2,state=CA temp=79.0 300";
-        let data2 = "h2o,state=MA,city=Boston temp=70.4,moisture=43.0 100000";
-        make_two_chunk_scenarios(partition_key, data1, data2).await
+        let lp_lines1 = vec![
+            "h2o,state=MA,city=Boston temp=70.4 50",
+            "h2o,state=MA,city=Boston other_temp=70.4 250",
+            "h2o,state=CA,city=Boston other_temp=72.4 350",
+            "o2,state=MA,city=Boston temp=53.4,reading=51 50",
+            "o2,state=CA temp=79.0 300",
+        ];
+        let lp_lines2 = vec!["h2o,state=MA,city=Boston temp=70.4,moisture=43.0 100000"];
+
+        make_two_chunk_scenarios(partition_key, &lp_lines1.join("\n"), &lp_lines2.join("\n")).await
     }
 }
 
@@ -140,12 +153,14 @@ impl DBSetup for OneMeasurementManyFields {
 
         // Order this so field3 comes before field2
         // (and thus the columns need to get reordered)
-        let data = "h2o,tag1=foo,tag2=bar field1=70.6,field3=2 100\n\
-                   h2o,tag1=foo,tag2=bar field1=70.4,field2=\"ss\" 100\n\
-                   h2o,tag1=foo,tag2=bar field1=70.5,field2=\"ss\" 100\n\
-                   h2o,tag1=foo,tag2=bar field1=70.6,field4=true 1000";
+        let lp_lines = vec![
+            "h2o,tag1=foo,tag2=bar field1=70.6,field3=2 100",
+            "h2o,tag1=foo,tag2=bar field1=70.4,field2=\"ss\" 100",
+            "h2o,tag1=foo,tag2=bar field1=70.5,field2=\"ss\" 100",
+            "h2o,tag1=foo,tag2=bar field1=70.6,field4=true 1000",
+        ];
 
-        make_one_chunk_scenarios(partition_key, data).await
+        make_one_chunk_scenarios(partition_key, &lp_lines.join("\n")).await
     }
 }
 
@@ -154,19 +169,23 @@ pub struct EndToEndTest {}
 #[async_trait]
 impl DBSetup for EndToEndTest {
     async fn make(&self) -> Vec<DBScenario> {
-        let lp_data = "cpu_load_short,host=server01,region=us-west value=0.64 0000\n\
-                       cpu_load_short,host=server01 value=27.99 1000\n\
-                       cpu_load_short,host=server02,region=us-west value=3.89 2000\n\
-                       cpu_load_short,host=server01,region=us-east value=1234567.891011 3000\n\
-                       cpu_load_short,host=server01,region=us-west value=0.000003 4000\n\
-                       system,host=server03 uptime=1303385 5000\n\
-                       swap,host=server01,name=disk0 in=3,out=4 6000\n\
-                       status active=t 7000\n\
-                       attributes color=\"blue\" 8000\n";
+        let lp_lines = vec![
+            "cpu_load_short,host=server01,region=us-west value=0.64 0000",
+            "cpu_load_short,host=server01 value=27.99 1000",
+            "cpu_load_short,host=server02,region=us-west value=3.89 2000",
+            "cpu_load_short,host=server01,region=us-east value=1234567.891011 3000",
+            "cpu_load_short,host=server01,region=us-west value=0.000003 4000",
+            "system,host=server03 uptime=1303385 5000",
+            "swap,host=server01,name=disk0 in=3,out=4 6000",
+            "status active=t 7000",
+            "attributes color=\"blue\" 8000",
+        ];
+
+        let lp_data = lp_lines.join("\n");
 
         let db = make_db();
         let mut writer = TestLPWriter::default();
-        let res = writer.write_lp_string(&db, lp_data).await;
+        let res = writer.write_lp_string(&db, &lp_data).await;
         assert!(res.is_ok(), "Error: {}", res.unwrap_err());
 
         let scenario1 = DBScenario {

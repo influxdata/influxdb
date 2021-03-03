@@ -12,12 +12,13 @@
 # Build any binaries that can be copied into the CI image
 # Note we build flatbuffers from source (pinned to a particualar version)
 FROM rust:slim-buster AS flatc
+ARG flatbuffers_version="v1.12.0"
 RUN apt-get update \
   && mkdir -p /usr/share/man/man1 \
   && apt-get install -y \
     git make clang cmake llvm \
     --no-install-recommends \
-  && git clone -b v1.12.0 -- https://github.com/google/flatbuffers.git /usr/local/src/flatbuffers \
+  && git clone -b ${flatbuffers_version} -- https://github.com/google/flatbuffers.git /usr/local/src/flatbuffers \
   && cmake -S /usr/local/src/flatbuffers -B /usr/local/src/flatbuffers \
     -G "Unix Makefiles" \
     -DCMAKE_BUILD_TYPE=Release \
@@ -52,9 +53,7 @@ RUN locale-gen C.UTF-8 || true
 ENV LANG=C.UTF-8
 
 RUN rustup toolchain install nightly-2020-11-19
-RUN rustup toolchain install nightly-2021-02-12
 RUN rustup component add rustfmt clippy --toolchain nightly-2020-11-19
-RUN rustup component add rustfmt clippy --toolchain nightly-2021-02-12
 
 RUN groupadd -g 1500 rust \
   && useradd -u 1500 -g rust -s /bin/bash -m rust \

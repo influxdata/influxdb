@@ -573,20 +573,20 @@ impl Plain {
     /// Returns the lexicographical minimum value for the provided set of row
     /// ids. NULL values are not considered the minimum value if any non-null
     /// value exists at any of the provided row ids.
-    pub fn min<'a>(&'a self, row_ids: &[u32]) -> Option<&'a String> {
+    pub fn min<'a>(&'a self, _row_ids: &[u32]) -> Option<&'a String> {
         todo!()
     }
 
     /// Returns the lexicographical maximum value for the provided set of row
     /// ids. NULL values are not considered the maximum value if any non-null
     /// value exists at any of the provided row ids.
-    pub fn max<'a>(&'a self, row_ids: &[u32]) -> Option<&'a String> {
+    pub fn max<'a>(&'a self, _row_ids: &[u32]) -> Option<&'a String> {
         todo!()
     }
 
     /// Returns the total number of non-null values found at the provided set of
     /// row ids.
-    pub fn count(&self, row_ids: &[u32]) -> u32 {
+    pub fn count(&self, _row_ids: &[u32]) -> u32 {
         todo!()
     }
 
@@ -730,7 +730,7 @@ impl Plain {
 
     // Returns true if there exists an encoded non-null value at any of the row
     // ids.
-    fn find_non_null_value(&self, row_ids: &[u32]) -> bool {
+    fn find_non_null_value(&self, _row_ids: &[u32]) -> bool {
         todo!()
     }
 }

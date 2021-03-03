@@ -5,7 +5,7 @@ use query::{
         Executor,
     },
     frontend::influxrpc::InfluxRPCPlanner,
-    predicate::{Predicate, PredicateBuilder},
+    predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE},
 };
 
 use crate::query_tests::scenarios::*;
@@ -49,12 +49,12 @@ macro_rules! run_table_names_test_case {
 
 #[tokio::test]
 async fn list_table_names_no_data_no_pred() {
-    run_table_names_test_case!(NoData {}, empty_predicate(), vec![]);
+    run_table_names_test_case!(NoData {}, EMPTY_PREDICATE, vec![]);
 }
 
 #[tokio::test]
 async fn list_table_names_no_data_pred() {
-    run_table_names_test_case!(TwoMeasurements {}, empty_predicate(), vec!["cpu", "disk"]);
+    run_table_names_test_case!(TwoMeasurements {}, EMPTY_PREDICATE, vec!["cpu", "disk"]);
 }
 
 #[tokio::test]
@@ -75,11 +75,6 @@ async fn list_table_names_data_pred_50_101() {
 #[tokio::test]
 async fn list_table_names_data_pred_250_300() {
     run_table_names_test_case!(TwoMeasurements {}, tsp(250, 300), vec![]);
-}
-
-// No predicate at all
-fn empty_predicate() -> Predicate {
-    Predicate::default()
 }
 
 // make a single timestamp predicate between r1 and r2

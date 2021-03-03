@@ -37,20 +37,20 @@ impl StringEncoding {
     /// The total number of rows in the column.
     pub fn num_rows(&self) -> u32 {
         match self {
-            StringEncoding::RLEDictionary(enc) => enc.num_rows(),
-            StringEncoding::Dictionary(enc) => enc.num_rows(),
+            Self::RLEDictionary(enc) => enc.num_rows(),
+            Self::Dictionary(enc) => enc.num_rows(),
         }
     }
 
     /// The lexicographical min and max values in the column.
     pub fn column_range(&self) -> Option<(String, String)> {
         match self {
-            StringEncoding::RLEDictionary(enc) => match (enc.column_min(), enc.column_max()) {
+            Self::RLEDictionary(enc) => match (enc.column_min(), enc.column_max()) {
                 (None, None) => None,
                 (Some(min), Some(max)) => Some((min.to_owned(), max.to_owned())),
                 (min, max) => panic!("invalid column range: ({:?}, {:?})", min, max),
             },
-            StringEncoding::Dictionary(enc) => match (enc.column_min(), enc.column_max()) {
+            Self::Dictionary(enc) => match (enc.column_min(), enc.column_max()) {
                 (None, None) => None,
                 (Some(min), Some(max)) => Some((min.to_owned(), max.to_owned())),
                 (min, max) => panic!("invalid column range: ({:?}, {:?})", min, max),

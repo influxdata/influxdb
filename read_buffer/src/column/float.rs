@@ -109,7 +109,7 @@ impl FloatEncoding {
             Self::Fixed64(c) => {
                 c.row_ids_filter_range((low.1.as_f64(), &low.0), (high.1.as_f64(), &high.0), dst)
             }
-            Self::FixedNull64(c) => todo!(),
+            Self::FixedNull64(_) => todo!(),
         }
     }
 

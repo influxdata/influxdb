@@ -39,6 +39,16 @@ impl TimestampRange {
     }
 }
 
+/// This `Predicate` represents the empty predicate (aka that
+/// evaluates to true for all rows).
+pub const EMPTY_PREDICATE: Predicate = Predicate {
+    table_names: None,
+    field_columns: None,
+    exprs: vec![],
+    range: None,
+    partition_key: None,
+};
+
 /// Represents a parsed predicate for evaluation by the
 /// TSDatabase InfluxDB IOx query engine.
 ///
@@ -107,6 +117,11 @@ impl Predicate {
     fn make_timestamp_predicate_expr(&self) -> Option<Expr> {
         self.range
             .map(|range| make_range_expr(range.start, range.end))
+    }
+
+    /// Returns true if ths predicate evaluates to true for all rows
+    pub fn is_empty(&self) -> bool {
+        self == &EMPTY_PREDICATE
     }
 }
 
@@ -248,5 +263,18 @@ mod tests {
         assert!(!range.contains_opt(Some(201)));
 
         assert!(!range.contains_opt(None));
+    }
+
+    #[test]
+    fn test_default_predicate_is_empty() {
+        let p = Predicate::default();
+        assert!(p.is_empty());
+    }
+
+    #[test]
+    fn test_non_default_predicate_is_not_empty() {
+        let p = PredicateBuilder::new().timestamp_range(1, 100).build();
+
+        assert!(!p.is_empty());
     }
 }

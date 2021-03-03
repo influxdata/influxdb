@@ -12,27 +12,26 @@ use std::str::FromStr;
 use dotenv::dotenv;
 use structopt::StructOpt;
 use tokio::runtime::Runtime;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, warn};
 
 use commands::logging::LoggingLevel;
 use ingest::parquet::writer::CompressionLevel;
 
 mod commands {
     pub mod convert;
+    pub mod database;
     mod input;
     pub mod logging;
     pub mod meta;
     pub mod server;
     pub mod stats;
+    pub mod writer;
 }
 
 pub mod influxdb_ioxd;
 
 enum ReturnCode {
-    ConversionFailed = 1,
-    MetadataDumpFailed = 2,
-    StatsFailed = 3,
-    ServerExitedAbnormally = 4,
+    Failure = 1,
 }
 
 #[derive(Debug, StructOpt)]
@@ -68,6 +67,16 @@ struct Config {
     #[structopt(short, long, parse(from_occurrences))]
     verbose: u64,
 
+    /// gRPC address of IOx server to connect to
+    #[structopt(
+        short,
+        long,
+        global = true,
+        env = "IOX_ADDR",
+        default_value = "http://127.0.0.1:8082"
+    )]
+    host: String, /* TODO: This must be on the root due to https://github.com/clap-rs/clap/pull/2253 */
+
     #[structopt(long)]
     /// Set the maximum number of threads to use. Defaults to the number of
     /// cores on the system
@@ -99,9 +108,10 @@ enum Command {
         /// The input filename to read from
         input: String,
     },
-
+    Database(commands::database::Config),
     Stats(commands::stats::Config),
     Server(commands::server::Config),
+    Writer(commands::writer::Config),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -119,6 +129,8 @@ fn main() -> Result<(), std::io::Error> {
 
     let tokio_runtime = get_runtime(config.num_threads)?;
     tokio_runtime.block_on(async move {
+        let host = config.host;
+
         match config.command {
             Some(Command::Convert {
                 input,
@@ -132,7 +144,7 @@ fn main() -> Result<(), std::io::Error> {
                     Ok(()) => debug!("Conversion completed successfully"),
                     Err(e) => {
                         eprintln!("Conversion failed: {}", e);
-                        std::process::exit(ReturnCode::ConversionFailed as _)
+                        std::process::exit(ReturnCode::Failure as _)
                     }
                 }
             }
@@ -142,19 +154,32 @@ fn main() -> Result<(), std::io::Error> {
                     Ok(()) => debug!("Metadata dump completed successfully"),
                     Err(e) => {
                         eprintln!("Metadata dump failed: {}", e);
-                        std::process::exit(ReturnCode::MetadataDumpFailed as _)
+                        std::process::exit(ReturnCode::Failure as _)
                     }
                 }
             }
             Some(Command::Stats(config)) => {
                 logging_level.setup_basic_logging();
-
                 match commands::stats::stats(&config).await {
                     Ok(()) => debug!("Storage statistics dump completed successfully"),
                     Err(e) => {
                         eprintln!("Stats dump failed: {}", e);
-                        std::process::exit(ReturnCode::StatsFailed as _)
+                        std::process::exit(ReturnCode::Failure as _)
                     }
+                }
+            }
+            Some(Command::Database(config)) => {
+                logging_level.setup_basic_logging();
+                if let Err(e) = commands::database::command(host, config).await {
+                    eprintln!("{}", e);
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::Writer(config)) => {
+                logging_level.setup_basic_logging();
+                if let Err(e) = commands::writer::command(host, config).await {
+                    eprintln!("{}", e);
+                    std::process::exit(ReturnCode::Failure as _)
                 }
             }
             Some(Command::Server(config)) => {
@@ -164,7 +189,7 @@ fn main() -> Result<(), std::io::Error> {
 
                 if let Err(e) = res {
                     error!("Server shutdown with error: {}", e);
-                    std::process::exit(ReturnCode::ServerExitedAbnormally as _);
+                    std::process::exit(ReturnCode::Failure as _);
                 }
             }
             None => {
@@ -173,13 +198,12 @@ fn main() -> Result<(), std::io::Error> {
                 let res = influxdb_ioxd::main(logging_level, None).await;
                 if let Err(e) = res {
                     error!("Server shutdown with error: {}", e);
-                    std::process::exit(ReturnCode::ServerExitedAbnormally as _);
+                    std::process::exit(ReturnCode::Failure as _);
                 }
             }
         }
     });
 
-    info!("InfluxDB IOx server shutting down");
     Ok(())
 }
 

@@ -1,5 +1,8 @@
-use generated_types::grpc::health::v1::*;
 use thiserror::Error;
+
+use generated_types::grpc::health::v1::*;
+
+use crate::connection::Connection;
 
 /// Error type for the health check client
 #[derive(Debug, Error)]
@@ -29,19 +32,15 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 /// Allows checking the status of a given service
 #[derive(Debug)]
 pub struct Client {
-    inner: health_client::HealthClient<tonic::transport::Channel>,
+    inner: health_client::HealthClient<Connection>,
 }
 
 impl Client {
-    /// Create a new client with the provided endpoint
-    pub async fn connect<D>(dst: D) -> Result<Self>
-    where
-        D: std::convert::TryInto<tonic::transport::Endpoint>,
-        D::Error: Into<tonic::codegen::StdError>,
-    {
-        Ok(Self {
-            inner: health_client::HealthClient::connect(dst).await?,
-        })
+    /// Creates a new client with the provided connection
+    pub fn new(channel: Connection) -> Self {
+        Self {
+            inner: health_client::HealthClient::new(channel),
+        }
     }
 
     /// Returns `Ok()` if the corresponding service is serving

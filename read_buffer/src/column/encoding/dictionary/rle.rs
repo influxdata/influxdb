@@ -257,11 +257,6 @@ impl RLE {
     // Finds row ids based on = or != operator.
     fn row_ids_equal(&self, value: &str, op: &cmp::Operator, mut dst: RowIDs) -> RowIDs {
         dst.clear();
-        let include = match op {
-            cmp::Operator::Equal => true,
-            cmp::Operator::NotEqual => false,
-            _ => unreachable!("invalid operator"),
-        };
 
         if let Some(encoded_id) = self.entry_index.get(value) {
             match op {
@@ -334,7 +329,7 @@ impl RLE {
         match op {
             cmp::Operator::GT | cmp::Operator::GTE => {
                 // find the first decoded value that satisfies the predicate.
-                for (other, other_encoded_id) in &self.entry_index {
+                for other in self.entry_index.keys() {
                     if other.as_str() > value {
                         // change filter from either `x > value` or `x >= value` to `x >= other`
                         return self.row_ids_cmp(other, &cmp::Operator::GTE, dst);
@@ -344,7 +339,7 @@ impl RLE {
             cmp::Operator::LT | cmp::Operator::LTE => {
                 // find the first decoded value that satisfies the predicate.
                 // Note iteration is in reverse
-                for (other, other_encoded_id) in self.entry_index.iter().rev() {
+                for other in self.entry_index.keys().rev() {
                     if other.as_str() < value {
                         // change filter from either `x < value` or `x <= value` to `x <= other`
                         return self.row_ids_cmp(other, &cmp::Operator::LTE, dst);

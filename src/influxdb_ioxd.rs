@@ -151,6 +151,8 @@ pub async fn main(logging_level: LoggingLevel, config: Option<Config>) -> Result
     grpc_server.context(ServingRPC)?;
     server.context(ServingHttp)?;
 
+    info!("InfluxDB IOx server shutting down");
+
     Ok(())
 }
 

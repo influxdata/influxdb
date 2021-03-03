@@ -11,6 +11,7 @@ use generated_types::{
     MeasurementTagValuesRequest, Node, Predicate, ReadFilterRequest, ReadGroupRequest,
     ReadWindowAggregateRequest, Tag, TagKeysRequest, TagValuesRequest, TimestampRange,
 };
+use influxdb_iox_client::management;
 use std::str;
 use test_helpers::tag_key_bytes_to_strings;
 use tonic::transport::Channel;
@@ -281,7 +282,7 @@ async fn measurement_fields_endpoint(
 }
 
 pub async fn read_group_test(
-    client: &reqwest::Client,
+    management: &mut management::Client,
     influxdb2: &influxdb2_client::Client,
     storage_client: &mut StorageClient<Channel>,
 ) {
@@ -289,7 +290,7 @@ pub async fn read_group_test(
         .set_org_id("0000111100001110")
         .set_bucket_id("1111000011110001");
 
-    create_database(&client, &scenario.database_name()).await;
+    create_database(management, &scenario.database_name()).await;
 
     load_read_group_data(&influxdb2, &scenario).await;
 
@@ -534,7 +535,7 @@ async fn test_read_group_last_agg(
 
 // Standalone test that all the pipes are hooked up for read window aggregate
 pub async fn read_window_aggregate_test(
-    client: &reqwest::Client,
+    management: &mut management::Client,
     influxdb2: &influxdb2_client::Client,
     storage_client: &mut StorageClient<Channel>,
 ) {
@@ -543,7 +544,7 @@ pub async fn read_window_aggregate_test(
         .set_bucket_id("1111000011110011");
     let read_source = scenario.read_source();
 
-    create_database(&client, &scenario.database_name()).await;
+    create_database(management, &scenario.database_name()).await;
 
     let line_protocol = vec![
         "h2o,state=MA,city=Boston temp=70.0 100",
