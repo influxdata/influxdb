@@ -107,7 +107,7 @@ Possible values (case insensitive):
 * file: Stores objects in the local filesystem. Must also set `--data-dir`.
 * s3: Amazon S3. Must also set `--bucket`, `--aws-access-key-id`, `--aws-secret-access-key`, and
    possibly `--aws-region`.
-* google: Google Cloud Storage. Must also set `--bucket` and SERVICE_ACCOUNT.
+* google: Google Cloud Storage. Must also set `--bucket` and `--google-service-account`.
 * azure: Microsoft Azure blob storage. Must also set `--bucket`, AZURE_STORAGE_ACCOUNT,
    and AZURE_STORAGE_MASTER_KEY.
         "#,
@@ -117,8 +117,8 @@ Possible values (case insensitive):
     /// Name of the bucket to use for the object store. Must also set
     /// `--object-store` to a cloud object storage to have any effect.
     ///
-    /// If using Google Cloud Storage for the object store, this item, as well
-    /// as SERVICE_ACCOUNT must be set.
+    /// If using Google Cloud Storage for the object store, this item as well
+    /// as `--google-service-account` must be set.
     ///
     /// If using S3 for the object store, must set this item as well
     /// as `--aws-access-key-id` and `--aws-secret-access-key`. Can also set
@@ -160,6 +160,13 @@ Possible values (case insensitive):
         default_value = DEFAULT_AWS_REGION,
     )]
     pub aws_region: String,
+
+    /// When using Google Cloud Storage as the object store, set this to the
+    /// path to the JSON file that contains the Google credentials.
+    ///
+    /// Must also set `--object-store=google` and `--bucket`.
+    #[structopt(long = "--google-service-account", env = "GOOGLE_SERVICE_ACCOUNT")]
+    pub google_service_account: Option<String>,
 
     /// If set, Jaeger traces are emitted to this host
     /// using the OpenTelemetry tracer.

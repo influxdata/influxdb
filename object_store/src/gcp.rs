@@ -239,10 +239,13 @@ impl ObjectStoreApi for GoogleCloudStorage {
 
 impl GoogleCloudStorage {
     /// Configure a connection to Google Cloud Storage.
-    pub fn new(service_account_path: impl AsRef<std::ffi::OsStr>, bucket_name: impl Into<String>) -> Self {
-        // The cloud storage crate currently only supports authentication via environment
-        // variables. Set the environment variable explicitly so that we can optionally accept
-        // command line arguments instead.
+    pub fn new(
+        service_account_path: impl AsRef<std::ffi::OsStr>,
+        bucket_name: impl Into<String>,
+    ) -> Self {
+        // The cloud storage crate currently only supports authentication via
+        // environment variables. Set the environment variable explicitly so
+        // that we can optionally accept command line arguments instead.
         env::set_var("SERVICE_ACCOUNT", service_account_path);
         Self {
             bucket_name: bucket_name.into(),
@@ -277,10 +280,7 @@ mod test {
         () => {{
             dotenv::dotenv().ok();
 
-            let required_vars = [
-                "INFLUXDB_IOX_BUCKET",
-                "GOOGLE_SERVICE_ACCOUNT",
-            ];
+            let required_vars = ["INFLUXDB_IOX_BUCKET", "GOOGLE_SERVICE_ACCOUNT"];
             let unset_vars: Vec<_> = required_vars
                 .iter()
                 .filter_map(|&name| match env::var(name) {
@@ -309,7 +309,8 @@ mod test {
                 GoogleCloudConfig {
                     bucket: env::var("INFLUXDB_IOX_BUCKET")
                         .expect("already checked INFLUXDB_IOX_BUCKET"),
-                    service_account: env::var("GOOGLE_SERVICE_ACCOUNT").expect("already checked GOOGLE_SERVICE_ACCOUNT"),
+                    service_account: env::var("GOOGLE_SERVICE_ACCOUNT")
+                        .expect("already checked GOOGLE_SERVICE_ACCOUNT"),
                 }
             }
         }};

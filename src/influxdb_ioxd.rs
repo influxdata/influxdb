@@ -178,15 +178,31 @@ impl TryFrom<&Config> for ObjectStore {
                 Ok(Self::new_in_memory(object_store::memory::InMemory::new()))
             }
 
-            Some(ObjStoreOpt::Google) => match config.bucket.as_ref() {
-                Some(bucket) => Ok(Self::new_google_cloud_storage(GoogleCloudStorage::new(
-                    bucket,
-                ))),
-                None => InvalidCloudObjectStoreConfiguration {
-                    object_store: ObjStoreOpt::Google,
+            Some(ObjStoreOpt::Google) => {
+                match (
+                    config.bucket.as_ref(),
+                    config.google_service_account.as_ref(),
+                ) {
+                    (Some(bucket), Some(service_account)) => Ok(Self::new_google_cloud_storage(
+                        GoogleCloudStorage::new(service_account, bucket),
+                    )),
+                    (bucket, service_account) => {
+                        let mut missing_args = vec![];
+
+                        if bucket.is_none() {
+                            missing_args.push("bucket");
+                        }
+                        if service_account.is_none() {
+                            missing_args.push("google-service-account");
+                        }
+                        MissingObjectStoreConfig {
+                            object_store: ObjStoreOpt::Google,
+                            missing: missing_args.join(", "),
+                        }
+                        .fail()
+                    }
                 }
-                .fail(),
-            },
+            }
 
             Some(ObjStoreOpt::S3) => {
                 match (
@@ -306,6 +322,40 @@ mod tests {
             err,
             "Specifed S3 for the object store, required configuration missing for \
             bucket, aws-access-key-id, aws-secret-access-key"
+        );
+    }
+
+    #[test]
+    fn valid_google_config() {
+        let config = Config::from_iter_safe(&[
+            "server",
+            "--object-store",
+            "google",
+            "--bucket",
+            "mybucket",
+            "--google-service-account",
+            "~/Not/A/Real/path.json",
+        ])
+        .unwrap();
+
+        let object_store = ObjectStore::try_from(&config).unwrap();
+
+        assert!(matches!(
+            object_store,
+            ObjectStore(ObjectStoreIntegration::GoogleCloudStorage(_))
+        ));
+    }
+
+    #[test]
+    fn google_config_missing_params() {
+        let config = Config::from_iter_safe(&["server", "--object-store", "google"]).unwrap();
+
+        let err = ObjectStore::try_from(&config).unwrap_err().to_string();
+
+        assert_eq!(
+            err,
+            "Specifed Google for the object store, required configuration missing for \
+            bucket, google-service-account"
         );
     }
 }
