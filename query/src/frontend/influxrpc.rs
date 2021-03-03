@@ -414,10 +414,7 @@ impl InfluxRPCPlanner {
                 schema: _,
             }) = scan_and_filter
             {
-                // TODO use Expr::is_null() here when this
-                // https://issues.apache.org/jira/browse/ARROW-11742
-                // is completed.
-                let tag_name_is_not_null = Expr::IsNotNull(Box::new(col(tag_name)));
+                let tag_name_is_not_null = Expr::Column(tag_name.to_string()).is_not_null();
 
                 // TODO: optimize this to use "DISINCT" or do
                 // something more intelligent that simply fetching all
