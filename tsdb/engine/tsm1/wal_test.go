@@ -12,7 +12,7 @@ import (
 	"github.com/golang/snappy"
 	"github.com/influxdata/influxdb/v2/pkg/slices"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
-	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestWALWriter_WriteMulti_Single(t *testing.T) {
@@ -703,61 +703,42 @@ func TestWALRollSegment(t *testing.T) {
 	}
 }
 
-func TestWAL_DistSize(t *testing.T) {
-	test := func(w *tsm1.WAL, oldZero, curZero bool) () {
+func TestWAL_DiskSize(t *testing.T) {
+	test := func(w *tsm1.WAL, oldZero, curZero bool) {
 		// get disk size by reading file
 		files, err := ioutil.ReadDir(w.Path())
-		if err != nil {
-			t.Fatalf("read dir err: %v", err)
-		}
+		require.NoError(t, err)
 
 		sort.Slice(files, func(i, j int) bool {
 			return files[i].Name() < files[j].Name()
 		})
 
 		var old, cur int64
-		for i, f := range files {
-			if i == len(files)-1 {
-				cur = f.Size()
-			} else {
-				old += f.Size()
+		if len(files) > 0 {
+			cur = files[len(files)-1].Size()
+			for i := 0; i < len(files)-1; i++ {
+				old += files[i].Size()
 			}
 		}
 
 		// test zero size condition
-		if oldZero && old > 0 {
-			t.Fatalf("expect old disk size: 0, got: %d", old)
-		}
-		if !oldZero && old == 0 {
-			t.Fatalf("expect old disk size larger than 0, got 0")
-		}
-
-		if curZero && cur > 0 {
-			t.Fatalf("expect current disk size: 0, got: %d", cur)
-		}
-		if !curZero && cur == 0 {
-			t.Fatalf("expect current disk size larger than 0, got 0")
-		}
+		require.False(t, oldZero && old > 0)
+		require.False(t, !oldZero && old == 0)
+		require.False(t, curZero && cur > 0)
+		require.False(t, !curZero && cur == 0)
 
 		// test method DiskSizeBytes
-		if got, exp := w.DiskSizeBytes(), old+cur; got != exp {
-			t.Fatalf("expect total disk size: %d, got: %d", exp, got)
-		}
+		require.Equal(t, old+cur, w.DiskSizeBytes(), "total disk size")
 
 		// test Statistics
 		ss := w.Statistics(nil)
-		assert.Equal(t, 1, len(ss))
+		require.Equal(t, 1, len(ss))
 
 		m := ss[0].Values
-		assert.NotNil(t, m)
+		require.NotNil(t, m)
 
-		if got, exp := m["oldSegmentsDiskBytes"].(int64), old; got != exp {
-			t.Fatalf("expect old disk size: %d, got: %d", exp, got)
-		}
-
-		if got, exp := m["currentSegmentDiskBytes"].(int64), cur; got != exp {
-			t.Fatalf("expect current disk size: %d, got: %d", exp, got)
-		}
+		require.Equal(t, m["oldSegmentsDiskBytes"].(int64), old, "old disk size")
+		require.Equal(t, m["currentSegmentDiskBytes"].(int64), cur, "current dist size")
 	}
 
 	dir := MustTempDir()
@@ -769,54 +750,42 @@ func TestWAL_DistSize(t *testing.T) {
 	w.SegmentSize = segSize
 
 	// open
-	if err := w.Open(); err != nil {
-		t.Fatalf("error opening WAL: %v", err)
-	}
+	require.NoError(t, w.Open())
 
 	test(w, true, true)
 
-	// write without rollSegment
+	// write some values, the total size of these values does not exceed segSize(1024),
+	// so rollSegment will not be triggered
 	values := map[string][]tsm1.Value{
 		"cpu,host=A#!~#value": {tsm1.NewValue(1, 1.0)},
 		"cpu,host=B#!~#value": {tsm1.NewValue(1, 1.0)},
 		"cpu,host=C#!~#value": {tsm1.NewValue(1, 1.0)},
 	}
 
-	if _, err := w.WriteMulti(values); err != nil {
-		fatal(t, "write points", err)
-	}
+	_, err := w.WriteMulti(values)
+	require.NoError(t, err)
 
 	test(w, true, false)
 
-	// write with rollSegment
+	// write some values, the total size of these values exceeds segSize(1024),
+	// so rollSegment will be triggered
 	for i := 0; i < 100; i++ {
-		if _, err := w.WriteMulti(values); err != nil {
-			fatal(t, "write points", err)
-		}
+		_, err := w.WriteMulti(values)
+		require.NoError(t, err)
 	}
 
 	test(w, false, false)
 
 	// reopen
-	if err := w.Close(); err != nil {
-		t.Fatalf("error cloing WAL: %v", err)
-	}
-
-	if err := w.Open(); err != nil {
-		t.Fatalf("error open WAL: %v", err)
-	}
+	require.NoError(t, w.Close())
+	require.NoError(t, w.Open())
 
 	test(w, false, false)
 
 	// remove
 	closedSegments, err := w.ClosedSegments()
-	if err != nil {
-		t.Fatalf("get closed segment error: %v", err)
-	}
-
-	if err := w.Remove(closedSegments); err != nil {
-		t.Fatalf("close segment error: %v", err)
-	}
+	require.NoError(t, err)
+	require.NoError(t, w.Remove(closedSegments))
 
 	test(w, true, false)
 }
