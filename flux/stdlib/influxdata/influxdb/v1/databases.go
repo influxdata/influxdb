@@ -9,20 +9,21 @@ import (
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
-	v1 "github.com/influxdata/flux/stdlib/influxdata/influxdb/v1"
+	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxql"
 )
 
-const DatabasesKind = v1.DatabasesKind
+const DatabasesKind = "influxDBDatabases"
 
 type DatabasesOpSpec struct {
 }
 
 func init() {
-	flux.ReplacePackageValue("influxdata/influxdb/v1", DatabasesKind, flux.FunctionValue(DatabasesKind, createDatabasesOpSpec, v1.DatabasesSignature))
+	databasesSignature := runtime.MustLookupBuiltinType("influxdata/influxdb/v1", "databases")
+	runtime.ReplacePackageValue("influxdata/influxdb/v1", "databases", flux.MustValue(flux.FunctionValue(DatabasesKind, createDatabasesOpSpec, databasesSignature)))
 	flux.RegisterOpSpec(DatabasesKind, newDatabasesOp)
 	plan.RegisterProcedureSpec(DatabasesKind, newDatabasesProcedure, DatabasesKind)
 }

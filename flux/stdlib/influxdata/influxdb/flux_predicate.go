@@ -1,4 +1,4 @@
-package reads
+package influxdb
 
 import (
 	"fmt"
@@ -16,16 +16,44 @@ const (
 	valueKey       = "_value"
 )
 
-func toStoragePredicate(f *semantic.FunctionExpression) (*datatypes.Predicate, error) {
-	if f.Block.Parameters == nil || len(f.Block.Parameters.List) != 1 {
-		return nil, errors.New("storage predicate functions must have exactly one parameter")
-	}
-
-	root, err := toStoragePredicateHelper(f.Block.Body.(semantic.Expression), f.Block.Parameters.List[0].Key.Name)
+func ToStoragePredicate(n semantic.Expression, objectName string) (*datatypes.Predicate, error) {
+	root, err := toStoragePredicateHelper(n, objectName)
 	if err != nil {
 		return nil, err
 	}
 
+	return &datatypes.Predicate{
+		Root: root,
+	}, nil
+}
+
+func MergePredicates(op ast.LogicalOperatorKind, predicates ...*datatypes.Predicate) (*datatypes.Predicate, error) {
+	if len(predicates) == 0 {
+		return nil, errors.New("at least one predicate is needed")
+	}
+	var value datatypes.Node_Logical
+	switch op {
+	case ast.AndOperator:
+		value = datatypes.LogicalAnd
+	case ast.OrOperator:
+		value = datatypes.LogicalOr
+	default:
+		return nil, fmt.Errorf("unknown logical operator %v", op)
+	}
+
+	// Nest the predicates backwards. This way we get a tree like this:
+	// a AND (b AND c)
+	root := predicates[len(predicates)-1].Root
+	for i := len(predicates) - 2; i >= 0; i-- {
+		root = &datatypes.Node{
+			NodeType: datatypes.NodeTypeLogicalExpression,
+			Value:    &datatypes.Node_Logical_{Logical: value},
+			Children: []*datatypes.Node{
+				predicates[i].Root,
+				root,
+			},
+		}
+	}
 	return &datatypes.Predicate{
 		Root: root,
 	}, nil

@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
 )
 
 func fluxTime(t int64) flux.Time {
@@ -164,14 +165,16 @@ func TestPushDownFilterRule(t *testing.T) {
 		statementFn = interpreter.ResolvedFunction{
 			Scope: nil,
 			Fn: &semantic.FunctionExpression{
-				Block: &semantic.FunctionBlock{
-					Parameters: &semantic.FunctionParameters{
-						List: []*semantic.FunctionParameter{
-							{Key: &semantic.Identifier{Name: "r"}},
-						},
+				Parameters: &semantic.FunctionParameters{
+					List: []*semantic.FunctionParameter{
+						{Key: &semantic.Identifier{Name: "r"}},
 					},
-					Body: &semantic.ReturnStatement{
-						Argument: &semantic.BooleanLiteral{Value: true},
+				},
+				Block: &semantic.Block{
+					Body: []semantic.Statement{
+						&semantic.ReturnStatement{
+							Argument: &semantic.BooleanLiteral{Value: true},
+						},
 					},
 				},
 			},
@@ -181,13 +184,17 @@ func TestPushDownFilterRule(t *testing.T) {
 	makeFilterFn := func(exprs ...semantic.Expression) *semantic.FunctionExpression {
 		body := semantic.ExprsToConjunction(exprs...)
 		return &semantic.FunctionExpression{
-			Block: &semantic.FunctionBlock{
-				Parameters: &semantic.FunctionParameters{
-					List: []*semantic.FunctionParameter{
-						{Key: &semantic.Identifier{Name: "r"}},
+			Parameters: &semantic.FunctionParameters{
+				List: []*semantic.FunctionParameter{
+					{Key: &semantic.Identifier{Name: "r"}},
+				},
+			},
+			Block: &semantic.Block{
+				Body: []semantic.Statement{
+					&semantic.ReturnStatement{
+						Argument: body,
 					},
 				},
-				Body: body,
 			},
 		}
 	}
@@ -196,6 +203,13 @@ func TestPushDownFilterRule(t *testing.T) {
 			Scope: nil,
 			Fn:    makeFilterFn(exprs...),
 		}
+	}
+	mustStoragePredicate := func(expression semantic.Expression, objectName string) *datatypes.Predicate {
+		pred, err := influxdb.ToStoragePredicate(expression, objectName)
+		if err != nil {
+			t.Fatalf("Error while converting to storage predicate: %v", err)
+		}
+		return pred
 	}
 
 	tests := []plantest.RuleTestCase{
@@ -220,8 +234,7 @@ func TestPushDownFilterRule(t *testing.T) {
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
 						Bounds:    bounds,
-						FilterSet: true,
-						Filter:    makeFilterFn(pushableExpr1),
+						Predicate: mustStoragePredicate(pushableExpr1, "r"),
 					}),
 				},
 			},
@@ -250,9 +263,12 @@ func TestPushDownFilterRule(t *testing.T) {
 			After: &plantest.PlanSpec{
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("merged_ReadRange_filter1_filter2", &influxdb.ReadRangePhysSpec{
-						Bounds:    bounds,
-						FilterSet: true,
-						Filter:    makeFilterFn(pushableExpr1, pushableExpr2),
+						Bounds: bounds,
+						Predicate: mustStoragePredicate(&semantic.LogicalExpression{
+							Operator: ast.AndOperator,
+							Left:     pushableExpr1,
+							Right:    pushableExpr2,
+						}, "r"),
 					}),
 				},
 			},
@@ -278,8 +294,7 @@ func TestPushDownFilterRule(t *testing.T) {
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("ReadRange", &influxdb.ReadRangePhysSpec{
 						Bounds:    bounds,
-						FilterSet: true,
-						Filter:    makeFilterFn(pushableExpr1),
+						Predicate: mustStoragePredicate(pushableExpr1, "r"),
 					}),
 					plan.CreatePhysicalNode("filter", &universe.FilterProcedureSpec{
 						Fn: makeResolvedFilterFn(unpushableExpr),
@@ -316,8 +331,7 @@ func TestPushDownFilterRule(t *testing.T) {
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
 						Bounds:    bounds,
-						FilterSet: true,
-						Filter:    makeFilterFn(pushableExpr1),
+						Predicate: mustStoragePredicate(pushableExpr1, "r"),
 					}),
 				},
 			},
@@ -385,9 +399,8 @@ func TestPushDownFilterRule(t *testing.T) {
 			After: &plantest.PlanSpec{
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
-						Bounds:    bounds,
-						FilterSet: true,
-						Filter: makeFilterFn(&semantic.BinaryExpression{
+						Bounds: bounds,
+						Predicate: mustStoragePredicate(&semantic.BinaryExpression{
 							Operator: ast.NotEqualOperator,
 							Left: &semantic.MemberExpression{
 								Object:   &semantic.IdentifierExpression{Name: "r"},
@@ -396,7 +409,7 @@ func TestPushDownFilterRule(t *testing.T) {
 							Right: &semantic.StringLiteral{
 								Value: "",
 							},
-						}),
+						}, "r"),
 					}),
 				},
 			},
@@ -429,9 +442,8 @@ func TestPushDownFilterRule(t *testing.T) {
 			After: &plantest.PlanSpec{
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
-						Bounds:    bounds,
-						FilterSet: true,
-						Filter: makeFilterFn(&semantic.BinaryExpression{
+						Bounds: bounds,
+						Predicate: mustStoragePredicate(&semantic.BinaryExpression{
 							Operator: ast.EqualOperator,
 							Left: &semantic.MemberExpression{
 								Object:   &semantic.IdentifierExpression{Name: "r"},
@@ -440,7 +452,7 @@ func TestPushDownFilterRule(t *testing.T) {
 							Right: &semantic.StringLiteral{
 								Value: "",
 							},
-						}),
+						}, "r"),
 					}),
 				},
 			},
@@ -496,9 +508,8 @@ func TestPushDownFilterRule(t *testing.T) {
 			After: &plantest.PlanSpec{
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
-						Bounds:    bounds,
-						FilterSet: true,
-						Filter: makeFilterFn(&semantic.BinaryExpression{
+						Bounds: bounds,
+						Predicate: mustStoragePredicate(&semantic.BinaryExpression{
 							Operator: ast.NotEqualOperator,
 							Left: &semantic.MemberExpression{
 								Object:   &semantic.IdentifierExpression{Name: "r"},
@@ -507,7 +518,7 @@ func TestPushDownFilterRule(t *testing.T) {
 							Right: &semantic.StringLiteral{
 								Value: "",
 							},
-						}),
+						}, "r"),
 					}),
 				},
 			},
@@ -538,16 +549,15 @@ func TestPushDownFilterRule(t *testing.T) {
 			After: &plantest.PlanSpec{
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
-						Bounds:    bounds,
-						FilterSet: true,
-						Filter: makeFilterFn(&semantic.BinaryExpression{
+						Bounds: bounds,
+						Predicate: mustStoragePredicate(&semantic.BinaryExpression{
 							Operator: ast.EqualOperator,
 							Left: &semantic.MemberExpression{
 								Object:   &semantic.IdentifierExpression{Name: "r"},
 								Property: "_value",
 							},
 							Right: &semantic.StringLiteral{Value: ""},
-						}),
+						}, "r"),
 					}),
 				},
 			},
@@ -619,9 +629,8 @@ func TestPushDownFilterRule(t *testing.T) {
 			After: &plantest.PlanSpec{
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("merged_ReadRange_filter", &influxdb.ReadRangePhysSpec{
-						Bounds:    bounds,
-						FilterSet: true,
-						Filter: makeFilterFn(&semantic.LogicalExpression{
+						Bounds: bounds,
+						Predicate: mustStoragePredicate(&semantic.LogicalExpression{
 							Operator: ast.AndOperator,
 							Left: &semantic.BinaryExpression{
 								Operator: ast.EqualOperator,
@@ -643,7 +652,7 @@ func TestPushDownFilterRule(t *testing.T) {
 									Value: "",
 								},
 							},
-						}),
+						}, "r"),
 					}),
 				},
 			},
@@ -867,24 +876,28 @@ func TestReadTagKeysRule(t *testing.T) {
 		Fn: interpreter.ResolvedFunction{
 			Scope: nil,
 			Fn: &semantic.FunctionExpression{
-				Block: &semantic.FunctionBlock{
-					Parameters: &semantic.FunctionParameters{
-						List: []*semantic.FunctionParameter{{
-							Key: &semantic.Identifier{
-								Name: "r",
-							},
-						}},
-					},
-					Body: &semantic.BinaryExpression{
-						Operator: ast.EqualOperator,
-						Left: &semantic.MemberExpression{
-							Object: &semantic.IdentifierExpression{
-								Name: "r",
-							},
-							Property: "_measurement",
+				Parameters: &semantic.FunctionParameters{
+					List: []*semantic.FunctionParameter{{
+						Key: &semantic.Identifier{
+							Name: "r",
 						},
-						Right: &semantic.StringLiteral{
-							Value: "cpu",
+					}},
+				},
+				Block: &semantic.Block{
+					Body: []semantic.Statement{
+						&semantic.ReturnStatement{
+							Argument: &semantic.BinaryExpression{
+								Operator: ast.EqualOperator,
+								Left: &semantic.MemberExpression{
+									Object: &semantic.IdentifierExpression{
+										Name: "r",
+									},
+									Property: "_measurement",
+								},
+								Right: &semantic.StringLiteral{
+									Value: "cpu",
+								},
+							},
 						},
 					},
 				},
@@ -917,8 +930,15 @@ func TestReadTagKeysRule(t *testing.T) {
 			},
 		}
 		if filter {
-			s.FilterSet = true
-			s.Filter = filterSpec.Fn.Fn
+			body, ok := filterSpec.Fn.Fn.GetFunctionBodyExpression()
+			if !ok {
+				t.Fatal("could not get function bodyexpression for filter")
+			}
+			pred, err := influxdb.ToStoragePredicate(body, "r")
+			if err != nil {
+				t.Fatalf("Error while creating storage predicate: %v", err)
+			}
+			s.Predicate = pred
 		}
 		return &s
 	}
@@ -1082,24 +1102,28 @@ func TestReadTagValuesRule(t *testing.T) {
 		Fn: interpreter.ResolvedFunction{
 			Scope: nil,
 			Fn: &semantic.FunctionExpression{
-				Block: &semantic.FunctionBlock{
-					Parameters: &semantic.FunctionParameters{
-						List: []*semantic.FunctionParameter{{
-							Key: &semantic.Identifier{
-								Name: "r",
-							},
-						}},
-					},
-					Body: &semantic.BinaryExpression{
-						Operator: ast.EqualOperator,
-						Left: &semantic.MemberExpression{
-							Object: &semantic.IdentifierExpression{
-								Name: "r",
-							},
-							Property: "_measurement",
+				Parameters: &semantic.FunctionParameters{
+					List: []*semantic.FunctionParameter{{
+						Key: &semantic.Identifier{
+							Name: "r",
 						},
-						Right: &semantic.StringLiteral{
-							Value: "cpu",
+					}},
+				},
+				Block: &semantic.Block{
+					Body: []semantic.Statement{
+						&semantic.ReturnStatement{
+							Argument: &semantic.BinaryExpression{
+								Operator: ast.EqualOperator,
+								Left: &semantic.MemberExpression{
+									Object: &semantic.IdentifierExpression{
+										Name: "r",
+									},
+									Property: "_measurement",
+								},
+								Right: &semantic.StringLiteral{
+									Value: "cpu",
+								},
+							},
 						},
 					},
 				},
@@ -1134,8 +1158,15 @@ func TestReadTagValuesRule(t *testing.T) {
 			TagKey: "host",
 		}
 		if filter {
-			s.FilterSet = true
-			s.Filter = filterSpec.Fn.Fn
+			body, ok := filterSpec.Fn.Fn.GetFunctionBodyExpression()
+			if !ok {
+				t.Fatal("could not get function bodyexpression for filter")
+			}
+			pred, err := influxdb.ToStoragePredicate(body, "r")
+			if err != nil {
+				t.Fatalf("Error while creating storage predicate: %v", err)
+			}
+			s.Predicate = pred
 		}
 		return &s
 	}

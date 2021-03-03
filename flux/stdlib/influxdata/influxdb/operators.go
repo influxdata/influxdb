@@ -8,9 +8,9 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/plan"
-	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxql"
 )
 
@@ -52,12 +52,9 @@ type ReadRangePhysSpec struct {
 	Bucket   string
 	BucketID string
 
-	// FilterSet is set to true if there is a filter.
-	FilterSet bool
-	// Filter is the filter to use when calling into
-	// storage. It must be possible to push down this
-	// filter.
-	Filter *semantic.FunctionExpression
+	// Predicate is the filtering predicate for calling into storage.
+	// It must not be mutated.
+	Predicate *datatypes.Predicate
 
 	Bounds flux.Bounds
 }
@@ -71,53 +68,49 @@ func (s *ReadRangePhysSpec) Copy() plan.ProcedureSpec {
 	ns.Bucket = s.Bucket
 	ns.BucketID = s.BucketID
 
-	ns.FilterSet = s.FilterSet
-	if ns.FilterSet {
-		ns.Filter = s.Filter.Copy().(*semantic.FunctionExpression)
-	}
+	ns.Predicate = s.Predicate
 
 	ns.Bounds = s.Bounds
 
 	return ns
 }
 
-func (s *ReadRangePhysSpec) LookupDatabase(ctx context.Context, deps StorageDependencies, a execute.Administration) (string, string, error) {
-	if len(s.BucketID) != 0 {
-		return "", "", errors.New("cannot refer to buckets by their id in 1.x")
-	}
-
+func lookupDatabase(ctx context.Context, bucketName string, deps StorageDependencies, privilege influxql.Privilege) (string, string, error) {
 	var db, rp string
-	if i := strings.IndexByte(s.Bucket, '/'); i == -1 {
-		db = s.Bucket
+	if i := strings.IndexByte(bucketName, '/'); i == -1 {
+		db = bucketName
 	} else {
-		rp = s.Bucket[i+1:]
-		db = s.Bucket[:i]
+		rp = bucketName[i+1:]
+		db = bucketName[:i]
 	}
-
 	// validate and resolve db/rp
 	di := deps.MetaClient.Database(db)
 	if di == nil {
 		return "", "", errors.New("no database")
 	}
-
 	if deps.AuthEnabled {
-		user := meta.UserFromContext(a.Context())
+		user := meta.UserFromContext(ctx)
 		if user == nil {
-			return "", "", errors.New("createFromSource: no user")
+			return "", "", errors.New("no user for auth-enabled flux access")
 		}
-		if err := deps.Authorizer.AuthorizeDatabase(user, influxql.ReadPrivilege, db); err != nil {
+		if err := deps.Authorizer.AuthorizeDatabase(user, privilege, db); err != nil {
 			return "", "", err
 		}
 	}
-
 	if rp == "" {
 		rp = di.DefaultRetentionPolicy
 	}
-
 	if rpi := di.RetentionPolicy(rp); rpi == nil {
 		return "", "", errors.New("invalid retention policy")
 	}
 	return db, rp, nil
+}
+
+func (s *ReadRangePhysSpec) LookupDatabase(_ context.Context, deps StorageDependencies, a execute.Administration) (string, string, error) {
+	if len(s.BucketID) != 0 {
+		return "", "", errors.New("cannot refer to buckets by their id in 1.x")
+	}
+	return lookupDatabase(a.Context(), s.Bucket, deps, influxql.ReadPrivilege)
 }
 
 // TimeBounds implements plan.BoundsAwareProcedureSpec.

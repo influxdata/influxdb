@@ -21,6 +21,7 @@ DIR=$(cd $(dirname "${BASH_SOURCE[0]}") && pwd)
 cd $DIR
 
 ENVIRONMENT_INDEX=$1
+
 # Set the default OUTPUT_DIR
 OUTPUT_DIR=${OUTPUT_DIR-./test-logs}
 # Set default parallelism
@@ -32,7 +33,7 @@ TIMEOUT=${TIMEOUT-1500s}
 DOCKER_RM=${DOCKER_RM-true}
 
 # Update this value if you add a new test environment.
-ENV_COUNT=5
+ENV_COUNT=4
 
 # Default return code 0
 rc=0
@@ -102,29 +103,24 @@ fi
 # Run the tests.
 case $ENVIRONMENT_INDEX in
     0)
-        # 64 bit tests
+        >&2 echo '64 bit tests'
         run_test_docker Dockerfile_build_ubuntu64 test_64bit --test --junit-report
         rc=$?
         ;;
     1)
-        # 64 bit race tests
+        >&2 echo '64 bit race tests'
         GORACE="halt_on_error=1"
         run_test_docker Dockerfile_build_ubuntu64 test_64bit_race --test --junit-report --race
         rc=$?
         ;;
     2)
-        # 32 bit tests
-        run_test_docker Dockerfile_build_ubuntu32 test_32bit --test --junit-report --arch=i386
-        rc=$?
-        ;;
-    3)
-        # tsi
+        >&2 echo 'tsi tests'
         INFLUXDB_DATA_INDEX_VERSION="tsi1"
         run_test_docker Dockerfile_build_ubuntu64 test_64bit --test --junit-report
         rc=$?
         ;;
-    4)
-        # go1.13
+    3)
+        >&2 echo 'go1.13 tests'
         run_test_docker Dockerfile_build_ubuntu64_go1.13 test_64bit --test --junit-report
         rc=$?
         ;;
