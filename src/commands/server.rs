@@ -196,13 +196,13 @@ Possible values (case insensitive):
 ///     - user set environment variables
 ///     - .env file contents
 ///     - pre-configured default values
-pub fn load_config() -> Config {
+pub fn load_config() -> Box<Config> {
     // Load the Config struct - this pulls in any envs set by the user or
     // sourced above, and applies any defaults.
     //
 
     //let args = std::env::args().filter(|arg| arg != "server");
-    Config::from_iter(strip_server(std::env::args()).iter())
+    Box::new(Config::from_iter(strip_server(std::env::args()).iter()))
 }
 
 fn parse_socket_addr(s: &str) -> std::io::Result<SocketAddr> {

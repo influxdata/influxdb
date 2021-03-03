@@ -110,7 +110,8 @@ enum Command {
     },
     Database(commands::database::Config),
     Stats(commands::stats::Config),
-    Server(commands::server::Config),
+    // Clippy recommended boxing this variant because it's much larger than the others
+    Server(Box<commands::server::Config>),
     Writer(commands::writer::Config),
 }
 

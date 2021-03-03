@@ -86,7 +86,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// The logging_level passed in is the global setting (e.g. if -v or
 /// -vv was passed in before 'server')
-pub async fn main(logging_level: LoggingLevel, config: Option<Config>) -> Result<()> {
+pub async fn main(logging_level: LoggingLevel, config: Option<Box<Config>>) -> Result<()> {
     // load config from environment if no command line
     let config = config.unwrap_or_else(load_config);
 
@@ -114,7 +114,7 @@ pub async fn main(logging_level: LoggingLevel, config: Option<Config>) -> Result
         }
     }
 
-    let object_store = ObjectStore::try_from(&config)?;
+    let object_store = ObjectStore::try_from(&*config)?;
     let object_storage = Arc::new(object_store);
 
     let connection_manager = ConnectionManager {};
