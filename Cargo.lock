@@ -1534,6 +1534,7 @@ dependencies = [
  "structopt",
  "tempfile",
  "test_helpers",
+ "thiserror",
  "tokio",
  "tokio-stream",
  "tonic",
