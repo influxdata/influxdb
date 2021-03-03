@@ -3,11 +3,12 @@ package query_test
 import (
 	"bytes"
 	"fmt"
+	"testing"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/influxdb/pkg/testing/assert"
 	"github.com/influxdata/influxdb/query"
-	"testing"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
@@ -52,26 +53,26 @@ func TestReturnNoContent(t *testing.T) {
 		assertFn func(t *testing.T, respBody []byte, reqErr error)
 	}{
 		{
-			name: "no-content - no error",
-			query: &mockQuery{Result: getMockResult()},
+			name:     "no-content - no error",
+			query:    &mockQuery{Result: getMockResult()},
 			dialect:  query.NewNoContentDialect(),
 			assertFn: assertNoContent,
 		},
 		{
-			name: "no-content - error",
-			query: &mockQuery{Result: getMockResult(), Error: fmt.Errorf("I am a runtime error") },
+			name:     "no-content - error",
+			query:    &mockQuery{Result: getMockResult(), Error: fmt.Errorf("I am a runtime error")},
 			dialect:  query.NewNoContentDialect(),
 			assertFn: assertNoContent,
 		},
 		{
-			name: "no-content-with-error - no error",
-			query: &mockQuery{Result: getMockResult()},
+			name:     "no-content-with-error - no error",
+			query:    &mockQuery{Result: getMockResult()},
 			dialect:  query.NewNoContentWithErrorDialect(),
 			assertFn: assertNoContent,
 		},
 		{
-			name: "no-content-with-error - error",
-			query: &mockQuery{Result: getMockResult(), Error: fmt.Errorf("I am a runtime error") },
+			name:    "no-content-with-error - error",
+			query:   &mockQuery{Result: getMockResult(), Error: fmt.Errorf("I am a runtime error")},
 			dialect: query.NewNoContentWithErrorDialect(),
 			assertFn: func(t *testing.T, respBody []byte, reqErr error) {
 				if reqErr != nil {
@@ -106,8 +107,8 @@ func TestReturnNoContent(t *testing.T) {
 
 type mockQuery struct {
 	Result flux.Result
-	Error error
-	c chan flux.Result
+	Error  error
+	c      chan flux.Result
 }
 
 func (m *mockQuery) Results() <-chan flux.Result {
@@ -136,6 +137,6 @@ func (m *mockQuery) Statistics() flux.Statistics {
 	panic("not implemented")
 }
 
-func (m *mockQuery) ProfilerResults()  (flux.ResultIterator, error) {
+func (m *mockQuery) ProfilerResults() (flux.ResultIterator, error) {
 	panic("not implemented")
 }

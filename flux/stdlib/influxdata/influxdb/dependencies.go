@@ -3,9 +3,9 @@ package influxdb
 import (
 	"context"
 	"errors"
-	"github.com/influxdata/influxdb/coordinator"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/influxdb/coordinator"
 )
 
 type key int
@@ -17,10 +17,10 @@ type PointsWriter interface {
 }
 
 type StorageDependencies struct {
-	Reader      Reader
-	MetaClient  MetaClient
-	Authorizer  Authorizer
-	AuthEnabled bool
+	Reader       Reader
+	MetaClient   MetaClient
+	Authorizer   Authorizer
+	AuthEnabled  bool
 	PointsWriter PointsWriter
 }
 
@@ -68,10 +68,10 @@ func NewDependencies(
 	fdeps := flux.NewDefaultDependencies()
 	deps := Dependencies{FluxDeps: fdeps}
 	deps.StorageDeps = StorageDependencies{
-		Reader:      reader,
-		MetaClient:  mc,
-		Authorizer:  auth,
-		AuthEnabled: authEnabled,
+		Reader:       reader,
+		MetaClient:   mc,
+		Authorizer:   auth,
+		AuthEnabled:  authEnabled,
 		PointsWriter: writer,
 	}
 	if err := deps.StorageDeps.Validate(); err != nil {

@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/influxdata/influxdb/query"
 	"time"
 	"unicode/utf8"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
+	"github.com/influxdata/influxdb/query"
 	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -136,9 +136,9 @@ func (r QueryRequest) ProxyRequest() *ProxyRequest {
 	var compiler flux.Compiler
 	if r.Query != "" {
 		compiler = lang.FluxCompiler{
-			Query: r.Query,
+			Query:  r.Query,
 			Extern: r.Extern,
-			Now: n,
+			Now:    n,
 		}
 	} else if len(r.AST) > 0 {
 		c := lang.ASTCompiler{
@@ -180,6 +180,6 @@ func (r QueryRequest) ProxyRequest() *ProxyRequest {
 
 	return &ProxyRequest{
 		Compiler: compiler,
-		Dialect: dialect,
+		Dialect:  dialect,
 	}
 }

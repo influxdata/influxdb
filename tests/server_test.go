@@ -6,10 +6,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/influxdata/flux"
-	"github.com/influxdata/flux/csv"
-	"github.com/influxdata/flux/execute/table"
-	"github.com/influxdata/flux/parser"
 	"io/ioutil"
 	"math/rand"
 	"net/http"
@@ -25,7 +21,11 @@ import (
 	"github.com/gogo/protobuf/proto"
 	"github.com/golang/snappy"
 	"github.com/google/go-cmp/cmp"
+	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/csv"
+	"github.com/influxdata/flux/execute/table"
+	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/flux/stdlib"
 	"github.com/influxdata/influxdb/coordinator"
 	fluxClient "github.com/influxdata/influxdb/flux/client"
@@ -9979,8 +9979,6 @@ test _sum = () => ({input: testing.loadStorage(csv: inData), want: testing.loadM
 	}
 }
 
-
-
 var FluxEndToEndSkipList = map[string]map[string]string{
 	"universe": {
 		// TODO(adam) determine the reason for these test failures.
@@ -10151,7 +10149,7 @@ func TestFluxEndToEnd(t *testing.T) {
 	runEndToEnd(t, stdlib.FluxTestPackages)
 }
 
-func runEndToEnd(t *testing.T, pkgs []*ast.Package){
+func runEndToEnd(t *testing.T, pkgs []*ast.Package) {
 	config := NewConfig()
 	config.HTTPD.FluxEnabled = true
 	s := OpenServer(config)
@@ -10167,7 +10165,7 @@ func runEndToEnd(t *testing.T, pkgs []*ast.Package){
 			}
 		}
 
-		test(t, func(t *testing.T){
+		test(t, func(t *testing.T) {
 			for _, file := range pkg.Files {
 				name := strings.TrimSuffix(file.Name, "_test.flux")
 				t.Run(name, func(t *testing.T) {
@@ -10253,7 +10251,7 @@ func runFluxBuiltinTest(t *testing.T, file *ast.File, u *url.URL, bucket string,
 	// Allow the script to refer to a bucket as a variable
 	bucketOpt := &ast.OptionStatement{
 		Assignment: &ast.VariableAssignment{
-			ID: &ast.Identifier{Name: "bucket"},
+			ID:   &ast.Identifier{Name: "bucket"},
 			Init: &ast.StringLiteral{Value: bucket},
 		},
 	}
@@ -10292,7 +10290,7 @@ func runFluxBuiltinTest(t *testing.T, file *ast.File, u *url.URL, bucket string,
 		return err
 	}
 
-	if resp.StatusCode / 100 != 2 {
+	if resp.StatusCode/100 != 2 {
 		b, _ := ioutil.ReadAll(resp.Body)
 		t.Log("Bad response from flux:", string(b))
 		return fmt.Errorf("Bad status code %d from flux query", resp.StatusCode)

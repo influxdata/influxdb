@@ -1,10 +1,11 @@
 package query
 
 import (
-	"github.com/influxdata/flux"
-	"github.com/influxdata/flux/csv"
 	"io"
 	"net/http"
+
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/csv"
 )
 
 const (
@@ -117,4 +118,3 @@ func (e *NoContentWithErrorEncoder) Encode(w io.Writer, results flux.ResultItera
 	}
 	return 0, nil
 }
-

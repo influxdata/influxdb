@@ -739,4 +739,3 @@ func configureLogging(s Server) {
 		s.SetLogOutput(ioutil.Discard)
 	}
 }
-

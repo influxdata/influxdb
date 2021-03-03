@@ -3,6 +3,8 @@ package influxdb
 import (
 	"context"
 	"fmt"
+	"time"
+
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute"
@@ -14,11 +16,10 @@ import (
 	"github.com/influxdata/influxdb/coordinator"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
-	"time"
 )
 
 const (
-	ToKind = "influx1x/toKind"
+	ToKind            = "influx1x/toKind"
 	DefaultBufferSize = 5000
 )
 
@@ -29,7 +30,7 @@ type ToOpSpec struct {
 func init() {
 	toSignature := runtime.MustLookupBuiltinType("influxdata/influxdb", influxdb.ToKind)
 	runtime.ReplacePackageValue("influxdata/influxdb", "to", flux.MustValue(flux.FunctionValueWithSideEffect(ToKind, createToOpSpec, toSignature)))
-	flux.RegisterOpSpec(ToKind, func() flux.OperationSpec { return &ToOpSpec{}})
+	flux.RegisterOpSpec(ToKind, func() flux.OperationSpec { return &ToOpSpec{} })
 	plan.RegisterProcedureSpecWithSideEffect(ToKind, newToProcedure, ToKind)
 	execute.RegisterTransformation(ToKind, createToTransformation)
 }
@@ -44,7 +45,7 @@ func (o *ToOpSpec) ReadArgs(args flux.Arguments) error {
 		if _, ok = args.Get(arg); ok {
 			return &flux.Error{
 				Code: codes.Invalid,
-				Msg: fmt.Sprintf("argument %s for 'to' not supported in 1.x flux engine", arg),
+				Msg:  fmt.Sprintf("argument %s for 'to' not supported in 1.x flux engine", arg),
 			}
 		}
 	}
@@ -98,10 +99,10 @@ func newToProcedure(qs flux.OperationSpec, a plan.Administration) (plan.Procedur
 	if !ok && spec != nil {
 		return nil, &flux.Error{
 			Code: codes.Internal,
-			Msg: fmt.Sprintf("invalid spec type %T", qs),
+			Msg:  fmt.Sprintf("invalid spec type %T", qs),
 		}
 	}
-	return &ToProcedureSpec{Spec: spec},nil
+	return &ToProcedureSpec{Spec: spec}, nil
 }
 
 func createToTransformation(id execute.DatasetID, mode execute.AccumulationMode, spec plan.ProcedureSpec, a execute.Administration) (execute.Transformation, execute.Dataset, error) {
@@ -109,7 +110,7 @@ func createToTransformation(id execute.DatasetID, mode execute.AccumulationMode,
 	if !ok {
 		return nil, nil, &flux.Error{
 			Code: codes.Internal,
-			Msg: fmt.Sprintf("invalid spec type %T", spec),
+			Msg:  fmt.Sprintf("invalid spec type %T", spec),
 		}
 	}
 	cache := execute.NewTableBuilderCache(a.Allocator())
@@ -118,7 +119,7 @@ func createToTransformation(id execute.DatasetID, mode execute.AccumulationMode,
 	if deps == (StorageDependencies{}) {
 		return nil, nil, &flux.Error{
 			Code: codes.Unimplemented,
-			Msg: "cannot return storage dependencies; storage dependencies are unimplemented",
+			Msg:  "cannot return storage dependencies; storage dependencies are unimplemented",
 		}
 	}
 	t, err := NewToTransformation(a.Context(), d, cache, s, deps)
@@ -130,13 +131,13 @@ func createToTransformation(id execute.DatasetID, mode execute.AccumulationMode,
 
 type ToTransformation struct {
 	execute.ExecutionNode
-	Ctx context.Context
-	DB string
-	RP string
-	d execute.Dataset
+	Ctx   context.Context
+	DB    string
+	RP    string
+	d     execute.Dataset
 	cache execute.TableBuilderCache
-	deps StorageDependencies
-	buf *coordinator.BufferedPointsWriter
+	deps  StorageDependencies
+	buf   *coordinator.BufferedPointsWriter
 }
 
 func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.TableBuilderCache, toSpec *ToProcedureSpec, deps StorageDependencies) (*ToTransformation, error) {
@@ -147,13 +148,13 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 		return nil, err
 	}
 	return &ToTransformation{
-		Ctx: ctx,
-		DB: db,
-		RP: rp,
-		d: d,
+		Ctx:   ctx,
+		DB:    db,
+		RP:    rp,
+		d:     d,
 		cache: cache,
-		deps: deps,
-		buf: coordinator.NewBufferedPointsWriter(deps.PointsWriter, db, rp, DefaultBufferSize),
+		deps:  deps,
+		buf:   coordinator.NewBufferedPointsWriter(deps.PointsWriter, db, rp, DefaultBufferSize),
 	}, nil
 }
 
@@ -168,11 +169,11 @@ func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 	fieldColumn := "_field"
 	excludeColumns := map[string]bool{
 		execute.DefaultValueColLabel: true,
-		fieldColumn:         true,
-		measurementColumn:   true,
+		fieldColumn:                  true,
+		measurementColumn:            true,
 	}
 
-	isTagColumn := func (column flux.ColMeta) bool {
+	isTagColumn := func(column flux.ColMeta) bool {
 		return column.Type == flux.TString && !excludeColumns[column.Label]
 	}
 
@@ -190,13 +191,13 @@ func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 	if timeColIdx < 0 {
 		return &flux.Error{
 			Code: codes.Invalid,
-			Msg: "no time column detected",
+			Msg:  "no time column detected",
 		}
 	}
 	if columns[timeColIdx].Type != flux.TTime {
 		return &flux.Error{
 			Code: codes.Invalid,
-			Msg: fmt.Sprintf("column %s of type %s is not of type %s", timeColLabel, columns[timeColIdx].Type, flux.TTime),
+			Msg:  fmt.Sprintf("column %s of type %s is not of type %s", timeColLabel, columns[timeColIdx].Type, flux.TTime),
 		}
 	}
 
@@ -208,10 +209,10 @@ func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 	}
 
 	return tbl.Do(func(er flux.ColReader) error {
-		kv := make([][]byte, 0, numTags * 2)
+		kv := make([][]byte, 0, numTags*2)
 		var tags models.Tags
 		var points models.Points
-		outer:
+	outer:
 		for i := 0; i < er.Len(); i++ {
 			measurementName := ""
 			fields := make(models.Fields)
@@ -235,7 +236,7 @@ func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 					if col.Type != flux.TString {
 						return &flux.Error{
 							Code: codes.Invalid,
-							Msg: "Invalid type for tag column",
+							Msg:  "Invalid type for tag column",
 						}
 					}
 					kv = append(kv, []byte(col.Label), er.Strings(j).Value(i))
@@ -246,13 +247,13 @@ func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 			if pointTime.IsZero() {
 				return &flux.Error{
 					Code: codes.Invalid,
-					Msg: "timestamp missing from block",
+					Msg:  "timestamp missing from block",
 				}
 			}
 			if measurementName == "" {
 				return &flux.Error{
 					Code: codes.Invalid,
-					Msg: fmt.Sprintf("no column with label %s exists", measurementColumn),
+					Msg:  fmt.Sprintf("no column with label %s exists", measurementColumn),
 				}
 			}
 
@@ -263,7 +264,7 @@ func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 				return err
 			}
 
-			fieldValues.Range(func(k string, v values.Value){
+			fieldValues.Range(func(k string, v values.Value) {
 				if v.IsNull() {
 					fields[k] = nil
 					return
@@ -319,7 +320,6 @@ func (t *ToTransformation) Finish(id execute.DatasetID, err error) {
 	}
 	t.d.Finish(err)
 }
-
 
 func defaultFieldMapping(er flux.ColReader, row int) (values.Object, error) {
 	fieldColumnIdx := execute.ColIdx("_field", er.Cols())
