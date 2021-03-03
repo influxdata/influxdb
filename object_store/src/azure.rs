@@ -247,7 +247,13 @@ impl MicrosoftAzure {
     ///
     /// The credentials `account` and `master_key` must provide access to the
     /// store.
-    pub fn new(account: String, master_key: String, container_name: impl Into<String>) -> Self {
+    pub fn new(
+        account: impl Into<String>,
+        master_key: impl Into<String>,
+        container_name: impl Into<String>,
+    ) -> Self {
+        let account = account.into();
+        let master_key = master_key.into();
         // From https://github.com/Azure/azure-sdk-for-rust/blob/master/sdk/storage/examples/blob_00.rs#L29
         let http_client: Arc<Box<dyn HttpClient>> = Arc::new(Box::new(reqwest::Client::new()));
 
@@ -265,21 +271,6 @@ impl MicrosoftAzure {
             container_name,
         }
     }
-
-    /// Configure a connection to container with given name on Microsoft Azure
-    /// Blob store.
-    ///
-    /// The credentials `account` and `master_key` must be set via the
-    /// environment variables `AZURE_STORAGE_ACCOUNT` and
-    /// `AZURE_STORAGE_MASTER_KEY` respectively.
-    pub fn new_from_env(container_name: impl Into<String>) -> Self {
-        let account = std::env::var("AZURE_STORAGE_ACCOUNT")
-            .expect("Set env variable AZURE_STORAGE_ACCOUNT first!");
-        let master_key = std::env::var("AZURE_STORAGE_MASTER_KEY")
-            .expect("Set env variable AZURE_STORAGE_MASTER_KEY first!");
-
-        Self::new(account, master_key, container_name)
-    }
 }
 
 #[cfg(test)]
@@ -291,10 +282,17 @@ mod tests {
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = Error> = std::result::Result<T, E>;
 
-    // Helper macro to skip tests if the GCP environment variables are not set.
+    #[derive(Debug)]
+    struct AzureConfig {
+        storage_account: String,
+        master_key: String,
+        bucket: String,
+    }
+
+    // Helper macro to skip tests if the Azure environment variables are not set.
     // Skips become hard errors if TEST_INTEGRATION is set.
     macro_rules! maybe_skip_integration {
-        () => {
+        () => {{
             dotenv::dotenv().ok();
 
             let required_vars = [
@@ -326,17 +324,24 @@ mod tests {
                     unset_var_names
                 );
                 return Ok(());
+            } else {
+                AzureConfig {
+                    storage_account: env::var("AZURE_STORAGE_ACCOUNT")
+                        .expect("already checked AZURE_STORAGE_ACCOUNT"),
+                    master_key: env::var("AZURE_STORAGE_MASTER_KEY")
+                        .expect("already checked AZURE_STORAGE_MASTER_KEY"),
+                    bucket: env::var("INFLUXDB_IOX_BUCKET")
+                        .expect("already checked INFLUXDB_IOX_BUCKET"),
+                }
             }
-        };
+        }};
     }
 
     #[tokio::test]
     async fn azure_blob_test() -> Result<()> {
-        maybe_skip_integration!();
-
-        let container_name = env::var("INFLUXDB_IOX_BUCKET")
-            .map_err(|_| "The environment variable INFLUXDB_IOX_BUCKET must be set")?;
-        let integration = MicrosoftAzure::new_from_env(container_name);
+        let config = maybe_skip_integration!();
+        let integration =
+            MicrosoftAzure::new(config.storage_account, config.master_key, config.bucket);
 
         put_get_delete_list(&integration).await?;
         list_with_delimiter(&integration).await?;
