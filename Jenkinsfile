@@ -1,5 +1,3 @@
-readTrusted 'Dockerfile_jenkins_ubuntu32'
-
 pipeline {
   agent none
 
@@ -49,26 +47,6 @@ pipeline {
         docker {
           image 'golang:1.13'
           args '-e "GOCACHE=/tmp"'
-        }
-      }
-
-      steps {
-        sh """
-				cd $WORKSPACE
-				go mod download
-        """
-
-        sh """
-        cd $WORKSPACE
-        go test -parallel=1 ./...
-        """
-      }
-    }
-
-    stage('32bit') {
-      agent {
-        dockerfile {
-          filename 'Dockerfile_jenkins_ubuntu32'
         }
       }
 
