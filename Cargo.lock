@@ -101,7 +101,7 @@ checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
 [[package]]
 name = "arrow"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=a3a619382f90e9472b5b7b93159e77289e8c8031#a3a619382f90e9472b5b7b93159e77289e8c8031"
+source = "git+https://github.com/apache/arrow.git?rev=4f6adc700d1cebc50a0594b5aa671f64491cc20e#4f6adc700d1cebc50a0594b5aa671f64491cc20e"
 dependencies = [
  "cfg_aliases",
  "chrono",
@@ -124,7 +124,7 @@ dependencies = [
 [[package]]
 name = "arrow-flight"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=a3a619382f90e9472b5b7b93159e77289e8c8031#a3a619382f90e9472b5b7b93159e77289e8c8031"
+source = "git+https://github.com/apache/arrow.git?rev=4f6adc700d1cebc50a0594b5aa671f64491cc20e#4f6adc700d1cebc50a0594b5aa671f64491cc20e"
 dependencies = [
  "arrow",
  "bytes",
@@ -812,7 +812,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=a3a619382f90e9472b5b7b93159e77289e8c8031#a3a619382f90e9472b5b7b93159e77289e8c8031"
+source = "git+https://github.com/apache/arrow.git?rev=4f6adc700d1cebc50a0594b5aa671f64491cc20e#4f6adc700d1cebc50a0594b5aa671f64491cc20e"
 dependencies = [
  "ahash 0.7.1",
  "arrow",
@@ -822,14 +822,11 @@ dependencies = [
  "futures",
  "hashbrown",
  "log",
- "md-5",
  "num_cpus",
  "ordered-float 2.1.1",
  "parquet",
  "paste",
  "pin-project-lite",
- "rustyline",
- "sha2",
  "sqlparser 0.8.0",
  "tokio",
  "tokio-stream",
@@ -1084,16 +1081,6 @@ checksum = "5fc25a87fa4fd2094bffb06925852034d90a17f0d1e05197d4956d3555752191"
 dependencies = [
  "matches",
  "percent-encoding",
-]
-
-[[package]]
-name = "fs2"
-version = "0.4.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9564fc758e15025b46aa6643b1b77d047d1a56a1aea6e01002ac0c7026876213"
-dependencies = [
- "libc",
- "winapi",
 ]
 
 [[package]]
@@ -1806,17 +1793,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "60302e4db3a61da70c0cb7991976248362f30319e88850c487b9b95bbf059e00"
 
 [[package]]
-name = "md-5"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b5a279bb9607f9f53c22d496eade00d138d1bdcccd07d74650387cf94942a15"
-dependencies = [
- "block-buffer",
- "digest",
- "opaque-debug",
-]
-
-[[package]]
 name = "md5"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1961,18 +1937,6 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "tempfile",
-]
-
-[[package]]
-name = "nix"
-version = "0.19.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b2ccba0cfe4fdf15982d1674c69b1fd80bad427d293849982668dfe454bd61f2"
-dependencies = [
- "bitflags",
- "cc",
- "cfg-if 1.0.0",
- "libc",
 ]
 
 [[package]]
@@ -2312,7 +2276,7 @@ dependencies = [
 [[package]]
 name = "parquet"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=a3a619382f90e9472b5b7b93159e77289e8c8031#a3a619382f90e9472b5b7b93159e77289e8c8031"
+source = "git+https://github.com/apache/arrow.git?rev=4f6adc700d1cebc50a0594b5aa671f64491cc20e#4f6adc700d1cebc50a0594b5aa671f64491cc20e"
 dependencies = [
  "arrow",
  "base64 0.12.3",
@@ -3059,27 +3023,6 @@ dependencies = [
  "rustls",
  "schannel",
  "security-framework",
-]
-
-[[package]]
-name = "rustyline"
-version = "7.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8227301bfc717136f0ecbd3d064ba8199e44497a0bdd46bb01ede4387cfd2cec"
-dependencies = [
- "bitflags",
- "cfg-if 1.0.0",
- "dirs-next",
- "fs2",
- "libc",
- "log",
- "memchr",
- "nix",
- "scopeguard",
- "unicode-segmentation",
- "unicode-width",
- "utf8parse",
- "winapi",
 ]
 
 [[package]]
@@ -4051,12 +3994,6 @@ dependencies = [
  "percent-encoding",
  "serde",
 ]
-
-[[package]]
-name = "utf8parse"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "936e4b492acfd135421d8dca4b1aa80a7bfc26e702ef3af710e0752684df5372"
 
 [[package]]
 name = "uuid"
