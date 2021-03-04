@@ -3,7 +3,6 @@ package http
 import (
 	"net/http"
 	"net/http/httptest"
-	_ "net/http/pprof"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2/kit/prom"

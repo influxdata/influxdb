@@ -181,6 +181,7 @@ bind-address = "127.0.0.1:8088"
   bind-address = ":8086"
   https-certificate = "/etc/ssl/influxdb.pem"
   https-private-key = "/etc/ssl/influxdb-key.pem"
+  pprof-enabled = false
 
 [logging]
   level = "debug"
@@ -410,6 +411,7 @@ storage-shard-precreator-check-interval = "5m"
 storage-wal-fsync-delay = "100s"
 tls-cert = "/etc/ssl/influxdb.pem"
 tls-key = "/etc/ssl/influxdb-key.pem"
+pprof-disabled = true
 `
 
 var testConfigV2default = `reporting-disabled = false
@@ -438,6 +440,7 @@ storage-validate-keys = false
 storage-wal-fsync-delay = "0s"
 tls-cert = "/etc/ssl/influxdb.pem"
 tls-key = ""
+pprof-disabled = false
 `
 
 var testConfigV2obsoleteArrays = `reporting-disabled = true
