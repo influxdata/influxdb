@@ -3,6 +3,7 @@ package httpd
 import (
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strconv"
@@ -122,8 +123,9 @@ type jsonFormatter struct {
 	Pretty bool
 }
 
-func (f *jsonFormatter) WriteResponse(w io.Writer, resp Response) (err error) {
+func (f *jsonFormatter) WriteResponse(w io.Writer, resp Response) error {
 	var b []byte
+	var err error
 	if f.Pretty {
 		b, err = json.MarshalIndent(resp, "", "    ")
 	} else {
@@ -131,12 +133,31 @@ func (f *jsonFormatter) WriteResponse(w io.Writer, resp Response) (err error) {
 	}
 
 	if err != nil {
-		_, err = io.WriteString(w, err.Error())
-	} else {
-		_, err = w.Write(b)
+		unnestedErr := unnestError(err)
+		// ignore any errors in this section, we already have a 'real' error to return
+		resp := Response{Err: unnestedErr}
+		if f.Pretty {
+			b, _ = json.MarshalIndent(resp, "", "    ")
+		} else {
+			b, _ = json.Marshal(resp)
+		}
+		w.Write(b)
+		w.Write([]byte("\n"))
+		return err
 	}
 
-	w.Write([]byte("\n"))
+	_, err = w.Write(b)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write([]byte("\n"))
+	return err
+}
+
+func unnestError(err error) error {
+	for errNested := err; errNested != nil; errNested = errors.Unwrap(err) {
+		err = errNested
+	}
 	return err
 }
 
