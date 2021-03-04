@@ -256,7 +256,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
 /// Data in one open mutable buffer chunk, one closed mutable chunk
 /// Data in one open mutable buffer chunk, one read buffer chunk
 /// Data in one two read buffer chunks,
-async fn make_two_chunk_scenarios(
+pub async fn make_two_chunk_scenarios(
     partition_key: &str,
     data1: &str,
     data2: &str,
@@ -325,4 +325,12 @@ async fn make_two_chunk_scenarios(
     };
 
     vec![scenario1, scenario2, scenario3, scenario4]
+}
+
+/// Rollover the mutable buffer and load chunk 0 to the read bufer
+pub async fn rollover_and_load(db: &Db, partition_key: &str) {
+    db.rollover_partition(partition_key).await.unwrap();
+    db.load_chunk_to_read_buffer(partition_key, 0)
+        .await
+        .unwrap();
 }

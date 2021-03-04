@@ -1,22 +1,13 @@
 //! Tests for the Influx gRPC queries
-use std::sync::Arc;
-
+use super::util::run_series_set_plan;
 use crate::query_tests::scenarios::*;
-use arrow_deps::{
-    arrow::util::pretty::pretty_format_batches,
-    datafusion::logical_plan::{col, lit},
-};
+use arrow_deps::datafusion::logical_plan::{col, lit};
 use async_trait::async_trait;
 use query::{
-    exec::{
-        field::FieldIndexes,
-        seriesset::{SeriesSet, SeriesSetItem},
-        Executor,
-    },
+    exec::Executor,
     frontend::influxrpc::InfluxRPCPlanner,
     predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE},
 };
-use tokio::sync::mpsc;
 
 pub struct TwoMeasurementsMultiSeries {}
 #[async_trait]
@@ -57,94 +48,20 @@ macro_rules! run_read_filter_test_case {
             let planner = InfluxRPCPlanner::new();
             let executor = Executor::new();
 
-            let plans = planner
+            let plan = planner
                 .read_filter(&db, predicate.clone())
                 .await
                 .expect("built plan successfully");
 
-            // Use a channel sufficiently large to buffer the series
-            let (tx, mut rx) = mpsc::channel(100);
-            executor
-                .to_series_set(plans, tx)
-                .await
-                .expect("Running series set plan");
-
-            // gather up the sets and compare them
-            let mut results = vec![];
-            while let Some(r) = rx.recv().await {
-                let item = r.expect("unexpected error in execution");
-                let item = if let SeriesSetItem::Data(series_set) = item {
-                    series_set
-                }
-                else {
-                    panic!("Unexpected result from converting. Expected SeriesSetItem::Data, got: {:?}", item)
-                };
-
-                results.push(item);
-            }
-
-            // sort the results so that we can reliably compare
-            results.sort_by(|r1, r2| {
-                r1
-                    .table_name
-                    .cmp(&r2.table_name)
-                    .then(r1.tags.cmp(&r2.tags))
-            });
-
-            let string_results = results
-                .into_iter()
-                .map(|s| dump_series_set(s).into_iter())
-                .flatten()
-                .collect::<Vec<_>>();
+            let string_results = run_series_set_plan(executor, plan).await;
 
             assert_eq!(
-                expected_results,
-                string_results,
+                expected_results, string_results,
                 "Error in  scenario '{}'\n\nexpected:\n{:#?}\nactual:\n{:#?}",
-                scenario_name,
-                expected_results,
-                string_results
+                scenario_name, expected_results, string_results
             );
         }
     };
-}
-
-/// Format the field indexes into strings
-fn dump_field_indexes(f: FieldIndexes) -> Vec<String> {
-    f.as_slice()
-        .iter()
-        .map(|field_index| {
-            format!(
-                "  (value_index: {}, timestamp_index: {})",
-                field_index.value_index, field_index.timestamp_index
-            )
-        })
-        .collect()
-}
-
-/// Format a the vec of Arc strings paris into strings
-fn dump_arc_vec(v: Vec<(Arc<String>, Arc<String>)>) -> Vec<String> {
-    v.into_iter()
-        .map(|(k, v)| format!("  ({}, {})", k, v))
-        .collect()
-}
-
-/// Format a series set into a format that is easy to compare in tests
-fn dump_series_set(s: SeriesSet) -> Vec<String> {
-    let mut f = vec![];
-    f.push("SeriesSet".into());
-    f.push(format!("table_name: {}", s.table_name));
-    f.push("tags".to_string());
-    f.extend(dump_arc_vec(s.tags).into_iter());
-    f.push("field_indexes:".to_string());
-    f.extend(dump_field_indexes(s.field_indexes).into_iter());
-    f.push(format!("start_row: {}", s.start_row));
-    f.push(format!("num_rows: {}", s.num_rows));
-    f.push("Batches:".into());
-    let formatted_batch = pretty_format_batches(&[s.batch]).unwrap();
-    f.extend(formatted_batch.trim().split('\n').map(|s| s.to_string()));
-
-    f
 }
 
 #[tokio::test]
@@ -244,6 +161,50 @@ async fn test_read_filter_data_filter() {
     ];
 
     run_read_filter_test_case!(TwoMeasurementsMultiSeries {}, predicate, expected_results);
+}
+
+#[tokio::test]
+async fn test_read_filter_data_filter_fields() {
+    // filter out one row in h20
+    let predicate = PredicateBuilder::default()
+        .field_columns(vec!["other_temp"])
+        .add_expr(col("state").eq(lit("CA"))) // state=CA
+        .build();
+
+    // Only expect other_temp in this location
+    let expected_results = vec![
+        "SeriesSet",
+        "table_name: h2o",
+        "tags",
+        "  (city, Boston)",
+        "  (state, CA)",
+        "field_indexes:",
+        "  (value_index: 2, timestamp_index: 3)",
+        "start_row: 0",
+        "num_rows: 1",
+        "Batches:",
+        "+--------+-------+------------+------+",
+        "| city   | state | other_temp | time |",
+        "+--------+-------+------------+------+",
+        "| Boston | CA    | 72.4       | 350  |",
+        "+--------+-------+------------+------+",
+        "SeriesSet",
+        "table_name: o2",
+        "tags",
+        "  (city, )",
+        "  (state, CA)",
+        "field_indexes:",
+        "start_row: 0",
+        "num_rows: 1",
+        "Batches:",
+        "+------+-------+------+",
+        "| city | state | time |",
+        "+------+-------+------+",
+        "|      | CA    | 300  |",
+        "+------+-------+------+",
+    ];
+
+    run_read_filter_test_case!(TwoMeasurementsManyFields {}, predicate, expected_results);
 }
 
 #[tokio::test]

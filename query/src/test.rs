@@ -12,11 +12,11 @@ use arrow_deps::{
     datafusion::physical_plan::{common::SizedRecordBatchStream, SendableRecordBatchStream},
 };
 
+use crate::exec::Executor;
 use crate::{
     exec::stringset::{StringSet, StringSetRef},
     Database, DatabaseStore, PartitionChunk, Predicate,
 };
-use crate::{exec::Executor, group_by::GroupByAndAggregate, plan::seriesset::SeriesSetPlans};
 
 use data_types::{
     data::{lines_to_replicated_write, ReplicatedWrite},
@@ -34,11 +34,7 @@ use chrono::{DateTime, Utc};
 use data_types::database_rules::Partitioner;
 use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    fmt::Write,
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Debug, Default)]
 pub struct TestDatabase {
@@ -55,21 +51,6 @@ pub struct TestDatabase {
 
     /// `column_names` to return upon next request
     column_names: Arc<Mutex<Option<StringSetRef>>>,
-
-    /// Responses to return on the next request to `query_groups`
-    query_groups_values: Arc<Mutex<Option<SeriesSetPlans>>>,
-
-    /// The last request for `query_series`
-    query_groups_request: Arc<Mutex<Option<QueryGroupsRequest>>>,
-}
-
-/// Records the parameters passed to a `query_groups` request
-#[derive(Debug, PartialEq, Clone)]
-pub struct QueryGroupsRequest {
-    /// Stringified '{:?}' version of the predicate
-    pub predicate: String,
-    /// The requested aggregate
-    pub gby_agg: GroupByAndAggregate,
 }
 
 #[derive(Snafu, Debug)]
@@ -145,59 +126,6 @@ impl TestDatabase {
 
         *Arc::clone(&self.column_names).lock() = Some(column_names)
     }
-
-    /// Set the series that will be returned on a call to query_groups
-    pub fn set_query_groups_values(&self, plan: SeriesSetPlans) {
-        *Arc::clone(&self.query_groups_values).lock() = Some(plan);
-    }
-
-    /// Get the parameters from the last column name request
-    pub fn get_query_groups_request(&self) -> Option<QueryGroupsRequest> {
-        Arc::clone(&self.query_groups_request).lock().take()
-    }
-}
-
-/// returns true if this line is within the range of the timestamp
-fn set_to_string(s: &BTreeSet<String>) -> String {
-    s.iter().cloned().collect::<Vec<_>>().join(", ")
-}
-
-/// Convert a Predicate instance to a String that is reasonable to
-/// compare directly in tests
-fn predicate_to_test_string(predicate: &Predicate) -> String {
-    let Predicate {
-        table_names,
-        field_columns,
-        exprs,
-        range,
-        partition_key,
-    } = predicate;
-
-    let mut result = String::new();
-    write!(result, "Predicate {{").unwrap();
-
-    if let Some(table_names) = table_names {
-        write!(result, " table_names: {}", set_to_string(table_names)).unwrap();
-    }
-
-    if let Some(field_columns) = field_columns {
-        write!(result, " field_columns: {}", set_to_string(field_columns)).unwrap();
-    }
-
-    if !exprs.is_empty() {
-        write!(result, " exprs: {:?}", exprs).unwrap();
-    }
-
-    if let Some(range) = range {
-        write!(result, " range: {:?}", range).unwrap();
-    }
-
-    if let Some(partition_key) = partition_key {
-        write!(result, " partition_key: {:?}", partition_key).unwrap();
-    }
-
-    write!(result, "}}").unwrap();
-    result
 }
 
 #[async_trait]
@@ -209,26 +137,6 @@ impl Database for TestDatabase {
     async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
         self.replicated_writes.lock().push(write.clone());
         Ok(())
-    }
-
-    async fn query_groups(
-        &self,
-        predicate: Predicate,
-        gby_agg: GroupByAndAggregate,
-    ) -> Result<SeriesSetPlans, Self::Error> {
-        let predicate = predicate_to_test_string(&predicate);
-
-        let new_queries_groups_request = Some(QueryGroupsRequest { predicate, gby_agg });
-
-        *Arc::clone(&self.query_groups_request).lock() = new_queries_groups_request;
-
-        Arc::clone(&self.query_groups_values)
-            .lock()
-            .take()
-            // Turn None into an error
-            .context(General {
-                message: "No saved query_groups in TestDatabase",
-            })
     }
 
     /// Return the partition keys for data in this DB

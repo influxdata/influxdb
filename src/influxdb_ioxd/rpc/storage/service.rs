@@ -26,7 +26,7 @@ use query::{
     frontend::influxrpc::InfluxRPCPlanner,
     group_by::GroupByAndAggregate,
     predicate::PredicateBuilder,
-    Database, DatabaseStore,
+    DatabaseStore,
 };
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{collections::HashMap, sync::Arc};
@@ -1000,7 +1000,7 @@ async fn query_group_impl<T>(
     gby_agg: GroupByAndAggregate,
 ) -> Result<()>
 where
-    T: DatabaseStore,
+    T: DatabaseStore + 'static,
 {
     let rpc_predicate_string = format!("{:?}", rpc_predicate);
 
@@ -1022,13 +1022,15 @@ where
         .await
         .context(DatabaseNotFound { db_name })?;
 
-    let executor = db_store.executor();
+    let planner = InfluxRPCPlanner::new();
 
-    let grouped_series_set_plan = db
-        .query_groups(predicate, gby_agg)
+    let grouped_series_set_plan = planner
+        .query_group(db.as_ref(), predicate, gby_agg)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(PlanningFilteringSeries { db_name })?;
+
+    let executor = db_store.executor();
 
     // Spawn task to convert between series sets and the gRPC results
     // and to run the actual plans (so we can return a result to the
@@ -1110,13 +1112,7 @@ mod tests {
     use super::*;
     use arrow_deps::datafusion::logical_plan::{col, lit, Expr};
     use panic_logging::SendPanicsToTracing;
-    use query::{
-        group_by::{Aggregate as QueryAggregate, WindowDuration as QueryWindowDuration},
-        plan::seriesset::SeriesSetPlans,
-        test::QueryGroupsRequest,
-        test::TestChunk,
-        test::TestDatabaseStore,
-    };
+    use query::{test::TestChunk, test::TestDatabaseStore};
     use std::{
         convert::TryFrom,
         net::{IpAddr, Ipv4Addr, SocketAddr},
@@ -1643,13 +1639,8 @@ mod tests {
             .await
             .unwrap_err()
             .to_string();
-        let expected_error = "Sugar we are going down";
-        assert!(
-            response_string.contains(expected_error),
-            "'{}' did not contain expected content '{}'",
-            response_string,
-            expected_error
-        );
+
+        assert_contains!(response_string, "Sugar we are going down");
 
         // ---
         // test error with non utf8 value
@@ -1667,12 +1658,10 @@ mod tests {
             .await
             .unwrap_err()
             .to_string();
-        let expected_error = "Error converting tag_key to UTF-8 in tag_values request";
-        assert!(
-            response_string.contains(expected_error),
-            "'{}' did not contain expected content '{}'",
+
+        assert_contains!(
             response_string,
-            expected_error
+            "Error converting tag_key to UTF-8 in tag_values request"
         );
     }
 
@@ -1767,13 +1756,8 @@ mod tests {
             .await
             .unwrap_err()
             .to_string();
-        let expected_error = "Sugar we are going down";
-        assert!(
-            response_string.contains(expected_error),
-            "'{}' did not contain expected content '{}'",
-            response_string,
-            expected_error
-        );
+
+        assert_contains!(response_string, "Sugar we are going down");
     }
 
     #[tokio::test]
@@ -1802,11 +1786,7 @@ mod tests {
             }
             Err(status) => {
                 assert_eq!(status.code(), Code::Cancelled);
-                assert!(
-                    status.message().contains("stream no longer needed"),
-                    "could not find 'stream no longer needed' in '{}'",
-                    status.message()
-                );
+                assert_contains!(status.message(), "stream no longer needed");
             }
         };
 
@@ -1816,12 +1796,7 @@ mod tests {
         // expected panic message to avoid needing to update the test
         // whenever the source code file changed.
         let expected_error = "panicked at 'This is a test panic', src/influxdb_ioxd/rpc/testing.rs";
-        assert!(
-            captured_logs.contains(expected_error),
-            "Logs did not contain expected panic message '{}'. They were\n{}",
-            expected_error,
-            captured_logs
-        );
+        assert_contains!(captured_logs, expected_error);
 
         // Ensure that panics don't exhaust the tokio executor by
         // running 100 times (success is if we can make a successful
@@ -1923,18 +1898,24 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_read_group() -> Result<(), tonic::Status> {
+    async fn test_read_group() {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let test_db = fixture
+        let chunk = TestChunk::new(0)
+            .with_time_column("TheMeasurement")
+            .with_tag_column("TheMeasurement", "state")
+            .with_one_row_of_null_data("TheMeasurement");
+
+        fixture
             .test_storage
             .db_or_create(&db_info.db_name)
             .await
-            .expect("creating test database");
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClientWrapper::read_source(
             db_info.org_id,
@@ -1946,9 +1927,9 @@ mod tests {
 
         let request = ReadGroupRequest {
             read_source: source.clone(),
-            range: make_timestamp_range(150, 200),
+            range: make_timestamp_range(0, 2000),
             predicate: make_state_ma_predicate(),
-            group_keys: vec!["tag1".into()],
+            group_keys: vec!["state".into()],
             group,
             aggregate: Some(RPCAggregate {
                 r#type: AggregateType::Sum as i32,
@@ -1956,30 +1937,39 @@ mod tests {
             hints: 0,
         };
 
-        let expected_request = QueryGroupsRequest {
-            predicate: "Predicate { exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into(),
-            gby_agg: GroupByAndAggregate::Columns {
-                agg: QueryAggregate::Sum,
-                group_columns: vec!["tag1".into()],
-            }
-        };
-
-        // TODO setup any expected results
-        let dummy_groups_set_plan = SeriesSetPlans::from(vec![]);
-        test_db.set_query_groups_values(dummy_groups_set_plan);
-
-        let actual_frames = fixture.storage_client.read_group(request).await?;
-        let expected_frames: Vec<String> = vec!["0 group frames".into()];
+        let actual_frames = fixture.storage_client.read_group(request).await.unwrap();
+        let expected_frames: Vec<String> = vec!["1 group frames".into()];
 
         assert_eq!(
             actual_frames, expected_frames,
             "unexpected frames returned by query_groups"
         );
-        assert_eq!(
-            test_db.get_query_groups_request(),
-            Some(expected_request),
-            "unexpected request to query_groups"
-        );
+    }
+
+    #[tokio::test]
+    async fn test_read_group_error() {
+        // Start a test gRPC server on a randomally allocated port
+        let mut fixture = Fixture::new().await.expect("Connecting to test server");
+
+        let db_info = OrgAndBucket::new(123, 456);
+        let partition_id = 1;
+
+        let chunk = TestChunk::new(0).with_error("Sugar we are going down");
+
+        fixture
+            .test_storage
+            .db_or_create(&db_info.db_name)
+            .await
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk));
+
+        let source = Some(StorageClientWrapper::read_source(
+            db_info.org_id,
+            db_info.bucket_id,
+            partition_id,
+        ));
+
+        let group = generated_types::read_group_request::Group::By as i32;
 
         // ---
         // test error hit in request processing
@@ -1996,20 +1986,16 @@ mod tests {
             hints: 42,
         };
 
-        let response = fixture.storage_client.read_group(request).await;
-        assert!(response.is_err());
-        let response_string = format!("{:?}", response);
-        let expected_error = "Unexpected hint value on read_group request. Expected 0, got 42";
-        assert!(
-            response_string.contains(expected_error),
-            "'{}' did not contain expected content '{}'",
+        let response_string = fixture
+            .storage_client
+            .read_group(request)
+            .await
+            .unwrap_err()
+            .to_string();
+        assert_contains!(
             response_string,
-            expected_error
+            "Unexpected hint value on read_group request. Expected 0, got 42"
         );
-
-        // Errored out in gRPC and never got to database layer
-        let expected_request: Option<QueryGroupsRequest> = None;
-        assert_eq!(test_db.get_query_groups_request(), expected_request);
 
         // ---
         // test error returned in database processing
@@ -2027,42 +2013,36 @@ mod tests {
         };
 
         // Note we don't set the response on the test database, so we expect an error
-        let response = fixture.storage_client.read_group(request).await;
-        assert!(response.is_err());
-        let response_string = format!("{:?}", response);
-        let expected_error = "No saved query_groups in TestDatabase";
-        assert!(
-            response_string.contains(expected_error),
-            "'{}' did not contain expected content '{}'",
-            response_string,
-            expected_error
-        );
-
-        let expected_request = Some(QueryGroupsRequest {
-            predicate: "Predicate {}".into(),
-            gby_agg: GroupByAndAggregate::Columns {
-                agg: QueryAggregate::Sum,
-                group_columns: vec!["tag1".into()],
-            },
-        });
-        assert_eq!(test_db.get_query_groups_request(), expected_request);
-
-        Ok(())
+        let response_string = fixture
+            .storage_client
+            .read_group(request)
+            .await
+            .unwrap_err()
+            .to_string();
+        assert_contains!(response_string, "Sugar we are going down");
     }
 
     #[tokio::test]
-    async fn test_read_window_aggegate() -> Result<(), tonic::Status> {
+    async fn test_read_window_aggegate_window_every() {
+        test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
         let db_info = OrgAndBucket::new(123, 456);
         let partition_id = 1;
 
-        let test_db = fixture
+        // Add a chunk with a field
+        let chunk = TestChunk::new(0)
+            .with_time_column("TheMeasurement")
+            .with_tag_column("TheMeasurement", "state")
+            .with_one_row_of_null_data("TheMeasurement");
+
+        fixture
             .test_storage
             .db_or_create(&db_info.db_name)
             .await
-            .expect("creating test database");
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk));
 
         let source = Some(StorageClientWrapper::read_source(
             db_info.org_id,
@@ -2076,7 +2056,7 @@ mod tests {
 
         let request_window_every = ReadWindowAggregateRequest {
             read_source: source.clone(),
-            range: make_timestamp_range(150, 200),
+            range: make_timestamp_range(0, 2000),
             predicate: make_state_ma_predicate(),
             window_every: 1122,
             offset: 15,
@@ -2087,38 +2067,46 @@ mod tests {
             window: None,
         };
 
-        let expected_request_window_every = QueryGroupsRequest {
-            predicate: "Predicate { exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into(),
-            gby_agg: GroupByAndAggregate::Window {
-                agg: QueryAggregate::Sum,
-                every: QueryWindowDuration::Fixed {
-                    nanoseconds: 1122,
-                },
-                offset: QueryWindowDuration::Fixed {
-                    nanoseconds: 15,
-                }
-            }
-        };
-
-        // setup expected results
-        let dummy_groups_set_plan = SeriesSetPlans::from(vec![]);
-        test_db.set_query_groups_values(dummy_groups_set_plan);
-
         let actual_frames = fixture
             .storage_client
             .read_window_aggregate(request_window_every)
-            .await?;
+            .await
+            .unwrap();
         let expected_frames: Vec<String> = vec!["0 aggregate_frames".into()];
 
         assert_eq!(
             actual_frames, expected_frames,
             "unexpected frames returned by query_groups"
         );
-        assert_eq!(
-            test_db.get_query_groups_request(),
-            Some(expected_request_window_every),
-            "unexpected request to query_groups"
-        );
+    }
+
+    #[tokio::test]
+    async fn test_read_window_aggegate_every_offset() {
+        test_helpers::maybe_start_logging();
+        // Start a test gRPC server on a randomally allocated port
+        let mut fixture = Fixture::new().await.expect("Connecting to test server");
+
+        let db_info = OrgAndBucket::new(123, 456);
+        let partition_id = 1;
+
+        // Add a chunk with a field
+        let chunk = TestChunk::new(0)
+            .with_time_column("TheMeasurement")
+            .with_tag_column("TheMeasurement", "state")
+            .with_one_row_of_null_data("TheMeasurement");
+
+        fixture
+            .test_storage
+            .db_or_create(&db_info.db_name)
+            .await
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk));
+
+        let source = Some(StorageClientWrapper::read_source(
+            db_info.org_id,
+            db_info.bucket_id,
+            partition_id,
+        ));
 
         // -----
         // Test with window.every and window.offset durations specified
@@ -2143,70 +2131,72 @@ mod tests {
                 offset: Some(RPCDuration {
                     nsecs: 0,
                     months: 4,
-                    negative: true,
+                    negative: false,
                 }),
             }),
         };
 
-        let expected_request_window = QueryGroupsRequest {
-            predicate: "Predicate { exprs: [#state Eq Utf8(\"MA\")] range: TimestampRange { start: 150, end: 200 }}".into(),
-            gby_agg : GroupByAndAggregate::Window {
-                agg: QueryAggregate::Sum,
-                every: QueryWindowDuration::Fixed {
-                    nanoseconds: 1122,
-                },
-                offset: QueryWindowDuration::Variable {
-                    months: 4,
-                    negative: true,
-                }
-            }
-        };
-
-        // setup expected results
-        let dummy_groups_set_plan = SeriesSetPlans::from(vec![]);
-        test_db.set_query_groups_values(dummy_groups_set_plan);
-
         let actual_frames = fixture
             .storage_client
-            .read_window_aggregate(request_window.clone())
-            .await?;
+            .read_window_aggregate(request_window)
+            .await
+            .unwrap();
         let expected_frames: Vec<String> = vec!["0 aggregate_frames".into()];
 
         assert_eq!(
             actual_frames, expected_frames,
             "unexpected frames returned by query_groups"
         );
-        assert_eq!(
-            test_db.get_query_groups_request(),
-            Some(expected_request_window.clone()),
-            "unexpected request to query_groups"
-        );
+    }
+
+    #[tokio::test]
+    async fn test_read_window_aggegate_error() {
+        // Start a test gRPC server on a randomally allocated port
+        let mut fixture = Fixture::new().await.expect("Connecting to test server");
+
+        let db_info = OrgAndBucket::new(123, 456);
+        let partition_id = 1;
+
+        let chunk = TestChunk::new(0).with_error("Sugar we are going down");
+
+        fixture
+            .test_storage
+            .db_or_create(&db_info.db_name)
+            .await
+            .unwrap()
+            .add_chunk("my_partition_key", Arc::new(chunk));
+
+        let source = Some(StorageClientWrapper::read_source(
+            db_info.org_id,
+            db_info.bucket_id,
+            partition_id,
+        ));
 
         // ---
         // test error
         // ---
 
-        // Note we don't set the response on the test database, so we expect an error
-        let response = fixture
+        let request_window = ReadWindowAggregateRequest {
+            read_source: source.clone(),
+            range: make_timestamp_range(0, 2000),
+            predicate: make_state_ma_predicate(),
+            window_every: 1122,
+            offset: 15,
+            aggregate: vec![RPCAggregate {
+                r#type: AggregateType::Sum as i32,
+            }],
+            // old skool window definition
+            window: None,
+        };
+
+        let response_string = fixture
             .storage_client
             .read_window_aggregate(request_window)
-            .await;
-        assert!(response.is_err());
-        let response_string = format!("{:?}", response);
-        let expected_error = "No saved query_groups in TestDatabase";
-        assert!(
-            response_string.contains(expected_error),
-            "'{}' did not contain expected content '{}'",
-            response_string,
-            expected_error
-        );
+            .await
+            .unwrap_err()
+            .to_string();
 
-        assert_eq!(
-            test_db.get_query_groups_request(),
-            Some(expected_request_window)
-        );
-
-        Ok(())
+        assert_contains!(response_string, "Sugar we are going down");
     }
 
     #[tokio::test]
@@ -2292,10 +2282,13 @@ mod tests {
             predicate: None,
         };
 
-        // Note we don't set the response on the test database, so we expect an error
-        let response = fixture.storage_client.measurement_fields(request).await;
-        assert!(response.is_err());
-        assert_contains!(response.unwrap_err().to_string(), "Sugar we are going down");
+        let response_string = fixture
+            .storage_client
+            .measurement_fields(request)
+            .await
+            .unwrap_err()
+            .to_string();
+        assert_contains!(response_string, "Sugar we are going down");
     }
 
     fn make_timestamp_range(start: i64, end: i64) -> Option<TimestampRange> {

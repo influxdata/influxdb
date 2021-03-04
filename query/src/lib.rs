@@ -12,7 +12,6 @@ use data_types::{
     data::ReplicatedWrite, partition_metadata::TableSummary, schema::Schema, selection::Selection,
 };
 use exec::{stringset::StringSet, Executor};
-use plan::seriesset::SeriesSetPlans;
 
 use std::{fmt::Debug, sync::Arc};
 
@@ -25,7 +24,7 @@ pub mod predicate;
 pub mod provider;
 pub mod util;
 
-use self::{group_by::GroupByAndAggregate, predicate::Predicate};
+use self::predicate::Predicate;
 
 /// A `Database` is the main trait implemented by the IOx subsystems
 /// that store actual data.
@@ -50,24 +49,6 @@ pub trait Database: Debug + Send + Sync {
     /// covering set means that together the chunks make up a single
     /// complete copy of the data being queried.
     fn chunks(&self, partition_key: &str) -> Vec<Arc<Self::Chunk>>;
-
-    // ----------
-    // The functions below are slated for removal (migration into a gRPC query
-    // frontend) ---------
-
-    /// Returns a plan that finds rows which pass the conditions
-    /// specified by `predicate` and have been logically grouped and
-    /// aggregate according to `gby_agg`.
-    ///
-    /// Each time series is defined by the unique values in a set of
-    /// tag columns, and each field in the set of field columns. Each
-    /// group is is defined by unique combinations of the columns
-    /// in `group_columns` or an optional time window.
-    async fn query_groups(
-        &self,
-        predicate: Predicate,
-        gby_agg: GroupByAndAggregate,
-    ) -> Result<SeriesSetPlans, Self::Error>;
 }
 
 /// Collection of data that shares the same partition key
