@@ -94,7 +94,7 @@ use data_types::{
 };
 use influxdb_line_protocol::ParsedLine;
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
-use query::{exec::Executor, Database, DatabaseStore};
+use query::{exec::Executor, DatabaseStore};
 
 use async_trait::async_trait;
 use bytes::Bytes;
