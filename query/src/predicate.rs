@@ -111,6 +111,14 @@ impl Predicate {
         }
     }
 
+    /// Return true if the field should be included in results
+    pub fn should_include_field(&self, field_name: &str) -> bool {
+        match &self.field_columns {
+            None => true, // No field restriction on predicate
+            Some(field_names) => field_names.contains(field_name),
+        }
+    }
+
     /// Creates a DataFusion predicate for appliying a timestamp range:
     ///
     /// `range.start <= time and time < range.end`
@@ -208,7 +216,7 @@ impl PredicateBuilder {
     }
 
     /// Sets field_column restriction
-    pub fn field_columns(mut self, columns: Vec<String>) -> Self {
+    pub fn field_columns(mut self, columns: Vec<impl Into<String>>) -> Self {
         // We need to distinguish predicates like `column_name In
         // (foo, bar)` and `column_name = foo and column_name = bar` in order to handle
         // this
@@ -216,7 +224,11 @@ impl PredicateBuilder {
             unimplemented!("Complex/Multi field predicates are not yet supported");
         }
 
-        let column_names = columns.into_iter().collect::<BTreeSet<_>>();
+        let column_names = columns
+            .into_iter()
+            .map(|s| s.into())
+            .collect::<BTreeSet<_>>();
+
         self.inner.field_columns = Some(column_names);
         self
     }

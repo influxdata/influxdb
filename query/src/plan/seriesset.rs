@@ -83,6 +83,12 @@ pub struct SeriesSetPlans {
     pub plans: Vec<SeriesSetPlan>,
 }
 
+impl SeriesSetPlans {
+    pub fn into_inner(self) -> Vec<SeriesSetPlan> {
+        self.plans
+    }
+}
+
 impl From<Vec<SeriesSetPlan>> for SeriesSetPlans {
     fn from(plans: Vec<SeriesSetPlan>) -> Self {
         Self { plans }

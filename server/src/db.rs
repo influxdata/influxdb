@@ -306,19 +306,6 @@ impl Database for Db {
             .context(MutableBufferWrite)
     }
 
-    async fn query_groups(
-        &self,
-        predicate: query::predicate::Predicate,
-        gby_agg: query::group_by::GroupByAndAggregate,
-    ) -> Result<query::plan::seriesset::SeriesSetPlans, Self::Error> {
-        self.mutable_buffer
-            .as_ref()
-            .context(DatabaseNotReadable)?
-            .query_groups(predicate, gby_agg)
-            .await
-            .context(MutableBufferRead)
-    }
-
     fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
         self.mutable_buffer
             .as_ref()

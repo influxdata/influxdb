@@ -1,14 +1,14 @@
+// TODO remove this (and the dead code related to read_group and
+// read_window_aggregate) as part of mutable buffer cleanup
+#![allow(dead_code)]
+
 use data_types::{
     data::ReplicatedWrite,
     database_rules::{PartitionSort, PartitionSortRules},
 };
 use generated_types::wal;
-use query::group_by::GroupByAndAggregate;
 use query::group_by::WindowDuration;
-use query::{
-    group_by::Aggregate,
-    plan::seriesset::{SeriesSetPlan, SeriesSetPlans},
-};
+use query::{group_by::Aggregate, plan::seriesset::SeriesSetPlan};
 use query::{predicate::Predicate, Database};
 
 use crate::column::Column;
@@ -227,30 +227,6 @@ impl Database for MutableBufferDb {
         };
 
         Ok(())
-    }
-
-    async fn query_groups(
-        &self,
-        predicate: Predicate,
-        gby_agg: GroupByAndAggregate,
-    ) -> Result<SeriesSetPlans, Self::Error> {
-        let mut filter = ChunkTableFilter::new(predicate);
-
-        match gby_agg {
-            GroupByAndAggregate::Columns { agg, group_columns } => {
-                // Add any specified groups as predicate columns (so we
-                // can skip tables without those tags)
-                let mut filter = filter.add_required_columns(&group_columns);
-                let mut visitor = GroupsVisitor::new(agg, group_columns);
-                self.accept(&mut filter, &mut visitor)?;
-                Ok(visitor.plans.into())
-            }
-            GroupByAndAggregate::Window { agg, every, offset } => {
-                let mut visitor = WindowGroupsVisitor::new(agg, every, offset);
-                self.accept(&mut filter, &mut visitor)?;
-                Ok(visitor.plans.into())
-            }
-        }
     }
 
     /// Return the partition keys for data in this DB
