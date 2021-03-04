@@ -88,7 +88,7 @@ func newFlags() *exportFlags {
 }
 
 // NewExportLineProtocolCommand builds and registers the `export` subcommand of `influxd inspect`.
-func NewExportLineProtocolCommand(v *viper.Viper) *cobra.Command {
+func NewExportLineProtocolCommand(v *viper.Viper) (*cobra.Command, error) {
 	flags := newFlags()
 
 	cmd := &cobra.Command{
@@ -149,8 +149,10 @@ to line protocol for inspection and re-ingestion.`,
 		},
 	}
 
-	cli.BindOptions(v, cmd, opts)
-	return cmd
+	if err := cli.BindOptions(v, cmd, opts); err != nil {
+		return nil, err
+	}
+	return cmd, nil
 }
 
 func exportRunE(flags *exportFlags) error {
