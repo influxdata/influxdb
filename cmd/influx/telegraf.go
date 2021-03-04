@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/ioutil"
 
 	"github.com/influxdata/influxdb/v2"
@@ -12,7 +13,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func cmdTelegraf(f *globalFlags, opts genericCLIOpts) *cobra.Command {
+func cmdTelegraf(f *globalFlags, opts genericCLIOpts) (*cobra.Command, error) {
 	return newCmdTelegrafBuilder(newTelegrafSVCs, f, opts).cmdTelegrafs()
 }
 
@@ -40,8 +41,11 @@ func newCmdTelegrafBuilder(svcFn telegrafSVCsFn, f *globalFlags, opts genericCLI
 	}
 }
 
-func (b *cmdTelegrafBuilder) cmdTelegrafs() *cobra.Command {
-	cmd := b.newCmd("telegrafs", b.listRunE)
+func (b *cmdTelegrafBuilder) cmdTelegrafs() (*cobra.Command, error) {
+	cmd, err := b.newCmd("telegrafs", b.listRunE)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "List Telegraf configuration(s). Subcommands manage Telegraf configurations."
 	cmd.Long = `
 	List Telegraf configuration(s). Subcommands manage Telegraf configurations.
@@ -57,15 +61,20 @@ func (b *cmdTelegrafBuilder) cmdTelegrafs() *cobra.Command {
 		influx telegrafs -i $ID
 `
 
-	b.org.register(b.viper, cmd, false)
+	if err := b.org.register(b.viper, cmd, false); err != nil {
+		return nil, err
+	}
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "Telegraf configuration ID to retrieve.")
 
-	cmd.AddCommand(
-		b.cmdCreate(),
-		b.cmdRemove(),
-		b.cmdUpdate(),
-	)
-	return cmd
+	builders := []func() (*cobra.Command, error){b.cmdCreate, b.cmdRemove, b.cmdUpdate}
+	for _, builder := range builders {
+		subcmd, err := builder()
+		if err != nil {
+			return nil, err
+		}
+		cmd.AddCommand(subcmd)
+	}
+	return cmd, nil
 }
 
 func (b *cmdTelegrafBuilder) listRunE(cmd *cobra.Command, args []string) error {
@@ -106,8 +115,11 @@ func (b *cmdTelegrafBuilder) listRunE(cmd *cobra.Command, args []string) error {
 	return b.writeTelegrafConfig(cfgs...)
 }
 
-func (b *cmdTelegrafBuilder) cmdCreate() *cobra.Command {
-	cmd := b.newCmd("create", b.createRunEFn)
+func (b *cmdTelegrafBuilder) cmdCreate() (*cobra.Command, error) {
+	cmd, err := b.newCmd("create", b.createRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "Create a Telegraf configuration"
 	cmd.Long = `
 	The telegrafs create command creates a new Telegraf configuration.
@@ -123,10 +135,12 @@ func (b *cmdTelegrafBuilder) cmdCreate() *cobra.Command {
 		cat $CONFIG_FILE | influx telegrafs create -n $CFG_NAME -d $CFG_DESC
 `
 
-	b.org.register(b.viper, cmd, false)
+	if err := b.org.register(b.viper, cmd, false); err != nil {
+		return nil, err
+	}
 	b.registerTelegrafCfgFlags(cmd)
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdTelegrafBuilder) createRunEFn(cmd *cobra.Command, args []string) error {
@@ -159,8 +173,11 @@ func (b *cmdTelegrafBuilder) createRunEFn(cmd *cobra.Command, args []string) err
 	return b.writeTelegrafConfig(&newTelegraf)
 }
 
-func (b *cmdTelegrafBuilder) cmdRemove() *cobra.Command {
-	cmd := b.newCmd("rm", b.removeRunEFn)
+func (b *cmdTelegrafBuilder) cmdRemove() (*cobra.Command, error) {
+	cmd, err := b.newCmd("rm", b.removeRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Aliases = []string{"remove"}
 	cmd.Short = "Remove Telegraf configuration(s)"
 	cmd.Long = `
@@ -178,9 +195,11 @@ func (b *cmdTelegrafBuilder) cmdRemove() *cobra.Command {
 `
 
 	cmd.Flags().StringArrayVarP(&b.ids, "id", "i", nil, "Telegraf configuration ID(s) to remove.")
-	cmd.MarkFlagRequired("id")
+	if err := cmd.MarkFlagRequired("id"); err != nil {
+		return nil, fmt.Errorf("failed to mark 'id' as required: %w", err)
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdTelegrafBuilder) removeRunEFn(cmd *cobra.Command, args []string) error {
@@ -204,8 +223,11 @@ func (b *cmdTelegrafBuilder) removeRunEFn(cmd *cobra.Command, args []string) err
 	return nil
 }
 
-func (b *cmdTelegrafBuilder) cmdUpdate() *cobra.Command {
-	cmd := b.newCmd("update", b.updateRunEFn)
+func (b *cmdTelegrafBuilder) cmdUpdate() (*cobra.Command, error) {
+	cmd, err := b.newCmd("update", b.updateRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "Update a Telegraf configuration"
 	cmd.Long = `
 	The telegrafs update command updates a Telegraf configuration to match the
@@ -223,12 +245,16 @@ func (b *cmdTelegrafBuilder) cmdUpdate() *cobra.Command {
 		cat $CONFIG_FILE | influx telegrafs update -i $ID  -n $CFG_NAME -d $CFG_DESC
 `
 
-	b.org.register(b.viper, cmd, false)
+	if err := b.org.register(b.viper, cmd, false); err != nil {
+		return nil, err
+	}
 	b.registerTelegrafCfgFlags(cmd)
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "Telegraf configuration id to update")
-	cmd.MarkFlagRequired("id")
+	if err := cmd.MarkFlagRequired("id"); err != nil {
+		return nil, fmt.Errorf("failed to mark 'id' as required: %w", err)
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdTelegrafBuilder) updateRunEFn(cmd *cobra.Command, args []string) error {
@@ -323,11 +349,15 @@ func (b *cmdTelegrafBuilder) readConfig(file string) (string, error) {
 	return string(bb), nil
 }
 
-func (b *cmdTelegrafBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
+func (b *cmdTelegrafBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) (*cobra.Command, error) {
 	cmd := b.genericCLIOpts.newCmd(use, runE, true)
-	b.genericCLIOpts.registerPrintOptions(cmd)
-	b.globalFlags.registerFlags(b.viper, cmd)
-	return cmd
+	if err := b.genericCLIOpts.registerPrintOptions(cmd); err != nil {
+		return nil, err
+	}
+	if err := b.globalFlags.registerFlags(b.viper, cmd); err != nil {
+		return nil, err
+	}
+	return cmd, nil
 }
 
 func newTelegrafSVCs() (influxdb.TelegrafConfigStore, influxdb.OrganizationService, error) {

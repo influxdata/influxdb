@@ -14,7 +14,7 @@ import (
 
 type secretSVCsFn func() (influxdb.SecretService, influxdb.OrganizationService, func(*input.UI) string, error)
 
-func cmdSecret(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func cmdSecret(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 	builder := newCmdSecretBuilder(newSecretSVCs, f, opt)
 	return builder.cmd()
 }
@@ -40,29 +40,42 @@ func newCmdSecretBuilder(svcsFn secretSVCsFn, f *globalFlags, opt genericCLIOpts
 	}
 }
 
-func (b *cmdSecretBuilder) cmd() *cobra.Command {
+func (b *cmdSecretBuilder) cmd() (*cobra.Command, error) {
 	cmd := b.genericCLIOpts.newCmd("secret", nil, false)
 	cmd.Short = "Secret management commands"
 	cmd.Run = seeHelp
-	cmd.AddCommand(
-		b.cmdDelete(),
-		b.cmdFind(),
-		b.cmdUpdate(),
-	)
-	return cmd
+
+	builders := []func() (*cobra.Command, error){b.cmdDelete, b.cmdFind, b.cmdUpdate}
+	for _, builder := range builders {
+		subcmd, err := builder()
+		if err != nil {
+			return nil, err
+		}
+		cmd.AddCommand(subcmd)
+	}
+	return cmd, nil
 }
 
-func (b *cmdSecretBuilder) cmdUpdate() *cobra.Command {
-	cmd := b.newCmd("update", b.cmdUpdateRunEFn)
+func (b *cmdSecretBuilder) cmdUpdate() (*cobra.Command, error) {
+	cmd, err := b.newCmd("update", b.cmdUpdateRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "Update secret"
 
 	cmd.Flags().StringVarP(&b.key, "key", "k", "", "The secret key (required)")
 	cmd.Flags().StringVarP(&b.value, "value", "v", "", "Optional secret value for scripting convenience, using this might expose the secret to your local history")
-	cmd.MarkFlagRequired("key")
-	b.org.register(b.viper, cmd, false)
-	b.registerPrintFlags(cmd)
+	if err := cmd.MarkFlagRequired("key"); err != nil {
+		return nil, fmt.Errorf("failed to mark 'key' as required: %w", err)
+	}
+	if err := b.org.register(b.viper, cmd, false); err != nil {
+		return nil, err
+	}
+	if err := b.registerPrintFlags(cmd); err != nil {
+		return nil, err
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdSecretBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) error {
@@ -103,16 +116,25 @@ func (b *cmdSecretBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) er
 	})
 }
 
-func (b *cmdSecretBuilder) cmdDelete() *cobra.Command {
-	cmd := b.newCmd("delete", b.cmdDeleteRunEFn)
+func (b *cmdSecretBuilder) cmdDelete() (*cobra.Command, error) {
+	cmd, err := b.newCmd("delete", b.cmdDeleteRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "Delete secret"
 
 	cmd.Flags().StringVarP(&b.key, "key", "k", "", "The secret key (required)")
-	cmd.MarkFlagRequired("key")
-	b.org.register(b.viper, cmd, false)
-	b.registerPrintFlags(cmd)
+	if err := cmd.MarkFlagRequired("key"); err != nil {
+		return nil, fmt.Errorf("failed to mark 'key' as required: %w", err)
+	}
+	if err := b.org.register(b.viper, cmd, false); err != nil {
+		return nil, err
+	}
+	if err := b.registerPrintFlags(cmd); err != nil {
+		return nil, err
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdSecretBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) error {
@@ -139,15 +161,22 @@ func (b *cmdSecretBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) er
 	})
 }
 
-func (b *cmdSecretBuilder) cmdFind() *cobra.Command {
-	cmd := b.newCmd("list", b.cmdFindRunEFn)
+func (b *cmdSecretBuilder) cmdFind() (*cobra.Command, error) {
+	cmd, err := b.newCmd("list", b.cmdFindRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "List secrets"
 	cmd.Aliases = []string{"find", "ls"}
 
-	b.org.register(b.viper, cmd, false)
-	b.registerPrintFlags(cmd)
+	if err := b.org.register(b.viper, cmd, false); err != nil {
+		return nil, err
+	}
+	if err := b.registerPrintFlags(cmd); err != nil {
+		return nil, err
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdSecretBuilder) cmdFindRunEFn(cmd *cobra.Command, args []string) error {
@@ -179,14 +208,16 @@ func (b *cmdSecretBuilder) cmdFindRunEFn(cmd *cobra.Command, args []string) erro
 	})
 }
 
-func (b *cmdSecretBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
+func (b *cmdSecretBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) (*cobra.Command, error) {
 	cmd := b.genericCLIOpts.newCmd(use, runE, true)
-	b.globalFlags.registerFlags(b.viper, cmd)
-	return cmd
+	if err := b.globalFlags.registerFlags(b.viper, cmd); err != nil {
+		return nil, err
+	}
+	return cmd, nil
 }
 
-func (b *cmdSecretBuilder) registerPrintFlags(cmd *cobra.Command) {
-	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
+func (b *cmdSecretBuilder) registerPrintFlags(cmd *cobra.Command) error {
+	return registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
 }
 
 func (b *cmdSecretBuilder) printSecrets(opt secretPrintOpt) error {

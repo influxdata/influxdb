@@ -31,12 +31,14 @@ var setupFlags struct {
 	username    string
 }
 
-func cmdSetup(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func cmdSetup(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 	cmd := opt.newCmd("setup", nil, true)
 	cmd.RunE = setupF
 	cmd.Short = "Setup instance with initial user, org, bucket"
 
-	f.registerFlags(opt.viper, cmd, "token")
+	if err := f.registerFlags(opt.viper, cmd, "token"); err != nil {
+		return nil, err
+	}
 	cmd.Flags().StringVarP(&setupFlags.username, "username", "u", "", "primary username")
 	cmd.Flags().StringVarP(&setupFlags.password, "password", "p", "", "password for username")
 	cmd.Flags().StringVarP(&setupFlags.token, "token", "t", "", "token for username, else auto-generated")
@@ -45,20 +47,27 @@ func cmdSetup(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Flags().StringVarP(&setupFlags.name, "name", "n", "", "config name, only required if you already have existing configs")
 	cmd.Flags().StringVarP(&setupFlags.retention, "retention", "r", "", "Duration bucket will retain data. 0 is infinite. Default is 0.")
 	cmd.Flags().BoolVarP(&setupFlags.force, "force", "f", false, "skip confirmation prompt")
-	registerPrintOptions(opt.viper, cmd, &setupFlags.hideHeaders, &setupFlags.json)
+	if err := registerPrintOptions(opt.viper, cmd, &setupFlags.hideHeaders, &setupFlags.json); err != nil {
+		return nil, err
+	}
 
-	cmd.AddCommand(
-		cmdSetupUser(f, opt),
-	)
-	return cmd
+	subcmd, err := cmdSetupUser(f, opt)
+	if err != nil {
+		return nil, err
+	}
+	cmd.AddCommand(subcmd)
+
+	return cmd, nil
 }
 
-func cmdSetupUser(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func cmdSetupUser(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 	cmd := opt.newCmd("user", nil, true)
 	cmd.RunE = setupUserF
 	cmd.Short = "Setup instance with user, org, bucket"
 
-	f.registerFlags(opt.viper, cmd, "token")
+	if err := f.registerFlags(opt.viper, cmd, "token"); err != nil {
+		return nil, err
+	}
 	cmd.Flags().StringVarP(&setupFlags.username, "username", "u", "", "primary username")
 	cmd.Flags().StringVarP(&setupFlags.password, "password", "p", "", "password for username")
 	cmd.Flags().StringVarP(&setupFlags.token, "token", "t", "", "token for username, else auto-generated")
@@ -67,9 +76,11 @@ func cmdSetupUser(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Flags().StringVarP(&setupFlags.name, "name", "n", "", "config name, only required if you already have existing configs")
 	cmd.Flags().StringVarP(&setupFlags.retention, "retention", "r", "", "Duration bucket will retain data. 0 is infinite. Default is 0.")
 	cmd.Flags().BoolVarP(&setupFlags.force, "force", "f", false, "skip confirmation prompt")
-	registerPrintOptions(opt.viper, cmd, &setupFlags.hideHeaders, &setupFlags.json)
+	if err := registerPrintOptions(opt.viper, cmd, &setupFlags.hideHeaders, &setupFlags.json); err != nil {
+		return nil, err
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func setupUserF(cmd *cobra.Command, args []string) error {

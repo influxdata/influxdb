@@ -147,7 +147,7 @@ func TestCmdUser(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(expected *userResult) func(*globalFlags, genericCLIOpts) *cobra.Command {
+		cmdFn := func(expected *userResult) func(*globalFlags, genericCLIOpts) (*cobra.Command, error) {
 			svc := mock.NewUserService()
 			svc.CreateUserFn = func(ctx context.Context, User *influxdb.User) error {
 				if expected.user != *User {
@@ -180,7 +180,7 @@ func TestCmdUser(t *testing.T) {
 				return nil
 			}
 
-			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+			return func(g *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 				// User commands are wrapped in middleware that checks the onboarding API when a failure occurs,
 				// to provide a more useful error message. That check breaks unit-testing, so we disable it here.
 				opt.runEWrapFn = func(fn cobraRunEFn) cobraRunEFn {
@@ -200,10 +200,11 @@ func TestCmdUser(t *testing.T) {
 					in(new(bytes.Buffer)),
 					out(ioutil.Discard),
 				)
-				cmd := builder.cmd(cmdFn(&tt.expected))
+				cmd, err := builder.cmd(cmdFn(&tt.expected))
+				require.NoError(t, err)
 				cmd.SetArgs(append([]string{"user", "create"}, tt.flags...))
 
-				err := cmd.Execute()
+				err = cmd.Execute()
 				if tt.expected.err != nil {
 					require.Equal(t, tt.expected.err, err)
 				} else {
@@ -235,7 +236,7 @@ func TestCmdUser(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(expectedID influxdb.ID) func(*globalFlags, genericCLIOpts) *cobra.Command {
+		cmdFn := func(expectedID influxdb.ID) func(*globalFlags, genericCLIOpts) (*cobra.Command, error) {
 			svc := mock.NewUserService()
 			svc.FindUserByIDFn = func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
 				return &influxdb.User{ID: id}, nil
@@ -247,7 +248,7 @@ func TestCmdUser(t *testing.T) {
 				return nil
 			}
 
-			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+			return func(g *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 				builder := newCmdUserBuilder(fakeSVCFn(newCMDUserDeps(svc, nil, nil, nil)), g, opt)
 				return builder.cmd()
 			}
@@ -259,7 +260,8 @@ func TestCmdUser(t *testing.T) {
 					in(new(bytes.Buffer)),
 					out(ioutil.Discard),
 				)
-				cmd := builder.cmd(cmdFn(tt.expectedID))
+				cmd, err := builder.cmd(cmdFn(tt.expectedID))
+				require.NoError(t, err)
 				idFlag := tt.flag + tt.expectedID.String()
 				cmd.SetArgs([]string{"user", "delete", idFlag})
 
@@ -326,7 +328,7 @@ func TestCmdUser(t *testing.T) {
 			},
 		}
 
-		cmdFn := func() (func(*globalFlags, genericCLIOpts) *cobra.Command, *called) {
+		cmdFn := func() (func(*globalFlags, genericCLIOpts) (*cobra.Command, error), *called) {
 			calls := new(called)
 
 			svc := mock.NewUserService()
@@ -340,7 +342,7 @@ func TestCmdUser(t *testing.T) {
 				return nil, 0, nil
 			}
 
-			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+			return func(g *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 				builder := newCmdUserBuilder(fakeSVCFn(newCMDUserDeps(svc, nil, nil, nil)), g, opt)
 				return builder.cmd()
 			}, calls
@@ -353,7 +355,8 @@ func TestCmdUser(t *testing.T) {
 					out(ioutil.Discard),
 				)
 				nestedCmdFn, calls := cmdFn()
-				cmd := builder.cmd(nestedCmdFn)
+				cmd, err := builder.cmd(nestedCmdFn)
+				require.NoError(t, err)
 
 				if tt.command == "" {
 					tt.command = "list"
@@ -407,7 +410,7 @@ func TestCmdUser(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(expectedUpdate influxdb.UserUpdate) func(*globalFlags, genericCLIOpts) *cobra.Command {
+		cmdFn := func(expectedUpdate influxdb.UserUpdate) func(*globalFlags, genericCLIOpts) (*cobra.Command, error) {
 			svc := mock.NewUserService()
 			svc.UpdateUserFn = func(ctx context.Context, id influxdb.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
 				if id != 3 {
@@ -419,7 +422,7 @@ func TestCmdUser(t *testing.T) {
 				return &influxdb.User{}, nil
 			}
 
-			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+			return func(g *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 				builder := newCmdUserBuilder(fakeSVCFn(newCMDUserDeps(svc, nil, nil, nil)), g, opt)
 				return builder.cmd()
 			}
@@ -431,7 +434,8 @@ func TestCmdUser(t *testing.T) {
 					in(new(bytes.Buffer)),
 					out(ioutil.Discard),
 				)
-				cmd := builder.cmd(cmdFn(tt.expected))
+				cmd, err := builder.cmd(cmdFn(tt.expected))
+				require.NoError(t, err)
 				cmd.SetArgs(append([]string{"user", "update"}, tt.flags...))
 
 				require.NoError(t, cmd.Execute())
@@ -464,7 +468,7 @@ func TestCmdUser(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(expected string) func(*globalFlags, genericCLIOpts) *cobra.Command {
+		cmdFn := func(expected string) func(*globalFlags, genericCLIOpts) (*cobra.Command, error) {
 			svc := mock.NewUserService()
 			svc.FindUserFn = func(ctx context.Context, f influxdb.UserFilter) (*influxdb.User, error) {
 				usr := new(influxdb.User)
@@ -488,7 +492,7 @@ func TestCmdUser(t *testing.T) {
 				return expected
 			}
 
-			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+			return func(g *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 				builder := newCmdUserBuilder(fakeSVCFn(newCMDUserDeps(svc, passSVC, nil, getPassFn)), g, opt)
 				return builder.cmd()
 			}
@@ -500,7 +504,8 @@ func TestCmdUser(t *testing.T) {
 					in(new(bytes.Buffer)),
 					out(ioutil.Discard),
 				)
-				cmd := builder.cmd(cmdFn(tt.expected))
+				cmd, err := builder.cmd(cmdFn(tt.expected))
+				require.NoError(t, err)
 				cmd.SetArgs(append([]string{"user", "password"}, tt.flags...))
 
 				require.NoError(t, cmd.Execute())

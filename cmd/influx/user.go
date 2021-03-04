@@ -25,7 +25,7 @@ type cmdUserDeps struct {
 	getPassFn func(*input.UI, bool) string
 }
 
-func cmdUser(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func cmdUser(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 	builder := newCmdUserBuilder(newUserSVC, f, opt)
 	return builder.cmd()
 }
@@ -50,29 +50,34 @@ func newCmdUserBuilder(svcsFn userSVCsFn, f *globalFlags, opt genericCLIOpts) *c
 	}
 }
 
-func (b *cmdUserBuilder) cmd() *cobra.Command {
+func (b *cmdUserBuilder) cmd() (*cobra.Command, error) {
 	cmd := b.genericCLIOpts.newCmd("user", nil, false)
 	cmd.Short = "User management commands"
 	cmd.Run = seeHelp
-	cmd.AddCommand(
-		b.cmdCreate(),
-		b.cmdDelete(),
-		b.cmdFind(),
-		b.cmdUpdate(),
-		b.cmdPassword(),
-	)
 
-	return cmd
+	builders := []func() (*cobra.Command, error){b.cmdCreate, b.cmdDelete, b.cmdFind, b.cmdUpdate, b.cmdPassword}
+	for _, builder := range builders {
+		subcmd, err := builder()
+		if err != nil {
+			return nil, err
+		}
+		cmd.AddCommand(subcmd)
+	}
+
+	return cmd, nil
 }
 
-func (b *cmdUserBuilder) cmdPassword() *cobra.Command {
-	cmd := b.newCmd("password", b.cmdPasswordRunEFn)
+func (b *cmdUserBuilder) cmdPassword() (*cobra.Command, error) {
+	cmd, err := b.newCmd("password", b.cmdPasswordRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "Update user password"
 
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The user ID")
 	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The user name")
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdUserBuilder) cmdPasswordRunEFn(cmd *cobra.Command, args []string) error {
@@ -110,16 +115,23 @@ func (b *cmdUserBuilder) cmdPasswordRunEFn(cmd *cobra.Command, args []string) er
 	return nil
 }
 
-func (b *cmdUserBuilder) cmdUpdate() *cobra.Command {
-	cmd := b.newCmd("update", b.cmdUpdateRunEFn)
+func (b *cmdUserBuilder) cmdUpdate() (*cobra.Command, error) {
+	cmd, err := b.newCmd("update", b.cmdUpdateRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "Update user"
 
-	b.registerPrintFlags(cmd)
+	if err := b.registerPrintFlags(cmd); err != nil {
+		return nil, err
+	}
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The user ID (required)")
 	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The user name")
-	cmd.MarkFlagRequired("id")
+	if err := cmd.MarkFlagRequired("id"); err != nil {
+		return nil, fmt.Errorf("failed to mark 'id' as required: %w", err)
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdUserBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) error {
@@ -146,8 +158,11 @@ func (b *cmdUserBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) erro
 	return b.printUser(userPrintOpts{user: user})
 }
 
-func (b *cmdUserBuilder) cmdCreate() *cobra.Command {
-	cmd := b.newCmd("create", b.cmdCreateRunEFn)
+func (b *cmdUserBuilder) cmdCreate() (*cobra.Command, error) {
+	cmd, err := b.newCmd("create", b.cmdCreateRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "Create user"
 
 	opts := flagOpts{
@@ -159,13 +174,19 @@ func (b *cmdUserBuilder) cmdCreate() *cobra.Command {
 			Required: true,
 		},
 	}
-	opts.mustRegister(b.viper, cmd)
+	if err := opts.register(b.viper, cmd); err != nil {
+		return nil, err
+	}
 
 	cmd.Flags().StringVarP(&b.password, "password", "p", "", "The user password")
-	b.org.register(b.viper, cmd, false)
-	b.registerPrintFlags(cmd)
+	if err := b.org.register(b.viper, cmd, false); err != nil {
+		return nil, err
+	}
+	if err := b.registerPrintFlags(cmd); err != nil {
+		return nil, err
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdUserBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
@@ -234,16 +255,21 @@ func (b *cmdUserBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 	return nil
 }
 
-func (b *cmdUserBuilder) cmdFind() *cobra.Command {
-	cmd := b.newCmd("list", b.cmdFindRunEFn)
+func (b *cmdUserBuilder) cmdFind() (*cobra.Command, error) {
+	cmd, err := b.newCmd("list", b.cmdFindRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "List users"
 	cmd.Aliases = []string{"find", "ls"}
 
-	b.registerPrintFlags(cmd)
+	if err := b.registerPrintFlags(cmd); err != nil {
+		return nil, err
+	}
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The user ID")
 	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The user name")
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdUserBuilder) cmdFindRunEFn(*cobra.Command, []string) error {
@@ -272,15 +298,22 @@ func (b *cmdUserBuilder) cmdFindRunEFn(*cobra.Command, []string) error {
 	return b.printUser(userPrintOpts{users: users})
 }
 
-func (b *cmdUserBuilder) cmdDelete() *cobra.Command {
-	cmd := b.newCmd("delete", b.cmdDeleteRunEFn)
+func (b *cmdUserBuilder) cmdDelete() (*cobra.Command, error) {
+	cmd, err := b.newCmd("delete", b.cmdDeleteRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "Delete user"
 
-	b.registerPrintFlags(cmd)
+	if err := b.registerPrintFlags(cmd); err != nil {
+		return nil, err
+	}
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The user ID (required)")
-	cmd.MarkFlagRequired("id")
+	if err := cmd.MarkFlagRequired("id"); err != nil {
+		return nil, err
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdUserBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) error {
@@ -310,14 +343,16 @@ func (b *cmdUserBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) erro
 	})
 }
 
-func (b *cmdUserBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
+func (b *cmdUserBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) (*cobra.Command, error) {
 	cmd := b.genericCLIOpts.newCmd(use, runE, true)
-	b.globalFlags.registerFlags(b.viper, cmd)
-	return cmd
+	if err := b.globalFlags.registerFlags(b.viper, cmd); err != nil {
+		return nil, err
+	}
+	return cmd, nil
 }
 
-func (b *cmdUserBuilder) registerPrintFlags(cmd *cobra.Command) {
-	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
+func (b *cmdUserBuilder) registerPrintFlags(cmd *cobra.Command) error {
+	return registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
 }
 
 func (b *cmdUserBuilder) printUser(opt userPrintOpts) error {

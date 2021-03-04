@@ -26,18 +26,22 @@ var queryFlags struct {
 	raw  bool
 }
 
-func cmdQuery(f *globalFlags, opts genericCLIOpts) *cobra.Command {
+func cmdQuery(f *globalFlags, opts genericCLIOpts) (*cobra.Command, error) {
 	cmd := opts.newCmd("query [query literal or -f /path/to/query.flux]", fluxQueryF, true)
 	cmd.Short = "Execute a Flux query"
 	cmd.Long = `Execute a Flux query provided via the first argument or a file or stdin`
 	cmd.Args = cobra.MaximumNArgs(1)
 
-	f.registerFlags(opts.viper, cmd)
-	queryFlags.org.register(opts.viper, cmd, true)
+	if err := f.registerFlags(opts.viper, cmd); err != nil {
+		return nil, err
+	}
+	if err := queryFlags.org.register(opts.viper, cmd, true); err != nil {
+		return nil, err
+	}
 	cmd.Flags().StringVarP(&queryFlags.file, "file", "f", "", "Path to Flux query file")
 	cmd.Flags().BoolVarP(&queryFlags.raw, "raw", "r", false, "Display raw query results")
 
-	return cmd
+	return cmd, nil
 }
 
 // readFluxQuery returns first argument, file contents or stdin

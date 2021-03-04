@@ -28,10 +28,9 @@ import (
 const maxTCPConnections = 10
 
 var (
-	version            = "dev"
-	commit             = "none"
-	date               = ""
-	defaultConfigsPath = mustDefaultConfigPath()
+	version = "dev"
+	commit  = "none"
+	date    = ""
 )
 
 func main() {
@@ -39,7 +38,11 @@ func main() {
 		date = time.Now().UTC().Format(time.RFC3339)
 	}
 
-	influxCmd := influxCmd()
+	influxCmd, err := influxCmd()
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
 	if err := influxCmd.Execute(); err != nil {
 		seeHelp(influxCmd, nil)
 		os.Exit(1)
@@ -128,8 +131,8 @@ func (o genericCLIOpts) newTabWriter() *internal.TabWriter {
 	return w
 }
 
-func (o *genericCLIOpts) registerPrintOptions(cmd *cobra.Command) {
-	registerPrintOptions(o.viper, cmd, &o.hideHeaders, &o.json)
+func (o *genericCLIOpts) registerPrintOptions(cmd *cobra.Command) error {
+	return registerPrintOptions(o.viper, cmd, &o.hideHeaders, &o.json)
 }
 
 func in(r io.Reader) genericCLIOptFn {
@@ -173,7 +176,7 @@ func (g *globalFlags) config() config.Config {
 	return g.configs.Active()
 }
 
-func (g *globalFlags) registerFlags(v *viper.Viper, cmd *cobra.Command, skipFlags ...string) {
+func (g *globalFlags) registerFlags(v *viper.Viper, cmd *cobra.Command, skipFlags ...string) error {
 	if g == nil {
 		panic("global flags are not set: <nil>")
 	}
@@ -181,6 +184,11 @@ func (g *globalFlags) registerFlags(v *viper.Viper, cmd *cobra.Command, skipFlag
 	skips := make(map[string]bool)
 	for _, flag := range skipFlags {
 		skips[flag] = true
+	}
+
+	configsPath, err := defaultConfigPath()
+	if err != nil {
+		return err
 	}
 
 	fOpts := flagOpts{
@@ -204,7 +212,7 @@ func (g *globalFlags) registerFlags(v *viper.Viper, cmd *cobra.Command, skipFlag
 			DestP:   &g.filepath,
 			Flag:    "configs-path",
 			Desc:    "Path to the influx CLI configurations",
-			Default: defaultConfigsPath,
+			Default: configsPath,
 		},
 		{
 			DestP: &g.activeConfig,
@@ -222,12 +230,14 @@ func (g *globalFlags) registerFlags(v *viper.Viper, cmd *cobra.Command, skipFlag
 		filtered = append(filtered, o)
 	}
 
-	filtered.mustRegister(v, cmd)
-
-	if skips["skip-verify"] {
-		return
+	if err := filtered.register(v, cmd); err != nil {
+		return err
 	}
-	cmd.Flags().BoolVar(&g.skipVerify, "skip-verify", false, "Skip TLS certificate chain and host name verification.")
+
+	if !skips["skip-verify"] {
+		cmd.Flags().BoolVar(&g.skipVerify, "skip-verify", false, "Skip TLS certificate chain and host name verification.")
+	}
+	return nil
 }
 
 var flags globalFlags
@@ -256,7 +266,7 @@ func newInfluxCmdBuilder(optFns ...genericCLIOptFn) *cmdInfluxBuilder {
 	return builder
 }
 
-func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCLIOpts) *cobra.Command) *cobra.Command {
+func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error)) (*cobra.Command, error) {
 	b.once.Do(func() {
 		// enforce that viper options only ever get set once
 		setViperOptions(b.viper)
@@ -266,8 +276,12 @@ func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCL
 	cmd.Short = "Influx Client"
 	cmd.SilenceUsage = true
 
-	for _, childCmd := range childCmdFns {
-		cmd.AddCommand(childCmd(&flags, b.genericCLIOpts))
+	for _, childFn := range childCmdFns {
+		childCmd, err := childFn(&flags, b.genericCLIOpts)
+		if err != nil {
+			return nil, err
+		}
+		cmd.AddCommand(childCmd)
 	}
 
 	cmd.PersistentPreRun = func(cmd *cobra.Command, args []string) {
@@ -305,7 +319,7 @@ func (b *cmdInfluxBuilder) cmd(childCmdFns ...func(f *globalFlags, opt genericCL
 		completionCmd(cmd),
 		cmdVersion(),
 	)
-	return cmd
+	return cmd, nil
 }
 
 func cmdVersion() *cobra.Command {
@@ -318,7 +332,7 @@ func cmdVersion() *cobra.Command {
 	}
 }
 
-func influxCmd(opts ...genericCLIOptFn) *cobra.Command {
+func influxCmd(opts ...genericCLIOptFn) (*cobra.Command, error) {
 	builder := newInfluxCmdBuilder(opts...)
 	return builder.cmd(
 		cmdAuth,
@@ -395,20 +409,24 @@ func getConfigFromDefaultPath(configsPath string) config.Configs {
 	return cfgs
 }
 
-func defaultConfigPath() (string, string, error) {
-	dir, err := fs.InfluxDir()
-	if err != nil {
-		return "", "", err
-	}
-	return filepath.Join(dir, fs.DefaultConfigsFile), dir, nil
-}
+// Not to be used by anything by defaultConfigPath
+// Wasn't sure how to signal that in Go, alternate suggestions welcome...
+var _cfgPath = ""
 
-func mustDefaultConfigPath() string {
-	filepath, _, err := defaultConfigPath()
-	if err != nil {
-		panic(err)
+func defaultConfigPath() (string, error) {
+	// Ideally this function would only be called once per `influx` invocation, but as currently set up
+	// it gets called once per registered subcommand.
+	// Subcommands are registered serially, so we can cache the result of finding the influx configs
+	// without needing to use any fancy sync constructs.
+	if _cfgPath == "" {
+		dir, err := fs.InfluxDir()
+		if err != nil {
+			return "", err
+		}
+		_cfgPath = filepath.Join(dir, fs.DefaultConfigsFile)
 	}
-	return filepath
+
+	return _cfgPath, nil
 }
 
 func migrateOldCredential(configsPath string) {
@@ -492,7 +510,7 @@ type organization struct {
 	id, name string
 }
 
-func (o *organization) register(v *viper.Viper, cmd *cobra.Command, persistent bool) {
+func (o *organization) register(v *viper.Viper, cmd *cobra.Command, persistent bool) error {
 	opts := flagOpts{
 		{
 			DestP:      &o.id,
@@ -508,7 +526,7 @@ func (o *organization) register(v *viper.Viper, cmd *cobra.Command, persistent b
 			Persistent: persistent,
 		},
 	}
-	opts.mustRegister(v, cmd)
+	return opts.register(v, cmd)
 }
 
 func (o *organization) getID(orgSVC influxdb.OrganizationService) (influxdb.ID, error) {
@@ -554,9 +572,9 @@ func (o *organization) validOrgFlags(f *globalFlags) error {
 
 type flagOpts []cli.Opt
 
-func (f flagOpts) mustRegister(v *viper.Viper, cmd *cobra.Command) {
+func (f flagOpts) register(v *viper.Viper, cmd *cobra.Command) error {
 	if len(f) == 0 {
-		return
+		return nil
 	}
 
 	for i := range f {
@@ -571,12 +589,11 @@ func (f flagOpts) mustRegister(v *viper.Viper, cmd *cobra.Command) {
 			strings.ToUpper(strings.Replace(envVar, "-", "_", -1)),
 		)
 	}
-	if err := cli.BindOptions(v, cmd, f); err != nil {
-		panic(err)
-	}
+
+	return cli.BindOptions(v, cmd, f)
 }
 
-func registerPrintOptions(v *viper.Viper, cmd *cobra.Command, headersP, jsonOutP *bool) {
+func registerPrintOptions(v *viper.Viper, cmd *cobra.Command, headersP, jsonOutP *bool) error {
 	var opts flagOpts
 	if headersP != nil {
 		opts = append(opts, cli.Opt{
@@ -596,7 +613,7 @@ func registerPrintOptions(v *viper.Viper, cmd *cobra.Command, headersP, jsonOutP
 			Default: false,
 		})
 	}
-	opts.mustRegister(v, cmd)
+	return opts.register(v, cmd)
 }
 
 func setViperOptions(v *viper.Viper) {

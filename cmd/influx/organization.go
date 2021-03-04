@@ -12,7 +12,7 @@ import (
 
 type orgSVCFn func() (influxdb.OrganizationService, influxdb.UserResourceMappingService, influxdb.UserService, error)
 
-func cmdOrganization(f *globalFlags, opts genericCLIOpts) *cobra.Command {
+func cmdOrganization(f *globalFlags, opts genericCLIOpts) (*cobra.Command, error) {
 	builder := newCmdOrgBuilder(newOrgServices, f, opts)
 	return builder.cmd()
 }
@@ -39,33 +39,41 @@ func newCmdOrgBuilder(svcFn orgSVCFn, f *globalFlags, opts genericCLIOpts) *cmdO
 	}
 }
 
-func (b *cmdOrgBuilder) cmd() *cobra.Command {
+func (b *cmdOrgBuilder) cmd() (*cobra.Command, error) {
 	cmd := b.genericCLIOpts.newCmd("org", nil, false)
 	cmd.Aliases = []string{"organization"}
 	cmd.Short = "Organization management commands"
 	cmd.Run = seeHelp
 
-	cmd.AddCommand(
-		b.cmdCreate(),
-		b.cmdDelete(),
-		b.cmdFind(),
-		b.cmdMember(),
-		b.cmdUpdate(),
-	)
+	builders := []func() (*cobra.Command, error){b.cmdCreate, b.cmdDelete, b.cmdFind, b.cmdMember, b.cmdUpdate}
+	for _, builder := range builders {
+		subcmd, err := builder()
+		if err != nil {
+			return nil, err
+		}
+		cmd.AddCommand(subcmd)
+	}
 
-	return cmd
+	return cmd, nil
 }
 
-func (b *cmdOrgBuilder) cmdCreate() *cobra.Command {
-	cmd := b.newCmd("create", b.createRunEFn)
+func (b *cmdOrgBuilder) cmdCreate() (*cobra.Command, error) {
+	cmd, err := b.newCmd("create", b.createRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "Create organization"
 
-	b.registerPrintFlags(cmd)
+	if err := b.registerPrintFlags(cmd); err != nil {
+		return nil, err
+	}
 	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The name of organization that will be created")
-	cmd.MarkFlagRequired("name")
+	if err := cmd.MarkFlagRequired("name"); err != nil {
+		return nil, fmt.Errorf("failed to mark 'name' as required: %w", err)
+	}
 	cmd.Flags().StringVarP(&b.description, "description", "d", "", "The description of the organization that will be created")
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdOrgBuilder) createRunEFn(cmd *cobra.Command, args []string) error {
@@ -86,8 +94,11 @@ func (b *cmdOrgBuilder) createRunEFn(cmd *cobra.Command, args []string) error {
 	return b.printOrg(orgPrintOpt{org: org})
 }
 
-func (b *cmdOrgBuilder) cmdDelete() *cobra.Command {
-	cmd := b.newCmd("delete", b.deleteRunEFn)
+func (b *cmdOrgBuilder) cmdDelete() (*cobra.Command, error) {
+	cmd, err := b.newCmd("delete", b.deleteRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "Delete organization"
 
 	opts := flagOpts{
@@ -99,10 +110,14 @@ func (b *cmdOrgBuilder) cmdDelete() *cobra.Command {
 			Desc:   "The organization ID",
 		},
 	}
-	opts.mustRegister(b.viper, cmd)
-	b.registerPrintFlags(cmd)
+	if err := opts.register(b.viper, cmd); err != nil {
+		return nil, err
+	}
+	if err := b.registerPrintFlags(cmd); err != nil {
+		return nil, err
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdOrgBuilder) deleteRunEFn(cmd *cobra.Command, args []string) error {
@@ -132,8 +147,11 @@ func (b *cmdOrgBuilder) deleteRunEFn(cmd *cobra.Command, args []string) error {
 	})
 }
 
-func (b *cmdOrgBuilder) cmdFind() *cobra.Command {
-	cmd := b.newCmd("list", b.findRunEFn)
+func (b *cmdOrgBuilder) cmdFind() (*cobra.Command, error) {
+	cmd, err := b.newCmd("list", b.findRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "List organizations"
 	cmd.Aliases = []string{"find", "ls"}
 
@@ -153,10 +171,14 @@ func (b *cmdOrgBuilder) cmdFind() *cobra.Command {
 			Desc:   "The organization ID",
 		},
 	}
-	opts.mustRegister(b.viper, cmd)
-	b.registerPrintFlags(cmd)
+	if err := opts.register(b.viper, cmd); err != nil {
+		return nil, err
+	}
+	if err := b.registerPrintFlags(cmd); err != nil {
+		return nil, err
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdOrgBuilder) findRunEFn(cmd *cobra.Command, args []string) error {
@@ -186,8 +208,11 @@ func (b *cmdOrgBuilder) findRunEFn(cmd *cobra.Command, args []string) error {
 	return b.printOrg(orgPrintOpt{orgs: orgs})
 }
 
-func (b *cmdOrgBuilder) cmdUpdate() *cobra.Command {
-	cmd := b.newCmd("update", b.updateRunEFn)
+func (b *cmdOrgBuilder) cmdUpdate() (*cobra.Command, error) {
+	cmd, err := b.newCmd("update", b.updateRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "Update organization"
 
 	opts := flagOpts{
@@ -214,10 +239,14 @@ func (b *cmdOrgBuilder) cmdUpdate() *cobra.Command {
 			Desc:   "The organization name",
 		},
 	}
-	opts.mustRegister(b.viper, cmd)
-	b.registerPrintFlags(cmd)
+	if err := opts.register(b.viper, cmd); err != nil {
+		return nil, err
+	}
+	if err := b.registerPrintFlags(cmd); err != nil {
+		return nil, err
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdOrgBuilder) updateRunEFn(cmd *cobra.Command, args []string) error {
@@ -285,22 +314,28 @@ func (b *cmdOrgBuilder) printOrg(opts orgPrintOpt) error {
 	return nil
 }
 
-func (b *cmdOrgBuilder) cmdMember() *cobra.Command {
+func (b *cmdOrgBuilder) cmdMember() (*cobra.Command, error) {
 	cmd := b.genericCLIOpts.newCmd("members", nil, false)
 	cmd.Short = "Organization membership commands"
 	cmd.Run = seeHelp
 
-	cmd.AddCommand(
-		b.cmdMemberAdd(),
-		b.cmdMemberList(),
-		b.cmdMemberRemove(),
-	)
+	builders := []func() (*cobra.Command, error){b.cmdMemberAdd, b.cmdMemberList, b.cmdMemberRemove}
+	for _, builder := range builders {
+		subcmd, err := builder()
+		if err != nil {
+			return nil, err
+		}
+		cmd.AddCommand(subcmd)
+	}
 
-	return cmd
+	return cmd, nil
 }
 
-func (b *cmdOrgBuilder) cmdMemberList() *cobra.Command {
-	cmd := b.newCmd("list", b.memberListRunEFn)
+func (b *cmdOrgBuilder) cmdMemberList() (*cobra.Command, error) {
+	cmd, err := b.newCmd("list", b.memberListRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "List organization members"
 	cmd.Aliases = []string{"find", "ls"}
 
@@ -320,9 +355,13 @@ func (b *cmdOrgBuilder) cmdMemberList() *cobra.Command {
 			Desc:   "The organization ID",
 		},
 	}
-	opts.mustRegister(b.viper, cmd)
-	b.registerPrintFlags(cmd)
-	return cmd
+	if err := opts.register(b.viper, cmd); err != nil {
+		return nil, err
+	}
+	if err := b.registerPrintFlags(cmd); err != nil {
+		return nil, err
+	}
+	return cmd, nil
 }
 
 func (b *cmdOrgBuilder) memberListRunEFn(cmd *cobra.Command, args []string) error {
@@ -362,12 +401,17 @@ func (b *cmdOrgBuilder) memberListRunEFn(cmd *cobra.Command, args []string) erro
 	})
 }
 
-func (b *cmdOrgBuilder) cmdMemberAdd() *cobra.Command {
-	cmd := b.newCmd("add", b.memberAddRunEFn)
+func (b *cmdOrgBuilder) cmdMemberAdd() (*cobra.Command, error) {
+	cmd, err := b.newCmd("add", b.memberAddRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "Add organization member"
 
 	cmd.Flags().StringVarP(&b.memberID, "member", "m", "", "The member ID")
-	cmd.MarkFlagRequired("member")
+	if err := cmd.MarkFlagRequired("member"); err != nil {
+		return nil, fmt.Errorf("failed to mark 'member' as required: %w", err)
+	}
 
 	opts := flagOpts{
 		{
@@ -385,9 +429,11 @@ func (b *cmdOrgBuilder) cmdMemberAdd() *cobra.Command {
 			Desc:   "The organization ID",
 		},
 	}
-	opts.mustRegister(b.viper, cmd)
+	if err := opts.register(b.viper, cmd); err != nil {
+		return nil, err
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdOrgBuilder) memberAddRunEFn(cmd *cobra.Command, args []string) error {
@@ -438,8 +484,11 @@ func (b *cmdOrgBuilder) memberAddRunEFn(cmd *cobra.Command, args []string) error
 	})
 }
 
-func (b *cmdOrgBuilder) cmdMemberRemove() *cobra.Command {
-	cmd := b.newCmd("remove", b.membersRemoveRunEFn)
+func (b *cmdOrgBuilder) cmdMemberRemove() (*cobra.Command, error) {
+	cmd, err := b.newCmd("remove", b.membersRemoveRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "Remove organization member"
 
 	opts := flagOpts{
@@ -458,12 +507,16 @@ func (b *cmdOrgBuilder) cmdMemberRemove() *cobra.Command {
 			Desc:   "The organization ID",
 		},
 	}
-	opts.mustRegister(b.viper, cmd)
+	if err := opts.register(b.viper, cmd); err != nil {
+		return nil, err
+	}
 
 	cmd.Flags().StringVarP(&b.memberID, "member", "m", "", "The member ID")
-	cmd.MarkFlagRequired("member")
+	if err := cmd.MarkFlagRequired("member"); err != nil {
+		return nil, fmt.Errorf("failed to mark 'member' as required: %w", err)
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdOrgBuilder) membersRemoveRunEFn(cmd *cobra.Command, args []string) error {
@@ -509,14 +562,16 @@ func (b *cmdOrgBuilder) membersRemoveRunEFn(cmd *cobra.Command, args []string) e
 	return removeMember(ctx, b.w, urmSVC, organization.ID, memberID)
 }
 
-func (b *cmdOrgBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
+func (b *cmdOrgBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) (*cobra.Command, error) {
 	cmd := b.genericCLIOpts.newCmd(use, runE, true)
-	b.globalFlags.registerFlags(b.viper, cmd)
-	return cmd
+	if err := b.globalFlags.registerFlags(b.viper, cmd); err != nil {
+		return nil, err
+	}
+	return cmd, nil
 }
 
-func (b *cmdOrgBuilder) registerPrintFlags(cmd *cobra.Command) {
-	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
+func (b *cmdOrgBuilder) registerPrintFlags(cmd *cobra.Command) error {
+	return registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
 }
 
 func newOrgServices() (influxdb.OrganizationService, influxdb.UserResourceMappingService, influxdb.UserService, error) {

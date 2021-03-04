@@ -505,7 +505,8 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			command := cmdWrite(&globalFlags{}, genericCLIOpts{in: test.stdIn, viper: viper.New()})
+			command, err := cmdWrite(&globalFlags{}, genericCLIOpts{in: test.stdIn, viper: viper.New()})
+			require.NoError(t, err)
 			reader, closer, err := test.flags.createLineReader(context.Background(), command, test.arguments)
 			require.NotNil(t, closer)
 			defer closer.Close()
@@ -579,7 +580,8 @@ func Test_writeFlags_createLineReader_errors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(""), viper: viper.New()})
+			command, err := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(""), viper: viper.New()})
+			require.NoError(t, err)
 			_, closer, err := test.flags.createLineReader(context.Background(), command, []string{})
 			require.NotNil(t, closer)
 			defer closer.Close()
@@ -593,84 +595,93 @@ func Test_writeDryrunE(t *testing.T) {
 	t.Run("process and transform csv data without problems to stdout", func(t *testing.T) {
 		stdInContents := "i,j,_measurement,k\nstdin1,stdin2,stdin3,stdin4"
 		out := bytes.Buffer{}
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out), viper: viper.New()})
+		command, err := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out), viper: viper.New()})
+		require.NoError(t, err)
 		command.SetArgs([]string{"dryrun", "--format", "csv"})
-		err := command.Execute()
-		require.Nil(t, err)
+		require.NoError(t, command.Execute())
 		require.Equal(t, "stdin3 i=stdin1,j=stdin2,k=stdin4", strings.Trim(out.String(), "\n"))
 	})
 
 	t.Run("dryrun fails on unsupported data format", func(t *testing.T) {
 		stdInContents := "i,j,_measurement,k\nstdin1,stdin2,stdin3,stdin4"
 		out := bytes.Buffer{}
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out), viper: viper.New()})
+		command, err := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out), viper: viper.New()})
+		require.NoError(t, err)
 		command.SetArgs([]string{"dryrun", "--format", "csvx"})
-		err := command.Execute()
-		require.NotNil(t, err)
+		err = command.Execute()
+		require.Error(t, err)
 		require.Contains(t, fmt.Sprintf("%s", err), "unsupported") // unsupported format
 	})
 
 	t.Run("dryrun fails on malformed CSV data while reading them", func(t *testing.T) {
 		stdInContents := "i,j,l,k\nstdin1,stdin2,stdin3,stdin4"
 		out := bytes.Buffer{}
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out), viper: viper.New()})
+		command, err := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out), viper: viper.New()})
+		require.NoError(t, err)
 		command.SetArgs([]string{"dryrun", "--format", "csv"})
-		err := command.Execute()
-		require.NotNil(t, err)
+		err = command.Execute()
+		require.Error(t, err)
 		require.Contains(t, fmt.Sprintf("%s", err), "measurement") // no measurement column
 	})
 }
 
 func Test_writeRunE(t *testing.T) {
 	t.Run("validates that --org or --org-id must be specified", func(t *testing.T) {
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
+		command, err := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
+		require.NoError(t, err)
 		command.SetArgs([]string{"--format", "csv"})
-		err := command.Execute()
+		err = command.Execute()
 		require.Contains(t, fmt.Sprintf("%s", err), "org")
 	})
 
 	t.Run("validates that either --bucket or --bucket-id must be specified", func(t *testing.T) {
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
+		command, err := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
+		require.NoError(t, err)
 		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket", "my-bucket", "--bucket-id", "my-bucket"})
-		err := command.Execute()
+		err = command.Execute()
 		require.Contains(t, fmt.Sprintf("%s", err), "bucket") // bucket or bucket-id, but not both
 	})
 
 	t.Run("validates --precision", func(t *testing.T) {
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
+		command, err := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
+		require.NoError(t, err)
 		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket", "my-bucket", "--precision", "pikosec"})
-		err := command.Execute()
+		err = command.Execute()
 		require.Contains(t, fmt.Sprintf("%s", err), "precision") // invalid precision
 	})
 
 	t.Run("validates decoding of bucket-id", func(t *testing.T) {
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
+		command, err := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
+		require.NoError(t, err)
 		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket-id", "my-bucket"})
-		err := command.Execute()
+		err = command.Execute()
 		require.Contains(t, fmt.Sprintf("%s", err), "bucket-id")
 	})
 
 	t.Run("validates decoding of org-id", func(t *testing.T) {
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
+		command, err := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
+		require.NoError(t, err)
 		command.SetArgs([]string{"--format", "csv", "--org-id", "my-org", "--bucket", "my-bucket"})
-		err := command.Execute()
+		err = command.Execute()
 		require.Contains(t, fmt.Sprintf("%s", err), "org-id")
 	})
 
 	t.Run("validates unsupported line reader format", func(t *testing.T) {
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
+		command, err := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
+		require.NoError(t, err)
 		command.SetArgs([]string{"--format", "csvx", "--org", "my-org", "--bucket-id", "4f14589c26df8286"})
-		err := command.Execute()
+		err = command.Execute()
 		require.Contains(t, fmt.Sprintf("%s", err), "format")
 	})
 
 	t.Run("validates error during data read", func(t *testing.T) {
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{
+		command, err := cmdWrite(&globalFlags{}, genericCLIOpts{
 			in:    strings.NewReader("a,b\nc,d"),
 			w:     ioutil.Discard,
 			viper: viper.New()})
+		require.NoError(t, err)
 		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket-id", "4f14589c26df8286"})
-		err := command.Execute()
+		err = command.Execute()
 		require.Contains(t, fmt.Sprintf("%s", err), "measurement") // no measurement found in CSV data
 	})
 
@@ -692,10 +703,10 @@ func Test_writeRunE(t *testing.T) {
 			w:     ioutil.Discard,
 			viper: viper.New(),
 		}
-		command := newWriteFlagsBuilder(svcBuilder, &globalFlags{}, cliOpts).cmd()
-		command.SetArgs([]string{"--org", "my-org", "--bucket-id", "4f14589c26df8286"})
-		err := command.Execute()
+		command, err := newWriteFlagsBuilder(svcBuilder, &globalFlags{}, cliOpts).cmd()
 		require.NoError(t, err)
+		command.SetArgs([]string{"--org", "my-org", "--bucket-id", "4f14589c26df8286"})
+		require.NoError(t, command.Execute())
 		require.Equal(t, "stdin3 i=stdin1,j=stdin2,k=stdin4", strings.Trim(lineData.String(), "\n"))
 	})
 
@@ -713,9 +724,10 @@ func Test_writeRunE(t *testing.T) {
 			w:     ioutil.Discard,
 			viper: viper.New(),
 		}
-		command := newWriteFlagsBuilder(svcBuilder, &globalFlags{}, cliOpts).cmd()
+		command, err := newWriteFlagsBuilder(svcBuilder, &globalFlags{}, cliOpts).cmd()
+		require.NoError(t, err)
 		command.SetArgs([]string{"--org", "my-org", "--bucket-id", "4f14589c26df8286"})
-		err := command.Execute()
+		err = command.Execute()
 		require.Error(t, err)
 		require.Contains(t, err.Error(), "i broke")
 	})
@@ -738,10 +750,10 @@ func Test_writeRunE(t *testing.T) {
 			w:     ioutil.Discard,
 			viper: viper.New(),
 		}
-		command := newWriteFlagsBuilder(svcBuilder, &globalFlags{}, cliOpts).cmd()
-		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket-id", "4f14589c26df8286"})
-		err := command.Execute()
+		command, err := newWriteFlagsBuilder(svcBuilder, &globalFlags{}, cliOpts).cmd()
 		require.NoError(t, err)
+		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket-id", "4f14589c26df8286"})
+		require.NoError(t, command.Execute())
 		require.Equal(t, "stdin3 i=stdin1,j=stdin2,k=stdin4", strings.Trim(lineData.String(), "\n"))
 	})
 }
@@ -752,13 +764,13 @@ func Test_writeFlags_errorsFile(t *testing.T) {
 	errorsFile := createTempFile(t, "errors", []byte{}, false)
 	stdInContents := "_measurement,a|long:strict\nm,1\nm,1.1"
 	out := bytes.Buffer{}
-	command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out), viper: viper.New()})
+	command, err := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out), viper: viper.New()})
 	command.SetArgs([]string{"dryrun", "--format", "csv", "--errors-file", errorsFile})
-	err := command.Execute()
-	require.Nil(t, err)
+	require.NoError(t, err)
+	require.NoError(t, command.Execute())
 	require.Equal(t, "m a=1i", strings.Trim(out.String(), "\n"))
 	errorLines, err := ioutil.ReadFile(errorsFile)
-	require.Nil(t, err)
+	require.NoError(t, err)
 	require.Equal(t, "# error : line 3: column 'a': '1.1' cannot fit into long data type\nm,1.1", strings.Trim(string(errorLines), "\n"))
 }
 

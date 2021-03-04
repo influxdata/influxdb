@@ -21,7 +21,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func cmdRestore(f *globalFlags, opts genericCLIOpts) *cobra.Command {
+func cmdRestore(f *globalFlags, opts genericCLIOpts) (*cobra.Command, error) {
 	return newCmdRestoreBuilder(f, opts).cmdRestore()
 }
 
@@ -58,9 +58,14 @@ func newCmdRestoreBuilder(f *globalFlags, opts genericCLIOpts) *cmdRestoreBuilde
 	}
 }
 
-func (b *cmdRestoreBuilder) cmdRestore() *cobra.Command {
-	cmd := b.newCmd("restore", b.restoreRunE)
-	b.org.register(b.viper, cmd, true)
+func (b *cmdRestoreBuilder) cmdRestore() (*cobra.Command, error) {
+	cmd, err := b.newCmd("restore", b.restoreRunE)
+	if err != nil {
+		return nil, err
+	}
+	if err := b.org.register(b.viper, cmd, true); err != nil {
+		return nil, err
+	}
 	cmd.Flags().BoolVar(&b.full, "full", false, "Fully restore and replace all data on server")
 	cmd.Flags().StringVar(&b.bucketID, "bucket-id", "", "The ID of the bucket to restore")
 	cmd.Flags().StringVarP(&b.bucketName, "bucket", "b", "", "The name of the bucket to restore")
@@ -85,7 +90,7 @@ Examples:
 	# restore all data
 	influx restore /path/to/restore
 `
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdRestoreBuilder) restoreRunE(cmd *cobra.Command, args []string) (err error) {
@@ -394,9 +399,13 @@ func (b *cmdRestoreBuilder) loadIncremental() error {
 	return nil
 }
 
-func (b *cmdRestoreBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
+func (b *cmdRestoreBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) (*cobra.Command, error) {
 	cmd := b.genericCLIOpts.newCmd(use, runE, true)
-	b.genericCLIOpts.registerPrintOptions(cmd)
-	b.globalFlags.registerFlags(b.viper, cmd)
-	return cmd
+	if err := b.genericCLIOpts.registerPrintOptions(cmd); err != nil {
+		return nil, err
+	}
+	if err := b.globalFlags.registerFlags(b.viper, cmd); err != nil {
+		return nil, err
+	}
+	return cmd, nil
 }

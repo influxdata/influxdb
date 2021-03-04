@@ -53,7 +53,7 @@ func TestCmdOrg(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(expectedOrg influxdb.Organization) func(*globalFlags, genericCLIOpts) *cobra.Command {
+		cmdFn := func(expectedOrg influxdb.Organization) func(*globalFlags, genericCLIOpts) (*cobra.Command, error) {
 			svc := mock.NewOrganizationService()
 			svc.CreateOrganizationF = func(ctx context.Context, org *influxdb.Organization) error {
 				if expectedOrg != *org {
@@ -62,7 +62,7 @@ func TestCmdOrg(t *testing.T) {
 				return nil
 			}
 
-			return func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+			return func(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 				builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), f, opt)
 				return builder.cmd()
 			}
@@ -74,7 +74,8 @@ func TestCmdOrg(t *testing.T) {
 					in(new(bytes.Buffer)),
 					out(ioutil.Discard),
 				)
-				cmd := builder.cmd(cmdFn(tt.expected))
+				cmd, err := builder.cmd(cmdFn(tt.expected))
+				require.NoError(t, err)
 				cmd.SetArgs(append([]string{"org", "create"}, tt.flags...))
 
 				require.NoError(t, cmd.Execute())
@@ -102,7 +103,7 @@ func TestCmdOrg(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(expectedID influxdb.ID) func(*globalFlags, genericCLIOpts) *cobra.Command {
+		cmdFn := func(expectedID influxdb.ID) func(*globalFlags, genericCLIOpts) (*cobra.Command, error) {
 			svc := mock.NewOrganizationService()
 			svc.FindOrganizationByIDF = func(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
 				return &influxdb.Organization{ID: id}, nil
@@ -114,7 +115,7 @@ func TestCmdOrg(t *testing.T) {
 				return nil
 			}
 
-			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+			return func(g *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 				builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), g, opt)
 				return builder.cmd()
 			}
@@ -126,7 +127,8 @@ func TestCmdOrg(t *testing.T) {
 					in(new(bytes.Buffer)),
 					out(ioutil.Discard),
 				)
-				cmd := builder.cmd(cmdFn(tt.expectedID))
+				cmd, err := builder.cmd(cmdFn(tt.expectedID))
+				require.NoError(t, err)
 				idFlag := tt.flag + tt.expectedID.String()
 				cmd.SetArgs([]string{"org", "find", idFlag})
 
@@ -196,7 +198,7 @@ func TestCmdOrg(t *testing.T) {
 			},
 		}
 
-		cmdFn := func() (func(*globalFlags, genericCLIOpts) *cobra.Command, *called) {
+		cmdFn := func() (func(*globalFlags, genericCLIOpts) (*cobra.Command, error), *called) {
 			calls := new(called)
 
 			svc := mock.NewOrganizationService()
@@ -210,7 +212,7 @@ func TestCmdOrg(t *testing.T) {
 				return nil, 0, nil
 			}
 
-			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+			return func(g *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 				builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), g, opt)
 				return builder.cmd()
 			}, calls
@@ -225,7 +227,8 @@ func TestCmdOrg(t *testing.T) {
 					out(ioutil.Discard),
 				)
 				cmdFn, calls := cmdFn()
-				cmd := builder.cmd(cmdFn)
+				cmd, err := builder.cmd(cmdFn)
+				require.NoError(t, err)
 
 				if tt.command == "" {
 					tt.command = "list"
@@ -296,7 +299,7 @@ func TestCmdOrg(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(expectedUpdate influxdb.OrganizationUpdate) func(*globalFlags, genericCLIOpts) *cobra.Command {
+		cmdFn := func(expectedUpdate influxdb.OrganizationUpdate) func(*globalFlags, genericCLIOpts) (*cobra.Command, error) {
 			svc := mock.NewOrganizationService()
 			svc.UpdateOrganizationF = func(ctx context.Context, id influxdb.ID, upd influxdb.OrganizationUpdate) (*influxdb.Organization, error) {
 				if id != 3 {
@@ -308,7 +311,7 @@ func TestCmdOrg(t *testing.T) {
 				return &influxdb.Organization{}, nil
 			}
 
-			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+			return func(g *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 				builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), g, opt)
 				return builder.cmd()
 			}
@@ -322,7 +325,8 @@ func TestCmdOrg(t *testing.T) {
 					in(new(bytes.Buffer)),
 					out(ioutil.Discard),
 				)
-				cmd := builder.cmd(cmdFn(tt.expected))
+				cmd, err := builder.cmd(cmdFn(tt.expected))
+				require.NoError(t, err)
 				cmd.SetArgs(append([]string{"org", "update"}, tt.flags...))
 
 				require.NoError(t, cmd.Execute())
@@ -348,7 +352,7 @@ func TestCmdOrg(t *testing.T) {
 			}
 		)
 
-		testMemberFn := func(t *testing.T, cmdName string, cmdFn func() (func(*globalFlags, genericCLIOpts) *cobra.Command, *called), testCases ...testCase) {
+		testMemberFn := func(t *testing.T, cmdName string, cmdFn func() (func(*globalFlags, genericCLIOpts) (*cobra.Command, error), *called), testCases ...testCase) {
 			for _, tt := range testCases {
 				fn := func(t *testing.T) {
 					envVars := tt.envVars
@@ -369,7 +373,8 @@ func TestCmdOrg(t *testing.T) {
 						out(outBuf),
 					)
 					nestedCmd, calls := cmdFn()
-					cmd := builder.cmd(nestedCmd)
+					cmd, err := builder.cmd(nestedCmd)
+					require.NoError(t, err)
 					cmd.SetArgs(append([]string{"org", "members", cmdName}, tt.memberFlags...))
 
 					require.NoError(t, cmd.Execute())
@@ -421,7 +426,7 @@ func TestCmdOrg(t *testing.T) {
 				},
 			}
 
-			cmdFn := func() (func(*globalFlags, genericCLIOpts) *cobra.Command, *called) {
+			cmdFn := func() (func(*globalFlags, genericCLIOpts) (*cobra.Command, error), *called) {
 				calls := new(called)
 
 				svc := mock.NewOrganizationService()
@@ -435,7 +440,7 @@ func TestCmdOrg(t *testing.T) {
 					return &influxdb.Organization{ID: 1}, nil
 				}
 
-				return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+				return func(g *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 					builder := newCmdOrgBuilder(fakeOrgSVCFn(svc), g, opt)
 					return builder.cmd()
 				}, calls
@@ -447,7 +452,7 @@ func TestCmdOrg(t *testing.T) {
 		})
 
 		t.Run("add", func(t *testing.T) {
-			cmdFn := func() (func(*globalFlags, genericCLIOpts) *cobra.Command, *called) {
+			cmdFn := func() (func(*globalFlags, genericCLIOpts) (*cobra.Command, error), *called) {
 				calls := new(called)
 
 				svc := mock.NewOrganizationService()
@@ -466,7 +471,7 @@ func TestCmdOrg(t *testing.T) {
 					return nil
 				}
 
-				return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+				return func(g *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 					builder := newCmdOrgBuilder(fakeOrgUrmSVCsFn(svc, urmSVC), g, opt)
 					return builder.cmd()
 				}, calls
@@ -515,7 +520,7 @@ func TestCmdOrg(t *testing.T) {
 		})
 
 		t.Run("remove", func(t *testing.T) {
-			cmdFn := func() (func(*globalFlags, genericCLIOpts) *cobra.Command, *called) {
+			cmdFn := func() (func(*globalFlags, genericCLIOpts) (*cobra.Command, error), *called) {
 				calls := new(called)
 
 				svc := mock.NewOrganizationService()
@@ -534,7 +539,7 @@ func TestCmdOrg(t *testing.T) {
 					return nil
 				}
 
-				return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+				return func(g *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 					builder := newCmdOrgBuilder(fakeOrgUrmSVCsFn(svc, urmSVC), g, opt)
 					return builder.cmd()
 				}, calls

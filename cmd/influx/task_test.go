@@ -50,7 +50,7 @@ func TestCmdTask(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(expectedTsk influxdb.Task) func(*globalFlags, genericCLIOpts) *cobra.Command {
+		cmdFn := func(expectedTsk influxdb.Task) func(*globalFlags, genericCLIOpts) (*cobra.Command, error) {
 			svc := mock.NewTaskService()
 			svc.CreateTaskFn = func(ctx context.Context, task influxdb.TaskCreate) (*influxdb.Task, error) {
 				tmpTsk := influxdb.Task{
@@ -71,7 +71,7 @@ func TestCmdTask(t *testing.T) {
 				}
 			}
 
-			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+			return func(g *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 				return newCmdTaskBuilder(fakeSVCFn(svc), g, opt).cmd()
 			}
 		}
@@ -84,7 +84,8 @@ func TestCmdTask(t *testing.T) {
 					in(new(bytes.Buffer)),
 					out(ioutil.Discard),
 				)
-				cmd := builder.cmd(cmdFn(tt.expectedTask))
+				cmd, err := builder.cmd(cmdFn(tt.expectedTask))
+				require.NoError(t, err)
 				cmd.SetArgs(append([]string{"task", "create"}, tt.flags...))
 
 				require.NoError(t, cmd.Execute())

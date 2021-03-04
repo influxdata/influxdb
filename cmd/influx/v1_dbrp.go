@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	"github.com/influxdata/influxdb/v2"
@@ -11,19 +12,26 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func cmdV1DBRP(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func cmdV1DBRP(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 	cmd := opt.newCmd("dbrp", nil, false)
 	cmd.Short = "Commands to manage database and retention policy mappings for v1 APIs"
 	cmd.Run = seeHelp
 
-	cmd.AddCommand(
-		v1DBRPCreateCmd(f, opt),
-		v1DBRPFindCmd(f, opt),
-		v1DBRPDeleteCmd(f, opt),
-		v1DBRPUpdateCmd(f, opt),
-	)
+	builders := []func(*globalFlags, genericCLIOpts) (*cobra.Command, error){
+		v1DBRPCreateCmd,
+		v1DBRPFindCmd,
+		v1DBRPDeleteCmd,
+		v1DBRPUpdateCmd,
+	}
+	for _, builder := range builders {
+		subcmd, err := builder(f, opt)
+		if err != nil {
+			return nil, err
+		}
+		cmd.AddCommand(subcmd)
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 var v1DBRPCRUDFlags struct {
@@ -41,7 +49,7 @@ var v1DBRPFindFlags struct {
 	RP       string       // Specifies the retention policy to filter on
 }
 
-func v1DBRPFindCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func v1DBRPFindCmd(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List database and retention policy mappings",
@@ -49,16 +57,22 @@ func v1DBRPFindCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 		Args:  cobra.NoArgs,
 	}
 
-	f.registerFlags(opt.viper, cmd)
-	registerPrintOptions(opt.viper, cmd, &v1DBRPCRUDFlags.hideHeaders, &v1DBRPCRUDFlags.json)
-	v1DBRPFindFlags.Org.register(opt.viper, cmd, false)
+	if err := f.registerFlags(opt.viper, cmd); err != nil {
+		return nil, err
+	}
+	if err := registerPrintOptions(opt.viper, cmd, &v1DBRPCRUDFlags.hideHeaders, &v1DBRPCRUDFlags.json); err != nil {
+		return nil, err
+	}
+	if err := v1DBRPFindFlags.Org.register(opt.viper, cmd, false); err != nil {
+		return nil, err
+	}
 	cli.IDVar(cmd.Flags(), &v1DBRPFindFlags.BucketID, "bucket-id", 0, "Limit results to the matching bucket id")
 	cli.IDVar(cmd.Flags(), &v1DBRPFindFlags.ID, "id", 0, "Limit results to a single mapping")
 	cmd.Flags().StringVar(&v1DBRPFindFlags.DB, "db", "", "Limit results to the matching database name")
 	cmd.Flags().StringVar(&v1DBRPFindFlags.RP, "rp", "", "Limit results to the matching retention policy name")
 	cmd.Flags().Bool("default", false, "Limit results to default mappings")
 
-	return cmd
+	return cmd, nil
 }
 
 func v1DBRPFindF(cmd *cobra.Command, _ []string) error {
@@ -128,7 +142,7 @@ var v1DBRPCreateFlags struct {
 	RP       string       // Specifies the retention policy to filter on
 }
 
-func v1DBRPCreateCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func v1DBRPCreateCmd(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create a database and retention policy mapping to an existing bucket",
@@ -136,17 +150,29 @@ func v1DBRPCreateCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 		Args:  cobra.NoArgs,
 	}
 
-	f.registerFlags(opt.viper, cmd)
-	registerPrintOptions(opt.viper, cmd, &v1DBRPCRUDFlags.hideHeaders, &v1DBRPCRUDFlags.json)
-	v1DBRPCreateFlags.Org.register(opt.viper, cmd, false)
+	if err := f.registerFlags(opt.viper, cmd); err != nil {
+		return nil, err
+	}
+	if err := registerPrintOptions(opt.viper, cmd, &v1DBRPCRUDFlags.hideHeaders, &v1DBRPCRUDFlags.json); err != nil {
+		return nil, err
+	}
+	if err := v1DBRPCreateFlags.Org.register(opt.viper, cmd, false); err != nil {
+		return nil, err
+	}
 	cli.IDVar(cmd.Flags(), &v1DBRPCreateFlags.BucketID, "bucket-id", 0, "The ID of the bucket to be mapped")
-	_ = cmd.MarkFlagRequired("bucket-id")
+	if err := cmd.MarkFlagRequired("bucket-id"); err != nil {
+		return nil, fmt.Errorf("failed to mark 'bucket-id' as required: %w", err)
+	}
 	cmd.Flags().StringVar(&v1DBRPCreateFlags.DB, "db", "", "The name of the database")
-	_ = cmd.MarkFlagRequired("db")
+	if err := cmd.MarkFlagRequired("db"); err != nil {
+		return nil, fmt.Errorf("failed to mark 'db' as required: %w", err)
+	}
 	cmd.Flags().BoolVar(&v1DBRPCreateFlags.Default, "default", false, "Identify this retention policy as the default for the database")
 	cmd.Flags().StringVar(&v1DBRPCreateFlags.RP, "rp", "", "The name of the retention policy")
-	_ = cmd.MarkFlagRequired("rp")
-	return cmd
+	if err := cmd.MarkFlagRequired("rp"); err != nil {
+		return nil, fmt.Errorf("failed to mark 'rp' as required: %w", err)
+	}
+	return cmd, nil
 }
 
 func v1DBRPCreateF(cmd *cobra.Command, _ []string) error {
@@ -241,7 +267,7 @@ var v1DBRPDeleteFlags struct {
 	Org organization
 }
 
-func v1DBRPDeleteCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func v1DBRPDeleteCmd(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Delete a database and retention policy mapping",
@@ -249,12 +275,20 @@ func v1DBRPDeleteCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 		Args:  cobra.NoArgs,
 	}
 
-	f.registerFlags(opt.viper, cmd)
-	registerPrintOptions(opt.viper, cmd, &v1DBRPCRUDFlags.hideHeaders, &v1DBRPCRUDFlags.json)
-	v1DBRPDeleteFlags.Org.register(opt.viper, cmd, false)
+	if err := f.registerFlags(opt.viper, cmd); err != nil {
+		return nil, err
+	}
+	if err := registerPrintOptions(opt.viper, cmd, &v1DBRPCRUDFlags.hideHeaders, &v1DBRPCRUDFlags.json); err != nil {
+		return nil, err
+	}
+	if err := v1DBRPDeleteFlags.Org.register(opt.viper, cmd, false); err != nil {
+		return nil, err
+	}
 	cli.IDVar(cmd.Flags(), &v1DBRPDeleteFlags.ID, "id", 0, "The ID of the mapping to delete")
-	_ = cmd.MarkFlagRequired("id")
-	return cmd
+	if err := cmd.MarkFlagRequired("id"); err != nil {
+		return nil, fmt.Errorf("failed to mark 'id' as required: %w", err)
+	}
+	return cmd, nil
 }
 
 func v1DBRPDeleteF(cmd *cobra.Command, _ []string) error {
@@ -298,22 +332,31 @@ var v1DBRPUpdateFlags struct {
 	RP      string       // Updated name of the retention policy
 }
 
-func v1DBRPUpdateCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func v1DBRPUpdateCmd(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "update",
 		Short: "Update a database and retention policy mapping",
 		RunE:  checkSetupRunEMiddleware(&flags)(v1DBRPUpdateF),
 		Args:  cobra.NoArgs,
 	}
-	f.registerFlags(opt.viper, cmd)
-	registerPrintOptions(opt.viper, cmd, &v1DBRPCRUDFlags.hideHeaders, &v1DBRPCRUDFlags.json)
-	v1DBRPUpdateFlags.Org.register(opt.viper, cmd, false)
+	if err := f.registerFlags(opt.viper, cmd); err != nil {
+		return nil, err
+	}
+	if err := registerPrintOptions(opt.viper, cmd, &v1DBRPCRUDFlags.hideHeaders, &v1DBRPCRUDFlags.json); err != nil {
+		return nil, err
+	}
+	if err := v1DBRPUpdateFlags.Org.register(opt.viper, cmd, false); err != nil {
+		return nil, err
+	}
 	cli.IDVar(cmd.Flags(), &v1DBRPUpdateFlags.ID, "id", 0, "The ID of the mapping to be updated")
-	_ = cmd.MarkFlagRequired("id")
+	if err := cmd.MarkFlagRequired("id"); err != nil {
+		return nil, fmt.Errorf("failed to mark 'id' as required: %w", err)
+	}
 	// note for update we only care about update flags that the user set
 	cmd.Flags().StringVar(&v1DBRPUpdateFlags.RP, "rp", "", "The updated name of the retention policy")
 	cmd.Flags().Bool("default", false, "Set this mapping's retention policy as the default for the mapping's database")
-	return cmd
+
+	return cmd, nil
 }
 
 func v1DBRPUpdateF(cmd *cobra.Command, _ []string) error {

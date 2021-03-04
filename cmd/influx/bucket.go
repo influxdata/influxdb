@@ -12,7 +12,7 @@ import (
 
 type bucketSVCsFn func() (influxdb.BucketService, influxdb.OrganizationService, error)
 
-func cmdBucket(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func cmdBucket(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 	builder := newCmdBucketBuilder(newBucketSVCs, f, opt)
 	return builder.cmd()
 }
@@ -40,23 +40,32 @@ func newCmdBucketBuilder(svcsFn bucketSVCsFn, f *globalFlags, opts genericCLIOpt
 	}
 }
 
-func (b *cmdBucketBuilder) cmd() *cobra.Command {
-	cmd := b.newCmd("bucket", nil)
+func (b *cmdBucketBuilder) cmd() (*cobra.Command, error) {
+	cmd, err := b.newCmd("bucket", nil)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "Bucket management commands"
 	cmd.TraverseChildren = true
 	cmd.Run = seeHelp
-	cmd.AddCommand(
-		b.cmdCreate(),
-		b.cmdDelete(),
-		b.cmdList(),
-		b.cmdUpdate(),
-	)
 
-	return cmd
+	builders := []func() (*cobra.Command, error){b.cmdCreate, b.cmdDelete, b.cmdList, b.cmdUpdate}
+	for _, buildCmd := range builders {
+		subcommand, err := buildCmd()
+		if err != nil {
+			return nil, err
+		}
+		cmd.AddCommand(subcommand)
+	}
+
+	return cmd, nil
 }
 
-func (b *cmdBucketBuilder) cmdCreate() *cobra.Command {
-	cmd := b.newCmd("create", b.cmdCreateRunEFn)
+func (b *cmdBucketBuilder) cmdCreate() (*cobra.Command, error) {
+	cmd, err := b.newCmd("create", b.cmdCreateRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "Create bucket"
 
 	opts := flagOpts{
@@ -69,14 +78,20 @@ func (b *cmdBucketBuilder) cmdCreate() *cobra.Command {
 			Required: true,
 		},
 	}
-	opts.mustRegister(b.viper, cmd)
+	if err := opts.register(b.viper, cmd); err != nil {
+		return nil, err
+	}
 
 	cmd.Flags().StringVarP(&b.description, "description", "d", "", "Description of bucket that will be created")
 	cmd.Flags().StringVarP(&b.retention, "retention", "r", "", "Duration bucket will retain data. 0 is infinite. Default is 0.")
-	b.org.register(b.viper, cmd, false)
-	b.registerPrintFlags(cmd)
+	if err := b.org.register(b.viper, cmd, false); err != nil {
+		return nil, err
+	}
+	if err := b.registerPrintFlags(cmd); err != nil {
+		return nil, err
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdBucketBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
@@ -111,16 +126,23 @@ func (b *cmdBucketBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 	return b.printBuckets(bucketPrintOpt{bucket: bkt})
 }
 
-func (b *cmdBucketBuilder) cmdDelete() *cobra.Command {
-	cmd := b.newCmd("delete", b.cmdDeleteRunEFn)
+func (b *cmdBucketBuilder) cmdDelete() (*cobra.Command, error) {
+	cmd, err := b.newCmd("delete", b.cmdDeleteRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "Delete bucket"
 
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The bucket ID, required if name isn't provided")
 	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The bucket name, org or org-id will be required by choosing this")
-	b.org.register(b.viper, cmd, false)
-	b.registerPrintFlags(cmd)
+	if err := b.org.register(b.viper, cmd, false); err != nil {
+		return nil, err
+	}
+	if err := b.registerPrintFlags(cmd); err != nil {
+		return nil, err
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdBucketBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) error {
@@ -166,8 +188,11 @@ func (b *cmdBucketBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) er
 	})
 }
 
-func (b *cmdBucketBuilder) cmdList() *cobra.Command {
-	cmd := b.newCmd("list", b.cmdListRunEFn)
+func (b *cmdBucketBuilder) cmdList() (*cobra.Command, error) {
+	cmd, err := b.newCmd("list", b.cmdListRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "List buckets"
 	cmd.Aliases = []string{"find", "ls"}
 
@@ -180,13 +205,18 @@ func (b *cmdBucketBuilder) cmdList() *cobra.Command {
 			Desc:   "The bucket name",
 		},
 	}
-	opts.mustRegister(b.viper, cmd)
-
-	b.org.register(b.viper, cmd, false)
-	b.registerPrintFlags(cmd)
+	if err := opts.register(b.viper, cmd); err != nil {
+		return nil, err
+	}
+	if err := b.org.register(b.viper, cmd, false); err != nil {
+		return nil, err
+	}
+	if err := b.registerPrintFlags(cmd); err != nil {
+		return nil, err
+	}
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The bucket ID")
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdBucketBuilder) cmdListRunEFn(cmd *cobra.Command, args []string) error {
@@ -231,8 +261,11 @@ func (b *cmdBucketBuilder) cmdListRunEFn(cmd *cobra.Command, args []string) erro
 	})
 }
 
-func (b *cmdBucketBuilder) cmdUpdate() *cobra.Command {
-	cmd := b.newCmd("update", b.cmdUpdateRunEFn)
+func (b *cmdBucketBuilder) cmdUpdate() (*cobra.Command, error) {
+	cmd, err := b.newCmd("update", b.cmdUpdateRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "Update bucket"
 
 	opts := flagOpts{
@@ -244,15 +277,21 @@ func (b *cmdBucketBuilder) cmdUpdate() *cobra.Command {
 			Desc:   "New bucket name",
 		},
 	}
-	opts.mustRegister(b.viper, cmd)
+	if err := opts.register(b.viper, cmd); err != nil {
+		return nil, err
+	}
 
-	b.registerPrintFlags(cmd)
+	if err := b.registerPrintFlags(cmd); err != nil {
+		return nil, err
+	}
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The bucket ID (required)")
 	cmd.Flags().StringVarP(&b.description, "description", "d", "", "Description of bucket that will be created")
-	cmd.MarkFlagRequired("id")
+	if err := cmd.MarkFlagRequired("id"); err != nil {
+		return nil, fmt.Errorf("failed to mark 'id' as required: %w", err)
+	}
 	cmd.Flags().StringVarP(&b.retention, "retention", "r", "", "Duration bucket will retain data. 0 is infinite. Default is 0.")
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdBucketBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) error {
@@ -290,14 +329,16 @@ func (b *cmdBucketBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) er
 	return b.printBuckets(bucketPrintOpt{bucket: bkt})
 }
 
-func (b *cmdBucketBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
+func (b *cmdBucketBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) (*cobra.Command, error) {
 	cmd := b.genericCLIOpts.newCmd(use, runE, true)
-	b.globalFlags.registerFlags(b.viper, cmd)
-	return cmd
+	if err := b.globalFlags.registerFlags(b.viper, cmd); err != nil {
+		return nil, err
+	}
+	return cmd, nil
 }
 
-func (b *cmdBucketBuilder) registerPrintFlags(cmd *cobra.Command) {
-	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
+func (b *cmdBucketBuilder) registerPrintFlags(cmd *cobra.Command) error {
+	return registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
 }
 
 type bucketPrintOpt struct {

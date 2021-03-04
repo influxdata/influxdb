@@ -21,7 +21,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func cmdBackup(f *globalFlags, opts genericCLIOpts) *cobra.Command {
+func cmdBackup(f *globalFlags, opts genericCLIOpts) (*cobra.Command, error) {
 	return newCmdBackupBuilder(f, opts).cmdBackup()
 }
 
@@ -53,9 +53,14 @@ func newCmdBackupBuilder(f *globalFlags, opts genericCLIOpts) *cmdBackupBuilder 
 	}
 }
 
-func (b *cmdBackupBuilder) cmdBackup() *cobra.Command {
-	cmd := b.newCmd("backup", b.backupRunE)
-	b.org.register(b.viper, cmd, true)
+func (b *cmdBackupBuilder) cmdBackup() (*cobra.Command, error) {
+	cmd, err := b.newCmd("backup", b.backupRunE)
+	if err != nil {
+		return nil, err
+	}
+	if err := b.org.register(b.viper, cmd, true); err != nil {
+		return nil, err
+	}
 	cmd.Flags().StringVar(&b.bucketID, "bucket-id", "", "The ID of the bucket to backup")
 	cmd.Flags().StringVarP(&b.bucketName, "bucket", "b", "", "The name of the bucket to backup")
 	cmd.Use = "backup [flags] path"
@@ -76,7 +81,7 @@ Examples:
 	# backup all data
 	influx backup /path/to/backup
 `
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdBackupBuilder) manifestPath() string {
@@ -334,9 +339,13 @@ func (b *cmdBackupBuilder) writeManifest(ctx context.Context) error {
 	return ioutil.WriteFile(path, buf, 0600)
 }
 
-func (b *cmdBackupBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
+func (b *cmdBackupBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) (*cobra.Command, error) {
 	cmd := b.genericCLIOpts.newCmd(use, runE, true)
-	b.genericCLIOpts.registerPrintOptions(cmd)
-	b.globalFlags.registerFlags(b.viper, cmd)
-	return cmd
+	if err := b.genericCLIOpts.registerPrintOptions(cmd); err != nil {
+		return nil, err
+	}
+	if err := b.globalFlags.registerFlags(b.viper, cmd); err != nil {
+		return nil, err
+	}
+	return cmd, nil
 }

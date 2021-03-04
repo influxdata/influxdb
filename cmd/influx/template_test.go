@@ -183,7 +183,7 @@ func Test_Template_Commands(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+		cmdFn := func(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 			pkgSVC := &fakePkgSVC{
 				exportFn: func(_ context.Context, opts ...pkger.ExportOptFn) (*pkger.Template, error) {
 					opt := pkger.ExportOpt{}
@@ -322,7 +322,7 @@ func Test_Template_Commands(t *testing.T) {
 				},
 			}
 
-			cmdFn := func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+			cmdFn := func(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 				pkgSVC := &fakePkgSVC{
 					exportFn: func(_ context.Context, opts ...pkger.ExportOptFn) (*pkger.Template, error) {
 						var opt pkger.ExportOpt
@@ -417,7 +417,7 @@ func Test_Template_Commands(t *testing.T) {
 		})
 
 		t.Run("by stack", func(t *testing.T) {
-			cmdFn := func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+			cmdFn := func(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 				pkgSVC := &fakePkgSVC{
 					exportFn: func(_ context.Context, opts ...pkger.ExportOptFn) (*pkger.Template, error) {
 						var opt pkger.ExportOpt
@@ -466,9 +466,10 @@ func Test_Template_Commands(t *testing.T) {
 				in(new(bytes.Buffer)),
 				out(ioutil.Discard),
 			)
-			cmd := builder.cmd(func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+			cmd, err := builder.cmd(func(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 				return newCmdPkgerBuilder(fakeSVCFn(new(fakePkgSVC)), f, opt).cmdTemplate()
 			})
+			require.NoError(t, err)
 
 			cmd.SetArgs([]string{
 				"template",
@@ -489,9 +490,10 @@ func Test_Template_Commands(t *testing.T) {
 				in(strings.NewReader(pkgYml)),
 				out(ioutil.Discard),
 			)
-			cmd := builder.cmd(func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+			cmd, err := builder.cmd(func(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 				return newCmdPkgerBuilder(fakeSVCFn(new(fakePkgSVC)), f, opt).cmdTemplate()
 			})
+			require.NoError(t, err)
 			cmd.SetArgs([]string{"template", "validate"})
 
 			require.Error(t, cmd.Execute())
@@ -593,7 +595,7 @@ func Test_Template_Commands(t *testing.T) {
 						out(outBuf),
 					)
 
-					rootCmd := builder.cmd(func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+					rootCmd, err := builder.cmd(func(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 						echoSVC := &fakePkgSVC{
 							initStackFn: func(ctx context.Context, userID influxdb.ID, stCreate pkger.StackCreate) (pkger.Stack, error) {
 								return pkger.Stack{
@@ -614,12 +616,13 @@ func Test_Template_Commands(t *testing.T) {
 						}
 						return newCmdPkgerBuilder(fakeSVCFn(echoSVC), f, opt).cmdStacks()
 					})
+					require.NoError(t, err)
 
 					baseArgs := []string{"stacks", "init", "--json"}
 
 					rootCmd.SetArgs(append(baseArgs, tt.args...))
 
-					err := rootCmd.Execute()
+					err = rootCmd.Execute()
 					if tt.shouldErr {
 						require.Error(t, err)
 					} else {
@@ -715,7 +718,7 @@ func Test_Template_Commands(t *testing.T) {
 							},
 						},
 					}
-					rootCmd := builder.cmd(func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+					rootCmd, err := builder.cmd(func(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 						echoSVC := &fakePkgSVC{
 							updateStackFn: func(ctx context.Context, stUpdate pkger.StackUpdate) (pkger.Stack, error) {
 								returnStack := initialStack
@@ -730,13 +733,13 @@ func Test_Template_Commands(t *testing.T) {
 						}
 						return newCmdPkgerBuilder(fakeSVCFn(echoSVC), f, opt).cmdStacks()
 					})
+					require.NoError(t, err)
 
 					baseArgs := []string{"stacks", "update", "--stack-id=" + influxdb.ID(1).String(), "--json"}
 
 					rootCmd.SetArgs(append(baseArgs, tt.args...))
 
-					err := rootCmd.Execute()
-					require.NoError(t, err)
+					require.NoError(t, rootCmd.Execute())
 					var stack pkger.Stack
 					testDecodeJSONBody(t, outBuf, &stack)
 					if tt.expectedStack.ID == 0 {
@@ -830,17 +833,18 @@ type templateFileArgs struct {
 	envVars  map[string]string
 }
 
-func testPkgWrites(t *testing.T, newCmdFn func(*globalFlags, genericCLIOpts) *cobra.Command, args templateFileArgs, assertFn func(t *testing.T, pkg *pkger.Template)) {
+func testPkgWrites(t *testing.T, newCmdFn func(*globalFlags, genericCLIOpts) (*cobra.Command, error), args templateFileArgs, assertFn func(t *testing.T, pkg *pkger.Template)) {
 	t.Helper()
 
 	defer addEnvVars(t, args.envVars)()
 
-	wrappedCmdFn := func(w io.Writer) *cobra.Command {
+	wrappedCmdFn := func(t *testing.T, w io.Writer) *cobra.Command {
 		builder := newInfluxCmdBuilder(
 			in(new(bytes.Buffer)),
 			out(w),
 		)
-		cmd := builder.cmd(newCmdFn)
+		cmd, err := builder.cmd(newCmdFn)
+		require.NoError(t, err)
 		cmd.SetArgs([]string{}) // clears mess from test runner coming into cobra cli via stdin
 		return cmd
 	}
@@ -849,7 +853,7 @@ func testPkgWrites(t *testing.T, newCmdFn func(*globalFlags, genericCLIOpts) *co
 	t.Run(path.Join(args.name, "buffer"), testPkgWritesToBuffer(wrappedCmdFn, args, assertFn))
 }
 
-func testPkgWritesFile(newCmdFn func(w io.Writer) *cobra.Command, args templateFileArgs, assertFn func(t *testing.T, pkg *pkger.Template)) func(t *testing.T) {
+func testPkgWritesFile(newCmdFn func(t *testing.T, w io.Writer) *cobra.Command, args templateFileArgs, assertFn func(t *testing.T, pkg *pkger.Template)) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
 
@@ -858,7 +862,7 @@ func testPkgWritesFile(newCmdFn func(w io.Writer) *cobra.Command, args templateF
 
 		pathToFile := filepath.Join(tempDir, args.filename)
 
-		cmd := newCmdFn(ioutil.Discard)
+		cmd := newCmdFn(t, ioutil.Discard)
 		cmd.SetArgs(append(args.args, "--file="+pathToFile))
 
 		require.NoError(t, cmd.Execute())
@@ -870,12 +874,12 @@ func testPkgWritesFile(newCmdFn func(w io.Writer) *cobra.Command, args templateF
 	}
 }
 
-func testPkgWritesToBuffer(newCmdFn func(w io.Writer) *cobra.Command, args templateFileArgs, assertFn func(t *testing.T, pkg *pkger.Template)) func(t *testing.T) {
+func testPkgWritesToBuffer(newCmdFn func(t *testing.T, w io.Writer) *cobra.Command, args templateFileArgs, assertFn func(t *testing.T, pkg *pkger.Template)) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Helper()
 
 		var buf bytes.Buffer
-		cmd := newCmdFn(&buf)
+		cmd := newCmdFn(t, &buf)
 		cmd.SetArgs(args.args)
 
 		require.NoError(t, cmd.Execute())

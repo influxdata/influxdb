@@ -26,24 +26,24 @@ import (
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/olekukonko/tablewriter"
 	"github.com/spf13/cobra"
-	input "github.com/tcnksm/go-input"
+	"github.com/tcnksm/go-input"
 )
 
 type templateSVCsFn func() (pkger.SVC, influxdb.OrganizationService, error)
 
-func cmdApply(f *globalFlags, opts genericCLIOpts) *cobra.Command {
+func cmdApply(f *globalFlags, opts genericCLIOpts) (*cobra.Command, error) {
 	return newCmdPkgerBuilder(newPkgerSVC, f, opts).cmdApply()
 }
 
-func cmdExport(f *globalFlags, opts genericCLIOpts) *cobra.Command {
+func cmdExport(f *globalFlags, opts genericCLIOpts) (*cobra.Command, error) {
 	return newCmdPkgerBuilder(newPkgerSVC, f, opts).cmdExport()
 }
 
-func cmdStack(f *globalFlags, opts genericCLIOpts) *cobra.Command {
+func cmdStack(f *globalFlags, opts genericCLIOpts) (*cobra.Command, error) {
 	return newCmdPkgerBuilder(newPkgerSVC, f, opts).cmdStacks()
 }
 
-func cmdTemplate(f *globalFlags, opts genericCLIOpts) *cobra.Command {
+func cmdTemplate(f *globalFlags, opts genericCLIOpts) (*cobra.Command, error) {
 	return newCmdPkgerBuilder(newPkgerSVC, f, opts).cmdTemplate()
 }
 
@@ -113,8 +113,11 @@ func newCmdPkgerBuilder(svcFn templateSVCsFn, f *globalFlags, opts genericCLIOpt
 	}
 }
 
-func (b *cmdTemplateBuilder) cmdApply() *cobra.Command {
-	cmd := b.newCmd("apply", b.applyRunEFn)
+func (b *cmdTemplateBuilder) cmdApply() (*cobra.Command, error) {
+	cmd, err := b.newCmd("apply", b.applyRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "Apply a template to manage resources"
 	cmd.Long = `
 	The apply command applies InfluxDB template(s). Use the command to create new
@@ -172,9 +175,15 @@ func (b *cmdTemplateBuilder) cmdApply() *cobra.Command {
 	https://github.com/influxdata/community-templates.
 `
 
-	b.org.register(b.viper, cmd, false)
-	b.registerTemplateFileFlags(cmd)
-	b.registerTemplatePrintOpts(cmd)
+	if err := b.org.register(b.viper, cmd, false); err != nil {
+		return nil, err
+	}
+	if err := b.registerTemplateFileFlags(cmd); err != nil {
+		return nil, err
+	}
+	if err := b.registerTemplatePrintOpts(cmd); err != nil {
+		return nil, err
+	}
 	cmd.Flags().BoolVarP(&b.quiet, "quiet", "q", false, "Disable output printing")
 	cmd.Flags().StringVar(&b.applyOpts.force, "force", "", `TTY input, if template will have destructive changes, proceed if set "true"`)
 	cmd.Flags().StringVar(&b.stackID, "stack-id", "", "Stack ID to associate template application")
@@ -184,7 +193,7 @@ func (b *cmdTemplateBuilder) cmdApply() *cobra.Command {
 	cmd.Flags().StringSliceVar(&b.applyOpts.envRefs, "env-ref", nil, "Environment references to provide alongside the template; format should --env-ref=REF_KEY=REF_VALUE --env-ref=REF_KEY_2=REF_VALUE_2")
 	cmd.Flags().StringSliceVar(&b.filters, "filter", nil, "Resources to skip when applying the template. Filter out by ‘kind’ or by ‘resource’")
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdTemplateBuilder) applyRunEFn(cmd *cobra.Command, args []string) error {
@@ -276,9 +285,7 @@ func (b *cmdTemplateBuilder) applyRunEFn(cmd *cobra.Command, args []string) erro
 		return err
 	}
 
-	b.printTemplateSummary(impact.StackID, impact.Summary)
-
-	return nil
+	return b.printTemplateSummary(impact.StackID, impact.Summary)
 }
 
 func parseTemplateActions(args []string) ([]pkger.ApplyOptFn, error) {
@@ -316,8 +323,11 @@ func parseTemplateActions(args []string) ([]pkger.ApplyOptFn, error) {
 	return opts, nil
 }
 
-func (b *cmdTemplateBuilder) cmdExport() *cobra.Command {
-	cmd := b.newCmd("export", b.exportRunEFn)
+func (b *cmdTemplateBuilder) cmdExport() (*cobra.Command, error) {
+	cmd, err := b.newCmd("export", b.exportRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "Export existing resources as a template"
 	cmd.Long = `
 	The export command provides a mechanism to export existing resources to a
@@ -345,10 +355,14 @@ func (b *cmdTemplateBuilder) cmdExport() *cobra.Command {
 	For information about exporting InfluxDB templates, see
 	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/export/
 `
-	cmd.AddCommand(
-		b.cmdExportAll(),
-		b.cmdExportStack(),
-	)
+	builders := []func() (*cobra.Command, error){b.cmdExportAll, b.cmdExportStack}
+	for _, builder := range builders {
+		subcmd, err := builder()
+		if err != nil {
+			return nil, err
+		}
+		cmd.AddCommand(subcmd)
+	}
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "Output file for created template; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
 	cmd.Flags().StringVar(&b.stackID, "stack-id", "", "ID for stack to include in export")
@@ -372,7 +386,7 @@ func (b *cmdTemplateBuilder) cmdExport() *cobra.Command {
 	cmd.Flags().StringVar(&b.exportOpts.telegrafNames, "telegraf-config-names", "", "List of telegraf config names comma separated")
 	cmd.Flags().StringVar(&b.exportOpts.variableNames, "variable-names", "", "List of variable names comma separated")
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdTemplateBuilder) exportRunEFn(cmd *cobra.Command, args []string) error {
@@ -440,8 +454,11 @@ func (b *cmdTemplateBuilder) exportRunEFn(cmd *cobra.Command, args []string) err
 	return b.exportTemplate(cmd.OutOrStdout(), templateSVC, b.file, opts...)
 }
 
-func (b *cmdTemplateBuilder) cmdExportAll() *cobra.Command {
-	cmd := b.newCmd("all", b.exportAllRunEFn)
+func (b *cmdTemplateBuilder) cmdExportAll() (*cobra.Command, error) {
+	cmd, err := b.newCmd("all", b.exportAllRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "Export all existing resources for an organization as a template"
 	cmd.Long = `
 	The export all command will export all resources for an organization. The
@@ -480,9 +497,11 @@ func (b *cmdTemplateBuilder) cmdExportAll() *cobra.Command {
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created template; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
 	cmd.Flags().StringArrayVar(&b.filters, "filter", nil, "Filter exported resources by labelName or resourceKind (format: --filter=labelName=example)")
 
-	b.org.register(b.viper, cmd, false)
+	if err := b.org.register(b.viper, cmd, false); err != nil {
+		return nil, err
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdTemplateBuilder) exportAllRunEFn(cmd *cobra.Command, args []string) error {
@@ -527,8 +546,11 @@ func (b *cmdTemplateBuilder) exportAllRunEFn(cmd *cobra.Command, args []string) 
 	return b.exportTemplate(cmd.OutOrStdout(), templateSVC, b.file, orgOpt)
 }
 
-func (b *cmdTemplateBuilder) cmdExportStack() *cobra.Command {
-	cmd := b.newCmd("stack $STACK_ID", b.exportStackRunEFn)
+func (b *cmdTemplateBuilder) cmdExportStack() (*cobra.Command, error) {
+	cmd, err := b.newCmd("stack $STACK_ID", b.exportStackRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "Export all existing resources for associated with a stack as a template"
 	cmd.Long = `
 	The export stack command exports the resources associated with a stack as
@@ -547,9 +569,11 @@ func (b *cmdTemplateBuilder) cmdExportStack() *cobra.Command {
 	cmd.Args = cobra.ExactValidArgs(1)
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created template; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
-	b.org.register(b.viper, cmd, false)
+	if err := b.org.register(b.viper, cmd, false); err != nil {
+		return nil, err
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdTemplateBuilder) exportStackRunEFn(cmd *cobra.Command, args []string) error {
@@ -571,7 +595,7 @@ func (b *cmdTemplateBuilder) exportStackRunEFn(cmd *cobra.Command, args []string
 	return b.writeTemplate(b.w, b.file, template)
 }
 
-func (b *cmdTemplateBuilder) cmdTemplate() *cobra.Command {
+func (b *cmdTemplateBuilder) cmdTemplate() (*cobra.Command, error) {
 	runE := func(cmd *cobra.Command, args []string) error {
 		template, _, err := b.readTemplate()
 		if err != nil {
@@ -583,15 +607,23 @@ func (b *cmdTemplateBuilder) cmdTemplate() *cobra.Command {
 
 	cmd := b.genericCLIOpts.newCmd("template", runE, false)
 
-	b.registerTemplateFileFlags(cmd)
-	b.registerTemplatePrintOpts(cmd)
+	if err := b.registerTemplateFileFlags(cmd); err != nil {
+		return nil, err
+	}
+	if err := b.registerTemplatePrintOpts(cmd); err != nil {
+		return nil, err
+	}
 	cmd.Short = "Summarize the provided template"
 
-	cmd.AddCommand(b.cmdTemplateValidate())
-	return cmd
+	subcmd, err := b.cmdTemplateValidate()
+	if err != nil {
+		return nil, err
+	}
+	cmd.AddCommand(subcmd)
+	return cmd, nil
 }
 
-func (b *cmdTemplateBuilder) cmdTemplateValidate() *cobra.Command {
+func (b *cmdTemplateBuilder) cmdTemplateValidate() (*cobra.Command, error) {
 	runE := func(cmd *cobra.Command, args []string) error {
 		template, _, err := b.readTemplate()
 		if err != nil {
@@ -603,18 +635,27 @@ func (b *cmdTemplateBuilder) cmdTemplateValidate() *cobra.Command {
 	cmd := b.genericCLIOpts.newCmd("validate", runE, false)
 	cmd.Short = "Validate the provided template"
 
-	b.registerTemplateFileFlags(cmd)
+	if err := b.registerTemplateFileFlags(cmd); err != nil {
+		return nil, err
+	}
 
-	return cmd
+	return cmd, nil
 }
 
-func (b *cmdTemplateBuilder) cmdStacks() *cobra.Command {
-	cmd := b.newCmd("stacks [flags]", b.stackListRunEFn)
+func (b *cmdTemplateBuilder) cmdStacks() (*cobra.Command, error) {
+	cmd, err := b.newCmd("stacks [flags]", b.stackListRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Flags().StringArrayVar(&b.stackIDs, "stack-id", nil, "Stack ID to filter by")
 	cmd.Flags().StringArrayVar(&b.names, "stack-name", nil, "Stack name to filter by")
-	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
+	if err := registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json); err != nil {
+		return nil, err
+	}
 
-	b.org.register(b.viper, cmd, false)
+	if err := b.org.register(b.viper, cmd, false); err != nil {
+		return nil, err
+	}
 
 	cmd.Short = "List stack(s) and associated templates. Subcommands manage stacks."
 	cmd.Long = `
@@ -640,17 +681,22 @@ func (b *cmdTemplateBuilder) cmdStacks() *cobra.Command {
 	For information about Stacks and how they integrate with InfluxDB templates, see
 	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/stacks/
 `
-
-	cmd.AddCommand(
-		b.cmdStackInit(),
-		b.cmdStackRemove(),
-		b.cmdStackUpdate(),
-	)
-	return cmd
+	builders := []func() (*cobra.Command, error){b.cmdStackInit, b.cmdStackRemove, b.cmdStackUpdate}
+	for _, builder := range builders {
+		subcmd, err := builder()
+		if err != nil {
+			return nil, err
+		}
+		cmd.AddCommand(subcmd)
+	}
+	return cmd, nil
 }
 
-func (b *cmdTemplateBuilder) cmdStackInit() *cobra.Command {
-	cmd := b.newCmd("init", b.stackInitRunEFn)
+func (b *cmdTemplateBuilder) cmdStackInit() (*cobra.Command, error) {
+	cmd, err := b.newCmd("init", b.stackInitRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "Initialize a stack"
 	cmd.Long = `
 	The stack init command creates a new stack to associated templates with. A
@@ -675,11 +721,15 @@ func (b *cmdTemplateBuilder) cmdStackInit() *cobra.Command {
 	cmd.Flags().StringVarP(&b.name, "stack-name", "n", "", "Name given to created stack")
 	cmd.Flags().StringVarP(&b.description, "stack-description", "d", "", "Description given to created stack")
 	cmd.Flags().StringArrayVarP(&b.urls, "template-url", "u", nil, "Template urls to associate with new stack")
-	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
+	if err := registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json); err != nil {
+		return nil, err
+	}
 
-	b.org.register(b.viper, cmd, false)
+	if err := b.org.register(b.viper, cmd, false); err != nil {
+		return nil, err
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdTemplateBuilder) stackInitRunEFn(cmd *cobra.Command, args []string) error {
@@ -748,19 +798,28 @@ func (b *cmdTemplateBuilder) stackListRunEFn(cmd *cobra.Command, args []string) 
 	return nil
 }
 
-func (b *cmdTemplateBuilder) cmdStackRemove() *cobra.Command {
-	cmd := b.newCmd("rm [--stack-id=ID1 --stack-id=ID2]", b.stackRemoveRunEFn)
+func (b *cmdTemplateBuilder) cmdStackRemove() (*cobra.Command, error) {
+	cmd, err := b.newCmd("rm [--stack-id=ID1 --stack-id=ID2]", b.stackRemoveRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "Remove a stack(s) and all associated resources"
 	cmd.Aliases = []string{"remove", "uninstall"}
 
 	cmd.Flags().StringArrayVar(&b.stackIDs, "stack-id", nil, "Stack IDs to be removed")
 	cmd.Flags().BoolVar(&b.force, "force", false, "Remove stack without confirmation prompt")
-	cmd.MarkFlagRequired("stack-id")
-	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
+	if err := cmd.MarkFlagRequired("stack-id"); err != nil {
+		return nil, fmt.Errorf("failed to mark 'stack-id' as required: %w", err)
+	}
+	if err := registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json); err != nil {
+		return nil, err
+	}
 
-	b.org.register(b.viper, cmd, false)
+	if err := b.org.register(b.viper, cmd, false); err != nil {
+		return nil, err
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdTemplateBuilder) stackRemoveRunEFn(cmd *cobra.Command, args []string) error {
@@ -833,8 +892,11 @@ func (b *cmdTemplateBuilder) stackRemoveRunEFn(cmd *cobra.Command, args []string
 	return nil
 }
 
-func (b *cmdTemplateBuilder) cmdStackUpdate() *cobra.Command {
-	cmd := b.newCmd("update", b.stackUpdateRunEFn)
+func (b *cmdTemplateBuilder) cmdStackUpdate() (*cobra.Command, error) {
+	cmd, err := b.newCmd("update", b.stackUpdateRunEFn)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "Update a stack"
 	cmd.Long = `
 	The stack update command updates a stack.
@@ -866,15 +928,19 @@ func (b *cmdTemplateBuilder) cmdStackUpdate() *cobra.Command {
 `
 
 	cmd.Flags().StringVarP(&b.stackID, "stack-id", "i", "", "ID of stack")
-	cmd.MarkFlagRequired("stack-id")
+	if err := cmd.MarkFlagRequired("stack-id"); err != nil {
+		return nil, fmt.Errorf("failed to mark 'stack-id' as required")
+	}
 	cmd.Flags().StringVarP(&b.name, "stack-name", "n", "", "Name for stack")
 	cmd.Flags().StringVarP(&b.description, "stack-description", "d", "", "Description for stack")
 	cmd.Flags().StringArrayVarP(&b.urls, "template-url", "u", nil, "Template urls to associate with stack")
 	cmd.Flags().StringArrayVar(&b.updateStackOpts.addResources, "addResource", nil, "Additional resources to associate with stack")
 	cmd.Flags().StringVarP(&b.file, "export-file", "f", "", "Destination for exported template")
-	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
+	if err := registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json); err != nil {
+		return nil, err
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdTemplateBuilder) stackUpdateRunEFn(cmd *cobra.Command, args []string) error {
@@ -975,28 +1041,38 @@ func (b *cmdTemplateBuilder) writeStack(stack pkger.Stack) error {
 	return nil
 }
 
-func (b *cmdTemplateBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
+func (b *cmdTemplateBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) (*cobra.Command, error) {
 	cmd := b.genericCLIOpts.newCmd(use, runE, true)
-	b.globalFlags.registerFlags(b.viper, cmd)
-	return cmd
+	if err := b.globalFlags.registerFlags(b.viper, cmd); err != nil {
+		return nil, err
+	}
+	return cmd, nil
 }
 
-func (b *cmdTemplateBuilder) registerTemplatePrintOpts(cmd *cobra.Command) {
+func (b *cmdTemplateBuilder) registerTemplatePrintOpts(cmd *cobra.Command) error {
 	cmd.Flags().BoolVar(&b.disableColor, "disable-color", false, "Disable color in output")
 	cmd.Flags().BoolVar(&b.disableTableBorders, "disable-table-borders", false, "Disable table borders")
-	registerPrintOptions(b.viper, cmd, nil, &b.json)
+	return registerPrintOptions(b.viper, cmd, nil, &b.json)
 }
 
-func (b *cmdTemplateBuilder) registerTemplateFileFlags(cmd *cobra.Command) {
+func (b *cmdTemplateBuilder) registerTemplateFileFlags(cmd *cobra.Command) error {
 	cmd.Flags().StringSliceVarP(&b.files, "file", "f", nil, "Path to template file; Supports HTTP(S) URLs or file paths.")
-	cmd.MarkFlagFilename("file", "yaml", "yml", "json", "jsonnet")
+	if err := cmd.MarkFlagFilename("file", "yaml", "yml", "json", "jsonnet"); err != nil {
+		return fmt.Errorf("failed to mark 'file' as a filename arg: %w", err)
+	}
 	cmd.Flags().BoolVarP(&b.recurse, "recurse", "R", false, "Process the directory used in -f, --file recursively. Useful when you want to manage related templates organized within the same directory.")
 
 	cmd.Flags().StringSliceVarP(&b.urls, "template-url", "u", nil, "URL to template file")
-	cmd.Flags().MarkDeprecated("template-url", "use the --file flag; example: influx apply --file $URL_TO_TEMPLATE")
+	if err := cmd.Flags().MarkDeprecated("template-url", "use the --file flag; example: influx apply --file $URL_TO_TEMPLATE"); err != nil {
+		return fmt.Errorf("failed to mark 'template-url' as deprecated: %w", err)
+	}
 
 	cmd.Flags().StringVarP(&b.encoding, "encoding", "e", "", "Encoding for the input stream. If a file is provided will gather encoding type from file extension. If extension provided will override.")
-	cmd.MarkFlagFilename("encoding", "yaml", "yml", "json", "jsonnet")
+	if err := cmd.MarkFlagFilename("encoding", "yaml", "yml", "json", "jsonnet"); err != nil {
+		return fmt.Errorf("failed to mark 'encoding' as a filename arg: %w", err)
+	}
+
+	return nil
 }
 
 func (b *cmdTemplateBuilder) exportTemplate(w io.Writer, templateSVC pkger.SVC, outPath string, opts ...pkger.ExportOptFn) error {

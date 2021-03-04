@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func cmdPing(f *globalFlags, opts genericCLIOpts) *cobra.Command {
+func cmdPing(f *globalFlags, opts genericCLIOpts) (*cobra.Command, error) {
 	runE := func(cmd *cobra.Command, args []string) error {
 		c := http.Client{
 			Timeout: 5 * time.Second,
@@ -46,7 +46,9 @@ func cmdPing(f *globalFlags, opts genericCLIOpts) *cobra.Command {
 	cmd := opts.newCmd("ping", runE, true)
 	cmd.Short = "Check the InfluxDB /health endpoint"
 	cmd.Long = `Checks the health of a running InfluxDB instance by querying /health. Does not require valid token.`
-	f.registerFlags(opts.viper, cmd, "token")
+	if err := f.registerFlags(opts.viper, cmd, "token"); err != nil {
+		return nil, err
+	}
 
-	return cmd
+	return cmd, nil
 }

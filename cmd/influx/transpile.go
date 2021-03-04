@@ -16,7 +16,7 @@ var transpileFlags struct {
 	Now string
 }
 
-func cmdTranspile(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func cmdTranspile(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 	cmd := opt.newCmd("transpile [InfluxQL query]", transpileF, false)
 	cmd.Args = cobra.ExactArgs(1)
 	cmd.Short = "Transpile an InfluxQL query to Flux source code"
@@ -34,9 +34,11 @@ The transpiled query will be written for absolute time ranges using the provided
 			Desc:  "An RFC3339Nano formatted time to use as the now() time. Defaults to the current time",
 		},
 	}
-	opts.mustRegister(opt.viper, cmd)
+	if err := opts.register(opt.viper, cmd); err != nil {
+		return nil, err
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func transpileF(cmd *cobra.Command, args []string) error {

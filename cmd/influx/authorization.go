@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"io"
 
 	platform "github.com/influxdata/influxdb/v2"
@@ -20,21 +21,29 @@ type token struct {
 	Permissions []string    `json:"permissions"`
 }
 
-func cmdAuth(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func cmdAuth(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 	cmd := opt.newCmd("auth", nil, false)
 	cmd.Aliases = []string{"authorization"}
 	cmd.Short = "Authorization management commands"
 	cmd.Run = seeHelp
 
-	cmd.AddCommand(
-		authActiveCmd(f, opt),
-		authCreateCmd(f, opt),
-		authDeleteCmd(f, opt),
-		authFindCmd(f, opt),
-		authInactiveCmd(f, opt),
-	)
+	builders := []func(*globalFlags, genericCLIOpts) (*cobra.Command, error){
+		authActiveCmd,
+		authCreateCmd,
+		authDeleteCmd,
+		authFindCmd,
+		authInactiveCmd,
+	}
 
-	return cmd
+	for _, builder := range builders {
+		subcmd, err := builder(f, opt)
+		if err != nil {
+			return nil, err
+		}
+		cmd.AddCommand(subcmd)
+	}
+
+	return cmd, nil
 }
 
 var authCRUDFlags struct {
@@ -82,19 +91,25 @@ var authCreateFlags struct {
 	readDBRPPermission  bool
 }
 
-func authCreateCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func authCreateCmd(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "create",
 		Short: "Create authorization",
 		RunE:  checkSetupRunEMiddleware(&flags)(authorizationCreateF),
 	}
 
-	f.registerFlags(opt.viper, cmd)
-	authCreateFlags.org.register(opt.viper, cmd, false)
+	if err := f.registerFlags(opt.viper, cmd); err != nil {
+		return nil, err
+	}
+	if err := authCreateFlags.org.register(opt.viper, cmd, false); err != nil {
+		return nil, err
+	}
 
 	cmd.Flags().StringVarP(&authCreateFlags.description, "description", "d", "", "Token description")
 	cmd.Flags().StringVarP(&authCreateFlags.user, "user", "u", "", "The user name")
-	registerPrintOptions(opt.viper, cmd, &authCRUDFlags.hideHeaders, &authCRUDFlags.json)
+	if err := registerPrintOptions(opt.viper, cmd, &authCRUDFlags.hideHeaders, &authCRUDFlags.json); err != nil {
+		return nil, err
+	}
 
 	cmd.Flags().BoolVarP(&authCreateFlags.writeUserPermission, "write-user", "", false, "Grants the permission to perform mutative actions against organization users")
 	cmd.Flags().BoolVarP(&authCreateFlags.readUserPermission, "read-user", "", false, "Grants the permission to perform read actions against organization users")
@@ -129,7 +144,7 @@ func authCreateCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 	cmd.Flags().BoolVarP(&authCreateFlags.writeDBRPPermission, "write-dbrps", "", false, "Grants the permission to create database retention policy mappings")
 	cmd.Flags().BoolVarP(&authCreateFlags.readDBRPPermission, "read-dbrps", "", false, "Grants the permission to read database retention policy mappings")
 
-	return cmd
+	return cmd, nil
 }
 
 func authorizationCreateF(cmd *cobra.Command, args []string) error {
@@ -308,7 +323,7 @@ var authorizationFindFlags struct {
 	userID string
 }
 
-func authFindCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func authFindCmd(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:     "list",
 		Short:   "List authorizations",
@@ -316,15 +331,21 @@ func authFindCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 		RunE:    checkSetupRunEMiddleware(&flags)(authorizationFindF),
 	}
 
-	f.registerFlags(opt.viper, cmd)
-	authorizationFindFlags.org.register(opt.viper, cmd, false)
-	registerPrintOptions(opt.viper, cmd, &authCRUDFlags.hideHeaders, &authCRUDFlags.json)
+	if err := f.registerFlags(opt.viper, cmd); err != nil {
+		return nil, err
+	}
+	if err := authorizationFindFlags.org.register(opt.viper, cmd, false); err != nil {
+		return nil, err
+	}
+	if err := registerPrintOptions(opt.viper, cmd, &authCRUDFlags.hideHeaders, &authCRUDFlags.json); err != nil {
+		return nil, err
+	}
 	cmd.Flags().StringVarP(&authorizationFindFlags.user, "user", "u", "", "The user")
 	cmd.Flags().StringVarP(&authorizationFindFlags.userID, "user-id", "", "", "The user ID")
 
 	cmd.Flags().StringVarP(&authCRUDFlags.id, "id", "i", "", "The authorization ID")
 
-	return cmd
+	return cmd, nil
 }
 
 func authorizationFindF(cmd *cobra.Command, args []string) error {
@@ -402,19 +423,25 @@ func authorizationFindF(cmd *cobra.Command, args []string) error {
 	})
 }
 
-func authDeleteCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func authDeleteCmd(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "delete",
 		Short: "Delete authorization",
 		RunE:  checkSetupRunEMiddleware(&flags)(authorizationDeleteF),
 	}
 
-	f.registerFlags(opt.viper, cmd)
-	registerPrintOptions(opt.viper, cmd, &authCRUDFlags.hideHeaders, &authCRUDFlags.json)
+	if err := f.registerFlags(opt.viper, cmd); err != nil {
+		return nil, err
+	}
+	if err := registerPrintOptions(opt.viper, cmd, &authCRUDFlags.hideHeaders, &authCRUDFlags.json); err != nil {
+		return nil, err
+	}
 	cmd.Flags().StringVarP(&authCRUDFlags.id, "id", "i", "", "The authorization ID (required)")
-	cmd.MarkFlagRequired("id")
+	if err := cmd.MarkFlagRequired("id"); err != nil {
+		return nil, fmt.Errorf("failed to mark 'id' as required: %w", err)
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func authorizationDeleteF(cmd *cobra.Command, args []string) error {
@@ -469,19 +496,25 @@ func authorizationDeleteF(cmd *cobra.Command, args []string) error {
 	})
 }
 
-func authActiveCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func authActiveCmd(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "active",
 		Short: "Active authorization",
 		RunE:  checkSetupRunEMiddleware(&flags)(authorizationActiveF),
 	}
-	f.registerFlags(opt.viper, cmd)
+	if err := f.registerFlags(opt.viper, cmd); err != nil {
+		return nil, err
+	}
 
-	registerPrintOptions(opt.viper, cmd, &authCRUDFlags.hideHeaders, &authCRUDFlags.json)
+	if err := registerPrintOptions(opt.viper, cmd, &authCRUDFlags.hideHeaders, &authCRUDFlags.json); err != nil {
+		return nil, err
+	}
 	cmd.Flags().StringVarP(&authCRUDFlags.id, "id", "i", "", "The authorization ID (required)")
-	cmd.MarkFlagRequired("id")
+	if err := cmd.MarkFlagRequired("id"); err != nil {
+		return nil, fmt.Errorf("failed to mark 'id' as required: %w", err)
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func authorizationActiveF(cmd *cobra.Command, args []string) error {
@@ -537,19 +570,25 @@ func authorizationActiveF(cmd *cobra.Command, args []string) error {
 	})
 }
 
-func authInactiveCmd(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func authInactiveCmd(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:   "inactive",
 		Short: "Inactive authorization",
 		RunE:  checkSetupRunEMiddleware(&flags)(authorizationInactiveF),
 	}
 
-	f.registerFlags(opt.viper, cmd)
-	registerPrintOptions(opt.viper, cmd, &authCRUDFlags.hideHeaders, &authCRUDFlags.json)
+	if err := f.registerFlags(opt.viper, cmd); err != nil {
+		return nil, err
+	}
+	if err := registerPrintOptions(opt.viper, cmd, &authCRUDFlags.hideHeaders, &authCRUDFlags.json); err != nil {
+		return nil, err
+	}
 	cmd.Flags().StringVarP(&authCRUDFlags.id, "id", "i", "", "The authorization ID (required)")
-	cmd.MarkFlagRequired("id")
+	if err := cmd.MarkFlagRequired("id"); err != nil {
+		return nil, fmt.Errorf("failed to mark 'id' as required: %w", err)
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func authorizationInactiveF(cmd *cobra.Command, args []string) error {

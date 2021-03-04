@@ -87,8 +87,8 @@ func TestCmdConfig(t *testing.T) {
 					},
 				},
 			}
-			cmdFn := func(original config.Configs, expected config.Config) func(*globalFlags, genericCLIOpts) *cobra.Command {
-				return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+			cmdFn := func(original config.Configs, expected config.Config) func(*globalFlags, genericCLIOpts) (*cobra.Command, error) {
+				return func(g *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 					builder := cmdConfigBuilder{
 						genericCLIOpts: opt,
 						globalFlags:    g,
@@ -114,7 +114,8 @@ func TestCmdConfig(t *testing.T) {
 						in(new(bytes.Buffer)),
 						out(ioutil.Discard),
 					)
-					cmd := builder.cmd(cmdFn(tt.original, tt.expected))
+					cmd, err := builder.cmd(cmdFn(tt.original, tt.expected))
+					require.NoError(t, err)
 					cmd.SetArgs(append([]string{"config", "create"}, tt.flags...))
 					require.NoError(t, cmd.Execute())
 				}
@@ -132,7 +133,8 @@ func TestCmdConfig(t *testing.T) {
 				in(new(bytes.Buffer)),
 				out(ioutil.Discard),
 			)
-			cmd := builder.cmd(cmdConfig)
+			cmd, err := builder.cmd(cmdConfig)
+			require.NoError(t, err)
 
 			flags := []string{
 				"--configs-path=" + file,
@@ -158,7 +160,7 @@ func TestCmdConfig(t *testing.T) {
 		})
 
 		t.Run("rejects a config option with an invalid host url", func(t *testing.T) {
-			cmdFn := func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+			cmdFn := func(g *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 				builder := cmdConfigBuilder{
 					genericCLIOpts: opt,
 					globalFlags:    g,
@@ -239,7 +241,7 @@ func TestCmdConfig(t *testing.T) {
 				},
 			},
 		}
-		cmdFn := func(original config.Configs, expected config.Config) func(*globalFlags, genericCLIOpts) *cobra.Command {
+		cmdFn := func(original config.Configs, expected config.Config) func(*globalFlags, genericCLIOpts) (*cobra.Command, error) {
 			svc := func(_ string) config.Service {
 				return &mockConfigService{
 					SwitchActiveFn: func(name string) (config.Config, error) {
@@ -264,7 +266,7 @@ func TestCmdConfig(t *testing.T) {
 				}
 			}
 
-			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+			return func(g *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 				builder := cmdConfigBuilder{
 					genericCLIOpts: opt,
 					globalFlags:    g,
@@ -279,7 +281,8 @@ func TestCmdConfig(t *testing.T) {
 					in(new(bytes.Buffer)),
 					out(ioutil.Discard),
 				)
-				cmd := builder.cmd(cmdFn(tt.original, tt.expected))
+				cmd, err := builder.cmd(cmdFn(tt.original, tt.expected))
+				require.NoError(t, err)
 				cmd.SetArgs([]string{"config", tt.arg})
 				require.NoError(t, cmd.Execute())
 			}
@@ -375,7 +378,7 @@ func TestCmdConfig(t *testing.T) {
 					},
 				},
 			}
-			cmdFn := func(expected config.Config) func(*globalFlags, genericCLIOpts) *cobra.Command {
+			cmdFn := func(expected config.Config) func(*globalFlags, genericCLIOpts) (*cobra.Command, error) {
 				svc := func(_ string) config.Service {
 					return &mockConfigService{
 						UpdateConfigFn: func(cfg config.Config) (config.Config, error) {
@@ -389,7 +392,7 @@ func TestCmdConfig(t *testing.T) {
 					}
 				}
 
-				return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+				return func(g *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 					builder := cmdConfigBuilder{
 						genericCLIOpts: opt,
 						globalFlags:    g,
@@ -404,7 +407,8 @@ func TestCmdConfig(t *testing.T) {
 						in(new(bytes.Buffer)),
 						out(ioutil.Discard),
 					)
-					cmd := builder.cmd(cmdFn(tt.expected))
+					cmd, err := builder.cmd(cmdFn(tt.expected))
+					require.NoError(t, err)
 					cmd.SetArgs(append([]string{"config", "set"}, tt.flags...))
 					require.NoError(t, cmd.Execute())
 				}
@@ -413,7 +417,7 @@ func TestCmdConfig(t *testing.T) {
 		})
 
 		t.Run("rejects a config option with an invalid host url", func(t *testing.T) {
-			cmdFn := func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+			cmdFn := func(g *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 				builder := cmdConfigBuilder{
 					genericCLIOpts: opt,
 					globalFlags:    g,
@@ -484,7 +488,7 @@ func TestCmdConfig(t *testing.T) {
 				},
 			},
 		}
-		cmdFn := func(original config.Configs, expected config.Config) func(*globalFlags, genericCLIOpts) *cobra.Command {
+		cmdFn := func(original config.Configs, expected config.Config) func(*globalFlags, genericCLIOpts) (*cobra.Command, error) {
 			svc := func(_ string) config.Service {
 				return &mockConfigService{
 					DeleteConfigFn: func(name string) (config.Config, error) {
@@ -505,7 +509,7 @@ func TestCmdConfig(t *testing.T) {
 				}
 			}
 
-			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+			return func(g *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 				builder := cmdConfigBuilder{
 					genericCLIOpts: opt,
 					globalFlags:    g,
@@ -520,7 +524,8 @@ func TestCmdConfig(t *testing.T) {
 					in(new(bytes.Buffer)),
 					out(ioutil.Discard),
 				)
-				cmd := builder.cmd(cmdFn(tt.original, tt.expected))
+				cmd, err := builder.cmd(cmdFn(tt.original, tt.expected))
+				require.NoError(t, err)
 				cmd.SetArgs(append([]string{"config", "delete"}, tt.flags...))
 				require.NoError(t, cmd.Execute())
 			}
@@ -551,7 +556,7 @@ func TestCmdConfig(t *testing.T) {
 				},
 			},
 		}
-		cmdFn := func(expected config.Configs) func(*globalFlags, genericCLIOpts) *cobra.Command {
+		cmdFn := func(expected config.Configs) func(*globalFlags, genericCLIOpts) (*cobra.Command, error) {
 			svc := func(_ string) config.Service {
 				return &mockConfigService{
 					ListConfigsFn: func() (config.Configs, error) {
@@ -560,7 +565,7 @@ func TestCmdConfig(t *testing.T) {
 				}
 			}
 
-			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+			return func(g *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 				builder := cmdConfigBuilder{
 					genericCLIOpts: opt,
 					globalFlags:    g,
@@ -575,7 +580,8 @@ func TestCmdConfig(t *testing.T) {
 					in(new(bytes.Buffer)),
 					out(ioutil.Discard),
 				)
-				cmd := builder.cmd(cmdFn(tt.expected))
+				cmd, err := builder.cmd(cmdFn(tt.expected))
+				require.NoError(t, err)
 				cmd.SetArgs([]string{"config", "list"})
 				require.NoError(t, cmd.Execute())
 			}
@@ -584,7 +590,7 @@ func TestCmdConfig(t *testing.T) {
 	})
 }
 
-func testConfigInvalidURLs(t *testing.T, cmdName string, cmdFn func(*globalFlags, genericCLIOpts) *cobra.Command) {
+func testConfigInvalidURLs(t *testing.T, cmdName string, cmdFn func(*globalFlags, genericCLIOpts) (*cobra.Command, error)) {
 	tests := []struct {
 		name  string
 		flags []string
@@ -615,7 +621,8 @@ func testConfigInvalidURLs(t *testing.T, cmdName string, cmdFn func(*globalFlags
 				in(new(bytes.Buffer)),
 				out(ioutil.Discard),
 			)
-			cmd := builder.cmd(cmdFn)
+			cmd, err := builder.cmd(cmdFn)
+			require.NoError(t, err)
 			cmd.SetArgs(append([]string{"config", cmdName}, tt.flags...))
 			require.Error(t, cmd.Execute(), "cmd name: influx config "+cmdName)
 		}

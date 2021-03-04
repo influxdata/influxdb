@@ -66,7 +66,7 @@ func newWriteFlagsBuilder(svcFn buildWriteSvcFn, f *globalFlags, opt genericCLIO
 	}
 }
 
-func cmdWrite(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func cmdWrite(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 	builder := newWriteFlagsBuilder(newBatchingWriteService, f, opt)
 	return builder.cmd()
 }
@@ -84,14 +84,18 @@ func newBatchingWriteService(b *writeFlagsBuilder) platform.WriteService {
 	}
 }
 
-func (b *writeFlagsBuilder) cmd() *cobra.Command {
+func (b *writeFlagsBuilder) cmd() (*cobra.Command, error) {
 	cmd := b.newCmd("write", b.writeRunE, true)
 	cmd.Args = cobra.MaximumNArgs(1)
 	cmd.Short = "Write points to InfluxDB"
 	cmd.Long = `Write data to InfluxDB via stdin, or add an entire file specified with the -f flag`
 
-	b.registerFlags(b.viper, cmd)
-	b.org.register(b.viper, cmd, true)
+	if err := b.registerFlags(b.viper, cmd); err != nil {
+		return nil, err
+	}
+	if err := b.org.register(b.viper, cmd, true); err != nil {
+		return nil, err
+	}
 	opts := flagOpts{
 		{
 			DestP:      &b.BucketID,
@@ -116,7 +120,9 @@ func (b *writeFlagsBuilder) cmd() *cobra.Command {
 			Persistent: true,
 		},
 	}
-	opts.mustRegister(b.viper, cmd)
+	if err := opts.register(b.viper, cmd); err != nil {
+		return nil, err
+	}
 	cmd.PersistentFlags().StringVar(&b.Format, "format", "", "Input format, either lp (Line Protocol) or csv (Comma Separated Values). Defaults to lp unless '.csv' extension")
 	cmd.PersistentFlags().StringArrayVar(&b.Headers, "header", []string{}, "Header prepends lines to input data; Example --header HEADER1 --header HEADER2")
 	cmd.PersistentFlags().StringArrayVarP(&b.Files, "file", "f", []string{}, "The path to the file to import")
@@ -127,7 +133,9 @@ func (b *writeFlagsBuilder) cmd() *cobra.Command {
 	cmd.PersistentFlags().IntVar(&b.MaxLineLength, "max-line-length", 16_000_000, "Specifies the maximum number of bytes that can be read for a single line")
 	cmd.Flag("skipHeader").NoOptDefVal = "1" // skipHeader flag value is optional, skip the first header when unspecified
 	cmd.PersistentFlags().BoolVar(&b.IgnoreDataTypeInColumnName, "xIgnoreDataTypeInColumnName", false, "Ignores dataType which could be specified after ':' in column name")
-	cmd.PersistentFlags().MarkHidden("xIgnoreDataTypeInColumnName") // should be used only upon explicit advice
+	if err := cmd.PersistentFlags().MarkHidden("xIgnoreDataTypeInColumnName"); err != nil { // should be used only upon explicit advice
+		return nil, fmt.Errorf("failed to mark 'xIgnoreDataTypeInColumnName' as hidden: %w", err)
+	}
 	cmd.PersistentFlags().StringVar(&b.Encoding, "encoding", "UTF-8", "Character encoding of input files or stdin")
 	cmd.PersistentFlags().StringVar(&b.ErrorsFile, "errors-file", "", "The path to the file to write rejected rows to")
 	cmd.PersistentFlags().StringVar(&b.RateLimit, "rate-limit", "", "Throttles write, examples: \"5 MB / 5 min\" , \"17kBs\". \"\" (default) disables throttling.")
@@ -137,9 +145,11 @@ func (b *writeFlagsBuilder) cmd() *cobra.Command {
 	cmdDryRun.Args = cobra.MaximumNArgs(1)
 	cmdDryRun.Short = "Write to stdout instead of InfluxDB"
 	cmdDryRun.Long = `Write protocol lines to stdout instead of InfluxDB. Troubleshoot conversion from CSV to line protocol.`
-	b.registerFlags(b.viper, cmdDryRun)
+	if err := b.registerFlags(b.viper, cmdDryRun); err != nil {
+		return nil, err
+	}
 	cmd.AddCommand(cmdDryRun)
-	return cmd
+	return cmd, nil
 }
 
 func (b *writeFlagsBuilder) dump(args []string) {

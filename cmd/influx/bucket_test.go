@@ -92,7 +92,7 @@ func TestCmdBucket(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(expectedBkt influxdb.Bucket) func(*globalFlags, genericCLIOpts) *cobra.Command {
+		cmdFn := func(expectedBkt influxdb.Bucket) func(*globalFlags, genericCLIOpts) (*cobra.Command, error) {
 			svc := mock.NewBucketService()
 			svc.CreateBucketFn = func(ctx context.Context, bucket *influxdb.Bucket) error {
 				if expectedBkt != *bucket {
@@ -101,7 +101,7 @@ func TestCmdBucket(t *testing.T) {
 				return nil
 			}
 
-			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+			return func(g *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 				return newCmdBucketBuilder(fakeSVCFn(svc), g, opt).cmd()
 			}
 		}
@@ -114,7 +114,8 @@ func TestCmdBucket(t *testing.T) {
 					in(new(bytes.Buffer)),
 					out(ioutil.Discard),
 				)
-				cmd := builder.cmd(cmdFn(tt.expectedBucket))
+				cmd, err := builder.cmd(cmdFn(tt.expectedBucket))
+				require.NoError(t, err)
 				cmd.SetArgs(append([]string{"bucket", "create"}, tt.flags...))
 
 				require.NoError(t, cmd.Execute())
@@ -157,7 +158,7 @@ func TestCmdBucket(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(expectedID influxdb.ID) func(*globalFlags, genericCLIOpts) *cobra.Command {
+		cmdFn := func(expectedID influxdb.ID) func(*globalFlags, genericCLIOpts) (*cobra.Command, error) {
 			svc := mock.NewBucketService()
 			svc.FindBucketByIDFn = func(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
 				return &influxdb.Bucket{ID: id}, nil
@@ -178,7 +179,7 @@ func TestCmdBucket(t *testing.T) {
 				return nil
 			}
 
-			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+			return func(g *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 				return newCmdBucketBuilder(fakeSVCFn(svc), g, opt).cmd()
 			}
 		}
@@ -198,7 +199,8 @@ func TestCmdBucket(t *testing.T) {
 					out(outBuf),
 				)
 
-				cmd := builder.cmd(cmdFn(tt.expectedID))
+				cmd, err := builder.cmd(cmdFn(tt.expectedID))
+				require.NoError(t, err)
 				cmd.SetArgs(append([]string{"bucket", "delete"}, tt.flags...))
 
 				require.NoError(t, cmd.Execute())
@@ -298,7 +300,7 @@ func TestCmdBucket(t *testing.T) {
 			},
 		}
 
-		cmdFn := func() (func(*globalFlags, genericCLIOpts) *cobra.Command, *called) {
+		cmdFn := func() (func(*globalFlags, genericCLIOpts) (*cobra.Command, error), *called) {
 			calls := new(called)
 
 			svc := mock.NewBucketService()
@@ -318,7 +320,7 @@ func TestCmdBucket(t *testing.T) {
 				return nil, 0, nil
 			}
 
-			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+			return func(g *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 				return newCmdBucketBuilder(fakeSVCFn(svc), g, opt).cmd()
 			}, calls
 		}
@@ -333,7 +335,8 @@ func TestCmdBucket(t *testing.T) {
 				)
 
 				cmdFn, calls := cmdFn()
-				cmd := builder.cmd(cmdFn)
+				cmd, err := builder.cmd(cmdFn)
+				require.NoError(t, err)
 
 				if tt.command == "" {
 					tt.command = "list"
@@ -410,7 +413,7 @@ func TestCmdBucket(t *testing.T) {
 			},
 		}
 
-		cmdFn := func(expectedUpdate influxdb.BucketUpdate) func(*globalFlags, genericCLIOpts) *cobra.Command {
+		cmdFn := func(expectedUpdate influxdb.BucketUpdate) func(*globalFlags, genericCLIOpts) (*cobra.Command, error) {
 			svc := mock.NewBucketService()
 			svc.UpdateBucketFn = func(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
 				if id != 3 {
@@ -422,7 +425,7 @@ func TestCmdBucket(t *testing.T) {
 				return &influxdb.Bucket{}, nil
 			}
 
-			return func(g *globalFlags, opt genericCLIOpts) *cobra.Command {
+			return func(g *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 				return newCmdBucketBuilder(fakeSVCFn(svc), g, opt).cmd()
 			}
 		}
@@ -436,7 +439,8 @@ func TestCmdBucket(t *testing.T) {
 					out(ioutil.Discard),
 				)
 
-				cmd := builder.cmd(cmdFn(tt.expected))
+				cmd, err := builder.cmd(cmdFn(tt.expected))
+				require.NoError(t, err)
 
 				cmd.SetArgs(append([]string{"bucket", "update"}, tt.flags...))
 				require.NoError(t, cmd.Execute())

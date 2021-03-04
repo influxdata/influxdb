@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func cmdDashboard(f *globalFlags, opts genericCLIOpts) *cobra.Command {
+func cmdDashboard(f *globalFlags, opts genericCLIOpts) (*cobra.Command, error) {
 	return newCmdDashboardBuilder(newDashboardSVCs, f, opts).cmdDashboards()
 }
 
@@ -34,8 +34,11 @@ func newCmdDashboardBuilder(svcFn dashboardSVCsFn, f *globalFlags, opts genericC
 	}
 }
 
-func (b *cmdDashboardBuilder) cmdDashboards() *cobra.Command {
-	cmd := b.newCmd("dashboards", b.listRunE)
+func (b *cmdDashboardBuilder) cmdDashboards() (*cobra.Command, error) {
+	cmd, err := b.newCmd("dashboards", b.listRunE)
+	if err != nil {
+		return nil, err
+	}
 	cmd.Short = "List Dashboard(s)."
 	cmd.Long = `
 	List Dashboard(s).
@@ -51,10 +54,12 @@ func (b *cmdDashboardBuilder) cmdDashboards() *cobra.Command {
 		influx dashboards -i $ID1 -i $ID2
 `
 
-	b.org.register(b.viper, cmd, false)
+	if err := b.org.register(b.viper, cmd, false); err != nil {
+		return nil, err
+	}
 	cmd.Flags().StringArrayVarP(&b.ids, "id", "i", nil, "Dashboard ID to retrieve.")
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdDashboardBuilder) listRunE(cmd *cobra.Command, args []string) error {
@@ -131,11 +136,15 @@ func writeDashboardRows(tabW *internal.TabWriter, dashboards ...*influxdb.Dashbo
 	}
 }
 
-func (b *cmdDashboardBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) *cobra.Command {
+func (b *cmdDashboardBuilder) newCmd(use string, runE func(*cobra.Command, []string) error) (*cobra.Command, error) {
 	cmd := b.genericCLIOpts.newCmd(use, runE, true)
-	b.genericCLIOpts.registerPrintOptions(cmd)
-	b.globalFlags.registerFlags(b.viper, cmd)
-	return cmd
+	if err := b.genericCLIOpts.registerPrintOptions(cmd); err != nil {
+		return nil, err
+	}
+	if err := b.globalFlags.registerFlags(b.viper, cmd); err != nil {
+		return nil, err
+	}
+	return cmd, nil
 }
 
 func newDashboardSVCs() (influxdb.DashboardService, influxdb.OrganizationService, error) {

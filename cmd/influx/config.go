@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"net/url"
 	"path/filepath"
 
@@ -10,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func cmdConfig(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+func cmdConfig(f *globalFlags, opt genericCLIOpts) (*cobra.Command, error) {
 	builder := cmdConfigBuilder{
 		genericCLIOpts: opt,
 		globalFlags:    f,
@@ -35,7 +36,7 @@ type cmdConfigBuilder struct {
 	svcFn func(path string) config.Service
 }
 
-func (b *cmdConfigBuilder) cmd() *cobra.Command {
+func (b *cmdConfigBuilder) cmd() (*cobra.Command, error) {
 	cmd := b.newCmd("config [config name]", b.cmdSwitchActiveRunEFn, false)
 	cmd.Args = cobra.ArbitraryArgs
 	cmd.Short = "Config management commands"
@@ -64,14 +65,18 @@ func (b *cmdConfigBuilder) cmd() *cobra.Command {
 	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/config/
 `
 
-	b.registerFilepath(cmd)
-	cmd.AddCommand(
-		b.cmdCreate(),
-		b.cmdDelete(),
-		b.cmdUpdate(),
-		b.cmdList(),
-	)
-	return cmd
+	if err := b.registerFilepath(cmd); err != nil {
+		return nil, err
+	}
+	builders := []func() (*cobra.Command, error){b.cmdCreate, b.cmdDelete, b.cmdUpdate, b.cmdList}
+	for _, builder := range builders {
+		subcmd, err := builder()
+		if err != nil {
+			return nil, err
+		}
+		cmd.AddCommand(subcmd)
+	}
+	return cmd, nil
 }
 
 func (b *cmdConfigBuilder) cmdSwitchActiveRunEFn(cmd *cobra.Command, args []string) error {
@@ -109,7 +114,7 @@ func (b *cmdConfigBuilder) cmdSwitchActiveRunEFn(cmd *cobra.Command, args []stri
 	})
 }
 
-func (b *cmdConfigBuilder) cmdCreate() *cobra.Command {
+func (b *cmdConfigBuilder) cmdCreate() (*cobra.Command, error) {
 	cmd := b.newCmd("create", b.cmdCreateRunEFn, false)
 	cmd.Short = "Create config"
 	cmd.Long = `
@@ -128,12 +133,22 @@ func (b *cmdConfigBuilder) cmdCreate() *cobra.Command {
 	and
 	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/config/create/`
 
-	b.registerFilepath(cmd)
-	b.registerPrintFlags(cmd)
-	b.registerConfigSettingFlags(cmd)
-	cmd.MarkFlagRequired("token")
-	cmd.MarkFlagRequired("host-url")
-	return cmd
+	if err := b.registerFilepath(cmd); err != nil {
+		return nil, err
+	}
+	if err := b.registerPrintFlags(cmd); err != nil {
+		return nil, err
+	}
+	if err := b.registerConfigSettingFlags(cmd); err != nil {
+		return nil, err
+	}
+	if err := cmd.MarkFlagRequired("token"); err != nil {
+		return nil, fmt.Errorf("failed to mark 'token' as required: %w", err)
+	}
+	if err := cmd.MarkFlagRequired("host-url"); err != nil {
+		return nil, fmt.Errorf("failed to mark 'host-url' as required: %w", err)
+	}
+	return cmd, nil
 }
 
 func (b *cmdConfigBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
@@ -160,7 +175,7 @@ func (b *cmdConfigBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 	})
 }
 
-func (b *cmdConfigBuilder) cmdDelete() *cobra.Command {
+func (b *cmdConfigBuilder) cmdDelete() (*cobra.Command, error) {
 	cmd := b.newCmd("rm [cfg_name]", b.cmdDeleteRunEFn, false)
 	cmd.Aliases = []string{"delete", "remove"}
 	cmd.Args = cobra.ArbitraryArgs
@@ -181,11 +196,15 @@ func (b *cmdConfigBuilder) cmdDelete() *cobra.Command {
 	and
 	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/config/rm/`
 
-	b.registerPrintFlags(cmd)
+	if err := b.registerPrintFlags(cmd); err != nil {
+		return nil, err
+	}
 	cmd.Flags().StringVarP(&b.name, "name", "n", "", "The config name (required)")
-	cmd.Flags().MarkDeprecated("name", "provide the name as an arg; example: influx config rm $CFG_NAME")
+	if err := cmd.Flags().MarkDeprecated("name", "provide the name as an arg; example: influx config rm $CFG_NAME"); err != nil {
+		return nil, fmt.Errorf("failed to mark 'name' as deprecated: %w", err)
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func (b *cmdConfigBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) error {
@@ -213,7 +232,7 @@ func (b *cmdConfigBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) er
 	})
 }
 
-func (b *cmdConfigBuilder) cmdUpdate() *cobra.Command {
+func (b *cmdConfigBuilder) cmdUpdate() (*cobra.Command, error) {
 	cmd := b.newCmd("set", b.cmdUpdateRunEFn, false)
 	cmd.Aliases = []string{"update"}
 	cmd.Short = "Update config"
@@ -233,9 +252,13 @@ func (b *cmdConfigBuilder) cmdUpdate() *cobra.Command {
 	and
 	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/config/set/`
 
-	b.registerPrintFlags(cmd)
-	b.registerConfigSettingFlags(cmd)
-	return cmd
+	if err := b.registerPrintFlags(cmd); err != nil {
+		return nil, err
+	}
+	if err := b.registerConfigSettingFlags(cmd); err != nil {
+		return nil, err
+	}
+	return cmd, nil
 }
 
 func (b *cmdConfigBuilder) cmdUpdateRunEFn(*cobra.Command, []string) error {
@@ -264,7 +287,7 @@ func (b *cmdConfigBuilder) cmdUpdateRunEFn(*cobra.Command, []string) error {
 	})
 }
 
-func (b *cmdConfigBuilder) cmdList() *cobra.Command {
+func (b *cmdConfigBuilder) cmdList() (*cobra.Command, error) {
 	cmd := b.newCmd("ls", b.cmdListRunEFn, false)
 	cmd.Aliases = []string{"list"}
 	cmd.Short = "List configs"
@@ -285,8 +308,10 @@ func (b *cmdConfigBuilder) cmdList() *cobra.Command {
 	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/config/
 	and
 	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/config/list/`
-	b.registerPrintFlags(cmd)
-	return cmd
+	if err := b.registerPrintFlags(cmd); err != nil {
+		return nil, err
+	}
+	return cmd, nil
 }
 
 func (b *cmdConfigBuilder) cmdListRunEFn(*cobra.Command, []string) error {
@@ -298,10 +323,12 @@ func (b *cmdConfigBuilder) cmdListRunEFn(*cobra.Command, []string) error {
 	return b.printConfigs(configPrintOpts{configs: cfgs})
 }
 
-func (b *cmdConfigBuilder) registerConfigSettingFlags(cmd *cobra.Command) {
+func (b *cmdConfigBuilder) registerConfigSettingFlags(cmd *cobra.Command) error {
 	cmd.Flags().StringVarP(&b.name, "config-name", "n", "", "The config name (required)")
 	// name is required everywhere
-	cmd.MarkFlagRequired("config-name")
+	if err := cmd.MarkFlagRequired("config-name"); err != nil {
+		return fmt.Errorf("failed to mark 'config-name' as required: %w", err)
+	}
 
 	cmd.Flags().BoolVarP(&b.active, "active", "a", false, "Set as active config")
 	cmd.Flags().StringVarP(&b.url, "host-url", "u", "", "The host url (required)")
@@ -311,17 +338,23 @@ func (b *cmdConfigBuilder) registerConfigSettingFlags(cmd *cobra.Command) {
 	// deprecated moving forward, not explicit enough based on feedback
 	// the short flags will still be respected but their long form is different.
 	cmd.Flags().StringVar(&b.name, "name", "", "The config name (required)")
-	cmd.Flags().MarkDeprecated("name", "use the --config-name flag")
+	if err := cmd.Flags().MarkDeprecated("name", "use the --config-name flag"); err != nil {
+		return fmt.Errorf("failed to mark 'name' as deprecated: %w", err)
+	}
 	cmd.Flags().StringVar(&b.url, "url", "", "The host url (required)")
-	cmd.Flags().MarkDeprecated("url", "use the --host-url flag")
+	if err := cmd.Flags().MarkDeprecated("url", "use the --host-url flag"); err != nil {
+		return fmt.Errorf("failed to mark 'url' as deprecated: %w", err)
+	}
+
+	return nil
 }
 
-func (b *cmdConfigBuilder) registerFilepath(cmd *cobra.Command) {
-	b.globalFlags.registerFlags(b.viper, cmd, "host", "token", "skip-verify", "trace-debug-id")
+func (b *cmdConfigBuilder) registerFilepath(cmd *cobra.Command) error {
+	return b.globalFlags.registerFlags(b.viper, cmd, "host", "token", "skip-verify", "trace-debug-id")
 }
 
-func (b *cmdConfigBuilder) registerPrintFlags(cmd *cobra.Command) {
-	registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
+func (b *cmdConfigBuilder) registerPrintFlags(cmd *cobra.Command) error {
+	return registerPrintOptions(b.viper, cmd, &b.hideHeaders, &b.json)
 }
 
 func (b *cmdConfigBuilder) printConfigs(opts configPrintOpts) error {
