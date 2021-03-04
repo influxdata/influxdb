@@ -196,7 +196,7 @@ impl TryFrom<&Config> for ObjectStore {
                     config.bucket.as_ref(),
                     config.aws_access_key_id.as_ref(),
                     config.aws_secret_access_key.as_ref(),
-                    config.aws_region.as_str(),
+                    config.aws_default_region.as_str(),
                 ) {
                     (Some(bucket), Some(key_id), Some(secret_key), region) => {
                         Ok(Self::new_amazon_s3(

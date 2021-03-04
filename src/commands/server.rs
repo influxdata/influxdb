@@ -11,8 +11,9 @@ pub const DEFAULT_API_BIND_ADDR: &str = "127.0.0.1:8080";
 /// The default bind address for the gRPC.
 pub const DEFAULT_GRPC_BIND_ADDR: &str = "127.0.0.1:8082";
 
-/// The default AWS region for Amazon S3 based object storage.
-pub const DEFAULT_AWS_REGION: &str = "us-east-1";
+/// The AWS region to use for Amazon S3 based object storage if none is
+/// specified.
+pub const FALLBACK_AWS_REGION: &str = "us-east-1";
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -106,7 +107,7 @@ Possible values (case insensitive):
 * memory (default): Effectively no object persistence.
 * file: Stores objects in the local filesystem. Must also set `--data-dir`.
 * s3: Amazon S3. Must also set `--bucket`, `--aws-access-key-id`, `--aws-secret-access-key`, and
-   possibly `--aws-region`.
+   possibly `--aws-default-region`.
 * google: Google Cloud Storage. Must also set `--bucket` and `--google-service-account`.
 * azure: Microsoft Azure blob storage. Must also set `--bucket`, `--azure-storage-account`,
    and `--azure-storage-master-key`.
@@ -122,7 +123,7 @@ Possible values (case insensitive):
     ///
     /// If using S3 for the object store, must set this item as well
     /// as `--aws-access-key-id` and `--aws-secret-access-key`. Can also set
-    /// `--aws-region` if not using the default region.
+    /// `--aws-default-region` if not using the fallback region.
     ///
     /// If using Azure for the object store, set this item to the name of a
     /// container you've created in the associated storage account, under
@@ -135,8 +136,8 @@ Possible values (case insensitive):
     /// has permission to read from and write to the specified S3 bucket.
     ///
     /// Must also set `--object-store=s3`, `--bucket`, and
-    /// `--aws-secret-access-key`. Can also set `--aws-region` if not using
-    /// the default region.
+    /// `--aws-secret-access-key`. Can also set `--aws-default-region` if not
+    /// using the fallback region.
     ///
     /// Prefer the environment variable over the command line flag in shared
     /// environments.
@@ -147,7 +148,7 @@ Possible values (case insensitive):
     /// key that goes with the specified access key ID.
     ///
     /// Must also set `--object-store=s3`, `--bucket`, `--aws-access-key-id`.
-    /// Can also set `--aws-region` if not using the default region.
+    /// Can also set `--aws-default-region` if not using the fallback region.
     ///
     /// Prefer the environment variable over the command line flag in shared
     /// environments.
@@ -155,16 +156,17 @@ Possible values (case insensitive):
     pub aws_secret_access_key: Option<String>,
 
     /// When using Amazon S3 as the object store, set this to the region
-    /// that goes with the specified bucket if different from the default.
+    /// that goes with the specified bucket if different from the fallback
+    /// value.
     ///
     /// Must also set `--object-store=s3`, `--bucket`, `--aws-access-key-id`,
     /// and `--aws-secret-access-key`.
     #[structopt(
-        long = "--aws-region",
-        env = "AWS_REGION",
-        default_value = DEFAULT_AWS_REGION,
+        long = "--aws-default-region",
+        env = "AWS_DEFAULT_REGION",
+        default_value = FALLBACK_AWS_REGION,
     )]
-    pub aws_region: String,
+    pub aws_default_region: String,
 
     /// When using Google Cloud Storage as the object store, set this to the
     /// path to the JSON file that contains the Google credentials.

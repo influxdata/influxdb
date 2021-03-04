@@ -437,7 +437,7 @@ mod tests {
             dotenv::dotenv().ok();
 
             let required_vars = [
-                "AWS_REGION",
+                "AWS_DEFAULT_REGION",
                 "INFLUXDB_IOX_BUCKET",
                 "AWS_ACCESS_KEY_ID",
                 "AWS_SECRET_ACCESS_KEY",
@@ -472,7 +472,8 @@ mod tests {
                         .expect("already checked AWS_ACCESS_KEY_ID"),
                     secret_access_key: env::var("AWS_SECRET_ACCESS_KEY")
                         .expect("already checked AWS_SECRET_ACCESS_KEY"),
-                    region: env::var("AWS_REGION").expect("already checked AWS_REGION"),
+                    region: env::var("AWS_DEFAULT_REGION")
+                        .expect("already checked AWS_DEFAULT_REGION"),
                     bucket: env::var("INFLUXDB_IOX_BUCKET")
                         .expect("already checked INFLUXDB_IOX_BUCKET"),
                 }
