@@ -98,13 +98,9 @@ func (w *bytesCountWriter) Write(data []byte) (int, error) {
 
 // WriteResponse writes the response using the formatter.
 func (w *responseWriter) WriteResponse(resp Response) (int, error) {
-	n := 0
 	writer := bytesCountWriter{w: w.ResponseWriter}
 	err := w.formatter.WriteResponse(&writer, resp)
-	if err != nil {
-		n, _ = WriteError(w, err)
-	}
-	return writer.n + n, err
+	return writer.n, err
 }
 
 // Flush flushes the ResponseWriter if it has a Flush() method.
@@ -127,9 +123,9 @@ type jsonFormatter struct {
 	Pretty bool
 }
 
-func (f *jsonFormatter) WriteResponse(w io.Writer, resp Response) (err error) {
+func (f *jsonFormatter) WriteResponse(w io.Writer, resp Response) error {
 	var b []byte
-
+	var err error
 	if f.Pretty {
 		b, err = json.MarshalIndent(resp, "", "    ")
 	} else {
@@ -137,11 +133,25 @@ func (f *jsonFormatter) WriteResponse(w io.Writer, resp Response) (err error) {
 	}
 
 	if err != nil {
-		err = unnestError(err)
-	} else if _, err = w.Write(b); err == nil {
-		_, err = w.Write([]byte("\n"))
+		unnestedErr := unnestError(err)
+		// ignore any errors in this section, we already have a 'real' error to return
+		resp := Response{Err: unnestedErr}
+		if f.Pretty {
+			b, _ = json.MarshalIndent(resp, "", "    ")
+		} else {
+			b, _ = json.Marshal(resp)
+		}
+		w.Write(b)
+		w.Write([]byte("\n"))
+		return err
 	}
-	return
+
+	_, err = w.Write(b)
+	if err != nil {
+		return err
+	}
+	_, err = w.Write([]byte("\n"))
+	return err
 }
 
 func unnestError(err error) error {
