@@ -571,7 +571,9 @@ func (f flagOpts) mustRegister(v *viper.Viper, cmd *cobra.Command) {
 			strings.ToUpper(strings.Replace(envVar, "-", "_", -1)),
 		)
 	}
-	cli.BindOptions(v, cmd, f)
+	if err := cli.BindOptions(v, cmd, f); err != nil {
+		panic(err)
+	}
 }
 
 func registerPrintOptions(v *viper.Viper, cmd *cobra.Command, headersP, jsonOutP *bool) {
