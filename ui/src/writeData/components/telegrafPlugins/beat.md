@@ -1,4 +1,4 @@
-# Beat Plugin
+# Beat Input Plugin
 The Beat plugin will collect metrics from the given Beat instances. It is
 known to work with Filebeat and Kafkabeat.
 ### Configuration:
