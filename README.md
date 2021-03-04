@@ -33,15 +33,16 @@ compiler.
 
 ### Build a Docker Image
 
-To build a Docker image in one command:
-```
-docker build .
-```
-
-To enable caching, and to respect `Dockerfile.dockerignore`, we strongly suggest that you [enable BuildKit](https://docs.docker.com/develop/develop-images/build_enhancements/#to-enable-buildkit-builds).
+**BuildKit is required.**
+[Enable BuildKit](https://docs.docker.com/develop/develop-images/build_enhancements/#to-enable-buildkit-builds):
 - Use Docker version 18.09 or later
-- Enable BuildKit by default by setting `{ "features": { "buildkit": true } }`
+- Enable BuildKit by default by setting `{ "features": { "buildkit": true } }` in the Docker engine config
   - ...or run `docker build .` with env var `DOCKER_BUILDKIT=1`
+
+To build the Docker image:
+```
+DOCKER_BUILDKIT=1 docker build .
+```
 
 ### Cloning the Repository
 
