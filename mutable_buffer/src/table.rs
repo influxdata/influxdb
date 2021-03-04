@@ -6,11 +6,11 @@ use std::{
 };
 
 use crate::{
-    chunk::ChunkIdSet,
-    chunk::{Chunk, ChunkPredicate},
+    chunk::Chunk,
     column,
     column::Column,
     dictionary::{Dictionary, Error as DictionaryError},
+    pred::{ChunkIdSet, ChunkPredicate},
 };
 use data_types::{
     partition_metadata::{ColumnSummary, Statistics},

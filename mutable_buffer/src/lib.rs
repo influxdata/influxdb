@@ -62,6 +62,7 @@ mod column;
 pub mod database;
 mod dictionary;
 mod partition;
+pub mod pred;
 mod table;
 
 // Allow restore chunks to be used outside of this crate (for
