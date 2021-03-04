@@ -32,7 +32,9 @@ import consulMarkdown from 'src/writeData/components/telegrafPlugins/consul.md'
 import couchbaseMarkdown from 'src/writeData/components/telegrafPlugins/couchbase.md'
 import couchdbMarkdown from 'src/writeData/components/telegrafPlugins/couchdb.md'
 import cpuMarkdown from 'src/writeData/components/telegrafPlugins/cpu.md'
+import csgoMarkdown from 'src/writeData/components/telegrafPlugins/csgo.md'
 import dcosMarkdown from 'src/writeData/components/telegrafPlugins/dcos.md'
+import directory_monitorMarkdown from 'src/writeData/components/telegrafPlugins/directory_monitor.md'
 import diskioMarkdown from 'src/writeData/components/telegrafPlugins/diskio.md'
 import diskMarkdown from 'src/writeData/components/telegrafPlugins/disk.md'
 import disqueMarkdown from 'src/writeData/components/telegrafPlugins/disque.md'
@@ -147,6 +149,7 @@ import puppetagentMarkdown from 'src/writeData/components/telegrafPlugins/puppet
 import rabbitmqMarkdown from 'src/writeData/components/telegrafPlugins/rabbitmq.md'
 import raindropsMarkdown from 'src/writeData/components/telegrafPlugins/raindrops.md'
 import rasMarkdown from 'src/writeData/components/telegrafPlugins/ras.md'
+import ravendbMarkdown from 'src/writeData/components/telegrafPlugins/ravendb.md'
 import redfishMarkdown from 'src/writeData/components/telegrafPlugins/redfish.md'
 import redisMarkdown from 'src/writeData/components/telegrafPlugins/redis.md'
 import rethinkdbMarkdown from 'src/writeData/components/telegrafPlugins/rethinkdb.md'
@@ -221,7 +224,9 @@ import consulLogo from 'src/writeData/graphics/consul.svg'
 import couchbaseLogo from 'src/writeData/graphics/couchbase.svg'
 import couchdbLogo from 'src/writeData/graphics/couchdb.svg'
 import cpuLogo from 'src/writeData/graphics/cpu.svg'
+import csgoLogo from 'src/writeData/graphics/csgo.svg'
 import dcosLogo from 'src/writeData/graphics/dcos.svg'
+import directory_monitorLogo from 'src/writeData/graphics/directory_monitor.svg'
 import diskioLogo from 'src/writeData/graphics/diskio.svg'
 import diskLogo from 'src/writeData/graphics/disk.svg'
 import disqueLogo from 'src/writeData/graphics/disque.svg'
@@ -336,6 +341,7 @@ import puppetagentLogo from 'src/writeData/graphics/puppetagent.svg'
 import rabbitmqLogo from 'src/writeData/graphics/rabbitmq.svg'
 import raindropsLogo from 'src/writeData/graphics/raindrops.svg'
 import rasLogo from 'src/writeData/graphics/ras.svg'
+import ravendbLogo from 'src/writeData/graphics/ravendb.svg'
 import redfishLogo from 'src/writeData/graphics/redfish.svg'
 import redisLogo from 'src/writeData/graphics/redis.svg'
 import rethinkdbLogo from 'src/writeData/graphics/rethinkdb.svg'
@@ -573,11 +579,25 @@ export const WRITE_DATA_TELEGRAF_PLUGINS: WriteDataItem[] = [
     image: cpuLogo,
   },
   {
+    id: 'csgo',
+    name: 'CSGO',
+    url: `${TELEGRAF_PLUGINS}/csgo`,
+    markdown: csgoMarkdown,
+    image: csgoLogo,
+  },
+  {
     id: 'dcos',
     name: 'DC/OS',
     url: `${TELEGRAF_PLUGINS}/dcos`,
     markdown: dcosMarkdown,
     image: dcosLogo,
+  },
+  {
+    id: 'directory_monitor',
+    name: 'Directory Monitor',
+    url: `${TELEGRAF_PLUGINS}/directory_monitor`,
+    markdown: directory_monitorMarkdown,
+    image: directory_monitorLogo,
   },
   {
     id: 'disk',
@@ -1376,6 +1396,13 @@ export const WRITE_DATA_TELEGRAF_PLUGINS: WriteDataItem[] = [
     url: `${TELEGRAF_PLUGINS}/ras`,
     markdown: rasMarkdown,
     image: rasLogo,
+  },
+  {
+    id: 'ravendb',
+    name: 'RavenDB',
+    url: `${TELEGRAF_PLUGINS}/ravendb`,
+    markdown: ravendbMarkdown,
+    image: ravendbLogo,
   },
   {
     id: 'redfish',
