@@ -43,6 +43,7 @@ var configMapRules = map[string]string{
 	"http.bind-address":                                    "http-bind-address",
 	"http.https-certificate":                               "tls-cert",
 	"http.https-private-key":                               "tls-key",
+	"http.pprof-enabled":                                   "pprof-disabled",
 }
 
 // configValueTransforms is a map from 2.x config keys to transformation functions
@@ -56,6 +57,14 @@ var configValueTransforms = map[string]func(interface{}) interface{}{
 		ret := v
 		if i, ok := v.(int64); ok && i == 0 {
 			ret = 10
+		}
+		return ret
+	},
+	// Flip the boolean (1.x tracked 'enabled', 2.x tracks 'disabled').
+	"pprof-disabled": func(v interface{}) interface{} {
+		ret := v
+		if b, ok := v.(bool); ok {
+			ret = !b
 		}
 		return ret
 	},
