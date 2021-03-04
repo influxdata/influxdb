@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use futures::{stream::BoxStream, Stream, StreamExt, TryStreamExt};
 use snafu::{ensure, futures::TryStreamExt as _, ResultExt, Snafu};
-use std::{convert::TryFrom, io};
+use std::{convert::TryFrom, env, io};
 
 /// A specialized `Result` for Google Cloud Storage object store-related errors
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -239,7 +239,14 @@ impl ObjectStoreApi for GoogleCloudStorage {
 
 impl GoogleCloudStorage {
     /// Configure a connection to Google Cloud Storage.
-    pub fn new(bucket_name: impl Into<String>) -> Self {
+    pub fn new(
+        service_account_path: impl AsRef<std::ffi::OsStr>,
+        bucket_name: impl Into<String>,
+    ) -> Self {
+        // The cloud storage crate currently only supports authentication via
+        // environment variables. Set the environment variable explicitly so
+        // that we can optionally accept command line arguments instead.
+        env::set_var("SERVICE_ACCOUNT", service_account_path);
         Self {
             bucket_name: bucket_name.into(),
         }
@@ -261,39 +268,59 @@ mod test {
 
     const NON_EXISTENT_NAME: &str = "nonexistentname";
 
+    #[derive(Debug)]
+    struct GoogleCloudConfig {
+        bucket: String,
+        service_account: String,
+    }
+
     // Helper macro to skip tests if the GCP environment variables are not set.
     // Skips become hard errors if TEST_INTEGRATION is set.
     macro_rules! maybe_skip_integration {
-        () => {
+        () => {{
             dotenv::dotenv().ok();
 
-            let bucket_name = env::var("INFLUXDB_IOX_BUCKET");
+            let required_vars = ["INFLUXDB_IOX_BUCKET", "GOOGLE_SERVICE_ACCOUNT"];
+            let unset_vars: Vec<_> = required_vars
+                .iter()
+                .filter_map(|&name| match env::var(name) {
+                    Ok(_) => None,
+                    Err(_) => Some(name),
+                })
+                .collect();
+            let unset_var_names = unset_vars.join(", ");
+
             let force = std::env::var("TEST_INTEGRATION");
 
-            match (bucket_name.is_ok(), force.is_ok()) {
-                (false, true) => {
-                    panic!("TEST_INTEGRATION is set, but INFLUXDB_IOX_BUCKET is not")
+            if force.is_ok() && !unset_var_names.is_empty() {
+                panic!(
+                    "TEST_INTEGRATION is set, \
+                            but variable(s) {} need to be set",
+                    unset_var_names
+                )
+            } else if force.is_err() && !unset_var_names.is_empty() {
+                eprintln!(
+                    "skipping Google Cloud integration test - set \
+                               {} to run",
+                    unset_var_names
+                );
+                return Ok(());
+            } else {
+                GoogleCloudConfig {
+                    bucket: env::var("INFLUXDB_IOX_BUCKET")
+                        .expect("already checked INFLUXDB_IOX_BUCKET"),
+                    service_account: env::var("GOOGLE_SERVICE_ACCOUNT")
+                        .expect("already checked GOOGLE_SERVICE_ACCOUNT"),
                 }
-                (false, false) => {
-                    eprintln!("skipping integration test - set INFLUXDB_IOX_BUCKET to run");
-                    return Ok(());
-                }
-                _ => {}
             }
-        };
-    }
-
-    fn bucket_name() -> Result<String> {
-        Ok(env::var("INFLUXDB_IOX_BUCKET")
-            .map_err(|_| "The environment variable INFLUXDB_IOX_BUCKET must be set")?)
+        }};
     }
 
     #[tokio::test]
     async fn gcs_test() -> Result<()> {
-        maybe_skip_integration!();
-        let bucket_name = bucket_name()?;
+        let config = maybe_skip_integration!();
+        let integration = GoogleCloudStorage::new(config.service_account, config.bucket);
 
-        let integration = GoogleCloudStorage::new(&bucket_name);
         put_get_delete_list(&integration).await?;
         list_with_delimiter(&integration).await?;
         Ok(())
@@ -301,9 +328,8 @@ mod test {
 
     #[tokio::test]
     async fn gcs_test_get_nonexistent_location() -> Result<()> {
-        maybe_skip_integration!();
-        let bucket_name = bucket_name()?;
-        let integration = GoogleCloudStorage::new(&bucket_name);
+        let config = maybe_skip_integration!();
+        let integration = GoogleCloudStorage::new(config.service_account, &config.bucket);
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -319,7 +345,7 @@ mod test {
         }) = err.downcast_ref::<Error>()
         {
             assert!(matches!(source, cloud_storage::Error::Reqwest(_)));
-            assert_eq!(bucket, &bucket_name);
+            assert_eq!(bucket, &config.bucket);
             assert_eq!(location, NON_EXISTENT_NAME);
         } else {
             panic!("unexpected error type")
@@ -330,9 +356,10 @@ mod test {
 
     #[tokio::test]
     async fn gcs_test_get_nonexistent_bucket() -> Result<()> {
-        maybe_skip_integration!();
-        let bucket_name = NON_EXISTENT_NAME;
-        let integration = GoogleCloudStorage::new(bucket_name);
+        let mut config = maybe_skip_integration!();
+        config.bucket = NON_EXISTENT_NAME.into();
+        let integration = GoogleCloudStorage::new(config.service_account, &config.bucket);
+
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
 
@@ -343,7 +370,7 @@ mod test {
         if let Some(Error::UnableToStreamListData { source, bucket }) = err.downcast_ref::<Error>()
         {
             assert!(matches!(source, cloud_storage::Error::Google(_)));
-            assert_eq!(bucket, bucket_name);
+            assert_eq!(bucket, &config.bucket);
         } else {
             panic!("unexpected error type")
         }
@@ -353,9 +380,8 @@ mod test {
 
     #[tokio::test]
     async fn gcs_test_delete_nonexistent_location() -> Result<()> {
-        maybe_skip_integration!();
-        let bucket_name = bucket_name()?;
-        let integration = GoogleCloudStorage::new(&bucket_name);
+        let config = maybe_skip_integration!();
+        let integration = GoogleCloudStorage::new(config.service_account, &config.bucket);
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -369,7 +395,7 @@ mod test {
         } = err
         {
             assert!(matches!(source, cloud_storage::Error::Google(_)));
-            assert_eq!(bucket, bucket_name);
+            assert_eq!(bucket, config.bucket);
             assert_eq!(location, NON_EXISTENT_NAME);
         } else {
             panic!("unexpected error type")
@@ -380,9 +406,9 @@ mod test {
 
     #[tokio::test]
     async fn gcs_test_delete_nonexistent_bucket() -> Result<()> {
-        maybe_skip_integration!();
-        let bucket_name = NON_EXISTENT_NAME;
-        let integration = GoogleCloudStorage::new(bucket_name);
+        let mut config = maybe_skip_integration!();
+        config.bucket = NON_EXISTENT_NAME.into();
+        let integration = GoogleCloudStorage::new(config.service_account, &config.bucket);
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -396,7 +422,7 @@ mod test {
         } = err
         {
             assert!(matches!(source, cloud_storage::Error::Google(_)));
-            assert_eq!(bucket, bucket_name);
+            assert_eq!(bucket, config.bucket);
             assert_eq!(location, NON_EXISTENT_NAME);
         } else {
             panic!("unexpected error type")
@@ -407,9 +433,10 @@ mod test {
 
     #[tokio::test]
     async fn gcs_test_put_nonexistent_bucket() -> Result<()> {
-        maybe_skip_integration!();
-        let bucket_name = NON_EXISTENT_NAME;
-        let integration = GoogleCloudStorage::new(bucket_name);
+        let mut config = maybe_skip_integration!();
+        config.bucket = NON_EXISTENT_NAME.into();
+        let integration = GoogleCloudStorage::new(config.service_account, &config.bucket);
+
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
 
@@ -432,7 +459,7 @@ mod test {
         } = err
         {
             assert!(matches!(source, cloud_storage::Error::Other(_)));
-            assert_eq!(bucket, bucket_name);
+            assert_eq!(bucket, config.bucket);
             assert_eq!(location, NON_EXISTENT_NAME);
         } else {
             panic!("unexpected error type");

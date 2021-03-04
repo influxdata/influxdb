@@ -13,7 +13,7 @@ use futures::{
     Stream, StreamExt, TryStreamExt,
 };
 use rusoto_core::ByteStream;
-use rusoto_credential::ChainProvider;
+use rusoto_credential::StaticProvider;
 use rusoto_s3::S3;
 use snafu::{futures::TryStreamExt as _, OptionExt, ResultExt, Snafu};
 use std::convert::TryFrom;
@@ -98,6 +98,16 @@ pub enum Error {
 
     #[snafu(display("Unable to buffer data into temporary file, Error: {}", source))]
     UnableToBufferStream { source: std::io::Error },
+
+    #[snafu(display(
+        "Could not parse `{}` as an AWS region. Regions should look like `us-east-2`. {:?}",
+        region,
+        source
+    ))]
+    InvalidRegion {
+        region: String,
+        source: rusoto_core::region::ParseRegionError,
+    },
 }
 
 /// Configuration for connecting to [Amazon S3](https://aws.amazon.com/s3/).
@@ -272,27 +282,27 @@ impl ObjectStoreApi for AmazonS3 {
 }
 
 impl AmazonS3 {
-    /// Configure a connection to Amazon S3 in the specified Amazon region and
-    /// bucket. Uses [`rusoto_credential::ChainProvider`][cp] to check for
-    /// credentials in:
-    ///
-    /// 1. Environment variables: `AWS_ACCESS_KEY_ID` and
-    ///    `AWS_SECRET_ACCESS_KEY`
-    /// 2. `credential_process` command in the AWS config file, usually located
-    ///    at `~/.aws/config`.
-    /// 3. AWS credentials file. Usually located at `~/.aws/credentials`.
-    /// 4. IAM instance profile. Will only work if running on an EC2 instance
-    ///    with an instance profile/role.
-    ///
-    /// [cp]: https://docs.rs/rusoto_credential/0.43.0/rusoto_credential/struct.ChainProvider.html
-    pub fn new(region: rusoto_core::Region, bucket_name: impl Into<String>) -> Self {
+    /// Configure a connection to Amazon S3 using the specified credentials in
+    /// the specified Amazon region and bucket
+    pub fn new(
+        access_key_id: impl Into<String>,
+        secret_access_key: impl Into<String>,
+        region: impl Into<String>,
+        bucket_name: impl Into<String>,
+    ) -> Result<Self> {
+        let region = region.into();
+        let region: rusoto_core::Region = region.parse().context(InvalidRegion { region })?;
+
         let http_client = rusoto_core::request::HttpClient::new()
             .expect("Current implementation of rusoto_core has no way for this to fail");
-        let credentials_provider = ChainProvider::new();
-        Self {
+
+        let credentials_provider =
+            StaticProvider::new_minimal(access_key_id.into(), secret_access_key.into());
+
+        Ok(Self {
             client: rusoto_s3::S3Client::new_with(http_client, credentials_provider, region),
             bucket_name: bucket_name.into(),
-        }
+        })
     }
 
     /// List objects with the given prefix and a set delimiter of `/`. Returns
@@ -412,64 +422,63 @@ mod tests {
 
     const NON_EXISTENT_NAME: &str = "nonexistentname";
 
+    #[derive(Debug)]
+    struct AwsConfig {
+        access_key_id: String,
+        secret_access_key: String,
+        region: String,
+        bucket: String,
+    }
+
     // Helper macro to skip tests if the AWS environment variables are not set.
     // Skips become hard errors if TEST_INTEGRATION is set.
     macro_rules! maybe_skip_integration {
-        () => {
+        () => {{
             dotenv::dotenv().ok();
 
-            let region = env::var("AWS_DEFAULT_REGION");
-            let bucket_name = env::var("INFLUXDB_IOX_BUCKET");
-            let force = std::env::var("TEST_INTEGRATION");
+            let required_vars = [
+                "AWS_DEFAULT_REGION",
+                "INFLUXDB_IOX_BUCKET",
+                "AWS_ACCESS_KEY_ID",
+                "AWS_SECRET_ACCESS_KEY",
+            ];
+            let unset_vars: Vec<_> = required_vars
+                .iter()
+                .filter_map(|&name| match env::var(name) {
+                    Ok(_) => None,
+                    Err(_) => Some(name),
+                })
+                .collect();
+            let unset_var_names = unset_vars.join(", ");
 
-            match (region.is_ok(), bucket_name.is_ok(), force.is_ok()) {
-                (false, false, true) => {
-                    panic!(
-                        "TEST_INTEGRATION is set, \
-                            but AWS_DEFAULT_REGION and INFLUXDB_IOX_BUCKET are not"
-                    )
+            let force = env::var("TEST_INTEGRATION");
+
+            if force.is_ok() && !unset_var_names.is_empty() {
+                panic!(
+                    "TEST_INTEGRATION is set, \
+                            but variable(s) {} need to be set",
+                    unset_var_names
+                )
+            } else if force.is_err() && !unset_var_names.is_empty() {
+                eprintln!(
+                    "skipping AWS integration test - set \
+                               {} to run",
+                    unset_var_names
+                );
+                return Ok(());
+            } else {
+                AwsConfig {
+                    access_key_id: env::var("AWS_ACCESS_KEY_ID")
+                        .expect("already checked AWS_ACCESS_KEY_ID"),
+                    secret_access_key: env::var("AWS_SECRET_ACCESS_KEY")
+                        .expect("already checked AWS_SECRET_ACCESS_KEY"),
+                    region: env::var("AWS_DEFAULT_REGION")
+                        .expect("already checked AWS_DEFAULT_REGION"),
+                    bucket: env::var("INFLUXDB_IOX_BUCKET")
+                        .expect("already checked INFLUXDB_IOX_BUCKET"),
                 }
-                (false, true, true) => {
-                    panic!("TEST_INTEGRATION is set, but AWS_DEFAULT_REGION is not")
-                }
-                (true, false, true) => {
-                    panic!("TEST_INTEGRATION is set, but INFLUXDB_IOX_BUCKET is not")
-                }
-                (false, false, false) => {
-                    eprintln!(
-                        "skipping integration test - set \
-                               AWS_DEFAULT_REGION and INFLUXDB_IOX_BUCKET to run"
-                    );
-                    return Ok(());
-                }
-                (false, true, false) => {
-                    eprintln!("skipping integration test - set AWS_DEFAULT_REGION to run");
-                    return Ok(());
-                }
-                (true, false, false) => {
-                    eprintln!("skipping integration test - set INFLUXDB_IOX_BUCKET to run");
-                    return Ok(());
-                }
-                _ => {}
             }
-        };
-    }
-
-    // Helper to get region and bucket from environment variables. Call the
-    // `maybe_skip_integration!` macro before calling this to skip the test if these
-    // aren't set; if you don't call that macro, the tests will fail if
-    // these env vars aren't set.
-    //
-    // `AWS_DEFAULT_REGION` should be a value like `us-east-2`.
-    fn region_and_bucket_name() -> Result<(rusoto_core::Region, String)> {
-        let region = env::var("AWS_DEFAULT_REGION").map_err(|_| {
-            "The environment variable AWS_DEFAULT_REGION must be set \
-                 to a value like `us-east-2`"
-        })?;
-        let bucket_name = env::var("INFLUXDB_IOX_BUCKET")
-            .map_err(|_| "The environment variable INFLUXDB_IOX_BUCKET must be set")?;
-
-        Ok((region.parse()?, bucket_name))
+        }};
     }
 
     fn check_credentials<T>(r: Result<T>) -> Result<T> {
@@ -490,12 +499,16 @@ mod tests {
 
     #[tokio::test]
     async fn s3_test() -> Result<()> {
-        maybe_skip_integration!();
-        let (region, bucket_name) = region_and_bucket_name()?;
+        let config = maybe_skip_integration!();
+        let integration = AmazonS3::new(
+            config.access_key_id,
+            config.secret_access_key,
+            config.region,
+            config.bucket,
+        )
+        .expect("Valid S3 config");
 
-        let integration = AmazonS3::new(region, &bucket_name);
         check_credentials(put_get_delete_list(&integration).await)?;
-
         check_credentials(list_with_delimiter(&integration).await).unwrap();
 
         Ok(())
@@ -503,11 +516,18 @@ mod tests {
 
     #[tokio::test]
     async fn s3_test_get_nonexistent_region() -> Result<()> {
-        maybe_skip_integration!();
+        let mut config = maybe_skip_integration!();
         // Assumes environment variables do not provide credentials to AWS US West 1
-        let (_, bucket_name) = region_and_bucket_name()?;
-        let region = rusoto_core::Region::UsWest1;
-        let integration = AmazonS3::new(region, &bucket_name);
+        config.region = "us-west-1".into();
+
+        let integration = AmazonS3::new(
+            config.access_key_id,
+            config.secret_access_key,
+            config.region,
+            &config.bucket,
+        )
+        .expect("Valid S3 config");
+
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
 
@@ -516,7 +536,7 @@ mod tests {
             .unwrap_err();
         if let Some(Error::UnableToListData { source, bucket }) = err.downcast_ref::<Error>() {
             assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
-            assert_eq!(bucket, &bucket_name);
+            assert_eq!(bucket, &config.bucket);
         } else {
             panic!("unexpected error type")
         }
@@ -526,9 +546,15 @@ mod tests {
 
     #[tokio::test]
     async fn s3_test_get_nonexistent_location() -> Result<()> {
-        maybe_skip_integration!();
-        let (region, bucket_name) = region_and_bucket_name()?;
-        let integration = AmazonS3::new(region, &bucket_name);
+        let config = maybe_skip_integration!();
+        let integration = AmazonS3::new(
+            config.access_key_id,
+            config.secret_access_key,
+            config.region,
+            &config.bucket,
+        )
+        .expect("Valid S3 config");
+
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
 
@@ -545,7 +571,7 @@ mod tests {
                 source,
                 rusoto_core::RusotoError::Service(rusoto_s3::GetObjectError::NoSuchKey(_))
             ));
-            assert_eq!(bucket, &bucket_name);
+            assert_eq!(bucket, &config.bucket);
             assert_eq!(location, NON_EXISTENT_NAME);
         } else {
             panic!("unexpected error type")
@@ -556,10 +582,17 @@ mod tests {
 
     #[tokio::test]
     async fn s3_test_get_nonexistent_bucket() -> Result<()> {
-        maybe_skip_integration!();
-        let (region, _) = region_and_bucket_name()?;
-        let bucket_name = NON_EXISTENT_NAME;
-        let integration = AmazonS3::new(region, bucket_name);
+        let mut config = maybe_skip_integration!();
+        config.bucket = NON_EXISTENT_NAME.into();
+
+        let integration = AmazonS3::new(
+            config.access_key_id,
+            config.secret_access_key,
+            config.region,
+            &config.bucket,
+        )
+        .expect("Valid S3 config");
+
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
 
@@ -571,7 +604,7 @@ mod tests {
                 source,
                 rusoto_core::RusotoError::Service(rusoto_s3::ListObjectsV2Error::NoSuchBucket(_))
             ));
-            assert_eq!(bucket, bucket_name);
+            assert_eq!(bucket, &config.bucket);
         } else {
             panic!("unexpected error type")
         }
@@ -581,11 +614,18 @@ mod tests {
 
     #[tokio::test]
     async fn s3_test_put_nonexistent_region() -> Result<()> {
-        maybe_skip_integration!();
+        let mut config = maybe_skip_integration!();
         // Assumes environment variables do not provide credentials to AWS US West 1
-        let (_, bucket_name) = region_and_bucket_name()?;
-        let region = rusoto_core::Region::UsWest1;
-        let integration = AmazonS3::new(region, &bucket_name);
+        config.region = "us-west-1".into();
+
+        let integration = AmazonS3::new(
+            config.access_key_id,
+            config.secret_access_key,
+            config.region,
+            &config.bucket,
+        )
+        .expect("Valid S3 config");
+
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
         let data = Bytes::from("arbitrary data");
@@ -607,7 +647,7 @@ mod tests {
         } = err
         {
             assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
-            assert_eq!(bucket, bucket_name);
+            assert_eq!(bucket, config.bucket);
             assert_eq!(location, NON_EXISTENT_NAME);
         } else {
             panic!("unexpected error type")
@@ -618,10 +658,17 @@ mod tests {
 
     #[tokio::test]
     async fn s3_test_put_nonexistent_bucket() -> Result<()> {
-        maybe_skip_integration!();
-        let (region, _) = region_and_bucket_name()?;
-        let bucket_name = NON_EXISTENT_NAME;
-        let integration = AmazonS3::new(region, bucket_name);
+        let mut config = maybe_skip_integration!();
+        config.bucket = NON_EXISTENT_NAME.into();
+
+        let integration = AmazonS3::new(
+            config.access_key_id,
+            config.secret_access_key,
+            config.region,
+            &config.bucket,
+        )
+        .expect("Valid S3 config");
+
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
         let data = Bytes::from("arbitrary data");
@@ -643,7 +690,7 @@ mod tests {
         } = err
         {
             assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
-            assert_eq!(bucket, bucket_name);
+            assert_eq!(bucket, config.bucket);
             assert_eq!(location, NON_EXISTENT_NAME);
         } else {
             panic!("unexpected error type")
@@ -654,9 +701,15 @@ mod tests {
 
     #[tokio::test]
     async fn s3_test_delete_nonexistent_location() -> Result<()> {
-        maybe_skip_integration!();
-        let (region, bucket_name) = region_and_bucket_name()?;
-        let integration = AmazonS3::new(region, &bucket_name);
+        let config = maybe_skip_integration!();
+        let integration = AmazonS3::new(
+            config.access_key_id,
+            config.secret_access_key,
+            config.region,
+            config.bucket,
+        )
+        .expect("Valid S3 config");
+
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
 
@@ -669,11 +722,18 @@ mod tests {
 
     #[tokio::test]
     async fn s3_test_delete_nonexistent_region() -> Result<()> {
-        maybe_skip_integration!();
+        let mut config = maybe_skip_integration!();
         // Assumes environment variables do not provide credentials to AWS US West 1
-        let (_, bucket_name) = region_and_bucket_name()?;
-        let region = rusoto_core::Region::UsWest1;
-        let integration = AmazonS3::new(region, &bucket_name);
+        config.region = "us-west-1".into();
+
+        let integration = AmazonS3::new(
+            config.access_key_id,
+            config.secret_access_key,
+            config.region,
+            &config.bucket,
+        )
+        .expect("Valid S3 config");
+
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
 
@@ -685,7 +745,7 @@ mod tests {
         } = err
         {
             assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
-            assert_eq!(bucket, bucket_name);
+            assert_eq!(bucket, config.bucket);
             assert_eq!(location, NON_EXISTENT_NAME);
         } else {
             panic!("unexpected error type")
@@ -696,10 +756,17 @@ mod tests {
 
     #[tokio::test]
     async fn s3_test_delete_nonexistent_bucket() -> Result<()> {
-        maybe_skip_integration!();
-        let (region, _) = region_and_bucket_name()?;
-        let bucket_name = NON_EXISTENT_NAME;
-        let integration = AmazonS3::new(region, bucket_name);
+        let mut config = maybe_skip_integration!();
+        config.bucket = NON_EXISTENT_NAME.into();
+
+        let integration = AmazonS3::new(
+            config.access_key_id,
+            config.secret_access_key,
+            config.region,
+            &config.bucket,
+        )
+        .expect("Valid S3 config");
+
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
 
@@ -711,7 +778,7 @@ mod tests {
         } = err
         {
             assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
-            assert_eq!(bucket, bucket_name);
+            assert_eq!(bucket, config.bucket);
             assert_eq!(location, NON_EXISTENT_NAME);
         } else {
             panic!("unexpected error type")
