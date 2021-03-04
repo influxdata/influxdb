@@ -32,7 +32,7 @@ const (
 
 // NewInfluxdCommand constructs the root of the influxd CLI, along with a `run` subcommand.
 // The `run` subcommand is set as the default to execute.
-func NewInfluxdCommand(ctx context.Context, v *viper.Viper) *cobra.Command {
+func NewInfluxdCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, error) {
 	o := newOpts(v)
 	cliOpts := o.bindCliOpts()
 
@@ -40,7 +40,10 @@ func NewInfluxdCommand(ctx context.Context, v *viper.Viper) *cobra.Command {
 		Name: "influxd",
 		Run:  cmdRunE(ctx, o),
 	}
-	cmd := cli.NewCommand(o.Viper, &prog)
+	cmd, err := cli.NewCommand(o.Viper, &prog)
+	if err != nil {
+		return nil, err
+	}
 
 	runCmd := &cobra.Command{
 		Use:  "run",
@@ -49,12 +52,18 @@ func NewInfluxdCommand(ctx context.Context, v *viper.Viper) *cobra.Command {
 	}
 	for _, c := range []*cobra.Command{cmd, runCmd} {
 		setCmdDescriptions(c)
-		cli.BindOptions(o.Viper, c, cliOpts)
+		if err := cli.BindOptions(o.Viper, c, cliOpts); err != nil {
+			return nil, err
+		}
 	}
 	cmd.AddCommand(runCmd)
-	cmd.AddCommand(NewInfluxdPrintConfigCommand(v, cliOpts))
+	printCmd, err := NewInfluxdPrintConfigCommand(v, cliOpts)
+	if err != nil {
+		return nil, err
+	}
+	cmd.AddCommand(printCmd)
 
-	return cmd
+	return cmd, nil
 }
 
 func setCmdDescriptions(cmd *cobra.Command) {
