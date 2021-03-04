@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/signals"
 	influxlogger "github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/nats"
+	"github.com/influxdata/influxdb/v2/pprof"
 	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/vault"
@@ -74,6 +75,9 @@ func setCmdDescriptions(cmd *cobra.Command) {
 
 func cmdRunE(ctx context.Context, o *InfluxdOpts) func() error {
 	return func() error {
+		// Set this as early as possible, since it affects global profiling rates.
+		pprof.SetGlobalProfiling(!o.ProfilingDisabled)
+
 		fluxinit.FluxInit()
 
 		l := NewLauncher()
@@ -129,6 +133,8 @@ type InfluxdOpts struct {
 	SessionLength        int // in minutes
 	SessionRenewDisabled bool
 
+	ProfilingDisabled bool
+
 	NatsPort            int
 	NatsMaxPayloadBytes int
 
@@ -172,6 +178,8 @@ func newOpts(viper *viper.Viper) *InfluxdOpts {
 		HttpTLSStrictCiphers: false,
 		SessionLength:        60, // 60 minutes
 		SessionRenewDisabled: false,
+
+		ProfilingDisabled: false,
 
 		StoreType:   BoltStore,
 		SecretStore: BoltStore,
@@ -493,6 +501,14 @@ func (o *InfluxdOpts) bindCliOpts() []cli.Opt {
 			Flag:    "nats-max-payload-bytes",
 			Desc:    "The maximum number of bytes allowed in a NATS message payload.",
 			Default: o.NatsMaxPayloadBytes,
+		},
+
+		// Pprof config
+		{
+			DestP:   &o.ProfilingDisabled,
+			Flag:    "pprof-disabled",
+			Desc:    "Don't expose debugging information over HTTP at /debug/pprof",
+			Default: o.ProfilingDisabled,
 		},
 	}
 }

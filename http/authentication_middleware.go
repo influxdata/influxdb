@@ -38,7 +38,7 @@ func NewAuthenticationHandler(log *zap.Logger, h platform.HTTPErrorHandler) *Aut
 	return &AuthenticationHandler{
 		log:              log,
 		HTTPErrorHandler: h,
-		Handler:          http.DefaultServeMux,
+		Handler:          http.NotFoundHandler(),
 		TokenParser:      jsonweb.NewTokenParser(jsonweb.EmptyKeyStore),
 		noAuthRouter:     httprouter.New(),
 	}
