@@ -412,7 +412,7 @@ mod tests {
     use super::*;
     use crate::{
         tests::{get_nonexistent_object, list_with_delimiter, put_get_delete_list},
-        AmazonS3, ObjectStoreApi, ObjectStorePath,
+        AmazonS3, Error as ObjectStoreError, ObjectStore, ObjectStoreApi, ObjectStorePath,
     };
     use bytes::Bytes;
     use std::env;
@@ -458,7 +458,7 @@ mod tests {
                     "TEST_INTEGRATION is set, \
                             but variable(s) {} need to be set",
                     unset_var_names
-                )
+                );
             } else if force.is_err() && !unset_var_names.is_empty() {
                 eprintln!(
                     "skipping AWS integration test - set \
@@ -500,13 +500,15 @@ mod tests {
     #[tokio::test]
     async fn s3_test() -> Result<()> {
         let config = maybe_skip_integration!();
-        let integration = AmazonS3::new(
-            config.access_key_id,
-            config.secret_access_key,
-            config.region,
-            config.bucket,
-        )
-        .expect("Valid S3 config");
+        let integration = ObjectStore::new_amazon_s3(
+            AmazonS3::new(
+                config.access_key_id,
+                config.secret_access_key,
+                config.region,
+                config.bucket,
+            )
+            .expect("Valid S3 config"),
+        );
 
         check_credentials(put_get_delete_list(&integration).await)?;
         check_credentials(list_with_delimiter(&integration).await).unwrap();
@@ -520,13 +522,15 @@ mod tests {
         // Assumes environment variables do not provide credentials to AWS US West 1
         config.region = "us-west-1".into();
 
-        let integration = AmazonS3::new(
-            config.access_key_id,
-            config.secret_access_key,
-            config.region,
-            &config.bucket,
-        )
-        .expect("Valid S3 config");
+        let integration = ObjectStore::new_amazon_s3(
+            AmazonS3::new(
+                config.access_key_id,
+                config.secret_access_key,
+                config.region,
+                &config.bucket,
+            )
+            .expect("Valid S3 config"),
+        );
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -534,11 +538,14 @@ mod tests {
         let err = get_nonexistent_object(&integration, Some(location))
             .await
             .unwrap_err();
-        if let Some(Error::UnableToListData { source, bucket }) = err.downcast_ref::<Error>() {
+        if let Some(ObjectStoreError::AwsObjectStoreError {
+            source: Error::UnableToListData { source, bucket },
+        }) = err.downcast_ref::<ObjectStoreError>()
+        {
             assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
             assert_eq!(bucket, &config.bucket);
         } else {
-            panic!("unexpected error type")
+            panic!("unexpected error type: {:?}", err);
         }
 
         Ok(())
@@ -547,13 +554,15 @@ mod tests {
     #[tokio::test]
     async fn s3_test_get_nonexistent_location() -> Result<()> {
         let config = maybe_skip_integration!();
-        let integration = AmazonS3::new(
-            config.access_key_id,
-            config.secret_access_key,
-            config.region,
-            &config.bucket,
-        )
-        .expect("Valid S3 config");
+        let integration = ObjectStore::new_amazon_s3(
+            AmazonS3::new(
+                config.access_key_id,
+                config.secret_access_key,
+                config.region,
+                &config.bucket,
+            )
+            .expect("Valid S3 config"),
+        );
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -561,11 +570,14 @@ mod tests {
         let err = get_nonexistent_object(&integration, Some(location))
             .await
             .unwrap_err();
-        if let Some(Error::UnableToGetData {
-            source,
-            bucket,
-            location,
-        }) = err.downcast_ref::<Error>()
+        if let Some(ObjectStoreError::AwsObjectStoreError {
+            source:
+                Error::UnableToGetData {
+                    source,
+                    bucket,
+                    location,
+                },
+        }) = err.downcast_ref::<ObjectStoreError>()
         {
             assert!(matches!(
                 source,
@@ -574,7 +586,7 @@ mod tests {
             assert_eq!(bucket, &config.bucket);
             assert_eq!(location, NON_EXISTENT_NAME);
         } else {
-            panic!("unexpected error type")
+            panic!("unexpected error type: {:?}", err);
         }
 
         Ok(())
@@ -585,13 +597,15 @@ mod tests {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
 
-        let integration = AmazonS3::new(
-            config.access_key_id,
-            config.secret_access_key,
-            config.region,
-            &config.bucket,
-        )
-        .expect("Valid S3 config");
+        let integration = ObjectStore::new_amazon_s3(
+            AmazonS3::new(
+                config.access_key_id,
+                config.secret_access_key,
+                config.region,
+                &config.bucket,
+            )
+            .expect("Valid S3 config"),
+        );
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -599,14 +613,17 @@ mod tests {
         let err = get_nonexistent_object(&integration, Some(location))
             .await
             .unwrap_err();
-        if let Some(Error::UnableToListData { source, bucket }) = err.downcast_ref::<Error>() {
+        if let Some(ObjectStoreError::AwsObjectStoreError {
+            source: Error::UnableToListData { source, bucket },
+        }) = err.downcast_ref::<ObjectStoreError>()
+        {
             assert!(matches!(
                 source,
                 rusoto_core::RusotoError::Service(rusoto_s3::ListObjectsV2Error::NoSuchBucket(_))
             ));
             assert_eq!(bucket, &config.bucket);
         } else {
-            panic!("unexpected error type")
+            panic!("unexpected error type: {:?}", err);
         }
 
         Ok(())
@@ -618,13 +635,15 @@ mod tests {
         // Assumes environment variables do not provide credentials to AWS US West 1
         config.region = "us-west-1".into();
 
-        let integration = AmazonS3::new(
-            config.access_key_id,
-            config.secret_access_key,
-            config.region,
-            &config.bucket,
-        )
-        .expect("Valid S3 config");
+        let integration = ObjectStore::new_amazon_s3(
+            AmazonS3::new(
+                config.access_key_id,
+                config.secret_access_key,
+                config.region,
+                &config.bucket,
+            )
+            .expect("Valid S3 config"),
+        );
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -640,17 +659,20 @@ mod tests {
             .await
             .unwrap_err();
 
-        if let Error::UnableToPutData {
-            source,
-            bucket,
-            location,
+        if let ObjectStoreError::AwsObjectStoreError {
+            source:
+                Error::UnableToPutData {
+                    source,
+                    bucket,
+                    location,
+                },
         } = err
         {
             assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
             assert_eq!(bucket, config.bucket);
             assert_eq!(location, NON_EXISTENT_NAME);
         } else {
-            panic!("unexpected error type")
+            panic!("unexpected error type: {:?}", err);
         }
 
         Ok(())
@@ -661,13 +683,15 @@ mod tests {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
 
-        let integration = AmazonS3::new(
-            config.access_key_id,
-            config.secret_access_key,
-            config.region,
-            &config.bucket,
-        )
-        .expect("Valid S3 config");
+        let integration = ObjectStore::new_amazon_s3(
+            AmazonS3::new(
+                config.access_key_id,
+                config.secret_access_key,
+                config.region,
+                &config.bucket,
+            )
+            .expect("Valid S3 config"),
+        );
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -683,17 +707,20 @@ mod tests {
             .await
             .unwrap_err();
 
-        if let Error::UnableToPutData {
-            source,
-            bucket,
-            location,
+        if let ObjectStoreError::AwsObjectStoreError {
+            source:
+                Error::UnableToPutData {
+                    source,
+                    bucket,
+                    location,
+                },
         } = err
         {
             assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
             assert_eq!(bucket, config.bucket);
             assert_eq!(location, NON_EXISTENT_NAME);
         } else {
-            panic!("unexpected error type")
+            panic!("unexpected error type: {:?}", err);
         }
 
         Ok(())
@@ -702,13 +729,15 @@ mod tests {
     #[tokio::test]
     async fn s3_test_delete_nonexistent_location() -> Result<()> {
         let config = maybe_skip_integration!();
-        let integration = AmazonS3::new(
-            config.access_key_id,
-            config.secret_access_key,
-            config.region,
-            config.bucket,
-        )
-        .expect("Valid S3 config");
+        let integration = ObjectStore::new_amazon_s3(
+            AmazonS3::new(
+                config.access_key_id,
+                config.secret_access_key,
+                config.region,
+                config.bucket,
+            )
+            .expect("Valid S3 config"),
+        );
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -726,29 +755,34 @@ mod tests {
         // Assumes environment variables do not provide credentials to AWS US West 1
         config.region = "us-west-1".into();
 
-        let integration = AmazonS3::new(
-            config.access_key_id,
-            config.secret_access_key,
-            config.region,
-            &config.bucket,
-        )
-        .expect("Valid S3 config");
+        let integration = ObjectStore::new_amazon_s3(
+            AmazonS3::new(
+                config.access_key_id,
+                config.secret_access_key,
+                config.region,
+                &config.bucket,
+            )
+            .expect("Valid S3 config"),
+        );
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
 
         let err = integration.delete(&location).await.unwrap_err();
-        if let Error::UnableToDeleteData {
-            source,
-            bucket,
-            location,
+        if let ObjectStoreError::AwsObjectStoreError {
+            source:
+                Error::UnableToDeleteData {
+                    source,
+                    bucket,
+                    location,
+                },
         } = err
         {
             assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
             assert_eq!(bucket, config.bucket);
             assert_eq!(location, NON_EXISTENT_NAME);
         } else {
-            panic!("unexpected error type")
+            panic!("unexpected error type: {:?}", err);
         }
 
         Ok(())
@@ -759,29 +793,34 @@ mod tests {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
 
-        let integration = AmazonS3::new(
-            config.access_key_id,
-            config.secret_access_key,
-            config.region,
-            &config.bucket,
-        )
-        .expect("Valid S3 config");
+        let integration = ObjectStore::new_amazon_s3(
+            AmazonS3::new(
+                config.access_key_id,
+                config.secret_access_key,
+                config.region,
+                &config.bucket,
+            )
+            .expect("Valid S3 config"),
+        );
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
 
         let err = integration.delete(&location).await.unwrap_err();
-        if let Error::UnableToDeleteData {
-            source,
-            bucket,
-            location,
+        if let ObjectStoreError::AwsObjectStoreError {
+            source:
+                Error::UnableToDeleteData {
+                    source,
+                    bucket,
+                    location,
+                },
         } = err
         {
             assert!(matches!(source, rusoto_core::RusotoError::Unknown(_)));
             assert_eq!(bucket, config.bucket);
             assert_eq!(location, NON_EXISTENT_NAME);
         } else {
-            panic!("unexpected error type")
+            panic!("unexpected error type: {:?}", err);
         }
 
         Ok(())

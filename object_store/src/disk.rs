@@ -268,7 +268,7 @@ mod tests {
 
     use crate::{
         tests::{list_with_delimiter, put_get_delete_list},
-        ObjectStoreApi, ObjectStorePath,
+        Error as ObjectStoreError, ObjectStore, ObjectStoreApi, ObjectStorePath,
     };
     use futures::stream;
     use tempfile::TempDir;
@@ -276,7 +276,7 @@ mod tests {
     #[tokio::test]
     async fn file_test() -> Result<()> {
         let root = TempDir::new()?;
-        let integration = File::new(root.path());
+        let integration = ObjectStore::new_file(File::new(root.path()));
 
         put_get_delete_list(&integration).await?;
         list_with_delimiter(&integration).await?;
@@ -287,7 +287,7 @@ mod tests {
     #[tokio::test]
     async fn length_mismatch_is_an_error() -> Result<()> {
         let root = TempDir::new()?;
-        let integration = File::new(root.path());
+        let integration = ObjectStore::new_file(File::new(root.path()));
 
         let bytes = stream::once(async { Ok(Bytes::from("hello world")) });
         let mut location = integration.new_path();
@@ -296,9 +296,11 @@ mod tests {
 
         assert!(matches!(
             res.err().unwrap(),
-            Error::DataDoesNotMatchLength {
-                expected: 0,
-                actual: 11,
+            ObjectStoreError::FileObjectStoreError {
+                source: Error::DataDoesNotMatchLength {
+                    expected: 0,
+                    actual: 11,
+                }
             }
         ));
 
@@ -308,7 +310,7 @@ mod tests {
     #[tokio::test]
     async fn creates_dir_if_not_present() -> Result<()> {
         let root = TempDir::new()?;
-        let integration = File::new(root.path());
+        let integration = ObjectStore::new_file(File::new(root.path()));
 
         let data = Bytes::from("arbitrary data");
         let mut location = integration.new_path();
@@ -337,7 +339,7 @@ mod tests {
     #[tokio::test]
     async fn unknown_length() -> Result<()> {
         let root = TempDir::new()?;
-        let integration = File::new(root.path());
+        let integration = ObjectStore::new_file(File::new(root.path()));
 
         let data = Bytes::from("arbitrary data");
         let stream_data = std::io::Result::Ok(data.clone());

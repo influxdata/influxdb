@@ -277,6 +277,7 @@ impl MicrosoftAzure {
 mod tests {
     use super::*;
     use crate::tests::{list_with_delimiter, put_get_delete_list};
+    use crate::ObjectStore;
     use std::env;
 
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
@@ -340,8 +341,11 @@ mod tests {
     #[tokio::test]
     async fn azure_blob_test() -> Result<()> {
         let config = maybe_skip_integration!();
-        let integration =
-            MicrosoftAzure::new(config.storage_account, config.access_key, config.bucket);
+        let integration = ObjectStore::new_microsoft_azure(MicrosoftAzure::new(
+            config.storage_account,
+            config.access_key,
+            config.bucket,
+        ));
 
         put_get_delete_list(&integration).await?;
         list_with_delimiter(&integration).await?;
