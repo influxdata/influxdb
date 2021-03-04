@@ -3,11 +3,14 @@ package influxdb
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
+	"github.com/influxdata/flux/compiler"
 	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/flux/semantic"
@@ -19,12 +22,19 @@ import (
 )
 
 const (
-	ToKind            = "influx1x/toKind"
-	DefaultBufferSize = 5000
+	ToKind                     = "influx1x/toKind"
+	DefaultBufferSize          = 5000
+	DefaultFieldColLabel       = "_field"
+	DefaultMeasurementColLabel = "_measurement"
 )
 
+// ToOpSpec is the flux.OperationSpec for the `to` flux function.
 type ToOpSpec struct {
-	Bucket string `json:"bucket"`
+	Bucket            string                       `json:"bucket"`
+	TimeColumn        string                       `json:"timeColumn"`
+	MeasurementColumn string                       `json:"measurementColumn"`
+	TagColumns        []string                     `json:"tagColumns"`
+	FieldFn           interpreter.ResolvedFunction `json:"fieldFn"`
 }
 
 func init() {
@@ -35,7 +45,7 @@ func init() {
 	execute.RegisterTransformation(ToKind, createToTransformation)
 }
 
-var unsupportedToArgs = []string{"bucketID", "orgID", "host", "timeColumn", "measurementColumn", "tagColumns", "fieldFn"}
+var unsupportedToArgs = []string{"bucketID", "orgID", "host", "url", "brokers"}
 
 func (o *ToOpSpec) ReadArgs(args flux.Arguments) error {
 	var err error
@@ -53,7 +63,29 @@ func (o *ToOpSpec) ReadArgs(args flux.Arguments) error {
 	if o.Bucket, err = args.GetRequiredString("bucket"); err != nil {
 		return err
 	}
+	if o.TimeColumn, ok, _ = args.GetString("timeColumn"); !ok {
+		o.TimeColumn = execute.DefaultTimeColLabel
+	}
 
+	if o.MeasurementColumn, ok, _ = args.GetString("measurementColumn"); !ok {
+		o.MeasurementColumn = DefaultMeasurementColLabel
+	}
+
+	if tags, ok, _ := args.GetArray("tagColumns", semantic.String); ok {
+		o.TagColumns = make([]string, tags.Len())
+		tags.Sort(func(i, j values.Value) bool {
+			return i.Str() < j.Str()
+		})
+		tags.Range(func(i int, v values.Value) {
+			o.TagColumns[i] = v.Str()
+		})
+	}
+
+	if fieldFn, ok, _ := args.GetFunction("fieldFn"); ok {
+		if o.FieldFn, err = interpreter.ResolveFunction(fieldFn); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -88,7 +120,11 @@ func (o *ToProcedureSpec) Copy() plan.ProcedureSpec {
 	s := o.Spec
 	res := &ToProcedureSpec{
 		Spec: &ToOpSpec{
-			Bucket: s.Bucket,
+			Bucket:            s.Bucket,
+			TimeColumn:        s.TimeColumn,
+			MeasurementColumn: s.MeasurementColumn,
+			TagColumns:        append([]string(nil), s.TagColumns...),
+			FieldFn:           s.FieldFn.Copy(),
 		},
 	}
 	return res
@@ -131,13 +167,16 @@ func createToTransformation(id execute.DatasetID, mode execute.AccumulationMode,
 
 type ToTransformation struct {
 	execute.ExecutionNode
-	Ctx   context.Context
-	DB    string
-	RP    string
-	d     execute.Dataset
-	cache execute.TableBuilderCache
-	deps  StorageDependencies
-	buf   *coordinator.BufferedPointsWriter
+	Ctx         context.Context
+	DB          string
+	RP          string
+	spec        *ToProcedureSpec
+	isTagColumn func(column flux.ColMeta) bool
+	fn          *execute.RowMapFn
+	d           execute.Dataset
+	cache       execute.TableBuilderCache
+	deps        StorageDependencies
+	buf         *coordinator.BufferedPointsWriter
 }
 
 func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.TableBuilderCache, toSpec *ToProcedureSpec, deps StorageDependencies) (*ToTransformation, error) {
@@ -147,14 +186,61 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 	if err != nil {
 		return nil, err
 	}
+	var fn *execute.RowMapFn
+	if spec.FieldFn.Fn != nil {
+		fn = execute.NewRowMapFn(spec.FieldFn.Fn, compiler.ToScope(spec.FieldFn.Scope))
+	}
+	var isTagColumn func(column flux.ColMeta) bool
+	if toSpec.Spec.TagColumns == nil {
+		// If no tag columns are specified, by default we exclude
+		// _field, _value and _measurement from being tag columns.
+		excludeColumns := map[string]bool{
+			execute.DefaultValueColLabel: true,
+			DefaultFieldColLabel:         true,
+			DefaultMeasurementColLabel:   true,
+		}
+
+		// Also exclude the overridden measurement column
+		excludeColumns[toSpec.Spec.MeasurementColumn] = true
+
+		// If a field function is specified then we exclude any column that
+		// is referenced in the function expression from being a tag column.
+		if toSpec.Spec.FieldFn.Fn != nil {
+			recordParam := toSpec.Spec.FieldFn.Fn.Parameters.List[0].Key.Name
+			exprNode := toSpec.Spec.FieldFn.Fn
+			colVisitor := newFieldFunctionVisitor(recordParam)
+
+			// Walk the field function expression and record which columns
+			// are referenced. None of these columns will be used as tag columns.
+			semantic.Walk(colVisitor, exprNode)
+			for k, v := range colVisitor.captured {
+				excludeColumns[k] = v
+			}
+		}
+		isTagColumn = func(column flux.ColMeta) bool {
+			return column.Type == flux.TString && !excludeColumns[column.Label]
+		}
+	} else {
+		// Simply check if column is in the sorted list of tag values
+		isTagColumn = func(column flux.ColMeta) bool {
+			i := sort.SearchStrings(toSpec.Spec.TagColumns, column.Label)
+			if i >= len(toSpec.Spec.TagColumns) {
+				return false
+			}
+			return toSpec.Spec.TagColumns[i] == column.Label
+		}
+	}
 	return &ToTransformation{
-		Ctx:   ctx,
-		DB:    db,
-		RP:    rp,
-		d:     d,
-		cache: cache,
-		deps:  deps,
-		buf:   coordinator.NewBufferedPointsWriter(deps.PointsWriter, db, rp, DefaultBufferSize),
+		Ctx:         ctx,
+		DB:          db,
+		RP:          rp,
+		spec:        toSpec,
+		isTagColumn: isTagColumn,
+		fn:          fn,
+		d:           d,
+		cache:       cache,
+		deps:        deps,
+		buf:         coordinator.NewBufferedPointsWriter(deps.PointsWriter, db, rp, DefaultBufferSize),
 	}, nil
 }
 
@@ -164,29 +250,17 @@ func (t *ToTransformation) RetractTable(id execute.DatasetID, key flux.GroupKey)
 
 // Process does the actual work for the ToTransformation.
 func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
-	//TODO(lesam): this is where 2.x overrides with explicit tag columns
-	measurementColumn := "_measurement"
-	fieldColumn := "_field"
-	excludeColumns := map[string]bool{
-		execute.DefaultValueColLabel: true,
-		fieldColumn:                  true,
-		measurementColumn:            true,
-	}
-
-	isTagColumn := func(column flux.ColMeta) bool {
-		return column.Type == flux.TString && !excludeColumns[column.Label]
-	}
-
 	columns := tbl.Cols()
 	isTag := make([]bool, len(columns))
 	numTags := 0
 	for i, col := range columns {
-		isTag[i] = isTagColumn(col)
-		numTags++
+		isTag[i] = t.isTagColumn(col)
+		if isTag[i] {
+			numTags++
+		}
 	}
 
-	// TODO(lesam): this is where 2.x overrides the default time column label
-	timeColLabel := execute.DefaultTimeColLabel
+	timeColLabel := t.spec.Spec.TimeColumn
 	timeColIdx := execute.ColIdx(timeColLabel, columns)
 	if timeColIdx < 0 {
 		return &flux.Error{
@@ -198,6 +272,15 @@ func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 		return &flux.Error{
 			Code: codes.Invalid,
 			Msg:  fmt.Sprintf("column %s of type %s is not of type %s", timeColLabel, columns[timeColIdx].Type, flux.TTime),
+		}
+	}
+
+	// prepare field function
+	var fn *execute.RowMapPreparedFn
+	if t.fn != nil {
+		var err error
+		if fn, err = t.fn.Prepare(columns); err != nil {
+			return err
 		}
 	}
 
@@ -217,12 +300,12 @@ func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 			measurementName := ""
 			fields := make(models.Fields)
 			var pointTime time.Time
-			kv = kv[0:]
+			kv = kv[:0]
 
 			// get the non-field values
 			for j, col := range er.Cols() {
 				switch {
-				case col.Label == measurementColumn:
+				case col.Label == t.spec.Spec.MeasurementColumn:
 					measurementName = string(er.Strings(j).Value(i))
 				case col.Label == timeColLabel:
 					valueTime := execute.ValueForRow(er, i, j)
@@ -231,7 +314,6 @@ func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 						continue outer
 					}
 					pointTime = valueTime.Time().Time()
-
 				case isTag[j]:
 					if col.Type != flux.TString {
 						return &flux.Error{
@@ -253,14 +335,17 @@ func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 			if measurementName == "" {
 				return &flux.Error{
 					Code: codes.Invalid,
-					Msg:  fmt.Sprintf("no column with label %s exists", measurementColumn),
+					Msg:  fmt.Sprintf("no column with label %s exists", t.spec.Spec.MeasurementColumn),
 				}
 			}
 
 			var fieldValues values.Object
 			var err error
-			// TODO(lesam): this is where we would support the `fn` argument to `to`
-			if fieldValues, err = defaultFieldMapping(er, i); err != nil {
+			if fn == nil {
+				if fieldValues, err = defaultFieldMapping(er, i); err != nil {
+					return err
+				}
+			} else if fieldValues, err = fn.Eval(t.Ctx, i, er); err != nil {
 				return err
 			}
 
@@ -302,6 +387,45 @@ func (t *ToTransformation) Process(id execute.DatasetID, tbl flux.Table) error {
 		})
 	})
 }
+
+// fieldFunctionVisitor implements semantic.Visitor.
+// fieldFunctionVisitor is used to walk the the field function expression
+// of the `to` operation and to record all referenced columns. This visitor
+// is only used when no tag columns are provided as input to the `to` func.
+type fieldFunctionVisitor struct {
+	visited  map[semantic.Node]bool
+	captured map[string]bool
+	rowParam string
+}
+
+func newFieldFunctionVisitor(rowParam string) *fieldFunctionVisitor {
+	return &fieldFunctionVisitor{
+		visited:  make(map[semantic.Node]bool),
+		captured: make(map[string]bool),
+		rowParam: rowParam,
+	}
+}
+
+// A field function is of the form `(r) => { Function Body }`, and it returns an object
+// mapping field keys to values for each row r of the input. Visit records every column
+// that is referenced in `Function Body`. These columns are either directly or indirectly
+// used as value columns and as such need to be recorded so as not to be used as tag columns.
+func (v *fieldFunctionVisitor) Visit(node semantic.Node) semantic.Visitor {
+	if v.visited[node] {
+		return v
+	}
+	if member, ok := node.(*semantic.MemberExpression); ok {
+		if obj, ok := member.Object.(*semantic.IdentifierExpression); ok {
+			if obj.Name == v.rowParam {
+				v.captured[member.Property] = true
+			}
+		}
+	}
+	v.visited[node] = true
+	return v
+}
+
+func (v *fieldFunctionVisitor) Done(node semantic.Node) {}
 
 // UpdateWatermark updates the watermark for the transformation for the `to` flux function.
 func (t *ToTransformation) UpdateWatermark(id execute.DatasetID, pt execute.Time) error {
