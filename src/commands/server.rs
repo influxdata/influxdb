@@ -11,6 +11,10 @@ pub const DEFAULT_API_BIND_ADDR: &str = "127.0.0.1:8080";
 /// The default bind address for the gRPC.
 pub const DEFAULT_GRPC_BIND_ADDR: &str = "127.0.0.1:8082";
 
+/// The AWS region to use for Amazon S3 based object storage if none is
+/// specified.
+pub const FALLBACK_AWS_REGION: &str = "us-east-1";
+
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "server",
@@ -102,26 +106,93 @@ Possible values (case insensitive):
 
 * memory (default): Effectively no object persistence.
 * file: Stores objects in the local filesystem. Must also set `--data-dir`.
-* s3: Amazon S3. Must also set `--bucket`, AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, and
-   AWS_DEFAULT_REGION.
-* google: Google Cloud Storage. Must also set `--bucket` and SERVICE_ACCOUNT.
-* azure: Microsoft Azure blob storage. Must also set `--bucket`, AZURE_STORAGE_ACCOUNT,
-   and AZURE_STORAGE_MASTER_KEY.
+* s3: Amazon S3. Must also set `--bucket`, `--aws-access-key-id`, `--aws-secret-access-key`, and
+   possibly `--aws-default-region`.
+* google: Google Cloud Storage. Must also set `--bucket` and `--google-service-account`.
+* azure: Microsoft Azure blob storage. Must also set `--bucket`, `--azure-storage-account`,
+   and `--azure-storage-access-key`.
         "#,
     )]
     pub object_store: Option<ObjectStore>,
 
     /// Name of the bucket to use for the object store. Must also set
-    /// `--object_store` to a cloud object storage to have any effect.
+    /// `--object-store` to a cloud object storage to have any effect.
     ///
-    /// If using Google Cloud Storage for the object store, this item, as well
-    /// as SERVICE_ACCOUNT must be set.
+    /// If using Google Cloud Storage for the object store, this item as well
+    /// as `--google-service-account` must be set.
     ///
-    /// If using S3 for the object store, this item, as well
-    /// as AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and AWS_DEFAULT_REGION must
-    /// be set.
+    /// If using S3 for the object store, must set this item as well
+    /// as `--aws-access-key-id` and `--aws-secret-access-key`. Can also set
+    /// `--aws-default-region` if not using the fallback region.
+    ///
+    /// If using Azure for the object store, set this item to the name of a
+    /// container you've created in the associated storage account, under
+    /// Blob Service > Containers. Must also set `--azure-storage-account` and
+    /// `--azure-storage-access-key`.
     #[structopt(long = "--bucket", env = "INFLUXDB_IOX_BUCKET")]
     pub bucket: Option<String>,
+
+    /// When using Amazon S3 as the object store, set this to an access key that
+    /// has permission to read from and write to the specified S3 bucket.
+    ///
+    /// Must also set `--object-store=s3`, `--bucket`, and
+    /// `--aws-secret-access-key`. Can also set `--aws-default-region` if not
+    /// using the fallback region.
+    ///
+    /// Prefer the environment variable over the command line flag in shared
+    /// environments.
+    #[structopt(long = "--aws-access-key-id", env = "AWS_ACCESS_KEY_ID")]
+    pub aws_access_key_id: Option<String>,
+
+    /// When using Amazon S3 as the object store, set this to the secret access
+    /// key that goes with the specified access key ID.
+    ///
+    /// Must also set `--object-store=s3`, `--bucket`, `--aws-access-key-id`.
+    /// Can also set `--aws-default-region` if not using the fallback region.
+    ///
+    /// Prefer the environment variable over the command line flag in shared
+    /// environments.
+    #[structopt(long = "--aws-secret-access-key", env = "AWS_SECRET_ACCESS_KEY")]
+    pub aws_secret_access_key: Option<String>,
+
+    /// When using Amazon S3 as the object store, set this to the region
+    /// that goes with the specified bucket if different from the fallback
+    /// value.
+    ///
+    /// Must also set `--object-store=s3`, `--bucket`, `--aws-access-key-id`,
+    /// and `--aws-secret-access-key`.
+    #[structopt(
+        long = "--aws-default-region",
+        env = "AWS_DEFAULT_REGION",
+        default_value = FALLBACK_AWS_REGION,
+    )]
+    pub aws_default_region: String,
+
+    /// When using Google Cloud Storage as the object store, set this to the
+    /// path to the JSON file that contains the Google credentials.
+    ///
+    /// Must also set `--object-store=google` and `--bucket`.
+    #[structopt(long = "--google-service-account", env = "GOOGLE_SERVICE_ACCOUNT")]
+    pub google_service_account: Option<String>,
+
+    /// When using Microsoft Azure as the object store, set this to the
+    /// name you see when going to All Services > Storage accounts > [name].
+    ///
+    /// Must also set `--object-store=azure`, `--bucket`, and
+    /// `--azure-storage-access-key`.
+    #[structopt(long = "--azure-storage-account", env = "AZURE_STORAGE_ACCOUNT")]
+    pub azure_storage_account: Option<String>,
+
+    /// When using Microsoft Azure as the object store, set this to one of the
+    /// Key values in the Storage account's Settings > Access keys.
+    ///
+    /// Must also set `--object-store=azure`, `--bucket`, and
+    /// `--azure-storage-account`.
+    ///
+    /// Prefer the environment variable over the command line flag in shared
+    /// environments.
+    #[structopt(long = "--azure-storage-access-key", env = "AZURE_STORAGE_ACCESS_KEY")]
+    pub azure_storage_access_key: Option<String>,
 
     /// If set, Jaeger traces are emitted to this host
     /// using the OpenTelemetry tracer.
@@ -151,13 +222,13 @@ Possible values (case insensitive):
 ///     - user set environment variables
 ///     - .env file contents
 ///     - pre-configured default values
-pub fn load_config() -> Config {
+pub fn load_config() -> Box<Config> {
     // Load the Config struct - this pulls in any envs set by the user or
     // sourced above, and applies any defaults.
     //
 
     //let args = std::env::args().filter(|arg| arg != "server");
-    Config::from_iter(strip_server(std::env::args()).iter())
+    Box::new(Config::from_iter(strip_server(std::env::args()).iter()))
 }
 
 fn parse_socket_addr(s: &str) -> std::io::Result<SocketAddr> {
