@@ -245,20 +245,20 @@ impl MicrosoftAzure {
     /// Configure a connection to container with given name on Microsoft Azure
     /// Blob store.
     ///
-    /// The credentials `account` and `master_key` must provide access to the
+    /// The credentials `account` and `access_key` must provide access to the
     /// store.
     pub fn new(
         account: impl Into<String>,
-        master_key: impl Into<String>,
+        access_key: impl Into<String>,
         container_name: impl Into<String>,
     ) -> Self {
         let account = account.into();
-        let master_key = master_key.into();
+        let access_key = access_key.into();
         // From https://github.com/Azure/azure-sdk-for-rust/blob/master/sdk/storage/examples/blob_00.rs#L29
         let http_client: Arc<Box<dyn HttpClient>> = Arc::new(Box::new(reqwest::Client::new()));
 
         let storage_account_client =
-            StorageAccountClient::new_access_key(Arc::clone(&http_client), &account, &master_key);
+            StorageAccountClient::new_access_key(Arc::clone(&http_client), &account, &access_key);
 
         let storage_client = storage_account_client.as_storage_client();
 
@@ -285,7 +285,7 @@ mod tests {
     #[derive(Debug)]
     struct AzureConfig {
         storage_account: String,
-        master_key: String,
+        access_key: String,
         bucket: String,
     }
 
@@ -298,7 +298,7 @@ mod tests {
             let required_vars = [
                 "AZURE_STORAGE_ACCOUNT",
                 "INFLUXDB_IOX_BUCKET",
-                "AZURE_STORAGE_MASTER_KEY",
+                "AZURE_STORAGE_ACCESS_KEY",
             ];
             let unset_vars: Vec<_> = required_vars
                 .iter()
@@ -328,8 +328,8 @@ mod tests {
                 AzureConfig {
                     storage_account: env::var("AZURE_STORAGE_ACCOUNT")
                         .expect("already checked AZURE_STORAGE_ACCOUNT"),
-                    master_key: env::var("AZURE_STORAGE_MASTER_KEY")
-                        .expect("already checked AZURE_STORAGE_MASTER_KEY"),
+                    access_key: env::var("AZURE_STORAGE_ACCESS_KEY")
+                        .expect("already checked AZURE_STORAGE_ACCESS_KEY"),
                     bucket: env::var("INFLUXDB_IOX_BUCKET")
                         .expect("already checked INFLUXDB_IOX_BUCKET"),
                 }
@@ -341,7 +341,7 @@ mod tests {
     async fn azure_blob_test() -> Result<()> {
         let config = maybe_skip_integration!();
         let integration =
-            MicrosoftAzure::new(config.storage_account, config.master_key, config.bucket);
+            MicrosoftAzure::new(config.storage_account, config.access_key, config.bucket);
 
         put_get_delete_list(&integration).await?;
         list_with_delimiter(&integration).await?;

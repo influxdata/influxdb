@@ -110,7 +110,7 @@ Possible values (case insensitive):
    possibly `--aws-default-region`.
 * google: Google Cloud Storage. Must also set `--bucket` and `--google-service-account`.
 * azure: Microsoft Azure blob storage. Must also set `--bucket`, `--azure-storage-account`,
-   and `--azure-storage-master-key`.
+   and `--azure-storage-access-key`.
         "#,
     )]
     pub object_store: Option<ObjectStore>,
@@ -128,7 +128,7 @@ Possible values (case insensitive):
     /// If using Azure for the object store, set this item to the name of a
     /// container you've created in the associated storage account, under
     /// Blob Service > Containers. Must also set `--azure-storage-account` and
-    /// `--azure-storage-master-key`.
+    /// `--azure-storage-access-key`.
     #[structopt(long = "--bucket", env = "INFLUXDB_IOX_BUCKET")]
     pub bucket: Option<String>,
 
@@ -179,7 +179,7 @@ Possible values (case insensitive):
     /// name you see when going to All Services > Storage accounts > [name].
     ///
     /// Must also set `--object-store=azure`, `--bucket`, and
-    /// `--azure-storage-master-key`.
+    /// `--azure-storage-access-key`.
     #[structopt(long = "--azure-storage-account", env = "AZURE_STORAGE_ACCOUNT")]
     pub azure_storage_account: Option<String>,
 
@@ -191,8 +191,8 @@ Possible values (case insensitive):
     ///
     /// Prefer the environment variable over the command line flag in shared
     /// environments.
-    #[structopt(long = "--azure-storage-master-key", env = "AZURE_STORAGE_MASTER_KEY")]
-    pub azure_storage_master_key: Option<String>,
+    #[structopt(long = "--azure-storage-access-key", env = "AZURE_STORAGE_ACCESS_KEY")]
+    pub azure_storage_access_key: Option<String>,
 
     /// If set, Jaeger traces are emitted to this host
     /// using the OpenTelemetry tracer.

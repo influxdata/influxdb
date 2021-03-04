@@ -230,16 +230,16 @@ impl TryFrom<&Config> for ObjectStore {
                 match (
                     config.bucket.as_ref(),
                     config.azure_storage_account.as_ref(),
-                    config.azure_storage_master_key.as_ref(),
+                    config.azure_storage_access_key.as_ref(),
                 ) {
-                    (Some(bucket), Some(storage_account), Some(master_key)) => {
+                    (Some(bucket), Some(storage_account), Some(access_key)) => {
                         Ok(Self::new_microsoft_azure(MicrosoftAzure::new(
                             storage_account,
-                            master_key,
+                            access_key,
                             bucket,
                         )))
                     }
-                    (bucket, storage_account, master_key) => {
+                    (bucket, storage_account, access_key) => {
                         let mut missing_args = vec![];
 
                         if bucket.is_none() {
@@ -248,8 +248,8 @@ impl TryFrom<&Config> for ObjectStore {
                         if storage_account.is_none() {
                             missing_args.push("azure-storage-account");
                         }
-                        if master_key.is_none() {
-                            missing_args.push("azure-storage-master-key");
+                        if access_key.is_none() {
+                            missing_args.push("azure-storage-access-key");
                         }
 
                         MissingObjectStoreConfig {
@@ -388,7 +388,7 @@ mod tests {
             "mybucket",
             "--azure-storage-account",
             "NotARealStorageAccount",
-            "--azure-storage-master-key",
+            "--azure-storage-access-key",
             "NotARealKey",
         ])
         .unwrap();
@@ -410,7 +410,7 @@ mod tests {
         assert_eq!(
             err,
             "Specified Azure for the object store, required configuration missing for \
-            bucket, azure-storage-account, azure-storage-master-key"
+            bucket, azure-storage-account, azure-storage-access-key"
         );
     }
 
