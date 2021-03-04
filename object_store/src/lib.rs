@@ -300,7 +300,11 @@ impl ObjectStoreApi for ObjectStore {
                 .map_ok(|list_result| list_result.map_paths(path::Path::File))
                 .await
                 .context(FileObjectStoreError),
-            (MicrosoftAzure(_azure), _) => unimplemented!(),
+            (MicrosoftAzure(azure), path::Path::MicrosoftAzure(prefix)) => azure
+                .list_with_delimiter(prefix)
+                .map_ok(|list_result| list_result.map_paths(path::Path::MicrosoftAzure))
+                .await
+                .context(AzureObjectStoreError),
             _ => unreachable!(),
         }
     }
