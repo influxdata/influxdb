@@ -50,7 +50,7 @@ pub enum Error {
     ServingRPC { source: self::rpc::Error },
 
     #[snafu(display(
-        "Specifed {} for the object store, required configuration missing for {}",
+        "Specified {} for the object store, required configuration missing for {}",
         object_store,
         missing
     ))]
@@ -339,7 +339,7 @@ mod tests {
 
         assert_eq!(
             err,
-            "Specifed S3 for the object store, required configuration missing for \
+            "Specified S3 for the object store, required configuration missing for \
             bucket, aws-access-key-id, aws-secret-access-key"
         );
     }
@@ -373,7 +373,7 @@ mod tests {
 
         assert_eq!(
             err,
-            "Specifed Google for the object store, required configuration missing for \
+            "Specified Google for the object store, required configuration missing for \
             bucket, google-service-account"
         );
     }
@@ -409,7 +409,7 @@ mod tests {
 
         assert_eq!(
             err,
-            "Specifed Azure for the object store, required configuration missing for \
+            "Specified Azure for the object store, required configuration missing for \
             bucket, azure-storage-account, azure-storage-master-key"
         );
     }
@@ -443,7 +443,7 @@ mod tests {
 
         assert_eq!(
             err,
-            "Specifed File for the object store, required configuration missing for \
+            "Specified File for the object store, required configuration missing for \
             data-dir"
         );
     }
