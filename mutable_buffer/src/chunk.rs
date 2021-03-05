@@ -2,9 +2,7 @@
 //! some chunk) in the mutable store.
 use arrow_deps::{
     arrow::record_batch::RecordBatch,
-    datafusion::{
-        error::DataFusionError, logical_plan::Expr, physical_plan::SendableRecordBatchStream,
-    },
+    datafusion::{error::DataFusionError, logical_plan::Expr},
 };
 
 use chrono::{DateTime, Utc};
@@ -13,15 +11,12 @@ use std::collections::{BTreeSet, HashMap};
 
 use data_types::{partition_metadata::TableSummary, schema::Schema, selection::Selection};
 
-use query::{exec::stringset::StringSet, predicate::Predicate};
-
 use crate::{
     column::Column,
     dictionary::{Dictionary, Error as DictionaryError},
     pred::{ChunkPredicate, ChunkPredicateBuilder},
     table::Table,
 };
-use async_trait::async_trait;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
@@ -494,67 +489,9 @@ impl Chunk {
         let data_size = self.tables.values().fold(0, |acc, val| acc + val.size());
         data_size + self.dictionary.size
     }
-}
 
-#[async_trait]
-// The long term plan is for the mutable buffer to not implement the
-// query api directly so this trait implementation will eventually be
-// removed.
-impl query::PartitionChunk for Chunk {
-    type Error = Error;
-
-    fn id(&self) -> u32 {
-        self.id
-    }
-
-    fn table_stats(&self) -> Result<Vec<TableSummary>, Self::Error> {
-        self.table_stats()
-    }
-
-    async fn table_names(
-        &self,
-        _predicate: &Predicate,
-        _known_tables: &StringSet,
-    ) -> Result<Option<StringSet>, Self::Error> {
-        unimplemented!("This function is slated for removal")
-    }
-
-    async fn read_filter(
-        &self,
-        _table_name: &str,
-        _predicate: &Predicate,
-        _selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream, Self::Error> {
-        unimplemented!("This function is slated for removal")
-    }
-
-    async fn table_schema(
-        &self,
-        table_name: &str,
-        selection: Selection<'_>,
-    ) -> Result<Schema, Self::Error> {
-        self.table_schema(table_name, selection)
-    }
-
-    fn has_table(&self, table_name: &str) -> bool {
+    /// Return true if this chunk has the specified table name
+    pub fn has_table(&self, table_name: &str) -> bool {
         matches!(self.table(table_name), Ok(Some(_)))
-    }
-
-    async fn column_names(
-        &self,
-        _table_name: &str,
-        _predicate: &Predicate,
-        _columns: Selection<'_>,
-    ) -> Result<Option<StringSet>, Self::Error> {
-        unimplemented!("This function is slated for removal")
-    }
-
-    async fn column_values(
-        &self,
-        _table_name: &str,
-        _column_name: &str,
-        _predicate: &Predicate,
-    ) -> Result<Option<StringSet>, Self::Error> {
-        unimplemented!("This function is slated for removal")
     }
 }

@@ -363,7 +363,7 @@ impl TryClone for MemWriter {
 
 #[cfg(test)]
 mod tests {
-    use crate::db::Db;
+    use crate::db::{DBChunk, Db};
     use read_buffer::Database as ReadBufferDb;
 
     use super::*;
@@ -442,7 +442,7 @@ mem,host=A,region=west used=45 1
         ];
 
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let chunk = Arc::new(ChunkWB::new(11));
+        let chunk = DBChunk::new_mb(Arc::new(ChunkWB::new(11)));
         let mut metadata_path = store.new_path();
         metadata_path.push_dir("meta");
 

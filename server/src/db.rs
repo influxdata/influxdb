@@ -23,7 +23,7 @@ use crate::buffer::Buffer;
 use tracing::info;
 
 mod chunk;
-use chunk::DBChunk;
+pub(crate) use chunk::DBChunk;
 pub mod pred;
 mod streams;
 
