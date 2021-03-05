@@ -7,7 +7,7 @@ use super::{
         fieldlist_to_measurement_fields_response, series_set_item_to_read_response,
         tag_keys_to_byte_vecs,
     },
-    expr::{self, AddRPCNode, Loggable, SpecialTagKeys},
+    expr::{self, AddRPCNode, GroupByAndAggregate, Loggable, SpecialTagKeys},
     input::GrpcInputs,
     StorageService,
 };
@@ -24,7 +24,6 @@ use query::{
     exec::fieldlist::FieldList,
     exec::seriesset::{Error as SeriesSetError, SeriesSetItem},
     frontend::influxrpc::InfluxRPCPlanner,
-    group_by::GroupByAndAggregate,
     predicate::PredicateBuilder,
     DatabaseStore,
 };
@@ -1024,9 +1023,19 @@ where
 
     let planner = InfluxRPCPlanner::new();
 
-    let grouped_series_set_plan = planner
-        .query_group(db.as_ref(), predicate, gby_agg)
-        .await
+    let grouped_series_set_plan = match gby_agg {
+        GroupByAndAggregate::Columns { agg, group_columns } => {
+            planner
+                .read_group(db.as_ref(), predicate, agg, &group_columns)
+                .await
+        }
+        GroupByAndAggregate::Window { agg, every, offset } => {
+            planner
+                .read_window_aggregate(db.as_ref(), predicate, agg, every, offset)
+                .await
+        }
+    };
+    let grouped_series_set_plan = grouped_series_set_plan
         .map_err(|e| Box::new(e) as _)
         .context(PlanningFilteringSeries { db_name })?;
 

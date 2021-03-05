@@ -28,7 +28,7 @@ use crate::{
         selectors::{selector_first, selector_last, selector_max, selector_min, SelectorOutput},
         window::make_window_bound_expr,
     },
-    group_by::{Aggregate, GroupByAndAggregate, WindowDuration},
+    group_by::{Aggregate, WindowDuration},
     plan::{
         fieldlist::FieldListPlan,
         seriesset::{SeriesSetPlan, SeriesSetPlans},
@@ -555,29 +555,6 @@ impl InfluxRPCPlanner {
         }
 
         Ok(ss_plans.into())
-    }
-
-    /// Query groups (dispatch to read_group or read_window_aggregate).
-    /// TODO remove this dispatch and just call the right thing directly
-    pub async fn query_group<D>(
-        &self,
-        database: &D,
-        predicate: Predicate,
-        gby_agg: GroupByAndAggregate,
-    ) -> Result<SeriesSetPlans>
-    where
-        D: Database + 'static,
-    {
-        match gby_agg {
-            GroupByAndAggregate::Columns { agg, group_columns } => {
-                self.read_group(database, predicate, agg, &group_columns)
-                    .await
-            }
-            GroupByAndAggregate::Window { agg, every, offset } => {
-                self.read_window_aggregate(database, predicate, agg, every, offset)
-                    .await
-            }
-        }
     }
 
     /// Creates a GroupedSeriesSet plan that produces an output table

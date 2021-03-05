@@ -7,66 +7,11 @@ use arrow_deps::{
     arrow::record_batch::RecordBatch,
     datafusion::{
         error::DataFusionError,
-        logical_plan::{binary_expr, Expr, LogicalPlan, LogicalPlanBuilder, Operator},
+        logical_plan::{Expr, LogicalPlan, LogicalPlanBuilder},
         optimizer::utils::expr_to_column_names,
-        prelude::{col, lit},
     },
 };
-use data_types::{schema::Schema, TIME_COLUMN_NAME};
-
-/// Creates a single expression representing the conjunction (aka
-/// AND'ing) together of a set of expressions
-#[derive(Debug, Default)]
-pub struct AndExprBuilder {
-    cur_expr: Option<Expr>,
-}
-
-impl AndExprBuilder {
-    /// append `new_expr` to the expression chain being built
-    pub fn append_opt_ref(self, new_expr: Option<&Expr>) -> Self {
-        match new_expr {
-            None => self,
-            Some(new_expr) => self.append_expr(new_expr.clone()),
-        }
-    }
-
-    /// append `new_expr` to the expression chain being built
-    pub fn append_opt(self, new_expr: Option<Expr>) -> Self {
-        match new_expr {
-            None => self,
-            Some(new_expr) => self.append_expr(new_expr),
-        }
-    }
-
-    /// Append `new_expr` to the expression chain being built
-    pub fn append_expr(self, new_expr: Expr) -> Self {
-        let Self { cur_expr } = self;
-
-        let cur_expr = if let Some(cur_expr) = cur_expr {
-            binary_expr(cur_expr, Operator::And, new_expr)
-        } else {
-            new_expr
-        };
-
-        let cur_expr = Some(cur_expr);
-
-        Self { cur_expr }
-    }
-
-    /// Creates the new filter expression, consuming Self
-    pub fn build(self) -> Option<Expr> {
-        self.cur_expr
-    }
-}
-
-/// Creates expression like:
-/// start <= time && time < end
-pub fn make_range_expr(start: i64, end: i64) -> Expr {
-    let ts_low = arrow_deps::datafusion::prelude::lit(start).lt_eq(col(TIME_COLUMN_NAME));
-    let ts_high = col(TIME_COLUMN_NAME).lt(lit(end));
-
-    ts_low.and(ts_high)
-}
+use data_types::schema::Schema;
 
 /// Create a logical plan that produces the record batch
 pub fn make_scan_plan(batch: RecordBatch) -> std::result::Result<LogicalPlan, DataFusionError> {
@@ -111,20 +56,10 @@ pub fn schema_has_all_expr_columns(schema: &Schema, expr: &Expr) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use arrow_deps::datafusion::prelude::*;
     use data_types::schema::builder::SchemaBuilder;
 
     use super::*;
-
-    #[test]
-    fn test_make_range_expr() {
-        // Test that the generated predicate is correct
-
-        let ts_predicate_expr = make_range_expr(101, 202);
-        let expected_string = "Int64(101) LtEq #time And #time Lt Int64(202)";
-        let actual_string = format!("{:?}", ts_predicate_expr);
-
-        assert_eq!(actual_string, expected_string);
-    }
 
     #[test]
     fn test_schema_has_all_exprs_() {

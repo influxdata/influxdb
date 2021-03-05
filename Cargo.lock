@@ -1913,7 +1913,6 @@ dependencies = [
  "flatbuffers 0.6.1",
  "generated_types",
  "influxdb_line_protocol",
- "query",
  "snafu",
  "string-interner",
  "test_helpers",

@@ -117,9 +117,6 @@ pub enum Error {
         all_tag_column_names: String,
     },
 
-    #[snafu(display("Error creating aggregate expression:  {}", source))]
-    CreatingAggregates { source: query::group_by::Error },
-
     #[snafu(display("Duplicate group column '{}'", column_name))]
     DuplicateGroupColumn { column_name: String },
 

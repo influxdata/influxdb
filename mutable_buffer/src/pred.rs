@@ -2,16 +2,16 @@ use std::collections::{BTreeSet, HashSet};
 
 use crate::dictionary::{Dictionary, Error as DictionaryError};
 
-use arrow_deps::datafusion::{
-    error::{DataFusionError, Result as DatafusionResult},
-    logical_plan::{Expr, ExpressionVisitor, Operator, Recursion},
-    optimizer::utils::expr_to_column_names,
-};
-use data_types::TIME_COLUMN_NAME;
-use query::{
-    predicate::TimestampRange,
+use arrow_deps::{
+    datafusion::{
+        error::{DataFusionError, Result as DatafusionResult},
+        logical_plan::{Expr, ExpressionVisitor, Operator, Recursion},
+        optimizer::utils::expr_to_column_names,
+    },
     util::{make_range_expr, AndExprBuilder},
 };
+use data_types::{timestamp::TimestampRange, TIME_COLUMN_NAME};
+
 //use snafu::{OptionExt, ResultExt, Snafu};
 use snafu::{ensure, ResultExt, Snafu};
 
@@ -139,7 +139,7 @@ impl ChunkPredicate {
     /// range.start <= time and time < range.end`
     fn make_timestamp_predicate_expr(&self) -> Option<Expr> {
         self.range
-            .map(|range| make_range_expr(range.start, range.end))
+            .map(|range| make_range_expr(range.start, range.end, TIME_COLUMN_NAME))
     }
 }
 
