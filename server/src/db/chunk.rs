@@ -9,7 +9,7 @@ use tracing::debug;
 use std::sync::Arc;
 
 use super::{
-    pred::to_read_buffer_predicate,
+    pred::{to_mutable_buffer_predicate, to_read_buffer_predicate},
     streams::{MutableBufferChunkStream, ReadFilterResultsStream},
 };
 
@@ -120,7 +120,7 @@ impl PartitionChunk for DBChunk {
                 if chunk.is_empty() {
                     Some(StringSet::new())
                 } else {
-                    let chunk_predicate = match chunk.compile_predicate(predicate) {
+                    let chunk_predicate = match to_mutable_buffer_predicate(chunk, predicate) {
                         Ok(chunk_predicate) => chunk_predicate,
                         Err(e) => {
                             debug!(?predicate, %e, "mutable buffer predicate not supported for table_names, falling back");
@@ -342,7 +342,7 @@ impl PartitionChunk for DBChunk {
     ) -> Result<Option<StringSet>, Self::Error> {
         match self {
             Self::MutableBuffer { chunk } => {
-                let chunk_predicate = match chunk.compile_predicate(predicate) {
+                let chunk_predicate = match to_mutable_buffer_predicate(chunk, predicate) {
                     Ok(chunk_predicate) => chunk_predicate,
                     Err(e) => {
                         debug!(?predicate, %e, "mutable buffer predicate not supported for column_names, falling back");
@@ -392,7 +392,7 @@ impl PartitionChunk for DBChunk {
             Self::MutableBuffer { chunk } => {
                 use mutable_buffer::chunk::Error::UnsupportedColumnTypeForListingValues;
 
-                let chunk_predicate = match chunk.compile_predicate(predicate) {
+                let chunk_predicate = match to_mutable_buffer_predicate(chunk, predicate) {
                     Ok(chunk_predicate) => chunk_predicate,
                     Err(e) => {
                         debug!(?predicate, %e, "mutable buffer predicate not supported for column_values, falling back");

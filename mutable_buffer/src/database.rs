@@ -3,29 +3,12 @@ use data_types::{
     database_rules::{PartitionSort, PartitionSortRules},
 };
 use generated_types::wal;
-use query::group_by::GroupByAndAggregate;
-use query::group_by::WindowDuration;
-use query::{
-    group_by::Aggregate,
-    plan::seriesset::{SeriesSetPlan, SeriesSetPlans},
-};
-use query::{predicate::Predicate, Database};
 
-use crate::column::Column;
-use crate::table::Table;
-use crate::{
-    chunk::{Chunk, ChunkPredicate},
-    partition::Partition,
-};
+use crate::{chunk::Chunk, partition::Partition};
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::Arc;
 
-use arrow_deps::datafusion::error::DataFusionError;
-
-use crate::dictionary::Error as DictionaryError;
-
-use async_trait::async_trait;
 use data_types::database_rules::Order;
 use snafu::{ResultExt, Snafu};
 use std::sync::RwLock;
@@ -36,22 +19,6 @@ pub enum Error {
     PassThrough {
         source_module: &'static str,
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
-    },
-
-    #[snafu(display("Table name {} not found in dictionary of chunk {}", table, chunk))]
-    TableNameNotFoundInDictionary {
-        table: String,
-        chunk: u64,
-        source: DictionaryError,
-    },
-
-    #[snafu(display("id conversion error"))]
-    IdConversionError { source: std::num::TryFromIntError },
-
-    #[snafu(display("error executing query {}: {}", query, source))]
-    QueryError {
-        query: String,
-        source: DataFusionError,
     },
 
     #[snafu(display("Error dropping chunk from partition '{}': {}", partition_key, source))]
@@ -208,14 +175,8 @@ impl MutableBufferDb {
 
         partitions
     }
-}
 
-#[async_trait]
-impl Database for MutableBufferDb {
-    type Error = Error;
-    type Chunk = Chunk;
-
-    async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
+    pub async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<()> {
         match write.write_buffer_batch() {
             Some(b) => self.write_entries_to_partitions(&b)?,
             None => {
@@ -229,32 +190,8 @@ impl Database for MutableBufferDb {
         Ok(())
     }
 
-    async fn query_groups(
-        &self,
-        predicate: Predicate,
-        gby_agg: GroupByAndAggregate,
-    ) -> Result<SeriesSetPlans, Self::Error> {
-        let mut filter = ChunkTableFilter::new(predicate);
-
-        match gby_agg {
-            GroupByAndAggregate::Columns { agg, group_columns } => {
-                // Add any specified groups as predicate columns (so we
-                // can skip tables without those tags)
-                let mut filter = filter.add_required_columns(&group_columns);
-                let mut visitor = GroupsVisitor::new(agg, group_columns);
-                self.accept(&mut filter, &mut visitor)?;
-                Ok(visitor.plans.into())
-            }
-            GroupByAndAggregate::Window { agg, every, offset } => {
-                let mut visitor = WindowGroupsVisitor::new(agg, every, offset);
-                self.accept(&mut filter, &mut visitor)?;
-                Ok(visitor.plans.into())
-            }
-        }
-    }
-
     /// Return the partition keys for data in this DB
-    fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
+    pub fn partition_keys(&self) -> Result<Vec<String>> {
         let partitions = self.partitions.read().expect("mutex poisoned");
         let keys = partitions.keys().cloned().collect();
         Ok(keys)
@@ -262,91 +199,10 @@ impl Database for MutableBufferDb {
 
     /// Return the list of chunks, in order of id, for the specified
     /// partition_key
-    fn chunks(&self, partition_key: &str) -> Vec<Arc<Chunk>> {
+    pub fn chunks(&self, partition_key: &str) -> Vec<Arc<Chunk>> {
         let partition = self.get_partition(partition_key);
         let partition = partition.read().expect("mutex poisoned");
         partition.chunks()
-    }
-}
-
-/// This trait is used to implement a "Visitor" pattern for Database
-/// which can be used to define logic that shares a common Depth First
-/// Search (DFS) traversal of the Database --> Chunk --> Table -->
-/// Column datastructure heirarchy.
-///
-/// Specifically, if we had a database like the following:
-///
-/// YesterdayPartition
-///   Chunk1
-///     CPU Table1
-///      Col1
-///   Chunk2
-///     CPU Table1
-///      Col2
-///  TodayPartition
-///   Chunk3
-///     CPU Table3
-///      Col3
-///
-/// Then the methods would be invoked in the following order
-///
-///  visitor.pre_visit_partition(YesterdayPartition)
-///  visitor.pre_visit_chunk(Chunk1)
-///  visitor.pre_visit_table(CPU Table1)
-///  visitor.visit_column(Col1)
-///  visitor.post_visit_table(CPU Table1)
-///  visitor.post_visit_chunk(Chunk1)
-///  visitor.pre_visit_chunk(Chunk2)
-///  visitor.pre_visit_table(CPU Table2)
-///  visitor.visit_column(Col2)
-///  visitor.post_visit_table(CPU Table2)
-///  visitor.post_visit_chunk(Chunk2)
-///  visitor.pre_visit_partition(TodayPartition)
-///  visitor.pre_visit_chunk(Chunk3)
-///  visitor.pre_visit_table(CPU Table3)
-///  visitor.visit_column(Col3)
-///  visitor.post_visit_table(CPU Table3)
-///  visitor.post_visit_chunk(Chunk3)
-trait Visitor {
-    // called once before any chunk in a partition is visisted
-    fn pre_visit_partition(&mut self, _partition: &Partition) -> Result<()> {
-        Ok(())
-    }
-
-    // called once before any column in a chunk is visisted
-    fn pre_visit_chunk(&mut self, _chunk: &Chunk) -> Result<()> {
-        Ok(())
-    }
-
-    // called once before any column in a Table is visited
-    fn pre_visit_table(
-        &mut self,
-        _table: &Table,
-        _chunk: &Chunk,
-        _filter: &mut ChunkTableFilter,
-    ) -> Result<()> {
-        Ok(())
-    }
-
-    // called every time a column is visited
-    fn visit_column(
-        &mut self,
-        _table: &Table,
-        _column_id: u32,
-        _column: &Column,
-        _filter: &mut ChunkTableFilter,
-    ) -> Result<()> {
-        Ok(())
-    }
-
-    // called once after all columns in a Table are visited
-    fn post_visit_table(&mut self, _table: &Table, _chunk: &Chunk) -> Result<()> {
-        Ok(())
-    }
-
-    // called once after all columns in a chunk is visited
-    fn post_visit_chunk(&mut self, _chunk: &Chunk) -> Result<()> {
-        Ok(())
     }
 }
 
@@ -378,224 +234,15 @@ impl MutableBufferDb {
             partition
         }
     }
-
-    /// get a snapshot of all the current partitions -- useful so that
-    /// while doing stuff with one partition we don't prevent creating
-    /// new partitions
-    ///
-    /// Note that since we don't hold the lock on self.partitions
-    /// after this returns, new partitions can be added, and some
-    /// partitions in the snapshot could be dropped from the overall
-    /// database
-    fn partition_snapshot(&self) -> Vec<Arc<RwLock<Partition>>> {
-        let partitions = self.partitions.read().expect("mutex poisoned");
-        partitions.values().cloned().collect()
-    }
-
-    /// Traverse this database's tables, calling the relevant
-    /// functions, in order, of `visitor`, as described on the Visitor
-    /// trait.
-    ///
-    /// Skips visiting any table or columns of `filter.should_visit_table`
-    /// returns false
-    fn accept<V: Visitor>(&self, filter: &mut ChunkTableFilter, visitor: &mut V) -> Result<()> {
-        for partition in self.partition_snapshot().into_iter() {
-            let partition = partition.read().expect("mutex poisoned");
-
-            if filter.should_visit_partition(&partition)? {
-                for chunk in partition.iter() {
-                    visitor.pre_visit_chunk(chunk)?;
-                    filter.pre_visit_chunk(chunk)?;
-
-                    for table in chunk.tables.values() {
-                        if filter.should_visit_table(table)? {
-                            visitor.pre_visit_table(table, chunk, filter)?;
-
-                            for (column_id, column) in &table.columns {
-                                visitor.visit_column(table, *column_id, column, filter)?
-                            }
-
-                            visitor.post_visit_table(table, chunk)?;
-                        }
-                    }
-                    visitor.post_visit_chunk(chunk)?;
-                }
-            }
-        } // next chunk
-
-        Ok(())
-    }
-}
-
-/// Common logic for processing and filtering tables in the mutable buffer
-///
-/// Note that since each chunk has its own dictionary, mappings
-/// between Strings --> we cache the String->id mappings per chunk
-///
-/// b) the table doesn't have a column range that overlaps the
-/// predicate values, e.g., if you have env = "us-west" and a
-/// table's env column has the range ["eu-south", "us-north"].
-#[derive(Debug)]
-struct ChunkTableFilter {
-    predicate: Predicate,
-
-    /// If specififed, only tables with all specified columns will be
-    /// visited. Note that just becuase a table has all these columns,
-    /// it might not be visited for other reasons (e.g. it is filted
-    /// out by a table_name predicate)
-    additional_required_columns: Option<HashSet<String>>,
-
-    /// A 'compiled' version of the predicate to evaluate on tables /
-    /// columns in a particular chunk during the walk
-    chunk_predicate: Option<ChunkPredicate>,
-}
-
-impl ChunkTableFilter {
-    fn new(predicate: Predicate) -> Self {
-        Self {
-            predicate,
-            additional_required_columns: None,
-            chunk_predicate: None,
-        }
-    }
-
-    /// adds the specified columns to a list of columns that must be
-    /// present in a table.
-    fn add_required_columns(mut self, column_names: &[String]) -> Self {
-        let mut required_columns = self
-            .additional_required_columns
-            .take()
-            .unwrap_or_else(HashSet::new);
-
-        for c in column_names {
-            if !required_columns.contains(c) {
-                required_columns.insert(c.clone());
-            }
-        }
-
-        self.additional_required_columns = Some(required_columns);
-        self
-    }
-
-    /// Called when each chunk gets visited. Since ids are
-    /// specific to each partitition, the predicates much get
-    /// translated each time.
-    fn pre_visit_chunk(&mut self, chunk: &Chunk) -> Result<()> {
-        let mut chunk_predicate = chunk.compile_predicate(&self.predicate)?;
-
-        // add any additional column needs
-        if let Some(additional_required_columns) = &self.additional_required_columns {
-            chunk.add_required_columns_to_predicate(
-                additional_required_columns,
-                &mut chunk_predicate,
-            );
-        }
-
-        self.chunk_predicate = Some(chunk_predicate);
-
-        Ok(())
-    }
-
-    /// If returns false, skips visiting _table and all its columns
-    fn should_visit_table(&mut self, table: &Table) -> Result<bool> {
-        Ok(table.could_match_predicate(self.chunk_predicate())?)
-    }
-
-    /// If returns false, skips visiting partition
-    fn should_visit_partition(&mut self, partition: &Partition) -> Result<bool> {
-        match &self.predicate.partition_key {
-            Some(partition_key) => Ok(partition.key() == partition_key),
-            None => Ok(true),
-        }
-    }
-
-    pub fn chunk_predicate(&self) -> &ChunkPredicate {
-        self.chunk_predicate
-            .as_ref()
-            .expect("Visited chunk to compile predicate")
-    }
-}
-
-/// Return DataFusion plans to calculate series that pass the
-/// specified predicate, grouped according to grouped_columns
-struct GroupsVisitor {
-    agg: Aggregate,
-    group_columns: Vec<String>,
-    plans: Vec<SeriesSetPlan>,
-}
-
-impl GroupsVisitor {
-    fn new(agg: Aggregate, group_columns: Vec<String>) -> Self {
-        Self {
-            agg,
-            group_columns,
-            plans: Vec::new(),
-        }
-    }
-}
-
-impl Visitor for GroupsVisitor {
-    fn pre_visit_table(
-        &mut self,
-        table: &Table,
-        chunk: &Chunk,
-        filter: &mut ChunkTableFilter,
-    ) -> Result<()> {
-        self.plans.push(table.grouped_series_set_plan(
-            filter.chunk_predicate(),
-            self.agg,
-            &self.group_columns,
-            chunk,
-        )?);
-
-        Ok(())
-    }
-}
-
-/// Return DataFusion plans to calculate series that pass the
-/// specified predicate, grouped using the window definition
-struct WindowGroupsVisitor {
-    agg: Aggregate,
-    every: WindowDuration,
-    offset: WindowDuration,
-
-    plans: Vec<SeriesSetPlan>,
-}
-
-impl WindowGroupsVisitor {
-    fn new(agg: Aggregate, every: WindowDuration, offset: WindowDuration) -> Self {
-        Self {
-            agg,
-            every,
-            offset,
-            plans: Vec::new(),
-        }
-    }
-}
-
-impl Visitor for WindowGroupsVisitor {
-    fn pre_visit_table(
-        &mut self,
-        table: &Table,
-        chunk: &Chunk,
-        filter: &mut ChunkTableFilter,
-    ) -> Result<()> {
-        self.plans.push(table.window_grouped_series_set_plan(
-            filter.chunk_predicate(),
-            self.agg,
-            &self.every,
-            &self.offset,
-            chunk,
-        )?);
-
-        Ok(())
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types::selection::Selection;
+    use chrono::{DateTime, Utc};
+    use data_types::{
+        data::lines_to_replicated_write, database_rules::Partitioner, selection::Selection,
+    };
 
     use arrow_deps::arrow::array::{Array, StringArray};
     use data_types::database_rules::Order;
@@ -612,16 +259,14 @@ mod tests {
         // the values in prior rows for the region column are
         // null. Likewise the `core` tag is introduced in the third
         // line so the prior columns are null
-        let lines: Vec<_> = parse_lines(
-            "cpu,region=west user=23.2 10\n\
-                         cpu, user=10.0 11\n\
-                         cpu,core=one user=10.0 11\n",
-        )
-        .map(|l| l.unwrap())
-        .collect();
-        write_lines(&db, &lines).await;
-
+        let lines = vec![
+            "cpu,region=west user=23.2 10",
+            "cpu, user=10.0 11",
+            "cpu,core=one user=10.0 11",
+        ];
         let partition_key = "1970-01-01T00";
+
+        write_lines_to_partition(&db, &lines, partition_key).await;
 
         let chunk = db.get_chunk(partition_key, 0).unwrap();
         let mut batches = Vec::new();
@@ -676,7 +321,7 @@ mod tests {
         .join("\n");
 
         let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
-        write_lines(&db, &lines).await;
+        write_lp(&db, &lines).await;
 
         assert_eq!(429, db.size());
     }
@@ -684,10 +329,10 @@ mod tests {
     #[tokio::test]
     async fn partitions_sorted_by_times() {
         let db = MutableBufferDb::new("foo");
-        write_lp_to_partition(&db, &["cpu val=1 2"], "p1").await;
-        write_lp_to_partition(&db, &["mem val=2 1"], "p2").await;
-        write_lp_to_partition(&db, &["cpu val=1 2"], "p1").await;
-        write_lp_to_partition(&db, &["mem val=2 1"], "p2").await;
+        write_lines_to_partition(&db, &["cpu val=1 2"], "p1").await;
+        write_lines_to_partition(&db, &["mem val=2 1"], "p2").await;
+        write_lines_to_partition(&db, &["cpu val=1 2"], "p1").await;
+        write_lines_to_partition(&db, &["mem val=2 1"], "p2").await;
 
         let sort_rules = PartitionSortRules {
             order: Order::Desc,
@@ -707,21 +352,53 @@ mod tests {
     }
 
     /// write lines into this database
-    async fn write_lines(database: &MutableBufferDb, lines: &[ParsedLine<'_>]) {
-        let mut writer = query::test::TestLPWriter::default();
-        writer.write_lines(database, lines).await.unwrap()
+    async fn write_lp(database: &MutableBufferDb, lp: &[ParsedLine<'_>]) {
+        write_lp_to_partition(database, lp, "test_partition_key").await
     }
 
-    async fn write_lp_to_partition(
+    async fn write_lines_to_partition(
         database: &MutableBufferDb,
-        lp: &[&str],
+        lines: &[&str],
         partition_key: impl Into<String>,
     ) {
-        let lp_data = lp.join("\n");
-        let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
-        let mut writer = query::test::TestLPWriter::default();
-        writer
-            .write_lines_to_partition(database, partition_key, &lines)
-            .await;
+        let lines_string = lines.join("\n");
+        let lp: Vec<_> = parse_lines(&lines_string).map(|l| l.unwrap()).collect();
+        write_lp_to_partition(database, &lp, partition_key).await
+    }
+
+    /// Writes lines the the given partition
+    async fn write_lp_to_partition(
+        database: &MutableBufferDb,
+        lines: &[ParsedLine<'_>],
+        partition_key: impl Into<String>,
+    ) {
+        let writer_id = 0;
+        let sequence_number = 0;
+        let partitioner = TestPartitioner {
+            key: partition_key.into(),
+        };
+        let replicated_write =
+            lines_to_replicated_write(writer_id, sequence_number, &lines, &partitioner);
+
+        database
+            .store_replicated_write(&replicated_write)
+            .await
+            .unwrap()
+    }
+
+    // Outputs a set partition key for testing. Used for parsing line protocol into
+    // ReplicatedWrite and setting an explicit partition key for all writes therein.
+    struct TestPartitioner {
+        key: String,
+    }
+
+    impl Partitioner for TestPartitioner {
+        fn partition_key(
+            &self,
+            _line: &ParsedLine<'_>,
+            _default_time: &DateTime<Utc>,
+        ) -> data_types::database_rules::Result<String> {
+            Ok(self.key.clone())
+        }
     }
 }

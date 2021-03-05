@@ -4,7 +4,7 @@ use std::{
 };
 
 use arrow_deps::{
-    arrow::datatypes::DataType,
+    arrow::datatypes::{DataType, Field},
     datafusion::{
         error::{DataFusionError, Result as DatafusionResult},
         logical_plan::{
@@ -17,12 +17,18 @@ use arrow_deps::{
 use data_types::{
     schema::{InfluxColumnType, Schema},
     selection::Selection,
+    TIME_COLUMN_NAME,
 };
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use tracing::debug;
 
 use crate::{
-    exec::{make_schema_pivot, stringset::StringSet},
+    exec::{field::FieldColumns, make_schema_pivot, stringset::StringSet},
+    func::{
+        selectors::{selector_first, selector_last, selector_max, selector_min, SelectorOutput},
+        window::make_window_bound_expr,
+    },
+    group_by::{Aggregate, WindowDuration},
     plan::{
         fieldlist::FieldListPlan,
         seriesset::{SeriesSetPlan, SeriesSetPlans},
@@ -132,6 +138,28 @@ pub enum Error {
         tag_name: String,
         data_type: DataType,
     },
+
+    #[snafu(display("Duplicate group column '{}'", column_name))]
+    DuplicateGroupColumn { column_name: String },
+
+    #[snafu(display(
+        "Group column '{}' not found in tag columns: {}",
+        column_name,
+        all_tag_column_names
+    ))]
+    GroupColumnNotFound {
+        column_name: String,
+        all_tag_column_names: String,
+    },
+
+    #[snafu(display("Error creating aggregate expression:  {}", source))]
+    CreatingAggregates { source: crate::group_by::Error },
+
+    #[snafu(display("Internal error: unexpected aggregate request for None aggregate",))]
+    InternalUnexpectedNoneAggregate {},
+
+    #[snafu(display("Internal error: aggregate {:?} is not a selector", agg))]
+    InternalAggregateNotSelector { agg: Aggregate },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -466,17 +494,8 @@ impl InfluxRPCPlanner {
         // values and stops the plan executing once it has them
 
         // map table -> Vec<Arc<Chunk>>
-        let mut table_chunks = BTreeMap::new();
         let chunks = self.filtered_chunks(database, &predicate).await?;
-        for chunk in chunks {
-            let table_names = self.chunk_table_names(chunk.as_ref(), &predicate).await?;
-            for table_name in table_names {
-                table_chunks
-                    .entry(table_name)
-                    .or_insert_with(Vec::new)
-                    .push(Arc::clone(&chunk));
-            }
-        }
+        let table_chunks = self.group_chunks_by_table(&predicate, chunks).await?;
 
         let mut field_list_plan = FieldListPlan::new();
         for (table_name, chunks) in table_chunks {
@@ -518,23 +537,16 @@ impl InfluxRPCPlanner {
 
         // group tables by chunk, pruning if possible
         // key is table name, values are chunks
-        let mut table_chunks = BTreeMap::new();
-
-        for chunk in self.filtered_chunks(database, &predicate).await? {
-            let table_names = self.chunk_table_names(chunk.as_ref(), &predicate).await?;
-            for table_name in table_names.into_iter() {
-                table_chunks
-                    .entry(table_name)
-                    .or_insert_with(Vec::new)
-                    .push(Arc::clone(&chunk));
-            }
-        }
+        let chunks = self.filtered_chunks(database, &predicate).await?;
+        let table_chunks = self.group_chunks_by_table(&predicate, chunks).await?;
 
         // now, build up plans for each table
         let mut ss_plans = Vec::with_capacity(table_chunks.len());
         for (table_name, chunks) in table_chunks {
+            let prefix_columns: Option<&[&str]> = None;
+
             let ss_plan = self
-                .read_filter_plan(table_name, &predicate, chunks)
+                .read_filter_plan(table_name, prefix_columns, &predicate, chunks)
                 .await?;
             // If we have to do real work, add it to the list of plans
             if let Some(ss_plan) = ss_plan {
@@ -543,6 +555,107 @@ impl InfluxRPCPlanner {
         }
 
         Ok(ss_plans.into())
+    }
+
+    /// Creates a GroupedSeriesSet plan that produces an output table
+    /// with rows grouped by an aggregate function. Note that we still
+    /// group by all tags (so group within series) and the
+    /// group_columns define the order of the result
+    pub async fn read_group<D>(
+        &self,
+        database: &D,
+        predicate: Predicate,
+        agg: Aggregate,
+        group_columns: &[impl AsRef<str>],
+    ) -> Result<SeriesSetPlans>
+    where
+        D: Database + 'static,
+    {
+        debug!(predicate=?predicate, agg=?agg, "planning read_group");
+
+        // group tables by chunk, pruning if possible
+        let chunks = self.filtered_chunks(database, &predicate).await?;
+        let table_chunks = self.group_chunks_by_table(&predicate, chunks).await?;
+        let num_prefix_tag_group_columns = group_columns.len();
+
+        // now, build up plans for each table
+        let mut ss_plans = Vec::with_capacity(table_chunks.len());
+        for (table_name, chunks) in table_chunks {
+            let ss_plan = match agg {
+                Aggregate::None => {
+                    self.read_filter_plan(table_name, Some(group_columns), &predicate, chunks)
+                        .await?
+                }
+                _ => {
+                    self.read_group_plan(table_name, &predicate, agg, group_columns, chunks)
+                        .await?
+                }
+            };
+
+            // If we have to do real work, add it to the list of plans
+            if let Some(ss_plan) = ss_plan {
+                let grouped_plan = ss_plan.grouped(num_prefix_tag_group_columns);
+                ss_plans.push(grouped_plan);
+            }
+        }
+
+        Ok(ss_plans.into())
+    }
+
+    /// Creates a GroupedSeriesSet plan that produces an output table with rows
+    /// that are grouped by window defintions
+    pub async fn read_window_aggregate<D>(
+        &self,
+        database: &D,
+        predicate: Predicate,
+        agg: Aggregate,
+        every: WindowDuration,
+        offset: WindowDuration,
+    ) -> Result<SeriesSetPlans>
+    where
+        D: Database + 'static,
+    {
+        debug!(predicate=?predicate, "planning read_window_aggregate");
+
+        // group tables by chunk, pruning if possible
+        let chunks = self.filtered_chunks(database, &predicate).await?;
+        let table_chunks = self.group_chunks_by_table(&predicate, chunks).await?;
+
+        // now, build up plans for each table
+        let mut ss_plans = Vec::with_capacity(table_chunks.len());
+        for (table_name, chunks) in table_chunks {
+            let ss_plan = self
+                .read_window_aggregate_plan(table_name, &predicate, agg, &every, &offset, chunks)
+                .await?;
+            // If we have to do real work, add it to the list of plans
+            if let Some(ss_plan) = ss_plan {
+                ss_plans.push(ss_plan);
+            }
+        }
+
+        Ok(ss_plans.into())
+    }
+
+    /// Creates a map of table_name --> Chunks that have that table
+    async fn group_chunks_by_table<C>(
+        &self,
+        predicate: &Predicate,
+        chunks: Vec<Arc<C>>,
+    ) -> Result<BTreeMap<String, Vec<Arc<C>>>>
+    where
+        C: PartitionChunk + 'static,
+    {
+        let mut table_chunks = BTreeMap::new();
+        for chunk in chunks {
+            let table_names = self.chunk_table_names(chunk.as_ref(), &predicate).await?;
+            for table_name in table_names {
+                table_chunks
+                    .entry(table_name)
+                    .or_insert_with(Vec::new)
+                    .push(Arc::clone(&chunk));
+            }
+        }
+        Ok(table_chunks)
     }
 
     /// Find all the table names in the specified chunk that pass the predicate
@@ -704,6 +817,8 @@ impl InfluxRPCPlanner {
     /// returning None if the predicate rules out matching any rows in
     /// the table
     ///
+    /// prefix_columns, if any, are the prefix of the ordering.
+    //
     /// The created plan looks like:
     ///
     ///    Projection (select the columns needed)
@@ -713,6 +828,7 @@ impl InfluxRPCPlanner {
     async fn read_filter_plan<C>(
         &self,
         table_name: impl Into<String>,
+        prefix_columns: Option<&[impl AsRef<str>]>,
         predicate: &Predicate,
         chunks: Vec<Arc<C>>,
     ) -> Result<Option<SeriesSetPlan>>
@@ -730,10 +846,22 @@ impl InfluxRPCPlanner {
             Some(t) => t,
         };
 
-        let tags_and_timestamp: Vec<Expr> = schema
+        let tags_and_timestamp: Vec<_> = schema
             .tags_iter()
             .chain(schema.time_iter())
-            .map(|field| field.name().into_sort_expr())
+            .map(|f| f.name() as &str)
+            .collect();
+
+        // Reorder, if requested
+        let tags_and_timestamp: Vec<_> = match prefix_columns {
+            Some(prefix_columns) => reorder_prefix(prefix_columns, tags_and_timestamp)?,
+            None => tags_and_timestamp,
+        };
+
+        // Convert to SortExprs to pass to the plan builder
+        let tags_and_timestamp: Vec<_> = tags_and_timestamp
+            .into_iter()
+            .map(|n| n.into_sort_expr())
             .collect();
 
         // Order by
@@ -744,7 +872,7 @@ impl InfluxRPCPlanner {
         // Select away anything that isn't in the influx data model
         let tags_fields_and_timestamps: Vec<Expr> = schema
             .tags_iter()
-            .chain(schema.fields_iter())
+            .chain(filtered_fields_iter(&schema, predicate))
             .chain(schema.time_iter())
             .map(|field| field.name().into_expr())
             .collect();
@@ -760,13 +888,218 @@ impl InfluxRPCPlanner {
             .map(|field| Arc::new(field.name().to_string()))
             .collect();
 
-        let field_columns = schema
-            .fields_iter()
+        let field_columns = filtered_fields_iter(&schema, predicate)
             .map(|field| Arc::new(field.name().to_string()))
             .collect();
 
         // TODO: remove the use of tag_columns and field_column names
         // and instead use the schema directly)
+        let ss_plan = SeriesSetPlan::new_from_shared_timestamp(
+            Arc::new(table_name),
+            plan,
+            tag_columns,
+            field_columns,
+        );
+
+        Ok(Some(ss_plan))
+    }
+
+    /// Creates a GroupedSeriesSet plan that produces an output table
+    /// with rows grouped by an aggregate function. Note that we still
+    /// group by all tags (so group within series) and the
+    /// group_columns define the order of the result
+    ///
+    /// Equivalent to this SQL query for 'aggregates': sum, count, mean
+    /// SELECT
+    ///   tag1...tagN
+    ///   agg_function(_val1) as _value1
+    ///   ...
+    ///   agg_function(_valN) as _valueN
+    ///   agg_function(time) as time
+    /// GROUP BY
+    ///   group_key1, group_key2, remaining tags,
+    /// ORDER BY
+    ///   group_key1, group_key2, remaining tags
+    ///
+    /// Note the columns are the same but in a different order
+    /// for GROUP BY / ORDER BY
+    ///
+    /// Equivalent to this SQL query for 'selector' functions: first, last, min,
+    /// max as they can have different values of the timestamp column
+    ///
+    /// SELECT
+    ///   tag1...tagN
+    ///   agg_function(_val1) as _value1
+    ///   agg_function(time) as time1
+    ///   ..
+    ///   agg_function(_valN) as _valueN
+    ///   agg_function(time) as timeN
+    /// GROUP BY
+    ///   group_key1, group_key2, remaining tags,
+    /// ORDER BY
+    ///   group_key1, group_key2, remaining tags
+    ///
+    /// The created plan looks like:
+    ///
+    ///  OrderBy(gby cols; agg)
+    ///     GroupBy(gby cols, aggs, time cols)
+    ///       Filter(predicate)
+    ///          Scan
+    pub async fn read_group_plan<C>(
+        &self,
+        table_name: impl Into<String>,
+        predicate: &Predicate,
+        agg: Aggregate,
+        group_columns: &[impl AsRef<str>],
+        chunks: Vec<Arc<C>>,
+    ) -> Result<Option<SeriesSetPlan>>
+    where
+        C: PartitionChunk + 'static,
+    {
+        let table_name = table_name.into();
+        let scan_and_filter = self.scan_and_filter(&table_name, predicate, chunks).await?;
+
+        let TableScanAndFilter {
+            plan_builder,
+            schema,
+        } = match scan_and_filter {
+            None => return Ok(None),
+            Some(t) => t,
+        };
+
+        // order the tag columns so that the group keys come first (we
+        // will group and
+        // order in the same order)
+        let tag_columns: Vec<_> = schema.tags_iter().map(|f| f.name() as &str).collect();
+
+        let tag_columns: Vec<_> = reorder_prefix(group_columns, tag_columns)?
+            .into_iter()
+            .map(|name| Arc::new(name.to_string()))
+            .collect();
+
+        // Group by all tag columns
+        let group_exprs = tag_columns
+            .iter()
+            .map(|tag_name| tag_name.into_expr())
+            .collect::<Vec<_>>();
+
+        let AggExprs {
+            agg_exprs,
+            field_columns,
+        } = AggExprs::try_new(agg, &schema, predicate)?;
+
+        let sort_exprs = group_exprs
+            .iter()
+            .map(|expr| expr.into_sort_expr())
+            .collect::<Vec<_>>();
+
+        let plan_builder = plan_builder
+            .aggregate(&group_exprs, &agg_exprs)
+            .context(BuildingPlan)?
+            .sort(&sort_exprs)
+            .context(BuildingPlan)?;
+
+        // and finally create the plan
+        let plan = plan_builder.build().context(BuildingPlan)?;
+
+        let ss_plan = SeriesSetPlan::new(Arc::new(table_name), plan, tag_columns, field_columns);
+
+        Ok(Some(ss_plan))
+    }
+
+    /// Creates a GroupedSeriesSet plan that produces an output table with rows
+    /// that are grouped by window defintions
+    ///
+    /// The order of the tag_columns
+    ///
+    /// The data is sorted on tag_col1, tag_col2, ...) so that all
+    /// rows for a particular series (groups where all tags are the
+    /// same) occur together in the plan
+    ///
+    /// Equivalent to this SQL query
+    ///
+    /// SELECT tag1, ... tagN,
+    ///   window_bound(time, every, offset) as time,
+    ///   agg_function1(field), as field_name
+    /// FROM measurement
+    /// GROUP BY
+    ///   tag1, ... tagN,
+    ///   window_bound(time, every, offset) as time,
+    /// ORDER BY
+    ///   tag1, ... tagN,
+    ///   window_bound(time, every, offset) as time
+    ///
+    /// The created plan looks like:
+    ///
+    ///  OrderBy(gby: tag columns, window_function; agg: aggregate(field)
+    ///      GroupBy(gby: tag columns, window_function; agg: aggregate(field)
+    ///        Filter(predicate)
+    ///          InMemoryScan
+    pub async fn read_window_aggregate_plan<C>(
+        &self,
+        table_name: impl Into<String>,
+        predicate: &Predicate,
+        agg: Aggregate,
+        every: &WindowDuration,
+        offset: &WindowDuration,
+        chunks: Vec<Arc<C>>,
+    ) -> Result<Option<SeriesSetPlan>>
+    where
+        C: PartitionChunk + 'static,
+    {
+        let table_name = table_name.into();
+        let scan_and_filter = self.scan_and_filter(&table_name, predicate, chunks).await?;
+
+        let TableScanAndFilter {
+            plan_builder,
+            schema,
+        } = match scan_and_filter {
+            None => return Ok(None),
+            Some(t) => t,
+        };
+
+        // Group by all tag columns and the window bounds
+        let window_bound = make_window_bound_expr(TIME_COLUMN_NAME.into_expr(), &every, &offset)
+            .alias(TIME_COLUMN_NAME);
+
+        let group_exprs = schema
+            .tags_iter()
+            .map(|field| field.name().into_expr())
+            .chain(std::iter::once(window_bound))
+            .collect::<Vec<_>>();
+
+        // aggregate each field
+        let agg_exprs = filtered_fields_iter(&schema, predicate)
+            .map(|field| make_agg_expr(agg, field.name()))
+            .collect::<Result<Vec<_>>>()?;
+
+        // sort by the group by expressions as well
+        let sort_exprs = group_exprs
+            .iter()
+            .map(|expr| expr.into_sort_expr())
+            .collect::<Vec<_>>();
+
+        let plan_builder = plan_builder
+            .aggregate(&group_exprs, &agg_exprs)
+            .context(BuildingPlan)?
+            .sort(&sort_exprs)
+            .context(BuildingPlan)?;
+
+        // and finally create the plan
+        let plan = plan_builder.build().context(BuildingPlan)?;
+
+        let tag_columns = schema
+            .tags_iter()
+            .map(|field| Arc::new(field.name().to_string()))
+            .collect();
+
+        let field_columns = filtered_fields_iter(&schema, predicate)
+            .map(|field| Arc::new(field.name().to_string()))
+            .collect();
+
+        // TODO: remove the use of tag_columns and field_column names
+        // and instead use the schema directly)
+
         let ss_plan = SeriesSetPlan::new_from_shared_timestamp(
             Arc::new(table_name),
             plan,
@@ -969,4 +1302,266 @@ struct TableScanAndFilter {
     plan_builder: LogicalPlanBuilder,
     /// The IOx schema of the result
     schema: Schema,
+}
+
+/// Reorders tag_columns so that its prefix matches exactly
+/// prefix_columns. Returns an error if there are duplicates, or other
+/// untoward inputs
+fn reorder_prefix<'a>(
+    prefix_columns: &[impl AsRef<str>],
+    tag_columns: Vec<&'a str>,
+) -> Result<Vec<&'a str>> {
+    // tag_used_set[i] is true if we have used the value in tag_columns[i]
+    let mut tag_used_set = vec![false; tag_columns.len()];
+
+    // Note that this is an O(N^2) algorithm. We are assuming the
+    // number of tag columns is reasonably small
+
+    let mut new_tag_columns = prefix_columns
+        .iter()
+        .map(|pc| {
+            let found_location = tag_columns
+                .iter()
+                .enumerate()
+                .find(|(_, c)| pc.as_ref() == c as &str);
+
+            if let Some((index, &tag_column)) = found_location {
+                if tag_used_set[index] {
+                    DuplicateGroupColumn {
+                        column_name: pc.as_ref(),
+                    }
+                    .fail()
+                } else {
+                    tag_used_set[index] = true;
+                    Ok(tag_column)
+                }
+            } else {
+                GroupColumnNotFound {
+                    column_name: pc.as_ref(),
+                    all_tag_column_names: tag_columns.join(", "),
+                }
+                .fail()
+            }
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    new_tag_columns.extend(tag_columns.into_iter().enumerate().filter_map(|(i, c)| {
+        // already used in prefix
+        if tag_used_set[i] {
+            None
+        } else {
+            Some(c)
+        }
+    }));
+
+    Ok(new_tag_columns)
+}
+
+/// Helper for creating aggregates
+pub(crate) struct AggExprs {
+    agg_exprs: Vec<Expr>,
+    field_columns: FieldColumns,
+}
+
+/// Returns an iterator of fields from schema that pass the predicate
+fn filtered_fields_iter<'a>(
+    schema: &'a Schema,
+    predicate: &'a Predicate,
+) -> impl Iterator<Item = &'a Field> {
+    schema
+        .fields_iter()
+        .filter(move |f| predicate.should_include_field(f.name()))
+}
+
+/// Creates aggregate expressions and tracks field output according to
+/// the rules explained on `read_group_plan`
+impl AggExprs {
+    /// Create the appropriate aggregate expressions, based on the type of the
+    /// field
+    pub fn try_new(agg: Aggregate, schema: &Schema, predicate: &Predicate) -> Result<Self> {
+        match agg {
+            Aggregate::Sum | Aggregate::Count | Aggregate::Mean => {
+                //  agg_function(_val1) as _value1
+                //  ...
+                //  agg_function(_valN) as _valueN
+                //  agg_function(time) as time
+
+                let agg_exprs = filtered_fields_iter(schema, predicate)
+                    .chain(schema.time_iter())
+                    .map(|field| make_agg_expr(agg, field.name()))
+                    .collect::<Result<Vec<_>>>()?;
+
+                let field_columns = filtered_fields_iter(schema, predicate)
+                    .map(|field| Arc::new(field.name().to_string()))
+                    .collect::<Vec<_>>()
+                    .into();
+
+                Ok(Self {
+                    agg_exprs,
+                    field_columns,
+                })
+            }
+            Aggregate::First | Aggregate::Last | Aggregate::Min | Aggregate::Max => {
+                //   agg_function(_val1) as _value1
+                //   agg_function(time) as time1
+                //   ..
+                //   agg_function(_valN) as _valueN
+                //   agg_function(time) as timeN
+
+                // might be nice to use a more functional style here
+                let mut agg_exprs = Vec::new();
+                let mut field_list = Vec::new();
+
+                for field in filtered_fields_iter(schema, predicate) {
+                    agg_exprs.push(make_selector_expr(
+                        agg,
+                        SelectorOutput::Value,
+                        field.name(),
+                        field.data_type(),
+                        field.name(),
+                    )?);
+
+                    let time_column_name = format!("{}_{}", TIME_COLUMN_NAME, field.name());
+
+                    agg_exprs.push(make_selector_expr(
+                        agg,
+                        SelectorOutput::Time,
+                        field.name(),
+                        field.data_type(),
+                        &time_column_name,
+                    )?);
+
+                    field_list.push((
+                        Arc::new(field.name().to_string()), // value name
+                        Arc::new(time_column_name),
+                    ));
+                }
+
+                let field_columns = field_list.into();
+                Ok(Self {
+                    agg_exprs,
+                    field_columns,
+                })
+            }
+            Aggregate::None => InternalUnexpectedNoneAggregate.fail(),
+        }
+    }
+}
+
+/// Creates a DataFusion expression suitable for calculating an aggregate:
+///
+/// equivalent to `CAST agg(field) as field`
+fn make_agg_expr(agg: Aggregate, field_name: &str) -> Result<Expr> {
+    agg.to_datafusion_expr(col(field_name))
+        .context(CreatingAggregates)
+        .map(|agg| agg.alias(field_name))
+}
+
+/// Creates a DataFusion expression suitable for calculating the time
+/// part of a selector:
+///
+/// equivalent to `CAST selector_time(field) as column_name`
+fn make_selector_expr(
+    agg: Aggregate,
+    output: SelectorOutput,
+    field_name: &str,
+    data_type: &DataType,
+    column_name: &str,
+) -> Result<Expr> {
+    let uda = match agg {
+        Aggregate::First => selector_first(data_type, output),
+        Aggregate::Last => selector_last(data_type, output),
+        Aggregate::Min => selector_min(data_type, output),
+        Aggregate::Max => selector_max(data_type, output),
+        _ => return InternalAggregateNotSelector { agg }.fail(),
+    };
+    Ok(uda
+        .call(vec![col(field_name), col(TIME_COLUMN_NAME)])
+        .alias(column_name))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_reorder_prefix() {
+        assert_eq!(reorder_prefix_ok(&[], &[]), &[] as &[&str]);
+
+        assert_eq!(reorder_prefix_ok(&[], &["one"]), &["one"]);
+        assert_eq!(reorder_prefix_ok(&["one"], &["one"]), &["one"]);
+
+        assert_eq!(reorder_prefix_ok(&[], &["one", "two"]), &["one", "two"]);
+        assert_eq!(
+            reorder_prefix_ok(&["one"], &["one", "two"]),
+            &["one", "two"]
+        );
+        assert_eq!(
+            reorder_prefix_ok(&["two"], &["one", "two"]),
+            &["two", "one"]
+        );
+        assert_eq!(
+            reorder_prefix_ok(&["two", "one"], &["one", "two"]),
+            &["two", "one"]
+        );
+
+        assert_eq!(
+            reorder_prefix_ok(&[], &["one", "two", "three"]),
+            &["one", "two", "three"]
+        );
+        assert_eq!(
+            reorder_prefix_ok(&["one"], &["one", "two", "three"]),
+            &["one", "two", "three"]
+        );
+        assert_eq!(
+            reorder_prefix_ok(&["two"], &["one", "two", "three"]),
+            &["two", "one", "three"]
+        );
+        assert_eq!(
+            reorder_prefix_ok(&["three", "one"], &["one", "two", "three"]),
+            &["three", "one", "two"]
+        );
+
+        // errors
+        assert_eq!(
+            reorder_prefix_err(&["one"], &[]),
+            "Group column \'one\' not found in tag columns: "
+        );
+        assert_eq!(
+            reorder_prefix_err(&["one"], &["two", "three"]),
+            "Group column \'one\' not found in tag columns: two, three"
+        );
+        assert_eq!(
+            reorder_prefix_err(&["two", "one", "two"], &["one", "two"]),
+            "Duplicate group column \'two\'"
+        );
+    }
+
+    fn reorder_prefix_ok(prefix: &[&str], table_columns: &[&str]) -> Vec<String> {
+        let table_columns = table_columns.to_vec();
+
+        let res = reorder_prefix(prefix, table_columns);
+        let message = format!("Expected OK, got {:?}", res);
+        let res = res.expect(&message);
+
+        res.into_iter().map(|s| s.to_string()).collect()
+    }
+
+    // returns the error string or panics if `reorder_prefix` doesn't return an
+    // error
+    fn reorder_prefix_err(prefix: &[&str], table_columns: &[&str]) -> String {
+        let table_columns = table_columns.to_vec();
+
+        let res = reorder_prefix(&prefix, table_columns);
+
+        match res {
+            Ok(r) => {
+                panic!(
+                    "Expected error result from reorder_prefix_err, but was OK: '{:?}'",
+                    r
+                );
+            }
+            Err(e) => format!("{}", e),
+        }
+    }
 }

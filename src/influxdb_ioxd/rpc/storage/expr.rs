@@ -19,7 +19,7 @@ use generated_types::{
 };
 
 use super::{TAG_KEY_FIELD, TAG_KEY_MEASUREMENT};
-use query::group_by::{Aggregate as QueryAggregate, GroupByAndAggregate, WindowDuration};
+use query::group_by::{Aggregate as QueryAggregate, WindowDuration};
 use query::predicate::PredicateBuilder;
 use snafu::{ResultExt, Snafu};
 use tracing::warn;
@@ -113,6 +113,45 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// Defines the different ways series can be grouped and aggregated
+#[derive(Debug, Clone, PartialEq)]
+pub enum GroupByAndAggregate {
+    /// group by a set of (Tag) columns, applying an agg to each field
+    ///
+    /// The resulting data is ordered so that series with the same
+    /// values in `group_columns` appear contiguously.
+    Columns {
+        agg: QueryAggregate,
+        group_columns: Vec<String>,
+    },
+
+    /// Group by a "window" in time, applying agg to each field
+    ///
+    /// The window is defined in terms three values:
+    ///
+    /// time: timestamp
+    /// every: Duration
+    /// offset: Duration
+    ///
+    /// The bounds are then calculated at a high level by
+    /// bounds = truncate((time_column_reference + offset), every)
+    ///
+    /// Where the truncate function is different depending on the
+    /// specific Duration
+    ///
+    /// This structure is different than the input (typically from gRPC)
+    /// and the underyling calculation (in window.rs), so that we can do
+    /// the input validation checking when creating this structure (rather
+    /// than in window.rs). The alternate would be to pass the structure
+    /// more directly from gRPC to window.rs, which would require less
+    /// translation but more error checking in window.rs.
+    Window {
+        agg: QueryAggregate,
+        every: WindowDuration,
+        offset: WindowDuration,
+    },
+}
 
 /// A trait for adding gRPC specific nodes to the generic predicate builder
 pub trait AddRPCNode

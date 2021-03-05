@@ -21,7 +21,6 @@ data_types = { path = "../data_types" }
 flatbuffers = "0.6.1"
 generated_types = { path = "../generated_types" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
-query = { path = "../query" }
 snafu = "0.6.2"
 string-interner = "0.12.2"
 tokio = { version = "1.0", features = ["macros"] }

@@ -2,34 +2,21 @@
 //! some chunk) in the mutable store.
 use arrow_deps::{
     arrow::record_batch::RecordBatch,
-    datafusion::{
-        error::{DataFusionError, Result as DatafusionResult},
-        logical_plan::{Expr, ExpressionVisitor, Operator, Recursion},
-        optimizer::utils::expr_to_column_names,
-        physical_plan::SendableRecordBatchStream,
-    },
+    datafusion::{error::DataFusionError, logical_plan::Expr},
 };
 
 use chrono::{DateTime, Utc};
 use generated_types::wal as wb;
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 
-use data_types::{
-    partition_metadata::TableSummary, schema::Schema, selection::Selection, TIME_COLUMN_NAME,
-};
-
-use query::{
-    exec::stringset::StringSet,
-    predicate::{Predicate, TimestampRange},
-    util::{make_range_expr, AndExprBuilder},
-};
+use data_types::{partition_metadata::TableSummary, schema::Schema, selection::Selection};
 
 use crate::{
     column::Column,
     dictionary::{Dictionary, Error as DictionaryError},
+    pred::{ChunkPredicate, ChunkPredicateBuilder},
     table::Table,
 };
-use async_trait::async_trait;
 use snafu::{OptionExt, ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]
@@ -86,9 +73,6 @@ pub enum Error {
 
     #[snafu(display("Table '{}' not found in chunk {}", table_name, chunk_id))]
     NamedTableNotFoundInChunk { table_name: String, chunk_id: u64 },
-
-    #[snafu(display("Time Column was not not found in chunk {}", chunk))]
-    TimeColumnNotFoundInChunk { chunk: u64, source: DictionaryError },
 
     #[snafu(display("Attempt to write table batch without a name"))]
     TableWriteWithoutName,
@@ -154,96 +138,6 @@ pub struct Chunk {
 
     /// map of the dictionary ID for the table name to the table
     pub tables: HashMap<u32, Table>,
-}
-
-/// Describes the result of translating a set of strings into
-/// chunk specific ids
-#[derive(Debug, PartialEq, Eq)]
-pub enum ChunkIdSet {
-    /// At least one of the strings was not present in the chunks'
-    /// dictionary.
-    ///
-    /// This is important when testing for the presence of all ids in
-    /// a set, as we know they can not all be present
-    AtLeastOneMissing,
-
-    /// All strings existed in this chunk's dictionary
-    Present(BTreeSet<u32>),
-}
-
-/// a 'Compiled' set of predicates / filters that can be evaluated on
-/// this chunk (where strings have been translated to chunk
-/// specific u32 ids)
-#[derive(Debug)]
-pub struct ChunkPredicate {
-    /// If present, restrict the request to just those tables whose
-    /// names are in table_names. If present but empty, means there
-    /// was a predicate but no tables named that way exist in the
-    /// chunk (so no table can pass)
-    pub table_name_predicate: Option<BTreeSet<u32>>,
-
-    /// Optional column restriction. If present, further
-    /// restrict any field columns returned to only those named, and
-    /// skip tables entirely when querying metadata that do not have
-    /// *any* of the fields
-    pub field_name_predicate: Option<BTreeSet<u32>>,
-
-    /// General DataFusion expressions (arbitrary predicates) applied
-    /// as a filter using logical conjuction (aka are 'AND'ed
-    /// together). Only rows that evaluate to TRUE for all these
-    /// expressions should be returned.
-    ///
-    /// TODO these exprs should eventually be removed (when they are
-    /// all handled one layer up in the query layer)
-    pub chunk_exprs: Vec<Expr>,
-
-    /// If Some, then the table must contain all columns specified
-    /// to pass the predicate
-    pub required_columns: Option<ChunkIdSet>,
-
-    /// The id of the "time" column in this chunk
-    pub time_column_id: u32,
-
-    /// Timestamp range: only rows within this range should be considered
-    pub range: Option<TimestampRange>,
-}
-
-impl ChunkPredicate {
-    /// Creates and adds a datafuson predicate representing the
-    /// combination of predicate and timestamp.
-    pub fn filter_expr(&self) -> Option<Expr> {
-        // build up a list of expressions
-        let mut builder =
-            AndExprBuilder::default().append_opt(self.make_timestamp_predicate_expr());
-
-        for expr in &self.chunk_exprs {
-            builder = builder.append_expr(expr.clone());
-        }
-
-        builder.build()
-    }
-
-    /// For plans which select a subset of fields, returns true if
-    /// the field should be included in the results
-    pub fn should_include_field(&self, field_id: u32) -> bool {
-        match &self.field_name_predicate {
-            None => true,
-            Some(field_restriction) => field_restriction.contains(&field_id),
-        }
-    }
-
-    /// Return true if this column is the time column
-    pub fn is_time_column(&self, id: u32) -> bool {
-        self.time_column_id == id
-    }
-
-    /// Creates a DataFusion predicate for appliying a timestamp range:
-    ///
-    /// range.start <= time and time < range.end`
-    fn make_timestamp_predicate_expr(&self) -> Option<Expr> {
-        self.range
-            .map(|range| make_range_expr(range.start, range.end))
-    }
 }
 
 impl Chunk {
@@ -501,104 +395,9 @@ impl Chunk {
         }
     }
 
-    /// Translates `predicate` into per-chunk ids that can be
-    /// directly evaluated against tables in this chunk
-    pub fn compile_predicate(&self, predicate: &Predicate) -> Result<ChunkPredicate> {
-        let table_name_predicate = self.compile_string_list(predicate.table_names.as_ref());
-
-        let field_restriction = self.compile_string_list(predicate.field_columns.as_ref());
-
-        let time_column_id = self
-            .dictionary
-            .lookup_value(TIME_COLUMN_NAME)
-            .context(TimeColumnNotFoundInChunk { chunk: self.id() })?;
-
-        let range = predicate.range;
-
-        // it would be nice to avoid cloning all the exprs here.
-        let chunk_exprs = predicate.exprs.clone();
-
-        // In order to evaluate expressions in the table, all columns
-        // referenced in the expression must appear (I think, not sure
-        // about NOT, etc so panic if we see one of those);
-        let mut visitor = SupportVisitor {};
-        let mut predicate_columns: HashSet<String> = HashSet::new();
-        for expr in &chunk_exprs {
-            visitor = expr.accept(visitor).context(UnsupportedPredicate)?;
-            expr_to_column_names(&expr, &mut predicate_columns).unwrap();
-        }
-
-        // if there are any column references in the expression, ensure they appear in
-        // any table
-        let required_columns = if predicate_columns.is_empty() {
-            None
-        } else {
-            Some(self.make_chunk_ids(predicate_columns.iter()))
-        };
-
-        Ok(ChunkPredicate {
-            table_name_predicate,
-            field_name_predicate: field_restriction,
-            chunk_exprs,
-            required_columns,
-            time_column_id,
-            range,
-        })
-    }
-
-    /// Converts a potential set of strings into a set of ids in terms
-    /// of this dictionary. If there are no matching Strings in the
-    /// chunks dictionary, those strings are ignored and a
-    /// (potentially empty) set is returned.
-    fn compile_string_list(&self, names: Option<&BTreeSet<String>>) -> Option<BTreeSet<u32>> {
-        names.map(|names| {
-            names
-                .iter()
-                .filter_map(|name| self.dictionary.id(name))
-                .collect::<BTreeSet<_>>()
-        })
-    }
-
-    /// Adds the ids of any columns in additional_required_columns to the
-    /// required columns of predicate
-    pub fn add_required_columns_to_predicate(
-        &self,
-        additional_required_columns: &HashSet<String>,
-        predicate: &mut ChunkPredicate,
-    ) {
-        for column_name in additional_required_columns {
-            // Once know we have missing columns, no need to try
-            // and figure out if these any additional columns are needed
-            if Some(ChunkIdSet::AtLeastOneMissing) == predicate.required_columns {
-                return;
-            }
-
-            let column_id = self.dictionary.id(column_name);
-
-            // Update the required colunm list
-            predicate.required_columns = Some(match predicate.required_columns.take() {
-                None => {
-                    if let Some(column_id) = column_id {
-                        let mut symbols = BTreeSet::new();
-                        symbols.insert(column_id);
-                        ChunkIdSet::Present(symbols)
-                    } else {
-                        ChunkIdSet::AtLeastOneMissing
-                    }
-                }
-                Some(ChunkIdSet::Present(mut symbols)) => {
-                    if let Some(column_id) = column_id {
-                        symbols.insert(column_id);
-                        ChunkIdSet::Present(symbols)
-                    } else {
-                        ChunkIdSet::AtLeastOneMissing
-                    }
-                }
-                Some(ChunkIdSet::AtLeastOneMissing) => {
-                    unreachable!("Covered by case above while adding required columns to predicate")
-                }
-            });
-        }
+    /// Return a builder suitable to create predicates for this Chunk
+    pub fn predicate_builder(&self) -> Result<ChunkPredicateBuilder<'_>, crate::pred::Error> {
+        ChunkPredicateBuilder::new(&self.dictionary)
     }
 
     /// returns true if there is no data in this chunk
@@ -669,24 +468,6 @@ impl Chunk {
         Ok(table)
     }
 
-    /// Translate a bunch of strings into a set of ids relative to this
-    /// chunk
-    pub fn make_chunk_ids<'a, I>(&self, predicate_columns: I) -> ChunkIdSet
-    where
-        I: Iterator<Item = &'a String>,
-    {
-        let mut symbols = BTreeSet::new();
-        for column_name in predicate_columns {
-            if let Some(column_id) = self.dictionary.id(column_name) {
-                symbols.insert(column_id);
-            } else {
-                return ChunkIdSet::AtLeastOneMissing;
-            }
-        }
-
-        ChunkIdSet::Present(symbols)
-    }
-
     /// Return Schema for the specified table / columns
     pub fn table_schema(&self, table_name: &str, selection: Selection<'_>) -> Result<Schema> {
         let table = self
@@ -708,106 +489,9 @@ impl Chunk {
         let data_size = self.tables.values().fold(0, |acc, val| acc + val.size());
         data_size + self.dictionary.size
     }
-}
 
-#[async_trait]
-// The long term plan is for the mutable buffer to not implement the
-// query api directly so this trait implementation will eventually be
-// removed.
-impl query::PartitionChunk for Chunk {
-    type Error = Error;
-
-    fn id(&self) -> u32 {
-        self.id
-    }
-
-    fn table_stats(&self) -> Result<Vec<TableSummary>, Self::Error> {
-        self.table_stats()
-    }
-
-    async fn table_names(
-        &self,
-        _predicate: &Predicate,
-        _known_tables: &StringSet,
-    ) -> Result<Option<StringSet>, Self::Error> {
-        unimplemented!("This function is slated for removal")
-    }
-
-    async fn read_filter(
-        &self,
-        _table_name: &str,
-        _predicate: &Predicate,
-        _selection: Selection<'_>,
-    ) -> Result<SendableRecordBatchStream, Self::Error> {
-        unimplemented!("This function is slated for removal")
-    }
-
-    async fn table_schema(
-        &self,
-        table_name: &str,
-        selection: Selection<'_>,
-    ) -> Result<Schema, Self::Error> {
-        self.table_schema(table_name, selection)
-    }
-
-    fn has_table(&self, table_name: &str) -> bool {
+    /// Return true if this chunk has the specified table name
+    pub fn has_table(&self, table_name: &str) -> bool {
         matches!(self.table(table_name), Ok(Some(_)))
-    }
-
-    async fn column_names(
-        &self,
-        _table_name: &str,
-        _predicate: &Predicate,
-        _columns: Selection<'_>,
-    ) -> Result<Option<StringSet>, Self::Error> {
-        unimplemented!("This function is slated for removal")
-    }
-
-    async fn column_values(
-        &self,
-        _table_name: &str,
-        _column_name: &str,
-        _predicate: &Predicate,
-    ) -> Result<Option<StringSet>, Self::Error> {
-        unimplemented!("This function is slated for removal")
-    }
-}
-
-/// Used to figure out if we know how to deal with this kind of
-/// predicate in the write buffer
-struct SupportVisitor {}
-
-impl ExpressionVisitor for SupportVisitor {
-    fn pre_visit(self, expr: &Expr) -> DatafusionResult<Recursion<Self>> {
-        match expr {
-            Expr::Literal(..) => Ok(Recursion::Continue(self)),
-            Expr::Column(..) => Ok(Recursion::Continue(self)),
-            Expr::BinaryExpr { op, .. } => {
-                match op {
-                    Operator::Eq
-                    | Operator::Lt
-                    | Operator::LtEq
-                    | Operator::Gt
-                    | Operator::GtEq
-                    | Operator::Plus
-                    | Operator::Minus
-                    | Operator::Multiply
-                    | Operator::Divide
-                    | Operator::And
-                    | Operator::Or => Ok(Recursion::Continue(self)),
-                    // Unsupported (need to think about ramifications)
-                    Operator::NotEq | Operator::Modulus | Operator::Like | Operator::NotLike => {
-                        Err(DataFusionError::NotImplemented(format!(
-                            "Operator {:?} not yet supported in IOx MutableBuffer",
-                            op
-                        )))
-                    }
-                }
-            }
-            _ => Err(DataFusionError::NotImplemented(format!(
-                "Unsupported expression in mutable_buffer database: {:?}",
-                expr
-            ))),
-        }
     }
 }

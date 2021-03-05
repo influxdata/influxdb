@@ -28,6 +28,7 @@ pub mod names;
 pub mod partition_metadata;
 pub mod schema;
 pub mod selection;
+pub mod timestamp;
 pub mod wal;
 
 mod database_name;

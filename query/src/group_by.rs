@@ -65,45 +65,6 @@ pub enum Aggregate {
     None,
 }
 
-/// Defines the different ways series can be grouped and aggregated
-#[derive(Debug, Clone, PartialEq)]
-pub enum GroupByAndAggregate {
-    /// group by a set of (Tag) columns, applying an agg to each field
-    ///
-    /// The resulting data is ordered so that series with the same
-    /// values in `group_columns` appear contiguously.
-    Columns {
-        agg: Aggregate,
-        group_columns: Vec<String>,
-    },
-
-    /// Group by a "window" in time, applying agg to each field
-    ///
-    /// The window is defined in terms three values:
-    ///
-    /// time: timestamp
-    /// every: Duration
-    /// offset: Duration
-    ///
-    /// The bounds are then calculated at a high level by
-    /// bounds = truncate((time_column_reference + offset), every)
-    ///
-    /// Where the truncate function is different depending on the
-    /// specific Duration
-    ///
-    /// This structure is different than the input (typically from gRPC)
-    /// and the underyling calculation (in window.rs), so that we can do
-    /// the input validation checking when creating this structure (rather
-    /// than in window.rs). The alternate would be to pass the structure
-    /// more directly from gRPC to window.rs, which would require less
-    /// translation but more error checking in window.rs.
-    Window {
-        agg: Aggregate,
-        every: WindowDuration,
-        offset: WindowDuration,
-    },
-}
-
 /// Represents some duration in time
 #[derive(Debug, Clone, PartialEq)]
 pub enum WindowDuration {
