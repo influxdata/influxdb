@@ -4,7 +4,7 @@
 ### Bug Fixes
 
 1. [20886](https://github.com/influxdata/influxdb/pull/20886): Prevent "do not have an execution context" error when parsing Flux options in tasks.
-1. [20856](https://github.com/influxdata/influxdb/pull/20856): Respect 24 hour clock formats in the UI and allow more choices
+1. [20872](https://github.com/influxdata/influxdb/pull/20872): Respect 24 hour clock formats in the UI and allow more choices
 
 ## v2.0.4 [2021-02-08]
 ----------------------
