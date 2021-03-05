@@ -10,7 +10,6 @@ import (
 
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/ast/edit"
-	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/task/options"
 )
 
@@ -296,10 +295,7 @@ func safeParseSource(parser FluxLanguageService, f string) (pkg *ast.Package, er
 // UpdateFlux updates the TaskUpdate to go from updating options to updating a
 // flux string, that now has those updated options in it. It zeros the options
 // in the TaskUpdate.
-func (t *TaskUpdate) UpdateFlux(ctx context.Context, parser FluxLanguageService, oldFlux string) error {
-	if !feature.SimpleTaskOptionsExtraction().Enabled(ctx) {
-		return t.updateFluxAST(parser, oldFlux)
-	}
+func (t *TaskUpdate) UpdateFlux(parser FluxLanguageService, oldFlux string) error {
 	return t.updateFlux(parser, oldFlux)
 }
 
