@@ -79,10 +79,14 @@ export const getFormatter = (
   }
 
   if (columnType === 'time') {
-    return timeFormatter({
+    const formatOptions = {
       timeZone: timeZone === 'Local' ? undefined : timeZone,
       format: resolveTimeFormat(timeFormat),
-    })
+    }
+    if (timeFormat?.includes('HH')) {
+      formatOptions['hour12'] = false
+    }
+    return timeFormatter(formatOptions)
   }
 
   return null
