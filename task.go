@@ -404,57 +404,6 @@ func (t *TaskUpdate) updateFlux(parser FluxLanguageService, oldFlux string) erro
 	return nil
 }
 
-func (t *TaskUpdate) updateFluxAST(parser FluxLanguageService, oldFlux string) error {
-	if t.Flux != nil && *t.Flux != "" {
-		oldFlux = *t.Flux
-	}
-	parsedPKG, err := safeParseSource(parser, oldFlux)
-	if err != nil {
-		return err
-	}
-
-	parsed := parsedPKG.Files[0]
-	if !t.Options.Every.IsZero() && t.Options.Cron != "" {
-		return errors.New("cannot specify both cron and every")
-	}
-
-	taskOptions, err := edit.GetOption(parsed, "task")
-	if err != nil {
-		return err
-	}
-
-	optsExpr := taskOptions.(*ast.ObjectExpression)
-
-	if t.Options.Name != "" {
-		edit.SetProperty(optsExpr, "name", &ast.StringLiteral{
-			Value: t.Options.Name,
-		})
-	}
-	if !t.Options.Every.IsZero() {
-		edit.SetProperty(optsExpr, "every", t.Options.Every.Node.Copy().(*ast.DurationLiteral))
-		edit.DeleteProperty(optsExpr, "cron")
-	}
-	if t.Options.Cron != "" {
-		edit.SetProperty(optsExpr, "cron", &ast.StringLiteral{
-			Value: t.Options.Cron,
-		})
-		edit.DeleteProperty(optsExpr, "every")
-	}
-	if t.Options.Offset != nil {
-		if !t.Options.Offset.IsZero() {
-			edit.SetProperty(optsExpr, "offset", t.Options.Offset.Node.Copy().(*ast.DurationLiteral))
-		} else {
-			edit.DeleteProperty(optsExpr, "offset")
-		}
-	}
-
-	t.Options.Clear()
-	s := ast.Format(parsed)
-	t.Flux = &s
-
-	return nil
-}
-
 // TaskFilter represents a set of filters that restrict the returned results
 type TaskFilter struct {
 	Type           *string

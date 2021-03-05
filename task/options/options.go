@@ -9,11 +9,9 @@ import (
 	"time"
 
 	"github.com/influxdata/cron"
-	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/ast/edit"
 	"github.com/influxdata/flux/interpreter"
-	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2/pkg/pointer"
 )
@@ -139,61 +137,6 @@ const (
 	optConcurrency = "concurrency"
 	optRetry       = "retry"
 )
-
-// contains is a helper function to see if an array of strings contains a string
-func contains(s []string, e string) bool {
-	for i := range s {
-		if s[i] == e {
-			return true
-		}
-	}
-	return false
-}
-
-func grabTaskOptionAST(p *ast.Package, keys ...string) map[string]ast.Expression {
-	res := make(map[string]ast.Expression, 2) // we preallocate two keys for the map, as that is how many we will use at maximum (offset and every)
-	for i := range p.Files {
-		for j := range p.Files[i].Body {
-			if p.Files[i].Body[j].Type() != "OptionStatement" {
-				continue
-			}
-			opt := (p.Files[i].Body[j]).(*ast.OptionStatement)
-			if opt.Assignment.Type() != "VariableAssignment" {
-				continue
-			}
-			asmt, ok := opt.Assignment.(*ast.VariableAssignment)
-			if !ok {
-				continue
-			}
-			if asmt.ID.Key() != "task" {
-				continue
-			}
-			ae, ok := asmt.Init.(*ast.ObjectExpression)
-			if !ok {
-				continue
-			}
-			for k := range ae.Properties {
-				prop := ae.Properties[k]
-				if prop != nil {
-					if key := prop.Key.Key(); contains(keys, key) {
-						res[key] = prop.Value
-					}
-				}
-			}
-			return res
-		}
-	}
-	return res
-}
-
-func newDeps() flux.Dependencies {
-	deps := flux.NewDefaultDependencies()
-	deps.Deps.HTTPClient = httpClient{}
-	deps.Deps.URLValidator = urlValidator{}
-	deps.Deps.SecretService = secretService{}
-	deps.Deps.FilesystemService = fileSystem{}
-	return deps
-}
 
 // FluxLanguageService is a service for interacting with flux code.
 type FluxLanguageService interface {
@@ -460,36 +403,6 @@ func (o *Options) EffectiveCronString() string {
 	return ""
 }
 
-// checkNature returns a clean error of got and expected dont match.
-func checkNature(got, exp semantic.Nature) error {
-	if got != exp {
-		return fmt.Errorf("unexpected kind: got %q expected %q", got, exp)
-	}
-	return nil
-}
-
-// validateOptionNames returns an error if any keys in the option object o
-// do not match an expected option name.
-func validateOptionNames(o values.Object) error {
-	var unexpected []string
-	o.Range(func(name string, _ values.Value) {
-		switch name {
-		case optName, optCron, optEvery, optOffset, optConcurrency, optRetry:
-			// Known option. Nothing to do.
-		default:
-			unexpected = append(unexpected, name)
-		}
-	})
-
-	if len(unexpected) > 0 {
-		u := strings.Join(unexpected, ", ")
-		v := strings.Join([]string{optName, optCron, optEvery, optOffset, optConcurrency, optRetry}, ", ")
-		return fmt.Errorf("unknown task option(s): %s. valid options are %s", u, v)
-	}
-
-	return nil
-}
-
 // parse will take flux source code and produce a package.
 // If there are errors when parsing, the first error is returned.
 // An ast.Package may be returned when a parsing error occurs,
@@ -501,14 +414,4 @@ func parse(lang FluxLanguageService, source string) (*ast.Package, error) {
 		return nil, errors.New("flux is not configured; cannot parse")
 	}
 	return lang.Parse(source)
-}
-
-// EvalAST will evaluate and run an AST.
-//
-// This will return an error if the FluxLanguageService is nil.
-func evalAST(ctx context.Context, lang FluxLanguageService, astPkg *ast.Package) ([]interpreter.SideEffect, values.Scope, error) {
-	if lang == nil {
-		return nil, nil, errors.New("flux is not configured; cannot evaluate")
-	}
-	return lang.EvalAST(ctx, astPkg)
 }
