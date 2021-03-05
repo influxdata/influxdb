@@ -300,7 +300,11 @@ impl ObjectStoreApi for ObjectStore {
                 .map_ok(|list_result| list_result.map_paths(path::Path::File))
                 .await
                 .context(FileObjectStoreError),
-            (MicrosoftAzure(_azure), _) => unimplemented!(),
+            (MicrosoftAzure(azure), path::Path::MicrosoftAzure(prefix)) => azure
+                .list_with_delimiter(prefix)
+                .map_ok(|list_result| list_result.map_paths(path::Path::MicrosoftAzure))
+                .await
+                .context(AzureObjectStoreError),
             _ => unreachable!(),
         }
     }
@@ -454,10 +458,10 @@ mod tests {
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = Error> = std::result::Result<T, E>;
 
-    async fn flatten_list_stream<T: ObjectStoreApi>(
-        storage: &T,
-        prefix: Option<&T::Path>,
-    ) -> Result<Vec<T::Path>> {
+    async fn flatten_list_stream(
+        storage: &ObjectStore,
+        prefix: Option<&path::Path>,
+    ) -> Result<Vec<path::Path>> {
         storage
             .list(prefix)
             .await?
@@ -467,10 +471,7 @@ mod tests {
             .await
     }
 
-    pub(crate) async fn put_get_delete_list<T: ObjectStoreApi>(storage: &T) -> Result<()>
-    where
-        T::Path: From<DirsAndFileName>,
-    {
+    pub(crate) async fn put_get_delete_list(storage: &ObjectStore) -> Result<()> {
         delete_fixtures(storage).await;
 
         let content_list = flatten_list_stream(storage, None).await?;
@@ -526,10 +527,7 @@ mod tests {
         Ok(())
     }
 
-    pub(crate) async fn list_with_delimiter<T: ObjectStoreApi>(storage: &T) -> Result<()>
-    where
-        T::Path: From<DirsAndFileName>,
-    {
+    pub(crate) async fn list_with_delimiter(storage: &ObjectStore) -> Result<()> {
         delete_fixtures(storage).await;
 
         let content_list = flatten_list_stream(storage, None).await?;
@@ -547,7 +545,7 @@ mod tests {
             "mydb/data/whatevs",
         ]
         .iter()
-        .map(|&s| str_to_path(s))
+        .map(|&s| str_to_path(storage, s))
         .collect();
 
         for f in &files {
@@ -609,9 +607,9 @@ mod tests {
         Ok(())
     }
 
-    pub(crate) async fn get_nonexistent_object<T: ObjectStoreApi>(
-        storage: &T,
-        location: Option<T::Path>,
+    pub(crate) async fn get_nonexistent_object(
+        storage: &ObjectStore,
+        location: Option<<ObjectStore as ObjectStoreApi>::Path>,
     ) -> Result<Bytes> {
         let location = location.unwrap_or_else(|| {
             let mut loc = storage.new_path();
@@ -635,20 +633,22 @@ mod tests {
     /// associated storage might not be cloud storage, to reuse the cloud
     /// path parsing logic. Then convert into the correct type of path for
     /// the given storage.
-    fn str_to_path<P>(val: &str) -> P
-    where
-        P: From<DirsAndFileName> + ObjectStorePath,
-    {
+    fn str_to_path(storage: &ObjectStore, val: &str) -> path::Path {
         let cloud_path = CloudPath::raw(val);
         let parsed: DirsAndFileName = cloud_path.into();
 
-        parsed.into()
+        let mut new_path = storage.new_path();
+        for part in parsed.directories {
+            new_path.push_dir(part.to_string());
+        }
+
+        if let Some(file_name) = parsed.file_name {
+            new_path.set_file_name(file_name.to_string());
+        }
+        new_path
     }
 
-    async fn delete_fixtures<T: ObjectStoreApi>(storage: &T)
-    where
-        T::Path: From<DirsAndFileName>,
-    {
+    async fn delete_fixtures(storage: &ObjectStore) {
         let files: Vec<_> = [
             "test_file",
             "mydb/wal/000/000/000.segment",
@@ -659,7 +659,7 @@ mod tests {
             "mydb/data/whatevs",
         ]
         .iter()
-        .map(|&s| str_to_path(s))
+        .map(|&s| str_to_path(storage, s))
         .collect();
 
         for f in &files {

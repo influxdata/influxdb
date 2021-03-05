@@ -258,7 +258,8 @@ mod test {
     use super::*;
     use crate::{
         tests::{get_nonexistent_object, list_with_delimiter, put_get_delete_list},
-        GoogleCloudStorage, ObjectStoreApi, ObjectStorePath,
+        Error as ObjectStoreError, GoogleCloudStorage, ObjectStore, ObjectStoreApi,
+        ObjectStorePath,
     };
     use bytes::Bytes;
     use std::env;
@@ -319,7 +320,10 @@ mod test {
     #[tokio::test]
     async fn gcs_test() -> Result<()> {
         let config = maybe_skip_integration!();
-        let integration = GoogleCloudStorage::new(config.service_account, config.bucket);
+        let integration = ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(
+            config.service_account,
+            config.bucket,
+        ));
 
         put_get_delete_list(&integration).await?;
         list_with_delimiter(&integration).await?;
@@ -329,7 +333,10 @@ mod test {
     #[tokio::test]
     async fn gcs_test_get_nonexistent_location() -> Result<()> {
         let config = maybe_skip_integration!();
-        let integration = GoogleCloudStorage::new(config.service_account, &config.bucket);
+        let integration = ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(
+            config.service_account,
+            &config.bucket,
+        ));
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -338,17 +345,20 @@ mod test {
             .await
             .unwrap_err();
 
-        if let Some(Error::UnableToGetData {
-            source,
-            bucket,
-            location,
-        }) = err.downcast_ref::<Error>()
+        if let Some(ObjectStoreError::GcsObjectStoreError {
+            source:
+                Error::UnableToGetData {
+                    source,
+                    bucket,
+                    location,
+                },
+        }) = err.downcast_ref::<ObjectStoreError>()
         {
             assert!(matches!(source, cloud_storage::Error::Reqwest(_)));
             assert_eq!(bucket, &config.bucket);
             assert_eq!(location, NON_EXISTENT_NAME);
         } else {
-            panic!("unexpected error type")
+            panic!("unexpected error type: {:?}", err)
         }
 
         Ok(())
@@ -358,7 +368,10 @@ mod test {
     async fn gcs_test_get_nonexistent_bucket() -> Result<()> {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
-        let integration = GoogleCloudStorage::new(config.service_account, &config.bucket);
+        let integration = ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(
+            config.service_account,
+            &config.bucket,
+        ));
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -367,12 +380,14 @@ mod test {
             .await
             .unwrap_err();
 
-        if let Some(Error::UnableToStreamListData { source, bucket }) = err.downcast_ref::<Error>()
+        if let Some(ObjectStoreError::GcsObjectStoreError {
+            source: Error::UnableToStreamListData { source, bucket },
+        }) = err.downcast_ref::<ObjectStoreError>()
         {
             assert!(matches!(source, cloud_storage::Error::Google(_)));
             assert_eq!(bucket, &config.bucket);
         } else {
-            panic!("unexpected error type")
+            panic!("unexpected error type: {:?}", err);
         }
 
         Ok(())
@@ -381,24 +396,30 @@ mod test {
     #[tokio::test]
     async fn gcs_test_delete_nonexistent_location() -> Result<()> {
         let config = maybe_skip_integration!();
-        let integration = GoogleCloudStorage::new(config.service_account, &config.bucket);
+        let integration = ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(
+            config.service_account,
+            &config.bucket,
+        ));
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
 
         let err = integration.delete(&location).await.unwrap_err();
 
-        if let Error::UnableToDeleteData {
-            source,
-            bucket,
-            location,
+        if let ObjectStoreError::GcsObjectStoreError {
+            source:
+                Error::UnableToDeleteData {
+                    source,
+                    bucket,
+                    location,
+                },
         } = err
         {
             assert!(matches!(source, cloud_storage::Error::Google(_)));
             assert_eq!(bucket, config.bucket);
             assert_eq!(location, NON_EXISTENT_NAME);
         } else {
-            panic!("unexpected error type")
+            panic!("unexpected error type: {:?}", err)
         }
 
         Ok(())
@@ -408,24 +429,30 @@ mod test {
     async fn gcs_test_delete_nonexistent_bucket() -> Result<()> {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
-        let integration = GoogleCloudStorage::new(config.service_account, &config.bucket);
+        let integration = ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(
+            config.service_account,
+            &config.bucket,
+        ));
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
 
         let err = integration.delete(&location).await.unwrap_err();
 
-        if let Error::UnableToDeleteData {
-            source,
-            bucket,
-            location,
+        if let ObjectStoreError::GcsObjectStoreError {
+            source:
+                Error::UnableToDeleteData {
+                    source,
+                    bucket,
+                    location,
+                },
         } = err
         {
             assert!(matches!(source, cloud_storage::Error::Google(_)));
             assert_eq!(bucket, config.bucket);
             assert_eq!(location, NON_EXISTENT_NAME);
         } else {
-            panic!("unexpected error type")
+            panic!("unexpected error type: {:?}", err)
         }
 
         Ok(())
@@ -435,7 +462,10 @@ mod test {
     async fn gcs_test_put_nonexistent_bucket() -> Result<()> {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
-        let integration = GoogleCloudStorage::new(config.service_account, &config.bucket);
+        let integration = ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(
+            config.service_account,
+            &config.bucket,
+        ));
 
         let mut location = integration.new_path();
         location.set_file_name(NON_EXISTENT_NAME);
@@ -452,17 +482,20 @@ mod test {
             .await
             .unwrap_err();
 
-        if let Error::UnableToPutData {
-            source,
-            bucket,
-            location,
+        if let ObjectStoreError::GcsObjectStoreError {
+            source:
+                Error::UnableToPutData {
+                    source,
+                    bucket,
+                    location,
+                },
         } = err
         {
             assert!(matches!(source, cloud_storage::Error::Other(_)));
             assert_eq!(bucket, config.bucket);
             assert_eq!(location, NON_EXISTENT_NAME);
         } else {
-            panic!("unexpected error type");
+            panic!("unexpected error type: {:?}", err);
         }
 
         Ok(())

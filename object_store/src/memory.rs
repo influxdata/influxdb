@@ -181,13 +181,13 @@ mod tests {
 
     use crate::{
         tests::{list_with_delimiter, put_get_delete_list},
-        ObjectStoreApi, ObjectStorePath,
+        Error as ObjectStoreError, ObjectStore, ObjectStoreApi, ObjectStorePath,
     };
     use futures::stream;
 
     #[tokio::test]
     async fn in_memory_test() -> Result<()> {
-        let integration = InMemory::new();
+        let integration = ObjectStore::new_in_memory(InMemory::new());
 
         put_get_delete_list(&integration).await?;
 
@@ -198,7 +198,7 @@ mod tests {
 
     #[tokio::test]
     async fn length_mismatch_is_an_error() -> Result<()> {
-        let integration = InMemory::new();
+        let integration = ObjectStore::new_in_memory(InMemory::new());
 
         let bytes = stream::once(async { Ok(Bytes::from("hello world")) });
         let mut location = integration.new_path();
@@ -207,9 +207,11 @@ mod tests {
 
         assert!(matches!(
             res.err().unwrap(),
-            Error::DataDoesNotMatchLength {
-                expected: 0,
-                actual: 11,
+            ObjectStoreError::InMemoryObjectStoreError {
+                source: Error::DataDoesNotMatchLength {
+                    expected: 0,
+                    actual: 11,
+                }
             }
         ));
 
@@ -218,7 +220,7 @@ mod tests {
 
     #[tokio::test]
     async fn unknown_length() -> Result<()> {
-        let integration = InMemory::new();
+        let integration = ObjectStore::new_in_memory(InMemory::new());
 
         let data = Bytes::from("arbitrary data");
         let stream_data = std::io::Result::Ok(data.clone());
