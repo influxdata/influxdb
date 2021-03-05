@@ -481,6 +481,29 @@ func TestExtractTaskOptions(t *testing.T) {
 			`,
 			errMsg: "multiple task options defined",
 		},
+		{
+			name: "with script calling tableFind",
+			flux: `
+			import "http"
+			import "json"
+			option task = {name: "Slack Metrics to #Community", cron: "0 9 * * 5"}
+			all_slack_messages = from(bucket: "metrics")
+				|> range(start: -7d, stop: now())
+				|> filter(fn: (r) =>
+					(r._measurement == "slack_channel_message"))
+			total_messages = all_slack_messages
+				|> group()
+				|> count()
+				|> tableFind(fn: (key) => true)
+			all_slack_messages |> yield()
+			`,
+			expected: taskOptions{
+				name:        "Slack Metrics to #Community",
+				cron:        "0 9 * * 5",
+				concurrency: 1,
+				retry:       1,
+			},
+		},
 	}
 
 	for _, tc := range tcs {
