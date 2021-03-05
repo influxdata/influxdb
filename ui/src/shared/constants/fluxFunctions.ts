@@ -2063,7 +2063,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     desc:
       'Submits an HTTP POST request to the specified URL with headers and data and returns the HTTP status code.',
     example:
-      'http.post(url: "http://localhost:9999/", headers: {x:"a", y:"b"}, data: bytes(v: "body"))',
+      'http.post(url: "http://localhost:8086/", headers: {x:"a", y:"b"}, data: bytes(v: "body"))',
     category: 'Transformations',
     link:
       'https://docs.influxdata.com/influxdb/latest/reference/flux/stdlib/http/post/',
@@ -3804,7 +3804,7 @@ export const FLUX_FUNCTIONS: FluxToolbarFunction[] = [
     ],
     package: 'experimental/prometheus',
     desc: 'Retrieves Prometheus-formatted metrics from a specified URL.',
-    example: 'prometheus.scrape(url: "http://localhost:9999/metrics")',
+    example: 'prometheus.scrape(url: "http://localhost:8086/metrics")',
     category: 'Inputs',
     link:
       'https://docs.influxdata.com/influxdb/latest/reference/flux/stdlib/experimental/prometheus/scrape/',

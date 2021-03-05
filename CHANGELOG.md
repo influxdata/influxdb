@@ -1,11 +1,23 @@
 ## unreleased
 
+### Breaking Changes
+
+#### /debug/vars removed
+
+Prior to this release, the `influxd` server would always expose profiling information over `/debug/vars`.
+This endpoint was unauthenticated, and not used by InfluxDB systems to report diagnostics. For security and clarity,
+the endpoint has been removed. Use the `/metrics` endpoint to collect system statistics.
+
 ### Features
 
 1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells.
 1. [20621](https://github.com/influxdata/influxdb/pull/20621): Add Swift client library to the data loading section of the UI.
 1. [20307](https://github.com/influxdata/influxdb/pull/20307): Add `influx task retry-failed` command to rerun failed runs.
 1. [20759](https://github.com/influxdata/influxdb/pull/20759): Add additional properties for Mosaic Graph.
+1. [20763](https://github.com/influxdata/influxdb/pull/20763): Add `--compression` option to `influx write` to support GZIP inputs.
+1. [20827](https://github.com/influxdata/influxdb/pull/20827): Add `--pprof-disabled` option to `influxd` to disable exposing profiling information over HTTP.
+1. [20827](https://github.com/influxdata/influxdb/pull/20827): Add `/debug/pprof/all` HTTP endpoint to gather all profiles at once.
+1. [20827](https://github.com/influxdata/influxdb/pull/20827): Upgrade `http.pprof-enabled` config in `influxd upgrade`.
 
 ### Bug Fixes
 
@@ -13,6 +25,14 @@
 1. [19936](https://github.com/influxdata/influxdb/pull/19936): Fix use-after-free bug in series ID iterator. Thanks @foobar!
 1. [20585](https://github.com/influxdata/influxdb/pull/20585): Fix TSM WAL segement size check. Thanks @foobar!
 1. [20754](https://github.com/influxdata/influxdb/pull/20754): Update references to docs site to use current URLs.
+1. [20773](https://github.com/influxdata/influxdb/pull/20773): Fix data race in TSM engine when inspecting tombstone stats.
+1. [20797](https://github.com/influxdata/influxdb/pull/20797): Fix data race in TSM cache. Thanks @StoneYunZhao!
+1. [20811](https://github.com/influxdata/influxdb/pull/20811): Fix TSM WAL segment size computing. Thanks @StoneYunZhao!
+1. [20798](https://github.com/influxdata/influxdb/pull/20798): Deprecate misleading `retentionPeriodHrs` key in onboarding API.
+1. [20819](https://github.com/influxdata/influxdb/pull/20819): Fix Single Stat graphs with thresholds crashing on negative values.
+1. [20809](https://github.com/influxdata/influxdb/pull/20809): Fix InfluxDB port in Flux function UI examples. Thanks @sunjincheng121!
+1. [20827](https://github.com/influxdata/influxdb/pull/20827): Remove unauthenticated, unsupported `/debug/vars` HTTP endpoint.
+1. [20856](https://github.com/influxdata/influxdb/pull/20856): Respect 24 hour clock formats in the UI and allow more choices
 
 ## v2.0.4 [2021-02-08]
 

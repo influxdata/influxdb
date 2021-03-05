@@ -154,11 +154,11 @@ func OnboardInitialUser(
 			},
 			args: args{
 				request: &platform.OnboardingRequest{
-					User:            "admin",
-					Org:             "org1",
-					Bucket:          "bucket1",
-					Password:        "password1",
-					RetentionPeriod: time.Hour * 24 * 7, // 1 week
+					User:                   "admin",
+					Org:                    "org1",
+					Bucket:                 "bucket1",
+					Password:               "password1",
+					RetentionPeriodSeconds: 3600 * 24 * 7, // 1 week
 				},
 			},
 			wants: wants{

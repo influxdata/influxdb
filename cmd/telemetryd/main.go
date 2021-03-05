@@ -42,7 +42,11 @@ func main() {
 	}
 
 	v := viper.New()
-	cmd := cli.NewCommand(v, prog)
+	cmd, err := cli.NewCommand(v, prog)
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err.Error())
+		os.Exit(1)
+	}
 
 	var exitCode int
 	if err := cmd.Execute(); err != nil {

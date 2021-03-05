@@ -52,7 +52,7 @@ func ExampleNewCommand() {
 	var stringSlice []string
 	var fancyBool customFlag
 	var logLevel zapcore.Level
-	cmd := NewCommand(viper.New(), &Program{
+	cmd, err := NewCommand(viper.New(), &Program{
 		Run: func() error {
 			fmt.Println(monitorHost)
 			for i := 0; i < number; i++ {
@@ -123,10 +123,14 @@ func ExampleNewCommand() {
 			},
 		},
 	})
+	if err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, err)
+		return
+	}
 
 	cmd.SetArgs([]string{})
 	if err := cmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		_, _ = fmt.Fprintln(os.Stderr, err)
 	}
 	// Output:
 	// http://localhost:8086
@@ -227,7 +231,8 @@ func Test_NewProgram(t *testing.T) {
 					Run: func() error { return nil },
 				}
 
-				cmd := NewCommand(viper.New(), program)
+				cmd, err := NewCommand(viper.New(), program)
+				require.NoError(t, err)
 				cmd.SetArgs(append([]string{}, tt.args...))
 				require.NoError(t, cmd.Execute())
 
@@ -320,9 +325,10 @@ func Test_RequiredFlag(t *testing.T) {
 		},
 	}
 
-	cmd := NewCommand(viper.New(), program)
+	cmd, err := NewCommand(viper.New(), program)
+	require.NoError(t, err)
 	cmd.SetArgs([]string{})
-	err := cmd.Execute()
+	err = cmd.Execute()
 	require.Error(t, err)
 	require.Equal(t, `required flag(s) "foo" not set`, err.Error())
 }
@@ -411,7 +417,8 @@ func Test_ConfigPrecedence(t *testing.T) {
 				Run: func() error { return nil },
 			}
 
-			cmd := NewCommand(viper.New(), program)
+			cmd, err := NewCommand(viper.New(), program)
+			require.NoError(t, err)
 			cmd.SetArgs([]string{})
 			require.NoError(t, cmd.Execute())
 
@@ -470,7 +477,8 @@ func Test_ConfigPathDotDirectory(t *testing.T) {
 				Run: func() error { return nil },
 			}
 
-			cmd := NewCommand(viper.New(), program)
+			cmd, err := NewCommand(viper.New(), program)
+			require.NoError(t, err)
 			cmd.SetArgs([]string{})
 			require.NoError(t, cmd.Execute())
 
@@ -508,7 +516,8 @@ func Test_LoadConfigCwd(t *testing.T) {
 		Run: func() error { return nil },
 	}
 
-	cmd := NewCommand(viper.New(), program)
+	cmd, err := NewCommand(viper.New(), program)
+	require.NoError(t, err)
 	cmd.SetArgs([]string{})
 	require.NoError(t, cmd.Execute())
 

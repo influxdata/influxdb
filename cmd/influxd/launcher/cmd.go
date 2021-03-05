@@ -15,6 +15,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/signals"
 	influxlogger "github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/nats"
+	"github.com/influxdata/influxdb/v2/pprof"
 	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/vault"
@@ -31,7 +32,7 @@ const (
 
 // NewInfluxdCommand constructs the root of the influxd CLI, along with a `run` subcommand.
 // The `run` subcommand is set as the default to execute.
-func NewInfluxdCommand(ctx context.Context, v *viper.Viper) *cobra.Command {
+func NewInfluxdCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, error) {
 	o := newOpts(v)
 	cliOpts := o.bindCliOpts()
 
@@ -39,7 +40,10 @@ func NewInfluxdCommand(ctx context.Context, v *viper.Viper) *cobra.Command {
 		Name: "influxd",
 		Run:  cmdRunE(ctx, o),
 	}
-	cmd := cli.NewCommand(o.Viper, &prog)
+	cmd, err := cli.NewCommand(o.Viper, &prog)
+	if err != nil {
+		return nil, err
+	}
 
 	runCmd := &cobra.Command{
 		Use:  "run",
@@ -48,12 +52,18 @@ func NewInfluxdCommand(ctx context.Context, v *viper.Viper) *cobra.Command {
 	}
 	for _, c := range []*cobra.Command{cmd, runCmd} {
 		setCmdDescriptions(c)
-		cli.BindOptions(o.Viper, c, cliOpts)
+		if err := cli.BindOptions(o.Viper, c, cliOpts); err != nil {
+			return nil, err
+		}
 	}
 	cmd.AddCommand(runCmd)
-	cmd.AddCommand(NewInfluxdPrintConfigCommand(v, cliOpts))
+	printCmd, err := NewInfluxdPrintConfigCommand(v, cliOpts)
+	if err != nil {
+		return nil, err
+	}
+	cmd.AddCommand(printCmd)
 
-	return cmd
+	return cmd, nil
 }
 
 func setCmdDescriptions(cmd *cobra.Command) {
@@ -74,6 +84,9 @@ func setCmdDescriptions(cmd *cobra.Command) {
 
 func cmdRunE(ctx context.Context, o *InfluxdOpts) func() error {
 	return func() error {
+		// Set this as early as possible, since it affects global profiling rates.
+		pprof.SetGlobalProfiling(!o.ProfilingDisabled)
+
 		fluxinit.FluxInit()
 
 		l := NewLauncher()
@@ -129,6 +142,8 @@ type InfluxdOpts struct {
 	SessionLength        int // in minutes
 	SessionRenewDisabled bool
 
+	ProfilingDisabled bool
+
 	NatsPort            int
 	NatsMaxPayloadBytes int
 
@@ -172,6 +187,8 @@ func newOpts(viper *viper.Viper) *InfluxdOpts {
 		HttpTLSStrictCiphers: false,
 		SessionLength:        60, // 60 minutes
 		SessionRenewDisabled: false,
+
+		ProfilingDisabled: false,
 
 		StoreType:   BoltStore,
 		SecretStore: BoltStore,
@@ -493,6 +510,14 @@ func (o *InfluxdOpts) bindCliOpts() []cli.Opt {
 			Flag:    "nats-max-payload-bytes",
 			Desc:    "The maximum number of bytes allowed in a NATS message payload.",
 			Default: o.NatsMaxPayloadBytes,
+		},
+
+		// Pprof config
+		{
+			DestP:   &o.ProfilingDisabled,
+			Flag:    "pprof-disabled",
+			Desc:    "Don't expose debugging information over HTTP at /debug/pprof",
+			Default: o.ProfilingDisabled,
 		},
 	}
 }
