@@ -9,9 +9,9 @@ arrow_deps = { path = "../arrow_deps" }
 data_types = { path = "../data_types" }
 human_format = "1.0.3"
 influxdb_tsm = { path = "../influxdb_tsm" }
-rand = "0.7.3"
 snafu = "0.6.2"
 tracing = "0.1"
 
 [dev-dependencies] # In alphabetical order
+rand = "0.7.3"
 test_helpers = { path = "../test_helpers" }
