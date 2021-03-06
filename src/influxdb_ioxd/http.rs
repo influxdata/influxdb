@@ -205,7 +205,7 @@ impl ApplicationError {
         match self {
             Self::BucketByName { .. } => self.internal_error(),
             Self::BucketMappingError { .. } => self.internal_error(),
-            Self::WritingPoints { .. } => self.internal_error(),
+            Self::WritingPoints { .. } => self.bad_request(),
             Self::PlanningSQLQuery { .. } => self.bad_request(),
             Self::Query { .. } => self.internal_error(),
             Self::QueryError { .. } => self.bad_request(),
@@ -1138,6 +1138,39 @@ mod tests {
             .await;
 
         check_response("get_writer_id", response, StatusCode::OK, data).await;
+    }
+
+    #[tokio::test]
+    async fn write_to_invalid_database() {
+        let test_storage = Arc::new(AppServer::new(
+            ConnectionManagerImpl {},
+            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
+        ));
+        test_storage.set_id(1);
+        test_storage
+            .create_database("MyOrg_MyBucket", DatabaseRules::new())
+            .await
+            .unwrap();
+        let server_url = test_server(Arc::clone(&test_storage));
+
+        let client = Client::new();
+
+        let bucket_name = "NotMyBucket";
+        let org_name = "MyOrg";
+        let response = client
+            .post(&format!(
+                "{}/api/v2/write?bucket={}&org={}",
+                server_url, bucket_name, org_name
+            ))
+            .send()
+            .await;
+
+        if let Ok(response) = response {
+            let status = response.status();
+            assert_eq!(status, StatusCode::BAD_REQUEST);
+        } else {
+            panic!("Unexpected error response: {:?}", response);
+        }
     }
 
     #[tokio::test]
