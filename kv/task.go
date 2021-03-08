@@ -10,7 +10,6 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
-	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/resource"
 	"github.com/influxdata/influxdb/v2/task/options"
 )
@@ -484,7 +483,7 @@ func (s *Service) createTask(ctx context.Context, tx Tx, org *influxdb.Organizat
 	// 	return nil, influxdb.ErrInvalidOwnerID
 	// }
 
-	opts, err := ExtractTaskOptions(ctx, s.FluxLanguageService, tc.Flux)
+	opts, err := options.FromScriptAST(s.FluxLanguageService, tc.Flux)
 	if err != nil {
 		return nil, influxdb.ErrTaskOptionParse(err)
 	}
@@ -603,12 +602,12 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 
 	// update the flux script
 	if !upd.Options.IsZero() || upd.Flux != nil {
-		if err = upd.UpdateFlux(ctx, s.FluxLanguageService, task.Flux); err != nil {
+		if err = upd.UpdateFlux(s.FluxLanguageService, task.Flux); err != nil {
 			return nil, err
 		}
 		task.Flux = *upd.Flux
 
-		opts, err := ExtractTaskOptions(ctx, s.FluxLanguageService, *upd.Flux)
+		opts, err := options.FromScriptAST(s.FluxLanguageService, *upd.Flux)
 		if err != nil {
 			return nil, influxdb.ErrTaskOptionParse(err)
 		}
@@ -1598,21 +1597,4 @@ func taskRunKey(taskID, runID influxdb.ID) ([]byte, error) {
 	}
 
 	return []byte(string(encodedID) + "/" + string(encodedRunID)), nil
-}
-
-// ExtractTaskOptions is a feature-flag driven switch between normal options
-// parsing and a more simplified variant.
-//
-// The simplified variant extracts the options assignment and passes only that
-// content through the parser. This allows us to allow scenarios like [1] to
-// pass through options validation. One clear drawback of this is that it
-// requires constant values for the parameter assignments. However, most people
-// are doing that anyway.
-//
-// [1]: https://github.com/influxdata/influxdb/issues/17666
-func ExtractTaskOptions(ctx context.Context, lang influxdb.FluxLanguageService, flux string) (options.Options, error) {
-	if feature.SimpleTaskOptionsExtraction().Enabled(ctx) {
-		return options.FromScriptAST(lang, flux)
-	}
-	return options.FromScript(lang, flux)
 }

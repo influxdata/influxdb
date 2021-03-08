@@ -1,6 +1,8 @@
 ## v2.0.5 [unreleased]
 ----------------------
 
+1. [20875](https://github.com/influxdata/influxdb/pull/20875): Prevent "do not have an execution context" error when parsing Flux options in tasks.
+
 ## v2.0.4 [2021-02-08]
 ----------------------
 

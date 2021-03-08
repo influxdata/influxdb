@@ -12,10 +12,8 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
 	icontext "github.com/influxdata/influxdb/v2/context"
-	"github.com/influxdata/influxdb/v2/kit/feature"
-	"github.com/influxdata/influxdb/v2/kv"
-	"github.com/influxdata/influxdb/v2/mock"
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
+	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/task/options"
 	"github.com/influxdata/influxdb/v2/task/servicetest"
@@ -481,15 +479,35 @@ func TestExtractTaskOptions(t *testing.T) {
 			`,
 			errMsg: "multiple task options defined",
 		},
+		{
+			name: "with script calling tableFind",
+			flux: `
+			import "http"
+			import "json"
+			option task = {name: "Slack Metrics to #Community", cron: "0 9 * * 5"}
+			all_slack_messages = from(bucket: "metrics")
+				|> range(start: -7d, stop: now())
+				|> filter(fn: (r) =>
+					(r._measurement == "slack_channel_message"))
+			total_messages = all_slack_messages
+				|> group()
+				|> count()
+				|> tableFind(fn: (key) => true)
+			all_slack_messages |> yield()
+			`,
+			expected: taskOptions{
+				name:        "Slack Metrics to #Community",
+				cron:        "0 9 * * 5",
+				concurrency: 1,
+				retry:       1,
+			},
+		},
 	}
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			flagger := mock.NewFlagger(map[feature.Flag]interface{}{
-				feature.SimpleTaskOptionsExtraction(): true,
-			})
-			ctx, _ := feature.Annotate(context.Background(), flagger)
-			opts, err := kv.ExtractTaskOptions(ctx, fluxlang.DefaultService, tc.flux)
+
+			opts, err := options.FromScriptAST(fluxlang.DefaultService, tc.flux)
 			if tc.errMsg != "" {
 				require.Error(t, err)
 				assert.Equal(t, tc.errMsg, err.Error())
