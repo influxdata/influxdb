@@ -27,6 +27,7 @@ import (
 	"github.com/influxdata/flux/execute/table"
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/flux/stdlib"
+	"github.com/influxdata/influxdb/cmd/influx/cli"
 	"github.com/influxdata/influxdb/coordinator"
 	fluxClient "github.com/influxdata/influxdb/flux/client"
 	"github.com/influxdata/influxdb/models"
@@ -9855,6 +9856,111 @@ func TestServer_Prometheus_Write(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCliEndToEnd(t *testing.T) {
+	config := NewConfig()
+	config.HTTPD.FluxEnabled = true
+	s := OpenServer(config)
+	defer s.Close()
+
+	// Some test data
+	s.CreateDatabase(t.Name())
+	defer s.DropDatabase(t.Name())
+	points, err := models.ParsePointsString(`
+	m0,k=k0 f=0i 0
+	m0,k=k0 f=1i 1
+	m0,k=k0 f=2i 2
+	m0,k=k0 f=3i 3
+	m0,k=k0 f=4i 4
+	m0,k=k1 f=5i 5
+	m0,k=k1 f=6i 6
+	m1,k=k0 f=5i 7
+	m1,k=k2 f=0i 8
+	m1,k=k0 f=6i 9
+	m1,k=k1 f=6i 10
+	m1,k=k0 f=7i 11
+	m1,k=k0 f=5i 12
+	m1,k=k1 f=8i 13
+	m1,k=k2 f=9i 14
+	m1,k=k3 f=5i 15`)
+	assert.NoError(t, err)
+	assert.NoError(t, s.WritePoints(t.Name(), "autogen", models.ConsistencyLevelAny, nil, points))
+
+	u, err := url.Parse(s.URL())
+	assert.NoError(t, err)
+
+	cmd := "connect " + u.Host
+	c := cli.CommandLine{}
+	assert.NoError(t, c.ParseCommand(cmd))
+
+	// Test a successful flux query
+	buf := &bytes.Buffer{}
+	assert.NoError(t, c.ExecuteFluxQuery(buf, `import "influxdata/influxdb/v1" v1.databases()`))
+	assert.Equal(t,
+		`Result: _result
+Table: keys: [organizationID]
+ organizationID:string     databaseName:string  retentionPolicy:string         retentionPeriod:int  default:bool         bucketId:string  
+----------------------  ----------------------  ----------------------  --------------------------  ------------  ----------------------  
+                               TestCliEndToEnd                 autogen                           0          true                          
+`,
+		buf.String())
+
+	// Test a bigger successful flux query
+	buf.Reset()
+	assert.NoError(t, c.ExecuteFluxQuery(buf, `import "influxdata/influxdb/v1"
+v1.databases() |> yield(name: "show_the_dbs")
+from(bucket:"TestCliEndToEnd") |> range(start: 0) |> drop(columns:["_start","_stop"]) |> yield(name: "show_the_data")`))
+
+	dbTable := `Result: show_the_dbs
+Table: keys: [organizationID]
+ organizationID:string     databaseName:string  retentionPolicy:string         retentionPeriod:int  default:bool         bucketId:string  
+----------------------  ----------------------  ----------------------  --------------------------  ------------  ----------------------  
+                               TestCliEndToEnd                 autogen                           0          true                          
+`
+	dataTable := `Result: show_the_data
+Table: keys: [_field, _measurement, k]
+         _field:string     _measurement:string                k:string                      _time:time                  _value:int  
+----------------------  ----------------------  ----------------------  ------------------------------  --------------------------  
+                     f                      m0                      k0  1970-01-01T00:00:00.000000000Z                           0  
+                     f                      m0                      k0  1970-01-01T00:00:00.000000001Z                           1  
+                     f                      m0                      k0  1970-01-01T00:00:00.000000002Z                           2  
+                     f                      m0                      k0  1970-01-01T00:00:00.000000003Z                           3  
+                     f                      m0                      k0  1970-01-01T00:00:00.000000004Z                           4  
+Table: keys: [_field, _measurement, k]
+         _field:string     _measurement:string                k:string                      _time:time                  _value:int  
+----------------------  ----------------------  ----------------------  ------------------------------  --------------------------  
+                     f                      m0                      k1  1970-01-01T00:00:00.000000005Z                           5  
+                     f                      m0                      k1  1970-01-01T00:00:00.000000006Z                           6  
+Table: keys: [_field, _measurement, k]
+         _field:string     _measurement:string                k:string                      _time:time                  _value:int  
+----------------------  ----------------------  ----------------------  ------------------------------  --------------------------  
+                     f                      m1                      k0  1970-01-01T00:00:00.000000007Z                           5  
+                     f                      m1                      k0  1970-01-01T00:00:00.000000009Z                           6  
+                     f                      m1                      k0  1970-01-01T00:00:00.000000011Z                           7  
+                     f                      m1                      k0  1970-01-01T00:00:00.000000012Z                           5  
+Table: keys: [_field, _measurement, k]
+         _field:string     _measurement:string                k:string                      _time:time                  _value:int  
+----------------------  ----------------------  ----------------------  ------------------------------  --------------------------  
+                     f                      m1                      k1  1970-01-01T00:00:00.000000010Z                           6  
+                     f                      m1                      k1  1970-01-01T00:00:00.000000013Z                           8  
+Table: keys: [_field, _measurement, k]
+         _field:string     _measurement:string                k:string                      _time:time                  _value:int  
+----------------------  ----------------------  ----------------------  ------------------------------  --------------------------  
+                     f                      m1                      k2  1970-01-01T00:00:00.000000008Z                           0  
+                     f                      m1                      k2  1970-01-01T00:00:00.000000014Z                           9  
+Table: keys: [_field, _measurement, k]
+         _field:string     _measurement:string                k:string                      _time:time                  _value:int  
+----------------------  ----------------------  ----------------------  ------------------------------  --------------------------  
+                     f                      m1                      k3  1970-01-01T00:00:00.000000015Z                           5  
+`
+	// No guaranteed order for results to come back in
+	assert.Contains(t, []string{dbTable + dataTable, dataTable + dbTable}, buf.String())
+
+	// Test a broken flux query - we get back both the http status code and the underlying flux error
+	buf.Reset()
+	assert.EqualError(t, c.ExecuteFluxQuery(buf, `v1.databases()`), `Error (500): error @1:1-1:3: undefined identifier v1`)
+	assert.Equal(t, "", buf.String())
 }
 
 func TestFluxBasicEndToEnd(t *testing.T) {
