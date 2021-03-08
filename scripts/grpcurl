@@ -1,0 +1,22 @@
+#!/bin/bash
+#
+# This script is a convenience wrapper around grpcurl that passes all the known *.proto to it.
+#
+# Script self-destruction condition:
+#   Once tonic implements reflection this script will no longer be necessary.
+#   The reflection feature is tracked in https://github.com/hyperium/tonic/issues/165
+#   and marked as closed and will likely be included in a tonic version > 0.4.0.
+#
+
+set -eu -o pipefail
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+proto_dir="${SCRIPT_DIR}"/../generated_types/protos
+
+# bash 3.x (default on macos big-sur 🤦) has no readarray.
+while IFS= read -r line; do
+  proto_flags+=("-proto" "$line")
+done < <(find  "${proto_dir}" -name '*.proto')
+
+grpcurl -import-path ./generated_types/protos "${proto_flags[@]}" "$@"

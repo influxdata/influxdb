@@ -249,6 +249,29 @@ $ grpc_health_probe -addr 127.0.0.1:8082 -service influxdata.platform.storage.St
 status: SERVING
 ```
 
+### Manually calling gRPC API
+
+If you want to manually invoke one of the gRPC APIs, you can use any gRPC CLI client;
+a good one is [grpcurl](https://github.com/fullstorydev/grpcurl).
+
+Tonic (the gRPC server library we're using) currently doesn't have support for gRPC reflection,
+hence you must pass all `.proto` files to your client. You can find a conventient `grpcurl` wrapper
+that does that in the `scripts` directory:
+
+```shell
+$ ./scripts/grpcurl -plaintext 127.0.0.1:8082 list
+grpc.health.v1.Health
+influxdata.iox.management.v1.ManagementService
+influxdata.platform.storage.IOxTesting
+influxdata.platform.storage.Storage
+$ ./scripts/grpcurl -plaintext 127.0.0.1:8082 influxdata.iox.management.v1.ManagementService.ListDatabases
+{
+  "names": [
+    "foobar_weather"
+  ]
+}
+```
+
 ## Contributing
 
 We welcome community contributions from anyone!
