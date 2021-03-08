@@ -95,6 +95,53 @@ where
             Err(e) => Err(default_error_handler(e)),
         }
     }
+
+    async fn list_remotes(
+        &self,
+        _: Request<ListRemotesRequest>,
+    ) -> Result<Response<ListRemotesResponse>, Status> {
+        let remotes = self
+            .server
+            .remotes_sorted()
+            .into_iter()
+            .map(|(id, connection_string)| Remote {
+                id,
+                connection_string,
+            })
+            .collect();
+        Ok(Response::new(ListRemotesResponse { remotes }))
+    }
+
+    async fn update_remote(
+        &self,
+        request: Request<UpdateRemoteRequest>,
+    ) -> Result<Response<UpdateRemoteResponse>, Status> {
+        let remote = request
+            .into_inner()
+            .remote
+            .ok_or_else(|| FieldViolation::required("remote"))?;
+        if remote.id == 0 {
+            return Err(FieldViolation::required("id").scope("remote").into());
+        }
+        self.server
+            .update_remote(remote.id, remote.connection_string);
+        Ok(Response::new(UpdateRemoteResponse {}))
+    }
+
+    async fn delete_remote(
+        &self,
+        request: Request<DeleteRemoteRequest>,
+    ) -> Result<Response<DeleteRemoteResponse>, Status> {
+        let request = request.into_inner();
+        if request.id == 0 {
+            return Err(FieldViolation::required("id").into());
+        }
+        self.server
+            .delete_remote(request.id)
+            .ok_or_else(NotFound::default)?;
+
+        Ok(Response::new(DeleteRemoteResponse {}))
+    }
 }
 
 pub fn make_server<M>(

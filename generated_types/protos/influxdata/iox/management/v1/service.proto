@@ -14,6 +14,15 @@ service ManagementService {
   rpc GetDatabase(GetDatabaseRequest) returns (GetDatabaseResponse);
 
   rpc CreateDatabase(CreateDatabaseRequest) returns (CreateDatabaseResponse);
+
+  // List remote IOx servers we know about.
+  rpc ListRemotes(ListRemotesRequest) returns (ListRemotesResponse);
+
+  // Update information about a remote IOx server (upsert).
+  rpc UpdateRemote(UpdateRemoteRequest) returns (UpdateRemoteResponse);
+
+  // Delete a reference to remote IOx server.
+  rpc DeleteRemote(DeleteRemoteRequest) returns (DeleteRemoteResponse);
 }
 
 message GetWriterIdRequest {}
@@ -47,3 +56,36 @@ message CreateDatabaseRequest {
 }
 
 message CreateDatabaseResponse {}
+
+message ListRemotesRequest {}
+
+message ListRemotesResponse {
+  repeated Remote remotes = 1;
+}
+
+// This resource represents a remote IOx server.
+message Remote {
+  // The writer ID associated with a remote IOx server.
+  uint32 id = 1;
+
+  // The address of the remote IOx server gRPC endpoint.
+  string connection_string = 2;
+}
+
+// Updates information about a remote IOx server.
+//
+// If a remote for a given `id` already exists, it is updated in place.
+message UpdateRemoteRequest {
+  // If omitted, the remote associated with `id` will be removed.
+  Remote remote = 1;
+
+  // TODO(#917): add an optional flag to test the connection or not before adding it.
+}
+
+message UpdateRemoteResponse {}
+
+message DeleteRemoteRequest{
+  uint32 id = 1;
+}
+
+message DeleteRemoteResponse {}

@@ -83,7 +83,9 @@ use std::sync::{
 
 use crate::{
     buffer::SegmentPersistenceTask,
-    config::{object_store_path_for_database_config, Config, DB_RULES_FILE_NAME},
+    config::{
+        object_store_path_for_database_config, Config, GRPCConnectionString, DB_RULES_FILE_NAME,
+    },
     db::Db,
     tracker::TrackerRegistry,
 };
@@ -98,6 +100,7 @@ use query::{exec::Executor, DatabaseStore};
 
 use async_trait::async_trait;
 use bytes::Bytes;
+use data_types::database_rules::WriterId;
 use futures::stream::TryStreamExt;
 use snafu::{OptionExt, ResultExt, Snafu};
 use tracing::error;
@@ -366,6 +369,18 @@ impl<M: ConnectionManager> Server<M> {
 
     pub async fn db_rules(&self, name: &DatabaseName<'_>) -> Option<DatabaseRules> {
         self.config.db(name).map(|d| d.rules.clone())
+    }
+
+    pub fn remotes_sorted(&self) -> Vec<(WriterId, String)> {
+        self.config.remotes_sorted()
+    }
+
+    pub fn update_remote(&self, id: WriterId, addr: GRPCConnectionString) {
+        self.config.update_remote(id, addr)
+    }
+
+    pub fn delete_remote(&self, id: WriterId) -> Option<GRPCConnectionString> {
+        self.config.delete_remote(id)
     }
 }
 
