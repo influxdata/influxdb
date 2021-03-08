@@ -748,7 +748,7 @@ mod tests {
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
         let lp_lines = vec![
-            "h2o,state=MA,city=Boston float_field=70.4,int_field=8i,bool_field=t,string_field=\"foo\" 100",
+            "h2o,state=MA,city=Boston float_field=70.4,int_field=8i,uint_field=42u,bool_field=t,string_field=\"foo\" 100",
         ];
 
         write_lines_to_table(&mut table, dictionary, lp_lines);
@@ -760,6 +760,7 @@ mod tests {
             .tag("city")
             .field("float_field", ArrowDataType::Float64)
             .field("int_field", ArrowDataType::Int64)
+            .field("uint_field", ArrowDataType::UInt64)
             .tag("state")
             .field("string_field", ArrowDataType::Utf8)
             .timestamp()

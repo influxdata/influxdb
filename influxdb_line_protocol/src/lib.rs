@@ -1053,6 +1053,13 @@ mod test {
             }
         }
 
+        fn unwrap_u64(&self) -> u64 {
+            match self {
+                Self::U64(v) => *v,
+                _ => panic!("field was not an u64"),
+            }
+        }
+
         fn unwrap_f64(&self) -> f64 {
             match self {
                 Self::F64(v) => *v,
@@ -1219,6 +1226,19 @@ mod test {
     }
 
     #[test]
+    fn parse_single_field_unteger() -> Result {
+        let input = "foo asdf=23u 1234";
+        let vals = parse(input)?;
+
+        assert_eq!(vals[0].series.measurement, "foo");
+        assert_eq!(vals[0].timestamp, Some(1234));
+        assert_eq!(vals[0].field_set[0].0, "asdf");
+        assert_eq!(vals[0].field_set[0].1.unwrap_u64(), 23);
+
+        Ok(())
+    }
+
+    #[test]
     fn parse_single_field_float_no_decimal() -> Result {
         let input = "foo asdf=44 546";
         let vals = parse(input)?;
@@ -1357,6 +1377,23 @@ mod test {
     }
 
     #[test]
+    fn parse_two_fields_unteger() -> Result {
+        let input = "foo asdf=23u,bar=5u 1234";
+        let vals = parse(input)?;
+
+        assert_eq!(vals[0].series.measurement, "foo");
+        assert_eq!(vals[0].timestamp, Some(1234));
+
+        assert_eq!(vals[0].field_set[0].0, "asdf");
+        assert_eq!(vals[0].field_set[0].1.unwrap_u64(), 23);
+
+        assert_eq!(vals[0].field_set[1].0, "bar");
+        assert_eq!(vals[0].field_set[1].1.unwrap_u64(), 5);
+
+        Ok(())
+    }
+
+    #[test]
     fn parse_two_fields_float() -> Result {
         let input = "foo asdf=23.1,bar=5 1234";
         let vals = parse(input)?;
@@ -1381,7 +1418,7 @@ mod test {
 
     #[test]
     fn parse_mixed_field_types() -> Result {
-        let input = r#"foo asdf=23.1,bar=5i,baz="the string",frab=false 1234"#;
+        let input = r#"foo asdf=23.1,bar=-5i,qux=9u,baz="the string",frab=false 1234"#;
         let vals = parse(input)?;
 
         assert_eq!(vals[0].series.measurement, "foo");
@@ -1394,13 +1431,16 @@ mod test {
         ));
 
         assert_eq!(vals[0].field_set[1].0, "bar");
-        assert_eq!(vals[0].field_set[1].1.unwrap_i64(), 5);
+        assert_eq!(vals[0].field_set[1].1.unwrap_i64(), -5);
 
-        assert_eq!(vals[0].field_set[2].0, "baz");
-        assert_eq!(vals[0].field_set[2].1.unwrap_string(), "the string");
+        assert_eq!(vals[0].field_set[2].0, "qux");
+        assert_eq!(vals[0].field_set[2].1.unwrap_u64(), 9);
 
-        assert_eq!(vals[0].field_set[3].0, "frab");
-        assert_eq!(vals[0].field_set[3].1.unwrap_bool(), false);
+        assert_eq!(vals[0].field_set[3].0, "baz");
+        assert_eq!(vals[0].field_set[3].1.unwrap_string(), "the string");
+
+        assert_eq!(vals[0].field_set[4].0, "frab");
+        assert_eq!(vals[0].field_set[4].1.unwrap_bool(), false);
 
         Ok(())
     }
@@ -1412,6 +1452,20 @@ mod test {
 
         assert_eq!(vals.len(), 1);
         assert_eq!(vals[0].field_set[0].1.unwrap_i64(), -1);
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_negative_uinteger() -> Result {
+        let input = "m0 field=-1u 99";
+        let parsed = parse(input);
+
+        assert!(
+            matches!(parsed, Err(super::Error::UIntegerValueInvalid { .. })),
+            "Wrong error: {:?}",
+            parsed,
+        );
 
         Ok(())
     }
@@ -1437,6 +1491,20 @@ mod test {
 
         assert!(
             matches!(parsed, Err(super::Error::IntegerValueInvalid { .. })),
+            "Wrong error: {:?}",
+            parsed,
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_out_of_range_uinteger() -> Result {
+        let input = "m0 field=99999999999999999999999999999999u 99";
+        let parsed = parse(input);
+
+        assert!(
+            matches!(parsed, Err(super::Error::UIntegerValueInvalid { .. })),
             "Wrong error: {:?}",
             parsed,
         );
