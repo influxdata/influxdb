@@ -139,7 +139,7 @@ Should you desire specifying config via a file, you can do so using a
 `.env` formatted file in the working directory. You can use the
 provided [example](docs/env.example) as a template if you want:
 
-```bash
+```shell
 cp docs/env.example .env
 ```
 
@@ -194,7 +194,7 @@ This can be set three ways:
 - set an environment variable `INFLUXDB_IOX_ID=42`
 - set a flag `--writer-id 42`
 - send an HTTP PUT request:
-```
+```shell
 curl --request PUT \
   --url http://localhost:8080/iox/api/v1/id \
   --header 'Content-Type: application/json' \
@@ -205,7 +205,7 @@ curl --request PUT \
 
 To write data, you need a destination database.
 This is set via HTTP PUT, identifying the database by org `company` and bucket `sensors`:
-```
+```shell
 curl --request PUT \
   --url http://localhost:8080/iox/api/v1/databases/company_sensors \
   --header 'Content-Type: application/json' \
@@ -237,14 +237,14 @@ curl -v -G -d 'org=company' -d 'bucket=sensors' --data-urlencode 'sql_query=sele
 
 The HTTP API exposes a healthcheck endpoint at `/health`
 
-```shell
+```console
 $ curl http://127.0.0.1:8080/health
 OK
 ```
 
 The gRPC API implements the [gRPC Health Checking Protocol](https://github.com/grpc/grpc/blob/master/doc/health-checking.md). This can be tested with [grpc-health-probe](https://github.com/grpc-ecosystem/grpc-health-probe)
 
-```shell
+```console
 $ grpc_health_probe -addr 127.0.0.1:8082 -service influxdata.platform.storage.Storage
 status: SERVING
 ```
@@ -258,7 +258,7 @@ Tonic (the gRPC server library we're using) currently doesn't have support for g
 hence you must pass all `.proto` files to your client. You can find a conventient `grpcurl` wrapper
 that does that in the `scripts` directory:
 
-```shell
+```console
 $ ./scripts/grpcurl -plaintext 127.0.0.1:8082 list
 grpc.health.v1.Health
 influxdata.iox.management.v1.ManagementService
