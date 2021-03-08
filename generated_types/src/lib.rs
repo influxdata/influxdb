@@ -9,6 +9,9 @@
     clippy::clone_on_ref_ptr
 )]
 
+/// This module imports the generated protobuf code into a Rust module
+/// heirarchy that matches the namespace heirarchy of the protobuf
+/// definitions
 mod pb {
     pub mod influxdata {
         pub mod platform {
@@ -31,6 +34,12 @@ mod pb {
             pub mod management {
                 pub mod v1 {
                     include!(concat!(env!("OUT_DIR"), "/influxdata.iox.management.v1.rs"));
+                }
+            }
+
+            pub mod write {
+                pub mod v1 {
+                    include!(concat!(env!("OUT_DIR"), "/influxdata.iox.write.v1.rs"));
                 }
             }
         }

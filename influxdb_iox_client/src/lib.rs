@@ -8,7 +8,7 @@
 )]
 #![allow(clippy::missing_docs_in_private_items)]
 
-pub use client::{health, management};
+pub use client::{health, management, write};
 
 #[cfg(feature = "flight")]
 pub use client::flight;

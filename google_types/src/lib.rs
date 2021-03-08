@@ -1,3 +1,6 @@
+//! Protobuf types for errors from the google standards and
+//! conversions to `tonic::Status`
+
 // This crate deliberately does not use the same linting rules as the other
 // crates because of all the generated code it contains that we don't have much
 // control over.
@@ -87,6 +90,9 @@ fn encode_status(code: tonic::Code, message: String, details: Any) -> tonic::Sta
 }
 
 #[derive(Debug, Default, Clone)]
+/// Error returned if a request field has an invalid value. Includes
+/// machinery to add parent field names for context -- thus it will
+/// report `rules.write_timeout` than simply `write_timeout`.
 pub struct FieldViolation {
     pub field: String,
     pub description: String,

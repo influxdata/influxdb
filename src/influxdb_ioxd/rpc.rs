@@ -8,10 +8,12 @@ use tokio_stream::wrappers::TcpListenerStream;
 use data_types::error::ErrorLogger;
 use server::{ConnectionManager, Server};
 
+pub mod error;
 mod flight;
 mod management;
 mod storage;
 mod testing;
+mod write;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -50,6 +52,7 @@ where
         .add_service(testing::make_server())
         .add_service(storage::make_server(Arc::clone(&server)))
         .add_service(flight::make_server(Arc::clone(&server)))
+        .add_service(write::make_server(Arc::clone(&server)))
         .add_service(management::make_server(server))
         .serve_with_incoming(stream)
         .await

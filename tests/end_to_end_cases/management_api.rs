@@ -1,10 +1,10 @@
 use std::num::NonZeroU32;
 
-use rand::{distributions::Alphanumeric, thread_rng, Rng};
-
 use generated_types::google::protobuf::Empty;
 use generated_types::{google::protobuf::Duration, influxdata::iox::management::v1::*};
 use influxdb_iox_client::management::{Client, CreateDatabaseError};
+
+use super::util::rand_name;
 
 pub async fn test(client: &mut Client) {
     test_set_get_writer_id(client).await;
@@ -148,12 +148,4 @@ async fn test_create_get_database(client: &mut Client) {
         .expect("get database failed");
 
     assert_eq!(response, rules);
-}
-
-fn rand_name() -> String {
-    thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(10)
-        .map(char::from)
-        .collect()
 }

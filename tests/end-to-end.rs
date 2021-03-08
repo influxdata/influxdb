@@ -76,7 +76,7 @@ async fn read_and_write_data() {
         .await
         .unwrap();
     let mut storage_client = StorageClient::new(grpc.clone());
-    let mut management_client = influxdb_iox_client::management::Client::new(grpc);
+    let mut management_client = influxdb_iox_client::management::Client::new(grpc.clone());
 
     // These tests share data; TODO: a better way to indicate this
     {
@@ -104,6 +104,8 @@ async fn read_and_write_data() {
     .await;
     management_api::test(&mut management_client).await;
     management_cli::test(GRPC_URL_BASE).await;
+    write_api::test(grpc).await;
+    write_cli::test(GRPC_URL_BASE).await;
     test_http_error_messages(&influxdb2).await.unwrap();
 }
 

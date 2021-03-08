@@ -1,0 +1,23 @@
+syntax = "proto3";
+package influxdata.iox.write.v1;
+
+
+service WriteService {
+  // write data into a specific Database
+  rpc Write(WriteRequest) returns (WriteResponse);
+}
+
+message WriteRequest {
+  // name of database into which to write
+  string name = 1;
+
+  // data, in [LineProtocol] format
+  //
+  // [LineProtocol](https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/#data-types-and-format)
+  string lp_data = 2;
+}
+
+message WriteResponse {
+  // how many lines were parsed and written into the database
+  uint64 lines_written = 1;
+}

@@ -2,37 +2,19 @@ use std::convert::TryInto;
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use tonic::{Request, Response, Status};
-use tracing::error;
-
 use data_types::database_rules::DatabaseRules;
 use data_types::DatabaseName;
-use generated_types::google::{
-    AlreadyExists, FieldViolation, FieldViolationExt, InternalError, NotFound,
-    PreconditionViolation,
-};
+use generated_types::google::{AlreadyExists, FieldViolation, FieldViolationExt, NotFound};
 use generated_types::influxdata::iox::management::v1::*;
 use query::DatabaseStore;
 use server::{ConnectionManager, Error, Server};
+use tonic::{Request, Response, Status};
 
 struct ManagementService<M: ConnectionManager> {
     server: Arc<Server<M>>,
 }
 
-fn default_error_handler(error: Error) -> tonic::Status {
-    match error {
-        Error::IdNotSet => PreconditionViolation {
-            category: "Writer ID".to_string(),
-            subject: "influxdata.com/iox".to_string(),
-            description: "Writer ID must be set".to_string(),
-        }
-        .into(),
-        error => {
-            error!(?error, "Unexpected error");
-            InternalError {}.into()
-        }
-    }
-}
+use super::error::default_error_handler;
 
 #[tonic::async_trait]
 impl<M> management_service_server::ManagementService for ManagementService<M>
