@@ -20,10 +20,6 @@ influx_tsm
 **/influx_tsm
 !**/influx_tsm/
 
-influx_stress
-**/influx_stress
-!**/influx_stress/
-
 influxd
 **/influxd
 !**/influxd/
