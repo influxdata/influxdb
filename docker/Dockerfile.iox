@@ -20,3 +20,5 @@ COPY target/release/influxdb_iox /usr/bin/influxdb_iox
 EXPOSE 8080 8082
 
 ENTRYPOINT ["influxdb_iox"]
+
+CMD ["server"]
