@@ -77,13 +77,6 @@
   contact: Query Team
   lifetime: permanent
 
-- name: Simple Task Options Extraction
-  description: Simplified task options extraction to avoid undefined functions when saving tasks
-  key: simpleTaskOptionsExtraction
-  default: false
-  contact: Brett Buddin
-  lifetime: temporary
-
 - name: Band Plot Type
   description: Enables the creation of a band plot in Dashboards
   key: bandPlotType

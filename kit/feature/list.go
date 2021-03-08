@@ -128,20 +128,6 @@ func QueryTracing() BoolFlag {
 	return queryTracing
 }
 
-var simpleTaskOptionsExtraction = MakeBoolFlag(
-	"Simple Task Options Extraction",
-	"simpleTaskOptionsExtraction",
-	"Brett Buddin",
-	false,
-	Temporary,
-	false,
-)
-
-// SimpleTaskOptionsExtraction - Simplified task options extraction to avoid undefined functions when saving tasks
-func SimpleTaskOptionsExtraction() BoolFlag {
-	return simpleTaskOptionsExtraction
-}
-
 var bandPlotType = MakeBoolFlag(
 	"Band Plot Type",
 	"bandPlotType",
@@ -236,7 +222,6 @@ var all = []Flag{
 	memoryOptimizedFill,
 	memoryOptimizedSchemaMutation,
 	queryTracing,
-	simpleTaskOptionsExtraction,
 	bandPlotType,
 	mosaicGraphType,
 	notebooks,
@@ -255,7 +240,6 @@ var byKey = map[string]Flag{
 	"memoryOptimizedFill":           memoryOptimizedFill,
 	"memoryOptimizedSchemaMutation": memoryOptimizedSchemaMutation,
 	"queryTracing":                  queryTracing,
-	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,
 	"bandPlotType":                  bandPlotType,
 	"mosaicGraphType":               mosaicGraphType,
 	"notebooks":                     notebooks,
