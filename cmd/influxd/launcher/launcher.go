@@ -8,7 +8,6 @@ import (
 	"io"
 	"net"
 	nethttp "net/http"
-	_ "net/http/pprof" // needed to add pprof to our binary.
 	"os"
 	"path/filepath"
 	"strings"
@@ -921,6 +920,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			m.reg,
 			http.WithLog(httpLogger),
 			http.WithAPIHandler(platformHandler),
+			http.WithPprofEnabled(!opts.ProfilingDisabled),
 		)
 
 		if opts.LogLevel == zap.DebugLevel {
