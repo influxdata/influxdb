@@ -279,38 +279,6 @@ func (c *Cache) Free() {
 	c.mu.Unlock()
 }
 
-// Write writes the set of values for the key to the cache. This function is goroutine-safe.
-// It returns an error if the cache will exceed its max size by adding the new values.
-func (c *Cache) Write(key []byte, values []Value) error {
-	c.init()
-	addedSize := uint64(Values(values).Size())
-
-	// Enough room in the cache?
-	limit := c.maxSize
-	n := c.Size() + addedSize
-
-	if limit > 0 && n > limit {
-		atomic.AddInt64(&c.stats.WriteErr, 1)
-		return ErrCacheMemorySizeLimitExceeded(n, limit)
-	}
-
-	newKey, err := c.store.write(key, values)
-	if err != nil {
-		atomic.AddInt64(&c.stats.WriteErr, 1)
-		return err
-	}
-
-	if newKey {
-		addedSize += uint64(len(key))
-	}
-	// Update the cache size and the memory size stat.
-	c.increaseSize(addedSize)
-	c.updateMemSize(int64(addedSize))
-	atomic.AddInt64(&c.stats.WriteOK, 1)
-
-	return nil
-}
-
 // WriteMulti writes the map of keys and associated values to the cache. This
 // function is goroutine-safe. It returns an error if the cache will exceeded
 // its max size by adding the new values.  The write attempts to write as many
