@@ -103,9 +103,10 @@ type BucketService interface {
 // BucketUpdate represents updates to a bucket.
 // Only fields which are set are updated.
 type BucketUpdate struct {
-	Name            *string        `json:"name,omitempty"`
-	Description     *string        `json:"description,omitempty"`
-	RetentionPeriod *time.Duration `json:"retentionPeriod,omitempty"`
+	Name               *string
+	Description        *string
+	RetentionPeriod    *time.Duration
+	ShardGroupDuration *time.Duration
 }
 
 // BucketFilter represents a set of filter that restrict the returned results.

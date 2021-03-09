@@ -275,16 +275,13 @@ func (e *Engine) CreateBucket(ctx context.Context, b *influxdb.Bucket) (err erro
 	return nil
 }
 
-func (e *Engine) UpdateBucketRetentionPeriod(ctx context.Context, bucketID influxdb.ID, d time.Duration) error {
+func (e *Engine) UpdateBucketRetentionPolicy(ctx context.Context, bucketID influxdb.ID, upd *influxdb.BucketUpdate) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	// A value of zero ensures the ShardGroupDuration is adjusted to an appropriate value based on the specified
-	//   duration
-	zero := time.Duration(0)
 	rpu := meta.RetentionPolicyUpdate{
-		Duration:           &d,
-		ShardGroupDuration: &zero,
+		Duration:           upd.RetentionPeriod,
+		ShardGroupDuration: upd.ShardGroupDuration,
 	}
 
 	return e.metaClient.UpdateRetentionPolicy(bucketID.String(), meta.DefaultRetentionPolicyName, &rpu, true)

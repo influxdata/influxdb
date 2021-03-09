@@ -2,7 +2,6 @@ package storage
 
 import (
 	"context"
-	"time"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
@@ -11,7 +10,7 @@ import (
 
 type EngineSchema interface {
 	CreateBucket(context.Context, *influxdb.Bucket) error
-	UpdateBucketRetentionPeriod(context.Context, influxdb.ID, time.Duration) error
+	UpdateBucketRetentionPolicy(context.Context, influxdb.ID, *influxdb.BucketUpdate) error
 	DeleteBucket(context.Context, influxdb.ID, influxdb.ID) error
 }
 
@@ -67,10 +66,8 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id influxdb.ID, upd in
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	if upd.RetentionPeriod != nil {
-		if err = s.engine.UpdateBucketRetentionPeriod(ctx, id, *upd.RetentionPeriod); err != nil {
-			return nil, err
-		}
+	if err = s.engine.UpdateBucketRetentionPolicy(ctx, id, &upd); err != nil {
+		return nil, err
 	}
 
 	return s.BucketService.UpdateBucket(ctx, id, upd)

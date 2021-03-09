@@ -7269,10 +7269,6 @@ components:
           readOnly: true
         retentionRules:
           $ref: "#/components/schemas/RetentionRules"
-        shardGroupDuration:
-          type: integer
-          format: int64
-          description: shard duration measured in nanoseconds
         labels:
           $ref: "#/components/schemas/Labels"
       required: [name, retentionRules]
@@ -7304,6 +7300,10 @@ components:
           description: Duration in seconds for how long data will be kept in the database.
           example: 86400
           minimum: 1
+        shardGroupDurationSeconds:
+          type: integer
+          format: int64
+          description: Shard duration measured in seconds.
       required: [type, everySeconds]
     Link:
       type: string

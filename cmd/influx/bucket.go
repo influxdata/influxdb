@@ -74,7 +74,8 @@ func (b *cmdBucketBuilder) cmdCreate() *cobra.Command {
 
 	cmd.Flags().StringVarP(&b.description, "description", "d", "", "Description of bucket that will be created")
 	cmd.Flags().StringVarP(&b.retention, "retention", "r", "", "Duration bucket will retain data. 0 is infinite. Default is 0.")
-	cmd.Flags().StringVarP(&b.shardGroupDuration, "shardDuration", "", "", "Shard group duration used internally in storage. Default is 7 days")
+	cmd.Flags().StringVarP(&b.shardGroupDuration, "shard-group-duration", "", "",
+		"Shard group duration used internally by the storage engine. Not supported by InfluxDB Cloud.")
 	b.org.register(b.viper, cmd, false)
 	b.registerPrintFlags(cmd)
 
@@ -249,16 +250,18 @@ func (b *cmdBucketBuilder) cmdUpdate() *cobra.Command {
 			Flag:   "name",
 			Short:  'n',
 			EnvVar: "BUCKET_NAME",
-			Desc:   "New bucket name",
+			Desc:   "New name to set on the bucket",
 		},
 	}
 	opts.mustRegister(b.viper, cmd)
 
 	b.registerPrintFlags(cmd)
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The bucket ID (required)")
-	cmd.Flags().StringVarP(&b.description, "description", "d", "", "Description of bucket that will be created")
+	cmd.Flags().StringVarP(&b.description, "description", "d", "", "New description to set on the bucket")
 	cmd.MarkFlagRequired("id")
-	cmd.Flags().StringVarP(&b.retention, "retention", "r", "", "Duration bucket will retain data. 0 is infinite. Default is 0.")
+	cmd.Flags().StringVarP(&b.retention, "retention", "r", "", "New retention duration to set on the bucket. 0 is infinite.")
+	cmd.Flags().StringVarP(&b.shardGroupDuration, "shard-group-duration", "", "",
+		"New shard group duration to set on the bucket. 0 will tell the server to pick a value. Not supported by InfluxDB Cloud.")
 
 	return cmd
 }
@@ -282,13 +285,23 @@ func (b *cmdBucketBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) er
 		update.Description = &b.description
 	}
 
-	dur, err := internal.RawDurationToTimeDuration(b.retention)
-	if err != nil {
-		return err
-	}
-	if dur != 0 {
+	if b.retention != "" {
+		dur, err := internal.RawDurationToTimeDuration(b.retention)
+		if err != nil {
+			return err
+		}
 		update.RetentionPeriod = &dur
 	}
+
+	if b.shardGroupDuration != "" {
+		sgDur, err := internal.RawDurationToTimeDuration(b.shardGroupDuration)
+		if err != nil {
+			return err
+		}
+		update.ShardGroupDuration = &sgDur
+	}
+
+
 
 	bkt, err := bktSVC.UpdateBucket(context.Background(), id, update)
 	if err != nil {

@@ -321,7 +321,6 @@ type bucket struct {
 	Name                string          `json:"name"`
 	RetentionPolicyName string          `json:"rp,omitempty"` // This to support v1 sources
 	RetentionRules      []retentionRule `json:"retentionRules"`
-	ShardGroupDuration  int64           `json:"shardGroupDuration"`
 	influxdb.CRUDLog
 }
 
@@ -330,13 +329,12 @@ func newBucket(pb *influxdb.Bucket) *bucket {
 		return nil
 	}
 
-	rules := []retentionRule{}
-	rp := int64(pb.RetentionPeriod.Round(time.Second) / time.Second)
-	if rp > 0 {
-		rules = append(rules, retentionRule{
-			Type:         "expire",
-			EverySeconds: rp,
-		})
+	rules := []retentionRule{
+		{
+			Type:                      "expire",
+			EverySeconds:              int64(pb.RetentionPeriod.Round(time.Second) / time.Second),
+			ShardGroupDurationSeconds: int64(pb.ShardGroupDuration.Round(time.Second) / time.Second),
+		},
 	}
 
 	return &bucket{
@@ -347,15 +345,15 @@ func newBucket(pb *influxdb.Bucket) *bucket {
 		Description:         pb.Description,
 		RetentionPolicyName: pb.RetentionPolicyName,
 		RetentionRules:      rules,
-		ShardGroupDuration:  int64(pb.ShardGroupDuration),
 		CRUDLog:             pb.CRUDLog,
 	}
 }
 
 // retentionRule is the retention rule action for a bucket.
 type retentionRule struct {
-	Type         string `json:"type"`
-	EverySeconds int64  `json:"everySeconds"`
+	Type                      string `json:"type"`
+	EverySeconds              int64  `json:"everySeconds"`
+	ShardGroupDurationSeconds int64  `json:"shardGroupDurationSeconds"`
 }
 
 func (rr *retentionRule) RetentionPeriod() (time.Duration, error) {
