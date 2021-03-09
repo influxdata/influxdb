@@ -12,6 +12,9 @@ workflows:
       - jstest:
           requires:
             - jsdeps
+      - fluxtest:
+          requires:
+            - godeps
       - influxql_validation:
           requires:
             - godeps
@@ -77,6 +80,9 @@ workflows:
       - jslint:
           requires:
             - jsdeps
+      - fluxtest:
+          requires:
+            - godeps
       - deploy_nightly:
           requires:
             - gotest
@@ -456,6 +462,21 @@ jobs:
           destination: raw-test-output
       - store_test_results:
           path: /tmp/test-results
+
+  fluxtest:
+    docker:
+      - image: cimg/go:1.15.6
+    environment:
+      GOCACHE: /tmp/go-cache
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
+      - install_core_deps
+      - run: make test-flux
 
   influxql_validation:
     docker:
