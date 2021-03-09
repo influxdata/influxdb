@@ -350,6 +350,10 @@ func (b *cmdBucketBuilder) printBuckets(printOpt bucketPrintOpt) error {
 	}
 
 	for _, bkt := range printOpt.buckets {
+		rp := bkt.RetentionPeriod.String()
+		if bkt.RetentionPeriod == influxdb.InfiniteRetention {
+			rp = "infinite"
+		}
 		sgDur := bkt.ShardGroupDuration.String()
 		// ShardGroupDuration will be zero if listing buckets from InfluxDB Cloud.
 		// Show something more useful here in that case.
@@ -360,7 +364,7 @@ func (b *cmdBucketBuilder) printBuckets(printOpt bucketPrintOpt) error {
 		m := map[string]interface{}{
 			"ID":              bkt.ID.String(),
 			"Name":            bkt.Name,
-			"Retention":       bkt.RetentionPeriod,
+			"Retention":       rp,
 			"Shard duration":  sgDur,
 			"Organization ID": bkt.OrgID.String(),
 		}

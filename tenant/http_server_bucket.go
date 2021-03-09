@@ -87,9 +87,9 @@ type retentionRule struct {
 	ShardGroupDurationSeconds int64  `json:"shardGroupDurationSeconds"`
 }
 
-func (b *bucket) toInfluxDB() (*influxdb.Bucket, error) {
+func (b *bucket) toInfluxDB() *influxdb.Bucket {
 	if b == nil {
-		return nil, nil
+		return nil
 	}
 
 	var rpDuration time.Duration // zero value implies infinite retention policy
@@ -98,13 +98,6 @@ func (b *bucket) toInfluxDB() (*influxdb.Bucket, error) {
 	// Only support a single retention period for the moment
 	if len(b.RetentionRules) > 0 {
 		rpDuration = time.Duration(b.RetentionRules[0].EverySeconds) * time.Second
-		if rpDuration < time.Second {
-			return nil, &influxdb.Error{
-				Code: influxdb.EUnprocessableEntity,
-				Msg:  "expiration seconds must be greater than or equal to one second",
-			}
-		}
-
 		sgDuration = time.Duration(b.RetentionRules[0].ShardGroupDurationSeconds) * time.Second
 	}
 
@@ -118,7 +111,7 @@ func (b *bucket) toInfluxDB() (*influxdb.Bucket, error) {
 		RetentionPeriod:     rpDuration,
 		ShardGroupDuration:  sgDuration,
 		CRUDLog:             b.CRUDLog,
-	}, nil
+	}
 }
 
 func newBucket(pb *influxdb.Bucket) *bucket {
@@ -126,15 +119,10 @@ func newBucket(pb *influxdb.Bucket) *bucket {
 		return nil
 	}
 
-	rules := []retentionRule{}
-	rp := int64(pb.RetentionPeriod.Round(time.Second) / time.Second)
-	sgDur := int64(pb.ShardGroupDuration.Round(time.Second) / time.Second)
-	if rp > 0 {
-		rules = append(rules, retentionRule{
-			Type:                      "expire",
-			EverySeconds:              rp,
-			ShardGroupDurationSeconds: sgDur,
-		})
+	rule := retentionRule{
+		Type:                      "expire",
+		EverySeconds:              int64(pb.RetentionPeriod.Round(time.Second) / time.Second),
+		ShardGroupDurationSeconds: int64(pb.ShardGroupDuration.Round(time.Second) / time.Second),
 	}
 
 	return &bucket{
@@ -144,7 +132,7 @@ func newBucket(pb *influxdb.Bucket) *bucket {
 		Name:                pb.Name,
 		Description:         pb.Description,
 		RetentionPolicyName: pb.RetentionPolicyName,
-		RetentionRules:      rules,
+		RetentionRules:      []retentionRule{rule},
 		CRUDLog:             pb.CRUDLog,
 	}
 }
@@ -166,7 +154,7 @@ func (b *bucketUpdate) OK() error {
 	if len(b.RetentionRules) > 1 {
 		return &influxdb.Error{
 			Code: influxdb.EUnprocessableEntity,
-			Msg: "buckets cannot have more than one retention rule at this time",
+			Msg:  "buckets cannot have more than one retention rule at this time",
 		}
 	}
 
@@ -189,8 +177,8 @@ func (b *bucketUpdate) toInfluxDB() *influxdb.BucketUpdate {
 	}
 
 	upd := influxdb.BucketUpdate{
-		Name:            b.Name,
-		Description:     b.Description,
+		Name:        b.Name,
+		Description: b.Description,
 	}
 
 	// For now, only use a single retention rule.
@@ -327,7 +315,7 @@ func (b *postBucketRequest) OK() error {
 	if len(b.RetentionRules) > 1 {
 		return &influxdb.Error{
 			Code: influxdb.EUnprocessableEntity,
-			Msg: "buckets cannot have more than one retention rule at this time",
+			Msg:  "buckets cannot have more than one retention rule at this time",
 		}
 	}
 

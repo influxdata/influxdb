@@ -356,18 +356,6 @@ type retentionRule struct {
 	ShardGroupDurationSeconds int64  `json:"shardGroupDurationSeconds"`
 }
 
-func (rr *retentionRule) RetentionPeriod() (time.Duration, error) {
-	t := time.Duration(rr.EverySeconds) * time.Second
-	if t < time.Second {
-		return t, &influxdb.Error{
-			Code: influxdb.EUnprocessableEntity,
-			Msg:  "expiration seconds must be greater than or equal to one second",
-		}
-	}
-
-	return t, nil
-}
-
 func NewBucketResponse(b *influxdb.Bucket, labels []*influxdb.Label) *bucketResponse {
 	res := &bucketResponse{
 		Links: map[string]string{

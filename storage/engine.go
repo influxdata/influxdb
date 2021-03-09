@@ -284,7 +284,14 @@ func (e *Engine) UpdateBucketRetentionPolicy(ctx context.Context, bucketID influ
 		ShardGroupDuration: upd.ShardGroupDuration,
 	}
 
-	return e.metaClient.UpdateRetentionPolicy(bucketID.String(), meta.DefaultRetentionPolicyName, &rpu, true)
+	err := e.metaClient.UpdateRetentionPolicy(bucketID.String(), meta.DefaultRetentionPolicyName, &rpu, true)
+	if err == meta.ErrIncompatibleDurations {
+		err = &influxdb.Error{
+			Code: influxdb.EUnprocessableEntity,
+			Msg:  "shard-group duration must also be updated to be smaller than new retention duration",
+		}
+	}
+	return err
 }
 
 // DeleteBucket deletes an entire bucket from the storage engine.
