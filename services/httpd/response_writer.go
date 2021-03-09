@@ -72,11 +72,6 @@ func match(ah accept, sct supportedContentType) bool {
 		(ah.SubType == "*" || ah.SubType == sct.acceptSubType)
 }
 
-// WriteError is a convenience function for writing an error response to the ResponseWriter.
-func WriteError(w ResponseWriter, err error) (int, error) {
-	return w.WriteResponse(Response{Err: err})
-}
-
 // responseWriter is an implementation of ResponseWriter.
 type responseWriter struct {
 	formatter interface {

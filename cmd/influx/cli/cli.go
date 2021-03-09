@@ -23,13 +23,16 @@ import (
 	"syscall"
 	"text/tabwriter"
 
-	"golang.org/x/crypto/ssh/terminal"
-
+	"github.com/influxdata/flux"
+	csv2 "github.com/influxdata/flux/csv"
+	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/client"
+	fluxClient "github.com/influxdata/influxdb/flux/client"
 	v8 "github.com/influxdata/influxdb/importer/v8"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxql"
 	"github.com/peterh/liner"
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 // ErrBlankCommand is returned when a parsed command is empty.
@@ -153,7 +156,7 @@ func (c *CommandLine) Run() error {
 	if c.Execute != "" {
 		switch c.Type {
 		case QueryLanguageFlux:
-			return c.ExecuteFluxQuery(c.Execute)
+			return c.ExecuteFluxQuery(os.Stdout, c.Execute)
 		default:
 			// Make the non-interactive mode send everything through the CLI's parser
 			// the same way the interactive mode works
@@ -190,7 +193,7 @@ func (c *CommandLine) Run() error {
 
 		switch c.Type {
 		case QueryLanguageFlux:
-			return c.ExecuteFluxQuery(string(cmd))
+			return c.ExecuteFluxQuery(os.Stdout, string(cmd))
 		default:
 			return c.ExecuteQuery(string(cmd))
 		}
@@ -211,8 +214,9 @@ func (c *CommandLine) Run() error {
 	c.Version()
 
 	if c.Type == QueryLanguageFlux {
-		// TODO(lesam): steal 2.x flux client
-		return fmt.Errorf("ERROR: flux repl missing due to flux upgrade")
+		// Until 1.8 we supported a flux REPL here. See https://github.com/influxdata/influxdb/issues/19038
+		// for an explanation of why this was removed.
+		return fmt.Errorf("Interactive flux is not supported. Provide your flux script via stdin or the -execute argument.")
 	}
 
 	c.Line = liner.NewLiner()
@@ -1162,7 +1166,7 @@ func (c *CommandLine) exit() {
 	c.Line = nil
 }
 
-func (c *CommandLine) ExecuteFluxQuery(query string) error {
+func (c *CommandLine) ExecuteFluxQuery(w io.Writer, query string) error {
 	ctx := context.Background()
 	if !c.IgnoreSignals {
 		done := make(chan struct{})
@@ -1178,8 +1182,30 @@ func (c *CommandLine) ExecuteFluxQuery(query string) error {
 			}
 		}()
 	}
-	// TODO(lesam): steal 2.x flux client
-	return fmt.Errorf("ERROR: flux repl missing due to flux upgrade")
+	request := fluxClient.QueryRequest{}.WithDefaults()
+	request.Query = query
+	request.Dialect.Annotations = csv2.DefaultDialect().Annotations
+
+	results, err := c.Client.QueryFlux(ctx, &request)
+	if err != nil {
+		return err
+	}
+	defer results.Release()
+	for results.More() {
+		res := results.Next()
+		fmt.Fprintln(w, "Result:", res.Name())
+
+		if err := res.Tables().Do(func(tbl flux.Table) error {
+			_, err := newFormatter(tbl).WriteTo(w)
+			return err
+		}); err != nil {
+			return err
+		}
+	}
+	// It is safe and appropriate to call Release multiple times and must be
+	// called before checking the error on the next line.
+	results.Release()
+	return results.Err()
 }
 
 type QueryLanguage uint8
@@ -1209,4 +1235,283 @@ func (l *QueryLanguage) String() string {
 		return "flux"
 	}
 	return fmt.Sprintf("QueryLanguage(%d)", uint8(*l))
+}
+
+// Below is a copy and trimmed version of the execute/format.go file from flux.
+// It is copied here to avoid requiring a dependency on the execute package which
+// may pull in the flux runtime as a dependency.
+// In the future, the formatters and other primitives such as the csv parser should
+// probably be separated out into user libraries anyway.
+
+const fixedWidthTimeFmt = "2006-01-02T15:04:05.000000000Z"
+
+// formatter writes a table to a Writer.
+type formatter struct {
+	tbl       flux.Table
+	widths    []int
+	maxWidth  int
+	newWidths []int
+	pad       []byte
+	dash      []byte
+	// fmtBuf is used to format values
+	fmtBuf [64]byte
+
+	cols orderedCols
+}
+
+var eol = []byte{'\n'}
+
+// newFormatter creates a formatter for a given table.
+func newFormatter(tbl flux.Table) *formatter {
+	return &formatter{
+		tbl: tbl,
+	}
+}
+
+type writeToHelper struct {
+	w   io.Writer
+	n   int64
+	err error
+}
+
+func (w *writeToHelper) write(data []byte) {
+	if w.err != nil {
+		return
+	}
+	n, err := w.w.Write(data)
+	w.n += int64(n)
+	w.err = err
+}
+
+var minWidthsByType = map[flux.ColType]int{
+	flux.TBool:    12,
+	flux.TInt:     26,
+	flux.TUInt:    27,
+	flux.TFloat:   28,
+	flux.TString:  22,
+	flux.TTime:    len(fixedWidthTimeFmt),
+	flux.TInvalid: 10,
+}
+
+// WriteTo writes the formatted table data to w.
+func (f *formatter) WriteTo(out io.Writer) (int64, error) {
+	w := &writeToHelper{w: out}
+
+	// Sort cols
+	cols := f.tbl.Cols()
+	f.cols = newOrderedCols(cols, f.tbl.Key())
+	sort.Sort(f.cols)
+
+	// Compute header widths
+	f.widths = make([]int, len(cols))
+	for j, c := range cols {
+		// Column header is "<label>:<type>"
+		l := len(c.Label) + len(c.Type.String()) + 1
+		min := minWidthsByType[c.Type]
+		if min > l {
+			l = min
+		}
+		if l > f.widths[j] {
+			f.widths[j] = l
+		}
+		if l > f.maxWidth {
+			f.maxWidth = l
+		}
+	}
+
+	// Write table header
+	w.write([]byte("Table: keys: ["))
+	labels := make([]string, len(f.tbl.Key().Cols()))
+	for i, c := range f.tbl.Key().Cols() {
+		labels[i] = c.Label
+	}
+	w.write([]byte(strings.Join(labels, ", ")))
+	w.write([]byte("]"))
+	w.write(eol)
+
+	// Check err and return early
+	if w.err != nil {
+		return w.n, w.err
+	}
+
+	// Write rows
+	r := 0
+	w.err = f.tbl.Do(func(cr flux.ColReader) error {
+		if r == 0 {
+			l := cr.Len()
+			for i := 0; i < l; i++ {
+				for oj, c := range f.cols.cols {
+					j := f.cols.Idx(oj)
+					buf := f.valueBuf(i, j, c.Type, cr)
+					l := len(buf)
+					if l > f.widths[j] {
+						f.widths[j] = l
+					}
+					if l > f.maxWidth {
+						f.maxWidth = l
+					}
+				}
+			}
+			f.makePaddingBuffers()
+			f.writeHeader(w)
+			f.writeHeaderSeparator(w)
+			f.newWidths = make([]int, len(f.widths))
+			copy(f.newWidths, f.widths)
+		}
+		l := cr.Len()
+		for i := 0; i < l; i++ {
+			for oj, c := range f.cols.cols {
+				j := f.cols.Idx(oj)
+				buf := f.valueBuf(i, j, c.Type, cr)
+				l := len(buf)
+				padding := f.widths[j] - l
+				if padding >= 0 {
+					w.write(f.pad[:padding])
+					w.write(buf)
+				} else {
+					//TODO make unicode friendly
+					w.write(buf[:f.widths[j]-3])
+					w.write([]byte{'.', '.', '.'})
+				}
+				w.write(f.pad[:2])
+				if l > f.newWidths[j] {
+					f.newWidths[j] = l
+				}
+				if l > f.maxWidth {
+					f.maxWidth = l
+				}
+			}
+			w.write(eol)
+			r++
+		}
+		return w.err
+	})
+	return w.n, w.err
+}
+
+func (f *formatter) makePaddingBuffers() {
+	if len(f.pad) != f.maxWidth {
+		f.pad = make([]byte, f.maxWidth)
+		for i := range f.pad {
+			f.pad[i] = ' '
+		}
+	}
+	if len(f.dash) != f.maxWidth {
+		f.dash = make([]byte, f.maxWidth)
+		for i := range f.dash {
+			f.dash[i] = '-'
+		}
+	}
+}
+
+func (f *formatter) writeHeader(w *writeToHelper) {
+	for oj, c := range f.cols.cols {
+		j := f.cols.Idx(oj)
+		buf := append(append([]byte(c.Label), ':'), []byte(c.Type.String())...)
+		w.write(f.pad[:f.widths[j]-len(buf)])
+		w.write(buf)
+		w.write(f.pad[:2])
+	}
+	w.write(eol)
+}
+
+func (f *formatter) writeHeaderSeparator(w *writeToHelper) {
+	for oj := range f.cols.cols {
+		j := f.cols.Idx(oj)
+		w.write(f.dash[:f.widths[j]])
+		w.write(f.pad[:2])
+	}
+	w.write(eol)
+}
+
+func (f *formatter) valueBuf(i, j int, typ flux.ColType, cr flux.ColReader) []byte {
+	buf := []byte("")
+	switch typ {
+	case flux.TBool:
+		if cr.Bools(j).IsValid(i) {
+			buf = strconv.AppendBool(f.fmtBuf[0:0], cr.Bools(j).Value(i))
+		}
+	case flux.TInt:
+		if cr.Ints(j).IsValid(i) {
+			buf = strconv.AppendInt(f.fmtBuf[0:0], cr.Ints(j).Value(i), 10)
+		}
+	case flux.TUInt:
+		if cr.UInts(j).IsValid(i) {
+			buf = strconv.AppendUint(f.fmtBuf[0:0], cr.UInts(j).Value(i), 10)
+		}
+	case flux.TFloat:
+		if cr.Floats(j).IsValid(i) {
+			// TODO allow specifying format and precision
+			buf = strconv.AppendFloat(f.fmtBuf[0:0], cr.Floats(j).Value(i), 'f', -1, 64)
+		}
+	case flux.TString:
+		if cr.Strings(j).IsValid(i) {
+			buf = []byte(cr.Strings(j).ValueString(i))
+		}
+	case flux.TTime:
+		if cr.Times(j).IsValid(i) {
+			buf = []byte(values.Time(cr.Times(j).Value(i)).String())
+		}
+	}
+	return buf
+}
+
+// orderedCols sorts a list of columns:
+//
+// * time
+// * common tags sorted by label
+// * other tags sorted by label
+// * value
+//
+type orderedCols struct {
+	indexMap []int
+	cols     []flux.ColMeta
+	key      flux.GroupKey
+}
+
+func newOrderedCols(cols []flux.ColMeta, key flux.GroupKey) orderedCols {
+	indexMap := make([]int, len(cols))
+	for i := range indexMap {
+		indexMap[i] = i
+	}
+	cpy := make([]flux.ColMeta, len(cols))
+	copy(cpy, cols)
+	return orderedCols{
+		indexMap: indexMap,
+		cols:     cpy,
+		key:      key,
+	}
+}
+
+func (o orderedCols) Idx(oj int) int {
+	return o.indexMap[oj]
+}
+
+func (o orderedCols) Len() int { return len(o.cols) }
+func (o orderedCols) Swap(i int, j int) {
+	o.cols[i], o.cols[j] = o.cols[j], o.cols[i]
+	o.indexMap[i], o.indexMap[j] = o.indexMap[j], o.indexMap[i]
+}
+
+func (o orderedCols) Less(i int, j int) bool {
+	ki := colIdx(o.cols[i].Label, o.key.Cols())
+	kj := colIdx(o.cols[j].Label, o.key.Cols())
+	if ki >= 0 && kj >= 0 {
+		return ki < kj
+	} else if ki >= 0 {
+		return true
+	} else if kj >= 0 {
+		return false
+	}
+
+	return i < j
+}
+
+func colIdx(label string, cols []flux.ColMeta) int {
+	for j, c := range cols {
+		if c.Label == label {
+			return j
+		}
+	}
+	return -1
 }

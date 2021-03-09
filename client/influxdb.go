@@ -19,6 +19,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/csv"
+	fluxClient "github.com/influxdata/influxdb/flux/client"
 	"github.com/influxdata/influxdb/models"
 )
 
@@ -301,6 +304,42 @@ func (c *Client) QueryContext(ctx context.Context, q Query) (*Response, error) {
 		return &response, fmt.Errorf("received status code %d from server", resp.StatusCode)
 	}
 	return &response, nil
+}
+
+// QueryContext sends a command to the server and returns the Response
+// It uses a context that can be cancelled by the command line client
+func (c *Client) QueryFlux(ctx context.Context, query *fluxClient.QueryRequest) (flux.ResultIterator, error) {
+	u := c.url
+	u.Path = path.Join(u.Path, "api/v2/query")
+
+	body, err := json.Marshal(query)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("POST", u.String(), bytes.NewBuffer(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("User-Agent", c.userAgent)
+	req.Header.Set("Content-Type", "application/json")
+	if c.username != "" {
+		req.SetBasicAuth(c.username, c.password)
+	}
+	req = req.WithContext(ctx)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := CheckError(resp); err != nil {
+		resp.Body.Close()
+		return nil, err
+	}
+
+	dec := csv.NewMultiResultDecoder(csv.ResultDecoderConfig{})
+	return dec.Decode(resp.Body)
 }
 
 // Write takes BatchPoints and allows for writing of multiple points with defaults
