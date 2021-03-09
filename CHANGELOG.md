@@ -15,6 +15,7 @@ v1.8.5 [unreleased]
 -	[#19832](https://github.com/influxdata/influxdb/pull/19832): fix(prometheus): regexp handling should comply with PromQL.
 -	[#20432](https://github.com/influxdata/influxdb/pull/20432): fix(error): SELECT INTO doesn't return error with unsupported value
 -	[#20033](https://github.com/influxdata/influxdb/pull/20033): fix(tsm1): "snapshot in progress" error during backup
+-	[#20909](https://github.com/influxdata/influxdb/pull/20909): fix(tsm1): data race when accessing tombstone stats
 
 v1.8.4 [2021-01-27]
 -------------------
