@@ -762,10 +762,10 @@ mod tests {
             .tag("city")
             .field("float_field", ArrowDataType::Float64)
             .field("int_field", ArrowDataType::Int64)
-            .field("uint_field", ArrowDataType::UInt64)
             .tag("state")
             .field("string_field", ArrowDataType::Utf8)
             .timestamp()
+            .field("uint_field", ArrowDataType::UInt64)
             .build()
             .unwrap();
 
