@@ -1,16 +1,14 @@
 package tests
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
-
-	"fmt"
-
-	"strings"
 
 	"github.com/influxdata/influxdb/cmd/influxd/backup"
 	"github.com/influxdata/influxdb/cmd/influxd/restore"

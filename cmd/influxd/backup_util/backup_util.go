@@ -6,12 +6,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
-
-	"io/ioutil"
-	"path/filepath"
 
 	"github.com/gogo/protobuf/proto"
 	internal "github.com/influxdata/influxdb/cmd/influxd/backup_util/internal"
