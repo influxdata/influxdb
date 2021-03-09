@@ -301,8 +301,6 @@ func (b *cmdBucketBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) er
 		update.ShardGroupDuration = &sgDur
 	}
 
-
-
 	bkt, err := bktSVC.UpdateBucket(context.Background(), id, update)
 	if err != nil {
 		return fmt.Errorf("failed to update bucket: %v", err)
@@ -352,11 +350,18 @@ func (b *cmdBucketBuilder) printBuckets(printOpt bucketPrintOpt) error {
 	}
 
 	for _, bkt := range printOpt.buckets {
+		sgDur := bkt.ShardGroupDuration.String()
+		// ShardGroupDuration will be zero if listing buckets from InfluxDB Cloud.
+		// Show something more useful here in that case.
+		if bkt.ShardGroupDuration == 0 {
+			sgDur = "n/a"
+		}
+
 		m := map[string]interface{}{
 			"ID":              bkt.ID.String(),
 			"Name":            bkt.Name,
 			"Retention":       bkt.RetentionPeriod,
-			"Shard duration":  bkt.ShardGroupDuration,
+			"Shard duration":  sgDur,
 			"Organization ID": bkt.OrgID.String(),
 		}
 		if printOpt.deleted {

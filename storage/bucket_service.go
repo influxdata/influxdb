@@ -5,6 +5,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"go.uber.org/zap"
 )
 
@@ -50,6 +51,9 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *influxdb.Bucket) (e
 			}
 		}
 	}()
+
+	// Normalize the bucket's shard-group
+	b.ShardGroupDuration = meta.NormalisedShardDuration(b.ShardGroupDuration, b.RetentionPeriod)
 
 	if err = s.BucketService.CreateBucket(ctx, b); err != nil {
 		return err
