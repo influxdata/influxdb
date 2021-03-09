@@ -6,15 +6,15 @@ use test_helpers::assert_contains;
 
 use super::util::rand_name;
 
-/// Tests the basics of the write API
-pub async fn test(channel: tonic::transport::Channel) {
-    let mut management_client = management::Client::new(channel.clone());
-    let mut write_client = write::Client::new(channel);
+use crate::common::server_fixture::ServerFixture;
 
-    test_write(&mut management_client, &mut write_client).await
-}
+#[tokio::test]
+async fn test_write() {
+    // TODO sort out changing the test ID
+    let fixture = ServerFixture::create_shared().await;
+    let mut management_client = management::Client::new(fixture.grpc_channel().await);
+    let mut write_client = write::Client::new(fixture.grpc_channel().await);
 
-async fn test_write(management_client: &mut management::Client, write_client: &mut write::Client) {
     const TEST_ID: u32 = 42;
 
     let db_name = rand_name();
