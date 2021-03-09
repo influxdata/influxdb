@@ -4,7 +4,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/influxdata/influxdb/stress/v2/stress_client"
+	stressClient "github.com/influxdata/influxdb/stress/v2/stress_client"
 )
 
 // InfluxqlStatement is a Statement Implementation that allows statements that parse in InfluxQL to be passed directly to the target instance

@@ -10,11 +10,12 @@ import (
 	"sort"
 	"strings"
 
+	"io/ioutil"
+	"path/filepath"
+
 	"github.com/gogo/protobuf/proto"
 	internal "github.com/influxdata/influxdb/cmd/influxd/backup_util/internal"
 	"github.com/influxdata/influxdb/services/snapshotter"
-	"io/ioutil"
-	"path/filepath"
 )
 
 //go:generate protoc --gogo_out=. internal/data.proto
