@@ -208,7 +208,12 @@ func TestLauncher_UpdateRetentionPolicy(t *testing.T) {
 	require.NotNil(t, bucket)
 
 	newRetentionPeriod := 1 * time.Hour
-	bucket, err = l.BucketService(t).UpdateBucket(ctx, bucket.ID, influxdb.BucketUpdate{RetentionPeriod: &newRetentionPeriod})
+	newSgDuration := 1 * time.Hour
+	bucket, err = l.BucketService(t).UpdateBucket(ctx, bucket.ID, influxdb.BucketUpdate{
+		RetentionPeriod: &newRetentionPeriod,
+		ShardGroupDuration: &newSgDuration,
+	})
 	require.NoError(t, err)
 	assert.Equal(t, bucket.RetentionPeriod, newRetentionPeriod)
+	assert.Equal(t, bucket.ShardGroupDuration, newSgDuration)
 }
