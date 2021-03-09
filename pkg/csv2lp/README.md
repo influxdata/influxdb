@@ -125,10 +125,10 @@ test available=false 4
 test available=true 5
 ```
 ## CSV Data On Input
-This library supports all the concepts of [flux result annotated CSV](https://v2.docs.influxdata.com/v2.0/reference/syntax/annotated-csv/#tables) and provides a few extensions that allow to process existing/custom CSV files. The conversion to line protocol is driven by contents of annotation rows and layout of the header row.
+This library supports all the concepts of [flux result annotated CSV](https://docs.influxdata.com/influxdb/latest/reference/syntax/annotated-csv/#tables) and provides a few extensions that allow to process existing/custom CSV files. The conversion to line protocol is driven by contents of annotation rows and layout of the header row.
 
 #### New data types
-Existing [data types](https://v2.docs.influxdata.com/v2.0/reference/syntax/annotated-csv/#data-types) are supported. The CSV input can also contain the following data types that are used to associate a column value to a part of a protocol line
+Existing [data types](https://docs.influxdata.com/influxdb/latest/reference/syntax/annotated-csv/#data-types) are supported. The CSV input can also contain the following data types that are used to associate a column value to a part of a protocol line
  - `measurement` data type identifies a column that carries the measurement name
  - `tag` data type identifies a column with a tag value, column label (from the header row) is the tag name
  - `time` is an alias for existing `dateTime` type , there is at most one such column in a CSV row

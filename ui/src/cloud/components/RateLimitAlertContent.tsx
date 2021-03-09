@@ -44,7 +44,7 @@ const RateLimitAlertContent: FC<Props> = ({showUpgrade, className}) => {
         <span>
           You've reached the maximum{' '}
           <a
-            href="https://v2.docs.influxdata.com/v2.0/reference/glossary/#series-cardinality"
+            href="https://docs.influxdata.com/influxdb/latest/reference/glossary/#series-cardinality"
             target="_blank"
           >
             series cardinality
@@ -66,7 +66,7 @@ const RateLimitAlertContent: FC<Props> = ({showUpgrade, className}) => {
       <span>
         You've reached the maximum{' '}
         <a
-          href="https://v2.docs.influxdata.com/v2.0/reference/glossary/#series-cardinality"
+          href="https://docs.influxdata.com/influxdb/latest/reference/glossary/#series-cardinality"
           target="_blank"
         >
           series cardinality

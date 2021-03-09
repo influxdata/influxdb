@@ -3,7 +3,7 @@
 
 InfluxDB is an open source time series platform. This includes APIs for storing and querying data, processing it in the background for ETL or monitoring and alerting purposes, user dashboards, and visualizing and exploring the data and more. The master branch on this repo now represents the latest InfluxDB, which now includes functionality for Kapacitor (background processing) and Chronograf (the UI) all in a single binary.
 
-The list of InfluxDB Client Libraries that are compatible with the latest version can be found in [our documentation](https://v2.docs.influxdata.com/v2.0/reference/api/client-libraries/).
+The list of InfluxDB Client Libraries that are compatible with the latest version can be found in [our documentation](https://docs.influxdata.com/influxdb/latest/tools/client-libraries/).
 
 If you are looking for the 1.x line of releases, there are branches for each minor version as well as a `master-1.x` branch that will contain the code for the next 1.x release. The master-1.x [working branch is here](https://github.com/influxdata/influxdb/tree/master-1.x). The [InfluxDB 1.x Go Client can be found here](https://github.com/influxdata/influxdb1-client).
 
@@ -93,7 +93,7 @@ $ go test ./...
 
 ## Getting Started
 
-For a complete getting started guide, please see our full [online documentation site](https://docs.influxdata.com/influxdb/v2.0/). 
+For a complete getting started guide, please see our full [online documentation site](https://docs.influxdata.com/influxdb/latest/). 
 
 To write and query data or use the API in any way, you'll need to first create a user, credentials, organization and bucket.
 Everything in InfluxDB is organized under a concept of an organization. The API is designed to be multi-tenant.
