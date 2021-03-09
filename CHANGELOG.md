@@ -23,7 +23,6 @@ v1.8.4 [2021-01-27]
 
 -	[#19696](https://github.com/influxdata/influxdb/pull/19697): fix(flux): add durations to Flux logging
 
-
 v1.8.3 [2020-09-30]
 -------------------
 
