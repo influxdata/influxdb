@@ -151,6 +151,9 @@ test-js: node_modules
 test-go:
 	$(GO_TEST) $(GO_TEST_PATHS)
 
+test-flux:
+	@./etc/test-flux.sh
+
 test-tls:
 	@./etc/test-tls.sh
 
