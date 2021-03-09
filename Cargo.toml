@@ -93,6 +93,7 @@ tracing-subscriber = { version = "0.2.15", features = ["parking_lot"] }
 influxdb2_client = { path = "influxdb2_client" }
 influxdb_iox_client = { path = "influxdb_iox_client", features = ["flight"] }
 test_helpers = { path = "test_helpers" }
+once_cell = { version = "1.4.0", features = ["parking_lot"] }
 
 # Crates.io dependencies, in alphabetical order
 assert_cmd = "1.0.0"

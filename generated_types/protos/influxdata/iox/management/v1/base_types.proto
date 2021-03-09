@@ -21,10 +21,3 @@ enum ColumnType {
   COLUMN_TYPE_STRING = 4;
   COLUMN_TYPE_BOOL = 5;
 }
-
-message HostGroup {
-  string id = 1;
-
-  // connection strings for remote hosts.
-  repeated string hosts = 2;
-}

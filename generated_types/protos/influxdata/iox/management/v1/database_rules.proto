@@ -31,90 +31,6 @@ message PartitionTemplate {
   repeated Part parts = 1;
 }
 
-message Matcher {
-  // A query predicate to filter rows
-  string predicate = 1;
-  // Restrict selection to a specific table or tables specified by a regex
-  oneof table_matcher {
-    google.protobuf.Empty all = 2;
-    string table = 3;
-    string regex = 4;
-  }
-}
-
-message ReplicationConfig {
-  // The set of host groups that data should be replicated to. Which host a
-  // write goes to within a host group is determined by consistent hashing of
-  // the partition key. We'd use this to create a host group per
-  // availability zone, so you might have 5 availability zones with 2
-  // hosts in each. Replication will ensure that N of those zones get a
-  // write. For each zone, only a single host needs to get the write.
-  // Replication is for ensuring a write exists across multiple hosts
-  // before returning success. Its purpose is to ensure write durability,
-  // rather than write availability for query (this is covered by
-  // subscriptions).
-  repeated string replications = 1;
-
-  // The minimum number of host groups to replicate a write to before success
-  // is returned. This can be overridden on a per request basis.
-  // Replication will continue to write to the other host groups in the
-  // background.
-  uint32 replication_count = 2;
-
-  // How long the replication queue can get before either rejecting writes or
-  // dropping missed writes. The queue is kept in memory on a
-  // per-database basis. A queue size of zero means it will only try to
-  // replicate synchronously and drop any failures.
-  uint64 replication_queue_max_size = 3;
-}
-
-message SubscriptionConfig {
-  message Subscription {
-    string name = 1;
-    string host_group_id = 2;
-    Matcher matcher = 3;
-  }
-
-  // `subscriptions` are used for query servers to get data via either push
-  // or pull as it arrives. They are separate from replication as they
-  // have a different purpose. They're for query servers or other clients
-  // that want to subscribe to some subset of data being written in. This
-  // could either be specific partitions, ranges of partitions, tables, or
-  // rows matching some predicate.
-  repeated Subscription subscriptions = 1;
-}
-
-message QueryConfig {
-  // If set to `true`, this server should answer queries from one or more of
-  // of its local write buffer and any read-only partitions that it knows
-  // about. In this case, results will be merged with any others from the
-  // remote goups or read-only partitions.
-  bool query_local = 1;
-
-  // Set `primary` to a host group if remote servers should be
-  // issued queries for this database. All hosts in the group should be
-  // queried with this server acting as the coordinator that merges
-  // results together.
-  string primary = 2;
-
-  // If a specific host in the primary group is unavailable,
-  // another host in the same position from a secondary group should be
-  // queried. For example, imagine we've partitioned the data in this DB into
-  // 4 partitions and we are replicating the data across 3 availability
-  // zones. We have 4 hosts in each of those AZs, thus they each have 1
-  // partition. We'd set the primary group to be the 4 hosts in the same
-  // AZ as this one, and the secondary groups as the hosts in the other 2 AZs.
-  repeated string secondaries = 3;
-
-  // Use `readOnlyPartitions` when a server should answer queries for
-  // partitions that come from object storage. This can be used to start
-  // up a new query server to handle queries by pointing it at a
-  // collection of partitions and then telling it to also pull
-  // data from the replication servers (writes that haven't been snapshotted
-  // into a partition).
-  repeated string read_only_partitions = 4;
-}
-
 message WalBufferConfig {
   enum Rollover {
     ROLLOVER_UNSPECIFIED = 0;
@@ -230,15 +146,6 @@ message DatabaseRules {
 
   // Template that generates a partition key for each row inserted into the database
   PartitionTemplate partition_template = 2;
-
-  // Synchronous replication configuration for this database
-  ReplicationConfig replication_config = 3;
-
-  // Asynchronous pull-based subscription configuration for this database
-  SubscriptionConfig subscription_config = 4;
-
-  // Query configuration for this database
-  QueryConfig query_config = 5;
 
   // WAL configuration for this database
   WalBufferConfig wal_buffer_config = 6;

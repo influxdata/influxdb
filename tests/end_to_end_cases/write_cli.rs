@@ -2,11 +2,13 @@ use assert_cmd::Command;
 use predicates::prelude::*;
 use test_helpers::make_temp_file;
 
+use crate::common::server_fixture::ServerFixture;
+
 use super::util::rand_name;
 
-pub async fn test(addr: impl AsRef<str>) {
+pub async fn test(server_fixture: &ServerFixture) {
     let db_name = rand_name();
-    let addr = addr.as_ref();
+    let addr = server_fixture.grpc_url_base();
     create_database(&db_name, addr).await;
     test_write(&db_name, addr).await;
 }

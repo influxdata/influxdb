@@ -1502,6 +1502,7 @@ dependencies = [
  "mem_qe",
  "mutable_buffer",
  "object_store",
+ "once_cell",
  "opentelemetry",
  "opentelemetry-jaeger",
  "packers",

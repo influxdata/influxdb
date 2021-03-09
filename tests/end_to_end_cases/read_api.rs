@@ -1,29 +1,17 @@
-use crate::{Scenario, IOX_API_V1_BASE};
+use crate::common::server_fixture::ServerFixture;
+use crate::Scenario;
 
 pub async fn test(
-    client: &reqwest::Client,
+    server_fixture: &ServerFixture,
     scenario: &Scenario,
     sql_query: &str,
     expected_read_data: &[String],
 ) {
-    let text = read_data_as_sql(&client, scenario, sql_query).await;
-
-    assert_eq!(
-        text, expected_read_data,
-        "Actual:\n{:#?}\nExpected:\n{:#?}",
-        text, expected_read_data
-    );
-}
-
-async fn read_data_as_sql(
-    client: &reqwest::Client,
-    scenario: &Scenario,
-    sql_query: &str,
-) -> Vec<String> {
+    let client = reqwest::Client::new();
     let db_name = format!("{}_{}", scenario.org_id_str(), scenario.bucket_id_str());
     let path = format!("/databases/{}/query", db_name);
-    let url = format!("{}{}", IOX_API_V1_BASE, path);
-    let lines = client
+    let url = format!("{}{}", server_fixture.iox_api_v1_base(), path);
+    let lines: Vec<_> = client
         .get(&url)
         .query(&[("q", sql_query)])
         .send()
@@ -36,5 +24,10 @@ async fn read_data_as_sql(
         .split('\n')
         .map(str::to_string)
         .collect();
-    lines
+
+    assert_eq!(
+        lines, expected_read_data,
+        "Actual:\n{:#?}\nExpected:\n{:#?}",
+        lines, expected_read_data
+    );
 }

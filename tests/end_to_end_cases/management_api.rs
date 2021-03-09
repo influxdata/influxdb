@@ -93,27 +93,6 @@ async fn test_create_get_database(client: &mut Client) {
                 part: Some(partition_template::part::Part::Table(Empty {})),
             }],
         }),
-        replication_config: Some(ReplicationConfig {
-            replications: vec!["cupcakes".to_string()],
-            replication_count: 3,
-            replication_queue_max_size: 20,
-        }),
-        subscription_config: Some(SubscriptionConfig {
-            subscriptions: vec![subscription_config::Subscription {
-                name: "subscription".to_string(),
-                host_group_id: "hostgroup".to_string(),
-                matcher: Some(Matcher {
-                    predicate: "pred".to_string(),
-                    table_matcher: Some(matcher::TableMatcher::All(Empty {})),
-                }),
-            }],
-        }),
-        query_config: Some(QueryConfig {
-            query_local: true,
-            primary: Default::default(),
-            secondaries: vec![],
-            read_only_partitions: vec![],
-        }),
         wal_buffer_config: Some(WalBufferConfig {
             buffer_size: 24,
             segment_size: 2,
