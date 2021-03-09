@@ -3,6 +3,7 @@ package tsm1_test
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"reflect"
 	"testing"
@@ -648,6 +649,55 @@ func TestWALSegmentReader_Corrupt(t *testing.T) {
 	// Try to decode two entries.
 	for r.Next() {
 		r.Read()
+	}
+}
+
+func TestWALRollSegment(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	w := tsm1.NewWAL(dir)
+	if err := w.Open(); err != nil {
+		t.Fatalf("error opening WAL: %v", err)
+	}
+	const segSize = 1024
+	w.SegmentSize = segSize
+
+	values := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{tsm1.NewValue(1, 1.0)},
+		"cpu,host=B#!~#value": []tsm1.Value{tsm1.NewValue(1, 1.0)},
+		"cpu,host=C#!~#value": []tsm1.Value{tsm1.NewValue(1, 1.0)},
+	}
+	if _, err := w.WriteMulti(values); err != nil {
+		fatal(t, "write points", err)
+	}
+
+	files, err := ioutil.ReadDir(w.Path())
+	if err != nil {
+		fatal(t, "ReadDir", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("unexpected segments size %d", len(files))
+	}
+
+	encodeSize := files[0].Size()
+
+	for i := 0; i < 100; i++ {
+		if _, err := w.WriteMulti(values); err != nil {
+			fatal(t, "write points", err)
+		}
+	}
+	files, err = ioutil.ReadDir(w.Path())
+	if err != nil {
+		fatal(t, "ReadDir", err)
+	}
+	for _, f := range files {
+		if f.Size() > int64(segSize)+encodeSize {
+			t.Fatalf("unexpected segment size %d", f.Size())
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("error closing wal: %v", err)
 	}
 }
 
