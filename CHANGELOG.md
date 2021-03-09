@@ -27,6 +27,7 @@ the endpoint has been removed. Use the `/metrics` endpoint to collect system sta
 1. [20837](https://github.com/influxdata/influxdb/pull/20837): Fix use-after-free bug in series ID iterator. Thanks @foobar!
 1. [20834](https://github.com/influxdata/influxdb/pull/20834): Fix InfluxDB port in Flux function UI examples. Thanks @sunjincheng121!
 1. [20833](https://github.com/influxdata/influxdb/pull/20833): Fix Single Stat graphs with thresholds crashing on negative values.
+1. [20843](https://github.com/influxdata/influxdb/pull/20843): Fix data race in TSM cache. Thanks @StoneYunZhao!
 
 ## v2.0.4 [2021-02-08]
 ----------------------

@@ -166,7 +166,6 @@ const (
 type storer interface {
 	entry(key []byte) *entry                        // Get an entry by its key.
 	write(key []byte, values Values) (bool, error)  // Write an entry to the store.
-	add(key []byte, entry *entry)                   // Add a new entry to the store.
 	remove(key []byte)                              // Remove an entry from the store.
 	keys(sorted bool) [][]byte                      // Return an optionally sorted slice of entry keys.
 	apply(f func([]byte, *entry) error) error       // Apply f to all entries in the store in parallel.
@@ -278,38 +277,6 @@ func (c *Cache) Free() {
 	c.mu.Lock()
 	c.store = emptyStore{}
 	c.mu.Unlock()
-}
-
-// Write writes the set of values for the key to the cache. This function is goroutine-safe.
-// It returns an error if the cache will exceed its max size by adding the new values.
-func (c *Cache) Write(key []byte, values []Value) error {
-	c.init()
-	addedSize := uint64(Values(values).Size())
-
-	// Enough room in the cache?
-	limit := c.maxSize
-	n := c.Size() + addedSize
-
-	if limit > 0 && n > limit {
-		atomic.AddInt64(&c.stats.WriteErr, 1)
-		return ErrCacheMemorySizeLimitExceeded(n, limit)
-	}
-
-	newKey, err := c.store.write(key, values)
-	if err != nil {
-		atomic.AddInt64(&c.stats.WriteErr, 1)
-		return err
-	}
-
-	if newKey {
-		addedSize += uint64(len(key))
-	}
-	// Update the cache size and the memory size stat.
-	c.increaseSize(addedSize)
-	c.updateMemSize(int64(addedSize))
-	atomic.AddInt64(&c.stats.WriteOK, 1)
-
-	return nil
 }
 
 // WriteMulti writes the map of keys and associated values to the cache. This
@@ -833,7 +800,6 @@ type emptyStore struct{}
 
 func (e emptyStore) entry(key []byte) *entry                        { return nil }
 func (e emptyStore) write(key []byte, values Values) (bool, error)  { return false, nil }
-func (e emptyStore) add(key []byte, entry *entry)                   {}
 func (e emptyStore) remove(key []byte)                              {}
 func (e emptyStore) keys(sorted bool) [][]byte                      { return nil }
 func (e emptyStore) apply(f func([]byte, *entry) error) error       { return nil }
