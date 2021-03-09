@@ -61,10 +61,10 @@ type StatementExecutor struct {
 }
 
 // ExecuteStatement executes the given statement with the given execution context.
-func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx *query.ExecutionContext) error {
+func (e *StatementExecutor) ExecuteStatement(ctx *query.ExecutionContext, stmt influxql.Statement) error {
 	// Select statements are handled separately so that they can be streamed.
 	if stmt, ok := stmt.(*influxql.SelectStatement); ok {
-		return e.executeSelectStatement(stmt, ctx)
+		return e.executeSelectStatement(ctx, stmt)
 	}
 
 	var rows models.Rows
@@ -145,9 +145,9 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx *query
 		err = e.executeDropUserStatement(stmt)
 	case *influxql.ExplainStatement:
 		if stmt.Analyze {
-			rows, err = e.executeExplainAnalyzeStatement(stmt, ctx)
+			rows, err = e.executeExplainAnalyzeStatement(ctx, stmt)
 		} else {
-			rows, err = e.executeExplainStatement(stmt, ctx)
+			rows, err = e.executeExplainStatement(ctx, stmt)
 		}
 	case *influxql.GrantStatement:
 		if ctx.ReadOnly {
@@ -172,19 +172,19 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx *query
 	case *influxql.ShowContinuousQueriesStatement:
 		rows, err = e.executeShowContinuousQueriesStatement(stmt)
 	case *influxql.ShowDatabasesStatement:
-		rows, err = e.executeShowDatabasesStatement(stmt, ctx)
+		rows, err = e.executeShowDatabasesStatement(ctx, stmt)
 	case *influxql.ShowDiagnosticsStatement:
 		rows, err = e.executeShowDiagnosticsStatement(stmt)
 	case *influxql.ShowGrantsForUserStatement:
 		rows, err = e.executeShowGrantsForUserStatement(stmt)
 	case *influxql.ShowMeasurementsStatement:
-		return e.executeShowMeasurementsStatement(stmt, ctx)
+		return e.executeShowMeasurementsStatement(ctx, stmt)
 	case *influxql.ShowMeasurementCardinalityStatement:
-		rows, err = e.executeShowMeasurementCardinalityStatement(stmt)
+		rows, err = e.executeShowMeasurementCardinalityStatement(ctx, stmt)
 	case *influxql.ShowRetentionPoliciesStatement:
 		rows, err = e.executeShowRetentionPoliciesStatement(stmt)
 	case *influxql.ShowSeriesCardinalityStatement:
-		rows, err = e.executeShowSeriesCardinalityStatement(stmt)
+		rows, err = e.executeShowSeriesCardinalityStatement(ctx, stmt)
 	case *influxql.ShowShardsStatement:
 		rows, err = e.executeShowShardsStatement(stmt)
 	case *influxql.ShowShardGroupsStatement:
@@ -194,9 +194,9 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx *query
 	case *influxql.ShowSubscriptionsStatement:
 		rows, err = e.executeShowSubscriptionsStatement(stmt)
 	case *influxql.ShowTagKeysStatement:
-		return e.executeShowTagKeys(stmt, ctx)
+		return e.executeShowTagKeys(ctx, stmt)
 	case *influxql.ShowTagValuesStatement:
-		return e.executeShowTagValues(stmt, ctx)
+		return e.executeShowTagValues(ctx, stmt)
 	case *influxql.ShowUsersStatement:
 		rows, err = e.executeShowUsersStatement(stmt)
 	case *influxql.SetPasswordUserStatement:
@@ -206,7 +206,7 @@ func (e *StatementExecutor) ExecuteStatement(stmt influxql.Statement, ctx *query
 		err = e.executeSetPasswordUserStatement(stmt)
 	case *influxql.ShowQueriesStatement, *influxql.KillQueryStatement:
 		// Send query related statements to the task manager.
-		return e.TaskManager.ExecuteStatement(stmt, ctx)
+		return e.TaskManager.ExecuteStatement(ctx, stmt)
 	default:
 		return query.ErrInvalidQuery
 	}
@@ -411,7 +411,7 @@ func (e *StatementExecutor) executeDropUserStatement(q *influxql.DropUserStateme
 	return e.MetaClient.DropUser(q.Name)
 }
 
-func (e *StatementExecutor) executeExplainStatement(q *influxql.ExplainStatement, ctx *query.ExecutionContext) (models.Rows, error) {
+func (e *StatementExecutor) executeExplainStatement(ctx *query.ExecutionContext, q *influxql.ExplainStatement) (models.Rows, error) {
 	opt := query.SelectOptions{
 		NodeID:      ctx.ExecutionOptions.NodeID,
 		MaxSeriesN:  e.MaxSelectSeriesN,
@@ -442,7 +442,7 @@ func (e *StatementExecutor) executeExplainStatement(q *influxql.ExplainStatement
 	return models.Rows{row}, nil
 }
 
-func (e *StatementExecutor) executeExplainAnalyzeStatement(q *influxql.ExplainStatement, ectx *query.ExecutionContext) (models.Rows, error) {
+func (e *StatementExecutor) executeExplainAnalyzeStatement(ectx *query.ExecutionContext, q *influxql.ExplainStatement) (models.Rows, error) {
 	stmt := q.Statement
 	t, span := tracing.NewTrace("select")
 	ctx := tracing.NewContextWithTrace(ectx, t)
@@ -541,7 +541,7 @@ func (e *StatementExecutor) executeSetPasswordUserStatement(q *influxql.SetPassw
 	return e.MetaClient.UpdateUser(q.Name, q.Password)
 }
 
-func (e *StatementExecutor) executeSelectStatement(stmt *influxql.SelectStatement, ctx *query.ExecutionContext) error {
+func (e *StatementExecutor) executeSelectStatement(ctx *query.ExecutionContext, stmt *influxql.SelectStatement) error {
 	cur, err := e.createIterators(ctx, stmt, ctx.ExecutionOptions)
 	if err != nil {
 		return err
@@ -659,7 +659,7 @@ func (e *StatementExecutor) executeShowContinuousQueriesStatement(stmt *influxql
 	return rows, nil
 }
 
-func (e *StatementExecutor) executeShowDatabasesStatement(q *influxql.ShowDatabasesStatement, ctx *query.ExecutionContext) (models.Rows, error) {
+func (e *StatementExecutor) executeShowDatabasesStatement(ctx *query.ExecutionContext, q *influxql.ShowDatabasesStatement) (models.Rows, error) {
 	dis := e.MetaClient.Databases()
 	a := ctx.ExecutionOptions.Authorizer
 
@@ -714,12 +714,12 @@ func (e *StatementExecutor) executeShowGrantsForUserStatement(q *influxql.ShowGr
 	return []*models.Row{row}, nil
 }
 
-func (e *StatementExecutor) executeShowMeasurementsStatement(q *influxql.ShowMeasurementsStatement, ctx *query.ExecutionContext) error {
+func (e *StatementExecutor) executeShowMeasurementsStatement(ctx *query.ExecutionContext, q *influxql.ShowMeasurementsStatement) error {
 	if q.Database == "" {
 		return ErrDatabaseNameRequired
 	}
 
-	names, err := e.TSDBStore.MeasurementNames(ctx.Authorizer, q.Database, q.Condition)
+	names, err := e.TSDBStore.MeasurementNames(ctx.Context, ctx.Authorizer, q.Database, q.Condition)
 	if err != nil || len(names) == 0 {
 		return ctx.Send(&query.Result{
 			Err: err,
@@ -758,12 +758,12 @@ func (e *StatementExecutor) executeShowMeasurementsStatement(q *influxql.ShowMea
 	})
 }
 
-func (e *StatementExecutor) executeShowMeasurementCardinalityStatement(stmt *influxql.ShowMeasurementCardinalityStatement) (models.Rows, error) {
+func (e *StatementExecutor) executeShowMeasurementCardinalityStatement(ctx *query.ExecutionContext, stmt *influxql.ShowMeasurementCardinalityStatement) (models.Rows, error) {
 	if stmt.Database == "" {
 		return nil, ErrDatabaseNameRequired
 	}
 
-	n, err := e.TSDBStore.MeasurementsCardinality(stmt.Database)
+	n, err := e.TSDBStore.MeasurementsCardinality(ctx.Context, stmt.Database)
 	if err != nil {
 		return nil, err
 	}
@@ -829,12 +829,12 @@ func (e *StatementExecutor) executeShowShardsStatement(stmt *influxql.ShowShards
 	return rows, nil
 }
 
-func (e *StatementExecutor) executeShowSeriesCardinalityStatement(stmt *influxql.ShowSeriesCardinalityStatement) (models.Rows, error) {
+func (e *StatementExecutor) executeShowSeriesCardinalityStatement(ctx *query.ExecutionContext, stmt *influxql.ShowSeriesCardinalityStatement) (models.Rows, error) {
 	if stmt.Database == "" {
 		return nil, ErrDatabaseNameRequired
 	}
 
-	n, err := e.TSDBStore.SeriesCardinality(stmt.Database)
+	n, err := e.TSDBStore.SeriesCardinality(ctx.Context, stmt.Database)
 	if err != nil {
 		return nil, err
 	}
@@ -929,7 +929,7 @@ func (e *StatementExecutor) executeShowSubscriptionsStatement(stmt *influxql.Sho
 	return rows, nil
 }
 
-func (e *StatementExecutor) executeShowTagKeys(q *influxql.ShowTagKeysStatement, ctx *query.ExecutionContext) error {
+func (e *StatementExecutor) executeShowTagKeys(ctx *query.ExecutionContext, q *influxql.ShowTagKeysStatement) error {
 	if q.Database == "" {
 		return ErrDatabaseNameRequired
 	}
@@ -966,7 +966,7 @@ func (e *StatementExecutor) executeShowTagKeys(q *influxql.ShowTagKeysStatement,
 		}
 	}
 
-	tagKeys, err := e.TSDBStore.TagKeys(ctx.Authorizer, shardIDs, cond)
+	tagKeys, err := e.TSDBStore.TagKeys(ctx.Context, ctx.Authorizer, shardIDs, cond)
 	if err != nil {
 		return ctx.Send(&query.Result{
 			Err: err,
@@ -1016,7 +1016,7 @@ func (e *StatementExecutor) executeShowTagKeys(q *influxql.ShowTagKeysStatement,
 	return nil
 }
 
-func (e *StatementExecutor) executeShowTagValues(q *influxql.ShowTagValuesStatement, ctx *query.ExecutionContext) error {
+func (e *StatementExecutor) executeShowTagValues(ctx *query.ExecutionContext, q *influxql.ShowTagValuesStatement) error {
 	if q.Database == "" {
 		return ErrDatabaseNameRequired
 	}
@@ -1053,7 +1053,7 @@ func (e *StatementExecutor) executeShowTagValues(q *influxql.ShowTagValuesStatem
 		}
 	}
 
-	tagValues, err := e.TSDBStore.TagValues(ctx.Authorizer, shardIDs, cond)
+	tagValues, err := e.TSDBStore.TagValues(ctx.Context, ctx.Authorizer, shardIDs, cond)
 	if err != nil {
 		return ctx.Send(&query.Result{Err: err})
 	}
@@ -1374,12 +1374,12 @@ type TSDBStore interface {
 	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
 	DeleteShard(id uint64) error
 
-	MeasurementNames(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
-	TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
-	TagValues(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
+	MeasurementNames(ctx context.Context, auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
+	TagKeys(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
+	TagValues(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
 
-	SeriesCardinality(database string) (int64, error)
-	MeasurementsCardinality(database string) (int64, error)
+	SeriesCardinality(ctx context.Context, database string) (int64, error)
+	MeasurementsCardinality(ctx context.Context, database string) (int64, error)
 }
 
 var _ TSDBStore = LocalTSDBStore{}
