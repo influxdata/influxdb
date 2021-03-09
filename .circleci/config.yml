@@ -408,6 +408,9 @@ jobs:
             exit 1
           fi
       - install_core_deps
+      - run:
+          name: Check flag generation
+          command: ./scripts/ci/lint/flags.bash
       - run: make vet
       - run: make checkfmt
       - run: make checktidy

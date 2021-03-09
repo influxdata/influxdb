@@ -12,7 +12,7 @@ import (
 // if the task has exceeded the concurrency limit.
 func ConcurrencyLimit(exec *Executor, lang influxdb.FluxLanguageService) LimitFunc {
 	return func(t *influxdb.Task, r *influxdb.Run) error {
-		o, err := options.FromScript(lang, t.Flux)
+		o, err := options.FromScriptAST(lang, t.Flux)
 		if err != nil {
 			return err
 		}

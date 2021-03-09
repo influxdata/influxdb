@@ -33,6 +33,7 @@ the endpoint has been removed. Use the `/metrics` endpoint to collect system sta
 1. [20809](https://github.com/influxdata/influxdb/pull/20809): Fix InfluxDB port in Flux function UI examples. Thanks @sunjincheng121!
 1. [20827](https://github.com/influxdata/influxdb/pull/20827): Remove unauthenticated, unsupported `/debug/vars` HTTP endpoint.
 1. [20856](https://github.com/influxdata/influxdb/pull/20856): Respect 24 hour clock formats in the UI and allow more choices
+1. [20875](https://github.com/influxdata/influxdb/pull/20875): Prevent "do not have an execution context" error when parsing Flux options in tasks.
 
 ## v2.0.4 [2021-02-08]
 
