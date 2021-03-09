@@ -23,7 +23,9 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use arrow_deps::{
     arrow,
     arrow::{
-        array::{ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, UInt64Builder, StringBuilder},
+        array::{
+            ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder, UInt64Builder,
+        },
         datatypes::DataType as ArrowDataType,
         record_batch::RecordBatch,
     },
