@@ -89,7 +89,7 @@ use crate::{
 };
 use data_types::{
     data::{lines_to_replicated_write, ReplicatedWrite},
-    database_rules::{DatabaseRules, HostGroup, HostGroupId, MatchTables},
+    database_rules::DatabaseRules,
     {DatabaseName, DatabaseNameError},
 };
 use influxdb_line_protocol::ParsedLine;
@@ -119,10 +119,6 @@ pub enum Error {
     UnknownDatabaseError { source: DatabaseError },
     #[snafu(display("no local buffer for database: {}", db))]
     NoLocalBuffer { db: String },
-    #[snafu(display("host group not found: {}", id))]
-    HostGroupNotFound { id: HostGroupId },
-    #[snafu(display("no hosts in group: {}", id))]
-    NoHostInGroup { id: HostGroupId },
     #[snafu(display("unable to get connection to remote server: {}", server))]
     UnableToGetConnection {
         server: String,
@@ -294,18 +290,6 @@ impl<M: ConnectionManager> Server<M> {
         Ok(())
     }
 
-    /// Creates a host group with a set of connection strings to hosts. These
-    /// host connection strings should be something that the connection
-    /// manager can use to return a remote server to work with.
-    pub async fn create_host_group(&mut self, id: HostGroupId, hosts: Vec<String>) -> Result<()> {
-        // Return an error if this server hasn't yet been setup with an id
-        self.require_id()?;
-
-        self.config.create_host_group(HostGroup { id, hosts });
-
-        Ok(())
-    }
-
     /// `write_lines` takes in raw line protocol and converts it to a
     /// `ReplicatedWrite`, which is then replicated to other servers based
     /// on the configuration of the `db`. This is step #1 from the crate
@@ -372,59 +356,6 @@ impl<M: ConnectionManager> Server<M> {
                 }
             }
         }
-
-        for host_group_id in &db.rules.replication {
-            self.replicate_to_host_group(host_group_id, db_name, &write)
-                .await?;
-        }
-
-        for subscription in &db.rules.subscriptions {
-            match subscription.matcher.tables {
-                MatchTables::All => {
-                    self.replicate_to_host_group(&subscription.host_group_id, db_name, &write)
-                        .await?
-                }
-                MatchTables::Table(_) => unimplemented!(),
-                MatchTables::Regex(_) => unimplemented!(),
-            }
-        }
-
-        Ok(())
-    }
-
-    // replicates to a single host in the group based on hashing rules. If that host
-    // is unavailable an error will be returned. The request may still succeed
-    // if enough of the other host groups have returned a success.
-    async fn replicate_to_host_group(
-        &self,
-        host_group_id: &str,
-        db_name: &DatabaseName<'_>,
-        write: &ReplicatedWrite,
-    ) -> Result<()> {
-        let group = self
-            .config
-            .host_group(host_group_id)
-            .context(HostGroupNotFound { id: host_group_id })?;
-
-        // TODO: handle hashing rules to determine which host in the group should get
-        // the write.       for now, just write to the first one.
-        let host = group
-            .hosts
-            .get(0)
-            .context(NoHostInGroup { id: host_group_id })?;
-
-        let connection = self
-            .connection_manager
-            .remote_server(host)
-            .await
-            .map_err(|e| Box::new(e) as DatabaseError)
-            .context(UnableToGetConnection { server: host })?;
-
-        connection
-            .replicate(db_name, write)
-            .await
-            .map_err(|e| Box::new(e) as DatabaseError)
-            .context(ErrorReplicating {})?;
 
         Ok(())
     }
@@ -567,8 +498,7 @@ mod tests {
     use arrow_deps::{assert_table_eq, datafusion::physical_plan::collect};
     use async_trait::async_trait;
     use data_types::database_rules::{
-        MatchTables, Matcher, PartitionTemplate, Subscription, TemplatePart, WalBufferConfig,
-        WalBufferRollover,
+        PartitionTemplate, TemplatePart, WalBufferConfig, WalBufferRollover,
     };
     use futures::TryStreamExt;
     use influxdb_line_protocol::parse_lines;
@@ -585,7 +515,7 @@ mod tests {
     async fn server_api_calls_return_error_with_no_id_set() -> Result {
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let mut server = Server::new(manager, store);
+        let server = Server::new(manager, store);
 
         let rules = DatabaseRules::new();
         let resp = server.create_database("foo", rules).await.unwrap_err();
@@ -593,12 +523,6 @@ mod tests {
 
         let lines = parsed_lines("cpu foo=1 10");
         let resp = server.write_lines("foo", &lines).await.unwrap_err();
-        assert!(matches!(resp, Error::IdNotSet));
-
-        let resp = server
-            .create_host_group("group1".to_string(), vec!["serverA".to_string()])
-            .await
-            .unwrap_err();
         assert!(matches!(resp, Error::IdNotSet));
 
         Ok(())
@@ -772,130 +696,6 @@ mod tests {
             "+-----+------+",
         ];
         assert_table_eq!(expected, &batches);
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn replicate_to_single_group() -> Result {
-        let mut manager = TestConnectionManager::new();
-        let remote = Arc::new(TestRemoteServer::default());
-        let remote_id = "serverA";
-        manager
-            .remotes
-            .insert(remote_id.to_string(), Arc::clone(&remote));
-
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-
-        let mut server = Server::new(manager, store);
-        server.set_id(1);
-        let host_group_id = "az1".to_string();
-        let rules = DatabaseRules {
-            replication: vec![host_group_id.clone()],
-            replication_count: 1,
-            ..Default::default()
-        };
-        server
-            .create_host_group(host_group_id.clone(), vec![remote_id.to_string()])
-            .await
-            .unwrap();
-        let db_name = "foo";
-        server.create_database(db_name, rules).await.unwrap();
-
-        let lines = parsed_lines("cpu bar=1 10");
-        server.write_lines("foo", &lines).await.unwrap();
-
-        let writes = remote.writes.lock().get(db_name).unwrap().clone();
-
-        let write_text = r#"
-writer:1, sequence:1, checksum:226387645
-partition_key:
-  table:cpu
-    bar:1 time:10
-"#;
-
-        assert_eq!(write_text, writes[0].to_string());
-
-        // ensure sequence number goes up
-        let lines = parsed_lines("mem,server=A,region=west user=232 12");
-        server.write_lines("foo", &lines).await.unwrap();
-
-        let writes = remote.writes.lock().get(db_name).unwrap().clone();
-        assert_eq!(2, writes.len());
-
-        let write_text = r#"
-writer:1, sequence:2, checksum:3759030699
-partition_key:
-  table:mem
-    server:A region:west user:232 time:12
-"#;
-
-        assert_eq!(write_text, writes[1].to_string());
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn sends_all_to_subscriber() -> Result {
-        let mut manager = TestConnectionManager::new();
-        let remote = Arc::new(TestRemoteServer::default());
-        let remote_id = "serverA";
-        manager
-            .remotes
-            .insert(remote_id.to_string(), Arc::clone(&remote));
-
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-
-        let mut server = Server::new(manager, store);
-        server.set_id(1);
-        let host_group_id = "az1".to_string();
-        let rules = DatabaseRules {
-            subscriptions: vec![Subscription {
-                name: "query_server_1".to_string(),
-                host_group_id: host_group_id.clone(),
-                matcher: Matcher {
-                    tables: MatchTables::All,
-                    predicate: None,
-                },
-            }],
-            ..Default::default()
-        };
-        server
-            .create_host_group(host_group_id.clone(), vec![remote_id.to_string()])
-            .await
-            .unwrap();
-        let db_name = "foo";
-        server.create_database(db_name, rules).await.unwrap();
-
-        let lines = parsed_lines("cpu bar=1 10");
-        server.write_lines("foo", &lines).await.unwrap();
-
-        let writes = remote.writes.lock().get(db_name).unwrap().clone();
-
-        let write_text = r#"
-writer:1, sequence:1, checksum:226387645
-partition_key:
-  table:cpu
-    bar:1 time:10
-"#;
-
-        assert_eq!(write_text, writes[0].to_string());
-
-        // ensure sequence number goes up
-        let lines = parsed_lines("mem,server=A,region=west user=232 12");
-        server.write_lines("foo", &lines).await.unwrap();
-
-        let writes = remote.writes.lock().get(db_name).unwrap().clone();
-        assert_eq!(2, writes.len());
-
-        let write_text = r#"
-writer:1, sequence:2, checksum:3759030699
-partition_key:
-  table:mem
-    server:A region:west user:232 time:12
-"#;
-
-        assert_eq!(write_text, writes[1].to_string());
 
         Ok(())
     }

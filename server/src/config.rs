@@ -1,9 +1,6 @@
 /// This module contains code for managing the configuration of the server.
 use crate::{db::Db, Error, Result};
-use data_types::{
-    database_rules::{DatabaseRules, HostGroup, HostGroupId},
-    DatabaseName,
-};
+use data_types::{database_rules::DatabaseRules, DatabaseName};
 use mutable_buffer::MutableBufferDb;
 use object_store::path::ObjectStorePath;
 use read_buffer::Database as ReadBufferDb;
@@ -60,18 +57,6 @@ impl Config {
         state.databases.get(name).cloned()
     }
 
-    pub(crate) fn create_host_group(&self, host_group: HostGroup) {
-        let mut state = self.state.write().expect("mutex poisoned");
-        state
-            .host_groups
-            .insert(host_group.id.clone(), Arc::new(host_group));
-    }
-
-    pub(crate) fn host_group(&self, host_group_id: &str) -> Option<Arc<HostGroup>> {
-        let state = self.state.read().expect("mutex poisoned");
-        state.host_groups.get(host_group_id).cloned()
-    }
-
     pub(crate) fn db_names_sorted(&self) -> Vec<DatabaseName<'static>> {
         let state = self.state.read().expect("mutex poisoned");
         state.databases.keys().cloned().collect()
@@ -106,7 +91,6 @@ pub fn object_store_path_for_database_config<P: ObjectStorePath>(
 struct ConfigState {
     reservations: BTreeSet<DatabaseName<'static>>,
     databases: BTreeMap<DatabaseName<'static>, Arc<Db>>,
-    host_groups: BTreeMap<HostGroupId, Arc<HostGroup>>,
 }
 
 /// CreateDatabaseHandle is retunred when a call is made to `create_db` on

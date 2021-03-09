@@ -33,73 +33,11 @@ pub struct DatabaseRules {
     /// database call, so an empty default is fine.
     #[serde(default)]
     pub name: String, // TODO: Use DatabaseName here
+
     /// Template that generates a partition key for each row inserted into the
     /// db
     #[serde(default)]
     pub partition_template: PartitionTemplate,
-    /// The set of host groups that data should be replicated to. Which host a
-    /// write goes to within a host group is determined by consistent hashing of
-    /// the partition key. We'd use this to create a host group per
-    /// availability zone, so you might have 5 availability zones with 2
-    /// hosts in each. Replication will ensure that N of those zones get a
-    /// write. For each zone, only a single host needs to get the write.
-    /// Replication is for ensuring a write exists across multiple hosts
-    /// before returning success. Its purpose is to ensure write durability,
-    /// rather than write availability for query (this is covered by
-    /// subscriptions).
-    #[serde(default)]
-    pub replication: Vec<HostGroupId>,
-    /// The minimum number of host groups to replicate a write to before success
-    /// is returned. This can be overridden on a per request basis.
-    /// Replication will continue to write to the other host groups in the
-    /// background.
-    #[serde(default)]
-    pub replication_count: u8,
-    /// How long the replication queue can get before either rejecting writes or
-    /// dropping missed writes. The queue is kept in memory on a
-    /// per-database basis. A queue size of zero means it will only try to
-    /// replicate synchronously and drop any failures.
-    #[serde(default)]
-    pub replication_queue_max_size: usize,
-    /// `subscriptions` are used for query servers to get data via either push
-    /// or pull as it arrives. They are separate from replication as they
-    /// have a different purpose. They're for query servers or other clients
-    /// that want to subscribe to some subset of data being written in. This
-    /// could either be specific partitions, ranges of partitions, tables, or
-    /// rows matching some predicate. This is step #3 from the diagram.
-    #[serde(default)]
-    pub subscriptions: Vec<Subscription>,
-
-    /// If set to `true`, this server should answer queries from one or more of
-    /// of its local write buffer and any read-only partitions that it knows
-    /// about. In this case, results will be merged with any others from the
-    /// remote goups or read-only partitions.
-    #[serde(default)]
-    pub query_local: bool,
-    /// Set `primary_query_group` to a host group if remote servers should be
-    /// issued queries for this database. All hosts in the group should be
-    /// queried with this server acting as the coordinator that merges
-    /// results together. If a specific host in the group is unavailable,
-    /// another host in the same position from a secondary group should be
-    /// queried. For example, imagine we've partitioned the data in this DB into
-    /// 4 partitions and we are replicating the data across 3 availability
-    /// zones. We have 4 hosts in each of those AZs, thus they each have 1
-    /// partition. We'd set the primary group to be the 4 hosts in the same
-    /// AZ as this one, and the secondary groups as the hosts in the other 2
-    /// AZs.
-    #[serde(default)]
-    pub primary_query_group: Option<HostGroupId>,
-    #[serde(default)]
-    pub secondary_query_groups: Vec<HostGroupId>,
-
-    /// Use `read_only_partitions` when a server should answer queries for
-    /// partitions that come from object storage. This can be used to start
-    /// up a new query server to handle queries by pointing it at a
-    /// collection of partitions and then telling it to also pull
-    /// data from the replication servers (writes that haven't been snapshotted
-    /// into a partition).
-    #[serde(default)]
-    pub read_only_partitions: Vec<PartitionId>,
 
     /// When set this will buffer WAL writes in memory based on the
     /// configuration.
@@ -149,28 +87,9 @@ impl Partitioner for DatabaseRules {
 
 impl From<DatabaseRules> for management::DatabaseRules {
     fn from(rules: DatabaseRules) -> Self {
-        let subscriptions: Vec<management::subscription_config::Subscription> =
-            rules.subscriptions.into_iter().map(Into::into).collect();
-
-        let replication_config = management::ReplicationConfig {
-            replications: rules.replication,
-            replication_count: rules.replication_count as _,
-            replication_queue_max_size: rules.replication_queue_max_size as _,
-        };
-
-        let query_config = management::QueryConfig {
-            query_local: rules.query_local,
-            primary: rules.primary_query_group.unwrap_or_default(),
-            secondaries: rules.secondary_query_groups,
-            read_only_partitions: rules.read_only_partitions,
-        };
-
         Self {
             name: rules.name,
             partition_template: Some(rules.partition_template.into()),
-            replication_config: Some(replication_config),
-            subscription_config: Some(management::SubscriptionConfig { subscriptions }),
-            query_config: Some(query_config),
             wal_buffer_config: rules.wal_buffer_config.map(Into::into),
             mutable_buffer_config: rules.mutable_buffer_config.map(Into::into),
         }
@@ -183,15 +102,6 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
     fn try_from(proto: management::DatabaseRules) -> Result<Self, Self::Error> {
         DatabaseName::new(&proto.name).field("name")?;
 
-        let subscriptions = proto
-            .subscription_config
-            .map(|s| {
-                s.subscriptions
-                    .vec_field("subscription_config.subscriptions")
-            })
-            .transpose()?
-            .unwrap_or_default();
-
         let wal_buffer_config = proto.wal_buffer_config.optional("wal_buffer_config")?;
 
         let mutable_buffer_config = proto
@@ -203,20 +113,9 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
             .optional("partition_template")?
             .unwrap_or_default();
 
-        let query = proto.query_config.unwrap_or_default();
-        let replication = proto.replication_config.unwrap_or_default();
-
         Ok(Self {
             name: proto.name,
             partition_template,
-            replication: replication.replications,
-            replication_count: replication.replication_count as _,
-            replication_queue_max_size: replication.replication_queue_max_size as _,
-            subscriptions,
-            query_local: query.query_local,
-            primary_query_group: query.primary.optional(),
-            secondary_query_groups: query.secondaries,
-            read_only_partitions: query.read_only_partitions,
             wal_buffer_config,
             mutable_buffer_config,
         })
@@ -809,123 +708,6 @@ impl TryFrom<management::partition_template::Part> for TemplatePart {
 pub type PartitionId = String;
 pub type WriterId = u32;
 
-/// `Subscription` represents a group of hosts that want to receive data as it
-/// arrives. The subscription has a matcher that is used to determine what data
-/// will match it, and an optional queue for storing matched writes. Subscribers
-/// that recieve some subeset of an individual replicated write will get a new
-/// replicated write, but with the same originating writer ID and sequence
-/// number for the consuming subscriber's tracking purposes.
-///
-/// For pull based subscriptions, the requester will send a matcher, which the
-/// receiver will execute against its in-memory WAL.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct Subscription {
-    pub name: String,
-    pub host_group_id: HostGroupId,
-    pub matcher: Matcher,
-}
-
-impl From<Subscription> for management::subscription_config::Subscription {
-    fn from(s: Subscription) -> Self {
-        Self {
-            name: s.name,
-            host_group_id: s.host_group_id,
-            matcher: Some(s.matcher.into()),
-        }
-    }
-}
-
-impl TryFrom<management::subscription_config::Subscription> for Subscription {
-    type Error = FieldViolation;
-
-    fn try_from(proto: management::subscription_config::Subscription) -> Result<Self, Self::Error> {
-        Ok(Self {
-            name: proto.name.required("name")?,
-            host_group_id: proto.host_group_id.required("host_group_id")?,
-            matcher: proto.matcher.optional("matcher")?.unwrap_or_default(),
-        })
-    }
-}
-
-/// `Matcher` specifies the rule against the table name and/or a predicate
-/// against the row to determine if it matches the write rule.
-#[derive(Debug, Default, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct Matcher {
-    pub tables: MatchTables,
-    // TODO: make this work with query::Predicate
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub predicate: Option<String>,
-}
-
-impl From<Matcher> for management::Matcher {
-    fn from(m: Matcher) -> Self {
-        Self {
-            predicate: m.predicate.unwrap_or_default(),
-            table_matcher: Some(m.tables.into()),
-        }
-    }
-}
-
-impl TryFrom<management::Matcher> for Matcher {
-    type Error = FieldViolation;
-
-    fn try_from(proto: management::Matcher) -> Result<Self, Self::Error> {
-        Ok(Self {
-            tables: proto.table_matcher.required("table_matcher")?,
-            predicate: proto.predicate.optional(),
-        })
-    }
-}
-
-/// `MatchTables` looks at the table name of a row to determine if it should
-/// match the rule.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-#[serde(rename_all = "camelCase")]
-pub enum MatchTables {
-    #[serde(rename = "*")]
-    All,
-    Table(String),
-    Regex(String),
-}
-
-impl Default for MatchTables {
-    fn default() -> Self {
-        Self::All
-    }
-}
-
-impl From<MatchTables> for management::matcher::TableMatcher {
-    fn from(m: MatchTables) -> Self {
-        match m {
-            MatchTables::All => Self::All(Empty {}),
-            MatchTables::Table(table) => Self::Table(table),
-            MatchTables::Regex(regex) => Self::Regex(regex),
-        }
-    }
-}
-
-impl TryFrom<management::matcher::TableMatcher> for MatchTables {
-    type Error = FieldViolation;
-
-    fn try_from(proto: management::matcher::TableMatcher) -> Result<Self, Self::Error> {
-        use management::matcher::TableMatcher;
-        Ok(match proto {
-            TableMatcher::All(_) => Self::All,
-            TableMatcher::Table(table) => Self::Table(table.required("table_matcher.table")?),
-            TableMatcher::Regex(regex) => Self::Regex(regex.required("table_matcher.regex")?),
-        })
-    }
-}
-
-pub type HostGroupId = String;
-
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct HostGroup {
-    pub id: HostGroupId,
-    /// `hosts` is a vector of connection strings for remote hosts.
-    pub hosts: Vec<String>,
-}
-
 #[cfg(test)]
 mod tests {
     use influxdb_line_protocol::parse_lines;
@@ -1107,80 +889,14 @@ mod tests {
         assert_eq!(protobuf.name, back.name);
 
         assert_eq!(rules.partition_template.parts.len(), 0);
-        assert_eq!(rules.subscriptions.len(), 0);
-        assert!(rules.primary_query_group.is_none());
-        assert_eq!(rules.read_only_partitions.len(), 0);
-        assert_eq!(rules.secondary_query_groups.len(), 0);
 
         // These will be defaulted as optionality not preserved on non-protobuf
         // DatabaseRules
-        assert_eq!(back.replication_config, Some(Default::default()));
-        assert_eq!(back.subscription_config, Some(Default::default()));
-        assert_eq!(back.query_config, Some(Default::default()));
         assert_eq!(back.partition_template, Some(Default::default()));
 
         // These should be none as preserved on non-protobuf DatabaseRules
         assert!(back.wal_buffer_config.is_none());
         assert!(back.mutable_buffer_config.is_none());
-    }
-
-    #[test]
-    fn test_database_rules_query() {
-        let readonly = vec!["readonly1".to_string(), "readonly2".to_string()];
-        let secondaries = vec!["secondary1".to_string(), "secondary2".to_string()];
-
-        let protobuf = management::DatabaseRules {
-            name: "database".to_string(),
-            query_config: Some(management::QueryConfig {
-                query_local: true,
-                primary: "primary".to_string(),
-                secondaries: secondaries.clone(),
-                read_only_partitions: readonly.clone(),
-            }),
-            ..Default::default()
-        };
-
-        let rules: DatabaseRules = protobuf.clone().try_into().unwrap();
-        let back: management::DatabaseRules = rules.clone().into();
-
-        assert_eq!(rules.name, protobuf.name);
-        assert_eq!(protobuf.name, back.name);
-
-        assert_eq!(rules.read_only_partitions, readonly);
-        assert_eq!(rules.primary_query_group, Some("primary".to_string()));
-        assert_eq!(rules.secondary_query_groups, secondaries);
-        assert_eq!(rules.subscriptions.len(), 0);
-        assert_eq!(rules.partition_template.parts.len(), 0);
-
-        // Should be the same as was specified
-        assert_eq!(back.query_config, protobuf.query_config);
-        assert!(back.wal_buffer_config.is_none());
-        assert!(back.mutable_buffer_config.is_none());
-
-        // These will be defaulted as optionality not preserved on non-protobuf
-        // DatabaseRules
-        assert_eq!(back.replication_config, Some(Default::default()));
-        assert_eq!(back.subscription_config, Some(Default::default()));
-        assert_eq!(back.partition_template, Some(Default::default()));
-    }
-
-    #[test]
-    fn test_query_config_default() {
-        let protobuf = management::DatabaseRules {
-            name: "database".to_string(),
-            query_config: Some(Default::default()),
-            ..Default::default()
-        };
-
-        let rules: DatabaseRules = protobuf.clone().try_into().unwrap();
-        let back: management::DatabaseRules = rules.clone().into();
-
-        assert!(rules.primary_query_group.is_none());
-        assert_eq!(rules.secondary_query_groups.len(), 0);
-        assert_eq!(rules.read_only_partitions.len(), 0);
-        assert_eq!(rules.query_local, false);
-
-        assert_eq!(protobuf.query_config, back.query_config);
     }
 
     #[test]
@@ -1315,87 +1031,6 @@ mod tests {
 
         assert_eq!(&err.field, "closeSegmentAfter");
         assert_eq!(&err.description, "Duration must be positive");
-    }
-
-    #[test]
-    fn test_matcher_default() {
-        let protobuf: management::Matcher = Default::default();
-
-        let res: Result<Matcher, _> = protobuf.try_into();
-        let err = res.expect_err("expected failure");
-
-        assert_eq!(&err.field, "table_matcher");
-        assert_eq!(&err.description, "Field is required");
-    }
-
-    #[test]
-    fn test_matcher() {
-        let protobuf = management::Matcher {
-            predicate: Default::default(),
-            table_matcher: Some(management::matcher::TableMatcher::Regex(
-                "regex".to_string(),
-            )),
-        };
-        let matcher: Matcher = protobuf.try_into().unwrap();
-
-        assert_eq!(matcher.tables, MatchTables::Regex("regex".to_string()));
-        assert!(matcher.predicate.is_none());
-    }
-
-    #[test]
-    fn test_subscription_default() {
-        let pb_matcher = Some(management::Matcher {
-            predicate: "predicate1".to_string(),
-            table_matcher: Some(management::matcher::TableMatcher::Table(
-                "table".to_string(),
-            )),
-        });
-
-        let matcher = Matcher {
-            tables: MatchTables::Table("table".to_string()),
-            predicate: Some("predicate1".to_string()),
-        };
-
-        let subscription_config = management::SubscriptionConfig {
-            subscriptions: vec![
-                management::subscription_config::Subscription {
-                    name: "subscription1".to_string(),
-                    host_group_id: "host group".to_string(),
-                    matcher: pb_matcher.clone(),
-                },
-                management::subscription_config::Subscription {
-                    name: "subscription2".to_string(),
-                    host_group_id: "host group".to_string(),
-                    matcher: pb_matcher,
-                },
-            ],
-        };
-
-        let protobuf = management::DatabaseRules {
-            name: "database".to_string(),
-            subscription_config: Some(subscription_config),
-            ..Default::default()
-        };
-
-        let rules: DatabaseRules = protobuf.clone().try_into().unwrap();
-        let back: management::DatabaseRules = rules.clone().into();
-
-        assert_eq!(protobuf.subscription_config, back.subscription_config);
-        assert_eq!(
-            rules.subscriptions,
-            vec![
-                Subscription {
-                    name: "subscription1".to_string(),
-                    host_group_id: "host group".to_string(),
-                    matcher: matcher.clone()
-                },
-                Subscription {
-                    name: "subscription2".to_string(),
-                    host_group_id: "host group".to_string(),
-                    matcher
-                }
-            ]
-        )
     }
 
     #[test]
