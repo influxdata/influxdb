@@ -1,9 +1,13 @@
 use assert_cmd::Command;
 use predicates::prelude::*;
 
-pub async fn test(addr: impl AsRef<str>) {
-    test_writer_id(addr.as_ref()).await;
-    test_create_database(addr.as_ref()).await;
+use crate::common::server_fixture::ServerFixture;
+
+pub async fn test(server_fixture: &ServerFixture) {
+    let addr = server_fixture.grpc_url_base();
+
+    test_writer_id(addr).await;
+    test_create_database(addr).await;
 }
 
 async fn test_writer_id(addr: &str) {

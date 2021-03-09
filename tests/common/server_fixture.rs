@@ -32,9 +32,9 @@ const GRPC_BIND_ADDR: &str = grpc_bind_addr!();
 
 const HTTP_BASE: &str = concat!("http://", http_bind_addr!());
 const IOX_API_V1_BASE: &str = concat!("http://", http_bind_addr!(), "/iox/api/v1");
-pub const GRPC_URL_BASE: &str = concat!("http://", grpc_bind_addr!(), "/");
+const GRPC_URL_BASE: &str = concat!("http://", grpc_bind_addr!(), "/");
 
-pub const TOKEN: &str = "InfluxDB IOx doesn't have authentication yet";
+const TOKEN: &str = "InfluxDB IOx doesn't have authentication yet";
 
 use std::sync::Arc;
 
@@ -45,6 +45,7 @@ use tokio::sync::Mutex;
 /// testing.
 pub struct ServerFixture {
     server: Arc<TestServer>,
+    grpc_channel: tonic::transport::Channel,
 }
 
 impl ServerFixture {
@@ -63,16 +64,27 @@ impl ServerFixture {
 
         // ensure the server is ready
         server.wait_until_ready().await;
-        ServerFixture { server }
+
+        let grpc_channel = server
+            .grpc_channel()
+            .await
+            .expect("The server should have been up");
+
+        ServerFixture {
+            server,
+            grpc_channel,
+        }
     }
 
     /// Return a channel connected to the gRPC API. Panics if the
     /// server is not yet up
-    pub async fn grpc_channel(&self) -> tonic::transport::Channel {
-        self.server
-            .grpc_channel()
-            .await
-            .expect("The server should be up")
+    pub fn grpc_channel(&self) -> tonic::transport::Channel {
+        self.grpc_channel.clone()
+    }
+
+    /// Return the url base of the grpc management API
+    pub fn grpc_url_base(&self) -> &str {
+        self.server.grpc_url_base()
     }
 
     /// Return the http base URL for the HTTP API
@@ -83,6 +95,12 @@ impl ServerFixture {
     /// Return the base URL for the IOx V1 API
     pub fn iox_api_v1_base(&self) -> &str {
         self.server.iox_api_v1_base()
+    }
+
+    /// Return an a http client suitable suitable for communicating with this
+    /// server
+    pub fn influxdb2_client(&self) -> influxdb2_client::Client {
+        influxdb2_client::Client::new(self.http_base(), TOKEN)
     }
 }
 

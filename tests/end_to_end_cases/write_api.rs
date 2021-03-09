@@ -12,8 +12,8 @@ use crate::common::server_fixture::ServerFixture;
 async fn test_write() {
     // TODO sort out changing the test ID
     let fixture = ServerFixture::create_shared().await;
-    let mut management_client = management::Client::new(fixture.grpc_channel().await);
-    let mut write_client = write::Client::new(fixture.grpc_channel().await);
+    let mut management_client = management::Client::new(fixture.grpc_channel());
+    let mut write_client = write::Client::new(fixture.grpc_channel());
 
     const TEST_ID: u32 = 42;
 

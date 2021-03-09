@@ -44,13 +44,10 @@ use common::server_fixture::*;
 async fn read_and_write_data() {
     let fixture = ServerFixture::create_shared().await;
 
-    let influxdb2 = influxdb2_client::Client::new(fixture.http_base(), TOKEN);
-    let grpc = influxdb_iox_client::connection::Builder::default()
-        .build(GRPC_URL_BASE)
-        .await
-        .unwrap();
-    let mut storage_client = StorageClient::new(grpc.clone());
-    let mut management_client = influxdb_iox_client::management::Client::new(grpc.clone());
+    let influxdb2 = fixture.influxdb2_client();
+    let mut storage_client = StorageClient::new(fixture.grpc_channel());
+    let mut management_client =
+        influxdb_iox_client::management::Client::new(fixture.grpc_channel());
 
     // These tests share data; TODO: a better way to indicate this
     {
@@ -65,7 +62,7 @@ async fn read_and_write_data() {
 
         read_api::test(&fixture, &scenario, sql_query, &expected_read_data).await;
         storage_api::test(&mut storage_client, &scenario).await;
-        flight_api::test(&scenario, sql_query, &expected_read_data).await;
+        flight_api::test(&fixture, &scenario, sql_query, &expected_read_data).await;
     }
 
     // These tests manage their own data
@@ -77,8 +74,8 @@ async fn read_and_write_data() {
     )
     .await;
     management_api::test(&mut management_client).await;
-    management_cli::test(GRPC_URL_BASE).await;
-    write_cli::test(GRPC_URL_BASE).await;
+    management_cli::test(&fixture).await;
+    write_cli::test(&fixture).await;
     test_http_error_messages(&influxdb2).await.unwrap();
 }
 
