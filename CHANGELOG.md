@@ -1,19 +1,28 @@
-v1.8.4 [unreleased]
+v1.8.5 [unreleased]
 -------------------
 
 ### Features
 
 -	[#20118](https://github.com/influxdata/influxdb/pull/20118): feat: Optimize shard lookups in groups containing only one shard. Thanks @StoneYunZhao!
+-	[#20910](https://github.com/influxdata/influxdb/pull/20910): feat: Make meta queries respect QueryTimeout values
 
 ### Bugfixes
 
 -	[#20101](https://github.com/influxdata/influxdb/pull/20101): fix(write): Successful writes increment write error statistics incorrectly.
--	[#19696](https://github.com/influxdata/influxdb/pull/19697): fix(flux): add durations to Flux logging.
 -	[#20276](https://github.com/influxdata/influxdb/pull/20276): fix(error): unsupported value: +Inf" error not handled gracefully.
 -	[#20277](https://github.com/influxdata/influxdb/pull/20277): fix(query): Group By queries with offset that crosses a DST boundary can fail.
 -	[#20295](https://github.com/influxdata/influxdb/pull/20295): fix: cp.Mux.Serve() closes all net.Listener instances silently on error.
 -	[#19832](https://github.com/influxdata/influxdb/pull/19832): fix(prometheus): regexp handling should comply with PromQL.
 -	[#20432](https://github.com/influxdata/influxdb/pull/20432): fix(error): SELECT INTO doesn't return error with unsupported value
+-	[#20033](https://github.com/influxdata/influxdb/pull/20033): fix(tsm1): "snapshot in progress" error during backup
+
+v1.8.4 [2021-01-27]
+-------------------
+
+### Bugfixes
+
+-	[#19696](https://github.com/influxdata/influxdb/pull/19697): fix(flux): add durations to Flux logging
+
 
 v1.8.3 [2020-09-30]
 -------------------
