@@ -20,6 +20,7 @@ use std::default::Default;
 pub enum Packers {
     Float(Packer<f64>),
     Integer(Packer<i64>),
+    UInteger(Packer<u64>),
     Bytes(Packer<ByteArray>),
     String(Packer<String>),
     Boolean(Packer<bool>),
@@ -52,6 +53,7 @@ impl<'a> Packers {
         match self {
             Self::Float(p) => PackerChunker::Float(p.values.chunks(chunk_size)),
             Self::Integer(p) => PackerChunker::Integer(p.values.chunks(chunk_size)),
+            Self::UInteger(p) => PackerChunker::UInteger(p.values.chunks(chunk_size)),
             Self::Bytes(p) => PackerChunker::Bytes(p.values.chunks(chunk_size)),
             Self::String(p) => PackerChunker::String(p.values.chunks(chunk_size)),
             Self::Boolean(p) => PackerChunker::Boolean(p.values.chunks(chunk_size)),
@@ -69,6 +71,7 @@ impl<'a> Packers {
         match self {
             Self::Float(p) => p.reserve_exact(additional),
             Self::Integer(p) => p.reserve_exact(additional),
+            Self::UInteger(p) => p.reserve_exact(additional),
             Self::Bytes(p) => p.reserve_exact(additional),
             Self::String(p) => p.reserve_exact(additional),
             Self::Boolean(p) => p.reserve_exact(additional),
@@ -79,6 +82,7 @@ impl<'a> Packers {
         match self {
             Self::Float(p) => p.push_option(None),
             Self::Integer(p) => p.push_option(None),
+            Self::UInteger(p) => p.push_option(None),
             Self::Bytes(p) => p.push_option(None),
             Self::String(p) => p.push_option(None),
             Self::Boolean(p) => p.push_option(None),
@@ -90,6 +94,7 @@ impl<'a> Packers {
         match self {
             Self::Float(p) => p.swap(a, b),
             Self::Integer(p) => p.swap(a, b),
+            Self::UInteger(p) => p.swap(a, b),
             Self::Bytes(p) => p.swap(a, b),
             Self::String(p) => p.swap(a, b),
             Self::Boolean(p) => p.swap(a, b),
@@ -101,6 +106,7 @@ impl<'a> Packers {
         match self {
             Self::Float(p) => p.num_rows(),
             Self::Integer(p) => p.num_rows(),
+            Self::UInteger(p) => p.num_rows(),
             Self::Bytes(p) => p.num_rows(),
             Self::String(p) => p.num_rows(),
             Self::Boolean(p) => p.num_rows(),
@@ -114,6 +120,7 @@ impl<'a> Packers {
         match self {
             Self::Float(p) => p.is_null(row),
             Self::Integer(p) => p.is_null(row),
+            Self::UInteger(p) => p.is_null(row),
             Self::Bytes(p) => p.is_null(row),
             Self::String(p) => p.is_null(row),
             Self::Boolean(p) => p.is_null(row),
@@ -124,6 +131,7 @@ impl<'a> Packers {
     typed_packer_accessors! {
         (f64_packer, f64_packer_mut, f64, Float),
         (i64_packer, i64_packer_mut, i64, Integer),
+        (u64_packer, u64_packer_mut, u64, UInteger),
         (bytes_packer, bytes_packer_mut, ByteArray, Bytes),
         (str_packer, str_packer_mut, String, String),
         (bool_packer, bool_packer_mut, bool, Boolean),
@@ -245,6 +253,7 @@ impl std::convert::From<Vec<Option<Vec<u8>>>> for Packers {
 pub enum PackerChunker<'a> {
     Float(Chunks<'a, Option<f64>>),
     Integer(Chunks<'a, Option<i64>>),
+    UInteger(Chunks<'a, Option<u64>>),
     Bytes(Chunks<'a, Option<ByteArray>>),
     String(Chunks<'a, Option<String>>),
     Boolean(Chunks<'a, Option<bool>>),
@@ -523,6 +532,7 @@ mod test {
         let mut packers: Vec<Packers> = Vec::new();
         packers.push(Packers::Float(Packer::new()));
         packers.push(Packers::Integer(Packer::new()));
+        packers.push(Packers::UInteger(Packer::new()));
         packers.push(Packers::Boolean(Packer::new()));
 
         packers.get_mut(0).unwrap().f64_packer_mut().push(22.033);

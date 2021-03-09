@@ -23,7 +23,9 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use arrow_deps::{
     arrow,
     arrow::{
-        array::{ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder},
+        array::{
+            ArrayRef, BooleanBuilder, Float64Builder, Int64Builder, StringBuilder, UInt64Builder,
+        },
         datatypes::DataType as ArrowDataType,
         record_batch::RecordBatch,
     },
@@ -326,6 +328,7 @@ impl Table {
                         schema_builder.field(column_name, ArrowDataType::Int64)
                     }
                 }
+                Column::U64(_, _) => schema_builder.field(column_name, ArrowDataType::UInt64),
                 Column::Bool(_, _) => schema_builder.field(column_name, ArrowDataType::Boolean),
             };
         }
@@ -392,6 +395,15 @@ impl Table {
                 }
                 Column::I64(vals, _) => {
                     let mut builder = Int64Builder::new(vals.len());
+
+                    for v in vals {
+                        builder.append_option(*v).context(ArrowError {})?;
+                    }
+
+                    Arc::new(builder.finish()) as ArrayRef
+                }
+                Column::U64(vals, _) => {
+                    let mut builder = UInt64Builder::new(vals.len());
 
                     for v in vals {
                         builder.append_option(*v).context(ArrowError {})?;
@@ -504,6 +516,7 @@ impl Table {
         match column {
             Column::F64(v, _) => self.column_value_matches_predicate(v, chunk_predicate),
             Column::I64(v, _) => self.column_value_matches_predicate(v, chunk_predicate),
+            Column::U64(v, _) => self.column_value_matches_predicate(v, chunk_predicate),
             Column::String(v, _) => self.column_value_matches_predicate(v, chunk_predicate),
             Column::Bool(v, _) => self.column_value_matches_predicate(v, chunk_predicate),
             Column::Tag(v, _) => self.column_value_matches_predicate(v, chunk_predicate),
@@ -545,6 +558,7 @@ impl Table {
             let stats = match c {
                 Column::F64(_, stats) => Statistics::F64(stats.clone()),
                 Column::I64(_, stats) => Statistics::I64(stats.clone()),
+                Column::U64(_, stats) => Statistics::U64(stats.clone()),
                 Column::Bool(_, stats) => Statistics::Bool(stats.clone()),
                 Column::String(_, stats) | Column::Tag(_, stats) => {
                     Statistics::String(stats.clone())
@@ -736,7 +750,7 @@ mod tests {
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
         let lp_lines = vec![
-            "h2o,state=MA,city=Boston float_field=70.4,int_field=8i,bool_field=t,string_field=\"foo\" 100",
+            "h2o,state=MA,city=Boston float_field=70.4,int_field=8i,uint_field=42u,bool_field=t,string_field=\"foo\" 100",
         ];
 
         write_lines_to_table(&mut table, dictionary, lp_lines);
@@ -751,6 +765,7 @@ mod tests {
             .tag("state")
             .field("string_field", ArrowDataType::Utf8)
             .timestamp()
+            .field("uint_field", ArrowDataType::UInt64)
             .build()
             .unwrap();
 
