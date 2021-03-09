@@ -1,14 +1,13 @@
 package tsm1
 
 import (
-	"os"
 	"runtime"
 	"testing"
 	"time"
 
 	"github.com/influxdata/influxdb/v2/influxql/query"
-	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxql"
+	"go.uber.org/zap/zaptest"
 )
 
 func BenchmarkIntegerIterator_Next(b *testing.B) {
@@ -71,7 +70,7 @@ func TestFinalizerIterator(t *testing.T) {
 		step3 = make(chan struct{})
 	)
 
-	l := logger.New(os.Stderr)
+	l := zaptest.NewLogger(t)
 	done := make(chan struct{})
 	func() {
 		itr := &testFinalizerIterator{

@@ -21,20 +21,20 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2/influxql/query"
-	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/deep"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
 	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/influxdata/influxql"
+	"go.uber.org/zap/zaptest"
 )
 
 // Ensure that deletes only sent to the WAL will clear out the data from the cache on restart
 func TestEngine_DeleteWALLoadMetadata(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
-			e := MustOpenEngine(index)
+			e := MustOpenEngine(t, index)
 			defer e.Close()
 
 			if err := e.WritePointsString(
@@ -70,7 +70,7 @@ func TestEngine_DeleteWALLoadMetadata(t *testing.T) {
 func TestEngine_DeleteSeriesAfterCacheSnapshot(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
-			e := MustOpenEngine(index)
+			e := MustOpenEngine(t, index)
 			defer e.Close()
 
 			if err := e.WritePointsString(
@@ -174,7 +174,7 @@ func seriesExist(e *Engine, m string, dims []string) (int, error) {
 
 // Ensure that the engine can write & read shard digest files.
 func TestEngine_Digest(t *testing.T) {
-	e := MustOpenEngine(tsi1.IndexName)
+	e := MustOpenEngine(t, tsi1.IndexName)
 	defer e.Close()
 
 	if err := e.Open(); err != nil {
@@ -322,7 +322,7 @@ type span struct {
 
 // Ensure engine handles concurrent calls to Digest().
 func TestEngine_Digest_Concurrent(t *testing.T) {
-	e := MustOpenEngine(tsi1.IndexName)
+	e := MustOpenEngine(t, tsi1.IndexName)
 	defer e.Close()
 
 	if err := e.Open(); err != nil {
@@ -748,7 +748,7 @@ func TestEngine_CreateIterator_Cache_Ascending(t *testing.T) {
 
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
-			e := MustOpenEngine(index)
+			e := MustOpenEngine(t, index)
 			defer e.Close()
 
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
@@ -805,7 +805,7 @@ func TestEngine_CreateIterator_Cache_Descending(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
 
-			e := MustOpenEngine(index)
+			e := MustOpenEngine(t, index)
 			defer e.Close()
 
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
@@ -861,7 +861,7 @@ func TestEngine_CreateIterator_TSM_Ascending(t *testing.T) {
 
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
-			e := MustOpenEngine(index)
+			e := MustOpenEngine(t, index)
 			defer e.Close()
 
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
@@ -919,7 +919,7 @@ func TestEngine_CreateIterator_TSM_Descending(t *testing.T) {
 
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
-			e := MustOpenEngine(index)
+			e := MustOpenEngine(t, index)
 			defer e.Close()
 
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
@@ -977,7 +977,7 @@ func TestEngine_CreateIterator_Aux(t *testing.T) {
 
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
-			e := MustOpenEngine(index)
+			e := MustOpenEngine(t, index)
 			defer e.Close()
 
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
@@ -1037,7 +1037,7 @@ func TestEngine_CreateIterator_Condition(t *testing.T) {
 
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
-			e := MustOpenEngine(index)
+			e := MustOpenEngine(t, index)
 			defer e.Close()
 
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
@@ -1093,8 +1093,8 @@ func TestEngine_CreateIterator_Condition(t *testing.T) {
 
 // Test that series id set gets updated and returned appropriately.
 func TestIndex_SeriesIDSet(t *testing.T) {
-	test := func(index string) error {
-		engine := MustOpenEngine(index)
+	test := func(t *testing.T, index string) error {
+		engine := MustOpenEngine(t, index)
 		defer engine.Close()
 
 		// Add some series.
@@ -1180,7 +1180,7 @@ func TestIndex_SeriesIDSet(t *testing.T) {
 
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
-			if err := test(index); err != nil {
+			if err := test(t, index); err != nil {
 				t.Error(err)
 			}
 		})
@@ -1197,7 +1197,7 @@ func TestEngine_DeleteSeries(t *testing.T) {
 			p2 := MustParsePointString("cpu,host=B value=1.2 2000000000")
 			p3 := MustParsePointString("cpu,host=A sum=1.3 3000000000")
 
-			e, err := NewEngine(index)
+			e, err := NewEngine(t, index)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1252,7 +1252,7 @@ func TestEngine_DeleteSeriesRange(t *testing.T) {
 			p7 := MustParsePointString("mem,host=C value=1.3 1000000000")  // Should not be deleted
 			p8 := MustParsePointString("disk,host=C value=1.3 1000000000") // Should not be deleted
 
-			e, err := NewEngine(index)
+			e, err := NewEngine(t, index)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1362,7 +1362,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate(t *testing.T) {
 			p7 := MustParsePointString("mem,host=C value=1.3 1000000000")
 			p8 := MustParsePointString("disk,host=C value=1.3 1000000000") // Should not be deleted
 
-			e, err := NewEngine(index)
+			e, err := NewEngine(t, index)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1488,7 +1488,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_Nil(t *testing.T) {
 			p7 := MustParsePointString("mem,host=C value=1.3 1000000000")
 			p8 := MustParsePointString("disk,host=C value=1.3 1000000000") // Should not be deleted
 
-			e, err := NewEngine(index)
+			e, err := NewEngine(t, index)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1574,7 +1574,7 @@ func TestEngine_DeleteSeriesRangeWithPredicate_FlushBatch(t *testing.T) {
 			p7 := MustParsePointString("mem,host=C value=1.3 1000000000")
 			p8 := MustParsePointString("disk,host=C value=1.3 1000000000") // Should not be deleted
 
-			e, err := NewEngine(index)
+			e, err := NewEngine(t, index)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1693,7 +1693,7 @@ func TestEngine_DeleteSeriesRange_OutsideTime(t *testing.T) {
 			// Create a few points.
 			p1 := MustParsePointString("cpu,host=A value=1.1 1000000000") // Should not be deleted
 
-			e, err := NewEngine(index)
+			e, err := NewEngine(t, index)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1774,7 +1774,7 @@ func TestEngine_LastModified(t *testing.T) {
 			p2 := MustParsePointString("cpu,host=B value=1.2 2000000000")
 			p3 := MustParsePointString("cpu,host=A sum=1.3 3000000000")
 
-			e, err := NewEngine(index)
+			e, err := NewEngine(t, index)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1865,7 +1865,7 @@ func TestEngine_SnapshotsDisabled(t *testing.T) {
 func TestEngine_ShouldCompactCache(t *testing.T) {
 	nowTime := time.Now()
 
-	e, err := NewEngine(tsi1.IndexName)
+	e, err := NewEngine(t, tsi1.IndexName)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1910,7 +1910,7 @@ func TestEngine_CreateCursor_Ascending(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
 
-			e := MustOpenEngine(index)
+			e := MustOpenEngine(t, index)
 			defer e.Close()
 
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
@@ -1970,7 +1970,7 @@ func TestEngine_CreateCursor_Descending(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
 
-			e := MustOpenEngine(index)
+			e := MustOpenEngine(t, index)
 			defer e.Close()
 
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
@@ -2052,7 +2052,7 @@ func TestEngine_DisableEnableCompactions_Concurrent(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
 
-			e := MustOpenEngine(index)
+			e := MustOpenEngine(t, index)
 			defer e.Close()
 
 			var wg sync.WaitGroup
@@ -2097,7 +2097,7 @@ func TestEngine_WritePoints_TypeConflict(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
 
-			e := MustOpenEngine(index)
+			e := MustOpenEngine(t, index)
 			defer e.Close()
 
 			if err := e.WritePointsString(
@@ -2133,7 +2133,7 @@ func TestEngine_WritePoints_Reload(t *testing.T) {
 	for _, index := range tsdb.RegisteredIndexes() {
 		t.Run(index, func(t *testing.T) {
 
-			e := MustOpenEngine(index)
+			e := MustOpenEngine(t, index)
 			defer e.Close()
 
 			if err := e.WritePointsString(
@@ -2176,7 +2176,7 @@ func TestEngine_Invalid_UTF8(t *testing.T) {
 			field := []byte{255, 110, 101, 116}    // A known invalid UTF-8 string
 			p := MustParsePointString(fmt.Sprintf("%s,host=A %s=1.1 6000000000", name, field))
 
-			e, err := NewEngine(index)
+			e, err := NewEngine(t, index)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -2207,7 +2207,7 @@ func BenchmarkEngine_WritePoints(b *testing.B) {
 	batchSizes := []int{10, 100, 1000, 5000, 10000}
 	for _, sz := range batchSizes {
 		for _, index := range tsdb.RegisteredIndexes() {
-			e := MustOpenEngine(index)
+			e := MustOpenEngine(b, index)
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
 			pp := make([]models.Point, 0, sz)
 			for i := 0; i < sz; i++ {
@@ -2233,7 +2233,7 @@ func BenchmarkEngine_WritePoints_Parallel(b *testing.B) {
 	batchSizes := []int{1000, 5000, 10000, 25000, 50000, 75000, 100000, 200000}
 	for _, sz := range batchSizes {
 		for _, index := range tsdb.RegisteredIndexes() {
-			e := MustOpenEngine(index)
+			e := MustOpenEngine(b, index)
 			e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
 
 			cpus := runtime.GOMAXPROCS(0)
@@ -2412,7 +2412,7 @@ var benchmarkVariants = []struct {
 func BenchmarkEngine_CreateIterator(b *testing.B) {
 	engines := make([]*benchmarkEngine, len(sizes))
 	for i, size := range sizes {
-		engines[i] = MustInitDefaultBenchmarkEngine(size.name, size.sz)
+		engines[i] = MustInitDefaultBenchmarkEngine(b, size.name, size.sz)
 	}
 
 	for _, tt := range benchmarks {
@@ -2458,13 +2458,13 @@ var (
 // MustInitDefaultBenchmarkEngine creates a new engine using the default index
 // and fills it with points.  Reuses previous engine if the same parameters
 // were used.
-func MustInitDefaultBenchmarkEngine(name string, pointN int) *benchmarkEngine {
+func MustInitDefaultBenchmarkEngine(tb testing.TB, name string, pointN int) *benchmarkEngine {
 	const batchSize = 1000
 	if pointN%batchSize != 0 {
 		panic(fmt.Sprintf("point count (%d) must be a multiple of batch size (%d)", pointN, batchSize))
 	}
 
-	e := MustOpenEngine(tsdb.DefaultIndex)
+	e := MustOpenEngine(tb, tsdb.DefaultIndex)
 
 	// Initialize metadata.
 	e.MeasurementFields([]byte("cpu")).CreateFieldIfNotExists([]byte("value"), influxql.Float)
@@ -2516,7 +2516,9 @@ type Engine struct {
 }
 
 // NewEngine returns a new instance of Engine at a temporary location.
-func NewEngine(index string) (*Engine, error) {
+func NewEngine(tb testing.TB, index string) (*Engine, error) {
+	tb.Helper()
+
 	root, err := ioutil.TempDir("", "tsm1-")
 	if err != nil {
 		panic(err)
@@ -2531,7 +2533,7 @@ func NewEngine(index string) (*Engine, error) {
 
 	// Setup series file.
 	sfile := tsdb.NewSeriesFile(filepath.Join(dbPath, tsdb.SeriesFileDirectory))
-	sfile.Logger = logger.New(os.Stdout)
+	sfile.Logger = zaptest.NewLogger(tb)
 	if err = sfile.Open(); err != nil {
 		return nil, err
 	}
@@ -2559,8 +2561,10 @@ func NewEngine(index string) (*Engine, error) {
 }
 
 // MustOpenEngine returns a new, open instance of Engine.
-func MustOpenEngine(index string) *Engine {
-	e, err := NewEngine(index)
+func MustOpenEngine(tb testing.TB, index string) *Engine {
+	tb.Helper()
+
+	e, err := NewEngine(tb, index)
 	if err != nil {
 		panic(err)
 	}

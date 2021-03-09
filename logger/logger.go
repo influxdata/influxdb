@@ -13,12 +13,6 @@ import (
 
 const TimeFormat = "2006-01-02T15:04:05.000000Z07:00"
 
-func New(w io.Writer) *zap.Logger {
-	config := NewConfig()
-	l, _ := config.New(w)
-	return l
-}
-
 func (c *Config) New(defaultOutput io.Writer) (*zap.Logger, error) {
 	w := defaultOutput
 	format := c.Format

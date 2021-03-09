@@ -71,14 +71,17 @@ func (h baseHandler) panic(w http.ResponseWriter, r *http.Request, rcv interface
 	h.HandleHTTPError(ctx, pe, w)
 }
 
-var panicLogger *zap.Logger
+var panicLogger = zap.NewNop()
 var panicLoggerOnce sync.Once
 
 // getPanicLogger returns a logger for panicHandler.
 func getPanicLogger() *zap.Logger {
 	panicLoggerOnce.Do(func() {
-		panicLogger = influxlogger.New(os.Stderr)
-		panicLogger = panicLogger.With(zap.String("handler", "panic"))
+		conf := influxlogger.NewConfig()
+		logger, err := conf.New(os.Stderr)
+		if err == nil {
+			panicLogger = logger.With(zap.String("handler", "panic"))
+		}
 	})
 
 	return panicLogger

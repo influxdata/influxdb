@@ -2,12 +2,11 @@ package tsi1_test
 
 import (
 	"bytes"
-	"os"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestSQLIndexExporter_ExportIndex(t *testing.T) {
@@ -40,7 +39,7 @@ COMMIT;
 	var buf bytes.Buffer
 	e := tsi1.NewSQLIndexExporter(&buf)
 	e.ShowSchema = false
-	e.Logger = logger.New(os.Stderr)
+	e.Logger = zaptest.NewLogger(t)
 	if err := e.ExportIndex(idx.Index); err != nil {
 		t.Fatal(err)
 	} else if err := e.Close(); err != nil {
