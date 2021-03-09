@@ -1462,7 +1462,7 @@ mod test {
         let parsed = parse(input);
 
         assert!(
-            matches!(parsed, Err(super::Error::UIntegerValueInvalid { .. })),
+            matches!(parsed, Err(super::Error::CannotParseEntireLine { .. })),
             "Wrong error: {:?}",
             parsed,
         );
