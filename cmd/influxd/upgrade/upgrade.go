@@ -119,12 +119,12 @@ type logOptions struct {
 	logPath  string
 }
 
-func NewCommand(ctx context.Context, v *viper.Viper) *cobra.Command {
+func NewCommand(ctx context.Context, v *viper.Viper) (*cobra.Command, error) {
 
 	// target flags
 	v2dir, err := fs.InfluxDir()
 	if err != nil {
-		panic("error fetching default InfluxDB 2.0 dir: " + err.Error())
+		return nil, fmt.Errorf("error fetching default InfluxDB 2.0 dir: %w", err)
 	}
 
 	// DEPRECATED in favor of log-level=debug, but left for backwards-compatibility
@@ -280,11 +280,13 @@ func NewCommand(ctx context.Context, v *viper.Viper) *cobra.Command {
 		},
 	}
 
-	cli.BindOptions(v, cmd, opts)
+	if err := cli.BindOptions(v, cmd, opts); err != nil {
+		return nil, err
+	}
 	// add sub commands
 	cmd.AddCommand(v1DumpMetaCommand)
 	cmd.AddCommand(v2DumpMetaCommand)
-	return cmd
+	return cmd, nil
 }
 
 type influxDBv1 struct {
