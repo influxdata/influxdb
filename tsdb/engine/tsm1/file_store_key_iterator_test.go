@@ -166,7 +166,7 @@ func (*mockTSMFile) BatchDelete() BatchDeleter                                  
 func (*mockTSMFile) Delete(keys [][]byte) error                                 { panic("implement me") }
 func (*mockTSMFile) DeleteRange(keys [][]byte, min, max int64) error            { panic("implement me") }
 func (*mockTSMFile) HasTombstones() bool                                        { panic("implement me") }
-func (*mockTSMFile) TombstoneFiles() []FileStat                                 { panic("implement me") }
+func (*mockTSMFile) TombstoneStats() TombstoneStat                   { panic("implement me") }
 func (*mockTSMFile) Close() error                                               { panic("implement me") }
 func (*mockTSMFile) Size() uint32                                               { panic("implement me") }
 func (*mockTSMFile) Rename(path string) error                                   { panic("implement me") }
