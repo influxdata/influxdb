@@ -66,7 +66,6 @@ fi
 OUTDIR=$(mktemp -d)
 for cmd in \
   influxdb/cmd/influxd \
-  influxdb/cmd/influx_stress \
   influxdb/cmd/influx \
   influxdb/cmd/influx_inspect \
   influxdb/cmd/influx_tsm \
