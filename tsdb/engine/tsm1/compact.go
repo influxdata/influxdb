@@ -834,7 +834,7 @@ func (c *Compactor) WriteSnapshot(cache *Cache) ([]string, error) {
 	// Enable throttling if we have lower cardinality or snapshots are going fast.
 	throttle := card < 3e6 && c.snapshotLatencies.avg() < 15*time.Second
 
-	// Write snapshost concurrently if cardinality is relatively high.
+	// Write snapshot concurrently if cardinality is relatively high.
 	concurrency := card / 2e6
 	if concurrency < 1 {
 		concurrency = 1
@@ -1963,12 +1963,12 @@ func (c *cacheKeyIterator) encode() {
 	for i := 0; i < concurrency; i++ {
 		// Run one goroutine per CPU and encode a section of the key space concurrently
 		go func() {
-			tenc := getTimeEncoder(tsdb.DefaultMaxPointsPerBlock)
-			fenc := getFloatEncoder(tsdb.DefaultMaxPointsPerBlock)
-			benc := getBooleanEncoder(tsdb.DefaultMaxPointsPerBlock)
-			uenc := getUnsignedEncoder(tsdb.DefaultMaxPointsPerBlock)
-			senc := getStringEncoder(tsdb.DefaultMaxPointsPerBlock)
-			ienc := getIntegerEncoder(tsdb.DefaultMaxPointsPerBlock)
+			tenc := getTimeEncoder(c.size)
+			fenc := getFloatEncoder(c.size)
+			benc := getBooleanEncoder(c.size)
+			uenc := getUnsignedEncoder(c.size)
+			senc := getStringEncoder(c.size)
+			ienc := getIntegerEncoder(c.size)
 
 			defer putTimeEncoder(tenc)
 			defer putFloatEncoder(fenc)
