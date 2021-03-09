@@ -15,6 +15,7 @@ the endpoint has been removed. Use the `/metrics` endpoint to collect system sta
 1. [20860](https://github.com/influxdata/influxdb/pull/20860): Add `/debug/pprof/all` HTTP endpoint to gather all profiles at once.
 1. [20860](https://github.com/influxdata/influxdb/pull/20860): Upgrade `http.pprof-enabled` config in `influxd upgrade`.
 1. [20846](https://github.com/influxdata/influxdb/pull/20846): Add `--compression` option to `influx write` to support GZIP inputs.
+1. [20845](https://github.com/influxdata/influxdb/pull/20845): Add `influx task retry-failed` command to rerun failed runs.
 
 ### Bug Fixes
 
