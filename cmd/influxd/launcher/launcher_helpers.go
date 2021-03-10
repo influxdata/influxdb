@@ -129,7 +129,6 @@ func (tl *TestLauncher) Run(tb zaptest.TestingT, ctx context.Context, setters ..
 // Shutdown stops the program and cleans up temporary paths.
 func (tl *TestLauncher) Shutdown(ctx context.Context) error {
 	defer os.RemoveAll(tl.Path)
-	tl.Cancel()
 	return tl.Launcher.Shutdown(ctx)
 }
 

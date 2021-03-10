@@ -103,11 +103,10 @@ func cmdRunE(ctx context.Context, o *InfluxdOpts) func() error {
 		l.log = logger
 
 		// Start the launcher and wait for it to exit on SIGINT or SIGTERM.
-		runCtx := signals.WithStandardSignals(ctx)
-		if err := l.run(runCtx, o); err != nil {
+		if err := l.run(signals.WithStandardSignals(ctx), o); err != nil {
 			return err
 		}
-		<-runCtx.Done()
+		<-l.Done()
 
 		// Tear down the launcher, allowing it a few seconds to finish any
 		// in-progress requests.

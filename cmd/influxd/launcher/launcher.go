@@ -93,8 +93,9 @@ const (
 
 // Launcher represents the main program execution.
 type Launcher struct {
-	wg     sync.WaitGroup
-	cancel func()
+	wg       sync.WaitGroup
+	cancel   func()
+	doneChan <-chan struct{}
 
 	flagger feature.Flagger
 
@@ -214,14 +215,16 @@ func (m *Launcher) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// Cancel executes the context cancel on the program. Used for testing.
-func (m *Launcher) Cancel() { m.cancel() }
+func (m *Launcher) Done() <-chan struct{} {
+	return m.doneChan
+}
 
 func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	ctx, m.cancel = context.WithCancel(ctx)
+	m.doneChan = ctx.Done()
 
 	info := platform.GetBuildInfo()
 	m.log.Info("Welcome to InfluxDB",
