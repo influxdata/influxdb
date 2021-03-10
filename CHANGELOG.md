@@ -37,7 +37,7 @@ or `/query` HTTP endpoints.
 1. [20843](https://github.com/influxdata/influxdb/pull/20843): Fix data race in TSM cache. Thanks @StoneYunZhao!
 1. [20967](https://github.com/influxdata/influxdb/pull/20967): Log error details when `influxd upgrade` fails to migrate databases.
 1. [20966](https://github.com/influxdata/influxdb/pull/20966): Prevent time field names from being formatted in the Table visualization.
-1. [20798](https://github.com/influxdata/influxdb/pull/20798): Deprecate misleading `retentionPeriodHrs` key in onboarding API.
+1. [20918](https://github.com/influxdata/influxdb/pull/20918): Deprecate misleading `retentionPeriodHrs` key in onboarding API.
 
 ## v2.0.4 [2021-02-08]
 ----------------------
