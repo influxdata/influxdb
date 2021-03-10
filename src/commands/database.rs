@@ -1,8 +1,10 @@
 //! This module implements the `database` CLI command
-use std::{fs::File, io::Read, path::PathBuf};
+use std::{fs::File, io::Read, path::PathBuf, str::FromStr};
 
 use influxdb_iox_client::{
     connection::Builder,
+    flight,
+    format::QueryOutputFormat,
     management::{
         self, generated_types::*, CreateDatabaseError, GetDatabaseError, ListDatabaseError,
     },
@@ -33,6 +35,12 @@ pub enum Error {
 
     #[error("Error writing: {0}")]
     WriteError(#[from] WriteError),
+
+    #[error("Error formatting: {0}")]
+    FormattingError(#[from] influxdb_iox_client::format::Error),
+
+    #[error("Error querying: {0}")]
+    Query(#[from] influxdb_iox_client::flight::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -72,12 +80,27 @@ struct Write {
     file_name: PathBuf,
 }
 
+/// Query the data with SQL
+#[derive(Debug, StructOpt)]
+struct Query {
+    /// The name of the database
+    name: String,
+
+    /// The query to run, in SQL format
+    query: String,
+
+    /// Optional format ('pretty', 'json', or 'csv')
+    #[structopt(short, long, default_value = "pretty")]
+    format: String,
+}
+
 /// All possible subcommands for database
 #[derive(Debug, StructOpt)]
 enum Command {
     Create(Create),
     Get(Get),
     Write(Write),
+    Query(Query),
 }
 
 pub async fn command(url: String, config: Config) -> Result<()> {
@@ -129,6 +152,28 @@ pub async fn command(url: String, config: Config) -> Result<()> {
             let lines_written = client.write(write.name, lp_data).await?;
 
             println!("{} Lines OK", lines_written);
+        }
+        Command::Query(query) => {
+            let mut client = flight::Client::new(connection);
+            let Query {
+                name,
+                format,
+                query,
+            } = query;
+
+            let format = QueryOutputFormat::from_str(&format)?;
+
+            let mut query_results = client.perform_query(&name, query).await?;
+
+            // It might be nice to do some sort of streaming write
+            // rather than buffering the whole thing.
+            let mut batches = vec![];
+            while let Some(data) = query_results.next().await? {
+                batches.push(data);
+            }
+
+            let formatted_result = format.format(&batches)?;
+            println!("{}", formatted_result);
         }
     }
 

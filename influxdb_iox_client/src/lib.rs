@@ -16,4 +16,7 @@ pub use client::flight;
 /// Builder for constructing connections for use with the various gRPC clients
 pub mod connection;
 
+/// Output formatting utilities
+pub mod format;
+
 mod client;

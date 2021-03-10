@@ -18,6 +18,7 @@ use data_types::{
     names::{org_and_bucket_to_database, OrgBucketMappingError},
     DatabaseName,
 };
+use influxdb_iox_client::format::QueryOutputFormat;
 use influxdb_line_protocol::parse_lines;
 use object_store::ObjectStoreApi;
 use query::{frontend::sql::SQLQueryPlanner, Database, DatabaseStore};
@@ -34,10 +35,11 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use tracing::{debug, error, info};
 
 use data_types::http::WalMetadataResponse;
-use std::{fmt::Debug, str, sync::Arc};
-
-mod format;
-use format::QueryOutputFormat;
+use std::{
+    fmt::Debug,
+    str::{self, FromStr},
+    sync::Arc,
+};
 
 /// Constants used in API error codes.
 ///
@@ -187,6 +189,12 @@ pub enum ApplicationError {
     #[snafu(display("Internal error creating HTTP response:  {}", source))]
     CreatingResponse { source: http::Error },
 
+    #[snafu(display("Invalid format '{}': : {}", format, source))]
+    ParsingFormat {
+        format: String,
+        source: influxdb_iox_client::format::Error,
+    },
+
     #[snafu(display(
         "Error formatting results of SQL query '{}' using '{:?}': {}",
         q,
@@ -196,7 +204,7 @@ pub enum ApplicationError {
     FormattingResult {
         q: String,
         format: QueryOutputFormat,
-        source: format::Error,
+        source: influxdb_iox_client::format::Error,
     },
 }
 
@@ -230,6 +238,7 @@ impl ApplicationError {
             Self::WALNotFound { .. } => self.not_found(),
             Self::CreatingResponse { .. } => self.internal_error(),
             Self::FormattingResult { .. } => self.internal_error(),
+            Self::ParsingFormat { .. } => self.bad_request(),
         }
     }
 
@@ -458,8 +467,12 @@ where
 /// Parsed URI Parameters of the request to the .../query endpoint
 struct QueryParams {
     q: String,
-    #[serde(default)]
-    format: QueryOutputFormat,
+    #[serde(default = "default_format")]
+    format: String,
+}
+
+fn default_format() -> String {
+    QueryOutputFormat::default().to_string()
 }
 
 #[tracing::instrument(level = "debug")]
@@ -474,6 +487,8 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
         serde_urlencoded::from_str(uri_query).context(InvalidQueryString {
             query_string: uri_query,
         })?;
+
+    let format = QueryOutputFormat::from_str(&format).context(ParsingFormat { format })?;
 
     let db_name_str = req
         .param("name")
@@ -1419,60 +1434,5 @@ mod tests {
         let physical_plan = planner.query(db, query, &executor).await.unwrap();
 
         collect(physical_plan).await.unwrap()
-    }
-
-    #[test]
-    fn query_params_format_default() {
-        // default to pretty format when not otherwise specified
-        assert_eq!(
-            serde_urlencoded::from_str("q=foo"),
-            Ok(QueryParams {
-                q: "foo".to_string(),
-                format: QueryOutputFormat::Pretty
-            })
-        );
-    }
-
-    #[test]
-    fn query_params_format_pretty() {
-        assert_eq!(
-            serde_urlencoded::from_str("q=foo&format=pretty"),
-            Ok(QueryParams {
-                q: "foo".to_string(),
-                format: QueryOutputFormat::Pretty
-            })
-        );
-    }
-
-    #[test]
-    fn query_params_format_csv() {
-        assert_eq!(
-            serde_urlencoded::from_str("q=foo&format=csv"),
-            Ok(QueryParams {
-                q: "foo".to_string(),
-                format: QueryOutputFormat::CSV
-            })
-        );
-    }
-
-    #[test]
-    fn query_params_format_json() {
-        assert_eq!(
-            serde_urlencoded::from_str("q=foo&format=json"),
-            Ok(QueryParams {
-                q: "foo".to_string(),
-                format: QueryOutputFormat::JSON
-            })
-        );
-    }
-
-    #[test]
-    fn query_params_bad_format() {
-        assert_eq!(
-            serde_urlencoded::from_str::<QueryParams>("q=foo&format=jsob")
-                .unwrap_err()
-                .to_string(),
-            "unknown variant `jsob`, expected one of `pretty`, `csv`, `json`"
-        );
     }
 }

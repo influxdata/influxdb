@@ -190,34 +190,51 @@ The server will, by default, start an HTTP API server on port `8080` and a gRPC 
 ### Writing and Reading Data
 
 Each IOx instance requires a writer ID.
-This can be set three ways:
+This can be set one of 4 ways:
 - set an environment variable `INFLUXDB_IOX_ID=42`
 - set a flag `--writer-id 42`
-- send an HTTP PUT request:
+- use the API (not convered here)
+- use the CLI
 ```shell
-curl --request PUT \
-  --url http://localhost:8080/iox/api/v1/id \
-  --header 'Content-Type: application/json' \
-  --data '{
-  "id": 42
-  }'
+influxdb_iox writer set 42
 ```
 
-To write data, you need a destination database.
-This is set via HTTP PUT, identifying the database by org `company` and bucket `sensors`:
+To write data, you need to create a database. You can do so via the API or using the CLI. For example, to create a database called `company_sensors` with a 100MB mutable buffer, use this command:
+
 ```shell
-curl --request PUT \
-  --url http://localhost:8080/iox/api/v1/databases/company_sensors \
-  --header 'Content-Type: application/json' \
-  --data '{
-}'
+influxdb_iox database create company_sensors -m 100
 ```
 
-Data can be stored in InfluxDB IOx by sending it in [line protocol] format to the `/api/v2/write`
-endpoint. Data is stored by organization and bucket names. Here's an example using [`curl`] with
-the organization name `company` and the bucket name `sensors` that will send the data in the
-`tests/fixtures/lineproto/metrics.lp` file in this repository, assuming that you're running the
-server on the default port:
+Data can be stored in InfluxDB IOx by sending it in [line protocol]
+format to the `/api/v2/write` endpoint or using the CLI. For example,
+here is a command that will send the data in the
+`tests/fixtures/lineproto/metrics.lp` file in this repository,
+assuming that you're running the server on the default port into
+the `company_sensors` database, you can use:
+
+```shell
+influxdb_iox database write company_sensors tests/fixtures/lineproto/metrics.lp
+```
+
+To query data stored in the `company_sensors` database:
+
+```shell
+influxdb_iox database query company_sensors "SELECT * FROM cpu LIMIT 10"
+```
+
+
+### InfluxDB 2.0 compatibility
+
+InfluxDB IOx allows seamless interoperability with InfluxDB 2.0.
+
+InfluxDB 2.0 stores data in organization and buckets, but InfluxDB IOx
+stores data in named databases. IOx maps `organization` and `bucket`
+to a database named with the two parts separated by an underscore
+(`_`): `organization_bucket`.
+
+Here's an example using [`curl`] command to send the same data into
+the `company_sensors` database using the InfluxDB 2.0 `/api/v2/write`
+API:
 
 ```shell
 curl -v "http://127.0.0.1:8080/api/v2/write?org=company&bucket=sensors" --data-binary @tests/fixtures/lineproto/metrics.lp
@@ -226,12 +243,6 @@ curl -v "http://127.0.0.1:8080/api/v2/write?org=company&bucket=sensors" --data-b
 [line protocol]: https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/
 [`curl`]: https://curl.se/
 
-To query stored data, use the `/api/v2/read` endpoint with a SQL query. This example will return
-all data in the `company` organization's `sensors` bucket for the `processes` measurement:
-
-```shell
-curl -v -G -d 'org=company' -d 'bucket=sensors' --data-urlencode 'sql_query=select * from processes' "http://127.0.0.1:8080/api/v2/read"
-```
 
 ### Health Checks
 
