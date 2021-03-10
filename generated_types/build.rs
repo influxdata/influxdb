@@ -29,7 +29,6 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
     let idpe_path = root.join("com/github/influxdata/idpe/storage/read");
     let management_path = root.join("influxdata/iox/management/v1");
     let write_path = root.join("influxdata/iox/write/v1");
-    let grpc_path = root.join("grpc/health/v1");
 
     let proto_files = vec![
         storage_path.join("test.proto"),
@@ -42,7 +41,10 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         management_path.join("database_rules.proto"),
         management_path.join("service.proto"),
         write_path.join("service.proto"),
-        grpc_path.join("service.proto"),
+        root.join("grpc/health/v1/service.proto"),
+        root.join("google/longrunning/operations.proto"),
+        root.join("google/rpc/error_details.proto"),
+        root.join("google/rpc/status.proto"),
     ];
 
     // Tell cargo to recompile if any of these proto files are changed
@@ -54,7 +56,8 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
 
     config
         .compile_well_known_types()
-        .extern_path(".google", "::google_types");
+        .disable_comments(&[".google"])
+        .extern_path(".google.protobuf", "::google_types::protobuf");
 
     tonic_build::configure().compile_with_config(config, &proto_files, &[root.into()])?;
 

@@ -9,11 +9,7 @@ type Result<T, E = Error> = std::result::Result<T, E>;
 fn main() -> Result<()> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("protos");
 
-    let proto_files = vec![
-        root.join("google/rpc/error_details.proto"),
-        root.join("google/rpc/status.proto"),
-        root.join("google/protobuf/types.proto"),
-    ];
+    let proto_files = vec![root.join("google/protobuf/types.proto")];
 
     // Tell cargo to recompile if any of these proto files are changed
     for proto_file in &proto_files {
