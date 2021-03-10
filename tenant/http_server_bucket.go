@@ -160,10 +160,10 @@ func (b *bucketUpdate) OK() error {
 
 	if len(b.RetentionRules) > 0 {
 		rule := b.RetentionRules[0]
-		if rule.EverySeconds != nil && *rule.EverySeconds < 1 {
+		if rule.EverySeconds != nil && *rule.EverySeconds < 0 {
 			return &influxdb.Error{
 				Code: influxdb.EUnprocessableEntity,
-				Msg:  "expiration seconds must be greater than or equal to one second",
+				Msg:  "expiration seconds cannot be negative",
 			}
 		}
 	}
@@ -319,12 +319,11 @@ func (b *postBucketRequest) OK() error {
 		}
 	}
 
-	// Only support a single retention period for the moment
 	if len(b.RetentionRules) > 0 {
-		if b.RetentionRules[0].EverySeconds < 1 {
+		if b.RetentionRules[0].EverySeconds < 0 {
 			return &influxdb.Error{
 				Code: influxdb.EUnprocessableEntity,
-				Msg:  "expiration seconds must be greater than or equal to one second",
+				Msg:  "expiration seconds cannot be negative",
 			}
 		}
 	}
