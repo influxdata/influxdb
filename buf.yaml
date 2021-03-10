@@ -2,12 +2,13 @@ version: v1beta1
 build:
   roots:
     - generated_types/protos/
-  excludes:
-    - generated_types/protos/com
-    - generated_types/protos/influxdata/platform
-    - generated_types/protos/grpc
 
 lint:
+  ignore:
+    - google
+    - grpc
+    - com/github/influxdata/idpe/storage/read
+    - influxdata/platform
   use:
     - DEFAULT
     - STYLE_DEFAULT

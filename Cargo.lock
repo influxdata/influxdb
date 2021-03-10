@@ -1203,6 +1203,7 @@ dependencies = [
  "prost-types",
  "tonic",
  "tonic-build",
+ "tracing",
 ]
 
 [[package]]
@@ -1255,9 +1256,6 @@ version = "0.1.0"
 dependencies = [
  "prost",
  "prost-build",
- "prost-types",
- "tonic",
- "tracing",
 ]
 
 [[package]]

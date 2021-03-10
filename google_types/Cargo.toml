@@ -7,9 +7,6 @@ edition = "2018"
 
 [dependencies] # In alphabetical order
 prost = "0.7"
-prost-types = "0.7"
-tonic = "0.4"
-tracing = { version = "0.1" }
 
 [build-dependencies] # In alphabetical order
 prost-build = "0.7"
