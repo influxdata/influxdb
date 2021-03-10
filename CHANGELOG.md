@@ -17,6 +17,7 @@ v1.8.5 [unreleased]
 -	[#20033](https://github.com/influxdata/influxdb/pull/20033): fix(tsm1): "snapshot in progress" error during backup
 -	[#20909](https://github.com/influxdata/influxdb/pull/20909): fix(tsm1): data race when accessing tombstone stats
 -	[#20912](https://github.com/influxdata/influxdb/pull/20912): fix(tsdb): minimize lock contention when adding new fields or measure
+-	[#20914](https://github.com/influxdata/influxdb/pull/20914): fix: infinite recursion bug (#20862)
 
 v1.8.4 [2021-01-27]
 -------------------
