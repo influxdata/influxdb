@@ -1,10 +1,7 @@
 use std::{fs::File, str};
-use std::{
-    num::NonZeroU32,
-    process::{Child, Command},
-};
+use std::{num::NonZeroU32, process::Child};
 
-use assert_cmd::prelude::*;
+use crate::common::no_orphan_cargo::cargo_bin;
 use futures::prelude::*;
 use std::time::Duration;
 use tempfile::TempDir;
@@ -143,8 +140,7 @@ impl TestServer {
             .expect("cloning file handle for stdout");
         let stderr_log_file = log_file;
 
-        let server_process = Command::cargo_bin("influxdb_iox")
-            .unwrap()
+        let server_process = cargo_bin("influxdb_iox")
             // Can enable for debbugging
             //.arg("-vv")
             .env("INFLUXDB_IOX_ID", "1")
@@ -167,8 +163,7 @@ impl TestServer {
     fn restart(&mut self) -> Result<()> {
         self.server_process.kill().unwrap();
         self.server_process.wait().unwrap();
-        self.server_process = Command::cargo_bin("influxdb_iox")
-            .unwrap()
+        self.server_process = cargo_bin("influxdb_iox")
             // Can enable for debbugging
             //.arg("-vv")
             .env("INFLUXDB_IOX_DB_DIR", self.dir.path())
