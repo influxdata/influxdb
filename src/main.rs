@@ -87,6 +87,7 @@ struct Config {
 }
 
 #[derive(Debug, StructOpt)]
+#[structopt(setting = structopt::clap::AppSettings::SubcommandRequiredElseHelp)]
 enum Command {
     /// Convert one storage format to another
     Convert {
@@ -194,13 +195,9 @@ fn main() -> Result<(), std::io::Error> {
                 }
             }
             None => {
-                // Note don't set up basic logging here, different logging rules apply in server
-                // mode
-                let res = influxdb_ioxd::main(logging_level, None).await;
-                if let Err(e) = res {
-                    error!("Server shutdown with error: {}", e);
-                    std::process::exit(ReturnCode::Failure as _);
-                }
+                unreachable!(
+                    "SubcommandRequiredElseHelp will print help if there is no subcommand"
+                );
             }
         }
     });

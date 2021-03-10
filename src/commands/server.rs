@@ -18,7 +18,7 @@ pub const FALLBACK_AWS_REGION: &str = "us-east-1";
 #[derive(Debug, StructOpt)]
 #[structopt(
     name = "server",
-    about = "Runs in server mode (default)",
+    about = "Runs in server mode",
     long_about = "Run the IOx server.\n\nThe configuration options below can be \
     set either with the command line flags or with the specified environment \
     variable. If there is a file named '.env' in the current working directory, \

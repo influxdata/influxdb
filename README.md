@@ -163,7 +163,7 @@ which will create a binary in `target/debug` that you can run with:
 You can compile and run with one command by using:
 
 ```shell
-cargo run
+cargo run -- server
 ```
 
 When compiling for performance testing, build in release mode by using:
@@ -175,13 +175,13 @@ cargo build --release
 which will create the corresponding binary in `target/release`:
 
 ```shell
-./target/release/influxdb_iox
+./target/release/influxdb_iox server
 ```
 
 Similarly, you can do this in one step with:
 
 ```shell
-cargo run --release
+cargo run --release -- server
 ```
 
 The server will, by default, start an HTTP API server on port `8080` and a gRPC server on port
