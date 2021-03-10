@@ -187,7 +187,7 @@ fn main() -> Result<(), std::io::Error> {
             Some(Command::Server(config)) => {
                 // Note don't set up basic logging here, different logging rules apply in server
                 // mode
-                let res = influxdb_ioxd::main(logging_level, Some(config)).await;
+                let res = influxdb_ioxd::main(logging_level, config).await;
 
                 if let Err(e) = res {
                     error!("Server shutdown with error: {}", e);

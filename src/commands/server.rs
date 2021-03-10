@@ -214,23 +214,6 @@ Possible values (case insensitive):
     pub jaeger_host: Option<String>,
 }
 
-/// Load the config if `server` was not specified on the command line
-/// (from environment variables and default)
-///
-/// This pulls in config from the following sources, in order of precedence:
-///
-///     - user set environment variables
-///     - .env file contents
-///     - pre-configured default values
-pub fn load_config() -> Box<Config> {
-    // Load the Config struct - this pulls in any envs set by the user or
-    // sourced above, and applies any defaults.
-    //
-
-    //let args = std::env::args().filter(|arg| arg != "server");
-    Box::new(Config::from_iter(strip_server(std::env::args()).iter()))
-}
-
 fn parse_socket_addr(s: &str) -> std::io::Result<SocketAddr> {
     let mut addrs = s.to_socket_addrs()?;
     // when name resolution fails, to_socket_address returns a validation error
@@ -239,24 +222,6 @@ fn parse_socket_addr(s: &str) -> std::io::Result<SocketAddr> {
     Ok(addrs
         .next()
         .expect("name resolution should return at least one address"))
-}
-
-/// Strip everything prior to the "server" portion of the args so the generated
-/// Clap instance plays nicely with the subcommand bits in main.
-fn strip_server(args: impl Iterator<Item = String>) -> Vec<String> {
-    let mut seen_server = false;
-    args.enumerate()
-        .filter_map(|(i, arg)| {
-            if i != 0 && !seen_server {
-                if arg == "server" {
-                    seen_server = true;
-                }
-                None
-            } else {
-                Some(arg)
-            }
-        })
-        .collect::<Vec<_>>()
 }
 
 arg_enum! {
@@ -319,70 +284,23 @@ mod tests {
 
     use std::net::{Ipv4Addr, Ipv6Addr, SocketAddrV4, SocketAddrV6};
 
-    #[test]
-    fn test_strip_server() {
-        assert_eq!(
-            strip_server(to_vec(&["cmd",]).into_iter()),
-            to_vec(&["cmd"])
-        );
-        assert_eq!(
-            strip_server(to_vec(&["cmd", "-v"]).into_iter()),
-            to_vec(&["cmd"])
-        );
-        assert_eq!(
-            strip_server(to_vec(&["cmd", "-v", "server"]).into_iter()),
-            to_vec(&["cmd"])
-        );
-        assert_eq!(
-            strip_server(to_vec(&["cmd", "-v", "server", "-v"]).into_iter()),
-            to_vec(&["cmd", "-v"])
-        );
-        assert_eq!(
-            strip_server(to_vec(&["cmd", "-v", "server", "-vv"]).into_iter()),
-            to_vec(&["cmd", "-vv"])
-        );
-
-        // and it doesn't strip repeated instances of server
-        assert_eq!(
-            strip_server(to_vec(&["cmd", "-v", "server", "--gcp_path"]).into_iter()),
-            to_vec(&["cmd", "--gcp_path"])
-        );
-        assert_eq!(
-            strip_server(to_vec(&["cmd", "-v", "server", "--gcp_path", "server"]).into_iter()),
-            to_vec(&["cmd", "--gcp_path", "server"])
-        );
-
-        assert_eq!(
-            strip_server(to_vec(&["cmd", "-vv"]).into_iter()),
-            to_vec(&["cmd"])
-        );
-        assert_eq!(
-            strip_server(to_vec(&["cmd", "-vv", "server"]).into_iter()),
-            to_vec(&["cmd"])
-        );
-        assert_eq!(
-            strip_server(to_vec(&["cmd", "-vv", "server", "-vv"]).into_iter()),
-            to_vec(&["cmd", "-vv"])
-        );
-    }
-
     fn to_vec(v: &[&str]) -> Vec<String> {
         v.iter().map(|s| s.to_string()).collect()
     }
 
     #[test]
     fn test_socketaddr() -> Result<(), clap::Error> {
-        let c = Config::from_iter_safe(strip_server(
-            to_vec(&["cmd", "server", "--api-bind", "127.0.0.1:1234"]).into_iter(),
-        ))?;
+        let c = Config::from_iter_safe(
+            to_vec(&["server", "--api-bind", "127.0.0.1:1234"]).into_iter(),
+        )?;
         assert_eq!(
             c.http_bind_address,
             SocketAddr::from(([127, 0, 0, 1], 1234))
         );
 
-        let c = Config::from_iter_safe(strip_server(
-            to_vec(&["cmd", "server", "--api-bind", "localhost:1234"]).into_iter(),
-        ))?;
+        let c = Config::from_iter_safe(
+            to_vec(&["server", "--api-bind", "localhost:1234"]).into_iter(),
+        )?;
         // depending on where the test runs, localhost will either resolve to a ipv4 or
         // an ipv6 addr.
         match c.http_bind_address {
@@ -396,9 +314,9 @@ mod tests {
         };
 
         assert_eq!(
-            Config::from_iter_safe(strip_server(
-                to_vec(&["cmd", "server", "--api-bind", "!@INv_a1d(ad0/resp_!"]).into_iter(),
-            ))
+            Config::from_iter_safe(
+                to_vec(&["server", "--api-bind", "!@INv_a1d(ad0/resp_!"]).into_iter(),
+            )
             .map_err(|e| e.kind)
             .expect_err("must fail"),
             clap::ErrorKind::ValueValidation

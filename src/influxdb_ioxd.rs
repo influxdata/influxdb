@@ -1,6 +1,6 @@
 use crate::commands::{
     logging::LoggingLevel,
-    server::{load_config, Config, ObjectStore as ObjStoreOpt},
+    server::{Config, ObjectStore as ObjStoreOpt},
 };
 use hyper::Server;
 use object_store::{
@@ -73,10 +73,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// The logging_level passed in is the global setting (e.g. if -v or
 /// -vv was passed in before 'server')
-pub async fn main(logging_level: LoggingLevel, config: Option<Box<Config>>) -> Result<()> {
-    // load config from environment if no command line
-    let config = config.unwrap_or_else(load_config);
-
+pub async fn main(logging_level: LoggingLevel, config: Box<Config>) -> Result<()> {
     // Handle the case if -v/-vv is specified both before and after the server
     // command
     let logging_level = logging_level.combine(LoggingLevel::new(config.verbose_count));
