@@ -1,5 +1,3 @@
-use std::num::NonZeroU32;
-
 use influxdb_iox_client::management::{self, generated_types::DatabaseRules};
 use influxdb_iox_client::write::{self, WriteError};
 use test_helpers::assert_contains;
@@ -10,12 +8,9 @@ use crate::common::server_fixture::ServerFixture;
 
 #[tokio::test]
 async fn test_write() {
-    // TODO sort out changing the test ID
     let fixture = ServerFixture::create_shared().await;
     let mut management_client = management::Client::new(fixture.grpc_channel());
     let mut write_client = write::Client::new(fixture.grpc_channel());
-
-    const TEST_ID: u32 = 42;
 
     let db_name = rand_name();
 
@@ -26,11 +21,6 @@ async fn test_write() {
         })
         .await
         .expect("create database failed");
-
-    management_client
-        .update_writer_id(NonZeroU32::new(TEST_ID).unwrap())
-        .await
-        .expect("set ID failed");
 
     let lp_lines = vec![
         "cpu,region=west user=23.2 100",

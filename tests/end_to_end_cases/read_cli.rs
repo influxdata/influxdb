@@ -6,9 +6,12 @@ use crate::common::server_fixture::ServerFixture;
 
 use super::util::rand_name;
 
-pub async fn test(server_fixture: &ServerFixture) {
+#[tokio::test]
+pub async fn test() {
+    let server_fixture = ServerFixture::create_single_use().await;
     let db_name = rand_name();
-    let addr = server_fixture.grpc_url_base();
+    let addr = server_fixture.grpc_base();
+
     create_database(&db_name, addr).await;
     test_read_default(&db_name, addr).await;
     test_read_format_pretty(&db_name, addr).await;

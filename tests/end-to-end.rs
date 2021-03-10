@@ -1,21 +1,9 @@
 // The test in this file runs the server in a separate thread and makes HTTP
 // requests as a smoke test for the integration of the whole system.
 //
-// As written, only one test of this style can run at a time. Add more data to
-// the existing test to test more scenarios rather than adding more tests in the
-// same style.
+// The servers under test are managed using [`ServerFixture`]
 //
-// Or, change the way this test behaves to create isolated instances by:
-//
-// - Finding an unused port for the server to run on and using that port in the
-//   URL
-// - Creating a temporary directory for an isolated database path
-//
-// Or, change the tests to use one server and isolate through `org_id` by:
-//
-// - Starting one server before all the relevant tests are run
-// - Creating a unique org_id per test
-// - Stopping the server after all relevant tests are run
+// Other rust tests are defined in the various submodules of end_to_end_cases
 
 use std::convert::TryInto;
 use std::str;
@@ -36,6 +24,7 @@ type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T, E = Error> = std::result::Result<T, E>;
 
 pub mod common;
+
 mod end_to_end_cases;
 
 use common::server_fixture::*;
@@ -73,11 +62,6 @@ async fn read_and_write_data() {
         &mut storage_client,
     )
     .await;
-    management_api::test(&mut management_client).await;
-    management_cli::test(&fixture).await;
-    write_cli::test(&fixture).await;
-    read_cli::test(&fixture).await;
-    test_http_error_messages(&influxdb2).await.unwrap();
 }
 
 // TODO: Randomly generate org and bucket ids to ensure test data independence
@@ -278,9 +262,11 @@ async fn write_data(
     Ok(())
 }
 
-// Don't make a separate #test function so that we can reuse the same
-// server process
-async fn test_http_error_messages(client: &influxdb2_client::Client) -> Result<()> {
+#[tokio::test]
+async fn test_http_error_messages() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let client = server_fixture.influxdb2_client();
+
     // send malformed request (bucket id is invalid)
     let result = client
         .write_line_protocol("Bar", "Foo", "arbitrary")
@@ -289,8 +275,6 @@ async fn test_http_error_messages(client: &influxdb2_client::Client) -> Result<(
 
     let expected_error = "HTTP request returned an error: 400 Bad Request, `{\"error\":\"Error parsing line protocol: A generic parsing error occurred: TakeWhile1\",\"error_code\":100}`";
     assert_eq!(result.to_string(), expected_error);
-
-    Ok(())
 }
 
 /// substitutes "ns" --> ns_since_epoch, ns1-->ns_since_epoch+1, etc

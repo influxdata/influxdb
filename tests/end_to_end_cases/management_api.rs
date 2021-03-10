@@ -4,15 +4,21 @@ use generated_types::google::protobuf::Empty;
 use generated_types::{google::protobuf::Duration, influxdata::iox::management::v1::*};
 use influxdb_iox_client::management::{Client, CreateDatabaseError};
 
+use crate::common::server_fixture::ServerFixture;
+
 use super::util::rand_name;
 
-pub async fn test(client: &mut Client) {
-    test_list_update_remotes(client).await;
-    test_set_get_writer_id(client).await;
-    test_create_database_duplicate_name(client).await;
-    test_create_database_invalid_name(client).await;
-    test_list_databases(client).await;
-    test_create_get_database(client).await;
+#[tokio::test]
+pub async fn test() {
+    let server_fixture = ServerFixture::create_single_use().await;
+    let mut client = Client::new(server_fixture.grpc_channel());
+
+    test_list_update_remotes(&mut client).await;
+    test_set_get_writer_id(&mut client).await;
+    test_create_database_duplicate_name(&mut client).await;
+    test_create_database_invalid_name(&mut client).await;
+    test_list_databases(&mut client).await;
+    test_create_get_database(&mut client).await;
 }
 
 async fn test_list_update_remotes(client: &mut Client) {
