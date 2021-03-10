@@ -1,7 +1,10 @@
 use std::{
     fs::File,
     str,
-    sync::atomic::{AtomicUsize, Ordering::SeqCst},
+    sync::{
+        atomic::{AtomicUsize, Ordering::SeqCst},
+        Weak,
+    },
 };
 use std::{num::NonZeroU32, process::Child};
 
@@ -89,15 +92,33 @@ impl ServerFixture {
     /// This is currently implemented as a singleton so all tests *must*
     /// use a new database and not interfere with the existing database.
     pub async fn create_shared() -> Self {
-        static SERVER: OnceCell<Arc<TestServer>> = OnceCell::new();
+        // Try and reuse the same shared server, if there is already
+        // one present
+        static SHARED_SERVER: OnceCell<parking_lot::Mutex<Weak<TestServer>>> = OnceCell::new();
 
-        let server = Arc::clone(SERVER.get_or_init(|| {
-            let server = TestServer::new().expect("Could start test server");
-            Arc::new(server)
-        }));
+        let shared_server = SHARED_SERVER.get_or_init(|| parking_lot::Mutex::new(Weak::new()));
 
-        // ensure the server is ready
-        server.wait_until_ready(InitialConfig::SetWriterId).await;
+        let mut shared_server = shared_server.lock();
+
+        // is a shared server already present?
+        let server = match shared_server.upgrade() {
+            Some(server) => server,
+            None => {
+                // if not, create one
+                let server = TestServer::new().expect("Could start test server");
+                let server = Arc::new(server);
+
+                // ensure the server is ready
+                server.wait_until_ready(InitialConfig::SetWriterId).await;
+                // save a reference for other threads that may want to
+                // use this server, but don't prevent it from being
+                // destroyed when going out of scope
+                *shared_server = Arc::downgrade(&server);
+                server
+            }
+        };
+        std::mem::drop(shared_server);
+
         Self::create_common(server).await
     }
 

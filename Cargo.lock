@@ -1507,6 +1507,7 @@ dependencies = [
  "opentelemetry-jaeger",
  "packers",
  "panic_logging",
+ "parking_lot",
  "predicates",
  "prost",
  "query",
