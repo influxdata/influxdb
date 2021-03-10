@@ -1,9 +1,12 @@
 //! Implementation of command line option for manipulating and showing server
 //! config
 
+use crate::commands::logging::LoggingLevel;
+use crate::influxdb_ioxd;
 use clap::arg_enum;
 use std::{net::SocketAddr, net::ToSocketAddrs, path::PathBuf};
 use structopt::StructOpt;
+use thiserror::Error;
 
 /// The default bind address for the HTTP API.
 pub const DEFAULT_API_BIND_ADDR: &str = "127.0.0.1:8080";
@@ -14,6 +17,14 @@ pub const DEFAULT_GRPC_BIND_ADDR: &str = "127.0.0.1:8082";
 /// The AWS region to use for Amazon S3 based object storage if none is
 /// specified.
 pub const FALLBACK_AWS_REGION: &str = "us-east-1";
+
+#[derive(Debug, Error)]
+pub enum Error {
+    #[error("Server error")]
+    ServerError(#[from] influxdb_ioxd::Error),
+}
+
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, StructOpt)]
 #[structopt(
@@ -212,6 +223,10 @@ Possible values (case insensitive):
         env = "OTEL_EXPORTER_JAEGER_AGENT_HOST"
     )]
     pub jaeger_host: Option<String>,
+}
+
+pub async fn command(logging_level: LoggingLevel, config: Box<Config>) -> Result<()> {
+    Ok(influxdb_ioxd::main(logging_level, config).await?)
 }
 
 fn parse_socket_addr(s: &str) -> std::io::Result<SocketAddr> {

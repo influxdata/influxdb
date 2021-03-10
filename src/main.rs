@@ -12,7 +12,7 @@ use std::str::FromStr;
 use dotenv::dotenv;
 use structopt::StructOpt;
 use tokio::runtime::Runtime;
-use tracing::{debug, error, warn};
+use tracing::{debug, warn};
 
 use commands::logging::LoggingLevel;
 use ingest::parquet::writer::CompressionLevel;
@@ -187,11 +187,9 @@ fn main() -> Result<(), std::io::Error> {
             Some(Command::Server(config)) => {
                 // Note don't set up basic logging here, different logging rules apply in server
                 // mode
-                let res = influxdb_ioxd::main(logging_level, config).await;
-
-                if let Err(e) = res {
-                    error!("Server shutdown with error: {}", e);
-                    std::process::exit(ReturnCode::Failure as _);
+                if let Err(e) = commands::server::command(logging_level, config).await {
+                    eprintln!("Server command failed: {}", e);
+                    std::process::exit(ReturnCode::Failure as _)
                 }
             }
             None => {
