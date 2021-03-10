@@ -10,6 +10,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
+const DefaultLimit = 20
+
 type bucketSVCsFn func() (influxdb.BucketService, influxdb.OrganizationService, error)
 
 func cmdBucket(f *globalFlags, opt genericCLIOpts) *cobra.Command {
@@ -30,6 +32,7 @@ type cmdBucketBuilder struct {
 	description string
 	org         organization
 	retention   string
+	limit       int
 }
 
 func newCmdBucketBuilder(svcsFn bucketSVCsFn, f *globalFlags, opts genericCLIOpts) *cmdBucketBuilder {
@@ -37,6 +40,7 @@ func newCmdBucketBuilder(svcsFn bucketSVCsFn, f *globalFlags, opts genericCLIOpt
 		globalFlags:    f,
 		genericCLIOpts: opts,
 		svcFn:          svcsFn,
+		limit:          DefaultLimit,
 	}
 }
 
@@ -179,6 +183,13 @@ func (b *cmdBucketBuilder) cmdList() *cobra.Command {
 			EnvVar: "BUCKET_NAME",
 			Desc:   "The bucket name",
 		},
+		{
+			DestP:  &b.limit,
+			Flag:   "limit",
+			Short:  'l',
+			EnvVar: "LIMIT",
+			Desc:   "The max number of results to return (must be < 100)",
+		},
 	}
 	opts.mustRegister(b.viper, cmd)
 
@@ -220,8 +231,11 @@ func (b *cmdBucketBuilder) cmdListRunEFn(cmd *cobra.Command, args []string) erro
 	if b.org.name != "" {
 		filter.Org = &b.org.name
 	}
+	var findOpts = influxdb.FindOptions{
+		Limit: b.limit,
+	}
 
-	buckets, _, err := bktSVC.FindBuckets(context.Background(), filter)
+	buckets, _, err := bktSVC.FindBuckets(context.Background(), filter, findOpts)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve buckets: %s", err)
 	}
