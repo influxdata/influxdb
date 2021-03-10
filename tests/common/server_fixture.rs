@@ -225,9 +225,8 @@ impl TestServer {
 
         let server_process = Command::cargo_bin("influxdb_iox")
             .unwrap()
-            // Can enable for debbugging
+            // Can enable for debugging
             //.arg("-vv")
-            .env("INFLUXDB_IOX_ID", "1")
             .env("INFLUXDB_IOX_BIND_ADDR", &addrs.http_bind_addr)
             .env("INFLUXDB_IOX_GRPC_BIND_ADDR", &addrs.grpc_bind_addr)
             // redirect output to log file
@@ -250,10 +249,9 @@ impl TestServer {
         self.server_process.wait().unwrap();
         self.server_process = Command::cargo_bin("influxdb_iox")
             .unwrap()
-            // Can enable for debbugging
+            // Can enable for debugging
             //.arg("-vv")
             .env("INFLUXDB_IOX_DB_DIR", self.dir.path())
-            .env("INFLUXDB_IOX_ID", "1")
             .spawn()
             .unwrap();
         Ok(())
@@ -336,23 +334,32 @@ impl TestServer {
             }
         }
 
-        // Set the writer id, if requested
-        match initial_config {
+        // Set the writer id, if requested; otherwise default to the default writer id:
+        // 1.
+        let id = match initial_config {
             InitialConfig::SetWriterId => {
-                let channel = self.grpc_channel().await.expect("gRPC should be running");
-                let mut management_client = influxdb_iox_client::management::Client::new(channel);
-                let id = NonZeroU32::new(42).expect("42 is non zero, among its other properties");
-
-                management_client
-                    .update_writer_id(id)
-                    .await
-                    .expect("set ID failed");
-                println!("Set writer_id to {:?}", id);
+                NonZeroU32::new(42).expect("42 is non zero, among its other properties")
             }
             InitialConfig::None => {
-                println!("Leaving database unconfigured");
+                NonZeroU32::new(1).expect("1 is non zero; the first one to be so, moreover")
             }
+        };
+
+        let channel = self.grpc_channel().await.expect("gRPC should be running");
+        let mut management_client = influxdb_iox_client::management::Client::new(channel);
+
+        if let Ok(id) = management_client.get_writer_id().await {
+            // tell others that this server had some problem
+            *ready = ServerState::Error;
+            std::mem::drop(ready);
+            panic!("Server already has an ID ({}); possibly a stray/orphan server from another test run.", id);
         }
+
+        management_client
+            .update_writer_id(id)
+            .await
+            .expect("set ID failed");
+        println!("Set writer_id to {:?}", id);
     }
 
     /// Create a connection channel for the gRPR endpoing
