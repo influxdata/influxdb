@@ -127,8 +127,8 @@ func (t *TemporaryEngine) CreateBucket(ctx context.Context, b *influxdb.Bucket) 
 	return t.engine.CreateBucket(ctx, b)
 }
 
-func (t *TemporaryEngine) UpdateBucketRetentionPeriod(ctx context.Context, bucketID influxdb.ID, d time.Duration) error {
-	return t.engine.UpdateBucketRetentionPeriod(ctx, bucketID, d)
+func (t *TemporaryEngine) UpdateBucketRetentionPolicy(ctx context.Context, bucketID influxdb.ID, upd *influxdb.BucketUpdate) error {
+	return t.engine.UpdateBucketRetentionPolicy(ctx, bucketID, upd)
 }
 
 // DeleteBucket deletes a bucket from the time-series data.
