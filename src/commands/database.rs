@@ -14,6 +14,7 @@ use structopt::StructOpt;
 use thiserror::Error;
 
 mod chunk;
+mod partition;
 
 #[derive(Debug, Error)]
 pub enum Error {
@@ -46,6 +47,9 @@ pub enum Error {
 
     #[error("Error in chunk subcommand: {0}")]
     Chunk(#[from] chunk::Error),
+
+    #[error("Error in partition subcommand: {0}")]
+    Partition(#[from] partition::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -112,6 +116,7 @@ enum Command {
     Write(Write),
     Query(Query),
     Chunk(chunk::Config),
+    Partition(partition::Config),
 }
 
 pub async fn command(url: String, config: Config) -> Result<()> {
@@ -189,6 +194,9 @@ pub async fn command(url: String, config: Config) -> Result<()> {
         }
         Command::Chunk(config) => {
             chunk::command(url, config).await?;
+        }
+        Command::Partition(config) => {
+            partition::command(url, config).await?;
         }
     }
 

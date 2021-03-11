@@ -7,7 +7,9 @@ use test_helpers::assert_contains;
 
 use crate::common::server_fixture::ServerFixture;
 
-use super::util::{create_readable_database, create_unreadable_database, rand_name};
+use super::util::{
+    create_readable_database, create_two_partition_database, create_unreadable_database, rand_name,
+};
 
 #[tokio::test]
 async fn test_list_update_remotes() {
@@ -286,4 +288,99 @@ async fn test_chunk_get_errors() {
         err.to_string(),
         "Cannot read from database: no mutable buffer configured"
     );
+}
+
+#[tokio::test]
+async fn test_partition_list() {
+    let fixture = ServerFixture::create_shared().await;
+    let mut management_client = Client::new(fixture.grpc_channel());
+
+    let db_name = rand_name();
+    create_two_partition_database(&db_name, fixture.grpc_channel()).await;
+
+    let mut partitions = management_client
+        .list_partitions(&db_name)
+        .await
+        .expect("listing partition");
+
+    // ensure the output order is consistent
+    partitions.sort();
+
+    let expected = vec!["cpu".to_string(), "mem".to_string()];
+
+    assert_eq!(
+        expected, partitions,
+        "expected:\n\n{:#?}\n\nactual:{:#?}",
+        expected, partitions
+    );
+}
+
+#[tokio::test]
+async fn test_partition_list_error() {
+    let fixture = ServerFixture::create_shared().await;
+    let mut management_client = Client::new(fixture.grpc_channel());
+
+    let err = management_client
+        .list_partitions("this database does not exist")
+        .await
+        .expect_err("expected error");
+
+    assert_contains!(err.to_string(), "Database not found");
+}
+
+#[tokio::test]
+async fn test_partition_get() {
+    use generated_types::influxdata::iox::management::v1::Partition;
+
+    let fixture = ServerFixture::create_shared().await;
+    let mut management_client = Client::new(fixture.grpc_channel());
+
+    let db_name = rand_name();
+    create_two_partition_database(&db_name, fixture.grpc_channel()).await;
+
+    let partition_key = "cpu";
+    let partition = management_client
+        .get_partition(&db_name, partition_key)
+        .await
+        .expect("getting partition");
+
+    let expected = Partition { key: "cpu".into() };
+
+    assert_eq!(
+        expected, partition,
+        "expected:\n\n{:#?}\n\nactual:{:#?}",
+        expected, partition
+    );
+}
+
+#[tokio::test]
+async fn test_partition_get_error() {
+    let fixture = ServerFixture::create_shared().await;
+    let mut management_client = Client::new(fixture.grpc_channel());
+    let mut write_client = influxdb_iox_client::write::Client::new(fixture.grpc_channel());
+
+    let err = management_client
+        .list_partitions("this database does not exist")
+        .await
+        .expect_err("expected error");
+
+    assert_contains!(err.to_string(), "Database not found");
+
+    let db_name = rand_name();
+    create_readable_database(&db_name, fixture.grpc_channel()).await;
+
+    let lp_lines =
+        vec!["processes,host=foo running=4i,sleeping=514i,total=519i 1591894310000000000"];
+
+    write_client
+        .write(&db_name, lp_lines.join("\n"))
+        .await
+        .expect("write succeded");
+
+    let err = management_client
+        .get_partition(&db_name, "non existent partition")
+        .await
+        .expect_err("exepcted error getting partition");
+
+    assert_contains!(err.to_string(), "Partition not found");
 }

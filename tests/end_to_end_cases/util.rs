@@ -59,3 +59,26 @@ pub async fn create_unreadable_database(
         .await
         .expect("create database failed");
 }
+
+/// given a channel to talk with the managment api, create a new
+/// database with the specified name configured with a 10MB mutable
+/// buffer, partitioned on table, with some data written into two partitions
+pub async fn create_two_partition_database(
+    db_name: impl Into<String>,
+    channel: tonic::transport::Channel,
+) {
+    let mut write_client = influxdb_iox_client::write::Client::new(channel.clone());
+
+    let db_name = db_name.into();
+    create_readable_database(&db_name, channel).await;
+
+    let lp_lines = vec![
+        "mem,host=foo free=27875999744i,cached=0i,available_percent=62.2 1591894320000000000",
+        "cpu,host=foo running=4i,sleeping=514i,total=519i 1592894310000000000",
+    ];
+
+    write_client
+        .write(&db_name, lp_lines.join("\n"))
+        .await
+        .expect("write succeded");
+}

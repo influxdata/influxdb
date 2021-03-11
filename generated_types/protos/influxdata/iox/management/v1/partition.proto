@@ -1,0 +1,12 @@
+syntax = "proto3";
+package influxdata.iox.management.v1;
+
+
+// `Partition` is comprised of data in one or more chunks
+//
+// TODO: add additional information to this structure (e.g. partition
+// names, stats, etc)
+message Partition {
+  // The partitition key of this partition
+  string key = 1;
+}

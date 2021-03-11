@@ -104,6 +104,34 @@ pub enum UpdateRemoteError {
     ServerError(tonic::Status),
 }
 
+/// Errors returned by Client::list_partitions
+#[derive(Debug, Error)]
+pub enum ListPartitionsError {
+    /// Database not found
+    #[error("Database not found")]
+    DatabaseNotFound,
+
+    /// Client received an unexpected error from the server
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    ServerError(tonic::Status),
+}
+
+/// Errors returned by Client::get_partition
+#[derive(Debug, Error)]
+pub enum GetPartitionError {
+    /// Database not found
+    #[error("Database not found")]
+    DatabaseNotFound,
+
+    /// Partition not found
+    #[error("Partition not found")]
+    PartitionNotFound,
+
+    /// Client received an unexpected error from the server
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    ServerError(tonic::Status),
+}
+
 /// An IOx Management API client.
 ///
 /// ```no_run
@@ -273,5 +301,51 @@ impl Client {
             .await
             .map_err(UpdateRemoteError::ServerError)?;
         Ok(())
+    }
+
+    /// List partition keys of a database
+    pub async fn list_partitions(
+        &mut self,
+        db_name: impl Into<String>,
+    ) -> Result<Vec<String>, ListPartitionsError> {
+        let db_name = db_name.into();
+        let response = self
+            .inner
+            .list_partitions(ListPartitionsRequest { db_name })
+            .await
+            .map_err(|status| match status.code() {
+                tonic::Code::NotFound => ListPartitionsError::DatabaseNotFound,
+                _ => ListPartitionsError::ServerError(status),
+            })?;
+
+        let ListPartitionsResponse { partition_keys } = response.into_inner();
+
+        Ok(partition_keys)
+    }
+
+    /// Get details about a partition
+    pub async fn get_partition(
+        &mut self,
+        db_name: impl Into<String>,
+        partition_key: impl Into<String>,
+    ) -> Result<Partition, GetPartitionError> {
+        let db_name = db_name.into();
+        let partition_key = partition_key.into();
+
+        let response = self
+            .inner
+            .get_partition(GetPartitionRequest {
+                db_name,
+                partition_key,
+            })
+            .await
+            .map_err(|status| match status.code() {
+                tonic::Code::NotFound => GetPartitionError::DatabaseNotFound,
+                _ => GetPartitionError::ServerError(status),
+            })?;
+
+        let GetPartitionResponse { partition } = response.into_inner();
+
+        partition.ok_or(GetPartitionError::PartitionNotFound)
     }
 }

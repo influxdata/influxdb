@@ -26,7 +26,7 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Manage IOx databases
+/// Manage IOx chunks
 #[derive(Debug, StructOpt)]
 pub struct Config {
     #[structopt(subcommand)]
@@ -55,17 +55,14 @@ pub async fn command(url: String, config: Config) -> Result<()> {
 
             let mut client = management::Client::new(connection);
 
-            let chunks = client
-                .list_chunks(db_name)
-                .await
-                .map_err(Error::ListChunkError)?;
+            let chunks = client.list_chunks(db_name).await?;
 
             let chunks = chunks
                 .into_iter()
                 .map(ChunkSummary::try_from)
                 .collect::<Result<Vec<_>, FieldViolation>>()?;
 
-            serde_json::to_writer_pretty(std::io::stdout(), &chunks).map_err(Error::WritingJson)?;
+            serde_json::to_writer_pretty(std::io::stdout(), &chunks)?;
         }
     }
 

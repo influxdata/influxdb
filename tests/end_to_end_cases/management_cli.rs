@@ -96,19 +96,7 @@ async fn test_get_chunks() {
         "cpu,region=west user=21.0 150",
     ];
 
-    let lp_data_file = make_temp_file(lp_data.join("\n"));
-
-    Command::cargo_bin("influxdb_iox")
-        .unwrap()
-        .arg("database")
-        .arg("write")
-        .arg(&db_name)
-        .arg(lp_data_file.as_ref())
-        .arg("--host")
-        .arg(addr)
-        .assert()
-        .success()
-        .stdout(predicate::str::contains("2 Lines OK"));
+    load_lp(addr, &db_name, lp_data);
 
     let expected = r#"[
   {
@@ -216,4 +204,115 @@ async fn test_remotes() {
         .assert()
         .success()
         .stdout(predicate::str::contains("no remotes configured"));
+}
+
+#[tokio::test]
+async fn test_list_partitions() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let addr = server_fixture.grpc_base();
+    let db_name = rand_name();
+
+    create_readable_database(&db_name, server_fixture.grpc_channel()).await;
+
+    let lp_data = vec![
+        "cpu,region=west user=23.2 100",
+        "mem,region=west free=100000 150",
+    ];
+    load_lp(addr, &db_name, lp_data);
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("partition")
+        .arg("list")
+        .arg(&db_name)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("cpu").and(predicate::str::contains("mem")));
+}
+
+#[tokio::test]
+async fn test_list_partitions_error() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let addr = server_fixture.grpc_base();
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("partition")
+        .arg("list")
+        .arg("non_existent_database")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Database not found"));
+}
+
+#[tokio::test]
+async fn test_get_partition() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let addr = server_fixture.grpc_base();
+    let db_name = rand_name();
+
+    create_readable_database(&db_name, server_fixture.grpc_channel()).await;
+
+    let lp_data = vec![
+        "cpu,region=west user=23.2 100",
+        "mem,region=west free=100000 150",
+    ];
+    load_lp(addr, &db_name, lp_data);
+
+    let expected = r#""key": "cpu""#;
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("partition")
+        .arg("get")
+        .arg(&db_name)
+        .arg("cpu")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(expected));
+}
+
+#[tokio::test]
+async fn test_get_partition_error() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let addr = server_fixture.grpc_base();
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("partition")
+        .arg("get")
+        .arg("cpu")
+        .arg("non_existent_database")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Database not found"));
+}
+
+/// Loads the specified lines into the named database
+fn load_lp(addr: &str, db_name: &str, lp_data: Vec<&str>) {
+    let lp_data_file = make_temp_file(lp_data.join("\n"));
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("write")
+        .arg(&db_name)
+        .arg(lp_data_file.as_ref())
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Lines OK"));
 }
