@@ -53,15 +53,6 @@ async fn read_and_write_data() {
         storage_api::test(&mut storage_client, &scenario).await;
         flight_api::test(&fixture, &scenario, sql_query, &expected_read_data).await;
     }
-
-    // These tests manage their own data
-    storage_api::read_group_test(&mut management_client, &influxdb2, &mut storage_client).await;
-    storage_api::read_window_aggregate_test(
-        &mut management_client,
-        &influxdb2,
-        &mut storage_client,
-    )
-    .await;
 }
 
 // TODO: Randomly generate org and bucket ids to ensure test data independence

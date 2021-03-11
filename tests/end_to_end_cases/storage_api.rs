@@ -1,4 +1,4 @@
-use crate::{create_database, substitute_nanos, Scenario};
+use crate::{common::server_fixture::ServerFixture, create_database, substitute_nanos, Scenario};
 use futures::prelude::*;
 use generated_types::{
     aggregate::AggregateType,
@@ -281,25 +281,27 @@ async fn measurement_fields_endpoint(
     assert_eq!(field.timestamp, scenario.ns_since_epoch() + 4);
 }
 
-pub async fn read_group_test(
-    management: &mut management::Client,
-    influxdb2: &influxdb2_client::Client,
-    storage_client: &mut StorageClient<Channel>,
-) {
+#[tokio::test]
+pub async fn read_group_test() {
+    let fixture = ServerFixture::create_shared().await;
+    let mut management = management::Client::new(fixture.grpc_channel());
+    let mut storage_client = StorageClient::new(fixture.grpc_channel());
+    let influxdb2 = fixture.influxdb2_client();
+
     let scenario = Scenario::default()
         .set_org_id("0000111100001110")
         .set_bucket_id("1111000011110001");
 
-    create_database(management, &scenario.database_name()).await;
+    create_database(&mut management, &scenario.database_name()).await;
 
     load_read_group_data(&influxdb2, &scenario).await;
 
     let read_source = scenario.read_source();
 
-    test_read_group_none_agg(storage_client, &read_source).await;
-    test_read_group_none_agg_with_predicate(storage_client, &read_source).await;
-    test_read_group_sum_agg(storage_client, &read_source).await;
-    test_read_group_last_agg(storage_client, &read_source).await;
+    test_read_group_none_agg(&mut storage_client, &read_source).await;
+    test_read_group_none_agg_with_predicate(&mut storage_client, &read_source).await;
+    test_read_group_sum_agg(&mut storage_client, &read_source).await;
+    test_read_group_last_agg(&mut storage_client, &read_source).await;
 }
 
 async fn load_read_group_data(client: &influxdb2_client::Client, scenario: &Scenario) {
@@ -534,17 +536,19 @@ async fn test_read_group_last_agg(
 }
 
 // Standalone test that all the pipes are hooked up for read window aggregate
-pub async fn read_window_aggregate_test(
-    management: &mut management::Client,
-    influxdb2: &influxdb2_client::Client,
-    storage_client: &mut StorageClient<Channel>,
-) {
+#[tokio::test]
+pub async fn read_window_aggregate_test() {
+    let fixture = ServerFixture::create_shared().await;
+    let mut management = management::Client::new(fixture.grpc_channel());
+    let mut storage_client = StorageClient::new(fixture.grpc_channel());
+    let influxdb2 = fixture.influxdb2_client();
+
     let scenario = Scenario::default()
         .set_org_id("0000111100001100")
         .set_bucket_id("1111000011110011");
     let read_source = scenario.read_source();
 
-    create_database(management, &scenario.database_name()).await;
+    create_database(&mut management, &scenario.database_name()).await;
 
     let line_protocol = vec![
         "h2o,state=MA,city=Boston temp=70.0 100",
