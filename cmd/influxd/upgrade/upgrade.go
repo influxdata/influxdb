@@ -460,7 +460,7 @@ func runUpgradeE(ctx context.Context, ui *input.UI, options *options, log *zap.L
 	db2BucketIds, err := upgradeDatabases(ctx, ui, v1, v2, options, or.Org.ID, log)
 	if err != nil {
 		//remove all files
-		log.Info("Database upgrade error, removing data")
+		log.Info("Database upgrade error, removing data", zap.Error(e))
 		if e := os.Remove(options.target.boltPath); e != nil {
 			log.Error("Unable to remove bolt database", zap.Error(e))
 		}
