@@ -43,7 +43,7 @@ where
         &self,
         _: Request<ListDatabasesRequest>,
     ) -> Result<Response<ListDatabasesResponse>, Status> {
-        let names = self.server.db_names_sorted().await;
+        let names = self.server.db_names_sorted();
         Ok(Response::new(ListDatabasesResponse { names }))
     }
 
@@ -53,7 +53,7 @@ where
     ) -> Result<Response<GetDatabaseResponse>, Status> {
         let name = DatabaseName::new(request.into_inner().name).field("name")?;
 
-        match self.server.db_rules(&name).await {
+        match self.server.db_rules(&name) {
             Some(rules) => Ok(Response::new(GetDatabaseResponse {
                 rules: Some(rules.into()),
             })),

@@ -757,7 +757,6 @@ where
 
     let db = db_store
         .db(&db_name)
-        .await
         .context(DatabaseNotFound { db_name })?;
 
     let planner = InfluxRPCPlanner::new();
@@ -807,7 +806,7 @@ where
         })?
         .build();
 
-    let db = db_store.db(&db_name).await.context(DatabaseNotFound {
+    let db = db_store.db(&db_name).context(DatabaseNotFound {
         db_name: db_name.as_str(),
     })?;
 
@@ -867,10 +866,7 @@ where
     let db_name = db_name.as_str();
     let tag_name = &tag_name;
 
-    let db = db_store
-        .db(db_name)
-        .await
-        .context(DatabaseNotFound { db_name })?;
+    let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
 
     let planner = InfluxRPCPlanner::new();
 
@@ -927,10 +923,7 @@ where
     let owned_db_name = db_name;
 
     let db_name = owned_db_name.as_str();
-    let db = db_store
-        .db(db_name)
-        .await
-        .context(DatabaseNotFound { db_name })?;
+    let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
 
     let executor = db_store.executor();
 
@@ -1018,7 +1011,6 @@ where
 
     let db = db_store
         .db(&db_name)
-        .await
         .context(DatabaseNotFound { db_name })?;
 
     let planner = InfluxRPCPlanner::new();
@@ -1090,10 +1082,7 @@ where
         .build();
 
     let db_name = db_name.as_str();
-    let db = db_store
-        .db(db_name)
-        .await
-        .context(DatabaseNotFound { db_name })?;
+    let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
 
     let planner = InfluxRPCPlanner::new();
 

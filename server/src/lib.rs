@@ -363,11 +363,11 @@ impl<M: ConnectionManager> Server<M> {
         Ok(())
     }
 
-    pub async fn db(&self, name: &DatabaseName<'_>) -> Option<Arc<Db>> {
+    pub fn db(&self, name: &DatabaseName<'_>) -> Option<Arc<Db>> {
         self.config.db(name)
     }
 
-    pub async fn db_rules(&self, name: &DatabaseName<'_>) -> Option<DatabaseRules> {
+    pub fn db_rules(&self, name: &DatabaseName<'_>) -> Option<DatabaseRules> {
         self.config.db(name).map(|d| d.rules.clone())
     }
 
@@ -392,7 +392,7 @@ where
     type Database = Db;
     type Error = Error;
 
-    async fn db_names_sorted(&self) -> Vec<String> {
+    fn db_names_sorted(&self) -> Vec<String> {
         self.config
             .db_names_sorted()
             .iter()
@@ -400,9 +400,9 @@ where
             .collect()
     }
 
-    async fn db(&self, name: &str) -> Option<Arc<Self::Database>> {
+    fn db(&self, name: &str) -> Option<Arc<Self::Database>> {
         if let Ok(name) = DatabaseName::new(name) {
-            return self.db(&name).await;
+            return self.db(&name);
         }
 
         None
@@ -413,11 +413,11 @@ where
     async fn db_or_create(&self, name: &str) -> Result<Arc<Self::Database>, Self::Error> {
         let db_name = DatabaseName::new(name.to_string()).context(InvalidDatabaseName)?;
 
-        let db = match self.db(&db_name).await {
+        let db = match self.db(&db_name) {
             Some(db) => db,
             None => {
                 self.create_database(name, DatabaseRules::new()).await?;
-                self.db(&db_name).await.expect("db not inserted")
+                self.db(&db_name).expect("db not inserted")
             }
         };
 
@@ -598,8 +598,8 @@ mod tests {
         server2.set_id(1);
         server2.load_database_configs().await.unwrap();
 
-        let _ = server2.db(&DatabaseName::new(db2).unwrap()).await.unwrap();
-        let _ = server2.db(&DatabaseName::new(name).unwrap()).await.unwrap();
+        let _ = server2.db(&DatabaseName::new(db2).unwrap()).unwrap();
+        let _ = server2.db(&DatabaseName::new(name).unwrap()).unwrap();
     }
 
     #[tokio::test]
@@ -648,7 +648,7 @@ mod tests {
                 .expect("failed to create database");
         }
 
-        let db_names_sorted = server.db_names_sorted().await;
+        let db_names_sorted = server.db_names_sorted();
         assert_eq!(names, db_names_sorted);
 
         Ok(())
@@ -693,7 +693,7 @@ mod tests {
         server.write_lines("foo", &lines).await.unwrap();
 
         let db_name = DatabaseName::new("foo").unwrap();
-        let db = server.db(&db_name).await.unwrap();
+        let db = server.db(&db_name).unwrap();
 
         let planner = SQLQueryPlanner::default();
         let executor = server.executor();

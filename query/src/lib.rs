@@ -155,11 +155,11 @@ pub trait DatabaseStore: Debug + Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
 
     /// List the database names.
-    async fn db_names_sorted(&self) -> Vec<String>;
+    fn db_names_sorted(&self) -> Vec<String>;
 
     /// Retrieve the database specified by `name` returning None if no
     /// such database exists
-    async fn db(&self, name: &str) -> Option<Arc<Self::Database>>;
+    fn db(&self, name: &str) -> Option<Arc<Self::Database>>;
 
     /// Retrieve the database specified by `name`, creating it if it
     /// doesn't exist.

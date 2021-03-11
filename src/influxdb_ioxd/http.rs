@@ -493,7 +493,6 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
 
     let db = server
         .db(&db_name)
-        .await
         .context(DatabaseNotFound { name: &db_name_str })?;
 
     let planner = SQLQueryPlanner::default();
@@ -551,7 +550,6 @@ async fn get_wal_meta<M: ConnectionManager + Send + Sync + Debug + 'static>(
 
     let db = server
         .db(&db_name)
-        .await
         .context(DatabaseNotFound { name: &db_name_str })?;
 
     let wal = db
@@ -609,7 +607,7 @@ async fn list_partitions<M: ConnectionManager + Send + Sync + Debug + 'static>(
     let db_name =
         org_and_bucket_to_database(&info.org, &info.bucket).context(BucketMappingError)?;
 
-    let db = server.db(&db_name).await.context(BucketNotFound {
+    let db = server.db(&db_name).context(BucketNotFound {
         org: &info.org,
         bucket: &info.bucket,
     })?;
@@ -653,7 +651,7 @@ async fn snapshot_partition<M: ConnectionManager + Send + Sync + Debug + 'static
 
     // TODO: refactor the rest of this out of the http route and into the server
     // crate.
-    let db = server.db(&db_name).await.context(BucketNotFound {
+    let db = server.db(&db_name).context(BucketNotFound {
         org: &snapshot.org,
         bucket: &snapshot.bucket,
     })?;
@@ -762,7 +760,6 @@ mod tests {
         // Check that the data got into the right bucket
         let test_db = test_storage
             .db(&DatabaseName::new("MyOrg_MyBucket").unwrap())
-            .await
             .expect("Database exists");
 
         let batches = run_query(test_db.as_ref(), "select * from h2o_temperature").await;
@@ -953,7 +950,6 @@ mod tests {
         // Check that the data got into the right bucket
         let test_db = test_storage
             .db(&DatabaseName::new("MyOrg_MyBucket").unwrap())
-            .await
             .expect("Database exists");
 
         let batches = run_query(test_db.as_ref(), "select * from h2o_temperature").await;

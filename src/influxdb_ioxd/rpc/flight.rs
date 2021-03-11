@@ -132,7 +132,6 @@ where
         let db = self
             .db_store
             .db(&read_info.database_name)
-            .await
             .context(DatabaseNotFound {
                 database_name: &read_info.database_name,
             })?;

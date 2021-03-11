@@ -474,14 +474,14 @@ impl DatabaseStore for TestDatabaseStore {
     type Error = TestError;
 
     /// List the database names.
-    async fn db_names_sorted(&self) -> Vec<String> {
+    fn db_names_sorted(&self) -> Vec<String> {
         let databases = self.databases.lock();
 
         databases.keys().cloned().collect()
     }
 
     /// Retrieve the database specified name
-    async fn db(&self, name: &str) -> Option<Arc<Self::Database>> {
+    fn db(&self, name: &str) -> Option<Arc<Self::Database>> {
         let databases = self.databases.lock();
 
         databases.get(name).cloned()
