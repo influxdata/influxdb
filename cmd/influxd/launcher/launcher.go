@@ -1023,7 +1023,7 @@ func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler) error {
 
 	m.httpServer.TLSConfig = &tls.Config{
 		CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
-		PreferServerCipherSuites: true,
+		PreferServerCipherSuites: !useStrictCiphers,
 		MinVersion:               tlsMinVersion,
 		CipherSuites:             cipherConfig,
 	}
