@@ -226,6 +226,7 @@ impl TestServer {
         let server_process = Command::cargo_bin("influxdb_iox")
             .unwrap()
             .arg("server")
+            .arg("run")
             // Can enable for debugging
             //.arg("-vv")
             .env("INFLUXDB_IOX_BIND_ADDR", &addrs.http_bind_addr)
@@ -251,6 +252,7 @@ impl TestServer {
         self.server_process = Command::cargo_bin("influxdb_iox")
             .unwrap()
             .arg("server")
+            .arg("run")
             // Can enable for debugging
             //.arg("-vv")
             .env("INFLUXDB_IOX_DB_DIR", self.dir.path())

@@ -20,15 +20,21 @@ pub const FALLBACK_AWS_REGION: &str = "us-east-1";
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Server error")]
+    #[error("Server error: {0}")]
     ServerError(#[from] influxdb_ioxd::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, StructOpt)]
+#[structopt(name = "server", about = "IOx server commands")]
+pub enum Config {
+    Run(RunConfig),
+}
+
+#[derive(Debug, StructOpt)]
 #[structopt(
-    name = "server",
+    name = "run",
     about = "Runs in server mode",
     long_about = "Run the IOx server.\n\nThe configuration options below can be \
     set either with the command line flags or with the specified environment \
@@ -41,7 +47,7 @@ Configuration is loaded from the following sources (highest precedence first):
         - .env file contents
         - pre-configured default values"
 )]
-pub struct Config {
+pub struct RunConfig {
     /// This controls the IOx server logging level, as described in
     /// https://crates.io/crates/env_logger.
     ///
@@ -225,8 +231,10 @@ Possible values (case insensitive):
     pub jaeger_host: Option<String>,
 }
 
-pub async fn command(logging_level: LoggingLevel, config: Box<Config>) -> Result<()> {
-    Ok(influxdb_ioxd::main(logging_level, config).await?)
+pub async fn command(logging_level: LoggingLevel, config: Config) -> Result<()> {
+    match config {
+        Config::Run(config) => Ok(influxdb_ioxd::main(logging_level, config).await?),
+    }
 }
 
 fn parse_socket_addr(s: &str) -> std::io::Result<SocketAddr> {
@@ -305,7 +313,7 @@ mod tests {
 
     #[test]
     fn test_socketaddr() -> Result<(), clap::Error> {
-        let c = Config::from_iter_safe(
+        let c = RunConfig::from_iter_safe(
             to_vec(&["server", "--api-bind", "127.0.0.1:1234"]).into_iter(),
         )?;
         assert_eq!(
@@ -313,7 +321,7 @@ mod tests {
             SocketAddr::from(([127, 0, 0, 1], 1234))
         );
 
-        let c = Config::from_iter_safe(
+        let c = RunConfig::from_iter_safe(
             to_vec(&["server", "--api-bind", "localhost:1234"]).into_iter(),
         )?;
         // depending on where the test runs, localhost will either resolve to a ipv4 or
@@ -329,7 +337,7 @@ mod tests {
         };
 
         assert_eq!(
-            Config::from_iter_safe(
+            RunConfig::from_iter_safe(
                 to_vec(&["server", "--api-bind", "!@INv_a1d(ad0/resp_!"]).into_iter(),
             )
             .map_err(|e| e.kind)
