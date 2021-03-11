@@ -26,6 +26,7 @@ or `/query` HTTP endpoints.
 1. [20988](https://github.com/influxdata/influxdb/pull/20988): Add `--http-read-header-timeout`, `--http-read-timeout`, `--http-write-timeout`, and `--http-idle-timeout` options to `influxd`.
 1. [20988](https://github.com/influxdata/influxdb/pull/20988): Set a default `--http-read-header-timeout` of 10s in `influxd`.
 1. [20988](https://github.com/influxdata/influxdb/pull/20988): Set a default `--http-idle-timeout` of 3m in `influxd`.
+1. [20911](https://github.com/influxdata/influxdb/pull/20911): Add support for explicitly setting shard-group durations on buckets. Thanks @hinst!
 
 ### Bug Fixes
 

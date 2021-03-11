@@ -371,6 +371,9 @@ func (s *Store) UpdateBucket(ctx context.Context, tx kv.Tx, id influxdb.ID, upd 
 	if upd.RetentionPeriod != nil {
 		bucket.RetentionPeriod = *upd.RetentionPeriod
 	}
+	if upd.ShardGroupDuration != nil {
+		bucket.ShardGroupDuration = *upd.ShardGroupDuration
+	}
 
 	v, err := marshalBucket(bucket)
 	if err != nil {
