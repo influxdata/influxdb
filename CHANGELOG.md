@@ -9,6 +9,11 @@ Prior to this release, the `influxd` server would always expose profiling inform
 This endpoint was unauthenticated, and not used by InfluxDB systems to report diagnostics. For security and clarity,
 the endpoint has been removed. Use the `/metrics` endpoint to collect system statistics.
 
+#### `influx transpile` removed
+
+The `transpile` command has been retired. Users can send InfluxQL directly to the server via the `/api/v2/query`
+or `/query` HTTP endpoints.
+
 ### Features
 
 1. [20860](https://github.com/influxdata/influxdb/pull/20860): Add `--pprof-disabled` option to `influxd` to disable exposing profiling information over HTTP.
