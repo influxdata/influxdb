@@ -15,7 +15,7 @@ use crate::column::{cmp::Operator, Column, RowIDs, RowIDsOption};
 use crate::schema;
 use crate::schema::{AggregateType, LogicalDataType, ResultSchema};
 use crate::value::{
-    AggregateResult, EncodedValues, OwnedValue, Scalar, Value, Values, ValuesIterator,
+    AggregateResult, AggregateVec, EncodedValues, OwnedValue, Scalar, Value, Values, ValuesIterator,
 };
 use arrow_deps::arrow::record_batch::RecordBatch;
 use arrow_deps::{
@@ -617,74 +617,101 @@ impl RowGroup {
         &'a self,
         dst: &mut ReadAggregateResult<'a>,
         groupby_encoded_ids: &[Vec<u32>],
-        aggregate_columns_data: &[Values<'a>],
+        aggregate_input_columns: &[Values<'a>],
     ) {
         let total_rows = groupby_encoded_ids[0].len();
         assert!(groupby_encoded_ids.iter().all(|x| x.len() == total_rows));
         assert!(dst.schema.group_columns.len() <= 4);
 
-        // Now begin building the group keys.
-        let mut groups: HashMap<u128, Vec<AggregateResult<'_>>> = HashMap::default();
+        // These vectors will hold the decoded values of each part of each
+        // group key. They are the output columns of the input columns used for
+        // the grouping operation.
+        let mut group_cols_out: Vec<Vec<Option<ColumnName<'a>>>> = vec![];
+        group_cols_out.resize(groupby_encoded_ids.len(), vec![]);
 
-        for row in 0..groupby_encoded_ids[0].len() {
-            // pack each column's encoded value for the row into a packed group
-            // key.
+        // Each of these vectors will be used to store each aggregate row-value
+        // for a specific aggregate result column.
+        let mut agg_cols_out = dst
+            .schema
+            .aggregate_columns
+            .iter()
+            .map(|(_, agg_type, data_type)| AggregateVec::from((agg_type, data_type, 0)))
+            .collect::<Vec<_>>();
+
+        // Maps each group key to an ordinal offset on output columns. This
+        // offset is used to update aggregate values for each group key and to
+        // store the decoded representations of the group keys themselves in
+        // the associated output columns.
+        let mut group_keys: HashMap<u128, usize> = HashMap::default();
+
+        // reference back to underlying group columns for fetching decoded group
+        // key values.
+        let input_group_columns = dst
+            .schema
+            .group_column_names_iter()
+            .map(|name| self.column_by_name(name))
+            .collect::<Vec<_>>();
+
+        let mut next_ordinal_id = 0; // assign a position for each group key in output columns.
+        for row in 0..total_rows {
+            // pack each column's encoded value for the row into a packed
+            // group key.
             let mut group_key_packed = 0_u128;
             for (i, col_ids) in groupby_encoded_ids.iter().enumerate() {
                 group_key_packed = pack_u32_in_u128(group_key_packed, col_ids[row], i);
             }
 
-            match groups.raw_entry_mut().from_key(&group_key_packed) {
-                // aggregates for this group key are already present. Update
-                // them
-                hash_map::RawEntryMut::Occupied(mut entry) => {
-                    for (i, values) in aggregate_columns_data.iter().enumerate() {
-                        entry.get_mut()[i].update(values.value(row));
+            match group_keys.raw_entry_mut().from_key(&group_key_packed) {
+                hash_map::RawEntryMut::Occupied(entry) => {
+                    let ordinal_id = entry.get();
+
+                    // Update each aggregate column at this ordinal offset
+                    // with the values present in the input columns at the
+                    // current row.
+                    for (agg_col_i, aggregate_result) in agg_cols_out.iter_mut().enumerate() {
+                        aggregate_result.update(
+                            &aggregate_input_columns[agg_col_i],
+                            row,
+                            *ordinal_id,
+                        )
                     }
                 }
-                // group key does not exist, so create it.
                 hash_map::RawEntryMut::Vacant(entry) => {
-                    let mut group_key_aggs = Vec::with_capacity(dst.schema.aggregate_columns.len());
-                    for (_, agg_type, _) in &dst.schema.aggregate_columns {
-                        group_key_aggs.push(AggregateResult::from(agg_type));
+                    // Update each aggregate column at this ordinal offset
+                    // with the values present in the input columns at the
+                    // current row.
+                    for (agg_col_i, aggregate_result) in agg_cols_out.iter_mut().enumerate() {
+                        aggregate_result.update(
+                            &aggregate_input_columns[agg_col_i],
+                            row,
+                            next_ordinal_id,
+                        )
                     }
 
-                    for (i, values) in aggregate_columns_data.iter().enumerate() {
-                        group_key_aggs[i].update(values.value(row));
+                    // Add decoded group key values to the output group columns.
+                    for (group_col_i, group_key_col) in group_cols_out.iter_mut().enumerate() {
+                        if group_key_col.len() >= next_ordinal_id {
+                            group_key_col.resize(next_ordinal_id + 1, None);
+                        }
+                        let decoded_value = input_group_columns[group_col_i]
+                            .decode_id(groupby_encoded_ids[group_col_i][row]);
+                        group_key_col[next_ordinal_id] = match decoded_value {
+                            Value::Null => None,
+                            Value::String(s) => Some(s),
+                            _ => panic!("currently unsupported group column"),
+                        };
                     }
 
-                    entry.insert(group_key_packed, group_key_aggs);
+                    // update the hashmap with the encoded group key and the
+                    // associated ordinal offset.
+                    entry.insert(group_key_packed, next_ordinal_id);
+                    next_ordinal_id += 1;
                 }
             }
         }
 
-        // Finally, build results set. Each encoded group key needs to be
-        // materialised into a logical group key
-        let columns = dst
-            .schema
-            .group_column_names_iter()
-            .map(|name| self.column_by_name(name))
-            .collect::<Vec<_>>();
-        let mut group_key_vec: Vec<GroupKey<'_>> = Vec::with_capacity(groups.len());
-        let mut aggregate_vec: Vec<AggregateResults<'_>> = Vec::with_capacity(groups.len());
-
-        for (group_key_packed, aggs) in groups.into_iter() {
-            let mut logical_key = Vec::with_capacity(columns.len());
-
-            // Unpack the appropriate encoded id for each column from the packed
-            // group key, then materialise the logical value for that id and add
-            // it to the materialised group key (`logical_key`).
-            for (col_idx, column) in columns.iter().enumerate() {
-                let encoded_id = (group_key_packed >> (col_idx * 32)) as u32;
-                logical_key.push(column.decode_id(encoded_id));
-            }
-
-            group_key_vec.push(GroupKey(logical_key));
-            aggregate_vec.push(AggregateResults(aggs));
-        }
-
-        dst.group_keys = group_key_vec;
-        dst.aggregates = aggregate_vec;
+        dst.group_key_cols = group_cols_out;
+        dst.aggregate_cols = agg_cols_out;
     }
 
     // Optimised `read_group` method when there are no predicates and all the
@@ -1711,6 +1738,9 @@ pub struct ReadAggregateResult<'row_group> {
     // values for each of the aggregate_columns.
     pub(crate) aggregates: Vec<AggregateResults<'row_group>>,
 
+    pub(crate) group_key_cols: Vec<Vec<Option<&'row_group str>>>,
+    pub(crate) aggregate_cols: Vec<AggregateVec<'row_group>>,
+
     pub(crate) group_keys_sorted: bool,
 }
 
@@ -2657,6 +2687,7 @@ west,POST,304,101,203
                 ]),
             ],
             group_keys_sorted: false,
+            ..Default::default()
         };
 
         // Debug implementation
