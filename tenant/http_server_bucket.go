@@ -166,6 +166,12 @@ func (b *bucketUpdate) OK() error {
 				Msg:  "expiration seconds cannot be negative",
 			}
 		}
+		if rule.ShardGroupDurationSeconds != nil && *rule.ShardGroupDurationSeconds < 0 {
+			return &influxdb.Error{
+				Code: influxdb.EUnprocessableEntity,
+				Msg:  "shard-group duration seconds cannot be negative",
+			}
+		}
 	}
 
 	return nil
@@ -320,10 +326,18 @@ func (b *postBucketRequest) OK() error {
 	}
 
 	if len(b.RetentionRules) > 0 {
-		if b.RetentionRules[0].EverySeconds < 0 {
+		rule := b.RetentionRules[0]
+
+		if rule.EverySeconds < 0 {
 			return &influxdb.Error{
 				Code: influxdb.EUnprocessableEntity,
 				Msg:  "expiration seconds cannot be negative",
+			}
+		}
+		if rule.ShardGroupDurationSeconds < 0 {
+			return &influxdb.Error{
+				Code: influxdb.EUnprocessableEntity,
+				Msg:  "shard-group duration seconds cannot be negative",
 			}
 		}
 	}
