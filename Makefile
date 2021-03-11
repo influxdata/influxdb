@@ -164,7 +164,7 @@ test-integration: GO_TAGS=integration
 test-integration:
 	$(GO_TEST) -count=1 $(GO_TEST_PATHS)
 
-test: test-go test-js
+test: test-go test-js test-flux
 
 test-go-race:
 	$(GO_TEST) -v -race -count=1 $(GO_TEST_PATHS)
@@ -225,4 +225,4 @@ dshell: dshell-image
 	@docker container run --rm -p 8086:8086 -p 8080:8080 -u $(shell id -u) -it -v $(shell pwd):/code -w /code influxdb:dshell 
 
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e influxd libflux flags dshell dclean docker-image-flux docker-image-influx pkg-config
+.PHONY: all $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-flux test-go-race bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e influxd libflux flags dshell dclean docker-image-flux docker-image-influx pkg-config
