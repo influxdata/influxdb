@@ -216,7 +216,6 @@ func TestLauncher_UpdateRetentionPolicy(t *testing.T) {
 	}{
 		{
 			name:       "infinite to 1w",
-			initRp:     0,
 			derivedSgd: durPtr(humanize.Week),
 			newRp:      durPtr(humanize.Week),
 		},
@@ -249,6 +248,12 @@ func TestLauncher_UpdateRetentionPolicy(t *testing.T) {
 			initRp:  humanize.Day,
 			initSgd: 3 * time.Hour,
 			newSgd:  durPtr(1*time.Hour + 30*time.Minute),
+		},
+		{
+			name:       "infinite, update both retention and shard duration",
+			derivedSgd: durPtr(humanize.Week),
+			newRp:      durPtr(time.Hour),
+			newSgd:     durPtr(time.Hour),
 		},
 		{
 			name:          "init shard duration larger than RP",
