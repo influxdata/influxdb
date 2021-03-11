@@ -24,6 +24,7 @@ mod commands {
     pub mod logging;
     pub mod meta;
     pub mod server;
+    pub mod server_remote;
     pub mod stats;
     pub mod writer;
 }
@@ -185,7 +186,7 @@ fn main() -> Result<(), std::io::Error> {
             Command::Server(config) => {
                 // Note don't set up basic logging here, different logging rules apply in server
                 // mode
-                if let Err(e) = commands::server::command(logging_level, *config).await {
+                if let Err(e) = commands::server::command(logging_level, host, *config).await {
                     eprintln!("Server command failed: {}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }

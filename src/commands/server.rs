@@ -1,7 +1,7 @@
 //! Implementation of command line option for manipulating and showing server
 //! config
 
-use crate::commands::logging::LoggingLevel;
+use crate::commands::{logging::LoggingLevel, server_remote};
 use crate::influxdb_ioxd;
 use clap::arg_enum;
 use std::{net::SocketAddr, net::ToSocketAddrs, path::PathBuf};
@@ -20,8 +20,10 @@ pub const FALLBACK_AWS_REGION: &str = "us-east-1";
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("Server error: {0}")]
+    #[error("Run: {0}")]
     ServerError(#[from] influxdb_ioxd::Error),
+    #[error("Remote: {0}")]
+    RemoteError(#[from] server_remote::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -30,6 +32,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[structopt(name = "server", about = "IOx server commands")]
 pub enum Config {
     Run(RunConfig),
+    Remote(crate::commands::server_remote::Config),
 }
 
 #[derive(Debug, StructOpt)]
@@ -231,9 +234,10 @@ Possible values (case insensitive):
     pub jaeger_host: Option<String>,
 }
 
-pub async fn command(logging_level: LoggingLevel, config: Config) -> Result<()> {
+pub async fn command(logging_level: LoggingLevel, url: String, config: Config) -> Result<()> {
     match config {
         Config::Run(config) => Ok(influxdb_ioxd::main(logging_level, config).await?),
+        Config::Remote(config) => Ok(server_remote::command(url, config).await?),
     }
 }
 

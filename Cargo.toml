@@ -70,6 +70,8 @@ http = "0.2.0"
 hyper = "0.14"
 opentelemetry = { version = "0.12", default-features = false, features = ["trace", "tokio-support"] }
 opentelemetry-jaeger = { version = "0.11", features = ["tokio"] }
+# used by arrow/datafusion anyway
+prettytable-rs = "0.8"
 prost = "0.7"
 # Forked to upgrade hyper and tokio
 routerify = { git = "https://github.com/influxdata/routerify", rev = "274e250" }

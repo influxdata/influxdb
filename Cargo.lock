@@ -1507,6 +1507,7 @@ dependencies = [
  "panic_logging",
  "parking_lot",
  "predicates",
+ "prettytable-rs",
  "prost",
  "query",
  "rand 0.7.3",
