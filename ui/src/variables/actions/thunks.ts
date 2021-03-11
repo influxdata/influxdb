@@ -123,6 +123,9 @@ export const getVariables = (controller?: AbortController) => async (
         variables.entities.variables[v.id].status = RemoteDataState.NotStarted
       })
 
+      if (!variables.entities['variables']) {
+        variables.entities['variables'] = {}
+      }
     await dispatch(setVariables(RemoteDataState.Done, variables))
   } catch (error) {
     console.error(error)

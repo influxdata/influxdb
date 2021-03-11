@@ -1,4 +1,4 @@
-import {setRelation} from './helpers'
+import {setRelation, setResource} from './helpers'
 
 import {RemoteDataState, ResourceType} from 'src/types'
 
@@ -21,6 +21,18 @@ const genState = () => {
     },
     childID,
     parentID,
+  }
+}
+
+const genVariableState = (override = {}) => {
+  return {
+    status: RemoteDataState.Done,
+    byID: {
+      foo: {bar: 'baz'},
+    },
+    allIDs: ['foo'],
+    values: {},
+    ...override,
   }
 }
 
@@ -73,6 +85,28 @@ describe('Resources.reducers.helpers', () => {
       }
 
       expect(state).toEqual(expected)
+    })
+  })
+
+  describe('setResource', () => {
+    it('updates resources values to be empty if no resource is found under given type', () => {
+      const toBeDeletedState = genVariableState()
+      const action = {
+        schema: {
+          entities: {
+            variables: {},
+          },
+          result: [],
+        },
+        status: 'Done',
+      }
+      setResource(toBeDeletedState, action, ResourceType.Variables)
+      expect(toBeDeletedState).toEqual({
+        status: 'Done',
+        byID: {},
+        allIDs: [],
+        values: {},
+      })
     })
   })
 })
