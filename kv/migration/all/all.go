@@ -35,5 +35,7 @@ var Migrations = [...]migration.Spec{
 	Migration0013_RepairDBRPOwnerAndBucketIDs,
 	// reindex DBRPs
 	Migration0014_ReindexDBRPs,
+	// record shard group durations in bucket metadata
+	Migration0015_RecordShardGroupDurationsInBucketMetadata,
 	// {{ do_not_edit . }}
 }

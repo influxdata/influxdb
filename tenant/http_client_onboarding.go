@@ -40,16 +40,11 @@ func (s *OnboardClientService) OnboardInitialUser(ctx context.Context, or *influ
 		return nil, err
 	}
 
-	bkt, err := res.Bucket.toInfluxDB()
-	if err != nil {
-		return nil, err
-	}
-
 	return &influxdb.OnboardingResults{
 		Org:    &res.Organization.Organization,
 		User:   &res.User.User,
 		Auth:   res.Auth.toPlatform(),
-		Bucket: bkt,
+		Bucket: res.Bucket.toInfluxDB(),
 	}, nil
 }
 
@@ -65,15 +60,10 @@ func (s *OnboardClientService) OnboardUser(ctx context.Context, or *influxdb.Onb
 		return nil, err
 	}
 
-	bkt, err := res.Bucket.toInfluxDB()
-	if err != nil {
-		return nil, err
-	}
-
 	return &influxdb.OnboardingResults{
 		Org:    &res.Organization.Organization,
 		User:   &res.User.User,
 		Auth:   res.Auth.toPlatform(),
-		Bucket: bkt,
+		Bucket: res.Bucket.toInfluxDB(),
 	}, nil
 }

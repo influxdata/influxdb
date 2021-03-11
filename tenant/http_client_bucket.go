@@ -63,7 +63,7 @@ func (s *BucketClientService) FindBucketByID(ctx context.Context, id influxdb.ID
 	if err != nil {
 		return nil, err
 	}
-	return br.toInfluxDB()
+	return br.toInfluxDB(), nil
 }
 
 // FindBucket returns the first bucket that matches filter.
@@ -124,11 +124,7 @@ func (s *BucketClientService) FindBuckets(ctx context.Context, filter influxdb.B
 	}
 	buckets := make([]*influxdb.Bucket, 0, len(bs.Buckets))
 	for _, b := range bs.Buckets {
-		pb, err := b.bucket.toInfluxDB()
-		if err != nil {
-			return nil, 0, err
-		}
-
+		pb := b.bucket.toInfluxDB()
 		buckets = append(buckets, pb)
 	}
 
@@ -149,10 +145,7 @@ func (s *BucketClientService) CreateBucket(ctx context.Context, b *influxdb.Buck
 		return err
 	}
 
-	pb, err := br.toInfluxDB()
-	if err != nil {
-		return err
-	}
+	pb := br.toInfluxDB()
 	*b = *pb
 	return nil
 }
@@ -168,7 +161,7 @@ func (s *BucketClientService) UpdateBucket(ctx context.Context, id influxdb.ID, 
 	if err != nil {
 		return nil, err
 	}
-	return br.toInfluxDB()
+	return br.toInfluxDB(), nil
 }
 
 // DeleteBucket removes a bucket by ID.
