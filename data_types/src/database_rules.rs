@@ -1,6 +1,7 @@
 use std::convert::{TryFrom, TryInto};
 
 use chrono::{DateTime, TimeZone, Utc};
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 use snafu::Snafu;
 
@@ -51,6 +52,12 @@ pub struct DatabaseRules {
     /// in object storage.
     #[serde(default = "MutableBufferConfig::default_option")]
     pub mutable_buffer_config: Option<MutableBufferConfig>,
+
+    /// An optional config to route writes or queries to other IOx servers.
+    /// This is useful for sharding a database or copying all or part of
+    /// requests over to other servers (like shadow production, etc).
+    #[serde(default)]
+    pub routing_config: Option<RoutingConfig>,
 }
 
 impl DatabaseRules {
@@ -118,6 +125,7 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
             partition_template,
             wal_buffer_config,
             mutable_buffer_config,
+            routing_config: None,
         })
     }
 }
@@ -700,6 +708,76 @@ impl TryFrom<management::partition_template::Part> for TemplatePart {
         proto.part.required("part")
     }
 }
+
+/// RoutingConfig defines rules for routing write or query requests to other IOx
+/// servers. In the case of writes, routing rules can be used to create copies
+/// of the data to get sent out to other servers in a best effort manner. Each
+/// route will be checked with a copy of the write or query sent out to each
+/// match.
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct RoutingConfig {
+    routes: Vec<Route>,
+}
+
+/// A specific named route to match against. Routes can be done based on
+/// specific matches to send to a collection of servers or based on hashing to
+/// send to a single server in a collection.
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct Route {
+    /// The name of the route.
+    pub name: String,
+    /// An optional matcher. If there is a match, the route will be evaluated to
+    /// the given targets, otherwise the hash ring will be evaluated.
+    pub specific_targets: Option<MatcherToTargets>,
+    /// An optional default hasher which will route to one in a collection of
+    /// nodes.
+    pub hash_ring: Option<HashRing>,
+    /// If set to true the router will ignore any errors sent by the remote
+    /// targets in this route. That is, the write request will succeed
+    /// regardless of this route's success.
+    pub ignore_errors: bool,
+}
+
+/// Maps a matcher with specific targets. If it is a match the row/line or query
+/// should be sent to all targets.
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct MatcherToTargets {
+    pub matcher: Matcher,
+    pub targets: Vec<WriterId>,
+}
+
+/// HashRing is a rule for creating a hash key for a row and mapping that to
+/// an individual node on a ring.
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+pub struct HashRing {
+    /// include the table name in the hash key
+    pub table_name: Option<String>,
+    /// include the values of these columns in the hash key
+    pub columns: Vec<String>,
+    /// ring of these nodes
+    pub nodes: Vec<WriterId>,
+}
+
+/// A matcher is used to match routing rules or subscriptions on a row-by-row
+/// (or line) basis.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Matcher {
+    /// if provided, match if the table name matches against the regex
+    #[serde(with = "serde_regex")]
+    pub table_name_regex: Option<Regex>,
+    // paul: what should we use for predicate matching here against a single row/line?
+    pub predicate: Option<String>,
+}
+
+impl PartialEq for Matcher {
+    fn eq(&self, other: &Self) -> bool {
+        // this is kind of janky, but it's only used during tests and should get the job
+        // done
+        format!("{:?}{:?}", self.table_name_regex, self.predicate)
+            == format!("{:?}{:?}", other.table_name_regex, other.predicate)
+    }
+}
+impl Eq for Matcher {}
 
 /// `PartitionId` is the object storage identifier for a specific partition. It
 /// should be a path that can be used against an object store to locate all the
