@@ -1,5 +1,17 @@
-v1.7.11 [unreleased]
+v1.7.11 [2021-03-12]
 --------------------
+
+### Bugfixes
+
+-	[#17633](https://github.com/influxdata/influxdb/pull/17633): fix(storage/reads): update sortKey sorting method to use null byte as delimiter, not comma
+-	[#17571](https://github.com/influxdata/influxdb/pull/17571): fix(tsdb): Replace panic with error while de/encoding corrupt data
+-	[#16411](https://github.com/influxdata/influxdb/pull/16411): fix(tsdb): incorrect error type in type switch
+-	[#16384](https://github.com/influxdata/influxdb/pull/16384): fix: access tsi active log file with READ lock
+
+### Features
+
+-	[#18258](https://github.com/influxdata/influxdb/pull/18258): chore: update go version to 1.13.8
+-	[#17063](https://github.com/influxdata/influxdb/pull/17063): feat(influxdb): backport modules support to 1.7.x
 
 v1.7.10 [2020-02-07]
 --------------------
