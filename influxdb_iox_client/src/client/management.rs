@@ -303,11 +303,11 @@ impl Client {
         Ok(())
     }
 
-    /// List partition keys of a database
+    /// List all partitions of the database
     pub async fn list_partitions(
         &mut self,
         db_name: impl Into<String>,
-    ) -> Result<Vec<String>, ListPartitionsError> {
+    ) -> Result<Vec<Partition>, ListPartitionsError> {
         let db_name = db_name.into();
         let response = self
             .inner
@@ -318,12 +318,12 @@ impl Client {
                 _ => ListPartitionsError::ServerError(status),
             })?;
 
-        let ListPartitionsResponse { partition_keys } = response.into_inner();
+        let ListPartitionsResponse { partitions } = response.into_inner();
 
-        Ok(partition_keys)
+        Ok(partitions)
     }
 
-    /// Get details about a partition
+    /// Get details about a specific partition
     pub async fn get_partition(
         &mut self,
         db_name: impl Into<String>,

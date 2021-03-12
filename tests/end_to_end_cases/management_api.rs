@@ -304,9 +304,16 @@ async fn test_partition_list() {
         .expect("listing partition");
 
     // ensure the output order is consistent
-    partitions.sort();
+    partitions.sort_by(|p1, p2| p1.key.cmp(&p2.key));
 
-    let expected = vec!["cpu".to_string(), "mem".to_string()];
+    let expected = vec![
+        Partition {
+            key: "cpu".to_string(),
+        },
+        Partition {
+            key: "mem".to_string(),
+        },
+    ];
 
     assert_eq!(
         expected, partitions,

@@ -198,8 +198,12 @@ where
         })?;
 
         let partition_keys = db.partition_keys().map_err(default_db_error_handler)?;
+        let partitions = partition_keys
+            .into_iter()
+            .map(|key| Partition { key })
+            .collect::<Vec<_>>();
 
-        Ok(Response::new(ListPartitionsResponse { partition_keys }))
+        Ok(Response::new(ListPartitionsResponse { partitions }))
     }
 
     async fn get_partition(

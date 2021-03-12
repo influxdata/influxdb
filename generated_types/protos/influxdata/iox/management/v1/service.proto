@@ -135,8 +135,8 @@ message ListPartitionsRequest {
 }
 
 message ListPartitionsResponse {
-  // All partition keys in a database
-  repeated string partition_keys = 1;
+  // All partitions in a database
+  repeated Partition partitions = 1;
 }
 
 

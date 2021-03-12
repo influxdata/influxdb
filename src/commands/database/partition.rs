@@ -65,7 +65,9 @@ pub async fn command(url: String, config: Config) -> Result<()> {
     match config.command {
         Command::List(list) => {
             let List { db_name } = list;
-            let partition_keys = client.list_partitions(db_name).await?;
+            let partitions = client.list_partitions(db_name).await?;
+            let partition_keys = partitions.into_iter().map(|p| p.key).collect::<Vec<_>>();
+
             serde_json::to_writer_pretty(std::io::stdout(), &partition_keys)?;
         }
         Command::Get(get) => {
