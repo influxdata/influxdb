@@ -1,6 +1,6 @@
 # Counter-Strike: Global Offensive (CSGO) Input Plugin
 
-The `csgo` plugin gather metrics from CSGO servers.
+The `csgo` plugin gather metrics from Counter-Strike: Global Offensive servers.
 
 #### Configuration
 ```toml
