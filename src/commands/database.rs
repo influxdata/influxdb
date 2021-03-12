@@ -67,9 +67,10 @@ struct Create {
     /// The name of the database
     name: String,
 
-    /// Create a mutable buffer of the specified size in bytes
-    #[structopt(short, long)]
-    mutable_buffer: Option<u64>,
+    /// Create a mutable buffer of the specified size in bytes.  If
+    /// size is 0, no mutable buffer is created.
+    #[structopt(short, long, default_value = "104857600")] // 104857600 = 100*1024*1024
+    mutable_buffer: u64,
 }
 
 /// Get list of databases
@@ -125,18 +126,38 @@ pub async fn command(url: String, config: Config) -> Result<()> {
     match config.command {
         Command::Create(command) => {
             let mut client = management::Client::new(connection);
-            client
-                .create_database(DatabaseRules {
-                    name: command.name,
-                    mutable_buffer_config: command.mutable_buffer.map(|buffer_size| {
-                        MutableBufferConfig {
-                            buffer_size,
-                            ..Default::default()
-                        }
-                    }),
+
+            // Configure a mutable buffer if requested
+            let buffer_size = command.mutable_buffer;
+            let mutable_buffer_config = if buffer_size > 0 {
+                Some(MutableBufferConfig {
+                    buffer_size,
                     ..Default::default()
                 })
-                .await?;
+            } else {
+                None
+            };
+
+            let rules = DatabaseRules {
+                name: command.name,
+
+                mutable_buffer_config,
+
+                // Default to hourly partitions
+                partition_template: Some(PartitionTemplate {
+                    parts: vec![partition_template::Part {
+                        part: Some(partition_template::part::Part::Time(
+                            "%Y-%m-%d %H:00:00".into(),
+                        )),
+                    }],
+                }),
+
+                // Note no wal buffer config
+                ..Default::default()
+            };
+
+            client.create_database(rules).await?;
+
             println!("Ok");
         }
         Command::List(_) => {

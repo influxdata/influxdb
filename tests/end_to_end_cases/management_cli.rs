@@ -61,6 +61,7 @@ async fn test_create_database() {
         .success()
         .stdout(predicate::str::contains("Ok"));
 
+    // Listing the databases includes the newly created database
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("database")
@@ -71,6 +72,7 @@ async fn test_create_database() {
         .success()
         .stdout(predicate::str::contains(db));
 
+    // Retrieving the database includes the name and a mutable buffer configuration
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("database")
@@ -80,7 +82,82 @@ async fn test_create_database() {
         .arg(addr)
         .assert()
         .success()
-        .stdout(predicate::str::contains(format!("name: \"{}\"", db)));
+        .stdout(
+            predicate::str::contains(db)
+                .and(predicate::str::contains(format!("name: \"{}\"", db)))
+                // validate the defaults have been set reasonably
+                .and(predicate::str::contains("%Y-%m-%d %H:00:00"))
+                .and(predicate::str::contains("buffer_size: 104857600"))
+                .and(predicate::str::contains("MutableBufferConfig")),
+        );
+}
+
+#[tokio::test]
+async fn test_create_database_size() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let addr = server_fixture.grpc_base();
+    let db_name = rand_name();
+    let db = &db_name;
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("create")
+        .arg(db)
+        .arg("-m")
+        .arg("1000")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Ok"));
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("get")
+        .arg(db)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(
+            predicate::str::contains("buffer_size: 1000")
+                .and(predicate::str::contains("MutableBufferConfig")),
+        );
+}
+
+#[tokio::test]
+async fn test_create_database_zero_size() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let addr = server_fixture.grpc_base();
+    let db_name = rand_name();
+    let db = &db_name;
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("create")
+        .arg(db)
+        .arg("-m")
+        .arg("0")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains("Ok"));
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("get")
+        .arg(db)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        // Should not have a mutable buffer
+        .stdout(predicate::str::contains("MutableBufferConfig").not());
 }
 
 #[tokio::test]

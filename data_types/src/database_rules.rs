@@ -629,10 +629,19 @@ impl TryFrom<management::PartitionTemplate> for PartitionTemplate {
 /// part of a partition key.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub enum TemplatePart {
+    /// The name of a table
     Table,
+    /// The value in a named column
     Column(String),
+    /// Applies a  `strftime` format to the "time" column.
+    ///
+    /// For example, a time format of "%Y-%m-%d %H:%M:%S" will produce
+    /// partition key parts such as "2021-03-14 12:25:21" and
+    /// "2021-04-14 12:24:21"
     TimeFormat(String),
+    /// Applies a regex to the value in a string column
     RegexCapture(RegexCapture),
+    /// Applies a `strftime` pattern to some column other than "time"
     StrftimeColumn(StrftimeColumn),
 }
 
@@ -644,8 +653,15 @@ pub struct RegexCapture {
     regex: String,
 }
 
-/// `StrftimeColumn` can be used to create a time based partition key off some
+/// [`StrftimeColumn`] is used to create a time based partition key off some
 /// column other than the builtin `time` column.
+///
+/// The value of the named column is formatted using a `strftime`
+/// style string.
+///
+/// For example, a time format of "%Y-%m-%d %H:%M:%S" will produce
+/// partition key parts such as "2021-03-14 12:25:21" and
+/// "2021-04-14 12:24:21"
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct StrftimeColumn {
     column: String,
