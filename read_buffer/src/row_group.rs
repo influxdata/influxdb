@@ -494,17 +494,6 @@ impl RowGroup {
             aggregate_columns_data.push(column_values);
         }
 
-        // If there is a single group column then we can use an optimised
-        // approach for building group keys
-        if group_columns.len() == 1 {
-            self.read_group_single_group_column(
-                &mut result,
-                &groupby_encoded_ids[0],
-                aggregate_columns_data,
-            );
-            return result;
-        }
-
         // Perform the group by using a hashmap
         self.read_group_with_hashing(&mut result, &groupby_encoded_ids, aggregate_columns_data);
         result
@@ -539,71 +528,102 @@ impl RowGroup {
         &'a self,
         dst: &mut ReadAggregateResult<'a>,
         groupby_encoded_ids: &[Vec<u32>],
-        aggregate_columns_data: &[Values<'a>],
+        aggregate_input_columns: &[Values<'a>],
     ) {
-        // Now begin building the group keys.
-        let mut groups: HashMap<Vec<u32>, Vec<AggregateResult<'_>>> = HashMap::default();
         let total_rows = groupby_encoded_ids[0].len();
         assert!(groupby_encoded_ids.iter().all(|x| x.len() == total_rows));
 
-        // key_buf will be used as a temporary buffer for group keys, which are
-        // themselves integers.
-        let mut key_buf = vec![0; dst.schema.group_columns.len()];
+        // These vectors will hold the decoded values of each part of each
+        // group key. They are the output columns of the input columns used for
+        // the grouping operation.
+        let mut group_cols_out: Vec<Vec<Option<ColumnName<'a>>>> = vec![];
+        group_cols_out.resize(groupby_encoded_ids.len(), vec![]);
 
+        // Each of these vectors will be used to store each aggregate row-value
+        // for a specific aggregate result column.
+        let mut agg_cols_out = dst
+            .schema
+            .aggregate_columns
+            .iter()
+            .map(|(_, agg_type, data_type)| AggregateVec::from((agg_type, data_type, 0)))
+            .collect::<Vec<_>>();
+
+        // Maps each group key to an ordinal offset on output columns. This
+        // offset is used to update aggregate values for each group key and to
+        // store the decoded representations of the group keys themselves in
+        // the associated output columns.
+        let mut group_keys: HashMap<Vec<u32>, usize> = HashMap::default();
+
+        // reference back to underlying group columns for fetching decoded group
+        // key values.
+        let input_group_columns = dst
+            .schema
+            .group_column_names_iter()
+            .map(|name| self.column_by_name(name))
+            .collect::<Vec<_>>();
+
+        // key_buf will be used as a temporary buffer for group keys represented
+        // as a `Vec<u32>`.
+        let mut key_buf = vec![0; dst.schema.group_columns.len()];
+        let mut next_ordinal_id = 0; // assign a position for each group key in output columns.
         for row in 0..total_rows {
             // update the group key buffer with the group key for this row
             for (j, col_ids) in groupby_encoded_ids.iter().enumerate() {
                 key_buf[j] = col_ids[row];
             }
 
-            match groups.raw_entry_mut().from_key(&key_buf) {
-                // aggregates for this group key are already present. Update
-                // them
-                hash_map::RawEntryMut::Occupied(mut entry) => {
-                    for (i, values) in aggregate_columns_data.iter().enumerate() {
-                        entry.get_mut()[i].update(values.value(row));
+            match group_keys.raw_entry_mut().from_key(&key_buf) {
+                hash_map::RawEntryMut::Occupied(entry) => {
+                    let ordinal_id = entry.get();
+
+                    // Update each aggregate column at this ordinal offset
+                    // with the values present in the input columns at the
+                    // current row.
+                    for (agg_col_i, aggregate_result) in agg_cols_out.iter_mut().enumerate() {
+                        aggregate_result.update(
+                            &aggregate_input_columns[agg_col_i],
+                            row,
+                            *ordinal_id,
+                        )
                     }
                 }
                 // group key does not exist, so create it.
                 hash_map::RawEntryMut::Vacant(entry) => {
-                    let mut group_key_aggs = Vec::with_capacity(dst.schema.aggregate_columns.len());
-                    for (_, agg_type, _) in &dst.schema.aggregate_columns {
-                        group_key_aggs.push(AggregateResult::from(agg_type));
+                    // Update each aggregate column at this ordinal offset
+                    // with the values present in the input columns at the
+                    // current row.
+                    for (agg_col_i, aggregate_result) in agg_cols_out.iter_mut().enumerate() {
+                        aggregate_result.update(
+                            &aggregate_input_columns[agg_col_i],
+                            row,
+                            next_ordinal_id,
+                        )
                     }
 
-                    for (i, values) in aggregate_columns_data.iter().enumerate() {
-                        group_key_aggs[i].update(values.value(row));
+                    // Add decoded group key values to the output group columns.
+                    for (group_col_i, group_key_col) in group_cols_out.iter_mut().enumerate() {
+                        if group_key_col.len() >= next_ordinal_id {
+                            group_key_col.resize(next_ordinal_id + 1, None);
+                        }
+                        let decoded_value = input_group_columns[group_col_i]
+                            .decode_id(groupby_encoded_ids[group_col_i][row]);
+                        group_key_col[next_ordinal_id] = match decoded_value {
+                            Value::Null => None,
+                            Value::String(s) => Some(s),
+                            _ => panic!("currently unsupported group column"),
+                        };
                     }
 
-                    entry.insert(key_buf.clone(), group_key_aggs);
+                    // update the hashmap with the encoded group key and the
+                    // associated ordinal offset.
+                    entry.insert(key_buf.clone(), next_ordinal_id);
+                    next_ordinal_id += 1;
                 }
             }
         }
 
-        // Finally, build results set. Each encoded group key needs to be
-        // materialised into a logical group key
-        let columns = dst
-            .schema
-            .group_column_names_iter()
-            .map(|name| self.column_by_name(name))
-            .collect::<Vec<_>>();
-        let mut group_key_vec: Vec<GroupKey<'_>> = Vec::with_capacity(groups.len());
-        let mut aggregate_vec: Vec<AggregateResults<'_>> = Vec::with_capacity(groups.len());
-
-        for (group_key, aggs) in groups.into_iter() {
-            let mut logical_key = Vec::with_capacity(group_key.len());
-            for (col_idx, &encoded_id) in group_key.iter().enumerate() {
-                // TODO(edd): address the cast to u32
-                logical_key.push(columns[col_idx].decode_id(encoded_id as u32));
-            }
-
-            group_key_vec.push(GroupKey(logical_key));
-            aggregate_vec.push(AggregateResults(aggs));
-        }
-
-        // update results
-        dst.group_keys = group_key_vec;
-        dst.aggregates = aggregate_vec;
+        dst.group_key_cols = group_cols_out;
+        dst.aggregate_cols = agg_cols_out;
     }
 
     // This function is similar to `read_group_hash_with_vec_key` in that it
@@ -828,69 +848,6 @@ impl RowGroup {
             }
             dst.aggregates.push(AggregateResults(aggregates));
         }
-    }
-
-    // Optimised `read_group` path for queries where only a single column is
-    // being grouped on. In this case building a hash table is not necessary,
-    // and the group keys can be used as indexes into a vector whose values
-    // contain aggregates. As rows are processed these aggregates can be updated
-    // in constant time.
-    fn read_group_single_group_column<'a>(
-        &'a self,
-        dst: &mut ReadAggregateResult<'a>,
-        groupby_encoded_ids: &[u32],
-        aggregate_columns_data: Vec<Values<'a>>,
-    ) {
-        assert_eq!(dst.schema().group_columns.len(), 1);
-        let column = self.column_by_name(dst.schema.group_column_names_iter().next().unwrap());
-
-        // Allocate a vector to hold aggregates that can be updated as rows are
-        // processed. An extra group is required because encoded ids are
-        // 0-indexed.
-        let required_groups = groupby_encoded_ids.iter().max().unwrap() + 1;
-        let mut groups: Vec<Option<Vec<AggregateResult<'_>>>> =
-            vec![None; required_groups as usize];
-
-        for (row, encoded_id) in groupby_encoded_ids.iter().enumerate() {
-            let idx = *encoded_id as usize;
-            match &mut groups[idx] {
-                Some(group_key_aggs) => {
-                    // Update all aggregates for the group key
-                    for (i, values) in aggregate_columns_data.iter().enumerate() {
-                        group_key_aggs[i].update(values.value(row));
-                    }
-                }
-                None => {
-                    let mut group_key_aggs = dst
-                        .schema
-                        .aggregate_columns
-                        .iter()
-                        .map(|(_, agg_type, _)| AggregateResult::from(agg_type))
-                        .collect::<Vec<_>>();
-
-                    for (i, values) in aggregate_columns_data.iter().enumerate() {
-                        group_key_aggs[i].update(values.value(row));
-                    }
-
-                    groups[idx] = Some(group_key_aggs);
-                }
-            }
-        }
-
-        // Finally, build results set. Each encoded group key needs to be
-        // materialised into a logical group key
-        let mut group_key_vec: Vec<GroupKey<'_>> = Vec::with_capacity(groups.len());
-        let mut aggregate_vec = Vec::with_capacity(groups.len());
-
-        for (group_key, aggs) in groups.into_iter().enumerate() {
-            if let Some(aggs) = aggs {
-                group_key_vec.push(GroupKey(vec![column.decode_id(group_key as u32)]));
-                aggregate_vec.push(AggregateResults(aggs));
-            }
-        }
-
-        dst.group_keys = group_key_vec;
-        dst.aggregates = aggregate_vec;
     }
 
     // Optimised `read_group` method for cases where the columns being grouped
