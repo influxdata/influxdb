@@ -13,6 +13,8 @@ use influxdb_iox_client::{
 use structopt::StructOpt;
 use thiserror::Error;
 
+mod chunk;
+
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Error creating database: {0}")]
@@ -41,6 +43,9 @@ pub enum Error {
 
     #[error("Error querying: {0}")]
     Query(#[from] influxdb_iox_client::flight::Error),
+
+    #[error("Error in chunk subcommand: {0}")]
+    Chunk(#[from] chunk::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -101,10 +106,11 @@ enum Command {
     Get(Get),
     Write(Write),
     Query(Query),
+    Chunk(chunk::Config),
 }
 
 pub async fn command(url: String, config: Config) -> Result<()> {
-    let connection = Builder::default().build(url).await?;
+    let connection = Builder::default().build(url.clone()).await?;
 
     match config.command {
         Command::Create(command) => {
@@ -173,7 +179,11 @@ pub async fn command(url: String, config: Config) -> Result<()> {
             }
 
             let formatted_result = format.format(&batches)?;
+
             println!("{}", formatted_result);
+        }
+        Command::Chunk(config) => {
+            chunk::command(url, config).await?;
         }
     }
 

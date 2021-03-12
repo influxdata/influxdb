@@ -79,6 +79,14 @@ impl MutableBufferDb {
         }
     }
 
+    /// returns the id of the current open chunk in the specified partition
+    pub fn open_chunk_id(&self, partition_key: &str) -> u32 {
+        let partition = self.get_partition(partition_key);
+        let partition = partition.read().expect("mutex poisoned");
+
+        partition.open_chunk_id()
+    }
+
     /// Directs the writes from batch into the appropriate partitions
     fn write_entries_to_partitions(&self, batch: &wal::WriteBufferBatch<'_>) -> Result<()> {
         if let Some(entries) = batch.entries() {

@@ -20,6 +20,7 @@ pub const TABLE_NAMES_COLUMN_NAME: &str = "table";
 /// `column_names`.
 pub const COLUMN_NAMES_COLUMN_NAME: &str = "column";
 
+pub mod chunk;
 pub mod data;
 pub mod database_rules;
 pub mod error;

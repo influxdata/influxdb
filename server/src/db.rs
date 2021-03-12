@@ -10,7 +10,9 @@ use std::{
 };
 
 use async_trait::async_trait;
-use data_types::{data::ReplicatedWrite, database_rules::DatabaseRules, selection::Selection};
+use data_types::{
+    chunk::ChunkSummary, data::ReplicatedWrite, database_rules::DatabaseRules, selection::Selection,
+};
 use mutable_buffer::MutableBufferDb;
 use parking_lot::Mutex;
 use query::{Database, PartitionChunk};
@@ -121,7 +123,7 @@ impl Db {
             local_store
                 .rollover_partition(partition_key)
                 .context(RollingPartition)
-                .map(DBChunk::new_mb)
+                .map(|c| DBChunk::new_mb(c, partition_key, false))
         } else {
             DatatbaseNotWriteable {}.fail()
         }
@@ -131,10 +133,15 @@ impl Db {
     // potentially be migrated into the read buffer or object store)
     pub fn mutable_buffer_chunks(&self, partition_key: &str) -> Vec<Arc<DBChunk>> {
         let chunks = if let Some(mutable_buffer) = self.mutable_buffer.as_ref() {
+            let open_chunk_id = mutable_buffer.open_chunk_id(partition_key);
+
             mutable_buffer
                 .chunks(partition_key)
                 .into_iter()
-                .map(DBChunk::new_mb)
+                .map(|c| {
+                    let open = c.id() == open_chunk_id;
+                    DBChunk::new_mb(c, partition_key, open)
+                })
                 .collect()
         } else {
             vec![]
@@ -162,7 +169,7 @@ impl Db {
             .as_ref()
             .context(DatatbaseNotWriteable)?
             .drop_chunk(partition_key, chunk_id)
-            .map(DBChunk::new_mb)
+            .map(|c| DBChunk::new_mb(c, partition_key, false))
             .context(MutableBufferDrop)
     }
 
@@ -313,6 +320,21 @@ impl Database for Db {
             .partition_keys()
             .context(MutableBufferRead)
     }
+
+    fn chunk_summaries(&self) -> Result<Vec<ChunkSummary>> {
+        let summaries = self
+            .partition_keys()?
+            .into_iter()
+            .map(|partition_key| {
+                self.mutable_buffer_chunks(&partition_key)
+                    .into_iter()
+                    .chain(self.read_buffer_chunks(&partition_key).into_iter())
+                    .map(|c| c.summary())
+            })
+            .flatten()
+            .collect();
+        Ok(summaries)
+    }
 }
 
 #[cfg(test)]
@@ -324,8 +346,9 @@ mod tests {
     use arrow_deps::{
         arrow::record_batch::RecordBatch, assert_table_eq, datafusion::physical_plan::collect,
     };
-    use data_types::database_rules::{
-        MutableBufferConfig, Order, PartitionSort, PartitionSortRules,
+    use data_types::{
+        chunk::ChunkStorage,
+        database_rules::{MutableBufferConfig, Order, PartitionSort, PartitionSortRules},
     };
     use query::{
         exec::Executor, frontend::sql::SQLQueryPlanner, test::TestLPWriter, PartitionChunk,
@@ -557,6 +580,75 @@ mod tests {
             sort: PartitionSort::LastWriteTime,
         };
         db.rules.mutable_buffer_config = Some(mbconf);
+    }
+
+    #[tokio::test]
+    async fn chunk_summaries() {
+        // Test that chunk id listing is hooked up
+        let db = make_db();
+        let mut writer = TestLPWriter::default();
+
+        // get three chunks: one open, one closed in mb and one close in rb
+
+        writer.write_lp_string(&db, "cpu bar=1 1").await.unwrap();
+        db.rollover_partition("1970-01-01T00").await.unwrap();
+
+        writer
+            .write_lp_string(&db, "cpu bar=1,baz=2 2")
+            .await
+            .unwrap();
+
+        // a fourth chunk in a different partition
+        writer
+            .write_lp_string(&db, "cpu bar=1,baz2,frob=3 400000000000000")
+            .await
+            .unwrap();
+
+        print!("Partitions: {:?}", db.partition_keys().unwrap());
+
+        db.load_chunk_to_read_buffer("1970-01-01T00", 0)
+            .await
+            .unwrap();
+
+        fn to_arc(s: &str) -> Arc<String> {
+            Arc::new(s.to_string())
+        }
+
+        let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
+        chunk_summaries.sort_unstable();
+
+        let expected = vec![
+            ChunkSummary {
+                partition_key: to_arc("1970-01-01T00"),
+                id: 0,
+                storage: ChunkStorage::ClosedMutableBuffer,
+                estimated_bytes: 70,
+            },
+            ChunkSummary {
+                partition_key: to_arc("1970-01-01T00"),
+                id: 0,
+                storage: ChunkStorage::ReadBuffer,
+                estimated_bytes: 1221,
+            },
+            ChunkSummary {
+                partition_key: to_arc("1970-01-01T00"),
+                id: 1,
+                storage: ChunkStorage::OpenMutableBuffer,
+                estimated_bytes: 101,
+            },
+            ChunkSummary {
+                partition_key: to_arc("1970-01-05T15"),
+                id: 0,
+                storage: ChunkStorage::OpenMutableBuffer,
+                estimated_bytes: 107,
+            },
+        ];
+
+        assert_eq!(
+            expected, chunk_summaries,
+            "expected:\n{:#?}\n\nactual:{:#?}\n\n",
+            expected, chunk_summaries
+        );
     }
 
     // run a sql query against the database, returning the results as record batches

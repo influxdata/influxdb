@@ -80,6 +80,14 @@ pub enum GetDatabaseError {
     ServerError(tonic::Status),
 }
 
+/// Errors returned by Client::list_chunks
+#[derive(Debug, Error)]
+pub enum ListChunksError {
+    /// Client received an unexpected error from the server
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    ServerError(tonic::Status),
+}
+
 /// Errors returned by Client::list_remotes
 #[derive(Debug, Error)]
 pub enum ListRemotesError {
@@ -213,6 +221,21 @@ impl Client {
             .rules
             .ok_or(GetDatabaseError::EmptyResponse)?;
         Ok(rules)
+    }
+
+    /// List chunks in a database.
+    pub async fn list_chunks(
+        &mut self,
+        db_name: impl Into<String>,
+    ) -> Result<Vec<Chunk>, ListChunksError> {
+        let db_name = db_name.into();
+
+        let response = self
+            .inner
+            .list_chunks(ListChunksRequest { db_name })
+            .await
+            .map_err(ListChunksError::ServerError)?;
+        Ok(response.into_inner().chunks)
     }
 
     /// List remotes.

@@ -9,7 +9,8 @@
 use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 use async_trait::async_trait;
 use data_types::{
-    data::ReplicatedWrite, partition_metadata::TableSummary, schema::Schema, selection::Selection,
+    chunk::ChunkSummary, data::ReplicatedWrite, partition_metadata::TableSummary, schema::Schema,
+    selection::Selection,
 };
 use exec::{stringset::StringSet, Executor};
 
@@ -49,6 +50,9 @@ pub trait Database: Debug + Send + Sync {
     /// covering set means that together the chunks make up a single
     /// complete copy of the data being queried.
     fn chunks(&self, partition_key: &str) -> Vec<Arc<Self::Chunk>>;
+
+    /// Return a summary of all chunks in this database, in all partitions
+    fn chunk_summaries(&self) -> Result<Vec<ChunkSummary>, Self::Error>;
 }
 
 /// Collection of data that shares the same partition key
@@ -60,7 +64,7 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// particular partition.
     fn id(&self) -> u32;
 
-    /// returns the partition metadata stats for every table in the partition
+    /// returns the partition metadata stats for every table in the chunk
     fn table_stats(&self) -> Result<Vec<TableSummary>, Self::Error>;
 
     /// Returns true if this chunk *might* have data that passes the

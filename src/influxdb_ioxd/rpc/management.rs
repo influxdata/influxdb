@@ -6,7 +6,7 @@ use data_types::database_rules::DatabaseRules;
 use data_types::DatabaseName;
 use generated_types::google::{AlreadyExists, FieldViolation, FieldViolationExt, NotFound};
 use generated_types::influxdata::iox::management::v1::*;
-use query::DatabaseStore;
+use query::{Database, DatabaseStore};
 use server::{ConnectionManager, Error, Server};
 use tonic::{Request, Response, Status};
 
@@ -14,7 +14,7 @@ struct ManagementService<M: ConnectionManager> {
     server: Arc<Server<M>>,
 }
 
-use super::error::default_error_handler;
+use super::error::{default_db_error_handler, default_server_error_handler};
 
 #[tonic::async_trait]
 impl<M> management_service_server::ManagementService for ManagementService<M>
@@ -92,8 +92,39 @@ where
                 }
                 .into())
             }
-            Err(e) => Err(default_error_handler(e)),
+            Err(e) => Err(default_server_error_handler(e)),
         }
+    }
+
+    async fn list_chunks(
+        &self,
+        request: Request<ListChunksRequest>,
+    ) -> Result<Response<ListChunksResponse>, Status> {
+        let db_name = DatabaseName::new(request.into_inner().db_name).field("db_name")?;
+
+        let db = match self.server.db(&db_name) {
+            Some(db) => db,
+            None => {
+                return Err(NotFound {
+                    resource_type: "database".to_string(),
+                    resource_name: db_name.to_string(),
+                    ..Default::default()
+                }
+                .into())
+            }
+        };
+
+        let chunk_summaries = match db.chunk_summaries() {
+            Ok(chunk_summaries) => chunk_summaries,
+            Err(e) => return Err(default_db_error_handler(e)),
+        };
+
+        let chunks: Vec<Chunk> = chunk_summaries
+            .into_iter()
+            .map(|summary| summary.into())
+            .collect();
+
+        Ok(Response::new(ListChunksResponse { chunks }))
     }
 
     async fn list_remotes(

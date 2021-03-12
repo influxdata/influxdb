@@ -9,7 +9,7 @@ service WriteService {
 
 message WriteRequest {
   // name of database into which to write
-  string name = 1;
+  string db_name = 1;
 
   // data, in [LineProtocol] format
   //

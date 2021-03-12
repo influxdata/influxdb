@@ -1,26 +1,17 @@
-use influxdb_iox_client::management::{self, generated_types::DatabaseRules};
 use influxdb_iox_client::write::{self, WriteError};
 use test_helpers::assert_contains;
 
-use super::util::rand_name;
-
 use crate::common::server_fixture::ServerFixture;
+
+use super::util::{create_readable_database, rand_name};
 
 #[tokio::test]
 async fn test_write() {
     let fixture = ServerFixture::create_shared().await;
-    let mut management_client = management::Client::new(fixture.grpc_channel());
     let mut write_client = write::Client::new(fixture.grpc_channel());
 
     let db_name = rand_name();
-
-    management_client
-        .create_database(DatabaseRules {
-            name: db_name.clone(),
-            ..Default::default()
-        })
-        .await
-        .expect("create database failed");
+    create_readable_database(&db_name, fixture.grpc_channel()).await;
 
     let lp_lines = vec![
         "cpu,region=west user=23.2 100",

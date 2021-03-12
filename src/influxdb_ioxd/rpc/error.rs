@@ -1,10 +1,10 @@
 use generated_types::google::{InternalError, NotFound, PreconditionViolation};
 use tracing::error;
 
-use server::Error;
+/// map common `server::Error` errors  to the appropriate tonic Status
+pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
+    use server::Error;
 
-/// map common server errors  to the appropriate tonic Status
-pub fn default_error_handler(error: Error) -> tonic::Status {
     match error {
         Error::IdNotSet => PreconditionViolation {
             category: "Writer ID".to_string(),
@@ -16,6 +16,29 @@ pub fn default_error_handler(error: Error) -> tonic::Status {
             resource_type: "database".to_string(),
             resource_name: db_name,
             ..Default::default()
+        }
+        .into(),
+        error => {
+            error!(?error, "Unexpected error");
+            InternalError {}.into()
+        }
+    }
+}
+
+/// map common `server::db::Error` errors  to the appropriate tonic Status
+pub fn default_db_error_handler(error: server::db::Error) -> tonic::Status {
+    use server::db::Error;
+    match error {
+        Error::DatabaseNotReadable {} => PreconditionViolation {
+            category: "database".to_string(),
+            subject: "influxdata.com/iox".to_string(),
+            description: "Cannot read from database: no mutable buffer configured".to_string(),
+        }
+        .into(),
+        Error::DatatbaseNotWriteable {} => PreconditionViolation {
+            category: "database".to_string(),
+            subject: "influxdata.com/iox".to_string(),
+            description: "Cannot write to database: no mutable buffer configured".to_string(),
         }
         .into(),
         error => {

@@ -107,6 +107,11 @@ impl Partition {
         }
     }
 
+    /// returns the id of the current open chunk in this partition
+    pub(crate) fn open_chunk_id(&self) -> u32 {
+        self.open_chunk.id()
+    }
+
     /// write data to the open chunk
     pub fn write_entry(&mut self, entry: &wb::WriteBufferEntry<'_>) -> Result<()> {
         assert_eq!(

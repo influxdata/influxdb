@@ -3,6 +3,7 @@ package influxdata.iox.management.v1;
 
 import "google/protobuf/empty.proto";
 import "influxdata/iox/management/v1/database_rules.proto";
+import "influxdata/iox/management/v1/chunk.proto";
 
 service ManagementService {
   rpc GetWriterId(GetWriterIdRequest) returns (GetWriterIdResponse);
@@ -14,6 +15,9 @@ service ManagementService {
   rpc GetDatabase(GetDatabaseRequest) returns (GetDatabaseResponse);
 
   rpc CreateDatabase(CreateDatabaseRequest) returns (CreateDatabaseResponse);
+
+  // List chunks available on this database
+  rpc ListChunks(ListChunksRequest) returns (ListChunksResponse);
 
   // List remote IOx servers we know about.
   rpc ListRemotes(ListRemotesRequest) returns (ListRemotesResponse);
@@ -56,6 +60,16 @@ message CreateDatabaseRequest {
 }
 
 message CreateDatabaseResponse {}
+
+message ListChunksRequest {
+  // the name of the database
+  string db_name = 1;
+}
+
+message ListChunksResponse {
+  repeated Chunk chunks = 1;
+}
+
 
 message ListRemotesRequest {}
 
