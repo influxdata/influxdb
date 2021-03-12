@@ -1,8 +1,9 @@
 syntax = "proto3";
 package influxdata.iox.management.v1;
 
-import "google/protobuf/empty.proto";
+import "google/longrunning/operations.proto";
 import "influxdata/iox/management/v1/database_rules.proto";
+import "influxdata/iox/management/v1/chunk.proto";
 
 service ManagementService {
   rpc GetWriterId(GetWriterIdRequest) returns (GetWriterIdResponse);
@@ -15,6 +16,9 @@ service ManagementService {
 
   rpc CreateDatabase(CreateDatabaseRequest) returns (CreateDatabaseResponse);
 
+  // List chunks available on this database
+  rpc ListChunks(ListChunksRequest) returns (ListChunksResponse);
+
   // List remote IOx servers we know about.
   rpc ListRemotes(ListRemotesRequest) returns (ListRemotesResponse);
 
@@ -23,6 +27,15 @@ service ManagementService {
 
   // Delete a reference to remote IOx server.
   rpc DeleteRemote(DeleteRemoteRequest) returns (DeleteRemoteResponse);
+
+  // Creates a dummy job that for each value of the nanos field
+  // spawns a task that sleeps for that number of nanoseconds before returning
+  rpc CreateDummyJob(CreateDummyJobRequest) returns (CreateDummyJobResponse) {
+    option (google.longrunning.operation_info) = {
+      response_type: "google.protobuf.Empty"
+      metadata_type: "OperationMetadata"
+    };
+  }
 }
 
 message GetWriterIdRequest {}
@@ -56,6 +69,23 @@ message CreateDatabaseRequest {
 }
 
 message CreateDatabaseResponse {}
+
+message ListChunksRequest {
+  // the name of the database
+  string db_name = 1;
+}
+
+message ListChunksResponse {
+  repeated Chunk chunks = 1;
+}
+
+message CreateDummyJobRequest {
+  repeated uint64 nanos = 1;
+}
+
+message CreateDummyJobResponse {
+  google.longrunning.Operation operation = 1;
+}
 
 message ListRemotesRequest {}
 

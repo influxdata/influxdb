@@ -154,6 +154,10 @@ impl Database for TestDatabase {
             vec![]
         }
     }
+
+    fn chunk_summaries(&self) -> Result<Vec<data_types::chunk::ChunkSummary>, Self::Error> {
+        unimplemented!("summaries not implemented TestDatabase")
+    }
 }
 
 #[derive(Debug, Default)]

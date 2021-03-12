@@ -3,25 +3,17 @@ use std::num::NonZeroU32;
 use generated_types::google::protobuf::Empty;
 use generated_types::{google::protobuf::Duration, influxdata::iox::management::v1::*};
 use influxdb_iox_client::management::{Client, CreateDatabaseError};
+use test_helpers::assert_contains;
 
 use crate::common::server_fixture::ServerFixture;
 
-use super::util::rand_name;
+use super::util::{create_readable_database, create_unreadable_database, rand_name};
 
 #[tokio::test]
-pub async fn test() {
+async fn test_list_update_remotes() {
     let server_fixture = ServerFixture::create_single_use().await;
     let mut client = Client::new(server_fixture.grpc_channel());
 
-    test_list_update_remotes(&mut client).await;
-    test_set_get_writer_id(&mut client).await;
-    test_create_database_duplicate_name(&mut client).await;
-    test_create_database_invalid_name(&mut client).await;
-    test_list_databases(&mut client).await;
-    test_create_get_database(&mut client).await;
-}
-
-async fn test_list_update_remotes(client: &mut Client) {
     const TEST_REMOTE_ID_1: u32 = 42;
     const TEST_REMOTE_ADDR_1: &str = "1.2.3.4:1234";
     const TEST_REMOTE_ID_2: u32 = 84;
@@ -77,7 +69,11 @@ async fn test_list_update_remotes(client: &mut Client) {
     assert_eq!(res[0].connection_string, TEST_REMOTE_ADDR_2_UPDATED);
 }
 
-async fn test_set_get_writer_id(client: &mut Client) {
+#[tokio::test]
+async fn test_set_get_writer_id() {
+    let server_fixture = ServerFixture::create_single_use().await;
+    let mut client = Client::new(server_fixture.grpc_channel());
+
     const TEST_ID: u32 = 42;
 
     client
@@ -90,7 +86,11 @@ async fn test_set_get_writer_id(client: &mut Client) {
     assert_eq!(got.get(), TEST_ID);
 }
 
-async fn test_create_database_duplicate_name(client: &mut Client) {
+#[tokio::test]
+async fn test_create_database_duplicate_name() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let mut client = Client::new(server_fixture.grpc_channel());
+
     let db_name = rand_name();
 
     client
@@ -115,7 +115,11 @@ async fn test_create_database_duplicate_name(client: &mut Client) {
     ))
 }
 
-async fn test_create_database_invalid_name(client: &mut Client) {
+#[tokio::test]
+async fn test_create_database_invalid_name() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let mut client = Client::new(server_fixture.grpc_channel());
+
     let err = client
         .create_database(DatabaseRules {
             name: "my_example\ndb".to_string(),
@@ -127,7 +131,11 @@ async fn test_create_database_invalid_name(client: &mut Client) {
     assert!(matches!(dbg!(err), CreateDatabaseError::InvalidArgument(_)));
 }
 
-async fn test_list_databases(client: &mut Client) {
+#[tokio::test]
+async fn test_list_databases() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let mut client = Client::new(server_fixture.grpc_channel());
+
     let name = rand_name();
     client
         .create_database(DatabaseRules {
@@ -144,7 +152,11 @@ async fn test_list_databases(client: &mut Client) {
     assert!(names.contains(&name));
 }
 
-async fn test_create_get_database(client: &mut Client) {
+#[tokio::test]
+async fn test_create_get_database() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let mut client = Client::new(server_fixture.grpc_channel());
+
     let db_name = rand_name();
 
     // Specify everything to allow direct comparison between request and response
@@ -190,4 +202,88 @@ async fn test_create_get_database(client: &mut Client) {
         .expect("get database failed");
 
     assert_eq!(response, rules);
+}
+
+#[tokio::test]
+async fn test_chunk_get() {
+    use generated_types::influxdata::iox::management::v1::{Chunk, ChunkStorage};
+
+    let fixture = ServerFixture::create_shared().await;
+    let mut management_client = Client::new(fixture.grpc_channel());
+    let mut write_client = influxdb_iox_client::write::Client::new(fixture.grpc_channel());
+
+    let db_name = rand_name();
+    create_readable_database(&db_name, fixture.grpc_channel()).await;
+
+    let lp_lines = vec![
+        "cpu,region=west user=23.2 100",
+        "cpu,region=west user=21.0 150",
+        "disk,region=east bytes=99i 200",
+    ];
+
+    write_client
+        .write(&db_name, lp_lines.join("\n"))
+        .await
+        .expect("write succeded");
+
+    let mut chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+
+    // ensure the output order is consistent
+    chunks.sort_by(|c1, c2| c1.partition_key.cmp(&c2.partition_key));
+
+    let expected: Vec<Chunk> = vec![
+        Chunk {
+            partition_key: "cpu".into(),
+            id: 0,
+            storage: ChunkStorage::OpenMutableBuffer as i32,
+            estimated_bytes: 145,
+        },
+        Chunk {
+            partition_key: "disk".into(),
+            id: 0,
+            storage: ChunkStorage::OpenMutableBuffer as i32,
+            estimated_bytes: 107,
+        },
+    ];
+    assert_eq!(
+        expected, chunks,
+        "expected:\n\n{:#?}\n\nactual:{:#?}",
+        expected, chunks
+    );
+}
+
+#[tokio::test]
+async fn test_chunk_get_errors() {
+    let fixture = ServerFixture::create_shared().await;
+    let mut management_client = Client::new(fixture.grpc_channel());
+    let db_name = rand_name();
+
+    let err = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect_err("no db had been created");
+
+    assert_contains!(
+        err.to_string(),
+        "Some requested entity was not found: Resource database"
+    );
+
+    create_unreadable_database(&db_name, fixture.grpc_channel()).await;
+
+    let err = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect_err("db can't be read");
+
+    assert_contains!(
+        err.to_string(),
+        "Precondition violation influxdata.com/iox - database"
+    );
+    assert_contains!(
+        err.to_string(),
+        "Cannot read from database: no mutable buffer configured"
+    );
 }

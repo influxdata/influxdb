@@ -1,6 +1,6 @@
 use crate::commands::{
     logging::LoggingLevel,
-    server::{ObjectStore as ObjStoreOpt, RunConfig},
+    run::{Config, ObjectStore as ObjStoreOpt},
 };
 use hyper::Server;
 use object_store::{
@@ -73,7 +73,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 ///
 /// The logging_level passed in is the global setting (e.g. if -v or
 /// -vv was passed in before 'server')
-pub async fn main(logging_level: LoggingLevel, config: RunConfig) -> Result<()> {
+pub async fn main(logging_level: LoggingLevel, config: Config) -> Result<()> {
     // Handle the case if -v/-vv is specified both before and after the server
     // command
     let logging_level = logging_level.combine(LoggingLevel::new(config.verbose_count));
@@ -130,7 +130,6 @@ pub async fn main(logging_level: LoggingLevel, config: RunConfig) -> Result<()> 
     info!(bind_address=?grpc_bind_addr, "gRPC server listening");
 
     // Construct and start up HTTP server
-
     let router_service = http::router_service(Arc::clone(&app_server));
 
     let bind_addr = config.http_bind_address;
@@ -142,8 +141,11 @@ pub async fn main(logging_level: LoggingLevel, config: RunConfig) -> Result<()> 
     let git_hash = option_env!("GIT_HASH").unwrap_or("UNKNOWN");
     info!(git_hash, "InfluxDB IOx server ready");
 
-    // Wait for both the servers to complete
-    let (grpc_server, server) = futures::future::join(grpc_server, http_server).await;
+    // Get IOx background worker task
+    let app = app_server.background_worker();
+
+    // TODO: Fix shutdown handling (#827)
+    let (grpc_server, server, _) = futures::future::join3(grpc_server, http_server, app).await;
 
     grpc_server.context(ServingRPC)?;
     server.context(ServingHttp)?;
@@ -153,10 +155,10 @@ pub async fn main(logging_level: LoggingLevel, config: RunConfig) -> Result<()> 
     Ok(())
 }
 
-impl TryFrom<&RunConfig> for ObjectStore {
+impl TryFrom<&Config> for ObjectStore {
     type Error = Error;
 
-    fn try_from(config: &RunConfig) -> Result<Self, Self::Error> {
+    fn try_from(config: &Config) -> Result<Self, Self::Error> {
         match config.object_store {
             Some(ObjStoreOpt::Memory) | None => {
                 Ok(Self::new_in_memory(object_store::memory::InMemory::new()))
@@ -283,7 +285,7 @@ mod tests {
 
     #[test]
     fn default_object_store_is_memory() {
-        let config = RunConfig::from_iter_safe(&["server"]).unwrap();
+        let config = Config::from_iter_safe(&["server"]).unwrap();
 
         let object_store = ObjectStore::try_from(&config).unwrap();
 
@@ -295,7 +297,7 @@ mod tests {
 
     #[test]
     fn explicitly_set_object_store_to_memory() {
-        let config = RunConfig::from_iter_safe(&["server", "--object-store", "memory"]).unwrap();
+        let config = Config::from_iter_safe(&["server", "--object-store", "memory"]).unwrap();
 
         let object_store = ObjectStore::try_from(&config).unwrap();
 
@@ -307,7 +309,7 @@ mod tests {
 
     #[test]
     fn valid_s3_config() {
-        let config = RunConfig::from_iter_safe(&[
+        let config = Config::from_iter_safe(&[
             "server",
             "--object-store",
             "s3",
@@ -330,7 +332,7 @@ mod tests {
 
     #[test]
     fn s3_config_missing_params() {
-        let config = RunConfig::from_iter_safe(&["server", "--object-store", "s3"]).unwrap();
+        let config = Config::from_iter_safe(&["server", "--object-store", "s3"]).unwrap();
 
         let err = ObjectStore::try_from(&config).unwrap_err().to_string();
 
@@ -343,7 +345,7 @@ mod tests {
 
     #[test]
     fn valid_google_config() {
-        let config = RunConfig::from_iter_safe(&[
+        let config = Config::from_iter_safe(&[
             "server",
             "--object-store",
             "google",
@@ -364,7 +366,7 @@ mod tests {
 
     #[test]
     fn google_config_missing_params() {
-        let config = RunConfig::from_iter_safe(&["server", "--object-store", "google"]).unwrap();
+        let config = Config::from_iter_safe(&["server", "--object-store", "google"]).unwrap();
 
         let err = ObjectStore::try_from(&config).unwrap_err().to_string();
 
@@ -377,7 +379,7 @@ mod tests {
 
     #[test]
     fn valid_azure_config() {
-        let config = RunConfig::from_iter_safe(&[
+        let config = Config::from_iter_safe(&[
             "server",
             "--object-store",
             "azure",
@@ -400,7 +402,7 @@ mod tests {
 
     #[test]
     fn azure_config_missing_params() {
-        let config = RunConfig::from_iter_safe(&["server", "--object-store", "azure"]).unwrap();
+        let config = Config::from_iter_safe(&["server", "--object-store", "azure"]).unwrap();
 
         let err = ObjectStore::try_from(&config).unwrap_err().to_string();
 
@@ -415,7 +417,7 @@ mod tests {
     fn valid_file_config() {
         let root = TempDir::new().unwrap();
 
-        let config = RunConfig::from_iter_safe(&[
+        let config = Config::from_iter_safe(&[
             "server",
             "--object-store",
             "file",
@@ -434,7 +436,7 @@ mod tests {
 
     #[test]
     fn file_config_missing_params() {
-        let config = RunConfig::from_iter_safe(&["server", "--object-store", "file"]).unwrap();
+        let config = Config::from_iter_safe(&["server", "--object-store", "file"]).unwrap();
 
         let err = ObjectStore::try_from(&config).unwrap_err().to_string();
 

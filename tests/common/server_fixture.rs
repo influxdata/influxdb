@@ -225,7 +225,6 @@ impl TestServer {
 
         let server_process = Command::cargo_bin("influxdb_iox")
             .unwrap()
-            .arg("server")
             .arg("run")
             // Can enable for debugging
             //.arg("-vv")
@@ -251,7 +250,6 @@ impl TestServer {
         self.server_process.wait().unwrap();
         self.server_process = Command::cargo_bin("influxdb_iox")
             .unwrap()
-            .arg("server")
             .arg("run")
             // Can enable for debugging
             //.arg("-vv")

@@ -7,7 +7,7 @@ use std::fmt::Debug;
 use tonic::Response;
 use tracing::debug;
 
-use super::error::default_error_handler;
+use super::error::default_server_error_handler;
 
 /// Implementation of the write service
 struct WriteService<M: ConnectionManager> {
@@ -25,7 +25,7 @@ where
     ) -> Result<tonic::Response<WriteResponse>, tonic::Status> {
         let request = request.into_inner();
 
-        let db_name = request.name;
+        let db_name = request.db_name;
         let lp_data = request.lp_data;
         let lp_chars = lp_data.len();
 
@@ -42,7 +42,7 @@ where
         self.server
             .write_lines(&db_name, &lines)
             .await
-            .map_err(default_error_handler)?;
+            .map_err(default_server_error_handler)?;
 
         let lines_written = lp_line_count as u64;
         Ok(Response::new(WriteResponse { lines_written }))

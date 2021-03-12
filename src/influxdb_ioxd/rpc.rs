@@ -11,6 +11,7 @@ use server::{ConnectionManager, Server};
 pub mod error;
 mod flight;
 mod management;
+mod operations;
 mod storage;
 mod testing;
 mod write;
@@ -53,7 +54,8 @@ where
         .add_service(storage::make_server(Arc::clone(&server)))
         .add_service(flight::make_server(Arc::clone(&server)))
         .add_service(write::make_server(Arc::clone(&server)))
-        .add_service(management::make_server(server))
+        .add_service(management::make_server(Arc::clone(&server)))
+        .add_service(operations::make_server(server))
         .serve_with_incoming(stream)
         .await
         .context(ServerError {})

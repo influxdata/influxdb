@@ -177,6 +177,25 @@ impl Database {
             .unwrap_or_default()
     }
 
+    /// Returns the total estimated size in bytes for the chunks in the
+    /// specified partition. Returns None if there is no such partition
+    pub fn chunks_size<'a>(
+        &self,
+        partition_key: &str,
+        chunk_ids: impl IntoIterator<Item = &'a u32>,
+    ) -> Option<u64> {
+        let partition_data = self.data.read().unwrap();
+
+        let partition = partition_data.partitions.get(partition_key);
+
+        partition.map(|partition| {
+            chunk_ids
+                .into_iter()
+                .map(|chunk_id| partition.chunk_size(*chunk_id))
+                .sum::<u64>()
+        })
+    }
+
     /// Returns the total estimated size in bytes of the database.
     pub fn size(&self) -> u64 {
         let base_size = std::mem::size_of::<Self>();
@@ -661,6 +680,16 @@ impl Partition {
                 .values()
                 .map(|chunk| std::mem::size_of::<u32>() as u64 + chunk.size())
                 .sum::<u64>()
+    }
+
+    /// The total estimated size in bytes of the specified chunk id
+    pub fn chunk_size(&self, chunk_id: u32) -> u64 {
+        let chunk_data = self.data.read().unwrap();
+        chunk_data
+            .chunks
+            .get(&chunk_id)
+            .map(|chunk| chunk.size())
+            .unwrap_or(0) // treat unknown chunks as zero size
     }
 }
 

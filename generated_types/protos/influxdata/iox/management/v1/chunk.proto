@@ -1,0 +1,37 @@
+syntax = "proto3";
+package influxdata.iox.management.v1;
+
+
+ // Which storage system is a chunk located in?
+enum ChunkStorage {
+  // Not currently returned
+  CHUNK_STORAGE_UNSPECIFIED = 0;
+
+  // The chunk is still open for new writes, in the Mutable Buffer
+  CHUNK_STORAGE_OPEN_MUTABLE_BUFFER = 1;
+
+  // The chunk is no longer open for writes, in the Mutable Buffer
+  CHUNK_STORAGE_CLOSED_MUTABLE_BUFFER = 2;
+
+  // The chunk is in the Read Buffer (where it can not be mutated)
+  CHUNK_STORAGE_READ_BUFFER = 3;
+
+  // The chunk is stored in Object Storage (where it can not be mutated)
+  CHUNK_STORAGE_OBJECT_STORE = 4;
+}
+
+// `Chunk` represents part of a partition of data in a database.
+// A chunk can contain one or more tables.
+message Chunk {
+  // The partitition key of this chunk
+  string partition_key = 1;
+
+  // The id of this chunk
+  uint32 id = 2;
+
+  // Which storage system the chunk is located in
+  ChunkStorage storage = 3;
+
+  // The total estimated size of this chunk, in bytes
+  uint64 estimated_bytes = 4;
+}

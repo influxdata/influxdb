@@ -61,14 +61,14 @@ impl Client {
     /// [LineProtocol](https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/#data-types-and-format)
     pub async fn write(
         &mut self,
-        name: impl Into<String>,
+        db_name: impl Into<String>,
         lp_data: impl Into<String>,
     ) -> Result<usize, WriteError> {
-        let name = name.into();
+        let db_name = db_name.into();
         let lp_data = lp_data.into();
         let response = self
             .inner
-            .write(WriteRequest { name, lp_data })
+            .write(WriteRequest { db_name, lp_data })
             .await
             .map_err(WriteError::ServerError)?;
 
