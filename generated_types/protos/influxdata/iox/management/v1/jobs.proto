@@ -1,0 +1,23 @@
+syntax = "proto3";
+package influxdata.iox.management.v1;
+
+message OperationMetadata {
+  uint64 cpu_nanos = 1;
+  uint64 wall_nanos = 2;
+  uint64 task_count = 3;
+  uint64 pending_count = 4;
+
+  oneof job {
+    Dummy dummy = 5;
+    PersistSegment persist_segment = 6;
+  }
+}
+
+message PersistSegment {
+  uint32 writer_id = 1;
+  uint64 segment_id = 2;
+}
+
+message Dummy {
+  repeated uint64 nanos = 1;
+}

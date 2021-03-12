@@ -127,6 +127,16 @@ where
         Ok(Response::new(ListChunksResponse { chunks }))
     }
 
+    async fn create_dummy_job(
+        &self,
+        request: Request<CreateDummyJobRequest>,
+    ) -> Result<Response<CreateDummyJobResponse>, Status> {
+        let request = request.into_inner();
+        let slot = self.server.spawn_dummy_job(request.nanos);
+        let operation = Some(super::operations::encode_tracker(slot)?);
+        Ok(Response::new(CreateDummyJobResponse { operation }))
+    }
+
     async fn list_remotes(
         &self,
         _: Request<ListRemotesRequest>,

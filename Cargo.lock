@@ -3195,6 +3195,7 @@ dependencies = [
  "flatbuffers 0.6.1",
  "futures",
  "generated_types",
+ "hashbrown",
  "influxdb_line_protocol",
  "mutable_buffer",
  "object_store",
@@ -3208,6 +3209,7 @@ dependencies = [
  "snap",
  "test_helpers",
  "tokio",
+ "tokio-util",
  "tracing",
  "uuid",
 ]

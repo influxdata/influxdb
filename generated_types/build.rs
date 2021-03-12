@@ -41,6 +41,7 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
         management_path.join("database_rules.proto"),
         management_path.join("chunk.proto"),
         management_path.join("service.proto"),
+        management_path.join("jobs.proto"),
         write_path.join("service.proto"),
         root.join("grpc/health/v1/service.proto"),
         root.join("google/longrunning/operations.proto"),

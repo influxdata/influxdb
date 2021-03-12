@@ -130,7 +130,6 @@ pub async fn main(logging_level: LoggingLevel, config: RunConfig) -> Result<()> 
     info!(bind_address=?grpc_bind_addr, "gRPC server listening");
 
     // Construct and start up HTTP server
-
     let router_service = http::router_service(Arc::clone(&app_server));
 
     let bind_addr = config.http_bind_address;
@@ -142,8 +141,11 @@ pub async fn main(logging_level: LoggingLevel, config: RunConfig) -> Result<()> 
     let git_hash = option_env!("GIT_HASH").unwrap_or("UNKNOWN");
     info!(git_hash, "InfluxDB IOx server ready");
 
-    // Wait for both the servers to complete
-    let (grpc_server, server) = futures::future::join(grpc_server, http_server).await;
+    // Get IOx background worker task
+    let app = app_server.background_worker();
+
+    // TODO: Fix shutdown handling (#827)
+    let (grpc_server, server, _) = futures::future::join3(grpc_server, http_server, app).await;
 
     grpc_server.context(ServingRPC)?;
     server.context(ServingHttp)?;

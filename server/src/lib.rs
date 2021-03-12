@@ -67,43 +67,44 @@
     clippy::clone_on_ref_ptr
 )]
 
-pub mod buffer;
-mod config;
-pub mod db;
-pub mod snapshot;
-mod tracker;
-
-#[cfg(test)]
-mod query_tests;
-
 use std::sync::{
     atomic::{AtomicU32, Ordering},
     Arc,
 };
 
-use crate::{
-    buffer::SegmentPersistenceTask,
-    config::{
-        object_store_path_for_database_config, Config, GRPCConnectionString, DB_RULES_FILE_NAME,
-    },
-    db::Db,
-    tracker::TrackerRegistry,
-};
+use async_trait::async_trait;
+use bytes::Bytes;
+use futures::stream::TryStreamExt;
+use snafu::{OptionExt, ResultExt, Snafu};
+use tracing::{error, info};
+
 use data_types::{
     data::{lines_to_replicated_write, ReplicatedWrite},
-    database_rules::DatabaseRules,
+    database_rules::{DatabaseRules, WriterId},
+    job::Job,
     {DatabaseName, DatabaseNameError},
 };
 use influxdb_line_protocol::ParsedLine;
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use query::{exec::Executor, DatabaseStore};
 
-use async_trait::async_trait;
-use bytes::Bytes;
-use data_types::database_rules::WriterId;
-use futures::stream::TryStreamExt;
-use snafu::{OptionExt, ResultExt, Snafu};
-use tracing::error;
+use crate::tracker::TrackedFutureExt;
+use crate::{
+    config::{
+        object_store_path_for_database_config, Config, GRPCConnectionString, DB_RULES_FILE_NAME,
+    },
+    db::Db,
+    tracker::{Tracker, TrackerId, TrackerRegistry},
+};
+
+pub mod buffer;
+mod config;
+pub mod db;
+pub mod snapshot;
+pub mod tracker;
+
+#[cfg(test)]
+mod query_tests;
 
 type DatabaseError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
@@ -157,7 +158,7 @@ pub struct Server<M: ConnectionManager> {
     connection_manager: Arc<M>,
     pub store: Arc<ObjectStore>,
     executor: Arc<Executor>,
-    segment_persistence_registry: TrackerRegistry<SegmentPersistenceTask>,
+    jobs: TrackerRegistry<Job>,
 }
 
 impl<M: ConnectionManager> Server<M> {
@@ -168,7 +169,7 @@ impl<M: ConnectionManager> Server<M> {
             store,
             connection_manager: Arc::new(connection_manager),
             executor: Arc::new(Executor::new()),
-            segment_persistence_registry: TrackerRegistry::new(),
+            jobs: TrackerRegistry::new(),
         }
     }
 
@@ -348,13 +349,14 @@ impl<M: ConnectionManager> Server<M> {
                 if persist {
                     let writer_id = self.require_id()?;
                     let store = Arc::clone(&self.store);
+
+                    let (_, tracker) = self.jobs.register(Job::PersistSegment {
+                        writer_id,
+                        segment_id: segment.id,
+                    });
+
                     segment
-                        .persist_bytes_in_background(
-                            &self.segment_persistence_registry,
-                            writer_id,
-                            db_name,
-                            store,
-                        )
+                        .persist_bytes_in_background(tracker, writer_id, db_name, store)
                         .context(WalError)?;
                 }
             }
@@ -381,6 +383,50 @@ impl<M: ConnectionManager> Server<M> {
 
     pub fn delete_remote(&self, id: WriterId) -> Option<GRPCConnectionString> {
         self.config.delete_remote(id)
+    }
+
+    pub fn spawn_dummy_job(&self, nanos: Vec<u64>) -> Tracker<Job> {
+        let (tracker, registration) = self.jobs.register(Job::Dummy {
+            nanos: nanos.clone(),
+        });
+
+        for duration in nanos {
+            tokio::spawn(
+                tokio::time::sleep(tokio::time::Duration::from_nanos(duration))
+                    .track(registration.clone()),
+            );
+        }
+
+        tracker
+    }
+
+    /// Returns a list of all jobs tracked by this server
+    pub fn tracked_jobs(&self) -> Vec<Tracker<Job>> {
+        self.jobs.tracked()
+    }
+
+    /// Returns a specific job tracked by this server
+    pub fn get_job(&self, id: TrackerId) -> Option<Tracker<Job>> {
+        self.jobs.get(id)
+    }
+
+    /// Background worker function
+    ///
+    /// TOOD: Handle termination (#827)
+    pub async fn background_worker(&self) {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
+
+        loop {
+            // TODO: Retain limited history of past jobs, e.g. enqueue returned data into a
+            // Dequeue
+            let reclaimed = self.jobs.reclaim();
+
+            for job in reclaimed {
+                info!(?job, "job finished");
+            }
+
+            interval.tick().await;
+        }
     }
 }
 
@@ -508,20 +554,24 @@ async fn get_store_bytes(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::buffer::Segment;
-    use arrow_deps::{assert_table_eq, datafusion::physical_plan::collect};
+    use std::collections::BTreeMap;
+
     use async_trait::async_trait;
+    use futures::TryStreamExt;
+    use parking_lot::Mutex;
+    use snafu::Snafu;
+
+    use arrow_deps::{assert_table_eq, datafusion::physical_plan::collect};
     use data_types::database_rules::{
         PartitionTemplate, TemplatePart, WalBufferConfig, WalBufferRollover,
     };
-    use futures::TryStreamExt;
     use influxdb_line_protocol::parse_lines;
     use object_store::{memory::InMemory, path::ObjectStorePath};
-    use parking_lot::Mutex;
     use query::frontend::sql::SQLQueryPlanner;
-    use snafu::Snafu;
-    use std::collections::BTreeMap;
+
+    use crate::buffer::Segment;
+
+    use super::*;
 
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T = (), E = TestError> = std::result::Result<T, E>;
