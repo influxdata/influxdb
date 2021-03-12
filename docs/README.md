@@ -6,7 +6,7 @@ not intended to be general user facing documentation
 
 ## IOx Tech Talks
 
-We hold monthly Tech Talks that explain the project's technical underpinnings, which you can find at the links below:
+We hold monthly Tech Talks that explain the project's technical underpinnings. You can register for the [InfluxDB IOx Tech Talks here](https://www.influxdata.com/community-showcase/influxdb-tech-talks/), or you can find links to previous sessions below:
 
 * December 2020: Rusty Introduction to Apache Arrow [recording](https://www.youtube.com/watch?v=dQFjKa9vKhM)
 * Jan 2021: Data Lifecycle in InfluxDB IOx & How it Uses Object Storage for Persistence [recording](https://www.youtube.com/watch?v=KwdPifHC1Gc)
