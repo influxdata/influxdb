@@ -133,7 +133,7 @@ takes its configuration as environment variables.
 
 You can see a list of the current configuration values by running `influxdb_iox
 --help`, as well as the specific subcommand config options such as `influxdb_iox
-server --help`.
+run --help`.
 
 Should you desire specifying config via a file, you can do so using a
 `.env` formatted file in the working directory. You can use the
@@ -175,7 +175,7 @@ cargo build --release
 which will create the corresponding binary in `target/release`:
 
 ```shell
-./target/release/influxdb_iox server
+./target/release/influxdb_iox run
 ```
 
 Similarly, you can do this in one step with:

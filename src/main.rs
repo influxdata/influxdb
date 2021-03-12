@@ -23,6 +23,7 @@ mod commands {
     mod input;
     pub mod logging;
     pub mod meta;
+    pub mod run;
     pub mod server;
     pub mod server_remote;
     pub mod stats;
@@ -46,13 +47,13 @@ Examples:
     influxdb_iox
 
     # Display all server settings
-    influxdb_iox server --help
+    influxdb_iox run --help
 
     # Run the InfluxDB IOx server with extra verbose logging
-    influxdb_iox -v
+    influxdb_iox run -v
 
     # Run InfluxDB IOx with full debug logging specified with RUST_LOG
-    RUST_LOG=debug influxdb_iox
+    RUST_LOG=debug influxdb_iox run
 
     # converts line protocol formatted data in temperature.lp to out.parquet
     influxdb_iox convert temperature.lp out.parquet
@@ -110,9 +111,10 @@ enum Command {
         input: String,
     },
     Database(commands::database::Config),
-    Stats(commands::stats::Config),
     // Clippy recommended boxing this variant because it's much larger than the others
-    Server(Box<commands::server::Config>),
+    Run(Box<commands::run::Config>),
+    Stats(commands::stats::Config),
+    Server(commands::server::Config),
     Writer(commands::writer::Config),
 }
 
@@ -184,9 +186,16 @@ fn main() -> Result<(), std::io::Error> {
                 }
             }
             Command::Server(config) => {
+                logging_level.setup_basic_logging();
+                if let Err(e) = commands::server::command(host, config).await {
+                    eprintln!("Server command failed: {}", e);
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Command::Run(config) => {
                 // Note don't set up basic logging here, different logging rules apply in server
                 // mode
-                if let Err(e) = commands::server::command(logging_level, host, *config).await {
+                if let Err(e) = commands::run::command(logging_level, *config).await {
                     eprintln!("Server command failed: {}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
