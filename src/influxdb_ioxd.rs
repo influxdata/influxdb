@@ -197,25 +197,16 @@ impl TryFrom<&Config> for ObjectStore {
                     config.aws_secret_access_key.as_ref(),
                     config.aws_default_region.as_str(),
                 ) {
-                    (Some(bucket), Some(key_id), Some(secret_key), region) => {
-                        Ok(Self::new_amazon_s3(
-                            AmazonS3::new(key_id, secret_key, region, bucket)
-                                .context(InvalidS3Config)?,
-                        ))
-                    }
-                    (bucket, key_id, secret_key, _) => {
+                    (Some(bucket), key_id, secret_key, region) => Ok(Self::new_amazon_s3(
+                        AmazonS3::new(key_id, secret_key, region, bucket)
+                            .context(InvalidS3Config)?,
+                    )),
+                    (bucket, _, _, _) => {
                         let mut missing_args = vec![];
 
                         if bucket.is_none() {
                             missing_args.push("bucket");
                         }
-                        if key_id.is_none() {
-                            missing_args.push("aws-access-key-id");
-                        }
-                        if secret_key.is_none() {
-                            missing_args.push("aws-secret-access-key");
-                        }
-
                         MissingObjectStoreConfig {
                             object_store: ObjStoreOpt::S3,
                             missing: missing_args.join(", "),
@@ -338,8 +329,7 @@ mod tests {
 
         assert_eq!(
             err,
-            "Specified S3 for the object store, required configuration missing for \
-            bucket, aws-access-key-id, aws-secret-access-key"
+            "Specified S3 for the object store, required configuration missing for bucket"
         );
     }
 
