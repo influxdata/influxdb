@@ -462,43 +462,30 @@ fn build_node(value: RPCValue, inputs: Vec<Expr>) -> Result<Expr> {
 
 /// Creates an expr from a "Logical" Node
 fn build_logical_node(logical: i32, inputs: Vec<Expr>) -> Result<Expr> {
-    // This ideally could be a match, but I couldn't find a safe way
-    // to match an i32 to RPCLogical except for ths
+    let logical_enum = RPCLogical::from_i32(logical);
 
-    if logical == RPCLogical::And as i32 {
-        build_binary_expr(Operator::And, inputs)
-    } else if logical == RPCLogical::Or as i32 {
-        build_binary_expr(Operator::Or, inputs)
-    } else {
-        UnknownLogicalNode { logical }.fail()
+    match logical_enum {
+        Some(RPCLogical::And) => build_binary_expr(Operator::And, inputs),
+        Some(RPCLogical::Or) => build_binary_expr(Operator::Or, inputs),
+        None => UnknownLogicalNode { logical }.fail(),
     }
 }
 
 /// Creates an expr from a "Comparsion" Node
 fn build_comparison_node(comparison: i32, inputs: Vec<Expr>) -> Result<Expr> {
-    // again, this would ideally be a match but I couldn't figure out how to
-    // match an i32 to the enum values
+    let comparison_enum = RPCComparison::from_i32(comparison);
 
-    if comparison == RPCComparison::Equal as i32 {
-        build_binary_expr(Operator::Eq, inputs)
-    } else if comparison == RPCComparison::NotEqual as i32 {
-        build_binary_expr(Operator::NotEq, inputs)
-    } else if comparison == RPCComparison::StartsWith as i32 {
-        StartsWithNotSupported {}.fail()
-    } else if comparison == RPCComparison::Regex as i32 {
-        RegExpNotSupported {}.fail()
-    } else if comparison == RPCComparison::NotRegex as i32 {
-        NotRegExpNotSupported {}.fail()
-    } else if comparison == RPCComparison::Lt as i32 {
-        build_binary_expr(Operator::Lt, inputs)
-    } else if comparison == RPCComparison::Lte as i32 {
-        build_binary_expr(Operator::LtEq, inputs)
-    } else if comparison == RPCComparison::Gt as i32 {
-        build_binary_expr(Operator::Gt, inputs)
-    } else if comparison == RPCComparison::Gte as i32 {
-        build_binary_expr(Operator::GtEq, inputs)
-    } else {
-        UnknownComparisonNode { comparison }.fail()
+    match comparison_enum {
+        Some(RPCComparison::Equal) => build_binary_expr(Operator::Eq, inputs),
+        Some(RPCComparison::NotEqual) => build_binary_expr(Operator::NotEq, inputs),
+        Some(RPCComparison::StartsWith) => StartsWithNotSupported {}.fail(),
+        Some(RPCComparison::Regex) => RegExpNotSupported {}.fail(),
+        Some(RPCComparison::NotRegex) => NotRegExpNotSupported {}.fail(),
+        Some(RPCComparison::Lt) => build_binary_expr(Operator::Lt, inputs),
+        Some(RPCComparison::Lte) => build_binary_expr(Operator::LtEq, inputs),
+        Some(RPCComparison::Gt) => build_binary_expr(Operator::Gt, inputs),
+        Some(RPCComparison::Gte) => build_binary_expr(Operator::GtEq, inputs),
+        None => UnknownComparisonNode { comparison }.fail(),
     }
 }
 
@@ -630,36 +617,23 @@ fn convert_aggregate(aggregate: Option<RPCAggregate>) -> Result<QueryAggregate> 
     };
 
     let aggregate_type = aggregate.r#type;
+    let aggregate_type_enum = RPCAggregateType::from_i32(aggregate_type);
 
-    if aggregate_type == RPCAggregateType::None as i32 {
-        Ok(QueryAggregate::None)
-    } else if aggregate_type == RPCAggregateType::Sum as i32 {
-        Ok(QueryAggregate::Sum)
-    } else if aggregate_type == RPCAggregateType::Count as i32 {
-        Ok(QueryAggregate::Count)
-    } else if aggregate_type == RPCAggregateType::Min as i32 {
-        Ok(QueryAggregate::Min)
-    } else if aggregate_type == RPCAggregateType::Max as i32 {
-        Ok(QueryAggregate::Max)
-    } else if aggregate_type == RPCAggregateType::First as i32 {
-        Ok(QueryAggregate::First)
-    } else if aggregate_type == RPCAggregateType::Last as i32 {
-        Ok(QueryAggregate::Last)
-    } else if aggregate_type == RPCAggregateType::Mean as i32 {
-        Ok(QueryAggregate::Mean)
-    } else {
-        UnknownAggregate { aggregate_type }.fail()
+    match aggregate_type_enum {
+        Some(RPCAggregateType::None) => Ok(QueryAggregate::None),
+        Some(RPCAggregateType::Sum) => Ok(QueryAggregate::Sum),
+        Some(RPCAggregateType::Count) => Ok(QueryAggregate::Count),
+        Some(RPCAggregateType::Min) => Ok(QueryAggregate::Min),
+        Some(RPCAggregateType::Max) => Ok(QueryAggregate::Max),
+        Some(RPCAggregateType::First) => Ok(QueryAggregate::First),
+        Some(RPCAggregateType::Last) => Ok(QueryAggregate::Last),
+        Some(RPCAggregateType::Mean) => Ok(QueryAggregate::Mean),
+        None => UnknownAggregate { aggregate_type }.fail(),
     }
 }
 
 pub fn convert_group_type(group: i32) -> Result<RPCGroup> {
-    if group == RPCGroup::None as i32 {
-        Ok(RPCGroup::None)
-    } else if group == RPCGroup::By as i32 {
-        Ok(RPCGroup::By)
-    } else {
-        UnknownGroup { group_type: group }.fail()
-    }
+    RPCGroup::from_i32(group).ok_or(Error::UnknownGroup { group_type: group })
 }
 
 /// Creates a representation of some struct (in another crate that we
@@ -774,36 +748,25 @@ fn format_value<'a>(value: &'a RPCValue, f: &mut fmt::Formatter<'_>) -> fmt::Res
 }
 
 fn format_logical(v: i32, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    if v == RPCLogical::And as i32 {
-        write!(f, "AND")
-    } else if v == RPCLogical::Or as i32 {
-        write!(f, "Or")
-    } else {
-        write!(f, "UNKNOWN_LOGICAL:{}", v)
+    match RPCLogical::from_i32(v) {
+        Some(RPCLogical::And) => write!(f, "AND"),
+        Some(RPCLogical::Or) => write!(f, "Or"),
+        None => write!(f, "UNKNOWN_LOGICAL:{}", v),
     }
 }
 
 fn format_comparison(v: i32, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    if v == RPCComparison::Equal as i32 {
-        write!(f, "==")
-    } else if v == RPCComparison::NotEqual as i32 {
-        write!(f, "!=")
-    } else if v == RPCComparison::StartsWith as i32 {
-        write!(f, "StartsWith")
-    } else if v == RPCComparison::Regex as i32 {
-        write!(f, "RegEx")
-    } else if v == RPCComparison::NotRegex as i32 {
-        write!(f, "NotRegex")
-    } else if v == RPCComparison::Lt as i32 {
-        write!(f, "<")
-    } else if v == RPCComparison::Lte as i32 {
-        write!(f, "<=")
-    } else if v == RPCComparison::Gt as i32 {
-        write!(f, ">")
-    } else if v == RPCComparison::Gte as i32 {
-        write!(f, ">=")
-    } else {
-        write!(f, "UNKNOWN_COMPARISON:{}", v)
+    match RPCComparison::from_i32(v) {
+        Some(RPCComparison::Equal) => write!(f, "=="),
+        Some(RPCComparison::NotEqual) => write!(f, "!="),
+        Some(RPCComparison::StartsWith) => write!(f, "StartsWith"),
+        Some(RPCComparison::Regex) => write!(f, "RegEx"),
+        Some(RPCComparison::NotRegex) => write!(f, "NotRegex"),
+        Some(RPCComparison::Lt) => write!(f, "<"),
+        Some(RPCComparison::Lte) => write!(f, "<="),
+        Some(RPCComparison::Gt) => write!(f, ">"),
+        Some(RPCComparison::Gte) => write!(f, ">="),
+        None => write!(f, "UNKNOWN_COMPARISON:{}", v),
     }
 }
 

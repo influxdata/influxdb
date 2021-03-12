@@ -3,6 +3,7 @@ use futures::prelude::*;
 use generated_types::{
     aggregate::AggregateType,
     google::protobuf::{Any, Empty},
+    measurement_fields_response::FieldType,
     node::{Comparison, Type as NodeType, Value},
     read_group_request::Group,
     read_response::{frame::Data, *},
@@ -277,7 +278,7 @@ async fn measurement_fields_endpoint(
 
     let field = &fields[0];
     assert_eq!(field.key, "value");
-    assert_eq!(field.r#type, DataType::Float as i32);
+    assert_eq!(field.r#type(), FieldType::Float);
     assert_eq!(field.timestamp, scenario.ns_since_epoch() + 4);
 }
 
