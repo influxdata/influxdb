@@ -1,7 +1,7 @@
 // Libraries
 import React, {FC} from 'react'
 import CopyToClipboard from 'react-copy-to-clipboard'
-import {connect, ConnectedProps} from 'react-redux'
+import {useDispatch} from 'react-redux'
 
 // Constants
 import {
@@ -10,7 +10,7 @@ import {
 } from 'src/shared/copy/notifications'
 
 // Actions
-import {notify as notifyAction} from 'src/shared/actions/notifications'
+import {notify} from 'src/shared/actions/notifications'
 
 // Components
 import {ResourceCard} from '@influxdata/clockface'
@@ -22,10 +22,8 @@ interface OwnProps {
   task: Task
 }
 
-type ReduxProps = ConnectedProps<typeof connector>
-type Props = OwnProps & ReduxProps
-
-const TaskCardMeta: FC<Props> = ({task, notify}) => {
+const TaskCardMeta: FC<OwnProps> = ({task}) => {
+  const dispatch = useDispatch()
   const handleCopyAttempt = (
     copiedText: string,
     isSuccessful: boolean
@@ -34,9 +32,9 @@ const TaskCardMeta: FC<Props> = ({task, notify}) => {
     const truncatedText = `${text}...`
 
     if (isSuccessful) {
-      notify(copyToClipboardSuccess(truncatedText, 'Task ID'))
+      dispatch(notify(copyToClipboardSuccess(truncatedText, 'Task ID')))
     } else {
-      notify(copyToClipboardFailed(truncatedText, 'Task ID'))
+      dispatch(notify(copyToClipboardFailed(truncatedText, 'Task ID')))
     }
   }
 
@@ -52,10 +50,4 @@ const TaskCardMeta: FC<Props> = ({task, notify}) => {
   )
 }
 
-const mdtp = {
-  notify: notifyAction,
-}
-
-const connector = connect(null, mdtp)
-
-export default connector(TaskCardMeta)
+export default TaskCardMeta
