@@ -2,7 +2,7 @@
 
 use tracing_subscriber::{prelude::*, EnvFilter};
 
-use super::server::{LogFormat, RunConfig};
+use super::run::{Config, LogFormat};
 
 /// Handles setting up logging levels
 #[derive(Debug)]
@@ -81,7 +81,7 @@ impl LoggingLevel {
 
     /// Configures logging and tracing, based on the configuration
     /// values, for the IOx server (the whole enchalada)
-    pub fn setup_logging(&self, config: &RunConfig) -> Option<opentelemetry_jaeger::Uninstall> {
+    pub fn setup_logging(&self, config: &Config) -> Option<opentelemetry_jaeger::Uninstall> {
         // Copy anything from the config to the rust log environment
         self.set_rust_log_if_needed(config.rust_log.clone());
 
