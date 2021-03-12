@@ -53,11 +53,15 @@ pub struct DatabaseRules {
     #[serde(default = "MutableBufferConfig::default_option")]
     pub mutable_buffer_config: Option<MutableBufferConfig>,
 
-    /// An optional config to route writes or queries to other IOx servers.
-    /// This is useful for sharding a database or copying all or part of
-    /// requests over to other servers (like shadow production, etc).
+    /// An optional config to split writes into different "shards". A shard
+    /// is a logical concept, but the usage is meant to split data into
+    /// mutually exclusive areas. The rough order of organization is:
+    /// database -> shard -> partition -> chunk. For example, you could shard
+    /// based on table name and assign to 1 of 10 shards. Within each
+    /// shard you would have partitions, which would likely be based off time.
+    /// This makes it possible to horizontally scale out writes.
     #[serde(default)]
-    pub routing_config: Option<RoutingConfig>,
+    pub shard_config: Option<ShardConfig>,
 }
 
 impl DatabaseRules {
@@ -125,7 +129,7 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
             partition_template,
             wal_buffer_config,
             mutable_buffer_config,
-            routing_config: None,
+            shard_config: None,
         })
     }
 }
@@ -709,25 +713,23 @@ impl TryFrom<management::partition_template::Part> for TemplatePart {
     }
 }
 
-/// RoutingConfig defines rules for routing write or query requests to other IOx
-/// servers. In the case of writes, routing rules can be used to create copies
-/// of the data to get sent out to other servers in a best effort manner. Each
-/// route will be checked with a copy of the write or query sent out to each
-/// match.
+/// ShardConfig defines rules for assigning a line/row to an individual
+/// host or a group of hosts. A shard
+/// is a logical concept, but the usage is meant to split data into
+/// mutually exclusive areas. The rough order of organization is:
+/// database -> shard -> partition -> chunk. For example, you could shard
+/// based on table name and assign to 1 of 10 shards. Within each
+/// shard you would have partitions, which would likely be based off time.
+/// This makes it possible to horizontally scale out writes.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct RoutingConfig {
-    routes: Vec<Route>,
-}
-
-/// A specific named route to match against. Routes can be done based on
-/// specific matches to send to a collection of servers or based on hashing to
-/// send to a single server in a collection.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct Route {
-    /// The name of the route.
-    pub name: String,
+pub struct ShardConfig {
     /// An optional matcher. If there is a match, the route will be evaluated to
-    /// the given targets, otherwise the hash ring will be evaluated.
+    /// the given targets, otherwise the hash ring will be evaluated. This is
+    /// useful for overriding the hashring function on some hot spot. For
+    /// example, if you use the table name as the input to the hash function
+    /// and your ring has 4 slots. If two tables that are very hot get
+    /// assigned to the same slot you can override that by putting in a
+    /// specific matcher to pull that table over to a different node.
     pub specific_targets: Option<MatcherToTargets>,
     /// An optional default hasher which will route to one in a collection of
     /// nodes.
@@ -738,24 +740,27 @@ pub struct Route {
     pub ignore_errors: bool,
 }
 
-/// Maps a matcher with specific targets. If it is a match the row/line or query
-/// should be sent to all targets.
+/// Maps a matcher with specific target group. If the line/row matches
+/// it should be sent to the group.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct MatcherToTargets {
     pub matcher: Matcher,
-    pub targets: Vec<WriterId>,
+    pub target: NodeGroup,
 }
+
+/// A collection of IOx nodes
+pub type NodeGroup = Vec<WriterId>;
 
 /// HashRing is a rule for creating a hash key for a row and mapping that to
 /// an individual node on a ring.
 #[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
 pub struct HashRing {
-    /// include the table name in the hash key
-    pub table_name: Option<String>,
+    /// If true the table name will be included in the hash key
+    pub table_name: bool,
     /// include the values of these columns in the hash key
     pub columns: Vec<String>,
-    /// ring of these nodes
-    pub nodes: Vec<WriterId>,
+    /// ring of node groups. Each group holds a shard
+    pub node_groups: Vec<NodeGroup>,
 }
 
 /// A matcher is used to match routing rules or subscriptions on a row-by-row
