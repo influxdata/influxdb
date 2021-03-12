@@ -14,8 +14,8 @@ pub enum Error {
     #[error("Error listing chunks: {0}")]
     ListChunkError(#[from] ListChunksError),
 
-    #[error("Error interpreting server response: {:?}", .0)]
-    ConvertingResponse(FieldViolation),
+    #[error("Error interpreting server response: {0}")]
+    ConvertingResponse(#[from] FieldViolation),
 
     #[error("Error rendering response as JSON: {0}")]
     WritingJson(#[from] serde_json::Error),
@@ -62,8 +62,8 @@ pub async fn command(url: String, config: Config) -> Result<()> {
 
             let chunks = chunks
                 .into_iter()
-                .map(|c| ChunkSummary::try_from(c).map_err(Error::ConvertingResponse))
-                .collect::<Result<Vec<_>>>()?;
+                .map(ChunkSummary::try_from)
+                .collect::<Result<Vec<_>, FieldViolation>>()?;
 
             serde_json::to_writer_pretty(std::io::stdout(), &chunks).map_err(Error::WritingJson)?;
         }

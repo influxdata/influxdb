@@ -84,6 +84,18 @@ impl FieldViolation {
     }
 }
 
+impl std::error::Error for FieldViolation {}
+
+impl std::fmt::Display for FieldViolation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Violation for field \"{}\": {}",
+            self.field, self.description
+        )
+    }
+}
+
 fn encode_bad_request(violation: Vec<FieldViolation>) -> Result<Any, EncodeError> {
     let mut buffer = BytesMut::new();
 
@@ -106,7 +118,7 @@ fn encode_bad_request(violation: Vec<FieldViolation>) -> Result<Any, EncodeError
 
 impl From<FieldViolation> for tonic::Status {
     fn from(f: FieldViolation) -> Self {
-        let message = format!("Violation for field \"{}\": {}", f.field, f.description);
+        let message = f.to_string();
 
         match encode_bad_request(vec![f]) {
             Ok(details) => encode_status(tonic::Code::InvalidArgument, message, details),
