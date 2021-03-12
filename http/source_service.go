@@ -329,13 +329,12 @@ func newBucket(pb *influxdb.Bucket) *bucket {
 		return nil
 	}
 
-	rules := []retentionRule{}
-	rp := int64(pb.RetentionPeriod.Round(time.Second) / time.Second)
-	if rp > 0 {
-		rules = append(rules, retentionRule{
-			Type:         "expire",
-			EverySeconds: rp,
-		})
+	rules := []retentionRule{
+		{
+			Type:                      "expire",
+			EverySeconds:              int64(pb.RetentionPeriod.Round(time.Second) / time.Second),
+			ShardGroupDurationSeconds: int64(pb.ShardGroupDuration.Round(time.Second) / time.Second),
+		},
 	}
 
 	return &bucket{
@@ -352,20 +351,9 @@ func newBucket(pb *influxdb.Bucket) *bucket {
 
 // retentionRule is the retention rule action for a bucket.
 type retentionRule struct {
-	Type         string `json:"type"`
-	EverySeconds int64  `json:"everySeconds"`
-}
-
-func (rr *retentionRule) RetentionPeriod() (time.Duration, error) {
-	t := time.Duration(rr.EverySeconds) * time.Second
-	if t < time.Second {
-		return t, &influxdb.Error{
-			Code: influxdb.EUnprocessableEntity,
-			Msg:  "expiration seconds must be greater than or equal to one second",
-		}
-	}
-
-	return t, nil
+	Type                      string `json:"type"`
+	EverySeconds              int64  `json:"everySeconds"`
+	ShardGroupDurationSeconds int64  `json:"shardGroupDurationSeconds"`
 }
 
 func NewBucketResponse(b *influxdb.Bucket, labels []*influxdb.Label) *bucketResponse {
