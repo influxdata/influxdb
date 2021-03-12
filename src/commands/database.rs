@@ -68,11 +68,15 @@ struct Create {
     mutable_buffer: Option<u64>,
 }
 
-/// Get list of databases, or return configuration of specific database
+/// Get list of databases
+#[derive(Debug, StructOpt)]
+struct List {}
+
+/// Return configuration of specific database
 #[derive(Debug, StructOpt)]
 struct Get {
-    /// If specified returns configuration of database
-    name: Option<String>,
+    /// The name of the database
+    name: String,
 }
 
 /// Write data into the specified database
@@ -103,6 +107,7 @@ struct Query {
 #[derive(Debug, StructOpt)]
 enum Command {
     Create(Create),
+    List(List),
     Get(Get),
     Write(Write),
     Query(Query),
@@ -129,16 +134,16 @@ pub async fn command(url: String, config: Config) -> Result<()> {
                 .await?;
             println!("Ok");
         }
+        Command::List(_) => {
+            let mut client = management::Client::new(connection);
+            let databases = client.list_databases().await?;
+            println!("{}", databases.join(", "))
+        }
         Command::Get(get) => {
             let mut client = management::Client::new(connection);
-            if let Some(name) = get.name {
-                let database = client.get_database(name).await?;
-                // TOOD: Do something better than this
-                println!("{:#?}", database);
-            } else {
-                let databases = client.list_databases().await?;
-                println!("{}", databases.join(", "))
-            }
+            let database = client.get_database(get.name).await?;
+            // TOOD: Do something better than this
+            println!("{:#?}", database);
         }
         Command::Write(write) => {
             let mut client = write::Client::new(connection);

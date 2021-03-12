@@ -64,7 +64,7 @@ async fn test_create_database() {
     Command::cargo_bin("influxdb_iox")
         .unwrap()
         .arg("database")
-        .arg("get")
+        .arg("list")
         .arg("--host")
         .arg(addr)
         .assert()
