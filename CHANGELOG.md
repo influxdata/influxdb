@@ -18,6 +18,7 @@ the endpoint has been removed. Use the `/metrics` endpoint to collect system sta
 1. [20827](https://github.com/influxdata/influxdb/pull/20827): Add `--pprof-disabled` option to `influxd` to disable exposing profiling information over HTTP.
 1. [20827](https://github.com/influxdata/influxdb/pull/20827): Add `/debug/pprof/all` HTTP endpoint to gather all profiles at once.
 1. [20827](https://github.com/influxdata/influxdb/pull/20827): Upgrade `http.pprof-enabled` config in `influxd upgrade`.
+1. [20882](https://github.com/influxdata/influxdb/pull/20882): Rewrite regex conditions in InfluxQL subqueries for performance. Thanks @yujiahaol68!
 
 ### Bug Fixes
 
@@ -33,7 +34,6 @@ the endpoint has been removed. Use the `/metrics` endpoint to collect system sta
 1. [20809](https://github.com/influxdata/influxdb/pull/20809): Fix InfluxDB port in Flux function UI examples. Thanks @sunjincheng121!
 1. [20827](https://github.com/influxdata/influxdb/pull/20827): Remove unauthenticated, unsupported `/debug/vars` HTTP endpoint.
 1. [20856](https://github.com/influxdata/influxdb/pull/20856): Respect 24 hour clock formats in the UI and allow more choices
-1. [20882](https://github.com/influxdata/influxdb/pull/20882): Fix query regex condition rewrite not working in subquery. Thanks @yujiahaol68!
 
 ## v2.0.4 [2021-02-08]
 
