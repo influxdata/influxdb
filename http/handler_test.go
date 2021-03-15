@@ -32,7 +32,7 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			},
 		},
 		{
-			name: "should record metrics when http handling",
+			name: "should record metrics even when not exposed over HTTP",
 			fields: fields{
 				name:          "test",
 				handler:       http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}),
