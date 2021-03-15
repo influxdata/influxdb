@@ -13,7 +13,7 @@ use futures::{
     Stream, StreamExt, TryStreamExt,
 };
 use rusoto_core::ByteStream;
-use rusoto_credential::StaticProvider;
+use rusoto_credential::{ChainProvider, StaticProvider};
 use rusoto_s3::S3;
 use snafu::{futures::TryStreamExt as _, OptionExt, ResultExt, Snafu};
 use std::convert::TryFrom;
@@ -108,6 +108,12 @@ pub enum Error {
         region: String,
         source: rusoto_core::region::ParseRegionError,
     },
+
+    #[snafu(display("Missing aws-access-key"))]
+    MissingAccessKey,
+
+    #[snafu(display("Missing aws-secret-access-key"))]
+    MissingSecretAccessKey,
 }
 
 /// Configuration for connecting to [Amazon S3](https://aws.amazon.com/s3/).
@@ -285,8 +291,8 @@ impl AmazonS3 {
     /// Configure a connection to Amazon S3 using the specified credentials in
     /// the specified Amazon region and bucket
     pub fn new(
-        access_key_id: impl Into<String>,
-        secret_access_key: impl Into<String>,
+        access_key_id: Option<impl Into<String>>,
+        secret_access_key: Option<impl Into<String>>,
         region: impl Into<String>,
         bucket_name: impl Into<String>,
     ) -> Result<Self> {
@@ -296,11 +302,22 @@ impl AmazonS3 {
         let http_client = rusoto_core::request::HttpClient::new()
             .expect("Current implementation of rusoto_core has no way for this to fail");
 
-        let credentials_provider =
-            StaticProvider::new_minimal(access_key_id.into(), secret_access_key.into());
+        let client = match (access_key_id, secret_access_key) {
+            (Some(access_key_id), Some(secret_access_key)) => {
+                let credentials_provider =
+                    StaticProvider::new_minimal(access_key_id.into(), secret_access_key.into());
+                rusoto_s3::S3Client::new_with(http_client, credentials_provider, region)
+            }
+            (None, Some(_)) => return Err(Error::MissingAccessKey),
+            (Some(_), None) => return Err(Error::MissingSecretAccessKey),
+            _ => {
+                let credentials_provider = ChainProvider::new();
+                rusoto_s3::S3Client::new_with(http_client, credentials_provider, region)
+            }
+        };
 
         Ok(Self {
-            client: rusoto_s3::S3Client::new_with(http_client, credentials_provider, region),
+            client,
             bucket_name: bucket_name.into(),
         })
     }
@@ -502,8 +519,8 @@ mod tests {
         let config = maybe_skip_integration!();
         let integration = ObjectStore::new_amazon_s3(
             AmazonS3::new(
-                config.access_key_id,
-                config.secret_access_key,
+                Some(config.access_key_id),
+                Some(config.secret_access_key),
                 config.region,
                 config.bucket,
             )
@@ -524,8 +541,8 @@ mod tests {
 
         let integration = ObjectStore::new_amazon_s3(
             AmazonS3::new(
-                config.access_key_id,
-                config.secret_access_key,
+                Some(config.access_key_id),
+                Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
             )
@@ -556,8 +573,8 @@ mod tests {
         let config = maybe_skip_integration!();
         let integration = ObjectStore::new_amazon_s3(
             AmazonS3::new(
-                config.access_key_id,
-                config.secret_access_key,
+                Some(config.access_key_id),
+                Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
             )
@@ -599,8 +616,8 @@ mod tests {
 
         let integration = ObjectStore::new_amazon_s3(
             AmazonS3::new(
-                config.access_key_id,
-                config.secret_access_key,
+                Some(config.access_key_id),
+                Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
             )
@@ -637,8 +654,8 @@ mod tests {
 
         let integration = ObjectStore::new_amazon_s3(
             AmazonS3::new(
-                config.access_key_id,
-                config.secret_access_key,
+                Some(config.access_key_id),
+                Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
             )
@@ -685,8 +702,8 @@ mod tests {
 
         let integration = ObjectStore::new_amazon_s3(
             AmazonS3::new(
-                config.access_key_id,
-                config.secret_access_key,
+                Some(config.access_key_id),
+                Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
             )
@@ -731,8 +748,8 @@ mod tests {
         let config = maybe_skip_integration!();
         let integration = ObjectStore::new_amazon_s3(
             AmazonS3::new(
-                config.access_key_id,
-                config.secret_access_key,
+                Some(config.access_key_id),
+                Some(config.secret_access_key),
                 config.region,
                 config.bucket,
             )
@@ -757,8 +774,8 @@ mod tests {
 
         let integration = ObjectStore::new_amazon_s3(
             AmazonS3::new(
-                config.access_key_id,
-                config.secret_access_key,
+                Some(config.access_key_id),
+                Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
             )
@@ -795,8 +812,8 @@ mod tests {
 
         let integration = ObjectStore::new_amazon_s3(
             AmazonS3::new(
-                config.access_key_id,
-                config.secret_access_key,
+                Some(config.access_key_id),
+                Some(config.secret_access_key),
                 config.region,
                 &config.bucket,
             )
