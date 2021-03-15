@@ -42,11 +42,11 @@ func TestHandler_ServeHTTP(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			reg := prom.NewRegistry(zaptest.NewLogger(t))
-			h := NewHandlerFromRegistry(
+			h := NewRootHandler(
 				tt.fields.name,
-				reg,
 				WithLog(tt.fields.log),
 				WithAPIHandler(tt.fields.handler),
+				WithMetrics(reg, true),
 			)
 
 			tt.args.r.Header.Set("User-Agent", "ua1")
