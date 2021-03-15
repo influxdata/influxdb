@@ -205,7 +205,7 @@ impl ApplicationError {
         match self {
             Self::BucketByName { .. } => self.internal_error(),
             Self::BucketMappingError { .. } => self.internal_error(),
-            Self::WritingPoints { .. } => self.bad_request(),
+            Self::WritingPoints { .. } => self.internal_error(),
             Self::PlanningSQLQuery { .. } => self.bad_request(),
             Self::Query { .. } => self.internal_error(),
             Self::QueryError { .. } => self.bad_request(),
@@ -442,12 +442,16 @@ where
     server
         .write_lines(&db_name, &lines)
         .await
-        .map_err(|e| Box::new(e) as _)
-        .context(WritingPoints {
-            org: write_info.org.clone(),
-            bucket_name: write_info.bucket.clone(),
+        .map_err(|e| match e {
+            server::Error::DatabaseNotFound { .. } => ApplicationError::DatabaseNotFound {
+                name: db_name.to_string(),
+            },
+            _ => ApplicationError::WritingPoints {
+                org: write_info.org.clone(),
+                bucket_name: write_info.bucket.clone(),
+                source: Box::new(e),
+            },
         })?;
-
     Ok(Response::builder()
         .status(StatusCode::NO_CONTENT)
         .body(Body::empty())
@@ -1165,12 +1169,13 @@ mod tests {
             .send()
             .await;
 
-        if let Ok(response) = response {
-            let status = response.status();
-            assert_eq!(status, StatusCode::BAD_REQUEST);
-        } else {
-            panic!("Unexpected error response: {:?}", response);
-        }
+        check_response(
+            "write_to_invalid_databases",
+            response,
+            StatusCode::NOT_FOUND,
+            "",
+        )
+        .await;
     }
 
     #[tokio::test]
