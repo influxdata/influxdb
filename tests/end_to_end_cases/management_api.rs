@@ -2,19 +2,19 @@ use std::num::NonZeroU32;
 
 use generated_types::google::protobuf::Empty;
 use generated_types::{google::protobuf::Duration, influxdata::iox::management::v1::*};
-use influxdb_iox_client::management::{Client, CreateDatabaseError};
+use influxdb_iox_client::management::CreateDatabaseError;
 use test_helpers::assert_contains;
 
 use crate::common::server_fixture::ServerFixture;
 
-use super::util::{
+use super::scenario::{
     create_readable_database, create_two_partition_database, create_unreadable_database, rand_name,
 };
 
 #[tokio::test]
 async fn test_list_update_remotes() {
     let server_fixture = ServerFixture::create_single_use().await;
-    let mut client = Client::new(server_fixture.grpc_channel());
+    let mut client = server_fixture.management_client();
 
     const TEST_REMOTE_ID_1: u32 = 42;
     const TEST_REMOTE_ADDR_1: &str = "1.2.3.4:1234";
@@ -74,7 +74,7 @@ async fn test_list_update_remotes() {
 #[tokio::test]
 async fn test_set_get_writer_id() {
     let server_fixture = ServerFixture::create_single_use().await;
-    let mut client = Client::new(server_fixture.grpc_channel());
+    let mut client = server_fixture.management_client();
 
     const TEST_ID: u32 = 42;
 
@@ -91,7 +91,7 @@ async fn test_set_get_writer_id() {
 #[tokio::test]
 async fn test_create_database_duplicate_name() {
     let server_fixture = ServerFixture::create_shared().await;
-    let mut client = Client::new(server_fixture.grpc_channel());
+    let mut client = server_fixture.management_client();
 
     let db_name = rand_name();
 
@@ -120,7 +120,7 @@ async fn test_create_database_duplicate_name() {
 #[tokio::test]
 async fn test_create_database_invalid_name() {
     let server_fixture = ServerFixture::create_shared().await;
-    let mut client = Client::new(server_fixture.grpc_channel());
+    let mut client = server_fixture.management_client();
 
     let err = client
         .create_database(DatabaseRules {
@@ -136,7 +136,7 @@ async fn test_create_database_invalid_name() {
 #[tokio::test]
 async fn test_list_databases() {
     let server_fixture = ServerFixture::create_shared().await;
-    let mut client = Client::new(server_fixture.grpc_channel());
+    let mut client = server_fixture.management_client();
 
     let name = rand_name();
     client
@@ -157,7 +157,7 @@ async fn test_list_databases() {
 #[tokio::test]
 async fn test_create_get_database() {
     let server_fixture = ServerFixture::create_shared().await;
-    let mut client = Client::new(server_fixture.grpc_channel());
+    let mut client = server_fixture.management_client();
 
     let db_name = rand_name();
 
@@ -211,8 +211,8 @@ async fn test_chunk_get() {
     use generated_types::influxdata::iox::management::v1::{Chunk, ChunkStorage};
 
     let fixture = ServerFixture::create_shared().await;
-    let mut management_client = Client::new(fixture.grpc_channel());
-    let mut write_client = influxdb_iox_client::write::Client::new(fixture.grpc_channel());
+    let mut management_client = fixture.management_client();
+    let mut write_client = fixture.write_client();
 
     let db_name = rand_name();
     create_readable_database(&db_name, fixture.grpc_channel()).await;
@@ -260,7 +260,7 @@ async fn test_chunk_get() {
 #[tokio::test]
 async fn test_chunk_get_errors() {
     let fixture = ServerFixture::create_shared().await;
-    let mut management_client = Client::new(fixture.grpc_channel());
+    let mut management_client = fixture.management_client();
     let db_name = rand_name();
 
     let err = management_client
@@ -293,7 +293,7 @@ async fn test_chunk_get_errors() {
 #[tokio::test]
 async fn test_partition_list() {
     let fixture = ServerFixture::create_shared().await;
-    let mut management_client = Client::new(fixture.grpc_channel());
+    let mut management_client = fixture.management_client();
 
     let db_name = rand_name();
     create_two_partition_database(&db_name, fixture.grpc_channel()).await;
@@ -325,7 +325,7 @@ async fn test_partition_list() {
 #[tokio::test]
 async fn test_partition_list_error() {
     let fixture = ServerFixture::create_shared().await;
-    let mut management_client = Client::new(fixture.grpc_channel());
+    let mut management_client = fixture.management_client();
 
     let err = management_client
         .list_partitions("this database does not exist")
@@ -340,7 +340,7 @@ async fn test_partition_get() {
     use generated_types::influxdata::iox::management::v1::Partition;
 
     let fixture = ServerFixture::create_shared().await;
-    let mut management_client = Client::new(fixture.grpc_channel());
+    let mut management_client = fixture.management_client();
 
     let db_name = rand_name();
     create_two_partition_database(&db_name, fixture.grpc_channel()).await;
@@ -363,8 +363,8 @@ async fn test_partition_get() {
 #[tokio::test]
 async fn test_partition_get_error() {
     let fixture = ServerFixture::create_shared().await;
-    let mut management_client = Client::new(fixture.grpc_channel());
-    let mut write_client = influxdb_iox_client::write::Client::new(fixture.grpc_channel());
+    let mut management_client = fixture.management_client();
+    let mut write_client = fixture.write_client();
 
     let err = management_client
         .list_partitions("this database does not exist")

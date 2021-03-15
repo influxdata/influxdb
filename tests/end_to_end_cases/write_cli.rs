@@ -4,7 +4,7 @@ use test_helpers::make_temp_file;
 
 use crate::common::server_fixture::ServerFixture;
 
-use super::util::rand_name;
+use super::scenario::rand_name;
 
 #[tokio::test]
 async fn test() {

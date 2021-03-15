@@ -1,14 +1,14 @@
-use influxdb_iox_client::write::{self, WriteError};
+use influxdb_iox_client::write::WriteError;
 use test_helpers::assert_contains;
 
 use crate::common::server_fixture::ServerFixture;
 
-use super::util::{create_readable_database, rand_name};
+use super::scenario::{create_readable_database, rand_name};
 
 #[tokio::test]
 async fn test_write() {
     let fixture = ServerFixture::create_shared().await;
-    let mut write_client = write::Client::new(fixture.grpc_channel());
+    let mut write_client = fixture.write_client();
 
     let db_name = rand_name();
     create_readable_database(&db_name, fixture.grpc_channel()).await;

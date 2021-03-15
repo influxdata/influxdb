@@ -174,6 +174,24 @@ impl ServerFixture {
     pub fn influxdb2_client(&self) -> influxdb2_client::Client {
         influxdb2_client::Client::new(self.http_base(), TOKEN)
     }
+
+    /// Return a management client suitable for communicating with this
+    /// server
+    pub fn management_client(&self) -> influxdb_iox_client::management::Client {
+        influxdb_iox_client::management::Client::new(self.grpc_channel())
+    }
+
+    /// Return a write client suitable for communicating with this
+    /// server
+    pub fn write_client(&self) -> influxdb_iox_client::write::Client {
+        influxdb_iox_client::write::Client::new(self.grpc_channel())
+    }
+
+    /// Return a flight client suitable for communicating with this
+    /// server
+    pub fn flight_client(&self) -> influxdb_iox_client::flight::Client {
+        influxdb_iox_client::flight::Client::new(self.grpc_channel())
+    }
 }
 
 #[derive(Debug)]
