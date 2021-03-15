@@ -915,12 +915,12 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		)
 
 		httpLogger := m.log.With(zap.String("service", "http"))
-		m.httpServer.Handler = http.NewHandlerFromRegistry(
+		m.httpServer.Handler = http.NewRootHandler(
 			"platform",
-			m.reg,
 			http.WithLog(httpLogger),
 			http.WithAPIHandler(platformHandler),
 			http.WithPprofEnabled(!opts.ProfilingDisabled),
+			http.WithMetrics(m.reg, !opts.MetricsDisabled),
 		)
 
 		if opts.LogLevel == zap.DebugLevel {
