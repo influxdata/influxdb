@@ -13,7 +13,7 @@ use futures::{
     Stream, StreamExt, TryStreamExt,
 };
 use rusoto_core::ByteStream;
-use rusoto_credential::{ChainProvider, StaticProvider};
+use rusoto_credential::{InstanceMetadataProvider, StaticProvider};
 use rusoto_s3::S3;
 use snafu::{futures::TryStreamExt as _, OptionExt, ResultExt, Snafu};
 use std::convert::TryFrom;
@@ -311,7 +311,7 @@ impl AmazonS3 {
             (None, Some(_)) => return Err(Error::MissingAccessKey),
             (Some(_), None) => return Err(Error::MissingSecretAccessKey),
             _ => {
-                let credentials_provider = ChainProvider::new();
+                let credentials_provider = InstanceMetadataProvider::new();
                 rusoto_s3::S3Client::new_with(http_client, credentials_provider, region)
             }
         };
