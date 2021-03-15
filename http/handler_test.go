@@ -7,7 +7,6 @@ import (
 
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/kit/prom/promtest"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
@@ -84,9 +83,9 @@ func TestHandler_ServeHTTP(t *testing.T) {
 			h.ServeHTTP(recorder, req)
 
 			if tt.fields.handlerHidden {
-				assert.Equal(t, http.StatusForbidden, recorder.Code)
+				require.Equal(t, http.StatusForbidden, recorder.Code)
 			} else {
-				assert.Equal(t, http.StatusOK, recorder.Code)
+				require.Equal(t, http.StatusOK, recorder.Code)
 			}
 		})
 	}
