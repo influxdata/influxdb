@@ -143,6 +143,7 @@ type InfluxdOpts struct {
 	SessionRenewDisabled bool
 
 	ProfilingDisabled bool
+	MetricsDisabled   bool
 
 	NatsPort            int
 	NatsMaxPayloadBytes int
@@ -189,6 +190,7 @@ func newOpts(viper *viper.Viper) *InfluxdOpts {
 		SessionRenewDisabled: false,
 
 		ProfilingDisabled: false,
+		MetricsDisabled:   false,
 
 		StoreType:   BoltStore,
 		SecretStore: BoltStore,
@@ -518,6 +520,14 @@ func (o *InfluxdOpts) bindCliOpts() []cli.Opt {
 			Flag:    "pprof-disabled",
 			Desc:    "Don't expose debugging information over HTTP at /debug/pprof",
 			Default: o.ProfilingDisabled,
+		},
+
+		// Metrics config
+		{
+			DestP:   &o.MetricsDisabled,
+			Flag:    "metrics-disabled",
+			Desc:    "Don't expose metrics over HTTP at /metrics",
+			Default: o.MetricsDisabled,
 		},
 	}
 }
