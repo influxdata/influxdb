@@ -485,28 +485,28 @@ jobs:
       - install_core_deps
       - run: make test-flux
 
-    tlstest:
-      docker:
-        - image: cimg/go:1.15.6
-      resource_class: large
-      environment:
-        GOCACHE: /tmp/go-cache
-        TEST_RESULTS: /tmp/test-results
-      working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
-      steps:
-        - checkout
-        - restore_cache:
-            name: Restore GOPATH/pkg/mod
-            keys:
-              - influxdb-gomod-sum-{{ checksum "go.sum" }}
-        - run: mkdir -p $TEST_RESULTS
-        - install_core_deps
-        - run: make test-tls
-        - store_artifacts:
-            path: /tmp/test-results
-            destination: raw-test-output
-        - store_test_results:
-            path: /tmp/test-results
+  tlstest:
+    docker:
+      - image: cimg/go:1.15.6
+    resource_class: large
+    environment:
+      GOCACHE: /tmp/go-cache
+      TEST_RESULTS: /tmp/test-results
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
+      - run: mkdir -p $TEST_RESULTS
+      - install_core_deps
+      - run: make test-tls
+      - store_artifacts:
+          path: /tmp/test-results
+          destination: raw-test-output
+      - store_test_results:
+          path: /tmp/test-results
 
   influxql_validation:
     docker:
