@@ -25,7 +25,7 @@ func init() {
 	keyPath = os.Getenv(certKeyVar)
 }
 
-func TestSsl_NonStrict(t *testing.T) {
+func TestTLS_NonStrict(t *testing.T) {
 	require.NotEmpty(t, certPath, "INFLUXDB_TEST_SSL_CERT_PATH must be set to run this test")
 	require.NotEmpty(t, keyPath, "INFLUXDB_TEST_SSL_KEY_PATH must be set to run this test")
 	ctx := context.Background()
@@ -53,7 +53,7 @@ func TestSsl_NonStrict(t *testing.T) {
 	}
 }
 
-func TestSsl_Strict(t *testing.T) {
+func TestTLS_Strict(t *testing.T) {
 	require.NotEmpty(t, certPath, "INFLUXDB_TEST_SSL_CERT_PATH must be set to run this test")
 	require.NotEmpty(t, keyPath, "INFLUXDB_TEST_SSL_KEY_PATH must be set to run this test")
 	ctx := context.Background()
@@ -81,7 +81,7 @@ func TestSsl_Strict(t *testing.T) {
 	}
 }
 
-func TestSsl_UnsupportedVersion(t *testing.T) {
+func TestTLS_UnsupportedVersion(t *testing.T) {
 	require.NotEmpty(t, certPath, "INFLUXDB_TEST_SSL_CERT_PATH must be set to run this test")
 	require.NotEmpty(t, keyPath, "INFLUXDB_TEST_SSL_KEY_PATH must be set to run this test")
 	ctx := context.Background()
