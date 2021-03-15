@@ -1,3 +1,41 @@
+v1.9.0 [unreleased]
+
+### Features
+
+-	[#20873](https://github.com/influxdata/influxdb/pull/20873): feat: add arguments to flux to function
+-	[#20793](https://github.com/influxdata/influxdb/pull/20793): feat: Add WITH KEY to show tag keys
+-	[#20745](https://github.com/influxdata/influxdb/pull/20745): feat: use count_hll for 'show series cardinality' queries
+-	[#20603](https://github.com/influxdata/influxdb/pull/20603): feat(query): Hyper log log operators in influxql
+-	[#20700](https://github.com/influxdata/influxdb/pull/20700): feat: series creation ingress metrics
+-	[#20687](https://github.com/influxdata/influxdb/pull/20687): feat: measurement metrics by login
+-	[#20677](https://github.com/influxdata/influxdb/pull/20677): feat: Ingress metrics by measurement
+-	[#20544](https://github.com/influxdata/influxdb/pull/20544): feat(tsi): optimize series iteration
+-	[#17814](https://github.com/influxdata/influxdb/pull/17814): feat(prometheus): update prometheus remote protocol
+-	[#17596](https://github.com/influxdata/influxdb/pull/17596): improvement(query): performance improvement for sorted merge iterator [Tristan Su]
+
+### Bugfixes
+
+-	[#20889](https://github.com/influxdata/influxdb/pull/20889): fix: Add back flux CLI (#20889)
+-	[#20802](https://github.com/influxdata/influxdb/pull/20802): fix(tsm1): fix data race and validation in cache ring
+-	[#20694](https://github.com/influxdata/influxdb/pull/20694): fix: consistent error for missing shard
+-	[#20183](https://github.com/influxdata/influxdb/pull/20183): fix: Properly shutdown multiple http servers
+-	[#20063](https://github.com/influxdata/influxdb/pull/20063): fix(tsm1): "snapshot in progress" error during backup
+-	[#19631](https://github.com/influxdata/influxdb/pull/19631): fix(CORS): allow PATCH
+-	[#17060](https://github.com/influxdata/influxdb/pull/17060): fix(tsdb): return error on nonexistent shard id
+-	[#18410](https://github.com/influxdata/influxdb/pull/18410): fix(handler): allow CORS in v2 compatibility endpoints
+-	[#18410](https://github.com/influxdata/influxdb/pull/18410): fix(handler): add User-Agent to allowed CORS headers
+-	[#18429](https://github.com/influxdata/influxdb/pull/18429): fix(httpd): add option to authenticate prometheus remote read
+-	[#18136](https://github.com/influxdata/influxdb/pull/18136): fix(query): address staticcheck warning S1020
+-	[#18140](https://github.com/influxdata/influxdb/pull/18140): fix(client/v2): use non-nil context.Context value
+-	[#18135](https://github.com/influxdata/influxdb/pull/18135): fix: address static check warning s1039
+-	[#18127](https://github.com/influxdata/influxdb/pull/18127): fix(tsdb): address staticcheck warning SA4006
+-	[#18126](https://github.com/influxdata/influxdb/pull/18126): fix(tsdb): address staticcheck warning st1006
+-	[#18129](https://github.com/influxdata/influxdb/pull/18129): fix(tsdb): Fix variables masked by a declaration
+-	[#18004](https://github.com/influxdata/influxdb/pull/18004): fix(httpd): Fixes key collisions when serializing /debug/vars
+-	[#17798](https://github.com/influxdata/influxdb/pull/17798): fix(docs): Update docs to reflect tooling changes
+-	[#17685](https://github.com/influxdata/influxdb/pull/17685): fix(tsm1): Fix temp directory search bug
+-	[#17495](https://github.com/influxdata/influxdb/pull/17495): fix(snapshotter): properly read payload
+
 v1.8.5 [unreleased]
 -------------------
 
