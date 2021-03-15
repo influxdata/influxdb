@@ -42,6 +42,7 @@ or `/query` HTTP endpoints.
 1. [20856](https://github.com/influxdata/influxdb/pull/20856): Respect 24 hour clock formats in the UI and allow more choices
 1. [20875](https://github.com/influxdata/influxdb/pull/20875): Prevent "do not have an execution context" error when parsing Flux options in tasks.
 1. [20932](https://github.com/influxdata/influxdb/pull/20932): Prevent time field names from being formatted in the Table visualization
+1. [20929](https://github.com/influxdata/influxdb/pull/20929): Log error details when `influxd upgrade` fails to migrate databases.
 
 ## v2.0.4 [2021-02-08]
 
