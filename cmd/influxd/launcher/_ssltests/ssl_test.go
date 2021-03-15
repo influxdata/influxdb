@@ -30,21 +30,27 @@ func TestSsl_NonStrict(t *testing.T) {
 	require.NotEmpty(t, keyPath, "INFLUXDB_TEST_SSL_KEY_PATH must be set to run this test")
 	ctx := context.Background()
 
-	l := launcher.NewTestLauncher()
-	l.RunOrFail(t, ctx, func(o *launcher.InfluxdOpts) {
-		o.HttpTLSCert = certPath
-		o.HttpTLSKey = keyPath
-		o.HttpTLSStrictCiphers = false
-	})
-	defer l.ShutdownOrFail(t, ctx)
+	for _, tlsVersion := range []string{"1.0", "1.1", "1.2", "1.3"} {
+		tlsVersion := tlsVersion
+		t.Run(tlsVersion, func(t *testing.T) {
+			l := launcher.NewTestLauncher()
+			l.RunOrFail(t, ctx, func(o *launcher.InfluxdOpts) {
+				o.HttpTLSCert = certPath
+				o.HttpTLSKey = keyPath
+				o.HttpTLSMinVersion = tlsVersion
+				o.HttpTLSStrictCiphers = false
+			})
+			defer l.ShutdownOrFail(t, ctx)
 
-	req, err := l.NewHTTPRequest("GET", "/ping", "", "")
-	require.NoError(t, err)
-	require.Regexp(t, "https://.*", req.URL)
+			req, err := l.NewHTTPRequest("GET", "/ping", "", "")
+			require.NoError(t, err)
+			require.Regexp(t, "https://.*", req.URL)
 
-	client := http.NewClient("https", true)
-	_, err = client.Do(req)
-	require.NoError(t, err)
+			client := http.NewClient("https", true)
+			_, err = client.Do(req)
+			require.NoError(t, err)
+		})
+	}
 }
 
 func TestSsl_Strict(t *testing.T) {
@@ -52,19 +58,40 @@ func TestSsl_Strict(t *testing.T) {
 	require.NotEmpty(t, keyPath, "INFLUXDB_TEST_SSL_KEY_PATH must be set to run this test")
 	ctx := context.Background()
 
+	for _, tlsVersion := range []string{"1.0", "1.1", "1.2", "1.3"} {
+		tlsVersion := tlsVersion
+		t.Run(tlsVersion, func(t *testing.T) {
+			l := launcher.NewTestLauncher()
+			l.RunOrFail(t, ctx, func(o *launcher.InfluxdOpts) {
+				o.HttpTLSCert = certPath
+				o.HttpTLSKey = keyPath
+				o.HttpTLSMinVersion = tlsVersion
+				o.HttpTLSStrictCiphers = true
+			})
+			defer l.ShutdownOrFail(t, ctx)
+
+			req, err := l.NewHTTPRequest("GET", "/ping", "", "")
+			require.NoError(t, err)
+			require.Regexp(t, "https://.*", req.URL)
+
+			client := http.NewClient("https", true)
+			_, err = client.Do(req)
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestSsl_UnsupportedVersion(t *testing.T) {
+	require.NotEmpty(t, certPath, "INFLUXDB_TEST_SSL_CERT_PATH must be set to run this test")
+	require.NotEmpty(t, keyPath, "INFLUXDB_TEST_SSL_KEY_PATH must be set to run this test")
+	ctx := context.Background()
+
 	l := launcher.NewTestLauncher()
-	l.RunOrFail(t, ctx, func(o *launcher.InfluxdOpts) {
+	err := l.Run(t, ctx, func(o *launcher.InfluxdOpts) {
 		o.HttpTLSCert = certPath
 		o.HttpTLSKey = keyPath
+		o.HttpTLSMinVersion = "1.4"
 		o.HttpTLSStrictCiphers = true
 	})
-	defer l.ShutdownOrFail(t, ctx)
-
-	req, err := l.NewHTTPRequest("GET", "/ping", "", "")
-	require.NoError(t, err)
-	require.Regexp(t, "https://.*", req.URL)
-
-	client := http.NewClient("https", true)
-	_, err = client.Do(req)
-	require.NoError(t, err)
+	require.Error(t, err)
 }
