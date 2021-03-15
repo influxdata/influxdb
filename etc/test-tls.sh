@@ -18,13 +18,13 @@ generate_keypair() {
     -keyout "${key}"
 }
 
-run_ssl_tests() {
+run_tls_tests() {
   local cert key
   cert="$1"
   key="$2"
 
   1>&2 echo Running go tests...
-  INFLUXDB_TEST_SSL_CERT_PATH="${cert}" INFLUXDB_TEST_SSL_KEY_PATH="${key}" "${GO}" test -mod=readonly ./cmd/influxd/launcher/_ssltests
+  INFLUXDB_TEST_SSL_CERT_PATH="${cert}" INFLUXDB_TEST_SSL_KEY_PATH="${key}" "${GO}" test -mod=readonly ./cmd/influxd/launcher/_tlstests
 }
 
 main() {
@@ -34,6 +34,6 @@ main() {
 
   trap "rm -f '${cert}' '${key}'" EXIT
   generate_keypair "${cert}" "${key}"
-  run_ssl_tests "${cert}" "${key}"
+  run_tls_tests "${cert}" "${key}"
 }
 main

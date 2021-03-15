@@ -1,4 +1,4 @@
-package ssltests
+package tlstests
 
 import (
 	"context"
