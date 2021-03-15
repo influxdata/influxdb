@@ -89,6 +89,15 @@ func NewTestLauncherServer() *TestLauncher {
 	return l
 }
 
+// URL returns the URL to connect to the HTTP server.
+func (tl *TestLauncher) URL() string {
+	transport := "http"
+	if tl.Launcher.tlsEnabled {
+		transport = "https"
+	}
+	return fmt.Sprintf("%s://127.0.0.1:%d", transport, tl.Launcher.httpPort)
+}
+
 type OptSetter = func(o *InfluxdOpts)
 
 func (tl *TestLauncher) SetFlagger(flagger feature.Flagger) {

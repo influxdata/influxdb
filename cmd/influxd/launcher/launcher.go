@@ -111,6 +111,7 @@ type Launcher struct {
 
 	httpPort   int
 	httpServer *nethttp.Server
+	tlsEnabled bool
 
 	natsServer *nats.Server
 	natsPort   int
@@ -141,11 +142,6 @@ func NewLauncher() *Launcher {
 // Registry returns the prometheus metrics registry.
 func (m *Launcher) Registry() *prom.Registry {
 	return m.reg
-}
-
-// URL returns the URL to connect to the HTTP server.
-func (m *Launcher) URL() string {
-	return fmt.Sprintf("http://127.0.0.1:%d", m.httpPort)
 }
 
 // NatsURL returns the URL to connection to the NATS server.
@@ -961,8 +957,8 @@ func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler) error {
 	}
 	m.wg.Add(1)
 
-	useTLS := opts.HttpTLSCert != "" && opts.HttpTLSKey != ""
-	if !useTLS {
+	m.tlsEnabled = opts.HttpTLSCert != "" && opts.HttpTLSKey != ""
+	if !m.tlsEnabled {
 		if opts.HttpTLSCert != "" || opts.HttpTLSKey != "" {
 			log.Warn("TLS requires specifying both cert and key, falling back to HTTP")
 		}
