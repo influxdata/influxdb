@@ -8,6 +8,11 @@ Prior to this release, the `influxd` server would always expose profiling inform
 This endpoint was unauthenticated, and not used by InfluxDB systems to report diagnostics. For security and clarity,
 the endpoint has been removed. Use the `/metrics` endpoint to collect system statistics.
 
+#### `influx transpile` removed
+
+The `transpile` command has been retired. Users can send InfluxQL directly to the server via the `/api/v2/query`
+or `/query` HTTP endpoints.
+
 ### Features
 
 1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells.
@@ -18,6 +23,7 @@ the endpoint has been removed. Use the `/metrics` endpoint to collect system sta
 1. [20827](https://github.com/influxdata/influxdb/pull/20827): Add `--pprof-disabled` option to `influxd` to disable exposing profiling information over HTTP.
 1. [20827](https://github.com/influxdata/influxdb/pull/20827): Add `/debug/pprof/all` HTTP endpoint to gather all profiles at once.
 1. [20827](https://github.com/influxdata/influxdb/pull/20827): Upgrade `http.pprof-enabled` config in `influxd upgrade`.
+1. [20911](https://github.com/influxdata/influxdb/pull/20911): Add support for explicitly setting shard-group durations on buckets. Thanks @hinst!
 1. [20882](https://github.com/influxdata/influxdb/pull/20882): Rewrite regex conditions in InfluxQL subqueries for performance. Thanks @yujiahaol68!
 
 ### Bug Fixes
@@ -34,6 +40,7 @@ the endpoint has been removed. Use the `/metrics` endpoint to collect system sta
 1. [20809](https://github.com/influxdata/influxdb/pull/20809): Fix InfluxDB port in Flux function UI examples. Thanks @sunjincheng121!
 1. [20827](https://github.com/influxdata/influxdb/pull/20827): Remove unauthenticated, unsupported `/debug/vars` HTTP endpoint.
 1. [20856](https://github.com/influxdata/influxdb/pull/20856): Respect 24 hour clock formats in the UI and allow more choices
+1. [20875](https://github.com/influxdata/influxdb/pull/20875): Prevent "do not have an execution context" error when parsing Flux options in tasks.
 
 ## v2.0.4 [2021-02-08]
 

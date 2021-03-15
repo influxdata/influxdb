@@ -263,8 +263,9 @@ func (e *Engine) CreateBucket(ctx context.Context, b *influxdb.Bucket) (err erro
 	defer span.Finish()
 
 	spec := meta.RetentionPolicySpec{
-		Name:     meta.DefaultRetentionPolicyName,
-		Duration: &b.RetentionPeriod,
+		Name:               meta.DefaultRetentionPolicyName,
+		Duration:           &b.RetentionPeriod,
+		ShardGroupDuration: b.ShardGroupDuration,
 	}
 
 	if _, err = e.metaClient.CreateDatabaseWithRetentionPolicy(b.ID.String(), &spec); err != nil {
@@ -274,19 +275,23 @@ func (e *Engine) CreateBucket(ctx context.Context, b *influxdb.Bucket) (err erro
 	return nil
 }
 
-func (e *Engine) UpdateBucketRetentionPeriod(ctx context.Context, bucketID influxdb.ID, d time.Duration) error {
+func (e *Engine) UpdateBucketRetentionPolicy(ctx context.Context, bucketID influxdb.ID, upd *influxdb.BucketUpdate) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	// A value of zero ensures the ShardGroupDuration is adjusted to an appropriate value based on the specified
-	//   duration
-	zero := time.Duration(0)
 	rpu := meta.RetentionPolicyUpdate{
-		Duration:           &d,
-		ShardGroupDuration: &zero,
+		Duration:           upd.RetentionPeriod,
+		ShardGroupDuration: upd.ShardGroupDuration,
 	}
 
-	return e.metaClient.UpdateRetentionPolicy(bucketID.String(), meta.DefaultRetentionPolicyName, &rpu, true)
+	err := e.metaClient.UpdateRetentionPolicy(bucketID.String(), meta.DefaultRetentionPolicyName, &rpu, true)
+	if err == meta.ErrIncompatibleDurations {
+		err = &influxdb.Error{
+			Code: influxdb.EUnprocessableEntity,
+			Msg:  "shard-group duration must also be updated to be smaller than new retention duration",
+		}
+	}
+	return err
 }
 
 // DeleteBucket deletes an entire bucket from the storage engine.
