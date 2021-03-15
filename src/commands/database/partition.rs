@@ -1,7 +1,7 @@
 //! This module implements the `partition` CLI command
 use influxdb_iox_client::{
     connection::Builder,
-    management::{self, GetPartitionError, ListPartitionsError},
+    management::{self, GetPartitionError, ListPartitionsError, NewPartitionChunkError},
 };
 use structopt::StructOpt;
 use thiserror::Error;
@@ -13,6 +13,9 @@ pub enum Error {
 
     #[error("Error getting partition: {0}")]
     GetPartitionsError(#[from] GetPartitionError),
+
+    #[error("Error getting partition: {0}")]
+    NewPartitionError(#[from] NewPartitionChunkError),
 
     #[error("Error rendering response as JSON: {0}")]
     WritingJson(#[from] serde_json::Error),
@@ -49,6 +52,17 @@ struct Get {
     partition_key: String,
 }
 
+/// Create a new, open chunk in the partiton's Mutable Buffer which will receive
+/// new writes.
+#[derive(Debug, StructOpt)]
+struct NewChunk {
+    /// The name of the database
+    db_name: String,
+
+    /// The partition key
+    partition_key: String,
+}
+
 /// All possible subcommands for partition
 #[derive(Debug, StructOpt)]
 enum Command {
@@ -56,6 +70,8 @@ enum Command {
     List(List),
     // Get details about a particular partition
     Get(Get),
+    // Create a new chunk in the partition
+    NewChunk(NewChunk),
 }
 
 pub async fn command(url: String, config: Config) -> Result<()> {
@@ -90,6 +106,16 @@ pub async fn command(url: String, config: Config) -> Result<()> {
             let partition_detail = PartitionDetail { key };
 
             serde_json::to_writer_pretty(std::io::stdout(), &partition_detail)?;
+        }
+        Command::NewChunk(new_chunk) => {
+            let NewChunk {
+                db_name,
+                partition_key,
+            } = new_chunk;
+
+            // Ignore response for now
+            client.new_partition_chunk(db_name, partition_key).await?;
+            println!("Ok");
         }
     }
 

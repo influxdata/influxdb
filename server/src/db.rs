@@ -117,7 +117,8 @@ impl Db {
         }
     }
 
-    /// Rolls over the active chunk in the database's specified partition
+    /// Rolls over the active chunk in the database's specified
+    /// partition. Returns the previously open (now closed) Chunk
     pub async fn rollover_partition(&self, partition_key: &str) -> Result<Arc<DBChunk>> {
         if let Some(local_store) = self.mutable_buffer.as_ref() {
             local_store

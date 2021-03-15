@@ -233,6 +233,29 @@ where
 
         Ok(Response::new(GetPartitionResponse { partition }))
     }
+
+    async fn new_partition_chunk(
+        &self,
+        request: Request<NewPartitionChunkRequest>,
+    ) -> Result<Response<NewPartitionChunkResponse>, Status> {
+        let NewPartitionChunkRequest {
+            db_name,
+            partition_key,
+        } = request.into_inner();
+        let db_name = DatabaseName::new(db_name).field("db_name")?;
+
+        let db = self.server.db(&db_name).ok_or_else(|| NotFound {
+            resource_type: "database".to_string(),
+            resource_name: db_name.to_string(),
+            ..Default::default()
+        })?;
+
+        db.rollover_partition(&partition_key)
+            .await
+            .map_err(default_db_error_handler)?;
+
+        Ok(Response::new(NewPartitionChunkResponse {}))
+    }
 }
 
 pub fn make_server<M>(

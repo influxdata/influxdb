@@ -377,6 +377,64 @@ async fn test_get_partition_error() {
         .stderr(predicate::str::contains("Database not found"));
 }
 
+#[tokio::test]
+async fn test_new_partition_chunk() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let addr = server_fixture.grpc_base();
+    let db_name = rand_name();
+
+    create_readable_database(&db_name, server_fixture.grpc_channel()).await;
+
+    let lp_data = vec!["cpu,region=west user=23.2 100"];
+    load_lp(addr, &db_name, lp_data);
+
+    let expected = "Ok";
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("partition")
+        .arg("new-chunk")
+        .arg(&db_name)
+        .arg("cpu")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(expected));
+
+    let expected = "ClosedMutableBuffer";
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("chunk")
+        .arg("list")
+        .arg(&db_name)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(expected));
+}
+
+#[tokio::test]
+async fn test_new_partition_chunk_error() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let addr = server_fixture.grpc_base();
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("partition")
+        .arg("new-chunk")
+        .arg("non_existent_database")
+        .arg("non_existent_partition")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Database not found"));
+}
+
 /// Loads the specified lines into the named database
 fn load_lp(addr: &str, db_name: &str, lp_data: Vec<&str>) {
     let lp_data_file = make_temp_file(lp_data.join("\n"));

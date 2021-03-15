@@ -132,7 +132,22 @@ pub enum GetPartitionError {
     ServerError(tonic::Status),
 }
 
+/// Errors returned by Client::new_partition_chunk
+#[derive(Debug, Error)]
+pub enum NewPartitionChunkError {
+    /// Database not found
+    #[error("Database not found")]
+    DatabaseNotFound,
+
+    /// Client received an unexpected error from the server
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    ServerError(tonic::Status),
+}
+
 /// An IOx Management API client.
+///
+/// This client wraps the underlying `tonic` generated client with a
+/// more ergonomic interface.
 ///
 /// ```no_run
 /// #[tokio::main]
@@ -347,5 +362,28 @@ impl Client {
         let GetPartitionResponse { partition } = response.into_inner();
 
         partition.ok_or(GetPartitionError::PartitionNotFound)
+    }
+
+    /// Create a new chunk in a partittion
+    pub async fn new_partition_chunk(
+        &mut self,
+        db_name: impl Into<String>,
+        partition_key: impl Into<String>,
+    ) -> Result<(), NewPartitionChunkError> {
+        let db_name = db_name.into();
+        let partition_key = partition_key.into();
+
+        self.inner
+            .new_partition_chunk(NewPartitionChunkRequest {
+                db_name,
+                partition_key,
+            })
+            .await
+            .map_err(|status| match status.code() {
+                tonic::Code::NotFound => NewPartitionChunkError::DatabaseNotFound,
+                _ => NewPartitionChunkError::ServerError(status),
+            })?;
+
+        Ok(())
     }
 }

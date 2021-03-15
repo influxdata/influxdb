@@ -104,7 +104,8 @@ impl MutableBufferDb {
         Ok(())
     }
 
-    /// Rolls over the active chunk in this partititon
+    /// Rolls over the active chunk in this partititon.  Returns the
+    /// previously open (now closed) Chunk
     pub fn rollover_partition(&self, partition_key: &str) -> Result<Arc<Chunk>> {
         let partition = self.get_partition(partition_key);
         let mut partition = partition.write().expect("mutex poisoned");

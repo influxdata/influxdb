@@ -178,6 +178,8 @@ impl Partition {
     ///
     /// Queries will continue to see data in the specified chunk until
     /// it is dropped.
+    ///
+    /// Returns the previously open (now closed) Chunk
     pub fn rollover_chunk(&mut self) -> Arc<Chunk> {
         let chunk_id = self.id_generator;
         self.id_generator += 1;

@@ -391,3 +391,94 @@ async fn test_partition_get_error() {
 
     assert_contains!(err.to_string(), "Partition not found");
 }
+
+#[tokio::test]
+async fn test_new_partition_chunk() {
+    let fixture = ServerFixture::create_shared().await;
+    let mut management_client = fixture.management_client();
+    let mut write_client = fixture.write_client();
+
+    let db_name = rand_name();
+    create_readable_database(&db_name, fixture.grpc_channel()).await;
+
+    let lp_lines = vec!["cpu,region=west user=23.2 100"];
+
+    write_client
+        .write(&db_name, lp_lines.join("\n"))
+        .await
+        .expect("write succeded");
+
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+
+    assert_eq!(chunks.len(), 1, "Chunks: {:#?}", chunks);
+    let partition_key = "cpu";
+
+    // Rollover the a second chunk
+    management_client
+        .new_partition_chunk(&db_name, partition_key)
+        .await
+        .expect("new partition chunk");
+
+    // Load some more data and now expect that we have a second chunk
+
+    let lp_lines = vec!["cpu,region=west user=21.0 150"];
+
+    write_client
+        .write(&db_name, lp_lines.join("\n"))
+        .await
+        .expect("write succeded");
+
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+
+    assert_eq!(chunks.len(), 2, "Chunks: {:#?}", chunks);
+
+    // Made all chunks in the same partition
+    assert_eq!(
+        chunks.iter().filter(|c| c.partition_key == "cpu").count(),
+        2,
+        "Chunks: {:#?}",
+        chunks
+    );
+
+    // Rollover a (currently non existent) partition which is OK
+    management_client
+        .new_partition_chunk(&db_name, "non_existent_partition")
+        .await
+        .expect("new partition chunk");
+
+    assert_eq!(chunks.len(), 2, "Chunks: {:#?}", chunks);
+    assert_eq!(
+        chunks.iter().filter(|c| c.partition_key == "cpu").count(),
+        2,
+        "Chunks: {:#?}",
+        chunks
+    );
+    assert_eq!(
+        chunks
+            .iter()
+            .filter(|c| c.partition_key == "non_existent_partition")
+            .count(),
+        0,
+        "Chunks: {:#?}",
+        chunks
+    );
+}
+
+#[tokio::test]
+async fn test_new_partition_chunk_error() {
+    let fixture = ServerFixture::create_shared().await;
+    let mut management_client = fixture.management_client();
+
+    let err = management_client
+        .new_partition_chunk("this database does not exist", "nor_does_this_partition")
+        .await
+        .expect_err("expected error");
+
+    assert_contains!(err.to_string(), "Database not found");
+}
