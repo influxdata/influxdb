@@ -28,7 +28,7 @@ the endpoint has been removed. Use the `/metrics` endpoint to collect system sta
 1. [20834](https://github.com/influxdata/influxdb/pull/20834): Fix InfluxDB port in Flux function UI examples. Thanks @sunjincheng121!
 1. [20833](https://github.com/influxdata/influxdb/pull/20833): Fix Single Stat graphs with thresholds crashing on negative values.
 1. [20843](https://github.com/influxdata/influxdb/pull/20843): Fix data race in TSM cache. Thanks @StoneYunZhao!
-1. [20929](https://github.com/influxdata/influxdb/pull/20929): Log error details when `influxd upgrade` fails to migrate databases.
+1. [20967](https://github.com/influxdata/influxdb/pull/20967): Log error details when `influxd upgrade` fails to migrate databases.
 
 ## v2.0.4 [2021-02-08]
 ----------------------
