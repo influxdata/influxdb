@@ -29,6 +29,7 @@ the endpoint has been removed. Use the `/metrics` endpoint to collect system sta
 1. [20833](https://github.com/influxdata/influxdb/pull/20833): Fix Single Stat graphs with thresholds crashing on negative values.
 1. [20843](https://github.com/influxdata/influxdb/pull/20843): Fix data race in TSM cache. Thanks @StoneYunZhao!
 1. [20967](https://github.com/influxdata/influxdb/pull/20967): Log error details when `influxd upgrade` fails to migrate databases.
+1. [20932](https://github.com/influxdata/influxdb/pull/20932): Prevent time field names from being formatted in the Table visualization.
 
 ## v2.0.4 [2021-02-08]
 ----------------------
