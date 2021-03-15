@@ -17,7 +17,7 @@ the endpoint has been removed. Use the `/metrics` endpoint to collect system sta
 1. [20846](https://github.com/influxdata/influxdb/pull/20846): Add `--compression` option to `influx write` to support GZIP inputs.
 1. [20845](https://github.com/influxdata/influxdb/pull/20845): Add `influx task retry-failed` command to rerun failed runs.
 1. [20965](https://github.com/influxdata/influxdb/pull/20965): Add `--metrics-disabled` option to `influxd` to disable exposing Prometheus metrics over HTTP.
-1. [20882](https://github.com/influxdata/influxdb/pull/20882): Rewrite regex conditions in InfluxQL subqueries for performance. Thanks @yujiahaol68!
+1. [20962](https://github.com/influxdata/influxdb/pull/20962): Rewrite regex conditions in InfluxQL subqueries for performance. Thanks @yujiahaol68!
 
 ### Bug Fixes
 
