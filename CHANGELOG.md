@@ -1,15 +1,76 @@
-v1.8.1 [unreleased]
+v1.8.5 [unreleased]
 -------------------
 
 ### Features
 
+-	[#20917](https://github.com/influxdata/influxdb/pull/20917): feat(inspect): Add report-disk for disk usage by measurement
+-	[#20118](https://github.com/influxdata/influxdb/pull/20118): feat: Optimize shard lookups in groups containing only one shard. Thanks @StoneYunZhao!
+-	[#20910](https://github.com/influxdata/influxdb/pull/20910): feat: Make meta queries respect QueryTimeout values
+
 ### Bugfixes
 
--	[#17638](https://github.com/influxdata/influxdb/pull/17638): Verify precision in write requests.
--	[#18410](https://github.com/influxdata/influxdb/pull/18410): Enable CORS in InfluxDB 2.0 compatibility APIs.
--	[#18429](https://github.com/influxdata/influxdb/pull/18429): Add option to authenticate prometheus remote read
+-	[#20101](https://github.com/influxdata/influxdb/pull/20101): fix(write): Successful writes increment write error statistics incorrectly.
+-	[#20276](https://github.com/influxdata/influxdb/pull/20276): fix(error): unsupported value: +Inf" error not handled gracefully.
+-	[#20277](https://github.com/influxdata/influxdb/pull/20277): fix(query): Group By queries with offset that crosses a DST boundary can fail.
+-	[#20295](https://github.com/influxdata/influxdb/pull/20295): fix: cp.Mux.Serve() closes all net.Listener instances silently on error.
+-	[#19832](https://github.com/influxdata/influxdb/pull/19832): fix(prometheus): regexp handling should comply with PromQL.
+-	[#20432](https://github.com/influxdata/influxdb/pull/20432): fix(error): SELECT INTO doesn't return error with unsupported value
+-	[#20033](https://github.com/influxdata/influxdb/pull/20033): fix(tsm1): "snapshot in progress" error during backup
+-	[#20909](https://github.com/influxdata/influxdb/pull/20909): fix(tsm1): data race when accessing tombstone stats
+-	[#20912](https://github.com/influxdata/influxdb/pull/20912): fix(tsdb): minimize lock contention when adding new fields or measure
+-	[#20914](https://github.com/influxdata/influxdb/pull/20914): fix: infinite recursion bug (#20862)
 
-v1.8.0 [unreleased]
+v1.8.4 [2021-01-27]
+-------------------
+
+### Bugfixes
+
+-	[#19696](https://github.com/influxdata/influxdb/pull/19697): fix(flux): add durations to Flux logging
+
+v1.8.3 [2020-09-30]
+-------------------
+
+### Features
+
+-	[#19187](https://github.com/influxdata/influxdb/pull/19187): feat: Collect values written stats.
+-	[#19611](https://github.com/influxdata/influxdb/pull/19611): feat: Add -lponly flag to export sub-command.
+
+### Bugfixes
+
+-	[#19409](https://github.com/influxdata/influxdb/pull/19409): chore: update uuid library from satori to gofrs.
+-	[#19439](https://github.com/influxdata/influxdb/pull/19439): fix(storage): ArrayFilterCursor truncation for multi-block data.
+-	[#19460](https://github.com/influxdata/influxdb/pull/19460): chore: Use latest version of influxql package.
+-	[#19512](https://github.com/influxdata/influxdb/pull/19512): chore: Quiet static analysis tools.
+-	[#19592](https://github.com/influxdata/influxdb/pull/19592): fix(services/storage): multi measurement queries return all applicable series.
+-	[#19612](https://github.com/influxdata/influxdb/pull/19612): fix: lock map before writes.
+
+v1.8.2 [2020-08-13]
+-------------------
+
+### Bugfixes
+
+-	[#19253](https://github.com/influxdata/influxdb/pull/19253): fix(tsdb): Revert disable series id set cache size by default.
+
+v1.8.1 [2020-07-08]
+-------------------
+
+### Features
+
+-	[#18457](https://github.com/influxdata/influxdb/pull/18457): feat(query): Parallelize field iterator planning.
+-	[#18886](https://github.com/influxdata/influxdb/pull/18886): feat(http): Allow user supplied HTTP headers.
+
+### Bugfixes
+
+-	[#17319](https://github.com/influxdata/influxdb/pull/17319): fix(flux): buckets call no longer panics.
+-	[#18212](https://github.com/influxdata/influxdb/pull/18212): fix(tsdb): Defer closing of underlying SeriesIDSetIterators.
+-	[#18286](https://github.com/influxdata/influxdb/pull/18286): fix(tsdb): Disable series id set cache size by default.
+-	[#18299](https://github.com/influxdata/influxdb/pull/18299): refactor(http): Simplify Authorizer.
+-	[#18694](https://github.com/influxdata/influxdb/pull/18694): fix(tsi1): wait deleting epoch before dropping shard.
+-	[#18687](https://github.com/influxdata/influxdb/pull/18687): perf(tsi1): batch write tombstone entries when dropping/deleting.
+-	[#18826](https://github.com/influxdata/influxdb/pull/18826): fix: gracefully handle errors when creating snapshots.
+-	[#18849](https://github.com/influxdata/influxdb/pull/18849): chore(build): remove all of the go1.12 references from build.
+
+v1.8.0 [2020-04-11]
 -------------------
 
 ### Features
@@ -18,7 +79,7 @@ v1.8.0 [unreleased]
 -	[#16542](https://github.com/influxdata/influxdb/pull/16542): Add offline series compaction to influx_inspect buildtsi.
 -	[#16599](https://github.com/influxdata/influxdb/pull/16599): Make influx CLI support custom HTTP endpoint.
 -	[#16908](https://github.com/influxdata/influxdb/pull/16908): Add support for InfluxDB 2.0 write API.
--	[#17187](https://github.com/influxdata/influxdb/pull/17187): Update Flux to v0.64.0.
+-	[#17621](https://github.com/influxdata/influxdb/pull/17621): Update Flux to v0.65.0.
 -	[#17188](https://github.com/influxdata/influxdb/pull/17188): Enhance support for bound parameters.
 
 ### Bugfixes
@@ -35,7 +96,8 @@ v1.8.0 [unreleased]
 -	[#16762](https://github.com/influxdata/influxdb/pull/16762): Fix bugs in -compact-series-file.
 -	[#16944](https://github.com/influxdata/influxdb/pull/16944): Update to Go 1.13.8 and Go modules.
 -	[#17032](https://github.com/influxdata/influxdb/pull/17032): Fix a SIGSEGV when accessing tsi active log.
--	[#17204](https://github.com/influxdata/influxdb/pull/17204): Remove unsafe marshalling.
+-	[#17656](https://github.com/influxdata/influxdb/pull/17656): Verify precision in write requests.
+-	[#17698](https://github.com/influxdata/influxdb/pull/17698): Enable configuration of TLS 1.3.
 
 v1.7.0 [unreleased]
 -------------------
