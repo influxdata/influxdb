@@ -20,7 +20,6 @@ The `fs` folder is overlaid on the Docker image so that is clear where each scri
 Those scripts make assumptions about the environment which are controlled in the outer scripts (i.e. `build.bash`), so the scripts not intended to be run outside of Docker.
 
 By default, these scripts will use the "current" Go version as determined by `_go_versions.sh`.
-To use the "next" version of Go, set the environment variable GO_NEXT to a non-empty value.
 
 ## source-tarball
 

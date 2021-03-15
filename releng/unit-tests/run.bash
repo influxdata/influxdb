@@ -4,8 +4,6 @@ function printHelp() {
   >&2 echo "USAGE: $0 -i PATH_TO_SOURCE_TARBALL -o OUTDIR
 
 Runs unit tests for influxdb.
-
-If the environment variable GO_NEXT is not empty, tests run with the 'next' version of Go.
 "
 }
 
@@ -33,13 +31,8 @@ if [ -z "$TARBALL" ] || [ -z "$OUTDIR" ]; then
   exit 1
 fi
 
-if [ -z "$GO_NEXT" ]; then
-  DOCKER_TAG=latest
-  GO_VERSION="$GO_CURRENT_VERSION"
-else
-  DOCKER_TAG=next
-  GO_VERSION="$GO_NEXT_VERSION"
-fi
+DOCKER_TAG=latest
+GO_VERSION="$GO_CURRENT_VERSION"
 docker build --build-arg "GO_VERSION=$GO_VERSION" -t influxdata/influxdb/releng/unit-tests:"$DOCKER_TAG" "$SRCDIR"
 
 docker run --rm \

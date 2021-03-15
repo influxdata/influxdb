@@ -35,9 +35,10 @@ if [ -z "$OS" ] || [ -z "$ARCH" ]; then
   exit 1
 fi
 
-mkdir -p /go
-tar x -C /go -zf /influxdb-src.tar.gz
-ln -s /go/src/github.com/influxdata/influxdb /isrc # Shorthand for influxdb source.
+WORK=/influxdata
+mkdir -p ${WORK}
+tar x -C ${WORK} -zf /influxdb-src.tar.gz
+ln -s ${WORK}/influxdb /isrc # Shorthand for influxdb source.
 SHA=$(jq -r .sha < "/isrc/.metadata.json")
 VERSION=$(jq -r .version < "/isrc/.metadata.json")
 ARCHIVE_ROOT_NAME="influxdb-${VERSION}-1"
