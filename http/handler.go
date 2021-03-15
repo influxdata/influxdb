@@ -56,13 +56,13 @@ type (
 )
 
 func (o *handlerOpts) metricsHTTPHandler() http.Handler {
-	if !o.metricsExposed || o.metricsRegistry == nil {
-		handlerFunc := func(rw http.ResponseWriter, r *http.Request) {
-			kithttp.WriteErrorResponse(r.Context(), rw, influxdb.EForbidden, "metrics disabled")
-		}
-		return http.HandlerFunc(handlerFunc)
+	if o.metricsRegistry != nil && o.metricsExposed {
+		return o.metricsRegistry.HTTPHandler()
 	}
-	return o.metricsRegistry.HTTPHandler()
+	handlerFunc := func(rw http.ResponseWriter, r *http.Request) {
+		kithttp.WriteErrorResponse(r.Context(), rw, influxdb.EForbidden, "metrics disabled")
+	}
+	return http.HandlerFunc(handlerFunc)
 }
 
 func WithLog(l *zap.Logger) HandlerOptFn {
