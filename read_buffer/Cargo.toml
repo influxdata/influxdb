@@ -23,8 +23,8 @@ snafu = "0.6"
 
 [dev-dependencies] # In alphabetical order
 criterion = "0.3.3"
-rand = "0.7.3"
-rand_distr = "0.3.0"
+rand = "0.8.3"
+rand_distr = "0.4.0"
 
 [[bench]]
 name = "database"

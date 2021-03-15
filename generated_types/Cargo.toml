@@ -5,7 +5,7 @@ authors = ["Paul Dix <paul@pauldix.net>"]
 edition = "2018"
 
 [dependencies] # In alphabetical order
-flatbuffers = "0.6.1"
+flatbuffers = "0.6" # TODO: Update to 0.8
 futures = "0.3.1"
 prost = "0.7"
 prost-types = "0.7"

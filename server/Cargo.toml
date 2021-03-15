@@ -11,7 +11,7 @@ bytes = "1.0"
 chrono = "0.4"
 crc32fast = "1.2.0"
 data_types = { path = "../data_types" }
-flatbuffers = "0.6"
+flatbuffers = "0.6" # TODO: Update to 0.8
 futures = "0.3.7"
 generated_types = { path = "../generated_types" }
 hashbrown = "0.9.1"

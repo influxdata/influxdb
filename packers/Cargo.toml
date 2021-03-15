@@ -13,5 +13,5 @@ snafu = "0.6.2"
 tracing = "0.1"
 
 [dev-dependencies] # In alphabetical order
-rand = "0.7.3"
+rand = "0.8.3"
 test_helpers = { path = "../test_helpers" }

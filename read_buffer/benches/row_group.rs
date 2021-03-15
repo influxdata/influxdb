@@ -358,13 +358,13 @@ fn generate_trace_for_row_group(
     let duration_idx = 9;
     let time_idx = 10;
 
-    let env_value = rng.gen_range(0_u8, 2);
+    let env_value = rng.gen_range(0_u8..2);
     let env = format!("env-{:?}", env_value); // cardinality of 2.
 
-    let data_centre_value = rng.gen_range(0_u8, 10);
+    let data_centre_value = rng.gen_range(0_u8..10);
     let data_centre = format!("data_centre-{:?}-{:?}", env_value, data_centre_value); // cardinality of 2 * 10  = 20
 
-    let cluster_value = rng.gen_range(0_u8, 10);
+    let cluster_value = rng.gen_range(0_u8..10);
     let cluster = format!(
         "cluster-{:?}-{:?}-{:?}",
         env_value,
@@ -373,7 +373,7 @@ fn generate_trace_for_row_group(
     );
 
     // user id is dependent on the cluster
-    let user_id_value = rng.gen_range(0_u32, 1000);
+    let user_id_value = rng.gen_range(0_u32..1000);
     let user_id = format!(
         "uid-{:?}-{:?}-{:?}-{:?}",
         env_value,
@@ -382,7 +382,7 @@ fn generate_trace_for_row_group(
         user_id_value // cardinality of 2 * 10 * 10 * 1000 = 200,000
     );
 
-    let request_id_value = rng.gen_range(0_u32, 10);
+    let request_id_value = rng.gen_range(0_u32..10);
     let request_id = format!(
         "rid-{:?}-{:?}-{:?}-{:?}-{:?}",
         env_value,
@@ -392,7 +392,11 @@ fn generate_trace_for_row_group(
         request_id_value // cardinality of 2 * 10 * 10 * 1000 * 10 = 2,000,000
     );
 
-    let trace_id = rng.sample_iter(&Alphanumeric).take(8).collect::<String>();
+    let trace_id = rng
+        .sample_iter(&Alphanumeric)
+        .map(char::from)
+        .take(8)
+        .collect::<String>();
 
     // the trace should move across hosts, which in this setup would be nodes
     // and pods.
@@ -401,13 +405,13 @@ fn generate_trace_for_row_group(
     for _ in 0..spans_per_trace {
         // these values are not the same for each span so need to be generated
         // separately.
-        let node_id = rng.gen_range(0, 10); // cardinality is 2 * 10 * 10 * 10 = 2,000
+        let node_id = rng.gen_range(0..10); // cardinality is 2 * 10 * 10 * 10 = 2,000
 
         column_packers[pod_id_idx].str_packer_mut().push(format!(
             "pod_id-{}-{}-{}",
             node_id_prefix,
             node_id,
-            rng.gen_range(0, 10) // cardinality is 2 * 10 * 10 * 10 * 10 = 20,000
+            rng.gen_range(0..10) // cardinality is 2 * 10 * 10 * 10 * 10 = 20,000
         ));
 
         column_packers[node_id_idx]
@@ -415,9 +419,12 @@ fn generate_trace_for_row_group(
             .push(format!("node_id-{}-{}", node_id_prefix, node_id));
 
         // randomly generate a span_id
-        column_packers[span_id_idx]
-            .str_packer_mut()
-            .push(rng.sample_iter(&Alphanumeric).take(8).collect::<String>());
+        column_packers[span_id_idx].str_packer_mut().push(
+            rng.sample_iter(&Alphanumeric)
+                .map(char::from)
+                .take(8)
+                .collect::<String>(),
+        );
 
         // randomly generate some duration times in milliseconds.
         column_packers[duration_idx].i64_packer_mut().push(

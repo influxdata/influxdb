@@ -387,7 +387,7 @@ mod test {
         for _ in 0..250 {
             let packer: Packer<i64> = Packer::from(
                 (0..1000)
-                    .map(|_| rng.gen_range(0, 20))
+                    .map(|_| rng.gen_range(0..20))
                     .collect::<Vec<i64>>(),
             );
             let mut packers = vec![Packers::Integer(packer)];
@@ -410,7 +410,7 @@ mod test {
         for _ in 0..250 {
             let packer: Packer<String> = Packer::from(
                 (0..1000)
-                    .map(|_| format!("{:?}", rng.gen_range(0, 20)))
+                    .map(|_| format!("{:?}", rng.gen_range(0..20)))
                     .collect::<Vec<String>>(),
             );
             let mut packers = vec![Packers::String(packer)];
