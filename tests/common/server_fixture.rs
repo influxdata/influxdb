@@ -181,6 +181,12 @@ impl ServerFixture {
         influxdb_iox_client::management::Client::new(self.grpc_channel())
     }
 
+    /// Return a operations client suitable for communicating with this
+    /// server
+    pub fn operations_client(&self) -> influxdb_iox_client::operations::Client {
+        influxdb_iox_client::operations::Client::new(self.grpc_channel())
+    }
+
     /// Return a write client suitable for communicating with this
     /// server
     pub fn write_client(&self) -> influxdb_iox_client::write::Client {

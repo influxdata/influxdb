@@ -755,6 +755,7 @@ dependencies = [
  "generated_types",
  "influxdb_line_protocol",
  "percent-encoding",
+ "prost",
  "regex",
  "serde",
  "serde_regex",

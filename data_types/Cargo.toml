@@ -12,6 +12,7 @@ flatbuffers = "0.6" # TODO: Update to 0.8
 generated_types = { path = "../generated_types" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 percent-encoding = "2.1.0"
+prost = "0.7"
 serde = "1.0"
 snafu = "0.6"
 tracing = "0.1"

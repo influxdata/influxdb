@@ -5,6 +5,7 @@ use thiserror::Error;
 use self::generated_types::{management_service_client::ManagementServiceClient, *};
 
 use crate::connection::Connection;
+use ::generated_types::google::longrunning::Operation;
 use std::convert::TryInto;
 
 /// Re-export generated_types
@@ -99,6 +100,18 @@ pub enum ListRemotesError {
 /// Errors returned by Client::update_remote
 #[derive(Debug, Error)]
 pub enum UpdateRemoteError {
+    /// Client received an unexpected error from the server
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    ServerError(tonic::Status),
+}
+
+/// Errors returned by Client::create_dummy_job
+#[derive(Debug, Error)]
+pub enum CreateDummyJobError {
+    /// Response contained no payload
+    #[error("Server returned an empty response")]
+    EmptyResponse,
+
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
     ServerError(tonic::Status),
@@ -385,5 +398,24 @@ impl Client {
             })?;
 
         Ok(())
+    }
+
+    /// Creates a dummy job that for each value of the nanos field
+    /// spawns a task that sleeps for that number of nanoseconds before
+    /// returning
+    pub async fn create_dummy_job(
+        &mut self,
+        nanos: Vec<u64>,
+    ) -> Result<Operation, CreateDummyJobError> {
+        let response = self
+            .inner
+            .create_dummy_job(CreateDummyJobRequest { nanos })
+            .await
+            .map_err(CreateDummyJobError::ServerError)?;
+
+        Ok(response
+            .into_inner()
+            .operation
+            .ok_or(CreateDummyJobError::EmptyResponse)?)
     }
 }

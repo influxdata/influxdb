@@ -8,14 +8,14 @@
 )]
 #![allow(clippy::missing_docs_in_private_items)]
 
-pub use client::{health, management, write};
+pub use generated_types::{protobuf_type_url, protobuf_type_url_eq};
 
-#[cfg(feature = "flight")]
-pub use client::flight;
+pub use client::*;
 
 /// Builder for constructing connections for use with the various gRPC clients
 pub mod connection;
 
+#[cfg(feature = "format")]
 /// Output formatting utilities
 pub mod format;
 

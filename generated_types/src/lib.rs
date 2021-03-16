@@ -32,6 +32,10 @@ pub mod influxdata {
     pub mod iox {
         pub mod management {
             pub mod v1 {
+                /// Operation metadata type
+                pub const OPERATION_METADATA: &str =
+                    "influxdata.iox.management.v1.OperationMetadata";
+
                 include!(concat!(env!("OUT_DIR"), "/influxdata.iox.management.v1.rs"));
             }
         }
@@ -78,8 +82,62 @@ pub const STORAGE_SERVICE: &str = "influxdata.platform.storage.Storage";
 pub const IOX_TESTING_SERVICE: &str = "influxdata.platform.storage.IOxTesting";
 /// gRPC Arrow Flight Service
 pub const ARROW_SERVICE: &str = "arrow.flight.protocol.FlightService";
+/// The type prefix for any types
+pub const ANY_TYPE_PREFIX: &str = "type.googleapis.com";
+
+/// Returns the protobuf URL usable with a google.protobuf.Any message
+/// This is the full Protobuf package and message name prefixed by
+/// "type.googleapis.com/"
+pub fn protobuf_type_url(protobuf_type: &str) -> String {
+    format!("{}/{}", ANY_TYPE_PREFIX, protobuf_type)
+}
+
+/// Compares the protobuf type URL found within a google.protobuf.Any
+/// message to an expected Protobuf package and message name
+///
+/// i.e. strips off the "type.googleapis.com/" prefix from `url`
+/// and compares the result with `protobuf_type`
+///
+/// ```
+/// use generated_types::protobuf_type_url_eq;
+/// assert!(protobuf_type_url_eq("type.googleapis.com/google.protobuf.Empty", "google.protobuf.Empty"));
+/// assert!(!protobuf_type_url_eq("type.googleapis.com/google.protobuf.Empty", "something.else"));
+/// ```
+pub fn protobuf_type_url_eq(url: &str, protobuf_type: &str) -> bool {
+    let mut split = url.splitn(2, '/');
+    match (split.next(), split.next()) {
+        (Some(ANY_TYPE_PREFIX), Some(t)) => t == protobuf_type,
+        _ => false,
+    }
+}
 
 pub use com::github::influxdata::idpe::storage::read::*;
 pub use influxdata::platform::storage::*;
 
 pub mod google;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_protobuf_type_url() {
+        use influxdata::iox::management::v1::OPERATION_METADATA;
+
+        let t = protobuf_type_url(OPERATION_METADATA);
+
+        assert_eq!(
+            &t,
+            "type.googleapis.com/influxdata.iox.management.v1.OperationMetadata"
+        );
+
+        assert!(protobuf_type_url_eq(&t, OPERATION_METADATA));
+        assert!(!protobuf_type_url_eq(&t, "foo"));
+
+        // The URL must start with the type.googleapis.com prefix
+        assert!(!protobuf_type_url_eq(
+            OPERATION_METADATA,
+            OPERATION_METADATA
+        ));
+    }
+}

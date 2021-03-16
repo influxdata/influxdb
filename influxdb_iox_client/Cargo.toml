@@ -6,6 +6,7 @@ edition = "2018"
 
 [features]
 flight = ["arrow_deps", "serde/derive", "serde_json", "futures-util"]
+format = ["arrow_deps"]
 
 [dependencies]
 # Workspace dependencies, in alphabetical order

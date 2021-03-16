@@ -16,6 +16,7 @@ use generated_types::{
         FieldViolation, InternalError, NotFound,
     },
     influxdata::iox::management::v1 as management,
+    protobuf_type_url,
 };
 use server::{
     tracker::{Tracker, TrackerId},
@@ -48,7 +49,7 @@ pub fn encode_tracker(tracker: Tracker<Job>) -> Result<Operation, tonic::Status>
     })?;
 
     let metadata = Any {
-        type_url: "type.googleapis.com/influxdata.iox.management.v1.OperationMetadata".to_string(),
+        type_url: protobuf_type_url(management::OPERATION_METADATA),
         value: buffer.freeze(),
     };
 

@@ -23,6 +23,7 @@ mod commands {
     mod input;
     pub mod logging;
     pub mod meta;
+    pub mod operations;
     pub mod run;
     pub mod server;
     pub mod server_remote;
@@ -124,6 +125,7 @@ enum Command {
     Stats(commands::stats::Config),
     Server(commands::server::Config),
     Writer(commands::writer::Config),
+    Operation(commands::operations::Config),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -189,6 +191,13 @@ fn main() -> Result<(), std::io::Error> {
             Command::Writer(config) => {
                 logging_level.setup_basic_logging();
                 if let Err(e) = commands::writer::command(host, config).await {
+                    eprintln!("{}", e);
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Command::Operation(config) => {
+                logging_level.setup_basic_logging();
+                if let Err(e) = commands::operations::command(host, config).await {
                     eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
