@@ -393,6 +393,63 @@ async fn test_partition_get_error() {
 }
 
 #[tokio::test]
+async fn test_list_partition_chunks() {
+    let fixture = ServerFixture::create_shared().await;
+    let mut management_client = fixture.management_client();
+    let mut write_client = fixture.write_client();
+
+    let db_name = rand_name();
+    create_readable_database(&db_name, fixture.grpc_channel()).await;
+
+    let lp_lines = vec![
+        "cpu,region=west user=23.2 100",
+        "cpu,region=west user=21.0 150",
+        "disk,region=east bytes=99i 200",
+    ];
+
+    write_client
+        .write(&db_name, lp_lines.join("\n"))
+        .await
+        .expect("write succeded");
+
+    let partition_key = "cpu";
+    let chunks = management_client
+        .list_partition_chunks(&db_name, partition_key)
+        .await
+        .expect("getting partition chunks");
+
+    let expected: Vec<Chunk> = vec![Chunk {
+        partition_key: "cpu".into(),
+        id: 0,
+        storage: ChunkStorage::OpenMutableBuffer as i32,
+        estimated_bytes: 145,
+    }];
+
+    assert_eq!(
+        expected, chunks,
+        "expected:\n\n{:#?}\n\nactual:{:#?}",
+        expected, chunks
+    );
+}
+
+#[tokio::test]
+async fn test_list_partition_chunk_errors() {
+    let fixture = ServerFixture::create_shared().await;
+    let mut management_client = fixture.management_client();
+    let db_name = rand_name();
+
+    let err = management_client
+        .list_partition_chunks(&db_name, "cpu")
+        .await
+        .expect_err("no db had been created");
+
+    assert_contains!(
+        err.to_string(),
+        "Some requested entity was not found: Resource database"
+    );
+}
+
+#[tokio::test]
 async fn test_new_partition_chunk() {
     let fixture = ServerFixture::create_shared().await;
     let mut management_client = fixture.management_client();

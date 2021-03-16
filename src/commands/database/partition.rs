@@ -1,8 +1,14 @@
 //! This module implements the `partition` CLI command
+use data_types::chunk::ChunkSummary;
+use generated_types::google::FieldViolation;
 use influxdb_iox_client::{
     connection::Builder,
-    management::{self, GetPartitionError, ListPartitionsError, NewPartitionChunkError},
+    management::{
+        self, GetPartitionError, ListPartitionChunksError, ListPartitionsError,
+        NewPartitionChunkError,
+    },
 };
+use std::convert::TryFrom;
 use structopt::StructOpt;
 use thiserror::Error;
 
@@ -14,8 +20,14 @@ pub enum Error {
     #[error("Error getting partition: {0}")]
     GetPartitionsError(#[from] GetPartitionError),
 
-    #[error("Error getting partition: {0}")]
-    NewPartitionError(#[from] NewPartitionChunkError),
+    #[error("Error listing partition chunks: {0}")]
+    ListPartitionChunksError(#[from] ListPartitionChunksError),
+
+    #[error("Error creating new partition chunk: {0}")]
+    NewPartitionChunkError(#[from] NewPartitionChunkError),
+
+    #[error("Error interpreting server response: {0}")]
+    ConvertingResponse(#[from] FieldViolation),
 
     #[error("Error rendering response as JSON: {0}")]
     WritingJson(#[from] serde_json::Error),
@@ -52,6 +64,16 @@ struct Get {
     partition_key: String,
 }
 
+/// lists all chunks in this partition
+#[derive(Debug, StructOpt)]
+struct ListChunks {
+    /// The name of the database
+    db_name: String,
+
+    /// The partition key
+    partition_key: String,
+}
+
 /// Create a new, open chunk in the partiton's Mutable Buffer which will receive
 /// new writes.
 #[derive(Debug, StructOpt)]
@@ -70,6 +92,8 @@ enum Command {
     List(List),
     // Get details about a particular partition
     Get(Get),
+    // List chunks in a partition
+    ListChunks(ListChunks),
     // Create a new chunk in the partition
     NewChunk(NewChunk),
 }
@@ -106,6 +130,21 @@ pub async fn command(url: String, config: Config) -> Result<()> {
             let partition_detail = PartitionDetail { key };
 
             serde_json::to_writer_pretty(std::io::stdout(), &partition_detail)?;
+        }
+        Command::ListChunks(list_chunks) => {
+            let ListChunks {
+                db_name,
+                partition_key,
+            } = list_chunks;
+
+            let chunks = client.list_partition_chunks(db_name, partition_key).await?;
+
+            let chunks = chunks
+                .into_iter()
+                .map(ChunkSummary::try_from)
+                .collect::<Result<Vec<_>, FieldViolation>>()?;
+
+            serde_json::to_writer_pretty(std::io::stdout(), &chunks)?;
         }
         Command::NewChunk(new_chunk) => {
             let NewChunk {

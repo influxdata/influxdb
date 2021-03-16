@@ -44,6 +44,9 @@ service ManagementService {
   // Get detail information about a partition
   rpc GetPartition(GetPartitionRequest) returns (GetPartitionResponse);
 
+  // List chunks in a partition
+  rpc ListPartitionChunks(ListPartitionChunksRequest) returns (ListPartitionChunksResponse);
+
   // Create a new chunk in the mutable buffer
   rpc NewPartitionChunk(NewPartitionChunkRequest) returns (NewPartitionChunkResponse);
 
@@ -142,8 +145,8 @@ message ListPartitionsResponse {
   repeated Partition partitions = 1;
 }
 
-// Request to get details of a specific partition from a named database
-message GetPartitionRequest {
+// Request to list all chunks in a specific partitions from a named database
+message ListPartitionChunksRequest {
   // the name of the database
   string db_name = 1;
 
@@ -154,6 +157,20 @@ message GetPartitionRequest {
 message GetPartitionResponse {
   // Detailed information about a partition
   Partition partition = 1;
+}
+
+message ListPartitionChunksResponse {
+  // All chunks in a partition
+  repeated Chunk chunks = 1;
+}
+
+// Request to get details of a specific partition from a named database
+message GetPartitionRequest {
+  // the name of the database
+  string db_name = 1;
+
+  // the partition key
+  string partition_key = 2;
 }
 
 // Request that a new chunk for writing is created in the mutable buffer

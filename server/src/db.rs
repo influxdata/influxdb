@@ -269,6 +269,17 @@ impl Db {
 
         Ok(())
     }
+
+    /// Return Summary information for chunks in the specified partition
+    pub fn partition_chunk_summaries(
+        &self,
+        partition_key: &str,
+    ) -> impl Iterator<Item = ChunkSummary> {
+        self.mutable_buffer_chunks(&partition_key)
+            .into_iter()
+            .chain(self.read_buffer_chunks(&partition_key).into_iter())
+            .map(|c| c.summary())
+    }
 }
 
 impl PartialEq for Db {
@@ -326,12 +337,7 @@ impl Database for Db {
         let summaries = self
             .partition_keys()?
             .into_iter()
-            .map(|partition_key| {
-                self.mutable_buffer_chunks(&partition_key)
-                    .into_iter()
-                    .chain(self.read_buffer_chunks(&partition_key).into_iter())
-                    .map(|c| c.summary())
-            })
+            .map(|partition_key| self.partition_chunk_summaries(&partition_key))
             .flatten()
             .collect();
         Ok(summaries)
@@ -581,6 +587,47 @@ mod tests {
             sort: PartitionSort::LastWriteTime,
         };
         db.rules.mutable_buffer_config = Some(mbconf);
+    }
+
+    #[tokio::test]
+    async fn partition_chunk_summaries() {
+        // Test that chunk id listing is hooked up
+        let db = make_db();
+        let mut writer = TestLPWriter::default();
+
+        writer.write_lp_string(&db, "cpu bar=1 1").await.unwrap();
+        db.rollover_partition("1970-01-01T00").await.unwrap();
+
+        // write into a separate partitiion
+        writer
+            .write_lp_string(&db, "cpu bar=1,baz2,frob=3 400000000000000")
+            .await
+            .unwrap();
+
+        print!("Partitions: {:?}", db.partition_keys().unwrap());
+
+        fn to_arc(s: &str) -> Arc<String> {
+            Arc::new(s.to_string())
+        }
+
+        let mut chunk_summaries = db
+            .partition_chunk_summaries("1970-01-05T15")
+            .collect::<Vec<_>>();
+
+        chunk_summaries.sort_unstable();
+
+        let expected = vec![ChunkSummary {
+            partition_key: to_arc("1970-01-05T15"),
+            id: 0,
+            storage: ChunkStorage::OpenMutableBuffer,
+            estimated_bytes: 107,
+        }];
+
+        assert_eq!(
+            expected, chunk_summaries,
+            "expected:\n{:#?}\n\nactual:{:#?}\n\n",
+            expected, chunk_summaries
+        );
     }
 
     #[tokio::test]

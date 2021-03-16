@@ -145,6 +145,14 @@ pub enum GetPartitionError {
     ServerError(tonic::Status),
 }
 
+/// Errors returned by Client::list_partition_chunks
+#[derive(Debug, Error)]
+pub enum ListPartitionChunksError {
+    /// Client received an unexpected error from the server
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    ServerError(tonic::Status),
+}
+
 /// Errors returned by Client::new_partition_chunk
 #[derive(Debug, Error)]
 pub enum NewPartitionChunkError {
@@ -375,6 +383,26 @@ impl Client {
         let GetPartitionResponse { partition } = response.into_inner();
 
         partition.ok_or(GetPartitionError::PartitionNotFound)
+    }
+
+    /// List chunks in a partition
+    pub async fn list_partition_chunks(
+        &mut self,
+        db_name: impl Into<String>,
+        partition_key: impl Into<String>,
+    ) -> Result<Vec<Chunk>, ListPartitionChunksError> {
+        let db_name = db_name.into();
+        let partition_key = partition_key.into();
+
+        let response = self
+            .inner
+            .list_partition_chunks(ListPartitionChunksRequest {
+                db_name,
+                partition_key,
+            })
+            .await
+            .map_err(ListPartitionChunksError::ServerError)?;
+        Ok(response.into_inner().chunks)
     }
 
     /// Create a new chunk in a partittion

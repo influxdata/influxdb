@@ -234,6 +234,30 @@ where
         Ok(Response::new(GetPartitionResponse { partition }))
     }
 
+    async fn list_partition_chunks(
+        &self,
+        request: Request<ListPartitionChunksRequest>,
+    ) -> Result<Response<ListPartitionChunksResponse>, Status> {
+        let ListPartitionChunksRequest {
+            db_name,
+            partition_key,
+        } = request.into_inner();
+        let db_name = DatabaseName::new(db_name).field("db_name")?;
+
+        let db = self.server.db(&db_name).ok_or_else(|| NotFound {
+            resource_type: "database".to_string(),
+            resource_name: db_name.to_string(),
+            ..Default::default()
+        })?;
+
+        let chunks: Vec<Chunk> = db
+            .partition_chunk_summaries(&partition_key)
+            .map(|summary| summary.into())
+            .collect();
+
+        Ok(Response::new(ListPartitionChunksResponse { chunks }))
+    }
+
     async fn new_partition_chunk(
         &self,
         request: Request<NewPartitionChunkRequest>,

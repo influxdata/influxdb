@@ -378,6 +378,70 @@ async fn test_get_partition_error() {
 }
 
 #[tokio::test]
+async fn test_list_partition_chunks() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let addr = server_fixture.grpc_base();
+    let db_name = rand_name();
+
+    create_readable_database(&db_name, server_fixture.grpc_channel()).await;
+
+    let lp_data = vec![
+        "cpu,region=west user=23.2 100",
+        "cpu2,region=west user=21.0 150",
+    ];
+
+    load_lp(addr, &db_name, lp_data);
+
+    let expected = r#"
+    "partition_key": "cpu",
+    "id": 0,
+    "storage": "OpenMutableBuffer",
+"#;
+
+    let partition_key = "cpu";
+    // should not contain anything related to cpu2 partition
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("partition")
+        .arg("list-chunks")
+        .arg(&db_name)
+        .arg(&partition_key)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .success()
+        .stdout(predicate::str::contains(expected).and(predicate::str::contains("cpu2").not()));
+}
+
+#[tokio::test]
+async fn test_list_partition_chunks_error() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let addr = server_fixture.grpc_base();
+    let db_name = rand_name();
+
+    // note don't make the database, expect error
+
+    // list the chunks
+    let partition_key = "cpu";
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("partition")
+        .arg("list-chunks")
+        .arg(&db_name)
+        .arg(&partition_key)
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(
+            predicate::str::contains("Some requested entity was not found: Resource database")
+                .and(predicate::str::contains(&db_name)),
+        );
+}
+
+#[tokio::test]
 async fn test_new_partition_chunk() {
     let server_fixture = ServerFixture::create_shared().await;
     let addr = server_fixture.grpc_base();
