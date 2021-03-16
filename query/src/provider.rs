@@ -193,6 +193,7 @@ impl<C: PartitionChunk + 'static> TableProvider for ChunkTableProvider<C> {
         projection: &Option<Vec<usize>>,
         _batch_size: usize,
         _filters: &[Expr],
+        _limit: Option<usize>,
     ) -> std::result::Result<Arc<dyn ExecutionPlan>, DataFusionError> {
         // TODO Here is where predicate pushdown will happen.  To make
         // predicate push down happen, the provider need need to

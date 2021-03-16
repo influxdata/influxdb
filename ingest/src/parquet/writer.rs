@@ -1,7 +1,7 @@
 //! This module contains the code to write table data to parquet
 use arrow_deps::parquet::{
     self,
-    basic::{Compression, Encoding, LogicalType, Repetition, Type as PhysicalType},
+    basic::{Compression, ConvertedType, Encoding, Repetition, Type as PhysicalType},
     errors::ParquetError,
     file::{
         properties::{WriterProperties, WriterPropertiesBuilder},
@@ -297,19 +297,19 @@ fn convert_to_parquet_schema(schema: &Schema) -> Result<Arc<parquet::schema::typ
             i, influxdb_column_type, field
         );
         let (physical_type, logical_type) = match influxdb_column_type {
-            Some(InfluxColumnType::Tag) => (PhysicalType::BYTE_ARRAY, Some(LogicalType::UTF8)),
+            Some(InfluxColumnType::Tag) => (PhysicalType::BYTE_ARRAY, Some(ConvertedType::UTF8)),
             Some(InfluxColumnType::Field(InfluxFieldType::Boolean)) => {
                 (PhysicalType::BOOLEAN, None)
             }
             Some(InfluxColumnType::Field(InfluxFieldType::Float)) => (PhysicalType::DOUBLE, None),
             Some(InfluxColumnType::Field(InfluxFieldType::Integer)) => {
-                (PhysicalType::INT64, Some(LogicalType::UINT_64))
+                (PhysicalType::INT64, Some(ConvertedType::UINT_64))
             }
             Some(InfluxColumnType::Field(InfluxFieldType::UInteger)) => {
-                (PhysicalType::INT64, Some(LogicalType::UINT_64))
+                (PhysicalType::INT64, Some(ConvertedType::UINT_64))
             }
             Some(InfluxColumnType::Field(InfluxFieldType::String)) => {
-                (PhysicalType::BYTE_ARRAY, Some(LogicalType::UTF8))
+                (PhysicalType::BYTE_ARRAY, Some(ConvertedType::UTF8))
             }
             Some(InfluxColumnType::Timestamp) => {
                 // At the time of writing, the underlying rust parquet
@@ -325,7 +325,7 @@ fn convert_to_parquet_schema(schema: &Schema) -> Result<Arc<parquet::schema::typ
                 // https://github.com/apache/arrow/tree/master/rust/parquet#supported-parquet-version
                 //
                 // Thus store timestampts using microsecond precision instead of nanosecond
-                (PhysicalType::INT64, Some(LogicalType::TIMESTAMP_MICROS))
+                (PhysicalType::INT64, Some(ConvertedType::TIMESTAMP_MICROS))
             }
             None => {
                 return UnsupportedDataType {
@@ -340,7 +340,7 @@ fn convert_to_parquet_schema(schema: &Schema) -> Result<Arc<parquet::schema::typ
             .with_repetition(Repetition::OPTIONAL);
 
         if let Some(t) = logical_type {
-            parquet_column_builder = parquet_column_builder.with_logical_type(t);
+            parquet_column_builder = parquet_column_builder.with_converted_type(t);
         }
 
         let parquet_column_type = parquet_column_builder

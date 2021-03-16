@@ -44,7 +44,7 @@ pub fn sort_record_batch(batch: RecordBatch) -> RecordBatch {
         })
         .collect();
 
-    let sort_output = lexsort(&sort_input).expect("Sorting to complete");
+    let sort_output = lexsort(&sort_input, None).expect("Sorting to complete");
 
     RecordBatch::try_new(batch.schema(), sort_output).unwrap()
 }
