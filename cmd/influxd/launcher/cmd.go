@@ -188,7 +188,7 @@ func newOpts(viper *viper.Viper) *InfluxdOpts {
 
 		HttpBindAddress:       ":8086",
 		HttpReadHeaderTimeout: 10 * time.Second,
-		HttpIdleTimeout:       2 * time.Minute,
+		HttpIdleTimeout:       3 * time.Minute,
 		HttpTLSMinVersion:     "1.2",
 		HttpTLSStrictCiphers:  false,
 		SessionLength:         60, // 60 minutes
