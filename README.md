@@ -222,6 +222,15 @@ To query data stored in the `company_sensors` database:
 influxdb_iox database query company_sensors "SELECT * FROM cpu LIMIT 10"
 ```
 
+### Using the CLI
+
+To ease deloyment, IOx is packaged as a combined binary which has
+commands to start the IOx server as well as a CLI interface for
+interacting with and configuring such servers.
+
+The CLI itself is documented via extensive built in help which you can
+access by runing `influxdb_iox --help`
+
 
 ### InfluxDB 2.0 compatibility
 

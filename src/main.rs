@@ -63,6 +63,14 @@ Examples:
 
     # Dumps storage statistics about out.parquet to stdout
     influxdb_iox stats out.parquet
+
+Command are generally structured in the form:
+    <type of object> <action> <arguments>
+
+For example, a command such as the following shows all actions
+    available for database chunks, including get and list.
+
+    influxdb_iox database chunk --help
 "#
 )]
 struct Config {
