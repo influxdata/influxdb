@@ -360,7 +360,7 @@ func (o *InfluxdOpts) bindCliOpts() []cli.Opt {
 			DestP:   &o.HttpTLSStrictCiphers,
 			Flag:    "tls-strict-ciphers",
 			Default: o.HttpTLSStrictCiphers,
-			Desc:    "Restrict accept ciphers to: ECDHE_RSA_WITH_AES_256_GCM_SHA384, ECDHE_RSA_WITH_AES_256_CBC_SHA, RSA_WITH_AES_256_GCM_SHA384, RSA_WITH_AES_256_CBC_SHA",
+			Desc:    "Restrict accept ciphers to: ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, ECDHE_RSA_WITH_AES_128_GCM_SHA256, ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, ECDHE_RSA_WITH_AES_256_GCM_SHA384, ECDHE_ECDSA_WITH_CHACHA20_POLY1305, ECDHE_RSA_WITH_CHACHA20_POLY1305",
 		},
 		{
 			DestP:   &o.NoTasks,
