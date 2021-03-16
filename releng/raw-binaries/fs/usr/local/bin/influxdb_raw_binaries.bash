@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 function printHelp() {
   >&2 echo "USAGE: $0 [-r]
 
@@ -15,29 +17,62 @@ To build with race detection enabled, pass the -r flag.
 }
 
 RACE_FLAG=""
+STATIC=""
 
-while getopts hr arg; do
+while getopts w:hrs arg; do
   case "$arg" in
     h) printHelp; exit 1;;
     r) RACE_FLAG="-race";;
+    s) STATIC=1;;
   esac
 done
-
 
 if [ -z "$GOOS" ] || [ -z "$GOARCH" ]; then
   >&2 echo 'The environment variables $GOOS and $GOARCH must both be set.'
   exit 1
 fi
 
+if [[ "$GOOS" == darwin ]] ; then
+  # Control the compiler for go. Rust linker is set in $HOME/.cargo/config
+  export CC=x86_64-apple-darwin15-clang
+fi
 
-# Extract tarball into GOPATH.
-tar xz -C "$GOPATH" -f /influxdb-src.tar.gz
+WORKSPACE=/influxdata
 
-SHA=$(jq -r .sha < "$GOPATH/src/github.com/influxdata/influxdb/.metadata.json")
+mkdir -p ${WORKSPACE}
 
+echo "Extracting influxdb tarball"
+# Extract tarball into WORKSPACE.
+
+tar -vxz -C ${WORKSPACE} -f /influxdb-src.tar.gz
+
+SHA=$(jq -r .sha < "${WORKSPACE}/influxdb/.metadata.json")
+
+OUTDIR=$(mktemp -d)
+(
+	cd ${WORKSPACE}/influxdb
+
+	BINARY_PACKAGES="
+		github.com/influxdata/influxdb/cmd/influxd
+		github.com/influxdata/influxdb/cmd/influx
+		github.com/influxdata/influxdb/cmd/influx_inspect
+		github.com/influxdata/influxdb/cmd/influx_tsm"
+
+	for cmd in $BINARY_PACKAGES; do
+		export CGO_ENABLED=1
+		echo "env for go build: GOOS=$GOOS GOARCH=$GOARCH CGO_ENABLED=$CGO_ENABLED"
+		if [[ -n "$STATIC" ]] ; then
+			echo go build -i -o "$OUTDIR/$(basename $cmd)" -tags "netgo osusergo static_build" $cmd
+			go build -i -o "$OUTDIR/$(basename $cmd)" -tags "netgo osusergo static_build" $cmd
+		else
+			echo go build $RACE_FLAG -i -o "$OUTDIR/$(basename $cmd)" $cmd
+			go build $RACE_FLAG -i -o "$OUTDIR/$(basename $cmd)" $cmd
+		fi
+	done
+)
 
 SUFFIX=
-if [ "$CGO_ENABLED" == "0" ]; then
+if [[ -n "$STATIC" ]]; then
   # Only add the static suffix to the filename when explicitly requested.
   SUFFIX=_static
 elif [ -n "$RACE_FLAG" ]; then
@@ -46,36 +81,6 @@ elif [ -n "$RACE_FLAG" ]; then
 fi
 
 TARBALL_NAME="influxdb_bin_${GOOS}_${GOARCH}${SUFFIX}-${SHA}.tar.gz"
-
-# note: according to https://github.com/golang/go/wiki/GoArm
-# we want to support armel using GOARM=5
-# and we want to support armhf using GOARM=6
-# no GOARM setting is necessary for arm64
-if [ $GOARCH == "armel" ]; then
-  GOARCH=arm
-  GOARM=5
-fi
-
-if [ $GOARCH == "armhf" ]; then
-  GOARCH=arm
-  GOARM=6
-fi
-
-
-
-OUTDIR=$(mktemp -d)
-for cmd in \
-  influxdb/cmd/influxd \
-  influxdb/cmd/influx \
-  influxdb/cmd/influx_inspect \
-  influxdb/cmd/influx_tsm \
-  ; do
-    # Build all the binaries into $OUTDIR.
-    # Windows binaries will get the .exe suffix as expected.
-    (cd "$OUTDIR" && go build $RACE_FLAG -i "github.com/influxdata/$cmd")
-done
-
-
-(cd "$OUTDIR" && tar czf "/out/$TARBALL_NAME" ./*)
-(cd /out && md5sum "$TARBALL_NAME" > "$TARBALL_NAME.md5")
-(cd /out && sha256sum "$TARBALL_NAME" > "$TARBALL_NAME.sha256")
+TARBALL_PATH="/out/${TARBALL_NAME}"
+echo tar -C ${OUTDIR} -cvzf ${TARBALL_PATH} .
+tar -C ${OUTDIR} -cvzf ${TARBALL_PATH} .

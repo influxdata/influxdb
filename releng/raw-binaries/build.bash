@@ -4,9 +4,6 @@ function printHelp() {
   >&2 echo "USAGE: $0 -i PATH_TO_SOURCE_TARBALL -o OUTDIR
 
 Emits an archive of influxdb binaries based on the current environment's GOOS and GOARCH.
-Respects CGO_ENABLED.
-
-If the environment variable GO_NEXT is not empty, builds the binaries with the 'next' version of Go.
 "
 }
 
@@ -26,13 +23,15 @@ source "$SRCDIR/../_go_versions.sh"
 OUTDIR=""
 TARBALL=""
 RACE_FLAG=""
+STATIC_FLAG=""
 
-while getopts hi:o:r arg; do
+while getopts hi:o:rs arg; do
   case "$arg" in
     h) printHelp; exit 1;;
     i) TARBALL="$OPTARG";;
     o) OUTDIR="$OPTARG";;
     r) RACE_FLAG="-r";;
+    s) STATIC_FLAG="-s";;
   esac
 done
 
@@ -41,13 +40,8 @@ if [ -z "$OUTDIR" ] || [ -z "$TARBALL" ]; then
   exit 1
 fi
 
-if [ -z "$GO_NEXT" ]; then
-  DOCKER_TAG=latest
-  GO_VERSION="$GO_CURRENT_VERSION"
-else
-  DOCKER_TAG=next
-  GO_VERSION="$GO_NEXT_VERSION"
-fi
+DOCKER_TAG=latest
+GO_VERSION="$GO_CURRENT_VERSION"
 docker build --build-arg "GO_VERSION=$GO_VERSION" -t influxdata/influxdb/releng/raw-binaries:"$DOCKER_TAG" "$SRCDIR"
 
 mkdir -p "$OUTDIR"
@@ -55,5 +49,5 @@ mkdir -p "$OUTDIR"
 docker run --rm \
    --mount type=bind,source="${OUTDIR}",destination=/out \
    --mount type=bind,source="${TARBALL}",destination=/influxdb-src.tar.gz,ro=1 \
-   -e GOOS -e GOARCH -e CGO_ENABLED \
-  influxdata/influxdb/releng/raw-binaries:"$DOCKER_TAG" $RACE_FLAG
+   -e GOOS -e GOARCH \
+  influxdata/influxdb/releng/raw-binaries:"$DOCKER_TAG" $RACE_FLAG $STATIC_FLAG
