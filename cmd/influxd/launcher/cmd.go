@@ -103,11 +103,10 @@ func cmdRunE(ctx context.Context, o *InfluxdOpts) func() error {
 		l.log = logger
 
 		// Start the launcher and wait for it to exit on SIGINT or SIGTERM.
-		runCtx := signals.WithStandardSignals(ctx)
-		if err := l.run(runCtx, o); err != nil {
+		if err := l.run(signals.WithStandardSignals(ctx), o); err != nil {
 			return err
 		}
-		<-runCtx.Done()
+		<-l.Done()
 
 		// Tear down the launcher, allowing it a few seconds to finish any
 		// in-progress requests.
@@ -361,7 +360,7 @@ func (o *InfluxdOpts) bindCliOpts() []cli.Opt {
 			DestP:   &o.HttpTLSStrictCiphers,
 			Flag:    "tls-strict-ciphers",
 			Default: o.HttpTLSStrictCiphers,
-			Desc:    "Restrict accept ciphers to: ECDHE_RSA_WITH_AES_256_GCM_SHA384, ECDHE_RSA_WITH_AES_256_CBC_SHA, RSA_WITH_AES_256_GCM_SHA384, RSA_WITH_AES_256_CBC_SHA",
+			Desc:    "Restrict accept ciphers to: ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, ECDHE_RSA_WITH_AES_128_GCM_SHA256, ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, ECDHE_RSA_WITH_AES_256_GCM_SHA384, ECDHE_ECDSA_WITH_CHACHA20_POLY1305, ECDHE_RSA_WITH_CHACHA20_POLY1305",
 		},
 		{
 			DestP:   &o.NoTasks,
