@@ -18,12 +18,12 @@ impl IsOnboarding {
 pub struct OnboardingRequest {
     #[serde(rename = "username")]
     pub username: String,
-    #[serde(rename = "password", skip_serializing_if = "Option::is_none")]
-    pub password: Option<String>,
     #[serde(rename = "org")]
     pub org: String,
     #[serde(rename = "bucket")]
     pub bucket: String,
+    #[serde(rename = "password", skip_serializing_if = "Option::is_none")]
+    pub password: Option<String>,
     #[serde(
         rename = "retentionPeriodSeconds",
         skip_serializing_if = "Option::is_none"

@@ -147,7 +147,7 @@ mod tests {
             .match_header("Authorization", format!("Token {}", token).as_str())
             .match_body(
                 format!(
-                    r#"{{"username":"{}","org":"{}","bucket":"{}","password":"{}","retentionPeriodHrs":{},}}"#,
+                    r#"{{"username":"{}","org":"{}","bucket":"{}","password":"{}","retentionPeriodHrs":{}}}"#,
                     username, org, bucket, password, retention_period_hrs
                 ).as_str(),
             )
