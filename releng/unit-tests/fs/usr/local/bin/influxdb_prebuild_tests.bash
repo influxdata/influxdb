@@ -1,7 +1,12 @@
-#!/bin/bash
+#!/bin/bash -e
 
-# Extract tarball into GOPATH.
-tar xz -C "$GOPATH" -f /influxdb-src.tar.gz
+# Extract tarball
+WORKDIR=/influxdata
+mkdir -p $WORKDIR
+tar xz -C ${WORKDIR} -f /influxdb-src.tar.gz
 
-cd "$GOPATH/src/github.com/influxdata/influxdb"
-go test -v ./... 2>&1 | tee /out/tests.log | go-junit-report > /out/influxdb.junit.xml
+(
+	cd ${WORKDIR}/influxdb
+	go test -v ./... 2>&1 | tee /out/tests.log
+	go-junit-report </out/tests.log > /out/plutonium.junit.xml
+)
