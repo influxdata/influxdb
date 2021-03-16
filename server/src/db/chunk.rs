@@ -249,10 +249,10 @@ impl PartitionChunk for DBChunk {
         selection: Selection<'_>,
     ) -> Result<Schema, Self::Error> {
         match self {
-            DBChunk::MutableBuffer { chunk, .. } => chunk
+            Self::MutableBuffer { chunk, .. } => chunk
                 .table_schema(table_name, selection)
                 .context(MutableBufferChunk),
-            DBChunk::ReadBuffer {
+            Self::ReadBuffer {
                 db,
                 partition_key,
                 chunk_id,
@@ -284,7 +284,7 @@ impl PartitionChunk for DBChunk {
 
                 Ok(schema)
             }
-            DBChunk::ParquetFile => {
+            Self::ParquetFile => {
                 unimplemented!("parquet file not implemented for table schema")
             }
         }
