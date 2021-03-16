@@ -43,29 +43,64 @@ pub enum AggregateVec<'a> {
 }
 
 impl AggregateVec<'_> {
-    pub fn update(&mut self, values: &Values<'_>, row_id: usize, ordinal_position: usize) {
+    pub fn update(&mut self, values: &Values<'_>, row_id: usize, offset: usize) {
         match self {
             AggregateVec::Count(arr) => {
                 if values.is_null(row_id) {
                     return;
-                } else if ordinal_position >= arr.len() {
-                    arr.resize(ordinal_position + 1, 0);
+                } else if offset >= arr.len() {
+                    arr.resize(offset + 1, 0);
                 }
 
-                arr[ordinal_position] += 1;
+                arr[offset] += 1;
             }
             AggregateVec::SumI64(arr) => {
                 if values.is_null(row_id) {
                     return;
-                } else if ordinal_position >= arr.len() {
-                    arr.resize(ordinal_position + 1, None);
+                } else if offset >= arr.len() {
+                    arr.resize(offset + 1, None);
                 }
 
-                match &mut arr[ordinal_position] {
+                match &mut arr[offset] {
                     Some(v) => *v += values.value_i64(row_id),
-                    None => arr[ordinal_position] = Some(values.value_i64(row_id)),
+                    None => arr[offset] = Some(values.value_i64(row_id)),
                 }
             }
+            AggregateVec::SumU64(_) => {}
+            AggregateVec::SumF64(_) => {}
+            AggregateVec::MinU64(_) => {}
+            AggregateVec::MinI64(_) => {}
+            AggregateVec::MinF64(_) => {}
+            AggregateVec::MinString(_) => {}
+            AggregateVec::MinBytes(_) => {}
+            AggregateVec::MinBool(_) => {}
+            AggregateVec::MaxU64(_) => {}
+            AggregateVec::MaxI64(_) => {}
+            AggregateVec::MaxF64(_) => {}
+            AggregateVec::MaxString(_) => {}
+            AggregateVec::MaxBytes(_) => {}
+            AggregateVec::MaxBool(_) => {}
+            AggregateVec::FirstU64(_) => {}
+            AggregateVec::FirstI64(_) => {}
+            AggregateVec::FirstF64(_) => {}
+            AggregateVec::FirstString(_) => {}
+            AggregateVec::FirstBytes(_) => {}
+            AggregateVec::FirstBool(_) => {}
+            AggregateVec::LastU64(_) => {}
+            AggregateVec::LastI64(_) => {}
+            AggregateVec::LastF64(_) => {}
+            AggregateVec::LastString(_) => {}
+            AggregateVec::LastBytes(_) => {}
+            AggregateVec::LastBool(_) => {}
+        }
+    }
+
+    /// Appends the provided value to the end of the aggregate vector.
+    /// Panics if the type of `Value` does not satisfy the aggregate type.
+    pub fn push(&mut self, value: &Value<'_>) {
+        match self {
+            AggregateVec::Count(arr) => arr.push(value.u64()),
+            AggregateVec::SumI64(arr) => arr.push(Some(value.i64())),
             AggregateVec::SumU64(_) => {}
             AggregateVec::SumF64(_) => {}
             AggregateVec::MinU64(_) => {}
@@ -703,6 +738,20 @@ impl Value<'_> {
             return s;
         }
         panic!("cannot unwrap Value to Scalar");
+    }
+
+    pub fn i64(&self) -> i64 {
+        if let Self::Scalar(Scalar::I64(v)) = self {
+            return *v;
+        }
+        panic!("cannot unwrap Value to i64");
+    }
+
+    pub fn u64(&self) -> u64 {
+        if let Self::Scalar(Scalar::U64(v)) = self {
+            return *v;
+        }
+        panic!("cannot unwrap Value to u64");
     }
 
     pub fn string(&self) -> &str {

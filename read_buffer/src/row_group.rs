@@ -644,8 +644,8 @@ impl RowGroup {
         assert!(dst.schema.group_columns.len() <= 4);
 
         // These vectors will hold the decoded values of each part of each
-        // group key. They are the output columns of the input columns used for
-        // the grouping operation.
+        // group key. They are the output columns derived from the input
+        // grouping columns.
         let mut group_cols_out: Vec<Vec<Option<ColumnName<'a>>>> = vec![];
         group_cols_out.resize(groupby_encoded_ids.len(), vec![]);
 
@@ -740,20 +740,24 @@ impl RowGroup {
     // In this case all the grouping columns pre-computed bitsets for each
     // distinct value.
     fn read_group_all_rows_all_rle<'a>(&'a self, dst: &mut ReadAggregateResult<'a>) {
-        let group_columns = dst
+        // References to the columns to be used as input for producing the
+        // output aggregates.
+        let input_group_columns = dst
             .schema
             .group_column_names_iter()
             .map(|name| self.column_by_name(name))
             .collect::<Vec<_>>();
 
-        let aggregate_columns_typ = dst
+        // References to the columns to be used as input for producing the
+        // output aggregates. Also returns the required aggregate type.
+        let input_aggregate_columns = dst
             .schema
             .aggregate_columns
             .iter()
             .map(|(col_type, agg_type, _)| (self.column_by_name(col_type.as_str()), *agg_type))
             .collect::<Vec<_>>();
 
-        let encoded_groups = dst
+        let groupby_encoded_ids = dst
             .schema
             .group_column_names_iter()
             .map(|col_type| {
@@ -761,6 +765,21 @@ impl RowGroup {
                     .grouped_row_ids()
                     .unwrap_left()
             })
+            .collect::<Vec<_>>();
+
+        // These vectors will hold the decoded values of each part of each
+        // group key. They are the output columns derived from the input
+        // grouping columns.
+        let mut group_cols_out: Vec<Vec<Option<ColumnName<'a>>>> = vec![];
+        group_cols_out.resize(groupby_encoded_ids.len(), vec![]);
+
+        // Each of these vectors will be used to store each aggregate row-value
+        // for a specific aggregate result column.
+        let mut agg_cols_out = dst
+            .schema
+            .aggregate_columns
+            .iter()
+            .map(|(_, agg_type, data_type)| AggregateVec::from((agg_type, data_type, 0)))
             .collect::<Vec<_>>();
 
         // multi_cartesian_product will create the cartesian product of all
@@ -788,66 +807,71 @@ impl RowGroup {
         //    [0, 3], [1, 3], [2, 3], [2, 4], [3, 2], [4, 1]
         //
         // We figure out which group keys have data and which don't in the loop
-        // below, by intersecting bitsets for each id and checking for non-empty
-        // sets.
-        let group_keys = encoded_groups
+        // below, by intersecting row_id bitsets for each encoded id, and
+        // checking for non-empty sets.
+        let candidate_group_keys = groupby_encoded_ids
             .iter()
             .map(|ids| (0..ids.len()))
             .multi_cartesian_product();
 
         // Let's figure out which of the candidate group keys are actually group
         // keys with data.
-        'outer: for group_key in group_keys {
-            let mut aggregate_row_ids =
-                Cow::Borrowed(encoded_groups[0][group_key[0]].unwrap_bitmap());
+        'outer: for group_key_buf in candidate_group_keys {
+            let mut group_key_row_ids =
+                Cow::Borrowed(groupby_encoded_ids[0][group_key_buf[0]].unwrap_bitmap());
 
-            if aggregate_row_ids.is_empty() {
+            if group_key_row_ids.is_empty() {
                 continue;
             }
 
-            for i in 1..group_key.len() {
-                let other = encoded_groups[i][group_key[i]].unwrap_bitmap();
+            for i in 1..group_key_buf.len() {
+                let other = groupby_encoded_ids[i][group_key_buf[i]].unwrap_bitmap();
 
-                if aggregate_row_ids.and_cardinality(other) > 0 {
-                    aggregate_row_ids = Cow::Owned(aggregate_row_ids.and(other));
+                if group_key_row_ids.and_cardinality(other) > 0 {
+                    group_key_row_ids = Cow::Owned(group_key_row_ids.and(other));
                 } else {
                     continue 'outer;
                 }
             }
 
-            // This group key has some matching row ids. Materialise the group
-            // key and calculate the aggregates.
+            // There exist rows for this group key combination. Materialise the
+            // group key and calculate the aggregates for this key using set
+            // of row IDs.
 
-            // TODO(edd): given these RLE columns should have low cardinality
-            // there should be a reasonably low group key cardinality. It could
-            // be safe to use `small_vec` here without blowing the stack up.
-            let mut material_key = Vec::with_capacity(group_key.len());
-            for (col_idx, &encoded_id) in group_key.iter().enumerate() {
-                material_key.push(group_columns[col_idx].decode_id(encoded_id as u32));
-            }
-            dst.group_keys.push(GroupKey(material_key));
+            // Add decoded group key values to the output group columns.
+            for (group_col_i, col) in group_cols_out.iter_mut().enumerate() {
+                let decoded_value =
+                    input_group_columns[group_col_i].decode_id(group_key_buf[group_col_i] as u32);
 
-            let mut aggregates = Vec::with_capacity(aggregate_columns_typ.len());
-            for (agg_col, typ) in &aggregate_columns_typ {
-                aggregates.push(match typ {
-                    AggregateType::Count => {
-                        AggregateResult::Count(agg_col.count(&aggregate_row_ids.to_vec()) as u64)
-                    }
-                    AggregateType::First => todo!(),
-                    AggregateType::Last => todo!(),
-                    AggregateType::Min => {
-                        AggregateResult::Min(agg_col.min(&aggregate_row_ids.to_vec()))
-                    }
-                    AggregateType::Max => {
-                        AggregateResult::Max(agg_col.max(&aggregate_row_ids.to_vec()))
-                    }
-                    AggregateType::Sum => {
-                        AggregateResult::Sum(agg_col.sum(&aggregate_row_ids.to_vec()))
-                    }
+                col.push(match decoded_value {
+                    Value::Null => None,
+                    Value::String(s) => Some(s),
+                    _ => panic!("currently unsupported group column"),
                 });
             }
-            dst.aggregates.push(AggregateResults(aggregates));
+
+            // Calculate an aggregate from each input aggregate column and
+            // set it at the relevant offset in the output column.
+            for (agg_col_i, (agg_col, typ)) in input_aggregate_columns.iter().enumerate() {
+                match typ {
+                    AggregateType::Count => {
+                        let agg = agg_col.count(&group_key_row_ids.to_vec()) as u64;
+                        agg_cols_out[agg_col_i].push(&Value::Scalar(Scalar::U64(agg)))
+                    }
+                    AggregateType::First => {}
+                    AggregateType::Last => {}
+                    AggregateType::Min => {}
+                    AggregateType::Max => {}
+                    AggregateType::Sum => {
+                        let agg = agg_col.sum(&group_key_row_ids.to_vec());
+                        agg_cols_out[agg_col_i].push(&Value::Scalar(agg));
+                    }
+                }
+            }
         }
+
+        dst.group_key_cols = group_cols_out;
+        dst.aggregate_cols = agg_cols_out;
     }
 
     // Optimised `read_group` method for cases where the columns being grouped
@@ -908,7 +932,8 @@ impl RowGroup {
                 AggregateType::Max => {
                     aggregate_row.push(AggregateResult::Max(col.max(&row_ids)));
                 }
-                _ => unimplemented!("Other aggregates are not yet supported"),
+                AggregateType::First => unimplemented!("First not yet implemented"),
+                AggregateType::Last => unimplemented!("Last not yet implemented"),
             }
         }
         dst.aggregates.push(AggregateResults(aggregate_row)); // write the row
