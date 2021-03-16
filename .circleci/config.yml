@@ -12,6 +12,9 @@ workflows:
       - jstest:
           requires:
             - jsdeps
+      - tlstest:
+          requires:
+            - godeps
       - influxql_validation:
           requires:
             - godeps
@@ -110,6 +113,14 @@ workflows:
               ignore: /.*/
             tags:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
+      - tlstest:
+          requires:
+            - godeps
+          filters:
+            branches:
+              ignore: /.*/
+            tags:
+              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
       - release:
           requires:
             - gotest
@@ -118,6 +129,7 @@ workflows:
             - jslint
             - influxql_validation
             - influxql_integration
+            - tlstest
           filters:
             branches:
               ignore: /.*/
@@ -484,6 +496,19 @@ jobs:
           destination: raw-test-output
       - store_test_results:
           path: /tmp/test-results
+
+  tlstest:
+    docker:
+      - image: cimg/go:1.15.6
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
+      - install_core_deps
+      - run: make test-tls
 
   influxql_validation:
     docker:

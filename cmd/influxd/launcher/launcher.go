@@ -93,8 +93,9 @@ const (
 
 // Launcher represents the main program execution.
 type Launcher struct {
-	wg     sync.WaitGroup
-	cancel func()
+	wg       sync.WaitGroup
+	cancel   func()
+	doneChan <-chan struct{}
 
 	flagger feature.Flagger
 
@@ -110,6 +111,7 @@ type Launcher struct {
 
 	httpPort   int
 	httpServer *nethttp.Server
+	tlsEnabled bool
 
 	natsServer *nats.Server
 	natsPort   int
@@ -140,11 +142,6 @@ func NewLauncher() *Launcher {
 // Registry returns the prometheus metrics registry.
 func (m *Launcher) Registry() *prom.Registry {
 	return m.reg
-}
-
-// URL returns the URL to connect to the HTTP server.
-func (m *Launcher) URL() string {
-	return fmt.Sprintf("http://127.0.0.1:%d", m.httpPort)
 }
 
 // NatsURL returns the URL to connection to the NATS server.
@@ -214,14 +211,16 @@ func (m *Launcher) Shutdown(ctx context.Context) error {
 	return nil
 }
 
-// Cancel executes the context cancel on the program. Used for testing.
-func (m *Launcher) Cancel() { m.cancel() }
+func (m *Launcher) Done() <-chan struct{} {
+	return m.doneChan
+}
 
 func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	ctx, m.cancel = context.WithCancel(ctx)
+	m.doneChan = ctx.Done()
 
 	info := platform.GetBuildInfo()
 	m.log.Info("Welcome to InfluxDB",
@@ -616,10 +615,6 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		log.Info("Stopping")
 	}(m.log)
 
-	m.httpServer = &nethttp.Server{
-		Addr: opts.HttpBindAddress,
-	}
-
 	if m.flagger == nil {
 		m.flagger = feature.DefaultFlagger()
 		if len(opts.FeatureFlags) > 0 {
@@ -897,125 +892,148 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		)
 	}
 
-	{
-		platformHandler := http.NewPlatformHandler(m.apibackend,
-			http.WithResourceHandler(stacksHTTPServer),
-			http.WithResourceHandler(templatesHTTPServer),
-			http.WithResourceHandler(onboardHTTPServer),
-			http.WithResourceHandler(authHTTPServer),
-			http.WithResourceHandler(labelHandler),
-			http.WithResourceHandler(sessionHTTPServer.SignInResourceHandler()),
-			http.WithResourceHandler(sessionHTTPServer.SignOutResourceHandler()),
-			http.WithResourceHandler(userHTTPServer.MeResourceHandler()),
-			http.WithResourceHandler(userHTTPServer.UserResourceHandler()),
-			http.WithResourceHandler(orgHTTPServer),
-			http.WithResourceHandler(bucketHTTPServer),
-			http.WithResourceHandler(v1AuthHTTPServer),
-			http.WithResourceHandler(dashboardServer),
-		)
+	platformHandler := http.NewPlatformHandler(
+		m.apibackend,
+		http.WithResourceHandler(stacksHTTPServer),
+		http.WithResourceHandler(templatesHTTPServer),
+		http.WithResourceHandler(onboardHTTPServer),
+		http.WithResourceHandler(authHTTPServer),
+		http.WithResourceHandler(labelHandler),
+		http.WithResourceHandler(sessionHTTPServer.SignInResourceHandler()),
+		http.WithResourceHandler(sessionHTTPServer.SignOutResourceHandler()),
+		http.WithResourceHandler(userHTTPServer.MeResourceHandler()),
+		http.WithResourceHandler(userHTTPServer.UserResourceHandler()),
+		http.WithResourceHandler(orgHTTPServer),
+		http.WithResourceHandler(bucketHTTPServer),
+		http.WithResourceHandler(v1AuthHTTPServer),
+		http.WithResourceHandler(dashboardServer),
+	)
 
-		httpLogger := m.log.With(zap.String("service", "http"))
-		m.httpServer.Handler = http.NewRootHandler(
-			"platform",
-			http.WithLog(httpLogger),
-			http.WithAPIHandler(platformHandler),
-			http.WithPprofEnabled(!opts.ProfilingDisabled),
-			http.WithMetrics(m.reg, !opts.MetricsDisabled),
-		)
+	httpLogger := m.log.With(zap.String("service", "http"))
+	var httpHandler nethttp.Handler = http.NewRootHandler(
+		"platform",
+		http.WithLog(httpLogger),
+		http.WithAPIHandler(platformHandler),
+		http.WithPprofEnabled(!opts.ProfilingDisabled),
+		http.WithMetrics(m.reg, !opts.MetricsDisabled),
+	)
 
-		if opts.LogLevel == zap.DebugLevel {
-			m.httpServer.Handler = http.LoggingMW(httpLogger)(m.httpServer.Handler)
-		}
-		// If we are in testing mode we allow all data to be flushed and removed.
-		if opts.Testing {
-			m.httpServer.Handler = http.DebugFlush(ctx, m.httpServer.Handler, flushers)
-		}
+	if opts.LogLevel == zap.DebugLevel {
+		httpHandler = http.LoggingMW(httpLogger)(httpHandler)
 	}
-
-	ln, err := net.Listen("tcp", opts.HttpBindAddress)
-	if err != nil {
-		m.log.Error("failed http listener", zap.Error(err))
-		m.log.Info("Stopping")
-		return err
+	// If we are in testing mode we allow all data to be flushed and removed.
+	if opts.Testing {
+		httpHandler = http.DebugFlush(ctx, httpHandler, flushers)
 	}
-
-	var cer tls.Certificate
-	transport := "http"
-
-	if opts.HttpTLSCert != "" && opts.HttpTLSKey != "" {
-		var err error
-		cer, err = tls.LoadX509KeyPair(opts.HttpTLSCert, opts.HttpTLSKey)
-
-		if err != nil {
-			m.log.Error("failed to load x509 key pair", zap.Error(err))
-			m.log.Info("Stopping")
-			return err
-		}
-		transport = "https"
-
-		// Sensible default
-		var tlsMinVersion uint16 = tls.VersionTLS12
-
-		switch opts.HttpTLSMinVersion {
-		case "1.0":
-			m.log.Warn("Setting the minimum version of TLS to 1.0 - this is discouraged. Please use 1.2 or 1.3")
-			tlsMinVersion = tls.VersionTLS10
-		case "1.1":
-			m.log.Warn("Setting the minimum version of TLS to 1.1 - this is discouraged. Please use 1.2 or 1.3")
-			tlsMinVersion = tls.VersionTLS11
-		case "1.2":
-			tlsMinVersion = tls.VersionTLS12
-		case "1.3":
-			tlsMinVersion = tls.VersionTLS13
-		}
-
-		strictCiphers := []uint16{
-			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
-			tls.TLS_RSA_WITH_AES_256_GCM_SHA384,
-			tls.TLS_RSA_WITH_AES_256_CBC_SHA,
-		}
-
-		// nil uses the default cipher suite
-		var cipherConfig []uint16 = nil
-
-		// TLS 1.3 does not support configuring the Cipher suites
-		if tlsMinVersion != tls.VersionTLS13 && opts.HttpTLSStrictCiphers {
-			cipherConfig = strictCiphers
-		}
-
-		m.httpServer.TLSConfig = &tls.Config{
-			CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
-			PreferServerCipherSuites: true,
-			MinVersion:               tlsMinVersion,
-			CipherSuites:             cipherConfig,
-		}
-	}
-
-	if addr, ok := ln.Addr().(*net.TCPAddr); ok {
-		m.httpPort = addr.Port
-	}
-
-	m.wg.Add(1)
-	go func(log *zap.Logger) {
-		defer m.wg.Done()
-		log.Info("Listening", zap.String("transport", transport), zap.String("addr", opts.HttpBindAddress), zap.Int("port", m.httpPort))
-
-		if cer.Certificate != nil {
-			if err := m.httpServer.ServeTLS(ln, opts.HttpTLSCert, opts.HttpTLSKey); err != nethttp.ErrServerClosed {
-				log.Error("Failed https service", zap.Error(err))
-			}
-		} else {
-			if err := m.httpServer.Serve(ln); err != nethttp.ErrServerClosed {
-				log.Error("Failed http service", zap.Error(err))
-			}
-		}
-		log.Info("Stopping")
-	}(m.log)
 
 	if !opts.ReportingDisabled {
 		m.runReporter(ctx)
 	}
+	if err := m.runHTTP(opts, httpHandler); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// runHTTP configures and launches a listener for incoming HTTP(S) requests.
+// The listener is run in a separate goroutine. If it fails to start up, it
+// will cancel the launcher.
+func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler) error {
+	log := m.log.With(zap.String("service", "tcp-listener"))
+
+	m.httpServer = &nethttp.Server{
+		Addr:    opts.HttpBindAddress,
+		Handler: handler,
+	}
+
+	ln, err := net.Listen("tcp", opts.HttpBindAddress)
+	if err != nil {
+		log.Error("Failed to set up TCP listener", zap.String("addr", opts.HttpBindAddress), zap.Error(err))
+		return err
+	}
+	if addr, ok := ln.Addr().(*net.TCPAddr); ok {
+		m.httpPort = addr.Port
+	}
+	m.wg.Add(1)
+
+	m.tlsEnabled = opts.HttpTLSCert != "" && opts.HttpTLSKey != ""
+	if !m.tlsEnabled {
+		if opts.HttpTLSCert != "" || opts.HttpTLSKey != "" {
+			log.Warn("TLS requires specifying both cert and key, falling back to HTTP")
+		}
+
+		go func(log *zap.Logger) {
+			defer m.wg.Done()
+			log.Info("Listening", zap.String("transport", "http"), zap.String("addr", opts.HttpBindAddress), zap.Int("port", m.httpPort))
+
+			if err := m.httpServer.Serve(ln); err != nethttp.ErrServerClosed {
+				log.Error("Failed to serve HTTP", zap.Error(err))
+				m.cancel()
+			}
+			log.Info("Stopping")
+		}(log)
+
+		return nil
+	}
+
+	if _, err = tls.LoadX509KeyPair(opts.HttpTLSCert, opts.HttpTLSKey); err != nil {
+		log.Error("Failed to load x509 key pair", zap.String("cert-path", opts.HttpTLSCert), zap.String("key-path", opts.HttpTLSKey))
+		return err
+	}
+
+	var tlsMinVersion uint16
+	var useStrictCiphers = opts.HttpTLSStrictCiphers
+	switch opts.HttpTLSMinVersion {
+	case "1.0":
+		log.Warn("Setting the minimum version of TLS to 1.0 - this is discouraged. Please use 1.2 or 1.3")
+		tlsMinVersion = tls.VersionTLS10
+	case "1.1":
+		log.Warn("Setting the minimum version of TLS to 1.1 - this is discouraged. Please use 1.2 or 1.3")
+		tlsMinVersion = tls.VersionTLS11
+	case "1.2":
+		tlsMinVersion = tls.VersionTLS12
+	case "1.3":
+		if useStrictCiphers {
+			log.Warn("TLS version 1.3 does not support configuring strict ciphers")
+			useStrictCiphers = false
+		}
+		tlsMinVersion = tls.VersionTLS13
+	default:
+		return fmt.Errorf("unsupported TLS version: %s", opts.HttpTLSMinVersion)
+	}
+
+	// nil uses the default cipher suite
+	var cipherConfig []uint16 = nil
+	if useStrictCiphers {
+		// See https://ssl-config.mozilla.org/#server=go&version=1.14.4&config=intermediate&guideline=5.6
+		cipherConfig = []uint16{
+			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+			tls.TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305,
+			tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+		}
+	}
+
+	m.httpServer.TLSConfig = &tls.Config{
+		CurvePreferences:         []tls.CurveID{tls.CurveP521, tls.CurveP384, tls.CurveP256},
+		PreferServerCipherSuites: !useStrictCiphers,
+		MinVersion:               tlsMinVersion,
+		CipherSuites:             cipherConfig,
+	}
+
+	go func(log *zap.Logger) {
+		defer m.wg.Done()
+		log.Info("Listening", zap.String("transport", "https"), zap.String("addr", opts.HttpBindAddress), zap.Int("port", m.httpPort))
+
+		if err := m.httpServer.ServeTLS(ln, opts.HttpTLSCert, opts.HttpTLSKey); err != nethttp.ErrServerClosed {
+			log.Error("Failed to serve HTTPS", zap.Error(err))
+			m.cancel()
+		}
+		log.Info("Stopping")
+	}(log)
 
 	return nil
 }
