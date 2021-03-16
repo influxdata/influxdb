@@ -26,6 +26,9 @@ or `/query` HTTP endpoints.
 1. [20911](https://github.com/influxdata/influxdb/pull/20911): Add support for explicitly setting shard-group durations on buckets. Thanks @hinst!
 1. [20882](https://github.com/influxdata/influxdb/pull/20882): Rewrite regex conditions in InfluxQL subqueries for performance. Thanks @yujiahaol68!
 1. [20963](https://github.com/influxdata/influxdb/pull/20963): Add `--metrics-disabled` option to `influxd` to disable exposing Prometheus metrics over HTTP.
+1. [20971](https://github.com/influxdata/influxdb/pull/20971): Add `--http-read-header-timeout`, `--http-read-timeout`, `--http-write-timeout`, and `--http-idle-timeout` options to `influxd`.
+1. [20971](https://github.com/influxdata/influxdb/pull/20971): Set a default `--http-read-header-timeout` of 10s in `influxd`.
+1. [20971](https://github.com/influxdata/influxdb/pull/20971): Set a default `--http-idle-timeout` of 3m in `influxd`.
 
 ### Bug Fixes
 

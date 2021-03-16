@@ -133,13 +133,17 @@ type InfluxdOpts struct {
 	SecretStore string
 	VaultConfig vault.Config
 
-	HttpBindAddress      string
-	HttpTLSCert          string
-	HttpTLSKey           string
-	HttpTLSMinVersion    string
-	HttpTLSStrictCiphers bool
-	SessionLength        int // in minutes
-	SessionRenewDisabled bool
+	HttpBindAddress       string
+	HttpReadHeaderTimeout time.Duration
+	HttpReadTimeout       time.Duration
+	HttpWriteTimeout      time.Duration
+	HttpIdleTimeout       time.Duration
+	HttpTLSCert           string
+	HttpTLSKey            string
+	HttpTLSMinVersion     string
+	HttpTLSStrictCiphers  bool
+	SessionLength         int // in minutes
+	SessionRenewDisabled  bool
 
 	ProfilingDisabled bool
 	MetricsDisabled   bool
@@ -182,11 +186,13 @@ func newOpts(viper *viper.Viper) *InfluxdOpts {
 		BoltPath:   filepath.Join(dir, bolt.DefaultFilename),
 		EnginePath: filepath.Join(dir, "engine"),
 
-		HttpBindAddress:      ":8086",
-		HttpTLSMinVersion:    "1.2",
-		HttpTLSStrictCiphers: false,
-		SessionLength:        60, // 60 minutes
-		SessionRenewDisabled: false,
+		HttpBindAddress:       ":8086",
+		HttpReadHeaderTimeout: 10 * time.Second,
+		HttpIdleTimeout:       3 * time.Minute,
+		HttpTLSMinVersion:     "1.2",
+		HttpTLSStrictCiphers:  false,
+		SessionLength:         60, // 60 minutes
+		SessionRenewDisabled:  false,
 
 		ProfilingDisabled: false,
 		MetricsDisabled:   false,
@@ -224,12 +230,6 @@ func (o *InfluxdOpts) bindCliOpts() []cli.Opt {
 			DestP: &o.TracingType,
 			Flag:  "tracing-type",
 			Desc:  fmt.Sprintf("supported tracing types are %s, %s", LogTracing, JaegerTracing),
-		},
-		{
-			DestP:   &o.HttpBindAddress,
-			Flag:    "http-bind-address",
-			Default: o.HttpBindAddress,
-			Desc:    "bind address for the REST HTTP API",
 		},
 		{
 			DestP:   &o.BoltPath,
@@ -340,6 +340,38 @@ func (o *InfluxdOpts) bindCliOpts() []cli.Opt {
 			Flag:  "vault-token",
 			Desc:  "vault authentication token",
 		},
+
+		// HTTP options
+		{
+			DestP:   &o.HttpBindAddress,
+			Flag:    "http-bind-address",
+			Default: o.HttpBindAddress,
+			Desc:    "bind address for the REST HTTP API",
+		},
+		{
+			DestP:   &o.HttpReadHeaderTimeout,
+			Flag:    "http-read-header-timeout",
+			Default: o.HttpReadHeaderTimeout,
+			Desc:    "max duration the server should spend trying to read HTTP headers for new requests. Set to 0 for no timeout",
+		},
+		{
+			DestP:   &o.HttpReadTimeout,
+			Flag:    "http-read-timeout",
+			Default: o.HttpReadTimeout,
+			Desc:    "max duration the server should spend trying to read the entirety of new requests. Set to 0 for no timeout",
+		},
+		{
+			DestP:   &o.HttpWriteTimeout,
+			Flag:    "http-write-timeout",
+			Default: o.HttpWriteTimeout,
+			Desc:    "max duration the server should spend on processing+responding to requests. Set to 0 for no timeout",
+		},
+		{
+			DestP:   &o.HttpIdleTimeout,
+			Flag:    "http-idle-timeout",
+			Default: o.HttpIdleTimeout,
+			Desc:    "max duration the server should keep established connections alive while waiting for new requests. Set to 0 for no timeout",
+		},
 		{
 			DestP: &o.HttpTLSCert,
 			Flag:  "tls-cert",
@@ -362,6 +394,7 @@ func (o *InfluxdOpts) bindCliOpts() []cli.Opt {
 			Default: o.HttpTLSStrictCiphers,
 			Desc:    "Restrict accept ciphers to: ECDHE_ECDSA_WITH_AES_128_GCM_SHA256, ECDHE_RSA_WITH_AES_128_GCM_SHA256, ECDHE_ECDSA_WITH_AES_256_GCM_SHA384, ECDHE_RSA_WITH_AES_256_GCM_SHA384, ECDHE_ECDSA_WITH_CHACHA20_POLY1305, ECDHE_RSA_WITH_CHACHA20_POLY1305",
 		},
+
 		{
 			DestP:   &o.NoTasks,
 			Flag:    "no-tasks",
