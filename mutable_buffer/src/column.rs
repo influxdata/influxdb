@@ -46,10 +46,8 @@ impl Column {
         capacity: usize,
         value: wb::Value<'_>,
     ) -> Result<Self> {
-        use wb::ColumnValue::*;
-
         Ok(match value.value_type() {
-            F64Value => {
+            wb::ColumnValue::F64Value => {
                 let val = value
                     .value_as_f64value()
                     .expect("f64 value should be present")
@@ -58,7 +56,7 @@ impl Column {
                 vals.push(Some(val));
                 Self::F64(vals, StatValues::new(val))
             }
-            I64Value => {
+            wb::ColumnValue::I64Value => {
                 let val = value
                     .value_as_i64value()
                     .expect("i64 value should be present")
@@ -67,7 +65,7 @@ impl Column {
                 vals.push(Some(val));
                 Self::I64(vals, StatValues::new(val))
             }
-            U64Value => {
+            wb::ColumnValue::U64Value => {
                 let val = value
                     .value_as_u64value()
                     .expect("u64 value should be present")
@@ -76,7 +74,7 @@ impl Column {
                 vals.push(Some(val));
                 Self::U64(vals, StatValues::new(val))
             }
-            StringValue => {
+            wb::ColumnValue::StringValue => {
                 let val = value
                     .value_as_string_value()
                     .expect("string value should be present")
@@ -86,7 +84,7 @@ impl Column {
                 vals.push(Some(val.to_string()));
                 Self::String(vals, StatValues::new(val.to_string()))
             }
-            BoolValue => {
+            wb::ColumnValue::BoolValue => {
                 let val = value
                     .value_as_bool_value()
                     .expect("bool value should be present")
@@ -95,7 +93,7 @@ impl Column {
                 vals.push(Some(val));
                 Self::Bool(vals, StatValues::new(val))
             }
-            TagValue => {
+            wb::ColumnValue::TagValue => {
                 let val = value
                     .value_as_tag_value()
                     .expect("tag value should be present")

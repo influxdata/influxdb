@@ -13,16 +13,15 @@ use crc32fast::Hasher;
 use flatbuffers::FlatBufferBuilder;
 
 pub fn type_description(value: wb::ColumnValue) -> &'static str {
-    use wb::ColumnValue::*;
-
     match value {
-        NONE => "none",
-        TagValue => "tag",
-        I64Value => "i64",
-        U64Value => "u64",
-        F64Value => "f64",
-        BoolValue => "bool",
-        StringValue => "String",
+        wb::ColumnValue::TagValue => "tag",
+        wb::ColumnValue::I64Value => "i64",
+        wb::ColumnValue::U64Value => "u64",
+        wb::ColumnValue::F64Value => "f64",
+        wb::ColumnValue::BoolValue => "bool",
+        wb::ColumnValue::StringValue => "String",
+        wb::ColumnValue::NONE => "none",
+        _ => "none",
     }
 }
 
@@ -143,6 +142,7 @@ impl fmt::Display for ReplicatedWrite {
                                                     .unwrap_or("")
                                                     .to_string(),
                                                 wb::ColumnValue::NONE => "".to_string(),
+                                                _ => "".to_string(),
                                             };
                                             write!(f, " {}:{}", value.column().unwrap_or(""), val)?;
                                         }
