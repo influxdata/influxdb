@@ -52,17 +52,18 @@ export const getOrganizations = () => async (
     const orgs: api.Organization[] = []
 
     for (let offset = 0, batchSize = 20; ; offset += batchSize) {
-      const resp = await api.getOrgs({query: {
-        offset: offset,
-        limit: batchSize,
-      }})
+      const resp = await api.getOrgs({
+        query: {
+          offset: offset,
+          limit: batchSize,
+        },
+      })
       if (resp.status !== 200) {
         throw new Error(resp.data.message)
       }
       orgs.push(...resp.data.orgs)
       const nextLink = resp.data.links ? resp.data.links.next : null
-      if (nextLink == null)
-        break
+      if (nextLink == null) break
     }
 
     const organizations = normalize<Organization, OrgEntities, string[]>(
