@@ -39,6 +39,7 @@ or `/query` HTTP endpoints.
 1. [20966](https://github.com/influxdata/influxdb/pull/20966): Prevent time field names from being formatted in the Table visualization.
 1. [20918](https://github.com/influxdata/influxdb/pull/20918): Deprecate misleading `retentionPeriodHrs` key in onboarding API.
 1. [20851](https://github.com/influxdata/influxdb/pull/20851): Fix TSM WAL segment size computing. Thanks @StoneYunZhao!
+1. [20844](https://github.com/influxdata/influxdb/pull/20844): Repair swagger to match implementation of DBRPs type.
 
 ## v2.0.4 [2021-02-08]
 ----------------------
