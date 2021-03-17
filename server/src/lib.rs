@@ -77,7 +77,7 @@ use bytes::Bytes;
 use futures::stream::TryStreamExt;
 use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use data_types::{
     data::{lines_to_replicated_write, ReplicatedWrite},
@@ -122,6 +122,8 @@ pub enum Error {
     InvalidDatabaseName { source: DatabaseNameError },
     #[snafu(display("database error: {}", source))]
     UnknownDatabaseError { source: DatabaseError },
+    #[snafu(display("getting mutable buffer chunk: {}", source))]
+    MutableBufferChunk { source: DatabaseError },
     #[snafu(display("no local buffer for database: {}", db))]
     NoLocalBuffer { db: String },
     #[snafu(display("unable to get connection to remote server: {}", server))]
@@ -401,6 +403,67 @@ impl<M: ConnectionManager> Server<M> {
         tracker
     }
 
+    /// Closes a chunk and starts moving its data to the read buffer, as a
+    /// background job, dropping when complete.
+    pub fn close_chunk(
+        &self,
+        db_name: DatabaseName<'_>,
+        partition_key: impl Into<String>,
+        chunk_id: u32,
+    ) -> Result<Tracker<Job>> {
+        let db_name = db_name.to_string();
+        let name = DatabaseName::new(&db_name).context(InvalidDatabaseName)?;
+
+        let partition_key = partition_key.into();
+
+        let db = self
+            .config
+            .db(&name)
+            .context(DatabaseNotFound { db_name: &db_name })?;
+
+        let (tracker, registration) = self.jobs.lock().register(Job::CloseChunk {
+            db_name: db_name.clone(),
+            partition_key: partition_key.clone(),
+            chunk_id,
+        });
+
+        let task = async move {
+            // Close the chunk if it isn't already closed
+            if db.is_open_chunk(&partition_key, chunk_id) {
+                debug!(%db_name, %partition_key, %chunk_id, "Rolling over partition to close chunk");
+                let result = db.rollover_partition(&partition_key).await;
+
+                if let Err(e) = result {
+                    info!(?e, %db_name, %partition_key, %chunk_id, "background task error during chunk closing");
+                    return Err(e);
+                }
+            }
+
+            debug!(%db_name, %partition_key, %chunk_id, "background task loading chunk to read buffer");
+            let result = db.load_chunk_to_read_buffer(&partition_key, chunk_id).await;
+            if let Err(e) = result {
+                info!(?e, %db_name, %partition_key, %chunk_id, "background task error loading read buffer chunk");
+                return Err(e);
+            }
+
+            // now, drop the chunk
+            debug!(%db_name, %partition_key, %chunk_id, "background task dropping mutable buffer chunk");
+            let result = db.drop_mutable_buffer_chunk(&partition_key, chunk_id).await;
+            if let Err(e) = result {
+                info!(?e, %db_name, %partition_key, %chunk_id, "background task error loading read buffer chunk");
+                return Err(e);
+            }
+
+            debug!(%db_name, %partition_key, %chunk_id, "background task completed closing chunk");
+
+            Ok(())
+        };
+
+        tokio::spawn(task.track(registration));
+
+        Ok(tracker)
+    }
+
     /// Returns a list of all jobs tracked by this server
     pub fn tracked_jobs(&self) -> Vec<Tracker<Job>> {
         self.jobs.lock().tracked()
@@ -418,18 +481,16 @@ impl<M: ConnectionManager> Server<M> {
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
 
         loop {
-            // TODO: Retain limited history of past jobs, e.g. enqueue returned data into a
-            // Dequeue
-            let mut jobs = self.jobs.lock();
-
-            for job in jobs.reclaim() {
-                info!(?job, "job finished");
-            }
-
-            // Ensure mutex guard is not held across await point
-            std::mem::drop(jobs);
-
+            self.reclaim_jobs();
             interval.tick().await;
+        }
+    }
+
+    fn reclaim_jobs(&self) {
+        let mut jobs = self.jobs.lock();
+
+        for job in jobs.reclaim() {
+            info!(?job, "job finished");
         }
     }
 }
@@ -571,7 +632,7 @@ mod tests {
     };
     use influxdb_line_protocol::parse_lines;
     use object_store::{memory::InMemory, path::ObjectStorePath};
-    use query::frontend::sql::SQLQueryPlanner;
+    use query::{frontend::sql::SQLQueryPlanner, Database};
 
     use crate::buffer::Segment;
 
@@ -770,6 +831,71 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn close_chunk() -> Result {
+        test_helpers::maybe_start_logging();
+        let manager = TestConnectionManager::new();
+        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let server = Arc::new(Server::new(manager, store));
+
+        let captured_server = Arc::clone(&server);
+        let background_handle =
+            tokio::task::spawn(async move { captured_server.background_worker().await });
+
+        server.set_id(1);
+
+        let db_name = DatabaseName::new("foo").unwrap();
+        server
+            .create_database(db_name.as_str(), DatabaseRules::new())
+            .await?;
+
+        let line = "cpu bar=1 10";
+        let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
+        server.write_lines(&db_name, &lines).await.unwrap();
+
+        // start the close (note this is not an async)
+        let partition_key = "";
+        let db_name_string = db_name.to_string();
+        let tracker = server.close_chunk(db_name, partition_key, 0).unwrap();
+
+        let metadata = tracker.metadata();
+        let expected_metadata = Job::CloseChunk {
+            db_name: db_name_string,
+            partition_key: partition_key.to_string(),
+            chunk_id: 0,
+        };
+        assert_eq!(metadata, &expected_metadata);
+
+        // wait for the job to complete
+        tracker.join().await;
+
+        // Data should be in the read buffer and not in mutable buffer
+        let db_name = DatabaseName::new("foo").unwrap();
+        let db = server.db(&db_name).unwrap();
+
+        let mut chunk_summaries = db.chunk_summaries().unwrap();
+        chunk_summaries.sort_unstable();
+
+        let actual = chunk_summaries
+            .into_iter()
+            .map(|s| format!("{:?} {}", s.storage, s.id))
+            .collect::<Vec<_>>();
+
+        let expected = vec!["ReadBuffer 0", "OpenMutableBuffer 1"];
+
+        assert_eq!(
+            expected, actual,
+            "expected:\n{:#?}\n\nactual:{:#?}\n\n",
+            expected, actual
+        );
+
+        // ensure that we don't leave the server instance hanging around
+        background_handle.abort();
+        let _ = background_handle.await;
+
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn segment_persisted_on_rollover() {
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
@@ -817,6 +943,30 @@ partition_key:
     host:a used:10.1 time:12
 "#;
         assert_eq!(segment.writes[0].to_string(), write);
+    }
+
+    #[tokio::test]
+    async fn background_task_cleans_jobs() -> Result {
+        let manager = TestConnectionManager::new();
+        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let server = Arc::new(Server::new(manager, store));
+        let captured_server = Arc::clone(&server);
+        let background_handle =
+            tokio::task::spawn(async move { captured_server.background_worker().await });
+
+        let wait_nanos = 1000;
+        let job = server.spawn_dummy_job(vec![wait_nanos]);
+
+        // Note: this will hang forwever if the background task has not been started
+        job.join().await;
+
+        assert!(job.is_complete());
+
+        // ensure that we don't leave the server instance hanging around
+        background_handle.abort();
+        let _ = background_handle.await;
+
+        Ok(())
     }
 
     #[derive(Snafu, Debug, Clone)]

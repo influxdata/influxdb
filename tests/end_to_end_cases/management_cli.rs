@@ -1,4 +1,5 @@
 use assert_cmd::Command;
+use data_types::job::{Job, Operation};
 use predicates::prelude::*;
 use test_helpers::make_temp_file;
 
@@ -492,6 +493,69 @@ async fn test_new_partition_chunk_error() {
         .arg("new-chunk")
         .arg("non_existent_database")
         .arg("non_existent_partition")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("Database not found"));
+}
+
+#[tokio::test]
+async fn test_close_partition_chunk() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let addr = server_fixture.grpc_base();
+    let db_name = rand_name();
+
+    create_readable_database(&db_name, server_fixture.grpc_channel()).await;
+
+    let lp_data = vec!["cpu,region=west user=23.2 100"];
+    load_lp(addr, &db_name, lp_data);
+
+    let stdout: Operation = serde_json::from_slice(
+        &Command::cargo_bin("influxdb_iox")
+            .unwrap()
+            .arg("database")
+            .arg("partition")
+            .arg("close-chunk")
+            .arg(&db_name)
+            .arg("cpu")
+            .arg("0")
+            .arg("--host")
+            .arg(addr)
+            .assert()
+            .success()
+            .get_output()
+            .stdout,
+    )
+    .expect("Expected JSON output");
+
+    let expected_job = Job::CloseChunk {
+        db_name,
+        partition_key: "cpu".into(),
+        chunk_id: 0,
+    };
+
+    assert_eq!(
+        Some(expected_job),
+        stdout.job,
+        "operation was {:#?}",
+        stdout
+    );
+}
+
+#[tokio::test]
+async fn test_close_partition_chunk_error() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let addr = server_fixture.grpc_base();
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("partition")
+        .arg("close-chunk")
+        .arg("non_existent_database")
+        .arg("non_existent_partition")
+        .arg("0")
         .arg("--host")
         .arg(addr)
         .assert()

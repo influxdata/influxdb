@@ -9,15 +9,30 @@ use std::convert::TryFrom;
 /// Used in combination with TrackerRegistry
 ///
 /// TODO: Serde is temporary until prost adds JSON support
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Job {
-    PersistSegment { writer_id: u32, segment_id: u64 },
-    Dummy { nanos: Vec<u64> },
+    Dummy {
+        nanos: Vec<u64>,
+    },
+
+    /// Persist a WAL segment to object store
+    PersistSegment {
+        writer_id: u32,
+        segment_id: u64,
+    },
+
+    /// Move a chunk from mutable buffer to read buffer
+    CloseChunk {
+        db_name: String,
+        partition_key: String,
+        chunk_id: u32,
+    },
 }
 
 impl From<Job> for management::operation_metadata::Job {
     fn from(job: Job) -> Self {
         match job {
+            Job::Dummy { nanos } => Self::Dummy(management::Dummy { nanos }),
             Job::PersistSegment {
                 writer_id,
                 segment_id,
@@ -25,7 +40,15 @@ impl From<Job> for management::operation_metadata::Job {
                 writer_id,
                 segment_id,
             }),
-            Job::Dummy { nanos } => Self::Dummy(management::Dummy { nanos }),
+            Job::CloseChunk {
+                db_name,
+                partition_key,
+                chunk_id,
+            } => Self::CloseChunk(management::CloseChunk {
+                db_name,
+                partition_key,
+                chunk_id,
+            }),
         }
     }
 }
@@ -41,6 +64,15 @@ impl From<management::operation_metadata::Job> for Job {
             }) => Self::PersistSegment {
                 writer_id,
                 segment_id,
+            },
+            Job::CloseChunk(management::CloseChunk {
+                db_name,
+                partition_key,
+                chunk_id,
+            }) => Self::CloseChunk {
+                db_name,
+                partition_key,
+                chunk_id,
             },
         }
     }

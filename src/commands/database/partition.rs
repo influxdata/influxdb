@@ -1,14 +1,15 @@
 //! This module implements the `partition` CLI command
 use data_types::chunk::ChunkSummary;
+use data_types::job::Operation;
 use generated_types::google::FieldViolation;
 use influxdb_iox_client::{
     connection::Builder,
     management::{
-        self, GetPartitionError, ListPartitionChunksError, ListPartitionsError,
-        NewPartitionChunkError,
+        self, ClosePartitionChunkError, GetPartitionError, ListPartitionChunksError,
+        ListPartitionsError, NewPartitionChunkError,
     },
 };
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use structopt::StructOpt;
 use thiserror::Error;
 
@@ -26,14 +27,15 @@ pub enum Error {
     #[error("Error creating new partition chunk: {0}")]
     NewPartitionChunkError(#[from] NewPartitionChunkError),
 
-    #[error("Error interpreting server response: {0}")]
-    ConvertingResponse(#[from] FieldViolation),
+    #[error("Error closing chunk: {0}")]
+    ClosePartitionChunkError(#[from] ClosePartitionChunkError),
 
     #[error("Error rendering response as JSON: {0}")]
     WritingJson(#[from] serde_json::Error),
 
-    // #[error("Error rendering response as JSON: {0}")]
-    // WritingJson(#[from] serde_json::Error),
+    #[error("Received invalid response: {0}")]
+    InvalidResponse(#[from] FieldViolation),
+
     #[error("Error connecting to IOx: {0}")]
     ConnectionError(#[from] influxdb_iox_client::connection::Error),
 }
@@ -85,6 +87,20 @@ struct NewChunk {
     partition_key: String,
 }
 
+/// Closes a chunk in the mutable buffer for writing and starts its migration to
+/// the read buffer
+#[derive(Debug, StructOpt)]
+struct CloseChunk {
+    /// The name of the database
+    db_name: String,
+
+    /// The partition key
+    partition_key: String,
+
+    /// The chunk id
+    chunk_id: u32,
+}
+
 /// All possible subcommands for partition
 #[derive(Debug, StructOpt)]
 enum Command {
@@ -96,6 +112,8 @@ enum Command {
     ListChunks(ListChunks),
     // Create a new chunk in the partition
     NewChunk(NewChunk),
+    // Close the chunk and move to read buffer
+    CloseChunk(CloseChunk),
 }
 
 pub async fn command(url: String, config: Config) -> Result<()> {
@@ -155,6 +173,20 @@ pub async fn command(url: String, config: Config) -> Result<()> {
             // Ignore response for now
             client.new_partition_chunk(db_name, partition_key).await?;
             println!("Ok");
+        }
+        Command::CloseChunk(close_chunk) => {
+            let CloseChunk {
+                db_name,
+                partition_key,
+                chunk_id,
+            } = close_chunk;
+
+            let operation: Operation = client
+                .close_partition_chunk(db_name, partition_key, chunk_id)
+                .await?
+                .try_into()?;
+
+            serde_json::to_writer_pretty(std::io::stdout(), &operation)?;
         }
     }
 

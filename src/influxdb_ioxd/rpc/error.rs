@@ -1,4 +1,4 @@
-use generated_types::google::{InternalError, NotFound, PreconditionViolation};
+use generated_types::google::{FieldViolation, InternalError, NotFound, PreconditionViolation};
 use tracing::error;
 
 /// map common `server::Error` errors  to the appropriate tonic Status
@@ -16,6 +16,11 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
             resource_type: "database".to_string(),
             resource_name: db_name,
             ..Default::default()
+        }
+        .into(),
+        Error::InvalidDatabaseName { source } => FieldViolation {
+            field: "db_name".into(),
+            description: source.to_string(),
         }
         .into(),
         error => {

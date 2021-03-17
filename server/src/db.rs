@@ -45,6 +45,16 @@ pub enum Error {
     #[snafu(display("Cannot read to this database: no mutable buffer configured"))]
     DatabaseNotReadable {},
 
+    #[snafu(display(
+        "Only closed chunks can be moved to read buffer. Chunk {} {} was open",
+        partition_key,
+        chunk_id
+    ))]
+    ChunkNotClosed {
+        partition_key: String,
+        chunk_id: u32,
+    },
+
     #[snafu(display("Error dropping data from mutable buffer: {}", source))]
     MutableBufferDrop {
         source: mutable_buffer::database::Error,
@@ -130,6 +140,16 @@ impl Db {
         }
     }
 
+    /// Return true if the specified chunk is still open for new writes
+    pub fn is_open_chunk(&self, partition_key: &str, chunk_id: u32) -> bool {
+        if let Some(mutable_buffer) = self.mutable_buffer.as_ref() {
+            let open_chunk_id = mutable_buffer.open_chunk_id(partition_key);
+            open_chunk_id == chunk_id
+        } else {
+            false
+        }
+    }
+
     // Return a list of all chunks in the mutable_buffer (that can
     // potentially be migrated into the read buffer or object store)
     pub fn mutable_buffer_chunks(&self, partition_key: &str) -> Vec<Arc<DBChunk>> {
@@ -148,6 +168,19 @@ impl Db {
             vec![]
         };
         chunks
+    }
+
+    // Return the specified chunk in the mutable buffer
+    pub fn mutable_buffer_chunk(
+        &self,
+        partition_key: &str,
+        chunk_id: u32,
+    ) -> Result<Arc<mutable_buffer::chunk::Chunk>> {
+        self.mutable_buffer
+            .as_ref()
+            .context(DatatbaseNotWriteable)?
+            .get_chunk(partition_key, chunk_id)
+            .context(UnknownMutableBufferChunk { chunk_id })
     }
 
     /// List chunks that are currently in the read buffer
@@ -210,12 +243,16 @@ impl Db {
         partition_key: &str,
         chunk_id: u32,
     ) -> Result<Arc<DBChunk>> {
-        let mb_chunk = self
-            .mutable_buffer
-            .as_ref()
-            .context(DatatbaseNotWriteable)?
-            .get_chunk(partition_key, chunk_id)
-            .context(UnknownMutableBufferChunk { chunk_id })?;
+        let mb_chunk = self.mutable_buffer_chunk(partition_key, chunk_id)?;
+
+        // Can't load an open chunk to the read buffer
+        if self.is_open_chunk(partition_key, chunk_id) {
+            return ChunkNotClosed {
+                partition_key,
+                chunk_id,
+            }
+            .fail();
+        }
 
         let mut batches = Vec::new();
         for stats in mb_chunk.table_stats().unwrap() {
@@ -437,6 +474,28 @@ mod tests {
 
         let batches = run_query(&db, "select * from cpu").await;
         assert_table_eq!(&expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn no_load_open_chunk() {
+        // Test that data can not be loaded into the ReadBuffer while
+        // still open (no way to ensure that new data gets into the
+        // read buffer)
+        let db = make_db();
+        let mut writer = TestLPWriter::default();
+        writer.write_lp_string(&db, "cpu bar=1 10").await.unwrap();
+
+        let partition_key = "1970-01-01T00";
+        let err = db
+            .load_chunk_to_read_buffer(partition_key, 0)
+            .await
+            .unwrap_err();
+
+        // it should be the same chunk!
+        assert_contains!(
+            err.to_string(),
+            "Only closed chunks can be moved to read buffer. Chunk 1970-01-01T00 0 was open"
+        );
     }
 
     #[tokio::test]
