@@ -119,8 +119,9 @@ Make sure you have Go installed and the project structure as shown above. To the
 cd influxdb
 ```
 
-To then build and install the binaries, run the following command.
+To then build and install the binaries, run the following commands.
 ```bash
+export PKG_CONFIG="$(git rev-parse --show-toplevel)/pkg-config.sh"
 go clean ./...
 go install ./...
 ```
