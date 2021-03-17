@@ -943,8 +943,12 @@ func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler) error {
 	log := m.log.With(zap.String("service", "tcp-listener"))
 
 	m.httpServer = &nethttp.Server{
-		Addr:    opts.HttpBindAddress,
-		Handler: handler,
+		Addr:              opts.HttpBindAddress,
+		Handler:           handler,
+		ReadHeaderTimeout: opts.HttpReadHeaderTimeout,
+		ReadTimeout:       opts.HttpReadTimeout,
+		WriteTimeout:      opts.HttpWriteTimeout,
+		IdleTimeout:       opts.HttpIdleTimeout,
 	}
 
 	ln, err := net.Listen("tcp", opts.HttpBindAddress)

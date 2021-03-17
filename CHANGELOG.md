@@ -23,6 +23,9 @@ or `/query` HTTP endpoints.
 1. [20845](https://github.com/influxdata/influxdb/pull/20845): Add `influx task retry-failed` command to rerun failed runs.
 1. [20965](https://github.com/influxdata/influxdb/pull/20965): Add `--metrics-disabled` option to `influxd` to disable exposing Prometheus metrics over HTTP.
 1. [20962](https://github.com/influxdata/influxdb/pull/20962): Rewrite regex conditions in InfluxQL subqueries for performance. Thanks @yujiahaol68!
+1. [20988](https://github.com/influxdata/influxdb/pull/20988): Add `--http-read-header-timeout`, `--http-read-timeout`, `--http-write-timeout`, and `--http-idle-timeout` options to `influxd`.
+1. [20988](https://github.com/influxdata/influxdb/pull/20988): Set a default `--http-read-header-timeout` of 10s in `influxd`.
+1. [20988](https://github.com/influxdata/influxdb/pull/20988): Set a default `--http-idle-timeout` of 3m in `influxd`.
 
 ### Bug Fixes
 
