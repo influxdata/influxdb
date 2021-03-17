@@ -88,9 +88,11 @@ use tokio_util::sync::CancellationToken;
 use tracing::warn;
 
 pub use future::{TrackedFuture, TrackedFutureExt};
+pub use history::TrackerRegistryWithHistory;
 pub use registry::{TrackerId, TrackerRegistry};
 
 mod future;
+mod history;
 mod registry;
 
 /// The state shared between all sibling tasks

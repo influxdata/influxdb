@@ -89,13 +89,12 @@ use influxdb_line_protocol::ParsedLine;
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use query::{exec::Executor, DatabaseStore};
 
-use crate::tracker::TrackedFutureExt;
 use crate::{
     config::{
         object_store_path_for_database_config, Config, GRPCConnectionString, DB_RULES_FILE_NAME,
     },
     db::Db,
-    tracker::{Tracker, TrackerId, TrackerRegistry},
+    tracker::{TrackedFutureExt, Tracker, TrackerId, TrackerRegistryWithHistory},
 };
 
 pub mod buffer;
@@ -150,6 +149,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 const STORE_ERROR_PAUSE_SECONDS: u64 = 100;
+const JOB_HISTORY_SIZE: usize = 1000;
 
 /// `Server` is the container struct for how servers store data internally, as
 /// well as how they communicate with other servers. Each server will have one
@@ -161,7 +161,7 @@ pub struct Server<M: ConnectionManager> {
     connection_manager: Arc<M>,
     pub store: Arc<ObjectStore>,
     executor: Arc<Executor>,
-    jobs: Mutex<TrackerRegistry<Job>>,
+    jobs: Mutex<TrackerRegistryWithHistory<Job>>,
 }
 
 impl<M: ConnectionManager> Server<M> {
@@ -172,7 +172,7 @@ impl<M: ConnectionManager> Server<M> {
             store,
             connection_manager: Arc::new(connection_manager),
             executor: Arc::new(Executor::new()),
-            jobs: Mutex::new(TrackerRegistry::new()),
+            jobs: Mutex::new(TrackerRegistryWithHistory::new(JOB_HISTORY_SIZE)),
         }
     }
 
@@ -481,16 +481,8 @@ impl<M: ConnectionManager> Server<M> {
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
 
         loop {
-            self.reclaim_jobs();
+            self.jobs.lock().reclaim();
             interval.tick().await;
-        }
-    }
-
-    fn reclaim_jobs(&self) {
-        let mut jobs = self.jobs.lock();
-
-        for job in jobs.reclaim() {
-            info!(?job, "job finished");
         }
     }
 }

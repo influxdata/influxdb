@@ -7,7 +7,7 @@ use tracing::debug;
 /// Every future registered with a `TrackerRegistry` is assigned a unique
 /// `TrackerId`
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct TrackerId(usize);
+pub struct TrackerId(pub(super) usize);
 
 impl FromStr for TrackerId {
     type Err = std::num::ParseIntError;
@@ -92,9 +92,7 @@ impl<T> TrackerRegistry<T> {
                 v.tracker
             })
     }
-}
 
-impl<T: Clone> TrackerRegistry<T> {
     pub fn get(&self, id: TrackerId) -> Option<Tracker<T>> {
         self.trackers.get(&id).map(|x| x.tracker.clone())
     }
