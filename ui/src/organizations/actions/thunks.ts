@@ -49,13 +49,21 @@ export const getOrganizations = () => async (
   try {
     dispatch(setOrgs(RemoteDataState.Loading))
 
-    const resp = await api.getOrgs({})
+    const orgs: api.Organization[] = []
 
-    if (resp.status !== 200) {
-      throw new Error(resp.data.message)
+    for (let offset = 0, batchSize = 20; ; offset += batchSize) {
+      const resp = await api.getOrgs({query: {
+        offset: offset,
+        limit: batchSize,
+      }})
+      if (resp.status !== 200) {
+        throw new Error(resp.data.message)
+      }
+      orgs.push(...resp.data.orgs)
+      const nextLink = resp.data.links ? resp.data.links.next : null
+      if (nextLink == null)
+        break
     }
-
-    const {orgs} = resp.data
 
     const organizations = normalize<Organization, OrgEntities, string[]>(
       orgs,
