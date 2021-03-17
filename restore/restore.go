@@ -82,7 +82,7 @@ func (r *restoreRunner) loadManifests(path string) error {
 	// Read all manifest files from path, sort in descending time.
 	manifests, err := filepath.Glob(filepath.Join(path, "*.manifest"))
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to find backup manifests at %q: %w", path, err)
 	} else if len(manifests) == 0 {
 		return nil
 	}
@@ -92,7 +92,7 @@ func (r *restoreRunner) loadManifests(path string) error {
 	for _, filename := range manifests {
 		// Skip file if it is a directory.
 		if fi, err := os.Stat(filename); err != nil {
-			return err
+			return fmt.Errorf("failed to inspect local manifest at %q: %w", filename, err)
 		} else if fi.IsDir() {
 			continue
 		}
@@ -100,7 +100,7 @@ func (r *restoreRunner) loadManifests(path string) error {
 		// Read manifest file for backup.
 		var manifest influxdb.Manifest
 		if buf, err := ioutil.ReadFile(filename); err != nil {
-			return err
+			return fmt.Errorf("failed to read local manifest at %q: %w", filename, err)
 		} else if err := json.Unmarshal(buf, &manifest); err != nil {
 			return fmt.Errorf("read manifest: %v", err)
 		}
@@ -171,12 +171,12 @@ func (r *restoreRunner) restoreKV(ctx context.Context, path string) error {
 
 	f, err := os.Open(kvPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to open local KV backup at %q: %w", kvPath, err)
 	}
 	defer f.Close()
 
 	if err := r.RestoreService.RestoreKVStore(ctx, f); err != nil {
-		return err
+		return fmt.Errorf("failed to upload local KV backup at %q: %w", kvPath, err)
 	}
 
 	r.log.Info("Full metadata restored", zap.String("path", kvPath))
@@ -189,17 +189,20 @@ func (r *restoreRunner) restoreShard(ctx context.Context, path string, manifest 
 
 	f, err := os.Open(shardPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to open local shard backup at %q: %w", shardPath, err)
 	}
 	defer f.Close()
 
 	gr, err := gzip.NewReader(f)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to open gzip reader for local shard backup: %w", err)
 	}
 	defer gr.Close()
 
-	return r.RestoreService.RestoreShard(ctx, manifest.ShardID, gr)
+	if err := r.RestoreService.RestoreShard(ctx, manifest.ShardID, gr); err != nil {
+		return fmt.Errorf("failed to upload local shard backup at %q: %w", shardPath, err)
+	}
+	return nil
 }
 
 func (r *restoreRunner) restoreOrganizations(ctx context.Context, req Request) error {

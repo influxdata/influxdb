@@ -60,7 +60,7 @@ func RunBackup(ctx context.Context, req Request, svc influxdb.BackupService, log
 
 	fi, err := os.Stat(kvPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to inspect local KV backup at %q: %w", kvPath, err)
 	}
 	manifest.KV.Size = fi.Size()
 
@@ -83,14 +83,15 @@ func RunBackup(ctx context.Context, req Request, svc influxdb.BackupService, log
 		return err
 	}
 
-	for _, entry := range manifest.Files {
-		if err := runner.backupShard(ctx, &entry, req); err != nil {
+	for i := range manifest.Files {
+		if err := runner.backupShard(ctx, &manifest.Files[i], req); err != nil {
 			return err
 		}
 	}
 
-	if err := runner.writeManifest(manifest, filepath.Join(req.Path, fmt.Sprintf("%s.manifest", runner.baseName))); err != nil {
-		return err
+	manifestPath := filepath.Join(req.Path, fmt.Sprintf("%s.manifest", runner.baseName))
+	if err := runner.writeManifest(manifest, manifestPath); err != nil {
+		return fmt.Errorf("failed to write backup manfiest to %q: %w", manifestPath, err)
 	}
 
 	log.Info("Backup complete", zap.String("path", req.Path))
@@ -101,20 +102,20 @@ func (r *backupRunner) backupKV(ctx context.Context, path string) error {
 	r.log.Info("Backing up KV store", zap.String("path", path))
 	f, err := os.Create(path)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to open local KV backup file at %q: %w", path, err)
 	}
 
 	// Stream bolt file from server, sync, and ensure file closes correctly.
 	if err := r.backupSvc.BackupKVStore(ctx, f); err != nil {
 		_ = f.Close()
-		return err
+		return fmt.Errorf("failed to download KV backup: %w", err)
 	}
 	if err := f.Sync(); err != nil {
 		_ = f.Close()
-		return err
+		return fmt.Errorf("failed to flush KV backup to local disk: %w", err)
 	}
 	if err := f.Close(); err != nil {
-		return err
+		return fmt.Errorf("failed to close local KV backup at %q: %w", path, err)
 	}
 
 	return nil
@@ -200,7 +201,7 @@ func (r *backupRunner) backupShard(ctx context.Context, shardInfo *influxdb.Mani
 
 	f, err := os.Create(path)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to open local shard backup at %q: %w", path, err)
 	}
 	gw := gzip.NewWriter(f)
 
@@ -213,24 +214,24 @@ func (r *backupRunner) backupShard(ctx context.Context, shardInfo *influxdb.Mani
 			r.log.Warn("Shard removed during backup", zap.Uint64("id", shardInfo.ShardID))
 			return nil
 		}
-		return err
+		return fmt.Errorf("failed to download shard backup: %w", err)
 	}
 	if err := gw.Close(); err != nil {
 		_ = f.Close()
-		return err
+		return fmt.Errorf("failed to flush GZIP footer to local shard backup: %w", err)
 	}
 	if err := f.Sync(); err != nil {
 		_ = f.Close()
-		return err
+		return fmt.Errorf("failed to flush shard backup to local disk: %w", err)
 	}
 	if err := f.Close(); err != nil {
-		return err
+		return fmt.Errorf("failed to close local shard backup at %q: %w", path, err)
 	}
 
 	// Use downloaded file's info to fill in remaining pieces of manifest.
 	fi, err := os.Stat(path)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to inspect local shard backup at %q: %w", path, err)
 	}
 	shardInfo.Size = fi.Size()
 	shardInfo.LastModified = fi.ModTime().UTC()
