@@ -274,7 +274,7 @@ mod tests {
     #[tokio::test]
     async fn test_lifecycle() {
         let (sender, receive) = oneshot::channel();
-        let registry = TrackerRegistry::new();
+        let mut registry = TrackerRegistry::new();
         let (_, registration) = registry.register(());
 
         let task = tokio::spawn(receive.track(registration));
@@ -291,7 +291,7 @@ mod tests {
     async fn test_interleaved() {
         let (sender1, receive1) = oneshot::channel();
         let (sender2, receive2) = oneshot::channel();
-        let registry = TrackerRegistry::new();
+        let mut registry = TrackerRegistry::new();
         let (_, registration1) = registry.register(1);
         let (_, registration2) = registry.register(2);
 
@@ -316,7 +316,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_drop() {
-        let registry = TrackerRegistry::new();
+        let mut registry = TrackerRegistry::new();
         let (_, registration) = registry.register(());
 
         {
@@ -332,7 +332,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_drop_multiple() {
-        let registry = TrackerRegistry::new();
+        let mut registry = TrackerRegistry::new();
         let (_, registration) = registry.register(());
 
         {
@@ -351,7 +351,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_terminate() {
-        let registry = TrackerRegistry::new();
+        let mut registry = TrackerRegistry::new();
         let (_, registration) = registry.register(());
 
         let task = tokio::spawn(futures::future::pending::<()>().track(registration));
@@ -368,7 +368,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_terminate_early() {
-        let registry = TrackerRegistry::new();
+        let mut registry = TrackerRegistry::new();
         let (tracker, registration) = registry.register(());
         tracker.cancel();
 
@@ -381,7 +381,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_terminate_multiple() {
-        let registry = TrackerRegistry::new();
+        let mut registry = TrackerRegistry::new();
         let (_, registration) = registry.register(());
 
         let task1 = tokio::spawn(futures::future::pending::<()>().track(registration.clone()));
@@ -402,7 +402,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_reclaim() {
-        let registry = TrackerRegistry::new();
+        let mut registry = TrackerRegistry::new();
 
         let (_, registration1) = registry.register(1);
         let (_, registration2) = registry.register(2);
@@ -440,7 +440,7 @@ mod tests {
         assert_eq!(get_metadata(&tracked), vec![1, 2, 3]);
 
         // Expect reclaim to find now finished registration1
-        let reclaimed = sorted(registry.reclaim());
+        let reclaimed = sorted(registry.reclaim().collect());
         assert_eq!(reclaimed.len(), 1);
         assert_eq!(get_metadata(&reclaimed), vec![1]);
 
@@ -485,7 +485,7 @@ mod tests {
         assert_eq!(running[0].created_futures(), 2);
         assert!(running[0].is_complete());
 
-        let reclaimed = sorted(registry.reclaim());
+        let reclaimed = sorted(registry.reclaim().collect());
 
         assert_eq!(reclaimed.len(), 2);
         assert_eq!(get_metadata(&reclaimed), vec![2, 3]);
@@ -496,7 +496,7 @@ mod tests {
     // to prevent stalling the tokio executor
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_timing() {
-        let registry = TrackerRegistry::new();
+        let mut registry = TrackerRegistry::new();
         let (tracker1, registration1) = registry.register(1);
         let (tracker2, registration2) = registry.register(2);
         let (tracker3, registration3) = registry.register(3);
@@ -562,20 +562,20 @@ mod tests {
 
     #[tokio::test]
     async fn test_register_race() {
-        let registry = TrackerRegistry::new();
+        let mut registry = TrackerRegistry::new();
         let (_, registration) = registry.register(());
 
         let task1 = tokio::spawn(futures::future::ready(()).track(registration.clone()));
         task1.await.unwrap().unwrap();
 
         // Should only consider tasks complete once cannot register more Futures
-        let reclaimed = registry.reclaim();
+        let reclaimed: Vec<_> = registry.reclaim().collect();
         assert_eq!(reclaimed.len(), 0);
 
         let task2 = tokio::spawn(futures::future::ready(()).track(registration));
         task2.await.unwrap().unwrap();
 
-        let reclaimed = registry.reclaim();
+        let reclaimed: Vec<_> = registry.reclaim().collect();
         assert_eq!(reclaimed.len(), 1);
     }
 

@@ -75,6 +75,7 @@ use std::sync::{
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::TryStreamExt;
+use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
 use tracing::{error, info};
 
@@ -158,7 +159,7 @@ pub struct Server<M: ConnectionManager> {
     connection_manager: Arc<M>,
     pub store: Arc<ObjectStore>,
     executor: Arc<Executor>,
-    jobs: TrackerRegistry<Job>,
+    jobs: Mutex<TrackerRegistry<Job>>,
 }
 
 impl<M: ConnectionManager> Server<M> {
@@ -169,7 +170,7 @@ impl<M: ConnectionManager> Server<M> {
             store,
             connection_manager: Arc::new(connection_manager),
             executor: Arc::new(Executor::new()),
-            jobs: TrackerRegistry::new(),
+            jobs: Mutex::new(TrackerRegistry::new()),
         }
     }
 
@@ -350,7 +351,7 @@ impl<M: ConnectionManager> Server<M> {
                     let writer_id = self.require_id()?;
                     let store = Arc::clone(&self.store);
 
-                    let (_, tracker) = self.jobs.register(Job::PersistSegment {
+                    let (_, tracker) = self.jobs.lock().register(Job::PersistSegment {
                         writer_id,
                         segment_id: segment.id,
                     });
@@ -386,7 +387,7 @@ impl<M: ConnectionManager> Server<M> {
     }
 
     pub fn spawn_dummy_job(&self, nanos: Vec<u64>) -> Tracker<Job> {
-        let (tracker, registration) = self.jobs.register(Job::Dummy {
+        let (tracker, registration) = self.jobs.lock().register(Job::Dummy {
             nanos: nanos.clone(),
         });
 
@@ -402,12 +403,12 @@ impl<M: ConnectionManager> Server<M> {
 
     /// Returns a list of all jobs tracked by this server
     pub fn tracked_jobs(&self) -> Vec<Tracker<Job>> {
-        self.jobs.tracked()
+        self.jobs.lock().tracked()
     }
 
     /// Returns a specific job tracked by this server
     pub fn get_job(&self, id: TrackerId) -> Option<Tracker<Job>> {
-        self.jobs.get(id)
+        self.jobs.lock().get(id)
     }
 
     /// Background worker function
@@ -419,11 +420,14 @@ impl<M: ConnectionManager> Server<M> {
         loop {
             // TODO: Retain limited history of past jobs, e.g. enqueue returned data into a
             // Dequeue
-            let reclaimed = self.jobs.reclaim();
+            let mut jobs = self.jobs.lock();
 
-            for job in reclaimed {
+            for job in jobs.reclaim() {
                 info!(?job, "job finished");
             }
+
+            // Ensure mutex guard is not held across await point
+            std::mem::drop(jobs);
 
             interval.tick().await;
         }

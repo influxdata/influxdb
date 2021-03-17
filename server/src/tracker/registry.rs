@@ -1,8 +1,6 @@
 use super::{Tracker, TrackerRegistration};
 use hashbrown::HashMap;
-use parking_lot::Mutex;
 use std::str::FromStr;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use tracing::debug;
 
@@ -38,14 +36,14 @@ struct TrackerSlot<T> {
 /// Additionally can trigger graceful cancellation of registered futures
 #[derive(Debug)]
 pub struct TrackerRegistry<T> {
-    next_id: AtomicUsize,
-    trackers: Mutex<HashMap<TrackerId, TrackerSlot<T>>>,
+    next_id: usize,
+    trackers: HashMap<TrackerId, TrackerSlot<T>>,
 }
 
 impl<T> Default for TrackerRegistry<T> {
     fn default() -> Self {
         Self {
-            next_id: AtomicUsize::new(0),
+            next_id: 0,
             trackers: Default::default(),
         }
     }
@@ -57,8 +55,10 @@ impl<T> TrackerRegistry<T> {
     }
 
     /// Register a new tracker in the registry
-    pub fn register(&self, metadata: T) -> (Tracker<T>, TrackerRegistration) {
-        let id = TrackerId(self.next_id.fetch_add(1, Ordering::Relaxed));
+    pub fn register(&mut self, metadata: T) -> (Tracker<T>, TrackerRegistration) {
+        let id = TrackerId(self.next_id);
+        self.next_id += 1;
+
         let (sender, receiver) = tokio::sync::watch::channel(false);
         let registration = TrackerRegistration::new(receiver);
 
@@ -68,7 +68,7 @@ impl<T> TrackerRegistry<T> {
             state: Arc::clone(&registration.state),
         };
 
-        self.trackers.lock().insert(
+        self.trackers.insert(
             id,
             TrackerSlot {
                 tracker: tracker.clone(),
@@ -79,11 +79,10 @@ impl<T> TrackerRegistry<T> {
         (tracker, registration)
     }
 
-    /// Removes completed tasks from the registry and returns a list of those
-    /// removed
-    pub fn reclaim(&self) -> Vec<Tracker<T>> {
+    /// Removes completed tasks from the registry and returns an iterator of
+    /// those removed
+    pub fn reclaim(&mut self) -> impl Iterator<Item = Tracker<T>> + '_ {
         self.trackers
-            .lock()
             .drain_filter(|_, v| v.tracker.is_complete())
             .map(|(_, v)| {
                 if let Err(error) = v.watch.send(true) {
@@ -92,19 +91,17 @@ impl<T> TrackerRegistry<T> {
                 }
                 v.tracker
             })
-            .collect()
     }
 }
 
 impl<T: Clone> TrackerRegistry<T> {
     pub fn get(&self, id: TrackerId) -> Option<Tracker<T>> {
-        self.trackers.lock().get(&id).map(|x| x.tracker.clone())
+        self.trackers.get(&id).map(|x| x.tracker.clone())
     }
 
     /// Returns a list of trackers, including those that are no longer running
     pub fn tracked(&self) -> Vec<Tracker<T>> {
         self.trackers
-            .lock()
             .iter()
             .map(|(_, v)| v.tracker.clone())
             .collect()
@@ -113,7 +110,6 @@ impl<T: Clone> TrackerRegistry<T> {
     /// Returns a list of active trackers
     pub fn running(&self) -> Vec<Tracker<T>> {
         self.trackers
-            .lock()
             .iter()
             .filter_map(|(_, v)| {
                 if !v.tracker.is_complete() {
