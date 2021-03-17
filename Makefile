@@ -151,6 +151,9 @@ test-js: node_modules
 test-go:
 	$(GO_TEST) $(GO_TEST_PATHS)
 
+test-tls:
+	@./etc/test-tls.sh
+
 test-influxql-integration:
 	$(GO_TEST) -mod=readonly ./influxql/_v1tests
 
@@ -222,4 +225,4 @@ dshell: dshell-image
 	@docker container run --rm -p 8086:8086 -p 8080:8080 -u $(shell id -u) -it -v $(shell pwd):/code -w /code influxdb:dshell 
 
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e influxd libflux flags dshell dclean docker-image-flux docker-image-influx pkg-config
+.PHONY: all $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race test-tls bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e influxd libflux flags dshell dclean docker-image-flux docker-image-influx pkg-config
