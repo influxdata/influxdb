@@ -44,6 +44,8 @@ type Command struct {
 	walFiles map[string][]string
 }
 
+const stdoutMark = "-"
+
 // NewCommand returns a new instance of Command.
 func NewCommand() *Command {
 	return &Command{
@@ -54,6 +56,11 @@ func NewCommand() *Command {
 		tsmFiles: make(map[string][]string),
 		walFiles: make(map[string][]string),
 	}
+}
+
+// Are we writing to standard out?
+func (cmd *Command) usingStdOut() bool {
+	return cmd.out == stdoutMark
 }
 
 // Run executes the command.
@@ -206,7 +213,7 @@ func (cmd *Command) writeDDL(mw io.Writer, w io.Writer) error {
 func (cmd *Command) writeDML(mw io.Writer, w io.Writer) error {
 	fmt.Fprintln(mw, "# DML")
 	var msgOut io.Writer
-	if w == cmd.Stdout {
+	if cmd.usingStdOut() {
 		msgOut = cmd.Stderr
 	} else {
 		msgOut = cmd.Stdout
@@ -261,7 +268,7 @@ func (cmd *Command) writeFull(mw io.Writer, w io.Writer) error {
 
 func (cmd *Command) write() error {
 	var w io.Writer
-	if cmd.out == "-" {
+	if cmd.usingStdOut() {
 		w = cmd.Stdout
 	} else {
 		// open our output file and create an output buffer
@@ -270,13 +277,14 @@ func (cmd *Command) write() error {
 			return err
 		}
 		defer f.Close()
-		// Because calling (*os.File).Write is relatively expensive,
-		// and we don't *need* to sync to disk on every written line of export,
-		// use a sized buffered writer so that we only sync the file every megabyte.
-		bw := bufio.NewWriterSize(f, 1024*1024)
-		defer bw.Flush()
-		w = bw
+		w = f
 	}
+	// Because calling (*os.File).Write is relatively expensive,
+	// and we don't *need* to sync to disk on every written line of export,
+	// use a sized buffered writer so that we only sync the file every megabyte.
+	bw := bufio.NewWriterSize(w, 1024*1024)
+	defer bw.Flush()
+	w = bw
 
 	if cmd.compress {
 		gzw := gzip.NewWriter(w)
