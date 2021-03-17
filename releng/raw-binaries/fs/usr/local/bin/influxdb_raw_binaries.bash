@@ -84,3 +84,5 @@ TARBALL_NAME="influxdb_bin_${GOOS}_${GOARCH}${SUFFIX}-${SHA}.tar.gz"
 TARBALL_PATH="/out/${TARBALL_NAME}"
 echo tar -C ${OUTDIR} -cvzf ${TARBALL_PATH} .
 tar -C ${OUTDIR} -cvzf ${TARBALL_PATH} .
+(cd /out && md5sum "$TARBALL_NAME" > "$TARBALL_NAME.md5")
+(cd /out && sha256sum "$TARBALL_NAME" > "$TARBALL_NAME.sha256")
