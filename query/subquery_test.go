@@ -402,6 +402,9 @@ func (*openAuthorizer) AuthorizeSeriesRead(database string, measurement []byte, 
 func (*openAuthorizer) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
 	return true
 }
+func (*openAuthorizer) IsOpen() bool {
+	return true
+}
 
 // Ensure that the subquery gets passed the query authorizer.
 func TestSubquery_Authorizer(t *testing.T) {
