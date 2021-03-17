@@ -26,6 +26,7 @@ or `/query` HTTP endpoints.
 1. [20911](https://github.com/influxdata/influxdb/pull/20911): Add support for explicitly setting shard-group durations on buckets. Thanks @hinst!
 1. [20882](https://github.com/influxdata/influxdb/pull/20882): Rewrite regex conditions in InfluxQL subqueries for performance. Thanks @yujiahaol68!
 1. [20963](https://github.com/influxdata/influxdb/pull/20963): Add `--metrics-disabled` option to `influxd` to disable exposing Prometheus metrics over HTTP.
+1. [20985](https://github.com/influxdata/influxdb/pull/20985): Enable paging for GET /orgs API. Show all organizations in UI -> Organization Switcher.
 
 ### Bug Fixes
 
