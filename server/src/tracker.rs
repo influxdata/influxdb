@@ -19,8 +19,8 @@
 //!
 //! # Correctness
 //!
-//! The key correctness property of the Tracker system is Tracker::is_complete
-//! only returns true when all futures associated with the tracker have
+//! The key correctness property of the Tracker system is Tracker::get_status
+//! only returns Complete when all futures associated with the tracker have
 //! completed and no more can be spawned. Additionally at such a point
 //! all metrics - cpu_nanos, wall_nanos, created_futures should be visible
 //! to the calling thread
@@ -62,10 +62,10 @@
 //! 9. 6. + 8. -> A thread that observes a pending_registrations of 0 cannot
 //! subsequently observe pending_futures to increase
 //!
-//! 10. Tracker::is_complete returns if it observes pending_registrations to be
-//! 0 and then pending_futures to be 0
+//! 10. Tracker::get_status returns Complete if it observes
+//! pending_registrations to be 0 and then pending_futures to be 0
 //!
-//! 11. 9 + 10 -> A thread can only observe Tracker::is_complete() == true
+//! 11. 9 + 10 -> A thread can only observe a tracker to be complete
 //! after all futures have been dropped and no more can be created
 //!
 //! 12. pending_futures is decremented with Release semantics on
@@ -108,6 +108,41 @@ struct TrackerState {
     watch: tokio::sync::watch::Receiver<bool>,
 }
 
+/// The status of the tracker
+#[derive(Debug, Clone)]
+pub enum TrackerStatus {
+    /// More futures can be registered
+    Creating,
+
+    /// No more futures can be registered
+    ///
+    /// `pending_count` and `cpu_nanos` are best-effort -
+    /// they may not be the absolute latest values.
+    ///
+    /// `total_count` is guaranteed to be the final value
+    Running {
+        /// The number of created futures
+        total_count: usize,
+        /// The number of pending futures
+        pending_count: usize,
+        /// The total amount of CPU time spent executing the futures
+        cpu_nanos: usize,
+    },
+
+    /// All futures have been dropped and no more can be registered
+    ///
+    /// All values are guaranteed to be the final values
+    Complete {
+        /// The number of created futures
+        total_count: usize,
+        /// The total amount of CPU time spent executing the futures
+        cpu_nanos: usize,
+        /// The number of nanoseconds between tracker registration and
+        /// the last TrackedFuture being dropped
+        wall_nanos: usize,
+    },
+}
+
 /// A Tracker can be used to monitor/cancel/wait for a set of associated futures
 #[derive(Debug)]
 pub struct Tracker<T> {
@@ -147,36 +182,14 @@ impl<T> Tracker<T> {
         self.state.cancel_token.cancel();
     }
 
-    /// Returns the number of outstanding futures
-    pub fn pending_futures(&self) -> usize {
-        self.state.pending_futures.load(Ordering::Relaxed)
-    }
-
-    /// Returns the number of TrackedFutures created with this Tracker
-    pub fn created_futures(&self) -> usize {
-        self.state.created_futures.load(Ordering::Relaxed)
-    }
-
-    /// Returns the number of nanoseconds futures tracked by this
-    /// tracker have spent executing
-    pub fn cpu_nanos(&self) -> usize {
-        self.state.cpu_nanos.load(Ordering::Relaxed)
-    }
-
-    /// Returns the number of nanoseconds since the Tracker was registered
-    /// to the time the last TrackedFuture was dropped
-    ///
-    /// Returns 0 if there are still pending tasks
-    pub fn wall_nanos(&self) -> usize {
-        if !self.is_complete() {
-            return 0;
-        }
-        self.state.wall_nanos.load(Ordering::Relaxed)
-    }
-
     /// Returns true if all futures associated with this tracker have
     /// been dropped and no more can be created
     pub fn is_complete(&self) -> bool {
+        matches!(self.get_status(), TrackerStatus::Complete{..})
+    }
+
+    /// Gets the status of the tracker
+    pub fn get_status(&self) -> TrackerStatus {
         // The atomic decrement in TrackerRegistration::drop has release semantics
         // acquire here ensures that if a thread observes the tracker to have
         // no pending_registrations it cannot subsequently observe pending_futures
@@ -189,7 +202,19 @@ impl<T> Tracker<T> {
         // a TrackedFuture, it is guaranteed to see its updates (e.g. wall_nanos)
         let pending_futures = self.state.pending_futures.load(Ordering::Acquire);
 
-        pending_registrations == 0 && pending_futures == 0
+        match (pending_registrations == 0, pending_futures == 0) {
+            (false, _) => TrackerStatus::Creating,
+            (true, false) => TrackerStatus::Running {
+                total_count: self.state.created_futures.load(Ordering::Relaxed),
+                pending_count: self.state.pending_futures.load(Ordering::Relaxed),
+                cpu_nanos: self.state.cpu_nanos.load(Ordering::Relaxed),
+            },
+            (true, true) => TrackerStatus::Complete {
+                total_count: self.state.created_futures.load(Ordering::Relaxed),
+                cpu_nanos: self.state.cpu_nanos.load(Ordering::Relaxed),
+                wall_nanos: self.state.wall_nanos.load(Ordering::Relaxed),
+            },
+        }
     }
 
     /// Returns if this tracker has been cancelled
@@ -256,10 +281,14 @@ impl TrackerRegistration {
 
 impl Drop for TrackerRegistration {
     fn drop(&mut self) {
+        // This synchronizes with the Acquire load in Tracker::get_status
         let previous = self
             .state
             .pending_registrations
             .fetch_sub(1, Ordering::Release);
+
+        // This implies a TrackerRegistration has been cloned without it incrementing
+        // the pending_registration counter
         assert_ne!(previous, 0);
     }
 }
@@ -457,9 +486,9 @@ mod tests {
         let result3 = task3.await.unwrap();
         assert!(result3.is_ok());
 
-        assert_eq!(tracked[0].pending_futures(), 1);
-        assert_eq!(tracked[0].created_futures(), 2);
-        assert!(!tracked[0].is_complete());
+        assert!(
+            matches!(tracked[0].get_status(), TrackerStatus::Running { pending_count: 1, total_count: 2, ..})
+        );
 
         // Trigger termination of task5
         running[1].cancel();
@@ -480,10 +509,7 @@ mod tests {
 
         let result4 = task4.await.unwrap();
         assert!(result4.is_err());
-
-        assert_eq!(running[0].pending_futures(), 0);
-        assert_eq!(running[0].created_futures(), 2);
-        assert!(running[0].is_complete());
+        assert!(matches!(running[0].get_status(), TrackerStatus::Complete { total_count: 2, ..}));
 
         let reclaimed = sorted(registry.reclaim().collect());
 
@@ -521,18 +547,6 @@ mod tests {
         task3.await.unwrap().unwrap();
         task4.await.unwrap().unwrap();
 
-        assert_eq!(tracker1.pending_futures(), 0);
-        assert_eq!(tracker2.pending_futures(), 0);
-        assert_eq!(tracker3.pending_futures(), 0);
-
-        assert!(tracker1.is_complete());
-        assert!(tracker2.is_complete());
-        assert!(tracker3.is_complete());
-
-        assert_eq!(tracker2.created_futures(), 1);
-        assert_eq!(tracker2.created_futures(), 1);
-        assert_eq!(tracker3.created_futures(), 2);
-
         let assert_fuzzy = |actual: usize, expected: std::time::Duration| {
             // Number of milliseconds of toleration
             let epsilon = Duration::from_millis(10).as_nanos() as usize;
@@ -552,12 +566,37 @@ mod tests {
             );
         };
 
-        assert_fuzzy(tracker1.cpu_nanos(), Duration::from_millis(0));
-        assert_fuzzy(tracker1.wall_nanos(), Duration::from_millis(100));
-        assert_fuzzy(tracker2.cpu_nanos(), Duration::from_millis(100));
-        assert_fuzzy(tracker2.wall_nanos(), Duration::from_millis(100));
-        assert_fuzzy(tracker3.cpu_nanos(), Duration::from_millis(200));
-        assert_fuzzy(tracker3.wall_nanos(), Duration::from_millis(100));
+        let assert_complete = |status: TrackerStatus,
+                               expected_cpu: std::time::Duration,
+                               expected_wal: std::time::Duration| {
+            match status {
+                TrackerStatus::Complete {
+                    cpu_nanos,
+                    wall_nanos,
+                    ..
+                } => {
+                    assert_fuzzy(cpu_nanos, expected_cpu);
+                    assert_fuzzy(wall_nanos, expected_wal);
+                }
+                _ => panic!("expected complete got {:?}", status),
+            }
+        };
+
+        assert_complete(
+            tracker1.get_status(),
+            Duration::from_millis(0),
+            Duration::from_millis(100),
+        );
+        assert_complete(
+            tracker2.get_status(),
+            Duration::from_millis(100),
+            Duration::from_millis(100),
+        );
+        assert_complete(
+            tracker3.get_status(),
+            Duration::from_millis(200),
+            Duration::from_millis(100),
+        );
     }
 
     #[tokio::test]
@@ -567,6 +606,10 @@ mod tests {
 
         let task1 = tokio::spawn(futures::future::ready(()).track(registration.clone()));
         task1.await.unwrap().unwrap();
+
+        let tracked = registry.tracked();
+        assert_eq!(tracked.len(), 1);
+        assert!(matches!(&tracked[0].get_status(), TrackerStatus::Creating));
 
         // Should only consider tasks complete once cannot register more Futures
         let reclaimed: Vec<_> = registry.reclaim().collect();

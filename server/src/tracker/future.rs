@@ -81,7 +81,11 @@ impl<F: Future> PinnedDrop for TrackedFuture<F> {
 
         state.wall_nanos.fetch_max(wall_nanos, Ordering::Relaxed);
 
+        // This synchronizes with the Acquire load in Tracker::get_status
         let previous = state.pending_futures.fetch_sub(1, Ordering::Release);
+
+        // Failure implies a TrackedFuture has somehow been created
+        // without it incrementing the pending_futures counter
         assert_ne!(previous, 0);
     }
 }

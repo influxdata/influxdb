@@ -19,7 +19,7 @@ use generated_types::{
     protobuf_type_url,
 };
 use server::{
-    tracker::{Tracker, TrackerId},
+    tracker::{Tracker, TrackerId, TrackerStatus},
     ConnectionManager, Server,
 };
 use std::convert::TryInto;
@@ -31,19 +31,52 @@ struct OperationsService<M: ConnectionManager> {
 
 pub fn encode_tracker(tracker: Tracker<Job>) -> Result<Operation, tonic::Status> {
     let id = tracker.id();
-    let is_complete = tracker.is_complete();
     let is_cancelled = tracker.is_cancelled();
+    let status = tracker.get_status();
+
+    let (operation_metadata, is_complete) = match status {
+        TrackerStatus::Creating => {
+            let metadata = management::OperationMetadata {
+                job: Some(tracker.metadata().clone().into()),
+                ..Default::default()
+            };
+
+            (metadata, false)
+        }
+        TrackerStatus::Running {
+            total_count,
+            pending_count,
+            cpu_nanos,
+        } => {
+            let metadata = management::OperationMetadata {
+                cpu_nanos: cpu_nanos as _,
+                task_count: total_count as _,
+                pending_count: pending_count as _,
+                job: Some(tracker.metadata().clone().into()),
+                ..Default::default()
+            };
+
+            (metadata, false)
+        }
+        TrackerStatus::Complete {
+            total_count,
+            cpu_nanos,
+            wall_nanos,
+        } => {
+            let metadata = management::OperationMetadata {
+                cpu_nanos: cpu_nanos as _,
+                task_count: total_count as _,
+                wall_nanos: wall_nanos as _,
+                job: Some(tracker.metadata().clone().into()),
+                ..Default::default()
+            };
+
+            (metadata, true)
+        }
+    };
 
     let mut buffer = BytesMut::new();
-    management::OperationMetadata {
-        cpu_nanos: tracker.cpu_nanos() as _,
-        wall_nanos: tracker.wall_nanos() as _,
-        task_count: tracker.created_futures() as _,
-        pending_count: tracker.pending_futures() as _,
-        job: Some(tracker.metadata().clone().into()),
-    }
-    .encode(&mut buffer)
-    .map_err(|error| {
+    operation_metadata.encode(&mut buffer).map_err(|error| {
         debug!(?error, "Unexpected error");
         InternalError {}
     })?;
