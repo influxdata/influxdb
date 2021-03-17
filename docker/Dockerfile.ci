@@ -10,15 +10,16 @@
 ##
 
 # Build any binaries that can be copied into the CI image
-# Note we build flatbuffers from source (pinned to a particualar version)
+# Note we build flatbuffers from source (pinned to a particualar SHA)
 FROM rust:slim-buster AS flatc
-ARG flatbuffers_version="v1.12.0"
+ARG flatbuffers_version="86401e00"
 RUN apt-get update \
   && mkdir -p /usr/share/man/man1 \
   && apt-get install -y \
     git make clang cmake llvm \
     --no-install-recommends \
-  && git clone -b ${flatbuffers_version} -- https://github.com/google/flatbuffers.git /usr/local/src/flatbuffers \
+  && git clone -b master -- https://github.com/google/flatbuffers.git /usr/local/src/flatbuffers \
+	&& git -C /usr/local/src/flatbuffers reset --hard ${flatbuffers_version} \
   && cmake -S /usr/local/src/flatbuffers -B /usr/local/src/flatbuffers \
     -G "Unix Makefiles" \
     -DCMAKE_BUILD_TYPE=Release \
