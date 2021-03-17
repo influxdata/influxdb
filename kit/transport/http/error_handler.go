@@ -27,18 +27,26 @@ func (h ErrorHandler) HandleHTTPError(ctx context.Context, err error, w http.Res
 	}
 
 	code := influxdb.ErrorCode(err)
+	var msg string
+	if err, ok := err.(*influxdb.Error); ok {
+		msg = err.Error()
+	} else {
+		msg = "An internal error has occurred"
+	}
+
+	WriteErrorResponse(ctx, w, code, msg)
+}
+
+func WriteErrorResponse(ctx context.Context, w http.ResponseWriter, code string, msg string) {
 	w.Header().Set(PlatformErrorCodeHeader, code)
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(ErrorCodeToStatusCode(ctx, code))
-	var e struct {
+	e := struct {
 		Code    string `json:"code"`
 		Message string `json:"message"`
-	}
-	e.Code = influxdb.ErrorCode(err)
-	if err, ok := err.(*influxdb.Error); ok {
-		e.Message = err.Error()
-	} else {
-		e.Message = "An internal error has occurred"
+	}{
+		Code:    code,
+		Message: msg,
 	}
 	b, _ := json.Marshal(e)
 	_, _ = w.Write(b)
