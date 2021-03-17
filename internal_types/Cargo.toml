@@ -16,6 +16,7 @@ data_types = { path = "../data_types" }
 flatbuffers = "0.8"
 generated_types = { path = "../generated_types" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
+ouroboros = "0.8.3"
 snafu = "0.6"
 tracing = "0.1"
 

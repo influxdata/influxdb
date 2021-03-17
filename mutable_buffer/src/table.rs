@@ -808,7 +808,7 @@ mod tests {
 
         let data = split_lines_into_write_entry_partitions(chunk_key_func, &lines);
 
-        let batch = flatbuffers::get_root::<wb::WriteBufferBatch<'_>>(&data);
+        let batch = flatbuffers::root::<wb::WriteBufferBatch<'_>>(&data).unwrap();
         let entries = batch.entries().expect("at least one entry");
 
         for entry in entries {
