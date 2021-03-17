@@ -106,7 +106,7 @@ dependencies = [
  "cfg_aliases",
  "chrono",
  "csv",
- "flatbuffers 0.8.3",
+ "flatbuffers",
  "hex",
  "indexmap",
  "lazy_static",
@@ -951,15 +951,6 @@ checksum = "37ab347416e802de484e4d03c7316c48f1ecb56574dfd4a46a80f173ce1de04d"
 
 [[package]]
 name = "flatbuffers"
-version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a788f068dd10687940565bf4b5480ee943176cbd114b12e811074bcf7c04e4b9"
-dependencies = [
- "smallvec",
-]
-
-[[package]]
-name = "flatbuffers"
 version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "63b5b0f949bdb25c077c83184ac689ae38ae392683d4c71e98be9736db66e94c"
@@ -1133,7 +1124,7 @@ dependencies = [
 name = "generated_types"
 version = "0.1.0"
 dependencies = [
- "flatbuffers 0.6.1",
+ "flatbuffers",
  "futures",
  "google_types",
  "prost",
@@ -1548,7 +1539,7 @@ dependencies = [
  "crc32fast",
  "criterion",
  "data_types",
- "flatbuffers 0.6.1",
+ "flatbuffers",
  "generated_types",
  "influxdb_line_protocol",
  "snafu",
@@ -1843,7 +1834,7 @@ dependencies = [
  "chrono",
  "criterion",
  "data_types",
- "flatbuffers 0.6.1",
+ "flatbuffers",
  "generated_types",
  "influxdb_line_protocol",
  "internal_types",
@@ -3135,7 +3126,7 @@ dependencies = [
  "chrono",
  "crc32fast",
  "data_types",
- "flatbuffers 0.6.1",
+ "flatbuffers",
  "futures",
  "generated_types",
  "hashbrown",
