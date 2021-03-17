@@ -44,6 +44,8 @@ type Command struct {
 	walFiles map[string][]string
 }
 
+const stdoutMark = "-"
+
 // NewCommand returns a new instance of Command.
 func NewCommand() *Command {
 	return &Command{
@@ -56,13 +58,18 @@ func NewCommand() *Command {
 	}
 }
 
+// Are we writing to standard out?
+func (cmd *Command) usingStdOut() bool {
+	return cmd.out == stdoutMark
+}
+
 // Run executes the command.
 func (cmd *Command) Run(args ...string) error {
 	var start, end string
 	fs := flag.NewFlagSet("export", flag.ExitOnError)
 	fs.StringVar(&cmd.dataDir, "datadir", os.Getenv("HOME")+"/.influxdb/data", "Data storage path")
 	fs.StringVar(&cmd.walDir, "waldir", os.Getenv("HOME")+"/.influxdb/wal", "WAL storage path")
-	fs.StringVar(&cmd.out, "out", os.Getenv("HOME")+"/.influxdb/export", "Destination file to export to")
+	fs.StringVar(&cmd.out, "out", os.Getenv("HOME")+"/.influxdb/export", "'-' for standard out or the destination file to export to")
 	fs.StringVar(&cmd.database, "database", "", "Optional: the database to export")
 	fs.StringVar(&cmd.retentionPolicy, "retention", "", "Optional: the retention policy to export (requires -database)")
 	fs.StringVar(&start, "start", "", "Optional: the start time to export (RFC3339 format)")
@@ -205,23 +212,29 @@ func (cmd *Command) writeDDL(mw io.Writer, w io.Writer) error {
 
 func (cmd *Command) writeDML(mw io.Writer, w io.Writer) error {
 	fmt.Fprintln(mw, "# DML")
+	var msgOut io.Writer
+	if cmd.usingStdOut() {
+		msgOut = cmd.Stderr
+	} else {
+		msgOut = cmd.Stdout
+	}
 	for key := range cmd.manifest {
 		keys := strings.Split(key, string(os.PathSeparator))
 		fmt.Fprintf(mw, "# CONTEXT-DATABASE:%s\n", keys[0])
 		fmt.Fprintf(mw, "# CONTEXT-RETENTION-POLICY:%s\n", keys[1])
 		if files, ok := cmd.tsmFiles[key]; ok {
-			fmt.Fprintf(cmd.Stdout, "writing out tsm file data for %s...", key)
+			fmt.Fprintf(msgOut, "writing out tsm file data for %s...", key)
 			if err := cmd.writeTsmFiles(mw, w, files); err != nil {
 				return err
 			}
-			fmt.Fprintln(cmd.Stdout, "complete.")
+			fmt.Fprintln(msgOut, "complete.")
 		}
 		if _, ok := cmd.walFiles[key]; ok {
-			fmt.Fprintf(cmd.Stdout, "writing out wal file data for %s...", key)
+			fmt.Fprintf(msgOut, "writing out wal file data for %s...", key)
 			if err := cmd.writeWALFiles(mw, w, cmd.walFiles[key], key); err != nil {
 				return err
 			}
-			fmt.Fprintln(cmd.Stdout, "complete.")
+			fmt.Fprintln(msgOut, "complete.")
 		}
 	}
 
@@ -254,20 +267,24 @@ func (cmd *Command) writeFull(mw io.Writer, w io.Writer) error {
 }
 
 func (cmd *Command) write() error {
-	// open our output file and create an output buffer
-	f, err := os.Create(cmd.out)
-	if err != nil {
-		return err
+	var w io.Writer
+	if cmd.usingStdOut() {
+		w = cmd.Stdout
+	} else {
+		// open our output file and create an output buffer
+		f, err := os.Create(cmd.out)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		w = f
 	}
-	defer f.Close()
-
 	// Because calling (*os.File).Write is relatively expensive,
 	// and we don't *need* to sync to disk on every written line of export,
 	// use a sized buffered writer so that we only sync the file every megabyte.
-	bw := bufio.NewWriterSize(f, 1024*1024)
+	bw := bufio.NewWriterSize(w, 1024*1024)
 	defer bw.Flush()
-
-	var w io.Writer = bw
+	w = bw
 
 	if cmd.compress {
 		gzw := gzip.NewWriter(w)
