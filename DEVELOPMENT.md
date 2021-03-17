@@ -24,7 +24,7 @@ Other container runtimes should work, but we've only tested with Docker and Podm
 
 ## Local
 
-Assuming you have Go 1.13, Node LTS, and yarn installed, and some means of ingesting data locally (e.g. telegraf):
+Assuming you have Go 1.15, Node LTS, and yarn installed, and some means of ingesting data locally (e.g. telegraf):
 
 You'll need two terminal tabs to run influxdb from source: one to run the go application server, the other to run the development server that will listen for front-end changes, rebuild the bundle, serve the new bundle, then reload your webpage for you.
 

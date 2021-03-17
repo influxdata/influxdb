@@ -59,7 +59,7 @@ Please be clear about your requirements and goals, help us to understand what yo
 If you find your feature request already exists as a Github issue please indicate your support for that feature by using the "thumbs up" reaction.
 
 ## Contributing to the source code
-InfluxDB requires Go 1.13 and uses Go modules.
+InfluxDB requires Go 1.15 and uses Go modules.
 
 You should read our [coding guide](https://github.com/influxdata/influxdb/blob/master/DEVELOPMENT.md), to understand better how to write code for InfluxDB.
 
@@ -92,15 +92,15 @@ More details about security vulnerability reporting, including our GPG key, [can
 If you are going to be contributing back to InfluxDB please take a second to sign our CLA, which can be found [on our website](https://influxdata.com/community/cla/).
 
 ## Installing Go
-InfluxDB requires Go 1.13.
+InfluxDB requires Go 1.15.
 
 At InfluxData we find `gvm`, a Go version manager, useful for installing Go.
 For instructions on how to install it see [the gvm page on github](https://github.com/moovweb/gvm).
 
 After installing gvm you can install and set the default go version by running the following:
 ```bash
-$ gvm install go1.13
-$ gvm use go1.13 --default
+$ gvm install go1.15
+$ gvm use go1.15 --default
 ```
 
 ## Revision Control Systems
