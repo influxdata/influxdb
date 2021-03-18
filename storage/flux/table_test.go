@@ -2887,7 +2887,6 @@ func TestStorageReader_ReadGroup(t *testing.T) {
 // values vary among the candidate items for select and the read-group
 // operation must track and return the correct set of tags.
 func TestStorageReader_ReadGroupSelectTags(t *testing.T) {
-	t.Skip("fixme")
 	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		spec := Spec(org, bucket,
 			MeasurementSpec("m0",
@@ -2951,24 +2950,26 @@ func TestStorageReader_ReadGroupSelectTags(t *testing.T) {
 	}
 
 	for _, tt := range cases {
-		mem := &memory.Allocator{}
-		got, err := reader.ReadGroup(context.Background(), query.ReadGroupSpec{
-			ReadFilterSpec: query.ReadFilterSpec{
-				OrganizationID: reader.Org,
-				BucketID:       reader.Bucket,
-				Bounds:         reader.Bounds,
-			},
-			GroupMode:       query.GroupModeBy,
-			GroupKeys:       []string{"t0"},
-			AggregateMethod: tt.aggregate,
-		}, mem)
-		if err != nil {
-			t.Fatal(err)
-		}
+		t.Run("", func(t *testing.T) {
+			mem := &memory.Allocator{}
+			got, err := reader.ReadGroup(context.Background(), query.ReadGroupSpec{
+				ReadFilterSpec: query.ReadFilterSpec{
+					OrganizationID: reader.Org,
+					BucketID:       reader.Bucket,
+					Bounds:         reader.Bounds,
+				},
+				GroupMode:       query.GroupModeBy,
+				GroupKeys:       []string{"t0"},
+				AggregateMethod: tt.aggregate,
+			}, mem)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		if diff := table.Diff(tt.want, got); diff != "" {
-			t.Errorf("unexpected results -want/+got:\n%s", diff)
-		}
+			if diff := table.Diff(tt.want, got); diff != "" {
+				t.Errorf("unexpected results -want/+got:\n%s", diff)
+			}
+		})
 	}
 }
 
