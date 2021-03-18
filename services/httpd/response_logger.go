@@ -101,21 +101,46 @@ func buildLogLine(l *responseLogger, r *http.Request, start time.Time) string {
 
 	userAgent := r.UserAgent()
 
-	return fmt.Sprintf(`%s - %s [%s] "%s %s %s" %s %s "%s" "%s" %s %d`,
-		host,
-		detect(username, "-"),
-		start.Format("02/Jan/2006:15:04:05 -0700"),
-		r.Method,
-		uri,
-		r.Proto,
-		detect(strconv.Itoa(l.Status()), "-"),
-		strconv.Itoa(l.Size()),
-		detect(referer, "-"),
-		detect(userAgent, "-"),
-		r.Header.Get("Request-Id"),
-		// response time, report in microseconds because this is consistent
-		// with apache's %D parameter in mod_log_config
-		int64(time.Since(start)/time.Microsecond))
+	if r.Method == "POST" {
+		vk := make([]string, 0, len(r.PostForm))
+		for k, v := range r.PostForm {
+			vk = append(vk, fmt.Sprintf("\"%s\": \"%s\"", k, v))
+		}
+		pv := strings.Join(vk, ", ")
+		return fmt.Sprintf(`%s - %s [%s] "%s %s %s" {%s} %s %s "%s" "%s" %s %d`,
+			host,
+			detect(username, "-"),
+			start.Format("02/Jan/2006:15:04:05 -0700"),
+			r.Method,
+			uri,
+			r.Proto,
+			pv,
+			detect(strconv.Itoa(l.Status()), "-"),
+			strconv.Itoa(l.Size()),
+			detect(referer, "-"),
+			detect(userAgent, "-"),
+			r.Header.Get("Request-Id"),
+			// response time, report in microseconds because this is consistent
+			// with apache's %D parameter in mod_log_config
+			int64(time.Since(start)/time.Microsecond))
+
+	} else {
+		return fmt.Sprintf(`%s - %s [%s] "%s %s %s" %s %s "%s" "%s" %s %d`,
+			host,
+			detect(username, "-"),
+			start.Format("02/Jan/2006:15:04:05 -0700"),
+			r.Method,
+			uri,
+			r.Proto,
+			detect(strconv.Itoa(l.Status()), "-"),
+			strconv.Itoa(l.Size()),
+			detect(referer, "-"),
+			detect(userAgent, "-"),
+			r.Header.Get("Request-Id"),
+			// response time, report in microseconds because this is consistent
+			// with apache's %D parameter in mod_log_config
+			int64(time.Since(start)/time.Microsecond))
+	}
 }
 
 // detect detects the first presence of a non blank string and returns it
