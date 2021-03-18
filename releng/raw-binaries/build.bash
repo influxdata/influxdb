@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -e
 
 function printHelp() {
   >&2 echo "USAGE: $0 -i PATH_TO_SOURCE_TARBALL -o OUTDIR

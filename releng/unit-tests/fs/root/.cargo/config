@@ -4,3 +4,7 @@
 [target.x86_64-apple-darwin]
 linker = "x86_64-apple-darwin15-clang"
 ar = "x86_64-apple-darwin15-ar"
+[target.x86_64-pc-windows-gnu]
+linker = "x86_64-w64-mingw32-gcc"
+[target.aarch64-unknown-linux-musl]
+linker = "aarch64-unknown-linux-musl-gcc"
