@@ -80,36 +80,6 @@ rustc --version
 
 and you should see a nightly version of Rust!
 
-### Installing `flatc`
-
-InfluxDB IOx uses the [FlatBuffer] serialization format for its write-ahead log. The [`flatc`
-compiler] reads the schema in `generated_types/wal.fbs` and generates the corresponding Rust code.
-
-As of this writing (2020-03-15), we are using the `flatbuffers` crate at version 0.8.3 to match
-Arrow and reduce our build times. This crate requires `flatc` to be built from source from at least
-[86401e0], the same commit that changed the crate verison to 0.8.3.
-
-You can build `flatc` [using `cmake` as recommended in the building guide][flatc-cmake] or [using
-`bazel` as Arrow does][flatc-bazel]. Make sure the resulting executable is in your `PATH`.
-
-You should be able to run:
-
-```shell
-flatc --version
-```
-
-and see version 1.12.0 displayed (even though we've built from source at a commit newer than that
-released version).
-
-You won't have to run `flatc` directly; once it's available, Rust's Cargo build tool manages the
-compilation process by calling `flatc` for you.
-
-[FlatBuffer]: https://google.github.io/flatbuffers/
-[`flatc` compiler]: https://google.github.io/flatbuffers/flatbuffers_guide_using_schema_compiler.html
-[86401e0]: https://github.com/google/flatbuffers/commit/86401e078d0746d2381735415f8c2dfe849f3f52#diff-c25804a2cc9060430107b2e04f4ec904ed08b798b1bb3f8db963724f91cea522R3
-[flatc-cmake]: https://google.github.io/flatbuffers/flatbuffers_guide_building.html
-[flatc-bazel]: https://github.com/apache/arrow/blob/9a80565dbb8d8abe46c1477d684eabb9ce1bb0ff/rust/arrow/regen.sh#L24-L53
-
 ### Installing `clang`
 
 An installation of `clang` is required to build the [`croaring`] dependency - if

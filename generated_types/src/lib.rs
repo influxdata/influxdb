@@ -74,7 +74,9 @@ pub mod grpc {
     }
 }
 
-include!(concat!(env!("OUT_DIR"), "/wal_generated.rs"));
+/// Generated Flatbuffers code for working with the write-ahead log
+pub mod wal_generated;
+pub use wal_generated::wal;
 
 /// gRPC Storage Service
 pub const STORAGE_SERVICE: &str = "influxdata.platform.storage.Storage";

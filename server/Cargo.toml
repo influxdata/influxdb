@@ -11,6 +11,8 @@ bytes = "1.0"
 chrono = "0.4"
 crc32fast = "1.2.0"
 data_types = { path = "../data_types" }
+# See docs/regenerating_flatbuffers.md about updating generated code when updating the
+# version of the flatbuffers crate
 flatbuffers = "0.8"
 futures = "0.3.7"
 generated_types = { path = "../generated_types" }

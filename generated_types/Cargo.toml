@@ -5,6 +5,8 @@ authors = ["Paul Dix <paul@pauldix.net>"]
 edition = "2018"
 
 [dependencies] # In alphabetical order
+# See docs/regenerating_flatbuffers.md about updating generated code when updating the
+# version of the flatbuffers crate
 flatbuffers = "0.8"
 futures = "0.3.1"
 prost = "0.7"
