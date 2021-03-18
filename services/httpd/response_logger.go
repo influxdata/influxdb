@@ -101,20 +101,30 @@ func buildLogLine(l *responseLogger, r *http.Request, start time.Time) string {
 
 	userAgent := r.UserAgent()
 
+	allKeyValues := make([]string, 0, len(r.PostForm))
 	if r.Method == "POST" {
-		vk := make([]string, 0, len(r.PostForm))
-		for k, v := range r.PostForm {
-			vk = append(vk, fmt.Sprintf("\"%s\": \"%s\"", k, v))
+		for k, values := range r.PostForm {
+			if k == "p" || k == "P" {
+				// Note: if there are multiple "p" values, they are all replaced by a single "[REDACTED]".
+				r.PostForm.Set(k, "[REDACTED]")
+				values = r.PostForm[k]
+			}
+			valuesSlice := make([]string, 0, len(values))
+			for _, v := range values {
+				valuesSlice = append(valuesSlice, fmt.Sprintf("\"%s\"", v))
+			}
+			joined := strings.Join(valuesSlice, ", ")
+			allKeyValues = append(allKeyValues, fmt.Sprintf("{\"%s\": %s}", k, joined))
 		}
-		pv := strings.Join(vk, ", ")
-		return fmt.Sprintf(`%s - %s [%s] "%s %s %s" {%s} %s %s "%s" "%s" %s %d`,
+
+		return fmt.Sprintf(`%s - %s %s "%s %s %s" %s %s %s "%s" "%s" %s %d`,
 			host,
 			detect(username, "-"),
 			start.Format("02/Jan/2006:15:04:05 -0700"),
 			r.Method,
 			uri,
 			r.Proto,
-			pv,
+			strings.Join(allKeyValues, ", "),
 			detect(strconv.Itoa(l.Status()), "-"),
 			strconv.Itoa(l.Size()),
 			detect(referer, "-"),
