@@ -50,6 +50,7 @@ impl ResultSchema {
         self.len() == 0
     }
 
+    /// The total number of columns the schema represents.
     pub fn len(&self) -> usize {
         self.select_columns.len() + self.group_columns.len() + self.aggregate_columns.len()
     }
