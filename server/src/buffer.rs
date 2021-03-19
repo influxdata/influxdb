@@ -1,11 +1,11 @@
 //! This module contains code for managing the WAL buffer
 
 use data_types::{
-    data::ReplicatedWrite,
     database_rules::{WalBufferRollover, WriterId},
     DatabaseName,
 };
 use generated_types::wal;
+use internal_types::data::ReplicatedWrite;
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 
 use std::{
@@ -567,8 +567,9 @@ fn database_object_store_path(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types::{data::lines_to_replicated_write, database_rules::DatabaseRules};
+    use data_types::database_rules::DatabaseRules;
     use influxdb_line_protocol::parse_lines;
+    use internal_types::data::lines_to_replicated_write;
     use object_store::memory::InMemory;
 
     #[test]

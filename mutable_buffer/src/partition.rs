@@ -302,10 +302,8 @@ impl<'a> Iterator for ChunkIter<'a> {
 mod tests {
     use super::*;
     use chrono::Utc;
-    use data_types::{
-        data::split_lines_into_write_entry_partitions, partition_metadata::PartitionSummary,
-        selection::Selection,
-    };
+    use data_types::partition_metadata::PartitionSummary;
+    use internal_types::{data::split_lines_into_write_entry_partitions, selection::Selection};
 
     use arrow_deps::{
         arrow::record_batch::RecordBatch, assert_table_eq, test_util::sort_record_batch,

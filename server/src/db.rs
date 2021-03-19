@@ -10,9 +10,8 @@ use std::{
 };
 
 use async_trait::async_trait;
-use data_types::{
-    chunk::ChunkSummary, data::ReplicatedWrite, database_rules::DatabaseRules, selection::Selection,
-};
+use data_types::{chunk::ChunkSummary, database_rules::DatabaseRules};
+use internal_types::{data::ReplicatedWrite, selection::Selection};
 use mutable_buffer::MutableBufferDb;
 use parking_lot::Mutex;
 use query::{Database, PartitionChunk};

@@ -1,8 +1,6 @@
-use data_types::{
-    data::ReplicatedWrite,
-    database_rules::{PartitionSort, PartitionSortRules},
-};
+use data_types::database_rules::{PartitionSort, PartitionSortRules};
 use generated_types::wal;
+use internal_types::data::ReplicatedWrite;
 
 use crate::{chunk::Chunk, partition::Partition};
 
@@ -249,12 +247,10 @@ impl MutableBufferDb {
 mod tests {
     use super::*;
     use chrono::{DateTime, Utc};
-    use data_types::{
-        data::lines_to_replicated_write, database_rules::Partitioner, selection::Selection,
-    };
+    use data_types::database_rules::{Order, Partitioner};
+    use internal_types::{data::lines_to_replicated_write, selection::Selection};
 
     use arrow_deps::arrow::array::{Array, StringArray};
-    use data_types::database_rules::Order;
     use influxdb_line_protocol::{parse_lines, ParsedLine};
 
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;

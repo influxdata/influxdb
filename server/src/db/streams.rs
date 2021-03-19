@@ -8,7 +8,7 @@ use arrow_deps::{
     },
     datafusion::physical_plan::RecordBatchStream,
 };
-use data_types::selection::Selection;
+use internal_types::selection::Selection;
 use mutable_buffer::chunk::Chunk as MBChunk;
 use read_buffer::ReadFilterResults;
 

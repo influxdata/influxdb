@@ -9,7 +9,7 @@ use arrow_deps::{
         physical_plan::{ExecutionPlan, Partitioning, SendableRecordBatchStream},
     },
 };
-use data_types::{schema::Schema, selection::Selection};
+use internal_types::{schema::Schema, selection::Selection};
 
 use crate::{predicate::Predicate, PartitionChunk};
 

@@ -1,8 +1,8 @@
 //! This module contains helper methods for constructing replicated writes
 //! based on `DatabaseRules`.
 
-use crate::database_rules::Partitioner;
-use crate::TIME_COLUMN_NAME;
+use crate::schema::TIME_COLUMN_NAME;
+use data_types::database_rules::Partitioner;
 use generated_types::wal as wb;
 use influxdb_line_protocol::{FieldValue, ParsedLine};
 

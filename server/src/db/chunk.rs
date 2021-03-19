@@ -1,9 +1,6 @@
 use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
-use data_types::{
-    chunk::{ChunkStorage, ChunkSummary},
-    schema::Schema,
-    selection::Selection,
-};
+use data_types::chunk::{ChunkStorage, ChunkSummary};
+use internal_types::{schema::Schema, selection::Selection};
 use mutable_buffer::chunk::Chunk as MBChunk;
 use query::{exec::stringset::StringSet, predicate::Predicate, PartitionChunk};
 use read_buffer::Database as ReadBufferDb;
@@ -33,7 +30,9 @@ pub enum Error {
     },
 
     #[snafu(display("Internal error restricting schema: {}", source))]
-    InternalSelectingSchema { source: data_types::schema::Error },
+    InternalSelectingSchema {
+        source: internal_types::schema::Error,
+    },
 
     #[snafu(display("Predicate conversion error: {}", source))]
     PredicateConversion { source: super::pred::Error },

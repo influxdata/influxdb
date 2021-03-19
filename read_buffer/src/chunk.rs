@@ -3,7 +3,7 @@ use std::{
     sync::RwLock,
 };
 
-use data_types::selection::Selection;
+use internal_types::selection::Selection;
 use snafu::{ResultExt, Snafu};
 
 use crate::row_group::RowGroup;

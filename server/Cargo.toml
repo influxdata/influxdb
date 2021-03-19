@@ -16,6 +16,7 @@ futures = "0.3.7"
 generated_types = { path = "../generated_types" }
 hashbrown = "0.9.1"
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
+internal_types = { path = "../internal_types" }
 mutable_buffer = { path = "../mutable_buffer" }
 object_store = { path = "../object_store" }
 parking_lot = "0.11.1"

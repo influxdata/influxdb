@@ -16,7 +16,7 @@ use std::{
 };
 
 use arrow_deps::arrow::record_batch::RecordBatch;
-use data_types::{
+use internal_types::{
     schema::{builder::SchemaMerger, Schema},
     selection::Selection,
 };
@@ -40,7 +40,7 @@ pub enum Error {
     // TODO add more context / helpful error here
     #[snafu(display("Error building unioned read buffer schema for chunks: {}", source))]
     BuildingSchema {
-        source: data_types::schema::builder::Error,
+        source: internal_types::schema::builder::Error,
     },
 
     #[snafu(display("partition key does not exist: {}", key))]
@@ -842,7 +842,7 @@ mod test {
         },
         datatypes::DataType::{Boolean, Float64, Int64, UInt64, Utf8},
     };
-    use data_types::schema::builder::SchemaBuilder;
+    use internal_types::schema::builder::SchemaBuilder;
 
     use crate::value::Values;
 

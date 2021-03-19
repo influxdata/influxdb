@@ -2,13 +2,12 @@
 name = "data_types"
 version = "0.1.0"
 authors = ["pauldix <paul@pauldix.net>"]
+description = "InfluxDB IOx data_types, shared between IOx instances and IOx clients"
 edition = "2018"
+readme = "README.md"
 
 [dependencies] # In alphabetical order
-arrow_deps = { path = "../arrow_deps" }
 chrono = { version = "0.4", features = ["serde"] }
-crc32fast = "1.2.0"
-flatbuffers = "0.6" # TODO: Update to 0.8
 generated_types = { path = "../generated_types" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 percent-encoding = "2.1.0"
@@ -21,9 +20,4 @@ tonic = { version = "0.4.0" }
 tracing = "0.1"
 
 [dev-dependencies] # In alphabetical order
-criterion = "0.3"
 test_helpers = { path = "../test_helpers" }
-
-[[bench]]
-name = "benchmark"
-harness = false

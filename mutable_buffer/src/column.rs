@@ -2,9 +2,9 @@ use generated_types::wal as wb;
 use snafu::Snafu;
 
 use crate::dictionary::Dictionary;
-use data_types::{data::type_description, partition_metadata::StatValues};
-
 use arrow_deps::arrow::datatypes::DataType as ArrowDataType;
+use data_types::partition_metadata::StatValues;
+use internal_types::data::type_description;
 
 use std::mem;
 

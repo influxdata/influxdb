@@ -1,9 +1,9 @@
 use criterion::measurement::WallTime;
 use criterion::{criterion_group, criterion_main, Bencher, BenchmarkId, Criterion, Throughput};
-use data_types::data::{lines_to_replicated_write as lines_to_rw, ReplicatedWrite};
 use data_types::database_rules::{DatabaseRules, PartitionTemplate, TemplatePart};
 use generated_types::wal as wb;
 use influxdb_line_protocol::{parse_lines, ParsedLine};
+use internal_types::data::{lines_to_replicated_write as lines_to_rw, ReplicatedWrite};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::time::Duration;

@@ -7,7 +7,7 @@ use std::{
 };
 
 use arrow_deps::arrow::record_batch::RecordBatch;
-use data_types::selection::Selection;
+use internal_types::selection::Selection;
 use snafu::{ensure, Snafu};
 
 use crate::row_group::{self, ColumnName, GroupKey, Predicate, RowGroup};

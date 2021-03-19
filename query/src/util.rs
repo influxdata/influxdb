@@ -11,7 +11,7 @@ use arrow_deps::{
         optimizer::utils::expr_to_column_names,
     },
 };
-use data_types::schema::Schema;
+use internal_types::schema::Schema;
 
 /// Create a logical plan that produces the record batch
 pub fn make_scan_plan(batch: RecordBatch) -> std::result::Result<LogicalPlan, DataFusionError> {
@@ -57,7 +57,7 @@ pub fn schema_has_all_expr_columns(schema: &Schema, expr: &Expr) -> bool {
 #[cfg(test)]
 mod tests {
     use arrow_deps::datafusion::prelude::*;
-    use data_types::schema::builder::SchemaBuilder;
+    use internal_types::schema::builder::SchemaBuilder;
 
     use super::*;
 

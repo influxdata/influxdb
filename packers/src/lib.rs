@@ -15,7 +15,7 @@ use snafu::Snafu;
 
 pub use crate::packers::{Packer, Packers};
 pub use arrow_deps::parquet::data_type::ByteArray;
-use data_types::schema::Schema;
+use internal_types::schema::Schema;
 
 use std::borrow::Cow;
 

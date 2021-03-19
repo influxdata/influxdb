@@ -9,7 +9,8 @@ use chrono::{DateTime, Utc};
 use generated_types::wal as wb;
 use std::collections::{BTreeSet, HashMap};
 
-use data_types::{partition_metadata::TableSummary, schema::Schema, selection::Selection};
+use data_types::partition_metadata::TableSummary;
+use internal_types::{schema::Schema, selection::Selection};
 
 use crate::{
     column::Column,

@@ -9,7 +9,7 @@ use arrow_deps::arrow::{
     datatypes::{DataType, SchemaRef},
     record_batch::RecordBatch,
 };
-use data_types::TIME_COLUMN_NAME;
+use internal_types::schema::TIME_COLUMN_NAME;
 
 use snafu::{ensure, ResultExt, Snafu};
 

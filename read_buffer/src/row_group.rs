@@ -22,13 +22,11 @@ use arrow_deps::{
     arrow, datafusion::logical_plan::Expr as DfExpr,
     datafusion::scalar::ScalarValue as DFScalarValue,
 };
-use data_types::{
-    schema::{InfluxColumnType, Schema},
-    selection::Selection,
-};
+use internal_types::schema::{InfluxColumnType, Schema};
+use internal_types::selection::Selection;
 
 /// The name used for a timestamp column.
-pub const TIME_COLUMN_NAME: &str = data_types::TIME_COLUMN_NAME;
+pub const TIME_COLUMN_NAME: &str = internal_types::schema::TIME_COLUMN_NAME;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -39,7 +37,7 @@ pub enum Error {
 
     #[snafu(display("schema conversion error: {}", source))]
     SchemaError {
-        source: data_types::schema::builder::Error,
+        source: internal_types::schema::builder::Error,
     },
 
     #[snafu(display("unsupported operation: {}", msg))]
@@ -1638,7 +1636,7 @@ impl TryFrom<ReadFilterResult<'_>> for RecordBatch {
     type Error = Error;
 
     fn try_from(result: ReadFilterResult<'_>) -> Result<Self, Self::Error> {
-        let schema = data_types::schema::Schema::try_from(result.schema())
+        let schema = internal_types::schema::Schema::try_from(result.schema())
             .map_err(|source| Error::SchemaError { source })?;
         let arrow_schema: arrow_deps::arrow::datatypes::SchemaRef = schema.into();
 
@@ -1871,7 +1869,7 @@ impl TryFrom<ReadAggregateResult<'_>> for RecordBatch {
     type Error = Error;
 
     fn try_from(result: ReadAggregateResult<'_>) -> Result<Self, Self::Error> {
-        let schema = data_types::schema::Schema::try_from(result.schema())
+        let schema = internal_types::schema::Schema::try_from(result.schema())
             .map_err(|source| Error::SchemaError { source })?;
         let arrow_schema: arrow_deps::arrow::datatypes::SchemaRef = schema.into();
 

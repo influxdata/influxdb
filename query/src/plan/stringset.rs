@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
 use arrow_deps::{datafusion::logical_plan::LogicalPlan, util::str_iter_to_batch};
-use data_types::TABLE_NAMES_COLUMN_NAME;
+
+/// The name of the column containing table names returned by a call to
+/// `table_names`.
+const TABLE_NAMES_COLUMN_NAME: &str = "table";
 
 use crate::{
     exec::stringset::{StringSet, StringSetRef},

@@ -1,7 +1,7 @@
 //! Tests for the table_names implementation
 
 use arrow_deps::arrow::datatypes::DataType;
-use data_types::{schema::builder::SchemaBuilder, selection::Selection};
+use internal_types::{schema::builder::SchemaBuilder, selection::Selection};
 use query::{Database, PartitionChunk};
 
 use super::scenarios::*;

@@ -1,9 +1,9 @@
-use data_types::schema::Schema;
 use influxdb_line_protocol::parse_lines;
 use ingest::{
     parquet::writer::{CompressionLevel, Error as ParquetWriterError, IOxParquetTableWriter},
     ConversionSettings, Error as IngestError, LineProtocolConverter, TSMFileConverter,
 };
+use internal_types::schema::Schema;
 use packers::{Error as TableError, IOxTableWriter, IOxTableWriterSource};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{

@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Paul Dix <paul@pauldix.net>"]
 edition = "2018"
 default-run = "influxdb_iox"
+readme = "README.md"
 
 [workspace] # In alphabetical order
 members = [
@@ -16,6 +17,7 @@ members = [
     "influxdb_tsm",
     "influxdb2_client",
     "ingest",
+    "internal_types",
     "logfmt",
     "mem_qe",
     "mutable_buffer",
@@ -43,6 +45,7 @@ generated_types = { path = "generated_types" }
 influxdb_iox_client = { path = "influxdb_iox_client", features = ["format"] }
 influxdb_line_protocol = { path = "influxdb_line_protocol" }
 influxdb_tsm = { path = "influxdb_tsm" }
+internal_types = { path = "internal_types" }
 ingest = { path = "ingest" }
 logfmt = { path = "logfmt" }
 mem_qe = { path = "mem_qe" }

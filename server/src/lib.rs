@@ -80,11 +80,12 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use tracing::{debug, error, info};
 
 use data_types::{
-    data::{lines_to_replicated_write, ReplicatedWrite},
     database_rules::{DatabaseRules, WriterId},
     job::Job,
     {DatabaseName, DatabaseNameError},
 };
+use internal_types::data::{lines_to_replicated_write, ReplicatedWrite};
+
 use influxdb_line_protocol::ParsedLine;
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use query::{exec::Executor, DatabaseStore};

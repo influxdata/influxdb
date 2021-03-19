@@ -9,7 +9,7 @@ use arrow_deps::parquet::{
     },
     schema::types::{ColumnPath, Type},
 };
-use data_types::schema::{InfluxColumnType, InfluxFieldType, Schema};
+use internal_types::schema::{InfluxColumnType, InfluxFieldType, Schema};
 use parquet::file::writer::ParquetWriter;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
@@ -97,7 +97,7 @@ where
     ///
     /// ```
     /// # use std::fs;
-    /// # use data_types::schema::{builder::SchemaBuilder, InfluxFieldType};
+    /// # use internal_types::schema::{builder::SchemaBuilder, InfluxFieldType};
     /// # use packers::IOxTableWriter;
     /// # use packers::{Packer, Packers};
     /// # use ingest::parquet::writer::{IOxParquetTableWriter, CompressionLevel};
@@ -505,7 +505,7 @@ fn create_writer_props(
 
 #[cfg(test)]
 mod tests {
-    use data_types::schema::builder::SchemaBuilder;
+    use internal_types::schema::builder::SchemaBuilder;
 
     use super::*;
 

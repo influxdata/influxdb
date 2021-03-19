@@ -6,7 +6,7 @@ use arrow_deps::arrow::{
     array::{ArrayRef, Int64Array, StringArray},
     record_batch::RecordBatch,
 };
-use data_types::schema::builder::SchemaBuilder;
+use internal_types::schema::builder::SchemaBuilder;
 use read_buffer::{BinaryExpr, Database, Predicate};
 
 const BASE_TIME: i64 = 1351700038292387000_i64;

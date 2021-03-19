@@ -5,10 +5,8 @@ use arrow_deps::{
     datafusion::physical_plan::SendableRecordBatchStream,
     parquet::{self, arrow::ArrowWriter, file::writer::TryClone},
 };
-use data_types::{
-    partition_metadata::{PartitionSummary, TableSummary},
-    selection::Selection,
-};
+use data_types::partition_metadata::{PartitionSummary, TableSummary};
+use internal_types::selection::Selection;
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use query::{predicate::EMPTY_PREDICATE, PartitionChunk};
 

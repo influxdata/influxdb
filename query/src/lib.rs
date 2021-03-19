@@ -8,11 +8,9 @@
 
 use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 use async_trait::async_trait;
-use data_types::{
-    chunk::ChunkSummary, data::ReplicatedWrite, partition_metadata::TableSummary, schema::Schema,
-    selection::Selection,
-};
+use data_types::{chunk::ChunkSummary, partition_metadata::TableSummary};
 use exec::{stringset::StringSet, Executor};
+use internal_types::{data::ReplicatedWrite, schema::Schema, selection::Selection};
 
 use std::{fmt::Debug, sync::Arc};
 

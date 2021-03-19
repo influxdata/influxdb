@@ -747,11 +747,7 @@ dependencies = [
 name = "data_types"
 version = "0.1.0"
 dependencies = [
- "arrow_deps",
  "chrono",
- "crc32fast",
- "criterion",
- "flatbuffers 0.6.1",
  "generated_types",
  "influxdb_line_protocol",
  "percent-encoding",
@@ -1429,6 +1425,7 @@ dependencies = [
  "influxdb_line_protocol",
  "influxdb_tsm",
  "ingest",
+ "internal_types",
  "logfmt",
  "mem_qe",
  "mutable_buffer",
@@ -1516,10 +1513,10 @@ name = "ingest"
 version = "0.1.0"
 dependencies = [
  "arrow_deps",
- "data_types",
  "flate2",
  "influxdb_line_protocol",
  "influxdb_tsm",
+ "internal_types",
  "packers",
  "parking_lot",
  "snafu",
@@ -1541,6 +1538,22 @@ name = "integer-encoding"
 version = "1.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "48dc51180a9b377fd75814d0cc02199c20f8e99433d6762f650d39cdbbd3b56f"
+
+[[package]]
+name = "internal_types"
+version = "0.1.0"
+dependencies = [
+ "arrow_deps",
+ "chrono",
+ "crc32fast",
+ "criterion",
+ "data_types",
+ "flatbuffers 0.6.1",
+ "generated_types",
+ "influxdb_line_protocol",
+ "snafu",
+ "tracing",
+]
 
 [[package]]
 name = "ipnet"
@@ -1833,6 +1846,7 @@ dependencies = [
  "flatbuffers 0.6.1",
  "generated_types",
  "influxdb_line_protocol",
+ "internal_types",
  "snafu",
  "string-interner",
  "test_helpers",
@@ -2151,9 +2165,9 @@ name = "packers"
 version = "0.1.0"
 dependencies = [
  "arrow_deps",
- "data_types",
  "human_format",
  "influxdb_tsm",
+ "internal_types",
  "rand 0.8.3",
  "snafu",
  "test_helpers",
@@ -2507,6 +2521,7 @@ dependencies = [
  "data_types",
  "futures",
  "influxdb_line_protocol",
+ "internal_types",
  "parking_lot",
  "snafu",
  "sqlparser",
@@ -2654,9 +2669,9 @@ dependencies = [
  "arrow_deps",
  "criterion",
  "croaring",
- "data_types",
  "either",
  "hashbrown",
+ "internal_types",
  "itertools 0.9.0",
  "packers",
  "permutation",
@@ -3125,6 +3140,7 @@ dependencies = [
  "generated_types",
  "hashbrown",
  "influxdb_line_protocol",
+ "internal_types",
  "mutable_buffer",
  "object_store",
  "parking_lot",

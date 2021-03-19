@@ -14,10 +14,9 @@ use arrow_deps::{
     },
     util::IntoExpr,
 };
-use data_types::{
-    schema::{InfluxColumnType, Schema},
+use internal_types::{
+    schema::{InfluxColumnType, Schema, TIME_COLUMN_NAME},
     selection::Selection,
-    TIME_COLUMN_NAME,
 };
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 use tracing::debug;

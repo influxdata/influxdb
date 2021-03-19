@@ -18,16 +18,16 @@ use crate::{
     Database, DatabaseStore, PartitionChunk, Predicate,
 };
 
-use data_types::{
+use data_types::database_rules::{DatabaseRules, PartitionTemplate, TemplatePart};
+use influxdb_line_protocol::{parse_lines, ParsedLine};
+use internal_types::{
     data::{lines_to_replicated_write, ReplicatedWrite},
-    database_rules::{DatabaseRules, PartitionTemplate, TemplatePart},
     schema::{
         builder::{SchemaBuilder, SchemaMerger},
         Schema,
     },
     selection::Selection,
 };
-use influxdb_line_protocol::{parse_lines, ParsedLine};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};

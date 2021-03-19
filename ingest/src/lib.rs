@@ -11,15 +11,14 @@
     clippy::clone_on_ref_ptr
 )]
 
-use data_types::{
-    schema::{builder::InfluxSchemaBuilder, InfluxFieldType, Schema},
-    TIME_COLUMN_NAME,
-};
 use influxdb_line_protocol::{FieldValue, ParsedLine};
 use influxdb_tsm::{
     mapper::{ColumnData, MeasurementTable, TSMMeasurementMapper},
     reader::{BlockDecoder, TSMBlockReader, TSMIndexReader},
     BlockType, TSMError,
+};
+use internal_types::schema::{
+    builder::InfluxSchemaBuilder, InfluxFieldType, Schema, TIME_COLUMN_NAME,
 };
 use packers::{
     ByteArray, Error as TableError, IOxTableWriter, IOxTableWriterSource, Packer, Packers,
@@ -75,7 +74,7 @@ pub enum Error {
 
     #[snafu(display(r#"Error building schema: {}"#, source))]
     BuildingSchema {
-        source: data_types::schema::builder::Error,
+        source: internal_types::schema::builder::Error,
     },
 
     #[snafu(display(r#"Error writing to TableWriter: {}"#, source))]
@@ -96,8 +95,8 @@ pub enum Error {
     CouldNotFindColumn,
 }
 
-impl From<data_types::schema::builder::Error> for Error {
-    fn from(source: data_types::schema::builder::Error) -> Self {
+impl From<internal_types::schema::builder::Error> for Error {
+    fn from(source: internal_types::schema::builder::Error) -> Self {
         Self::BuildingSchema { source }
     }
 }
@@ -820,7 +819,8 @@ impl TSMFileConverter {
         mut block_reader: impl BlockDecoder,
         m: &mut MeasurementTable,
     ) -> Result<(Schema, Vec<Packers>), Error> {
-        let mut builder = data_types::schema::builder::SchemaBuilder::new().measurement(&m.name);
+        let mut builder =
+            internal_types::schema::builder::SchemaBuilder::new().measurement(&m.name);
         let mut packed_columns: Vec<Packers> = Vec::new();
 
         let mut tks = Vec::new();
@@ -1099,11 +1099,11 @@ impl std::fmt::Debug for TSMFileConverter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types::{assert_column_eq, schema::InfluxColumnType};
     use influxdb_tsm::{
         reader::{BlockData, MockBlockDecoder},
         Block,
     };
+    use internal_types::{assert_column_eq, schema::InfluxColumnType};
     use packers::{Error as TableError, IOxTableWriter, IOxTableWriterSource, Packers};
     use test_helpers::approximately_equal;
 
