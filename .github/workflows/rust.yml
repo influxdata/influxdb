@@ -19,6 +19,10 @@ on: [pull_request]
 
 name: ci
 
+env:
+  # Disable debug symbol generation to speed up CI build
+  RUSTFLAGS: "-C debuginfo=0"
+
 jobs:
 
   build:
