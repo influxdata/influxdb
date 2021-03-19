@@ -545,7 +545,7 @@ impl RowGroup {
             .schema
             .aggregate_columns
             .iter()
-            .map(|(_, agg_type, data_type)| AggregateVec::from((agg_type, data_type, 0)))
+            .map(|(_, agg_type, data_type)| AggregateVec::from((agg_type, data_type)))
             .collect::<Vec<_>>();
 
         // Maps each group key to an ordinal offset on output columns. This
@@ -655,7 +655,7 @@ impl RowGroup {
             .schema
             .aggregate_columns
             .iter()
-            .map(|(_, agg_type, data_type)| AggregateVec::from((agg_type, data_type, 0)))
+            .map(|(_, agg_type, data_type)| AggregateVec::from((agg_type, data_type)))
             .collect::<Vec<_>>();
 
         // Maps each group key to an ordinal offset on output columns. This
@@ -779,7 +779,7 @@ impl RowGroup {
             .schema
             .aggregate_columns
             .iter()
-            .map(|(_, agg_type, data_type)| AggregateVec::from((agg_type, data_type, 0)))
+            .map(|(_, agg_type, data_type)| AggregateVec::from((agg_type, data_type)))
             .collect::<Vec<_>>();
 
         let mut output_rows = 0;
@@ -938,7 +938,7 @@ impl RowGroup {
             .schema
             .aggregate_columns
             .iter()
-            .map(|(_, agg_type, data_type)| AggregateVec::from((agg_type, data_type, 0)))
+            .map(|(_, agg_type, data_type)| AggregateVec::from((agg_type, data_type)))
             .collect::<Vec<_>>();
 
         for (i, (col, agg_type)) in input_aggregate_columns.iter().enumerate() {
@@ -1776,7 +1776,7 @@ impl<'row_group> ReadAggregateResult<'row_group> {
             .schema
             .aggregate_columns
             .iter()
-            .map(|(_, agg_type, data_type)| AggregateVec::from((agg_type, data_type, 0)))
+            .map(|(_, agg_type, data_type)| AggregateVec::from((agg_type, data_type)))
             .collect::<Vec<_>>();
 
         let mut self_i = 0;
@@ -1798,28 +1798,34 @@ impl<'row_group> ReadAggregateResult<'row_group> {
                 {
                     match data_type {
                         LogicalDataType::Integer => {
-                            let itr = other.aggregate_cols[col_i].as_i64().iter().cloned();
-                            result.aggregate_cols[col_i].extend_with_i64(itr);
+                            let arr = other.aggregate_cols.remove(0);
+                            result.aggregate_cols[col_i]
+                                .extend_with_i64(arr.take_as_i64().into_iter());
                         }
                         LogicalDataType::Unsigned => {
-                            let itr = other.aggregate_cols[col_i].as_u64().iter().cloned();
-                            result.aggregate_cols[col_i].extend_with_u64(itr);
+                            let arr = other.aggregate_cols.remove(0);
+                            result.aggregate_cols[col_i]
+                                .extend_with_u64(arr.take_as_u64().into_iter());
                         }
                         LogicalDataType::Float => {
-                            let itr = other.aggregate_cols[col_i].as_f64().iter().cloned();
-                            result.aggregate_cols[col_i].extend_with_f64(itr);
+                            let arr = other.aggregate_cols.remove(0);
+                            result.aggregate_cols[col_i]
+                                .extend_with_f64(arr.take_as_f64().into_iter());
                         }
                         LogicalDataType::String => {
-                            let itr = other.aggregate_cols[col_i].as_str().iter().cloned();
-                            result.aggregate_cols[col_i].extend_with_str(itr);
+                            let arr = other.aggregate_cols.remove(0);
+                            result.aggregate_cols[col_i]
+                                .extend_with_str(arr.take_as_str().into_iter());
                         }
                         LogicalDataType::Binary => {
-                            let itr = other.aggregate_cols[col_i].as_bytes().iter().cloned();
-                            result.aggregate_cols[col_i].extend_with_bytes(itr);
+                            let arr = other.aggregate_cols.remove(0);
+                            result.aggregate_cols[col_i]
+                                .extend_with_bytes(arr.take_as_bytes().into_iter());
                         }
                         LogicalDataType::Boolean => {
-                            let itr = other.aggregate_cols[col_i].as_bool().iter().cloned();
-                            result.aggregate_cols[col_i].extend_with_bool(itr);
+                            let arr = other.aggregate_cols.remove(0);
+                            result.aggregate_cols[col_i]
+                                .extend_with_bool(arr.take_as_bool().into_iter());
                         }
                     }
                 }
@@ -1836,28 +1842,34 @@ impl<'row_group> ReadAggregateResult<'row_group> {
                 {
                     match data_type {
                         LogicalDataType::Integer => {
-                            let itr = self.aggregate_cols[col_i].as_i64().iter().cloned();
-                            result.aggregate_cols[col_i].extend_with_i64(itr);
+                            let arr = self.aggregate_cols.remove(0);
+                            result.aggregate_cols[col_i]
+                                .extend_with_i64(arr.take_as_i64().into_iter());
                         }
                         LogicalDataType::Unsigned => {
-                            let itr = self.aggregate_cols[col_i].as_u64().iter().cloned();
-                            result.aggregate_cols[col_i].extend_with_u64(itr);
+                            let arr = self.aggregate_cols.remove(0);
+                            result.aggregate_cols[col_i]
+                                .extend_with_u64(arr.take_as_u64().into_iter());
                         }
                         LogicalDataType::Float => {
-                            let itr = self.aggregate_cols[col_i].as_f64().iter().cloned();
-                            result.aggregate_cols[col_i].extend_with_f64(itr);
+                            let arr = self.aggregate_cols.remove(0);
+                            result.aggregate_cols[col_i]
+                                .extend_with_f64(arr.take_as_f64().into_iter());
                         }
                         LogicalDataType::String => {
-                            let itr = self.aggregate_cols[col_i].as_str().iter().cloned();
-                            result.aggregate_cols[col_i].extend_with_str(itr);
+                            let arr = self.aggregate_cols.remove(0);
+                            result.aggregate_cols[col_i]
+                                .extend_with_str(arr.take_as_str().into_iter());
                         }
                         LogicalDataType::Binary => {
-                            let itr = self.aggregate_cols[col_i].as_bytes().iter().cloned();
-                            result.aggregate_cols[col_i].extend_with_bytes(itr);
+                            let arr = self.aggregate_cols.remove(0);
+                            result.aggregate_cols[col_i]
+                                .extend_with_bytes(arr.take_as_bytes().into_iter());
                         }
                         LogicalDataType::Boolean => {
-                            let itr = self.aggregate_cols[col_i].as_bool().iter().cloned();
-                            result.aggregate_cols[col_i].extend_with_bool(itr);
+                            let arr = self.aggregate_cols.remove(0);
+                            result.aggregate_cols[col_i]
+                                .extend_with_bool(arr.take_as_bool().into_iter());
                         }
                     }
                 }
@@ -1962,7 +1974,7 @@ impl<'row_group> ReadAggregateResult<'row_group> {
     //
     // The same permutation is also applied to the aggregate columns.
     //
-    fn sort(&mut self) {
+    pub fn sort(&mut self) {
         if self.group_keys_sorted {
             return;
         }
@@ -2853,6 +2865,70 @@ west,host-d,11,9
     }
 
     #[test]
+    fn read_aggregate_result_sort() {
+        let mut result = ReadAggregateResult {
+            schema: ResultSchema::default(), // schema not needed for sorting.
+            group_key_cols: vec![
+                vec![
+                    Some("east"),
+                    Some("west"),
+                    Some("west"),
+                    Some("east"),
+                    Some("west"),
+                ],
+                vec![
+                    Some("host-a"),
+                    Some("host-c"),
+                    Some("host-a"),
+                    Some("host-d"),
+                    Some("host-b"),
+                ],
+            ],
+            aggregate_cols: vec![
+                AggregateVec::SumI64(vec![Some(10), Some(20), Some(25), Some(21), Some(11)]),
+                AggregateVec::Count(vec![Some(3), Some(4), Some(3), Some(1), Some(9)]),
+            ],
+            group_keys_sorted: false,
+        };
+
+        result.sort();
+
+        // Debug implementation
+        assert_eq!(
+            format!("{}", &result),
+            "east,host-a,10,3
+east,host-d,21,1
+west,host-a,25,3
+west,host-b,11,9
+west,host-c,20,4
+"
+        );
+
+        let mut result = ReadAggregateResult {
+            schema: ResultSchema::default(),
+            group_key_cols: vec![
+                vec![Some("west"), Some("east"), Some("north")],
+                vec![Some("host-c"), Some("host-c"), Some("host-c")],
+                vec![Some("pro"), Some("stag"), Some("dev")],
+            ],
+            aggregate_cols: vec![
+                AggregateVec::SumI64(vec![Some(10), Some(20), Some(-5)]),
+                AggregateVec::Count(vec![Some(6), Some(8), Some(2)]),
+            ],
+            ..Default::default()
+        };
+        result.sort();
+
+        assert_eq!(
+            format!("{}", &result),
+            "east,host-c,stag,20,8
+north,host-c,dev,-5,2
+west,host-c,pro,10,6
+"
+        );
+    }
+
+    #[test]
     fn read_aggregate_result_merge() {
         let schema = ResultSchema {
             group_columns: vec![
@@ -2971,32 +3047,6 @@ west,host-d,11,9
                 ],
                 ..Default::default()
             }
-        );
-    }
-
-    #[test]
-    fn read_aggregate_result_sort() {
-        let mut result = ReadAggregateResult {
-            schema: ResultSchema::default(),
-            group_key_cols: vec![
-                vec![Some("west"), Some("east"), Some("north")],
-                vec![Some("host-c"), Some("host-c"), Some("host-c")],
-                vec![Some("pro"), Some("stag"), Some("dev")],
-            ],
-            aggregate_cols: vec![
-                AggregateVec::SumI64(vec![Some(10), Some(20), Some(-5)]),
-                AggregateVec::Count(vec![Some(6), Some(8), Some(2)]),
-            ],
-            ..Default::default()
-        };
-        result.sort();
-
-        assert_eq!(
-            format!("{}", &result),
-            "east,host-c,stag,20,8
-north,host-c,dev,-5,2
-west,host-c,pro,10,6
-"
         );
     }
 

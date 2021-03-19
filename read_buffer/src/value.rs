@@ -99,12 +99,18 @@ impl AggregateVec {
         }
     }
 
+    /// Updates with a new value located in the provided input column help in
+    /// `Values`.
+    ///
+    /// Panics if the type of `Value` does not satisfy the aggregate type.
     pub fn update(&mut self, values: &Values<'_>, row_id: usize, offset: usize) {
+        if values.is_null(row_id) {
+            return;
+        }
+
         match self {
             Self::Count(arr) => {
-                if values.is_null(row_id) {
-                    return;
-                } else if offset >= arr.len() {
+                if offset >= arr.len() {
                     arr.resize(offset + 1, None);
                 }
 
@@ -114,9 +120,7 @@ impl AggregateVec {
                 }
             }
             Self::SumI64(arr) => {
-                if values.is_null(row_id) {
-                    return;
-                } else if offset >= arr.len() {
+                if offset >= arr.len() {
                     arr.resize(offset + 1, None);
                 }
 
@@ -126,9 +130,7 @@ impl AggregateVec {
                 }
             }
             Self::SumU64(arr) => {
-                if values.is_null(row_id) {
-                    return;
-                } else if offset >= arr.len() {
+                if offset >= arr.len() {
                     arr.resize(offset + 1, None);
                 }
 
@@ -138,9 +140,7 @@ impl AggregateVec {
                 }
             }
             Self::SumF64(arr) => {
-                if values.is_null(row_id) {
-                    return;
-                } else if offset >= arr.len() {
+                if offset >= arr.len() {
                     arr.resize(offset + 1, None);
                 }
 
@@ -150,9 +150,7 @@ impl AggregateVec {
                 }
             }
             Self::MinU64(arr) => {
-                if values.is_null(row_id) {
-                    return;
-                } else if offset >= arr.len() {
+                if offset >= arr.len() {
                     arr.resize(offset + 1, None);
                 }
 
@@ -162,9 +160,7 @@ impl AggregateVec {
                 }
             }
             Self::MinI64(arr) => {
-                if values.is_null(row_id) {
-                    return;
-                } else if offset >= arr.len() {
+                if offset >= arr.len() {
                     arr.resize(offset + 1, None);
                 }
 
@@ -174,9 +170,7 @@ impl AggregateVec {
                 }
             }
             Self::MinF64(arr) => {
-                if values.is_null(row_id) {
-                    return;
-                } else if offset >= arr.len() {
+                if offset >= arr.len() {
                     arr.resize(offset + 1, None);
                 }
 
@@ -186,9 +180,7 @@ impl AggregateVec {
                 }
             }
             Self::MinString(arr) => {
-                if values.is_null(row_id) {
-                    return;
-                } else if offset >= arr.len() {
+                if offset >= arr.len() {
                     arr.resize(offset + 1, None);
                 }
 
@@ -203,9 +195,7 @@ impl AggregateVec {
                 }
             }
             Self::MinBytes(arr) => {
-                if values.is_null(row_id) {
-                    return;
-                } else if offset >= arr.len() {
+                if offset >= arr.len() {
                     arr.resize(offset + 1, None);
                 }
 
@@ -220,9 +210,7 @@ impl AggregateVec {
                 }
             }
             Self::MinBool(arr) => {
-                if values.is_null(row_id) {
-                    return;
-                } else if offset >= arr.len() {
+                if offset >= arr.len() {
                     arr.resize(offset + 1, None);
                 }
 
@@ -232,9 +220,7 @@ impl AggregateVec {
                 }
             }
             Self::MaxU64(arr) => {
-                if values.is_null(row_id) {
-                    return;
-                } else if offset >= arr.len() {
+                if offset >= arr.len() {
                     arr.resize(offset + 1, None);
                 }
 
@@ -244,9 +230,7 @@ impl AggregateVec {
                 }
             }
             Self::MaxI64(arr) => {
-                if values.is_null(row_id) {
-                    return;
-                } else if offset >= arr.len() {
+                if offset >= arr.len() {
                     arr.resize(offset + 1, None);
                 }
 
@@ -256,9 +240,7 @@ impl AggregateVec {
                 }
             }
             Self::MaxF64(arr) => {
-                if values.is_null(row_id) {
-                    return;
-                } else if offset >= arr.len() {
+                if offset >= arr.len() {
                     arr.resize(offset + 1, None);
                 }
 
@@ -268,9 +250,7 @@ impl AggregateVec {
                 }
             }
             Self::MaxString(arr) => {
-                if values.is_null(row_id) {
-                    return;
-                } else if offset >= arr.len() {
+                if offset >= arr.len() {
                     arr.resize(offset + 1, None);
                 }
 
@@ -285,9 +265,7 @@ impl AggregateVec {
                 }
             }
             Self::MaxBytes(arr) => {
-                if values.is_null(row_id) {
-                    return;
-                } else if offset >= arr.len() {
+                if offset >= arr.len() {
                     arr.resize(offset + 1, None);
                 }
 
@@ -302,9 +280,7 @@ impl AggregateVec {
                 }
             }
             Self::MaxBool(arr) => {
-                if values.is_null(row_id) {
-                    return;
-                } else if offset >= arr.len() {
+                if offset >= arr.len() {
                     arr.resize(offset + 1, None);
                 }
 
@@ -524,6 +500,8 @@ impl AggregateVec {
         }
     }
 
+    /// Writes a textual representation of the value specified by `offset` to
+    /// the provided formatter.
     pub fn write_value(&self, offset: usize, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Count(arr) => match arr[offset] {
@@ -643,64 +621,6 @@ impl AggregateVec {
     }
 
     // Consumes self and returns the inner `Vec<Option<i64>>`.
-    pub fn as_i64(&self) -> &Vec<Option<i64>> {
-        match self {
-            Self::SumI64(arr) => arr,
-            Self::MinI64(arr) => arr,
-            Self::MaxI64(arr) => arr,
-            _ => panic!("cannot convert {} to Vec<Option<i64>>", self),
-        }
-    }
-
-    // Consumes self and returns the inner `Vec<Option<u64>>`.
-    pub fn as_u64(&self) -> &Vec<Option<u64>> {
-        match self {
-            Self::Count(arr) => arr,
-            Self::SumU64(arr) => arr,
-            Self::MinU64(arr) => arr,
-            Self::MaxU64(arr) => arr,
-            _ => panic!("cannot convert {} to Vec<Option<u64>>", self),
-        }
-    }
-
-    // Consumes self and returns the inner `Vec<Option<f64>>`.
-    pub fn as_f64(&self) -> &Vec<Option<f64>> {
-        match self {
-            Self::SumF64(arr) => arr,
-            Self::MinF64(arr) => arr,
-            Self::MaxF64(arr) => arr,
-            _ => panic!("cannot convert {} to Vec<Option<f64>>", self),
-        }
-    }
-
-    // Consumes self and returns the inner `Vec<Option<&str>>`.
-    pub fn as_str(&self) -> &Vec<Option<String>> {
-        match self {
-            Self::MinString(arr) => arr,
-            Self::MaxString(arr) => arr,
-            _ => panic!("cannot convert {} to Vec<Option<&str>>", self),
-        }
-    }
-
-    // Consumes self and returns the inner `Vec<Option<&[u8]>>`.
-    pub fn as_bytes(&self) -> &Vec<Option<Vec<u8>>> {
-        match self {
-            Self::MinBytes(arr) => arr,
-            Self::MaxBytes(arr) => arr,
-            _ => panic!("cannot convert {} to Vec<Option<&[u8]>>", self),
-        }
-    }
-
-    // Consumes self and returns the inner `Vec<Option<bool>>`.
-    pub fn as_bool(&self) -> &Vec<Option<bool>> {
-        match self {
-            Self::MinBool(arr) => arr,
-            Self::MaxBool(arr) => arr,
-            _ => panic!("cannot convert {} to Vec<u64>", self),
-        }
-    }
-
-    // Consumes self and returns the inner `Vec<Option<i64>>`.
     pub fn take_as_i64(self) -> Vec<Option<i64>> {
         match self {
             Self::SumI64(arr) => arr,
@@ -758,7 +678,7 @@ impl AggregateVec {
         }
     }
 
-    /// Appends the `AggregateVec` with the provided `Option<i64>` iterator.
+    /// Extends the `AggregateVec` with the provided `Option<i64>` iterator.
     pub fn extend_with_i64(&mut self, itr: impl Iterator<Item = Option<i64>>) {
         match self {
             Self::SumI64(arr) => {
@@ -774,7 +694,7 @@ impl AggregateVec {
         }
     }
 
-    /// Appends the `AggregateVec` with the provided `Option<u64>` iterator.
+    /// Extends the `AggregateVec` with the provided `Option<u64>` iterator.
     pub fn extend_with_u64(&mut self, itr: impl Iterator<Item = Option<u64>>) {
         match self {
             Self::Count(arr) => {
@@ -793,7 +713,7 @@ impl AggregateVec {
         }
     }
 
-    /// Appends the `AggregateVec` with the provided `Option<f64>` iterator.
+    /// Extends the `AggregateVec` with the provided `Option<f64>` iterator.
     pub fn extend_with_f64(&mut self, itr: impl Iterator<Item = Option<f64>>) {
         match self {
             Self::SumF64(arr) => {
@@ -809,7 +729,7 @@ impl AggregateVec {
         }
     }
 
-    /// Appends the `AggregateVec` with the provided `Option<&str>` iterator.
+    /// Extends the `AggregateVec` with the provided `Option<&str>` iterator.
     pub fn extend_with_str(&mut self, itr: impl Iterator<Item = Option<String>>) {
         match self {
             Self::MinString(arr) => {
@@ -822,7 +742,7 @@ impl AggregateVec {
         }
     }
 
-    /// Appends the `AggregateVec` with the provided `Option<Vec<u8>>` iterator.
+    /// Extends the `AggregateVec` with the provided `Option<Vec<u8>>` iterator.
     pub fn extend_with_bytes(&mut self, itr: impl Iterator<Item = Option<Vec<u8>>>) {
         match self {
             Self::MinBytes(arr) => {
@@ -835,7 +755,7 @@ impl AggregateVec {
         }
     }
 
-    /// Appends the `AggregateVec` with the provided `Option<&[u8]>` iterator.
+    /// Extends the `AggregateVec` with the provided `Option<&[u8]>` iterator.
     pub fn extend_with_bool(&mut self, itr: impl Iterator<Item = Option<bool>>) {
         match self {
             Self::MinBool(arr) => {
@@ -985,62 +905,37 @@ impl std::fmt::Display for AggregateVec {
     }
 }
 
-impl From<(&AggregateType, &LogicalDataType, usize)> for AggregateVec {
-    fn from(v: (&AggregateType, &LogicalDataType, usize)) -> Self {
-        let length = v.2;
+impl From<(&AggregateType, &LogicalDataType)> for AggregateVec {
+    fn from(v: (&AggregateType, &LogicalDataType)) -> Self {
         match (v.0, v.1) {
-            (AggregateType::Count, _) => Self::Count(vec![None; length]),
-            (AggregateType::First, LogicalDataType::Integer) => {
-                Self::FirstI64((vec![None; length], vec![None; length]))
-            }
-            (AggregateType::First, LogicalDataType::Unsigned) => {
-                Self::FirstU64((vec![None; length], vec![None; length]))
-            }
-            (AggregateType::First, LogicalDataType::Float) => {
-                Self::FirstF64((vec![None; length], vec![None; length]))
-            }
-            (AggregateType::First, LogicalDataType::String) => {
-                Self::FirstString((vec![None; length], vec![None; length]))
-            }
-            (AggregateType::First, LogicalDataType::Binary) => {
-                Self::FirstBytes((vec![None; length], vec![None; length]))
-            }
-            (AggregateType::First, LogicalDataType::Boolean) => {
-                Self::FirstBool((vec![None; length], vec![None; length]))
-            }
-            (AggregateType::Last, LogicalDataType::Integer) => {
-                Self::LastI64((vec![None; length], vec![None; length]))
-            }
-            (AggregateType::Last, LogicalDataType::Unsigned) => {
-                Self::LastU64((vec![None; length], vec![None; length]))
-            }
-            (AggregateType::Last, LogicalDataType::Float) => {
-                Self::LastF64((vec![None; length], vec![None; length]))
-            }
-            (AggregateType::Last, LogicalDataType::String) => {
-                Self::LastString((vec![None; length], vec![None; length]))
-            }
-            (AggregateType::Last, LogicalDataType::Binary) => {
-                Self::LastBytes((vec![None; length], vec![None; length]))
-            }
-            (AggregateType::Last, LogicalDataType::Boolean) => {
-                Self::LastBool((vec![None; length], vec![None; length]))
-            }
-            (AggregateType::Min, LogicalDataType::Integer) => Self::MinI64(vec![None; length]),
-            (AggregateType::Min, LogicalDataType::Unsigned) => Self::MinU64(vec![None; length]),
-            (AggregateType::Min, LogicalDataType::Float) => Self::MinF64(vec![None; length]),
-            (AggregateType::Min, LogicalDataType::String) => Self::MinString(vec![None; length]),
-            (AggregateType::Min, LogicalDataType::Binary) => Self::MinBytes(vec![None; length]),
-            (AggregateType::Min, LogicalDataType::Boolean) => Self::MinBool(vec![None; length]),
-            (AggregateType::Max, LogicalDataType::Integer) => Self::MaxI64(vec![None; length]),
-            (AggregateType::Max, LogicalDataType::Unsigned) => Self::MaxU64(vec![None; length]),
-            (AggregateType::Max, LogicalDataType::Float) => Self::MaxF64(vec![None; length]),
-            (AggregateType::Max, LogicalDataType::String) => Self::MaxString(vec![None; length]),
-            (AggregateType::Max, LogicalDataType::Binary) => Self::MaxBytes(vec![None; length]),
-            (AggregateType::Max, LogicalDataType::Boolean) => Self::MaxBool(vec![None; length]),
-            (AggregateType::Sum, LogicalDataType::Integer) => Self::SumI64(vec![None; length]),
-            (AggregateType::Sum, LogicalDataType::Unsigned) => Self::SumU64(vec![None; length]),
-            (AggregateType::Sum, LogicalDataType::Float) => Self::SumF64(vec![None; length]),
+            (AggregateType::Count, _) => Self::Count(vec![]),
+            (AggregateType::First, LogicalDataType::Integer) => Self::FirstI64((vec![], vec![])),
+            (AggregateType::First, LogicalDataType::Unsigned) => Self::FirstU64((vec![], vec![])),
+            (AggregateType::First, LogicalDataType::Float) => Self::FirstF64((vec![], vec![])),
+            (AggregateType::First, LogicalDataType::String) => Self::FirstString((vec![], vec![])),
+            (AggregateType::First, LogicalDataType::Binary) => Self::FirstBytes((vec![], vec![])),
+            (AggregateType::First, LogicalDataType::Boolean) => Self::FirstBool((vec![], vec![])),
+            (AggregateType::Last, LogicalDataType::Integer) => Self::LastI64((vec![], vec![])),
+            (AggregateType::Last, LogicalDataType::Unsigned) => Self::LastU64((vec![], vec![])),
+            (AggregateType::Last, LogicalDataType::Float) => Self::LastF64((vec![], vec![])),
+            (AggregateType::Last, LogicalDataType::String) => Self::LastString((vec![], vec![])),
+            (AggregateType::Last, LogicalDataType::Binary) => Self::LastBytes((vec![], vec![])),
+            (AggregateType::Last, LogicalDataType::Boolean) => Self::LastBool((vec![], vec![])),
+            (AggregateType::Min, LogicalDataType::Integer) => Self::MinI64(vec![]),
+            (AggregateType::Min, LogicalDataType::Unsigned) => Self::MinU64(vec![]),
+            (AggregateType::Min, LogicalDataType::Float) => Self::MinF64(vec![]),
+            (AggregateType::Min, LogicalDataType::String) => Self::MinString(vec![]),
+            (AggregateType::Min, LogicalDataType::Binary) => Self::MinBytes(vec![]),
+            (AggregateType::Min, LogicalDataType::Boolean) => Self::MinBool(vec![]),
+            (AggregateType::Max, LogicalDataType::Integer) => Self::MaxI64(vec![]),
+            (AggregateType::Max, LogicalDataType::Unsigned) => Self::MaxU64(vec![]),
+            (AggregateType::Max, LogicalDataType::Float) => Self::MaxF64(vec![]),
+            (AggregateType::Max, LogicalDataType::String) => Self::MaxString(vec![]),
+            (AggregateType::Max, LogicalDataType::Binary) => Self::MaxBytes(vec![]),
+            (AggregateType::Max, LogicalDataType::Boolean) => Self::MaxBool(vec![]),
+            (AggregateType::Sum, LogicalDataType::Integer) => Self::SumI64(vec![]),
+            (AggregateType::Sum, LogicalDataType::Unsigned) => Self::SumU64(vec![]),
+            (AggregateType::Sum, LogicalDataType::Float) => Self::SumF64(vec![]),
             (AggregateType::Sum, _) => unreachable!("unsupported SUM aggregates"),
         }
     }
@@ -2017,6 +1912,181 @@ impl EncodedValues {
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn aggregate_vec_update() {
+        // i64
+        let values = Values::I64N(vec![Some(1), Some(2), Some(3), None, Some(-1), Some(2)]);
+
+        let mut aggs = vec![
+            AggregateVec::Count(vec![]),
+            AggregateVec::SumI64(vec![]),
+            AggregateVec::MinI64(vec![]),
+            AggregateVec::MaxI64(vec![]),
+        ];
+
+        for i in 0..values.len() {
+            for agg in &mut aggs {
+                agg.update(&values, i, 0);
+            }
+        }
+
+        assert_eq!(
+            aggs,
+            vec![
+                AggregateVec::Count(vec![Some(5)]),
+                AggregateVec::SumI64(vec![Some(7)]),
+                AggregateVec::MinI64(vec![Some(-1)]),
+                AggregateVec::MaxI64(vec![Some(3)]),
+            ]
+        );
+
+        // u64
+        let values = Values::U64N(vec![Some(1), Some(2), Some(3), None, Some(0), Some(2)]);
+
+        let mut aggs = vec![
+            AggregateVec::Count(vec![]),
+            AggregateVec::SumU64(vec![]),
+            AggregateVec::MinU64(vec![]),
+            AggregateVec::MaxU64(vec![]),
+        ];
+
+        for i in 0..values.len() {
+            for agg in &mut aggs {
+                agg.update(&values, i, 0);
+            }
+        }
+
+        assert_eq!(
+            aggs,
+            vec![
+                AggregateVec::Count(vec![Some(5)]),
+                AggregateVec::SumU64(vec![Some(8)]),
+                AggregateVec::MinU64(vec![Some(0)]),
+                AggregateVec::MaxU64(vec![Some(3)]),
+            ]
+        );
+
+        // f64
+        let values = Values::F64N(vec![
+            Some(1.0),
+            Some(2.0),
+            Some(3.0),
+            None,
+            Some(0.0),
+            Some(2.0),
+        ]);
+
+        let mut aggs = vec![
+            AggregateVec::Count(vec![]),
+            AggregateVec::SumF64(vec![]),
+            AggregateVec::MinF64(vec![]),
+            AggregateVec::MaxF64(vec![]),
+        ];
+
+        for i in 0..values.len() {
+            for agg in &mut aggs {
+                agg.update(&values, i, 0);
+            }
+        }
+
+        assert_eq!(
+            aggs,
+            vec![
+                AggregateVec::Count(vec![Some(5)]),
+                AggregateVec::SumF64(vec![Some(8.0)]),
+                AggregateVec::MinF64(vec![Some(0.0)]),
+                AggregateVec::MaxF64(vec![Some(3.0)]),
+            ]
+        );
+
+        // string
+        let values = Values::String(vec![
+            Some("Pop Song 89"),
+            Some("Orange Crush"),
+            Some("Stand"),
+            None,
+        ]);
+
+        let mut aggs = vec![
+            AggregateVec::Count(vec![]),
+            AggregateVec::MinString(vec![]),
+            AggregateVec::MaxString(vec![]),
+        ];
+
+        for i in 0..values.len() {
+            for agg in &mut aggs {
+                agg.update(&values, i, 0);
+            }
+        }
+
+        assert_eq!(
+            aggs,
+            vec![
+                AggregateVec::Count(vec![Some(3)]),
+                AggregateVec::MinString(vec![Some("Orange Crush".to_owned())]),
+                AggregateVec::MaxString(vec![Some("Stand".to_owned())]),
+            ]
+        );
+
+        // bytes
+        let arr = vec![
+            "Pop Song 89".to_string(),
+            "Orange Crush".to_string(),
+            "Stand".to_string(),
+        ];
+        let values = Values::ByteArray(vec![
+            Some(arr[0].as_bytes()),
+            Some(arr[1].as_bytes()),
+            Some(arr[2].as_bytes()),
+            None,
+        ]);
+
+        let mut aggs = vec![
+            AggregateVec::Count(vec![]),
+            AggregateVec::MinBytes(vec![]),
+            AggregateVec::MaxBytes(vec![]),
+        ];
+
+        for i in 0..values.len() {
+            for agg in &mut aggs {
+                agg.update(&values, i, 0);
+            }
+        }
+
+        assert_eq!(
+            aggs,
+            vec![
+                AggregateVec::Count(vec![Some(3)]),
+                AggregateVec::MinBytes(vec![Some(arr[1].bytes().collect())]),
+                AggregateVec::MaxBytes(vec![Some(arr[2].bytes().collect())]),
+            ]
+        );
+
+        // bool
+        let values = Values::Bool(vec![Some(true), None, Some(false)]);
+
+        let mut aggs = vec![
+            AggregateVec::Count(vec![]),
+            AggregateVec::MinBool(vec![]),
+            AggregateVec::MaxBool(vec![]),
+        ];
+
+        for i in 0..values.len() {
+            for agg in &mut aggs {
+                agg.update(&values, i, 0);
+            }
+        }
+
+        assert_eq!(
+            aggs,
+            vec![
+                AggregateVec::Count(vec![Some(2)]),
+                AggregateVec::MinBool(vec![Some(false)]),
+                AggregateVec::MaxBool(vec![Some(true)]),
+            ]
+        );
+    }
 
     #[test]
     fn size() {
