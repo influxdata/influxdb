@@ -108,10 +108,6 @@ rand = "0.8.3"
 reqwest = "0.11"
 tempfile = "3.1.0"
 
-[[bin]]
-name = "cpu_feature_check"
-path = "src/cpu_feature_check/main.rs"
-
 [[bench]]
 name = "encoders"
 harness = false
