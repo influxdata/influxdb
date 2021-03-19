@@ -39,8 +39,7 @@ RUN apt-get update \
   && apt-get install -y \
     git locales sudo openssh-client ca-certificates tar gzip parallel \
     unzip zip bzip2 gnupg curl make pkg-config libssl-dev \
-    musl musl-dev musl-tools clang llvm \
-    jq \
+    jq clang lld \
     --no-install-recommends \
   && apt-get clean autoclean \
 	&& apt-get autoremove --yes \
