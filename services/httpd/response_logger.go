@@ -111,13 +111,13 @@ func buildLogLine(l *responseLogger, r *http.Request, start time.Time) string {
 			}
 			valuesSlice := make([]string, 0, len(values))
 			for _, v := range values {
-				valuesSlice = append(valuesSlice, fmt.Sprintf("\"%s\"", v))
+				valuesSlice = append(valuesSlice, fmt.Sprintf("'%s'", v))
 			}
 			joined := strings.Join(valuesSlice, ", ")
-			allKeyValues = append(allKeyValues, fmt.Sprintf("{\"%s\": %s}", k, joined))
+			allKeyValues = append(allKeyValues, fmt.Sprintf("{'%s': %s}", k, joined))
 		}
 
-		return fmt.Sprintf(`%s - %s %s "%s %s %s" %s %s %s "%s" "%s" %s %d`,
+		return fmt.Sprintf(`%s - %s [%s] "%s %s %s %s" %s %s "%s" "%s" %s %d`,
 			host,
 			detect(username, "-"),
 			start.Format("02/Jan/2006:15:04:05 -0700"),
