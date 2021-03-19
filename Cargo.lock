@@ -1458,6 +1458,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tokio-stream",
+ "tokio-util",
  "tonic",
  "tonic-health",
  "tracing",

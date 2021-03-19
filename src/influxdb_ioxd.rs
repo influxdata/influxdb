@@ -2,7 +2,8 @@ use crate::commands::{
     logging::LoggingLevel,
     run::{Config, ObjectStore as ObjStoreOpt},
 };
-use hyper::Server;
+use futures::{pin_mut, FutureExt};
+use hyper::server::conn::AddrIncoming;
 use object_store::{
     self, aws::AmazonS3, azure::MicrosoftAzure, gcp::GoogleCloudStorage, ObjectStore,
 };
@@ -47,7 +48,7 @@ pub enum Error {
     ServingHttp { source: hyper::Error },
 
     #[snafu(display("Error serving RPC: {}", source))]
-    ServingRPC { source: self::rpc::Error },
+    ServingRPC { source: tonic::transport::Error },
 
     #[snafu(display(
         "Specified {} for the object store, required configuration missing for {}",
@@ -67,6 +68,27 @@ pub enum Error {
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+/// On unix platforms we want to intercept SIGINT and SIGTERM
+/// This method returns if either are signalled
+#[cfg(unix)]
+async fn wait_for_signal() {
+    use tokio::signal::unix::{signal, SignalKind};
+    let mut term = signal(SignalKind::terminate()).expect("failed to register signal handler");
+    let mut int = signal(SignalKind::interrupt()).expect("failed to register signal handler");
+
+    tokio::select! {
+        _ = term.recv() => info!("Received SIGTERM"),
+        _ = int.recv() => info!("Received SIGINT"),
+    }
+}
+
+#[cfg(windows)]
+/// ctrl_c is the cross-platform way to intercept the equivalent of SIGINT
+/// This method returns if this occurs
+async fn wait_for_signal() {
+    let _ = tokio::signal::ctrl_c().await;
+}
 
 /// This is the entry point for the IOx server. `config` represents
 /// command line arguments, if any
@@ -118,41 +140,94 @@ pub async fn main(logging_level: LoggingLevel, config: Config) -> Result<()> {
         warn!("server ID not set. ID must be set via the INFLUXDB_IOX_ID config or API before writing or querying data.");
     }
 
-    // Construct and start up gRPC server
+    // Construct a token to trigger shutdown
+    let token = tokio_util::sync::CancellationToken::new();
 
+    // Construct and start up gRPC server
     let grpc_bind_addr = config.grpc_bind_address;
     let socket = tokio::net::TcpListener::bind(grpc_bind_addr)
         .await
         .context(StartListeningGrpc { grpc_bind_addr })?;
 
-    let grpc_server = self::rpc::make_server(socket, Arc::clone(&app_server));
+    let grpc_server = rpc::serve(socket, Arc::clone(&app_server), token.clone()).fuse();
 
     info!(bind_address=?grpc_bind_addr, "gRPC server listening");
 
-    // Construct and start up HTTP server
-    let router_service = http::router_service(Arc::clone(&app_server));
-
     let bind_addr = config.http_bind_address;
-    let http_server = Server::try_bind(&bind_addr)
-        .context(StartListeningHttp { bind_addr })?
-        .serve(router_service);
+    let addr = AddrIncoming::bind(&bind_addr).context(StartListeningHttp { bind_addr })?;
+
+    let http_server = http::serve(addr, Arc::clone(&app_server), token.clone()).fuse();
     info!(bind_address=?bind_addr, "HTTP server listening");
 
     let git_hash = option_env!("GIT_HASH").unwrap_or("UNKNOWN");
     info!(git_hash, "InfluxDB IOx server ready");
 
     // Get IOx background worker task
-    let app = app_server.background_worker();
+    let app = app_server.background_worker(token.clone()).fuse();
 
-    // TODO: Fix shutdown handling (#827)
-    let (grpc_server, server, _) = futures::future::join3(grpc_server, http_server, app).await;
+    // Shutdown signal
+    let signal = wait_for_signal().fuse();
 
-    grpc_server.context(ServingRPC)?;
-    server.context(ServingHttp)?;
+    // There are two different select macros - tokio::select and futures::select
+    //
+    // tokio::select takes ownership of the passed future "moving" it into the
+    // select block. This works well when not running select inside a loop, or
+    // when using a future that can be dropped and recreated, often the case
+    // with tokio's futures e.g. `channel.recv()`
+    //
+    // futures::select is more flexible as it doesn't take ownership of the provided
+    // future. However, to safely provide this it imposes some additional
+    // requirements
+    //
+    // All passed futures must implement FusedFuture - it is IB to poll a future
+    // that has returned Poll::Ready(_). A FusedFuture has an is_terminated()
+    // method that indicates if it is safe to poll - e.g. false if it has
+    // returned Poll::Ready(_). futures::select uses this to implement its
+    // functionality. futures::FutureExt adds a fuse() method that
+    // wraps an arbitrary future and makes it a FusedFuture
+    //
+    // The additional requirement of futures::select is that if the future passed
+    // outlives the select block, it must be Unpin or already Pinned
 
-    info!("InfluxDB IOx server shutting down");
+    // pin_mut constructs a Pin<&mut T> from a T by preventing moving the T
+    // from the current stack frame and constructing a Pin<&mut T> to it
+    pin_mut!(signal);
+    pin_mut!(app);
+    pin_mut!(grpc_server);
+    pin_mut!(http_server);
 
-    Ok(())
+    // Return the first error encountered
+    let mut res = Ok(());
+
+    // Trigger graceful shutdown of server components on signal
+    // or any background service exiting
+    loop {
+        futures::select! {
+            _ = signal => info!("Shutdown requested"),
+            _ = app => info!("Background worker shutdown"),
+            result = grpc_server => match result {
+                Ok(_) => info!("gRPC server shutdown"),
+                Err(error) => {
+                    error!(%error, "gRPC server error");
+                    res = res.and(Err(Error::ServingRPC{source: error}))
+                }
+            },
+            result = http_server => match result {
+                Ok(_) => info!("HTTP server shutdown"),
+                Err(error) => {
+                    error!(%error, "HTTP server error");
+                    res = res.and(Err(Error::ServingHttp{source: error}))
+                }
+            },
+            complete => break
+        }
+
+        token.cancel()
+    }
+
+    info!("InfluxDB IOx server completed shutting down");
+
+    res
 }
 
 impl TryFrom<&Config> for ObjectStore {

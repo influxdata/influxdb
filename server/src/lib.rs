@@ -475,14 +475,16 @@ impl<M: ConnectionManager> Server<M> {
     }
 
     /// Background worker function
-    ///
-    /// TOOD: Handle termination (#827)
-    pub async fn background_worker(&self) {
+    pub async fn background_worker(&self, shutdown: tokio_util::sync::CancellationToken) {
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
 
-        loop {
+        while !shutdown.is_cancelled() {
             self.jobs.lock().reclaim();
-            interval.tick().await;
+
+            tokio::select! {
+                _ = interval.tick() => {},
+                _ = shutdown.cancelled() => break
+            }
         }
     }
 }
@@ -629,6 +631,8 @@ mod tests {
     use crate::buffer::Segment;
 
     use super::*;
+    use tokio::task::JoinHandle;
+    use tokio_util::sync::CancellationToken;
 
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T = (), E = TestError> = std::result::Result<T, E>;
@@ -829,9 +833,8 @@ mod tests {
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server = Arc::new(Server::new(manager, store));
 
-        let captured_server = Arc::clone(&server);
-        let background_handle =
-            tokio::task::spawn(async move { captured_server.background_worker().await });
+        let cancel_token = CancellationToken::new();
+        let background_handle = spawn_worker(Arc::clone(&server), cancel_token.clone());
 
         server.set_id(1);
 
@@ -881,7 +884,7 @@ mod tests {
         );
 
         // ensure that we don't leave the server instance hanging around
-        background_handle.abort();
+        cancel_token.cancel();
         let _ = background_handle.await;
 
         Ok(())
@@ -942,20 +945,20 @@ partition_key:
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server = Arc::new(Server::new(manager, store));
-        let captured_server = Arc::clone(&server);
-        let background_handle =
-            tokio::task::spawn(async move { captured_server.background_worker().await });
+
+        let cancel_token = CancellationToken::new();
+        let background_handle = spawn_worker(Arc::clone(&server), cancel_token.clone());
 
         let wait_nanos = 1000;
         let job = server.spawn_dummy_job(vec![wait_nanos]);
 
-        // Note: this will hang forwever if the background task has not been started
+        // Note: this will hang forever if the background task has not been started
         job.join().await;
 
         assert!(job.is_complete());
 
         // ensure that we don't leave the server instance hanging around
-        background_handle.abort();
+        cancel_token.cancel();
         let _ = background_handle.await;
 
         Ok(())
@@ -1014,5 +1017,12 @@ partition_key:
 
     fn parsed_lines(lp: &str) -> Vec<ParsedLine<'_>> {
         parse_lines(lp).map(|l| l.unwrap()).collect()
+    }
+
+    fn spawn_worker<M>(server: Arc<Server<M>>, token: CancellationToken) -> JoinHandle<()>
+    where
+        M: ConnectionManager + Send + Sync + 'static,
+    {
+        tokio::task::spawn(async move { server.background_worker(token).await })
     }
 }
