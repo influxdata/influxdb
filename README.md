@@ -28,8 +28,7 @@ We're also hosting monthly tech talks and community office hours on the project 
 
 ## Quick Start
 
-To compile and run InfluxDB IOx from source, you'll need a Rust compiler and a `flatc` FlatBuffers
-compiler.
+To compile and run InfluxDB IOx from source, you'll need a Rust compiler and `clang`.
 
 ### Build a Docker Image
 
@@ -112,7 +111,6 @@ provided [example](docs/env.example) as a template if you want:
 ```shell
 cp docs/env.example .env
 ```
-
 
 ### Compiling and Starting the Server
 
