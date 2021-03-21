@@ -90,6 +90,21 @@ func TestCmdBucket(t *testing.T) {
 					OrgID:           orgID,
 				},
 			},
+			{
+				name: "with explicit shard-group duration",
+				flags: []string{
+					"-r=1h",
+					"--shard-group-duration=1m",
+					"-o=org name",
+					"-n=new name",
+				},
+				expectedBucket: influxdb.Bucket{
+					Name:               "new name",
+					RetentionPeriod:    time.Hour,
+					ShardGroupDuration: time.Minute,
+					OrgID:              orgID,
+				},
+			},
 		}
 
 		cmdFn := func(expectedBkt influxdb.Bucket) func(*globalFlags, genericCLIOpts) *cobra.Command {
@@ -406,6 +421,16 @@ func TestCmdBucket(t *testing.T) {
 					Name:            strPtr("new name"),
 					Description:     strPtr("desc"),
 					RetentionPeriod: durPtr(time.Minute),
+				},
+			},
+			{
+				name: "shard-group duration",
+				flags: []string{
+					"-i=" + influxdb.ID(3).String(),
+					"--shard-group-duration=1m",
+				},
+				expected: influxdb.BucketUpdate{
+					ShardGroupDuration: durPtr(time.Minute),
 				},
 			},
 		}
