@@ -29,7 +29,7 @@ or `/query` HTTP endpoints.
 1. [20949](https://github.com/influxdata/influxdb/pull/20949): Add support for explicitly setting shard-group durations on buckets. Thanks @hinst!
 1. [20838](https://github.com/influxdata/influxdb/pull/20838): Add Swift client library to the data loading section of the UI
 1. [21032](https://github.com/influxdata/influxdb/pull/21032): Display task IDs in the UI.
-1. [20861](https://github.com/influxdata/influxdb/pull/20861): Update Telegraf plugins in UI to include additions and changes in 1.18 release.
+1. [21030](https://github.com/influxdata/influxdb/pull/21030): Update Telegraf plugins in UI to include additions and changes in 1.18 release.
 
 ### Bug Fixes
 
