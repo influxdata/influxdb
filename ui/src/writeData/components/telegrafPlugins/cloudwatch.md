@@ -41,6 +41,9 @@ API endpoint. In the following order the plugin will attempt to authenticate.
   ##   ex: endpoint_url = "http://localhost:8000"
   # endpoint_url = ""
 
+  ## Set http_proxy (telegraf uses the system wide proxy settings if it's is not set)
+  # http_proxy_url = "http://localhost:8888"
+
   # The minimum period for Cloudwatch metrics is 1 minute (60s). However not all
   # metrics are made available to the 1 minute period. Some are collected at
   # 3 minute, 5 minute, or larger intervals. See https://aws.amazon.com/cloudwatch/faqs/#monitoring.

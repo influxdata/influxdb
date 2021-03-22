@@ -31,6 +31,7 @@ the [Teamspeak 3 ServerQuery Manual](http://media.teamspeak.com/ts3_literature/T
     - packets_received_total
     - bytes_sent_total
     - bytes_received_total
+    - query_clients_online
 
 ### Tags:
 
@@ -41,5 +42,5 @@ the [Teamspeak 3 ServerQuery Manual](http://media.teamspeak.com/ts3_literature/T
 ### Example output:
 
 ```
-teamspeak,virtual_server=1,name=LeopoldsServer,host=vm01 bytes_received_total=29638202639i,uptime=13567846i,total_ping=26.89,total_packet_loss=0,packets_sent_total=415821252i,packets_received_total=237069900i,bytes_sent_total=55309568252i,clients_online=11i 1507406561000000000
+teamspeak,virtual_server=1,name=LeopoldsServer,host=vm01 bytes_received_total=29638202639i,uptime=13567846i,total_ping=26.89,total_packet_loss=0,packets_sent_total=415821252i,packets_received_total=237069900i,bytes_sent_total=55309568252i,clients_online=11i,query_clients_online=1i 1507406561000000000
 ```

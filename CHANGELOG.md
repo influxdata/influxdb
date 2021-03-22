@@ -29,7 +29,9 @@ or `/query` HTTP endpoints.
 1. [20971](https://github.com/influxdata/influxdb/pull/20971): Add `--http-read-header-timeout`, `--http-read-timeout`, `--http-write-timeout`, and `--http-idle-timeout` options to `influxd`.
 1. [20971](https://github.com/influxdata/influxdb/pull/20971): Set a default `--http-read-header-timeout` of 10s in `influxd`.
 1. [20971](https://github.com/influxdata/influxdb/pull/20971): Set a default `--http-idle-timeout` of 3m in `influxd`.
-1. [21006](https://github.com/influxdata/influxdb/pull/21006): Add `-p, --profiler-enabled` flag to `influx query` command
+1. [20861](https://github.com/influxdata/influxdb/pull/20861): Update Telegraf plugins in UI to include additions and changes in 1.18 release.
+1. [20894](https://github.com/influxdata/influxdb/pull/20894): Display task IDs in the UI.
+1. [21006](https://github.com/influxdata/influxdb/pull/21006): Add `-p, --profiler-enabled` flag to `influx query` command.
 
 ### Bug Fixes
 
@@ -49,6 +51,7 @@ or `/query` HTTP endpoints.
 1. [20932](https://github.com/influxdata/influxdb/pull/20932): Prevent time field names from being formatted in the Table visualization
 1. [20929](https://github.com/influxdata/influxdb/pull/20929): Log error details when `influxd upgrade` fails to migrate databases.
 1. [20921](https://github.com/influxdata/influxdb/pull/20921): Fix the cipher suite used when TLS strict ciphers are enabled in `influxd`.
+1. [20925](https://github.com/influxdata/influxdb/pull/20925): Fix parse error in UI for tag filters containing regex meta characters.
 
 ## v2.0.4 [2021-02-08]
 
