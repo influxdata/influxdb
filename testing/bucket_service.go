@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dustin/go-humanize"
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -189,8 +190,10 @@ func CreateBucket(
 			},
 			args: args{
 				bucket: &influxdb.Bucket{
-					Name:  "bucket2",
-					OrgID: idTwo,
+					Name:               "bucket2",
+					OrgID:              idTwo,
+					RetentionPeriod:    humanize.Week,
+					ShardGroupDuration: humanize.Day,
 				},
 			},
 			wants: wants{
@@ -201,9 +204,11 @@ func CreateBucket(
 						OrgID: idOne,
 					},
 					{
-						ID:    idTwo,
-						Name:  "bucket2",
-						OrgID: idTwo,
+						ID:                 idTwo,
+						Name:               "bucket2",
+						OrgID:              idTwo,
+						RetentionPeriod:    humanize.Week,
+						ShardGroupDuration: humanize.Day,
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
 							UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
@@ -547,12 +552,14 @@ func FindBuckets(
 				},
 				Buckets: []*influxdb.Bucket{
 					{
-						OrgID: idOne,
-						Name:  "abc",
+						OrgID:           idOne,
+						Name:            "abc",
+						RetentionPeriod: humanize.Week,
 					},
 					{
-						OrgID: idTwo,
-						Name:  "xyz",
+						OrgID:              idTwo,
+						Name:               "xyz",
+						ShardGroupDuration: humanize.Day,
 					},
 				},
 			},
@@ -560,14 +567,16 @@ func FindBuckets(
 			wants: wants{
 				buckets: []*influxdb.Bucket{
 					{
-						ID:    idOne,
-						OrgID: idOne,
-						Name:  "abc",
+						ID:              idOne,
+						OrgID:           idOne,
+						Name:            "abc",
+						RetentionPeriod: humanize.Week,
 					},
 					{
-						ID:    idTwo,
-						OrgID: idTwo,
-						Name:  "xyz",
+						ID:                 idTwo,
+						OrgID:              idTwo,
+						Name:               "xyz",
+						ShardGroupDuration: humanize.Day,
 					},
 				},
 			},
@@ -1122,8 +1131,10 @@ func FindBucket(
 				Buckets: []*influxdb.Bucket{
 					{
 						// ID(1)
-						OrgID: idOne,
-						Name:  "abc",
+						OrgID:              idOne,
+						Name:               "abc",
+						RetentionPeriod:    humanize.Week,
+						ShardGroupDuration: humanize.Day,
 					},
 					{
 						// ID(2)
@@ -1138,9 +1149,11 @@ func FindBucket(
 			},
 			wants: wants{
 				bucket: &influxdb.Bucket{
-					ID:    idOne,
-					OrgID: idOne,
-					Name:  "abc",
+					ID:                 idOne,
+					OrgID:              idOne,
+					Name:               "abc",
+					RetentionPeriod:    humanize.Week,
+					ShardGroupDuration: humanize.Day,
 				},
 			},
 		},
@@ -1163,8 +1176,10 @@ func FindBucket(
 					},
 					{
 						// ID(2)
-						OrgID: idOne,
-						Name:  "xyz",
+						OrgID:              idOne,
+						Name:               "xyz",
+						RetentionPeriod:    humanize.Week,
+						ShardGroupDuration: humanize.Day,
 					},
 				},
 			},
@@ -1174,9 +1189,11 @@ func FindBucket(
 			},
 			wants: wants{
 				bucket: &influxdb.Bucket{
-					ID:    idTwo,
-					OrgID: idOne,
-					Name:  "xyz",
+					ID:                 idTwo,
+					OrgID:              idOne,
+					Name:               "xyz",
+					RetentionPeriod:    humanize.Week,
+					ShardGroupDuration: humanize.Day,
 				},
 			},
 		},
@@ -1239,10 +1256,11 @@ func UpdateBucket(
 	t *testing.T,
 ) {
 	type args struct {
-		name        string
-		id          influxdb.ID
-		retention   int
-		description *string
+		name          string
+		id            influxdb.ID
+		retention     int
+		shardDuration int
+		description   *string
 	}
 	type wants struct {
 		err    error
@@ -1378,8 +1396,9 @@ func UpdateBucket(
 				Buckets: []*influxdb.Bucket{
 					{
 						// ID(1)
-						OrgID: idOne,
-						Name:  "bucket1",
+						OrgID:              idOne,
+						Name:               "bucket1",
+						ShardGroupDuration: time.Hour,
 					},
 					{
 						// ID(2)
@@ -1394,10 +1413,100 @@ func UpdateBucket(
 			},
 			wants: wants{
 				bucket: &influxdb.Bucket{
-					ID:              idOne,
-					OrgID:           idOne,
-					Name:            "bucket1",
-					RetentionPeriod: 100 * time.Minute,
+					ID:                 idOne,
+					OrgID:              idOne,
+					Name:               "bucket1",
+					RetentionPeriod:    100 * time.Minute,
+					ShardGroupDuration: time.Hour,
+					CRUDLog: influxdb.CRUDLog{
+						UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+					},
+				},
+			},
+		},
+		{
+			name: "update shard-group duration",
+			fields: BucketFields{
+				OrgIDs:        mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs:     mock.NewIncrementingIDGenerator(idOne),
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						OrgID:              idOne,
+						Name:               "bucket1",
+						RetentionPeriod:    humanize.Day,
+						ShardGroupDuration: time.Hour,
+					},
+					{
+						// ID(2)
+						OrgID: idOne,
+						Name:  "bucket2",
+					},
+				},
+			},
+			args: args{
+				id:            idOne,
+				shardDuration: 100,
+			},
+			wants: wants{
+				bucket: &influxdb.Bucket{
+					ID:                 idOne,
+					OrgID:              idOne,
+					Name:               "bucket1",
+					RetentionPeriod:    humanize.Day,
+					ShardGroupDuration: 100 * time.Minute,
+					CRUDLog: influxdb.CRUDLog{
+						UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+					},
+				},
+			},
+		},
+		{
+			name: "update retention and shard-group duration",
+			fields: BucketFields{
+				OrgIDs:        mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs:     mock.NewIncrementingIDGenerator(idOne),
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						OrgID:              idOne,
+						Name:               "bucket1",
+						RetentionPeriod:    humanize.Day,
+						ShardGroupDuration: time.Hour,
+					},
+					{
+						// ID(2)
+						OrgID: idOne,
+						Name:  "bucket2",
+					},
+				},
+			},
+			args: args{
+				id:            idOne,
+				retention:     100,
+				shardDuration: 100,
+			},
+			wants: wants{
+				bucket: &influxdb.Bucket{
+					ID:                 idOne,
+					OrgID:              idOne,
+					Name:               "bucket1",
+					RetentionPeriod:    100 * time.Minute,
+					ShardGroupDuration: 100 * time.Minute,
 					CRUDLog: influxdb.CRUDLog{
 						UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
 					},
@@ -1530,6 +1639,48 @@ func UpdateBucket(
 			},
 		},
 		{
+			name: "update retention and same name",
+			fields: BucketFields{
+				OrgIDs:        mock.NewIncrementingIDGenerator(idOne),
+				BucketIDs:     mock.NewIncrementingIDGenerator(idOne),
+				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC)},
+				Organizations: []*influxdb.Organization{
+					{
+						// ID(1)
+						Name: "theorg",
+					},
+				},
+				Buckets: []*influxdb.Bucket{
+					{
+						// ID(1)
+						OrgID: idOne,
+						Name:  "bucket1",
+					},
+					{
+						// ID(2)
+						OrgID: idOne,
+						Name:  "bucket2",
+					},
+				},
+			},
+			args: args{
+				id:        idTwo,
+				retention: 101,
+				name:      "bucket2",
+			},
+			wants: wants{
+				bucket: &influxdb.Bucket{
+					ID:              idTwo,
+					OrgID:           idOne,
+					Name:            "bucket2",
+					RetentionPeriod: 101 * time.Minute,
+					CRUDLog: influxdb.CRUDLog{
+						UpdatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
+					},
+				},
+			},
+		},
+		{
 			name: "update bucket with illegal quotation mark",
 			fields: BucketFields{
 				OrgIDs:        mock.NewStaticIDGenerator(idOne),
@@ -1576,6 +1727,10 @@ func UpdateBucket(
 			if tt.args.retention != 0 {
 				d := time.Duration(tt.args.retention) * time.Minute
 				upd.RetentionPeriod = &d
+			}
+			if tt.args.shardDuration != 0 {
+				d := time.Duration(tt.args.shardDuration) * time.Minute
+				upd.ShardGroupDuration = &d
 			}
 
 			upd.Description = tt.args.description

@@ -8,6 +8,11 @@ Prior to this release, the `influxd` server would always expose profiling inform
 This endpoint was unauthenticated, and not used by InfluxDB systems to report diagnostics. For security and clarity,
 the endpoint has been removed. Use the `/metrics` endpoint to collect system statistics.
 
+#### `influx transpile` removed
+
+The `transpile` command has been retired. Users can send InfluxQL directly to the server via the `/api/v2/query`
+or `/query` HTTP endpoints.
+
 ### Features
 
 1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells.
@@ -18,6 +23,13 @@ the endpoint has been removed. Use the `/metrics` endpoint to collect system sta
 1. [20827](https://github.com/influxdata/influxdb/pull/20827): Add `--pprof-disabled` option to `influxd` to disable exposing profiling information over HTTP.
 1. [20827](https://github.com/influxdata/influxdb/pull/20827): Add `/debug/pprof/all` HTTP endpoint to gather all profiles at once.
 1. [20827](https://github.com/influxdata/influxdb/pull/20827): Upgrade `http.pprof-enabled` config in `influxd upgrade`.
+1. [20911](https://github.com/influxdata/influxdb/pull/20911): Add support for explicitly setting shard-group durations on buckets. Thanks @hinst!
+1. [20882](https://github.com/influxdata/influxdb/pull/20882): Rewrite regex conditions in InfluxQL subqueries for performance. Thanks @yujiahaol68!
+1. [20963](https://github.com/influxdata/influxdb/pull/20963): Add `--metrics-disabled` option to `influxd` to disable exposing Prometheus metrics over HTTP.
+1. [20971](https://github.com/influxdata/influxdb/pull/20971): Add `--http-read-header-timeout`, `--http-read-timeout`, `--http-write-timeout`, and `--http-idle-timeout` options to `influxd`.
+1. [20971](https://github.com/influxdata/influxdb/pull/20971): Set a default `--http-read-header-timeout` of 10s in `influxd`.
+1. [20971](https://github.com/influxdata/influxdb/pull/20971): Set a default `--http-idle-timeout` of 3m in `influxd`.
+1. [20861](https://github.com/influxdata/influxdb/pull/20861): Update Telegraf plugins in UI to include additions and changes in 1.18 release.
 
 ### Bug Fixes
 
@@ -34,6 +46,9 @@ the endpoint has been removed. Use the `/metrics` endpoint to collect system sta
 1. [20827](https://github.com/influxdata/influxdb/pull/20827): Remove unauthenticated, unsupported `/debug/vars` HTTP endpoint.
 1. [20856](https://github.com/influxdata/influxdb/pull/20856): Respect 24 hour clock formats in the UI and allow more choices
 1. [20875](https://github.com/influxdata/influxdb/pull/20875): Prevent "do not have an execution context" error when parsing Flux options in tasks.
+1. [20932](https://github.com/influxdata/influxdb/pull/20932): Prevent time field names from being formatted in the Table visualization
+1. [20929](https://github.com/influxdata/influxdb/pull/20929): Log error details when `influxd upgrade` fails to migrate databases.
+1. [20921](https://github.com/influxdata/influxdb/pull/20921): Fix the cipher suite used when TLS strict ciphers are enabled in `influxd`.
 
 ## v2.0.4 [2021-02-08]
 
