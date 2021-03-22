@@ -217,9 +217,11 @@ func (b *cmdTaskBuilder) taskFindF(cmd *cobra.Command, args []string) error {
 }
 
 type taskRerunFailedFlags struct {
-	before string
-	after  string
-	dryRun bool
+	before    string
+	after     string
+	dryRun    bool
+	taskLimit int
+	runLimit  int
 }
 
 func (b *cmdTaskBuilder) taskRetryFailedCmd() *cobra.Command {
@@ -235,6 +237,8 @@ func (b *cmdTaskBuilder) taskRetryFailedCmd() *cobra.Command {
 	cmd.Flags().StringVar(&b.taskRerunFailedFlags.after, "after", "", "runs after this time")
 	cmd.Flags().BoolVar(&b.taskRerunFailedFlags.dryRun, "dry-run", false,
 		"print info about runs that would be retried")
+	cmd.Flags().IntVar(&b.taskRerunFailedFlags.taskLimit, "task-limit", 100, "max number of tasks to retry failed runs for")
+	cmd.Flags().IntVar(&b.taskRerunFailedFlags.runLimit, "run-limit", 100, "max number of failed runs to retry per task")
 
 	return cmd
 }
@@ -243,6 +247,14 @@ func (b *cmdTaskBuilder) taskRetryFailedF(*cobra.Command, []string) error {
 	if err := b.org.validOrgFlags(&flags); err != nil {
 		return err
 	}
+
+	if b.taskRerunFailedFlags.taskLimit < 1 || b.taskRerunFailedFlags.taskLimit > 500 {
+		return fmt.Errorf("task-limit must be between 1 and 500 (inclusive)")
+	}
+	if b.taskRerunFailedFlags.runLimit < 1 || b.taskRerunFailedFlags.runLimit > 500 {
+		return fmt.Errorf("run-limit must be between 1 and 500 (inclusive)")
+	}
+
 	tskSvc, _, err := b.svcFn()
 	if err != nil {
 		return err
@@ -250,9 +262,9 @@ func (b *cmdTaskBuilder) taskRetryFailedF(*cobra.Command, []string) error {
 
 	var failedRuns []*influxdb.Run
 	if b.taskID == "" {
-		failedRuns, err = b.getFailedRunsForOrg()
+		failedRuns, err = b.getFailedRunsForOrg(b.taskRerunFailedFlags.taskLimit, b.taskRerunFailedFlags.runLimit)
 	} else {
-		failedRuns, err = b.getFailedRunsForTaskID()
+		failedRuns, err = b.getFailedRunsForTaskID(b.taskRerunFailedFlags.runLimit)
 	}
 	if err != nil {
 		return err
@@ -279,16 +291,15 @@ func (b *cmdTaskBuilder) taskRetryFailedF(*cobra.Command, []string) error {
 	}
 
 	return nil
-
 }
 
-func (b *cmdTaskBuilder) getFailedRunsForTaskID() ([]*influxdb.Run, error) {
+func (b *cmdTaskBuilder) getFailedRunsForTaskID(limit int) ([]*influxdb.Run, error) {
 	// use RunFilter to search for failed runs
 	tskSvc, _, err := b.svcFn()
 	if err != nil {
 		return nil, err
 	}
-	runFilter := influxdb.RunFilter{}
+	runFilter := influxdb.RunFilter{Limit: limit}
 	id, err := influxdb.IDFromString(b.taskID)
 	if err != nil {
 		return nil, err
@@ -310,10 +321,10 @@ func (b *cmdTaskBuilder) getFailedRunsForTaskID() ([]*influxdb.Run, error) {
 
 }
 
-func (b *cmdTaskBuilder) getFailedRunsForOrg() ([]*influxdb.Run, error) {
+func (b *cmdTaskBuilder) getFailedRunsForOrg(taskLimit int, runLimit int) ([]*influxdb.Run, error) {
 	// use TaskFilter to get all Tasks in org then search for failed runs in each task
-	taskFilter := influxdb.TaskFilter{}
-	runFilter := influxdb.RunFilter{}
+	taskFilter := influxdb.TaskFilter{Limit: taskLimit}
+	runFilter := influxdb.RunFilter{Limit: runLimit}
 	runFilter.BeforeTime = b.taskRerunFailedFlags.before
 	runFilter.AfterTime = b.taskRerunFailedFlags.after
 	tskSvc, _, err := b.svcFn()
