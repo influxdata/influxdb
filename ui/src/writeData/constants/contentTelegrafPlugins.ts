@@ -7,6 +7,7 @@ import {WriteDataItem, WriteDataSection} from 'src/writeData/constants'
 // Markdown
 import activemqMarkdown from 'src/writeData/components/telegrafPlugins/activemq.md'
 import aerospikeMarkdown from 'src/writeData/components/telegrafPlugins/aerospike.md'
+import aliyuncmsMarkdown from 'src/writeData/components/telegrafPlugins/aliyuncms.md'
 import amqp_consumerMarkdown from 'src/writeData/components/telegrafPlugins/amqp_consumer.md'
 import apacheMarkdown from 'src/writeData/components/telegrafPlugins/apache.md'
 import apcupsdMarkdown from 'src/writeData/components/telegrafPlugins/apcupsd.md'
@@ -32,7 +33,9 @@ import consulMarkdown from 'src/writeData/components/telegrafPlugins/consul.md'
 import couchbaseMarkdown from 'src/writeData/components/telegrafPlugins/couchbase.md'
 import couchdbMarkdown from 'src/writeData/components/telegrafPlugins/couchdb.md'
 import cpuMarkdown from 'src/writeData/components/telegrafPlugins/cpu.md'
+import csgoMarkdown from 'src/writeData/components/telegrafPlugins/csgo.md'
 import dcosMarkdown from 'src/writeData/components/telegrafPlugins/dcos.md'
+import directory_monitorMarkdown from 'src/writeData/components/telegrafPlugins/directory_monitor.md'
 import diskioMarkdown from 'src/writeData/components/telegrafPlugins/diskio.md'
 import diskMarkdown from 'src/writeData/components/telegrafPlugins/disk.md'
 import disqueMarkdown from 'src/writeData/components/telegrafPlugins/disque.md'
@@ -112,6 +115,7 @@ import nats_consumerMarkdown from 'src/writeData/components/telegrafPlugins/nats
 import natsMarkdown from 'src/writeData/components/telegrafPlugins/nats.md'
 import neptune_apexMarkdown from 'src/writeData/components/telegrafPlugins/neptune_apex.md'
 import net_responseMarkdown from 'src/writeData/components/telegrafPlugins/net_response.md'
+import nfsclientMarkdown from 'src/writeData/components/telegrafPlugins/nfsclient.md'
 import nginx_plus_apiMarkdown from 'src/writeData/components/telegrafPlugins/nginx_plus_api.md'
 import nginx_plusMarkdown from 'src/writeData/components/telegrafPlugins/nginx_plus.md'
 import nginx_stsMarkdown from 'src/writeData/components/telegrafPlugins/nginx_sts.md'
@@ -147,6 +151,7 @@ import puppetagentMarkdown from 'src/writeData/components/telegrafPlugins/puppet
 import rabbitmqMarkdown from 'src/writeData/components/telegrafPlugins/rabbitmq.md'
 import raindropsMarkdown from 'src/writeData/components/telegrafPlugins/raindrops.md'
 import rasMarkdown from 'src/writeData/components/telegrafPlugins/ras.md'
+import ravendbMarkdown from 'src/writeData/components/telegrafPlugins/ravendb.md'
 import redfishMarkdown from 'src/writeData/components/telegrafPlugins/redfish.md'
 import redisMarkdown from 'src/writeData/components/telegrafPlugins/redis.md'
 import rethinkdbMarkdown from 'src/writeData/components/telegrafPlugins/rethinkdb.md'
@@ -196,6 +201,7 @@ import zookeeperMarkdown from 'src/writeData/components/telegrafPlugins/zookeepe
 // Graphics
 import activemqLogo from 'src/writeData/graphics/activemq.svg'
 import aerospikeLogo from 'src/writeData/graphics/aerospike.svg'
+import aliyuncmsLogo from 'src/writeData/graphics/aliyuncms.svg'
 import amqp_consumerLogo from 'src/writeData/graphics/amqp_consumer.svg'
 import apacheLogo from 'src/writeData/graphics/apache.svg'
 import apcupsdLogo from 'src/writeData/graphics/apcupsd.svg'
@@ -221,7 +227,9 @@ import consulLogo from 'src/writeData/graphics/consul.svg'
 import couchbaseLogo from 'src/writeData/graphics/couchbase.svg'
 import couchdbLogo from 'src/writeData/graphics/couchdb.svg'
 import cpuLogo from 'src/writeData/graphics/cpu.svg'
+import csgoLogo from 'src/writeData/graphics/csgo.svg'
 import dcosLogo from 'src/writeData/graphics/dcos.svg'
+import directory_monitorLogo from 'src/writeData/graphics/directory_monitor.svg'
 import diskioLogo from 'src/writeData/graphics/diskio.svg'
 import diskLogo from 'src/writeData/graphics/disk.svg'
 import disqueLogo from 'src/writeData/graphics/disque.svg'
@@ -301,6 +309,7 @@ import nats_consumerLogo from 'src/writeData/graphics/nats_consumer.svg'
 import natsLogo from 'src/writeData/graphics/nats.svg'
 import neptune_apexLogo from 'src/writeData/graphics/neptune_apex.svg'
 import net_responseLogo from 'src/writeData/graphics/net_response.svg'
+import nfsclientLogo from 'src/writeData/graphics/nfsclient.svg'
 import nginx_plus_apiLogo from 'src/writeData/graphics/nginx_plus_api.svg'
 import nginx_plusLogo from 'src/writeData/graphics/nginx_plus.svg'
 import nginx_stsLogo from 'src/writeData/graphics/nginx_sts.svg'
@@ -336,6 +345,7 @@ import puppetagentLogo from 'src/writeData/graphics/puppetagent.svg'
 import rabbitmqLogo from 'src/writeData/graphics/rabbitmq.svg'
 import raindropsLogo from 'src/writeData/graphics/raindrops.svg'
 import rasLogo from 'src/writeData/graphics/ras.svg'
+import ravendbLogo from 'src/writeData/graphics/ravendb.svg'
 import redfishLogo from 'src/writeData/graphics/redfish.svg'
 import redisLogo from 'src/writeData/graphics/redis.svg'
 import rethinkdbLogo from 'src/writeData/graphics/rethinkdb.svg'
@@ -398,6 +408,13 @@ export const WRITE_DATA_TELEGRAF_PLUGINS: WriteDataItem[] = [
     image: aerospikeLogo,
   },
   {
+    id: 'aliyuncms',
+    name: 'Alibaba (aka Aliyun) CloudMonitor Service Statistics Input',
+    url: `${TELEGRAF_PLUGINS}/aliyuncms`,
+    markdown: aliyuncmsMarkdown,
+    image: aliyuncmsLogo,
+  },
+  {
     id: 'amqp_consumer',
     name: 'AMQP Consumer',
     url: `${TELEGRAF_PLUGINS}/amqp_consumer`,
@@ -448,7 +465,7 @@ export const WRITE_DATA_TELEGRAF_PLUGINS: WriteDataItem[] = [
   },
   {
     id: 'beat',
-    name: 'Beat Plugin',
+    name: 'Beat',
     url: `${TELEGRAF_PLUGINS}/beat`,
     markdown: beatMarkdown,
     image: beatLogo,
@@ -573,11 +590,25 @@ export const WRITE_DATA_TELEGRAF_PLUGINS: WriteDataItem[] = [
     image: cpuLogo,
   },
   {
+    id: 'csgo',
+    name: 'Counter-Strike: Global Offensive (CSGO)',
+    url: `${TELEGRAF_PLUGINS}/csgo`,
+    markdown: csgoMarkdown,
+    image: csgoLogo,
+  },
+  {
     id: 'dcos',
     name: 'DC/OS',
     url: `${TELEGRAF_PLUGINS}/dcos`,
     markdown: dcosMarkdown,
     image: dcosLogo,
+  },
+  {
+    id: 'directory_monitor',
+    name: 'Directory Monitor',
+    url: `${TELEGRAF_PLUGINS}/directory_monitor`,
+    markdown: directory_monitorMarkdown,
+    image: directory_monitorLogo,
   },
   {
     id: 'disk',
@@ -1133,6 +1164,13 @@ export const WRITE_DATA_TELEGRAF_PLUGINS: WriteDataItem[] = [
     image: net_responseLogo,
   },
   {
+    id: 'nfsclient',
+    name: 'NFS Client',
+    url: `${TELEGRAF_PLUGINS}/nfsclient`,
+    markdown: nfsclientMarkdown,
+    image: nfsclientLogo,
+  },
+  {
     id: 'nginx',
     name: 'Nginx',
     url: `${TELEGRAF_PLUGINS}/nginx`,
@@ -1376,6 +1414,13 @@ export const WRITE_DATA_TELEGRAF_PLUGINS: WriteDataItem[] = [
     url: `${TELEGRAF_PLUGINS}/ras`,
     markdown: rasMarkdown,
     image: rasLogo,
+  },
+  {
+    id: 'ravendb',
+    name: 'RavenDB',
+    url: `${TELEGRAF_PLUGINS}/ravendb`,
+    markdown: ravendbMarkdown,
+    image: ravendbLogo,
   },
   {
     id: 'redfish',
