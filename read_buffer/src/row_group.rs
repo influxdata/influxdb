@@ -15,7 +15,7 @@ use crate::column::{cmp::Operator, Column, RowIDs, RowIDsOption};
 use crate::schema;
 use crate::schema::{AggregateType, LogicalDataType, ResultSchema};
 use crate::value::{
-    AggregateResult, AggregateVec, EncodedValues, OwnedValue, Scalar, Value, Values, ValuesIterator,
+    AggregateVec, EncodedValues, OwnedValue, Scalar, Value, Values, ValuesIterator,
 };
 use arrow_deps::arrow::record_batch::RecordBatch;
 use arrow_deps::{
@@ -1369,31 +1369,6 @@ impl TryFrom<&DfExpr> for BinaryExpr {
         };
 
         Ok(Self::new(column_name, op, value))
-    }
-}
-
-#[derive(Debug, PartialEq, Clone)]
-pub struct AggregateResults<'row_group>(Vec<AggregateResult<'row_group>>);
-
-impl<'row_group> AggregateResults<'row_group> {
-    fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    fn merge(&mut self, other: &AggregateResults<'row_group>) {
-        assert_eq!(self.0.len(), other.len());
-        for (i, agg) in self.0.iter_mut().enumerate() {
-            agg.merge(&other.0[i]);
-        }
-    }
-}
-
-impl<'a> IntoIterator for AggregateResults<'a> {
-    type Item = AggregateResult<'a>;
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
     }
 }
 
