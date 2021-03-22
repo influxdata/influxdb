@@ -536,8 +536,7 @@ impl RowGroup {
         // These vectors will hold the decoded values of each part of each
         // group key. They are the output columns of the input columns used for
         // the grouping operation.
-        let mut group_cols_out: Vec<Vec<Option<ColumnName<'a>>>> = vec![];
-        group_cols_out.resize(groupby_encoded_ids.len(), vec![]);
+        let mut group_cols_out = vec![vec![]; groupby_encoded_ids.len()];
 
         // Each of these vectors will be used to store each aggregate row-value
         // for a specific aggregate result column.
