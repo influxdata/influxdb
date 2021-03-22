@@ -20,56 +20,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var EnableProfilerExternOption = map[string]interface{}{
-	"type": "File",
-	"imports": []interface{}{
-		map[string]interface{}{
-			"type": "ImportDeclaration",
-			"path": map[string]interface{}{
-				"type":  "StringLiteral",
-				"value": "profiler",
-			},
-		},
-	},
-	"body": []interface{}{
-		map[string]interface{}{
-			"assignment": map[string]interface{}{
-				"member": map[string]interface{}{
-					"object": map[string]interface{}{
-						"name": "profiler",
-						"type": "Identifier",
-					},
-					"property": map[string]interface{}{
-						"name": "enabledProfilers",
-						"type": "Identifier",
-					},
-					"type": "MemberExpression",
-				},
-				"init": map[string]interface{}{
-					"type": "ArrayExpression",
-					"elements": []interface{}{
-						map[string]interface{}{
-							"type":  "StringLiteral",
-							"value": "query",
-						},
-						map[string]interface{}{
-							"type":  "StringLiteral",
-							"value": "operator",
-						},
-					},
-				},
-				"type": "MemberAssignment",
-			},
-			"type": "OptionStatement",
-		},
-	},
-}
-
 var queryFlags struct {
-	org      organization
-	file     string
-	raw      bool
-	profiler bool
+	org       organization
+	file      string
+	raw       bool
+	profilers string
 }
 
 func cmdQuery(f *globalFlags, opts genericCLIOpts) *cobra.Command {
@@ -82,7 +37,7 @@ func cmdQuery(f *globalFlags, opts genericCLIOpts) *cobra.Command {
 	queryFlags.org.register(opts.viper, cmd, true)
 	cmd.Flags().StringVarP(&queryFlags.file, "file", "f", "", "Path to Flux query file")
 	cmd.Flags().BoolVarP(&queryFlags.raw, "raw", "r", false, "Display raw query results")
-	cmd.Flags().BoolVarP(&queryFlags.profiler, "profiler-enabled", "p", false, "Return profiler information with the query results")
+	cmd.Flags().StringVarP(&queryFlags.profilers, "profilers", "p", "", "Append profiler information to query results. Comma-separate profilers to enable multiple.")
 
 	return cmd
 }
@@ -158,8 +113,9 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 		},
 	}
 
-	if queryFlags.profiler {
-		body_map["extern"] = EnableProfilerExternOption
+	if queryFlags.profilers != "" {
+		var profilers = strings.Split(queryFlags.profilers, ",")
+		body_map["extern"] = buildProfilersExtern(profilers)
 	}
 
 	body, _ := json.Marshal(body_map)
@@ -206,6 +162,52 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 	// called before checking the error on the next line.
 	results.Release()
 	return results.Err()
+}
+
+func buildProfilersExtern(profilersToEnable []string) (profilersExtern map[string]interface{}) {
+	elements := make([]interface{}, len(profilersToEnable))
+	for i, profiler := range profilersToEnable {
+		elements[i] = map[string]interface{}{
+			"type":  "StringLiteral",
+			"value": profiler,
+		}
+	}
+	profilersExtern = map[string]interface{}{
+		"type": "File",
+		"imports": []interface{}{
+			map[string]interface{}{
+				"type": "ImportDeclaration",
+				"path": map[string]interface{}{
+					"type":  "StringLiteral",
+					"value": "profiler",
+				},
+			},
+		},
+		"body": []interface{}{
+			map[string]interface{}{
+				"assignment": map[string]interface{}{
+					"member": map[string]interface{}{
+						"object": map[string]interface{}{
+							"name": "profiler",
+							"type": "Identifier",
+						},
+						"property": map[string]interface{}{
+							"name": "enabledProfilers",
+							"type": "Identifier",
+						},
+						"type": "MemberExpression",
+					},
+					"init": map[string]interface{}{
+						"type":     "ArrayExpression",
+						"elements": elements,
+					},
+					"type": "MemberAssignment",
+				},
+				"type": "OptionStatement",
+			},
+		},
+	}
+	return profilersExtern
 }
 
 // Below is a copy and trimmed version of the execute/format.go file from flux.
