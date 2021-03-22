@@ -1707,7 +1707,7 @@ impl<'row_group> ReadAggregateResult<'row_group> {
         &self.schema
     }
 
-    //9/ The number of rows in the result.
+    /// The number of rows in the result.
     pub fn rows(&self) -> usize {
         if self.aggregate_cols.is_empty() {
             return 0;
