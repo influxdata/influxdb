@@ -41,7 +41,7 @@ We really like to receive feature requests, as it helps us prioritize our work. 
 Contributing to the source code
 ---------------
 
-InfluxDB requires go 1.13 or later and uses go modules to manage dependencies.  This means that all of your Go development is done wherever you choose to check out the source.  There is no need to place the source in your `$GOPATH`.  In fact, we recommend against placing it within `$GOPATH`.
+InfluxDB requires go 1.15 or later and uses go modules to manage dependencies.  This means that all of your Go development is done wherever you choose to check out the source.  There is no need to place the source in your `$GOPATH`.  In fact, we recommend against placing it within `$GOPATH`.
 
 You should also read our [coding guide](https://github.com/influxdata/influxdb/blob/master-1.x/CODING_GUIDELINES.md), to understand better how to write code for InfluxDB.
 
@@ -69,7 +69,7 @@ second to sign our CLA, which can be found
 
 Installing Go
 -------------
-InfluxDB requires Go 1.13.
+InfluxDB requires Go 1.15.
 
 At InfluxDB we find gvm, a Go version manager, useful for installing Go. For instructions
 on how to install it see [the gvm page on github](https://github.com/moovweb/gvm).
@@ -77,8 +77,8 @@ on how to install it see [the gvm page on github](https://github.com/moovweb/gvm
 After installing gvm you can install and set the default go version by
 running the following:
 
-    gvm install go1.13
-    gvm use go1.13 --default
+    gvm install go1.15
+    gvm use go1.15 --default
 
 Revision Control Systems
 -------------
@@ -271,7 +271,7 @@ Continuous Integration testing
 -----
 InfluxDB uses CircleCI for continuous integration testing. CircleCI executes [test.sh](https://github.com/influxdata/influxdb/blob/master-1.x/test.sh), so you may do the same on your local development environment before creating a pull request.
 
-The `test.sh` script executes a test suite with 5 variants (standard 64 bit, 64 bit with race detection, 32 bit, TSI, go version 1.13), each executes with a different arg, 0 through 4. Unless you know differently, `./test.sh 0` is probably all you need.
+The `test.sh` script executes a test suite with 3 variants (standard 64 bit, 64 bit with race detection, TSI), each executes with a different arg, 0 through 2. Unless you know differently, `./test.sh 0` is probably all you need.
 
 
 Distributions
