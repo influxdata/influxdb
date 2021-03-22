@@ -7,7 +7,7 @@ jobs:
       docker_layer_caching: true
     environment:
       - PARALLELISM: 4 # Amount of parallelism within each test (not the number of tests)
-    parallelism: 4 # How many CircleCI test containers
+    parallelism: 3 # How many CircleCI test containers
     steps:
       - checkout
       - run:
