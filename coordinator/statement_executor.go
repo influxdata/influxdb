@@ -661,7 +661,7 @@ func (e *StatementExecutor) executeShowContinuousQueriesStatement(stmt *influxql
 
 func (e *StatementExecutor) executeShowDatabasesStatement(ctx *query.ExecutionContext, q *influxql.ShowDatabasesStatement) (models.Rows, error) {
 	dis := e.MetaClient.Databases()
-	a := ctx.ExecutionOptions.Authorizer
+	a := ctx.ExecutionOptions.CoarseAuthorizer
 
 	row := &models.Row{Name: "databases", Columns: []string{"name"}}
 	for _, di := range dis {
@@ -1374,9 +1374,9 @@ type TSDBStore interface {
 	DeleteSeries(database string, sources []influxql.Source, condition influxql.Expr) error
 	DeleteShard(id uint64) error
 
-	MeasurementNames(ctx context.Context, auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
-	TagKeys(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
-	TagValues(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
+	MeasurementNames(ctx context.Context, auth query.FineAuthorizer, database string, cond influxql.Expr) ([][]byte, error)
+	TagKeys(ctx context.Context, auth query.FineAuthorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
+	TagValues(ctx context.Context, auth query.FineAuthorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
 
 	SeriesCardinality(ctx context.Context, database string) (int64, error)
 	MeasurementsCardinality(ctx context.Context, database string) (int64, error)

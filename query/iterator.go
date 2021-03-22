@@ -620,7 +620,7 @@ type IteratorOptions struct {
 	InterruptCh <-chan struct{}
 
 	// Authorizer can limit access to data
-	Authorizer Authorizer
+	Authorizer FineAuthorizer
 }
 
 // newIteratorOptionsStmt creates the iterator options from stmt.

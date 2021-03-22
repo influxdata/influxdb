@@ -2166,6 +2166,10 @@ func (a *HandlerQueryAuthorizer) AuthorizeQuery(u meta.User, query *influxql.Que
 	return a.AuthorizeQueryFn(u, query, database)
 }
 
+func (a *HandlerQueryAuthorizer) AuthorizeDatabase(u meta.User, priv influxql.Privilege, database string) error {
+	panic("not implemented")
+}
+
 type HandlerPointsWriter struct {
 	WritePointsFn func(database, retentionPolicy string, consistencyLevel models.ConsistencyLevel, user meta.User, points []models.Point) error
 }
