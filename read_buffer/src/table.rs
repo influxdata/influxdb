@@ -12,7 +12,7 @@ use snafu::{ensure, Snafu};
 
 use crate::row_group::{self, ColumnName, Predicate, RowGroup};
 use crate::schema::{AggregateType, ColumnType, LogicalDataType, ResultSchema};
-use crate::value::{AggregateResult, Scalar, Value};
+use crate::value::Value;
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("cannot drop last row group in table; drop table"))]
@@ -273,76 +273,15 @@ impl Table {
         _group_columns: Vec<ColumnName<'a>>,
         _aggregates: Vec<(ColumnName<'a>, AggregateType)>,
         _window: i64,
-    ) -> BTreeMap<Vec<String>, Vec<(ColumnName<'a>, AggregateResult<'_>)>> {
+    ) -> BTreeMap<Vec<String>, Vec<(ColumnName<'a>, ReadAggregateResults)>> {
         // identify segments where time range and predicates match could match
         // using segment meta data, and then execute against those segments and
         // merge results.
         todo!()
     }
 
-    // Perform aggregates without any grouping. Filtering on optional predicates
-    // and time range is still supported.
-    fn read_aggregate_no_group<'a>(
-        &self,
-        time_range: (i64, i64),
-        predicates: &[(&str, &str)],
-        aggregates: Vec<(ColumnName<'a>, AggregateType)>,
-    ) -> Vec<(ColumnName<'a>, AggregateResult<'_>)> {
-        // The fast path where there are no predicates or a time range to apply.
-        // We just want the equivalent of column statistics.
-        if predicates.is_empty() {
-            let mut results = Vec::with_capacity(aggregates.len());
-            for (col_name, agg_type) in &aggregates {
-                match agg_type {
-                    AggregateType::Count => {
-                        results.push((
-                            col_name,
-                            AggregateResult::Count(self.count(col_name, time_range)),
-                        ));
-                    }
-                    AggregateType::First => {
-                        results.push((
-                            col_name,
-                            AggregateResult::First(self.first(col_name, time_range.0)),
-                        ));
-                    }
-                    AggregateType::Last => {
-                        results.push((
-                            col_name,
-                            AggregateResult::Last(self.last(col_name, time_range.1)),
-                        ));
-                    }
-                    AggregateType::Min => {
-                        results.push((
-                            col_name,
-                            AggregateResult::Min(self.min(col_name, time_range)),
-                        ));
-                    }
-                    AggregateType::Max => {
-                        results.push((
-                            col_name,
-                            AggregateResult::Max(self.max(col_name, time_range)),
-                        ));
-                    }
-                    AggregateType::Sum => {
-                        let res = match self.sum(col_name, time_range) {
-                            Some(x) => x,
-                            None => Scalar::Null,
-                        };
-
-                        results.push((col_name, AggregateResult::Sum(res)));
-                    }
-                }
-            }
-        }
-
-        // Otherwise we have predicates so for each segment we will execute a
-        // generalised aggregation method and build up the result set.
-        todo!();
-    }
-
     //
-    // ---- Fast-path aggregations on single columns.
+    // ---- Fast-path first/last selectors.
     //
 
     // Returns the first value for the specified column across the table
@@ -384,44 +323,6 @@ impl Table {
         //
         // Tied values (multiple equivalent min timestamps) results in an
         // arbitrary value from the result set being returned.
-        todo!();
-    }
-
-    /// The minimum non-null value in the column for the table.
-    fn min(&self, _column_name: &str, _time_range: (i64, i64)) -> Value<'_> {
-        // Loop over segments, skipping any that don't satisfy the time range.
-        // Any segments completely overlapped can have a candidate min taken
-        // directly from their zone map. Partially overlapped segments will be
-        // read using the appropriate execution API.
-        //
-        // Return the min of minimums.
-        todo!();
-    }
-
-    /// The maximum non-null value in the column for the table.
-    fn max(&self, _column_name: &str, _time_range: (i64, i64)) -> Value<'_> {
-        // Loop over segments, skipping any that don't satisfy the time range.
-        // Any segments completely overlapped can have a candidate max taken
-        // directly from their zone map. Partially overlapped segments will be
-        // read using the appropriate execution API.
-        //
-        // Return the max of maximums.
-        todo!();
-    }
-
-    /// The number of non-null values in the column for the table.
-    fn count(&self, _column_name: &str, _time_range: (i64, i64)) -> u64 {
-        // Loop over segments, skipping any that don't satisfy the time range.
-        // Execute appropriate aggregation call on each segment and aggregate
-        // the results.
-        todo!();
-    }
-
-    /// The total sum of non-null values in the column for the table.
-    fn sum(&self, _column_name: &str, _time_range: (i64, i64)) -> Option<Scalar> {
-        // Loop over segments, skipping any that don't satisfy the time range.
-        // Execute appropriate aggregation call on each segment and aggregate
-        // the results.
         todo!();
     }
 
