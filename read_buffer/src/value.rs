@@ -1,4 +1,4 @@
-use std::{collections::BTreeSet, convert::TryFrom, fmt::Formatter};
+use std::{convert::TryFrom, fmt::Formatter};
 use std::{mem::size_of, sync::Arc};
 
 use arrow_deps::arrow;
@@ -1511,15 +1511,6 @@ impl<'a> Iterator for ValuesIterator<'a> {
 
         Some(self.v.value(curr_i))
     }
-}
-
-#[derive(PartialEq, Debug)]
-pub enum ValueSet<'a> {
-    // UTF-8 valid unicode strings
-    String(BTreeSet<Option<&'a String>>),
-
-    // Arbitrary collections of bytes
-    ByteArray(BTreeSet<Option<&'a [u8]>>),
 }
 
 #[derive(Debug, PartialEq)]

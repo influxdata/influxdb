@@ -94,6 +94,8 @@ impl Table {
         row_groups.data.push(Arc::new(rg));
     }
 
+    /// TODO(edd): wire up
+    ///
     /// Remove the row group at `position` from table, returning an error if the
     /// caller has attempted to drop the last row group.
     ///
@@ -399,36 +401,6 @@ impl Table {
         }
 
         Ok(dst)
-    }
-
-    /// Determines if this table could satisfy the provided predicate.
-    ///
-    /// `false` is proof that no row within this table would match the
-    /// predicate, whilst `true` indicates one or more rows *might* match the
-    /// predicate.
-    fn could_satisfy_predicate(&self, predicate: &Predicate) -> bool {
-        // Get a snapshot of the table data under a read lock.
-        let (meta, row_groups) = {
-            let table_data = self.table_data.read().unwrap();
-            (Arc::clone(&table_data.meta), table_data.data.to_vec())
-        };
-
-        // if the table doesn't have a column for one of the predicate's
-        // expressions then the table cannot satisfy the predicate.
-        if !predicate
-            .iter()
-            .all(|expr| meta.columns.contains_key(expr.column()))
-        {
-            return false;
-        }
-
-        // If there is a single row group in the table that could satisfy the
-        // predicate then the table itself could satisfy the predicate so return
-        // true. If none of the row groups could match then return false.
-        let exprs = predicate.expressions();
-        row_groups
-            .iter()
-            .any(|row_group| row_group.could_satisfy_conjunctive_binary_expressions(exprs))
     }
 
     /// Determines if this table contains one or more rows that satisfy the

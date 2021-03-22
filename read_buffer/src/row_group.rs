@@ -894,7 +894,7 @@ impl RowGroup {
     //
     // In this case the rows are already in "group key order" and the aggregates
     // can be calculated by reading the rows in order.
-    fn read_group_sorted_stream(
+    fn _read_group_sorted_stream(
         &self,
         _predicates: &Predicate,
         _group_column: ColumnName<'_>,
@@ -1146,6 +1146,7 @@ fn pack_u32_in_u128(packed_value: u128, encoded_id: u32, pos: usize) -> u128 {
 // Given a packed encoded group key, unpacks them into `n` individual `u32`
 // group keys, and stores them in `dst`. It is the caller's responsibility to
 // ensure n <= 4.
+#[cfg(test)]
 fn unpack_u128_group_key(group_key_packed: u128, n: usize, mut dst: Vec<u32>) -> Vec<u32> {
     dst.resize(n, 0);
 
@@ -1510,11 +1511,6 @@ impl MetaData {
             },
         );
         self.columns_size += column_size;
-    }
-
-    // Returns meta information about the column.
-    fn column_meta(&self, name: ColumnName<'_>) -> &ColumnMeta {
-        self.columns.get(name).unwrap()
     }
 
     // Extract schema information for a set of columns.
