@@ -50,6 +50,10 @@
   ## http://docs.datadoghq.com/guides/dogstatsd/
   datadog_extensions = false
 
+  ## Parses distributions metric as specified in the datadog statsd format
+  ## https://docs.datadoghq.com/developers/metrics/types/?tab=distribution#definition
+  datadog_distributions = false
+
   ## Statsd data translation templates, more info can be read here:
   ## https://github.com/influxdata/telegraf/blob/master/docs/TEMPLATE_PATTERN.md
   # templates = [
@@ -98,6 +102,10 @@ implementation. In short, the telegraf statsd listener will accept:
     - `load.time:320|ms`
     - `load.time.nanoseconds:1|h`
     - `load.time:200|ms|@0.1` <- sampled 1/10 of the time
+- Distributions
+    - `load.time:320|d`
+    - `load.time.nanoseconds:1|d`
+    - `load.time:200|d|@0.1` <- sampled 1/10 of the time
 
 It is possible to omit repetitive names and merge individual stats into a
 single line by separating them with additional colons:
@@ -172,6 +180,9 @@ metric type:
         that `P%` of all the values statsd saw for that stat during that time
         period are below x. The most common value that people use for `P` is the
         `90`, this is a great number to try to optimize.
+- Distributions
+    - The Distribution metric represents the global statistical distribution of a set of values calculated across your entire distributed infrastructure in one time interval. A Distribution can be used to instrument logical objects, like services, independently from the underlying hosts.
+    - Unlike the Histogram metric type, which aggregates on the Agent during a given time interval, a Distribution metric sends all the raw data during a time interval.
 
 ### Plugin arguments
 
@@ -195,6 +206,7 @@ the accuracy of percentiles but also increases the memory usage and cpu time.
 measurements and tags.
 - **parse_data_dog_tags** boolean: Enable parsing of tags in DataDog's dogstatsd format (http://docs.datadoghq.com/guides/dogstatsd/)
 - **datadog_extensions** boolean: Enable parsing of DataDog's extensions to dogstatsd format (http://docs.datadoghq.com/guides/dogstatsd/)
+- **datadog_distributions** boolean: Enable parsing of the Distribution metric in DataDog's dogstatsd format (https://docs.datadoghq.com/developers/metrics/types/?tab=distribution#definition)
 - **max_ttl** config.Duration: Max duration (TTL) for each metric to stay cached/reported without being updated.
 
 ### Statsd bucket -> InfluxDB line-protocol Templates
