@@ -2026,12 +2026,12 @@ impl<'row_group> ReadAggregateResult<'row_group> {
     }
 }
 
-// The `groupKey` struct is a wrapper over a specific row of data in grouping
+// The `GroupKey` struct is a wrapper over a specific row of data in grouping
 // columns.
 //
 // Rather than pivot the columns into a row-wise orientation to sort them, we
 // can effectively sort a projection across them (`row_offset`) storing
-// `groupKey`s in a vector and sorting that.
+// `GroupKey`s in a vector and sorting that.
 struct GroupKey<'a> {
     columns: &'a [Vec<Option<&'a str>>],
     row_offset: usize,
