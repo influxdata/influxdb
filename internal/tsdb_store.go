@@ -31,7 +31,7 @@ type TSDBStoreMock struct {
 	ImportShardFn             func(id uint64, r io.Reader) error
 	MeasurementSeriesCountsFn func(database string) (measuments int, series int)
 	MeasurementsCardinalityFn func(database string) (int64, error)
-	MeasurementNamesFn        func(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error)
+	MeasurementNamesFn        func(auth query.FineAuthorizer, database string, cond influxql.Expr) ([][]byte, error)
 	OpenFn                    func() error
 	PathFn                    func() string
 	RestoreShardFn            func(id uint64, r io.Reader) error
@@ -44,8 +44,8 @@ type TSDBStoreMock struct {
 	ShardRelativePathFn       func(id uint64) (string, error)
 	ShardsFn                  func(ids []uint64) []*tsdb.Shard
 	StatisticsFn              func(tags map[string]string) []models.Statistic
-	TagKeysFn                 func(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
-	TagValuesFn               func(auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
+	TagKeysFn                 func(auth query.FineAuthorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error)
+	TagValuesFn               func(auth query.FineAuthorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error)
 	WithLoggerFn              func(log *zap.Logger)
 	WriteToShardFn            func(shardID uint64, points []models.Point) error
 }
@@ -93,7 +93,7 @@ func (s *TSDBStoreMock) ExpandSources(sources influxql.Sources) (influxql.Source
 func (s *TSDBStoreMock) ImportShard(id uint64, r io.Reader) error {
 	return s.ImportShardFn(id, r)
 }
-func (s *TSDBStoreMock) MeasurementNames(ctx context.Context, auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error) {
+func (s *TSDBStoreMock) MeasurementNames(ctx context.Context, auth query.FineAuthorizer, database string, cond influxql.Expr) ([][]byte, error) {
 	return s.MeasurementNamesFn(auth, database, cond)
 }
 func (s *TSDBStoreMock) MeasurementSeriesCounts(database string) (measuments int, series int) {
@@ -138,10 +138,10 @@ func (s *TSDBStoreMock) Shards(ids []uint64) []*tsdb.Shard {
 func (s *TSDBStoreMock) Statistics(tags map[string]string) []models.Statistic {
 	return s.StatisticsFn(tags)
 }
-func (s *TSDBStoreMock) TagKeys(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error) {
+func (s *TSDBStoreMock) TagKeys(ctx context.Context, auth query.FineAuthorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagKeys, error) {
 	return s.TagKeysFn(auth, shardIDs, cond)
 }
-func (s *TSDBStoreMock) TagValues(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error) {
+func (s *TSDBStoreMock) TagValues(ctx context.Context, auth query.FineAuthorizer, shardIDs []uint64, cond influxql.Expr) ([]tsdb.TagValues, error) {
 	return s.TagValuesFn(auth, shardIDs, cond)
 }
 func (s *TSDBStoreMock) WithLogger(log *zap.Logger) {

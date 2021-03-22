@@ -1455,7 +1455,7 @@ func (s *Store) WriteToShardWithContext(ctx context.Context, shardID uint64, poi
 // MeasurementNames returns a slice of all measurements. Measurements accepts an
 // optional condition expression. If cond is nil, then all measurements for the
 // database will be returned.
-func (s *Store) MeasurementNames(ctx context.Context, auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error) {
+func (s *Store) MeasurementNames(ctx context.Context, auth query.FineAuthorizer, database string, cond influxql.Expr) ([][]byte, error) {
 	s.mu.RLock()
 	shards := s.filterShards(byDatabase(database))
 	s.mu.RUnlock()
@@ -1502,7 +1502,7 @@ func (a TagKeysSlice) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
 func (a TagKeysSlice) Less(i, j int) bool { return a[i].Measurement < a[j].Measurement }
 
 // TagKeys returns the tag keys in the given database, matching the condition.
-func (s *Store) TagKeys(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]TagKeys, error) {
+func (s *Store) TagKeys(ctx context.Context, auth query.FineAuthorizer, shardIDs []uint64, cond influxql.Expr) ([]TagKeys, error) {
 	if len(shardIDs) == 0 {
 		return nil, nil
 	}
@@ -1680,7 +1680,7 @@ func (a tagValuesSlice) Less(i, j int) bool { return bytes.Compare(a[i].name, a[
 
 // TagValues returns the tag keys and values for the provided shards, where the
 // tag values satisfy the provided condition.
-func (s *Store) TagValues(ctx context.Context, auth query.Authorizer, shardIDs []uint64, cond influxql.Expr) ([]TagValues, error) {
+func (s *Store) TagValues(ctx context.Context, auth query.FineAuthorizer, shardIDs []uint64, cond influxql.Expr) ([]TagValues, error) {
 	if cond == nil {
 		return nil, errors.New("a condition is required")
 	}

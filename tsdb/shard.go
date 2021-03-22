@@ -839,7 +839,7 @@ func (s *Shard) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 
 // MeasurementTagKeyValuesByExpr returns all the tag keys values for the
 // provided expression.
-func (s *Shard) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte, key []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
+func (s *Shard) MeasurementTagKeyValuesByExpr(auth query.FineAuthorizer, name []byte, key []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
 	index, err := s.Index()
 	if err != nil {
 		return nil, err

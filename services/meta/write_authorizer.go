@@ -19,10 +19,27 @@ func NewWriteAuthorizer(c *Client) *WriteAuthorizer {
 // AuthorizeWrite returns nil if the user has permission to write to the database.
 func (a WriteAuthorizer) AuthorizeWrite(username, database string) error {
 	u, err := a.Client.User(username)
-	if err != nil || u == nil || !u.AuthorizeDatabase(influxql.WritePrivilege, database) {
+	if err != nil || u == nil {
 		return &ErrAuthorize{
 			Database: database,
 			Message:  fmt.Sprintf("%s not authorized to write to %s", username, database),
+		}
+	}
+	// There is only one OSS implementation of the User interface, and the OSS WriteAuthorizer only works
+	// with the OSS UserInfo. There is a similar tight coupling between the Enterprise WriteAuthorizer and
+	// Enterprise UserInfo in closed-source code.
+	switch user := u.(type) {
+	case *UserInfo:
+		if !user.AuthorizeDatabase(influxql.WritePrivilege, database) {
+			return &ErrAuthorize{
+				Database: database,
+				Message:  fmt.Sprintf("%s not authorized to write to %s", username, database),
+			}
+		}
+	default:
+		return &ErrAuthorize{
+			Database: database,
+			Message:  fmt.Sprintf("Internal error - wrong type %T for oss user", u),
 		}
 	}
 	return nil

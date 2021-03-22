@@ -85,6 +85,21 @@ type Route struct {
 	HandlerFunc    interface{}
 }
 
+type QueryAuthorizer interface {
+	AuthorizeQuery(u meta.User, query *influxql.Query, database string) error
+	AuthorizeDatabase(u meta.User, priv influxql.Privilege, database string) error
+}
+
+// userQueryAuthorizer binds the QueryAuthorizer with a specific user for consumption by the query engine.
+type userQueryAuthorizer struct {
+	auth QueryAuthorizer
+	user meta.User
+}
+
+func (a *userQueryAuthorizer) AuthorizeDatabase(p influxql.Privilege, name string) bool {
+	return a.auth.AuthorizeDatabase(a.user, p, name) == nil
+}
+
 // Handler represents an HTTP handler for the InfluxDB server.
 type Handler struct {
 	mux       *pat.PatternServeMux
@@ -99,9 +114,7 @@ type Handler struct {
 		AdminUserExists() bool
 	}
 
-	QueryAuthorizer interface {
-		AuthorizeQuery(u meta.User, query *influxql.Query, database string) error
-	}
+	QueryAuthorizer QueryAuthorizer
 
 	WriteAuthorizer interface {
 		AuthorizeWrite(username, database string) error
@@ -234,6 +247,7 @@ func NewHandler(c Config) *Handler {
 	if h.Config.AuthEnabled && h.Config.PprofEnabled && h.Config.PprofAuthEnabled {
 		authWrapper = func(handler func(http.ResponseWriter, *http.Request)) interface{} {
 			return func(w http.ResponseWriter, r *http.Request, user meta.User) {
+				// TODO: This is the only place we use AuthorizeUnrestricted. It would be better to use an explicit permission
 				if user == nil || !user.AuthorizeUnrestricted() {
 					h.Logger.Info("Unauthorized request", zap.String("user", user.ID()), zap.String("path", r.URL.Path))
 					h.httpError(w, "error authorizing admin access", http.StatusForbidden)
@@ -595,14 +609,18 @@ func (h *Handler) serveQuery(w http.ResponseWriter, r *http.Request, user meta.U
 		ChunkSize:       chunkSize,
 		ReadOnly:        r.Method == "GET",
 		NodeID:          nodeID,
+		// Authorizer is for fine grained auth, not supported by oss.
+		Authorizer: query.OpenAuthorizer,
 	}
 
 	if h.Config.AuthEnabled {
 		// The current user determines the authorized actions.
-		opts.Authorizer = user
+		opts.CoarseAuthorizer = &userQueryAuthorizer{
+			auth: h.QueryAuthorizer,
+			user: user,
+		}
 	} else {
-		// Auth is disabled, so allow everything.
-		opts.Authorizer = query.OpenAuthorizer
+		opts.CoarseAuthorizer = query.OpenCoarseAuthorizer
 	}
 
 	// Make sure if the client disconnects we signal the query to abort

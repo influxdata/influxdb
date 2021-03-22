@@ -48,7 +48,64 @@ func (a *QueryAuthorizer) AuthorizeQuery(u User, query *influxql.Query, database
 		}
 	}
 
-	return u.AuthorizeQuery(database, query)
+	// There is only one OSS implementation of the User interface, and the OSS QueryAuthorizer only works
+	// with the OSS UserInfo. There is a similar tight coupling between the Enterprise QueryAuthorizer and
+	// Enterprise UserInfo in closed-source code.
+	switch user := u.(type) {
+	case *UserInfo:
+		// Admin privilege allows the user to execute all statements.
+		if user.Admin {
+			return nil
+		}
+
+		// Check each statement in the query.
+		for _, stmt := range query.Statements {
+			// Get the privileges required to execute the statement.
+			privs, err := stmt.RequiredPrivileges()
+			if err != nil {
+				return err
+			}
+
+			// Make sure the user has the privileges required to execute
+			// each statement.
+			for _, p := range privs {
+				if p.Admin {
+					// Admin privilege already checked so statement requiring admin
+					// privilege cannot be run.
+					return &ErrAuthorize{
+						Query:    query,
+						User:     user.Name,
+						Database: database,
+						Message:  fmt.Sprintf("statement '%s', requires admin privilege", stmt),
+					}
+				}
+
+				// Use the db name specified by the statement or the db
+				// name passed by the caller if one wasn't specified by
+				// the statement.
+				db := p.Name
+				if db == "" {
+					db = database
+				}
+				if !user.AuthorizeDatabase(p.Privilege, db) {
+					return &ErrAuthorize{
+						Query:    query,
+						User:     user.Name,
+						Database: database,
+						Message:  fmt.Sprintf("statement '%s', requires %s on %s", stmt, p.Privilege.String(), db),
+					}
+				}
+			}
+		}
+		return nil
+	default:
+	}
+	return &ErrAuthorize{
+		Query:    query,
+		User:     u.ID(),
+		Database: database,
+		Message:  fmt.Sprintf("Invalid OSS user type %T", u),
+	}
 }
 
 func (a *QueryAuthorizer) AuthorizeDatabase(u User, priv influxql.Privilege, database string) error {
@@ -59,63 +116,23 @@ func (a *QueryAuthorizer) AuthorizeDatabase(u User, priv influxql.Privilege, dat
 		}
 	}
 
-	if !u.AuthorizeDatabase(priv, database) {
-		return &ErrAuthorize{
-			Database: database,
-			Message:  fmt.Sprintf("user %q, requires %s for database %q", u.ID(), priv.String(), database),
+	switch user := u.(type) {
+	case *UserInfo:
+		if !user.AuthorizeDatabase(priv, database) {
+			return &ErrAuthorize{
+				Database: database,
+				Message:  fmt.Sprintf("user %q, requires %s for database %q", u.ID(), priv.String(), database),
+			}
 		}
-	}
-
-	return nil
-}
-
-func (u *UserInfo) AuthorizeQuery(database string, query *influxql.Query) error {
-
-	// Admin privilege allows the user to execute all statements.
-	if u.Admin {
 		return nil
+	default:
+	}
+	return &ErrAuthorize{
+		Database: database,
+		User:     u.ID(),
+		Message:  fmt.Sprintf("Internal error - incorrect oss user type %T", u),
 	}
 
-	// Check each statement in the query.
-	for _, stmt := range query.Statements {
-		// Get the privileges required to execute the statement.
-		privs, err := stmt.RequiredPrivileges()
-		if err != nil {
-			return err
-		}
-
-		// Make sure the user has the privileges required to execute
-		// each statement.
-		for _, p := range privs {
-			if p.Admin {
-				// Admin privilege already checked so statement requiring admin
-				// privilege cannot be run.
-				return &ErrAuthorize{
-					Query:    query,
-					User:     u.Name,
-					Database: database,
-					Message:  fmt.Sprintf("statement '%s', requires admin privilege", stmt),
-				}
-			}
-
-			// Use the db name specified by the statement or the db
-			// name passed by the caller if one wasn't specified by
-			// the statement.
-			db := p.Name
-			if db == "" {
-				db = database
-			}
-			if !u.AuthorizeDatabase(p.Privilege, db) {
-				return &ErrAuthorize{
-					Query:    query,
-					User:     u.Name,
-					Database: database,
-					Message:  fmt.Sprintf("statement '%s', requires %s on %s", stmt, p.Privilege.String(), db),
-				}
-			}
-		}
-	}
-	return nil
 }
 
 // ErrAuthorize represents an authorization error.

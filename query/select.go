@@ -23,7 +23,7 @@ var DefaultTypeMapper = influxql.MultiTypeMapper(
 // SelectOptions are options that customize the select call.
 type SelectOptions struct {
 	// Authorizer is used to limit access to data
-	Authorizer Authorizer
+	Authorizer FineAuthorizer
 
 	// Node to exclusively read from.
 	// If zero, all nodes are used.
