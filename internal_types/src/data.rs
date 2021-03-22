@@ -6,87 +6,98 @@ use data_types::database_rules::Partitioner;
 use generated_types::wal as wb;
 use influxdb_line_protocol::{FieldValue, ParsedLine};
 
-use std::{collections::BTreeMap, fmt};
+use std::{collections::BTreeMap, convert::TryFrom, fmt};
 
 use chrono::Utc;
 use crc32fast::Hasher;
 use flatbuffers::FlatBufferBuilder;
+use ouroboros::self_referencing;
 
 pub fn type_description(value: wb::ColumnValue) -> &'static str {
-    use wb::ColumnValue::*;
-
     match value {
-        NONE => "none",
-        TagValue => "tag",
-        I64Value => "i64",
-        U64Value => "u64",
-        F64Value => "f64",
-        BoolValue => "bool",
-        StringValue => "String",
+        wb::ColumnValue::TagValue => "tag",
+        wb::ColumnValue::I64Value => "i64",
+        wb::ColumnValue::U64Value => "u64",
+        wb::ColumnValue::F64Value => "f64",
+        wb::ColumnValue::BoolValue => "bool",
+        wb::ColumnValue::StringValue => "String",
+        wb::ColumnValue::NONE => "none",
+        _ => "none",
     }
 }
 
 /// A friendlier wrapper to help deal with the Flatbuffers write data
-#[derive(Debug, Default, Clone, PartialEq)]
+#[self_referencing]
+#[derive(Debug, Clone, PartialEq)]
 pub struct ReplicatedWrite {
-    pub data: Vec<u8>,
+    data: Vec<u8>,
+    #[borrows(data)]
+    #[covariant]
+    fb: wb::ReplicatedWrite<'this>,
+    #[borrows(data)]
+    #[covariant]
+    write_buffer_batch: Option<wb::WriteBufferBatch<'this>>,
 }
 
 impl ReplicatedWrite {
-    /// Returns the Flatbuffers struct represented by the raw bytes.
-    pub fn to_fb(&self) -> wb::ReplicatedWrite<'_> {
-        flatbuffers::get_root::<wb::ReplicatedWrite<'_>>(&self.data)
-    }
-
     /// Returns the Flatbuffers struct for the WriteBufferBatch in the raw bytes
     /// of the payload of the ReplicatedWrite.
-    pub fn write_buffer_batch(&self) -> Option<wb::WriteBufferBatch<'_>> {
-        match self.to_fb().payload() {
-            Some(d) => Some(flatbuffers::get_root::<wb::WriteBufferBatch<'_>>(&d)),
-            None => None,
-        }
+    pub fn write_buffer_batch(&self) -> Option<&wb::WriteBufferBatch<'_>> {
+        self.borrow_write_buffer_batch().as_ref()
+    }
+
+    /// Returns the Flatbuffers struct for the ReplicatedWrite
+    pub fn fb(&self) -> &wb::ReplicatedWrite<'_> {
+        self.borrow_fb()
     }
 
     /// Returns true if this replicated write matches the writer and sequence.
     pub fn equal_to_writer_and_sequence(&self, writer_id: u32, sequence_number: u64) -> bool {
-        let fb = self.to_fb();
-        fb.writer() == writer_id && fb.sequence() == sequence_number
+        self.fb().writer() == writer_id && self.fb().sequence() == sequence_number
     }
 
     /// Returns the writer id and sequence number
     pub fn writer_and_sequence(&self) -> (u32, u64) {
-        let fb = self.to_fb();
-        (fb.writer(), fb.sequence())
+        (self.fb().writer(), self.fb().sequence())
     }
 
-    /// Returns the serialized bytes for the write. (used for benchmarking)
-    pub fn bytes(&self) -> &Vec<u8> {
-        &self.data
+    /// Returns the serialized bytes for the write
+    pub fn data(&self) -> &[u8] {
+        self.borrow_data()
     }
 
     /// Returns the number of write buffer entries in this replicated write
     pub fn entry_count(&self) -> usize {
-        if let Some(batch) = self.write_buffer_batch() {
-            if let Some(entries) = batch.entries() {
-                return entries.len();
-            }
-        }
-
-        0
+        self.write_buffer_batch()
+            .map_or(0, |wbb| wbb.entries().map_or(0, |entries| entries.len()))
     }
 }
 
-impl From<&[u8]> for ReplicatedWrite {
-    fn from(data: &[u8]) -> Self {
-        Self {
-            data: Vec::from(data),
+impl TryFrom<Vec<u8>> for ReplicatedWrite {
+    type Error = flatbuffers::InvalidFlatbuffer;
+
+    fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
+        ReplicatedWriteTryBuilder {
+            data,
+            fb_builder: |data| flatbuffers::root::<wb::ReplicatedWrite<'_>>(data),
+            write_buffer_batch_builder: |data| match flatbuffers::root::<wb::ReplicatedWrite<'_>>(
+                data,
+            )?
+            .payload()
+            {
+                Some(payload) => Ok(Some(flatbuffers::root::<wb::WriteBufferBatch<'_>>(
+                    &payload,
+                )?)),
+                None => Ok(None),
+            },
         }
+        .try_build()
     }
 }
 
 impl fmt::Display for ReplicatedWrite {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let fb = self.to_fb();
+        let fb = self.fb();
         write!(
             f,
             "\nwriter:{}, sequence:{}, checksum:{}\n",
@@ -143,6 +154,7 @@ impl fmt::Display for ReplicatedWrite {
                                                     .unwrap_or("")
                                                     .to_string(),
                                                 wb::ColumnValue::NONE => "".to_string(),
+                                                _ => "".to_string(),
                                             };
                                             write!(f, " {}:{}", value.column().unwrap_or(""), val)?;
                                         }
@@ -192,9 +204,8 @@ pub fn lines_to_replicated_write(
     fbb.finish(write, None);
 
     let (mut data, idx) = fbb.collapse();
-    ReplicatedWrite {
-        data: data.split_off(idx),
-    }
+    ReplicatedWrite::try_from(data.split_off(idx))
+        .expect("Flatbuffer data just constructed should be valid")
 }
 
 pub fn split_lines_into_write_entry_partitions(

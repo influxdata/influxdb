@@ -69,8 +69,16 @@ pub enum Error {
     #[snafu(display("checksum mismatch for segment"))]
     ChecksumMismatch,
 
-    #[snafu(display("the flatbuffers Segment is invalid"))]
-    InvalidFlatbuffersSegment,
+    #[snafu(display("the flatbuffers Segment is invalid: {}", source))]
+    InvalidFlatbuffersSegment {
+        source: flatbuffers::InvalidFlatbuffer,
+    },
+
+    #[snafu(display("the flatbuffers size is too small; only found {} bytes", bytes))]
+    FlatbuffersSegmentTooSmall { bytes: usize },
+
+    #[snafu(display("the flatbuffers Segment is missing an expected value for {}", field))]
+    FlatbuffersMissingField { field: String },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -111,7 +119,7 @@ impl Buffer {
     /// by accepting the write, the oldest (first) of the closed segments
     /// will be dropped, if it is persisted. Otherwise, an error is returned.
     pub fn append(&mut self, write: Arc<ReplicatedWrite>) -> Result<Option<Arc<Segment>>> {
-        let write_size = u64::try_from(write.data.len())
+        let write_size = u64::try_from(write.data().len())
             .expect("appended data must be less than a u64 in length");
 
         while self.current_size + write_size > self.max_size {
@@ -310,7 +318,7 @@ impl Segment {
         let (writer_id, sequence_number) = write.writer_and_sequence();
         self.validate_and_update_sequence_summary(writer_id, sequence_number)?;
 
-        let size = write.data.len();
+        let size = write.data().len();
         let size = u64::try_from(size).expect("appended data must be less than a u64 in length");
         self.size += size;
 
@@ -418,7 +426,7 @@ impl Segment {
             .writes
             .iter()
             .map(|rw| {
-                let payload = fbb.create_vector_direct(&rw.data);
+                let payload = fbb.create_vector_direct(rw.data());
                 wal::ReplicatedWriteData::create(
                     &mut fbb,
                     &wal::ReplicatedWriteDataArgs {
@@ -483,7 +491,7 @@ impl Segment {
     /// deserializes it into a Segment struct.
     pub fn from_file_bytes(data: &[u8]) -> Result<Self> {
         if data.len() < std::mem::size_of::<u32>() {
-            return Err(Error::InvalidFlatbuffersSegment);
+            return FlatbuffersSegmentTooSmall { bytes: data.len() }.fail();
         }
 
         let (data, checksum) = data.split_at(data.len() - std::mem::size_of::<u32>());
@@ -501,15 +509,21 @@ impl Segment {
             .decompress_vec(data)
             .context(UnableToDecompressData)?;
 
-        let fb_segment = flatbuffers::get_root::<wal::Segment<'_>>(&data);
+        // Use verified flatbuffer functionality here
+        let fb_segment =
+            flatbuffers::root::<wal::Segment<'_>>(&data).context(InvalidFlatbuffersSegment)?;
 
-        let writes = fb_segment.writes().context(InvalidFlatbuffersSegment)?;
+        let writes = fb_segment
+            .writes()
+            .context(FlatbuffersMissingField { field: "writes" })?;
         let mut segment = Self::new_with_capacity(fb_segment.id(), writes.len());
         for w in writes {
-            let data = w.payload().context(InvalidFlatbuffersSegment)?;
-            let rw = ReplicatedWrite {
-                data: data.to_vec(),
-            };
+            let data = w
+                .payload()
+                .context(FlatbuffersMissingField { field: "payload" })?
+                .to_vec();
+            let rw = ReplicatedWrite::try_from(data).context(InvalidFlatbuffersSegment)?;
+
             segment.append(Arc::new(rw))?;
         }
 
@@ -579,7 +593,7 @@ mod tests {
         let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
 
-        let size = write.data.len() as u64;
+        let size = write.data().len() as u64;
         assert_eq!(0, buf.size());
         let segment = buf.append(write).unwrap();
         assert_eq!(size, buf.size());
@@ -732,7 +746,7 @@ mod tests {
     fn all_writes_since() {
         let max = 1 << 63;
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
-        let segment = (write.data.len() + 1) as u64;
+        let segment = (write.data().len() + 1) as u64;
         let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
 
         let segment = buf.append(write).unwrap();
@@ -789,7 +803,7 @@ mod tests {
     fn writes_since() {
         let max = 1 << 63;
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
-        let segment = (write.data.len() + 1) as u64;
+        let segment = (write.data().len() + 1) as u64;
         let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
 
         let segment = buf.append(write).unwrap();
@@ -836,7 +850,7 @@ mod tests {
     fn returns_error_if_sequence_decreases() {
         let max = 1 << 63;
         let write = lp_to_replicated_write(1, 3, "cpu val=1 10");
-        let segment = (write.data.len() + 1) as u64;
+        let segment = (write.data().len() + 1) as u64;
         let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
 
         let segment = buf.append(write).unwrap();

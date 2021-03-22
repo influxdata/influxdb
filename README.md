@@ -28,8 +28,7 @@ We're also hosting monthly tech talks and community office hours on the project 
 
 ## Quick Start
 
-To compile and run InfluxDB IOx from source, you'll need a Rust compiler and a `flatc` FlatBuffers
-compiler.
+To compile and run InfluxDB IOx from source, you'll need a Rust compiler and `clang`.
 
 ### Build a Docker Image
 
@@ -80,36 +79,6 @@ rustc --version
 
 and you should see a nightly version of Rust!
 
-### Installing `flatc`
-
-InfluxDB IOx uses the [FlatBuffer] serialization format for its write-ahead log. The [`flatc`
-compiler] reads the schema in `generated_types/wal.fbs` and generates the corresponding Rust code.
-
-Install `flatc` >= 1.12.0 with one of these methods as appropriate to your operating system:
-
-* Using a [Windows binary release]
-* Using the [`flatbuffers` package for conda]
-* Using the [`flatbuffers` package for Arch Linux]
-* Using the [`flatbuffers` package for Homebrew]
-
-Once you have installed the packages, you should be able to run:
-
-```shell
-flatc --version
-```
-
-and see the version displayed.
-
-You won't have to run `flatc` directly; once it's available, Rust's Cargo build tool manages the
-compilation process by calling `flatc` for you.
-
-[FlatBuffer]: https://google.github.io/flatbuffers/
-[`flatc` compiler]: https://google.github.io/flatbuffers/flatbuffers_guide_using_schema_compiler.html
-[Windows binary release]: https://github.com/google/flatbuffers/releases
-[`flatbuffers` package for conda]: https://anaconda.org/conda-forge/flatbuffers
-[`flatbuffers` package for Arch Linux]: https://www.archlinux.org/packages/community/x86_64/flatbuffers/
-[`flatbuffers` package for Homebrew]: https://github.com/Homebrew/homebrew-core/blob/HEAD/Formula/flatbuffers.rb
-
 ### Installing `clang`
 
 An installation of `clang` is required to build the [`croaring`] dependency - if
@@ -142,7 +111,6 @@ provided [example](docs/env.example) as a template if you want:
 ```shell
 cp docs/env.example .env
 ```
-
 
 ### Compiling and Starting the Server
 

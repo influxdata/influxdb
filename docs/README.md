@@ -22,3 +22,5 @@ We hold monthly Tech Talks that explain the project's technical underpinnings. Y
 * Thoughts on using multiple cores: [multi_core_tasks.md](multi_core_tasks.md)
 * [Query Engine Docs](../query/README.md)
 * [Testing documentation](testing.md) for developers of IOx
+* [Regenerating Flatbuffers code](regenerating_flatbuffers.md) when updating the version of the `flatbuffers` crate
+
