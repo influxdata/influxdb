@@ -15,6 +15,9 @@ workflows:
       - fluxtest:
           requires:
             - godeps
+      - tlstest:
+          requires:
+            - godeps
       - influxql_validation:
           requires:
             - godeps
@@ -83,6 +86,9 @@ workflows:
       - fluxtest:
           requires:
             - godeps
+      - tlstest:
+          requires:
+            - godeps
       - deploy_nightly:
           requires:
             - gotest
@@ -91,6 +97,7 @@ workflows:
             - jslint
             - influxql_validation
             - influxql_integration
+            - tlstest
           filters:
             branches:
               only:
@@ -477,6 +484,19 @@ jobs:
             - influxdb-gomod-sum-{{ checksum "go.sum" }}
       - install_core_deps
       - run: make test-flux
+
+  tlstest:
+    docker:
+      - image: cimg/go:1.15.6
+    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
+    steps:
+      - checkout
+      - restore_cache:
+          name: Restore GOPATH/pkg/mod
+          keys:
+            - influxdb-gomod-sum-{{ checksum "go.sum" }}
+      - install_core_deps
+      - run: make test-tls
 
   influxql_validation:
     docker:
