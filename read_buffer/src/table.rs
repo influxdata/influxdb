@@ -10,7 +10,7 @@ use arrow_deps::arrow::record_batch::RecordBatch;
 use internal_types::selection::Selection;
 use snafu::{ensure, Snafu};
 
-use crate::row_group::{self, ColumnName, GroupKey, Predicate, RowGroup};
+use crate::row_group::{self, ColumnName, Predicate, RowGroup};
 use crate::schema::{AggregateType, ColumnType, LogicalDataType, ResultSchema};
 use crate::value::{AggregateResult, Scalar, Value};
 #[derive(Debug, Snafu)]
@@ -273,7 +273,7 @@ impl Table {
         _group_columns: Vec<ColumnName<'a>>,
         _aggregates: Vec<(ColumnName<'a>, AggregateType)>,
         _window: i64,
-    ) -> BTreeMap<GroupKey<'_>, Vec<(ColumnName<'a>, AggregateResult<'_>)>> {
+    ) -> BTreeMap<Vec<String>, Vec<(ColumnName<'a>, AggregateResult<'_>)>> {
         // identify segments where time range and predicates match could match
         // using segment meta data, and then execute against those segments and
         // merge results.
@@ -942,7 +942,7 @@ mod test {
     use crate::row_group::{BinaryExpr, ColumnType, ReadAggregateResult};
     use crate::schema;
     use crate::schema::LogicalDataType;
-    use crate::value::{OwnedValue, Scalar};
+    use crate::value::{AggregateVec, OwnedValue, Scalar};
 
     #[test]
     fn meta_data_update_with() {
@@ -1237,7 +1237,7 @@ mod test {
 
     #[test]
     fn read_aggregate_result_display() {
-        let mut result_a = ReadAggregateResult {
+        let result_a = ReadAggregateResult {
             schema: ResultSchema {
                 select_columns: vec![],
                 group_columns: vec![
@@ -1256,14 +1256,12 @@ mod test {
                     LogicalDataType::Integer,
                 )],
             },
+            group_key_cols: vec![vec![Some("east")], vec![Some("host-a")]],
+            aggregate_cols: vec![AggregateVec::SumI64(vec![Some(10)])],
             ..ReadAggregateResult::default()
         };
-        result_a.add_row(
-            vec![Value::String("east"), Value::String("host-a")],
-            vec![AggregateResult::Sum(Scalar::I64(10))],
-        );
 
-        let mut result_b = ReadAggregateResult {
+        let result_b = ReadAggregateResult {
             schema: ResultSchema {
                 select_columns: vec![],
                 group_columns: vec![
@@ -1282,12 +1280,10 @@ mod test {
                     LogicalDataType::Integer,
                 )],
             },
+            group_key_cols: vec![vec![Some("west")], vec![Some("host-b")]],
+            aggregate_cols: vec![AggregateVec::SumI64(vec![Some(100)])],
             ..Default::default()
         };
-        result_b.add_row(
-            vec![Value::String("west"), Value::String("host-b")],
-            vec![AggregateResult::Sum(Scalar::I64(100))],
-        );
 
         let results = DisplayReadAggregateResults(vec![result_a, result_b]); //Display implementation
         assert_eq!(
