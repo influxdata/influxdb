@@ -156,7 +156,14 @@ mod tests {
         let client = Client::new(&mockito::server_url(), token);
 
         let _result = client
-            .setup_init(username, org, bucket, Some(password.to_string()), Some(retention_period_hrs), None)
+            .setup_init(
+                username,
+                org,
+                bucket,
+                Some(password.to_string()),
+                Some(retention_period_hrs),
+                None,
+            )
             .await;
 
         mock_server.assert();
@@ -185,7 +192,14 @@ mod tests {
         let client = Client::new(&mockito::server_url(), token);
 
         let _result = client
-            .setup_new(username, org, bucket, Some(password.to_string()), Some(retention_period_hrs), None)
+            .setup_new(
+                username,
+                org,
+                bucket,
+                Some(password.to_string()),
+                Some(retention_period_hrs),
+                None,
+            )
             .await;
 
         mock_server.assert();
