@@ -32,9 +32,13 @@ if [ -z "$GOOS" ] || [ -z "$GOARCH" ]; then
   exit 1
 fi
 
+# Control the compiler for go. Rust linker is set in $HOME/.cargo/config
 if [[ "$GOOS" == darwin ]] ; then
-  # Control the compiler for go. Rust linker is set in $HOME/.cargo/config
   export CC=x86_64-apple-darwin15-clang
+elif [[ "$GOOS" == windows ]] ; then
+  export CC=x86_64-w64-mingw32-gcc
+elif [[ "$GOARCH" == arm64 ]] ;then
+  export CC=aarch64-unknown-linux-musl-gcc
 fi
 
 WORKSPACE=/influxdata
@@ -61,12 +65,17 @@ OUTDIR=$(mktemp -d)
 	for cmd in $BINARY_PACKAGES; do
 		export CGO_ENABLED=1
 		echo "env for go build: GOOS=$GOOS GOARCH=$GOARCH CGO_ENABLED=$CGO_ENABLED"
-		if [[ -n "$STATIC" ]] ; then
+		# Note that we only do static builds for arm, to be consistent with influxdb 2.x
+		if [[ -n "$STATIC" || "$GOARCH" == arm64 ]] ; then
 			echo go build -i -o "$OUTDIR/$(basename $cmd)" -tags "netgo osusergo static_build" $cmd
 			go build -i -o "$OUTDIR/$(basename $cmd)" -tags "netgo osusergo static_build" $cmd
 		else
-			echo go build $RACE_FLAG -i -o "$OUTDIR/$(basename $cmd)" $cmd
-			go build $RACE_FLAG -i -o "$OUTDIR/$(basename $cmd)" $cmd
+			suffix=
+			if [[ "$GOOS" == windows ]] ; then
+				suffix=.exe
+			fi
+			echo go build $RACE_FLAG -i -o "$OUTDIR/$(basename $cmd)$suffix" $cmd
+			go build $RACE_FLAG -i -o "$OUTDIR/$(basename $cmd)$suffix" $cmd
 		fi
 	done
 )

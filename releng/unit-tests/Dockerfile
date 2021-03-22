@@ -4,6 +4,7 @@ FROM golang:${GO_VERSION}
 # Install system dependencies + cross build system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     asciidoc \
+    build-essential \
     bzr \
     clang \
     cmake \
@@ -13,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libxml2-dev \
     llvm-dev \
     lzma-dev \
+    mingw-w64 \
     patch \
     protobuf-compiler \
     xmlto \
@@ -22,7 +24,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install rust
 RUN curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y \
- && . $HOME/.cargo/env && rustup target add x86_64-apple-darwin x86_64-unknown-linux-musl
+  && . $HOME/.cargo/env && rustup target add \
+    aarch64-unknown-linux-musl \
+    x86_64-apple-darwin \
+    x86_64-pc-windows-gnu \
+    x86_64-unknown-linux-musl
 
 ENV PATH="/root/.cargo/bin:${PATH}"
 
@@ -43,11 +49,19 @@ RUN mkdir -p /opt/osxcross && \
 
 ENV PATH="/opt/osxcross/target/bin:${PATH}"
 
-# Wrapper to pull a version of pkg-config at runtime
-ENV PKG_CONFIG=/usr/local/bin/pkg-config.sh
+RUN cd /tmp && \
+    git clone https://github.com/richfelker/musl-cross-make.git && \
+    cd musl-cross-make && \
+    git checkout v0.9.9 && \
+    make MUSL_VER=1.1.24 TARGET=aarch64-unknown-linux-musl DL_CMD="curl -C - -L -o" install && \
+    mv output /opt/musl-cross && \
+    rm -rf /tmp/musl-cross-make
 
-# install go-junit-report for unit tests
-RUN GO111MODULE=on go get github.com/jstemmer/go-junit-report@v0.9.1
+ENV PATH="/opt/musl-cross/bin:$PATH"
+
+# Make sure we have the newer version of pkg-config that works with windows,
+# and install go-junit-report for unit tests
+RUN GO111MODULE=on go get github.com/jstemmer/go-junit-report@v0.9.1 github.com/influxdata/pkg-config@v0.2.7
 
 COPY fs/ /
 

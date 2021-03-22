@@ -17,7 +17,7 @@ require (
 	github.com/google/go-cmp v0.5.0
 	github.com/influxdata/flux v0.105.1
 	github.com/influxdata/influxql v1.1.1-0.20210223160523-b6ab99450c93
-	github.com/influxdata/pkg-config v0.2.6
+	github.com/influxdata/pkg-config v0.2.7
 	github.com/influxdata/roaring v0.4.13-0.20180809181101-fc520f41fab6
 	github.com/influxdata/usage-client v0.0.0-20160829180054-6d3895376368
 	github.com/jsternberg/zap-logfmt v1.2.0
