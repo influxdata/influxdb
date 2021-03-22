@@ -924,38 +924,30 @@ impl RowGroup {
             },
         };
 
-        // References to the columns to be used as input for producing the
-        // output aggregates. Also returns the required aggregate type.
-        let input_aggregate_columns = dst
+        dst.aggregate_cols = dst
             .schema
             .aggregate_columns
             .iter()
-            .map(|(col_type, agg_type, _)| (self.column_by_name(col_type.as_str()), *agg_type))
-            .collect::<Vec<_>>();
+            .map(|(col_type, agg_type, data_type)| {
+                let col = self.column_by_name(col_type.as_str()); // input aggregate column
+                let mut agg_vec = AggregateVec::from((agg_type, data_type));
 
-        let mut output_aggregate_columns = dst
-            .schema
-            .aggregate_columns
-            .iter()
-            .map(|(_, agg_type, data_type)| AggregateVec::from((agg_type, data_type)))
+                // produce single aggregate for the input column subject to a
+                // predicate filter.
+                match agg_type {
+                    AggregateType::Count => {
+                        let value = Value::Scalar(Scalar::U64(col.count(&row_ids) as u64));
+                        agg_vec.push(value);
+                    }
+                    AggregateType::First => unimplemented!("First not yet implemented"),
+                    AggregateType::Last => unimplemented!("Last not yet implemented"),
+                    AggregateType::Min => agg_vec.push(col.min(&row_ids)),
+                    AggregateType::Max => agg_vec.push(col.max(&row_ids)),
+                    AggregateType::Sum => agg_vec.push(Value::Scalar(col.sum(&row_ids))),
+                }
+                agg_vec
+            })
             .collect::<Vec<_>>();
-
-        for (i, (col, agg_type)) in input_aggregate_columns.iter().enumerate() {
-            match agg_type {
-                AggregateType::Count => {
-                    let value = Value::Scalar(Scalar::U64(col.count(&row_ids) as u64));
-                    output_aggregate_columns[i].push(value);
-                }
-                AggregateType::First => unimplemented!("First not yet implemented"),
-                AggregateType::Last => unimplemented!("Last not yet implemented"),
-                AggregateType::Min => output_aggregate_columns[i].push(col.min(&row_ids)),
-                AggregateType::Max => output_aggregate_columns[i].push(col.max(&row_ids)),
-                AggregateType::Sum => {
-                    output_aggregate_columns[i].push(Value::Scalar(col.sum(&row_ids)))
-                }
-            }
-        }
-        dst.aggregate_cols = output_aggregate_columns;
     }
 
     /// Given the predicate (which may be empty), determine a set of rows
