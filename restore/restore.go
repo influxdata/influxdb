@@ -251,7 +251,7 @@ func (r *restoreRunner) restoreOrganization(ctx context.Context, org *influxdb.O
 		newOrg.ID = o.ID
 	}
 
-	filter := influxdb.BucketFilter{OrganizationID: &newOrg.ID}
+	filter := influxdb.BucketFilter{OrganizationID: &org.ID}
 	if req.BucketID.Valid() {
 		filter.ID = &req.BucketID
 	}
