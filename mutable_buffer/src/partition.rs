@@ -929,7 +929,7 @@ mod tests {
         let lines: Vec<_> = parse_lines(&lp_string).map(|l| l.unwrap()).collect();
         let data = split_lines_into_write_entry_partitions(|_| partition.key().into(), &lines);
 
-        let batch = flatbuffers::get_root::<wb::WriteBufferBatch<'_>>(&data);
+        let batch = flatbuffers::root::<wb::WriteBufferBatch<'_>>(&data).unwrap();
 
         let entries = batch.entries().unwrap();
         for entry in entries {

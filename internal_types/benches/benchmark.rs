@@ -4,9 +4,12 @@ use data_types::database_rules::{DatabaseRules, PartitionTemplate, TemplatePart}
 use generated_types::wal as wb;
 use influxdb_line_protocol::{parse_lines, ParsedLine};
 use internal_types::data::{lines_to_replicated_write as lines_to_rw, ReplicatedWrite};
-use std::collections::{BTreeMap, BTreeSet};
-use std::fmt;
-use std::time::Duration;
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    convert::TryFrom,
+    fmt,
+    time::Duration,
+};
 
 const NEXT_ENTRY_NS: i64 = 1_000_000_000;
 const STARTING_TIMESTAMP_NS: i64 = 0;
@@ -61,7 +64,7 @@ fn replicated_write_into_bytes(c: &mut Criterion) {
             assert_eq!(write.entry_count(), config.partition_count);
 
             b.iter(|| {
-                let _ = write.bytes().len();
+                let _ = write.data().len();
             });
         },
     );
@@ -73,7 +76,7 @@ fn bytes_into_struct(c: &mut Criterion) {
     run_group("bytes_into_struct", c, |lines, rules, config, b| {
         let write = lines_to_rw(0, 0, &lines, rules);
         assert_eq!(write.entry_count(), config.partition_count);
-        let data = write.bytes();
+        let data = write.data();
 
         b.iter(|| {
             let mut db = Db::default();
@@ -160,7 +163,7 @@ struct Db {
 
 impl Db {
     fn deserialize_write(&mut self, data: &[u8]) {
-        let write = ReplicatedWrite::from(data);
+        let write = ReplicatedWrite::try_from(data.to_vec()).unwrap();
 
         if let Some(batch) = write.write_buffer_batch() {
             if let Some(entries) = batch.entries() {

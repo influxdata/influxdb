@@ -6,16 +6,17 @@ edition = "2018"
 description = "InfluxDB IOx internal types, shared between IOx instances"
 readme = "README.md"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 arrow_deps = { path = "../arrow_deps" }
 crc32fast = "1.2.0"
 chrono = { version = "0.4", features = ["serde"] }
 data_types = { path = "../data_types" }
-flatbuffers = "0.6" # TODO: Update to 0.8
+# See docs/regenerating_flatbuffers.md about updating generated code when updating the
+# version of the flatbuffers crate
+flatbuffers = "0.8"
 generated_types = { path = "../generated_types" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
+ouroboros = "0.8.3"
 snafu = "0.6"
 tracing = "0.1"
 

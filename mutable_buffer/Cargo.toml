@@ -18,7 +18,9 @@ arrow_deps = { path = "../arrow_deps" }
 async-trait = "0.1"
 chrono = "0.4"
 data_types = { path = "../data_types" }
-flatbuffers = "0.6" # TODO: Update to 0.8
+# See docs/regenerating_flatbuffers.md about updating generated code when updating the
+# version of the flatbuffers crate
+flatbuffers = "0.8"
 generated_types = { path = "../generated_types" }
 internal_types = { path = "../internal_types" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }

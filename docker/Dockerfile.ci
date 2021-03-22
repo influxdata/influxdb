@@ -9,25 +9,9 @@
 # docker build -f docker/Dockerfile.ci .
 ##
 
-# Build any binaries that can be copied into the CI image
-# Note we build flatbuffers from source (pinned to a particualar version)
-FROM rust:slim-buster AS flatc
-ARG flatbuffers_version="v1.12.0"
-RUN apt-get update \
-  && mkdir -p /usr/share/man/man1 \
-  && apt-get install -y \
-    git make clang cmake llvm \
-    --no-install-recommends \
-  && git clone -b ${flatbuffers_version} -- https://github.com/google/flatbuffers.git /usr/local/src/flatbuffers \
-  && cmake -S /usr/local/src/flatbuffers -B /usr/local/src/flatbuffers \
-    -G "Unix Makefiles" \
-    -DCMAKE_BUILD_TYPE=Release \
-  && make -C /usr/local/src/flatbuffers -j $(nproc) flatc
-
 # Build actual image used for CI pipeline
 FROM rust:slim-buster
 
-COPY --from=flatc /usr/local/src/flatbuffers/flatc /usr/bin/flatc
 # make Apt non-interactive
 RUN echo 'APT::Get::Assume-Yes "true";' > /etc/apt/apt.conf.d/90ci \
   && echo 'DPkg::Options "--force-confnew";' >> /etc/apt/apt.conf.d/90ci

@@ -330,7 +330,7 @@ impl Column {
 
         // Check the column for all rows that satisfy the predicate.
         let row_ids = match &self {
-            Self::String(_, data) => data.row_ids_filter(op, value.string(), dst),
+            Self::String(_, data) => data.row_ids_filter(op, value.str(), dst),
             Self::Float(_, data) => data.row_ids_filter(op, value.scalar(), dst),
             Self::Integer(_, data) => data.row_ids_filter(op, value.scalar(), dst),
             Self::Unsigned(_, data) => data.row_ids_filter(op, value.scalar(), dst),
