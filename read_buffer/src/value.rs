@@ -114,10 +114,7 @@ impl AggregateVec {
                     arr.resize(offset + 1, None);
                 }
 
-                match &mut arr[offset] {
-                    Some(v) => *v += 1,
-                    None => arr[offset] = Some(1),
-                }
+                *arr[offset].get_or_insert(0) += 1;
             }
             Self::SumI64(arr) => {
                 if offset >= arr.len() {
