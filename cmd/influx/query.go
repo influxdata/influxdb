@@ -20,6 +20,51 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var EnableProfilerExternOption = map[string]interface{}{
+	"type": "File",
+	"imports": []interface{}{
+		map[string]interface{}{
+			"type": "ImportDeclaration",
+			"path": map[string]interface{}{
+				"type":  "StringLiteral",
+				"value": "profiler",
+			},
+		},
+	},
+	"body": []interface{}{
+		map[string]interface{}{
+			"assignment": map[string]interface{}{
+				"member": map[string]interface{}{
+					"object": map[string]interface{}{
+						"name": "profiler",
+						"type": "Identifier",
+					},
+					"property": map[string]interface{}{
+						"name": "enabledProfilers",
+						"type": "Identifier",
+					},
+					"type": "MemberExpression",
+				},
+				"init": map[string]interface{}{
+					"type": "ArrayExpression",
+					"elements": []interface{}{
+						map[string]interface{}{
+							"type":  "StringLiteral",
+							"value": "query",
+						},
+						map[string]interface{}{
+							"type":  "StringLiteral",
+							"value": "operator",
+						},
+					},
+				},
+				"type": "MemberAssignment",
+			},
+			"type": "OptionStatement",
+		},
+	},
+}
+
 var queryFlags struct {
 	org      organization
 	file     string
@@ -114,50 +159,7 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 	}
 
 	if queryFlags.profiler {
-		body_map["extern"] = map[string]interface{}{
-			"type": "File",
-			"imports": []interface{}{
-				map[string]interface{}{
-					"type": "ImportDeclaration",
-					"path": map[string]interface{}{
-						"type":  "StringLiteral",
-						"value": "profiler",
-					},
-				},
-			},
-			"body": []interface{}{
-				map[string]interface{}{
-					"assignment": map[string]interface{}{
-						"member": map[string]interface{}{
-							"object": map[string]interface{}{
-								"name": "profiler",
-								"type": "Identifier",
-							},
-							"property": map[string]interface{}{
-								"name": "enabledProfilers",
-								"type": "Identifier",
-							},
-							"type": "MemberExpression",
-						},
-						"init": map[string]interface{}{
-							"type": "ArrayExpression",
-							"elements": []interface{}{
-								map[string]interface{}{
-									"type":  "StringLiteral",
-									"value": "query",
-								},
-								map[string]interface{}{
-									"type":  "StringLiteral",
-									"value": "operator",
-								},
-							},
-						},
-						"type": "MemberAssignment",
-					},
-					"type": "OptionStatement",
-				},
-			},
-		}
+		body_map["extern"] = EnableProfilerExternOption
 	}
 
 	body, _ := json.Marshal(body_map)
