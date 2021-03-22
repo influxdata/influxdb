@@ -4,7 +4,7 @@ use std::{
 };
 
 use internal_types::selection::Selection;
-use snafu::{ResultExt, Snafu};
+use snafu::{OptionExt, ResultExt, Snafu};
 
 use crate::row_group::RowGroup;
 use crate::row_group::{ColumnName, Predicate};
@@ -184,9 +184,7 @@ impl Chunk {
         let table = chunk_data
             .data
             .get(table_name)
-            .ok_or(Error::TableNotFound {
-                table_name: table_name.to_owned(),
-            })?;
+            .context(TableNotFound { table_name })?;
 
         Ok(table.read_filter(select_columns, predicate))
     }
@@ -195,7 +193,7 @@ impl Chunk {
     /// columns, optionally filtered by the provided predicate. Results are
     /// merged across all row groups within the returned table.
     ///
-    /// Returns `None` if the table no longer exists within the chunk.
+    /// Returns an error if the specified table does not exist.
     ///
     /// Note: `read_aggregate` currently only supports grouping on "tag"
     /// columns.
@@ -205,17 +203,18 @@ impl Chunk {
         predicate: Predicate,
         group_columns: &Selection<'_>,
         aggregates: &[(ColumnName<'_>, AggregateType)],
-    ) -> Option<table::ReadAggregateResults> {
+    ) -> Result<table::ReadAggregateResults> {
         // read lock on chunk.
         let chunk_data = self.chunk_data.read().unwrap();
 
-        // Lookup table by name and dispatch execution.
-        //
-        // TODO(edd): this should return an error
-        chunk_data
+        let table = chunk_data
             .data
             .get(table_name)
-            .map(|table| table.read_aggregate(predicate, group_columns, aggregates))
+            .context(TableNotFound { table_name })?;
+
+        table
+            .read_aggregate(predicate, group_columns, aggregates)
+            .context(TableError)
     }
 
     //

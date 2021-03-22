@@ -228,7 +228,7 @@ impl Table {
         predicate: Predicate,
         group_columns: &'input Selection<'_>,
         aggregates: &'input [(ColumnName<'input>, AggregateType)],
-    ) -> ReadAggregateResults {
+    ) -> Result<ReadAggregateResults> {
         let (meta, row_groups) = self.filter_row_groups(&predicate);
 
         // Filter out any column names that we do not have data for.
@@ -241,13 +241,24 @@ impl Table {
             ..ResultSchema::default()
         };
 
+        // Check all grouping columns are valid for grouping operation.
+        for (ct, _) in &schema.group_columns {
+            ensure!(
+                matches!(ct, ColumnType::Tag(_)),
+                UnsupportedColumnOperation {
+                    msg: format!("column type must be ColumnType::Tag, got {:?}", ct),
+                    column_name: ct.as_str().to_string(),
+                },
+            )
+        }
+
         // return the iterator to build the results.
-        ReadAggregateResults {
+        Ok(ReadAggregateResults {
             schema,
             predicate,
             row_groups,
             ..Default::default()
-        }
+        })
     }
 
     /// Returns aggregates segmented by grouping keys and windowed by time.
@@ -1064,11 +1075,13 @@ mod test {
         table.add_row_group(rg);
 
         // no predicate aggregate
-        let mut results = table.read_aggregate(
-            Predicate::default(),
-            &Selection::Some(&[]),
-            &[("time", AggregateType::Count), ("time", AggregateType::Sum)],
-        );
+        let mut results = table
+            .read_aggregate(
+                Predicate::default(),
+                &Selection::Some(&[]),
+                &[("time", AggregateType::Count), ("time", AggregateType::Sum)],
+            )
+            .unwrap();
 
         // check the column result schema
         let exp_schema = ResultSchema {
@@ -1095,17 +1108,31 @@ mod test {
         assert!(matches!(results.next_merged_result(), None));
 
         // apply a predicate
-        let mut results = table.read_aggregate(
-            Predicate::new(vec![BinaryExpr::from(("region", "=", "west"))]),
-            &Selection::Some(&[]),
-            &[("time", AggregateType::Count), ("time", AggregateType::Sum)],
-        );
+        let mut results = table
+            .read_aggregate(
+                Predicate::new(vec![BinaryExpr::from(("region", "=", "west"))]),
+                &Selection::Some(&[]),
+                &[("time", AggregateType::Count), ("time", AggregateType::Sum)],
+            )
+            .unwrap();
 
         assert_eq!(
             DisplayReadAggregateResults(vec![results.next_merged_result().unwrap()]).to_string(),
             "time_count,time_sum\n2,300\n",
         );
         assert!(matches!(results.next_merged_result(), None));
+
+        // group on wrong columns.
+        let results = table.read_aggregate(
+            Predicate::new(vec![BinaryExpr::from(("region", "=", "west"))]),
+            &Selection::Some(&["time"]),
+            &[("min", AggregateType::Min)],
+        );
+
+        assert!(matches!(
+            &results,
+            Err(Error::UnsupportedColumnOperation { .. })
+        ),);
     }
 
     #[test]
