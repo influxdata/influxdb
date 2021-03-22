@@ -7,6 +7,7 @@ v1.8.5 [unreleased]
 -	[#20118](https://github.com/influxdata/influxdb/pull/20118): feat: Optimize shard lookups in groups containing only one shard. Thanks @StoneYunZhao!
 -	[#20910](https://github.com/influxdata/influxdb/pull/20910): feat: Make meta queries respect QueryTimeout values
 -	[#20989](https://github.com/influxdata/influxdb/pull/20989): feat: influx_inspect export to standard out
+-	[#21021](https://github.com/influxdata/influxdb/pull/21021): feat: Log query text for POST requests
 
 ### Bugfixes
 
