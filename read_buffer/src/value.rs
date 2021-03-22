@@ -6,6 +6,13 @@ use arrow_deps::arrow;
 use crate::{AggregateType, LogicalDataType};
 
 #[derive(Clone, PartialEq, Debug)]
+/// A type that holds aggregates where each variant encodes the underlying data
+/// type and aggregate type for a vector of data. An `AggregateVec` can be
+/// updated on a value-by-value basis and new values can be appended.
+///
+/// The type is structured this way to improve the performance of aggregations
+/// in the read buffer by reducing the number of matches (branches) needed per
+/// row.
 pub enum AggregateVec {
     Count(Vec<Option<u64>>),
 
@@ -726,7 +733,7 @@ impl AggregateVec {
         }
     }
 
-    /// Extends the `AggregateVec` with the provided `Option<&str>` iterator.
+    /// Extends the `AggregateVec` with the provided `Option<String>` iterator.
     pub fn extend_with_str(&mut self, itr: impl Iterator<Item = Option<String>>) {
         match self {
             Self::MinString(arr) => {
@@ -752,7 +759,7 @@ impl AggregateVec {
         }
     }
 
-    /// Extends the `AggregateVec` with the provided `Option<&[u8]>` iterator.
+    /// Extends the `AggregateVec` with the provided `Option<bool>` iterator.
     pub fn extend_with_bool(&mut self, itr: impl Iterator<Item = Option<bool>>) {
         match self {
             Self::MinBool(arr) => {
@@ -1524,7 +1531,7 @@ impl<'a> Value<'a> {
         if let Self::Scalar(Scalar::F64(v)) = self {
             return v;
         }
-        panic!("cannot unwrap Value to u64");
+        panic!("cannot unwrap Value to f64");
     }
 
     pub fn str(self) -> &'a str {
@@ -1763,7 +1770,7 @@ impl<'a> Values<'a> {
         }
     }
 
-    // Returns a value as a string. Panics if not possible.
+    // Returns a value as a &str. Panics if not possible.
     fn value_str(&self, i: usize) -> &'a str {
         match &self {
             Values::String(c) => c[i].unwrap(),
