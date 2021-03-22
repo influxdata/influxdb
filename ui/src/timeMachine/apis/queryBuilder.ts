@@ -1,9 +1,8 @@
 // Libraries
-import {get} from 'lodash'
+import {fromFlux} from '@influxdata/giraffe'
 
 // APIs
 import {runQuery, RunQueryResult} from 'src/shared/apis/query'
-import {parseResponse} from 'src/shared/parsing/flux/response'
 
 // Utils
 import {getTimeRangeVars} from 'src/variables/utils/getTimeRangeVars'
@@ -54,13 +53,19 @@ export function findKeys({
   limit = DEFAULT_LIMIT,
 }: FindKeysOptions): CancelBox<string[]> {
   const tagFilters = formatTagFilterPredicate(tagsSelections)
-  const searchFilter = formatSearchFilterCall(searchTerm)
   const previousKeyFilter = formatTagKeyFilterCall(tagsSelections)
   const timeRangeArguments = formatTimeRangeArguments(timeRange)
 
+  // requires Flux package to work which we will put in the query
+  const searchFilter = !searchTerm
+    ? ''
+    : `\n  |> filter(fn: (r) => r._value =~ regexp.compile(v: "(?i:" + regexp.quoteMeta(v: "${searchTerm}") + ")"))`
+
   // TODO: Use the `v1.tagKeys` function from the Flux standard library once
   // this issue is resolved: https://github.com/influxdata/flux/issues/1071
-  const query = `from(bucket: "${bucket}")
+  const query = `import "regexp"
+  
+  from(bucket: "${bucket}")
   |> range(${timeRangeArguments})
   |> filter(fn: ${tagFilters})
   |> keys()
@@ -98,12 +103,18 @@ export function findValues({
   limit = DEFAULT_LIMIT,
 }: FindValuesOptions): CancelBox<string[]> {
   const tagFilters = formatTagFilterPredicate(tagsSelections)
-  const searchFilter = formatSearchFilterCall(searchTerm)
   const timeRangeArguments = formatTimeRangeArguments(timeRange)
+
+  // requires Flux package to work which we will put in the query
+  const searchFilter = !searchTerm
+    ? ''
+    : `\n  |> filter(fn: (r) => r._value =~ regexp.compile(v: "(?i:" + regexp.quoteMeta(v: "${searchTerm}") + ")"))`
 
   // TODO: Use the `v1.tagValues` function from the Flux standard library once
   // this issue is resolved: https://github.com/influxdata/flux/issues/1071
-  const query = `from(bucket: "${bucket}")
+  const query = `import "regexp"
+  
+  from(bucket: "${bucket}")
   |> range(${timeRangeArguments})
   |> filter(fn: ${tagFilters})
   |> keep(columns: ["${key}"])
@@ -135,26 +146,8 @@ export function extractBoxedCol(
 }
 
 export function extractCol(csv: string, colName: string): string[] {
-  const tables = parseResponse(csv)
-  const data = get(tables, '0.data', [])
-
-  if (!data.length) {
-    return []
-  }
-
-  const colIndex = data[0].findIndex(d => d === colName)
-
-  if (colIndex === -1) {
-    throw new Error(`could not find column "${colName}" in response`)
-  }
-
-  const colValues: string[] = []
-
-  for (let i = 1; i < data.length; i++) {
-    colValues.push(data[i][colIndex])
-  }
-
-  return colValues
+  const {table} = fromFlux(csv)
+  return table.getColumn(colName, 'string') || []
 }
 
 export function formatTagFilterPredicate(
@@ -183,14 +176,6 @@ export function formatTagKeyFilterCall(tagsSelections: BuilderConfig['tags']) {
   const fnBody = keys.map(key => `r._value != "${key}"`).join(' and ')
 
   return `\n  |> filter(fn: (r) => ${fnBody})`
-}
-
-export function formatSearchFilterCall(searchTerm: string) {
-  if (!searchTerm) {
-    return ''
-  }
-
-  return `\n  |> filter(fn: (r) => r._value =~ /(?i:${searchTerm})/)`
 }
 
 export function formatTimeRangeArguments(timeRange: TimeRange): string {
