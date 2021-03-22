@@ -912,8 +912,9 @@ impl From<Matcher> for management::Matcher {
         Self {
             table_name_regex: matcher
                 .table_name_regex
-                .map_or_else(|| "".into(), |r| r.to_string()),
-            predicate: matcher.predicate.unwrap_or_else(|| "".into()),
+                .map(|r| r.to_string())
+                .unwrap_or_default(),
+            predicate: matcher.predicate.unwrap_or_default(),
         }
     }
 }
@@ -1441,7 +1442,7 @@ mod tests {
             ..Default::default()
         };
 
-        let matcher: Result<Matcher, FieldViolation> = protobuf.clone().try_into();
+        let matcher: Result<Matcher, FieldViolation> = protobuf.try_into();
         assert!(matcher.is_err());
         assert_eq!(matcher.err().unwrap().field, "table_name_regex");
     }
@@ -1481,7 +1482,7 @@ mod tests {
             ..Default::default()
         };
 
-        let hash_ring: HashRing = protobuf.clone().try_into().unwrap();
+        let hash_ring: HashRing = protobuf.try_into().unwrap();
 
         assert_eq!(hash_ring.node_groups.len(), 2);
         assert_eq!(hash_ring.node_groups[0].len(), 3);
