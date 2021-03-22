@@ -31,7 +31,7 @@ or `/query` HTTP endpoints.
 1. [20971](https://github.com/influxdata/influxdb/pull/20971): Set a default `--http-idle-timeout` of 3m in `influxd`.
 1. [20861](https://github.com/influxdata/influxdb/pull/20861): Update Telegraf plugins in UI to include additions and changes in 1.18 release.
 1. [20894](https://github.com/influxdata/influxdb/pull/20894): Display task IDs in the UI.
-1. [21006](https://github.com/influxdata/influxdb/pull/21006): Add `-p, --profiler-enabled` flag to `influx query` command.
+1. [21006](https://github.com/influxdata/influxdb/pull/21006): Add `-p, --profilers` flag to `influx query` command.
 
 ### Bug Fixes
 
