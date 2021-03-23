@@ -358,6 +358,8 @@ describe('Dashboards', () => {
 
         cy.getByTestID('inline-labels--popover-field').type(label)
         cy.getByTestID('inline-labels--create-new').click()
+        // Wait for animation to complete
+        cy.wait(500)
 
         cy.getByTestID('overlay--container').within(() => {
           cy.getByTestID('create-label-form--name').should('have.value', label)

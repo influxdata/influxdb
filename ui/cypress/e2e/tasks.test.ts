@@ -384,7 +384,7 @@ function createFirstTask(
   cy.get<Bucket>('@bucket').then(bucket => {
     cy.getByTestID('flux-editor').within(() => {
       cy.get('textarea.inputarea')
-        .click()
+        .click({force: true})
         .focused()
         .type(flux(bucket), {force: true, delay: 2})
     })
