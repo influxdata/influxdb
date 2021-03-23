@@ -119,16 +119,26 @@ func (c *pluginMetricsCollector) refreshTelegrafStats(db *bolt.DB) {
 	c.cacheMu.Lock()
 	defer c.cacheMu.Unlock()
 
+	// Check if stats-polling got canceled between the point of receiving
+	// a tick and grabbing the lock.
+	select {
+	case <-c.tickerDone:
+		return
+	default:
+	}
+
 	// Clear plugins from last check.
 	c.cache = map[string]float64{}
 
 	// Loop through all registered plugins.
 	_ = db.View(func(tx *bolt.Tx) error {
 		rawPlugins := [][]byte{}
-		_ = tx.Bucket(telegrafPluginsBucket).ForEach(func(k, v []byte) error {
+		if err := tx.Bucket(telegrafPluginsBucket).ForEach(func(k, v []byte) error {
 			rawPlugins = append(rawPlugins, v)
 			return nil
-		})
+		}); err != nil {
+			return err
+		}
 
 		for _, v := range rawPlugins {
 			pStats := map[string]float64{}
