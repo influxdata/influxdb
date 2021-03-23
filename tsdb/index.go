@@ -1314,7 +1314,7 @@ func (is IndexSet) DedupeInmemIndexes() IndexSet {
 
 // MeasurementNamesByExpr returns a slice of measurement names matching the
 // provided condition. If no condition is provided then all names are returned.
-func (is IndexSet) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
+func (is IndexSet) MeasurementNamesByExpr(auth query.FineAuthorizer, expr influxql.Expr) ([][]byte, error) {
 	release := is.SeriesFile.Retain()
 	defer release()
 
@@ -1354,7 +1354,7 @@ func (is IndexSet) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.E
 	return slices.CopyChunkedByteSlices(names, 1000), nil
 }
 
-func (is IndexSet) measurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
+func (is IndexSet) measurementNamesByExpr(auth query.FineAuthorizer, expr influxql.Expr) ([][]byte, error) {
 	if expr == nil {
 		return nil, nil
 	}
@@ -1421,7 +1421,7 @@ func (is IndexSet) measurementNamesByExpr(auth query.Authorizer, expr influxql.E
 }
 
 // measurementNamesByNameFilter returns matching measurement names in sorted order.
-func (is IndexSet) measurementNamesByNameFilter(auth query.Authorizer, op influxql.Token, val string, regex *regexp.Regexp) ([][]byte, error) {
+func (is IndexSet) measurementNamesByNameFilter(auth query.FineAuthorizer, op influxql.Token, val string, regex *regexp.Regexp) ([][]byte, error) {
 	itr, err := is.measurementIterator()
 	if err != nil {
 		return nil, err
@@ -1463,7 +1463,7 @@ func (is IndexSet) measurementNamesByNameFilter(auth query.Authorizer, op influx
 // provided condition. If no condition is provided then all names are returned.
 // This behaves differently from MeasurementNamesByExpr because it will
 // return measurements using flux predicates.
-func (is IndexSet) MeasurementNamesByPredicate(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
+func (is IndexSet) MeasurementNamesByPredicate(auth query.FineAuthorizer, expr influxql.Expr) ([][]byte, error) {
 	release := is.SeriesFile.Retain()
 	defer release()
 
@@ -1503,7 +1503,7 @@ func (is IndexSet) MeasurementNamesByPredicate(auth query.Authorizer, expr influ
 	return slices.CopyChunkedByteSlices(names, 1000), nil
 }
 
-func (is IndexSet) measurementNamesByPredicate(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
+func (is IndexSet) measurementNamesByPredicate(auth query.FineAuthorizer, expr influxql.Expr) ([][]byte, error) {
 	if expr == nil {
 		return nil, nil
 	}
@@ -1569,7 +1569,7 @@ func (is IndexSet) measurementNamesByPredicate(auth query.Authorizer, expr influ
 	}
 }
 
-func (is IndexSet) measurementNamesByTagFilter(auth query.Authorizer, op influxql.Token, key, val string, regex *regexp.Regexp) ([][]byte, error) {
+func (is IndexSet) measurementNamesByTagFilter(auth query.FineAuthorizer, op influxql.Token, key, val string, regex *regexp.Regexp) ([][]byte, error) {
 	var names [][]byte
 
 	mitr, err := is.measurementIterator()
@@ -1696,7 +1696,7 @@ func (is IndexSet) measurementNamesByTagFilter(auth query.Authorizer, op influxq
 	return names, nil
 }
 
-func (is IndexSet) measurementNamesByTagPredicate(auth query.Authorizer, op influxql.Token, key, val string, regex *regexp.Regexp) ([][]byte, error) {
+func (is IndexSet) measurementNamesByTagPredicate(auth query.FineAuthorizer, op influxql.Token, key, val string, regex *regexp.Regexp) ([][]byte, error) {
 	var names [][]byte
 
 	mitr, err := is.measurementIterator()
@@ -1707,14 +1707,14 @@ func (is IndexSet) measurementNamesByTagPredicate(auth query.Authorizer, op infl
 	}
 	defer mitr.Close()
 
-	var checkMeasurement func(auth query.Authorizer, me []byte) (bool, error)
+	var checkMeasurement func(auth query.FineAuthorizer, me []byte) (bool, error)
 	switch op {
 	case influxql.EQ:
-		checkMeasurement = func(auth query.Authorizer, me []byte) (bool, error) {
+		checkMeasurement = func(auth query.FineAuthorizer, me []byte) (bool, error) {
 			return is.measurementHasTagValue(auth, me, []byte(key), []byte(val))
 		}
 	case influxql.NEQ:
-		checkMeasurement = func(auth query.Authorizer, me []byte) (bool, error) {
+		checkMeasurement = func(auth query.FineAuthorizer, me []byte) (bool, error) {
 			// If there is an authorized series in this measurement and that series
 			// does not contain the tag key/value.
 			ok := is.measurementAuthorizedSeries(auth, me, func(tags models.Tags) bool {
@@ -1723,11 +1723,11 @@ func (is IndexSet) measurementNamesByTagPredicate(auth query.Authorizer, op infl
 			return ok, nil
 		}
 	case influxql.EQREGEX:
-		checkMeasurement = func(auth query.Authorizer, me []byte) (bool, error) {
+		checkMeasurement = func(auth query.FineAuthorizer, me []byte) (bool, error) {
 			return is.measurementHasTagValueRegex(auth, me, []byte(key), regex)
 		}
 	case influxql.NEQREGEX:
-		checkMeasurement = func(auth query.Authorizer, me []byte) (bool, error) {
+		checkMeasurement = func(auth query.FineAuthorizer, me []byte) (bool, error) {
 			// If there is an authorized series in this measurement and that series
 			// does not contain the tag key/value.
 			ok := is.measurementAuthorizedSeries(auth, me, func(tags models.Tags) bool {
@@ -1761,7 +1761,7 @@ func (is IndexSet) measurementNamesByTagPredicate(auth query.Authorizer, op infl
 
 // measurementAuthorizedSeries determines if the measurement contains a series
 // that is authorized to be read.
-func (is IndexSet) measurementAuthorizedSeries(auth query.Authorizer, name []byte, exclude func(tags models.Tags) bool) bool {
+func (is IndexSet) measurementAuthorizedSeries(auth query.FineAuthorizer, name []byte, exclude func(tags models.Tags) bool) bool {
 	if query.AuthorizerIsOpen(auth) && exclude == nil {
 		return true
 	}
@@ -1797,7 +1797,7 @@ func (is IndexSet) measurementAuthorizedSeries(auth query.Authorizer, name []byt
 	}
 }
 
-func (is IndexSet) measurementHasTagValue(auth query.Authorizer, me, key, value []byte) (bool, error) {
+func (is IndexSet) measurementHasTagValue(auth query.FineAuthorizer, me, key, value []byte) (bool, error) {
 	if len(value) == 0 {
 		return is.measurementHasEmptyTagValue(auth, me, key)
 	}
@@ -1835,7 +1835,7 @@ func (is IndexSet) measurementHasTagValue(auth query.Authorizer, me, key, value 
 	}
 }
 
-func (is IndexSet) measurementHasEmptyTagValue(auth query.Authorizer, me, key []byte) (bool, error) {
+func (is IndexSet) measurementHasEmptyTagValue(auth query.FineAuthorizer, me, key []byte) (bool, error) {
 	// Any series that does not have a tag key
 	// has an empty tag value for that key.
 	// Iterate through all of the series to find one
@@ -1870,7 +1870,7 @@ func (is IndexSet) measurementHasEmptyTagValue(auth query.Authorizer, me, key []
 	}
 }
 
-func (is IndexSet) measurementHasTagValueRegex(auth query.Authorizer, me, key []byte, value *regexp.Regexp) (bool, error) {
+func (is IndexSet) measurementHasTagValueRegex(auth query.FineAuthorizer, me, key []byte, value *regexp.Regexp) (bool, error) {
 	// If the regex matches the empty string, do a special check to see
 	// if we have an empty tag value.
 	if matchEmpty := value.MatchString(""); matchEmpty {
@@ -2031,7 +2031,7 @@ func (is IndexSet) tagValueIterator(name, key []byte) (TagValueIterator, error) 
 
 // TagKeyHasAuthorizedSeries determines if there exists an authorized series for
 // the provided measurement name and tag key.
-func (is IndexSet) TagKeyHasAuthorizedSeries(auth query.Authorizer, name, tagKey []byte) (bool, error) {
+func (is IndexSet) TagKeyHasAuthorizedSeries(auth query.FineAuthorizer, name, tagKey []byte) (bool, error) {
 	if !is.HasInmemIndex() && query.AuthorizerIsOpen(auth) {
 		return true, nil
 	}
@@ -2673,7 +2673,7 @@ func (is IndexSet) matchTagValueNotEqualNotEmptySeriesIDIterator(name, key []byt
 //
 // N.B tagValuesByKeyAndExpr relies on keys being sorted in ascending
 // lexicographic order.
-func (is IndexSet) TagValuesByKeyAndExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr, fieldset *MeasurementFieldSet) ([]map[string]struct{}, error) {
+func (is IndexSet) TagValuesByKeyAndExpr(auth query.FineAuthorizer, name []byte, keys []string, expr influxql.Expr, fieldset *MeasurementFieldSet) ([]map[string]struct{}, error) {
 	release := is.SeriesFile.Retain()
 	defer release()
 	return is.tagValuesByKeyAndExpr(auth, name, keys, expr)
@@ -2684,7 +2684,7 @@ func (is IndexSet) TagValuesByKeyAndExpr(auth query.Authorizer, name []byte, key
 //
 // tagValuesByKeyAndExpr guarantees to never take any locks on the underlying
 // series file.
-func (is IndexSet) tagValuesByKeyAndExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr) ([]map[string]struct{}, error) {
+func (is IndexSet) tagValuesByKeyAndExpr(auth query.FineAuthorizer, name []byte, keys []string, expr influxql.Expr) ([]map[string]struct{}, error) {
 	database := is.Database()
 
 	valueExpr := influxql.CloneExpr(expr)
@@ -2771,7 +2771,7 @@ func (is IndexSet) tagValuesByKeyAndExpr(auth query.Authorizer, name []byte, key
 }
 
 // MeasurementTagKeyValuesByExpr returns a set of tag values filtered by an expression.
-func (is IndexSet) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
+func (is IndexSet) MeasurementTagKeyValuesByExpr(auth query.FineAuthorizer, name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
 	if len(keys) == 0 {
 		return nil, nil
 	}

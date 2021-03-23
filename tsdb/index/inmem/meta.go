@@ -90,7 +90,7 @@ func (m *measurement) bytes() int {
 // Authorized determines if this Measurement is authorized to be read, according
 // to the provided Authorizer. A measurement is authorized to be read if at
 // least one undeleted series from the measurement is authorized to be read.
-func (m *measurement) Authorized(auth query.Authorizer) bool {
+func (m *measurement) Authorized(auth query.FineAuthorizer) bool {
 	// Note(edd): the cost of this check scales linearly with the number of series
 	// belonging to a measurement, which means it may become expensive when there
 	// are large numbers of series on a measurement.
@@ -1423,7 +1423,7 @@ func (m *measurement) TagKeys() []string {
 }
 
 // TagValues returns all the values for the given tag key, in an arbitrary order.
-func (m *measurement) TagValues(auth query.Authorizer, key string) []string {
+func (m *measurement) TagValues(auth query.FineAuthorizer, key string) []string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	values := make([]string, 0, m.seriesByTagKeyValue[key].Cardinality())

@@ -1574,7 +1574,7 @@ func (cqi *ContinuousQueryInfo) unmarshal(pb *internal.ContinuousQueryInfo) {
 	cqi.Query = pb.GetQuery()
 }
 
-var _ query.Authorizer = (*UserInfo)(nil)
+var _ query.FineAuthorizer = (*UserInfo)(nil)
 
 // UserInfo represents metadata about a user in the system.
 type UserInfo struct {
@@ -1592,7 +1592,7 @@ type UserInfo struct {
 }
 
 type User interface {
-	query.Authorizer
+	query.FineAuthorizer
 	ID() string
 	AuthorizeUnrestricted() bool
 }
@@ -1620,7 +1620,14 @@ func (u *UserInfo) AuthorizeSeriesWrite(database string, measurement []byte, tag
 	return true
 }
 
-// AuthorizeUnrestricted allows admins to shortcut access checks.
+// IsOpen is a method on FineAuthorizer to indicate all fine auth is permitted and short circuit some checks.
+func (u *UserInfo) IsOpen() bool {
+	return true
+}
+
+// AuthorizeUnrestricted identifies the admin user
+//
+// Only the pprof endpoint uses this, we should prefer to have explicit permissioning instead.
 func (u *UserInfo) AuthorizeUnrestricted() bool {
 	return u.Admin
 }

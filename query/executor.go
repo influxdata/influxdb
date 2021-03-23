@@ -68,19 +68,33 @@ func ErrMaxConcurrentQueriesLimitExceeded(n, limit int) error {
 	return fmt.Errorf("max-concurrent-queries limit exceeded(%d, %d)", n, limit)
 }
 
-// Authorizer determines if certain operations are authorized.
-type Authorizer interface {
+// CoarseAuthorizer determines if certain operations are authorized at the database level.
+//
+// It is supported both in OSS and Enterprise.
+type CoarseAuthorizer interface {
 	// AuthorizeDatabase indicates whether the given Privilege is authorized on the database with the given name.
 	AuthorizeDatabase(p influxql.Privilege, name string) bool
+}
 
-	// AuthorizeQuery returns an error if the query cannot be executed
-	AuthorizeQuery(database string, query *influxql.Query) error
+type openCoarseAuthorizer struct{}
 
+func (a openCoarseAuthorizer) AuthorizeDatabase(influxql.Privilege, string) bool { return true }
+
+// OpenCoarseAuthorizer is a fully permissive implementation of CoarseAuthorizer.
+var OpenCoarseAuthorizer openCoarseAuthorizer
+
+// FineAuthorizer determines if certain operations are authorized at the series level.
+//
+// It is only supported in InfluxDB Enterprise. In OSS it always returns true.
+type FineAuthorizer interface {
 	// AuthorizeSeriesRead determines if a series is authorized for reading
 	AuthorizeSeriesRead(database string, measurement []byte, tags models.Tags) bool
 
 	// AuthorizeSeriesWrite determines if a series is authorized for writing
 	AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool
+
+	// IsOpen guarantees that the other methods of a FineAuthorizer always return true.
+	IsOpen() bool
 }
 
 // OpenAuthorizer is the Authorizer used when authorization is disabled.
@@ -89,9 +103,6 @@ type openAuthorizer struct{}
 
 // OpenAuthorizer can be shared by all goroutines.
 var OpenAuthorizer = openAuthorizer{}
-
-// AuthorizeDatabase returns true to allow any operation on a database.
-func (a openAuthorizer) AuthorizeDatabase(influxql.Privilege, string) bool { return true }
 
 // AuthorizeSeriesRead allows access to any series.
 func (a openAuthorizer) AuthorizeSeriesRead(database string, measurement []byte, tags models.Tags) bool {
@@ -103,6 +114,8 @@ func (a openAuthorizer) AuthorizeSeriesWrite(database string, measurement []byte
 	return true
 }
 
+func (a openAuthorizer) IsOpen() bool { return true }
+
 // AuthorizeSeriesRead allows any query to execute.
 func (a openAuthorizer) AuthorizeQuery(_ string, _ *influxql.Query) error { return nil }
 
@@ -110,11 +123,8 @@ func (a openAuthorizer) AuthorizeQuery(_ string, _ *influxql.Query) error { retu
 // authorize anything. A nil Authorizer returns true for this function, and this
 // function should be preferred over directly checking if an Authorizer is nil
 // or not.
-func AuthorizerIsOpen(a Authorizer) bool {
-	if u, ok := a.(interface{ AuthorizeUnrestricted() bool }); ok {
-		return u.AuthorizeUnrestricted()
-	}
-	return a == nil || a == OpenAuthorizer
+func AuthorizerIsOpen(a FineAuthorizer) bool {
+	return a == nil || a.IsOpen()
 }
 
 // ExecutionOptions contains the options for executing a query.
@@ -125,9 +135,11 @@ type ExecutionOptions struct {
 	// The retention policy the query is running against.
 	RetentionPolicy string
 
-	// How to determine whether the query is allowed to execute,
-	// what resources can be returned in SHOW queries, etc.
-	Authorizer Authorizer
+	// Authorizer handles series-level authorization
+	Authorizer FineAuthorizer
+
+	// CoarseAuthorizer handles database-level authorization
+	CoarseAuthorizer CoarseAuthorizer
 
 	// The requested maximum number of points to return in each result.
 	ChunkSize int

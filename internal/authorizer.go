@@ -5,7 +5,7 @@ import (
 	"github.com/influxdata/influxql"
 )
 
-// AuthorizerMock is a mockable implementation of a query.Authorizer.
+// AuthorizerMock is a mockable implementation of a query.FineAuthorizer + query.CoarseAuthorizer
 type AuthorizerMock struct {
 	AuthorizeDatabaseFn    func(influxql.Privilege, string) bool
 	AuthorizeQueryFn       func(database string, query *influxql.Query) error
@@ -35,4 +35,8 @@ func (a *AuthorizerMock) AuthorizeSeriesRead(database string, measurement []byte
 // can be written to, on the provided database.
 func (a *AuthorizerMock) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
 	return a.AuthorizeSeriesWriteFn(database, measurement, tags)
+}
+
+func (a *AuthorizerMock) IsOpen() bool {
+	return false
 }

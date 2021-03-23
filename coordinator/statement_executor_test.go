@@ -383,24 +383,12 @@ func TestStatementExecutor_NormalizeDeleteSeries(t *testing.T) {
 	}
 }
 
-type mockAuthorizer struct {
+type mockCoarseAuthorizer struct {
 	AuthorizeDatabaseFn func(influxql.Privilege, string) bool
 }
 
-func (a *mockAuthorizer) AuthorizeDatabase(p influxql.Privilege, name string) bool {
+func (a *mockCoarseAuthorizer) AuthorizeDatabase(p influxql.Privilege, name string) bool {
 	return a.AuthorizeDatabaseFn(p, name)
-}
-
-func (m *mockAuthorizer) AuthorizeQuery(database string, query *influxql.Query) error {
-	panic("fail")
-}
-
-func (m *mockAuthorizer) AuthorizeSeriesRead(database string, measurement []byte, tags models.Tags) bool {
-	panic("fail")
-}
-
-func (m *mockAuthorizer) AuthorizeSeriesWrite(database string, measurement []byte, tags models.Tags) bool {
-	panic("fail")
 }
 
 func TestQueryExecutor_ExecuteQuery_ShowDatabases(t *testing.T) {
@@ -416,7 +404,7 @@ func TestQueryExecutor_ExecuteQuery_ShowDatabases(t *testing.T) {
 	}
 
 	opt := query.ExecutionOptions{
-		Authorizer: &mockAuthorizer{
+		CoarseAuthorizer: &mockCoarseAuthorizer{
 			AuthorizeDatabaseFn: func(p influxql.Privilege, name string) bool {
 				return name == "db2" || name == "db4"
 			},
@@ -468,11 +456,11 @@ func NewQueryExecutor() *QueryExecutor {
 		return nil
 	}
 
-	e.TSDBStore.MeasurementNamesFn = func(auth query.Authorizer, database string, cond influxql.Expr) ([][]byte, error) {
+	e.TSDBStore.MeasurementNamesFn = func(auth query.FineAuthorizer, database string, cond influxql.Expr) ([][]byte, error) {
 		return nil, nil
 	}
 
-	e.TSDBStore.TagValuesFn = func(_ query.Authorizer, _ []uint64, _ influxql.Expr) ([]tsdb.TagValues, error) {
+	e.TSDBStore.TagValuesFn = func(_ query.FineAuthorizer, _ []uint64, _ influxql.Expr) ([]tsdb.TagValues, error) {
 		return nil, nil
 	}
 

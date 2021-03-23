@@ -378,7 +378,7 @@ func (i *Index) MeasurementTagKeysByExpr(name []byte, expr influxql.Expr) (map[s
 
 // TagKeyHasAuthorizedSeries determines if there exists an authorized series for
 // the provided measurement name and tag key.
-func (i *Index) TagKeyHasAuthorizedSeries(auth query.Authorizer, name []byte, key string) bool {
+func (i *Index) TagKeyHasAuthorizedSeries(auth query.FineAuthorizer, name []byte, key string) bool {
 	i.mu.RLock()
 	mm := i.measurements[string(name)]
 	i.mu.RUnlock()
@@ -422,7 +422,7 @@ func (i *Index) TagKeyHasAuthorizedSeries(auth query.Authorizer, name []byte, ke
 //
 // See tsm1.Engine.MeasurementTagKeyValuesByExpr for a fuller description of this
 // method.
-func (i *Index) MeasurementTagKeyValuesByExpr(auth query.Authorizer, name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
+func (i *Index) MeasurementTagKeyValuesByExpr(auth query.FineAuthorizer, name []byte, keys []string, expr influxql.Expr, keysSorted bool) ([][]string, error) {
 	i.mu.RLock()
 	mm := i.measurements[string(name)]
 	i.mu.RUnlock()
@@ -540,7 +540,7 @@ func (i *Index) TagsForSeries(key string) (models.Tags, error) {
 //
 // TODO(edd): Remove authorisation from these methods. There shouldn't need to
 // be any auth passed down into the index.
-func (i *Index) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
+func (i *Index) MeasurementNamesByExpr(auth query.FineAuthorizer, expr influxql.Expr) ([][]byte, error) {
 	i.mu.RLock()
 	defer i.mu.RUnlock()
 
@@ -559,7 +559,7 @@ func (i *Index) MeasurementNamesByExpr(auth query.Authorizer, expr influxql.Expr
 	return i.measurementNamesByExpr(auth, expr)
 }
 
-func (i *Index) measurementNamesByExpr(auth query.Authorizer, expr influxql.Expr) ([][]byte, error) {
+func (i *Index) measurementNamesByExpr(auth query.FineAuthorizer, expr influxql.Expr) ([][]byte, error) {
 	if expr == nil {
 		return nil, nil
 	}
@@ -625,7 +625,7 @@ func (i *Index) measurementNamesByExpr(auth query.Authorizer, expr influxql.Expr
 }
 
 // measurementNamesByNameFilter returns the sorted measurements matching a name.
-func (i *Index) measurementNamesByNameFilter(auth query.Authorizer, op influxql.Token, val string, regex *regexp.Regexp) [][]byte {
+func (i *Index) measurementNamesByNameFilter(auth query.FineAuthorizer, op influxql.Token, val string, regex *regexp.Regexp) [][]byte {
 	var names [][]byte
 	for _, m := range i.measurements {
 		var matched bool
@@ -649,7 +649,7 @@ func (i *Index) measurementNamesByNameFilter(auth query.Authorizer, op influxql.
 }
 
 // measurementNamesByTagFilters returns the sorted measurements matching the filters on tag values.
-func (i *Index) measurementNamesByTagFilters(auth query.Authorizer, filter *TagFilter) [][]byte {
+func (i *Index) measurementNamesByTagFilters(auth query.FineAuthorizer, filter *TagFilter) [][]byte {
 	// Build a list of measurements matching the filters.
 	var names [][]byte
 	var tagMatch bool
