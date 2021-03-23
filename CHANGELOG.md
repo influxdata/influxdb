@@ -46,6 +46,7 @@ or `/query` HTTP endpoints.
 1. [20851](https://github.com/influxdata/influxdb/pull/20851): Fix TSM WAL segment size computing. Thanks @StoneYunZhao!
 1. [20844](https://github.com/influxdata/influxdb/pull/20844): Repair swagger to match implementation of DBRPs type.
 1. [20987](https://github.com/influxdata/influxdb/pull/20987): Fix the cipher suite used when TLS strict ciphers are enabled in `influxd`.
+1. [21031](https://github.com/influxdata/influxdb/pull/21031): Fix parse error in UI for tag filters containing regex meta characters.
 
 ## v2.0.4 [2021-02-08]
 ----------------------
