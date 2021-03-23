@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/backup"
 	"github.com/influxdata/influxdb/v2/bolt"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
 	dashboardTransport "github.com/influxdata/influxdb/v2/dashboards/transport"
@@ -26,10 +27,12 @@ import (
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"github.com/influxdata/influxdb/v2/pkger"
 	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/restore"
 	"github.com/influxdata/influxdb/v2/tenant"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"github.com/spf13/viper"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest"
 )
@@ -346,6 +349,30 @@ func (tl *TestLauncher) QueryFlux(tb testing.TB, org *influxdb.Organization, tok
 	return string(b[:len(b)-1])
 }
 
+func (tl *TestLauncher) BackupOrFail(tb testing.TB, ctx context.Context, req backup.Request) {
+	tb.Helper()
+	require.NoError(tb, tl.Backup(tb, ctx, req))
+}
+
+func (tl *TestLauncher) Backup(tb testing.TB, ctx context.Context, req backup.Request) error {
+	tb.Helper()
+	return backup.RunBackup(ctx, req, tl.BackupService(tb), tl.log)
+}
+
+func (tl *TestLauncher) RestoreOrFail(tb testing.TB, ctx context.Context, req restore.Request) {
+	tb.Helper()
+	require.NoError(tb, tl.Restore(tb, ctx, req))
+}
+
+func (tl *TestLauncher) Restore(tb testing.TB, ctx context.Context, req restore.Request) error {
+	tb.Helper()
+	return restore.RunRestore(ctx, req, restore.Services{
+		RestoreService: tl.RestoreService(tb),
+		BucketService:  tl.BucketService(tb),
+		OrgService:     tl.OrgService(tb),
+	}, tl.log)
+}
+
 // MustNewHTTPRequest returns a new nethttp.Request with base URL and auth attached. Fail on error.
 func (tl *TestLauncher) MustNewHTTPRequest(method, rawurl, body string) *nethttp.Request {
 	req, err := nethttp.NewRequest(method, tl.URL()+rawurl, strings.NewReader(body))
@@ -436,11 +463,23 @@ func (tl *TestLauncher) VariableService(tb testing.TB) *http.VariableService {
 }
 
 func (tl *TestLauncher) AuthorizationService(tb testing.TB) *http.AuthorizationService {
+	tb.Helper()
 	return &http.AuthorizationService{Client: tl.HTTPClient(tb)}
 }
 
 func (tl *TestLauncher) TaskService(tb testing.TB) influxdb.TaskService {
+	tb.Helper()
 	return &http.TaskService{Client: tl.HTTPClient(tb)}
+}
+
+func (tl *TestLauncher) BackupService(tb testing.TB) influxdb.BackupService {
+	tb.Helper()
+	return &http.BackupService{Addr: tl.URL(), Token: tl.Auth.Token}
+}
+
+func (tl *TestLauncher) RestoreService(tb testing.TB) influxdb.RestoreService {
+	tb.Helper()
+	return &http.RestoreService{Addr: tl.URL(), Token: tl.Auth.Token}
 }
 
 func (tl *TestLauncher) HTTPClient(tb testing.TB) *httpc.Client {
