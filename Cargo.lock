@@ -1467,6 +1467,7 @@ dependencies = [
  "influxdb_tsm",
  "ingest",
  "internal_types",
+ "itertools 0.9.0",
  "logfmt",
  "mem_qe",
  "mutable_buffer",

@@ -4,6 +4,7 @@ build:
     - generated_types/protos/
 
 lint:
+  allow_comment_ignores: true
   ignore:
     - google
     - grpc

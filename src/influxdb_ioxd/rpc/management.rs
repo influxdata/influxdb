@@ -3,9 +3,12 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use data_types::database_rules::DatabaseRules;
-use data_types::DatabaseName;
-use generated_types::google::{AlreadyExists, FieldViolation, FieldViolationExt, NotFound};
+use data_types::{field_validation::FromFieldOpt, DatabaseName};
+use generated_types::google::{
+    AlreadyExists, FieldViolation, FieldViolationExt, InternalError, NotFound,
+};
 use generated_types::influxdata::iox::management::v1::*;
+use observability_deps::tracing::info;
 use query::{Database, DatabaseStore};
 use server::{ConnectionManager, Error, Server};
 use tonic::{Request, Response, Status};
@@ -16,6 +19,33 @@ struct ManagementService<M: ConnectionManager> {
 
 use super::error::{default_db_error_handler, default_server_error_handler};
 use std::num::NonZeroU32;
+
+#[derive(Debug)]
+enum UpdateError {
+    Update(server::Error),
+    Closure(tonic::Status),
+}
+
+impl From<UpdateError> for Status {
+    fn from(error: UpdateError) -> Self {
+        match error {
+            UpdateError::Update(error) => {
+                info!(?error, "Update error");
+                InternalError {}.into()
+            }
+            UpdateError::Closure(error) => error,
+        }
+    }
+}
+
+impl From<server::UpdateError<Status>> for UpdateError {
+    fn from(error: server::UpdateError<Status>) -> Self {
+        match error {
+            server::UpdateError::Update(error) => Self::Update(error),
+            server::UpdateError::Closure(error) => Self::Closure(error),
+        }
+    }
+}
 
 #[tonic::async_trait]
 impl<M> management_service_server::ManagementService for ManagementService<M>
@@ -114,6 +144,24 @@ where
             }
             Err(e) => Err(default_server_error_handler(e)),
         }
+    }
+
+    async fn update_database(
+        &self,
+        request: Request<UpdateDatabaseRequest>,
+    ) -> Result<Response<UpdateDatabaseResponse>, Status> {
+        let request = request.into_inner();
+        let rules: DatabaseRules = request.rules.required("rules")?;
+        let db_name = rules.name.clone();
+        let updated_rules = self
+            .server
+            .update_db_rules(&db_name, |_orig| Ok(rules))
+            .await
+            .map_err(UpdateError::from)?;
+
+        Ok(Response::new(UpdateDatabaseResponse {
+            rules: Some(updated_rules.into()),
+        }))
     }
 
     async fn list_chunks(
