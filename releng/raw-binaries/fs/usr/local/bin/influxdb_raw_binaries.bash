@@ -69,13 +69,12 @@ OUTDIR=$(mktemp -d)
 		if [[ -n "$STATIC" || "$GOARCH" == arm64 ]] ; then
 			echo go build -i -o "$OUTDIR/$(basename $cmd)" -tags "netgo osusergo static_build" $cmd
 			go build -i -o "$OUTDIR/$(basename $cmd)" -tags "netgo osusergo static_build" $cmd
+		elif [[ "$GOOS" == windows ]] ; then
+			echo go build $RACE_FLAG -buildmode=exe -i -o "$OUTDIR/$(basename $cmd).exe" $cmd
+			go build $RACE_FLAG -buildmode=exe -i -o "$OUTDIR/$(basename $cmd).exe" $cmd
 		else
-			suffix=
-			if [[ "$GOOS" == windows ]] ; then
-				suffix=.exe
-			fi
-			echo go build $RACE_FLAG -i -o "$OUTDIR/$(basename $cmd)$suffix" $cmd
-			go build $RACE_FLAG -i -o "$OUTDIR/$(basename $cmd)$suffix" $cmd
+			echo go build $RACE_FLAG -i -o "$OUTDIR/$(basename $cmd)" $cmd
+			go build $RACE_FLAG -i -o "$OUTDIR/$(basename $cmd)" $cmd
 		fi
 	done
 )
