@@ -758,7 +758,7 @@ pub struct ShardConfig {
 
 /// Maps a matcher with specific target group. If the line/row matches
 /// it should be sent to the group.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone, Default)]
 pub struct MatcherToTargets {
     pub matcher: Matcher,
     pub target: NodeGroup,
@@ -781,7 +781,7 @@ pub struct HashRing {
 
 /// A matcher is used to match routing rules or subscriptions on a row-by-row
 /// (or line) basis.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Matcher {
     /// if provided, match if the table name matches against the regex
     #[serde(with = "serde_regex")]
@@ -799,6 +799,148 @@ impl PartialEq for Matcher {
     }
 }
 impl Eq for Matcher {}
+
+impl From<ShardConfig> for management::ShardConfig {
+    fn from(shard_config: ShardConfig) -> Self {
+        Self {
+            specific_targets: shard_config.specific_targets.map(|i| i.into()),
+            hash_ring: shard_config.hash_ring.map(|i| i.into()),
+            ignore_errors: shard_config.ignore_errors,
+        }
+    }
+}
+
+impl TryFrom<management::ShardConfig> for ShardConfig {
+    type Error = FieldViolation;
+
+    fn try_from(proto: management::ShardConfig) -> Result<Self, Self::Error> {
+        Ok(Self {
+            specific_targets: proto
+                .specific_targets
+                .map(|i| i.try_into())
+                .map_or(Ok(None), |r| r.map(Some))?,
+            hash_ring: proto
+                .hash_ring
+                .map(|i| i.try_into())
+                .map_or(Ok(None), |r| r.map(Some))?,
+            ignore_errors: proto.ignore_errors,
+        })
+    }
+}
+
+/// Returns none if v matches its default value.
+fn none_if_default<T: Default + PartialEq>(v: T) -> Option<T> {
+    if v == Default::default() {
+        None
+    } else {
+        Some(v)
+    }
+}
+
+impl From<MatcherToTargets> for management::MatcherToTargets {
+    fn from(matcher_to_targets: MatcherToTargets) -> Self {
+        Self {
+            matcher: none_if_default(matcher_to_targets.matcher.into()),
+            target: none_if_default(from_node_group_for_management_node_group(
+                matcher_to_targets.target,
+            )),
+        }
+    }
+}
+
+impl TryFrom<management::MatcherToTargets> for MatcherToTargets {
+    type Error = FieldViolation;
+
+    fn try_from(proto: management::MatcherToTargets) -> Result<Self, Self::Error> {
+        Ok(Self {
+            matcher: proto.matcher.unwrap_or_default().try_into()?,
+            target: try_from_management_node_group_for_node_group(
+                proto.target.unwrap_or_default(),
+            )?,
+        })
+    }
+}
+
+impl From<HashRing> for management::HashRing {
+    fn from(hash_ring: HashRing) -> Self {
+        Self {
+            table_name: hash_ring.table_name,
+            columns: hash_ring.columns,
+            node_groups: hash_ring
+                .node_groups
+                .into_iter()
+                .map(from_node_group_for_management_node_group)
+                .collect(),
+        }
+    }
+}
+
+impl TryFrom<management::HashRing> for HashRing {
+    type Error = FieldViolation;
+
+    fn try_from(proto: management::HashRing) -> Result<Self, Self::Error> {
+        Ok(Self {
+            table_name: proto.table_name,
+            columns: proto.columns,
+            node_groups: proto
+                .node_groups
+                .into_iter()
+                .map(try_from_management_node_group_for_node_group)
+                .collect::<Result<Vec<_>, _>>()?,
+        })
+    }
+}
+
+// cannot (and/or don't know how to) add impl From inside prost generated code
+fn from_node_group_for_management_node_group(node_group: NodeGroup) -> management::NodeGroup {
+    management::NodeGroup {
+        nodes: node_group
+            .into_iter()
+            .map(|id| management::node_group::Node { id })
+            .collect(),
+    }
+}
+
+fn try_from_management_node_group_for_node_group(
+    proto: management::NodeGroup,
+) -> Result<NodeGroup, FieldViolation> {
+    Ok(proto.nodes.into_iter().map(|i| i.id).collect())
+}
+
+impl From<Matcher> for management::Matcher {
+    fn from(matcher: Matcher) -> Self {
+        Self {
+            table_name_regex: matcher
+                .table_name_regex
+                .map(|r| r.to_string())
+                .unwrap_or_default(),
+            predicate: matcher.predicate.unwrap_or_default(),
+        }
+    }
+}
+
+impl TryFrom<management::Matcher> for Matcher {
+    type Error = FieldViolation;
+
+    fn try_from(proto: management::Matcher) -> Result<Self, Self::Error> {
+        let table_name_regex = match &proto.table_name_regex as &str {
+            "" => None,
+            re => Some(Regex::new(re).map_err(|e| FieldViolation {
+                field: "table_name_regex".to_string(),
+                description: e.to_string(),
+            })?),
+        };
+        let predicate = match proto.predicate {
+            p if p.is_empty() => None,
+            p => Some(p),
+        };
+
+        Ok(Self {
+            table_name_regex,
+            predicate,
+        })
+    }
+}
 
 /// `PartitionId` is the object storage identifier for a specific partition. It
 /// should be a path that can be used against an object store to locate all the
@@ -1261,5 +1403,129 @@ mod tests {
 
         assert_eq!(err3.field, "column.column_name");
         assert_eq!(err3.description, "Field is required");
+    }
+
+    #[test]
+    fn test_matcher_default() {
+        let protobuf = management::Matcher {
+            ..Default::default()
+        };
+
+        let matcher: Matcher = protobuf.clone().try_into().unwrap();
+        let back: management::Matcher = matcher.clone().into();
+
+        assert!(matcher.table_name_regex.is_none());
+        assert_eq!(protobuf.table_name_regex, back.table_name_regex);
+
+        assert_eq!(matcher.predicate, None);
+        assert_eq!(protobuf.predicate, back.predicate);
+    }
+
+    #[test]
+    fn test_matcher_regexp() {
+        let protobuf = management::Matcher {
+            table_name_regex: "^foo$".into(),
+            ..Default::default()
+        };
+
+        let matcher: Matcher = protobuf.clone().try_into().unwrap();
+        let back: management::Matcher = matcher.clone().into();
+
+        assert_eq!(matcher.table_name_regex.unwrap().to_string(), "^foo$");
+        assert_eq!(protobuf.table_name_regex, back.table_name_regex);
+    }
+
+    #[test]
+    fn test_matcher_bad_regexp() {
+        let protobuf = management::Matcher {
+            table_name_regex: "*".into(),
+            ..Default::default()
+        };
+
+        let matcher: Result<Matcher, FieldViolation> = protobuf.try_into();
+        assert!(matcher.is_err());
+        assert_eq!(matcher.err().unwrap().field, "table_name_regex");
+    }
+
+    #[test]
+    fn test_hash_ring_default() {
+        let protobuf = management::HashRing {
+            ..Default::default()
+        };
+
+        let hash_ring: HashRing = protobuf.clone().try_into().unwrap();
+        let back: management::HashRing = hash_ring.clone().into();
+
+        assert_eq!(hash_ring.table_name, false);
+        assert_eq!(protobuf.table_name, back.table_name);
+        assert!(hash_ring.columns.is_empty());
+        assert_eq!(protobuf.columns, back.columns);
+        assert!(hash_ring.node_groups.is_empty());
+        assert_eq!(protobuf.node_groups, back.node_groups);
+    }
+
+    #[test]
+    fn test_hash_ring_nodes() {
+        let protobuf = management::HashRing {
+            node_groups: vec![
+                management::NodeGroup {
+                    nodes: vec![
+                        management::node_group::Node { id: 10 },
+                        management::node_group::Node { id: 11 },
+                        management::node_group::Node { id: 12 },
+                    ],
+                },
+                management::NodeGroup {
+                    nodes: vec![management::node_group::Node { id: 20 }],
+                },
+            ],
+            ..Default::default()
+        };
+
+        let hash_ring: HashRing = protobuf.try_into().unwrap();
+
+        assert_eq!(hash_ring.node_groups.len(), 2);
+        assert_eq!(hash_ring.node_groups[0].len(), 3);
+        assert_eq!(hash_ring.node_groups[1].len(), 1);
+    }
+
+    #[test]
+    fn test_matcher_to_targets_default() {
+        let protobuf = management::MatcherToTargets {
+            ..Default::default()
+        };
+
+        let matcher_to_targets: MatcherToTargets = protobuf.clone().try_into().unwrap();
+        let back: management::MatcherToTargets = matcher_to_targets.clone().into();
+
+        assert_eq!(
+            matcher_to_targets.matcher,
+            Matcher {
+                ..Default::default()
+            }
+        );
+        assert_eq!(protobuf.matcher, back.matcher);
+
+        assert_eq!(matcher_to_targets.target, Vec::<WriterId>::new());
+        assert_eq!(protobuf.target, back.target);
+    }
+
+    #[test]
+    fn test_shard_config_default() {
+        let protobuf = management::ShardConfig {
+            ..Default::default()
+        };
+
+        let shard_config: ShardConfig = protobuf.clone().try_into().unwrap();
+        let back: management::ShardConfig = shard_config.clone().into();
+
+        assert!(shard_config.specific_targets.is_none());
+        assert_eq!(protobuf.specific_targets, back.specific_targets);
+
+        assert!(shard_config.hash_ring.is_none());
+        assert_eq!(protobuf.hash_ring, back.hash_ring);
+
+        assert_eq!(shard_config.ignore_errors, false);
+        assert_eq!(protobuf.ignore_errors, back.ignore_errors);
     }
 }
