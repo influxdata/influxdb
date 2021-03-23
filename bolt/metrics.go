@@ -94,8 +94,10 @@ func (c *Client) Describe(ch chan<- *prometheus.Desc) {
 type pluginMetricsCollector struct {
 	ticker     *time.Ticker
 	tickerDone chan struct{}
-	cache      map[string]float64
+
+	// cacheMu protects cache
 	cacheMu    sync.RWMutex
+	cache      map[string]float64
 }
 
 func (c *pluginMetricsCollector) Open(db *bolt.DB) {
@@ -162,6 +164,10 @@ func (c *pluginMetricsCollector) Collect(ch chan<- prometheus.Metric) {
 }
 
 func (c *pluginMetricsCollector) Close() {
+	// Wait for any already-running cache-refresh procedures to complete.
+	c.cacheMu.Lock()
+	defer c.cacheMu.Unlock()
+
 	close(c.tickerDone)
 }
 
