@@ -51,6 +51,7 @@ or `/query` HTTP endpoints.
 1. [20929](https://github.com/influxdata/influxdb/pull/20929): Log error details when `influxd upgrade` fails to migrate databases.
 1. [20921](https://github.com/influxdata/influxdb/pull/20921): Fix the cipher suite used when TLS strict ciphers are enabled in `influxd`.
 1. [20925](https://github.com/influxdata/influxdb/pull/20925): Fix parse error in UI for tag filters containing regex meta characters.
+1. [21042](https://github.com/influxdata/influxdb/pull/21042): Prevent concurrent access panic when gathering bolt metrics.
 
 ## v2.0.4 [2021-02-08]
 
