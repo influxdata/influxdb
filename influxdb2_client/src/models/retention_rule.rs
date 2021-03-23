@@ -1,9 +1,13 @@
+//! Retention Rules
+
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// RetentionRule
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub struct RetentionRule {
+    /// Expiry
     #[serde(rename = "type")]
-    pub _type: Type,
+    pub r#type: Type,
     /// Duration in seconds for how long data will be kept in the database. 0
     /// means infinite.
     #[serde(rename = "everySeconds")]
@@ -17,17 +21,20 @@ pub struct RetentionRule {
 }
 
 impl RetentionRule {
-    pub fn new(_type: Type, every_seconds: i32) -> RetentionRule {
-        RetentionRule {
-            _type,
+    /// Returns instance of RetentionRule
+    pub fn new(r#type: Type, every_seconds: i32) -> Self {
+        Self {
+            r#type,
             every_seconds,
             shard_group_duration_seconds: None,
         }
     }
 }
 
+/// Set Retention Rule expired or not
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Type {
+    /// RetentionRule Expired
     #[serde(rename = "expire")]
     Expire,
 }

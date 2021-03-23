@@ -1,29 +1,39 @@
+//! # Onboarding
+//!
+//! Initial setup of InfluxDB instance
+
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// Check if database has default user, org, bucket created, returns true if
+/// not.
+#[derive(Clone, Copy, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct IsOnboarding {
-    /// True means that the influxdb instance has NOT had initial setup; false
-    /// means that the database has been setup.
-    #[serde(rename = "allowed", skip_serializing_if = "Option::is_none")]
+    /// True if onboarding has already been completed otherwise false
     pub allowed: Option<bool>,
 }
 
 impl IsOnboarding {
-    pub fn new() -> IsOnboarding {
-        IsOnboarding { allowed: None }
+    /// Return instance of IsOnboarding
+    pub fn new() -> Self {
+        Self {
+            ..Default::default()
+        }
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// Post onboarding request, to setup initial user, org and bucket.
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct OnboardingRequest {
-    #[serde(rename = "username")]
+    /// Initial username
     pub username: String,
-    #[serde(rename = "org")]
+    /// Initial organization name
     pub org: String,
-    #[serde(rename = "bucket")]
+    /// Initial bucket name
     pub bucket: String,
-    #[serde(rename = "password", skip_serializing_if = "Option::is_none")]
+    /// Initial password of user
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub password: Option<String>,
+    /// Retention period in nanoseconds
     #[serde(
         rename = "retentionPeriodSeconds",
         skip_serializing_if = "Option::is_none"
@@ -37,37 +47,39 @@ pub struct OnboardingRequest {
 }
 
 impl OnboardingRequest {
-    pub fn new(username: String, org: String, bucket: String) -> OnboardingRequest {
-        OnboardingRequest {
+    /// Return instance of OnboardingRequest
+    pub fn new(username: String, org: String, bucket: String) -> Self {
+        Self {
             username,
-            password: None,
             org,
             bucket,
-            retention_period_seconds: None,
-            retention_period_hrs: None,
+            ..Default::default()
         }
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// OnboardingResponse
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct OnboardingResponse {
-    #[serde(rename = "user", skip_serializing_if = "Option::is_none")]
+    /// User
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub user: Option<crate::models::User>,
-    #[serde(rename = "org", skip_serializing_if = "Option::is_none")]
+    /// Organization
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub org: Option<crate::models::Organization>,
-    #[serde(rename = "bucket", skip_serializing_if = "Option::is_none")]
+    /// Bucket
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub bucket: Option<crate::models::Bucket>,
-    #[serde(rename = "auth", skip_serializing_if = "Option::is_none")]
+    /// Auth token
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub auth: Option<crate::models::Authorization>,
 }
 
 impl OnboardingResponse {
-    pub fn new() -> OnboardingResponse {
-        OnboardingResponse {
-            user: None,
-            org: None,
-            bucket: None,
-            auth: None,
+    /// Return instance of OnboardingResponse
+    pub fn new() -> Self {
+        Self {
+            ..Default::default()
         }
     }
 }

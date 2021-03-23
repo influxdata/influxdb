@@ -1,47 +1,51 @@
+//! Bucket
+
 use serde::{Deserialize, Serialize};
 
 /// Bucket Schema
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct Bucket {
-    #[serde(rename = "links", skip_serializing_if = "Option::is_none")]
+    /// BucketLinks
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub links: Option<crate::models::BucketLinks>,
-    #[serde(rename = "id", skip_serializing_if = "Option::is_none")]
+    /// Bucket ID
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
+    /// Bucket Type
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
-    pub _type: Option<Type>,
-    #[serde(rename = "name")]
+    pub r#type: Option<Type>,
+    /// Bucket name
     pub name: String,
-    #[serde(rename = "description", skip_serializing_if = "Option::is_none")]
+    /// Bucket description
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// Organization ID of bucket
     #[serde(rename = "orgID", skip_serializing_if = "Option::is_none")]
     pub org_id: Option<String>,
-    #[serde(rename = "rp", skip_serializing_if = "Option::is_none")]
+    /// RP
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub rp: Option<String>,
+    /// Created At
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
+    /// Updated At
     #[serde(rename = "updatedAt", skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
-    /// Rules to expire or retain data.  No rules means data never expires.
+    /// Rules to expire or retain data. No rules means data never expires.
     #[serde(rename = "retentionRules")]
     pub retention_rules: Vec<crate::models::RetentionRule>,
-    #[serde(rename = "labels", skip_serializing_if = "Option::is_none")]
+    /// Bucket labels
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub labels: Option<Vec<crate::models::Label>>,
 }
 
 impl Bucket {
-    pub fn new(name: String, retention_rules: Vec<crate::models::RetentionRule>) -> Bucket {
-        Bucket {
-            links: None,
-            id: None,
-            _type: None,
+    /// Returns instance of Bucket
+    pub fn new(name: String, retention_rules: Vec<crate::models::RetentionRule>) -> Self {
+        Self {
             name,
-            description: None,
-            org_id: None,
-            rp: None,
-            created_at: None,
-            updated_at: None,
             retention_rules,
-            labels: None,
+            ..Default::default()
         }
     }
 }
@@ -49,62 +53,62 @@ impl Bucket {
 /// Bucket Type
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Type {
+    /// User
     #[serde(rename = "user")]
     User,
+    /// System
     #[serde(rename = "system")]
     System,
 }
 
-///
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// Bucket links
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct BucketLinks {
-    /// URI of resource.
+    /// Labels
     #[serde(rename = "labels", skip_serializing_if = "Option::is_none")]
     pub labels: Option<String>,
-    /// URI of resource.
+    /// Members
     #[serde(rename = "members", skip_serializing_if = "Option::is_none")]
     pub members: Option<String>,
-    /// URI of resource.
+    /// Organization
     #[serde(rename = "org", skip_serializing_if = "Option::is_none")]
     pub org: Option<String>,
-    /// URI of resource.
+    /// Owners
     #[serde(rename = "owners", skip_serializing_if = "Option::is_none")]
     pub owners: Option<String>,
-    /// URI of resource.
+    /// Self
     #[serde(rename = "self", skip_serializing_if = "Option::is_none")]
-    pub _self: Option<String>,
-    /// URI of resource.
+    pub self_: Option<String>,
+    /// Write
     #[serde(rename = "write", skip_serializing_if = "Option::is_none")]
     pub write: Option<String>,
 }
 
 impl BucketLinks {
-    pub fn new() -> BucketLinks {
-        BucketLinks {
-            labels: None,
-            members: None,
-            org: None,
-            owners: None,
-            _self: None,
-            write: None,
+    /// Returns instance of BucketLinks
+    pub fn new() -> Self {
+        Self {
+            ..Default::default()
         }
     }
 }
 
 /// List all buckets
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct Buckets {
-    #[serde(rename = "links", skip_serializing_if = "Option::is_none")]
+    /// Links
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub links: Option<crate::models::Links>,
-    #[serde(rename = "buckets", skip_serializing_if = "Option::is_none")]
+    /// Buckets
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub buckets: Option<Vec<crate::models::Bucket>>,
 }
 
 impl Buckets {
-    pub fn new() -> Buckets {
-        Buckets {
-            links: None,
-            buckets: None,
+    /// Returns list of buckets
+    pub fn new() -> Self {
+        Self {
+            ..Default::default()
         }
     }
 }

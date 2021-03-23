@@ -1,59 +1,58 @@
+//! Authorization
+//!
+//! Auth tokens for InfluxDB
+
 use serde::{Deserialize, Serialize};
 
 /// Authorization to create
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct Authorization {
     /// If inactive the token is inactive and requests using the token will be
     /// rejected.
-    #[serde(rename = "status", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<Status>,
     /// A description of the token.
-    #[serde(rename = "description", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// Auth created_at
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
+    /// Auth updated_at
     #[serde(rename = "updatedAt", skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
     /// ID of org that authorization is scoped to.
     #[serde(rename = "orgID")]
     pub org_id: String,
-    /// List of permissions for an auth.  An auth must have at least one
+    /// List of permissions for an auth. An auth must have at least one
     /// Permission.
-    #[serde(rename = "permissions")]
     pub permissions: Vec<crate::models::Permission>,
-    #[serde(rename = "id", skip_serializing_if = "Option::is_none")]
+    /// Auth ID.
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
     /// Passed via the Authorization Header and Token Authentication type.
-    #[serde(rename = "token", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub token: Option<String>,
     /// ID of user that created and owns the token.
     #[serde(rename = "userID", skip_serializing_if = "Option::is_none")]
     pub user_id: Option<String>,
     /// Name of user that created and owns the token.
-    #[serde(rename = "user", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub user: Option<String>,
     /// Name of the org token is scoped to.
-    #[serde(rename = "org", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub org: Option<String>,
+    /// Links
     #[serde(rename = "links", skip_serializing_if = "Option::is_none")]
     pub links: Option<crate::models::AuthorizationAllOfLinks>,
 }
 
 impl Authorization {
-    pub fn new(org_id: String, permissions: Vec<crate::models::Permission>) -> Authorization {
-        Authorization {
-            status: None,
-            description: None,
-            created_at: None,
-            updated_at: None,
+    /// Returns an Authorization with the given orgID and permissions
+    pub fn new(org_id: String, permissions: Vec<crate::models::Permission>) -> Self {
+        Self {
             org_id,
             permissions,
-            id: None,
-            token: None,
-            user_id: None,
-            user: None,
-            org: None,
-            links: None,
+            ..Default::default()
         }
     }
 }
@@ -62,28 +61,30 @@ impl Authorization {
 /// rejected.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Status {
+    /// Token is active.
     #[serde(rename = "active")]
     Active,
+    /// Token is inactive.
     #[serde(rename = "inactive")]
     Inactive,
 }
 
-///
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// AuthorizationAllOfLinks
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct AuthorizationAllOfLinks {
-    /// URI of resource.
+    /// Self
     #[serde(rename = "self", skip_serializing_if = "Option::is_none")]
-    pub _self: Option<String>,
-    /// URI of resource.
-    #[serde(rename = "user", skip_serializing_if = "Option::is_none")]
+    pub self_: Option<String>,
+    /// User
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub user: Option<String>,
 }
 
 impl AuthorizationAllOfLinks {
-    pub fn new() -> AuthorizationAllOfLinks {
-        AuthorizationAllOfLinks {
-            _self: None,
-            user: None,
+    /// Return an instance of AuthorizationAllOfLinks
+    pub fn new() -> Self {
+        Self {
+            ..Default::default()
         }
     }
 }

@@ -1,24 +1,27 @@
+//! Links
+
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// Links
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct Links {
-    /// URI of resource.
-    #[serde(rename = "next", skip_serializing_if = "Option::is_none")]
+    /// Next link
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub next: Option<String>,
-    /// URI of resource.
+    /// Link to self
     #[serde(rename = "self")]
-    pub _self: String,
-    /// URI of resource.
+    pub self_: String,
+    /// Previous Link
     #[serde(rename = "prev", skip_serializing_if = "Option::is_none")]
     pub prev: Option<String>,
 }
 
 impl Links {
-    pub fn new(_self: String) -> Links {
-        Links {
-            next: None,
-            _self,
-            prev: None,
+    /// Returns list of Links
+    pub fn new(self_: String) -> Self {
+        Self {
+            self_,
+            ..Default::default()
         }
     }
 }

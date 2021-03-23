@@ -1,62 +1,38 @@
+//! Organization
+
 use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// Organization Schema
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct Organization {
-    #[serde(rename = "links", skip_serializing_if = "Option::is_none")]
+    /// Links
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub links: Option<crate::models::OrganizationLinks>,
-    #[serde(rename = "id", skip_serializing_if = "Option::is_none")]
+    /// Organization ID
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
-    #[serde(rename = "name")]
+    /// Organization Name
     pub name: String,
-    #[serde(rename = "description", skip_serializing_if = "Option::is_none")]
+    /// Organization description
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
+    /// Organization created timestamp
     #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
+    /// Organization updated timestamp
     #[serde(rename = "updatedAt", skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
     /// If inactive the organization is inactive.
-    #[serde(rename = "status", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<Status>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct OrganizationLinks {
-    /// URI of resource.
-    #[serde(rename = "self", skip_serializing_if = "Option::is_none")]
-    pub _self: Option<String>,
-    /// URI of resource.
-    #[serde(rename = "members", skip_serializing_if = "Option::is_none")]
-    pub members: Option<String>,
-    /// URI of resource.
-    #[serde(rename = "owners", skip_serializing_if = "Option::is_none")]
-    pub owners: Option<String>,
-    /// URI of resource.
-    #[serde(rename = "labels", skip_serializing_if = "Option::is_none")]
-    pub labels: Option<String>,
-    /// URI of resource.
-    #[serde(rename = "secrets", skip_serializing_if = "Option::is_none")]
-    pub secrets: Option<String>,
-    /// URI of resource.
-    #[serde(rename = "buckets", skip_serializing_if = "Option::is_none")]
-    pub buckets: Option<String>,
-    /// URI of resource.
-    #[serde(rename = "tasks", skip_serializing_if = "Option::is_none")]
-    pub tasks: Option<String>,
-    /// URI of resource.
-    #[serde(rename = "dashboards", skip_serializing_if = "Option::is_none")]
-    pub dashboards: Option<String>,
-}
-
 impl Organization {
-    pub fn new(name: String) -> Organization {
-        Organization {
-            links: None,
-            id: None,
+    /// Returns instance of Organization
+    pub fn new(name: String) -> Self {
+        Self {
             name,
-            description: None,
-            created_at: None,
-            updated_at: None,
-            status: None,
+            ..Default::default()
         }
     }
 }
@@ -64,40 +40,68 @@ impl Organization {
 /// If inactive the organization is inactive.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Status {
+    /// Organization is active
     #[serde(rename = "active")]
     Active,
+    /// Organization is inactive
     #[serde(rename = "inactive")]
     Inactive,
 }
 
+/// Organization Links
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+pub struct OrganizationLinks {
+    /// Link to self
+    #[serde(rename = "self", skip_serializing_if = "Option::is_none")]
+    pub self_: Option<String>,
+    /// Links to members
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub members: Option<String>,
+    /// Links to owners
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub owners: Option<String>,
+    /// Links to labels
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub labels: Option<String>,
+    /// Links to secrets
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub secrets: Option<String>,
+    /// Links to buckets
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub buckets: Option<String>,
+    /// Links to tasks
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tasks: Option<String>,
+    /// Links to dashboards
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dashboards: Option<String>,
+}
+
 impl OrganizationLinks {
-    pub fn new() -> OrganizationLinks {
-        OrganizationLinks {
-            _self: None,
-            members: None,
-            owners: None,
-            labels: None,
-            secrets: None,
-            buckets: None,
-            tasks: None,
-            dashboards: None,
+    /// Returns instance of Organization Links
+    pub fn new() -> Self {
+        Self {
+            ..Default::default()
         }
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// Organizations
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct Organizations {
+    /// Links
     #[serde(rename = "links", skip_serializing_if = "Option::is_none")]
     pub links: Option<crate::models::Links>,
+    /// List of organizations
     #[serde(rename = "orgs", skip_serializing_if = "Option::is_none")]
     pub orgs: Option<Vec<crate::models::Organization>>,
 }
 
 impl Organizations {
-    pub fn new() -> Organizations {
-        Organizations {
-            links: None,
-            orgs: None,
+    /// Returns instance of Organizations
+    pub fn new() -> Self {
+        Self {
+            ..Default::default()
         }
     }
 }

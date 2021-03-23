@@ -1,29 +1,32 @@
+//! Users
+
 use serde::{Deserialize, Serialize};
 
-/// User Information
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// User Schema
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct User {
-    #[serde(rename = "id", skip_serializing_if = "Option::is_none")]
+    /// User ID
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub id: Option<String>,
+    /// User oauth token id
     #[serde(rename = "oauthID", skip_serializing_if = "Option::is_none")]
     pub oauth_id: Option<String>,
-    #[serde(rename = "name")]
+    /// User name
     pub name: String,
     /// If inactive the user is inactive.
-    #[serde(rename = "status", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub status: Option<Status>,
-    #[serde(rename = "links", skip_serializing_if = "Option::is_none")]
+    /// User links
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub links: Option<crate::models::UserLinks>,
 }
 
 impl User {
-    pub fn new(name: String) -> User {
-        User {
-            id: None,
-            oauth_id: None,
+    /// Returns instance of user
+    pub fn new(name: String) -> Self {
+        Self {
             name,
-            status: None,
-            links: None,
+            ..Default::default()
         }
     }
 }
@@ -31,52 +34,64 @@ impl User {
 /// If inactive the user is inactive.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
 pub enum Status {
+    /// User is active
     #[serde(rename = "active")]
     Active,
+    /// User is inactive
     #[serde(rename = "inactive")]
     Inactive,
 }
 
-///
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// User links
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct UserLinks {
+    /// User link to Self
     #[serde(rename = "self", skip_serializing_if = "Option::is_none")]
-    pub _self: Option<String>,
+    pub self_: Option<String>,
 }
 
 impl UserLinks {
-    pub fn new() -> UserLinks {
-        UserLinks { _self: None }
-    }
-}
-
-/// List of Users
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Users {
-    #[serde(rename = "links", skip_serializing_if = "Option::is_none")]
-    pub links: Option<crate::models::UsersLinks>,
-    #[serde(rename = "users", skip_serializing_if = "Option::is_none")]
-    pub users: Option<Vec<crate::models::User>>,
-}
-
-impl Users {
-    pub fn new() -> Users {
-        Users {
-            links: None,
-            users: None,
+    /// Returns instance of UserLinks
+    pub fn new() -> Self {
+        Self {
+            ..Default::default()
         }
     }
 }
 
-///
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+/// List of Users
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+pub struct Users {
+    /// List of user links
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub links: Option<crate::models::UsersLinks>,
+    /// List of users
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub users: Option<Vec<crate::models::User>>,
+}
+
+impl Users {
+    /// Returns instance of Users
+    pub fn new() -> Self {
+        Self {
+            ..Default::default()
+        }
+    }
+}
+
+/// UsersLinks
+#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct UsersLinks {
+    /// Users Link to Self
     #[serde(rename = "self", skip_serializing_if = "Option::is_none")]
-    pub _self: Option<String>,
+    pub self_: Option<String>,
 }
 
 impl UsersLinks {
-    pub fn new() -> UsersLinks {
-        UsersLinks { _self: None }
+    /// Returns instance of UsersLinks
+    pub fn new() -> Self {
+        Self {
+            ..Default::default()
+        }
     }
 }

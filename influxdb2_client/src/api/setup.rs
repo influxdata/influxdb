@@ -1,3 +1,7 @@
+//! Onboarding/Setup
+//!
+//! Initate and start onboarding process of InfluxDB server.
+
 use crate::{Client, Http, RequestError, ReqwestProcessing, Serializing};
 use reqwest::{Method, StatusCode};
 use snafu::ResultExt;
@@ -44,7 +48,7 @@ impl Client {
             username: username.into(),
             org: org.into(),
             bucket: bucket.into(),
-            password: password,
+            password,
             retention_period_hrs,
             retention_period_seconds,
         };
@@ -84,7 +88,7 @@ impl Client {
             username: username.into(),
             org: org.into(),
             bucket: bucket.into(),
-            password: password,
+            password,
             retention_period_hrs,
             retention_period_seconds,
         };
@@ -218,21 +222,15 @@ mod tests {
                 format!(
                     r#"{{"username":"{}","org":"{}","bucket":"{}"}}"#,
                     username, org, bucket,
-                ).as_str(),
+                )
+                .as_str(),
             )
             .create();
 
         let client = Client::new(&mockito::server_url(), token);
 
         let _result = client
-            .onboarding(
-                username,
-                org,
-                bucket,
-                None,
-                None,
-                None,
-            )
+            .onboarding(username, org, bucket, None, None, None)
             .await;
 
         mock_server.assert();
@@ -252,21 +250,15 @@ mod tests {
                 format!(
                     r#"{{"username":"{}","org":"{}","bucket":"{}"}}"#,
                     username, org, bucket,
-                ).as_str(),
+                )
+                .as_str(),
             )
             .create();
 
         let client = Client::new(&mockito::server_url(), token);
 
         let _result = client
-            .post_setup_user(
-                username,
-                org,
-                bucket,
-                None,
-                None,
-                None,
-            )
+            .post_setup_user(username, org, bucket, None, None, None)
             .await;
 
         mock_server.assert();

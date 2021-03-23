@@ -1,3 +1,7 @@
+//! Ready
+//!
+//! Check readiness of an InfluxDB instance at startup
+
 use reqwest::{Method, StatusCode};
 use snafu::ResultExt;
 
