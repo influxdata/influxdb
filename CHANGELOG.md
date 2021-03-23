@@ -11,6 +11,7 @@ v1.8.5 [unreleased]
 
 ### Bugfixes
 
+-	[#21053](https://github.com/influxdata/influxdb/pull/21053): fix: help text for influx_inspect
 -	[#20101](https://github.com/influxdata/influxdb/pull/20101): fix(write): Successful writes increment write error statistics incorrectly.
 -	[#20276](https://github.com/influxdata/influxdb/pull/20276): fix(error): unsupported value: +Inf" error not handled gracefully.
 -	[#20277](https://github.com/influxdata/influxdb/pull/20277): fix(query): Group By queries with offset that crosses a DST boundary can fail.
