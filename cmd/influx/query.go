@@ -24,7 +24,7 @@ var queryFlags struct {
 	org       organization
 	file      string
 	raw       bool
-	profilers string
+	profilers []string
 }
 
 func cmdQuery(f *globalFlags, opts genericCLIOpts) *cobra.Command {
@@ -37,7 +37,7 @@ func cmdQuery(f *globalFlags, opts genericCLIOpts) *cobra.Command {
 	queryFlags.org.register(opts.viper, cmd, true)
 	cmd.Flags().StringVarP(&queryFlags.file, "file", "f", "", "Path to Flux query file")
 	cmd.Flags().BoolVarP(&queryFlags.raw, "raw", "r", false, "Display raw query results")
-	cmd.Flags().StringVarP(&queryFlags.profilers, "profilers", "p", "", "Append profiler information to query results. Comma-separate profilers to enable multiple.")
+	cmd.Flags().StringSliceVarP(&queryFlags.profilers, "profilers", "p", nil, "Names of Flux profilers to enable. Profiler information will be appended to query results")
 
 	return cmd
 }
@@ -113,9 +113,8 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 		},
 	}
 
-	if queryFlags.profilers != "" {
-		var profilers = strings.Split(queryFlags.profilers, ",")
-		body_map["extern"] = buildProfilersExtern(profilers)
+	if len(queryFlags.profilers) > 0 {
+		body_map["extern"] = buildProfilersExtern(queryFlags.profilers)
 	}
 
 	body, _ := json.Marshal(body_map)
