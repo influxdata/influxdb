@@ -3901,6 +3901,194 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Error"
+
+  /buckets/{bucketID}/schema/measurements:
+    summary: APIs for describing bucket schema
+    get:
+      summary: Retrieve a list of measurement schemas defined for this bucket
+      operationId: getMeasurementSchemas
+      parameters:
+        - in: path
+          name: bucketID
+          description: The ID of the bucket
+          schema:
+            type: string
+          required: true
+      tags: ["Bucket Schemas"]
+      responses:
+        200:
+          description: A list of measurement schemas returning summary information
+          headers:
+            ETag:
+              description: The current version of the bucket schema
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeasurementSchemaList"
+        404:
+          description: Bucket not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+    post:
+      summary: Create a new measurement schema for this bucket
+      operationId: createMeasurementSchema
+      parameters:
+        - in: path
+          name: bucketID
+          description: The ID of the bucket
+          schema:
+            type: string
+          required: true
+      tags: ["Bucket Schemas"]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MeasurementSchemaCreateRequest"
+      responses:
+        201:
+          description: "New measurement schema"
+          headers:
+            ETag:
+              description: The current version of the measurement schema
+              schema:
+                type: string
+
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeasurementSchema"
+        400:
+          description: Client error with create request
+          content:
+            application/json:
+              examples:
+                badNameExample:
+                  summary: Invalid name
+                  description: >-
+                    The error returned when the name is invalid,
+                    such as too few or too many characters or the
+                    name contains non-printable ASCII or is not valid
+                    UTF-8.
+                  value:
+                    code: invalid
+                    message: name is invalid
+                missingColumnsExample:
+                  summary: Missing columns
+                  description: >-
+                    The error returned when the request body
+                    is missing the columns property.
+                  value:
+                    code: invalid
+                    message: columns is required
+                missingTimestampExample:
+                  summary: Missing timestamp
+                  description: >-
+                    The error returned when the request body
+                    is missing a timestamp type column.
+                  value:
+                    code: invalid
+                    message: Timestamp column is required
+                duplicateColumnNamesExample:
+                  summary: Duplicate column names
+                  description: >-
+                    The error returned when the request body
+                    contains duplicate column names.
+                  value:
+                    code: invalid
+                    message: Duplicate column names
+                missingFieldExample:
+                  summary: Missing field
+                  description: >-
+                    The error returned when the request body
+                    is missing at least one field type column.
+                  value:
+                    code: invalid
+                    message: At least one field column is required
+              schema:
+                $ref: "#/components/schemas/Error"
+  /buckets/{bucketID}/schema/measurements/{measurementID}:
+    summary: APIs for describing tables
+    get:
+      summary: Fetch schema information for a measurement
+      operationId: getMeasurementSchema
+      parameters:
+        - in: path
+          name: bucketID
+          description: The ID of the bucket
+          schema:
+            type: string
+          required: true
+        - in: path
+          name: measurementID
+          description: The ID of the measurement
+          schema:
+            type: string
+          required: true
+      tags: [ "Bucket Schemas" ]
+      responses:
+        200:
+          description: Schema definition for a single measurement
+          headers:
+            ETag:
+              description: The current version of the measurement schema
+              schema:
+                type: string
+
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeasurementSchema"
+    patch:
+      summary: Update existing measurement schema
+      operationId: updateMeasurementSchema
+      parameters:
+        - in: path
+          name: bucketID
+          description: The ID of the bucket
+          schema:
+            type: string
+          required: true
+        - in: path
+          name: measurementID
+          description: The ID of the measurement
+          schema:
+            type: string
+          required: true
+      tags: [ "Bucket Schemas" ]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MeasurementSchemaUpdateRequest"
+
+      responses:
+        200:
+          description: "Updated measurement schema"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeasurementSchema"
+        400:
+          description: Client error updating measurement schema
+          content:
+            application/json:
+              examples:
+                missingColumnsExample:
+                  summary: Deleted columns
+                  description: >-
+                    The error returned when the request body does
+                    not contain all the columns from the source.
+                  value:
+                    code: invalid
+                    message: Unable to delete columns from schema
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /orgs:
     get:
       operationId: GetOrgs
@@ -7264,6 +7452,8 @@ components:
           type: string
         rp:
           type: string
+        schemaType:
+          $ref: "#/components/schemas/SchemaType"
         createdAt:
           type: string
           format: date-time
@@ -7276,7 +7466,7 @@ components:
           $ref: "#/components/schemas/RetentionRules"
         labels:
           $ref: "#/components/schemas/Labels"
-      required: [name, retentionRules]
+      required: [id, name, retentionRules]
     Buckets:
       type: object
       properties:
@@ -7310,6 +7500,161 @@ components:
           format: int64
           description: Shard duration measured in seconds.
       required: [type, everySeconds]
+
+    SchemaType:
+      type: string
+      enum:
+        - implicit
+        - explicit
+    ColumnSemanticType:
+      type: string
+      nullable: false
+      enum:
+        - timestamp
+        - tag
+        - field
+    ColumnDataType:
+      type: string
+      enum:
+        - integer
+        - float
+        - boolean
+        - string
+        - unsigned
+    MeasurementSchemaColumn:
+      description: Definition of a measurement column
+      example:
+        name: time
+        type: timestamp
+      type: object
+      required: ["name", "type"]
+      properties:
+        name:
+          type: string
+        type:
+          $ref: "#/components/schemas/ColumnSemanticType"
+        dataType:
+          $ref: "#/components/schemas/ColumnDataType"
+    MeasurementSchema:
+      description: The schema definition for a single measurement
+      type: object
+      example:
+        id: 1a3c5e7f9b0a8642
+        name: cpu
+        columns:
+          - name: time
+            type: timestamp
+          - name: host
+            type: tag
+          - name: region
+            type: tag
+          - name: usage_user
+            type: field
+            dataType: float
+          - name: usage_user
+            type: field
+            dataType: float
+        createdAt: "2021-01-21T00:48:40.993Z"
+        updatedAt: "2021-01-21T00:48:40.993Z"
+      required: [ "id", "name", "columns", "createdAt", "updatedAt" ]
+      properties:
+        id:
+          type: string
+          readOnly: true
+        name:
+          type: string
+          nullable: false
+        columns:
+          description: >-
+            An ordered collection of column definitions
+          type: array
+          items:
+            $ref: '#/components/schemas/MeasurementSchemaColumn'
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+    MeasurementSchemaCreateRequest:
+      description: Create a new measurement schema
+      type: object
+      example:
+        name: cpu
+        columns:
+          - name: time
+            type: timestamp
+          - name: host
+            type: tag
+          - name: region
+            type: tag
+          - name: usage_user
+            type: field
+            dataType: float
+          - name: usage_user
+            type: field
+            dataType: float
+      required: ["name", "columns"]
+      properties:
+        name:
+          type: string
+        columns:
+          description: >-
+            An ordered collection of column definitions
+          type: array
+          items:
+            $ref: '#/components/schemas/MeasurementSchemaColumn'
+    MeasurementSchemaList:
+      description: A list of measurement schemas returning summary information
+      example:
+        measurementSchemas:
+          - id: 1a3c5e7f9b0a8642
+            name: cpu
+            createdAt: "2021-01-21T00:48:40.993Z"
+            updatedAt: "2021-01-21T00:48:40.993Z"
+          - id: 1a3c5e7f9b0a8643
+            name: memory
+            createdAt: "2021-01-21T00:48:40.993Z"
+            updatedAt: "2021-01-21T00:48:40.993Z"
+          - id: 1a3c5e7f9b0a8644
+            name: disk
+            createdAt: "2021-01-21T00:48:40.993Z"
+            updatedAt: "2021-01-21T00:48:40.993Z"
+      type: object
+      required: ["measurementSchemas"]
+      properties:
+        measurementSchemas:
+          type: array
+          items:
+            $ref: '#/components/schemas/MeasurementSchema'
+    MeasurementSchemaUpdateRequest:
+      description: Update an existing measurement schema
+      type: object
+      example:
+        columns:
+          - name: time
+            type: timestamp
+          - name: host
+            type: tag
+          - name: region
+            type: tag
+          - name: usage_user
+            type: field
+            dataType: float
+          - name: usage_user
+            type: field
+            dataType: float
+      required: ["columns"]
+      properties:
+        columns:
+          description: >-
+            An ordered collection of column definitions
+          type: array
+          items:
+            $ref: '#/components/schemas/MeasurementSchemaColumn'
+
     Link:
       type: string
       format: uri
