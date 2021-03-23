@@ -28,6 +28,8 @@ or `/query` HTTP endpoints.
 1. [20988](https://github.com/influxdata/influxdb/pull/20988): Set a default `--http-idle-timeout` of 3m in `influxd`.
 1. [20949](https://github.com/influxdata/influxdb/pull/20949): Add support for explicitly setting shard-group durations on buckets. Thanks @hinst!
 1. [20838](https://github.com/influxdata/influxdb/pull/20838): Add Swift client library to the data loading section of the UI
+1. [21032](https://github.com/influxdata/influxdb/pull/21032): Display task IDs in the UI.
+1. [21030](https://github.com/influxdata/influxdb/pull/21030): Update Telegraf plugins in UI to include additions and changes in 1.18 release.
 
 ### Bug Fixes
 
@@ -47,6 +49,7 @@ or `/query` HTTP endpoints.
 1. [20844](https://github.com/influxdata/influxdb/pull/20844): Repair swagger to match implementation of DBRPs type.
 1. [20987](https://github.com/influxdata/influxdb/pull/20987): Fix the cipher suite used when TLS strict ciphers are enabled in `influxd`.
 1. [21031](https://github.com/influxdata/influxdb/pull/21031): Fix parse error in UI for tag filters containing regex meta characters.
+1. [20836](https://github.com/influxdata/influxdb/pull/20836): Fix data race in TSM engine when inspecting tombstone stats.
 
 ## v2.0.4 [2021-02-08]
 ----------------------

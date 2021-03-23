@@ -110,9 +110,9 @@ type TSMFile interface {
 	// HasTombstones returns true if file contains values that have been deleted.
 	HasTombstones() bool
 
-	// TombstoneFiles returns the tombstone filestats if there are any tombstones
+	// TombstoneStats returns the tombstone filestats if there are any tombstones
 	// written for this file.
-	TombstoneFiles() []FileStat
+	TombstoneStats() TombstoneStat
 
 	// Close closes the underlying file resources.
 	Close() error
@@ -121,7 +121,7 @@ type TSMFile interface {
 	Size() uint32
 
 	// Rename renames the existing TSM file to a new name and replaces the mmap backing slice using the new
-	// file name.  Index and Reader state are not re-initialized.
+	// file name. Index and Reader state are not re-initialized.
 	Rename(path string) error
 
 	// Remove deletes the file from the filesystem.
@@ -203,6 +203,14 @@ type FileStat struct {
 	LastModified     int64
 	MinTime, MaxTime int64
 	MinKey, MaxKey   []byte
+}
+
+// TombstoneStat holds information about a possible tombstone file on disk.
+type TombstoneStat struct {
+	TombstoneExists bool
+	Path            string
+	LastModified    int64
+	Size            uint32
 }
 
 // OverlapsTimeRange returns true if the time range of the file intersect min and max.
@@ -579,7 +587,7 @@ func (f *FileStore) Open() error {
 
 		// Accumulate file store size stats
 		atomic.AddInt64(&f.stats.DiskBytes, int64(res.r.Size()))
-		for _, ts := range res.r.TombstoneFiles() {
+		if ts := res.r.TombstoneStats(); ts.TombstoneExists {
 			atomic.AddInt64(&f.stats.DiskBytes, int64(ts.Size))
 		}
 
@@ -812,8 +820,8 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 					return err
 				}
 
-				for _, t := range file.TombstoneFiles() {
-					if err := f.obs.FileUnlinking(t.Path); err != nil {
+				if ts := file.TombstoneStats(); ts.TombstoneExists {
+					if err := f.obs.FileUnlinking(ts.Path); err != nil {
 						return err
 					}
 				}
@@ -831,8 +839,8 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 				if file.InUse() {
 					// Copy all the tombstones related to this TSM file
 					var deletes []string
-					for _, t := range file.TombstoneFiles() {
-						deletes = append(deletes, t.Path)
+					if ts := file.TombstoneStats(); ts.TombstoneExists {
+						deletes = append(deletes, ts.Path)
 					}
 
 					// Rename the TSM file used by this reader
@@ -894,10 +902,9 @@ func (f *FileStore) replace(oldFiles, newFiles []string, updatedFn func(r []TSMF
 	var totalSize int64
 	for _, file := range f.files {
 		totalSize += int64(file.Size())
-		for _, ts := range file.TombstoneFiles() {
+		if ts := file.TombstoneStats(); ts.TombstoneExists {
 			totalSize += int64(ts.Size)
 		}
-
 	}
 	atomic.StoreInt64(&f.stats.DiskBytes, totalSize)
 
@@ -1084,9 +1091,9 @@ func (f *FileStore) CreateSnapshot() (string, error) {
 		if err := os.Link(tsmf.Path(), newpath); err != nil {
 			return "", fmt.Errorf("error creating tsm hard link: %q", err)
 		}
-		for _, tf := range tsmf.TombstoneFiles() {
-			newpath := filepath.Join(tmpPath, filepath.Base(tf.Path))
-			if err := os.Link(tf.Path, newpath); err != nil {
+		if ts := tsmf.TombstoneStats(); ts.TombstoneExists {
+			newpath := filepath.Join(tmpPath, filepath.Base(ts.Path))
+			if err := os.Link(ts.Path, newpath); err != nil {
 				return "", fmt.Errorf("error creating tombstone hard link: %q", err)
 			}
 		}
