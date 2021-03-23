@@ -36,7 +36,7 @@ avoid cardinality issues:
 ```toml
 [[inputs.kube_inventory]]
   ## URL for the Kubernetes API
-  url = "https://127.0.0.1"
+  url = "https://$HOSTIP:6443"
 
   ## Namespace to use. Set to "" to use all namespaces.
   # namespace = "default"
