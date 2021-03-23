@@ -60,9 +60,7 @@ func TestPluginMetrics(t *testing.T) {
 	log := zaptest.NewLogger(t)
 	kvStore := bolt.NewKVStore(log, client.Path)
 	kvStore.WithDB(client.DB())
-
-	err = all.Up(ctx, log, kvStore)
-	require.NoError(t, err)
+	require.NoError(t, all.Up(ctx, log, kvStore))
 
 	tsvc := telegrafservice.New(kvStore)
 	tconf := influxdb.TelegrafConfig{
