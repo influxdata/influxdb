@@ -25,6 +25,8 @@ type Client struct {
 	IDGenerator    platform.IDGenerator
 	TokenGenerator platform.TokenGenerator
 	platform.TimeGenerator
+
+	pluginsCollector *pluginMetricsCollector
 }
 
 // NewClient returns an instance of a Client.
@@ -34,6 +36,8 @@ func NewClient(log *zap.Logger) *Client {
 		IDGenerator:    snowflake.NewIDGenerator(),
 		TokenGenerator: rand.NewTokenGenerator(64),
 		TimeGenerator:  platform.RealTimeGenerator{},
+		// Refresh telegraf plugin metrics every hour.
+		pluginsCollector: NewPluginMetricsCollector(time.Minute * 59),
 	}
 }
 
@@ -72,6 +76,8 @@ func (c *Client) Open(ctx context.Context) error {
 	if err := c.initialize(ctx); err != nil {
 		return err
 	}
+
+	c.pluginsCollector.Open(c.db)
 
 	c.log.Info("Resources opened", zap.String("path", c.Path))
 	return nil
@@ -112,6 +118,7 @@ func (c *Client) initialize(ctx context.Context) error {
 
 // Close the connection to the bolt database
 func (c *Client) Close() error {
+	c.pluginsCollector.Close()
 	if c.db != nil {
 		return c.db.Close()
 	}

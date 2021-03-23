@@ -2,6 +2,7 @@ package bolt
 
 import (
 	"encoding/json"
+	"sync"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -84,38 +85,108 @@ func (c *Client) Describe(ch chan<- *prometheus.Desc) {
 	ch <- dashboardsDesc
 	ch <- scrapersDesc
 	ch <- telegrafsDesc
-	ch <- telegrafPluginsDesc
 	ch <- boltWritesDesc
 	ch <- boltReadsDesc
+
+	c.pluginsCollector.Describe(ch)
 }
 
-type instaTicker struct {
-	tick   chan struct{}
-	timeCh <-chan time.Time
+type pluginMetricsCollector struct {
+	ticker     *time.Ticker
+	tickerDone chan struct{}
+
+	// cacheMu protects cache
+	cacheMu sync.RWMutex
+	cache   map[string]float64
 }
 
-var (
-	// ticker is this influx' timer for when to renew the cache of configured plugin metrics.
-	ticker *instaTicker
-	// telegrafPlugins is a cache of this influx' metrics of configured plugins.
-	telegrafPlugins = map[string]float64{}
-)
+func (c *pluginMetricsCollector) Open(db *bolt.DB) {
+	go c.pollTelegrafStats(db)
+}
 
-// Initialize a simple channel that will instantly "tick",
-// backed by a time.Ticker's channel.
-func init() {
-	ticker = &instaTicker{
-		tick:   make(chan struct{}, 1),
-		timeCh: time.NewTicker(time.Minute * 59).C,
+func (c *pluginMetricsCollector) pollTelegrafStats(db *bolt.DB) {
+	for {
+		select {
+		case <-c.tickerDone:
+			return
+		case <-c.ticker.C:
+			c.refreshTelegrafStats(db)
+		}
+	}
+}
+
+func (c *pluginMetricsCollector) refreshTelegrafStats(db *bolt.DB) {
+	c.cacheMu.Lock()
+	defer c.cacheMu.Unlock()
+
+	// Check if stats-polling got canceled between the point of receiving
+	// a tick and grabbing the lock.
+	select {
+	case <-c.tickerDone:
+		return
+	default:
 	}
 
-	ticker.tick <- struct{}{}
+	// Clear plugins from last check.
+	c.cache = map[string]float64{}
 
-	go func() {
-		for range ticker.timeCh {
-			ticker.tick <- struct{}{}
+	// Loop through all registered plugins.
+	_ = db.View(func(tx *bolt.Tx) error {
+		rawPlugins := [][]byte{}
+		if err := tx.Bucket(telegrafPluginsBucket).ForEach(func(k, v []byte) error {
+			rawPlugins = append(rawPlugins, v)
+			return nil
+		}); err != nil {
+			return err
 		}
-	}()
+
+		for _, v := range rawPlugins {
+			pStats := map[string]float64{}
+			if err := json.Unmarshal(v, &pStats); err != nil {
+				return err
+			}
+
+			for k, v := range pStats {
+				c.cache[k] += v
+			}
+		}
+
+		return nil
+	})
+}
+
+func (c *pluginMetricsCollector) Describe(ch chan<- *prometheus.Desc) {
+	ch <- telegrafPluginsDesc
+}
+
+func (c *pluginMetricsCollector) Collect(ch chan<- prometheus.Metric) {
+	c.cacheMu.RLock()
+	defer c.cacheMu.RUnlock()
+
+	for k, v := range c.cache {
+		ch <- prometheus.MustNewConstMetric(
+			telegrafPluginsDesc,
+			prometheus.GaugeValue,
+			v,
+			k, // Adds a label for plugin type.name.
+		)
+	}
+}
+
+func (c *pluginMetricsCollector) Close() {
+	// Wait for any already-running cache-refresh procedures to complete.
+	c.cacheMu.Lock()
+	defer c.cacheMu.Unlock()
+
+	close(c.tickerDone)
+}
+
+func NewPluginMetricsCollector(tickDuration time.Duration) *pluginMetricsCollector {
+	return &pluginMetricsCollector{
+		ticker:     time.NewTicker(tickDuration),
+		tickerDone: make(chan struct{}),
+		cache:      make(map[string]float64),
+	}
 }
 
 // Collect returns the current state of all metrics of the collector.
@@ -146,36 +217,7 @@ func (c *Client) Collect(ch chan<- prometheus.Metric) {
 		telegrafs = tx.Bucket(telegrafBucket).Stats().KeyN
 		tokens = tx.Bucket(authorizationBucket).Stats().KeyN
 		users = tx.Bucket(userBucket).Stats().KeyN
-
-		// Only process and store telegraf configs once per hour.
-		select {
-		case <-ticker.tick:
-			// Clear plugins from last check.
-			telegrafPlugins = map[string]float64{}
-			rawPlugins := [][]byte{}
-
-			// Loop through all reported number of plugins in the least intrusive way
-			// (vs a global map and locking every time a config is updated).
-			tx.Bucket(telegrafPluginsBucket).ForEach(func(k, v []byte) error {
-				rawPlugins = append(rawPlugins, v)
-				return nil
-			})
-
-			for _, v := range rawPlugins {
-				pStats := map[string]float64{}
-				if err := json.Unmarshal(v, &pStats); err != nil {
-					return err
-				}
-
-				for k, v := range pStats {
-					telegrafPlugins[k] += v
-				}
-			}
-
-			return nil
-		default:
-			return nil
-		}
+		return nil
 	})
 
 	ch <- prometheus.MustNewConstMetric(
@@ -220,12 +262,5 @@ func (c *Client) Collect(ch chan<- prometheus.Metric) {
 		float64(telegrafs),
 	)
 
-	for k, v := range telegrafPlugins {
-		ch <- prometheus.MustNewConstMetric(
-			telegrafPluginsDesc,
-			prometheus.GaugeValue,
-			v,
-			k, // Adds a label for plugin type.name.
-		)
-	}
+	c.pluginsCollector.Collect(ch)
 }
