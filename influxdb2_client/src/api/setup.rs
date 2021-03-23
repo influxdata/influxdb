@@ -202,4 +202,72 @@ mod tests {
         mock_server.assert();
         Ok(())
     }
+
+    #[tokio::test]
+    async fn onboarding_opt() -> Result {
+        let token = "some-token";
+        let username = "some-user";
+        let org = "some-org";
+        let bucket = "some-bucket";
+
+        let mock_server = mock("POST", "/api/v2/setup")
+            .match_header("Authorization", format!("Token {}", token).as_str())
+            .match_body(
+                format!(
+                    r#"{{"username":"{}","org":"{}","bucket":"{}"}}"#,
+                    username, org, bucket,
+                ).as_str(),
+            )
+            .create();
+
+        let client = Client::new(&mockito::server_url(), token);
+
+        let _result = client
+            .onboarding(
+                username,
+                org,
+                bucket,
+                None,
+                None,
+                None,
+            )
+            .await;
+
+        mock_server.assert();
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn post_setup_user_opt() -> Result {
+        let token = "some-token";
+        let username = "some-user";
+        let org = "some-org";
+        let bucket = "some-bucket";
+
+        let mock_server = mock("POST", "/api/v2/setup/user")
+            .match_header("Authorization", format!("Token {}", token).as_str())
+            .match_body(
+                format!(
+                    r#"{{"username":"{}","org":"{}","bucket":"{}"}}"#,
+                    username, org, bucket,
+                ).as_str(),
+            )
+            .create();
+
+        let client = Client::new(&mockito::server_url(), token);
+
+        let _result = client
+            .post_setup_user(
+                username,
+                org,
+                bucket,
+                None,
+                None,
+                None,
+            )
+            .await;
+
+        mock_server.assert();
+        Ok(())
+    }
 }
