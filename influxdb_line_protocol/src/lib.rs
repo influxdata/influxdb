@@ -1471,6 +1471,21 @@ mod test {
     }
 
     #[test]
+    fn parse_scientific_float() -> Result {
+        let input = "m0 field=-1.234456e+06 1615869152385000000";
+        //let input = "m0 field=10";
+        let parsed = parse(input);
+
+        assert!(
+            matches!(parsed, Err(super::Error::CannotParseEntireLine { .. })),
+            "Wrong error: {:?}",
+            parsed,
+        );
+
+        Ok(())        
+    }
+
+    #[test]
     fn parse_negative_float() -> Result {
         let input = "m0 field2=-1 99";
         let vals = parse(input)?;
