@@ -16,7 +16,6 @@ use mutable_buffer::MutableBufferDb;
 use parking_lot::Mutex;
 use query::{Database, PartitionChunk};
 use read_buffer::Database as ReadBufferDb;
-use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use crate::buffer::Buffer;
@@ -81,31 +80,26 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 const STARTING_SEQUENCE: u64 = 1;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 /// This is the main IOx Database object. It is the root object of any
 /// specific InfluxDB IOx instance
 pub struct Db {
-    #[serde(flatten)]
     pub rules: DatabaseRules,
 
-    #[serde(skip)]
     /// The (optional) mutable buffer stores incoming writes. If a
     /// database does not have a mutable buffer it can not accept
     /// writes (it is a read replica)
     pub mutable_buffer: Option<MutableBufferDb>,
 
-    #[serde(skip)]
     /// The read buffer holds chunk data in an in-memory optimized
     /// format.
     pub read_buffer: Arc<ReadBufferDb>,
 
-    #[serde(skip)]
     /// The wal buffer holds replicated writes in an append in-memory
     /// buffer. This buffer is used for sending data to subscribers
     /// and to persist segments in object storage for recovery.
     pub wal_buffer: Option<Mutex<Buffer>>,
 
-    #[serde(skip)]
     sequence: AtomicU64,
 }
 impl Db {
