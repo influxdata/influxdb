@@ -12,7 +12,7 @@ use snafu::{ensure, Snafu};
 
 use crate::row_group::{self, ColumnName, Predicate, RowGroup};
 use crate::schema::{AggregateType, ColumnType, LogicalDataType, ResultSchema};
-use crate::value::{AggregateResult, Scalar, Value};
+use crate::value::Value;
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("cannot drop last row group in table; drop table"))]
@@ -94,6 +94,8 @@ impl Table {
         row_groups.data.push(Arc::new(rg));
     }
 
+    /// TODO(edd): wire up
+    ///
     /// Remove the row group at `position` from table, returning an error if the
     /// caller has attempted to drop the last row group.
     ///
@@ -226,7 +228,7 @@ impl Table {
         predicate: Predicate,
         group_columns: &'input Selection<'_>,
         aggregates: &'input [(ColumnName<'input>, AggregateType)],
-    ) -> ReadAggregateResults {
+    ) -> Result<ReadAggregateResults> {
         let (meta, row_groups) = self.filter_row_groups(&predicate);
 
         // Filter out any column names that we do not have data for.
@@ -239,13 +241,24 @@ impl Table {
             ..ResultSchema::default()
         };
 
+        // Check all grouping columns are valid for grouping operation.
+        for (ct, _) in &schema.group_columns {
+            ensure!(
+                matches!(ct, ColumnType::Tag(_)),
+                UnsupportedColumnOperation {
+                    msg: format!("column type must be ColumnType::Tag, got {:?}", ct),
+                    column_name: ct.as_str().to_string(),
+                },
+            )
+        }
+
         // return the iterator to build the results.
-        ReadAggregateResults {
+        Ok(ReadAggregateResults {
             schema,
             predicate,
             row_groups,
             ..Default::default()
-        }
+        })
     }
 
     /// Returns aggregates segmented by grouping keys and windowed by time.
@@ -273,76 +286,15 @@ impl Table {
         _group_columns: Vec<ColumnName<'a>>,
         _aggregates: Vec<(ColumnName<'a>, AggregateType)>,
         _window: i64,
-    ) -> BTreeMap<Vec<String>, Vec<(ColumnName<'a>, AggregateResult<'_>)>> {
+    ) -> BTreeMap<Vec<String>, Vec<(ColumnName<'a>, ReadAggregateResults)>> {
         // identify segments where time range and predicates match could match
         // using segment meta data, and then execute against those segments and
         // merge results.
         todo!()
     }
 
-    // Perform aggregates without any grouping. Filtering on optional predicates
-    // and time range is still supported.
-    fn read_aggregate_no_group<'a>(
-        &self,
-        time_range: (i64, i64),
-        predicates: &[(&str, &str)],
-        aggregates: Vec<(ColumnName<'a>, AggregateType)>,
-    ) -> Vec<(ColumnName<'a>, AggregateResult<'_>)> {
-        // The fast path where there are no predicates or a time range to apply.
-        // We just want the equivalent of column statistics.
-        if predicates.is_empty() {
-            let mut results = Vec::with_capacity(aggregates.len());
-            for (col_name, agg_type) in &aggregates {
-                match agg_type {
-                    AggregateType::Count => {
-                        results.push((
-                            col_name,
-                            AggregateResult::Count(self.count(col_name, time_range)),
-                        ));
-                    }
-                    AggregateType::First => {
-                        results.push((
-                            col_name,
-                            AggregateResult::First(self.first(col_name, time_range.0)),
-                        ));
-                    }
-                    AggregateType::Last => {
-                        results.push((
-                            col_name,
-                            AggregateResult::Last(self.last(col_name, time_range.1)),
-                        ));
-                    }
-                    AggregateType::Min => {
-                        results.push((
-                            col_name,
-                            AggregateResult::Min(self.min(col_name, time_range)),
-                        ));
-                    }
-                    AggregateType::Max => {
-                        results.push((
-                            col_name,
-                            AggregateResult::Max(self.max(col_name, time_range)),
-                        ));
-                    }
-                    AggregateType::Sum => {
-                        let res = match self.sum(col_name, time_range) {
-                            Some(x) => x,
-                            None => Scalar::Null,
-                        };
-
-                        results.push((col_name, AggregateResult::Sum(res)));
-                    }
-                }
-            }
-        }
-
-        // Otherwise we have predicates so for each segment we will execute a
-        // generalised aggregation method and build up the result set.
-        todo!();
-    }
-
     //
-    // ---- Fast-path aggregations on single columns.
+    // ---- Fast-path first/last selectors.
     //
 
     // Returns the first value for the specified column across the table
@@ -384,44 +336,6 @@ impl Table {
         //
         // Tied values (multiple equivalent min timestamps) results in an
         // arbitrary value from the result set being returned.
-        todo!();
-    }
-
-    /// The minimum non-null value in the column for the table.
-    fn min(&self, _column_name: &str, _time_range: (i64, i64)) -> Value<'_> {
-        // Loop over segments, skipping any that don't satisfy the time range.
-        // Any segments completely overlapped can have a candidate min taken
-        // directly from their zone map. Partially overlapped segments will be
-        // read using the appropriate execution API.
-        //
-        // Return the min of minimums.
-        todo!();
-    }
-
-    /// The maximum non-null value in the column for the table.
-    fn max(&self, _column_name: &str, _time_range: (i64, i64)) -> Value<'_> {
-        // Loop over segments, skipping any that don't satisfy the time range.
-        // Any segments completely overlapped can have a candidate max taken
-        // directly from their zone map. Partially overlapped segments will be
-        // read using the appropriate execution API.
-        //
-        // Return the max of maximums.
-        todo!();
-    }
-
-    /// The number of non-null values in the column for the table.
-    fn count(&self, _column_name: &str, _time_range: (i64, i64)) -> u64 {
-        // Loop over segments, skipping any that don't satisfy the time range.
-        // Execute appropriate aggregation call on each segment and aggregate
-        // the results.
-        todo!();
-    }
-
-    /// The total sum of non-null values in the column for the table.
-    fn sum(&self, _column_name: &str, _time_range: (i64, i64)) -> Option<Scalar> {
-        // Loop over segments, skipping any that don't satisfy the time range.
-        // Execute appropriate aggregation call on each segment and aggregate
-        // the results.
         todo!();
     }
 
@@ -498,36 +412,6 @@ impl Table {
         }
 
         Ok(dst)
-    }
-
-    /// Determines if this table could satisfy the provided predicate.
-    ///
-    /// `false` is proof that no row within this table would match the
-    /// predicate, whilst `true` indicates one or more rows *might* match the
-    /// predicate.
-    fn could_satisfy_predicate(&self, predicate: &Predicate) -> bool {
-        // Get a snapshot of the table data under a read lock.
-        let (meta, row_groups) = {
-            let table_data = self.table_data.read().unwrap();
-            (Arc::clone(&table_data.meta), table_data.data.to_vec())
-        };
-
-        // if the table doesn't have a column for one of the predicate's
-        // expressions then the table cannot satisfy the predicate.
-        if !predicate
-            .iter()
-            .all(|expr| meta.columns.contains_key(expr.column()))
-        {
-            return false;
-        }
-
-        // If there is a single row group in the table that could satisfy the
-        // predicate then the table itself could satisfy the predicate so return
-        // true. If none of the row groups could match then return false.
-        let exprs = predicate.expressions();
-        row_groups
-            .iter()
-            .any(|row_group| row_group.could_satisfy_conjunctive_binary_expressions(exprs))
     }
 
     /// Determines if this table contains one or more rows that satisfy the
@@ -1191,11 +1075,13 @@ mod test {
         table.add_row_group(rg);
 
         // no predicate aggregate
-        let mut results = table.read_aggregate(
-            Predicate::default(),
-            &Selection::Some(&[]),
-            &[("time", AggregateType::Count), ("time", AggregateType::Sum)],
-        );
+        let mut results = table
+            .read_aggregate(
+                Predicate::default(),
+                &Selection::Some(&[]),
+                &[("time", AggregateType::Count), ("time", AggregateType::Sum)],
+            )
+            .unwrap();
 
         // check the column result schema
         let exp_schema = ResultSchema {
@@ -1222,17 +1108,31 @@ mod test {
         assert!(matches!(results.next_merged_result(), None));
 
         // apply a predicate
-        let mut results = table.read_aggregate(
-            Predicate::new(vec![BinaryExpr::from(("region", "=", "west"))]),
-            &Selection::Some(&[]),
-            &[("time", AggregateType::Count), ("time", AggregateType::Sum)],
-        );
+        let mut results = table
+            .read_aggregate(
+                Predicate::new(vec![BinaryExpr::from(("region", "=", "west"))]),
+                &Selection::Some(&[]),
+                &[("time", AggregateType::Count), ("time", AggregateType::Sum)],
+            )
+            .unwrap();
 
         assert_eq!(
             DisplayReadAggregateResults(vec![results.next_merged_result().unwrap()]).to_string(),
             "time_count,time_sum\n2,300\n",
         );
         assert!(matches!(results.next_merged_result(), None));
+
+        // group on wrong columns.
+        let results = table.read_aggregate(
+            Predicate::new(vec![BinaryExpr::from(("region", "=", "west"))]),
+            &Selection::Some(&["time"]),
+            &[("min", AggregateType::Min)],
+        );
+
+        assert!(matches!(
+            &results,
+            Err(Error::UnsupportedColumnOperation { .. })
+        ),);
     }
 
     #[test]
