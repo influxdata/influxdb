@@ -6,7 +6,7 @@ use crate::models::{IsOnboarding, OnboardingRequest, OnboardingResponse};
 
 impl Client {
     /// Check if database has default user, org, bucket
-    pub async fn setup(&self) -> Result<IsOnboarding, RequestError> {
+    pub async fn is_onboarding_allowed(&self) -> Result<IsOnboarding, RequestError> {
         let setup_url = format!("{}/api/v2/setup", self.url);
         let response = self
             .request(Method::GET, &setup_url)
@@ -27,7 +27,7 @@ impl Client {
     }
 
     /// Set up initial user, org and bucket
-    pub async fn setup_init(
+    pub async fn onboarding(
         &self,
         username: &str,
         org: &str,
@@ -67,7 +67,7 @@ impl Client {
     }
 
     /// Set up a new user, org and bucket
-    pub async fn setup_new(
+    pub async fn post_setup_user(
         &self,
         username: &str,
         org: &str,
@@ -116,7 +116,7 @@ mod tests {
     type Result<T = (), E = Error> = std::result::Result<T, E>;
 
     #[tokio::test]
-    async fn setup() -> Result {
+    async fn is_onboarding_allowed() -> Result {
         let token = "some-token";
 
         let mock_server = mock("GET", "/api/v2/setup")
@@ -125,14 +125,14 @@ mod tests {
 
         let client = Client::new(&mockito::server_url(), token);
 
-        let _result = client.setup().await;
+        let _result = client.is_onboarding_allowed().await;
 
         mock_server.assert();
         Ok(())
     }
 
     #[tokio::test]
-    async fn setup_init() -> Result {
+    async fn onboarding() -> Result {
         let token = "some-token";
         let username = "some-user";
         let org = "some-org";
@@ -153,7 +153,7 @@ mod tests {
         let client = Client::new(&mockito::server_url(), token);
 
         let _result = client
-            .setup_init(
+            .onboarding(
                 username,
                 org,
                 bucket,
@@ -168,7 +168,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn setup_new() -> Result {
+    async fn post_setup_user() -> Result {
         let token = "some-token";
         let username = "some-user";
         let org = "some-org";
@@ -189,7 +189,7 @@ mod tests {
         let client = Client::new(&mockito::server_url(), token);
 
         let _result = client
-            .setup_new(
+            .post_setup_user(
                 username,
                 org,
                 bucket,
