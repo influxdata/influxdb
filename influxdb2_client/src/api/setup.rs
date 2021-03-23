@@ -6,7 +6,7 @@ use crate::models::{IsOnboarding, OnboardingRequest, OnboardingResponse};
 
 impl Client {
     /// Check if database has default user, org, bucket
-    pub async fn is_onboarding_allowed(&self) -> Result<IsOnboarding, RequestError> {
+    pub async fn is_onboarding_allowed(&self) -> Result<bool, RequestError> {
         let setup_url = format!("{}/api/v2/setup", self.url);
         let response = self
             .request(Method::GET, &setup_url)
@@ -18,7 +18,9 @@ impl Client {
             StatusCode::OK => Ok(response
                 .json::<IsOnboarding>()
                 .await
-                .context(ReqwestProcessing)?),
+                .context(ReqwestProcessing)?
+                .allowed
+                .unwrap()),
             status => {
                 let text = response.text().await.context(ReqwestProcessing)?;
                 Http { status, text }.fail()?
