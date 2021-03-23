@@ -144,6 +144,40 @@ async fn sql_select_with_schema_merge() {
 }
 
 #[tokio::test]
+async fn sql_select_from_restaurant() {
+    let expected = vec![
+        "+---------+-------+",
+        "| town    | count |",
+        "+---------+-------+",
+        "| andover | 40000 |",
+        "| reading | 632   |",
+        "+---------+-------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsUnsignedType {},
+        "SELECT town, count from restaurant",
+        &expected
+    );
+}
+
+#[tokio::test]
+async fn sql_select_from_school() {
+    let expected = vec![
+        "+---------+-------+",
+        "| town    | count |",
+        "+---------+-------+",
+        "| reading | 17    |",
+        "| andover | 25    |",
+        "+---------+-------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsUnsignedType {},
+        "SELECT town, count from school",
+        &expected
+    );
+}
+
+#[tokio::test]
 async fn sql_select_with_schema_merge_subset() {
     let expected = vec![
         "+------+--------+--------+",

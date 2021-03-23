@@ -84,6 +84,22 @@ impl DBSetup for TwoMeasurements {
     }
 }
 
+pub struct TwoMeasurementsUnsignedType {}
+#[async_trait]
+impl DBSetup for TwoMeasurementsUnsignedType {
+    async fn make(&self) -> Vec<DBScenario> {
+        let partition_key = "1970-01-01T00";
+        let lp_lines = vec![
+            "restaurant,town=andover count=40000u 100",
+            "restaurant,town=reading count=632u 120",
+            "school,town=reading count=17u 150",
+            "school,town=andover count=25u 160",
+        ];
+
+        make_one_chunk_scenarios(partition_key, &lp_lines.join("\n")).await
+    }
+}
+
 /// Single measurement that has several different chunks with
 /// different (but compatible) schema
 pub struct MultiChunkSchemaMerge {}
