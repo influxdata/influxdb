@@ -59,8 +59,7 @@ impl Client {
                 .json::<OnboardingResponse>()
                 .await
                 .context(ReqwestProcessing)?),
-            _ => {
-                let status = response.status();
+            status => {
                 let text = response.text().await.context(ReqwestProcessing)?;
                 Http { status, text }.fail()?
             }
@@ -100,8 +99,7 @@ impl Client {
                 .json::<OnboardingResponse>()
                 .await
                 .context(ReqwestProcessing)?),
-            _ => {
-                let status = response.status();
+            status => {
                 let text = response.text().await.context(ReqwestProcessing)?;
                 Http { status, text }.fail()?
             }
