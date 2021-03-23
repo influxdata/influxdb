@@ -16,6 +16,7 @@ v1.9.0 [unreleased]
 
 ### Bugfixes
 
+-	[#21052](https://github.com/influxdata/influxdb/pull/21052): fix: help text for influx_inspect
 -	[#20889](https://github.com/influxdata/influxdb/pull/20889): fix: Add back flux CLI (#20889)
 -	[#20802](https://github.com/influxdata/influxdb/pull/20802): fix(tsm1): fix data race and validation in cache ring
 -	[#20694](https://github.com/influxdata/influxdb/pull/20694): fix: consistent error for missing shard

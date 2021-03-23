@@ -37,7 +37,8 @@ The commands are:
     export               exports raw data from a shard to line protocol
     buildtsi             generates tsi1 indexes from tsm1 data
     help                 display this help message
-    report               displays a shard level report
+    report               displays a shard level cardinality report
+    report-disk          displays a shard level disk usage report
     verify               verifies integrity of TSM files
     verify-seriesfile    verifies integrity of the Series file
 
