@@ -31,6 +31,7 @@ or `/query` HTTP endpoints.
 1. [21032](https://github.com/influxdata/influxdb/pull/21032): Display task IDs in the UI.
 1. [21030](https://github.com/influxdata/influxdb/pull/21030): Update Telegraf plugins in UI to include additions and changes in 1.18 release.
 1. [21049](https://github.com/influxdata/influxdb/pull/21049): Write to standard out when `--output-path -` is passed to `influxd inspect export-lp`.
+1. [21006](https://github.com/influxdata/influxdb/pull/21006): Add `-p, --profilers` flag to `influx query` command.
 
 ### Bug Fixes
 
