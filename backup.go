@@ -35,10 +35,6 @@ type RestoreService interface {
 type Manifest struct {
 	KV    ManifestKVEntry `json:"kv"`
 	Files []ManifestEntry `json:"files"`
-
-	// These fields are only set if filtering options are set on the CLI.
-	OrganizationID string `json:"organizationID,omitempty"`
-	BucketID       string `json:"bucketID,omitempty"`
 }
 
 // ManifestEntry contains the data information for a backed up shard.
