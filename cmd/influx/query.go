@@ -163,6 +163,10 @@ func fluxQueryF(cmd *cobra.Command, args []string) error {
 	return results.Err()
 }
 
+// buildProfilersExtern constructs the AST representation of a Flux statement enabling
+// the specified profilers in the query options.
+//
+// See the docs for more info: https://docs.influxdata.com/influxdb/cloud/reference/flux/stdlib/profiler/
 func buildProfilersExtern(profilersToEnable []string) (profilersExtern map[string]interface{}) {
 	elements := make([]interface{}, len(profilersToEnable))
 	for i, profiler := range profilersToEnable {
