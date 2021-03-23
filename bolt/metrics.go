@@ -96,8 +96,8 @@ type pluginMetricsCollector struct {
 	tickerDone chan struct{}
 
 	// cacheMu protects cache
-	cacheMu    sync.RWMutex
-	cache      map[string]float64
+	cacheMu sync.RWMutex
+	cache   map[string]float64
 }
 
 func (c *pluginMetricsCollector) Open(db *bolt.DB) {
