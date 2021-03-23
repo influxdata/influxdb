@@ -113,3 +113,21 @@ async fn list_schema_disk_selection() {
 
     run_table_schema_test_case!(TwoMeasurements {}, selection, "disk", expected_schema);
 }
+
+#[tokio::test]
+async fn list_schema_location_all() {
+    // we expect columns to come out in lexographic order by name
+    let expected_schema = SchemaBuilder::new()
+        .field("count", DataType::UInt64)
+        .timestamp()
+        .tag("town")
+        .build()
+        .unwrap();
+
+    run_table_schema_test_case!(
+        TwoMeasurementsUnsignedType {},
+        Selection::All,
+        "restaurant",
+        expected_schema
+    );
+}

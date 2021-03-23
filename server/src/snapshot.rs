@@ -361,7 +361,10 @@ impl TryClone for MemWriter {
 
 #[cfg(test)]
 mod tests {
-    use crate::db::{DBChunk, Db};
+    use crate::{
+        db::{DBChunk, Db},
+        JobRegistry,
+    };
     use read_buffer::Database as ReadBufferDb;
 
     use super::*;
@@ -480,6 +483,7 @@ mem,host=A,region=west used=45 1
             Some(MutableBufferDb::new(name)),
             ReadBufferDb::new(),
             None, // wal buffer
+            Arc::new(JobRegistry::new()),
         )
     }
 }

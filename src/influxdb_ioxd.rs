@@ -2,7 +2,7 @@ use crate::commands::{
     logging::LoggingLevel,
     run::{Config, ObjectStore as ObjStoreOpt},
 };
-use futures::{pin_mut, FutureExt};
+use futures::{future::FusedFuture, pin_mut, FutureExt};
 use hyper::server::conn::AddrIncoming;
 use object_store::{
     self, aws::AmazonS3, azure::MicrosoftAzure, gcp::GoogleCloudStorage, ObjectStore,
@@ -140,8 +140,11 @@ pub async fn main(logging_level: LoggingLevel, config: Config) -> Result<()> {
         warn!("server ID not set. ID must be set via the INFLUXDB_IOX_ID config or API before writing or querying data.");
     }
 
-    // Construct a token to trigger shutdown
-    let token = tokio_util::sync::CancellationToken::new();
+    // An internal shutdown token for internal workers
+    let internal_shutdown = tokio_util::sync::CancellationToken::new();
+
+    // Construct a token to trigger shutdown of API services
+    let frontend_shutdown = internal_shutdown.child_token();
 
     // Construct and start up gRPC server
     let grpc_bind_addr = config.grpc_bind_address;
@@ -149,21 +152,23 @@ pub async fn main(logging_level: LoggingLevel, config: Config) -> Result<()> {
         .await
         .context(StartListeningGrpc { grpc_bind_addr })?;
 
-    let grpc_server = rpc::serve(socket, Arc::clone(&app_server), token.clone()).fuse();
+    let grpc_server = rpc::serve(socket, Arc::clone(&app_server), frontend_shutdown.clone()).fuse();
 
     info!(bind_address=?grpc_bind_addr, "gRPC server listening");
 
     let bind_addr = config.http_bind_address;
     let addr = AddrIncoming::bind(&bind_addr).context(StartListeningHttp { bind_addr })?;
 
-    let http_server = http::serve(addr, Arc::clone(&app_server), token.clone()).fuse();
+    let http_server = http::serve(addr, Arc::clone(&app_server), frontend_shutdown.clone()).fuse();
     info!(bind_address=?bind_addr, "HTTP server listening");
 
     let git_hash = option_env!("GIT_HASH").unwrap_or("UNKNOWN");
     info!(git_hash, "InfluxDB IOx server ready");
 
     // Get IOx background worker task
-    let app = app_server.background_worker(token.clone()).fuse();
+    let background_worker = app_server
+        .background_worker(internal_shutdown.clone())
+        .fuse();
 
     // Shutdown signal
     let signal = wait_for_signal().fuse();
@@ -192,19 +197,29 @@ pub async fn main(logging_level: LoggingLevel, config: Config) -> Result<()> {
     // pin_mut constructs a Pin<&mut T> from a T by preventing moving the T
     // from the current stack frame and constructing a Pin<&mut T> to it
     pin_mut!(signal);
-    pin_mut!(app);
+    pin_mut!(background_worker);
     pin_mut!(grpc_server);
     pin_mut!(http_server);
 
     // Return the first error encountered
     let mut res = Ok(());
 
-    // Trigger graceful shutdown of server components on signal
-    // or any background service exiting
-    loop {
+    // Graceful shutdown can be triggered by sending SIGINT or SIGTERM to the
+    // process, or by a background task exiting - most likely with an error
+    //
+    // Graceful shutdown should then proceed in the following order
+    // 1. Stop accepting new HTTP and gRPC requests and drain existing connections
+    // 2. Trigger shutdown of internal background workers loops
+    //
+    // This is important to ensure background tasks, such as polling the tracker
+    // registry, don't exit before HTTP and gRPC requests dependent on them
+    while !grpc_server.is_terminated() && !http_server.is_terminated() {
         futures::select! {
             _ = signal => info!("Shutdown requested"),
-            _ = app => info!("Background worker shutdown"),
+            _ = background_worker => {
+                info!("background worker shutdown prematurely");
+                internal_shutdown.cancel();
+            },
             result = grpc_server => match result {
                 Ok(_) => info!("gRPC server shutdown"),
                 Err(error) => {
@@ -219,13 +234,16 @@ pub async fn main(logging_level: LoggingLevel, config: Config) -> Result<()> {
                     res = res.and(Err(Error::ServingHttp{source: error}))
                 }
             },
-            complete => break
         }
 
-        token.cancel()
+        frontend_shutdown.cancel()
     }
 
-    info!("InfluxDB IOx server completed shutting down");
+    info!("frontend shutdown completed");
+    internal_shutdown.cancel();
+    background_worker.await;
+
+    info!("server completed shutting down");
 
     res
 }

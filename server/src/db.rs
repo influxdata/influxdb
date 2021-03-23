@@ -10,21 +10,20 @@ use std::{
 };
 
 use async_trait::async_trait;
+use parking_lot::Mutex;
+use snafu::{OptionExt, ResultExt, Snafu};
+use tracing::info;
+
+pub(crate) use chunk::DBChunk;
 use data_types::{chunk::ChunkSummary, database_rules::DatabaseRules};
 use internal_types::{data::ReplicatedWrite, selection::Selection};
 use mutable_buffer::MutableBufferDb;
-use parking_lot::Mutex;
 use query::{Database, PartitionChunk};
 use read_buffer::Database as ReadBufferDb;
-use serde::{Deserialize, Serialize};
-use snafu::{OptionExt, ResultExt, Snafu};
 
-use crate::buffer::Buffer;
-
-use tracing::info;
+use crate::{buffer::Buffer, JobRegistry};
 
 mod chunk;
-pub(crate) use chunk::DBChunk;
 pub mod pred;
 mod streams;
 
@@ -81,31 +80,28 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 const STARTING_SEQUENCE: u64 = 1;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 /// This is the main IOx Database object. It is the root object of any
 /// specific InfluxDB IOx instance
 pub struct Db {
-    #[serde(flatten)]
     pub rules: DatabaseRules,
 
-    #[serde(skip)]
     /// The (optional) mutable buffer stores incoming writes. If a
     /// database does not have a mutable buffer it can not accept
     /// writes (it is a read replica)
     pub mutable_buffer: Option<MutableBufferDb>,
 
-    #[serde(skip)]
     /// The read buffer holds chunk data in an in-memory optimized
     /// format.
     pub read_buffer: Arc<ReadBufferDb>,
 
-    #[serde(skip)]
     /// The wal buffer holds replicated writes in an append in-memory
     /// buffer. This buffer is used for sending data to subscribers
     /// and to persist segments in object storage for recovery.
     pub wal_buffer: Option<Mutex<Buffer>>,
 
-    #[serde(skip)]
+    jobs: Arc<JobRegistry>,
+
     sequence: AtomicU64,
 }
 impl Db {
@@ -114,6 +110,7 @@ impl Db {
         mutable_buffer: Option<MutableBufferDb>,
         read_buffer: ReadBufferDb,
         wal_buffer: Option<Buffer>,
+        jobs: Arc<JobRegistry>,
     ) -> Self {
         let wal_buffer = wal_buffer.map(Mutex::new);
         let read_buffer = Arc::new(read_buffer);
@@ -122,6 +119,7 @@ impl Db {
             mutable_buffer,
             read_buffer,
             wal_buffer,
+            jobs,
             sequence: AtomicU64::new(STARTING_SEQUENCE),
         }
     }
@@ -382,10 +380,6 @@ impl Database for Db {
 
 #[cfg(test)]
 mod tests {
-    use crate::query_tests::utils::make_db;
-
-    use super::*;
-
     use arrow_deps::{
         arrow::record_batch::RecordBatch, assert_table_eq, datafusion::physical_plan::collect,
     };
@@ -397,6 +391,10 @@ mod tests {
         exec::Executor, frontend::sql::SQLQueryPlanner, test::TestLPWriter, PartitionChunk,
     };
     use test_helpers::assert_contains;
+
+    use crate::query_tests::utils::make_db;
+
+    use super::*;
 
     #[tokio::test]
     async fn write_no_mutable_buffer() {
@@ -598,6 +596,7 @@ mod tests {
             buffer_size: 300,
             ..Default::default()
         };
+
         let rules = DatabaseRules {
             mutable_buffer_config: Some(mbconf.clone()),
             ..Default::default()
@@ -608,6 +607,7 @@ mod tests {
             Some(MutableBufferDb::new("foo")),
             read_buffer::Database::new(),
             None, // wal buffer
+            Arc::new(JobRegistry::new()),
         );
 
         let mut writer = TestLPWriter::default();
