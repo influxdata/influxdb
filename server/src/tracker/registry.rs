@@ -97,6 +97,11 @@ impl<T> TrackerRegistry<T> {
         self.trackers.get(&id).map(|x| x.tracker.clone())
     }
 
+    /// Returns the number of tracked tasks
+    pub fn tracked_len(&self) -> usize {
+        self.trackers.len()
+    }
+
     /// Returns a list of trackers, including those that are no longer running
     pub fn tracked(&self) -> Vec<Tracker<T>> {
         self.trackers

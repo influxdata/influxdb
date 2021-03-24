@@ -11,7 +11,7 @@ use panic_logging::SendPanicsToTracing;
 use server::{ConnectionManagerImpl as ConnectionManager, Server as AppServer};
 use snafu::{ResultExt, Snafu};
 use std::{convert::TryFrom, fs, net::SocketAddr, path::PathBuf, sync::Arc};
-use tracing::{error, info, warn};
+use tracing::{error, info, warn, Instrument};
 
 mod http;
 mod rpc;
@@ -166,8 +166,9 @@ pub async fn main(logging_level: LoggingLevel, config: Config) -> Result<()> {
     info!(git_hash, "InfluxDB IOx server ready");
 
     // Get IOx background worker task
-    let background_worker = app_server
+    let server_worker = app_server
         .background_worker(internal_shutdown.clone())
+        .instrument(tracing::info_span!("server_worker"))
         .fuse();
 
     // Shutdown signal
@@ -197,7 +198,7 @@ pub async fn main(logging_level: LoggingLevel, config: Config) -> Result<()> {
     // pin_mut constructs a Pin<&mut T> from a T by preventing moving the T
     // from the current stack frame and constructing a Pin<&mut T> to it
     pin_mut!(signal);
-    pin_mut!(background_worker);
+    pin_mut!(server_worker);
     pin_mut!(grpc_server);
     pin_mut!(http_server);
 
@@ -216,8 +217,8 @@ pub async fn main(logging_level: LoggingLevel, config: Config) -> Result<()> {
     while !grpc_server.is_terminated() && !http_server.is_terminated() {
         futures::select! {
             _ = signal => info!("Shutdown requested"),
-            _ = background_worker => {
-                info!("background worker shutdown prematurely");
+            _ = server_worker => {
+                info!("server worker shutdown prematurely");
                 internal_shutdown.cancel();
             },
             result = grpc_server => match result {
@@ -241,7 +242,7 @@ pub async fn main(logging_level: LoggingLevel, config: Config) -> Result<()> {
 
     info!("frontend shutdown completed");
     internal_shutdown.cancel();
-    background_worker.await;
+    server_worker.await;
 
     info!("server completed shutting down");
 

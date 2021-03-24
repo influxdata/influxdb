@@ -32,6 +32,10 @@ impl<T: std::fmt::Debug> TrackerRegistryWithHistory<T> {
         }
     }
 
+    pub fn tracked_len(&self) -> usize {
+        self.registry.tracked_len()
+    }
+
     /// Returns a list of trackers, including those that are no longer running
     pub fn tracked(&self) -> Vec<Tracker<T>> {
         let mut tracked = self.registry.tracked();
