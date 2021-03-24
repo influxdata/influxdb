@@ -446,12 +446,16 @@ where
     server
         .write_lines(&db_name, &lines)
         .await
-        .map_err(|e| Box::new(e) as _)
-        .context(WritingPoints {
-            org: write_info.org.clone(),
-            bucket_name: write_info.bucket.clone(),
+        .map_err(|e| match e {
+            server::Error::DatabaseNotFound { .. } => ApplicationError::DatabaseNotFound {
+                name: db_name.to_string(),
+            },
+            _ => ApplicationError::WritingPoints {
+                org: write_info.org.clone(),
+                bucket_name: write_info.bucket.clone(),
+                source: Box::new(e),
+            },
         })?;
-
     Ok(Response::builder()
         .status(StatusCode::NO_CONTENT)
         .body(Body::empty())
@@ -974,6 +978,40 @@ mod tests {
         assert_table_eq!(expected, &batches);
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn write_to_invalid_database() {
+        let test_storage = Arc::new(AppServer::new(
+            ConnectionManagerImpl {},
+            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
+        ));
+        test_storage.set_id(1);
+        test_storage
+            .create_database("MyOrg_MyBucket", DatabaseRules::new())
+            .await
+            .unwrap();
+        let server_url = test_server(Arc::clone(&test_storage));
+
+        let client = Client::new();
+
+        let bucket_name = "NotMyBucket";
+        let org_name = "MyOrg";
+        let response = client
+            .post(&format!(
+                "{}/api/v2/write?bucket={}&org={}",
+                server_url, bucket_name, org_name
+            ))
+            .send()
+            .await;
+
+        check_response(
+            "write_to_invalid_databases",
+            response,
+            StatusCode::NOT_FOUND,
+            "",
+        )
+        .await;
     }
 
     #[tokio::test]
