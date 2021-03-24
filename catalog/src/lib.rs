@@ -47,23 +47,9 @@ use partition::Partition;
 /// information as well as ensuring that references between different
 /// objects remain valid (e.g. that the `partition_key` field of all
 /// Chunk's refer to valid partitions).
-///
-///
-/// Note that the Partition does not "own" the Chunks (in the sense
-/// there is not a list of chunks on the Partition object).  This is
-/// so that the Catalog carefully controls when objects are created /
-/// removed from the catalog. Since the catalog can passing out
-/// references to `Partition`, we don't want callers to be able to add
-/// new chunks to partitions in any way other than calling
-/// `Catalog::create_chunk`
-#[derive(Debug, Default)]
+#[derive(Default, Debug)]
 pub struct Catalog {
-    /// The set of chunks in this database. The key is the partition
-    /// key, the values are the chunks for that partition, in some
-    /// arbitrary order
-    chunks: BTreeMap<String, Vec<Chunk>>,
-
-    /// key is partition_key, value is Partition
+    /// key is partition_key
     partitions: BTreeMap<String, Partition>,
 }
 
@@ -78,13 +64,7 @@ impl Catalog {
     /// chunk id
     pub fn chunk(&self, partition_key: impl AsRef<str>, chunk_id: u32) -> Result<&Chunk> {
         let partition_key = partition_key.as_ref();
-
-        self.partition_chunks(partition_key)?
-            .find(|c| c.id() == chunk_id)
-            .context(UnknownChunk {
-                partition_key,
-                chunk_id,
-            })
+        self.valid_partition(partition_key)?.chunk(chunk_id)
     }
 
     /// Return an mutable chunk reference given the specified partition and
@@ -95,18 +75,7 @@ impl Catalog {
         chunk_id: u32,
     ) -> Result<&mut Chunk> {
         let partition_key = partition_key.as_ref();
-        let chunks = self
-            .chunks
-            .get_mut(partition_key)
-            .context(UnknownPartition { partition_key })?;
-
-        chunks
-            .iter_mut()
-            .find(|c| c.id() == chunk_id)
-            .context(UnknownChunk {
-                partition_key,
-                chunk_id,
-            })
+        self.valid_partition_mut(partition_key)?.chunk_mut(chunk_id)
     }
 
     /// Creates a new `Chunk` with id `id` within a specified Partition.
@@ -116,50 +85,20 @@ impl Catalog {
     /// catalog.
     pub fn create_chunk(&mut self, partition_key: impl AsRef<str>, chunk_id: u32) -> Result<()> {
         let partition_key = partition_key.as_ref();
-        let chunks = self
-            .chunks
-            .get_mut(partition_key)
-            .context(UnknownPartition { partition_key })?;
-
-        // Ensure this chunk doesn't already exist
-        if chunks.iter().any(|c| c.id() == chunk_id) {
-            return ChunkAlreadyExists {
-                partition_key,
-                chunk_id,
-            }
-            .fail();
-        }
-
-        chunks.push(Chunk::new(partition_key, chunk_id));
-        Ok(())
+        self.valid_partition_mut(partition_key)?
+            .create_chunk(chunk_id)
     }
 
     /// Removes the specified chunk from the catalog
     pub fn drop_chunk(&mut self, partition_key: impl AsRef<str>, chunk_id: u32) -> Result<()> {
         let partition_key = partition_key.as_ref();
-        let chunks = self
-            .chunks
-            .get_mut(partition_key)
-            .context(UnknownPartition { partition_key })?;
-
-        let idx = chunks
-            .iter()
-            .enumerate()
-            .filter(|(_, c)| c.id() == chunk_id)
-            .map(|(i, _)| i)
-            .next()
-            .context(UnknownChunk {
-                partition_key,
-                chunk_id,
-            })?;
-
-        chunks.remove(idx);
-        Ok(())
+        self.valid_partition_mut(partition_key)?
+            .drop_chunk(chunk_id)
     }
 
     /// List all chunks in this database
     pub fn chunks(&self) -> impl Iterator<Item = &Chunk> {
-        self.chunks.values().map(|chunks| chunks.iter()).flatten()
+        self.partitions.values().flat_map(|p| p.chunks())
     }
 
     /// List all chunks in a particular partition
@@ -168,12 +107,8 @@ impl Catalog {
         partition_key: impl AsRef<str>,
     ) -> Result<impl Iterator<Item = &Chunk>> {
         let partition_key = partition_key.as_ref();
-        let chunks = self
-            .chunks
-            .get(partition_key)
-            .context(UnknownPartition { partition_key })?;
-
-        Ok(chunks.iter())
+        let iter = self.valid_partition(partition_key)?.chunks();
+        Ok(iter)
     }
 
     // List all partitions in this dataase
@@ -181,7 +116,8 @@ impl Catalog {
         self.partitions.values()
     }
 
-    // Get a specific partition by name
+    // Get a specific partition by name, returning `None` if there is no such
+    // partition
     pub fn partition(&self, partition_key: impl AsRef<str>) -> Option<&Partition> {
         let partition_key = partition_key.as_ref();
         self.partitions.get(partition_key)
@@ -195,9 +131,6 @@ impl Catalog {
         let entry = self.partitions.entry(partition_key);
         match entry {
             Entry::Vacant(entry) => {
-                let chunks = self.chunks.insert(entry.key().to_string(), Vec::new());
-                assert!(chunks.is_none()); // otherwise the structures are out of sync
-
                 let partition = Partition::new(entry.key());
                 entry.insert(partition);
                 Ok(())
@@ -207,6 +140,22 @@ impl Catalog {
             }
             .fail(),
         }
+    }
+
+    /// Internal helper to return the specified partition or an error
+    /// if there is no such partition
+    fn valid_partition(&self, partition_key: &str) -> Result<&Partition> {
+        self.partitions
+            .get(partition_key)
+            .context(UnknownPartition { partition_key })
+    }
+
+    /// Internal helper to return the specified partition as a mutable
+    /// reference or an error if there is no such partition
+    fn valid_partition_mut(&mut self, partition_key: &str) -> Result<&mut Partition> {
+        self.partitions
+            .get_mut(partition_key)
+            .context(UnknownPartition { partition_key })
     }
 }
 
