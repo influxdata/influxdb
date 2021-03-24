@@ -256,7 +256,7 @@ impl Db {
     ///
     /// TODO: make this function non pub and use partition_summary
     /// information in the query_tests
-    pub fn mutable_buffer_chunks(&self, partition_key: &str) -> Vec<Arc<DBChunk>> {
+    fn mutable_buffer_chunks(&self, partition_key: &str) -> Vec<Arc<DBChunk>> {
         let chunks = if let Some(mutable_buffer) = self.mutable_buffer.as_ref() {
             let open_chunk_id = mutable_buffer.open_chunk_id(partition_key);
 
@@ -291,10 +291,7 @@ impl Db {
     ///
     /// NOTE the results may contain partially loaded chunks. The catalog
     /// should always be used to determine where to find each chunk
-    ///
-    /// TODO: make this function non pub and use partition_summary
-    /// information in the query_tests
-    pub fn read_buffer_chunks(&self, partition_key: &str) -> Vec<Arc<DBChunk>> {
+    fn read_buffer_chunks(&self, partition_key: &str) -> Vec<Arc<DBChunk>> {
         self.read_buffer
             .chunk_ids(partition_key)
             .into_iter()

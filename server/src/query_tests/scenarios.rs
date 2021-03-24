@@ -6,7 +6,7 @@ use async_trait::async_trait;
 
 use crate::db::Db;
 
-use super::utils::make_db;
+use super::utils::{count_mutable_buffer_chunks, count_read_buffer_chunks, make_db};
 
 /// Holds a database and a description of how its data was configured
 pub struct DBScenario {
@@ -36,8 +36,8 @@ impl DBSetup for NoData {
         // listing partitions (which may create an entry in a map)
         // in an empty database
         let db = make_db();
-        assert_eq!(db.mutable_buffer_chunks(partition_key).len(), 1); // only open chunk
-        assert_eq!(db.read_buffer_chunks(partition_key).len(), 0);
+        assert_eq!(count_mutable_buffer_chunks(&db), 0);
+        assert_eq!(count_read_buffer_chunks(&db), 0);
         let scenario2 = DBScenario {
             scenario_name: "New, Empty Database after partitions are listed".into(),
             db,
@@ -51,20 +51,20 @@ impl DBSetup for NoData {
         // move data out of open chunk
         assert_eq!(db.rollover_partition(partition_key).await.unwrap().id(), 0);
 
-        assert_eq!(db.mutable_buffer_chunks(partition_key).len(), 2);
-        assert_eq!(db.read_buffer_chunks(partition_key).len(), 0); // only open chunk
+        assert_eq!(count_mutable_buffer_chunks(&db), 2);
+        assert_eq!(count_read_buffer_chunks(&db), 0); // only open chunk
 
         db.load_chunk_to_read_buffer(partition_key, 0)
             .await
             .unwrap();
 
-        assert_eq!(db.mutable_buffer_chunks(partition_key).len(), 1);
-        assert_eq!(db.read_buffer_chunks(partition_key).len(), 1); // only open chunk
+        assert_eq!(count_mutable_buffer_chunks(&db), 1);
+        assert_eq!(count_read_buffer_chunks(&db), 1); // only open chunk
 
         db.drop_chunk(partition_key, 0).unwrap();
 
-        assert_eq!(db.mutable_buffer_chunks(partition_key).len(), 1);
-        assert_eq!(db.read_buffer_chunks(partition_key).len(), 0);
+        assert_eq!(count_mutable_buffer_chunks(&db), 1);
+        assert_eq!(count_read_buffer_chunks(&db), 0);
 
         let scenario3 = DBScenario {
             scenario_name: "Empty Database after drop chunk".into(),
