@@ -4,7 +4,7 @@
 use std::{
     collections::BTreeMap,
     sync::{
-        atomic::{AtomicU64, Ordering},
+        atomic::{AtomicU64, AtomicUsize, Ordering},
         Arc,
     },
 };
@@ -103,7 +103,10 @@ pub struct Db {
     jobs: Arc<JobRegistry>,
 
     sequence: AtomicU64,
+
+    worker_iterations: AtomicUsize,
 }
+
 impl Db {
     pub fn new(
         rules: DatabaseRules,
@@ -121,6 +124,7 @@ impl Db {
             wal_buffer,
             jobs,
             sequence: AtomicU64::new(STARTING_SEQUENCE),
+            worker_iterations: AtomicUsize::new(0),
         }
     }
 
@@ -313,6 +317,29 @@ impl Db {
             .into_iter()
             .chain(self.read_buffer_chunks(&partition_key).into_iter())
             .map(|c| c.summary())
+    }
+
+    /// Returns the number of iterations of the background worker loop
+    pub fn worker_iterations(&self) -> usize {
+        self.worker_iterations.load(Ordering::Relaxed)
+    }
+
+    /// Background worker function
+    pub async fn background_worker(&self, shutdown: tokio_util::sync::CancellationToken) {
+        info!("started background worker");
+
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
+
+        while !shutdown.is_cancelled() {
+            self.worker_iterations.fetch_add(1, Ordering::Relaxed);
+
+            tokio::select! {
+                _ = interval.tick() => {},
+                _ = shutdown.cancelled() => break
+            }
+        }
+
+        info!("finished background worker");
     }
 }
 

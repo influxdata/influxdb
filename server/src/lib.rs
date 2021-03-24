@@ -77,7 +77,7 @@ use bytes::Bytes;
 use futures::stream::TryStreamExt;
 use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 
 use data_types::{
     database_rules::{DatabaseRules, WriterId},
@@ -88,6 +88,8 @@ use influxdb_line_protocol::ParsedLine;
 use internal_types::data::{lines_to_replicated_write, ReplicatedWrite};
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use query::{exec::Executor, DatabaseStore};
+
+use futures::{pin_mut, FutureExt};
 
 use crate::{
     config::{
@@ -503,8 +505,10 @@ impl<M: ConnectionManager> Server<M> {
         self.jobs.inner.lock().get(id)
     }
 
-    /// Background worker function
+    /// Background worker function for the server
     pub async fn background_worker(&self, shutdown: tokio_util::sync::CancellationToken) {
+        info!("started background worker");
+
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
 
         while !shutdown.is_cancelled() {
@@ -515,6 +519,35 @@ impl<M: ConnectionManager> Server<M> {
                 _ = shutdown.cancelled() => break
             }
         }
+
+        info!("shutting down background worker");
+
+        let join = self.config.drain().fuse();
+        pin_mut!(join);
+
+        // Keep running reclaim whilst shutting down in case something
+        // is waiting on a tracker to complete
+        loop {
+            self.jobs.inner.lock().reclaim();
+
+            futures::select! {
+                _ = interval.tick().fuse() => {},
+                _ = join => break
+            }
+        }
+
+        info!("draining tracker registry");
+
+        // Wait for any outstanding jobs to finish - frontend shutdown should be
+        // sequenced before shutting down the background workers and so there
+        // shouldn't be any
+        while self.jobs.inner.lock().tracked_len() != 0 {
+            self.jobs.inner.lock().reclaim();
+
+            interval.tick().await;
+        }
+
+        info!("drained tracker registry");
     }
 }
 

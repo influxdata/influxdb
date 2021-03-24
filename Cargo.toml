@@ -9,6 +9,7 @@ readme = "README.md"
 [workspace] # In alphabetical order
 members = [
     "arrow_deps",
+    "catalog",
     "data_types",
     "generated_types",
     "google_types",
