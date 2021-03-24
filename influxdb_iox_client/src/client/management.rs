@@ -156,9 +156,9 @@ pub enum ListPartitionChunksError {
 /// Errors returned by Client::new_partition_chunk
 #[derive(Debug, Error)]
 pub enum NewPartitionChunkError {
-    /// Database not found
-    #[error("Database not found")]
-    DatabaseNotFound,
+    /// Database or partition not found
+    #[error("{}", .0)]
+    NotFound(String),
 
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
@@ -437,7 +437,9 @@ impl Client {
             })
             .await
             .map_err(|status| match status.code() {
-                tonic::Code::NotFound => NewPartitionChunkError::DatabaseNotFound,
+                tonic::Code::NotFound => {
+                    NewPartitionChunkError::NotFound(status.message().to_string())
+                }
                 _ => NewPartitionChunkError::ServerError(status),
             })?;
 

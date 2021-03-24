@@ -279,20 +279,6 @@ async fn test_chunk_get_errors() {
     );
 
     create_unreadable_database(&db_name, fixture.grpc_channel()).await;
-
-    let err = management_client
-        .list_chunks(&db_name)
-        .await
-        .expect_err("db can't be read");
-
-    assert_contains!(
-        err.to_string(),
-        "Precondition violation influxdata.com/iox - database"
-    );
-    assert_contains!(
-        err.to_string(),
-        "Cannot read from database: no mutable buffer configured"
-    );
 }
 
 #[tokio::test]
@@ -508,27 +494,15 @@ async fn test_new_partition_chunk() {
         chunks
     );
 
-    // Rollover a (currently non existent) partition which is OK
-    management_client
+    // Rollover a (currently non existent) partition which is not OK
+    let err = management_client
         .new_partition_chunk(&db_name, "non_existent_partition")
         .await
-        .expect("new partition chunk");
+        .expect_err("new partition chunk");
 
-    assert_eq!(chunks.len(), 2, "Chunks: {:#?}", chunks);
     assert_eq!(
-        chunks.iter().filter(|c| c.partition_key == "cpu").count(),
-        2,
-        "Chunks: {:#?}",
-        chunks
-    );
-    assert_eq!(
-        chunks
-            .iter()
-            .filter(|c| c.partition_key == "non_existent_partition")
-            .count(),
-        0,
-        "Chunks: {:#?}",
-        chunks
+        "Resource partition/non_existent_partition not found",
+        err.to_string()
     );
 }
 
@@ -542,7 +516,10 @@ async fn test_new_partition_chunk_error() {
         .await
         .expect_err("expected error");
 
-    assert_contains!(err.to_string(), "Database not found");
+    assert_contains!(
+        err.to_string(),
+        "Resource database/this database does not exist not found"
+    );
 }
 
 #[tokio::test]

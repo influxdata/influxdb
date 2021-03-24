@@ -87,7 +87,7 @@ use data_types::{
 use influxdb_line_protocol::ParsedLine;
 use internal_types::data::{lines_to_replicated_write, ReplicatedWrite};
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
-use query::{exec::Executor, DatabaseStore};
+use query::{exec::Executor, Database, DatabaseStore};
 
 use futures::{pin_mut, FutureExt};
 
@@ -355,8 +355,8 @@ impl<M: ConnectionManager> Server<M> {
         db: &Db,
         write: ReplicatedWrite,
     ) -> Result<()> {
-        if let Some(buf) = &db.mutable_buffer {
-            buf.store_replicated_write(&write)
+        if db.writeable() {
+            db.store_replicated_write(&write)
                 .await
                 .map_err(|e| Box::new(e) as DatabaseError)
                 .context(UnknownDatabaseError {})?;
@@ -459,27 +459,8 @@ impl<M: ConnectionManager> Server<M> {
         });
 
         let task = async move {
-            // Close the chunk if it isn't already closed
-            if db.is_open_chunk(&partition_key, chunk_id) {
-                debug!(%db_name, %partition_key, %chunk_id, "Rolling over partition to close chunk");
-                let result = db.rollover_partition(&partition_key).await;
-
-                if let Err(e) = result {
-                    info!(?e, %db_name, %partition_key, %chunk_id, "background task error during chunk closing");
-                    return Err(e);
-                }
-            }
-
             debug!(%db_name, %partition_key, %chunk_id, "background task loading chunk to read buffer");
             let result = db.load_chunk_to_read_buffer(&partition_key, chunk_id).await;
-            if let Err(e) = result {
-                info!(?e, %db_name, %partition_key, %chunk_id, "background task error loading read buffer chunk");
-                return Err(e);
-            }
-
-            // now, drop the chunk
-            debug!(%db_name, %partition_key, %chunk_id, "background task dropping mutable buffer chunk");
-            let result = db.drop_mutable_buffer_chunk(&partition_key, chunk_id).await;
             if let Err(e) = result {
                 info!(?e, %db_name, %partition_key, %chunk_id, "background task error loading read buffer chunk");
                 return Err(e);
