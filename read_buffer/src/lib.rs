@@ -363,11 +363,11 @@ impl Database {
             // Get all relevant row groups for this chunk's table. This
             // is cheap because it doesn't execute the read operation,
             // but just gets references to the needed to data to do so.
-            if let Some(table_results) =
-                chunk.read_aggregate(table_name, predicate.clone(), &group_columns, &aggregates)
-            {
-                chunk_table_results.push(table_results);
-            }
+            let table_results = chunk
+                .read_aggregate(table_name, predicate.clone(), &group_columns, &aggregates)
+                .context(ChunkError)?;
+
+            chunk_table_results.push(table_results);
         }
 
         Ok(ReadAggregateResults::new(chunk_table_results))

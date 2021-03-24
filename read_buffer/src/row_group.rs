@@ -15,7 +15,7 @@ use crate::column::{cmp::Operator, Column, RowIDs, RowIDsOption};
 use crate::schema;
 use crate::schema::{AggregateType, LogicalDataType, ResultSchema};
 use crate::value::{
-    AggregateResult, AggregateVec, EncodedValues, OwnedValue, Scalar, Value, Values, ValuesIterator,
+    AggregateVec, EncodedValues, OwnedValue, Scalar, Value, Values, ValuesIterator,
 };
 use arrow_deps::arrow::record_batch::RecordBatch;
 use arrow_deps::{
@@ -894,7 +894,7 @@ impl RowGroup {
     //
     // In this case the rows are already in "group key order" and the aggregates
     // can be calculated by reading the rows in order.
-    fn read_group_sorted_stream(
+    fn _read_group_sorted_stream(
         &self,
         _predicates: &Predicate,
         _group_column: ColumnName<'_>,
@@ -924,38 +924,30 @@ impl RowGroup {
             },
         };
 
-        // References to the columns to be used as input for producing the
-        // output aggregates. Also returns the required aggregate type.
-        let input_aggregate_columns = dst
+        dst.aggregate_cols = dst
             .schema
             .aggregate_columns
             .iter()
-            .map(|(col_type, agg_type, _)| (self.column_by_name(col_type.as_str()), *agg_type))
-            .collect::<Vec<_>>();
+            .map(|(col_type, agg_type, data_type)| {
+                let col = self.column_by_name(col_type.as_str()); // input aggregate column
+                let mut agg_vec = AggregateVec::from((agg_type, data_type));
 
-        let mut output_aggregate_columns = dst
-            .schema
-            .aggregate_columns
-            .iter()
-            .map(|(_, agg_type, data_type)| AggregateVec::from((agg_type, data_type)))
+                // produce single aggregate for the input column subject to a
+                // predicate filter.
+                match agg_type {
+                    AggregateType::Count => {
+                        let value = Value::Scalar(Scalar::U64(col.count(&row_ids) as u64));
+                        agg_vec.push(value);
+                    }
+                    AggregateType::First => unimplemented!("First not yet implemented"),
+                    AggregateType::Last => unimplemented!("Last not yet implemented"),
+                    AggregateType::Min => agg_vec.push(col.min(&row_ids)),
+                    AggregateType::Max => agg_vec.push(col.max(&row_ids)),
+                    AggregateType::Sum => agg_vec.push(Value::Scalar(col.sum(&row_ids))),
+                }
+                agg_vec
+            })
             .collect::<Vec<_>>();
-
-        for (i, (col, agg_type)) in input_aggregate_columns.iter().enumerate() {
-            match agg_type {
-                AggregateType::Count => {
-                    let value = Value::Scalar(Scalar::U64(col.count(&row_ids) as u64));
-                    output_aggregate_columns[i].push(value);
-                }
-                AggregateType::First => unimplemented!("First not yet implemented"),
-                AggregateType::Last => unimplemented!("Last not yet implemented"),
-                AggregateType::Min => output_aggregate_columns[i].push(col.min(&row_ids)),
-                AggregateType::Max => output_aggregate_columns[i].push(col.max(&row_ids)),
-                AggregateType::Sum => {
-                    output_aggregate_columns[i].push(Value::Scalar(col.sum(&row_ids)))
-                }
-            }
-        }
-        dst.aggregate_cols = output_aggregate_columns;
     }
 
     /// Given the predicate (which may be empty), determine a set of rows
@@ -1154,6 +1146,7 @@ fn pack_u32_in_u128(packed_value: u128, encoded_id: u32, pos: usize) -> u128 {
 // Given a packed encoded group key, unpacks them into `n` individual `u32`
 // group keys, and stores them in `dst`. It is the caller's responsibility to
 // ensure n <= 4.
+#[cfg(test)]
 fn unpack_u128_group_key(group_key_packed: u128, n: usize, mut dst: Vec<u32>) -> Vec<u32> {
     dst.resize(n, 0);
 
@@ -1372,31 +1365,6 @@ impl TryFrom<&DfExpr> for BinaryExpr {
     }
 }
 
-#[derive(Debug, PartialEq, Clone)]
-pub struct AggregateResults<'row_group>(Vec<AggregateResult<'row_group>>);
-
-impl<'row_group> AggregateResults<'row_group> {
-    fn len(&self) -> usize {
-        self.0.len()
-    }
-
-    fn merge(&mut self, other: &AggregateResults<'row_group>) {
-        assert_eq!(self.0.len(), other.len());
-        for (i, agg) in self.0.iter_mut().enumerate() {
-            agg.merge(&other.0[i]);
-        }
-    }
-}
-
-impl<'a> IntoIterator for AggregateResults<'a> {
-    type Item = AggregateResult<'a>;
-    type IntoIter = std::vec::IntoIter<Self::Item>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
-
 // A representation of a column name.
 pub type ColumnName<'a> = &'a str;
 
@@ -1543,11 +1511,6 @@ impl MetaData {
             },
         );
         self.columns_size += column_size;
-    }
-
-    // Returns meta information about the column.
-    fn column_meta(&self, name: ColumnName<'_>) -> &ColumnMeta {
-        self.columns.get(name).unwrap()
     }
 
     // Extract schema information for a set of columns.

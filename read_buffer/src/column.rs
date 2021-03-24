@@ -1291,8 +1291,6 @@ mod test {
     use super::*;
     use arrow_deps::arrow::array::{Int64Array, StringArray};
 
-    use crate::value::AggregateResult;
-
     #[test]
     fn row_ids_intersect() {
         let mut row_ids = RowIDs::new_bitmap();
@@ -2188,74 +2186,6 @@ mod test {
         let col = Column::from(arr);
         assert_eq!(col.count(&[0, 1, 2][..]), 1);
         assert_eq!(col.count(&[0, 2][..]), 0);
-    }
-
-    #[test]
-    fn aggregate_result() {
-        let mut res = AggregateResult::Count(0);
-        res.update(Value::Null);
-        assert!(matches!(res, AggregateResult::Count(0)));
-        res.update(Value::String("hello"));
-        assert!(matches!(res, AggregateResult::Count(1)));
-
-        let mut res = AggregateResult::Min(Value::Null);
-        res.update(Value::String("Dance Yrself Clean"));
-        assert!(matches!(
-            res,
-            AggregateResult::Min(Value::String("Dance Yrself Clean"))
-        ));
-        res.update(Value::String("All My Friends"));
-        assert!(matches!(
-            res,
-            AggregateResult::Min(Value::String("All My Friends"))
-        ));
-        res.update(Value::String("Dance Yrself Clean"));
-        assert!(matches!(
-            res,
-            AggregateResult::Min(Value::String("All My Friends"))
-        ));
-        res.update(Value::Null);
-        assert!(matches!(
-            res,
-            AggregateResult::Min(Value::String("All My Friends"))
-        ));
-
-        let mut res = AggregateResult::Max(Value::Null);
-        res.update(Value::Scalar(Scalar::I64(20)));
-        assert!(matches!(
-            res,
-            AggregateResult::Max(Value::Scalar(Scalar::I64(20)))
-        ));
-        res.update(Value::Scalar(Scalar::I64(39)));
-        assert!(matches!(
-            res,
-            AggregateResult::Max(Value::Scalar(Scalar::I64(39)))
-        ));
-        res.update(Value::Scalar(Scalar::I64(20)));
-        assert!(matches!(
-            res,
-            AggregateResult::Max(Value::Scalar(Scalar::I64(39)))
-        ));
-        res.update(Value::Null);
-        assert!(matches!(
-            res,
-            AggregateResult::Max(Value::Scalar(Scalar::I64(39)))
-        ));
-
-        let mut res = AggregateResult::Sum(Scalar::Null);
-        res.update(Value::Null);
-        assert!(matches!(res, AggregateResult::Sum(Scalar::Null)));
-        res.update(Value::Scalar(Scalar::Null));
-        assert!(matches!(res, AggregateResult::Sum(Scalar::Null)));
-
-        res.update(Value::Scalar(Scalar::I64(20)));
-        assert!(matches!(res, AggregateResult::Sum(Scalar::I64(20))));
-
-        res.update(Value::Scalar(Scalar::I64(-5)));
-        assert!(matches!(res, AggregateResult::Sum(Scalar::I64(15))));
-
-        res.update(Value::Scalar(Scalar::Null));
-        assert!(matches!(res, AggregateResult::Sum(Scalar::I64(15))));
     }
 
     #[test]
