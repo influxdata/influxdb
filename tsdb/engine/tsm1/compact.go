@@ -1963,12 +1963,12 @@ func (c *cacheKeyIterator) encode() {
 	for i := 0; i < concurrency; i++ {
 		// Run one goroutine per CPU and encode a section of the key space concurrently
 		go func() {
-			tenc := getTimeEncoder(c.size)
-			fenc := getFloatEncoder(c.size)
-			benc := getBooleanEncoder(c.size)
-			uenc := getUnsignedEncoder(c.size)
-			senc := getStringEncoder(c.size)
-			ienc := getIntegerEncoder(c.size)
+			tenc := getTimeEncoder(tsdb.DefaultMaxPointsPerBlock)
+			fenc := getFloatEncoder(tsdb.DefaultMaxPointsPerBlock)
+			benc := getBooleanEncoder(tsdb.DefaultMaxPointsPerBlock)
+			uenc := getUnsignedEncoder(tsdb.DefaultMaxPointsPerBlock)
+			senc := getStringEncoder(tsdb.DefaultMaxPointsPerBlock)
+			ienc := getIntegerEncoder(tsdb.DefaultMaxPointsPerBlock)
 
 			defer putTimeEncoder(tenc)
 			defer putFloatEncoder(fenc)
