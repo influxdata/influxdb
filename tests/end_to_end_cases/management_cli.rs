@@ -497,7 +497,9 @@ async fn test_new_partition_chunk_error() {
         .arg(addr)
         .assert()
         .failure()
-        .stderr(predicate::str::contains("Database not found"));
+        .stderr(predicate::str::contains(
+            "Resource database/non_existent_database not found",
+        ));
 }
 
 #[tokio::test]

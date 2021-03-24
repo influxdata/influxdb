@@ -41,6 +41,7 @@ debug = true
 [dependencies]
 # Workspace dependencies, in alphabetical order
 arrow_deps = { path = "arrow_deps" }
+catalog = { path = "catalog" }
 data_types = { path = "data_types" }
 generated_types = { path = "generated_types" }
 influxdb_iox_client = { path = "influxdb_iox_client", features = ["format"] }
