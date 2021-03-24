@@ -79,29 +79,25 @@ impl Catalog {
     }
 
     /// Creates a new `Chunk` with id `id` within a specified Partition.
-    ///
-    /// This function also validates 'referential integrity' - aka
-    /// that the partition referred to by this chunk exists in the
-    /// catalog.
     pub fn create_chunk(&mut self, partition_key: impl AsRef<str>, chunk_id: u32) -> Result<()> {
         let partition_key = partition_key.as_ref();
         self.valid_partition_mut(partition_key)?
             .create_chunk(chunk_id)
     }
 
-    /// Removes the specified chunk from the catalog
+    /// Removes the specified `Chunk` from the catalog
     pub fn drop_chunk(&mut self, partition_key: impl AsRef<str>, chunk_id: u32) -> Result<()> {
         let partition_key = partition_key.as_ref();
         self.valid_partition_mut(partition_key)?
             .drop_chunk(chunk_id)
     }
 
-    /// List all chunks in this database
+    /// List all `Chunk`s in this database
     pub fn chunks(&self) -> impl Iterator<Item = &Chunk> {
         self.partitions.values().flat_map(|p| p.chunks())
     }
 
-    /// List all chunks in a particular partition
+    /// List all `Chunk`s in a particular partition
     pub fn partition_chunks(
         &self,
         partition_key: impl AsRef<str>,
@@ -111,7 +107,7 @@ impl Catalog {
         Ok(iter)
     }
 
-    // List all partitions in this dataase
+    // List all partitions in this database
     pub fn partitions(&self) -> impl Iterator<Item = &Partition> {
         self.partitions.values()
     }
