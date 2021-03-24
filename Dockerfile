@@ -20,7 +20,7 @@ RUN \
 FROM debian:buster-slim
 
 RUN apt-get update \
-    && apt-get install -y libssl1.1 libgcc1 libc6 --no-install-recommends \
+    && apt-get install -y libssl1.1 libgcc1 libc6 ca-certificates --no-install-recommends \
 	&& rm -rf /var/lib/{apt,dpkg,cache,log}
 
 RUN groupadd -g 1500 rust \
@@ -36,3 +36,5 @@ COPY --from=build /root/influxdb_iox /usr/bin/influxdb_iox
 EXPOSE 8080 8082
 
 ENTRYPOINT ["/usr/bin/influxdb_iox"]
+
+CMD ["run"]

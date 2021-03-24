@@ -68,16 +68,16 @@ fn benchmark_select(
                 let value = match location {
                     Location::Start => {
                         // find a value in the column close to the beginning.
-                        &col_data[rng.gen_range(0, col_data.len() / 20)] // something in first 5%
+                        &col_data[rng.gen_range(0..col_data.len() / 20)] // something in first 5%
                     }
                     Location::Middle => {
                         // find a value in the column somewhere in the middle
                         let fifth = col_data.len() / 5;
-                        &col_data[rng.gen_range(2 * fifth, 3 * fifth)] // something in middle fifth
+                        &col_data[rng.gen_range(2 * fifth..3 * fifth)] // something in middle fifth
                     }
                     Location::End => {
                         &col_data
-                            [rng.gen_range(col_data.len() - (col_data.len() / 9), col_data.len())]
+                            [rng.gen_range(col_data.len() - (col_data.len() / 9)..col_data.len())]
                     } // something in the last ~10%
                 };
 
@@ -139,7 +139,10 @@ fn generate_column(rows: usize, rows_per_value: usize, rng: &mut ThreadRng) -> V
     for _ in 0..distinct_values {
         let value = format!(
             "value-{}",
-            rng.sample_iter(&Alphanumeric).take(8).collect::<String>()
+            rng.sample_iter(&Alphanumeric)
+                .map(char::from)
+                .take(8)
+                .collect::<String>()
         );
         col.extend(std::iter::repeat(value).take(rows_per_value));
     }

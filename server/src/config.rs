@@ -1,29 +1,48 @@
-/// This module contains code for managing the configuration of the server.
-use crate::{db::Db, Error, Result};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    sync::{Arc, RwLock},
+};
+
 use data_types::{
-    database_rules::{DatabaseRules, HostGroup, HostGroupId},
+    database_rules::{DatabaseRules, WriterId},
     DatabaseName,
 };
 use mutable_buffer::MutableBufferDb;
 use object_store::path::ObjectStorePath;
 use read_buffer::Database as ReadBufferDb;
 
-use std::{
-    collections::{BTreeMap, BTreeSet},
-    sync::{Arc, RwLock},
-};
+/// This module contains code for managing the configuration of the server.
+use crate::{db::Db, Error, JobRegistry, Result};
+use tokio::task::JoinHandle;
+use tokio_util::sync::CancellationToken;
+use tracing::{error, info, warn, Instrument};
 
 pub(crate) const DB_RULES_FILE_NAME: &str = "rules.json";
 
-/// The Config tracks the configuration od databases and their rules along
+/// The Config tracks the configuration of databases and their rules along
 /// with host groups for replication. It is used as an in-memory structure
-/// that can be loaded incrementally from objet storage.
-#[derive(Default, Debug)]
+/// that can be loaded incrementally from object storage.
+///
+/// drain() should be called prior to drop to ensure termination
+/// of background worker tasks. They will be cancelled on drop
+/// but they are effectively "detached" at that point, and they may not
+/// run to completion if the tokio runtime is dropped
+#[derive(Debug)]
 pub(crate) struct Config {
+    shutdown: CancellationToken,
+    jobs: Arc<JobRegistry>,
     state: RwLock<ConfigState>,
 }
 
 impl Config {
+    pub(crate) fn new(jobs: Arc<JobRegistry>) -> Self {
+        Self {
+            shutdown: Default::default(),
+            state: Default::default(),
+            jobs,
+        }
+    }
+
     pub(crate) fn create_db(
         &self,
         name: DatabaseName<'static>,
@@ -45,7 +64,13 @@ impl Config {
         let read_buffer = ReadBufferDb::new();
 
         let wal_buffer = rules.wal_buffer_config.as_ref().map(Into::into);
-        let db = Arc::new(Db::new(rules, mutable_buffer, read_buffer, wal_buffer));
+        let db = Arc::new(Db::new(
+            rules,
+            mutable_buffer,
+            read_buffer,
+            wal_buffer,
+            Arc::clone(&self.jobs),
+        ));
 
         state.reservations.insert(name.clone());
         Ok(CreateDatabaseHandle {
@@ -57,24 +82,27 @@ impl Config {
 
     pub(crate) fn db(&self, name: &DatabaseName<'_>) -> Option<Arc<Db>> {
         let state = self.state.read().expect("mutex poisoned");
-        state.databases.get(name).cloned()
-    }
-
-    pub(crate) fn create_host_group(&self, host_group: HostGroup) {
-        let mut state = self.state.write().expect("mutex poisoned");
-        state
-            .host_groups
-            .insert(host_group.id.clone(), Arc::new(host_group));
-    }
-
-    pub(crate) fn host_group(&self, host_group_id: &str) -> Option<Arc<HostGroup>> {
-        let state = self.state.read().expect("mutex poisoned");
-        state.host_groups.get(host_group_id).cloned()
+        state.databases.get(name).map(|x| Arc::clone(&x.db))
     }
 
     pub(crate) fn db_names_sorted(&self) -> Vec<DatabaseName<'static>> {
         let state = self.state.read().expect("mutex poisoned");
         state.databases.keys().cloned().collect()
+    }
+
+    pub(crate) fn remotes_sorted(&self) -> Vec<(WriterId, String)> {
+        let state = self.state.read().expect("mutex poisoned");
+        state.remotes.iter().map(|(&a, b)| (a, b.clone())).collect()
+    }
+
+    pub(crate) fn update_remote(&self, id: WriterId, addr: GRPCConnectionString) {
+        let mut state = self.state.write().expect("mutex poisoned");
+        state.remotes.insert(id, addr);
+    }
+
+    pub(crate) fn delete_remote(&self, id: WriterId) -> Option<GRPCConnectionString> {
+        let mut state = self.state.write().expect("mutex poisoned");
+        state.remotes.remove(&id)
     }
 
     fn commit(&self, name: &DatabaseName<'static>, db: Arc<Db>) {
@@ -83,12 +111,63 @@ impl Config {
             .reservations
             .take(name)
             .expect("reservation doesn't exist");
-        assert!(state.databases.insert(name, db).is_none())
+
+        if self.shutdown.is_cancelled() {
+            error!("server is shutting down");
+            return;
+        }
+
+        let shutdown = self.shutdown.child_token();
+        let shutdown_captured = shutdown.clone();
+        let db_captured = Arc::clone(&db);
+        let name_captured = name.clone();
+
+        let handle = Some(tokio::spawn(async move {
+            db_captured
+                .background_worker(shutdown_captured)
+                .instrument(tracing::info_span!("db_worker", database=%name_captured))
+                .await
+        }));
+
+        assert!(state
+            .databases
+            .insert(
+                name,
+                DatabaseState {
+                    db,
+                    handle,
+                    shutdown
+                }
+            )
+            .is_none())
     }
 
     fn rollback(&self, name: &DatabaseName<'static>) {
         let mut state = self.state.write().expect("mutex poisoned");
         state.reservations.remove(name);
+    }
+
+    /// Cancels and drains all background worker tasks
+    pub(crate) async fn drain(&self) {
+        info!("shutting down database background workers");
+
+        // This will cancel all background child tasks
+        self.shutdown.cancel();
+
+        let handles: Vec<_> = self
+            .state
+            .write()
+            .expect("mutex poisoned")
+            .databases
+            .iter_mut()
+            .filter_map(|(_, v)| v.join())
+            .collect();
+
+        for handle in handles {
+            let _ = handle.await;
+        }
+
+        info!("database background workers shutdown");
     }
 }
 
@@ -102,14 +181,42 @@ pub fn object_store_path_for_database_config<P: ObjectStorePath>(
     path
 }
 
+/// A gRPC connection string.
+pub type GRPCConnectionString = String;
+
 #[derive(Default, Debug)]
 struct ConfigState {
     reservations: BTreeSet<DatabaseName<'static>>,
-    databases: BTreeMap<DatabaseName<'static>, Arc<Db>>,
-    host_groups: BTreeMap<HostGroupId, Arc<HostGroup>>,
+    databases: BTreeMap<DatabaseName<'static>, DatabaseState>,
+    /// Map between remote IOx server IDs and management API connection strings.
+    remotes: BTreeMap<WriterId, GRPCConnectionString>,
 }
 
-/// CreateDatabaseHandle is retunred when a call is made to `create_db` on
+#[derive(Debug)]
+struct DatabaseState {
+    db: Arc<Db>,
+    handle: Option<JoinHandle<()>>,
+    shutdown: CancellationToken,
+}
+
+impl DatabaseState {
+    fn join(&mut self) -> Option<JoinHandle<()>> {
+        self.handle.take()
+    }
+}
+
+impl Drop for DatabaseState {
+    fn drop(&mut self) {
+        if self.handle.is_some() {
+            // Join should be called on `DatabaseState` prior to dropping, for example, by
+            // calling drain() on the owning `Config`
+            warn!("DatabaseState dropped without waiting for background task to complete");
+            self.shutdown.cancel();
+        }
+    }
+}
+
+/// CreateDatabaseHandle is returned when a call is made to `create_db` on
 /// the Config struct. The handle can be used to hold a reservation for the
 /// database name. Calling `commit` on the handle will consume the struct
 /// and move the database from reserved to being in the config.
@@ -140,13 +247,14 @@ impl<'a> Drop for CreateDatabaseHandle<'a> {
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use object_store::{memory::InMemory, ObjectStore, ObjectStoreApi};
 
-    #[test]
-    fn create_db() {
+    use super::*;
+
+    #[tokio::test]
+    async fn create_db() {
         let name = DatabaseName::new("foo").unwrap();
-        let config = Config::default();
+        let config = Config::new(Arc::new(JobRegistry::new()));
         let rules = DatabaseRules::new();
 
         {
@@ -158,8 +266,45 @@ mod test {
         let db_reservation = config.create_db(name.clone(), rules).unwrap();
         db_reservation.commit();
         assert!(config.db(&name).is_some());
+        assert_eq!(config.db_names_sorted(), vec![name.clone()]);
 
-        assert_eq!(config.db_names_sorted(), vec![name]);
+        tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
+
+        assert!(
+            config
+                .db(&name)
+                .expect("expected database")
+                .worker_iterations()
+                > 0
+        );
+
+        config.drain().await
+    }
+
+    #[tokio::test]
+    async fn test_db_drop() {
+        let name = DatabaseName::new("foo").unwrap();
+        let config = Config::new(Arc::new(JobRegistry::new()));
+        let rules = DatabaseRules::new();
+
+        let db_reservation = config.create_db(name.clone(), rules).unwrap();
+        db_reservation.commit();
+
+        let token = config
+            .state
+            .read()
+            .expect("lock poisoned")
+            .databases
+            .get(&name)
+            .unwrap()
+            .shutdown
+            .clone();
+
+        // Drop config without calling drain
+        std::mem::drop(config);
+
+        // This should cancel the the background task
+        assert!(token.is_cancelled());
     }
 
     #[test]

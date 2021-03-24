@@ -5,10 +5,8 @@ use arrow_deps::{
     datafusion::physical_plan::SendableRecordBatchStream,
     parquet::{self, arrow::ArrowWriter, file::writer::TryClone},
 };
-use data_types::{
-    partition_metadata::{PartitionSummary, TableSummary},
-    selection::Selection,
-};
+use data_types::partition_metadata::{PartitionSummary, TableSummary};
+use internal_types::selection::Selection;
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use query::{predicate::EMPTY_PREDICATE, PartitionChunk};
 
@@ -363,7 +361,10 @@ impl TryClone for MemWriter {
 
 #[cfg(test)]
 mod tests {
-    use crate::db::{DBChunk, Db};
+    use crate::{
+        db::{DBChunk, Db},
+        JobRegistry,
+    };
     use read_buffer::Database as ReadBufferDb;
 
     use super::*;
@@ -442,7 +443,7 @@ mem,host=A,region=west used=45 1
         ];
 
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let chunk = DBChunk::new_mb(Arc::new(ChunkWB::new(11)));
+        let chunk = DBChunk::new_mb(Arc::new(ChunkWB::new(11)), "key", false);
         let mut metadata_path = store.new_path();
         metadata_path.push_dir("meta");
 
@@ -482,6 +483,7 @@ mem,host=A,region=west used=45 1
             Some(MutableBufferDb::new(name)),
             ReadBufferDb::new(),
             None, // wal buffer
+            Arc::new(JobRegistry::new()),
         )
     }
 }

@@ -52,7 +52,7 @@ fn i64_vec_with_nulls(size: usize, null_percent: usize) -> Vec<Option<u64>> {
     let mut a = Vec::with_capacity(size);
     // insert 10% null values
     for _ in 0..size {
-        if rng.gen_range(0, null_percent) == 0 {
+        if rng.gen_range(0..null_percent) == 0 {
             a.push(None);
         } else {
             a.push(Some(1_u64));

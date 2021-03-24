@@ -1,31 +1,29 @@
 use std::fmt::Debug;
 use std::sync::Arc;
 
-use snafu::{ResultExt, Snafu};
 use tokio::net::TcpListener;
 use tokio_stream::wrappers::TcpListenerStream;
 
-use data_types::error::ErrorLogger;
 use server::{ConnectionManager, Server};
+use tokio_util::sync::CancellationToken;
 
+pub mod error;
 mod flight;
 mod management;
+mod operations;
 mod storage;
 mod testing;
-
-#[derive(Debug, Snafu)]
-pub enum Error {
-    #[snafu(display("gRPC server error:  {}", source))]
-    ServerError { source: tonic::transport::Error },
-}
-
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+mod write;
 
 /// Instantiate a server listening on the specified address
 /// implementing the IOx, Storage, and Flight gRPC interfaces, the
 /// underlying hyper server instance. Resolves when the server has
 /// shutdown.
-pub async fn make_server<M>(socket: TcpListener, server: Arc<Server<M>>) -> Result<()>
+pub async fn serve<M>(
+    socket: TcpListener,
+    server: Arc<Server<M>>,
+    shutdown: CancellationToken,
+) -> Result<(), tonic::transport::Error>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
 {
@@ -50,9 +48,9 @@ where
         .add_service(testing::make_server())
         .add_service(storage::make_server(Arc::clone(&server)))
         .add_service(flight::make_server(Arc::clone(&server)))
-        .add_service(management::make_server(server))
-        .serve_with_incoming(stream)
+        .add_service(write::make_server(Arc::clone(&server)))
+        .add_service(management::make_server(Arc::clone(&server)))
+        .add_service(operations::make_server(server))
+        .serve_with_incoming_shutdown(stream, shutdown.cancelled())
         .await
-        .context(ServerError {})
-        .log_if_error("Running Tonic Server")
 }

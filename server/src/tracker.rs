@@ -1,241 +1,637 @@
-use std::collections::HashMap;
-use std::future::Future;
-use std::pin::Pin;
+//! This module contains a future tracking system supporting fanout,
+//! cancellation and asynchronous signalling of completion
+//!
+//! A Tracker is created by calling TrackerRegistry::register. TrackedFutures
+//! can then be associated with this Tracker and monitored and/or cancelled.
+//!
+//! This is used within IOx to track futures spawned as multiple tokio tasks.
+//!
+//! For example, when migrating a chunk from the mutable buffer to the read
+//! buffer:
+//!
+//! - There is a single over-arching Job being performed
+//! - A single tracker is allocated from a TrackerRegistry in Server and
+//!   associated with the Job metadata
+//! - This tracker is registered with every future that is spawned as a tokio
+//!   task
+//!
+//! This same system may in future form part of a query tracking story
+//!
+//! # Correctness
+//!
+//! The key correctness property of the Tracker system is Tracker::get_status
+//! only returns Complete when all futures associated with the tracker have
+//! completed and no more can be spawned. Additionally at such a point
+//! all metrics - cpu_nanos, wall_nanos, created_futures should be visible
+//! to the calling thread
+//!
+//! Note: there is no guarantee that pending_registrations or pending_futures
+//! ever reaches 0, a program could call mem::forget on a TrackerRegistration,
+//! leak the TrackerRegistration, spawn a future that never finishes, etc...
+//! Such a program would never consider the Tracker complete and therefore this
+//! doesn't violate the correctness property
+//!
+//! ## Proof
+//!
+//! 1. pending_registrations starts at 1, and is incremented on
+//! TrackerRegistration::clone. A TrackerRegistration cannot be created from an
+//! existing TrackerState, only another TrackerRegistration
+//!
+//! 2. pending_registrations is decremented with release semantics on
+//! TrackerRegistration::drop
+//!
+//! 3. pending_futures is only incremented with a TrackerRegistration in scope
+//!
+//! 4. 2. + 3. -> A thread that increments pending_futures, decrements
+//! pending_registrations with release semantics afterwards. By definition of
+//! release semantics these writes to pending_futures cannot be reordered to
+//! come after the atomic decrement of pending_registrations
+//!
+//! 5. 1. + 2. + drop cannot be called multiple times on the same object -> once
+//! pending_registrations is decremented to 0 it can never be incremented again
+//!
+//! 6. 4. + 5. -> the decrement to 0 of pending_registrations must commit after
+//! the last increment of pending_futures
+//!
+//! 7. pending_registrations is loaded with acquire semantics
+//!
+//! 8. By definition of acquire semantics, any thread that reads
+//! pending_registrations is guaranteed to see any increments to pending_futures
+//! performed before the most recent decrement of pending_registrations
+//!
+//! 9. 6. + 8. -> A thread that observes a pending_registrations of 0 cannot
+//! subsequently observe pending_futures to increase
+//!
+//! 10. Tracker::get_status returns Complete if it observes
+//! pending_registrations to be 0 and then pending_futures to be 0
+//!
+//! 11. 9 + 10 -> A thread can only observe a tracker to be complete
+//! after all futures have been dropped and no more can be created
+//!
+//! 12. pending_futures is decremented with Release semantics on
+//! TrackedFuture::drop after any associated metrics have been incremented
+//!
+//! 13. pending_futures is loaded with acquire semantics
+//!
+//! 14. 12. + 13. -> A thread that observes a pending_futures of 0 is guaranteed
+//! to see any metrics from any dropped TrackedFuture
+//!
+//! Note: this proof ignores the complexity of moving Trackers, TrackedFutures,
+//! etc... between threads as any such functionality must perform the necessary
+//! synchronisation to be well-formed.
+
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use std::task::{Context, Poll};
+use std::time::Instant;
 
-use futures::prelude::*;
-use parking_lot::Mutex;
-use pin_project::{pin_project, pinned_drop};
+use tokio_util::sync::CancellationToken;
+use tracing::warn;
 
-/// Every future registered with a `TrackerRegistry` is assigned a unique
-/// `TrackerId`
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct TrackerId(usize);
+pub use future::{TrackedFuture, TrackedFutureExt};
+pub use history::TrackerRegistryWithHistory;
+pub use registry::{TrackerId, TrackerRegistry};
 
+mod future;
+mod history;
+mod registry;
+
+/// The state shared between all sibling tasks
 #[derive(Debug)]
-struct Tracker<T> {
-    data: T,
-    abort: future::AbortHandle,
+struct TrackerState {
+    start_instant: Instant,
+    cancel_token: CancellationToken,
+    cpu_nanos: AtomicUsize,
+    wall_nanos: AtomicUsize,
+
+    created_futures: AtomicUsize,
+    pending_futures: AtomicUsize,
+    pending_registrations: AtomicUsize,
+
+    watch: tokio::sync::watch::Receiver<bool>,
 }
 
-#[derive(Debug)]
-struct TrackerContextInner<T> {
-    id: AtomicUsize,
-    trackers: Mutex<HashMap<TrackerId, Tracker<T>>>,
+/// The status of the tracker
+#[derive(Debug, Clone)]
+pub enum TrackerStatus {
+    /// More futures can be registered
+    Creating,
+
+    /// No more futures can be registered
+    ///
+    /// `pending_count` and `cpu_nanos` are best-effort -
+    /// they may not be the absolute latest values.
+    ///
+    /// `total_count` is guaranteed to be the final value
+    Running {
+        /// The number of created futures
+        total_count: usize,
+        /// The number of pending futures
+        pending_count: usize,
+        /// The total amount of CPU time spent executing the futures
+        cpu_nanos: usize,
+    },
+
+    /// All futures have been dropped and no more can be registered
+    ///
+    /// All values are guaranteed to be the final values
+    Complete {
+        /// The number of created futures
+        total_count: usize,
+        /// The total amount of CPU time spent executing the futures
+        cpu_nanos: usize,
+        /// The number of nanoseconds between tracker registration and
+        /// the last TrackedFuture being dropped
+        wall_nanos: usize,
+    },
 }
 
-/// Allows tracking the lifecycle of futures registered by
-/// `TrackedFutureExt::track` with an accompanying metadata payload of type T
-///
-/// Additionally can trigger graceful termination of registered futures
+/// A Tracker can be used to monitor/cancel/wait for a set of associated futures
 #[derive(Debug)]
-pub struct TrackerRegistry<T> {
-    inner: Arc<TrackerContextInner<T>>,
+pub struct Tracker<T> {
+    id: TrackerId,
+    state: Arc<TrackerState>,
+    metadata: Arc<T>,
 }
 
-// Manual Clone to workaround https://github.com/rust-lang/rust/issues/26925
-impl<T> Clone for TrackerRegistry<T> {
+impl<T> Clone for Tracker<T> {
     fn clone(&self) -> Self {
         Self {
-            inner: Arc::clone(&self.inner),
+            id: self.id,
+            state: Arc::clone(&self.state),
+            metadata: Arc::clone(&self.metadata),
         }
     }
 }
 
-impl<T> Default for TrackerRegistry<T> {
-    fn default() -> Self {
-        Self {
-            inner: Arc::new(TrackerContextInner {
-                id: AtomicUsize::new(0),
-                trackers: Mutex::new(Default::default()),
-            }),
-        }
-    }
-}
-
-impl<T> TrackerRegistry<T> {
-    pub fn new() -> Self {
-        Default::default()
+impl<T> Tracker<T> {
+    /// Returns the ID of the Tracker - these are unique per TrackerRegistry
+    pub fn id(&self) -> TrackerId {
+        self.id
     }
 
-    /// Trigger graceful termination of a registered future
-    ///
-    /// Returns false if no future found with the provided ID
+    /// Returns a reference to the metadata stored within this Tracker
+    pub fn metadata(&self) -> &T {
+        &self.metadata
+    }
+
+    /// Trigger graceful termination of any futures tracked by
+    /// this tracker
     ///
     /// Note: If the future is currently executing, termination
     /// will only occur when the future yields (returns from poll)
-    #[allow(dead_code)]
-    pub fn terminate(&self, id: TrackerId) -> bool {
-        if let Some(meta) = self.inner.trackers.lock().get_mut(&id) {
-            meta.abort.abort();
-            true
-        } else {
-            false
-        }
+    /// and is then scheduled to run again
+    pub fn cancel(&self) {
+        self.state.cancel_token.cancel();
     }
 
-    fn untrack(&self, id: &TrackerId) {
-        self.inner.trackers.lock().remove(id);
+    /// Returns true if all futures associated with this tracker have
+    /// been dropped and no more can be created
+    pub fn is_complete(&self) -> bool {
+        matches!(self.get_status(), TrackerStatus::Complete{..})
     }
 
-    fn track(&self, metadata: T) -> (TrackerId, future::AbortRegistration) {
-        let id = TrackerId(self.inner.id.fetch_add(1, Ordering::Relaxed));
-        let (abort_handle, abort_registration) = future::AbortHandle::new_pair();
+    /// Gets the status of the tracker
+    pub fn get_status(&self) -> TrackerStatus {
+        // The atomic decrement in TrackerRegistration::drop has release semantics
+        // acquire here ensures that if a thread observes the tracker to have
+        // no pending_registrations it cannot subsequently observe pending_futures
+        // to increase. If it could, observing pending_futures==0 would be insufficient
+        // to conclude there are no outstanding futures
+        let pending_registrations = self.state.pending_registrations.load(Ordering::Acquire);
 
-        self.inner.trackers.lock().insert(
-            id,
-            Tracker {
-                abort: abort_handle,
-                data: metadata,
+        // The atomic decrement in TrackedFuture::drop has release semantics
+        // acquire therefore ensures that if a thread observes the completion of
+        // a TrackedFuture, it is guaranteed to see its updates (e.g. wall_nanos)
+        let pending_futures = self.state.pending_futures.load(Ordering::Acquire);
+
+        match (pending_registrations == 0, pending_futures == 0) {
+            (false, _) => TrackerStatus::Creating,
+            (true, false) => TrackerStatus::Running {
+                total_count: self.state.created_futures.load(Ordering::Relaxed),
+                pending_count: self.state.pending_futures.load(Ordering::Relaxed),
+                cpu_nanos: self.state.cpu_nanos.load(Ordering::Relaxed),
             },
-        );
-
-        (id, abort_registration)
+            (true, true) => TrackerStatus::Complete {
+                total_count: self.state.created_futures.load(Ordering::Relaxed),
+                cpu_nanos: self.state.cpu_nanos.load(Ordering::Relaxed),
+                wall_nanos: self.state.wall_nanos.load(Ordering::Relaxed),
+            },
+        }
     }
-}
 
-impl<T: Clone> TrackerRegistry<T> {
-    /// Returns a list of tracked futures, with their accompanying IDs and
-    /// metadata
-    #[allow(dead_code)]
-    pub fn tracked(&self) -> Vec<(TrackerId, T)> {
-        // TODO: Improve this - (#711)
-        self.inner
-            .trackers
-            .lock()
-            .iter()
-            .map(|(id, value)| (*id, value.data.clone()))
-            .collect()
+    /// Returns if this tracker has been cancelled
+    pub fn is_cancelled(&self) -> bool {
+        self.state.cancel_token.is_cancelled()
     }
-}
 
-/// An extension trait that provides `self.track(reg, {})` allowing
-/// registering this future with a `TrackerRegistry`
-pub trait TrackedFutureExt: Future {
-    fn track<T>(self, reg: &TrackerRegistry<T>, metadata: T) -> TrackedFuture<Self, T>
-    where
-        Self: Sized,
-    {
-        let (id, registration) = reg.track(metadata);
+    /// Blocks until all futures associated with the tracker have been
+    /// dropped and no more can be created
+    pub async fn join(&self) {
+        let mut watch = self.state.watch.clone();
 
-        TrackedFuture {
-            inner: future::Abortable::new(self, registration),
-            reg: reg.clone(),
-            id,
+        // Wait until watch is set to true or the tx side is dropped
+        while !*watch.borrow() {
+            if watch.changed().await.is_err() {
+                // tx side has been dropped
+                warn!("tracker watch dropped without signalling");
+                break;
+            }
         }
     }
 }
 
-impl<T: ?Sized> TrackedFutureExt for T where T: Future {}
-
-/// The `Future` returned by `TrackedFutureExt::track()`
-/// Unregisters the future from the registered `TrackerRegistry` on drop
-/// and provides the early termination functionality used by
-/// `TrackerRegistry::terminate`
-#[pin_project(PinnedDrop)]
-pub struct TrackedFuture<F: Future, T> {
-    #[pin]
-    inner: future::Abortable<F>,
-
-    reg: TrackerRegistry<T>,
-    id: TrackerId,
+/// A TrackerRegistration is returned by TrackerRegistry::register and can be
+/// used to register new TrackedFutures
+///
+/// A tracker will not be considered completed until all TrackerRegistrations
+/// referencing it have been dropped. This is to prevent a race where further
+/// TrackedFutures are registered with a Tracker that has already signalled
+/// completion
+#[derive(Debug)]
+pub struct TrackerRegistration {
+    state: Arc<TrackerState>,
 }
 
-impl<F: Future, T> Future for TrackedFuture<F, T> {
-    type Output = Result<F::Output, future::Aborted>;
+impl Clone for TrackerRegistration {
+    fn clone(&self) -> Self {
+        self.state
+            .pending_registrations
+            .fetch_add(1, Ordering::Relaxed);
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        self.project().inner.poll(cx)
+        Self {
+            state: Arc::clone(&self.state),
+        }
     }
 }
 
-#[pinned_drop]
-impl<F: Future, T> PinnedDrop for TrackedFuture<F, T> {
-    fn drop(self: Pin<&mut Self>) {
-        // Note: This could cause a double-panic in an extreme situation where
-        // the internal `TrackerRegistry` lock is poisoned and drop was
-        // called as part of unwinding the stack to handle another panic
-        let this = self.project();
-        this.reg.untrack(this.id)
+impl TrackerRegistration {
+    fn new(watch: tokio::sync::watch::Receiver<bool>) -> Self {
+        let state = Arc::new(TrackerState {
+            start_instant: Instant::now(),
+            cpu_nanos: AtomicUsize::new(0),
+            wall_nanos: AtomicUsize::new(0),
+            cancel_token: CancellationToken::new(),
+            created_futures: AtomicUsize::new(0),
+            pending_futures: AtomicUsize::new(0),
+            pending_registrations: AtomicUsize::new(1),
+            watch,
+        });
+
+        Self { state }
+    }
+}
+
+impl Drop for TrackerRegistration {
+    fn drop(&mut self) {
+        // This synchronizes with the Acquire load in Tracker::get_status
+        let previous = self
+            .state
+            .pending_registrations
+            .fetch_sub(1, Ordering::Release);
+
+        // This implies a TrackerRegistration has been cloned without it incrementing
+        // the pending_registration counter
+        assert_ne!(previous, 0);
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
+
     use super::*;
     use tokio::sync::oneshot;
 
     #[tokio::test]
     async fn test_lifecycle() {
         let (sender, receive) = oneshot::channel();
-        let reg = TrackerRegistry::new();
+        let mut registry = TrackerRegistry::new();
+        let (_, registration) = registry.register(());
 
-        let task = tokio::spawn(receive.track(&reg, ()));
+        let task = tokio::spawn(receive.track(registration));
 
-        assert_eq!(reg.tracked().len(), 1);
+        assert_eq!(registry.running().len(), 1);
 
         sender.send(()).unwrap();
         task.await.unwrap().unwrap().unwrap();
 
-        assert_eq!(reg.tracked().len(), 0);
+        assert_eq!(registry.running().len(), 0);
     }
 
     #[tokio::test]
     async fn test_interleaved() {
         let (sender1, receive1) = oneshot::channel();
         let (sender2, receive2) = oneshot::channel();
-        let reg = TrackerRegistry::new();
+        let mut registry = TrackerRegistry::new();
+        let (_, registration1) = registry.register(1);
+        let (_, registration2) = registry.register(2);
 
-        let task1 = tokio::spawn(receive1.track(&reg, 1));
-        let task2 = tokio::spawn(receive2.track(&reg, 2));
+        let task1 = tokio::spawn(receive1.track(registration1));
+        let task2 = tokio::spawn(receive2.track(registration2));
 
-        let mut tracked: Vec<_> = reg.tracked().iter().map(|x| x.1).collect();
-        tracked.sort_unstable();
-        assert_eq!(tracked, vec![1, 2]);
+        let tracked = sorted(registry.running());
+        assert_eq!(get_metadata(&tracked), vec![1, 2]);
 
         sender2.send(()).unwrap();
         task2.await.unwrap().unwrap().unwrap();
 
-        let tracked: Vec<_> = reg.tracked().iter().map(|x| x.1).collect();
-        assert_eq!(tracked, vec![1]);
+        let tracked: Vec<_> = sorted(registry.running());
+        assert_eq!(get_metadata(&tracked), vec![1]);
 
         sender1.send(42).unwrap();
         let ret = task1.await.unwrap().unwrap().unwrap();
 
         assert_eq!(ret, 42);
-        assert_eq!(reg.tracked().len(), 0);
+        assert_eq!(registry.running().len(), 0);
     }
 
     #[tokio::test]
     async fn test_drop() {
-        let reg = TrackerRegistry::new();
+        let mut registry = TrackerRegistry::new();
+        let (_, registration) = registry.register(());
 
         {
-            let f = futures::future::pending::<()>().track(&reg, ());
+            let f = futures::future::pending::<()>().track(registration);
 
-            assert_eq!(reg.tracked().len(), 1);
+            assert_eq!(registry.running().len(), 1);
 
             std::mem::drop(f);
         }
 
-        assert_eq!(reg.tracked().len(), 0);
+        assert_eq!(registry.running().len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_drop_multiple() {
+        let mut registry = TrackerRegistry::new();
+        let (_, registration) = registry.register(());
+
+        {
+            let f = futures::future::pending::<()>().track(registration.clone());
+            {
+                let f = futures::future::pending::<()>().track(registration);
+                assert_eq!(registry.running().len(), 1);
+                std::mem::drop(f);
+            }
+            assert_eq!(registry.running().len(), 1);
+            std::mem::drop(f);
+        }
+
+        assert_eq!(registry.running().len(), 0);
     }
 
     #[tokio::test]
     async fn test_terminate() {
-        let reg = TrackerRegistry::new();
+        let mut registry = TrackerRegistry::new();
+        let (_, registration) = registry.register(());
 
-        let task = tokio::spawn(futures::future::pending::<()>().track(&reg, ()));
+        let task = tokio::spawn(futures::future::pending::<()>().track(registration));
 
-        let tracked = reg.tracked();
+        let tracked = registry.running();
         assert_eq!(tracked.len(), 1);
 
-        reg.terminate(tracked[0].0);
+        tracked[0].cancel();
         let result = task.await.unwrap();
 
         assert!(result.is_err());
-        assert_eq!(reg.tracked().len(), 0);
+        assert_eq!(registry.running().len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_terminate_early() {
+        let mut registry = TrackerRegistry::new();
+        let (tracker, registration) = registry.register(());
+        tracker.cancel();
+
+        let task1 = tokio::spawn(futures::future::pending::<()>().track(registration));
+        let result1 = task1.await.unwrap();
+
+        assert!(result1.is_err());
+        assert_eq!(registry.running().len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_terminate_multiple() {
+        let mut registry = TrackerRegistry::new();
+        let (_, registration) = registry.register(());
+
+        let task1 = tokio::spawn(futures::future::pending::<()>().track(registration.clone()));
+        let task2 = tokio::spawn(futures::future::pending::<()>().track(registration));
+
+        let tracked = registry.running();
+        assert_eq!(tracked.len(), 1);
+
+        tracked[0].cancel();
+
+        let result1 = task1.await.unwrap();
+        let result2 = task2.await.unwrap();
+
+        assert!(result1.is_err());
+        assert!(result2.is_err());
+        assert_eq!(registry.running().len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_reclaim() {
+        let mut registry = TrackerRegistry::new();
+
+        let (_, registration1) = registry.register(1);
+        let (_, registration2) = registry.register(2);
+        let (_, registration3) = registry.register(3);
+
+        let task1 = tokio::spawn(futures::future::pending::<()>().track(registration1.clone()));
+        let task2 = tokio::spawn(futures::future::pending::<()>().track(registration1));
+        let task3 = tokio::spawn(futures::future::ready(()).track(registration2.clone()));
+        let task4 = tokio::spawn(futures::future::pending::<()>().track(registration2));
+        let task5 = tokio::spawn(futures::future::pending::<()>().track(registration3));
+
+        let running = sorted(registry.running());
+        let tracked = sorted(registry.tracked());
+
+        assert_eq!(running.len(), 3);
+        assert_eq!(get_metadata(&running), vec![1, 2, 3]);
+        assert_eq!(tracked.len(), 3);
+        assert_eq!(get_metadata(&tracked), vec![1, 2, 3]);
+
+        // Trigger termination of task1 and task2
+        running[0].cancel();
+
+        let result1 = task1.await.unwrap();
+        let result2 = task2.await.unwrap();
+
+        assert!(result1.is_err());
+        assert!(result2.is_err());
+
+        let running = sorted(registry.running());
+        let tracked = sorted(registry.tracked());
+
+        assert_eq!(running.len(), 2);
+        assert_eq!(get_metadata(&running), vec![2, 3]);
+        assert_eq!(tracked.len(), 3);
+        assert_eq!(get_metadata(&tracked), vec![1, 2, 3]);
+
+        // Expect reclaim to find now finished registration1
+        let reclaimed = sorted(registry.reclaim().collect());
+        assert_eq!(reclaimed.len(), 1);
+        assert_eq!(get_metadata(&reclaimed), vec![1]);
+
+        // Now expect tracked to match running
+        let running = sorted(registry.running());
+        let tracked = sorted(registry.tracked());
+
+        assert_eq!(running.len(), 2);
+        assert_eq!(get_metadata(&running), vec![2, 3]);
+        assert_eq!(tracked.len(), 2);
+        assert_eq!(get_metadata(&tracked), vec![2, 3]);
+
+        // Wait for task3 to finish
+        let result3 = task3.await.unwrap();
+        assert!(result3.is_ok());
+
+        assert!(
+            matches!(tracked[0].get_status(), TrackerStatus::Running { pending_count: 1, total_count: 2, ..})
+        );
+
+        // Trigger termination of task5
+        running[1].cancel();
+
+        let result5 = task5.await.unwrap();
+        assert!(result5.is_err());
+
+        let running = sorted(registry.running());
+        let tracked = sorted(registry.tracked());
+
+        assert_eq!(running.len(), 1);
+        assert_eq!(get_metadata(&running), vec![2]);
+        assert_eq!(tracked.len(), 2);
+        assert_eq!(get_metadata(&tracked), vec![2, 3]);
+
+        // Trigger termination of task4
+        running[0].cancel();
+
+        let result4 = task4.await.unwrap();
+        assert!(result4.is_err());
+        assert!(matches!(running[0].get_status(), TrackerStatus::Complete { total_count: 2, ..}));
+
+        let reclaimed = sorted(registry.reclaim().collect());
+
+        assert_eq!(reclaimed.len(), 2);
+        assert_eq!(get_metadata(&reclaimed), vec![2, 3]);
+        assert_eq!(registry.tracked().len(), 0);
+    }
+
+    // Use n+1 threads where n is the number of "blocking" tasks
+    // to prevent stalling the tokio executor
+    #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+    async fn test_timing() {
+        let mut registry = TrackerRegistry::new();
+        let (tracker1, registration1) = registry.register(1);
+        let (tracker2, registration2) = registry.register(2);
+        let (tracker3, registration3) = registry.register(3);
+
+        let task1 =
+            tokio::spawn(tokio::time::sleep(Duration::from_millis(100)).track(registration1));
+        let task2 = tokio::spawn(
+            async move { std::thread::sleep(Duration::from_millis(100)) }.track(registration2),
+        );
+
+        let task3 = tokio::spawn(
+            async move { std::thread::sleep(Duration::from_millis(100)) }
+                .track(registration3.clone()),
+        );
+
+        let task4 = tokio::spawn(
+            async move { std::thread::sleep(Duration::from_millis(100)) }.track(registration3),
+        );
+
+        task1.await.unwrap().unwrap();
+        task2.await.unwrap().unwrap();
+        task3.await.unwrap().unwrap();
+        task4.await.unwrap().unwrap();
+
+        let assert_fuzzy = |actual: usize, expected: std::time::Duration| {
+            // Number of milliseconds of toleration
+            let epsilon = Duration::from_millis(10).as_nanos() as usize;
+            let expected = expected.as_nanos() as usize;
+
+            assert!(
+                actual > expected.saturating_sub(epsilon),
+                "Expected {} got {}",
+                expected,
+                actual
+            );
+            assert!(
+                actual < expected.saturating_add(epsilon),
+                "Expected {} got {}",
+                expected,
+                actual
+            );
+        };
+
+        let assert_complete = |status: TrackerStatus,
+                               expected_cpu: std::time::Duration,
+                               expected_wal: std::time::Duration| {
+            match status {
+                TrackerStatus::Complete {
+                    cpu_nanos,
+                    wall_nanos,
+                    ..
+                } => {
+                    assert_fuzzy(cpu_nanos, expected_cpu);
+                    assert_fuzzy(wall_nanos, expected_wal);
+                }
+                _ => panic!("expected complete got {:?}", status),
+            }
+        };
+
+        assert_complete(
+            tracker1.get_status(),
+            Duration::from_millis(0),
+            Duration::from_millis(100),
+        );
+        assert_complete(
+            tracker2.get_status(),
+            Duration::from_millis(100),
+            Duration::from_millis(100),
+        );
+        assert_complete(
+            tracker3.get_status(),
+            Duration::from_millis(200),
+            Duration::from_millis(100),
+        );
+    }
+
+    #[tokio::test]
+    async fn test_register_race() {
+        let mut registry = TrackerRegistry::new();
+        let (_, registration) = registry.register(());
+
+        let task1 = tokio::spawn(futures::future::ready(()).track(registration.clone()));
+        task1.await.unwrap().unwrap();
+
+        let tracked = registry.tracked();
+        assert_eq!(tracked.len(), 1);
+        assert!(matches!(&tracked[0].get_status(), TrackerStatus::Creating));
+
+        // Should only consider tasks complete once cannot register more Futures
+        let reclaimed: Vec<_> = registry.reclaim().collect();
+        assert_eq!(reclaimed.len(), 0);
+
+        let task2 = tokio::spawn(futures::future::ready(()).track(registration));
+        task2.await.unwrap().unwrap();
+
+        let reclaimed: Vec<_> = registry.reclaim().collect();
+        assert_eq!(reclaimed.len(), 1);
+    }
+
+    fn sorted(mut input: Vec<Tracker<i32>>) -> Vec<Tracker<i32>> {
+        input.sort_unstable_by_key(|x| *x.metadata());
+        input
+    }
+
+    fn get_metadata(input: &[Tracker<i32>]) -> Vec<i32> {
+        let mut ret: Vec<_> = input.iter().map(|x| *x.metadata()).collect();
+        ret.sort_unstable();
+        ret
     }
 }

@@ -4,7 +4,7 @@ use snafu::{ResultExt, Snafu};
 
 use crate::{exec::Executor, provider::ProviderBuilder, Database, PartitionChunk};
 use arrow_deps::datafusion::{error::DataFusionError, physical_plan::ExecutionPlan};
-use data_types::selection::Selection;
+use internal_types::selection::Selection;
 
 #[derive(Debug, Snafu)]
 pub enum Error {

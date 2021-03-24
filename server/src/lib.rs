@@ -67,40 +67,48 @@
     clippy::clone_on_ref_ptr
 )]
 
-pub mod buffer;
-mod config;
-pub mod db;
-pub mod snapshot;
-mod tracker;
-
-#[cfg(test)]
-mod query_tests;
-
 use std::sync::{
     atomic::{AtomicU32, Ordering},
     Arc,
 };
 
-use crate::{
-    buffer::SegmentPersistenceTask,
-    config::{object_store_path_for_database_config, Config, DB_RULES_FILE_NAME},
-    db::Db,
-    tracker::TrackerRegistry,
-};
-use data_types::{
-    data::{lines_to_replicated_write, ReplicatedWrite},
-    database_rules::{DatabaseRules, HostGroup, HostGroupId, MatchTables},
-    {DatabaseName, DatabaseNameError},
-};
-use influxdb_line_protocol::ParsedLine;
-use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
-use query::{exec::Executor, DatabaseStore};
-
 use async_trait::async_trait;
 use bytes::Bytes;
 use futures::stream::TryStreamExt;
+use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
-use tracing::error;
+use tracing::{debug, error, info, warn};
+
+use data_types::{
+    database_rules::{DatabaseRules, WriterId},
+    job::Job,
+    {DatabaseName, DatabaseNameError},
+};
+use influxdb_line_protocol::ParsedLine;
+use internal_types::data::{lines_to_replicated_write, ReplicatedWrite};
+use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
+use query::{exec::Executor, DatabaseStore};
+
+use futures::{pin_mut, FutureExt};
+
+use crate::{
+    config::{
+        object_store_path_for_database_config, Config, GRPCConnectionString, DB_RULES_FILE_NAME,
+    },
+    db::Db,
+    tracker::{
+        TrackedFutureExt, Tracker, TrackerId, TrackerRegistration, TrackerRegistryWithHistory,
+    },
+};
+
+pub mod buffer;
+mod config;
+pub mod db;
+pub mod snapshot;
+pub mod tracker;
+
+#[cfg(test)]
+mod query_tests;
 
 type DatabaseError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
@@ -117,12 +125,10 @@ pub enum Error {
     InvalidDatabaseName { source: DatabaseNameError },
     #[snafu(display("database error: {}", source))]
     UnknownDatabaseError { source: DatabaseError },
+    #[snafu(display("getting mutable buffer chunk: {}", source))]
+    MutableBufferChunk { source: DatabaseError },
     #[snafu(display("no local buffer for database: {}", db))]
     NoLocalBuffer { db: String },
-    #[snafu(display("host group not found: {}", id))]
-    HostGroupNotFound { id: HostGroupId },
-    #[snafu(display("no hosts in group: {}", id))]
-    NoHostInGroup { id: HostGroupId },
     #[snafu(display("unable to get connection to remote server: {}", server))]
     UnableToGetConnection {
         server: String,
@@ -146,6 +152,32 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
+const JOB_HISTORY_SIZE: usize = 1000;
+
+/// The global job registry
+#[derive(Debug)]
+pub struct JobRegistry {
+    inner: Mutex<TrackerRegistryWithHistory<Job>>,
+}
+
+impl Default for JobRegistry {
+    fn default() -> Self {
+        Self {
+            inner: Mutex::new(TrackerRegistryWithHistory::new(JOB_HISTORY_SIZE)),
+        }
+    }
+}
+
+impl JobRegistry {
+    fn new() -> Self {
+        Default::default()
+    }
+
+    pub fn register(&self, job: Job) -> (Tracker<Job>, TrackerRegistration) {
+        self.inner.lock().register(job)
+    }
+}
+
 const STORE_ERROR_PAUSE_SECONDS: u64 = 100;
 
 /// `Server` is the container struct for how servers store data internally, as
@@ -158,18 +190,20 @@ pub struct Server<M: ConnectionManager> {
     connection_manager: Arc<M>,
     pub store: Arc<ObjectStore>,
     executor: Arc<Executor>,
-    segment_persistence_registry: TrackerRegistry<SegmentPersistenceTask>,
+    jobs: Arc<JobRegistry>,
 }
 
 impl<M: ConnectionManager> Server<M> {
     pub fn new(connection_manager: M, store: Arc<ObjectStore>) -> Self {
+        let jobs = Arc::new(JobRegistry::new());
+
         Self {
             id: AtomicU32::new(SERVER_ID_NOT_SET),
-            config: Arc::new(Config::default()),
+            config: Arc::new(Config::new(Arc::clone(&jobs))),
             store,
             connection_manager: Arc::new(connection_manager),
             executor: Arc::new(Executor::new()),
-            segment_persistence_registry: TrackerRegistry::new(),
+            jobs,
         }
     }
 
@@ -294,18 +328,6 @@ impl<M: ConnectionManager> Server<M> {
         Ok(())
     }
 
-    /// Creates a host group with a set of connection strings to hosts. These
-    /// host connection strings should be something that the connection
-    /// manager can use to return a remote server to work with.
-    pub async fn create_host_group(&mut self, id: HostGroupId, hosts: Vec<String>) -> Result<()> {
-        // Return an error if this server hasn't yet been setup with an id
-        self.require_id()?;
-
-        self.config.create_host_group(HostGroup { id, hosts });
-
-        Ok(())
-    }
-
     /// `write_lines` takes in raw line protocol and converts it to a
     /// `ReplicatedWrite`, which is then replicated to other servers based
     /// on the configuration of the `db`. This is step #1 from the crate
@@ -361,80 +383,171 @@ impl<M: ConnectionManager> Server<M> {
                 if persist {
                     let writer_id = self.require_id()?;
                     let store = Arc::clone(&self.store);
+
+                    let (_, tracker) = self.jobs.register(Job::PersistSegment {
+                        writer_id,
+                        segment_id: segment.id,
+                    });
+
                     segment
-                        .persist_bytes_in_background(
-                            &self.segment_persistence_registry,
-                            writer_id,
-                            db_name,
-                            store,
-                        )
+                        .persist_bytes_in_background(tracker, writer_id, db_name, store)
                         .context(WalError)?;
                 }
             }
         }
 
-        for host_group_id in &db.rules.replication {
-            self.replicate_to_host_group(host_group_id, db_name, &write)
-                .await?;
-        }
-
-        for subscription in &db.rules.subscriptions {
-            match subscription.matcher.tables {
-                MatchTables::All => {
-                    self.replicate_to_host_group(&subscription.host_group_id, db_name, &write)
-                        .await?
-                }
-                MatchTables::Table(_) => unimplemented!(),
-                MatchTables::Regex(_) => unimplemented!(),
-            }
-        }
-
         Ok(())
     }
 
-    // replicates to a single host in the group based on hashing rules. If that host
-    // is unavailable an error will be returned. The request may still succeed
-    // if enough of the other host groups have returned a success.
-    async fn replicate_to_host_group(
-        &self,
-        host_group_id: &str,
-        db_name: &DatabaseName<'_>,
-        write: &ReplicatedWrite,
-    ) -> Result<()> {
-        let group = self
-            .config
-            .host_group(host_group_id)
-            .context(HostGroupNotFound { id: host_group_id })?;
-
-        // TODO: handle hashing rules to determine which host in the group should get
-        // the write.       for now, just write to the first one.
-        let host = group
-            .hosts
-            .get(0)
-            .context(NoHostInGroup { id: host_group_id })?;
-
-        let connection = self
-            .connection_manager
-            .remote_server(host)
-            .await
-            .map_err(|e| Box::new(e) as DatabaseError)
-            .context(UnableToGetConnection { server: host })?;
-
-        connection
-            .replicate(db_name, write)
-            .await
-            .map_err(|e| Box::new(e) as DatabaseError)
-            .context(ErrorReplicating {})?;
-
-        Ok(())
-    }
-
-    pub async fn db(&self, name: &DatabaseName<'_>) -> Option<Arc<Db>> {
+    pub fn db(&self, name: &DatabaseName<'_>) -> Option<Arc<Db>> {
         self.config.db(name)
     }
 
-    pub async fn db_rules(&self, name: &DatabaseName<'_>) -> Option<DatabaseRules> {
+    pub fn db_rules(&self, name: &DatabaseName<'_>) -> Option<DatabaseRules> {
         self.config.db(name).map(|d| d.rules.clone())
+    }
+
+    pub fn remotes_sorted(&self) -> Vec<(WriterId, String)> {
+        self.config.remotes_sorted()
+    }
+
+    pub fn update_remote(&self, id: WriterId, addr: GRPCConnectionString) {
+        self.config.update_remote(id, addr)
+    }
+
+    pub fn delete_remote(&self, id: WriterId) -> Option<GRPCConnectionString> {
+        self.config.delete_remote(id)
+    }
+
+    pub fn spawn_dummy_job(&self, nanos: Vec<u64>) -> Tracker<Job> {
+        let (tracker, registration) = self.jobs.register(Job::Dummy {
+            nanos: nanos.clone(),
+        });
+
+        for duration in nanos {
+            tokio::spawn(
+                tokio::time::sleep(tokio::time::Duration::from_nanos(duration))
+                    .track(registration.clone()),
+            );
+        }
+
+        tracker
+    }
+
+    /// Closes a chunk and starts moving its data to the read buffer, as a
+    /// background job, dropping when complete.
+    pub fn close_chunk(
+        &self,
+        db_name: DatabaseName<'_>,
+        partition_key: impl Into<String>,
+        chunk_id: u32,
+    ) -> Result<Tracker<Job>> {
+        let db_name = db_name.to_string();
+        let name = DatabaseName::new(&db_name).context(InvalidDatabaseName)?;
+
+        let partition_key = partition_key.into();
+
+        let db = self
+            .config
+            .db(&name)
+            .context(DatabaseNotFound { db_name: &db_name })?;
+
+        let (tracker, registration) = self.jobs.register(Job::CloseChunk {
+            db_name: db_name.clone(),
+            partition_key: partition_key.clone(),
+            chunk_id,
+        });
+
+        let task = async move {
+            // Close the chunk if it isn't already closed
+            if db.is_open_chunk(&partition_key, chunk_id) {
+                debug!(%db_name, %partition_key, %chunk_id, "Rolling over partition to close chunk");
+                let result = db.rollover_partition(&partition_key).await;
+
+                if let Err(e) = result {
+                    info!(?e, %db_name, %partition_key, %chunk_id, "background task error during chunk closing");
+                    return Err(e);
+                }
+            }
+
+            debug!(%db_name, %partition_key, %chunk_id, "background task loading chunk to read buffer");
+            let result = db.load_chunk_to_read_buffer(&partition_key, chunk_id).await;
+            if let Err(e) = result {
+                info!(?e, %db_name, %partition_key, %chunk_id, "background task error loading read buffer chunk");
+                return Err(e);
+            }
+
+            // now, drop the chunk
+            debug!(%db_name, %partition_key, %chunk_id, "background task dropping mutable buffer chunk");
+            let result = db.drop_mutable_buffer_chunk(&partition_key, chunk_id).await;
+            if let Err(e) = result {
+                info!(?e, %db_name, %partition_key, %chunk_id, "background task error loading read buffer chunk");
+                return Err(e);
+            }
+
+            debug!(%db_name, %partition_key, %chunk_id, "background task completed closing chunk");
+
+            Ok(())
+        };
+
+        tokio::spawn(task.track(registration));
+
+        Ok(tracker)
+    }
+
+    /// Returns a list of all jobs tracked by this server
+    pub fn tracked_jobs(&self) -> Vec<Tracker<Job>> {
+        self.jobs.inner.lock().tracked()
+    }
+
+    /// Returns a specific job tracked by this server
+    pub fn get_job(&self, id: TrackerId) -> Option<Tracker<Job>> {
+        self.jobs.inner.lock().get(id)
+    }
+
+    /// Background worker function for the server
+    pub async fn background_worker(&self, shutdown: tokio_util::sync::CancellationToken) {
+        info!("started background worker");
+
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
+
+        while !shutdown.is_cancelled() {
+            self.jobs.inner.lock().reclaim();
+
+            tokio::select! {
+                _ = interval.tick() => {},
+                _ = shutdown.cancelled() => break
+            }
+        }
+
+        info!("shutting down background worker");
+
+        let join = self.config.drain().fuse();
+        pin_mut!(join);
+
+        // Keep running reclaim whilst shutting down in case something
+        // is waiting on a tracker to complete
+        loop {
+            self.jobs.inner.lock().reclaim();
+
+            futures::select! {
+                _ = interval.tick().fuse() => {},
+                _ = join => break
+            }
+        }
+
+        info!("draining tracker registry");
+
+        // Wait for any outstanding jobs to finish - frontend shutdown should be
+        // sequenced before shutting down the background workers and so there
+        // shouldn't be any
+        while self.jobs.inner.lock().tracked_len() != 0 {
+            self.jobs.inner.lock().reclaim();
+
+            interval.tick().await;
+        }
+
+        info!("drained tracker registry");
     }
 }
 
@@ -446,7 +559,7 @@ where
     type Database = Db;
     type Error = Error;
 
-    async fn db_names_sorted(&self) -> Vec<String> {
+    fn db_names_sorted(&self) -> Vec<String> {
         self.config
             .db_names_sorted()
             .iter()
@@ -454,9 +567,9 @@ where
             .collect()
     }
 
-    async fn db(&self, name: &str) -> Option<Arc<Self::Database>> {
+    fn db(&self, name: &str) -> Option<Arc<Self::Database>> {
         if let Ok(name) = DatabaseName::new(name) {
-            return self.db(&name).await;
+            return self.db(&name);
         }
 
         None
@@ -467,11 +580,11 @@ where
     async fn db_or_create(&self, name: &str) -> Result<Arc<Self::Database>, Self::Error> {
         let db_name = DatabaseName::new(name.to_string()).context(InvalidDatabaseName)?;
 
-        let db = match self.db(&db_name).await {
+        let db = match self.db(&db_name) {
             Some(db) => db,
             None => {
                 self.create_database(name, DatabaseRules::new()).await?;
-                self.db(&db_name).await.expect("db not inserted")
+                self.db(&db_name).expect("db not inserted")
             }
         };
 
@@ -562,21 +675,26 @@ async fn get_store_bytes(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::buffer::Segment;
-    use arrow_deps::{assert_table_eq, datafusion::physical_plan::collect};
+    use std::collections::BTreeMap;
+
     use async_trait::async_trait;
-    use data_types::database_rules::{
-        MatchTables, Matcher, PartitionTemplate, Subscription, TemplatePart, WalBufferConfig,
-        WalBufferRollover,
-    };
     use futures::TryStreamExt;
+    use parking_lot::Mutex;
+    use snafu::Snafu;
+    use tokio::task::JoinHandle;
+    use tokio_util::sync::CancellationToken;
+
+    use arrow_deps::{assert_table_eq, datafusion::physical_plan::collect};
+    use data_types::database_rules::{
+        PartitionTemplate, TemplatePart, WalBufferConfig, WalBufferRollover,
+    };
     use influxdb_line_protocol::parse_lines;
     use object_store::{memory::InMemory, path::ObjectStorePath};
-    use parking_lot::Mutex;
-    use query::frontend::sql::SQLQueryPlanner;
-    use snafu::Snafu;
-    use std::collections::BTreeMap;
+    use query::{frontend::sql::SQLQueryPlanner, Database};
+
+    use crate::buffer::Segment;
+
+    use super::*;
 
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T = (), E = TestError> = std::result::Result<T, E>;
@@ -585,7 +703,7 @@ mod tests {
     async fn server_api_calls_return_error_with_no_id_set() -> Result {
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let mut server = Server::new(manager, store);
+        let server = Server::new(manager, store);
 
         let rules = DatabaseRules::new();
         let resp = server.create_database("foo", rules).await.unwrap_err();
@@ -593,12 +711,6 @@ mod tests {
 
         let lines = parsed_lines("cpu foo=1 10");
         let resp = server.write_lines("foo", &lines).await.unwrap_err();
-        assert!(matches!(resp, Error::IdNotSet));
-
-        let resp = server
-            .create_host_group("group1".to_string(), vec!["serverA".to_string()])
-            .await
-            .unwrap_err();
         assert!(matches!(resp, Error::IdNotSet));
 
         Ok(())
@@ -659,8 +771,8 @@ mod tests {
         server2.set_id(1);
         server2.load_database_configs().await.unwrap();
 
-        let _ = server2.db(&DatabaseName::new(db2).unwrap()).await.unwrap();
-        let _ = server2.db(&DatabaseName::new(name).unwrap()).await.unwrap();
+        let _ = server2.db(&DatabaseName::new(db2).unwrap()).unwrap();
+        let _ = server2.db(&DatabaseName::new(name).unwrap()).unwrap();
     }
 
     #[tokio::test]
@@ -709,7 +821,7 @@ mod tests {
                 .expect("failed to create database");
         }
 
-        let db_names_sorted = server.db_names_sorted().await;
+        let db_names_sorted = server.db_names_sorted();
         assert_eq!(names, db_names_sorted);
 
         Ok(())
@@ -754,7 +866,7 @@ mod tests {
         server.write_lines("foo", &lines).await.unwrap();
 
         let db_name = DatabaseName::new("foo").unwrap();
-        let db = server.db(&db_name).await.unwrap();
+        let db = server.db(&db_name).unwrap();
 
         let planner = SQLQueryPlanner::default();
         let executor = server.executor();
@@ -777,125 +889,65 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn replicate_to_single_group() -> Result {
-        let mut manager = TestConnectionManager::new();
-        let remote = Arc::new(TestRemoteServer::default());
-        let remote_id = "serverA";
-        manager
-            .remotes
-            .insert(remote_id.to_string(), Arc::clone(&remote));
-
+    async fn close_chunk() -> Result {
+        test_helpers::maybe_start_logging();
+        let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let server = Arc::new(Server::new(manager, store));
 
-        let mut server = Server::new(manager, store);
+        let cancel_token = CancellationToken::new();
+        let background_handle = spawn_worker(Arc::clone(&server), cancel_token.clone());
+
         server.set_id(1);
-        let host_group_id = "az1".to_string();
-        let rules = DatabaseRules {
-            replication: vec![host_group_id.clone()],
-            replication_count: 1,
-            ..Default::default()
-        };
+
+        let db_name = DatabaseName::new("foo").unwrap();
         server
-            .create_host_group(host_group_id.clone(), vec![remote_id.to_string()])
-            .await
-            .unwrap();
-        let db_name = "foo";
-        server.create_database(db_name, rules).await.unwrap();
+            .create_database(db_name.as_str(), DatabaseRules::new())
+            .await?;
 
-        let lines = parsed_lines("cpu bar=1 10");
-        server.write_lines("foo", &lines).await.unwrap();
+        let line = "cpu bar=1 10";
+        let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
+        server.write_lines(&db_name, &lines).await.unwrap();
 
-        let writes = remote.writes.lock().get(db_name).unwrap().clone();
+        // start the close (note this is not an async)
+        let partition_key = "";
+        let db_name_string = db_name.to_string();
+        let tracker = server.close_chunk(db_name, partition_key, 0).unwrap();
 
-        let write_text = r#"
-writer:1, sequence:1, checksum:226387645
-partition_key:
-  table:cpu
-    bar:1 time:10
-"#;
-
-        assert_eq!(write_text, writes[0].to_string());
-
-        // ensure sequence number goes up
-        let lines = parsed_lines("mem,server=A,region=west user=232 12");
-        server.write_lines("foo", &lines).await.unwrap();
-
-        let writes = remote.writes.lock().get(db_name).unwrap().clone();
-        assert_eq!(2, writes.len());
-
-        let write_text = r#"
-writer:1, sequence:2, checksum:3759030699
-partition_key:
-  table:mem
-    server:A region:west user:232 time:12
-"#;
-
-        assert_eq!(write_text, writes[1].to_string());
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn sends_all_to_subscriber() -> Result {
-        let mut manager = TestConnectionManager::new();
-        let remote = Arc::new(TestRemoteServer::default());
-        let remote_id = "serverA";
-        manager
-            .remotes
-            .insert(remote_id.to_string(), Arc::clone(&remote));
-
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-
-        let mut server = Server::new(manager, store);
-        server.set_id(1);
-        let host_group_id = "az1".to_string();
-        let rules = DatabaseRules {
-            subscriptions: vec![Subscription {
-                name: "query_server_1".to_string(),
-                host_group_id: host_group_id.clone(),
-                matcher: Matcher {
-                    tables: MatchTables::All,
-                    predicate: None,
-                },
-            }],
-            ..Default::default()
+        let metadata = tracker.metadata();
+        let expected_metadata = Job::CloseChunk {
+            db_name: db_name_string,
+            partition_key: partition_key.to_string(),
+            chunk_id: 0,
         };
-        server
-            .create_host_group(host_group_id.clone(), vec![remote_id.to_string()])
-            .await
-            .unwrap();
-        let db_name = "foo";
-        server.create_database(db_name, rules).await.unwrap();
+        assert_eq!(metadata, &expected_metadata);
 
-        let lines = parsed_lines("cpu bar=1 10");
-        server.write_lines("foo", &lines).await.unwrap();
+        // wait for the job to complete
+        tracker.join().await;
 
-        let writes = remote.writes.lock().get(db_name).unwrap().clone();
+        // Data should be in the read buffer and not in mutable buffer
+        let db_name = DatabaseName::new("foo").unwrap();
+        let db = server.db(&db_name).unwrap();
 
-        let write_text = r#"
-writer:1, sequence:1, checksum:226387645
-partition_key:
-  table:cpu
-    bar:1 time:10
-"#;
+        let mut chunk_summaries = db.chunk_summaries().unwrap();
+        chunk_summaries.sort_unstable();
 
-        assert_eq!(write_text, writes[0].to_string());
+        let actual = chunk_summaries
+            .into_iter()
+            .map(|s| format!("{:?} {}", s.storage, s.id))
+            .collect::<Vec<_>>();
 
-        // ensure sequence number goes up
-        let lines = parsed_lines("mem,server=A,region=west user=232 12");
-        server.write_lines("foo", &lines).await.unwrap();
+        let expected = vec!["ReadBuffer 0", "OpenMutableBuffer 1"];
 
-        let writes = remote.writes.lock().get(db_name).unwrap().clone();
-        assert_eq!(2, writes.len());
+        assert_eq!(
+            expected, actual,
+            "expected:\n{:#?}\n\nactual:{:#?}\n\n",
+            expected, actual
+        );
 
-        let write_text = r#"
-writer:1, sequence:2, checksum:3759030699
-partition_key:
-  table:mem
-    server:A region:west user:232 time:12
-"#;
-
-        assert_eq!(write_text, writes[1].to_string());
+        // ensure that we don't leave the server instance hanging around
+        cancel_token.cancel();
+        let _ = background_handle.await;
 
         Ok(())
     }
@@ -948,6 +1000,30 @@ partition_key:
     host:a used:10.1 time:12
 "#;
         assert_eq!(segment.writes[0].to_string(), write);
+    }
+
+    #[tokio::test]
+    async fn background_task_cleans_jobs() -> Result {
+        let manager = TestConnectionManager::new();
+        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let server = Arc::new(Server::new(manager, store));
+
+        let cancel_token = CancellationToken::new();
+        let background_handle = spawn_worker(Arc::clone(&server), cancel_token.clone());
+
+        let wait_nanos = 1000;
+        let job = server.spawn_dummy_job(vec![wait_nanos]);
+
+        // Note: this will hang forever if the background task has not been started
+        job.join().await;
+
+        assert!(job.is_complete());
+
+        // ensure that we don't leave the server instance hanging around
+        cancel_token.cancel();
+        let _ = background_handle.await;
+
+        Ok(())
     }
 
     #[derive(Snafu, Debug, Clone)]
@@ -1003,5 +1079,12 @@ partition_key:
 
     fn parsed_lines(lp: &str) -> Vec<ParsedLine<'_>> {
         parse_lines(lp).map(|l| l.unwrap()).collect()
+    }
+
+    fn spawn_worker<M>(server: Arc<Server<M>>, token: CancellationToken) -> JoinHandle<()>
+    where
+        M: ConnectionManager + Send + Sync + 'static,
+    {
+        tokio::task::spawn(async move { server.background_worker(token).await })
     }
 }

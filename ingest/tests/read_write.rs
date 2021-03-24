@@ -1,5 +1,5 @@
-use data_types::schema::{builder::SchemaBuilder, InfluxFieldType};
 use ingest::parquet::writer::{CompressionLevel, IOxParquetTableWriter};
+use internal_types::schema::{builder::SchemaBuilder, InfluxFieldType};
 use packers::{IOxTableWriter, Packer, Packers};
 
 use arrow_deps::parquet::data_type::ByteArray;

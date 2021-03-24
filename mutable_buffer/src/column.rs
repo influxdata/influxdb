@@ -2,9 +2,9 @@ use generated_types::wal as wb;
 use snafu::Snafu;
 
 use crate::dictionary::Dictionary;
-use data_types::{data::type_description, partition_metadata::StatValues};
-
 use arrow_deps::arrow::datatypes::DataType as ArrowDataType;
+use data_types::partition_metadata::StatValues;
+use internal_types::data::type_description;
 
 use std::mem;
 
@@ -34,6 +34,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub enum Column {
     F64(Vec<Option<f64>>, StatValues<f64>),
     I64(Vec<Option<i64>>, StatValues<i64>),
+    U64(Vec<Option<u64>>, StatValues<u64>),
     String(Vec<Option<String>>, StatValues<String>),
     Bool(Vec<Option<bool>>, StatValues<bool>),
     Tag(Vec<Option<u32>>, StatValues<String>),
@@ -45,10 +46,8 @@ impl Column {
         capacity: usize,
         value: wb::Value<'_>,
     ) -> Result<Self> {
-        use wb::ColumnValue::*;
-
         Ok(match value.value_type() {
-            F64Value => {
+            wb::ColumnValue::F64Value => {
                 let val = value
                     .value_as_f64value()
                     .expect("f64 value should be present")
@@ -57,7 +56,7 @@ impl Column {
                 vals.push(Some(val));
                 Self::F64(vals, StatValues::new(val))
             }
-            I64Value => {
+            wb::ColumnValue::I64Value => {
                 let val = value
                     .value_as_i64value()
                     .expect("i64 value should be present")
@@ -66,7 +65,16 @@ impl Column {
                 vals.push(Some(val));
                 Self::I64(vals, StatValues::new(val))
             }
-            StringValue => {
+            wb::ColumnValue::U64Value => {
+                let val = value
+                    .value_as_u64value()
+                    .expect("u64 value should be present")
+                    .value();
+                let mut vals = vec![None; capacity];
+                vals.push(Some(val));
+                Self::U64(vals, StatValues::new(val))
+            }
+            wb::ColumnValue::StringValue => {
                 let val = value
                     .value_as_string_value()
                     .expect("string value should be present")
@@ -76,7 +84,7 @@ impl Column {
                 vals.push(Some(val.to_string()));
                 Self::String(vals, StatValues::new(val.to_string()))
             }
-            BoolValue => {
+            wb::ColumnValue::BoolValue => {
                 let val = value
                     .value_as_bool_value()
                     .expect("bool value should be present")
@@ -85,7 +93,7 @@ impl Column {
                 vals.push(Some(val));
                 Self::Bool(vals, StatValues::new(val))
             }
-            TagValue => {
+            wb::ColumnValue::TagValue => {
                 let val = value
                     .value_as_tag_value()
                     .expect("tag value should be present")
@@ -109,6 +117,7 @@ impl Column {
         match self {
             Self::F64(v, _) => v.len(),
             Self::I64(v, _) => v.len(),
+            Self::U64(v, _) => v.len(),
             Self::String(v, _) => v.len(),
             Self::Bool(v, _) => v.len(),
             Self::Tag(v, _) => v.len(),
@@ -123,6 +132,7 @@ impl Column {
         match self {
             Self::F64(_, _) => "f64",
             Self::I64(_, _) => "i64",
+            Self::U64(_, _) => "u64",
             Self::String(_, _) => "String",
             Self::Bool(_, _) => "bool",
             Self::Tag(_, _) => "tag",
@@ -134,6 +144,7 @@ impl Column {
         match self {
             Self::F64(..) => ArrowDataType::Float64,
             Self::I64(..) => ArrowDataType::Int64,
+            Self::U64(..) => ArrowDataType::UInt64,
             Self::String(..) => ArrowDataType::Utf8,
             Self::Bool(..) => ArrowDataType::Boolean,
             Self::Tag(..) => ArrowDataType::Utf8,
@@ -179,6 +190,15 @@ impl Column {
                 }
                 None => false,
             },
+            Self::U64(vals, stats) => match value.value_as_u64value() {
+                Some(u64_val) => {
+                    let u64_val = u64_val.value();
+                    vals.push(Some(u64_val));
+                    stats.update(u64_val);
+                    true
+                }
+                None => false,
+            },
             Self::F64(vals, stats) => match value.value_as_f64value() {
                 Some(f64_val) => {
                     let f64_val = f64_val.value();
@@ -212,6 +232,11 @@ impl Column {
                 }
             }
             Self::I64(v, _) => {
+                if v.len() == len {
+                    v.push(None);
+                }
+            }
+            Self::U64(v, _) => {
                 if v.len() == len {
                     v.push(None);
                 }
@@ -289,6 +314,9 @@ impl Column {
             }
             Self::I64(v, stats) => {
                 mem::size_of::<Option<i64>>() * v.len() + mem::size_of_val(&stats)
+            }
+            Self::U64(v, stats) => {
+                mem::size_of::<Option<u64>>() * v.len() + mem::size_of_val(&stats)
             }
             Self::Bool(v, stats) => {
                 mem::size_of::<Option<bool>>() * v.len() + mem::size_of_val(&stats)

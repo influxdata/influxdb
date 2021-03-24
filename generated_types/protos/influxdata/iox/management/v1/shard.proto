@@ -1,0 +1,68 @@
+syntax = "proto3";
+package influxdata.iox.management.v1;
+
+// NOTE: documentation is manually synced from data_types/src/database_rules.rs
+
+// `ShardConfig` defines rules for assigning a line/row to an individual
+// host or a group of hosts. A shard
+// is a logical concept, but the usage is meant to split data into
+// mutually exclusive areas. The rough order of organization is:
+// database -> shard -> partition -> chunk. For example, you could shard
+// based on table name and assign to 1 of 10 shards. Within each
+// shard you would have partitions, which would likely be based off time.
+// This makes it possible to horizontally scale out writes.
+message ShardConfig {
+  /// An optional matcher. If there is a match, the route will be evaluated to
+  /// the given targets, otherwise the hash ring will be evaluated. This is
+  /// useful for overriding the hashring function on some hot spot. For
+  /// example, if you use the table name as the input to the hash function
+  /// and your ring has 4 slots. If two tables that are very hot get
+  /// assigned to the same slot you can override that by putting in a
+  /// specific matcher to pull that table over to a different node.
+  MatcherToTargets specific_targets = 1;
+
+  /// An optional default hasher which will route to one in a collection of
+  /// nodes.
+  HashRing hash_ring = 2;
+
+  /// If set to true the router will ignore any errors sent by the remote
+  /// targets in this route. That is, the write request will succeed
+  /// regardless of this route's success.
+  bool ignore_errors = 3;
+}
+
+// Maps a matcher with specific target group. If the line/row matches
+// it should be sent to the group.
+message MatcherToTargets {
+  Matcher matcher = 1;
+  NodeGroup target = 2;
+}
+
+/// A matcher is used to match routing rules or subscriptions on a row-by-row
+/// (or line) basis.
+message Matcher {
+  // if provided, match if the table name matches against the regex
+  string table_name_regex = 1;
+  // paul: what should we use for predicate matching here against a single row/line?
+  string predicate = 2;
+}
+
+// A collection of IOx nodes
+message NodeGroup {
+  message Node {
+    uint32 id = 1;
+  }
+  repeated Node nodes = 1;
+}
+
+// HashRing is a rule for creating a hash key for a row and mapping that to
+// an individual node on a ring.
+message HashRing {
+  // If true the table name will be included in the hash key
+  bool table_name = 1;
+  // include the values of these columns in the hash key
+  repeated string columns = 2;
+  // ring of node groups. Each group holds a shard
+  repeated NodeGroup node_groups = 3;
+}
+

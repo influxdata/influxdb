@@ -381,7 +381,7 @@ mod tests {
             let mut a = Vec::with_capacity(n as usize);
             for i in 0..n {
                 let top_bit = (i & 1) << (bits - 1);
-                let v = rng.gen_range(0, max) | top_bit;
+                let v = rng.gen_range(0..max) | top_bit;
                 assert!(v < max);
                 a.push(v);
             }

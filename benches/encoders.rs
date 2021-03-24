@@ -204,7 +204,7 @@ fn integer_encode_random(c: &mut Criterion) {
         &LARGER_BATCH_SIZES,
         |batch_size| {
             (1..batch_size)
-                .map(|_| rand::thread_rng().gen_range(0, 100))
+                .map(|_| rand::thread_rng().gen_range(0..100))
                 .collect()
         },
         influxdb_tsm::encoders::integer::encode,
@@ -323,7 +323,7 @@ fn integer_decode_random(c: &mut Criterion) {
         &LARGER_BATCH_SIZES,
         |batch_size| {
             let decoded: Vec<i64> = (1..batch_size)
-                .map(|_| rand::thread_rng().gen_range(0, 100))
+                .map(|_| rand::thread_rng().gen_range(0..100))
                 .collect();
             let mut encoded = vec![];
             influxdb_tsm::encoders::integer::encode(&decoded, &mut encoded).unwrap();

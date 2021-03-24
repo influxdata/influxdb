@@ -1,5 +1,6 @@
 use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
-use data_types::{schema::Schema, selection::Selection};
+use data_types::chunk::{ChunkStorage, ChunkSummary};
+use internal_types::{schema::Schema, selection::Selection};
 use mutable_buffer::chunk::Chunk as MBChunk;
 use query::{exec::stringset::StringSet, predicate::Predicate, PartitionChunk};
 use read_buffer::Database as ReadBufferDb;
@@ -29,7 +30,9 @@ pub enum Error {
     },
 
     #[snafu(display("Internal error restricting schema: {}", source))]
-    InternalSelectingSchema { source: data_types::schema::Error },
+    InternalSelectingSchema {
+        source: internal_types::schema::Error,
+    },
 
     #[snafu(display("Predicate conversion error: {}", source))]
     PredicateConversion { source: super::pred::Error },
@@ -58,10 +61,13 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 pub enum DBChunk {
     MutableBuffer {
         chunk: Arc<MBChunk>,
+        partition_key: Arc<String>,
+        /// is this chunk open for writing?
+        open: bool,
     },
     ReadBuffer {
         db: Arc<ReadBufferDb>,
-        partition_key: String,
+        partition_key: Arc<String>,
         chunk_id: u32,
     },
     ParquetFile, // TODO add appropriate type here
@@ -69,8 +75,17 @@ pub enum DBChunk {
 
 impl DBChunk {
     /// Create a new mutable buffer chunk
-    pub fn new_mb(chunk: Arc<mutable_buffer::chunk::Chunk>) -> Arc<Self> {
-        Arc::new(Self::MutableBuffer { chunk })
+    pub fn new_mb(
+        chunk: Arc<mutable_buffer::chunk::Chunk>,
+        partition_key: impl Into<String>,
+        open: bool,
+    ) -> Arc<Self> {
+        let partition_key = Arc::new(partition_key.into());
+        Arc::new(Self::MutableBuffer {
+            chunk,
+            partition_key,
+            open,
+        })
     }
 
     /// create a new read buffer chunk
@@ -79,12 +94,53 @@ impl DBChunk {
         partition_key: impl Into<String>,
         chunk_id: u32,
     ) -> Arc<Self> {
-        let partition_key = partition_key.into();
+        let partition_key = Arc::new(partition_key.into());
         Arc::new(Self::ReadBuffer {
             db,
             chunk_id,
             partition_key,
         })
+    }
+
+    pub fn summary(&self) -> ChunkSummary {
+        match self {
+            Self::MutableBuffer {
+                chunk,
+                partition_key,
+                open,
+            } => {
+                let storage = if *open {
+                    ChunkStorage::OpenMutableBuffer
+                } else {
+                    ChunkStorage::ClosedMutableBuffer
+                };
+                ChunkSummary {
+                    partition_key: Arc::clone(partition_key),
+                    id: chunk.id(),
+                    storage,
+                    estimated_bytes: chunk.size(),
+                }
+            }
+            Self::ReadBuffer {
+                db,
+                partition_key,
+                chunk_id,
+            } => {
+                let estimated_bytes = db
+                    .chunks_size(partition_key.as_ref(), &[*chunk_id])
+                    .unwrap_or(0) as usize;
+
+                ChunkSummary {
+                    partition_key: Arc::clone(&partition_key),
+                    id: *chunk_id,
+                    storage: ChunkStorage::ReadBuffer,
+                    estimated_bytes,
+                }
+            }
+            Self::ParquetFile => {
+                unimplemented!("parquet file summary not implemented")
+            }
+        }
     }
 }
 
@@ -94,7 +150,7 @@ impl PartitionChunk for DBChunk {
 
     fn id(&self) -> u32 {
         match self {
-            Self::MutableBuffer { chunk } => chunk.id(),
+            Self::MutableBuffer { chunk, .. } => chunk.id(),
             Self::ReadBuffer { chunk_id, .. } => *chunk_id,
             Self::ParquetFile => unimplemented!("parquet file not implemented"),
         }
@@ -104,7 +160,7 @@ impl PartitionChunk for DBChunk {
         &self,
     ) -> Result<Vec<data_types::partition_metadata::TableSummary>, Self::Error> {
         match self {
-            Self::MutableBuffer { chunk } => chunk.table_stats().context(MutableBufferChunk),
+            Self::MutableBuffer { chunk, .. } => chunk.table_stats().context(MutableBufferChunk),
             Self::ReadBuffer { .. } => unimplemented!("read buffer not implemented"),
             Self::ParquetFile => unimplemented!("parquet file not implemented"),
         }
@@ -116,7 +172,7 @@ impl PartitionChunk for DBChunk {
         _known_tables: &StringSet,
     ) -> Result<Option<StringSet>, Self::Error> {
         let names = match self {
-            Self::MutableBuffer { chunk } => {
+            Self::MutableBuffer { chunk, .. } => {
                 if chunk.is_empty() {
                     Some(StringSet::new())
                 } else {
@@ -192,10 +248,10 @@ impl PartitionChunk for DBChunk {
         selection: Selection<'_>,
     ) -> Result<Schema, Self::Error> {
         match self {
-            DBChunk::MutableBuffer { chunk } => chunk
+            Self::MutableBuffer { chunk, .. } => chunk
                 .table_schema(table_name, selection)
                 .context(MutableBufferChunk),
-            DBChunk::ReadBuffer {
+            Self::ReadBuffer {
                 db,
                 partition_key,
                 chunk_id,
@@ -227,7 +283,7 @@ impl PartitionChunk for DBChunk {
 
                 Ok(schema)
             }
-            DBChunk::ParquetFile => {
+            Self::ParquetFile => {
                 unimplemented!("parquet file not implemented for table schema")
             }
         }
@@ -235,7 +291,7 @@ impl PartitionChunk for DBChunk {
 
     fn has_table(&self, table_name: &str) -> bool {
         match self {
-            Self::MutableBuffer { chunk } => chunk.has_table(table_name),
+            Self::MutableBuffer { chunk, .. } => chunk.has_table(table_name),
             Self::ReadBuffer {
                 db,
                 partition_key,
@@ -257,7 +313,7 @@ impl PartitionChunk for DBChunk {
         selection: Selection<'_>,
     ) -> Result<SendableRecordBatchStream, Self::Error> {
         match self {
-            Self::MutableBuffer { chunk } => {
+            Self::MutableBuffer { chunk, .. } => {
                 // Note MutableBuffer doesn't support predicate
                 // pushdown (other than pruning out the entire chunk
                 // via `might_pass_predicate)
@@ -341,7 +397,7 @@ impl PartitionChunk for DBChunk {
         columns: Selection<'_>,
     ) -> Result<Option<StringSet>, Self::Error> {
         match self {
-            Self::MutableBuffer { chunk } => {
+            Self::MutableBuffer { chunk, .. } => {
                 let chunk_predicate = match to_mutable_buffer_predicate(chunk, predicate) {
                     Ok(chunk_predicate) => chunk_predicate,
                     Err(e) => {
@@ -389,7 +445,7 @@ impl PartitionChunk for DBChunk {
         predicate: &Predicate,
     ) -> Result<Option<StringSet>, Self::Error> {
         match self {
-            Self::MutableBuffer { chunk } => {
+            Self::MutableBuffer { chunk, .. } => {
                 use mutable_buffer::chunk::Error::UnsupportedColumnTypeForListingValues;
 
                 let chunk_predicate = match to_mutable_buffer_predicate(chunk, predicate) {

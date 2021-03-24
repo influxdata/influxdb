@@ -1,29 +1,23 @@
-use crate::{Scenario, IOX_API_V1_BASE};
+use super::scenario::Scenario;
+use crate::common::server_fixture::ServerFixture;
 
-pub async fn test(
-    client: &reqwest::Client,
-    scenario: &Scenario,
-    sql_query: &str,
-    expected_read_data: &[String],
-) {
-    let text = read_data_as_sql(&client, scenario, sql_query).await;
+#[tokio::test]
+pub async fn test() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let mut management_client = server_fixture.management_client();
+    let influxdb2 = server_fixture.influxdb2_client();
 
-    assert_eq!(
-        text, expected_read_data,
-        "Actual:\n{:#?}\nExpected:\n{:#?}",
-        text, expected_read_data
-    );
-}
+    let scenario = Scenario::new();
+    scenario.create_database(&mut management_client).await;
 
-async fn read_data_as_sql(
-    client: &reqwest::Client,
-    scenario: &Scenario,
-    sql_query: &str,
-) -> Vec<String> {
+    let expected_read_data = scenario.load_data(&influxdb2).await;
+    let sql_query = "select * from cpu_load_short";
+
+    let client = reqwest::Client::new();
     let db_name = format!("{}_{}", scenario.org_id_str(), scenario.bucket_id_str());
     let path = format!("/databases/{}/query", db_name);
-    let url = format!("{}{}", IOX_API_V1_BASE, path);
-    let lines = client
+    let url = format!("{}{}", server_fixture.iox_api_v1_base(), path);
+    let lines: Vec<_> = client
         .get(&url)
         .query(&[("q", sql_query)])
         .send()
@@ -36,5 +30,10 @@ async fn read_data_as_sql(
         .split('\n')
         .map(str::to_string)
         .collect();
-    lines
+
+    assert_eq!(
+        lines, expected_read_data,
+        "Actual:\n{:#?}\nExpected:\n{:#?}",
+        lines, expected_read_data
+    );
 }

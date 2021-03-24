@@ -18,16 +18,16 @@ use crate::{
     Database, DatabaseStore, PartitionChunk, Predicate,
 };
 
-use data_types::{
+use data_types::database_rules::{DatabaseRules, PartitionTemplate, TemplatePart};
+use influxdb_line_protocol::{parse_lines, ParsedLine};
+use internal_types::{
     data::{lines_to_replicated_write, ReplicatedWrite},
-    database_rules::{DatabaseRules, PartitionTemplate, TemplatePart},
     schema::{
         builder::{SchemaBuilder, SchemaMerger},
         Schema,
     },
     selection::Selection,
 };
-use influxdb_line_protocol::{parse_lines, ParsedLine};
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -153,6 +153,10 @@ impl Database for TestDatabase {
         } else {
             vec![]
         }
+    }
+
+    fn chunk_summaries(&self) -> Result<Vec<data_types::chunk::ChunkSummary>, Self::Error> {
+        unimplemented!("summaries not implemented TestDatabase")
     }
 }
 
@@ -474,14 +478,14 @@ impl DatabaseStore for TestDatabaseStore {
     type Error = TestError;
 
     /// List the database names.
-    async fn db_names_sorted(&self) -> Vec<String> {
+    fn db_names_sorted(&self) -> Vec<String> {
         let databases = self.databases.lock();
 
         databases.keys().cloned().collect()
     }
 
     /// Retrieve the database specified name
-    async fn db(&self, name: &str) -> Option<Arc<Self::Database>> {
+    fn db(&self, name: &str) -> Option<Arc<Self::Database>> {
         let databases = self.databases.lock();
 
         databases.get(name).cloned()

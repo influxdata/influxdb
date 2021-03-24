@@ -8,10 +8,9 @@
 
 use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 use async_trait::async_trait;
-use data_types::{
-    data::ReplicatedWrite, partition_metadata::TableSummary, schema::Schema, selection::Selection,
-};
+use data_types::{chunk::ChunkSummary, partition_metadata::TableSummary};
 use exec::{stringset::StringSet, Executor};
+use internal_types::{data::ReplicatedWrite, schema::Schema, selection::Selection};
 
 use std::{fmt::Debug, sync::Arc};
 
@@ -49,6 +48,9 @@ pub trait Database: Debug + Send + Sync {
     /// covering set means that together the chunks make up a single
     /// complete copy of the data being queried.
     fn chunks(&self, partition_key: &str) -> Vec<Arc<Self::Chunk>>;
+
+    /// Return a summary of all chunks in this database, in all partitions
+    fn chunk_summaries(&self) -> Result<Vec<ChunkSummary>, Self::Error>;
 }
 
 /// Collection of data that shares the same partition key
@@ -60,7 +62,7 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// particular partition.
     fn id(&self) -> u32;
 
-    /// returns the partition metadata stats for every table in the partition
+    /// returns the partition metadata stats for every table in the chunk
     fn table_stats(&self) -> Result<Vec<TableSummary>, Self::Error>;
 
     /// Returns true if this chunk *might* have data that passes the
@@ -155,11 +157,11 @@ pub trait DatabaseStore: Debug + Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
 
     /// List the database names.
-    async fn db_names_sorted(&self) -> Vec<String>;
+    fn db_names_sorted(&self) -> Vec<String>;
 
     /// Retrieve the database specified by `name` returning None if no
     /// such database exists
-    async fn db(&self, name: &str) -> Option<Arc<Self::Database>>;
+    fn db(&self, name: &str) -> Option<Arc<Self::Database>>;
 
     /// Retrieve the database specified by `name`, creating it if it
     /// doesn't exist.

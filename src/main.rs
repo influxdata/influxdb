@@ -12,7 +12,7 @@ use std::str::FromStr;
 use dotenv::dotenv;
 use structopt::StructOpt;
 use tokio::runtime::Runtime;
-use tracing::{debug, error, warn};
+use tracing::{debug, warn};
 
 use commands::logging::LoggingLevel;
 use ingest::parquet::writer::CompressionLevel;
@@ -23,7 +23,10 @@ mod commands {
     mod input;
     pub mod logging;
     pub mod meta;
+    pub mod operations;
+    pub mod run;
     pub mod server;
+    pub mod server_remote;
     pub mod stats;
     pub mod writer;
 }
@@ -45,13 +48,13 @@ Examples:
     influxdb_iox
 
     # Display all server settings
-    influxdb_iox server --help
+    influxdb_iox run --help
 
     # Run the InfluxDB IOx server with extra verbose logging
-    influxdb_iox -v
+    influxdb_iox run -v
 
     # Run InfluxDB IOx with full debug logging specified with RUST_LOG
-    RUST_LOG=debug influxdb_iox
+    RUST_LOG=debug influxdb_iox run
 
     # converts line protocol formatted data in temperature.lp to out.parquet
     influxdb_iox convert temperature.lp out.parquet
@@ -61,6 +64,14 @@ Examples:
 
     # Dumps storage statistics about out.parquet to stdout
     influxdb_iox stats out.parquet
+
+Command are generally structured in the form:
+    <type of object> <action> <arguments>
+
+For example, a command such as the following shows all actions
+    available for database chunks, including get and list.
+
+    influxdb_iox database chunk --help
 "#
 )]
 struct Config {
@@ -83,7 +94,7 @@ struct Config {
     num_threads: Option<usize>,
 
     #[structopt(subcommand)]
-    command: Option<Command>,
+    command: Command,
 }
 
 #[derive(Debug, StructOpt)]
@@ -109,10 +120,12 @@ enum Command {
         input: String,
     },
     Database(commands::database::Config),
-    Stats(commands::stats::Config),
     // Clippy recommended boxing this variant because it's much larger than the others
-    Server(Box<commands::server::Config>),
+    Run(Box<commands::run::Config>),
+    Stats(commands::stats::Config),
+    Server(commands::server::Config),
     Writer(commands::writer::Config),
+    Operation(commands::operations::Config),
 }
 
 fn main() -> Result<(), std::io::Error> {
@@ -131,13 +144,12 @@ fn main() -> Result<(), std::io::Error> {
     let tokio_runtime = get_runtime(config.num_threads)?;
     tokio_runtime.block_on(async move {
         let host = config.host;
-
         match config.command {
-            Some(Command::Convert {
+            Command::Convert {
                 input,
                 output,
                 compression_level,
-            }) => {
+            } => {
                 logging_level.setup_basic_logging();
 
                 let compression_level = CompressionLevel::from_str(&compression_level).unwrap();
@@ -149,7 +161,7 @@ fn main() -> Result<(), std::io::Error> {
                     }
                 }
             }
-            Some(Command::Meta { input }) => {
+            Command::Meta { input } => {
                 logging_level.setup_basic_logging();
                 match commands::meta::dump_meta(&input) {
                     Ok(()) => debug!("Metadata dump completed successfully"),
@@ -159,7 +171,7 @@ fn main() -> Result<(), std::io::Error> {
                     }
                 }
             }
-            Some(Command::Stats(config)) => {
+            Command::Stats(config) => {
                 logging_level.setup_basic_logging();
                 match commands::stats::stats(&config).await {
                     Ok(()) => debug!("Storage statistics dump completed successfully"),
@@ -169,37 +181,40 @@ fn main() -> Result<(), std::io::Error> {
                     }
                 }
             }
-            Some(Command::Database(config)) => {
+            Command::Database(config) => {
                 logging_level.setup_basic_logging();
                 if let Err(e) = commands::database::command(host, config).await {
                     eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
-            Some(Command::Writer(config)) => {
+            Command::Writer(config) => {
                 logging_level.setup_basic_logging();
                 if let Err(e) = commands::writer::command(host, config).await {
                     eprintln!("{}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }
-            Some(Command::Server(config)) => {
-                // Note don't set up basic logging here, different logging rules apply in server
-                // mode
-                let res = influxdb_ioxd::main(logging_level, Some(config)).await;
-
-                if let Err(e) = res {
-                    error!("Server shutdown with error: {}", e);
-                    std::process::exit(ReturnCode::Failure as _);
+            Command::Operation(config) => {
+                logging_level.setup_basic_logging();
+                if let Err(e) = commands::operations::command(host, config).await {
+                    eprintln!("{}", e);
+                    std::process::exit(ReturnCode::Failure as _)
                 }
             }
-            None => {
+            Command::Server(config) => {
+                logging_level.setup_basic_logging();
+                if let Err(e) = commands::server::command(host, config).await {
+                    eprintln!("Server command failed: {}", e);
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Command::Run(config) => {
                 // Note don't set up basic logging here, different logging rules apply in server
                 // mode
-                let res = influxdb_ioxd::main(logging_level, None).await;
-                if let Err(e) = res {
-                    error!("Server shutdown with error: {}", e);
-                    std::process::exit(ReturnCode::Failure as _);
+                if let Err(e) = commands::run::command(logging_level, *config).await {
+                    eprintln!("Server command failed: {}", e);
+                    std::process::exit(ReturnCode::Failure as _)
                 }
             }
         }

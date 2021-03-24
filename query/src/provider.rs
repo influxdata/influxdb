@@ -14,7 +14,7 @@ use arrow_deps::{
         physical_plan::ExecutionPlan,
     },
 };
-use data_types::schema::{builder::SchemaMerger, Schema};
+use internal_types::schema::{builder::SchemaMerger, Schema};
 
 use crate::{predicate::Predicate, util::project_schema, PartitionChunk};
 
@@ -29,7 +29,7 @@ pub enum Error {
     #[snafu(display("Chunk schema not compatible for table '{}': {}", table_name, source))]
     ChunkSchemaNotCompatible {
         table_name: String,
-        source: data_types::schema::builder::Error,
+        source: internal_types::schema::builder::Error,
     },
 
     #[snafu(display(
@@ -39,7 +39,7 @@ pub enum Error {
     ))]
     InternalNoChunks {
         table_name: String,
-        source: data_types::schema::builder::Error,
+        source: internal_types::schema::builder::Error,
     },
 
     #[snafu(display("Internal error: No rows found in table '{}'", table_name))]
@@ -193,6 +193,7 @@ impl<C: PartitionChunk + 'static> TableProvider for ChunkTableProvider<C> {
         projection: &Option<Vec<usize>>,
         _batch_size: usize,
         _filters: &[Expr],
+        _limit: Option<usize>,
     ) -> std::result::Result<Arc<dyn ExecutionPlan>, DataFusionError> {
         // TODO Here is where predicate pushdown will happen.  To make
         // predicate push down happen, the provider need need to

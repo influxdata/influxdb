@@ -10,7 +10,8 @@ use arrow_deps::{
     },
     util::{make_range_expr, AndExprBuilder},
 };
-use data_types::{timestamp::TimestampRange, TIME_COLUMN_NAME};
+use data_types::timestamp::TimestampRange;
+use internal_types::schema::TIME_COLUMN_NAME;
 
 //use snafu::{OptionExt, ResultExt, Snafu};
 use snafu::{ensure, ResultExt, Snafu};

@@ -107,6 +107,11 @@ impl Partition {
         }
     }
 
+    /// returns the id of the current open chunk in this partition
+    pub(crate) fn open_chunk_id(&self) -> u32 {
+        self.open_chunk.id()
+    }
+
     /// write data to the open chunk
     pub fn write_entry(&mut self, entry: &wb::WriteBufferEntry<'_>) -> Result<()> {
         assert_eq!(
@@ -173,6 +178,8 @@ impl Partition {
     ///
     /// Queries will continue to see data in the specified chunk until
     /// it is dropped.
+    ///
+    /// Returns the previously open (now closed) Chunk
     pub fn rollover_chunk(&mut self) -> Arc<Chunk> {
         let chunk_id = self.id_generator;
         self.id_generator += 1;
@@ -295,10 +302,8 @@ impl<'a> Iterator for ChunkIter<'a> {
 mod tests {
     use super::*;
     use chrono::Utc;
-    use data_types::{
-        data::split_lines_into_write_entry_partitions, partition_metadata::PartitionSummary,
-        selection::Selection,
-    };
+    use data_types::partition_metadata::PartitionSummary;
+    use internal_types::{data::split_lines_into_write_entry_partitions, selection::Selection};
 
     use arrow_deps::{
         arrow::record_batch::RecordBatch, assert_table_eq, test_util::sort_record_batch,
@@ -924,7 +929,7 @@ mod tests {
         let lines: Vec<_> = parse_lines(&lp_string).map(|l| l.unwrap()).collect();
         let data = split_lines_into_write_entry_partitions(|_| partition.key().into(), &lines);
 
-        let batch = flatbuffers::get_root::<wb::WriteBufferBatch<'_>>(&data);
+        let batch = flatbuffers::root::<wb::WriteBufferBatch<'_>>(&data).unwrap();
 
         let entries = batch.entries().unwrap();
         for entry in entries {

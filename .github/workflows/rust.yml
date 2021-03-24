@@ -19,6 +19,11 @@ on: [pull_request]
 
 name: ci
 
+env:
+  # Disable full debug symbol generation to speed up CI build
+  # "1" means line tables only, which is useful for panic tracebacks.
+  RUSTFLAGS: "-C debuginfo=1"
+
 jobs:
 
   build:

@@ -1,8 +1,6 @@
-use data_types::{
-    data::ReplicatedWrite,
-    database_rules::{PartitionSort, PartitionSortRules},
-};
+use data_types::database_rules::{PartitionSort, PartitionSortRules};
 use generated_types::wal;
+use internal_types::data::ReplicatedWrite;
 
 use crate::{chunk::Chunk, partition::Partition};
 
@@ -79,6 +77,14 @@ impl MutableBufferDb {
         }
     }
 
+    /// returns the id of the current open chunk in the specified partition
+    pub fn open_chunk_id(&self, partition_key: &str) -> u32 {
+        let partition = self.get_partition(partition_key);
+        let partition = partition.read().expect("mutex poisoned");
+
+        partition.open_chunk_id()
+    }
+
     /// Directs the writes from batch into the appropriate partitions
     fn write_entries_to_partitions(&self, batch: &wal::WriteBufferBatch<'_>) -> Result<()> {
         if let Some(entries) = batch.entries() {
@@ -96,7 +102,8 @@ impl MutableBufferDb {
         Ok(())
     }
 
-    /// Rolls over the active chunk in this partititon
+    /// Rolls over the active chunk in this partititon.  Returns the
+    /// previously open (now closed) Chunk
     pub fn rollover_partition(&self, partition_key: &str) -> Result<Arc<Chunk>> {
         let partition = self.get_partition(partition_key);
         let mut partition = partition.write().expect("mutex poisoned");
@@ -181,7 +188,7 @@ impl MutableBufferDb {
             Some(b) => self.write_entries_to_partitions(&b)?,
             None => {
                 return MissingPayload {
-                    writer: write.to_fb().writer(),
+                    writer: write.fb().writer(),
                 }
                 .fail()
             }
@@ -240,12 +247,10 @@ impl MutableBufferDb {
 mod tests {
     use super::*;
     use chrono::{DateTime, Utc};
-    use data_types::{
-        data::lines_to_replicated_write, database_rules::Partitioner, selection::Selection,
-    };
+    use data_types::database_rules::{Order, Partitioner};
+    use internal_types::{data::lines_to_replicated_write, selection::Selection};
 
     use arrow_deps::arrow::array::{Array, StringArray};
-    use data_types::database_rules::Order;
     use influxdb_line_protocol::{parse_lines, ParsedLine};
 
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;

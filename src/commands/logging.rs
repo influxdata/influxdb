@@ -2,7 +2,7 @@
 
 use tracing_subscriber::{prelude::*, EnvFilter};
 
-use super::server::{Config, LogFormat};
+use super::run::{Config, LogFormat};
 
 /// Handles setting up logging levels
 #[derive(Debug)]

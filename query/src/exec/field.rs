@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use arrow_deps::arrow::{self, datatypes::SchemaRef};
-use data_types::TIME_COLUMN_NAME;
+use internal_types::schema::TIME_COLUMN_NAME;
 use snafu::{ResultExt, Snafu};
 
 #[derive(Debug, Snafu)]

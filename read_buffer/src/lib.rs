@@ -16,7 +16,7 @@ use std::{
 };
 
 use arrow_deps::arrow::record_batch::RecordBatch;
-use data_types::{
+use internal_types::{
     schema::{builder::SchemaMerger, Schema},
     selection::Selection,
 };
@@ -40,7 +40,7 @@ pub enum Error {
     // TODO add more context / helpful error here
     #[snafu(display("Error building unioned read buffer schema for chunks: {}", source))]
     BuildingSchema {
-        source: data_types::schema::builder::Error,
+        source: internal_types::schema::builder::Error,
     },
 
     #[snafu(display("partition key does not exist: {}", key))]
@@ -175,6 +175,25 @@ impl Database {
             .get(partition_key)
             .map(|partition| partition.chunk_ids())
             .unwrap_or_default()
+    }
+
+    /// Returns the total estimated size in bytes for the chunks in the
+    /// specified partition. Returns None if there is no such partition
+    pub fn chunks_size<'a>(
+        &self,
+        partition_key: &str,
+        chunk_ids: impl IntoIterator<Item = &'a u32>,
+    ) -> Option<u64> {
+        let partition_data = self.data.read().unwrap();
+
+        let partition = partition_data.partitions.get(partition_key);
+
+        partition.map(|partition| {
+            chunk_ids
+                .into_iter()
+                .map(|chunk_id| partition.chunk_size(*chunk_id))
+                .sum::<u64>()
+        })
     }
 
     /// Returns the total estimated size in bytes of the database.
@@ -344,11 +363,11 @@ impl Database {
             // Get all relevant row groups for this chunk's table. This
             // is cheap because it doesn't execute the read operation,
             // but just gets references to the needed to data to do so.
-            if let Some(table_results) =
-                chunk.read_aggregate(table_name, predicate.clone(), &group_columns, &aggregates)
-            {
-                chunk_table_results.push(table_results);
-            }
+            let table_results = chunk
+                .read_aggregate(table_name, predicate.clone(), &group_columns, &aggregates)
+                .context(ChunkError)?;
+
+            chunk_table_results.push(table_results);
         }
 
         Ok(ReadAggregateResults::new(chunk_table_results))
@@ -662,6 +681,16 @@ impl Partition {
                 .map(|chunk| std::mem::size_of::<u32>() as u64 + chunk.size())
                 .sum::<u64>()
     }
+
+    /// The total estimated size in bytes of the specified chunk id
+    pub fn chunk_size(&self, chunk_id: u32) -> u64 {
+        let chunk_data = self.data.read().unwrap();
+        chunk_data
+            .chunks
+            .get(&chunk_id)
+            .map(|chunk| chunk.size())
+            .unwrap_or(0) // treat unknown chunks as zero size
+    }
 }
 
 /// ReadFilterResults implements ...
@@ -813,7 +842,7 @@ mod test {
         },
         datatypes::DataType::{Boolean, Float64, Int64, UInt64, Utf8},
     };
-    use data_types::schema::builder::SchemaBuilder;
+    use internal_types::schema::builder::SchemaBuilder;
 
     use crate::value::Values;
 

@@ -28,8 +28,7 @@ We're also hosting monthly tech talks and community office hours on the project 
 
 ## Quick Start
 
-To compile and run InfluxDB IOx from source, you'll need a Rust compiler and a `flatc` FlatBuffers
-compiler.
+To compile and run InfluxDB IOx from source, you'll need a Rust compiler and `clang`.
 
 ### Build a Docker Image
 
@@ -80,36 +79,6 @@ rustc --version
 
 and you should see a nightly version of Rust!
 
-### Installing `flatc`
-
-InfluxDB IOx uses the [FlatBuffer] serialization format for its write-ahead log. The [`flatc`
-compiler] reads the schema in `generated_types/wal.fbs` and generates the corresponding Rust code.
-
-Install `flatc` >= 1.12.0 with one of these methods as appropriate to your operating system:
-
-* Using a [Windows binary release]
-* Using the [`flatbuffers` package for conda]
-* Using the [`flatbuffers` package for Arch Linux]
-* Using the [`flatbuffers` package for Homebrew]
-
-Once you have installed the packages, you should be able to run:
-
-```shell
-flatc --version
-```
-
-and see the version displayed.
-
-You won't have to run `flatc` directly; once it's available, Rust's Cargo build tool manages the
-compilation process by calling `flatc` for you.
-
-[FlatBuffer]: https://google.github.io/flatbuffers/
-[`flatc` compiler]: https://google.github.io/flatbuffers/flatbuffers_guide_using_schema_compiler.html
-[Windows binary release]: https://github.com/google/flatbuffers/releases
-[`flatbuffers` package for conda]: https://anaconda.org/conda-forge/flatbuffers
-[`flatbuffers` package for Arch Linux]: https://www.archlinux.org/packages/community/x86_64/flatbuffers/
-[`flatbuffers` package for Homebrew]: https://github.com/Homebrew/homebrew-core/blob/HEAD/Formula/flatbuffers.rb
-
 ### Installing `clang`
 
 An installation of `clang` is required to build the [`croaring`] dependency - if
@@ -133,16 +102,15 @@ takes its configuration as environment variables.
 
 You can see a list of the current configuration values by running `influxdb_iox
 --help`, as well as the specific subcommand config options such as `influxdb_iox
-server --help`.
+run --help`.
 
 Should you desire specifying config via a file, you can do so using a
 `.env` formatted file in the working directory. You can use the
 provided [example](docs/env.example) as a template if you want:
 
-```bash
+```shell
 cp docs/env.example .env
 ```
-
 
 ### Compiling and Starting the Server
 
@@ -163,7 +131,7 @@ which will create a binary in `target/debug` that you can run with:
 You can compile and run with one command by using:
 
 ```shell
-cargo run
+cargo run -- server
 ```
 
 When compiling for performance testing, build in release mode by using:
@@ -175,13 +143,13 @@ cargo build --release
 which will create the corresponding binary in `target/release`:
 
 ```shell
-./target/release/influxdb_iox
+./target/release/influxdb_iox run
 ```
 
 Similarly, you can do this in one step with:
 
 ```shell
-cargo run --release
+cargo run --release -- server
 ```
 
 The server will, by default, start an HTTP API server on port `8080` and a gRPC server on port
@@ -190,34 +158,60 @@ The server will, by default, start an HTTP API server on port `8080` and a gRPC 
 ### Writing and Reading Data
 
 Each IOx instance requires a writer ID.
-This can be set three ways:
+This can be set one of 4 ways:
 - set an environment variable `INFLUXDB_IOX_ID=42`
 - set a flag `--writer-id 42`
-- send an HTTP PUT request:
-```
-curl --request PUT \
-  --url http://localhost:8080/iox/api/v1/id \
-  --header 'Content-Type: application/json' \
-  --data '{
-  "id": 42
-  }'
+- use the API (not convered here)
+- use the CLI
+```shell
+influxdb_iox writer set 42
 ```
 
-To write data, you need a destination database.
-This is set via HTTP PUT, identifying the database by org `company` and bucket `sensors`:
-```
-curl --request PUT \
-  --url http://localhost:8080/iox/api/v1/databases/company_sensors \
-  --header 'Content-Type: application/json' \
-  --data '{
-}'
+To write data, you need to create a database. You can do so via the API or using the CLI. For example, to create a database called `company_sensors` with a 100MB mutable buffer, use this command:
+
+```shell
+influxdb_iox database create company_sensors -m 100
 ```
 
-Data can be stored in InfluxDB IOx by sending it in [line protocol] format to the `/api/v2/write`
-endpoint. Data is stored by organization and bucket names. Here's an example using [`curl`] with
-the organization name `company` and the bucket name `sensors` that will send the data in the
-`tests/fixtures/lineproto/metrics.lp` file in this repository, assuming that you're running the
-server on the default port:
+Data can be stored in InfluxDB IOx by sending it in [line protocol]
+format to the `/api/v2/write` endpoint or using the CLI. For example,
+here is a command that will send the data in the
+`tests/fixtures/lineproto/metrics.lp` file in this repository,
+assuming that you're running the server on the default port into
+the `company_sensors` database, you can use:
+
+```shell
+influxdb_iox database write company_sensors tests/fixtures/lineproto/metrics.lp
+```
+
+To query data stored in the `company_sensors` database:
+
+```shell
+influxdb_iox database query company_sensors "SELECT * FROM cpu LIMIT 10"
+```
+
+### Using the CLI
+
+To ease deloyment, IOx is packaged as a combined binary which has
+commands to start the IOx server as well as a CLI interface for
+interacting with and configuring such servers.
+
+The CLI itself is documented via extensive built in help which you can
+access by runing `influxdb_iox --help`
+
+
+### InfluxDB 2.0 compatibility
+
+InfluxDB IOx allows seamless interoperability with InfluxDB 2.0.
+
+InfluxDB 2.0 stores data in organization and buckets, but InfluxDB IOx
+stores data in named databases. IOx maps `organization` and `bucket`
+to a database named with the two parts separated by an underscore
+(`_`): `organization_bucket`.
+
+Here's an example using [`curl`] command to send the same data into
+the `company_sensors` database using the InfluxDB 2.0 `/api/v2/write`
+API:
 
 ```shell
 curl -v "http://127.0.0.1:8080/api/v2/write?org=company&bucket=sensors" --data-binary @tests/fixtures/lineproto/metrics.lp
@@ -226,27 +220,44 @@ curl -v "http://127.0.0.1:8080/api/v2/write?org=company&bucket=sensors" --data-b
 [line protocol]: https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/
 [`curl`]: https://curl.se/
 
-To query stored data, use the `/api/v2/read` endpoint with a SQL query. This example will return
-all data in the `company` organization's `sensors` bucket for the `processes` measurement:
-
-```shell
-curl -v -G -d 'org=company' -d 'bucket=sensors' --data-urlencode 'sql_query=select * from processes' "http://127.0.0.1:8080/api/v2/read"
-```
 
 ### Health Checks
 
 The HTTP API exposes a healthcheck endpoint at `/health`
 
-```shell
+```console
 $ curl http://127.0.0.1:8080/health
 OK
 ```
 
 The gRPC API implements the [gRPC Health Checking Protocol](https://github.com/grpc/grpc/blob/master/doc/health-checking.md). This can be tested with [grpc-health-probe](https://github.com/grpc-ecosystem/grpc-health-probe)
 
-```shell
+```console
 $ grpc_health_probe -addr 127.0.0.1:8082 -service influxdata.platform.storage.Storage
 status: SERVING
+```
+
+### Manually calling gRPC API
+
+If you want to manually invoke one of the gRPC APIs, you can use any gRPC CLI client;
+a good one is [grpcurl](https://github.com/fullstorydev/grpcurl).
+
+Tonic (the gRPC server library we're using) currently doesn't have support for gRPC reflection,
+hence you must pass all `.proto` files to your client. You can find a conventient `grpcurl` wrapper
+that does that in the `scripts` directory:
+
+```console
+$ ./scripts/grpcurl -plaintext 127.0.0.1:8082 list
+grpc.health.v1.Health
+influxdata.iox.management.v1.ManagementService
+influxdata.platform.storage.IOxTesting
+influxdata.platform.storage.Storage
+$ ./scripts/grpcurl -plaintext 127.0.0.1:8082 influxdata.iox.management.v1.ManagementService.ListDatabases
+{
+  "names": [
+    "foobar_weather"
+  ]
+}
 ```
 
 ## Contributing
