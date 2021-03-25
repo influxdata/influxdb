@@ -29,3 +29,13 @@ stores. Use the same bucket name when setting up the different services.
 Other than possibly configuring multiple object stores, configuring the tests to use the object
 store services is the same as configuring the server to use an object store service. See the output
 of `influxdb_iox run --help` for instructions.
+
+## InfluxDB 2 Client
+
+The `influxdb2_client` crate may be used by people using InfluxDB 2.0 OSS, and should be compatible
+with both that and IOx. If you have `influxd` in your path, the integration tests for the
+`influxdb2_client` crate will run integration tests against `influxd`. If you do not have
+`influxd`, those tests will not be run and will silently pass.
+
+To ensure you're running the `influxdb2_client` integration tests, you can run `TEST_INTEGRATION=1
+cargo test -p influxdb2_client`, which will fail the tests if `influxd` is not available.
