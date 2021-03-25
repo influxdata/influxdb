@@ -73,7 +73,7 @@ use std::sync::{
 };
 
 use async_trait::async_trait;
-use bytes::Bytes;
+use bytes::BytesMut;
 use futures::stream::TryStreamExt;
 use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -139,7 +139,9 @@ pub enum Error {
     #[snafu(display("unable to use server until id is set"))]
     IdNotSet,
     #[snafu(display("error serializing configuration {}", source))]
-    ErrorSerializing { source: serde_json::Error },
+    ErrorSerializing {
+        source: data_types::database_rules::Error,
+    },
     #[snafu(display("error deserializing configuration {}", source))]
     ErrorDeserializing { source: serde_json::Error },
     #[snafu(display("store error: {}", source))]
@@ -239,13 +241,19 @@ impl<M: ConnectionManager> Server<M> {
 
         let db_reservation = self.config.create_db(db_name, rules)?;
 
-        let data =
-            Bytes::from(serde_json::to_vec(&db_reservation.db.rules).context(ErrorSerializing)?);
+        let mut data = BytesMut::new();
+        db_reservation
+            .db
+            .rules
+            .clone()
+            .encode(&mut data)
+            .context(ErrorSerializing)?;
+
         let len = data.len();
         let location =
             object_store_path_for_database_config(&self.root_path()?, &db_reservation.name);
 
-        let stream_data = std::io::Result::Ok(data);
+        let stream_data = std::io::Result::Ok(data.freeze());
         self.store
             .put(
                 &location,
@@ -305,9 +313,9 @@ impl<M: ConnectionManager> Server<M> {
                         res = get_store_bytes(&path, &store).await;
                     }
 
-                    let res = res.unwrap();
+                    let res = res.unwrap().freeze();
 
-                    match serde_json::from_slice::<DatabaseRules>(&res) {
+                    match DatabaseRules::decode(res) {
                         Err(e) => {
                             error!("error parsing database config {:?} from store: {}", path, e)
                         }
@@ -722,7 +730,7 @@ mod tests {
 
         let mut rules_path = server.store.new_path();
         rules_path.push_all_dirs(&["1", name]);
-        rules_path.set_file_name("rules.json");
+        rules_path.set_file_name("rules.pb");
 
         let read_data = server
             .store
@@ -732,10 +740,10 @@ mod tests {
             .map_ok(|b| bytes::BytesMut::from(&b[..]))
             .try_concat()
             .await
-            .unwrap();
+            .unwrap()
+            .freeze();
 
-        let read_data = std::str::from_utf8(&*read_data).unwrap();
-        let read_rules = serde_json::from_str::<DatabaseRules>(read_data).unwrap();
+        let read_rules = DatabaseRules::decode(read_data).unwrap();
 
         assert_eq!(rules, read_rules);
 
