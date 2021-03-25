@@ -63,6 +63,8 @@ func (s *FromOpSpec) Kind() flux.OperationKind {
 }
 
 type FromProcedureSpec struct {
+	plan.DefaultCost
+
 	Bucket   string
 	BucketID string
 }
