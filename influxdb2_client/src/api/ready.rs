@@ -35,13 +35,9 @@ mod tests {
 
     #[tokio::test]
     async fn ready() {
-        let token = "some-token";
+        let mock_server = mock("GET", "/ready").create();
 
-        let mock_server = mock("GET", "/ready")
-            .match_header("Authorization", format!("Token {}", token).as_str())
-            .create();
-
-        let client = Client::new(&mockito::server_url(), token);
+        let client = Client::new(&mockito::server_url(), "");
 
         let _result = client.ready().await;
 
