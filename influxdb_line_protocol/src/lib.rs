@@ -30,6 +30,7 @@ use snafu::{ResultExt, Snafu};
 use std::cmp::Ordering;
 use std::{
     borrow::Cow,
+    char,
     collections::{btree_map::Entry, BTreeMap},
     fmt,
     ops::Deref,
@@ -705,7 +706,7 @@ fn field_float_value_with_exponential_no_decimal(i: &str) -> IResult<&str, &str>
 fn exponential_value(i: &str) -> IResult<&str, &str> {
     recognize(separated_pair(
         digit1,
-        alt((tag("e+"), tag("E+"), tag("e-"), tag("E-"))),
+        tuple((alt((tag("e"), tag("E"))), alt((tag("-"), tag("+"))))),
         digit1,
     ))(i)
 }
