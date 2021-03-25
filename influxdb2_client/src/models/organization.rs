@@ -91,8 +91,8 @@ pub struct Organizations {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub links: Option<crate::models::Links>,
     /// List of organizations
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub orgs: Option<Vec<crate::models::Organization>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub orgs: Vec<crate::models::Organization>,
 }
 
 impl Organizations {

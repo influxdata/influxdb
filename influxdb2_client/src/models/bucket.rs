@@ -35,8 +35,8 @@ pub struct Bucket {
     /// Rules to expire or retain data. No rules means data never expires.
     pub retention_rules: Vec<crate::models::RetentionRule>,
     /// Bucket labels
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub labels: Option<Vec<crate::models::Label>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub labels: Vec<crate::models::Label>,
 }
 
 impl Bucket {
@@ -99,8 +99,8 @@ pub struct Buckets {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub links: Option<crate::models::Links>,
     /// Buckets
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub buckets: Option<Vec<crate::models::Bucket>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub buckets: Vec<crate::models::Bucket>,
 }
 
 impl Buckets {

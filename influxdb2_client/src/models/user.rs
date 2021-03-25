@@ -63,8 +63,8 @@ pub struct Users {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub links: Option<crate::models::UsersLinks>,
     /// List of users
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub users: Option<Vec<crate::models::User>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub users: Vec<crate::models::User>,
 }
 
 impl Users {
