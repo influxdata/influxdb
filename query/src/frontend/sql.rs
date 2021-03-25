@@ -63,6 +63,16 @@ pub enum Error {
         table_name: String,
         source: crate::provider::Error,
     },
+
+    #[snafu(display(
+        "Error registering table provider for table '{}': {}",
+        table_name,
+        source
+    ))]
+    RegisteringTableProvider {
+        table_name: String,
+        source: DataFusionError,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -128,7 +138,8 @@ impl SQLQueryPlanner {
                 .context(CreatingTableProvider { table_name })?;
 
             ctx.inner_mut()
-                .register_table(&table_name, Arc::new(provider));
+                .register_table(table_name.as_str(), Arc::new(provider))
+                .context(RegisteringTableProvider { table_name })?;
         }
 
         ctx.prepare_sql(query).await.context(Preparing)

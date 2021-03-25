@@ -1092,27 +1092,27 @@ impl From<RecordBatch> for RowGroup {
                 Some(InfluxColumnType::Tag) => {
                     assert_eq!(arrow_column.data_type(), &arrow::datatypes::DataType::Utf8);
                     let column_data =
-                        Column::from(arrow::array::StringArray::from(arrow_column.data()));
+                        Column::from(arrow::array::StringArray::from(arrow_column.data().clone()));
 
                     columns.insert(col_name.to_owned(), ColumnType::Tag(column_data));
                 }
                 Some(InfluxColumnType::Field(_)) => {
                     let column_data = match arrow_column.data_type() {
-                        arrow::datatypes::DataType::Int64 => {
-                            Column::from(arrow::array::Int64Array::from(arrow_column.data()))
-                        }
-                        arrow::datatypes::DataType::Float64 => {
-                            Column::from(arrow::array::Float64Array::from(arrow_column.data()))
-                        }
-                        arrow::datatypes::DataType::UInt64 => {
-                            Column::from(arrow::array::UInt64Array::from(arrow_column.data()))
-                        }
-                        arrow::datatypes::DataType::Boolean => {
-                            Column::from(arrow::array::BooleanArray::from(arrow_column.data()))
-                        }
-                        arrow::datatypes::DataType::Utf8 => {
-                            Column::from(arrow::array::StringArray::from(arrow_column.data()))
-                        }
+                        arrow::datatypes::DataType::Int64 => Column::from(
+                            arrow::array::Int64Array::from(arrow_column.data().clone()),
+                        ),
+                        arrow::datatypes::DataType::Float64 => Column::from(
+                            arrow::array::Float64Array::from(arrow_column.data().clone()),
+                        ),
+                        arrow::datatypes::DataType::UInt64 => Column::from(
+                            arrow::array::UInt64Array::from(arrow_column.data().clone()),
+                        ),
+                        arrow::datatypes::DataType::Boolean => Column::from(
+                            arrow::array::BooleanArray::from(arrow_column.data().clone()),
+                        ),
+                        arrow::datatypes::DataType::Utf8 => Column::from(
+                            arrow::array::StringArray::from(arrow_column.data().clone()),
+                        ),
                         dt => unimplemented!(
                             "data type {:?} currently not supported for field columns",
                             dt
@@ -1125,7 +1125,7 @@ impl From<RecordBatch> for RowGroup {
                     assert_eq!(col_name, TIME_COLUMN_NAME);
 
                     let column_data =
-                        Column::from(arrow::array::Int64Array::from(arrow_column.data()));
+                        Column::from(arrow::array::Int64Array::from(arrow_column.data().clone()));
 
                     columns.insert(col_name.to_owned(), ColumnType::Time(column_data));
                 }
