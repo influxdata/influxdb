@@ -454,7 +454,7 @@ impl InfluxRPCPlanner {
                 //        Filter(predicate)
                 //          InMemoryScan
                 let plan = plan_builder
-                    .project(&select_exprs)
+                    .project(select_exprs.clone())
                     .context(BuildingPlan)?
                     .filter(tag_name_is_not_null)
                     .context(BuildingPlan)?
@@ -744,7 +744,7 @@ impl InfluxRPCPlanner {
             .collect::<Vec<_>>();
 
         let plan = plan_builder
-            .project(&select_exprs)
+            .project(select_exprs)
             .context(BuildingPlan)?
             .build()
             .context(BuildingPlan)?;
@@ -804,7 +804,7 @@ impl InfluxRPCPlanner {
             .collect::<Vec<_>>();
 
         let plan = plan_builder
-            .project(&select_exprs)
+            .project(select_exprs)
             .context(BuildingPlan)?
             .build()
             .context(BuildingPlan)?;
@@ -865,7 +865,7 @@ impl InfluxRPCPlanner {
 
         // Order by
         let plan_builder = plan_builder
-            .sort(&tags_and_timestamp)
+            .sort(tags_and_timestamp)
             .context(BuildingPlan)?;
 
         // Select away anything that isn't in the influx data model
@@ -877,7 +877,7 @@ impl InfluxRPCPlanner {
             .collect();
 
         let plan_builder = plan_builder
-            .project(&tags_fields_and_timestamps)
+            .project(tags_fields_and_timestamps)
             .context(BuildingPlan)?;
 
         let plan = plan_builder.build().context(BuildingPlan)?;
@@ -993,9 +993,9 @@ impl InfluxRPCPlanner {
             .collect::<Vec<_>>();
 
         let plan_builder = plan_builder
-            .aggregate(&group_exprs, &agg_exprs)
+            .aggregate(group_exprs, agg_exprs)
             .context(BuildingPlan)?
-            .sort(&sort_exprs)
+            .sort(sort_exprs)
             .context(BuildingPlan)?;
 
         // and finally create the plan
@@ -1079,9 +1079,9 @@ impl InfluxRPCPlanner {
             .collect::<Vec<_>>();
 
         let plan_builder = plan_builder
-            .aggregate(&group_exprs, &agg_exprs)
+            .aggregate(group_exprs, agg_exprs)
             .context(BuildingPlan)?
-            .sort(&sort_exprs)
+            .sort(sort_exprs)
             .context(BuildingPlan)?;
 
         // and finally create the plan

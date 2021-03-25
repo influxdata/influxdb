@@ -599,7 +599,7 @@ mod test {
     #[test]
     fn size() {
         let v = FixedNull::<UInt64Type>::from(vec![None, None, Some(100), Some(2222)].as_slice());
-        assert_eq!(v.size(), 240);
+        assert_eq!(v.size(), 344);
     }
 
     #[test]
