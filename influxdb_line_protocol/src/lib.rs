@@ -703,7 +703,11 @@ fn field_float_value_with_exponential_no_decimal(i: &str) -> IResult<&str, &str>
 }
 
 fn exponential_value(i: &str) -> IResult<&str, &str> {
-    recognize(separated_pair(digit1, alt((tag("e+"), tag("E+"))), digit1))(i)
+    recognize(separated_pair(
+        digit1,
+        alt((tag("e+"), tag("E+"), tag("e-"), tag("E-"))),
+        digit1,
+    ))(i)
 }
 
 fn field_float_value_no_decimal(i: &str) -> IResult<&str, &str> {
@@ -1510,6 +1514,18 @@ mod test {
         let vals = parse(input)?;
         assert_eq!(vals.len(), 1);
 
+        let input = "m0 field=1.234456E-16";
+        let vals = parse(input)?;
+        assert_eq!(vals.len(), 1);
+
+        let input = "m0 field=1.234456e-03";
+        let vals = parse(input)?;
+        assert_eq!(vals.len(), 1);
+
+        let input = "m0 field=1.234456e-0";
+        let vals = parse(input)?;
+        assert_eq!(vals.len(), 1);
+
         /////////////////////
         // Negative tests
 
@@ -1572,6 +1588,14 @@ mod test {
         );
 
         let input = "m0 field=-1.234456E+ 1615869152385000000";
+        let parsed = parse(input);
+        assert!(
+            matches!(parsed, Err(super::Error::CannotParseEntireLine { .. })),
+            "Wrong error: {:?}",
+            parsed,
+        );
+
+        let input = "m0 field=-1.234456E-";
         let parsed = parse(input);
         assert!(
             matches!(parsed, Err(super::Error::CannotParseEntireLine { .. })),
