@@ -70,7 +70,7 @@ OUTDIR=$(mktemp -d)
 			echo go build -i -o "$OUTDIR/$(basename $cmd)" -tags "netgo osusergo static_build noasm" $cmd
 			go build -i -o "$OUTDIR/$(basename $cmd)" -tags "netgo osusergo static_build noasm" $cmd
 		elif [[ -n "$STATIC" ]]; then
-		  echo go build -i -o "$OUTDIR/$(basename $cmd)" -tags "netgo osusergo static_build" $cmd
+			echo go build -i -o "$OUTDIR/$(basename $cmd)" -tags "netgo osusergo static_build" $cmd
 			go build -i -o "$OUTDIR/$(basename $cmd)" -tags "netgo osusergo static_build" $cmd
 		elif [[ "$GOOS" == windows ]] ; then
 			echo go build $RACE_FLAG -buildmode=exe -i -o "$OUTDIR/$(basename $cmd).exe" $cmd
