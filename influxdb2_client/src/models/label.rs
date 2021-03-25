@@ -24,8 +24,6 @@ pub struct Label {
 impl Label {
     /// Returns instance of Label
     pub fn new() -> Self {
-        Self {
-            ..Default::default()
-        }
+        Self::default()
     }
 }

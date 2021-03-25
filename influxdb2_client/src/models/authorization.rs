@@ -83,8 +83,6 @@ pub struct AuthorizationAllOfLinks {
 impl AuthorizationAllOfLinks {
     /// Return an instance of AuthorizationAllOfLinks
     pub fn new() -> Self {
-        Self {
-            ..Default::default()
-        }
+        Self::default()
     }
 }

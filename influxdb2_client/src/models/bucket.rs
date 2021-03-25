@@ -87,9 +87,7 @@ pub struct BucketLinks {
 impl BucketLinks {
     /// Returns instance of BucketLinks
     pub fn new() -> Self {
-        Self {
-            ..Default::default()
-        }
+        Self::default()
     }
 }
 
@@ -108,8 +106,6 @@ pub struct Buckets {
 impl Buckets {
     /// Returns list of buckets
     pub fn new() -> Self {
-        Self {
-            ..Default::default()
-        }
+        Self::default()
     }
 }

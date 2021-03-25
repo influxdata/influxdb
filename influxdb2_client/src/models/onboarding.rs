@@ -16,9 +16,7 @@ pub struct IsOnboarding {
 impl IsOnboarding {
     /// Return instance of IsOnboarding
     pub fn new() -> Self {
-        Self {
-            ..Default::default()
-        }
+        Self::default()
     }
 }
 
@@ -77,8 +75,6 @@ pub struct OnboardingResponse {
 impl OnboardingResponse {
     /// Return instance of OnboardingResponse
     pub fn new() -> Self {
-        Self {
-            ..Default::default()
-        }
+        Self::default()
     }
 }

@@ -80,9 +80,7 @@ pub struct OrganizationLinks {
 impl OrganizationLinks {
     /// Returns instance of Organization Links
     pub fn new() -> Self {
-        Self {
-            ..Default::default()
-        }
+        Self::default()
     }
 }
 
@@ -100,8 +98,6 @@ pub struct Organizations {
 impl Organizations {
     /// Returns instance of Organizations
     pub fn new() -> Self {
-        Self {
-            ..Default::default()
-        }
+        Self::default()
     }
 }

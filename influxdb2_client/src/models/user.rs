@@ -52,9 +52,7 @@ pub struct UserLinks {
 impl UserLinks {
     /// Returns instance of UserLinks
     pub fn new() -> Self {
-        Self {
-            ..Default::default()
-        }
+        Self::default()
     }
 }
 
@@ -72,9 +70,7 @@ pub struct Users {
 impl Users {
     /// Returns instance of Users
     pub fn new() -> Self {
-        Self {
-            ..Default::default()
-        }
+        Self::default()
     }
 }
 
@@ -89,8 +85,6 @@ pub struct UsersLinks {
 impl UsersLinks {
     /// Returns instance of UsersLinks
     pub fn new() -> Self {
-        Self {
-            ..Default::default()
-        }
+        Self::default()
     }
 }
