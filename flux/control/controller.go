@@ -72,20 +72,16 @@ func (p *program) Start(ctx context.Context, allocator *memory.Allocator) (flux.
 	}, nil
 }
 
-func NewController(mc MetaClient, reader influxdb.Reader, auth Authorizer, authEnabled bool, testingEnabled bool, writer influxdb.PointsWriter, logger *zap.Logger) *Controller {
+func NewController(mc MetaClient, reader influxdb.Reader, auth Authorizer, authEnabled bool, writer influxdb.PointsWriter, logger *zap.Logger) *Controller {
 	builtin.Initialize()
 
 	storageDeps, err := influxdb.NewDependencies(mc, reader, auth, authEnabled, writer)
 	if err != nil {
 		panic(err)
 	}
-	deps := []flux.Dependency{storageDeps}
-	if testingEnabled {
-		deps = append(deps, testing.FrameworkConfig{})
-	}
 
 	return &Controller{
-		deps:   deps,
+		deps:   append([]flux.Dependency{storageDeps}, testing.FrameworkConfig{}),
 		logger: logger,
 	}
 }
