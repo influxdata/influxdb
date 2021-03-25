@@ -17,7 +17,7 @@ func TestController_Query(t *testing.T) {
 	mc := &internal.MetaClientMock{}
 	reader := &imock.Reader{}
 	writer := &imock.Writer{}
-	ctrl := control.NewController(mc, reader, nil, false, writer, zaptest.NewLogger(t))
+	ctrl := control.NewController(mc, reader, nil, false, false, writer, zaptest.NewLogger(t))
 
 	t.Run("stats", func(t *testing.T) {
 		ctx := context.Background()

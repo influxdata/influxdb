@@ -40,6 +40,7 @@ func NewTestExecutor(ctx context.Context) (cmd.TestExecutor, error) {
 	config := tests.NewConfig()
 	config.HTTPD.FluxEnabled = true
 	config.HTTPD.FluxLogEnabled = true
+	config.HTTPD.FluxTestingEnabled = true
 
 	// NOTE: This will panic on failure. Not changing it for now.
 	e.s = tests.OpenServer(config)
