@@ -15,7 +15,7 @@ require (
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/snappy v0.0.1
 	github.com/google/go-cmp v0.5.0
-	github.com/influxdata/flux v0.109.1
+	github.com/influxdata/flux v0.109.2-0.20210324223716-33ec37c476c2
 	github.com/influxdata/influxql v1.1.1-0.20210223160523-b6ab99450c93
 	github.com/influxdata/pkg-config v0.2.7
 	github.com/influxdata/roaring v0.4.13-0.20180809181101-fc520f41fab6

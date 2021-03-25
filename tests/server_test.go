@@ -30,6 +30,7 @@ import (
 	"github.com/influxdata/influxdb/cmd/influx/cli"
 	"github.com/influxdata/influxdb/coordinator"
 	fluxClient "github.com/influxdata/influxdb/flux/client"
+	_ "github.com/influxdata/influxdb/flux/init/static"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/prometheus/prometheus/prompb"
@@ -10368,7 +10369,7 @@ func runFluxBuiltinTest(t *testing.T, file *ast.File, u *url.URL, bucket string,
 
 	inspectCalls := stdlib.TestingInspectCalls(pkg)
 	if len(inspectCalls.Body) == 0 {
-		t.Skip("No tests in builtin test package")
+		t.Skip("No tests in init test package")
 	}
 	pkg.Files = append(pkg.Files, inspectCalls)
 

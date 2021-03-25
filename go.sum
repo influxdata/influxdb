@@ -434,6 +434,8 @@ github.com/influxdata/flux v0.65.0 h1:57tk1Oo4gpGIDbV12vUAPCMtLtThhaXzub1XRIuqv6
 github.com/influxdata/flux v0.65.0/go.mod h1:BwN2XG2lMszOoquQaFdPET8FRQfrXiZsWmcMO9rkaVY=
 github.com/influxdata/flux v0.109.1 h1:1r/qjnpko86037dW6KxGRx3LWrLcIPoeP8E5lcA9sPc=
 github.com/influxdata/flux v0.109.1/go.mod h1:3TJtvbm/Kwuo5/PEo5P6HUzwVg4bXWkb2wPQHPtQdlU=
+github.com/influxdata/flux v0.109.2-0.20210324223716-33ec37c476c2 h1:Jm+kj/6la0o32DDU/dH+uaT89DgHIJh9pJUlllsjCKA=
+github.com/influxdata/flux v0.109.2-0.20210324223716-33ec37c476c2/go.mod h1:3TJtvbm/Kwuo5/PEo5P6HUzwVg4bXWkb2wPQHPtQdlU=
 github.com/influxdata/influxdb v1.8.0/go.mod h1:SIzcnsjaHRFpmlxpJ4S3NT64qtEKYweNTUMb/vh0OMQ=
 github.com/influxdata/influxdb1-client v0.0.0-20191209144304-8bf82d3c094d/go.mod h1:qj24IKcXYK6Iy9ceXlo3Tc+vtHo9lIhSX5JddghvEPo=
 github.com/influxdata/influxql v1.1.0/go.mod h1:KpVI7okXjK6PRi3Z5B+mtKZli+R1DnZgb3N+tzevNgo=
