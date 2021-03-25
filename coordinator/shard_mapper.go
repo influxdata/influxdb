@@ -195,7 +195,9 @@ func (a *LocalShardMapping) CreateIterator(ctx context.Context, m *influxql.Meas
 				if err != nil {
 					return err
 				}
-				inputs = append(inputs, input)
+				if input != nil {
+					inputs = append(inputs, input)
+				}
 			}
 			return nil
 		}(); err != nil {
