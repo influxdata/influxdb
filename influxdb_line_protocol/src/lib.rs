@@ -677,9 +677,7 @@ fn field_uinteger_value(i: &str) -> IResult<&str, u64> {
 fn field_float_value(i: &str) -> IResult<&str, f64> {
     let value = alt((
         field_float_value_with_exponential_and_decimal,
-        field_float_value_with_upper_case_exponential_and_decimal,
         field_float_value_with_exponential_no_decimal,
-        field_float_value_with_upper_case_exponential_no_decimal,
         field_float_value_with_decimal,
         field_float_value_no_decimal,
     ));
@@ -699,27 +697,13 @@ fn field_float_value_with_exponential_and_decimal(i: &str) -> IResult<&str, &str
         exponential_value,
     ))(i)
 }
-fn field_float_value_with_upper_case_exponential_and_decimal(i: &str) -> IResult<&str, &str> {
-    recognize(separated_pair(
-        integral_value_signed,
-        tag("."),
-        upper_case_exponential_value,
-    ))(i)
-}
+
 fn field_float_value_with_exponential_no_decimal(i: &str) -> IResult<&str, &str> {
     exponential_value(i)
 }
 
 fn exponential_value(i: &str) -> IResult<&str, &str> {
-    recognize(separated_pair(digit1, tag("e+"), digit1))(i)
-}
-
-fn field_float_value_with_upper_case_exponential_no_decimal(i: &str) -> IResult<&str, &str> {
-    upper_case_exponential_value(i)
-}
-
-fn upper_case_exponential_value(i: &str) -> IResult<&str, &str> {
-    recognize(separated_pair(digit1, tag("E+"), digit1))(i)
+    recognize(separated_pair(digit1, alt((tag("e+"), tag("E+"))), digit1))(i)
 }
 
 fn field_float_value_no_decimal(i: &str) -> IResult<&str, &str> {
