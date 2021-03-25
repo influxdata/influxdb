@@ -77,7 +77,7 @@ pub struct BucketLinks {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub owners: Option<String>,
     /// Self
-    #[serde(reskip_serializing_if = "Option::is_none")]
+    #[serde(rename = "self", skip_serializing_if = "Option::is_none")]
     pub self_: Option<String>,
     /// Write
     #[serde(skip_serializing_if = "Option::is_none")]

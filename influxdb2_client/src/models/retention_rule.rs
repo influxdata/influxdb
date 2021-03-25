@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// RetentionRule
-#[derive(Clone, Copy, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct RetentionRule {
     /// Expiry
@@ -23,7 +23,7 @@ impl RetentionRule {
         Self {
             r#type,
             every_seconds,
-            ..Default::default()
+            shard_group_duration_seconds: None,
         }
     }
 }

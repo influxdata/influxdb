@@ -31,7 +31,10 @@ impl Resource {
     pub fn new(r#type: Type) -> Self {
         Self {
             r#type,
-            ..Default::default()
+            id: None,
+            name: None,
+            org_id: None,
+            org: None,
         }
     }
 }
