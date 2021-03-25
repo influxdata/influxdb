@@ -12,6 +12,10 @@ config.json
 # ignore generated files.
 cmd/influxd/version.go
 
+# Flux test harness artifacts
+fluxtest
+flux.zip
+
 # executables
 
 *.test

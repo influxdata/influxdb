@@ -18,6 +18,15 @@ var once sync.Once
 // and is idempotent.
 func Initialize() {
 	once.Do(func() {
-		runtime.FinalizeBuiltIns()
+		// NOTE: We don't use runtime.FinalizeBuiltins() here because the flux test harness
+		// also calls that method, and calling it twice results in a panic.
+		//
+		// Intercepting the double-call error here is messy, but has the least impact to
+		// existing code.
+		if err := runtime.Default.Finalize(); err == nil || err.Error() == "already finalized" {
+			return
+		} else {
+			panic(err)
+		}
 	})
 }
