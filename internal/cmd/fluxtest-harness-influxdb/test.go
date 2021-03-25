@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -28,9 +27,7 @@ type testExecutor struct {
 	s           tests.Server
 	writeOptAST *ast.File
 	readOptAST  *ast.File
-	errOutput   bytes.Buffer
 	i           int
-	failed      bool
 }
 
 func NewTestExecutor(ctx context.Context) (cmd.TestExecutor, error) {
@@ -41,9 +38,14 @@ func NewTestExecutor(ctx context.Context) (cmd.TestExecutor, error) {
 	config.HTTPD.FluxEnabled = true
 	config.HTTPD.FluxLogEnabled = true
 	config.HTTPD.FluxTestingEnabled = true
+	config.Data.Index = "inmem"
 
-	// NOTE: This will panic on failure. Not changing it for now.
-	e.s = tests.OpenServer(config)
+	e.s = tests.NewServer(config)
+	// TODO: Find a way to set up per-test logging that only shows on failures, like zaptest.
+	e.s.SetLogOutput(ioutil.Discard)
+	if err := e.s.Open(); err != nil {
+		return nil, err
+	}
 	return e, nil
 }
 
@@ -55,11 +57,6 @@ func (t *testExecutor) init() {
 func (t *testExecutor) Close() error {
 	// NOTE: This will panic on failure. Not changing it for now.
 	t.s.Close()
-
-	if t.Failed() {
-		_, _ = io.Copy(os.Stdout, &t.errOutput)
-	}
-
 	return nil
 }
 
@@ -80,24 +77,18 @@ func (t *testExecutor) Run(pkg *ast.Package) error {
 			Init: &ast.StringLiteral{Value: dbName + "/autogen"},
 		},
 	}
-	orgOpt := &ast.OptionStatement{
-		Assignment: &ast.VariableAssignment{
-			ID:   &ast.Identifier{Name: "org"},
-			Init: &ast.StringLiteral{Value: "defaultorgname"},
-		},
-	}
 
 	// During the first execution, we are performing the writes
 	// that are in the testcase. We do not care about errors.
-	_ = t.executeWithOptions(bucketOpt, orgOpt, t.writeOptAST, pkg)
+	_ = t.executeWithOptions(bucketOpt, t.writeOptAST, pkg)
 
 	// Execute the read pass.
-	return t.executeWithOptions(bucketOpt, orgOpt, t.readOptAST, pkg)
+	return t.executeWithOptions(bucketOpt, t.readOptAST, pkg)
 }
 
-func (t *testExecutor) executeWithOptions(bucketOpt, orgOpt *ast.OptionStatement, optionsAST *ast.File, pkg *ast.Package) error {
+func (t *testExecutor) executeWithOptions(bucketOpt *ast.OptionStatement, optionsAST *ast.File, pkg *ast.Package) error {
 	options := optionsAST.Copy().(*ast.File)
-	options.Body = append([]ast.Statement{bucketOpt, orgOpt}, options.Body...)
+	options.Body = append([]ast.Statement{bucketOpt}, options.Body...)
 
 	// Add options to pkg
 	pkg = pkg.Copy().(*ast.Package)
@@ -169,7 +160,7 @@ import "testing"
 import c "csv"
 
 option testing.loadStorage = (csv) => {
-	return c.from(csv: csv) |> to(bucket: bucket, org: org)
+	return c.from(csv: csv) |> to(bucket: bucket)
 }
 `
 
@@ -191,33 +182,6 @@ func prepareOptions(optionsSource string) *ast.File {
 		panic(ast.GetError(pkg))
 	}
 	return pkg.Files[0]
-}
-
-func (t *testExecutor) Logf(s string, i ...interface{}) {
-	_, _ = fmt.Fprintf(&t.errOutput, s, i...)
-	_, _ = fmt.Fprintln(&t.errOutput)
-}
-
-func (t *testExecutor) Errorf(s string, i ...interface{}) {
-	t.Logf(s, i...)
-	t.Fail()
-}
-
-func (t *testExecutor) Fail() {
-	t.failed = true
-}
-
-func (t *testExecutor) Failed() bool {
-	return t.failed
-}
-
-func (t *testExecutor) Name() string {
-	return "flux"
-}
-
-func (t *testExecutor) FailNow() {
-	t.Fail()
-	panic(errors.New("abort"))
 }
 
 func tryExec(cmd *cobra.Command) (err error) {
