@@ -66,7 +66,10 @@ OUTDIR=$(mktemp -d)
 		export CGO_ENABLED=1
 		echo "env for go build: GOOS=$GOOS GOARCH=$GOARCH CGO_ENABLED=$CGO_ENABLED"
 		# Note that we only do static builds for arm, to be consistent with influxdb 2.x
-		if [[ -n "$STATIC" || "$GOARCH" == arm64 ]] ; then
+		if [[ "$GOARCH" == arm64 ]] ; then
+			echo go build -i -o "$OUTDIR/$(basename $cmd)" -tags "netgo osusergo static_build noasm" $cmd
+			go build -i -o "$OUTDIR/$(basename $cmd)" -tags "netgo osusergo static_build noasm" $cmd
+		elif [[ -n "$STATIC" ]]; then
 			echo go build -i -o "$OUTDIR/$(basename $cmd)" -tags "netgo osusergo static_build" $cmd
 			go build -i -o "$OUTDIR/$(basename $cmd)" -tags "netgo osusergo static_build" $cmd
 		elif [[ "$GOOS" == windows ]] ; then
