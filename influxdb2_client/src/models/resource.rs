@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Construct a resource
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Resource {
     /// Resource Type
     #[serde(rename = "type")]
@@ -40,59 +41,42 @@ impl Resource {
 
 /// Resource Type
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum Type {
     /// Authorizations
-    #[serde(rename = "authorizations")]
     Authorizations,
     /// Buckets
-    #[serde(rename = "buckets")]
     Buckets,
     /// Dashboards
-    #[serde(rename = "dashboards")]
     Dashboards,
     /// Organizations
-    #[serde(rename = "orgs")]
     Orgs,
     /// Sources
-    #[serde(rename = "sources")]
     Sources,
     /// Tasks
-    #[serde(rename = "tasks")]
     Tasks,
     /// Telegrafs
-    #[serde(rename = "telegrafs")]
     Telegrafs,
     /// Users
-    #[serde(rename = "users")]
     Users,
     /// Variables
-    #[serde(rename = "variables")]
     Variables,
     /// Scrapers
-    #[serde(rename = "scrapers")]
     Scrapers,
     /// Secrets
-    #[serde(rename = "secrets")]
     Secrets,
     /// Labels
-    #[serde(rename = "labels")]
     Labels,
     /// Views
-    #[serde(rename = "views")]
     Views,
     /// Documents
-    #[serde(rename = "documents")]
     Documents,
     /// Notification Rules
-    #[serde(rename = "notificationRules")]
     NotificationRules,
     /// Notification Endpoints
-    #[serde(rename = "notificationEndpoints")]
     NotificationEndpoints,
     /// Checks
-    #[serde(rename = "checks")]
     Checks,
     /// DBRP
-    #[serde(rename = "dbrp")]
     Dbrp,
 }

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Bucket Schema
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Bucket {
     /// BucketLinks
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -26,13 +27,12 @@ pub struct Bucket {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub rp: Option<String>,
     /// Created At
-    #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
     /// Updated At
-    #[serde(rename = "updatedAt", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
     /// Rules to expire or retain data. No rules means data never expires.
-    #[serde(rename = "retentionRules")]
     pub retention_rules: Vec<crate::models::RetentionRule>,
     /// Bucket labels
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -52,35 +52,35 @@ impl Bucket {
 
 /// Bucket Type
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum Type {
     /// User
-    #[serde(rename = "user")]
     User,
     /// System
-    #[serde(rename = "system")]
     System,
 }
 
 /// Bucket links
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct BucketLinks {
     /// Labels
-    #[serde(rename = "labels", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub labels: Option<String>,
     /// Members
-    #[serde(rename = "members", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub members: Option<String>,
     /// Organization
-    #[serde(rename = "org", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub org: Option<String>,
     /// Owners
-    #[serde(rename = "owners", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub owners: Option<String>,
     /// Self
-    #[serde(rename = "self", skip_serializing_if = "Option::is_none")]
+    #[serde(reskip_serializing_if = "Option::is_none")]
     pub self_: Option<String>,
     /// Write
-    #[serde(rename = "write", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub write: Option<String>,
 }
 
@@ -95,6 +95,7 @@ impl BucketLinks {
 
 /// List all buckets
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Buckets {
     /// Links
     #[serde(skip_serializing_if = "Option::is_none")]

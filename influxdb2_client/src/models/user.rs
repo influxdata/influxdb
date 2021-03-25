@@ -33,12 +33,11 @@ impl User {
 
 /// If inactive the user is inactive.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum Status {
     /// User is active
-    #[serde(rename = "active")]
     Active,
     /// User is inactive
-    #[serde(rename = "inactive")]
     Inactive,
 }
 

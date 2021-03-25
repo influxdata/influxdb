@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct IsOnboarding {
     /// True if onboarding has already been completed otherwise false
+    #[serde(default)]
     pub allowed: Option<bool>,
 }
 
@@ -23,6 +24,7 @@ impl IsOnboarding {
 
 /// Post onboarding request, to setup initial user, org and bucket.
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct OnboardingRequest {
     /// Initial username
     pub username: String,
@@ -34,15 +36,12 @@ pub struct OnboardingRequest {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub password: Option<String>,
     /// Retention period in nanoseconds
-    #[serde(
-        rename = "retentionPeriodSeconds",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub retention_period_seconds: Option<i32>,
     /// Retention period *in nanoseconds* for the new bucket. This key's name
     /// has been misleading since OSS 2.0 GA, please transition to use
     /// `retentionPeriodSeconds`
-    #[serde(rename = "retentionPeriodHrs", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub retention_period_hrs: Option<i32>,
 }
 

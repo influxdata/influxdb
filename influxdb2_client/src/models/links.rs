@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Links
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Links {
     /// Next link
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -12,7 +13,7 @@ pub struct Links {
     #[serde(rename = "self")]
     pub self_: String,
     /// Previous Link
-    #[serde(rename = "prev", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub prev: Option<String>,
 }
 

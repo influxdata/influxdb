@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Label
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Label {
     /// Label ID
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -16,7 +17,7 @@ pub struct Label {
     pub name: Option<String>,
     /// Key/Value pairs associated with this label. Keys can be removed by
     /// sending an update with an empty value.
-    #[serde(rename = "properties", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub properties: Option<::std::collections::HashMap<String, String>>,
 }
 

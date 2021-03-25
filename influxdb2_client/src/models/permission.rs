@@ -20,11 +20,10 @@ impl Permission {
 
 /// Allowed Permission Action
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum Action {
     /// Read access
-    #[serde(rename = "read")]
     Read,
     /// Write access
-    #[serde(rename = "write")]
     Write,
 }

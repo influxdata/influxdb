@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 /// Authorization to create
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Authorization {
     /// If inactive the token is inactive and requests using the token will be
     /// rejected.
@@ -15,10 +16,10 @@ pub struct Authorization {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// Auth created_at
-    #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
     /// Auth updated_at
-    #[serde(rename = "updatedAt", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
     /// ID of org that authorization is scoped to.
     #[serde(rename = "orgID")]
@@ -42,7 +43,7 @@ pub struct Authorization {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub org: Option<String>,
     /// Links
-    #[serde(rename = "links", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub links: Option<crate::models::AuthorizationAllOfLinks>,
 }
 
@@ -60,12 +61,11 @@ impl Authorization {
 /// If inactive the token is inactive and requests using the token will be
 /// rejected.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum Status {
     /// Token is active.
-    #[serde(rename = "active")]
     Active,
     /// Token is inactive.
-    #[serde(rename = "inactive")]
     Inactive,
 }
 

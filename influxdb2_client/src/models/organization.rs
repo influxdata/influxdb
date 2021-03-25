@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Organization Schema
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Organization {
     /// Links
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -17,10 +18,10 @@ pub struct Organization {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
     /// Organization created timestamp
-    #[serde(rename = "createdAt", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub created_at: Option<String>,
     /// Organization updated timestamp
-    #[serde(rename = "updatedAt", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub updated_at: Option<String>,
     /// If inactive the organization is inactive.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -39,12 +40,11 @@ impl Organization {
 
 /// If inactive the organization is inactive.
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub enum Status {
     /// Organization is active
-    #[serde(rename = "active")]
     Active,
     /// Organization is inactive
-    #[serde(rename = "inactive")]
     Inactive,
 }
 
@@ -90,10 +90,10 @@ impl OrganizationLinks {
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct Organizations {
     /// Links
-    #[serde(rename = "links", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub links: Option<crate::models::Links>,
     /// List of organizations
-    #[serde(rename = "orgs", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub orgs: Option<Vec<crate::models::Organization>>,
 }
 
