@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"net"
-	"os"
 	"sync"
 	"time"
 )
@@ -54,12 +53,16 @@ func (rc *replayConn) Read(b []byte) (int, error) {
 	return 1, nil
 }
 
+func MuxLogger(w io.Writer) *log.Logger {
+	return log.New(w, "[tcp] ", log.LstdFlags)
+}
+
 // NewMux returns a new instance of Mux.
-func NewMux() *Mux {
+func NewMux(log *log.Logger) *Mux {
 	return &Mux{
 		m:       make(map[byte]*listener),
 		Timeout: DefaultTimeout,
-		Logger:  log.New(os.Stderr, "[tcp] ", log.LstdFlags),
+		Logger:  log,
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net"
+	"os"
 	"strings"
 	"sync"
 	"testing"
@@ -37,11 +38,12 @@ func TestMux(t *testing.T) {
 		defer tcpListener.Close()
 
 		// Setup muxer & listeners.
-		mux := tcp.NewMux()
-		mux.Timeout = 200 * time.Millisecond
-		if !testing.Verbose() {
-			mux.Logger = log.New(ioutil.Discard, "", 0)
+		logger := log.New(ioutil.Discard, "", 0)
+		if testing.Verbose() {
+			logger = tcp.MuxLogger(os.Stderr)
 		}
+		mux := tcp.NewMux(logger)
+		mux.Timeout = 200 * time.Millisecond
 
 		errC := make(chan error)
 		for i := uint8(0); i < n; i++ {
@@ -150,7 +152,7 @@ func TestMux_Listen_ErrAlreadyRegistered(t *testing.T) {
 	}()
 
 	// Register two listeners with the same header byte.
-	mux := tcp.NewMux()
+	mux := tcp.NewMux(tcp.MuxLogger(os.Stderr))
 	mux.Listen(5)
 	mux.Listen(5)
 }
@@ -164,7 +166,7 @@ func TestMux_Close(t *testing.T) {
 	}
 
 	done := make(chan struct{})
-	mux := tcp.NewMux()
+	mux := tcp.NewMux(tcp.MuxLogger(os.Stderr))
 	go func() {
 		mux.Serve(listener)
 		close(done)
