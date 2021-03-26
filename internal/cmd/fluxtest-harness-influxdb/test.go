@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -24,7 +25,6 @@ import (
 
 type testExecutor struct {
 	ctx         context.Context
-	s           tests.Server
 	writeOptAST *ast.File
 	readOptAST  *ast.File
 	i           int
@@ -33,18 +33,6 @@ type testExecutor struct {
 func NewTestExecutor(ctx context.Context) (cmd.TestExecutor, error) {
 	e := &testExecutor{ctx: ctx}
 	e.init()
-
-	config := tests.NewConfig()
-	config.HTTPD.FluxEnabled = true
-	config.HTTPD.FluxLogEnabled = true
-	config.Data.Index = "inmem"
-
-	e.s = tests.NewServer(config)
-	// TODO: Find a way to set up per-test logging that only shows on failures, like zaptest.
-	e.s.SetLogOutput(ioutil.Discard)
-	if err := e.s.Open(); err != nil {
-		return nil, err
-	}
 	return e, nil
 }
 
@@ -54,13 +42,43 @@ func (t *testExecutor) init() {
 }
 
 func (t *testExecutor) Close() error {
-	// NOTE: This will panic on failure. Not changing it for now.
-	t.s.Close()
+	// Servers are closed as part of Run
 	return nil
 }
 
 func (t *testExecutor) Run(pkg *ast.Package) error {
-	s := t.s
+	var failed bool
+	for _, idx := range []string{"inmem", "tsi1"} {
+		logOut := &bytes.Buffer{}
+		if err := t.run(pkg, idx, logOut); err != nil {
+			failed = true
+			_, _ = fmt.Fprintf(os.Stderr, "Failed for index %s:\n%v\n", idx, err)
+			_, _ = io.Copy(os.Stderr, logOut)
+		}
+	}
+
+	if failed {
+		return errors.New("test failed for some index, see logs for details")
+	}
+	return nil
+}
+
+func (t *testExecutor) run(pkg *ast.Package, index string, logOut io.Writer) error {
+	_, _ = fmt.Fprintf(os.Stderr, "Testing %s...\n", index)
+
+	config := tests.NewConfig()
+	config.HTTPD.FluxEnabled = true
+	config.HTTPD.FluxLogEnabled = true
+	config.Data.Index = index
+
+
+	s := tests.NewServer(config)
+	s.SetLogOutput(logOut)
+	if err := s.Open(); err != nil {
+		return err
+	}
+	defer s.Close()
+
 	dbName := fmt.Sprintf("%04d", t.i)
 	t.i++
 
@@ -79,13 +97,13 @@ func (t *testExecutor) Run(pkg *ast.Package) error {
 
 	// During the first execution, we are performing the writes
 	// that are in the testcase. We do not care about errors.
-	_ = t.executeWithOptions(bucketOpt, t.writeOptAST, pkg)
+	_ = t.executeWithOptions(bucketOpt, t.writeOptAST, pkg, s.URL())
 
 	// Execute the read pass.
-	return t.executeWithOptions(bucketOpt, t.readOptAST, pkg)
+	return t.executeWithOptions(bucketOpt, t.readOptAST, pkg, s.URL())
 }
 
-func (t *testExecutor) executeWithOptions(bucketOpt *ast.OptionStatement, optionsAST *ast.File, pkg *ast.Package) error {
+func (t *testExecutor) executeWithOptions(bucketOpt *ast.OptionStatement, optionsAST *ast.File, pkg *ast.Package, serverUrl string) error {
 	options := optionsAST.Copy().(*ast.File)
 	options.Body = append([]ast.Statement{bucketOpt}, options.Body...)
 
@@ -106,7 +124,7 @@ func (t *testExecutor) executeWithOptions(bucketOpt *ast.OptionStatement, option
 		return err
 	}
 
-	u, err := url.Parse(t.s.URL())
+	u, err := url.Parse(serverUrl)
 	if err != nil {
 		return err
 	}
