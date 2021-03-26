@@ -111,7 +111,7 @@ func (t *testExecutor) executeWithOptions(bucketOpt, orgOpt *ast.OptionStatement
 
 	// Add options to pkg
 	pkg = pkg.Copy().(*ast.Package)
-	pkg.Files = append(pkg.Files, options)
+	pkg.Files = append([]*ast.File{options}, pkg.Files...)
 
 	bs, err := json.Marshal(pkg)
 	if err != nil {
