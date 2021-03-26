@@ -28,9 +28,9 @@ func TestTo_Query(t *testing.T) {
 			Want: &flux.Spec{
 				Operations: []*flux.Operation{
 					{
-						ID: "influxDBFrom0",
+						ID: "from0",
 						Spec: &influxdb.FromOpSpec{
-							Bucket: "mydb",
+							Bucket: influxdb.NameOrID{Name: "mydb"},
 						},
 					},
 					{
@@ -43,7 +43,7 @@ func TestTo_Query(t *testing.T) {
 					},
 				},
 				Edges: []flux.Edge{
-					{Parent: "influxDBFrom0", Child: "influx1x/toKind1"},
+					{Parent: "from0", Child: "influx1x/toKind1"},
 				},
 			},
 		},

@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/plan/plantest"
 	"github.com/influxdata/flux/semantic"
+	fluxinfluxdb "github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
@@ -25,8 +26,8 @@ func fluxTime(t int64) flux.Time {
 }
 
 func TestPushDownRangeRule(t *testing.T) {
-	fromSpec := influxdb.FromProcedureSpec{
-		Bucket: "my-bucket",
+	fromSpec := influxdb.FromStorageProcedureSpec{
+		Bucket: influxdb.NameOrID{Name: "my-bucket"},
 	}
 	rangeSpec := universe.RangeProcedureSpec{
 		Bounds: flux.Bounds{
@@ -316,7 +317,7 @@ func TestPushDownFilterRule(t *testing.T) {
 			},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.Node{
-					plan.CreateLogicalNode("from", &influxdb.FromProcedureSpec{}),
+					plan.CreateLogicalNode("from", &influxdb.FromStorageProcedureSpec{}),
 					plan.CreatePhysicalNode("range", &universe.RangeProcedureSpec{
 						Bounds: bounds,
 					}),
@@ -865,8 +866,8 @@ func TestPushDownGroupRule(t *testing.T) {
 }
 
 func TestReadTagKeysRule(t *testing.T) {
-	fromSpec := influxdb.FromProcedureSpec{
-		Bucket: "my-bucket",
+	fromSpec := influxdb.FromStorageProcedureSpec{
+		Bucket: influxdb.NameOrID{Name: "my-bucket"},
 	}
 	rangeSpec := universe.RangeProcedureSpec{
 		Bounds: flux.Bounds{
@@ -1091,8 +1092,8 @@ func TestReadTagKeysRule(t *testing.T) {
 }
 
 func TestReadTagValuesRule(t *testing.T) {
-	fromSpec := influxdb.FromProcedureSpec{
-		Bucket: "my-bucket",
+	fromSpec := influxdb.FromStorageProcedureSpec{
+		Bucket: influxdb.NameOrID{Name: "my-bucket"},
 	}
 	rangeSpec := universe.RangeProcedureSpec{
 		Bounds: flux.Bounds{
@@ -1319,7 +1320,7 @@ func TestReadTagValuesRule(t *testing.T) {
 }
 
 func TestMergeFilterRule(t *testing.T) {
-	from := &influxdb.FromProcedureSpec{}
+	from := &fluxinfluxdb.FromProcedureSpec{}
 	filter0 := func() *universe.FilterProcedureSpec {
 		return &universe.FilterProcedureSpec{
 			Fn: interpreter.ResolvedFunction{
