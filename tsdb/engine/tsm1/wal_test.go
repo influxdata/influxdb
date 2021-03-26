@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"sort"
+	"sync"
 	"testing"
 
 	"github.com/golang/snappy"
@@ -570,6 +571,80 @@ func TestWriteWALSegment_UnmarshalBinary_DeleteRangeWALCorrupt(t *testing.T) {
 		copy(truncated, b[:i])
 		err := w.UnmarshalBinary(truncated)
 		require.True(t, err == nil || err == tsm1.ErrWALCorrupt)
+	}
+}
+
+func BenchmarkWAL_WriteMulti_Concurrency(b *testing.B) {
+	benchmarks := []struct {
+		concurrency int
+	}{
+		{1},
+		{12},
+		{24},
+		{50},
+		{100},
+		{200},
+		{300},
+		{400},
+		{500},
+	}
+
+	for _, bm := range benchmarks {
+		b.Run(fmt.Sprintf("concurrency-%d", bm.concurrency), func(b *testing.B) {
+			points := map[string][]tsm1.Value{}
+			for i := 0; i < 5000; i++ {
+				k := "cpu,host=A#!~#value"
+				points[k] = append(points[k], tsm1.NewValue(int64(i), 1.1))
+			}
+
+			dir := MustTempDir()
+			defer os.RemoveAll(dir)
+
+			w := tsm1.NewWAL(dir)
+			defer w.Close()
+			require.NoError(b, w.Open())
+
+			start := make(chan struct{})
+			stop := make(chan struct{})
+
+			succeed := make(chan struct{}, 1000)
+			defer close(succeed)
+
+			wg := &sync.WaitGroup{}
+			for i := 0; i < bm.concurrency; i++ {
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+
+					<-start
+
+					for {
+						select {
+						case <-stop:
+							return
+						default:
+							_, err := w.WriteMulti(points)
+							require.NoError(b, err)
+
+							succeed <- struct{}{}
+						}
+					}
+				}()
+			}
+
+			b.ResetTimer()
+
+			close(start)
+
+			for i := 0; i < b.N; i++ {
+				<-succeed
+			}
+
+			b.StopTimer()
+
+			close(stop)
+			wg.Wait()
+		})
 	}
 }
 
