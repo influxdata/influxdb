@@ -27,16 +27,22 @@ use parquet_file::chunk::{Chunk, MemWriter};
 use query::{Database, DEFAULT_SCHEMA};
 use read_buffer::Database as ReadBufferDb;
 
-use crate::db::lifecycle::LifecycleManager;
-use crate::tracker::{TrackedFutureExt, Tracker};
-use crate::{buffer::Buffer, JobRegistry};
+use super::{
+    buffer::Buffer,
+    tracker::{TrackedFutureExt, Tracker},
+    JobRegistry,
+};
 use data_types::job::Job;
+
+use lifecycle::LifecycleManager;
+use system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA};
 
 pub mod catalog;
 mod chunk;
 mod lifecycle;
 pub mod pred;
 mod streams;
+mod system_tables;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -132,7 +138,6 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 const STARTING_SEQUENCE: u64 = 1;
 
-#[derive(Debug)]
 /// This is the main IOx Database object. It is the root object of any
 /// specific InfluxDB IOx instance
 ///
@@ -188,6 +193,7 @@ const STARTING_SEQUENCE: u64 = 1;
 /// manipulating the catalog state alongside the state in the `Db`
 /// itself. The catalog state can be observed (but not mutated) by things
 /// outside of the Db
+#[derive(Debug)]
 pub struct Db {
     pub rules: RwLock<DatabaseRules>,
 
@@ -206,6 +212,9 @@ pub struct Db {
     /// A handle to the global jobs registry for long running tasks
     jobs: Arc<JobRegistry>,
 
+    /// The system schema provider
+    system_tables: Arc<SystemSchemaProvider>,
+
     sequence: AtomicU64,
 
     worker_iterations: AtomicUsize,
@@ -222,12 +231,14 @@ impl Db {
         let wal_buffer = wal_buffer.map(Mutex::new);
         let read_buffer = Arc::new(read_buffer);
         let catalog = Arc::new(Catalog::new());
+        let system_tables = Arc::new(SystemSchemaProvider::new(Arc::clone(&catalog)));
         Self {
             rules,
             catalog,
             read_buffer,
             wal_buffer,
             jobs,
+            system_tables,
             sequence: AtomicU64::new(STARTING_SEQUENCE),
             worker_iterations: AtomicUsize::new(0),
         }
@@ -685,13 +696,17 @@ impl CatalogProvider for Db {
     }
 
     fn schema_names(&self) -> Vec<String> {
-        vec![DEFAULT_SCHEMA.to_string()]
+        vec![
+            DEFAULT_SCHEMA.to_string(),
+            system_tables::SYSTEM_SCHEMA.to_string(),
+        ]
     }
 
     fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
         info!(%name, "using schema");
         match name {
             DEFAULT_SCHEMA => Some(Arc::<Catalog>::clone(&self.catalog)),
+            SYSTEM_SCHEMA => Some(Arc::<SystemSchemaProvider>::clone(&self.system_tables)),
             _ => None,
         }
     }

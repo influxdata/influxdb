@@ -10,7 +10,9 @@ use generated_types::{google::FieldViolation, influxdata::iox::management::v1 as
 use serde::{Deserialize, Serialize};
 
 /// Which storage system is a chunk located in?
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Deserialize)]
+#[derive(
+    Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, strum::IntoStaticStr, Serialize, Deserialize,
+)]
 pub enum ChunkStorage {
     /// The chunk is still open for new writes, in the Mutable Buffer
     OpenMutableBuffer,

@@ -13,6 +13,7 @@ use chunk::Chunk;
 use data_types::chunk::ChunkSummary;
 use data_types::database_rules::{Order, Sort, SortOrder};
 use data_types::error::ErrorLogger;
+use data_types::partition_metadata::PartitionSummary;
 use internal_types::selection::Selection;
 use partition::Partition;
 use query::{
@@ -121,6 +122,15 @@ impl Catalog {
             .get(partition_key)
             .cloned()
             .context(UnknownPartition { partition_key })
+    }
+
+    /// Returns a list of partition summaries
+    pub fn partition_summaries(&self) -> Vec<PartitionSummary> {
+        self.partitions
+            .read()
+            .values()
+            .map(|partition| partition.read().summary())
+            .collect()
     }
 
     /// Returns all chunks within the catalog in an arbitrary order
