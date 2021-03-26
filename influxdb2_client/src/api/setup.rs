@@ -23,8 +23,7 @@ impl Client {
                 .json::<IsOnboarding>()
                 .await
                 .context(ReqwestProcessing)?
-                .allowed
-                .unwrap()),
+                .allowed),
             status => {
                 let text = response.text().await.context(ReqwestProcessing)?;
                 Http { status, text }.fail()?

@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 pub struct IsOnboarding {
     /// True if onboarding has already been completed otherwise false
     #[serde(default)]
-    pub allowed: Option<bool>,
+    pub allowed: bool,
 }
 
 impl IsOnboarding {
