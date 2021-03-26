@@ -429,27 +429,29 @@ func (w *PointsWriter) writeToShardWithContext(ctx context.Context, shard *meta.
 	}
 
 	// Except tsdb.ErrShardNotFound no error can be handled here
-	if err := writeToShard(); err == tsdb.ErrShardNotFound {
-		// Shard doesn't exist -- lets create it and try again..
+	if err := writeToShard(); err != nil {
+		if err == tsdb.ErrShardNotFound {
+			// Shard doesn't exist -- lets create it and try again..
 
-		// If we've written to shard that should exist on the current node, but the
-		// store has not actually created this shard, tell it to create it and
-		// retry the write
-		if err = w.TSDBStore.CreateShard(database, retentionPolicy, shard.ID, true); err != nil {
-			w.Logger.Info("Write failed", zap.Uint64("shard", shard.ID), zap.Error(err))
+			// If we've written to shard that should exist on the current node, but the
+			// store has not actually created this shard, tell it to create it and
+			// retry the write
+			if err = w.TSDBStore.CreateShard(database, retentionPolicy, shard.ID, true); err != nil {
+				w.Logger.Info("Write failed", zap.Uint64("shard", shard.ID), zap.Error(err))
+				atomic.AddInt64(&w.stats.WriteErr, 1)
+				return err
+			}
+
+			// Now that we've created the shard, try to write to it again.
+			if err := writeToShard(); err != nil {
+				w.Logger.Info("Write failed", zap.Uint64("shard", shard.ID), zap.Error(err))
+				atomic.AddInt64(&w.stats.WriteErr, 1)
+				return err
+			}
+		} else {
 			atomic.AddInt64(&w.stats.WriteErr, 1)
 			return err
 		}
-
-		// Now that we've created the shard, try to write to it again.
-		if err := writeToShard(); err != nil {
-			w.Logger.Info("Write failed", zap.Uint64("shard", shard.ID), zap.Error(err))
-			atomic.AddInt64(&w.stats.WriteErr, 1)
-			return err
-		}
-	} else {
-		atomic.AddInt64(&w.stats.WriteErr, 1)
-		return err
 	}
 
 	atomic.AddInt64(&w.stats.WriteOK, 1)
