@@ -10,6 +10,7 @@
 #      2: normal 32bit tests
 #      3: tsi build
 #      count: print the number of test environments
+#      flux: run Flux e2e tests via the external test harness
 #      *: to run all tests in parallel containers
 #
 # Logs from the test runs will be saved in OUTPUT_DIR, which defaults to ./test-logs
@@ -121,11 +122,15 @@ case $ENVIRONMENT_INDEX in
     "count")
         echo $ENV_COUNT
         ;;
+    "flux")
+      >&2 echo 'flux tests'
+      run_test_docker Dockerfile_build_ubuntu64_fluxtest
+      ;;
     *)
         echo "No individual test environment specified running tests for all $ENV_COUNT environments."
         # Run all test environments
         pids=()
-        for t in $(seq 0 "$(($ENV_COUNT - 1))")
+        for t in $(seq 0 "$(($ENV_COUNT - 1))") flux
         do
             $0 $t 2>&1 > /dev/null &
             # add PID to list

@@ -1,5 +1,12 @@
 version: 2
 
+workflows:
+  version: 2
+  build:
+    jobs:
+      - build
+      - fluxtest
+
 jobs:
   build:
     machine:
@@ -16,4 +23,14 @@ jobs:
       - run:
           name: Execute test
           command: ./test.sh $CIRCLE_NODE_INDEX
+          no_output_timeout: 1500s
+  fluxtest:
+    machine:
+      enabled: true
+      docker_layer_caching: true
+    steps:
+      - checkout
+      - run:
+          name: Execute test
+          command: ./test.sh flux
           no_output_timeout: 1500s
