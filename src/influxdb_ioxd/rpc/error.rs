@@ -31,8 +31,8 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
 }
 
 /// map common `catalog::Error` errors to the appropriate tonic Status
-pub fn default_catalog_error_handler(error: catalog::Error) -> tonic::Status {
-    use catalog::Error;
+pub fn default_catalog_error_handler(error: server::db::catalog::Error) -> tonic::Status {
+    use server::db::catalog::Error;
     match error {
         Error::UnknownPartition { partition_key } => NotFound {
             resource_type: "partition".to_string(),

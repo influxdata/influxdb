@@ -434,13 +434,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "catalog"
-version = "0.1.0"
-dependencies = [
- "snafu",
-]
-
-[[package]]
 name = "cc"
 version = "1.0.67"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1424,7 +1417,6 @@ dependencies = [
  "assert_cmd",
  "byteorder",
  "bytes",
- "catalog",
  "chrono",
  "clap",
  "criterion",
@@ -3174,7 +3166,6 @@ dependencies = [
  "arrow_deps",
  "async-trait",
  "bytes",
- "catalog",
  "chrono",
  "crc32fast",
  "data_types",

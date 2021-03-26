@@ -8,7 +8,6 @@ edition = "2018"
 arrow_deps = { path = "../arrow_deps" }
 async-trait = "0.1"
 bytes = "1.0"
-catalog = { path = "../catalog" }
 chrono = "0.4"
 crc32fast = "1.2.0"
 data_types = { path = "../data_types" }

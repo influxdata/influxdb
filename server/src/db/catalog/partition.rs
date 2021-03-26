@@ -1,9 +1,12 @@
 //! The catalog representation of a Partition
 
-use crate::chunk::Chunk;
-use std::collections::{btree_map::Entry, BTreeMap};
+use std::{
+    collections::{btree_map::Entry, BTreeMap},
+    sync::Arc,
+};
 
-use super::{ChunkAlreadyExists, Result, UnknownChunk};
+use super::{chunk::Chunk, ChunkAlreadyExists, Result, UnknownChunk};
+use parking_lot::RwLock;
 use snafu::OptionExt;
 
 /// IOx Catalog Partition
@@ -15,7 +18,7 @@ pub struct Partition {
     key: String,
 
     /// The chunks that make up this partition, indexed by id
-    chunks: BTreeMap<u32, Chunk>,
+    chunks: BTreeMap<u32, Arc<RwLock<Chunk>>>,
 }
 
 impl Partition {
@@ -45,12 +48,14 @@ impl Partition {
     /// This function is not pub because `Chunks`s should be created
     /// using the interfaces on [`Catalog`] and not instantiated
     /// directly.
-    pub(crate) fn create_chunk(&mut self, chunk_id: u32) -> Result<()> {
+    pub fn create_chunk(&mut self, chunk_id: u32) -> Result<Arc<RwLock<Chunk>>> {
         let entry = self.chunks.entry(chunk_id);
         match entry {
             Entry::Vacant(entry) => {
-                entry.insert(Chunk::new(&self.key, chunk_id));
-                Ok(())
+                let chunk = Chunk::new(&self.key, chunk_id);
+                let chunk = Arc::new(RwLock::new(chunk));
+                entry.insert(Arc::clone(&chunk));
+                Ok(chunk)
             }
             Entry::Occupied(_) => ChunkAlreadyExists {
                 partition_key: self.key(),
@@ -60,12 +65,8 @@ impl Partition {
         }
     }
 
-    /// Drop the specified
-    ///
-    /// This function is not pub because `Chunks`s should be dropped
-    /// using the interfaces on [`Catalog`] and not instantiated
-    /// directly.
-    pub(crate) fn drop_chunk(&mut self, chunk_id: u32) -> Result<()> {
+    /// Drop the specified chunk
+    pub fn drop_chunk(&mut self, chunk_id: u32) -> Result<()> {
         match self.chunks.remove(&chunk_id) {
             Some(_) => Ok(()),
             None => UnknownChunk {
@@ -77,32 +78,15 @@ impl Partition {
     }
 
     /// Return an immutable chunk reference by chunk id
-    ///
-    /// This function is not pub because `Chunks`s should be
-    /// accessed using the interfaces on [`Catalog`]
-    pub(crate) fn chunk(&self, chunk_id: u32) -> Result<&Chunk> {
-        self.chunks.get(&chunk_id).context(UnknownChunk {
+    pub fn chunk(&self, chunk_id: u32) -> Result<Arc<RwLock<Chunk>>> {
+        self.chunks.get(&chunk_id).cloned().context(UnknownChunk {
             partition_key: self.key(),
             chunk_id,
         })
     }
 
-    /// Return a mutable chunk reference by chunk id
-    ///
-    /// This function is not pub because `Chunks`s should be
-    /// accessed using the interfaces on [`Catalog`]
-    pub(crate) fn chunk_mut(&mut self, chunk_id: u32) -> Result<&mut Chunk> {
-        self.chunks.get_mut(&chunk_id).context(UnknownChunk {
-            partition_key: &self.key,
-            chunk_id,
-        })
-    }
-
-    /// Return a iterator over chunks
-    ///
-    /// This function is not pub because `Chunks`s should be
-    /// accessed using the interfaces on [`Catalog`]
-    pub(crate) fn chunks(&self) -> impl Iterator<Item = &Chunk> {
+    /// Return a iterator over chunks in this partition
+    pub fn chunks(&self) -> impl Iterator<Item = &Arc<RwLock<Chunk>>> {
         self.chunks.values()
     }
 }
