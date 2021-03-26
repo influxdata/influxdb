@@ -452,7 +452,7 @@ impl InfluxRPCPlanner {
                 //    Projection
                 //      Filter(is not null)
                 //        Filter(predicate)
-                //          InMemoryScan
+                //          Scan
                 let plan = plan_builder
                     .project(select_exprs.clone())
                     .context(BuildingPlan)?
@@ -772,7 +772,7 @@ impl InfluxRPCPlanner {
     /// ```text
     ///  Projection (select the field columns needed)
     ///      Filter(predicate) [optional]
-    ///        InMemoryScan
+    ///        Scan
     /// ```
     async fn field_columns_plan<C>(
         &self,
@@ -823,7 +823,7 @@ impl InfluxRPCPlanner {
     ///    Projection (select the columns needed)
     ///      Order by (tag_columns, timestamp_column)
     ///        Filter(predicate)
-    ///          InMemoryScan
+    ///          Scan
     async fn read_filter_plan<C>(
         &self,
         table_name: impl Into<String>,
@@ -1033,7 +1033,7 @@ impl InfluxRPCPlanner {
     ///  OrderBy(gby: tag columns, window_function; agg: aggregate(field)
     ///      GroupBy(gby: tag columns, window_function; agg: aggregate(field)
     ///        Filter(predicate)
-    ///          InMemoryScan
+    ///          Scan
     pub async fn read_window_aggregate_plan<C>(
         &self,
         table_name: impl Into<String>,
@@ -1119,7 +1119,7 @@ impl InfluxRPCPlanner {
     ///
     /// ```text
     ///   Filter(predicate) [optional]
-    ///     InMemoryScan
+    ///     Scan
     /// ```
     async fn scan_and_filter<C>(
         &self,
