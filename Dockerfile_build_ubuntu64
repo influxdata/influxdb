@@ -27,7 +27,7 @@ RUN gem install fpm
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
 
 # setup environment
-ENV GO_VERSION  1.13.8
+ENV GO_VERSION  1.15.10
 ENV GOARCH      amd64
 ENV GOROOT      /usr/local/go
 ENV GOPATH      /root/go
