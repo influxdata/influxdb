@@ -196,6 +196,7 @@ async fn test_create_get_database() {
             }),
             persist_after_cold_seconds: 34,
         }),
+        shard_config: None,
     };
 
     client

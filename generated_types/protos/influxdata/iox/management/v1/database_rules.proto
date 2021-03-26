@@ -4,6 +4,7 @@ package influxdata.iox.management.v1;
 import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
 import "influxdata/iox/management/v1/base_types.proto";
+import "influxdata/iox/management/v1/shard.proto";
 
 // `PartitionTemplate` is used to compute the partition key of each row that
 // gets written. It can consist of the table name, a column name and its value,
@@ -152,4 +153,7 @@ message DatabaseRules {
 
   // Mutable buffer configuration for this database
   MutableBufferConfig mutable_buffer_config = 7;
+
+  // Shard  config
+  ShardConfig shard_config = 8;
 }

@@ -118,6 +118,7 @@ impl From<DatabaseRules> for management::DatabaseRules {
             partition_template: Some(rules.partition_template.into()),
             wal_buffer_config: rules.wal_buffer_config.map(Into::into),
             mutable_buffer_config: rules.mutable_buffer_config.map(Into::into),
+            shard_config: rules.shard_config.map(Into::into),
         }
     }
 }
@@ -139,12 +140,17 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
             .optional("partition_template")?
             .unwrap_or_default();
 
+        let shard_config = proto
+            .shard_config
+            .optional("shard_config")
+            .unwrap_or_default();
+
         Ok(Self {
             name: proto.name,
             partition_template,
             wal_buffer_config,
             mutable_buffer_config,
-            shard_config: None,
+            shard_config,
         })
     }
 }
@@ -1152,6 +1158,7 @@ mod tests {
         // These should be none as preserved on non-protobuf DatabaseRules
         assert!(back.wal_buffer_config.is_none());
         assert!(back.mutable_buffer_config.is_none());
+        assert!(back.shard_config.is_none());
     }
 
     #[test]
@@ -1541,5 +1548,21 @@ mod tests {
 
         assert_eq!(shard_config.ignore_errors, false);
         assert_eq!(protobuf.ignore_errors, back.ignore_errors);
+    }
+
+    #[test]
+    fn test_database_rules_shard_config() {
+        let protobuf = management::DatabaseRules {
+            name: "database".to_string(),
+            shard_config: Some(management::ShardConfig {
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let rules: DatabaseRules = protobuf.try_into().unwrap();
+        let back: management::DatabaseRules = rules.into();
+
+        assert!(back.shard_config.is_some());
     }
 }
