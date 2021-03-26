@@ -71,7 +71,6 @@ func (t *testExecutor) run(pkg *ast.Package, index string, logOut io.Writer) err
 	config.HTTPD.FluxLogEnabled = true
 	config.Data.Index = index
 
-
 	s := tests.NewServer(config)
 	s.SetLogOutput(logOut)
 	if err := s.Open(); err != nil {
