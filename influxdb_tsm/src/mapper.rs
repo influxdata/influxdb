@@ -467,11 +467,7 @@ fn map_field_columns(
     // create a row with and iteration stops.
     let mut timestamps = Vec::new(); // TODO(edd): get hint for pre-allocate
     while let Some(min_ts) = map_blocks_to_columns(&mut block_value_buffer, &mut result) {
-        //
-        // TODO(edd): Convert nanoseconds into microseconds for Parquet support.
-        // Address this in https://github.com/influxdata/influxdb_iox/issues/167
-        //
-        timestamps.push(min_ts / 1000);
+        timestamps.push(min_ts);
         refill_block_buffer(&mut decoder, field_blocks, &mut input_block_buffer)?;
         refill_value_pair_buffer(&mut input_block_buffer, &mut block_value_buffer);
     }

@@ -493,16 +493,11 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
         }
 
         if let Some(packer_for_row) = packer_map.get_mut(TIME_COLUMN_NAME) {
-            // The Rust implementation of the parquet writer doesn't support
-            // Nanosecond precision for timestamps yet, so we downconvert them here
-            // to microseconds
-            let timestamp_micros = line.timestamp.map(|timestamp_nanos| timestamp_nanos / 1000);
-
             // TODO(edd) why would line _not_ have a timestamp??? We should always have them
             packer_for_row
                 .packer()
                 .i64_packer_mut()
-                .push_option(timestamp_micros)
+                .push_option(line.timestamp)
         } else {
             panic!("No {} field present in schema...", TIME_COLUMN_NAME);
         }
@@ -1661,17 +1656,17 @@ mod tests {
         assert_eq!(bool_field_packer.get(7).unwrap(), &true);
         assert_eq!(bool_field_packer.get(8).unwrap(), &true);
 
-        // timestamp values (NB The timestamps are truncated to Microseconds)
+        // timestamp valuess
         let timestamp_packer = &packers[5].i64_packer();
-        assert_eq!(timestamp_packer.get(0).unwrap(), &1_590_488_773_254_420);
-        assert_eq!(timestamp_packer.get(1).unwrap(), &1_590_488_773_254_430);
-        assert_eq!(timestamp_packer.get(2).unwrap(), &1_590_488_773_254_440);
-        assert_eq!(timestamp_packer.get(3).unwrap(), &1_590_488_773_254_450);
-        assert_eq!(timestamp_packer.get(4).unwrap(), &1_590_488_773_254_460);
-        assert_eq!(timestamp_packer.get(5).unwrap(), &1_590_488_773_254_470);
-        assert_eq!(timestamp_packer.get(6).unwrap(), &1_590_488_773_254_480);
+        assert_eq!(timestamp_packer.get(0).unwrap(), &1_590_488_773_254_420_000);
+        assert_eq!(timestamp_packer.get(1).unwrap(), &1_590_488_773_254_430_000);
+        assert_eq!(timestamp_packer.get(2).unwrap(), &1_590_488_773_254_440_000);
+        assert_eq!(timestamp_packer.get(3).unwrap(), &1_590_488_773_254_450_000);
+        assert_eq!(timestamp_packer.get(4).unwrap(), &1_590_488_773_254_460_000);
+        assert_eq!(timestamp_packer.get(5).unwrap(), &1_590_488_773_254_470_000);
+        assert_eq!(timestamp_packer.get(6).unwrap(), &1_590_488_773_254_480_000);
         assert!(timestamp_packer.is_null(7));
-        assert_eq!(timestamp_packer.get(8).unwrap(), &1_590_488_773_254_490);
+        assert_eq!(timestamp_packer.get(8).unwrap(), &1_590_488_773_254_490_000);
 
         Ok(())
     }
@@ -1999,15 +1994,15 @@ mod tests {
         assert_eq!(
             packers[6],
             Packers::Integer(Packer::from(vec![
-                Some(3),
-                Some(4),
-                Some(5),
+                Some(3000),
+                Some(4000),
+                Some(5000),
                 Some(0),
-                Some(1),
-                Some(2),
-                Some(2),
-                Some(3),
-                Some(4),
+                Some(1000),
+                Some(2000),
+                Some(2000),
+                Some(3000),
+                Some(4000),
             ]))
         );
 

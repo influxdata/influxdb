@@ -92,9 +92,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.39"
+version = "1.0.40"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "81cddc5f91628367664cc7c69714ff08deee8a3efc54623011c772544d7b2767"
+checksum = "28b2cd92db5cbd74e8e5028f7e27dd7aa3090e89e4f2a197cc7c8dfb69c7063b"
 
 [[package]]
 name = "arrayref"
@@ -111,7 +111,7 @@ checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
 [[package]]
 name = "arrow"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=9262a5d83b6037d0c39668310b1875e32f1b7e83#9262a5d83b6037d0c39668310b1875e32f1b7e83"
+source = "git+https://github.com/apache/arrow.git?rev=2c5e26423550d82ab2bd3f7a8f7f1d7eac89cf36#2c5e26423550d82ab2bd3f7a8f7f1d7eac89cf36"
 dependencies = [
  "cfg_aliases",
  "chrono",
@@ -134,7 +134,7 @@ dependencies = [
 [[package]]
 name = "arrow-flight"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=9262a5d83b6037d0c39668310b1875e32f1b7e83#9262a5d83b6037d0c39668310b1875e32f1b7e83"
+source = "git+https://github.com/apache/arrow.git?rev=2c5e26423550d82ab2bd3f7a8f7f1d7eac89cf36#2c5e26423550d82ab2bd3f7a8f7f1d7eac89cf36"
 dependencies = [
  "arrow",
  "bytes",
@@ -774,7 +774,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=9262a5d83b6037d0c39668310b1875e32f1b7e83#9262a5d83b6037d0c39668310b1875e32f1b7e83"
+source = "git+https://github.com/apache/arrow.git?rev=2c5e26423550d82ab2bd3f7a8f7f1d7eac89cf36#2c5e26423550d82ab2bd3f7a8f7f1d7eac89cf36"
 dependencies = [
  "ahash 0.7.2",
  "arrow",
@@ -1106,7 +1106,7 @@ dependencies = [
  "futures-sink",
  "futures-task",
  "futures-util",
- "pin-project 1.0.5",
+ "pin-project 1.0.6",
  "pin-utils",
 ]
 
@@ -1322,9 +1322,9 @@ checksum = "9a3a5bfb195931eeb336b2a7b4d761daec841b97f947d34394601737a7bba5e4"
 
 [[package]]
 name = "hyper"
-version = "0.14.4"
+version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8e946c2b1349055e0b72ae281b238baf1a3ea7307c7e9f9d64673bdd9c26ac7"
+checksum = "8bf09f61b52cfcf4c00de50df88ae423d6c02354e385a86341133b5338630ad1"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -1336,7 +1336,7 @@ dependencies = [
  "httparse",
  "httpdate",
  "itoa",
- "pin-project 1.0.5",
+ "pin-project 1.0.6",
  "socket2",
  "tokio",
  "tower-service",
@@ -1776,9 +1776,9 @@ checksum = "0ee1c47aaa256ecabcaea351eae4a9b01ef39ed810004e298d2511ed284b1525"
 
 [[package]]
 name = "memoffset"
-version = "0.6.1"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "157b4208e3059a8f9e78d559edc658e13df41410cb3ae03979c83130067fdd87"
+checksum = "cc14fc54a812b4472b4113facc3e44d099fbc0ea2ce0551fa5c703f8edfbfd38"
 dependencies = [
  "autocfg",
 ]
@@ -2122,7 +2122,7 @@ dependencies = [
  "js-sys",
  "lazy_static",
  "percent-encoding",
- "pin-project 1.0.5",
+ "pin-project 1.0.6",
  "rand 0.8.3",
  "thiserror",
  "tokio",
@@ -2243,7 +2243,7 @@ dependencies = [
 [[package]]
 name = "parquet"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=9262a5d83b6037d0c39668310b1875e32f1b7e83#9262a5d83b6037d0c39668310b1875e32f1b7e83"
+source = "git+https://github.com/apache/arrow.git?rev=2c5e26423550d82ab2bd3f7a8f7f1d7eac89cf36#2c5e26423550d82ab2bd3f7a8f7f1d7eac89cf36"
 dependencies = [
  "arrow",
  "base64 0.12.3",
@@ -2324,11 +2324,11 @@ dependencies = [
 
 [[package]]
 name = "pin-project"
-version = "1.0.5"
+version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "96fa8ebb90271c4477f144354485b8068bd8f6b78b428b01ba892ca26caf0b63"
+checksum = "bc174859768806e91ae575187ada95c91a29e96a98dc5d2cd9a1fed039501ba6"
 dependencies = [
- "pin-project-internal 1.0.5",
+ "pin-project-internal 1.0.6",
 ]
 
 [[package]]
@@ -2344,9 +2344,9 @@ dependencies = [
 
 [[package]]
 name = "pin-project-internal"
-version = "1.0.5"
+version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "758669ae3558c6f74bd2a18b41f7ac0b5a195aea6639d6a9b5e5d1ad5ba24c0b"
+checksum = "a490329918e856ed1b083f244e3bfe2d8c4f336407e4ea9e1a9f479ff09049e5"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3178,7 +3178,7 @@ dependencies = [
  "mutable_buffer",
  "object_store",
  "parking_lot",
- "pin-project 1.0.5",
+ "pin-project 1.0.6",
  "query",
  "read_buffer",
  "serde",
@@ -3292,11 +3292,10 @@ checksum = "dc725476a1398f0480d56cd0ad381f6f32acf2642704456f8f59a35df464b59a"
 
 [[package]]
 name = "socket2"
-version = "0.3.19"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "122e570113d28d773067fab24266b66753f6ea915758651696b6e35e49f88d6e"
+checksum = "9e3dfc207c526015c632472a77be09cf1b6e46866581aecae5cc38fb4235dea2"
 dependencies = [
- "cfg-if 1.0.0",
  "libc",
  "winapi",
 ]
@@ -3435,9 +3434,9 @@ checksum = "1e81da0851ada1f3e9d4312c704aa4f8806f0f9d69faaf8df2f3464b4a9437c2"
 
 [[package]]
 name = "syn"
-version = "1.0.64"
+version = "1.0.65"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3fd9d1e9976102a03c542daa2eff1b43f9d72306342f3f8b3ed5fb8908195d6f"
+checksum = "f3a1d708c221c5a612956ef9f75b37e454e88d1f7b899fbd3a18d4252012d663"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3728,7 +3727,7 @@ dependencies = [
  "http-body",
  "hyper",
  "percent-encoding",
- "pin-project 1.0.5",
+ "pin-project 1.0.6",
  "prost",
  "prost-derive",
  "tokio",
@@ -3776,7 +3775,7 @@ dependencies = [
  "futures-core",
  "futures-util",
  "indexmap",
- "pin-project 1.0.5",
+ "pin-project 1.0.6",
  "rand 0.8.3",
  "slab",
  "tokio",
@@ -3838,7 +3837,7 @@ version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "97d095ae15e245a057c8e8451bab9b3ee1e1f68e9ba2b4fbc18d0ac5237835f2"
 dependencies = [
- "pin-project 1.0.5",
+ "pin-project 1.0.6",
  "tracing",
 ]
 
