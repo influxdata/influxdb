@@ -390,7 +390,7 @@ impl PartitionChunk for TestChunk {
         Ok(Some(names))
     }
 
-    async fn table_schema(
+    fn table_schema(
         &self,
         table_name: &str,
         selection: Selection<'_>,

@@ -261,7 +261,6 @@ impl InfluxRPCPlanner {
                 // get only tag columns from metadata
                 let schema = chunk
                     .table_schema(&table_name, Selection::All)
-                    .await
                     .expect("to be able to get table schema");
                 let column_names: Vec<&str> = schema
                     .tags_iter()
@@ -367,7 +366,6 @@ impl InfluxRPCPlanner {
                 // use schema to validate column type
                 let schema = chunk
                     .table_schema(&table_name, Selection::All)
-                    .await
                     .expect("to be able to get table schema");
 
                 // Skip this table if the tag_name is not a column in this table
@@ -1150,7 +1148,6 @@ impl InfluxRPCPlanner {
 
             let chunk_table_schema = chunk
                 .table_schema(table_name, selection)
-                .await
                 .map_err(|e| Box::new(e) as _)
                 .context(GettingTableSchema {
                     table_name,

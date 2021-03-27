@@ -117,7 +117,6 @@ impl SQLQueryPlanner {
                         let chunk_id = chunk.id();
                         let chunk_table_schema = chunk
                             .table_schema(table_name, Selection::All)
-                            .await
                             .map_err(|e| Box::new(e) as _)
                             .context(GettingTableSchema {
                                 table_name,

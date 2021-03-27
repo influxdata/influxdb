@@ -242,7 +242,7 @@ impl PartitionChunk for DBChunk {
         Ok(names)
     }
 
-    async fn table_schema(
+    fn table_schema(
         &self,
         table_name: &str,
         selection: Selection<'_>,
@@ -323,7 +323,7 @@ impl PartitionChunk for DBChunk {
                     }
                     .fail();
                 }
-                let schema: Schema = self.table_schema(table_name, selection).await?;
+                let schema: Schema = self.table_schema(table_name, selection)?;
 
                 Ok(Box::pin(MutableBufferChunkStream::new(
                     Arc::clone(&chunk),

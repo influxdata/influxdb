@@ -120,7 +120,7 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// Returns the Schema for a table in this chunk, with the
     /// specified column selection. An error is returned if the
     /// selection refers to columns that do not exist.
-    async fn table_schema(
+    fn table_schema(
         &self,
         table_name: &str,
         selection: Selection<'_>,
