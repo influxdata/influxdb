@@ -56,10 +56,18 @@ function filename2imagename {
 }
 
 # Run a test in a docker container
-# Usage: run_test_docker <Dockerfile> <env_name>
+# Usage: run_test_docker <Dockerfile> <env_name> <args>...
 function run_test_docker {
-    local dockerfile=$1
+  run_docker /root/influxdb/build.py "${@}" --test --junit-report "--parallel=$PARALLELISM" "--timeout=$TIMEOUT"
+}
+
+# Run a script in a docker container
+# Usage: run_docker <Dockerfile> <env_name> <args>...
+function run_docker {
+    local dockerfile=Dockerfile_build_ubuntu64
     local imagename=$(filename2imagename "$dockerfile")
+
+    local entrypoint=$1
     shift
     local name=$1
     shift
@@ -77,8 +85,7 @@ function run_test_docker {
          -e "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" \
          -e "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" \
          "$imagename" \
-         "--parallel=$PARALLELISM" \
-         "--timeout=$TIMEOUT" \
+         "$entrypoint" \
          "$@" \
          2>&1 | tee "$logfile"
     return "${PIPESTATUS[0]}"
@@ -104,19 +111,19 @@ fi
 case $ENVIRONMENT_INDEX in
     0)
         >&2 echo '64 bit tests'
-        run_test_docker Dockerfile_build_ubuntu64 test_64bit --test --junit-report
+        run_test_docker test_64bit
         rc=$?
         ;;
     1)
         >&2 echo '64 bit race tests'
         GORACE="halt_on_error=1"
-        run_test_docker Dockerfile_build_ubuntu64 test_64bit_race --test --junit-report --race
+        run_test_docker test_64bit_race --race
         rc=$?
         ;;
     2)
         >&2 echo 'tsi tests'
         INFLUXDB_DATA_INDEX_VERSION="tsi1"
-        run_test_docker Dockerfile_build_ubuntu64 test_64bit --test --junit-report
+        run_test_docker test_64bit_tsi
         rc=$?
         ;;
     "count")
@@ -124,7 +131,7 @@ case $ENVIRONMENT_INDEX in
         ;;
     "flux")
       >&2 echo 'flux tests'
-      run_test_docker Dockerfile_build_ubuntu64_fluxtest
+      run_docker /root/influxdb/test-flux.sh test_flux
       ;;
     *)
         echo "No individual test environment specified running tests for all $ENV_COUNT environments."
