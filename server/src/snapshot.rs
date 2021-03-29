@@ -369,7 +369,7 @@ mod tests {
     use super::*;
     use data_types::database_rules::DatabaseRules;
     use futures::TryStreamExt;
-    use mutable_buffer::{chunk::Chunk as ChunkWB, MutableBufferDb};
+    use mutable_buffer::chunk::Chunk as ChunkWB;
     use object_store::memory::InMemory;
     use query::{test::TestLPWriter, Database};
 
@@ -442,7 +442,11 @@ mem,host=A,region=west used=45 1
         ];
 
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let chunk = DBChunk::new_mb(Arc::new(ChunkWB::new(11)), "key", false);
+        let chunk = Arc::new(DBChunk::MutableBuffer {
+            chunk: Arc::new(ChunkWB::new(11)),
+            partition_key: Arc::new("key".to_string()),
+            open: false,
+        });
         let mut metadata_path = store.new_path();
         metadata_path.push_dir("meta");
 
@@ -476,10 +480,8 @@ mem,host=A,region=west used=45 1
 
     /// Create a Database with a local store
     pub fn make_db() -> Db {
-        let name = "test_db";
         Db::new(
             DatabaseRules::new(),
-            Some(MutableBufferDb::new(name)),
             ReadBufferDb::new(),
             None, // wal buffer
             Arc::new(JobRegistry::new()),

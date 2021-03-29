@@ -5,7 +5,10 @@ use std::{
     sync::Arc,
 };
 
-use super::{chunk::Chunk, ChunkAlreadyExists, Result, UnknownChunk};
+use super::{
+    chunk::{Chunk, ChunkState},
+    ChunkAlreadyExists, Result, UnknownChunk,
+};
 use parking_lot::RwLock;
 use snafu::OptionExt;
 
@@ -16,6 +19,9 @@ use snafu::OptionExt;
 pub struct Partition {
     /// The partition key
     key: String,
+
+    /// What the next chunk id is
+    next_chunk_id: u32,
 
     /// The chunks that make up this partition, indexed by id
     chunks: BTreeMap<u32, Arc<RwLock<Chunk>>>,
@@ -44,11 +50,9 @@ impl Partition {
     }
 
     /// Create a new Chunk
-    ///
-    /// This function is not pub because `Chunks`s should be created
-    /// using the interfaces on [`Catalog`] and not instantiated
-    /// directly.
-    pub fn create_chunk(&mut self, chunk_id: u32) -> Result<Arc<RwLock<Chunk>>> {
+    pub fn create_chunk(&mut self) -> Result<Arc<RwLock<Chunk>>> {
+        let chunk_id = self.next_chunk_id;
+        self.next_chunk_id += 1;
         let entry = self.chunks.entry(chunk_id);
         match entry {
             Entry::Vacant(entry) => {
@@ -75,6 +79,17 @@ impl Partition {
             }
             .fail(),
         }
+    }
+
+    /// return the first currently open chunk, if any
+    pub fn open_chunk(&self) -> Option<Arc<RwLock<Chunk>>> {
+        self.chunks
+            .values()
+            .find(|chunk| {
+                let chunk = chunk.read();
+                matches!(chunk.state(), ChunkState::Open(_))
+            })
+            .cloned()
     }
 
     /// Return an immutable chunk reference by chunk id

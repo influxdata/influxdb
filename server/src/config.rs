@@ -7,7 +7,6 @@ use data_types::{
     database_rules::{DatabaseRules, WriterId},
     DatabaseName,
 };
-use mutable_buffer::MutableBufferDb;
 use object_store::path::ObjectStorePath;
 use read_buffer::Database as ReadBufferDb;
 
@@ -55,18 +54,11 @@ impl Config {
             });
         }
 
-        let mutable_buffer = if !rules.lifecycle_rules.immutable {
-            Some(MutableBufferDb::new(name.to_string()))
-        } else {
-            None
-        };
-
         let read_buffer = ReadBufferDb::new();
 
         let wal_buffer = rules.wal_buffer_config.as_ref().map(Into::into);
         let db = Arc::new(Db::new(
             rules,
-            mutable_buffer,
             read_buffer,
             wal_buffer,
             Arc::clone(&self.jobs),

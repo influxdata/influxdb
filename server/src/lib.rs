@@ -930,7 +930,7 @@ mod tests {
             .map(|s| format!("{:?} {}", s.storage, s.id))
             .collect::<Vec<_>>();
 
-        let expected = vec!["ReadBuffer 0", "OpenMutableBuffer 1"];
+        let expected = vec!["ReadBuffer 0"];
 
         assert_eq!(
             expected, actual,

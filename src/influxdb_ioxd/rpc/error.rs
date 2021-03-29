@@ -72,7 +72,7 @@ pub fn default_db_error_handler(error: server::db::Error) -> tonic::Status {
             description: "Cannot write to database: no mutable buffer configured".to_string(),
         }
         .into(),
-        Error::RollingOverChunk { source, .. } => default_catalog_error_handler(source),
+        Error::RollingOverPartition { source, .. } => default_catalog_error_handler(source),
         error => {
             error!(?error, "Unexpected error");
             InternalError {}.into()

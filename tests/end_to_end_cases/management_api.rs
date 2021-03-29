@@ -583,11 +583,9 @@ async fn test_close_partition_chunk() {
         .expect("listing chunks");
     chunks.sort_by(|c1, c2| c1.id.cmp(&c2.id));
 
-    assert_eq!(chunks.len(), 2, "Chunks: {:#?}", chunks);
+    assert_eq!(chunks.len(), 1, "Chunks: {:#?}", chunks);
     assert_eq!(chunks[0].id, 0);
     assert_eq!(chunks[0].storage, ChunkStorage::ReadBuffer as i32);
-    assert_eq!(chunks[1].id, 1);
-    assert_eq!(chunks[1].storage, ChunkStorage::OpenMutableBuffer as i32);
 }
 
 #[tokio::test]

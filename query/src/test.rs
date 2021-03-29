@@ -388,6 +388,10 @@ impl PartitionChunk for TestChunk {
         Ok(Some(names))
     }
 
+    fn all_table_names(&self, known_tables: &mut StringSet) {
+        known_tables.extend(self.table_schemas.keys().cloned())
+    }
+
     fn table_schema(
         &self,
         table_name: &str,

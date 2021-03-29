@@ -31,6 +31,22 @@ pub enum Error {
         partition_key: String,
         chunk_id: u32,
     },
+
+    #[snafu(display(
+        "Internal unexpected chunk state for {}:{}  during {}. Expected {}, got {}",
+        partition_key,
+        chunk_id,
+        operation,
+        expected,
+        actual
+    ))]
+    InternalChunkState {
+        partition_key: String,
+        chunk_id: u32,
+        operation: String,
+        expected: String,
+        actual: String,
+    },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -157,8 +173,8 @@ mod tests {
         let p1 = catalog.create_partition("p1").unwrap();
 
         let mut p1 = p1.write();
-        p1.create_chunk(0).unwrap();
-        p1.create_chunk(1).unwrap();
+        p1.create_chunk().unwrap();
+        p1.create_chunk().unwrap();
 
         let c1_0 = p1.chunk(0).unwrap();
         assert_eq!(c1_0.read().key(), "p1");
@@ -173,17 +189,6 @@ mod tests {
     }
 
     #[test]
-    fn chunk_create_dupe() {
-        let catalog = Catalog::new();
-        let p1 = catalog.create_partition("p1").unwrap();
-        let mut p1 = p1.write();
-        p1.create_chunk(0).unwrap();
-
-        let res = p1.create_chunk(0).unwrap_err();
-        assert_eq!(res.to_string(), "chunk already exists: p1:0");
-    }
-
-    #[test]
     fn chunk_list() {
         let catalog = Catalog::new();
 
@@ -191,29 +196,26 @@ mod tests {
         {
             let mut p1 = p1.write();
 
-            p1.create_chunk(0).unwrap();
-            p1.create_chunk(1).unwrap();
+            p1.create_chunk().unwrap();
+            p1.create_chunk().unwrap();
         }
 
         let p2 = catalog.create_partition("p2").unwrap();
         {
             let mut p2 = p2.write();
-            p2.create_chunk(100).unwrap();
+            p2.create_chunk().unwrap();
         }
 
         assert_eq!(
             chunk_strings(&catalog),
-            vec!["Chunk p1:0", "Chunk p1:1", "Chunk p2:100"]
+            vec!["Chunk p1:0", "Chunk p1:1", "Chunk p2:0"]
         );
 
         assert_eq!(
             partition_chunk_strings(&catalog, "p1"),
             vec!["Chunk p1:0", "Chunk p1:1"]
         );
-        assert_eq!(
-            partition_chunk_strings(&catalog, "p2"),
-            vec!["Chunk p2:100"]
-        );
+        assert_eq!(partition_chunk_strings(&catalog, "p2"), vec!["Chunk p2:0"]);
     }
 
     fn chunk_strings(catalog: &Catalog) -> Vec<String> {
@@ -258,14 +260,14 @@ mod tests {
         let p1 = catalog.create_partition("p1").unwrap();
         {
             let mut p1 = p1.write();
-            p1.create_chunk(0).unwrap();
-            p1.create_chunk(1).unwrap();
+            p1.create_chunk().unwrap();
+            p1.create_chunk().unwrap();
         }
 
         let p2 = catalog.create_partition("p2").unwrap();
         {
             let mut p2 = p2.write();
-            p2.create_chunk(0).unwrap();
+            p2.create_chunk().unwrap();
         }
 
         assert_eq!(chunk_strings(&catalog).len(), 3);
@@ -303,8 +305,8 @@ mod tests {
 
         {
             let mut p1 = p1.write();
-            p1.create_chunk(0).unwrap();
-            p1.create_chunk(1).unwrap();
+            p1.create_chunk().unwrap();
+            p1.create_chunk().unwrap();
         }
         assert_eq!(chunk_strings(&catalog).len(), 2);
 
@@ -317,7 +319,7 @@ mod tests {
         // should be ok to recreate (thought maybe not a great idea)
         {
             let mut p1 = p1.write();
-            p1.create_chunk(0).unwrap();
+            p1.create_chunk().unwrap();
         }
         assert_eq!(chunk_strings(&catalog).len(), 2);
     }
