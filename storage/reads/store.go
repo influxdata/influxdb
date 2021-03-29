@@ -71,11 +71,14 @@ type GroupCursor interface {
 	Err() error
 
 	Stats() cursors.CursorStats
+
+	Aggregate() *datatypes.Aggregate
 }
 
 type Store interface {
 	ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest) (ResultSet, error)
 	ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) (GroupResultSet, error)
+	WindowAggregate(ctx context.Context, req *datatypes.ReadWindowAggregateRequest) (ResultSet, error)
 
 	TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error)
 	TagValues(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error)

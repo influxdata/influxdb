@@ -21,6 +21,7 @@ import (
 type StorageStoreMock struct {
 	ReadFilterFn func(ctx context.Context, req *datatypes.ReadFilterRequest) (reads.ResultSet, error)
 	ReadGroupFn  func(ctx context.Context, req *datatypes.ReadGroupRequest) (reads.GroupResultSet, error)
+	WindowAggregateFn func(ctx context.Context, req *datatypes.ReadWindowAggregateRequest) (reads.ResultSet, error)
 
 	TagKeysFn    func(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error)
 	TagValuesFn  func(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error)
@@ -44,6 +45,9 @@ func NewStorageStoreMock() *StorageStoreMock {
 	store.ReadGroupFn = func(context.Context, *datatypes.ReadGroupRequest) (reads.GroupResultSet, error) {
 		return nil, errors.New("implement me")
 	}
+	store.WindowAggregateFn = func(ctx context.Context, req *datatypes.ReadWindowAggregateRequest) (reads.ResultSet, error) {
+		return nil, errors.New("implement me")
+	}
 	store.TagKeysFn = func(context.Context, *datatypes.TagKeysRequest) (cursors.StringIterator, error) {
 		return nil, errors.New("implement me")
 	}
@@ -59,6 +63,10 @@ func (s *StorageStoreMock) ReadFilter(ctx context.Context, req *datatypes.ReadFi
 
 func (s *StorageStoreMock) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) (reads.GroupResultSet, error) {
 	return s.ReadGroupFn(ctx, req)
+}
+
+func (s *StorageStoreMock) WindowAggregate(ctx context.Context, req *datatypes.ReadWindowAggregateRequest) (reads.ResultSet, error) {
+	return s.WindowAggregateFn(ctx, req)
 }
 
 func (s *StorageStoreMock) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error) {

@@ -6,6 +6,7 @@ require (
 	collectd.org v0.3.0
 	github.com/BurntSushi/toml v0.3.1
 	github.com/apache/arrow/go/arrow v0.0.0-20200923215132-ac86123a3f01
+	github.com/benbjohnson/tmpl v1.0.0 // indirect
 	github.com/bmizerany/pat v0.0.0-20170815010413-6226ea591a40
 	github.com/boltdb/bolt v1.3.1
 	github.com/cespare/xxhash v1.1.0
@@ -31,11 +32,11 @@ require (
 	github.com/prometheus/prometheus v0.0.0-20200609090129-a6600f564e3c
 	github.com/retailnext/hllpp v1.0.1-0.20180308014038-101a6d2f8b52
 	github.com/spf13/cast v1.3.0
-	github.com/spf13/cobra v0.0.3
+	github.com/spf13/cobra v1.0.0
 	github.com/stretchr/testify v1.5.1
 	github.com/tinylib/msgp v1.1.0
 	github.com/willf/bitset v1.1.9 // indirect
-	github.com/xlab/treeprint v0.0.0-20180616005107-d6fb6747feb6
+	github.com/xlab/treeprint v1.0.0
 	go.uber.org/zap v1.14.1
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 	golang.org/x/sync v0.0.0-20200625203802-6e8e738ad208

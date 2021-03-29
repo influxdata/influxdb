@@ -7,6 +7,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
+	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
@@ -86,9 +87,30 @@ type ReadTagValuesSpec struct {
 	TagKey string
 }
 
+// Window and the WindowEvery/Offset should be mutually exclusive. If you set either the WindowEvery or Offset with
+// nanosecond values, then the Window will be ignored
+type ReadWindowAggregateSpec struct {
+	ReadFilterSpec
+	WindowEvery int64
+	Offset      int64
+	Aggregates  []plan.ProcedureKind
+	CreateEmpty bool
+	TimeColumn  string
+	Window      execute.Window
+}
+
+func (spec *ReadWindowAggregateSpec) Name() string {
+	var agg string
+	if len(spec.Aggregates) > 0 {
+		agg = string(spec.Aggregates[0])
+	}
+	return fmt.Sprintf("readWindow(%s)", agg)
+}
+
 type Reader interface {
 	ReadFilter(ctx context.Context, spec ReadFilterSpec, alloc *memory.Allocator) (TableIterator, error)
 	ReadGroup(ctx context.Context, spec ReadGroupSpec, alloc *memory.Allocator) (TableIterator, error)
+	ReadWindowAggregate(ctx context.Context, spec ReadWindowAggregateSpec, alloc *memory.Allocator) (TableIterator, error)
 
 	ReadTagKeys(ctx context.Context, spec ReadTagKeysSpec, alloc *memory.Allocator) (TableIterator, error)
 	ReadTagValues(ctx context.Context, spec ReadTagValuesSpec, alloc *memory.Allocator) (TableIterator, error)

@@ -141,7 +141,7 @@ func (s *Store) ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest
 	req.Range.Start = start
 	req.Range.End = end
 
-	return reads.NewFilteredResultSet(ctx, req, cur), nil
+	return reads.NewFilteredResultSet(ctx, req.Range.Start, req.Range.End, cur), nil
 }
 
 func (s *Store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) (reads.GroupResultSet, error) {
@@ -186,6 +186,41 @@ func (s *Store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) 
 	}
 
 	return rs, nil
+}
+
+func (s *Store) WindowAggregate(ctx context.Context, req *datatypes.ReadWindowAggregateRequest) (reads.ResultSet, error) {
+	if req.ReadSource == nil {
+		return nil, errors.New("missing read source")
+	}
+
+	source, err := GetReadSource(*req.ReadSource)
+	if err != nil {
+		return nil, err
+	}
+
+	database, rp, start, end, err := s.validateArgs(source.Database, source.RetentionPolicy, req.Range.Start, req.Range.End)
+	if err != nil {
+		return nil, err
+	}
+
+	shardIDs, err := s.findShardIDs(database, rp, false, start, end)
+	if err != nil {
+		return nil, err
+	}
+	if len(shardIDs) == 0 { // TODO(jeff): this was a typed nil
+		return nil, nil
+	}
+
+	var cur reads.SeriesCursor
+	if ic, err := newIndexSeriesCursor(ctx, req.Predicate, s.TSDBStore.Shards(shardIDs)); err != nil {
+		return nil, err
+	} else if ic == nil { // TODO(jeff): this was a typed nil
+		return nil, nil
+	} else {
+		cur = ic
+	}
+
+	return reads.NewWindowAggregateResultSet(ctx, req, cur)
 }
 
 func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error) {
