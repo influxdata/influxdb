@@ -5,9 +5,9 @@ import (
 	"path"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/kit/platform"
 
-	"github.com/influxdata/influxdb/v2/pkg/testttp"
+	"github.com/influxdata/influxdb/pkg/testttp"
 	"github.com/stretchr/testify/assert"
 )
 

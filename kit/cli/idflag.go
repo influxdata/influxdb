@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/kit/platform"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 )

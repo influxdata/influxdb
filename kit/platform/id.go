@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"unsafe"
 
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+	"github.com/influxdata/influxdb/kit/platform/errors"
 )
 
 // IDLength is the exact length a string (or a byte slice representing it) must have in order to be decoded into a valid ID.

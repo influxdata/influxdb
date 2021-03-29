@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"reflect"
 	"testing"
 
-	platformtesting "github.com/influxdata/influxdb/v2/testing"
+	"github.com/influxdata/influxdb/kit/platform"
+	platformtesting "github.com/influxdata/influxdb/testing"
 )
 
 func TestIDFromString(t *testing.T) {

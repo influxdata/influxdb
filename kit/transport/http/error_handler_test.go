@@ -3,12 +3,11 @@ package http_test
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/http"
-	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
+	"github.com/influxdata/influxdb/kit/platform/errors"
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
 )
 
 func TestEncodeError(t *testing.T) {
@@ -47,7 +46,7 @@ func TestEncodeErrorWithError(t *testing.T) {
 	// The http handler will flatten the message and it will not
 	// have an error property, so reading the serialization results
 	// in a different error.
-	pe := http.CheckError(w.Result()).(*errors.Error)
+	pe := kithttp.CheckError(w.Result()).(*errors.Error)
 	if want, got := errors.EInternal, pe.Code; want != got {
 		t.Errorf("unexpected code -want/+got:\n\t- %q\n\t+ %q", want, got)
 	}

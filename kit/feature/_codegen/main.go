@@ -11,7 +11,7 @@ import (
 	"text/template"
 
 	"github.com/Masterminds/sprig"
-	"github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/kit/feature"
 	yaml "gopkg.in/yaml.v2"
 )
 
@@ -262,7 +262,7 @@ func templateFunctions() template.FuncMap {
 
 	functions["import"] = func(t interface{}) string {
 		if t.(bool) {
-			return "import \"github.com/influxdata/influxdb/v2/kit/feature\""
+			return "import \"github.com/influxdata/influxdb/kit/feature\""
 		}
 		return ""
 	}

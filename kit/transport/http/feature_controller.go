@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/kit/feature"
 )
 
 // Enabler allows the switching between two HTTP Handlers

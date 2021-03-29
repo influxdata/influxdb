@@ -5,14 +5,14 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
 
-	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
-	"github.com/influxdata/influxdb/v2/pkg/testttp"
+	"github.com/influxdata/influxdb/kit/platform/errors"
+	kithttp "github.com/influxdata/influxdb/kit/transport/http"
+	"github.com/influxdata/influxdb/pkg/testttp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/kit/feature"
 )
 
 // Flagger can override default flag values.

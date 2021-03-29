@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/kit/feature"
 )
 
 func Test_feature(t *testing.T) {
