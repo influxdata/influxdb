@@ -116,7 +116,7 @@ impl Database {
             Entry::Vacant(e) => {
                 e.insert(Partition::new(
                     partition_key,
-                    Chunk::new(chunk_id, Table::new(table_name.to_owned(), row_group)),
+                    Chunk::new_with_table(chunk_id, Table::new(table_name.to_owned(), row_group)),
                 ));
             }
         };
@@ -649,7 +649,10 @@ impl Partition {
                 chunk.upsert_table(table_name, row_group);
             }
             Entry::Vacant(chunk_entry) => {
-                chunk_entry.insert(Chunk::new(chunk_id, Table::new(table_name, row_group)));
+                chunk_entry.insert(Chunk::new_with_table(
+                    chunk_id,
+                    Table::new(table_name, row_group),
+                ));
             }
         };
     }

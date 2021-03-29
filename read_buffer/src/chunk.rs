@@ -59,6 +59,7 @@ pub struct Chunk {
 }
 
 // Tie data and meta-data together so that they can be wrapped in RWLock.
+#[derive(Default)]
 struct TableData {
     rows: u64, // Total number of rows across all tables
 
@@ -71,7 +72,16 @@ struct TableData {
 }
 
 impl Chunk {
-    pub fn new(id: u32, table: Table) -> Self {
+    /// Initialises a new `Chunk`.
+    pub fn new(id: u32) -> Self {
+        Self {
+            id,
+            chunk_data: RwLock::new(TableData::default()),
+        }
+    }
+
+    /// Initialises a new `Chunk` seeded with the provided `Table`.
+    pub(crate) fn new_with_table(id: u32, table: Table) -> Self {
         Self {
             id,
             chunk_data: RwLock::new(TableData {
@@ -348,7 +358,7 @@ mod test {
         .collect();
         let rg = RowGroup::new(6, columns);
         let table = Table::new("table_1", rg);
-        let mut chunk = Chunk::new(22, table);
+        let mut chunk = Chunk::new_with_table(22, table);
 
         assert_eq!(chunk.rows(), 6);
         assert_eq!(chunk.row_groups(), 1);
@@ -418,7 +428,7 @@ mod test {
         .collect::<BTreeMap<_, _>>();
         let rg = RowGroup::new(6, columns);
         let table = Table::new("table_1", rg);
-        let mut chunk = Chunk::new(22, table);
+        let mut chunk = Chunk::new_with_table(22, table);
 
         // All table names returned when no predicate.
         let table_names = chunk.table_names(&Predicate::default(), &BTreeSet::new());
