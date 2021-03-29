@@ -449,6 +449,7 @@ func TestWALRollSegment(t *testing.T) {
 	require.NoError(t, err)
 
 	files, err := ioutil.ReadDir(w.Path())
+	require.NoError(t, err)
 	require.Equal(t, 1, len(files))
 
 	encodeSize := files[0].Size()
