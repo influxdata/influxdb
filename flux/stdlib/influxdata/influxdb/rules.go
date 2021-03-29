@@ -26,7 +26,7 @@ func init() {
 		SortedPivotRule{},
 	)
 	plan.RegisterLogicalRules(
-		MergeFiltersRule{},
+		universe.MergeFiltersRule{},
 	)
 }
 
@@ -674,18 +674,4 @@ func (SortedPivotRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bo
 		return nil, false, err
 	}
 	return pn, false, nil
-}
-
-type MergeFiltersRule struct{}
-
-func (MergeFiltersRule) Name() string {
-	return universe.MergeFiltersRule{}.Name()
-}
-
-func (MergeFiltersRule) Pattern() plan.Pattern {
-	return universe.MergeFiltersRule{}.Pattern()
-}
-
-func (r MergeFiltersRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
-	return universe.MergeFiltersRule{}.Rewrite(ctx, pn)
 }
