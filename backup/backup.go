@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -20,12 +22,12 @@ import (
 type Request struct {
 	// Organization to backup.
 	// If not set, all orgs will be included.
-	OrgID influxdb.ID
+	OrgID platform.ID
 	Org   string
 
 	// Bucket to backup.
 	// If not set, all buckets within the org filter will be included.
-	BucketID influxdb.ID
+	BucketID platform.ID
 	Bucket   string
 
 	// Path to the directory where backup files should be written.
@@ -210,7 +212,7 @@ func (r *backupRunner) backupShard(ctx context.Context, shardInfo *influxdb.Mani
 		_ = gw.Close()
 		_ = f.Close()
 
-		if influxdb.ErrorCode(err) == influxdb.ENotFound {
+		if errors.ErrorCode(err) == errors.ENotFound {
 			r.log.Warn("Shard removed during backup", zap.Uint64("id", shardInfo.ShardID))
 			return nil
 		}

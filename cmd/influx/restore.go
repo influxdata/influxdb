@@ -3,9 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"os"
 
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/http"
 	influxlogger "github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/restore"
@@ -98,14 +98,14 @@ func (b *cmdRestoreBuilder) restoreRunE(cmd *cobra.Command, args []string) (err 
 		BucketService: &tenant.BucketClientService{Client: client},
 	}
 
-	var orgID influxdb.ID
+	var orgID platform.ID
 	if b.org.id != "" {
 		if err := orgID.DecodeFromString(b.org.id); err != nil {
 			return err
 		}
 	}
 
-	var bucketID influxdb.ID
+	var bucketID platform.ID
 	if b.bucketID != "" {
 		if err := bucketID.DecodeFromString(b.bucketID); err != nil {
 			return err

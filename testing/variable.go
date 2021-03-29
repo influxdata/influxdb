@@ -3,6 +3,8 @@ package testing
 import (
 	"bytes"
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"sort"
 	"strings"
 	"testing"
@@ -42,7 +44,7 @@ var variableCmpOptions = cmp.Options{
 // VariableFields defines fields for a variable test
 type VariableFields struct {
 	Variables     []*influxdb.Variable
-	IDGenerator   influxdb.IDGenerator
+	IDGenerator   platform.IDGenerator
 	TimeGenerator influxdb.TimeGenerator
 }
 
@@ -111,7 +113,7 @@ func TrimWhitespace(init func(VariableFields, *testing.T) (influxdb.VariableServ
 		variable *influxdb.Variable
 	}
 	type wants struct {
-		err       *influxdb.Error
+		err       *errors.Error
 		variables []*influxdb.Variable
 	}
 
@@ -126,7 +128,7 @@ func TrimWhitespace(init func(VariableFields, *testing.T) (influxdb.VariableServ
 			name: "trimwhitespace",
 			fields: VariableFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() influxdb.ID {
+					IDFn: func() platform.ID {
 						return MustIDBase16(idA)
 					},
 				},
@@ -134,7 +136,7 @@ func TrimWhitespace(init func(VariableFields, *testing.T) (influxdb.VariableServ
 				Variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idB),
-						OrganizationID: influxdb.ID(3),
+						OrganizationID: platform.ID(3),
 						Name:           "existing-variable",
 						Selected:       []string{"b"},
 						Arguments: &influxdb.VariableArguments{
@@ -147,7 +149,7 @@ func TrimWhitespace(init func(VariableFields, *testing.T) (influxdb.VariableServ
 			args: args{
 				variable: &influxdb.Variable{
 					ID:             MustIDBase16(idA),
-					OrganizationID: influxdb.ID(3),
+					OrganizationID: platform.ID(3),
 					Name:           "   existing-variable   ",
 					Selected:       []string{"a"},
 					Arguments: &influxdb.VariableArguments{
@@ -161,14 +163,14 @@ func TrimWhitespace(init func(VariableFields, *testing.T) (influxdb.VariableServ
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EConflict,
+				err: &errors.Error{
+					Code: errors.EConflict,
 					Msg:  "variable is not unique",
 				},
 				variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idB),
-						OrganizationID: influxdb.ID(3),
+						OrganizationID: platform.ID(3),
 						Name:           "existing-variable",
 						Selected:       []string{"b"},
 						Arguments: &influxdb.VariableArguments{
@@ -207,7 +209,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 		variable *influxdb.Variable
 	}
 	type wants struct {
-		err       *influxdb.Error
+		err       *errors.Error
 		variables []*influxdb.Variable
 	}
 
@@ -221,7 +223,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 			name: "basic create with missing id",
 			fields: VariableFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() influxdb.ID {
+					IDFn: func() platform.ID {
 						return MustIDBase16(idD)
 					},
 				},
@@ -229,14 +231,14 @@ func CreateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 				Variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idA),
-						OrganizationID: influxdb.ID(1),
+						OrganizationID: platform.ID(1),
 						Name:           "already there",
 					},
 				},
 			},
 			args: args{
 				variable: &influxdb.Variable{
-					OrganizationID: influxdb.ID(3),
+					OrganizationID: platform.ID(3),
 					Name:           "basic variable",
 					Selected:       []string{"a"},
 					Arguments: &influxdb.VariableArguments{
@@ -249,12 +251,12 @@ func CreateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 				variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idA),
-						OrganizationID: influxdb.ID(1),
+						OrganizationID: platform.ID(1),
 						Name:           "already there",
 					},
 					{
 						ID:             MustIDBase16(idD),
-						OrganizationID: influxdb.ID(3),
+						OrganizationID: platform.ID(3),
 						Name:           "basic variable",
 						Selected:       []string{"a"},
 						Arguments: &influxdb.VariableArguments{
@@ -273,7 +275,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 			name: "creating a variable assigns the variable an id and adds it to the store",
 			fields: VariableFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() influxdb.ID {
+					IDFn: func() platform.ID {
 						return MustIDBase16(idA)
 					},
 				},
@@ -281,7 +283,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 				Variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idB),
-						OrganizationID: influxdb.ID(3),
+						OrganizationID: platform.ID(3),
 						Name:           "existing-variable",
 						Selected:       []string{"b"},
 						Arguments: &influxdb.VariableArguments{
@@ -294,7 +296,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 			args: args{
 				variable: &influxdb.Variable{
 					ID:             MustIDBase16(idA),
-					OrganizationID: influxdb.ID(3),
+					OrganizationID: platform.ID(3),
 					Name:           "MY-variable",
 					Selected:       []string{"a"},
 					Arguments: &influxdb.VariableArguments{
@@ -312,7 +314,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 				variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idB),
-						OrganizationID: influxdb.ID(3),
+						OrganizationID: platform.ID(3),
 						Name:           "existing-variable",
 						Selected:       []string{"b"},
 						Arguments: &influxdb.VariableArguments{
@@ -322,7 +324,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 					},
 					{
 						ID:             MustIDBase16(idA),
-						OrganizationID: influxdb.ID(3),
+						OrganizationID: platform.ID(3),
 						Name:           "MY-variable",
 						Selected:       []string{"a"},
 						Arguments: &influxdb.VariableArguments{
@@ -341,7 +343,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 			name: "cant create a new variable with a name that exists",
 			fields: VariableFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() influxdb.ID {
+					IDFn: func() platform.ID {
 						return MustIDBase16(idA)
 					},
 				},
@@ -376,8 +378,8 @@ func CreateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EConflict,
+				err: &errors.Error{
+					Code: errors.EConflict,
 					Msg:  "variable is not unique",
 				},
 				variables: []*influxdb.Variable{
@@ -398,7 +400,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 			name: "variable names should be unique and case-insensitive",
 			fields: VariableFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() influxdb.ID {
+					IDFn: func() platform.ID {
 						return MustIDBase16(idA)
 					},
 				},
@@ -406,7 +408,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 				Variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idB),
-						OrganizationID: influxdb.ID(3),
+						OrganizationID: platform.ID(3),
 						Name:           "existing-variable",
 						Selected:       []string{"b"},
 						Arguments: &influxdb.VariableArguments{
@@ -419,7 +421,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 			args: args{
 				variable: &influxdb.Variable{
 					ID:             MustIDBase16(idA),
-					OrganizationID: influxdb.ID(3),
+					OrganizationID: platform.ID(3),
 					Name:           "EXISTING-variable",
 					Selected:       []string{"a"},
 					Arguments: &influxdb.VariableArguments{
@@ -433,14 +435,14 @@ func CreateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EConflict,
+				err: &errors.Error{
+					Code: errors.EConflict,
 					Msg:  "variable is not unique for key ",
 				},
 				variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idB),
-						OrganizationID: influxdb.ID(3),
+						OrganizationID: platform.ID(3),
 						Name:           "existing-variable",
 						Selected:       []string{"b"},
 						Arguments: &influxdb.VariableArguments{
@@ -455,7 +457,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 			name: "cant create a new variable when variable name exists with a different type",
 			fields: VariableFields{
 				IDGenerator: &mock.IDGenerator{
-					IDFn: func() influxdb.ID {
+					IDFn: func() platform.ID {
 						return MustIDBase16(idA)
 					},
 				},
@@ -463,7 +465,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 				Variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idB),
-						OrganizationID: influxdb.ID(3),
+						OrganizationID: platform.ID(3),
 						Name:           "existing-variable",
 						Selected:       []string{"b"},
 						Arguments: &influxdb.VariableArguments{
@@ -476,7 +478,7 @@ func CreateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 			args: args{
 				variable: &influxdb.Variable{
 					ID:             MustIDBase16(idA),
-					OrganizationID: influxdb.ID(3),
+					OrganizationID: platform.ID(3),
 					Name:           "existing-variable",
 					Selected:       []string{"a"},
 					Arguments: &influxdb.VariableArguments{
@@ -490,14 +492,14 @@ func CreateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EConflict,
+				err: &errors.Error{
+					Code: errors.EConflict,
 					Msg:  "variable is not unique",
 				},
 				variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idB),
-						OrganizationID: influxdb.ID(3),
+						OrganizationID: platform.ID(3),
 						Name:           "existing-variable",
 						Selected:       []string{"b"},
 						Arguments: &influxdb.VariableArguments{
@@ -533,10 +535,10 @@ func CreateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 // FindVariableByID tests influxdb.VariableService FindVariableByID interface method
 func FindVariableByID(init func(VariableFields, *testing.T) (influxdb.VariableService, string, func()), t *testing.T) {
 	type args struct {
-		id influxdb.ID
+		id platform.ID
 	}
 	type wants struct {
-		err      *influxdb.Error
+		err      *errors.Error
 		variable *influxdb.Variable
 	}
 
@@ -552,7 +554,7 @@ func FindVariableByID(init func(VariableFields, *testing.T) (influxdb.VariableSe
 				Variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idA),
-						OrganizationID: influxdb.ID(5),
+						OrganizationID: platform.ID(5),
 						Name:           "existing-variable-a",
 						Arguments: &influxdb.VariableArguments{
 							Type:   "constant",
@@ -565,7 +567,7 @@ func FindVariableByID(init func(VariableFields, *testing.T) (influxdb.VariableSe
 					},
 					{
 						ID:             MustIDBase16(idB),
-						OrganizationID: influxdb.ID(5),
+						OrganizationID: platform.ID(5),
 						Name:           "existing-variable-b",
 						Arguments: &influxdb.VariableArguments{
 							Type:   "constant",
@@ -585,7 +587,7 @@ func FindVariableByID(init func(VariableFields, *testing.T) (influxdb.VariableSe
 				err: nil,
 				variable: &influxdb.Variable{
 					ID:             MustIDBase16(idB),
-					OrganizationID: influxdb.ID(5),
+					OrganizationID: platform.ID(5),
 					Name:           "existing-variable-b",
 					Arguments: &influxdb.VariableArguments{
 						Type:   "constant",
@@ -607,8 +609,8 @@ func FindVariableByID(init func(VariableFields, *testing.T) (influxdb.VariableSe
 				id: MustIDBase16(idA),
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpFindVariableByID,
 					Msg:  influxdb.ErrVariableNotFound,
 				},
@@ -628,7 +630,7 @@ func FindVariableByID(init func(VariableFields, *testing.T) (influxdb.VariableSe
 				if tt.wants.err == nil {
 					require.NoError(t, err)
 				}
-				iErr, ok := err.(*influxdb.Error)
+				iErr, ok := err.(*errors.Error)
 				require.True(t, ok)
 				assert.Equal(t, iErr.Code, tt.wants.err.Code)
 				assert.Equal(t, strings.HasPrefix(iErr.Error(), tt.wants.err.Error()), true)
@@ -647,7 +649,7 @@ func FindVariables(init func(VariableFields, *testing.T) (influxdb.VariableServi
 	// todo(leodido)
 	type args struct {
 		// todo(leodido) > use VariableFilter as arg
-		orgID    *influxdb.ID
+		orgID    *platform.ID
 		findOpts influxdb.FindOptions
 	}
 	type wants struct {
@@ -679,7 +681,7 @@ func FindVariables(init func(VariableFields, *testing.T) (influxdb.VariableServi
 				Variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idA),
-						OrganizationID: influxdb.ID(22),
+						OrganizationID: platform.ID(22),
 						Name:           "a",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: fakeDate,
@@ -688,7 +690,7 @@ func FindVariables(init func(VariableFields, *testing.T) (influxdb.VariableServi
 					},
 					{
 						ID:             MustIDBase16(idB),
-						OrganizationID: influxdb.ID(22),
+						OrganizationID: platform.ID(22),
 						Name:           "b",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: fakeDate,
@@ -704,7 +706,7 @@ func FindVariables(init func(VariableFields, *testing.T) (influxdb.VariableServi
 				variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idA),
-						OrganizationID: influxdb.ID(22),
+						OrganizationID: platform.ID(22),
 						Name:           "a",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: fakeDate,
@@ -713,7 +715,7 @@ func FindVariables(init func(VariableFields, *testing.T) (influxdb.VariableServi
 					},
 					{
 						ID:             MustIDBase16(idB),
-						OrganizationID: influxdb.ID(22),
+						OrganizationID: platform.ID(22),
 						Name:           "b",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: fakeDate,
@@ -729,7 +731,7 @@ func FindVariables(init func(VariableFields, *testing.T) (influxdb.VariableServi
 				Variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idA),
-						OrganizationID: influxdb.ID(22),
+						OrganizationID: platform.ID(22),
 						Name:           "a",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: fakeDate,
@@ -738,7 +740,7 @@ func FindVariables(init func(VariableFields, *testing.T) (influxdb.VariableServi
 					},
 					{
 						ID:             MustIDBase16(idB),
-						OrganizationID: influxdb.ID(22),
+						OrganizationID: platform.ID(22),
 						Name:           "b",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: fakeDate,
@@ -749,7 +751,7 @@ func FindVariables(init func(VariableFields, *testing.T) (influxdb.VariableServi
 			},
 			args: args{
 				findOpts: influxdb.DefaultVariableFindOptions,
-				orgID:    idPtr(influxdb.ID(1)),
+				orgID:    idPtr(platform.ID(1)),
 			},
 			wants: wants{
 				variables: []*influxdb.Variable{},
@@ -761,7 +763,7 @@ func FindVariables(init func(VariableFields, *testing.T) (influxdb.VariableServi
 				Variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idA),
-						OrganizationID: influxdb.ID(1),
+						OrganizationID: platform.ID(1),
 						Name:           "a",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: fakeDate,
@@ -770,7 +772,7 @@ func FindVariables(init func(VariableFields, *testing.T) (influxdb.VariableServi
 					},
 					{
 						ID:             MustIDBase16(idB),
-						OrganizationID: influxdb.ID(22),
+						OrganizationID: platform.ID(22),
 						Name:           "b",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: fakeDate,
@@ -779,7 +781,7 @@ func FindVariables(init func(VariableFields, *testing.T) (influxdb.VariableServi
 					},
 					{
 						ID:             MustIDBase16(idC),
-						OrganizationID: influxdb.ID(2),
+						OrganizationID: platform.ID(2),
 						Name:           "c",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: fakeDate,
@@ -788,7 +790,7 @@ func FindVariables(init func(VariableFields, *testing.T) (influxdb.VariableServi
 					},
 					{
 						ID:             MustIDBase16(idD),
-						OrganizationID: influxdb.ID(22),
+						OrganizationID: platform.ID(22),
 						Name:           "d",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: fakeDate,
@@ -799,13 +801,13 @@ func FindVariables(init func(VariableFields, *testing.T) (influxdb.VariableServi
 			},
 			args: args{
 				findOpts: influxdb.DefaultVariableFindOptions,
-				orgID:    idPtr(influxdb.ID(22)),
+				orgID:    idPtr(platform.ID(22)),
 			},
 			wants: wants{
 				variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idB),
-						OrganizationID: influxdb.ID(22),
+						OrganizationID: platform.ID(22),
 						Name:           "b",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: fakeDate,
@@ -814,7 +816,7 @@ func FindVariables(init func(VariableFields, *testing.T) (influxdb.VariableServi
 					},
 					{
 						ID:             MustIDBase16(idD),
-						OrganizationID: influxdb.ID(22),
+						OrganizationID: platform.ID(22),
 						Name:           "d",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: fakeDate,
@@ -852,11 +854,11 @@ func FindVariables(init func(VariableFields, *testing.T) (influxdb.VariableServi
 // UpdateVariable tests influxdb.VariableService UpdateVariable interface method
 func UpdateVariable(init func(VariableFields, *testing.T) (influxdb.VariableService, string, func()), t *testing.T) {
 	type args struct {
-		id     influxdb.ID
+		id     platform.ID
 		update *influxdb.VariableUpdate
 	}
 	type wants struct {
-		err       *influxdb.Error
+		err       *errors.Error
 		variables []*influxdb.Variable
 	}
 
@@ -873,7 +875,7 @@ func UpdateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 				Variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idA),
-						OrganizationID: influxdb.ID(7),
+						OrganizationID: platform.ID(7),
 						Name:           "existing-variable-a",
 						Arguments: &influxdb.VariableArguments{
 							Type:   "constant",
@@ -886,7 +888,7 @@ func UpdateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 					},
 					{
 						ID:             MustIDBase16(idB),
-						OrganizationID: influxdb.ID(7),
+						OrganizationID: platform.ID(7),
 						Name:           "existing-variable-b",
 						Arguments: &influxdb.VariableArguments{
 							Type:   "constant",
@@ -910,7 +912,7 @@ func UpdateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 				variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idA),
-						OrganizationID: influxdb.ID(7),
+						OrganizationID: platform.ID(7),
 						Name:           "existing-variable-a",
 						Arguments: &influxdb.VariableArguments{
 							Type:   "constant",
@@ -923,7 +925,7 @@ func UpdateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 					},
 					{
 						ID:             MustIDBase16(idB),
-						OrganizationID: influxdb.ID(7),
+						OrganizationID: platform.ID(7),
 						Name:           "new-variable-b-name",
 						Arguments: &influxdb.VariableArguments{
 							Type:   "constant",
@@ -949,10 +951,10 @@ func UpdateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Op:   influxdb.OpUpdateVariable,
 					Msg:  influxdb.ErrVariableNotFound,
-					Code: influxdb.ENotFound,
+					Code: errors.ENotFound,
 				},
 				variables: []*influxdb.Variable{},
 			},
@@ -964,7 +966,7 @@ func UpdateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 				Variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idA),
-						OrganizationID: influxdb.ID(7),
+						OrganizationID: platform.ID(7),
 						Name:           "variable-a",
 						Arguments: &influxdb.VariableArguments{
 							Type:   "constant",
@@ -977,7 +979,7 @@ func UpdateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 					},
 					{
 						ID:             MustIDBase16(idB),
-						OrganizationID: influxdb.ID(7),
+						OrganizationID: platform.ID(7),
 						Name:           "variable-b",
 						Arguments: &influxdb.VariableArguments{
 							Type:   "constant",
@@ -997,14 +999,14 @@ func UpdateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EConflict,
+				err: &errors.Error{
+					Code: errors.EConflict,
 					Msg:  "variable entity update conflicts with an existing entity",
 				},
 				variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idA),
-						OrganizationID: influxdb.ID(7),
+						OrganizationID: platform.ID(7),
 						Name:           "variable-a",
 						Arguments: &influxdb.VariableArguments{
 							Type:   "constant",
@@ -1017,7 +1019,7 @@ func UpdateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 					},
 					{
 						ID:             MustIDBase16(idB),
-						OrganizationID: influxdb.ID(7),
+						OrganizationID: platform.ID(7),
 						Name:           "variable-b",
 						Arguments: &influxdb.VariableArguments{
 							Type:   "constant",
@@ -1038,7 +1040,7 @@ func UpdateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 				Variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idA),
-						OrganizationID: influxdb.ID(7),
+						OrganizationID: platform.ID(7),
 						Name:           "variable-a",
 						Arguments: &influxdb.VariableArguments{
 							Type:   "constant",
@@ -1051,7 +1053,7 @@ func UpdateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 					},
 					{
 						ID:             MustIDBase16(idB),
-						OrganizationID: influxdb.ID(7),
+						OrganizationID: platform.ID(7),
 						Name:           "variable-b",
 						Arguments: &influxdb.VariableArguments{
 							Type:   "constant",
@@ -1071,14 +1073,14 @@ func UpdateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EConflict,
+				err: &errors.Error{
+					Code: errors.EConflict,
 					Msg:  "variable entity update conflicts with an existing entity",
 				},
 				variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idA),
-						OrganizationID: influxdb.ID(7),
+						OrganizationID: platform.ID(7),
 						Name:           "variable-a",
 						Arguments: &influxdb.VariableArguments{
 							Type:   "constant",
@@ -1091,7 +1093,7 @@ func UpdateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 					},
 					{
 						ID:             MustIDBase16(idB),
-						OrganizationID: influxdb.ID(7),
+						OrganizationID: platform.ID(7),
 						Name:           "variable-b",
 						Arguments: &influxdb.VariableArguments{
 							Type:   "constant",
@@ -1139,11 +1141,11 @@ func UpdateVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 // ReplaceVariable tests influxdb.VariableService ReplaceVariable interface method
 func ReplaceVariable(init func(VariableFields, *testing.T) (influxdb.VariableService, string, func()), t *testing.T) {
 	type args struct {
-		id          influxdb.ID
+		id          platform.ID
 		newVariable *influxdb.Variable
 	}
 	type wants struct {
-		err       *influxdb.Error
+		err       *errors.Error
 		variables []*influxdb.Variable
 	}
 
@@ -1160,7 +1162,7 @@ func ReplaceVariable(init func(VariableFields, *testing.T) (influxdb.VariableSer
 				Variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idA),
-						OrganizationID: influxdb.ID(7),
+						OrganizationID: platform.ID(7),
 						Name:           "existing-variable",
 						Arguments: &influxdb.VariableArguments{
 							Type:   "constant",
@@ -1177,7 +1179,7 @@ func ReplaceVariable(init func(VariableFields, *testing.T) (influxdb.VariableSer
 				id: MustIDBase16(idB),
 				newVariable: &influxdb.Variable{
 					ID:             MustIDBase16(idA),
-					OrganizationID: influxdb.ID(7),
+					OrganizationID: platform.ID(7),
 					Name:           "renamed-variable",
 					Arguments: &influxdb.VariableArguments{
 						Type:   "constant",
@@ -1194,7 +1196,7 @@ func ReplaceVariable(init func(VariableFields, *testing.T) (influxdb.VariableSer
 				variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idA),
-						OrganizationID: influxdb.ID(7),
+						OrganizationID: platform.ID(7),
 						Name:           "renamed-variable",
 						Arguments: &influxdb.VariableArguments{
 							Type:   "constant",
@@ -1247,10 +1249,10 @@ func ReplaceVariable(init func(VariableFields, *testing.T) (influxdb.VariableSer
 // DeleteVariable tests influxdb.VariableService DeleteVariable interface method
 func DeleteVariable(init func(VariableFields, *testing.T) (influxdb.VariableService, string, func()), t *testing.T) {
 	type args struct {
-		id influxdb.ID
+		id platform.ID
 	}
 	type wants struct {
-		err       *influxdb.Error
+		err       *errors.Error
 		variables []*influxdb.Variable
 	}
 
@@ -1266,7 +1268,7 @@ func DeleteVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 				Variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idA),
-						OrganizationID: influxdb.ID(9),
+						OrganizationID: platform.ID(9),
 						Name:           "m",
 						Arguments: &influxdb.VariableArguments{
 							Type:   "constant",
@@ -1293,7 +1295,7 @@ func DeleteVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 				Variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idD),
-						OrganizationID: influxdb.ID(1),
+						OrganizationID: platform.ID(1),
 						Name:           "existing-variable",
 						Arguments: &influxdb.VariableArguments{
 							Type:   "constant",
@@ -1310,15 +1312,15 @@ func DeleteVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 				id: MustIDBase16(idB),
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpDeleteVariable,
 					Msg:  influxdb.ErrVariableNotFound,
 				},
 				variables: []*influxdb.Variable{
 					{
 						ID:             MustIDBase16(idD),
-						OrganizationID: influxdb.ID(1),
+						OrganizationID: platform.ID(1),
 						Name:           "existing-variable",
 						Arguments: &influxdb.VariableArguments{
 							Type:   "constant",
@@ -1342,7 +1344,7 @@ func DeleteVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 
 			defer s.ReplaceVariable(ctx, &influxdb.Variable{
 				ID:             tt.args.id,
-				OrganizationID: influxdb.ID(1),
+				OrganizationID: platform.ID(1),
 			})
 
 			err := s.DeleteVariable(ctx, tt.args.id)
@@ -1350,7 +1352,7 @@ func DeleteVariable(init func(VariableFields, *testing.T) (influxdb.VariableServ
 				if tt.wants.err == nil {
 					require.NoError(t, err)
 				}
-				iErr, ok := err.(*influxdb.Error)
+				iErr, ok := err.(*errors.Error)
 				require.True(t, ok)
 				assert.Equal(t, iErr.Code, tt.wants.err.Code)
 				assert.Equal(t, strings.HasPrefix(iErr.Error(), tt.wants.err.Error()), true)

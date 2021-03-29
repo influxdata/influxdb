@@ -3,6 +3,8 @@ package authorizer_test
 import (
 	"bytes"
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"sort"
 	"testing"
 
@@ -34,7 +36,7 @@ func TestNotificationRuleStore_FindNotificationRuleByID(t *testing.T) {
 	}
 	type args struct {
 		permission influxdb.Permission
-		id         influxdb.ID
+		id         platform.ID
 	}
 	type wants struct {
 		err error
@@ -50,7 +52,7 @@ func TestNotificationRuleStore_FindNotificationRuleByID(t *testing.T) {
 			name: "authorized to access id",
 			fields: fields{
 				NotificationRuleStore: &mock.NotificationRuleStore{
-					FindNotificationRuleByIDF: func(ctx context.Context, id influxdb.ID) (influxdb.NotificationRule, error) {
+					FindNotificationRuleByIDF: func(ctx context.Context, id platform.ID) (influxdb.NotificationRule, error) {
 						return &rule.Slack{
 							Base: rule.Base{
 								ID:    id,
@@ -78,7 +80,7 @@ func TestNotificationRuleStore_FindNotificationRuleByID(t *testing.T) {
 			name: "unauthorized to access id",
 			fields: fields{
 				NotificationRuleStore: &mock.NotificationRuleStore{
-					FindNotificationRuleByIDF: func(ctx context.Context, id influxdb.ID) (influxdb.NotificationRule, error) {
+					FindNotificationRuleByIDF: func(ctx context.Context, id platform.ID) (influxdb.NotificationRule, error) {
 						return &rule.Slack{
 							Base: rule.Base{
 								ID:    id,
@@ -99,9 +101,9 @@ func TestNotificationRuleStore_FindNotificationRuleByID(t *testing.T) {
 				id: 1,
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "read:orgs/000000000000000a/notificationRules/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -275,7 +277,7 @@ func TestNotificationRuleStore_UpdateNotificationRule(t *testing.T) {
 		NotificationRuleStore influxdb.NotificationRuleStore
 	}
 	type args struct {
-		id          influxdb.ID
+		id          platform.ID
 		permissions []influxdb.Permission
 	}
 	type wants struct {
@@ -292,7 +294,7 @@ func TestNotificationRuleStore_UpdateNotificationRule(t *testing.T) {
 			name: "authorized to update notificationRule",
 			fields: fields{
 				NotificationRuleStore: &mock.NotificationRuleStore{
-					FindNotificationRuleByIDF: func(ctc context.Context, id influxdb.ID) (influxdb.NotificationRule, error) {
+					FindNotificationRuleByIDF: func(ctc context.Context, id platform.ID) (influxdb.NotificationRule, error) {
 						return &rule.Slack{
 							Base: rule.Base{
 								ID:    1,
@@ -300,7 +302,7 @@ func TestNotificationRuleStore_UpdateNotificationRule(t *testing.T) {
 							},
 						}, nil
 					},
-					UpdateNotificationRuleF: func(ctx context.Context, id influxdb.ID, upd influxdb.NotificationRuleCreate, userID influxdb.ID) (influxdb.NotificationRule, error) {
+					UpdateNotificationRuleF: func(ctx context.Context, id platform.ID, upd influxdb.NotificationRuleCreate, userID platform.ID) (influxdb.NotificationRule, error) {
 						return &rule.Slack{
 							Base: rule.Base{
 								ID:    1,
@@ -337,7 +339,7 @@ func TestNotificationRuleStore_UpdateNotificationRule(t *testing.T) {
 			name: "unauthorized to update notificationRule",
 			fields: fields{
 				NotificationRuleStore: &mock.NotificationRuleStore{
-					FindNotificationRuleByIDF: func(ctc context.Context, id influxdb.ID) (influxdb.NotificationRule, error) {
+					FindNotificationRuleByIDF: func(ctc context.Context, id platform.ID) (influxdb.NotificationRule, error) {
 						return &rule.Slack{
 							Base: rule.Base{
 								ID:    1,
@@ -345,7 +347,7 @@ func TestNotificationRuleStore_UpdateNotificationRule(t *testing.T) {
 							},
 						}, nil
 					},
-					UpdateNotificationRuleF: func(ctx context.Context, id influxdb.ID, upd influxdb.NotificationRuleCreate, userID influxdb.ID) (influxdb.NotificationRule, error) {
+					UpdateNotificationRuleF: func(ctx context.Context, id platform.ID, upd influxdb.NotificationRuleCreate, userID platform.ID) (influxdb.NotificationRule, error) {
 						return &rule.Slack{
 							Base: rule.Base{
 								ID:    1,
@@ -368,9 +370,9 @@ func TestNotificationRuleStore_UpdateNotificationRule(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/notificationRules/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -388,7 +390,7 @@ func TestNotificationRuleStore_UpdateNotificationRule(t *testing.T) {
 				Status:           influxdb.Active,
 			}
 
-			_, err := s.UpdateNotificationRule(ctx, tt.args.id, nrc, influxdb.ID(1))
+			_, err := s.UpdateNotificationRule(ctx, tt.args.id, nrc, platform.ID(1))
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
@@ -399,7 +401,7 @@ func TestNotificationRuleStore_PatchNotificationRule(t *testing.T) {
 		NotificationRuleStore influxdb.NotificationRuleStore
 	}
 	type args struct {
-		id          influxdb.ID
+		id          platform.ID
 		permissions []influxdb.Permission
 	}
 	type wants struct {
@@ -416,7 +418,7 @@ func TestNotificationRuleStore_PatchNotificationRule(t *testing.T) {
 			name: "authorized to patch notificationRule",
 			fields: fields{
 				NotificationRuleStore: &mock.NotificationRuleStore{
-					FindNotificationRuleByIDF: func(ctc context.Context, id influxdb.ID) (influxdb.NotificationRule, error) {
+					FindNotificationRuleByIDF: func(ctc context.Context, id platform.ID) (influxdb.NotificationRule, error) {
 						return &rule.Slack{
 							Base: rule.Base{
 								ID:    1,
@@ -424,7 +426,7 @@ func TestNotificationRuleStore_PatchNotificationRule(t *testing.T) {
 							},
 						}, nil
 					},
-					PatchNotificationRuleF: func(ctx context.Context, id influxdb.ID, upd influxdb.NotificationRuleUpdate) (influxdb.NotificationRule, error) {
+					PatchNotificationRuleF: func(ctx context.Context, id platform.ID, upd influxdb.NotificationRuleUpdate) (influxdb.NotificationRule, error) {
 						return &rule.Slack{
 							Base: rule.Base{
 								ID:    1,
@@ -461,7 +463,7 @@ func TestNotificationRuleStore_PatchNotificationRule(t *testing.T) {
 			name: "unauthorized to patch notificationRule",
 			fields: fields{
 				NotificationRuleStore: &mock.NotificationRuleStore{
-					FindNotificationRuleByIDF: func(ctc context.Context, id influxdb.ID) (influxdb.NotificationRule, error) {
+					FindNotificationRuleByIDF: func(ctc context.Context, id platform.ID) (influxdb.NotificationRule, error) {
 						return &rule.Slack{
 							Base: rule.Base{
 								ID:    1,
@@ -469,7 +471,7 @@ func TestNotificationRuleStore_PatchNotificationRule(t *testing.T) {
 							},
 						}, nil
 					},
-					PatchNotificationRuleF: func(ctx context.Context, id influxdb.ID, upd influxdb.NotificationRuleUpdate) (influxdb.NotificationRule, error) {
+					PatchNotificationRuleF: func(ctx context.Context, id platform.ID, upd influxdb.NotificationRuleUpdate) (influxdb.NotificationRule, error) {
 						return &rule.Slack{
 							Base: rule.Base{
 								ID:    1,
@@ -492,9 +494,9 @@ func TestNotificationRuleStore_PatchNotificationRule(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/notificationRules/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -518,7 +520,7 @@ func TestNotificationRuleStore_DeleteNotificationRule(t *testing.T) {
 		NotificationRuleStore influxdb.NotificationRuleStore
 	}
 	type args struct {
-		id          influxdb.ID
+		id          platform.ID
 		permissions []influxdb.Permission
 	}
 	type wants struct {
@@ -535,7 +537,7 @@ func TestNotificationRuleStore_DeleteNotificationRule(t *testing.T) {
 			name: "authorized to delete notificationRule",
 			fields: fields{
 				NotificationRuleStore: &mock.NotificationRuleStore{
-					FindNotificationRuleByIDF: func(ctc context.Context, id influxdb.ID) (influxdb.NotificationRule, error) {
+					FindNotificationRuleByIDF: func(ctc context.Context, id platform.ID) (influxdb.NotificationRule, error) {
 						return &rule.Slack{
 							Base: rule.Base{
 								ID:    1,
@@ -543,7 +545,7 @@ func TestNotificationRuleStore_DeleteNotificationRule(t *testing.T) {
 							},
 						}, nil
 					},
-					DeleteNotificationRuleF: func(ctx context.Context, id influxdb.ID) error {
+					DeleteNotificationRuleF: func(ctx context.Context, id platform.ID) error {
 						return nil
 					},
 				},
@@ -575,7 +577,7 @@ func TestNotificationRuleStore_DeleteNotificationRule(t *testing.T) {
 			name: "unauthorized to delete notificationRule",
 			fields: fields{
 				NotificationRuleStore: &mock.NotificationRuleStore{
-					FindNotificationRuleByIDF: func(ctc context.Context, id influxdb.ID) (influxdb.NotificationRule, error) {
+					FindNotificationRuleByIDF: func(ctc context.Context, id platform.ID) (influxdb.NotificationRule, error) {
 						return &rule.Slack{
 							Base: rule.Base{
 								ID:    1,
@@ -583,7 +585,7 @@ func TestNotificationRuleStore_DeleteNotificationRule(t *testing.T) {
 							},
 						}, nil
 					},
-					DeleteNotificationRuleF: func(ctx context.Context, id influxdb.ID) error {
+					DeleteNotificationRuleF: func(ctx context.Context, id platform.ID) error {
 						return nil
 					},
 				},
@@ -601,9 +603,9 @@ func TestNotificationRuleStore_DeleteNotificationRule(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/notificationRules/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -628,7 +630,7 @@ func TestNotificationRuleStore_CreateNotificationRule(t *testing.T) {
 	}
 	type args struct {
 		permission influxdb.Permission
-		orgID      influxdb.ID
+		orgID      platform.ID
 	}
 	type wants struct {
 		err error
@@ -644,7 +646,7 @@ func TestNotificationRuleStore_CreateNotificationRule(t *testing.T) {
 			name: "authorized to create notificationRule",
 			fields: fields{
 				NotificationRuleStore: &mock.NotificationRuleStore{
-					CreateNotificationRuleF: func(ctx context.Context, tc influxdb.NotificationRuleCreate, userID influxdb.ID) error {
+					CreateNotificationRuleF: func(ctx context.Context, tc influxdb.NotificationRuleCreate, userID platform.ID) error {
 						return nil
 					},
 				},
@@ -667,7 +669,7 @@ func TestNotificationRuleStore_CreateNotificationRule(t *testing.T) {
 			name: "unauthorized to create notificationRule",
 			fields: fields{
 				NotificationRuleStore: &mock.NotificationRuleStore{
-					CreateNotificationRuleF: func(ctx context.Context, tc influxdb.NotificationRuleCreate, userID influxdb.ID) error {
+					CreateNotificationRuleF: func(ctx context.Context, tc influxdb.NotificationRuleCreate, userID platform.ID) error {
 						return nil
 					},
 				},
@@ -683,9 +685,9 @@ func TestNotificationRuleStore_CreateNotificationRule(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/notificationRules is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -708,7 +710,7 @@ func TestNotificationRuleStore_CreateNotificationRule(t *testing.T) {
 				Status:           influxdb.Active,
 			}
 
-			err := s.CreateNotificationRule(ctx, nrc, influxdb.ID(1))
+			err := s.CreateNotificationRule(ctx, nrc, platform.ID(1))
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}

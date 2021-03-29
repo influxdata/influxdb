@@ -3,6 +3,7 @@ package tenant_test
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"reflect"
 	"testing"
 	"time"
@@ -27,14 +28,14 @@ import (
 // }
 
 const (
-	firstBucketID influxdb.ID = (iota + 1)
+	firstBucketID platform.ID = (iota + 1)
 	secondBucketID
 	thirdBucketID
 	fourthBucketID
 	fifthBucketID
 )
 
-var orgIDs = []influxdb.ID{firstOrgID, secondOrgID}
+var orgIDs = []platform.ID{firstOrgID, secondOrgID}
 
 func TestBucket(t *testing.T) {
 	var (
@@ -45,7 +46,7 @@ func TestBucket(t *testing.T) {
 		testBuckets = func(count int, visit ...func(*influxdb.Bucket)) (buckets []*influxdb.Bucket) {
 			buckets = make([]*influxdb.Bucket, count)
 			for i := range buckets {
-				id := firstBucketID + influxdb.ID(i)
+				id := firstBucketID + platform.ID(i)
 				// flip-flop between (reserved_id + reserved_id+1)
 				orgID := orgIDs[i%2]
 				buckets[i] = &influxdb.Bucket{
@@ -188,9 +189,9 @@ func TestBucket(t *testing.T) {
 				var (
 					expected  = testBuckets(10, withCrudLog)
 					found     []*influxdb.Bucket
-					lastID    *influxdb.ID
+					lastID    *platform.ID
 					limit     = 3
-					listAfter = func(after *influxdb.ID) ([]*influxdb.Bucket, error) {
+					listAfter = func(after *platform.ID) ([]*influxdb.Bucket, error) {
 						return store.ListBuckets(context.Background(), tx, tenant.BucketFilter{}, influxdb.FindOptions{
 							After: after,
 							Limit: limit,

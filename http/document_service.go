@@ -3,6 +3,8 @@ package http
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/http"
 	"path"
 
@@ -17,14 +19,14 @@ const prefixDocuments = "/api/v2/documents"
 
 // DocumentService is an interface HTTP-exposed portion of the document service.
 type DocumentService interface {
-	GetDocuments(ctx context.Context, namespace string, orgID influxdb.ID) ([]*influxdb.Document, error)
+	GetDocuments(ctx context.Context, namespace string, orgID platform.ID) ([]*influxdb.Document, error)
 }
 
 // DocumentBackend is all services and associated parameters required to construct
 // the DocumentHandler.
 type DocumentBackend struct {
 	log *zap.Logger
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 
 	DocumentService influxdb.DocumentService
 }
@@ -43,7 +45,7 @@ type DocumentHandler struct {
 	*httprouter.Router
 
 	log *zap.Logger
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 
 	DocumentService influxdb.DocumentService
 	LabelService    influxdb.LabelService
@@ -133,15 +135,15 @@ func (h *DocumentHandler) handleGetDocuments(w http.ResponseWriter, r *http.Requ
 type getDocumentsRequest struct {
 	Namespace string
 	Org       string
-	OrgID     influxdb.ID
+	OrgID     platform.ID
 }
 
 func decodeGetDocumentsRequest(ctx context.Context, r *http.Request) (*getDocumentsRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	ns := params.ByName("ns")
 	if ns == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing namespace",
 		}
 	}
@@ -153,10 +155,10 @@ func decodeGetDocumentsRequest(ctx context.Context, r *http.Request) (*getDocume
 	}
 
 	if oidStr := qp.Get("orgID"); oidStr != "" {
-		oid, err := influxdb.IDFromString(oidStr)
+		oid, err := platform.IDFromString(oidStr)
 		if err != nil {
-			return nil, &influxdb.Error{
-				Code: influxdb.EInvalid,
+			return nil, &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "Invalid orgID",
 			}
 		}
@@ -182,7 +184,7 @@ func buildDocumentsPath(namespace string) string {
 
 // GetDocuments returns the documents for a `namespace` and an `orgID`.
 // Returned documents do not  contain their content.
-func (s *documentService) GetDocuments(ctx context.Context, namespace string, orgID influxdb.ID) ([]*influxdb.Document, error) {
+func (s *documentService) GetDocuments(ctx context.Context, namespace string, orgID platform.ID) ([]*influxdb.Document, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 

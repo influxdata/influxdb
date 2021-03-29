@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -73,7 +74,7 @@ var (
 	findDocsServiceMock = &mock.DocumentService{
 		FindDocumentStoreFn: func(context.Context, string) (influxdb.DocumentStore, error) {
 			return &mock.DocumentStore{
-				FindDocumentsFn: func(ctx context.Context, _ influxdb.ID) ([]*influxdb.Document, error) {
+				FindDocumentsFn: func(ctx context.Context, _ platform.ID) ([]*influxdb.Document, error) {
 					return docs, nil
 				},
 			}, nil
@@ -96,7 +97,7 @@ func TestService_handleGetDocuments(t *testing.T) {
 	}
 	type args struct {
 		authorizer influxdb.Authorizer
-		orgID      influxdb.ID
+		orgID      platform.ID
 	}
 	type wants struct {
 		statusCode  int
@@ -117,7 +118,7 @@ func TestService_handleGetDocuments(t *testing.T) {
 			},
 			args: args{
 				authorizer: mock.NewMockAuthorizer(true, nil),
-				orgID:      influxdb.ID(2),
+				orgID:      platform.ID(2),
 			},
 			wants: wants{
 				statusCode:  http.StatusOK,

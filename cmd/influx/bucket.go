@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/internal"
@@ -138,7 +139,7 @@ func (b *cmdBucketBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) er
 		return err
 	}
 
-	var id influxdb.ID
+	var id platform.ID
 	var filter influxdb.BucketFilter
 	if b.id == "" && b.name != "" {
 		if err = b.org.validOrgFlags(&flags); err != nil {
@@ -146,7 +147,7 @@ func (b *cmdBucketBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) er
 		}
 		filter.Name = &b.name
 		if b.org.id != "" {
-			if filter.OrganizationID, err = influxdb.IDFromString(b.org.id); err != nil {
+			if filter.OrganizationID, err = platform.IDFromString(b.org.id); err != nil {
 				return err
 			}
 		} else if b.org.name != "" {
@@ -213,14 +214,14 @@ func (b *cmdBucketBuilder) cmdListRunEFn(cmd *cobra.Command, args []string) erro
 		filter.Name = &b.name
 	}
 	if b.id != "" {
-		id, err := influxdb.IDFromString(b.id)
+		id, err := platform.IDFromString(b.id)
 		if err != nil {
 			return fmt.Errorf("failed to decode bucket id %q: %v", b.id, err)
 		}
 		filter.ID = id
 	}
 	if b.org.id != "" {
-		orgID, err := influxdb.IDFromString(b.org.id)
+		orgID, err := platform.IDFromString(b.org.id)
 		if err != nil {
 			return fmt.Errorf("failed to decode org id %q: %v", b.org.id, err)
 		}
@@ -272,7 +273,7 @@ func (b *cmdBucketBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) er
 		return err
 	}
 
-	var id influxdb.ID
+	var id platform.ID
 	if err := id.DecodeFromString(b.id); err != nil {
 		return fmt.Errorf("failed to decode bucket id %q: %v", b.id, err)
 	}

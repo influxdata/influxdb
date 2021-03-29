@@ -2,6 +2,7 @@ package launcher_test
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -80,7 +81,7 @@ func TestBackupRestore_Full(t *testing.T) {
 
 	// Check that orgs and buckets were reset to match the original server's metadata.
 	_, err = l2.OrgService(t).FindOrganizationByID(ctx, l2.Org.ID)
-	require.Equal(t, influxdb.ENotFound, influxdb.ErrorCode(err))
+	require.Equal(t, errors.ENotFound, errors.ErrorCode(err))
 	rbkt1, err := l2.BucketService(t).FindBucket(ctx, influxdb.BucketFilter{OrganizationID: &l1.Org.ID, ID: &l1.Bucket.ID})
 	require.NoError(t, err)
 	require.Equal(t, l1.Bucket.Name, rbkt1.Name)
@@ -88,7 +89,7 @@ func TestBackupRestore_Full(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, b1.Name, rbkt2.Name)
 	_, err = l2.BucketService(t).FindBucket(ctx, influxdb.BucketFilter{OrganizationID: &l2.Org.ID, ID: &b2.ID})
-	require.Equal(t, influxdb.ENotFound, influxdb.ErrorCode(err))
+	require.Equal(t, errors.ENotFound, errors.ErrorCode(err))
 
 	// Check that data was restored to buckets.
 	q1 := `from(bucket:"BUCKET") |> range(start:2000-01-01T00:00:00Z,stop:2000-01-02T00:00:00Z)`

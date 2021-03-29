@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
@@ -32,7 +33,7 @@ func NewNotificationRuleStore(ns influxdb.NotificationRuleStore, ts influxdb.Tas
 }
 
 // CreateNotificationRule Creates a notification and Publishes the change it can be scheduled.
-func (ns *CoordinatingNotificationRuleStore) CreateNotificationRule(ctx context.Context, nr influxdb.NotificationRuleCreate, userID influxdb.ID) error {
+func (ns *CoordinatingNotificationRuleStore) CreateNotificationRule(ctx context.Context, nr influxdb.NotificationRuleCreate, userID platform.ID) error {
 
 	if err := ns.NotificationRuleStore.CreateNotificationRule(ctx, nr, userID); err != nil {
 		return err
@@ -55,7 +56,7 @@ func (ns *CoordinatingNotificationRuleStore) CreateNotificationRule(ctx context.
 }
 
 // UpdateNotificationRule Updates a notification and publishes the change so the task owner can act on the update
-func (ns *CoordinatingNotificationRuleStore) UpdateNotificationRule(ctx context.Context, id influxdb.ID, nr influxdb.NotificationRuleCreate, uid influxdb.ID) (influxdb.NotificationRule, error) {
+func (ns *CoordinatingNotificationRuleStore) UpdateNotificationRule(ctx context.Context, id platform.ID, nr influxdb.NotificationRuleCreate, uid platform.ID) (influxdb.NotificationRule, error) {
 	from, err := ns.NotificationRuleStore.FindNotificationRuleByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -85,7 +86,7 @@ func (ns *CoordinatingNotificationRuleStore) UpdateNotificationRule(ctx context.
 }
 
 // PatchNotificationRule Updates a notification and publishes the change so the task owner can act on the update
-func (ns *CoordinatingNotificationRuleStore) PatchNotificationRule(ctx context.Context, id influxdb.ID, upd influxdb.NotificationRuleUpdate) (influxdb.NotificationRule, error) {
+func (ns *CoordinatingNotificationRuleStore) PatchNotificationRule(ctx context.Context, id platform.ID, upd influxdb.NotificationRuleUpdate) (influxdb.NotificationRule, error) {
 	from, err := ns.NotificationRuleStore.FindNotificationRuleByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -117,7 +118,7 @@ func (ns *CoordinatingNotificationRuleStore) PatchNotificationRule(ctx context.C
 }
 
 // DeleteNotificationRule delete the notification and publishes the change, to allow the task owner to find out about this change faster.
-func (ns *CoordinatingNotificationRuleStore) DeleteNotificationRule(ctx context.Context, id influxdb.ID) error {
+func (ns *CoordinatingNotificationRuleStore) DeleteNotificationRule(ctx context.Context, id platform.ID) error {
 	notification, err := ns.NotificationRuleStore.FindNotificationRuleByID(ctx, id)
 	if err != nil {
 		return err

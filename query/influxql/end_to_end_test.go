@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"io"
 	"io/ioutil"
 	"os"
@@ -17,9 +18,9 @@ import (
 	"github.com/influxdata/flux/memory"
 	fluxquerytest "github.com/influxdata/flux/querytest"
 	platform "github.com/influxdata/influxdb/v2"
+	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/query"
-	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/query/influxql"
 	"github.com/influxdata/influxdb/v2/query/querytest"
 	platformtesting "github.com/influxdata/influxdb/v2/testing"
@@ -37,7 +38,7 @@ func init() {
 		OrganizationID:  platformtesting.MustIDBase16("cadecadecadecade"),
 		BucketID:        platformtesting.MustIDBase16("da7aba5e5eedca5e"),
 	}
-	dbrpMappingSvcE2E.FindByIDFn = func(ctx context.Context, orgID, id platform.ID) (*platform.DBRPMappingV2, error) {
+	dbrpMappingSvcE2E.FindByIDFn = func(ctx context.Context, orgID, id platform2.ID) (*platform.DBRPMappingV2, error) {
 		return &mapping, nil
 	}
 	dbrpMappingSvcE2E.FindManyFn = func(ctx context.Context, filter platform.DBRPMappingFilterV2, opt ...platform.FindOptions) ([]*platform.DBRPMappingV2, int, error) {

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"sort"
 	"testing"
 
@@ -212,8 +213,8 @@ func DeleteUserResourceMapping(
 	t *testing.T,
 ) {
 	type args struct {
-		resourceID platform.ID
-		userID     platform.ID
+		resourceID platform2.ID
+		userID     platform2.ID
 	}
 	type wants struct {
 		err      error

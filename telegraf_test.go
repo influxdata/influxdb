@@ -3,6 +3,8 @@ package influxdb
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"sort"
 	"testing"
 
@@ -278,9 +280,9 @@ func TestTelegrafConfigJSONDecodeTOML(t *testing.T) {
 }
 
 func TestTelegrafConfigJSONCompatibleMode(t *testing.T) {
-	id1, _ := IDFromString("020f755c3c082000")
-	id2, _ := IDFromString("020f755c3c082222")
-	id3, _ := IDFromString("020f755c3c082223")
+	id1, _ := platform.IDFromString("020f755c3c082000")
+	id2, _ := platform.IDFromString("020f755c3c082222")
+	id3, _ := platform.IDFromString("020f755c3c082223")
 	cases := []struct {
 		name    string
 		src     []byte
@@ -337,8 +339,8 @@ func TestTelegrafConfigJSONCompatibleMode(t *testing.T) {
 }
 
 func TestTelegrafConfigJSON(t *testing.T) {
-	id1, _ := IDFromString("020f755c3c082000")
-	id2, _ := IDFromString("020f755c3c082222")
+	id1, _ := platform.IDFromString("020f755c3c082000")
+	id2, _ := platform.IDFromString("020f755c3c082222")
 	cases := []struct {
 		name   string
 		expect *TelegrafConfig
@@ -417,8 +419,8 @@ func TestTelegrafConfigJSON(t *testing.T) {
 					}
 				]
 			}`, *id1, *id2),
-			err: &Error{
-				Code: EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  fmt.Sprintf(ErrUnsupportTelegrafPluginType, "aggregator"),
 				Op:   "unmarshal telegraf config raw plugin",
 			},
@@ -439,8 +441,8 @@ func TestTelegrafConfigJSON(t *testing.T) {
 					}
 				]
 			}`, *id1, *id2),
-			err: &Error{
-				Code: EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  fmt.Sprintf(ErrUnsupportTelegrafPluginName, "kafka", plugins.Output),
 				Op:   "unmarshal telegraf config raw plugin",
 			},
@@ -460,7 +462,7 @@ func TestTelegrafConfigJSON(t *testing.T) {
 }
 
 func TestLegacyStruct(t *testing.T) {
-	id1, _ := IDFromString("020f755c3c082000")
+	id1, _ := platform.IDFromString("020f755c3c082000")
 
 	telConfOld := fmt.Sprintf(`{
 		"id":   "%v",

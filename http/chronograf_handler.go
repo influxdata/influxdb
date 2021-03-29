@@ -2,8 +2,8 @@ package http
 
 import (
 	"github.com/influxdata/httprouter"
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/chronograf/server"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 const prefixChronograf = "/chronograf"
@@ -15,7 +15,7 @@ type ChronografHandler struct {
 }
 
 // NewChronografHandler is the constructor an chronograf handler.
-func NewChronografHandler(s *server.Service, he influxdb.HTTPErrorHandler) *ChronografHandler {
+func NewChronografHandler(s *server.Service, he errors.HTTPErrorHandler) *ChronografHandler {
 	h := &ChronografHandler{
 		Router:  NewRouter(he),
 		Service: s,

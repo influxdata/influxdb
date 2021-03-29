@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/url"
 	"path/filepath"
 	"sort"
@@ -4561,17 +4562,17 @@ func Test_IsParseError(t *testing.T) {
 		},
 		{
 			name: "wrapped by influxdb error",
-			err: &influxdb.Error{
+			err: &errors2.Error{
 				Err: &parseErr{},
 			},
 			expected: true,
 		},
 		{
 			name: "deeply nested in influxdb error",
-			err: &influxdb.Error{
-				Err: &influxdb.Error{
-					Err: &influxdb.Error{
-						Err: &influxdb.Error{
+			err: &errors2.Error{
+				Err: &errors2.Error{
+					Err: &errors2.Error{
+						Err: &errors2.Error{
 							Err: &parseErr{},
 						},
 					},
@@ -4581,7 +4582,7 @@ func Test_IsParseError(t *testing.T) {
 		},
 		{
 			name: "influxdb error without nested parse err",
-			err: &influxdb.Error{
+			err: &errors2.Error{
 				Err: errors.New("nope"),
 			},
 			expected: false,

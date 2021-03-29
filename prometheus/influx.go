@@ -1,6 +1,7 @@
 package prometheus
 
 import (
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"runtime"
 	"strconv"
 	"time"
@@ -16,7 +17,7 @@ type influxCollector struct {
 }
 
 // NewInfluxCollector returns a collector which exports influxdb process metrics.
-func NewInfluxCollector(procID platform.IDGenerator, build platform.BuildInfo) prometheus.Collector {
+func NewInfluxCollector(procID platform2.IDGenerator, build platform.BuildInfo) prometheus.Collector {
 	id := procID.ID().String()
 
 	return &influxCollector{

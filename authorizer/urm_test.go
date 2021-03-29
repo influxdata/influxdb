@@ -2,6 +2,8 @@ package authorizer_test
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -13,10 +15,10 @@ import (
 )
 
 type OrgService struct {
-	OrgID influxdb.ID
+	OrgID platform.ID
 }
 
-func (s *OrgService) FindResourceOrganizationID(ctx context.Context, rt influxdb.ResourceType, id influxdb.ID) (influxdb.ID, error) {
+func (s *OrgService) FindResourceOrganizationID(ctx context.Context, rt influxdb.ResourceType, id platform.ID) (platform.ID, error) {
 	return s.OrgID, nil
 }
 
@@ -169,7 +171,7 @@ func TestURMService_WriteUserResourceMapping(t *testing.T) {
 					CreateMappingFn: func(ctx context.Context, m *influxdb.UserResourceMapping) error {
 						return nil
 					},
-					DeleteMappingFn: func(ctx context.Context, rid, uid influxdb.ID) error {
+					DeleteMappingFn: func(ctx context.Context, rid, uid platform.ID) error {
 						return nil
 					},
 					FindMappingsFn: func(ctx context.Context, filter influxdb.UserResourceMappingFilter) ([]*influxdb.UserResourceMapping, int, error) {
@@ -204,7 +206,7 @@ func TestURMService_WriteUserResourceMapping(t *testing.T) {
 					CreateMappingFn: func(ctx context.Context, m *influxdb.UserResourceMapping) error {
 						return nil
 					},
-					DeleteMappingFn: func(ctx context.Context, rid, uid influxdb.ID) error {
+					DeleteMappingFn: func(ctx context.Context, rid, uid platform.ID) error {
 						return nil
 					},
 					FindMappingsFn: func(ctx context.Context, filter influxdb.UserResourceMappingFilter) ([]*influxdb.UserResourceMapping, int, error) {
@@ -228,9 +230,9 @@ func TestURMService_WriteUserResourceMapping(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/buckets/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},

@@ -3,6 +3,7 @@ package tenant
 import (
 	"context"
 	"encoding/json"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
@@ -41,7 +42,7 @@ func NewOpLogService(store kv.Store, opLogStore OpLogStore) *OpLogService {
 }
 
 // GetOrganizationOperationLog retrieves a organization operation log.
-func (s *OpLogService) GetOrganizationOperationLog(ctx context.Context, id influxdb.ID, opts influxdb.FindOptions) ([]*influxdb.OperationLogEntry, int, error) {
+func (s *OpLogService) GetOrganizationOperationLog(ctx context.Context, id platform.ID, opts influxdb.FindOptions) ([]*influxdb.OperationLogEntry, int, error) {
 	// TODO(desa): might be worthwhile to allocate a slice of size opts.Limit
 	log := []*influxdb.OperationLogEntry{}
 
@@ -72,7 +73,7 @@ func (s *OpLogService) GetOrganizationOperationLog(ctx context.Context, id influ
 }
 
 // GetBucketOperationLog retrieves a buckets operation log.
-func (s *OpLogService) GetBucketOperationLog(ctx context.Context, id influxdb.ID, opts influxdb.FindOptions) ([]*influxdb.OperationLogEntry, int, error) {
+func (s *OpLogService) GetBucketOperationLog(ctx context.Context, id platform.ID, opts influxdb.FindOptions) ([]*influxdb.OperationLogEntry, int, error) {
 	// TODO(desa): might be worthwhile to allocate a slice of size opts.Limit
 	log := []*influxdb.OperationLogEntry{}
 
@@ -103,7 +104,7 @@ func (s *OpLogService) GetBucketOperationLog(ctx context.Context, id influxdb.ID
 }
 
 // GetUserOperationLog retrieves a user operation log.
-func (s *OpLogService) GetUserOperationLog(ctx context.Context, id influxdb.ID, opts influxdb.FindOptions) ([]*influxdb.OperationLogEntry, int, error) {
+func (s *OpLogService) GetUserOperationLog(ctx context.Context, id platform.ID, opts influxdb.FindOptions) ([]*influxdb.OperationLogEntry, int, error) {
 	// TODO(desa): might be worthwhile to allocate a slice of size opts.Limit
 	log := []*influxdb.OperationLogEntry{}
 
@@ -133,7 +134,7 @@ func (s *OpLogService) GetUserOperationLog(ctx context.Context, id influxdb.ID, 
 	return log, len(log), nil
 }
 
-func encodeOrganizationOperationLogKey(id influxdb.ID) ([]byte, error) {
+func encodeOrganizationOperationLogKey(id platform.ID) ([]byte, error) {
 	buf, err := id.Encode()
 	if err != nil {
 		return nil, err
@@ -141,7 +142,7 @@ func encodeOrganizationOperationLogKey(id influxdb.ID) ([]byte, error) {
 	return append([]byte(orgOperationLogKeyPrefix), buf...), nil
 }
 
-func encodeBucketOperationLogKey(id influxdb.ID) ([]byte, error) {
+func encodeBucketOperationLogKey(id platform.ID) ([]byte, error) {
 	buf, err := id.Encode()
 	if err != nil {
 		return nil, err
@@ -149,7 +150,7 @@ func encodeBucketOperationLogKey(id influxdb.ID) ([]byte, error) {
 	return append([]byte(bucketOperationLogKeyPrefix), buf...), nil
 }
 
-func encodeUserOperationLogKey(id influxdb.ID) ([]byte, error) {
+func encodeUserOperationLogKey(id platform.ID) ([]byte, error) {
 	buf, err := id.Encode()
 	if err != nil {
 		return nil, err

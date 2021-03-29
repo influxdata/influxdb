@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
@@ -169,7 +170,7 @@ func (b *cmdTaskBuilder) taskFindF(cmd *cobra.Command, args []string) error {
 
 	filter := influxdb.TaskFilter{}
 	if b.taskFindFlags.user != "" {
-		id, err := influxdb.IDFromString(b.taskFindFlags.user)
+		id, err := platform.IDFromString(b.taskFindFlags.user)
 		if err != nil {
 			return err
 		}
@@ -180,7 +181,7 @@ func (b *cmdTaskBuilder) taskFindF(cmd *cobra.Command, args []string) error {
 		filter.Organization = b.org.name
 	}
 	if b.org.id != "" {
-		id, err := influxdb.IDFromString(b.org.id)
+		id, err := platform.IDFromString(b.org.id)
 		if err != nil {
 			return err
 		}
@@ -195,7 +196,7 @@ func (b *cmdTaskBuilder) taskFindF(cmd *cobra.Command, args []string) error {
 	var tasks []*influxdb.Task
 
 	if b.taskID != "" {
-		id, err := influxdb.IDFromString(b.taskID)
+		id, err := platform.IDFromString(b.taskID)
 		if err != nil {
 			return err
 		}
@@ -282,7 +283,7 @@ func (b *cmdTaskBuilder) taskRetryFailedF(*cobra.Command, []string) error {
 		}
 	}
 	if b.taskRerunFailedFlags.dryRun {
-		uniqueIDs := make(map[influxdb.ID]struct{})
+		uniqueIDs := make(map[platform.ID]struct{})
 		for _, r := range failedRuns {
 			uniqueIDs[r.TaskID] = struct{}{}
 		}
@@ -300,7 +301,7 @@ func (b *cmdTaskBuilder) getFailedRunsForTaskID(limit int) ([]*influxdb.Run, err
 		return nil, err
 	}
 	runFilter := influxdb.RunFilter{Limit: limit}
-	id, err := influxdb.IDFromString(b.taskID)
+	id, err := platform.IDFromString(b.taskID)
 	if err != nil {
 		return nil, err
 	}
@@ -336,7 +337,7 @@ func (b *cmdTaskBuilder) getFailedRunsForOrg(taskLimit int, runLimit int) ([]*in
 		taskFilter.Organization = b.org.name
 	}
 	if b.org.id != "" {
-		orgID, err := influxdb.IDFromString(b.org.id)
+		orgID, err := platform.IDFromString(b.org.id)
 		if err != nil {
 			return nil, err
 		}
@@ -392,7 +393,7 @@ func (b *cmdTaskBuilder) taskUpdateF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	var id influxdb.ID
+	var id platform.ID
 	if err := id.DecodeFromString(b.taskID); err != nil {
 		return err
 	}
@@ -437,7 +438,7 @@ func (b *cmdTaskBuilder) taskDeleteF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	var id influxdb.ID
+	var id platform.ID
 	err = id.DecodeFromString(b.taskID)
 	if err != nil {
 		return err
@@ -536,14 +537,14 @@ func (b *cmdTaskBuilder) taskLogFindF(cmd *cobra.Command, args []string) error {
 	}
 
 	var filter influxdb.LogFilter
-	id, err := influxdb.IDFromString(b.taskID)
+	id, err := platform.IDFromString(b.taskID)
 	if err != nil {
 		return err
 	}
 	filter.Task = *id
 
 	if b.runID != "" {
-		id, err := influxdb.IDFromString(b.runID)
+		id, err := platform.IDFromString(b.runID)
 		if err != nil {
 			return err
 		}
@@ -624,7 +625,7 @@ func (b *cmdTaskBuilder) taskRunFindF(cmd *cobra.Command, args []string) error {
 		AfterTime:  b.taskRunFindFlags.afterTime,
 		BeforeTime: b.taskRunFindFlags.beforeTime,
 	}
-	taskID, err := influxdb.IDFromString(b.taskID)
+	taskID, err := platform.IDFromString(b.taskID)
 	if err != nil {
 		return err
 	}
@@ -632,7 +633,7 @@ func (b *cmdTaskBuilder) taskRunFindF(cmd *cobra.Command, args []string) error {
 
 	var runs []*influxdb.Run
 	if b.runID != "" {
-		id, err := influxdb.IDFromString(b.runID)
+		id, err := platform.IDFromString(b.runID)
 		if err != nil {
 			return err
 		}
@@ -714,7 +715,7 @@ func (b *cmdTaskBuilder) runRetryF(*cobra.Command, []string) error {
 		return err
 	}
 
-	var taskID, runID influxdb.ID
+	var taskID, runID platform.ID
 	if err := taskID.DecodeFromString(runRetryFlags.taskID); err != nil {
 		return err
 	}

@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io"
 	"io/ioutil"
 	"os"
@@ -1126,8 +1127,8 @@ func (s *Store) MeasurementsSketches(database string) (estimator.Sketch, estimat
 func (s *Store) BackupShard(id uint64, since time.Time, w io.Writer) error {
 	shard := s.Shard(id)
 	if shard == nil {
-		return &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return &errors2.Error{
+			Code: errors2.ENotFound,
 			Msg:  fmt.Sprintf("shard %d not found", id),
 		}
 	}
@@ -1143,8 +1144,8 @@ func (s *Store) BackupShard(id uint64, since time.Time, w io.Writer) error {
 func (s *Store) ExportShard(id uint64, start time.Time, end time.Time, w io.Writer) error {
 	shard := s.Shard(id)
 	if shard == nil {
-		return &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return &errors2.Error{
+			Code: errors2.ENotFound,
 			Msg:  fmt.Sprintf("shard %d not found", id),
 		}
 	}

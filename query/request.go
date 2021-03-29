@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"net/http"
 
 	"github.com/influxdata/flux"
@@ -23,7 +24,7 @@ const (
 type Request struct {
 	// Scope
 	Authorization  *platform.Authorization `json:"authorization,omitempty"`
-	OrganizationID platform.ID             `json:"organization_id"`
+	OrganizationID platform2.ID            `json:"organization_id"`
 
 	// Command
 

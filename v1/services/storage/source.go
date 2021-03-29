@@ -2,7 +2,7 @@ package storage
 
 import (
 	"github.com/gogo/protobuf/types"
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 // this is easier than fooling around with .proto files.
@@ -25,10 +25,10 @@ func getReadSource(any types.Any) (readSource, error) {
 	return source, nil
 }
 
-func (r *readSource) GetOrgID() influxdb.ID {
-	return influxdb.ID(r.OrganizationID)
+func (r *readSource) GetOrgID() platform.ID {
+	return platform.ID(r.OrganizationID)
 }
 
-func (r *readSource) GetBucketID() influxdb.ID {
-	return influxdb.ID(r.BucketID)
+func (r *readSource) GetBucketID() platform.ID {
+	return platform.ID(r.BucketID)
 }

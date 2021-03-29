@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -19,7 +20,6 @@ import (
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/ast/edit"
 	"github.com/influxdata/flux/parser"
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/pkg/jsonnet"
 	"github.com/influxdata/influxdb/v2/task/options"
 	"gopkg.in/yaml.v3"
@@ -104,8 +104,8 @@ func FromFile(filePath string) ReaderFn {
 	return func() (io.Reader, string, error) {
 		u, err := url.Parse(filePath)
 		if err != nil {
-			return nil, filePath, &influxdb.Error{
-				Code: influxdb.EInvalid,
+			return nil, filePath, &errors2.Error{
+				Code: errors2.EInvalid,
 				Msg:  "invalid filepath provided",
 				Err:  err,
 			}
@@ -1664,7 +1664,7 @@ func (p *Template) parseChartQueries(dashMetaName string, chartIdx int, resource
 func (p *Template) parseQuery(prefix, source string, params, task []Resource) (query, error) {
 	files := parser.ParseSource(source).Files
 	if len(files) != 1 {
-		return query{}, influxErr(influxdb.EInvalid, "invalid query source")
+		return query{}, influxErr(errors2.EInvalid, "invalid query source")
 	}
 
 	q := query{
@@ -1756,7 +1756,7 @@ func (p *Template) parseQuery(prefix, source string, params, task []Resource) (q
 				case string:
 					tParams[field].defaultVal, err = time.ParseDuration(defDur)
 					if err != nil {
-						return query{}, influxErr(influxdb.EInvalid, err.Error())
+						return query{}, influxErr(errors2.EInvalid, err.Error())
 					}
 				case time.Duration:
 					tParams[field].defaultVal = defDur
@@ -2287,7 +2287,7 @@ func IsParseErr(err error) bool {
 		return true
 	}
 
-	iErr, ok := err.(*influxdb.Error)
+	iErr, ok := err.(*errors2.Error)
 	if !ok {
 		return false
 	}

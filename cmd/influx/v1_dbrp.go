@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io"
 
 	"github.com/influxdata/influxdb/v2"
@@ -33,10 +34,10 @@ var v1DBRPCRUDFlags struct {
 }
 
 var v1DBRPFindFlags struct {
-	BucketID influxdb.ID  // Specifies the bucket ID to filter on
+	BucketID platform.ID  // Specifies the bucket ID to filter on
 	DB       string       // Specifies the database to filter on
 	Default  *bool        // Specifies filtering on default
-	ID       influxdb.ID  // Specifies the mapping ID to filter on
+	ID       platform.ID  // Specifies the mapping ID to filter on
 	Org      organization // required  // Specifies the organization ID to filter on
 	RP       string       // Specifies the retention policy to filter on
 }
@@ -121,7 +122,7 @@ func v1DBRPFindF(cmd *cobra.Command, _ []string) error {
 }
 
 var v1DBRPCreateFlags struct {
-	BucketID influxdb.ID  // Specifies the bucket ID to associate with the mapping
+	BucketID platform.ID  // Specifies the bucket ID to associate with the mapping
 	DB       string       // Specifies the database of the database
 	Default  bool         // Specifies filtering on default
 	Org      organization // Specifies the organization ID to filter on
@@ -237,7 +238,7 @@ func v1WriteDBRPs(w io.Writer, printOpts v1DBRPPrintOpt) error {
 }
 
 var v1DBRPDeleteFlags struct {
-	ID  influxdb.ID
+	ID  platform.ID
 	Org organization
 }
 
@@ -292,7 +293,7 @@ func v1DBRPDeleteF(cmd *cobra.Command, _ []string) error {
 }
 
 var v1DBRPUpdateFlags struct {
-	ID      influxdb.ID  // Specifies the mapping ID to update
+	ID      platform.ID  // Specifies the mapping ID to update
 	Org     organization // Specifies the organization ID
 	Default *bool        // A nil value means that Default is unset in the Flags
 	RP      string       // Updated name of the retention policy

@@ -6,12 +6,12 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
 
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 )
 
@@ -190,8 +190,8 @@ func (r *Req) do(ctx context.Context) error {
 
 	if r.decodeFn != nil {
 		if err := r.decodeFn(resp); err != nil {
-			return &influxdb.Error{
-				Code: influxdb.EInvalid,
+			return &errors.Error{
+				Code: errors.EInvalid,
 				Err:  err,
 			}
 		}

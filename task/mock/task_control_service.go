@@ -3,6 +3,7 @@ package mock
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"sort"
 	"sync"
 	"time"
@@ -18,28 +19,28 @@ var idgen = snowflake.NewDefaultIDGenerator()
 type TaskControlService struct {
 	mu sync.Mutex
 	// Map of stringified task ID to last ID used for run.
-	runs map[influxdb.ID]map[influxdb.ID]*influxdb.Run
+	runs map[platform.ID]map[platform.ID]*influxdb.Run
 
 	// Map of stringified, concatenated task and platform ID, to runs that have been created.
 	created map[string]*influxdb.Run
 
 	// Map of stringified task ID to task meta.
-	tasks      map[influxdb.ID]*influxdb.Task
+	tasks      map[platform.ID]*influxdb.Task
 	manualRuns []*influxdb.Run
 	// Map of task ID to total number of runs created for that task.
-	totalRunsCreated map[influxdb.ID]int
-	finishedRuns     map[influxdb.ID]*influxdb.Run
+	totalRunsCreated map[platform.ID]int
+	finishedRuns     map[platform.ID]*influxdb.Run
 }
 
 var _ backend.TaskControlService = (*TaskControlService)(nil)
 
 func NewTaskControlService() *TaskControlService {
 	return &TaskControlService{
-		runs:             make(map[influxdb.ID]map[influxdb.ID]*influxdb.Run),
-		finishedRuns:     make(map[influxdb.ID]*influxdb.Run),
-		tasks:            make(map[influxdb.ID]*influxdb.Task),
+		runs:             make(map[platform.ID]map[platform.ID]*influxdb.Run),
+		finishedRuns:     make(map[platform.ID]*influxdb.Run),
+		tasks:            make(map[platform.ID]*influxdb.Task),
 		created:          make(map[string]*influxdb.Run),
-		totalRunsCreated: make(map[influxdb.ID]int),
+		totalRunsCreated: make(map[platform.ID]int),
 	}
 }
 
@@ -56,14 +57,14 @@ func (d *TaskControlService) SetManualRuns(runs []*influxdb.Run) {
 	d.manualRuns = runs
 }
 
-func (t *TaskControlService) CreateRun(_ context.Context, taskID influxdb.ID, scheduledFor time.Time, runAt time.Time) (*influxdb.Run, error) {
+func (t *TaskControlService) CreateRun(_ context.Context, taskID platform.ID, scheduledFor time.Time, runAt time.Time) (*influxdb.Run, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
 	runID := idgen.ID()
 	runs, ok := t.runs[taskID]
 	if !ok {
-		runs = make(map[influxdb.ID]*influxdb.Run)
+		runs = make(map[platform.ID]*influxdb.Run)
 	}
 	runs[runID] = &influxdb.Run{
 		ID:           runID,
@@ -73,7 +74,7 @@ func (t *TaskControlService) CreateRun(_ context.Context, taskID influxdb.ID, sc
 	return runs[runID], nil
 }
 
-func (t *TaskControlService) StartManualRun(_ context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
+func (t *TaskControlService) StartManualRun(_ context.Context, taskID, runID platform.ID) (*influxdb.Run, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -90,7 +91,7 @@ func (t *TaskControlService) StartManualRun(_ context.Context, taskID, runID inf
 	return run, nil
 }
 
-func (d *TaskControlService) FinishRun(_ context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
+func (d *TaskControlService) FinishRun(_ context.Context, taskID, runID platform.ID) (*influxdb.Run, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -109,7 +110,7 @@ func (d *TaskControlService) FinishRun(_ context.Context, taskID, runID influxdb
 	return r, nil
 }
 
-func (t *TaskControlService) CurrentlyRunning(ctx context.Context, taskID influxdb.ID) ([]*influxdb.Run, error) {
+func (t *TaskControlService) CurrentlyRunning(ctx context.Context, taskID platform.ID) ([]*influxdb.Run, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	rtn := []*influxdb.Run{}
@@ -119,7 +120,7 @@ func (t *TaskControlService) CurrentlyRunning(ctx context.Context, taskID influx
 	return rtn, nil
 }
 
-func (t *TaskControlService) ManualRuns(ctx context.Context, taskID influxdb.ID) ([]*influxdb.Run, error) {
+func (t *TaskControlService) ManualRuns(ctx context.Context, taskID platform.ID) ([]*influxdb.Run, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -130,7 +131,7 @@ func (t *TaskControlService) ManualRuns(ctx context.Context, taskID influxdb.ID)
 }
 
 // UpdateRunState sets the run state at the respective time.
-func (d *TaskControlService) UpdateRunState(ctx context.Context, taskID, runID influxdb.ID, when time.Time, state influxdb.RunStatus) error {
+func (d *TaskControlService) UpdateRunState(ctx context.Context, taskID, runID platform.ID, when time.Time, state influxdb.RunStatus) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -153,7 +154,7 @@ func (d *TaskControlService) UpdateRunState(ctx context.Context, taskID, runID i
 }
 
 // AddRunLog adds a log line to the run.
-func (d *TaskControlService) AddRunLog(ctx context.Context, taskID, runID influxdb.ID, when time.Time, log string) error {
+func (d *TaskControlService) AddRunLog(ctx context.Context, taskID, runID platform.ID, when time.Time, log string) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -165,7 +166,7 @@ func (d *TaskControlService) AddRunLog(ctx context.Context, taskID, runID influx
 	return nil
 }
 
-func (d *TaskControlService) CreatedFor(taskID influxdb.ID) []*influxdb.Run {
+func (d *TaskControlService) CreatedFor(taskID platform.ID) []*influxdb.Run {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -180,7 +181,7 @@ func (d *TaskControlService) CreatedFor(taskID influxdb.ID) []*influxdb.Run {
 }
 
 // TotalRunsCreatedForTask returns the number of runs created for taskID.
-func (d *TaskControlService) TotalRunsCreatedForTask(taskID influxdb.ID) int {
+func (d *TaskControlService) TotalRunsCreatedForTask(taskID platform.ID) int {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -191,7 +192,7 @@ func (d *TaskControlService) TotalRunsCreatedForTask(taskID influxdb.ID) int {
 // If the expected number isn't found in time, it returns an error.
 //
 // Because the scheduler and executor do a lot of state changes asynchronously, this is useful in test.
-func (d *TaskControlService) PollForNumberCreated(taskID influxdb.ID, count int) ([]*influxdb.Run, error) {
+func (d *TaskControlService) PollForNumberCreated(taskID platform.ID, count int) ([]*influxdb.Run, error) {
 	const numAttempts = 50
 	actualCount := 0
 	var created []*influxdb.Run
@@ -206,7 +207,7 @@ func (d *TaskControlService) PollForNumberCreated(taskID influxdb.ID, count int)
 	return created, fmt.Errorf("did not see count of %d created run(s) for task with ID %s in time, instead saw %d", count, taskID, actualCount) // we return created anyways, to make it easier to debug
 }
 
-func (d *TaskControlService) FinishedRun(runID influxdb.ID) *influxdb.Run {
+func (d *TaskControlService) FinishedRun(runID platform.ID) *influxdb.Run {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 

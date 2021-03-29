@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io"
 
 	"github.com/influxdata/influxdb/v2"
@@ -111,7 +113,7 @@ func (b *cmdOrgBuilder) deleteRunEFn(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to initialize org service client: %v", err)
 	}
 
-	var id influxdb.ID
+	var id platform.ID
 	if err := id.DecodeFromString(b.id); err != nil {
 		return fmt.Errorf("failed to decode org id %s: %v", b.id, err)
 	}
@@ -171,7 +173,7 @@ func (b *cmdOrgBuilder) findRunEFn(cmd *cobra.Command, args []string) error {
 	}
 
 	if b.id != "" {
-		id, err := influxdb.IDFromString(b.id)
+		id, err := platform.IDFromString(b.id)
 		if err != nil {
 			return fmt.Errorf("failed to decode org id %s: %v", b.id, err)
 		}
@@ -226,7 +228,7 @@ func (b *cmdOrgBuilder) updateRunEFn(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to initialize org service client: %v", err)
 	}
 
-	var id influxdb.ID
+	var id platform.ID
 	if err := id.DecodeFromString(b.id); err != nil {
 		return fmt.Errorf("failed to decode org id %s: %v", b.id, err)
 	}
@@ -341,7 +343,7 @@ func (b *cmdOrgBuilder) memberListRunEFn(cmd *cobra.Command, args []string) erro
 	}
 
 	if b.id != "" {
-		var fID influxdb.ID
+		var fID platform.ID
 		err := fID.DecodeFromString(b.id)
 		if err != nil {
 			return fmt.Errorf("failed to decode org id %s: %v", b.id, err)
@@ -409,7 +411,7 @@ func (b *cmdOrgBuilder) memberAddRunEFn(cmd *cobra.Command, args []string) error
 	}
 
 	if b.id != "" {
-		var fID influxdb.ID
+		var fID platform.ID
 		err := fID.DecodeFromString(b.id)
 		if err != nil {
 			return fmt.Errorf("failed to decode org id %s: %v", b.id, err)
@@ -423,7 +425,7 @@ func (b *cmdOrgBuilder) memberAddRunEFn(cmd *cobra.Command, args []string) error
 		return fmt.Errorf("failed to find org: %v", err)
 	}
 
-	var memberID influxdb.ID
+	var memberID platform.ID
 	err = memberID.DecodeFromString(b.memberID)
 	if err != nil {
 		return fmt.Errorf("failed to decode member id %s: %v", b.memberID, err)
@@ -486,7 +488,7 @@ func (b *cmdOrgBuilder) membersRemoveRunEFn(cmd *cobra.Command, args []string) e
 	}
 
 	if b.id != "" {
-		var fID influxdb.ID
+		var fID platform.ID
 		err := fID.DecodeFromString(b.id)
 		if err != nil {
 			return fmt.Errorf("failed to decode org id %s: %v", b.id, err)
@@ -500,7 +502,7 @@ func (b *cmdOrgBuilder) membersRemoveRunEFn(cmd *cobra.Command, args []string) e
 		return fmt.Errorf("failed to find organization: %v", err)
 	}
 
-	var memberID influxdb.ID
+	var memberID platform.ID
 	err = memberID.DecodeFromString(b.memberID)
 	if err != nil {
 		return fmt.Errorf("failed to decode member id %s: %v", b.memberID, err)
@@ -580,7 +582,7 @@ func (b *cmdOrgBuilder) memberList(ctx context.Context, urmSVC influxdb.UserReso
 	for i := 0; i < len(mappings); i++ {
 		select {
 		case <-ctx.Done():
-			return &influxdb.Error{
+			return &errors.Error{
 				Msg: "Timeout retrieving user details",
 			}
 		case err := <-errC:
@@ -620,7 +622,7 @@ func addMember(ctx context.Context, w io.Writer, urmSVC influxdb.UserResourceMap
 	return err
 }
 
-func removeMember(ctx context.Context, w io.Writer, urmSVC influxdb.UserResourceMappingService, resourceID, userID influxdb.ID) error {
+func removeMember(ctx context.Context, w io.Writer, urmSVC influxdb.UserResourceMappingService, resourceID, userID platform.ID) error {
 	if err := urmSVC.DeleteUserResourceMapping(ctx, resourceID, userID); err != nil {
 		return fmt.Errorf("failed to remove member: %v", err)
 	}

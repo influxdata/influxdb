@@ -2,12 +2,12 @@ package cli
 
 import (
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"os"
 	"path"
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb/v2"
 	"github.com/spf13/cast"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -307,10 +307,10 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 				}
 			}
 
-		case *influxdb.ID:
-			var d influxdb.ID
+		case *platform.ID:
+			var d platform.ID
 			if o.Default != nil {
-				d = o.Default.(influxdb.ID)
+				d = o.Default.(platform.ID)
 			}
 			if hasShort {
 				IDVarP(flagset, destP, o.Flag, string(o.Short), d, o.Desc)

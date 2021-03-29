@@ -3,6 +3,7 @@ package endpoint
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -80,38 +81,38 @@ func (s HTTP) Valid() error {
 		return err
 	}
 	if s.URL == "" {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "http endpoint URL is empty",
 		}
 	}
 	if _, err := url.Parse(s.URL); err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("http endpoint URL is invalid: %s", err.Error()),
 		}
 	}
 	if !goodHTTPMethod[s.Method] {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "invalid http http method",
 		}
 	}
 	if !goodHTTPAuthMethod[s.AuthMethod] {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "invalid http auth method",
 		}
 	}
 	if s.AuthMethod == "basic" && (s.Username.Key == "" || s.Password.Key == "") {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "invalid http username/password for basic auth",
 		}
 	}
 	if s.AuthMethod == "bearer" && s.Token.Key == "" {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "invalid http token for bearer auth",
 		}
 	}
@@ -144,7 +145,7 @@ func (s HTTP) ParseResponse(resp *http.Response) error {
 		if err != nil {
 			return err
 		}
-		return &influxdb.Error{
+		return &errors.Error{
 			Msg: string(body),
 		}
 	}

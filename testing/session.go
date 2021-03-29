@@ -3,6 +3,8 @@ package testing
 import (
 	"bytes"
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"sort"
 	"testing"
 	"time"
@@ -39,7 +41,7 @@ func sessionCompareOptions(ignore ...string) cmp.Options {
 
 // SessionFields will include the IDGenerator, TokenGenerator, Sessions, and Users
 type SessionFields struct {
-	IDGenerator    influxdb.IDGenerator
+	IDGenerator    platform.IDGenerator
 	TokenGenerator influxdb.TokenGenerator
 	Sessions       []*influxdb.Session
 	Users          []*influxdb.User
@@ -194,8 +196,8 @@ func FindSession(
 				key: "abc123xyz",
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpFindSession,
 					Msg:  influxdb.ErrSessionNotFound,
 				},
@@ -394,8 +396,8 @@ func RenewSession(
 				expireAt: time.Date(2031, 9, 26, 0, 0, 10, 0, time.UTC),
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EInternal,
+				err: &errors.Error{
+					Code: errors.EInternal,
 					Msg:  "session is nil",
 					Op:   influxdb.OpRenewSession,
 				},

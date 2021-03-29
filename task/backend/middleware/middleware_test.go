@@ -3,13 +3,14 @@ package middleware_test
 import (
 	"context"
 	"errors"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
-	pmock "github.com/influxdata/influxdb/v2/mock"
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
+	pmock "github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/task/backend"
 	"github.com/influxdata/influxdb/v2/task/backend/coordinator"
@@ -32,7 +33,7 @@ const script = `option task = {name: "a task",cron: "* * * * *"} from(bucket:"te
 
 func inmemTaskService() influxdb.TaskService {
 	gen := snowflake.NewDefaultIDGenerator()
-	tasks := map[influxdb.ID]*influxdb.Task{}
+	tasks := map[platform.ID]*influxdb.Task{}
 	mu := sync.Mutex{}
 
 	ts := &pmock.TaskService{
@@ -48,13 +49,13 @@ func inmemTaskService() influxdb.TaskService {
 
 			return tasks[id], nil
 		},
-		DeleteTaskFn: func(ctx context.Context, id influxdb.ID) error {
+		DeleteTaskFn: func(ctx context.Context, id platform.ID) error {
 			mu.Lock()
 			defer mu.Unlock()
 			delete(tasks, id)
 			return nil
 		},
-		UpdateTaskFn: func(ctx context.Context, id influxdb.ID, upd influxdb.TaskUpdate) (*influxdb.Task, error) {
+		UpdateTaskFn: func(ctx context.Context, id platform.ID, upd influxdb.TaskUpdate) (*influxdb.Task, error) {
 			mu.Lock()
 			defer mu.Unlock()
 			t, ok := tasks[id]
@@ -74,7 +75,7 @@ func inmemTaskService() influxdb.TaskService {
 
 			return t, nil
 		},
-		FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+		FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
 			mu.Lock()
 			defer mu.Unlock()
 			t, ok := tasks[id]
@@ -96,7 +97,7 @@ func inmemTaskService() influxdb.TaskService {
 			}
 			return rtn, len(rtn), nil
 		},
-		ForceRunFn: func(ctx context.Context, id influxdb.ID, scheduledFor int64) (*influxdb.Run, error) {
+		ForceRunFn: func(ctx context.Context, id platform.ID, scheduledFor int64) (*influxdb.Run, error) {
 			mu.Lock()
 			defer mu.Unlock()
 			t, ok := tasks[id]
@@ -220,7 +221,7 @@ func TestCoordinatingTaskService_ForceRun(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if influxdb.ID(id) != task.ID {
+	if platform.ID(id) != task.ID {
 		t.Fatalf("expected task ID passed to scheduler to match create task ID %v, got: %v", task.ID, id)
 	}
 

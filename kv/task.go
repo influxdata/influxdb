@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"strings"
 	"time"
 
@@ -35,21 +36,21 @@ var (
 var _ influxdb.TaskService = (*Service)(nil)
 
 type kvTask struct {
-	ID              influxdb.ID            `json:"id"`
-	Type            string                 `json:"type,omitempty"`
-	OrganizationID  influxdb.ID            `json:"orgID"`
-	Organization    string                 `json:"org"`
-	OwnerID         influxdb.ID            `json:"ownerID"`
-	Name            string                 `json:"name"`
-	Description     string                 `json:"description,omitempty"`
-	Status          string                 `json:"status"`
-	Flux            string                 `json:"flux"`
-	Every           string                 `json:"every,omitempty"`
-	Cron            string                 `json:"cron,omitempty"`
-	LastRunStatus   string                 `json:"lastRunStatus,omitempty"`
-	LastRunError    string                 `json:"lastRunError,omitempty"`
-	Offset          influxdb.Duration      `json:"offset,omitempty"`
-	LatestCompleted time.Time              `json:"latestCompleted,omitempty"`
+	ID              platform.ID       `json:"id"`
+	Type            string            `json:"type,omitempty"`
+	OrganizationID  platform.ID       `json:"orgID"`
+	Organization    string            `json:"org"`
+	OwnerID         platform.ID       `json:"ownerID"`
+	Name            string            `json:"name"`
+	Description     string            `json:"description,omitempty"`
+	Status          string            `json:"status"`
+	Flux            string            `json:"flux"`
+	Every           string            `json:"every,omitempty"`
+	Cron            string            `json:"cron,omitempty"`
+	LastRunStatus   string            `json:"lastRunStatus,omitempty"`
+	LastRunError    string            `json:"lastRunError,omitempty"`
+	Offset          influxdb.Duration `json:"offset,omitempty"`
+	LatestCompleted time.Time         `json:"latestCompleted,omitempty"`
 	LatestScheduled time.Time              `json:"latestScheduled,omitempty"`
 	LatestSuccess   time.Time              `json:"latestSuccess,omitempty"`
 	LatestFailure   time.Time              `json:"latestFailure,omitempty"`
@@ -85,7 +86,7 @@ func kvToInfluxTask(k *kvTask) *influxdb.Task {
 }
 
 // FindTaskByID returns a single task
-func (s *Service) FindTaskByID(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+func (s *Service) FindTaskByID(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
 	var t *influxdb.Task
 	err := s.kv.View(ctx, func(tx Tx) error {
 		task, err := s.findTaskByID(ctx, tx, id)
@@ -104,7 +105,7 @@ func (s *Service) FindTaskByID(ctx context.Context, id influxdb.ID) (*influxdb.T
 
 // findTaskByID is an internal method used to do any action with tasks internally
 // that do not require authorization.
-func (s *Service) findTaskByID(ctx context.Context, tx Tx, id influxdb.ID) (*influxdb.Task, error) {
+func (s *Service) findTaskByID(ctx context.Context, tx Tx, id platform.ID) (*influxdb.Task, error) {
 	taskKey, err := taskKey(id)
 	if err != nil {
 		return nil, err
@@ -253,10 +254,10 @@ func (s *Service) findTasksByUser(ctx context.Context, tx Tx, filter influxdb.Ta
 }
 
 // findTasksByOrg is a subset of the find tasks function. Used for cleanliness
-func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, orgID influxdb.ID, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
+func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, orgID platform.ID, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
 	var err error
 	if !orgID.Valid() {
-		return nil, 0, fmt.Errorf("finding tasks by organization ID: %w", influxdb.ErrInvalidID)
+		return nil, 0, fmt.Errorf("finding tasks by organization ID: %w", platform.ErrInvalidID)
 	}
 
 	var ts []*influxdb.Task
@@ -299,7 +300,7 @@ func (s *Service) findTasksByOrg(ctx context.Context, tx Tx, orgID influxdb.ID, 
 	matchFn := newTaskMatchFn(filter, nil)
 
 	for k, v := c.Next(); k != nil; k, v = c.Next() {
-		id, err := influxdb.IDFromString(string(v))
+		id, err := platform.IDFromString(string(v))
 		if err != nil {
 			return nil, 0, influxdb.ErrInvalidTaskID
 		}
@@ -574,7 +575,7 @@ func (s *Service) createTask(ctx context.Context, tx Tx, org *influxdb.Organizat
 }
 
 // UpdateTask updates a single task with changeset.
-func (s *Service) UpdateTask(ctx context.Context, id influxdb.ID, upd influxdb.TaskUpdate) (*influxdb.Task, error) {
+func (s *Service) UpdateTask(ctx context.Context, id platform.ID, upd influxdb.TaskUpdate) (*influxdb.Task, error) {
 	var t *influxdb.Task
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		task, err := s.updateTask(ctx, tx, id, upd)
@@ -591,7 +592,7 @@ func (s *Service) UpdateTask(ctx context.Context, id influxdb.ID, upd influxdb.T
 	return t, nil
 }
 
-func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd influxdb.TaskUpdate) (*influxdb.Task, error) {
+func (s *Service) updateTask(ctx context.Context, tx Tx, id platform.ID, upd influxdb.TaskUpdate) (*influxdb.Task, error) {
 	// retrieve the task
 	task, err := s.findTaskByID(ctx, tx, id)
 	if err != nil {
@@ -731,7 +732,7 @@ func (s *Service) updateTask(ctx context.Context, tx Tx, id influxdb.ID, upd inf
 }
 
 // DeleteTask removes a task by ID and purges all associated data and scheduled runs.
-func (s *Service) DeleteTask(ctx context.Context, id influxdb.ID) error {
+func (s *Service) DeleteTask(ctx context.Context, id platform.ID) error {
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		err := s.deleteTask(ctx, tx, id)
 		if err != nil {
@@ -746,7 +747,7 @@ func (s *Service) DeleteTask(ctx context.Context, id influxdb.ID) error {
 	return nil
 }
 
-func (s *Service) deleteTask(ctx context.Context, tx Tx, id influxdb.ID) error {
+func (s *Service) deleteTask(ctx context.Context, tx Tx, id platform.ID) error {
 	taskBucket, err := tx.Bucket(taskBucket)
 	if err != nil {
 		return influxdb.ErrUnexpectedTaskBucketErr(err)
@@ -945,7 +946,7 @@ func (s *Service) findRuns(ctx context.Context, tx Tx, filter influxdb.RunFilter
 }
 
 // FindRunByID returns a single run.
-func (s *Service) FindRunByID(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
+func (s *Service) FindRunByID(ctx context.Context, taskID, runID platform.ID) (*influxdb.Run, error) {
 	var run *influxdb.Run
 	err := s.kv.View(ctx, func(tx Tx) error {
 		r, err := s.findRunByID(ctx, tx, taskID, runID)
@@ -962,7 +963,7 @@ func (s *Service) FindRunByID(ctx context.Context, taskID, runID influxdb.ID) (*
 	return run, nil
 }
 
-func (s *Service) findRunByID(ctx context.Context, tx Tx, taskID, runID influxdb.ID) (*influxdb.Run, error) {
+func (s *Service) findRunByID(ctx context.Context, tx Tx, taskID, runID platform.ID) (*influxdb.Run, error) {
 	bucket, err := tx.Bucket(taskRunBucket)
 	if err != nil {
 		return nil, influxdb.ErrUnexpectedTaskBucketErr(err)
@@ -989,7 +990,7 @@ func (s *Service) findRunByID(ctx context.Context, tx Tx, taskID, runID influxdb
 }
 
 // CancelRun cancels a currently running run.
-func (s *Service) CancelRun(ctx context.Context, taskID, runID influxdb.ID) error {
+func (s *Service) CancelRun(ctx context.Context, taskID, runID platform.ID) error {
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		err := s.cancelRun(ctx, tx, taskID, runID)
 		if err != nil {
@@ -1000,7 +1001,7 @@ func (s *Service) CancelRun(ctx context.Context, taskID, runID influxdb.ID) erro
 	return err
 }
 
-func (s *Service) cancelRun(ctx context.Context, tx Tx, taskID, runID influxdb.ID) error {
+func (s *Service) cancelRun(ctx context.Context, tx Tx, taskID, runID platform.ID) error {
 	// get the run
 	run, err := s.findRunByID(ctx, tx, taskID, runID)
 	if err != nil {
@@ -1034,7 +1035,7 @@ func (s *Service) cancelRun(ctx context.Context, tx Tx, taskID, runID influxdb.I
 }
 
 // RetryRun creates and returns a new run (which is a retry of another run).
-func (s *Service) RetryRun(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
+func (s *Service) RetryRun(ctx context.Context, taskID, runID platform.ID) (*influxdb.Run, error) {
 	var r *influxdb.Run
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		run, err := s.retryRun(ctx, tx, taskID, runID)
@@ -1047,7 +1048,7 @@ func (s *Service) RetryRun(ctx context.Context, taskID, runID influxdb.ID) (*inf
 	return r, err
 }
 
-func (s *Service) retryRun(ctx context.Context, tx Tx, taskID, runID influxdb.ID) (*influxdb.Run, error) {
+func (s *Service) retryRun(ctx context.Context, tx Tx, taskID, runID platform.ID) (*influxdb.Run, error) {
 	// find the run
 	r, err := s.findRunByID(ctx, tx, taskID, runID)
 	if err != nil {
@@ -1104,7 +1105,7 @@ func (s *Service) retryRun(ctx context.Context, tx Tx, taskID, runID influxdb.ID
 
 // ForceRun forces a run to occur with unix timestamp scheduledFor, to be executed as soon as possible.
 // The value of scheduledFor may or may not align with the task's schedule.
-func (s *Service) ForceRun(ctx context.Context, taskID influxdb.ID, scheduledFor int64) (*influxdb.Run, error) {
+func (s *Service) ForceRun(ctx context.Context, taskID platform.ID, scheduledFor int64) (*influxdb.Run, error) {
 	var r *influxdb.Run
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		run, err := s.forceRun(ctx, tx, taskID, scheduledFor)
@@ -1117,7 +1118,7 @@ func (s *Service) ForceRun(ctx context.Context, taskID influxdb.ID, scheduledFor
 	return r, err
 }
 
-func (s *Service) forceRun(ctx context.Context, tx Tx, taskID influxdb.ID, scheduledFor int64) (*influxdb.Run, error) {
+func (s *Service) forceRun(ctx context.Context, tx Tx, taskID platform.ID, scheduledFor int64) (*influxdb.Run, error) {
 	// create a run
 	t := time.Unix(scheduledFor, 0).UTC()
 	r := &influxdb.Run{
@@ -1167,7 +1168,7 @@ func (s *Service) forceRun(ctx context.Context, tx Tx, taskID influxdb.ID, sched
 }
 
 // CreateRun creates a run with a scheduledFor time as now.
-func (s *Service) CreateRun(ctx context.Context, taskID influxdb.ID, scheduledFor time.Time, runAt time.Time) (*influxdb.Run, error) {
+func (s *Service) CreateRun(ctx context.Context, taskID platform.ID, scheduledFor time.Time, runAt time.Time) (*influxdb.Run, error) {
 	var r *influxdb.Run
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		run, err := s.createRun(ctx, tx, taskID, scheduledFor, runAt)
@@ -1179,7 +1180,7 @@ func (s *Service) CreateRun(ctx context.Context, taskID influxdb.ID, scheduledFo
 	})
 	return r, err
 }
-func (s *Service) createRun(ctx context.Context, tx Tx, taskID influxdb.ID, scheduledFor time.Time, runAt time.Time) (*influxdb.Run, error) {
+func (s *Service) createRun(ctx context.Context, tx Tx, taskID platform.ID, scheduledFor time.Time, runAt time.Time) (*influxdb.Run, error) {
 	id := s.IDGenerator.ID()
 	t := time.Unix(scheduledFor.Unix(), 0).UTC()
 
@@ -1213,7 +1214,7 @@ func (s *Service) createRun(ctx context.Context, tx Tx, taskID influxdb.ID, sche
 	return &run, nil
 }
 
-func (s *Service) CurrentlyRunning(ctx context.Context, taskID influxdb.ID) ([]*influxdb.Run, error) {
+func (s *Service) CurrentlyRunning(ctx context.Context, taskID platform.ID) ([]*influxdb.Run, error) {
 	var runs []*influxdb.Run
 	err := s.kv.View(ctx, func(tx Tx) error {
 		rs, err := s.currentlyRunning(ctx, tx, taskID)
@@ -1230,7 +1231,7 @@ func (s *Service) CurrentlyRunning(ctx context.Context, taskID influxdb.ID) ([]*
 	return runs, nil
 }
 
-func (s *Service) currentlyRunning(ctx context.Context, tx Tx, taskID influxdb.ID) ([]*influxdb.Run, error) {
+func (s *Service) currentlyRunning(ctx context.Context, tx Tx, taskID platform.ID) ([]*influxdb.Run, error) {
 	bucket, err := tx.Bucket(taskRunBucket)
 	if err != nil {
 		return nil, influxdb.ErrUnexpectedTaskBucketErr(err)
@@ -1271,7 +1272,7 @@ func (s *Service) currentlyRunning(ctx context.Context, tx Tx, taskID influxdb.I
 	return runs, nil
 }
 
-func (s *Service) ManualRuns(ctx context.Context, taskID influxdb.ID) ([]*influxdb.Run, error) {
+func (s *Service) ManualRuns(ctx context.Context, taskID platform.ID) ([]*influxdb.Run, error) {
 	var runs []*influxdb.Run
 	err := s.kv.View(ctx, func(tx Tx) error {
 		rs, err := s.manualRuns(ctx, tx, taskID)
@@ -1288,7 +1289,7 @@ func (s *Service) ManualRuns(ctx context.Context, taskID influxdb.ID) ([]*influx
 	return runs, nil
 }
 
-func (s *Service) manualRuns(ctx context.Context, tx Tx, taskID influxdb.ID) ([]*influxdb.Run, error) {
+func (s *Service) manualRuns(ctx context.Context, tx Tx, taskID platform.ID) ([]*influxdb.Run, error) {
 	b, err := tx.Bucket(taskRunBucket)
 	if err != nil {
 		return nil, influxdb.ErrUnexpectedTaskBucketErr(err)
@@ -1312,7 +1313,7 @@ func (s *Service) manualRuns(ctx context.Context, tx Tx, taskID influxdb.ID) ([]
 	return runs, nil
 }
 
-func (s *Service) StartManualRun(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
+func (s *Service) StartManualRun(ctx context.Context, taskID, runID platform.ID) (*influxdb.Run, error) {
 	var r *influxdb.Run
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		run, err := s.startManualRun(ctx, tx, taskID, runID)
@@ -1325,7 +1326,7 @@ func (s *Service) StartManualRun(ctx context.Context, taskID, runID influxdb.ID)
 	return r, err
 }
 
-func (s *Service) startManualRun(ctx context.Context, tx Tx, taskID, runID influxdb.ID) (*influxdb.Run, error) {
+func (s *Service) startManualRun(ctx context.Context, tx Tx, taskID, runID platform.ID) (*influxdb.Run, error) {
 
 	mRuns, err := s.manualRuns(ctx, tx, taskID)
 	if err != nil {
@@ -1386,7 +1387,7 @@ func (s *Service) startManualRun(ctx context.Context, tx Tx, taskID, runID influ
 }
 
 // FinishRun removes runID from the list of running tasks and if its `now` is later then last completed update it.
-func (s *Service) FinishRun(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
+func (s *Service) FinishRun(ctx context.Context, taskID, runID platform.ID) (*influxdb.Run, error) {
 	var run *influxdb.Run
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		r, err := s.finishRun(ctx, tx, taskID, runID)
@@ -1399,7 +1400,7 @@ func (s *Service) FinishRun(ctx context.Context, taskID, runID influxdb.ID) (*in
 	return run, err
 }
 
-func (s *Service) finishRun(ctx context.Context, tx Tx, taskID, runID influxdb.ID) (*influxdb.Run, error) {
+func (s *Service) finishRun(ctx context.Context, tx Tx, taskID, runID platform.ID) (*influxdb.Run, error) {
 	// get the run
 	r, err := s.findRunByID(ctx, tx, taskID, runID)
 	if err != nil {
@@ -1456,7 +1457,7 @@ func (s *Service) finishRun(ctx context.Context, tx Tx, taskID, runID influxdb.I
 }
 
 // UpdateRunState sets the run state at the respective time.
-func (s *Service) UpdateRunState(ctx context.Context, taskID, runID influxdb.ID, when time.Time, state influxdb.RunStatus) error {
+func (s *Service) UpdateRunState(ctx context.Context, taskID, runID platform.ID, when time.Time, state influxdb.RunStatus) error {
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		err := s.updateRunState(ctx, tx, taskID, runID, when, state)
 		if err != nil {
@@ -1467,7 +1468,7 @@ func (s *Service) UpdateRunState(ctx context.Context, taskID, runID influxdb.ID,
 	return err
 }
 
-func (s *Service) updateRunState(ctx context.Context, tx Tx, taskID, runID influxdb.ID, when time.Time, state influxdb.RunStatus) error {
+func (s *Service) updateRunState(ctx context.Context, tx Tx, taskID, runID platform.ID, when time.Time, state influxdb.RunStatus) error {
 	// find run
 	run, err := s.findRunByID(ctx, tx, taskID, runID)
 	if err != nil {
@@ -1506,7 +1507,7 @@ func (s *Service) updateRunState(ctx context.Context, tx Tx, taskID, runID influ
 }
 
 // AddRunLog adds a log line to the run.
-func (s *Service) AddRunLog(ctx context.Context, taskID, runID influxdb.ID, when time.Time, log string) error {
+func (s *Service) AddRunLog(ctx context.Context, taskID, runID platform.ID, when time.Time, log string) error {
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		err := s.addRunLog(ctx, tx, taskID, runID, when, log)
 		if err != nil {
@@ -1517,7 +1518,7 @@ func (s *Service) AddRunLog(ctx context.Context, taskID, runID influxdb.ID, when
 	return err
 }
 
-func (s *Service) addRunLog(ctx context.Context, tx Tx, taskID, runID influxdb.ID, when time.Time, log string) error {
+func (s *Service) addRunLog(ctx context.Context, tx Tx, taskID, runID platform.ID, when time.Time, log string) error {
 	// find run
 	run, err := s.findRunByID(ctx, tx, taskID, runID)
 	if err != nil {
@@ -1549,7 +1550,7 @@ func (s *Service) addRunLog(ctx context.Context, tx Tx, taskID, runID influxdb.I
 	return nil
 }
 
-func taskKey(taskID influxdb.ID) ([]byte, error) {
+func taskKey(taskID platform.ID) ([]byte, error) {
 	encodedID, err := taskID.Encode()
 	if err != nil {
 		return nil, influxdb.ErrInvalidTaskID
@@ -1557,7 +1558,7 @@ func taskKey(taskID influxdb.ID) ([]byte, error) {
 	return encodedID, nil
 }
 
-func taskLatestCompletedKey(taskID influxdb.ID) ([]byte, error) {
+func taskLatestCompletedKey(taskID platform.ID) ([]byte, error) {
 	encodedID, err := taskID.Encode()
 	if err != nil {
 		return nil, influxdb.ErrInvalidTaskID
@@ -1565,7 +1566,7 @@ func taskLatestCompletedKey(taskID influxdb.ID) ([]byte, error) {
 	return []byte(string(encodedID) + "/latestCompleted"), nil
 }
 
-func taskManualRunKey(taskID influxdb.ID) ([]byte, error) {
+func taskManualRunKey(taskID platform.ID) ([]byte, error) {
 	encodedID, err := taskID.Encode()
 	if err != nil {
 		return nil, influxdb.ErrInvalidTaskID
@@ -1573,7 +1574,7 @@ func taskManualRunKey(taskID influxdb.ID) ([]byte, error) {
 	return []byte(string(encodedID) + "/manualRuns"), nil
 }
 
-func taskOrgKey(orgID, taskID influxdb.ID) ([]byte, error) {
+func taskOrgKey(orgID, taskID platform.ID) ([]byte, error) {
 	encodedOrgID, err := orgID.Encode()
 	if err != nil {
 		return nil, influxdb.ErrInvalidTaskID
@@ -1586,7 +1587,7 @@ func taskOrgKey(orgID, taskID influxdb.ID) ([]byte, error) {
 	return []byte(string(encodedOrgID) + "/" + string(encodedID)), nil
 }
 
-func taskRunKey(taskID, runID influxdb.ID) ([]byte, error) {
+func taskRunKey(taskID, runID platform.ID) ([]byte, error) {
 	encodedID, err := taskID.Encode()
 	if err != nil {
 		return nil, influxdb.ErrInvalidTaskID

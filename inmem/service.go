@@ -2,6 +2,7 @@ package inmem
 
 import (
 	"context"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"sync"
 
 	platform "github.com/influxdata/influxdb/v2"
@@ -33,7 +34,7 @@ type Service struct {
 	sourceKV              sync.Map
 
 	TokenGenerator platform.TokenGenerator
-	IDGenerator    platform.IDGenerator
+	IDGenerator    platform2.IDGenerator
 	platform.TimeGenerator
 }
 

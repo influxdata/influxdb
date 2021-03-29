@@ -3,6 +3,7 @@ package tenant
 import (
 	"context"
 	"encoding/json"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
@@ -55,7 +56,7 @@ func (s *Store) uniqueUserName(ctx context.Context, tx kv.Tx, uname string) erro
 	return ErrUnprocessableUser(err)
 }
 
-func (s *Store) GetUser(ctx context.Context, tx kv.Tx, id influxdb.ID) (*influxdb.User, error) {
+func (s *Store) GetUser(ctx context.Context, tx kv.Tx, id platform.ID) (*influxdb.User, error) {
 	encodedID, err := id.Encode()
 	if err != nil {
 		return nil, InvalidUserIDError(err)
@@ -93,9 +94,9 @@ func (s *Store) GetUserByName(ctx context.Context, tx kv.Tx, n string) (*influxd
 		return nil, ErrInternalServiceError(err)
 	}
 
-	var id influxdb.ID
+	var id platform.ID
 	if err := id.Decode(uid); err != nil {
-		return nil, influxdb.ErrCorruptID(err)
+		return nil, platform.ErrCorruptID(err)
 	}
 	return s.GetUser(ctx, tx, id)
 }
@@ -185,7 +186,7 @@ func (s *Store) CreateUser(ctx context.Context, tx kv.Tx, u *influxdb.User) erro
 	return nil
 }
 
-func (s *Store) UpdateUser(ctx context.Context, tx kv.Tx, id influxdb.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
+func (s *Store) UpdateUser(ctx context.Context, tx kv.Tx, id platform.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
 	encodedID, err := id.Encode()
 	if err != nil {
 		return nil, err
@@ -237,7 +238,7 @@ func (s *Store) UpdateUser(ctx context.Context, tx kv.Tx, id influxdb.ID, upd in
 	return u, nil
 }
 
-func (s *Store) DeleteUser(ctx context.Context, tx kv.Tx, id influxdb.ID) error {
+func (s *Store) DeleteUser(ctx context.Context, tx kv.Tx, id platform.ID) error {
 	u, err := s.GetUser(ctx, tx, id)
 	if err != nil {
 		return err
@@ -291,7 +292,7 @@ func (s *Store) DeleteUser(ctx context.Context, tx kv.Tx, id influxdb.ID) error 
 	return aggErr.Err()
 }
 
-func (s *Store) GetPassword(ctx context.Context, tx kv.Tx, id influxdb.ID) (string, error) {
+func (s *Store) GetPassword(ctx context.Context, tx kv.Tx, id platform.ID) (string, error) {
 	encodedID, err := id.Encode()
 	if err != nil {
 		return "", InvalidUserIDError(err)
@@ -307,7 +308,7 @@ func (s *Store) GetPassword(ctx context.Context, tx kv.Tx, id influxdb.ID) (stri
 	return string(passwd), err
 }
 
-func (s *Store) SetPassword(ctx context.Context, tx kv.Tx, id influxdb.ID, password string) error {
+func (s *Store) SetPassword(ctx context.Context, tx kv.Tx, id platform.ID, password string) error {
 	encodedID, err := id.Encode()
 	if err != nil {
 		return InvalidUserIDError(err)
@@ -321,7 +322,7 @@ func (s *Store) SetPassword(ctx context.Context, tx kv.Tx, id influxdb.ID, passw
 	return b.Put(encodedID, []byte(password))
 }
 
-func (s *Store) DeletePassword(ctx context.Context, tx kv.Tx, id influxdb.ID) error {
+func (s *Store) DeletePassword(ctx context.Context, tx kv.Tx, id platform.ID) error {
 	encodedID, err := id.Encode()
 	if err != nil {
 		return InvalidUserIDError(err)

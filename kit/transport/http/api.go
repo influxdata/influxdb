@@ -6,10 +6,10 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io"
 	"net/http"
 
-	"github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap"
 )
 
@@ -82,8 +82,8 @@ func NewAPI(opts ...APIOptFn) *API {
 		logger:     zap.NewNop(),
 		prettyJSON: true,
 		unmarshalErrFn: func(encoding string, err error) error {
-			return &influxdb.Error{
-				Code: influxdb.EInvalid,
+			return &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  fmt.Sprintf("failed to unmarshal %s: %s", encoding, err),
 			}
 		},
@@ -92,7 +92,7 @@ func NewAPI(opts ...APIOptFn) *API {
 			if msg == "" {
 				msg = "an internal error has occurred"
 			}
-			code := influxdb.ErrorCode(err)
+			code := errors.ErrorCode(err)
 			return ErrBody{
 				Code: code,
 				Msg:  msg,

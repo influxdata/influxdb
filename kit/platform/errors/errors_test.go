@@ -1,12 +1,11 @@
-package influxdb_test
+package errors_test
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"testing"
-
-	platform "github.com/influxdata/influxdb/v2"
 )
 
 const EFailedToGetStorageHost = "failed to get the storage host"
@@ -19,20 +18,20 @@ func TestErrorMsg(t *testing.T) {
 	}{
 		{
 			name: "simple error",
-			err:  &platform.Error{Code: platform.ENotFound},
+			err:  &errors2.Error{Code: errors2.ENotFound},
 			msg:  "<not found>",
 		},
 		{
 			name: "with message",
-			err: &platform.Error{
-				Code: platform.ENotFound,
+			err: &errors2.Error{
+				Code: errors2.ENotFound,
 				Msg:  "bucket not found",
 			},
 			msg: "bucket not found",
 		},
 		{
 			name: "with a third party error and no message",
-			err: &platform.Error{
+			err: &errors2.Error{
 				Code: EFailedToGetStorageHost,
 				Err:  errors.New("empty value"),
 			},
@@ -40,7 +39,7 @@ func TestErrorMsg(t *testing.T) {
 		},
 		{
 			name: "with a third party error and a message",
-			err: &platform.Error{
+			err: &errors2.Error{
 				Code: EFailedToGetStorageHost,
 				Msg:  "failed to get storage hosts",
 				Err:  errors.New("empty value"),
@@ -49,10 +48,10 @@ func TestErrorMsg(t *testing.T) {
 		},
 		{
 			name: "with an internal error and no message",
-			err: &platform.Error{
+			err: &errors2.Error{
 				Code: EFailedToGetStorageHost,
-				Err: &platform.Error{
-					Code: platform.EEmptyValue,
+				Err: &errors2.Error{
+					Code: errors2.EEmptyValue,
 					Msg:  "empty value",
 				},
 			},
@@ -60,11 +59,11 @@ func TestErrorMsg(t *testing.T) {
 		},
 		{
 			name: "with an internal error and a message",
-			err: &platform.Error{
+			err: &errors2.Error{
 				Code: EFailedToGetStorageHost,
 				Msg:  "failed to get storage hosts",
-				Err: &platform.Error{
-					Code: platform.EEmptyValue,
+				Err: &errors2.Error{
+					Code: errors2.EEmptyValue,
 					Msg:  "empty value",
 				},
 			},
@@ -89,16 +88,16 @@ func TestErrorMessage(t *testing.T) {
 		},
 		{
 			name: "nil error of type *platform.Error",
-			err:  (*platform.Error)(nil),
+			err:  (*errors2.Error)(nil),
 		},
 		{
 			name: "simple error",
-			err:  &platform.Error{Msg: "simple error"},
+			err:  &errors2.Error{Msg: "simple error"},
 			want: "simple error",
 		},
 		{
 			name: "embedded error",
-			err:  &platform.Error{Err: &platform.Error{Msg: "embedded error"}},
+			err:  &errors2.Error{Err: &errors2.Error{Msg: "embedded error"}},
 			want: "embedded error",
 		},
 		{
@@ -108,7 +107,7 @@ func TestErrorMessage(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		if result := platform.ErrorMessage(c.err); c.want != result {
+		if result := errors2.ErrorMessage(c.err); c.want != result {
 			t.Errorf("%s failed, want %s, got %s", c.name, c.want, result)
 		}
 	}
@@ -125,21 +124,21 @@ func TestErrorOp(t *testing.T) {
 		},
 		{
 			name: "nil error of type *platform.Error",
-			err:  (*platform.Error)(nil),
+			err:  (*errors2.Error)(nil),
 		},
 		{
 			name: "simple error",
-			err:  &platform.Error{Op: "op1"},
+			err:  &errors2.Error{Op: "op1"},
 			want: "op1",
 		},
 		{
 			name: "embedded error",
-			err:  &platform.Error{Op: "op1", Err: &platform.Error{Code: platform.EInvalid}},
+			err:  &errors2.Error{Op: "op1", Err: &errors2.Error{Code: errors2.EInvalid}},
 			want: "op1",
 		},
 		{
 			name: "embedded error without op in root level",
-			err:  &platform.Error{Err: &platform.Error{Code: platform.EInvalid, Op: "op2"}},
+			err:  &errors2.Error{Err: &errors2.Error{Code: errors2.EInvalid, Op: "op2"}},
 			want: "op2",
 		},
 		{
@@ -149,7 +148,7 @@ func TestErrorOp(t *testing.T) {
 		},
 	}
 	for _, c := range cases {
-		if result := platform.ErrorOp(c.err); c.want != result {
+		if result := errors2.ErrorOp(c.err); c.want != result {
 			t.Errorf("%s failed, want %s, got %s", c.name, c.want, result)
 		}
 	}
@@ -165,31 +164,31 @@ func TestErrorCode(t *testing.T) {
 		},
 		{
 			name: "nil error of type *platform.Error",
-			err:  (*platform.Error)(nil),
+			err:  (*errors2.Error)(nil),
 		},
 		{
 			name: "simple error",
-			err:  &platform.Error{Code: platform.ENotFound},
-			want: platform.ENotFound,
+			err:  &errors2.Error{Code: errors2.ENotFound},
+			want: errors2.ENotFound,
 		},
 		{
 			name: "embedded error",
-			err:  &platform.Error{Code: platform.ENotFound, Err: &platform.Error{Code: platform.EInvalid}},
-			want: platform.ENotFound,
+			err:  &errors2.Error{Code: errors2.ENotFound, Err: &errors2.Error{Code: errors2.EInvalid}},
+			want: errors2.ENotFound,
 		},
 		{
 			name: "embedded error with root level code",
-			err:  &platform.Error{Err: &platform.Error{Code: platform.EInvalid}},
-			want: platform.EInvalid,
+			err:  &errors2.Error{Err: &errors2.Error{Code: errors2.EInvalid}},
+			want: errors2.EInvalid,
 		},
 		{
 			name: "default error",
 			err:  errors.New("s"),
-			want: platform.EInternal,
+			want: errors2.EInternal,
 		},
 	}
 	for _, c := range cases {
-		if result := platform.ErrorCode(c.err); c.want != result {
+		if result := errors2.ErrorCode(c.err); c.want != result {
 			t.Errorf("%s failed, want %s, got %s", c.name, c.want, result)
 		}
 	}
@@ -198,26 +197,26 @@ func TestErrorCode(t *testing.T) {
 func TestJSON(t *testing.T) {
 	cases := []struct {
 		name    string
-		err     *platform.Error
+		err     *errors2.Error
 		encoded string
 	}{
 		{
 			name:    "simple error",
-			err:     &platform.Error{Code: platform.ENotFound},
+			err:     &errors2.Error{Code: errors2.ENotFound},
 			encoded: `{"code":"not found"}`,
 		},
 		{
 			name: "with op",
-			err: &platform.Error{
-				Code: platform.ENotFound,
+			err: &errors2.Error{
+				Code: errors2.ENotFound,
 				Op:   "bolt.FindAuthorizationByID",
 			},
 			encoded: `{"code":"not found","op":"bolt.FindAuthorizationByID"}`,
 		},
 		{
 			name: "with op and value",
-			err: &platform.Error{
-				Code: platform.ENotFound,
+			err: &errors2.Error{
+				Code: errors2.ENotFound,
 				Op:   "bolt/FindAuthorizationByID",
 				Msg:  fmt.Sprintf("with ID %d", 323),
 			},
@@ -225,7 +224,7 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "with a third party error",
-			err: &platform.Error{
+			err: &errors2.Error{
 				Code: EFailedToGetStorageHost,
 				Op:   "cmd/fluxd.injectDeps",
 				Err:  errors.New("empty value"),
@@ -234,23 +233,23 @@ func TestJSON(t *testing.T) {
 		},
 		{
 			name: "with a internal error",
-			err: &platform.Error{
+			err: &errors2.Error{
 				Code: EFailedToGetStorageHost,
 				Op:   "cmd/fluxd.injectDeps",
-				Err:  &platform.Error{Code: platform.EEmptyValue, Op: "cmd/fluxd.getStrList"},
+				Err:  &errors2.Error{Code: errors2.EEmptyValue, Op: "cmd/fluxd.getStrList"},
 			},
 			encoded: `{"code":"failed to get the storage host","op":"cmd/fluxd.injectDeps","error":{"code":"empty value","op":"cmd/fluxd.getStrList"}}`,
 		},
 		{
 			name: "with a deep internal error",
-			err: &platform.Error{
+			err: &errors2.Error{
 				Code: EFailedToGetStorageHost,
 				Op:   "cmd/fluxd.injectDeps",
-				Err: &platform.Error{
-					Code: platform.EInvalid,
+				Err: &errors2.Error{
+					Code: errors2.EInvalid,
 					Op:   "cmd/fluxd.getStrList",
-					Err: &platform.Error{
-						Code: platform.EEmptyValue,
+					Err: &errors2.Error{
+						Code: errors2.EEmptyValue,
 						Err:  errors.New("an err"),
 					},
 				},
@@ -269,7 +268,7 @@ func TestJSON(t *testing.T) {
 			t.Errorf("%s encode failed, want result: %s, got %s", c.name, c.encoded, string(result))
 		}
 		// decode testing
-		got := new(platform.Error)
+		got := new(errors2.Error)
 		err = json.Unmarshal(result, got)
 		if err != nil {
 			t.Errorf("%s decode failed, want err: %v, should be nil", c.name, err)
@@ -278,7 +277,7 @@ func TestJSON(t *testing.T) {
 	}
 }
 
-func decodeEqual(t *testing.T, want, result *platform.Error, caseName string) {
+func decodeEqual(t *testing.T, want, result *errors2.Error, caseName string) {
 	if want.Code != result.Code {
 		t.Errorf("%s code failed, want %s, got %s", caseName, want.Code, result.Code)
 	}
@@ -289,8 +288,8 @@ func decodeEqual(t *testing.T, want, result *platform.Error, caseName string) {
 		t.Errorf("%s msg failed, want %s, got %s", caseName, want.Msg, result.Msg)
 	}
 	if want.Err != nil {
-		if _, ok := want.Err.(*platform.Error); ok {
-			decodeEqual(t, want.Err.(*platform.Error), result.Err.(*platform.Error), caseName)
+		if _, ok := want.Err.(*errors2.Error); ok {
+			decodeEqual(t, want.Err.(*errors2.Error), result.Err.(*errors2.Error), caseName)
 		} else {
 			if want.Err.Error() != result.Err.Error() {
 				t.Errorf("%s Err failed, want %s, got %s", caseName, want.Err.Error(), result.Err.Error())

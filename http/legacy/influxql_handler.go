@@ -1,6 +1,7 @@
 package legacy
 
 import (
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/http"
 
 	platform "github.com/influxdata/influxdb/v2"
@@ -19,7 +20,7 @@ type InfluxqlHandler struct {
 }
 
 type InfluxQLBackend struct {
-	platform.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	Logger                *zap.Logger
 	AuthorizationService  platform.AuthorizationService
 	OrganizationService   platform.OrganizationService

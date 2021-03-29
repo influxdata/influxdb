@@ -2,6 +2,7 @@ package authorizer
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io"
 
 	"github.com/influxdata/influxdb/v2"
@@ -33,7 +34,7 @@ func (b RestoreService) RestoreKVStore(ctx context.Context, r io.Reader) error {
 	return b.s.RestoreKVStore(ctx, r)
 }
 
-func (b RestoreService) RestoreBucket(ctx context.Context, id influxdb.ID, dbi []byte) (shardIDMap map[uint64]uint64, err error) {
+func (b RestoreService) RestoreBucket(ctx context.Context, id platform.ID, dbi []byte) (shardIDMap map[uint64]uint64, err error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 

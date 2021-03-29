@@ -3,6 +3,7 @@ package rule
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxdb/v2"
@@ -36,8 +37,8 @@ func (s PagerDuty) Valid() error {
 		return err
 	}
 	if s.MessageTemplate == "" {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "pagerduty invalid message template",
 		}
 	}

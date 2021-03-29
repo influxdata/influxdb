@@ -2,6 +2,7 @@ package backend
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 	"time"
 
@@ -11,10 +12,10 @@ import (
 )
 
 var (
-	one   = influxdb.ID(1)
-	two   = influxdb.ID(2)
-	three = influxdb.ID(3)
-	four  = influxdb.ID(4)
+	one   = platform.ID(1)
+	two   = platform.ID(2)
+	three = platform.ID(3)
+	four  = platform.ID(4)
 
 	aTime = time.Now().UTC()
 
@@ -23,7 +24,7 @@ var (
 	taskThree = &influxdb.Task{ID: three, Status: "inactive"}
 	taskFour  = &influxdb.Task{ID: four}
 
-	allTasks = map[influxdb.ID]*influxdb.Task{
+	allTasks = map[platform.ID]*influxdb.Task{
 		one:   taskOne,
 		two:   taskTwo,
 		three: taskThree,
@@ -37,7 +38,7 @@ func Test_NotifyCoordinatorOfCreated(t *testing.T) {
 		tasks       = &taskService{
 			// paginated responses
 			pageOne: []*influxdb.Task{taskOne},
-			otherPages: map[influxdb.ID][]*influxdb.Task{
+			otherPages: map[platform.ID][]*influxdb.Task{
 				one:   {taskTwo, taskThree},
 				three: {taskFour},
 			},
@@ -81,7 +82,7 @@ func (c *coordinator) TaskCreated(_ context.Context, task *influxdb.Task) error 
 type taskService struct {
 	// paginated tasks
 	pageOne    []*influxdb.Task
-	otherPages map[influxdb.ID][]*influxdb.Task
+	otherPages map[platform.ID][]*influxdb.Task
 
 	// find tasks call
 	filter influxdb.TaskFilter
@@ -90,11 +91,11 @@ type taskService struct {
 }
 
 type update struct {
-	ID     influxdb.ID
+	ID     platform.ID
 	Update influxdb.TaskUpdate
 }
 
-func (t *taskService) UpdateTask(_ context.Context, id influxdb.ID, upd influxdb.TaskUpdate) (*influxdb.Task, error) {
+func (t *taskService) UpdateTask(_ context.Context, id platform.ID, upd influxdb.TaskUpdate) (*influxdb.Task, error) {
 	t.updates = append(t.updates, update{id, upd})
 
 	return allTasks[id], nil

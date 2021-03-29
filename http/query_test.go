@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
@@ -393,7 +394,7 @@ func Test_decodeQueryRequest(t *testing.T) {
 				svc: &mock.OrganizationService{
 					FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
 						return &platform.Organization{
-							ID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
+							ID: func() platform2.ID { s, _ := platform2.IDFromString("deadbeefdeadbeef"); return *s }(),
 						}, nil
 					},
 				},
@@ -407,7 +408,7 @@ func Test_decodeQueryRequest(t *testing.T) {
 					Header:         func(x bool) *bool { return &x }(true),
 				},
 				Org: &platform.Organization{
-					ID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
+					ID: func() platform2.ID { s, _ := platform2.IDFromString("deadbeefdeadbeef"); return *s }(),
 				},
 			},
 		},
@@ -422,7 +423,7 @@ func Test_decodeQueryRequest(t *testing.T) {
 				svc: &mock.OrganizationService{
 					FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
 						return &platform.Organization{
-							ID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
+							ID: func() platform2.ID { s, _ := platform2.IDFromString("deadbeefdeadbeef"); return *s }(),
 						}, nil
 					},
 				},
@@ -436,7 +437,7 @@ func Test_decodeQueryRequest(t *testing.T) {
 					Header:         func(x bool) *bool { return &x }(true),
 				},
 				Org: &platform.Organization{
-					ID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
+					ID: func() platform2.ID { s, _ := platform2.IDFromString("deadbeefdeadbeef"); return *s }(),
 				},
 			},
 		},
@@ -508,14 +509,14 @@ func Test_decodeProxyQueryRequest(t *testing.T) {
 				svc: &mock.OrganizationService{
 					FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
 						return &platform.Organization{
-							ID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
+							ID: func() platform2.ID { s, _ := platform2.IDFromString("deadbeefdeadbeef"); return *s }(),
 						}, nil
 					},
 				},
 			},
 			want: &query.ProxyRequest{
 				Request: query.Request{
-					OrganizationID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
+					OrganizationID: func() platform2.ID { s, _ := platform2.IDFromString("deadbeefdeadbeef"); return *s }(),
 					Compiler: lang.FluxCompiler{
 						Query: "from()",
 					},
@@ -540,14 +541,14 @@ func Test_decodeProxyQueryRequest(t *testing.T) {
 				svc: &mock.OrganizationService{
 					FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
 						return &platform.Organization{
-							ID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
+							ID: func() platform2.ID { s, _ := platform2.IDFromString("deadbeefdeadbeef"); return *s }(),
 						}, nil
 					},
 				},
 			},
 			want: &query.ProxyRequest{
 				Request: query.Request{
-					OrganizationID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
+					OrganizationID: func() platform2.ID { s, _ := platform2.IDFromString("deadbeefdeadbeef"); return *s }(),
 					Compiler: lang.FluxCompiler{
 						Extern: []byte(externJSON),
 						Query:  `from(bucket: "mybucket")`,
@@ -572,14 +573,14 @@ func Test_decodeProxyQueryRequest(t *testing.T) {
 				svc: &mock.OrganizationService{
 					FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
 						return &platform.Organization{
-							ID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
+							ID: func() platform2.ID { s, _ := platform2.IDFromString("deadbeefdeadbeef"); return *s }(),
 						}, nil
 					},
 				},
 			},
 			want: &query.ProxyRequest{
 				Request: query.Request{
-					OrganizationID: func() platform.ID { s, _ := platform.IDFromString("deadbeefdeadbeef"); return *s }(),
+					OrganizationID: func() platform2.ID { s, _ := platform2.IDFromString("deadbeefdeadbeef"); return *s }(),
 					Compiler: lang.FluxCompiler{
 						Query: `from(bucket: "mybucket")`,
 					},

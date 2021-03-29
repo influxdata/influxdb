@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -136,7 +137,7 @@ func initNotificationRuleStore(s kv.Store, f NotificationRuleFields, t *testing.
 	}
 }
 
-func withOrgID(store *tenant.Store, orgID influxdb.ID, fn func()) {
+func withOrgID(store *tenant.Store, orgID platform.ID, fn func()) {
 	backup := store.OrgIDGen
 	defer func() { store.OrgIDGen = backup }()
 

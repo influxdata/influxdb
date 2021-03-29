@@ -3,6 +3,8 @@ package all
 import (
 	"context"
 	"encoding/json"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
@@ -69,7 +71,7 @@ var Migration0003_TaskOwnerIDUpMigration = UpOnlyMigration(
 						return influxdb.ErrTaskNotFound
 					}
 					authType := struct {
-						AuthorizationID influxdb.ID `json:"authorizationID"`
+						AuthorizationID platform.ID `json:"authorizationID"`
 					}{}
 					if err := json.Unmarshal(v, &authType); err != nil {
 						return influxdb.ErrInternalTaskServiceError(err)
@@ -131,8 +133,8 @@ var Migration0003_TaskOwnerIDUpMigration = UpOnlyMigration(
 
 				// if population fails return error
 				if !t.OwnerID.Valid() {
-					return &influxdb.Error{
-						Code: influxdb.EInternal,
+					return &errors.Error{
+						Code: errors.EInternal,
 						Msg:  "could not populate owner ID for task",
 					}
 				}
@@ -158,21 +160,21 @@ var Migration0003_TaskOwnerIDUpMigration = UpOnlyMigration(
 )
 
 type kvTask struct {
-	ID              influxdb.ID            `json:"id"`
-	Type            string                 `json:"type,omitempty"`
-	OrganizationID  influxdb.ID            `json:"orgID"`
-	Organization    string                 `json:"org"`
-	OwnerID         influxdb.ID            `json:"ownerID"`
-	Name            string                 `json:"name"`
-	Description     string                 `json:"description,omitempty"`
-	Status          string                 `json:"status"`
-	Flux            string                 `json:"flux"`
-	Every           string                 `json:"every,omitempty"`
-	Cron            string                 `json:"cron,omitempty"`
-	LastRunStatus   string                 `json:"lastRunStatus,omitempty"`
-	LastRunError    string                 `json:"lastRunError,omitempty"`
-	Offset          influxdb.Duration      `json:"offset,omitempty"`
-	LatestCompleted time.Time              `json:"latestCompleted,omitempty"`
+	ID              platform.ID       `json:"id"`
+	Type            string            `json:"type,omitempty"`
+	OrganizationID  platform.ID       `json:"orgID"`
+	Organization    string            `json:"org"`
+	OwnerID         platform.ID       `json:"ownerID"`
+	Name            string            `json:"name"`
+	Description     string            `json:"description,omitempty"`
+	Status          string            `json:"status"`
+	Flux            string            `json:"flux"`
+	Every           string            `json:"every,omitempty"`
+	Cron            string            `json:"cron,omitempty"`
+	LastRunStatus   string            `json:"lastRunStatus,omitempty"`
+	LastRunError    string            `json:"lastRunError,omitempty"`
+	Offset          influxdb.Duration `json:"offset,omitempty"`
+	LatestCompleted time.Time         `json:"latestCompleted,omitempty"`
 	LatestScheduled time.Time              `json:"latestScheduled,omitempty"`
 	CreatedAt       time.Time              `json:"createdAt,omitempty"`
 	UpdatedAt       time.Time              `json:"updatedAt,omitempty"`
@@ -203,7 +205,7 @@ func kvToInfluxTask(k *kvTask) *influxdb.Task {
 	}
 }
 
-func taskKey(taskID influxdb.ID) ([]byte, error) {
+func taskKey(taskID platform.ID) ([]byte, error) {
 	encodedID, err := taskID.Encode()
 	if err != nil {
 		return nil, influxdb.ErrInvalidTaskID

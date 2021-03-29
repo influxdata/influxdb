@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"regexp"
 	"strings"
 	"time"
@@ -379,7 +380,7 @@ func convertQueries(qs []chronograf.DashboardQuery) []influxdb.DashboardQuery {
 type dbrpMapper struct{}
 
 // FindBy returns the dbrp mapping for the specified ID.
-func (d dbrpMapper) FindByID(ctx context.Context, orgID influxdb.ID, id influxdb.ID) (*influxdb.DBRPMappingV2, error) {
+func (d dbrpMapper) FindByID(ctx context.Context, orgID platform.ID, id platform.ID) (*influxdb.DBRPMappingV2, error) {
 	return nil, errors.New("mapping not found")
 }
 
@@ -399,6 +400,6 @@ func (d dbrpMapper) Update(ctx context.Context, dbrp *influxdb.DBRPMappingV2) er
 }
 
 // Delete removes a dbrp mapping.
-func (d dbrpMapper) Delete(ctx context.Context, orgID influxdb.ID, id influxdb.ID) error {
+func (d dbrpMapper) Delete(ctx context.Context, orgID platform.ID, id platform.ID) error {
 	return errors.New("dbrpMapper does not support deleting mappings")
 }

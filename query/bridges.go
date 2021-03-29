@@ -3,6 +3,7 @@ package query
 import (
 	"bufio"
 	"context"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"io"
 
 	"github.com/influxdata/flux"
@@ -172,7 +173,7 @@ type REPLQuerier struct {
 	// Authorization is the authorization to provide for all requests
 	Authorization *platform.Authorization
 	// OrganizationID is the ID to provide for all requests
-	OrganizationID platform.ID
+	OrganizationID platform2.ID
 	QueryService   QueryService
 }
 

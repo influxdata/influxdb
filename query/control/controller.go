@@ -20,6 +20,7 @@ package control
 import (
 	"context"
 	"fmt"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"runtime/debug"
 	"sync"
 	"sync/atomic"
@@ -30,7 +31,6 @@ import (
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/runtime"
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	"github.com/influxdata/influxdb/v2/kit/prom"
@@ -1028,7 +1028,7 @@ func handleFluxError(err error) error {
 	}
 	werr := handleFluxError(ferr.Err)
 
-	code := influxdb.EInternal
+	code := errors2.EInternal
 	switch ferr.Code {
 	case codes.Inherit:
 		// If we are inheriting the error code, influxdb doesn't
@@ -1036,12 +1036,12 @@ func handleFluxError(err error) error {
 		// the error code from the wrapped error which has already
 		// been translated to an influxdb error (if possible).
 		if werr != nil {
-			code = influxdb.ErrorCode(werr)
+			code = errors2.ErrorCode(werr)
 		}
 	case codes.NotFound:
-		code = influxdb.ENotFound
+		code = errors2.ENotFound
 	case codes.Invalid:
-		code = influxdb.EInvalid
+		code = errors2.EInvalid
 	// These don't really map correctly, but we want
 	// them to show up as 4XX so until influxdb error
 	// codes are updated for more types of failures,
@@ -1052,16 +1052,16 @@ func handleFluxError(err error) error {
 		codes.Aborted,
 		codes.OutOfRange,
 		codes.Unimplemented:
-		code = influxdb.EInvalid
+		code = errors2.EInvalid
 	case codes.PermissionDenied:
-		code = influxdb.EForbidden
+		code = errors2.EForbidden
 	case codes.Unauthenticated:
-		code = influxdb.EUnauthorized
+		code = errors2.EUnauthorized
 	default:
 		// Everything else is treated as an internal error
 		// which is set above.
 	}
-	return &influxdb.Error{
+	return &errors2.Error{
 		Code: code,
 		Msg:  ferr.Msg,
 		Err:  werr,

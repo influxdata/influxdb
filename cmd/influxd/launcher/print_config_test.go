@@ -2,9 +2,9 @@ package launcher
 
 import (
 	"bytes"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/cli"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
@@ -19,7 +19,7 @@ var floatVar = 987.654
 var sliceVar = []string{"hello", "world"}
 var mapVar = map[string]string{"foo": "bar", "baz": "qux"}
 var levelVar = zapcore.InfoLevel
-var idVar, _ = influxdb.IDFromString("020f755c3c082000")
+var idVar, _ = platform.IDFromString("020f755c3c082000")
 
 var opts = []cli.Opt{
 	{

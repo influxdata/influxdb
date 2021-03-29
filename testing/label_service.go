@@ -3,6 +3,8 @@ package testing
 import (
 	"bytes"
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"sort"
 	"testing"
 
@@ -34,7 +36,7 @@ var labelCmpOptions = cmp.Options{
 type LabelFields struct {
 	Labels      []*influxdb.Label
 	Mappings    []*influxdb.LabelMapping
-	IDGenerator influxdb.IDGenerator
+	IDGenerator platform.IDGenerator
 }
 
 type labelServiceF func(
@@ -143,8 +145,8 @@ func CreateLabel(
 						},
 					},
 				},
-				err: &influxdb.Error{
-					Code: influxdb.EConflict,
+				err: &errors.Error{
+					Code: errors.EConflict,
 					Op:   influxdb.OpCreateLabel,
 					Msg:  "label with name label_1 already exists",
 				},
@@ -186,8 +188,8 @@ func CreateLabel(
 						},
 					},
 				},
-				err: &influxdb.Error{
-					Code: influxdb.EConflict,
+				err: &errors.Error{
+					Code: errors.EConflict,
 					Op:   influxdb.OpCreateLabel,
 					Msg:  "label with name tag_1 already exists",
 				},
@@ -229,8 +231,8 @@ func CreateLabel(
 						},
 					},
 				},
-				err: &influxdb.Error{
-					Code: influxdb.EConflict,
+				err: &errors.Error{
+					Code: errors.EConflict,
 					Op:   influxdb.OpCreateLabel,
 					Msg:  "label with name TAG_1 already exists",
 				},
@@ -426,7 +428,7 @@ func FindLabelByID(
 	t *testing.T,
 ) {
 	type args struct {
-		id influxdb.ID
+		id platform.ID
 	}
 	type wants struct {
 		err   error
@@ -475,8 +477,8 @@ func FindLabelByID(
 				id: MustIDBase16(labelOneID),
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpFindLabelByID,
 					Msg:  influxdb.ErrLabelNotFound,
 				},
@@ -504,7 +506,7 @@ func UpdateLabel(
 	t *testing.T,
 ) {
 	type args struct {
-		labelID influxdb.ID
+		labelID platform.ID
 		update  influxdb.LabelUpdate
 	}
 	type wants struct {
@@ -580,8 +582,8 @@ func UpdateLabel(
 						Name:  "tag_2",
 					},
 				},
-				err: &influxdb.Error{
-					Code: influxdb.EConflict,
+				err: &errors.Error{
+					Code: errors.EConflict,
 					Op:   influxdb.OpCreateLabel,
 					Msg:  "label with name tag_1 already exists",
 				},
@@ -622,8 +624,8 @@ func UpdateLabel(
 						Name:  "tag_2",
 					},
 				},
-				err: &influxdb.Error{
-					Code: influxdb.EConflict,
+				err: &errors.Error{
+					Code: errors.EConflict,
 					Op:   influxdb.OpCreateLabel,
 					Msg:  "label with name tag_1 already exists",
 				},
@@ -749,8 +751,8 @@ func UpdateLabel(
 			},
 			wants: wants{
 				labels: []*influxdb.Label{},
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpUpdateLabel,
 					Msg:  influxdb.ErrLabelNotFound,
 				},
@@ -782,7 +784,7 @@ func DeleteLabel(
 	t *testing.T,
 ) {
 	type args struct {
-		labelID influxdb.ID
+		labelID platform.ID
 	}
 	type wants struct {
 		err    error
@@ -846,8 +848,8 @@ func DeleteLabel(
 						Name:  "Tag1",
 					},
 				},
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpDeleteLabel,
 					Msg:  influxdb.ErrLabelNotFound,
 				},
@@ -936,8 +938,8 @@ func CreateLabelMapping(
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpDeleteLabel,
 					Msg:  influxdb.ErrLabelNotFound,
 				},
