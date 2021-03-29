@@ -3,8 +3,9 @@ package bolt
 import (
 	"errors"
 	"fmt"
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"math/rand"
+
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 
 	bolt "go.etcd.io/bbolt"
 	"go.uber.org/zap"

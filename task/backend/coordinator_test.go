@@ -2,9 +2,10 @@ package backend
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"

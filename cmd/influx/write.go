@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"io"
 	"log"
 	"net/http"
@@ -14,6 +13,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/fujiwara/shapeio"
 	platform "github.com/influxdata/influxdb/v2"

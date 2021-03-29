@@ -6,11 +6,12 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"strings"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 )

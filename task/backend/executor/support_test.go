@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"

@@ -2,11 +2,12 @@ package pkger
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"net/url"
 	"path"
 	"strconv"
 	"strings"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/influxdb/v2/kit/metric"
 	"github.com/influxdata/influxdb/v2/kit/prom"

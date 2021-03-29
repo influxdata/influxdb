@@ -2,12 +2,13 @@ package legacy
 
 import (
 	"encoding/json"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io/ioutil"
 	"mime"
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/flux/iocounter"
 	"github.com/influxdata/influxdb/v2"

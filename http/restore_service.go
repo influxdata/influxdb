@@ -5,12 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io"
 	"io/ioutil"
 	"net/http"
 	"strconv"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"

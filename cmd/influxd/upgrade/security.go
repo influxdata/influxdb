@@ -7,8 +7,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"sort"
+
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"

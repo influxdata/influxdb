@@ -4,9 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/http"
 	"strings"
+
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/influxdb/v2"
 	platcontext "github.com/influxdata/influxdb/v2/context"

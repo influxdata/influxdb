@@ -2,9 +2,10 @@ package influxdb
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 const (

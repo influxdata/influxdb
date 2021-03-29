@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"strconv"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/ast/edit"
@@ -32,21 +33,21 @@ var (
 
 // Task is a task. 🎊
 type Task struct {
-	ID              platform.ID   `json:"id"`
-	Type            string        `json:"type,omitempty"`
-	OrganizationID  platform.ID   `json:"orgID"`
-	Organization    string        `json:"org"`
-	OwnerID         platform.ID   `json:"ownerID"`
-	Name            string        `json:"name"`
-	Description     string        `json:"description,omitempty"`
-	Status          string        `json:"status"`
-	Flux            string        `json:"flux"`
-	Every           string        `json:"every,omitempty"`
-	Cron            string        `json:"cron,omitempty"`
-	Offset          time.Duration `json:"offset,omitempty"`
-	LatestCompleted time.Time     `json:"latestCompleted,omitempty"`
-	LatestScheduled time.Time     `json:"latestScheduled,omitempty"`
-	LatestSuccess   time.Time     `json:"latestSuccess,omitempty"`
+	ID              platform.ID            `json:"id"`
+	Type            string                 `json:"type,omitempty"`
+	OrganizationID  platform.ID            `json:"orgID"`
+	Organization    string                 `json:"org"`
+	OwnerID         platform.ID            `json:"ownerID"`
+	Name            string                 `json:"name"`
+	Description     string                 `json:"description,omitempty"`
+	Status          string                 `json:"status"`
+	Flux            string                 `json:"flux"`
+	Every           string                 `json:"every,omitempty"`
+	Cron            string                 `json:"cron,omitempty"`
+	Offset          time.Duration          `json:"offset,omitempty"`
+	LatestCompleted time.Time              `json:"latestCompleted,omitempty"`
+	LatestScheduled time.Time              `json:"latestScheduled,omitempty"`
+	LatestSuccess   time.Time              `json:"latestSuccess,omitempty"`
 	LatestFailure   time.Time              `json:"latestFailure,omitempty"`
 	LastRunStatus   string                 `json:"lastRunStatus,omitempty"`
 	LastRunError    string                 `json:"lastRunError,omitempty"`

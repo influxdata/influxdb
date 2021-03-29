@@ -2,13 +2,14 @@ package gather
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"net/http"
 	"net/http/httptest"
 	"reflect"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"

@@ -2,8 +2,9 @@ package kv
 
 import (
 	"errors"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"strings"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 // EncodeFn returns an encoding when called. Closures are your friend here.

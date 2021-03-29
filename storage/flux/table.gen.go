@@ -8,9 +8,10 @@ package storageflux
 
 import (
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"math"
 	"sync"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/apache/arrow/go/arrow/array"
 	"github.com/influxdata/flux"

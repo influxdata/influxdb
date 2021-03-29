@@ -6,11 +6,12 @@ import (
 	"encoding/json"
 	stderrors "errors"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io"
 	"mime"
 	"net/http"
 	"strings"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	khttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 )

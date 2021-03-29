@@ -2,11 +2,12 @@ package http
 
 import (
 	"context"
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"

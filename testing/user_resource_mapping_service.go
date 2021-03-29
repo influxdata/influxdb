@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"sort"
 	"testing"
+
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb/v2"

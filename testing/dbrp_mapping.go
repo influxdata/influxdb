@@ -3,9 +3,10 @@ package testing
 import (
 	"bytes"
 	"context"
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"sort"
 	"testing"
+
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb/v2"

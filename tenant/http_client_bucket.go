@@ -3,9 +3,10 @@ package tenant
 import (
 	"context"
 	"fmt"
+	"path"
+
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-	"path"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"

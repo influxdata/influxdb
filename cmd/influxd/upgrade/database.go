@@ -4,10 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/dustin/go-humanize"
 	"github.com/influxdata/influxdb/v2"

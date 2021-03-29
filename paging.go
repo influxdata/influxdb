@@ -2,11 +2,12 @@ package influxdb
 
 import (
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/http"
 	"net/url"
 	"strconv"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 const (

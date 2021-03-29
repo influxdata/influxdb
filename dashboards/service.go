@@ -4,9 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"time"
+
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-	"time"
 
 	influxdb "github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"

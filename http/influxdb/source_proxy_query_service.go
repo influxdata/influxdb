@@ -5,9 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"io"
 	"net/http"
+
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"

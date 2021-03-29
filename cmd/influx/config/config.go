@@ -4,10 +4,11 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io"
 	"io/ioutil"
 	"os"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/BurntSushi/toml"
 )

@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
+
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-	"regexp"
 
 	"github.com/BurntSushi/toml"
 	"github.com/influxdata/influxdb/v2/telegraf/plugins"

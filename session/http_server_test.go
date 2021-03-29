@@ -2,11 +2,12 @@ package session
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"

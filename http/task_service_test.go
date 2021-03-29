@@ -6,14 +6,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"

@@ -2,9 +2,10 @@ package gather
 
 import (
 	"bytes"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/influxdata/influxdb/v2/models"

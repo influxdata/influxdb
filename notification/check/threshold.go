@@ -3,8 +3,9 @@ package check
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"strings"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxdb/v2"

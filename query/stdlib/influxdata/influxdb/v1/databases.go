@@ -3,9 +3,10 @@ package v1
 import (
 	"context"
 	"fmt"
+	"time"
+
 	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
-	"time"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"

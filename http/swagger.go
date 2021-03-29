@@ -4,9 +4,10 @@ package http
 //go:generate env GO111MODULE=on go run github.com/kevinburke/go-bindata/go-bindata -o swagger_gen.go -tags assets -nocompress -pkg http ./swagger.yml
 
 import (
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/http"
 	"sync"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/ghodss/yaml"
 	"go.uber.org/zap"

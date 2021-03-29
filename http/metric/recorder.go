@@ -2,6 +2,7 @@ package metric
 
 import (
 	"context"
+
 	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 

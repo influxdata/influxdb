@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/url"
 	"path/filepath"
 	"sort"
@@ -13,6 +12,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/notification"

@@ -2,8 +2,9 @@ package main
 
 import (
 	"context"
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"io"
+
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"

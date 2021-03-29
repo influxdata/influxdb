@@ -1,10 +1,11 @@
 package http
 
 import (
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"net/http"
 	"path"
 	"testing"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/influxdb/v2/pkg/testttp"
 	"github.com/stretchr/testify/assert"

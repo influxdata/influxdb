@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -16,6 +15,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/ast/edit"

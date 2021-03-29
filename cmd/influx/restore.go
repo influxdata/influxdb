@@ -3,8 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"os"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/influxdb/v2/http"
 	influxlogger "github.com/influxdata/influxdb/v2/logger"

@@ -3,12 +3,13 @@ package http
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/http"
 	"path"
 	"strings"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/go-chi/chi"
 	"github.com/influxdata/influxdb/v2/kit/tracing"

@@ -1,9 +1,10 @@
 package jsonweb
 
 import (
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"reflect"
 	"testing"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/google/go-cmp/cmp"

@@ -9,8 +9,9 @@ package reads
 import (
 	"errors"
 	"fmt"
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"math"
+
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/flux/interval"
 	"github.com/influxdata/flux/values"

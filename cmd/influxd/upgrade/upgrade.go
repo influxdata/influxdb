@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io/ioutil"
 	"net/url"
 	"os"
 	"os/user"
 	"path/filepath"
 	"strings"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"

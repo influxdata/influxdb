@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"net/url"
 	"regexp"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 // ErrVariableNotFound is the error msg for a missing variable.

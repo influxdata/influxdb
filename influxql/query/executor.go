@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"os"
 	"runtime/debug"
 	"strconv"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	iql "github.com/influxdata/influxdb/v2/influxql"
 	"github.com/influxdata/influxdb/v2/influxql/control"

@@ -4,10 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"io"
 	"net/http"
 	"time"
+
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"

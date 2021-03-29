@@ -2,6 +2,7 @@ package authorizer
 
 import (
 	"context"
+
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/influxdb/v2"

@@ -3,11 +3,12 @@ package http
 import (
 	"context"
 	"errors"
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"net/http"
 	"net/http/httptest"
 	"path"
 	"testing"
+
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 
 	platform "github.com/influxdata/influxdb/v2"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"

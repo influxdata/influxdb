@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/flux"

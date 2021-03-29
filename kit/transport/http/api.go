@@ -6,9 +6,10 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io"
 	"net/http"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"go.uber.org/zap"
 )

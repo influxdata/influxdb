@@ -5,11 +5,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb/v2"

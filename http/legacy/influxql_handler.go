@@ -1,8 +1,9 @@
 package legacy
 
 import (
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/http"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	platform "github.com/influxdata/influxdb/v2"
 	influxqld "github.com/influxdata/influxdb/v2/influxql"

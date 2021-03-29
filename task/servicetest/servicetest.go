@@ -8,7 +8,6 @@ package servicetest
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"math"
 	"reflect"
 	"runtime"
@@ -16,6 +15,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"

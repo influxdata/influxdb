@@ -3,11 +3,12 @@ package legacy
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb/v2"

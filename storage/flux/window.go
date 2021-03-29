@@ -3,8 +3,9 @@ package storageflux
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"sync/atomic"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/apache/arrow/go/arrow/array"
 	"github.com/apache/arrow/go/arrow/memory"

@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io/ioutil"
 	nethttp "net/http"
 	"net/http/httptest"
@@ -13,6 +11,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"

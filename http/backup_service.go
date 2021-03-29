@@ -3,12 +3,13 @@ package http
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"

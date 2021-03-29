@@ -2,6 +2,7 @@ package influxdb
 
 import (
 	"fmt"
+
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 

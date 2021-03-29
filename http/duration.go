@@ -2,9 +2,10 @@ package http
 
 import (
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"strconv"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 // ErrInvalidDuration is returned when parsing a malformatted duration.

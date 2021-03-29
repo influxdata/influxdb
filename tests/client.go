@@ -3,12 +3,13 @@ package tests
 import (
 	"bytes"
 	"context"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io/ioutil"
 	"net/http"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/influxdb/v2"

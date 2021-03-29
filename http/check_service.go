@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io/ioutil"
 	"net/http"
 	"path"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
@@ -845,20 +846,20 @@ type Checks struct {
 }
 
 type Check struct {
-	ID              platform.ID       `json:"id,omitempty"`
-	Name            string            `json:"name"`
-	OrgID           platform.ID       `json:"orgID,omitempty"`
-	OwnerID         platform.ID       `json:"ownerID,omitempty"`
-	CreatedAt       time.Time         `json:"createdAt,omitempty"`
-	UpdatedAt       time.Time         `json:"updatedAt,omitempty"`
-	Query           *CheckQuery       `json:"query"`
-	Status          influxdb.Status   `json:"status"`
-	Description     string            `json:"description"`
-	LatestCompleted time.Time         `json:"latestCompleted"`
-	LastRunStatus   string            `json:"lastRunStatus"`
-	LastRunError    string            `json:"lastRunError"`
-	Labels          []*influxdb.Label `json:"labels"`
-	Links           *CheckLinks       `json:"links"`
+	ID                    platform.ID       `json:"id,omitempty"`
+	Name                  string            `json:"name"`
+	OrgID                 platform.ID       `json:"orgID,omitempty"`
+	OwnerID               platform.ID       `json:"ownerID,omitempty"`
+	CreatedAt             time.Time         `json:"createdAt,omitempty"`
+	UpdatedAt             time.Time         `json:"updatedAt,omitempty"`
+	Query                 *CheckQuery       `json:"query"`
+	Status                influxdb.Status   `json:"status"`
+	Description           string            `json:"description"`
+	LatestCompleted       time.Time         `json:"latestCompleted"`
+	LastRunStatus         string            `json:"lastRunStatus"`
+	LastRunError          string            `json:"lastRunError"`
+	Labels                []*influxdb.Label `json:"labels"`
+	Links                 *CheckLinks       `json:"links"`
 	Type                  string            `json:"type"`
 	TimeSince             string            `json:"timeSince"`
 	StaleTime             string            `json:"staleTime"`

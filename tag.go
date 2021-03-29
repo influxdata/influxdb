@@ -2,9 +2,10 @@ package influxdb
 
 import (
 	"encoding/json"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"regexp"
 	"strings"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 // Operator is an Enum value of operators.

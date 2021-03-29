@@ -2,11 +2,12 @@ package legacy
 
 import (
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/http"
 	"os"
 	"runtime/debug"
 	"sync"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/httprouter"
 	influxlogger "github.com/influxdata/influxdb/v2/logger"

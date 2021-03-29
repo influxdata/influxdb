@@ -2,11 +2,12 @@ package cli
 
 import (
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"os"
 	"path"
 	"strings"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/spf13/cast"
 	"github.com/spf13/cobra"

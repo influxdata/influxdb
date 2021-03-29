@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 

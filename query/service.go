@@ -2,8 +2,9 @@ package query
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"

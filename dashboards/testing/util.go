@@ -2,9 +2,10 @@ package testing
 
 import (
 	"context"
+	"testing"
+
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-	"testing"
 
 	"github.com/influxdata/influxdb/v2"
 )

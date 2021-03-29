@@ -7,8 +7,9 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	platform "github.com/influxdata/influxdb/v2"
 )

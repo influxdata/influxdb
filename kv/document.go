@@ -3,9 +3,10 @@ package kv
 import (
 	"context"
 	"encoding/json"
+	"path"
+
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-	"path"
 
 	"github.com/influxdata/influxdb/v2"
 )
