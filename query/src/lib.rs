@@ -55,7 +55,6 @@ pub trait Database: Debug + Send + Sync {
 }
 
 /// Collection of data that shares the same partition key
-#[async_trait]
 pub trait PartitionChunk: Debug + Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
 
@@ -89,7 +88,7 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// `known_tables` is a list of table names already known to be in
     /// other chunks from the same partition. It may be empty or
     /// contain `table_names` not in this chunk.
-    async fn table_names(
+    fn table_names(
         &self,
         predicate: &Predicate,
         known_tables: &StringSet,
@@ -99,7 +98,7 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// table that have at least one row that matches `predicate`, if
     /// the predicate can be evaluated entirely on the metadata of
     /// this Chunk. Returns `None` otherwise
-    async fn column_names(
+    fn column_names(
         &self,
         table_name: &str,
         predicate: &Predicate,
@@ -111,7 +110,7 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// on the metadata of this Chunk. Returns `None` otherwise
     ///
     /// The requested columns must all have String type.
-    async fn column_values(
+    fn column_values(
         &self,
         table_name: &str,
         column_name: &str,
@@ -140,7 +139,7 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// several chunks within a partition, so there needs to be an
     /// implementation of `TableProvider` that stitches together the
     /// streams from several different `PartitionChunks`.
-    async fn read_filter(
+    fn read_filter(
         &self,
         table_name: &str,
         predicate: &Predicate,

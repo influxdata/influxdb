@@ -165,7 +165,6 @@ where
             let stream = self
                 .chunk
                 .read_filter(table_name, &EMPTY_PREDICATE, Selection::All)
-                .await
                 .map_err(|e| Box::new(e) as _)
                 .context(PartitionError)?;
 

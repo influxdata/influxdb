@@ -338,7 +338,6 @@ impl TestChunk {
     }
 }
 
-#[async_trait]
 impl PartitionChunk for TestChunk {
     type Error = TestError;
 
@@ -352,7 +351,7 @@ impl PartitionChunk for TestChunk {
         unimplemented!()
     }
 
-    async fn read_filter(
+    fn read_filter(
         &self,
         table_name: &str,
         predicate: &Predicate,
@@ -368,7 +367,7 @@ impl PartitionChunk for TestChunk {
         Ok(Box::pin(stream))
     }
 
-    async fn table_names(
+    fn table_names(
         &self,
         predicate: &Predicate,
         _known_tables: &StringSet,
@@ -406,7 +405,7 @@ impl PartitionChunk for TestChunk {
             })
     }
 
-    async fn column_values(
+    fn column_values(
         &self,
         _table_name: &str,
         _column_name: &str,
@@ -420,7 +419,7 @@ impl PartitionChunk for TestChunk {
         self.table_schemas.contains_key(table_name)
     }
 
-    async fn column_names(
+    fn column_names(
         &self,
         table_name: &str,
         predicate: &Predicate,

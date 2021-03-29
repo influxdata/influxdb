@@ -14,8 +14,6 @@ use super::{
     streams::{MutableBufferChunkStream, ReadFilterResultsStream},
 };
 
-use async_trait::async_trait;
-
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Mutable Buffer Chunk Error: {}", source))]
@@ -144,7 +142,6 @@ impl DBChunk {
     }
 }
 
-#[async_trait]
 impl PartitionChunk for DBChunk {
     type Error = Error;
 
@@ -166,7 +163,7 @@ impl PartitionChunk for DBChunk {
         }
     }
 
-    async fn table_names(
+    fn table_names(
         &self,
         predicate: &Predicate,
         _known_tables: &StringSet,
@@ -306,7 +303,7 @@ impl PartitionChunk for DBChunk {
         }
     }
 
-    async fn read_filter(
+    fn read_filter(
         &self,
         table_name: &str,
         predicate: &Predicate,
@@ -390,7 +387,7 @@ impl PartitionChunk for DBChunk {
         }
     }
 
-    async fn column_names(
+    fn column_names(
         &self,
         table_name: &str,
         predicate: &Predicate,
@@ -438,7 +435,7 @@ impl PartitionChunk for DBChunk {
         }
     }
 
-    async fn column_values(
+    fn column_values(
         &self,
         table_name: &str,
         column_name: &str,

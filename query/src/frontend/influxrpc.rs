@@ -204,7 +204,6 @@ impl InfluxRPCPlanner {
         for chunk in self.filtered_chunks(database, &predicate).await? {
             let new_table_names = chunk
                 .table_names(&predicate, builder.known_strings())
-                .await
                 .map_err(|e| Box::new(e) as _)
                 .context(TableNamePlan)?;
 
@@ -272,7 +271,6 @@ impl InfluxRPCPlanner {
                 // filter the columns further from the predicate
                 let maybe_names = chunk
                     .column_names(&table_name, &predicate, selection)
-                    .await
                     .map_err(|e| Box::new(e) as _)
                     .context(FindingColumnNames)?;
 
@@ -395,7 +393,6 @@ impl InfluxRPCPlanner {
                 // try and get the list of values directly from metadata
                 let maybe_values = chunk
                     .column_values(&table_name, tag_name, &predicate)
-                    .await
                     .map_err(|e| Box::new(e) as _)
                     .context(FindingColumnValues)?;
 
@@ -669,7 +666,6 @@ impl InfluxRPCPlanner {
         // try and get the table names that have rows that match the predicate
         let table_names = chunk
             .table_names(&predicate, &no_tables)
-            .await
             .map_err(|e| Box::new(e) as _)
             .context(TableNamePlan)?;
 
@@ -690,7 +686,6 @@ impl InfluxRPCPlanner {
                 };
                 chunk
                     .table_names(&table_name_predicate, &no_tables)
-                    .await
                     .map_err(|e| Box::new(e) as _)
                     .context(InternalTableNamePlanForDefault)?
                     // unwrap the Option
