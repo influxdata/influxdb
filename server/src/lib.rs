@@ -684,6 +684,7 @@ mod tests {
     use crate::buffer::Segment;
 
     use super::*;
+    use crate::db::DbCatalog;
 
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T = (), E = TestError> = std::result::Result<T, E>;
@@ -860,7 +861,11 @@ mod tests {
         let planner = SQLQueryPlanner::default();
         let executor = server.executor();
         let physical_plan = planner
-            .query(db.as_ref(), "select * from cpu", executor.as_ref())
+            .query(
+                Arc::new(DbCatalog::new(db)),
+                "select * from cpu",
+                executor.as_ref(),
+            )
             .await
             .unwrap();
 

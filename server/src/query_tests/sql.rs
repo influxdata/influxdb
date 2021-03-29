@@ -4,10 +4,12 @@
 //! important SQL does not regress)
 
 use super::scenarios::*;
+use crate::db::DbCatalog;
 use arrow_deps::{
     arrow::record_batch::RecordBatch, assert_table_eq, datafusion::physical_plan::collect,
 };
 use query::{exec::Executor, frontend::sql::SQLQueryPlanner};
+use std::sync::Arc;
 
 /// runs table_names(predicate) and compares it to the expected
 /// output
@@ -19,13 +21,15 @@ macro_rules! run_sql_test_case {
             let DBScenario {
                 scenario_name, db, ..
             } = scenario;
+            let db = Arc::new(db);
+
             println!("Running scenario '{}'", scenario_name);
             println!("SQL: '{:#?}'", sql);
-            let planner = SQLQueryPlanner::new();
+            let planner = SQLQueryPlanner::default();
             let executor = Executor::new();
 
             let physical_plan = planner
-                .query(&db, &sql, &executor)
+                .query(Arc::new(DbCatalog::new(db)), &sql, &executor)
                 .await
                 .expect("built plan successfully");
 

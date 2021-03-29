@@ -148,7 +148,7 @@ async fn test_read_error(db_name: &str, addr: &str) {
         .assert()
         .failure()
         .stderr(predicate::str::contains(
-            "no chunks found in builder for table",
+            "Table or CTE with name \\'unknown_table\\' not found",
         ));
 
     Command::cargo_bin("influxdb_iox")

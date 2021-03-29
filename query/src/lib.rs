@@ -23,6 +23,8 @@ pub mod predicate;
 pub mod provider;
 pub mod util;
 
+pub use exec::context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
+
 use self::predicate::Predicate;
 
 /// A `Database` is the main trait implemented by the IOx subsystems

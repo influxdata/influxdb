@@ -85,6 +85,10 @@ impl Partition {
         })
     }
 
+    pub fn chunk_ids(&self) -> impl Iterator<Item = u32> + '_ {
+        self.chunks.keys().cloned()
+    }
+
     /// Return a iterator over chunks in this partition
     pub fn chunks(&self) -> impl Iterator<Item = &Arc<RwLock<Chunk>>> {
         self.chunks.values()

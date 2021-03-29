@@ -27,6 +27,11 @@ pub use arrow_deps::datafusion::error::{DataFusionError as Error, Result};
 
 use super::counters::ExecutionCounters;
 
+// The default catalog name - this impacts what SQL queries use if not specified
+pub const DEFAULT_CATALOG: &str = "public";
+// The default schema name - this impacts what SQL queries use if not specified
+pub const DEFAULT_SCHEMA: &str = "iox";
+
 /// This structure implements the DataFusion notion of "query planner"
 /// and is needed to create plans with the IOx extension nodes.
 struct IOxQueryPlanner {}
@@ -94,12 +99,17 @@ impl fmt::Debug for IOxExecutionContext {
 
 impl IOxExecutionContext {
     /// Create an ExecutionContext suitable for executing DataFusion plans
+    ///
+    /// The config is created with a default catalog and schema, but this
+    /// can be overridden at a later date
     pub fn new(counters: Arc<ExecutionCounters>) -> Self {
         const BATCH_SIZE: usize = 1000;
 
         // TBD: Should we be reusing an execution context across all executions?
         let config = ExecutionConfig::new()
             .with_batch_size(BATCH_SIZE)
+            .create_default_catalog_and_schema(true)
+            .with_default_catalog_and_schema(DEFAULT_CATALOG, DEFAULT_SCHEMA)
             .with_query_planner(Arc::new(IOxQueryPlanner {}));
 
         let inner = ExecutionContext::with_config(config);
