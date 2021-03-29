@@ -132,8 +132,8 @@ where
         request: Request<CreateDummyJobRequest>,
     ) -> Result<Response<CreateDummyJobResponse>, Status> {
         let request = request.into_inner();
-        let slot = self.server.spawn_dummy_job(request.nanos);
-        let operation = Some(super::operations::encode_tracker(slot)?);
+        let tracker = self.server.spawn_dummy_job(request.nanos);
+        let operation = Some(super::operations::encode_tracker(tracker)?);
         Ok(Response::new(CreateDummyJobResponse { operation }))
     }
 
@@ -279,6 +279,29 @@ where
             .map_err(default_db_error_handler)?;
 
         Ok(Response::new(NewPartitionChunkResponse {}))
+    }
+
+    async fn close_partition_chunk(
+        &self,
+        request: Request<ClosePartitionChunkRequest>,
+    ) -> Result<Response<ClosePartitionChunkResponse>, Status> {
+        let ClosePartitionChunkRequest {
+            db_name,
+            partition_key,
+            chunk_id,
+        } = request.into_inner();
+
+        // Validate that the database name is legit
+        let db_name = DatabaseName::new(db_name).field("db_name")?;
+
+        let tracker = self
+            .server
+            .close_chunk(db_name, partition_key, chunk_id)
+            .map_err(default_server_error_handler)?;
+
+        let operation = Some(super::operations::encode_tracker(tracker)?);
+
+        Ok(Response::new(ClosePartitionChunkResponse { operation }))
     }
 }
 

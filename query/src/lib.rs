@@ -8,11 +8,9 @@
 
 use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 use async_trait::async_trait;
-use data_types::{
-    chunk::ChunkSummary, data::ReplicatedWrite, partition_metadata::TableSummary, schema::Schema,
-    selection::Selection,
-};
+use data_types::{chunk::ChunkSummary, partition_metadata::TableSummary};
 use exec::{stringset::StringSet, Executor};
+use internal_types::{data::ReplicatedWrite, schema::Schema, selection::Selection};
 
 use std::{fmt::Debug, sync::Arc};
 
@@ -25,6 +23,8 @@ pub mod predicate;
 pub mod provider;
 pub mod util;
 
+pub use exec::context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
+
 use self::predicate::Predicate;
 
 /// A `Database` is the main trait implemented by the IOx subsystems
@@ -35,13 +35,12 @@ use self::predicate::Predicate;
 ///
 /// TODO: Move all Query and Line Protocol specific things out of this
 /// trait and into the various query planners.
-#[async_trait]
 pub trait Database: Debug + Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
     type Chunk: PartitionChunk;
 
     /// Stores the replicated write into the database.
-    async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error>;
+    fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error>;
 
     /// Return the partition keys for data in this DB
     fn partition_keys(&self) -> Result<Vec<String>, Self::Error>;
@@ -56,7 +55,6 @@ pub trait Database: Debug + Send + Sync {
 }
 
 /// Collection of data that shares the same partition key
-#[async_trait]
 pub trait PartitionChunk: Debug + Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
 
@@ -90,17 +88,25 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// `known_tables` is a list of table names already known to be in
     /// other chunks from the same partition. It may be empty or
     /// contain `table_names` not in this chunk.
-    async fn table_names(
+    fn table_names(
         &self,
         predicate: &Predicate,
         known_tables: &StringSet,
     ) -> Result<Option<StringSet>, Self::Error>;
 
+    /// Adds all table names from this chunk without any predicate to
+    /// `known_tables)
+    ///
+    /// `known_tables` is a list of table names already known to be in
+    /// other chunks from the same partition. It may be empty or
+    /// contain `table_names` not in this chunk.
+    fn all_table_names(&self, known_tables: &mut StringSet);
+
     /// Returns a set of Strings with column names from the specified
     /// table that have at least one row that matches `predicate`, if
     /// the predicate can be evaluated entirely on the metadata of
     /// this Chunk. Returns `None` otherwise
-    async fn column_names(
+    fn column_names(
         &self,
         table_name: &str,
         predicate: &Predicate,
@@ -112,7 +118,7 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// on the metadata of this Chunk. Returns `None` otherwise
     ///
     /// The requested columns must all have String type.
-    async fn column_values(
+    fn column_values(
         &self,
         table_name: &str,
         column_name: &str,
@@ -122,7 +128,7 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// Returns the Schema for a table in this chunk, with the
     /// specified column selection. An error is returned if the
     /// selection refers to columns that do not exist.
-    async fn table_schema(
+    fn table_schema(
         &self,
         table_name: &str,
         selection: Selection<'_>,
@@ -141,7 +147,7 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// several chunks within a partition, so there needs to be an
     /// implementation of `TableProvider` that stitches together the
     /// streams from several different `PartitionChunks`.
-    async fn read_filter(
+    fn read_filter(
         &self,
         table_name: &str,
         predicate: &Predicate,

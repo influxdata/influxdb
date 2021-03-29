@@ -9,7 +9,7 @@ use arrow_deps::{
         physical_plan::{ExecutionPlan, Partitioning, SendableRecordBatchStream},
     },
 };
-use data_types::{schema::Schema, selection::Selection};
+use internal_types::{schema::Schema, selection::Selection};
 
 use crate::{predicate::Predicate, PartitionChunk};
 
@@ -104,7 +104,6 @@ impl<C: PartitionChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
 
         let stream = chunk
             .read_filter(&self.table_name, &self.predicate, selection)
-            .await
             .map_err(|e| {
                 DataFusionError::Execution(format!(
                     "Error creating scan for table {} chunk {}: {}",

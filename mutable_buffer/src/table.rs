@@ -12,12 +12,12 @@ use crate::{
     dictionary::{Dictionary, Error as DictionaryError},
     pred::{ChunkIdSet, ChunkPredicate},
 };
-use data_types::{
-    partition_metadata::{ColumnSummary, Statistics},
-    schema::{builder::SchemaBuilder, Schema},
+use data_types::partition_metadata::{ColumnSummary, Statistics};
+use internal_types::{
+    schema::{builder::SchemaBuilder, Schema, TIME_COLUMN_NAME},
     selection::Selection,
-    TIME_COLUMN_NAME,
 };
+
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use arrow_deps::{
@@ -84,7 +84,7 @@ pub enum Error {
 
     #[snafu(display("Internal error converting schema: {}", source))]
     InternalSchema {
-        source: data_types::schema::builder::Error,
+        source: internal_types::schema::builder::Error,
     },
 
     #[snafu(display(
@@ -597,8 +597,8 @@ impl<'a> TableColSelection<'a> {
 #[cfg(test)]
 mod tests {
 
-    use data_types::data::split_lines_into_write_entry_partitions;
     use influxdb_line_protocol::{parse_lines, ParsedLine};
+    use internal_types::data::split_lines_into_write_entry_partitions;
 
     use super::*;
 
@@ -808,7 +808,7 @@ mod tests {
 
         let data = split_lines_into_write_entry_partitions(chunk_key_func, &lines);
 
-        let batch = flatbuffers::get_root::<wb::WriteBufferBatch<'_>>(&data);
+        let batch = flatbuffers::root::<wb::WriteBufferBatch<'_>>(&data).unwrap();
         let entries = batch.entries().expect("at least one entry");
 
         for entry in entries {

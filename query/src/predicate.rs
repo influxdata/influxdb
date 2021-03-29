@@ -9,7 +9,8 @@ use arrow_deps::{
     datafusion::logical_plan::Expr,
     util::{make_range_expr, AndExprBuilder},
 };
-use data_types::{timestamp::TimestampRange, TIME_COLUMN_NAME};
+use data_types::timestamp::TimestampRange;
+use internal_types::schema::TIME_COLUMN_NAME;
 
 /// This `Predicate` represents the empty predicate (aka that
 /// evaluates to true for all rows).

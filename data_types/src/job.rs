@@ -9,15 +9,30 @@ use std::convert::TryFrom;
 /// Used in combination with TrackerRegistry
 ///
 /// TODO: Serde is temporary until prost adds JSON support
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum Job {
-    PersistSegment { writer_id: u32, segment_id: u64 },
-    Dummy { nanos: Vec<u64> },
+    Dummy {
+        nanos: Vec<u64>,
+    },
+
+    /// Persist a WAL segment to object store
+    PersistSegment {
+        writer_id: u32,
+        segment_id: u64,
+    },
+
+    /// Move a chunk from mutable buffer to read buffer
+    CloseChunk {
+        db_name: String,
+        partition_key: String,
+        chunk_id: u32,
+    },
 }
 
 impl From<Job> for management::operation_metadata::Job {
     fn from(job: Job) -> Self {
         match job {
+            Job::Dummy { nanos } => Self::Dummy(management::Dummy { nanos }),
             Job::PersistSegment {
                 writer_id,
                 segment_id,
@@ -25,7 +40,15 @@ impl From<Job> for management::operation_metadata::Job {
                 writer_id,
                 segment_id,
             }),
-            Job::Dummy { nanos } => Self::Dummy(management::Dummy { nanos }),
+            Job::CloseChunk {
+                db_name,
+                partition_key,
+                chunk_id,
+            } => Self::CloseChunk(management::CloseChunk {
+                db_name,
+                partition_key,
+                chunk_id,
+            }),
         }
     }
 }
@@ -42,8 +65,35 @@ impl From<management::operation_metadata::Job> for Job {
                 writer_id,
                 segment_id,
             },
+            Job::CloseChunk(management::CloseChunk {
+                db_name,
+                partition_key,
+                chunk_id,
+            }) => Self::CloseChunk {
+                db_name,
+                partition_key,
+                chunk_id,
+            },
         }
     }
+}
+
+/// The status of a running operation
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
+pub enum OperationStatus {
+    /// A task associated with the operation is running
+    Running,
+    /// All tasks associated with the operation have finished
+    ///
+    /// Note: This does not indicate success or failure only that
+    /// no tasks associated with the operation are running
+    Complete,
+    /// The operation was cancelled and no associated tasks are running
+    Cancelled,
+    /// An operation error was returned
+    ///
+    /// Note: The tracker system currently will never return this
+    Errored,
 }
 
 /// A group of asynchronous tasks being performed by an IOx server
@@ -63,6 +113,8 @@ pub struct Operation {
     pub cpu_time: std::time::Duration,
     /// Additional job metadata
     pub job: Option<Job>,
+    /// The status of the running operation
+    pub status: OperationStatus,
 }
 
 impl TryFrom<longrunning::Operation> for Operation {
@@ -83,6 +135,18 @@ impl TryFrom<longrunning::Operation> for Operation {
         let meta: management::OperationMetadata =
             prost::Message::decode(metadata.value).field("metadata.value")?;
 
+        let status = match &operation.result {
+            None => OperationStatus::Running,
+            Some(longrunning::operation::Result::Response(_)) => OperationStatus::Complete,
+            Some(longrunning::operation::Result::Error(status)) => {
+                if status.code == tonic::Code::Cancelled as i32 {
+                    OperationStatus::Cancelled
+                } else {
+                    OperationStatus::Errored
+                }
+            }
+        };
+
         Ok(Self {
             id: operation.name.parse().field("name")?,
             task_count: meta.task_count,
@@ -90,6 +154,7 @@ impl TryFrom<longrunning::Operation> for Operation {
             wall_time: std::time::Duration::from_nanos(meta.wall_nanos),
             cpu_time: std::time::Duration::from_nanos(meta.cpu_nanos),
             job: meta.job.map(Into::into),
+            status,
         })
     }
 }

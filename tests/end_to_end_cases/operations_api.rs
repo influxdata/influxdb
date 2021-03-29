@@ -3,7 +3,9 @@ use generated_types::google::protobuf::Any;
 use influxdb_iox_client::{management::generated_types::*, operations, protobuf_type_url_eq};
 use std::time::Duration;
 
-fn get_operation_metadata(metadata: Option<Any>) -> OperationMetadata {
+// TODO remove after #1001 and use something directly in the influxdb_iox_client
+// crate
+pub fn get_operation_metadata(metadata: Option<Any>) -> OperationMetadata {
     assert!(metadata.is_some());
     let metadata = metadata.unwrap();
     assert!(protobuf_type_url_eq(&metadata.type_url, OPERATION_METADATA));

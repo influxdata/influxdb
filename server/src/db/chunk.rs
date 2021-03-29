@@ -1,9 +1,6 @@
 use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
-use data_types::{
-    chunk::{ChunkStorage, ChunkSummary},
-    schema::Schema,
-    selection::Selection,
-};
+use data_types::chunk::{ChunkStorage, ChunkSummary};
+use internal_types::{schema::Schema, selection::Selection};
 use mutable_buffer::chunk::Chunk as MBChunk;
 use query::{exec::stringset::StringSet, predicate::Predicate, PartitionChunk};
 use read_buffer::Database as ReadBufferDb;
@@ -16,8 +13,6 @@ use super::{
     pred::{to_mutable_buffer_predicate, to_read_buffer_predicate},
     streams::{MutableBufferChunkStream, ReadFilterResultsStream},
 };
-
-use async_trait::async_trait;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -33,7 +28,9 @@ pub enum Error {
     },
 
     #[snafu(display("Internal error restricting schema: {}", source))]
-    InternalSelectingSchema { source: data_types::schema::Error },
+    InternalSelectingSchema {
+        source: internal_types::schema::Error,
+    },
 
     #[snafu(display("Predicate conversion error: {}", source))]
     PredicateConversion { source: super::pred::Error },
@@ -75,32 +72,56 @@ pub enum DBChunk {
 }
 
 impl DBChunk {
-    /// Create a new mutable buffer chunk
-    pub fn new_mb(
-        chunk: Arc<mutable_buffer::chunk::Chunk>,
-        partition_key: impl Into<String>,
-        open: bool,
-    ) -> Arc<Self> {
-        let partition_key = Arc::new(partition_key.into());
-        Arc::new(Self::MutableBuffer {
-            chunk,
-            partition_key,
-            open,
-        })
-    }
+    /// Create a DBChunk snapshot of the catalog chunk
+    pub fn snapshot(chunk: &super::catalog::chunk::Chunk) -> Arc<Self> {
+        let partition_key = Arc::new(chunk.key().to_string());
+        let chunk_id = chunk.id();
 
-    /// create a new read buffer chunk
-    pub fn new_rb(
-        db: Arc<ReadBufferDb>,
-        partition_key: impl Into<String>,
-        chunk_id: u32,
-    ) -> Arc<Self> {
-        let partition_key = Arc::new(partition_key.into());
-        Arc::new(Self::ReadBuffer {
-            db,
-            chunk_id,
-            partition_key,
-        })
+        let db_chunk = match chunk.state() {
+            super::catalog::chunk::ChunkState::None => {
+                panic!("Invalid internal state");
+            }
+            super::catalog::chunk::ChunkState::Open(chunk) => {
+                // TODO the performance if cloning the chunk is terrible
+                // Proper performance is tracked in
+                // https://github.com/influxdata/influxdb_iox/issues/635
+                let chunk = Arc::new(chunk.clone());
+                Self::MutableBuffer {
+                    chunk,
+                    partition_key,
+                    open: true,
+                }
+            }
+            super::catalog::chunk::ChunkState::Closing(chunk) => {
+                // TODO the performance if cloning the chunk is terrible
+                // Proper performance is tracked in
+                // https://github.com/influxdata/influxdb_iox/issues/635
+                let chunk = Arc::new(chunk.clone());
+                Self::MutableBuffer {
+                    chunk,
+                    partition_key,
+                    open: false,
+                }
+            }
+            super::catalog::chunk::ChunkState::Closed(chunk)
+            | super::catalog::chunk::ChunkState::Moving(chunk) => {
+                let chunk = Arc::clone(chunk);
+                Self::MutableBuffer {
+                    chunk,
+                    partition_key,
+                    open: false,
+                }
+            }
+            super::catalog::chunk::ChunkState::Moved(db) => {
+                let db = Arc::clone(db);
+                Self::ReadBuffer {
+                    db,
+                    partition_key,
+                    chunk_id,
+                }
+            }
+        };
+        Arc::new(db_chunk)
     }
 
     pub fn summary(&self) -> ChunkSummary {
@@ -145,7 +166,6 @@ impl DBChunk {
     }
 }
 
-#[async_trait]
 impl PartitionChunk for DBChunk {
     type Error = Error;
 
@@ -167,7 +187,21 @@ impl PartitionChunk for DBChunk {
         }
     }
 
-    async fn table_names(
+    fn all_table_names(&self, known_tables: &mut StringSet) {
+        match self {
+            Self::MutableBuffer { chunk, .. } => chunk.all_table_names(known_tables),
+            Self::ReadBuffer {
+                db,
+                partition_key,
+                chunk_id,
+            } => db.all_table_names(partition_key, &[*chunk_id], known_tables),
+            Self::ParquetFile => {
+                unimplemented!("parquet files")
+            }
+        }
+    }
+
+    fn table_names(
         &self,
         predicate: &Predicate,
         _known_tables: &StringSet,
@@ -243,7 +277,7 @@ impl PartitionChunk for DBChunk {
         Ok(names)
     }
 
-    async fn table_schema(
+    fn table_schema(
         &self,
         table_name: &str,
         selection: Selection<'_>,
@@ -307,7 +341,7 @@ impl PartitionChunk for DBChunk {
         }
     }
 
-    async fn read_filter(
+    fn read_filter(
         &self,
         table_name: &str,
         predicate: &Predicate,
@@ -324,7 +358,7 @@ impl PartitionChunk for DBChunk {
                     }
                     .fail();
                 }
-                let schema: Schema = self.table_schema(table_name, selection).await?;
+                let schema: Schema = self.table_schema(table_name, selection)?;
 
                 Ok(Box::pin(MutableBufferChunkStream::new(
                     Arc::clone(&chunk),
@@ -391,7 +425,7 @@ impl PartitionChunk for DBChunk {
         }
     }
 
-    async fn column_names(
+    fn column_names(
         &self,
         table_name: &str,
         predicate: &Predicate,
@@ -439,7 +473,7 @@ impl PartitionChunk for DBChunk {
         }
     }
 
-    async fn column_values(
+    fn column_values(
         &self,
         table_name: &str,
         column_name: &str,

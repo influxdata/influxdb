@@ -1,4 +1,5 @@
 use assert_cmd::Command;
+use data_types::job::{Job, Operation};
 use predicates::prelude::*;
 use test_helpers::make_temp_file;
 
@@ -87,8 +88,8 @@ async fn test_create_database() {
                 .and(predicate::str::contains(format!("name: \"{}\"", db)))
                 // validate the defaults have been set reasonably
                 .and(predicate::str::contains("%Y-%m-%d %H:00:00"))
-                .and(predicate::str::contains("buffer_size: 104857600"))
-                .and(predicate::str::contains("MutableBufferConfig")),
+                .and(predicate::str::contains("buffer_size_hard: 104857600"))
+                .and(predicate::str::contains("LifecycleRules")),
         );
 }
 
@@ -104,7 +105,7 @@ async fn test_create_database_size() {
         .arg("database")
         .arg("create")
         .arg(db)
-        .arg("-m")
+        .arg("--buffer-size-hard")
         .arg("1000")
         .arg("--host")
         .arg(addr)
@@ -122,13 +123,13 @@ async fn test_create_database_size() {
         .assert()
         .success()
         .stdout(
-            predicate::str::contains("buffer_size: 1000")
-                .and(predicate::str::contains("MutableBufferConfig")),
+            predicate::str::contains("buffer_size_hard: 1000")
+                .and(predicate::str::contains("LifecycleRules")),
         );
 }
 
 #[tokio::test]
-async fn test_create_database_zero_size() {
+async fn test_create_database_immutable() {
     let server_fixture = ServerFixture::create_shared().await;
     let addr = server_fixture.grpc_base();
     let db_name = rand_name();
@@ -139,8 +140,7 @@ async fn test_create_database_zero_size() {
         .arg("database")
         .arg("create")
         .arg(db)
-        .arg("-m")
-        .arg("0")
+        .arg("--immutable")
         .arg("--host")
         .arg(addr)
         .assert()
@@ -157,7 +157,7 @@ async fn test_create_database_zero_size() {
         .assert()
         .success()
         // Should not have a mutable buffer
-        .stdout(predicate::str::contains("MutableBufferConfig").not());
+        .stdout(predicate::str::contains("immutable: true"));
 }
 
 #[tokio::test]
@@ -492,6 +492,71 @@ async fn test_new_partition_chunk_error() {
         .arg("new-chunk")
         .arg("non_existent_database")
         .arg("non_existent_partition")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains(
+            "Resource database/non_existent_database not found",
+        ));
+}
+
+#[tokio::test]
+async fn test_close_partition_chunk() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let addr = server_fixture.grpc_base();
+    let db_name = rand_name();
+
+    create_readable_database(&db_name, server_fixture.grpc_channel()).await;
+
+    let lp_data = vec!["cpu,region=west user=23.2 100"];
+    load_lp(addr, &db_name, lp_data);
+
+    let stdout: Operation = serde_json::from_slice(
+        &Command::cargo_bin("influxdb_iox")
+            .unwrap()
+            .arg("database")
+            .arg("partition")
+            .arg("close-chunk")
+            .arg(&db_name)
+            .arg("cpu")
+            .arg("0")
+            .arg("--host")
+            .arg(addr)
+            .assert()
+            .success()
+            .get_output()
+            .stdout,
+    )
+    .expect("Expected JSON output");
+
+    let expected_job = Job::CloseChunk {
+        db_name,
+        partition_key: "cpu".into(),
+        chunk_id: 0,
+    };
+
+    assert_eq!(
+        Some(expected_job),
+        stdout.job,
+        "operation was {:#?}",
+        stdout
+    );
+}
+
+#[tokio::test]
+async fn test_close_partition_chunk_error() {
+    let server_fixture = ServerFixture::create_shared().await;
+    let addr = server_fixture.grpc_base();
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("database")
+        .arg("partition")
+        .arg("close-chunk")
+        .arg("non_existent_database")
+        .arg("non_existent_partition")
+        .arg("0")
         .arg("--host")
         .arg(addr)
         .assert()

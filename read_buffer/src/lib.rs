@@ -16,7 +16,7 @@ use std::{
 };
 
 use arrow_deps::arrow::record_batch::RecordBatch;
-use data_types::{
+use internal_types::{
     schema::{builder::SchemaMerger, Schema},
     selection::Selection,
 };
@@ -40,7 +40,7 @@ pub enum Error {
     // TODO add more context / helpful error here
     #[snafu(display("Error building unioned read buffer schema for chunks: {}", source))]
     BuildingSchema {
-        source: data_types::schema::builder::Error,
+        source: internal_types::schema::builder::Error,
     },
 
     #[snafu(display("partition key does not exist: {}", key))]
@@ -363,11 +363,11 @@ impl Database {
             // Get all relevant row groups for this chunk's table. This
             // is cheap because it doesn't execute the read operation,
             // but just gets references to the needed to data to do so.
-            if let Some(table_results) =
-                chunk.read_aggregate(table_name, predicate.clone(), &group_columns, &aggregates)
-            {
-                chunk_table_results.push(table_results);
-            }
+            let table_results = chunk
+                .read_aggregate(table_name, predicate.clone(), &group_columns, &aggregates)
+                .context(ChunkError)?;
+
+            chunk_table_results.push(table_results);
         }
 
         Ok(ReadAggregateResults::new(chunk_table_results))
@@ -408,6 +408,29 @@ impl Database {
     //
     // ---- Schema API queries
     //
+
+    /// Adds all tables in the specified chunks to names and returns
+    pub fn all_table_names(
+        &self,
+        partition_key: &str,
+        chunk_ids: &[u32],
+        names: &mut BTreeSet<String>,
+    ) {
+        let partition_data = self.data.read().unwrap();
+
+        let partition = partition_data.partitions.get(partition_key).unwrap();
+
+        let chunk_data = partition.data.read().unwrap();
+        chunk_ids.iter().for_each(|id| {
+            let chunk = chunk_data.chunks.get(id).unwrap();
+
+            // notice that `names` is pushed into the chunk `table_name`
+            // implementation. This ensure we don't process more tables than
+            // we need to.
+            let predicate = Predicate::default();
+            names.append(&mut chunk.table_names(&predicate, names));
+        })
+    }
 
     /// Returns the distinct set of table names that contain data that satisfies
     /// the provided predicate.
@@ -842,7 +865,7 @@ mod test {
         },
         datatypes::DataType::{Boolean, Float64, Int64, UInt64, Utf8},
     };
-    use data_types::schema::builder::SchemaBuilder;
+    use internal_types::schema::builder::SchemaBuilder;
 
     use crate::value::Values;
 

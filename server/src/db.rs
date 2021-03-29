@@ -1,39 +1,98 @@
 //! This module contains the main IOx Database object which has the
 //! instances of the mutable buffer, read buffer, and object store
 
-use std::{
-    collections::BTreeMap,
-    sync::{
-        atomic::{AtomicU64, Ordering},
-        Arc,
-    },
+use std::any::Any;
+use std::sync::{
+    atomic::{AtomicU64, AtomicUsize, Ordering},
+    Arc,
 };
 
 use async_trait::async_trait;
-use data_types::{
-    chunk::ChunkSummary, data::ReplicatedWrite, database_rules::DatabaseRules, selection::Selection,
-};
-use mutable_buffer::MutableBufferDb;
 use parking_lot::Mutex;
-use query::{Database, PartitionChunk};
-use read_buffer::Database as ReadBufferDb;
-use serde::{Deserialize, Serialize};
 use snafu::{OptionExt, ResultExt, Snafu};
+use tracing::{debug, info};
 
-use crate::buffer::Buffer;
+use arrow_deps::datafusion::{
+    catalog::{catalog::CatalogProvider, schema::SchemaProvider},
+    datasource::TableProvider,
+};
+use catalog::{chunk::ChunkState, Catalog};
+use data_types::{chunk::ChunkSummary, database_rules::DatabaseRules, error::ErrorLogger};
+use internal_types::{data::ReplicatedWrite, selection::Selection};
+use mutable_buffer::chunk::Chunk;
+use query::{
+    exec::stringset::StringSet,
+    provider::{self, ProviderBuilder},
+    Database, PartitionChunk, DEFAULT_SCHEMA,
+};
+use read_buffer::Database as ReadBufferDb;
 
-use tracing::info;
-
-mod chunk;
 pub(crate) use chunk::DBChunk;
+
+use crate::{buffer::Buffer, JobRegistry};
+
+pub mod catalog;
+mod chunk;
 pub mod pred;
 mod streams;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Mutable Buffer Chunk Error: {}", source))]
-    MutableBufferChunk {
-        source: mutable_buffer::chunk::Error,
+    #[snafu(display(
+        "Can not drop chunk {} {} from catalog: {}",
+        partition_key,
+        chunk_id,
+        source
+    ))]
+    DroppingChunk {
+        partition_key: String,
+        chunk_id: u32,
+        source: catalog::Error,
+    },
+
+    #[snafu(display("Can not rollover partition {}: {}", partition_key, source))]
+    RollingOverPartition {
+        partition_key: String,
+        source: catalog::Error,
+    },
+
+    #[snafu(display(
+        "Internal error: no open chunk while rolling over partition {}",
+        partition_key,
+    ))]
+    InternalNoOpenChunk { partition_key: String },
+
+    #[snafu(display("Internal error: unexpected state rolling over partition chunk {} {}: expected {:?}, but was {:?}",
+                    partition_key, chunk_id, expected_state, actual_state))]
+    InternalRollingOverUnexpectedState {
+        partition_key: String,
+        chunk_id: u32,
+        expected_state: String,
+        actual_state: String,
+    },
+
+    #[snafu(display(
+        "Can not drop chunk {} {} which is {:?}. Wait for the movement to complete",
+        partition_key,
+        chunk_id,
+        chunk_state
+    ))]
+    DropMovingChunk {
+        partition_key: String,
+        chunk_id: u32,
+        chunk_state: String,
+    },
+
+    #[snafu(display(
+        "Can not load partition chunk {} {} to read buffer: {}",
+        partition_key,
+        chunk_id,
+        source
+    ))]
+    LoadingChunk {
+        partition_key: String,
+        chunk_id: u32,
+        source: catalog::Error,
     },
 
     #[snafu(display("Unknown Mutable Buffer Chunk {}", chunk_id))]
@@ -42,22 +101,29 @@ pub enum Error {
     #[snafu(display("Cannot write to this database: no mutable buffer configured"))]
     DatatbaseNotWriteable {},
 
+    #[snafu(display("Internal error: cannot create partition in catalog: {}", source))]
+    CreatingPartition {
+        partition_key: String,
+        source: catalog::Error,
+    },
+
+    #[snafu(display("Internal error: cannot create chunk in catalog: {}", source))]
+    CreatingChunk {
+        partition_key: String,
+        source: catalog::Error,
+    },
+
     #[snafu(display("Cannot read to this database: no mutable buffer configured"))]
     DatabaseNotReadable {},
 
-    #[snafu(display("Error dropping data from mutable buffer: {}", source))]
-    MutableBufferDrop {
-        source: mutable_buffer::database::Error,
-    },
-
-    #[snafu(display("Error rolling partition: {}", source))]
-    RollingPartition {
-        source: mutable_buffer::database::Error,
-    },
-
-    #[snafu(display("Error querying mutable buffer: {}", source))]
-    MutableBufferRead {
-        source: mutable_buffer::database::Error,
+    #[snafu(display(
+        "Only closed chunks can be moved to read buffer. Chunk {} {} was open",
+        partition_key,
+        chunk_id
+    ))]
+    ChunkNotClosed {
+        partition_key: String,
+        chunk_id: u32,
     },
 
     #[snafu(display("Error writing to mutable buffer: {}", source))]
@@ -72,156 +138,223 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 const STARTING_SEQUENCE: u64 = 1;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug)]
 /// This is the main IOx Database object. It is the root object of any
 /// specific InfluxDB IOx instance
+///
+/// Catalog Usage: the state of the catalog and the state of the `Db`
+/// must remain in sync. If they are ever out of sync, the IOx system
+/// should be shutdown and forced through a "recovery" to correctly
+/// recconcile the state.
+///
+/// Ensuring the Catalog and Db remain in sync is accomplished by
+/// manipulating the catalog state alongside the state in the `Db`
+/// itself. The catalog state can be observed (but not mutated) by things
+/// outside of the Db
 pub struct Db {
-    #[serde(flatten)]
     pub rules: DatabaseRules,
 
-    #[serde(skip)]
-    /// The (optional) mutable buffer stores incoming writes. If a
-    /// database does not have a mutable buffer it can not accept
-    /// writes (it is a read replica)
-    pub mutable_buffer: Option<MutableBufferDb>,
+    /// The metadata catalog
+    catalog: Catalog,
 
-    #[serde(skip)]
     /// The read buffer holds chunk data in an in-memory optimized
     /// format.
-    pub read_buffer: Arc<ReadBufferDb>,
+    read_buffer: Arc<ReadBufferDb>,
 
-    #[serde(skip)]
     /// The wal buffer holds replicated writes in an append in-memory
     /// buffer. This buffer is used for sending data to subscribers
     /// and to persist segments in object storage for recovery.
     pub wal_buffer: Option<Mutex<Buffer>>,
 
-    #[serde(skip)]
+    /// A handle to the global jobs registry for long running tasks
+    jobs: Arc<JobRegistry>,
+
     sequence: AtomicU64,
+
+    worker_iterations: AtomicUsize,
 }
+
 impl Db {
     pub fn new(
         rules: DatabaseRules,
-        mutable_buffer: Option<MutableBufferDb>,
         read_buffer: ReadBufferDb,
         wal_buffer: Option<Buffer>,
+        jobs: Arc<JobRegistry>,
     ) -> Self {
         let wal_buffer = wal_buffer.map(Mutex::new);
         let read_buffer = Arc::new(read_buffer);
+        let catalog = Catalog::new();
         Self {
             rules,
-            mutable_buffer,
+            catalog,
             read_buffer,
             wal_buffer,
+            jobs,
             sequence: AtomicU64::new(STARTING_SEQUENCE),
+            worker_iterations: AtomicUsize::new(0),
         }
     }
 
     /// Rolls over the active chunk in the database's specified
     /// partition. Returns the previously open (now closed) Chunk
     pub async fn rollover_partition(&self, partition_key: &str) -> Result<Arc<DBChunk>> {
-        if let Some(local_store) = self.mutable_buffer.as_ref() {
-            local_store
-                .rollover_partition(partition_key)
-                .context(RollingPartition)
-                .map(|c| DBChunk::new_mb(c, partition_key, false))
-        } else {
-            DatatbaseNotWriteable {}.fail()
-        }
+        // After this point, the catalog transaction has to succeed or
+        // we need to crash / force a recovery as the in-memory state
+        // may be inconsistent with the catalog state
+
+        let partition = self
+            .catalog
+            .valid_partition(partition_key)
+            .context(RollingOverPartition { partition_key })?;
+
+        let mut partition = partition.write();
+        let chunk = partition
+            .open_chunk()
+            .context(InternalNoOpenChunk { partition_key })?;
+
+        let mut chunk = chunk.write();
+        chunk
+            .set_closing()
+            .context(RollingOverPartition { partition_key })?;
+
+        // make a new chunk to track the newly created chunk in this partition
+        let new_chunk = partition
+            .create_chunk()
+            .context(RollingOverPartition { partition_key })?;
+
+        let mut new_chunk = new_chunk.write();
+        let chunk_id = new_chunk.id();
+        new_chunk
+            .set_open(Chunk::new(chunk_id))
+            .context(RollingOverPartition { partition_key })?;
+
+        return Ok(DBChunk::snapshot(&chunk));
     }
 
-    // Return a list of all chunks in the mutable_buffer (that can
-    // potentially be migrated into the read buffer or object store)
-    pub fn mutable_buffer_chunks(&self, partition_key: &str) -> Vec<Arc<DBChunk>> {
-        let chunks = if let Some(mutable_buffer) = self.mutable_buffer.as_ref() {
-            let open_chunk_id = mutable_buffer.open_chunk_id(partition_key);
+    /// Drops the specified chunk from the catalog and all storage systems
+    pub fn drop_chunk(&self, partition_key: &str, chunk_id: u32) -> Result<()> {
+        debug!(%partition_key, %chunk_id, "dropping chunk");
 
-            mutable_buffer
-                .chunks(partition_key)
-                .into_iter()
-                .map(|c| {
-                    let open = c.id() == open_chunk_id;
-                    DBChunk::new_mb(c, partition_key, open)
-                })
-                .collect()
-        } else {
-            vec![]
+        let partition = self
+            .catalog
+            .valid_partition(partition_key)
+            .context(DroppingChunk {
+                partition_key,
+                chunk_id,
+            })?;
+
+        // lock the partition so that no one else can be messing /
+        // with it while we drop the chunk
+        let mut partition = partition.write();
+
+        // We can remove the need to drop the read buffer chunk once
+        // we inline its ownership into Catalog::Chunk
+        let mut drop_rb = false;
+        let chunk_state;
+
+        {
+            let chunk = partition.chunk(chunk_id).context(DroppingChunk {
+                partition_key,
+                chunk_id,
+            })?;
+            let chunk = chunk.read();
+            chunk_state = chunk.state().name();
+
+            // prevent chunks that are actively being moved. TODO it
+            // would be nicer to allow this to happen have the chunk
+            // migration logic cleanup afterwards so that users
+            // weren't prevented from dropping chunks due to
+            // background tasks
+            match chunk.state() {
+                ChunkState::Moving(_) => {
+                    return DropMovingChunk {
+                        partition_key,
+                        chunk_id,
+                        chunk_state,
+                    }
+                    .fail()
+                }
+                ChunkState::Moved(_) => {
+                    drop_rb = true;
+                }
+                _ => {}
+            }
         };
-        chunks
-    }
 
-    /// List chunks that are currently in the read buffer
-    pub fn read_buffer_chunks(&self, partition_key: &str) -> Vec<Arc<DBChunk>> {
-        self.read_buffer
-            .chunk_ids(partition_key)
-            .into_iter()
-            .map(|chunk_id| DBChunk::new_rb(Arc::clone(&self.read_buffer), partition_key, chunk_id))
-            .collect()
-    }
+        debug!(%partition_key, %chunk_id, %chunk_state, drop_rb, "dropping chunk");
 
-    /// Drops the specified chunk from the mutable buffer, returning
-    /// the dropped chunk.
-    pub async fn drop_mutable_buffer_chunk(
-        &self,
-        partition_key: &str,
-        chunk_id: u32,
-    ) -> Result<Arc<DBChunk>> {
-        self.mutable_buffer
-            .as_ref()
-            .context(DatatbaseNotWriteable)?
-            .drop_chunk(partition_key, chunk_id)
-            .map(|c| DBChunk::new_mb(c, partition_key, false))
-            .context(MutableBufferDrop)
-    }
-
-    /// Drops the specified chunk from the read buffer, returning
-    /// the dropped chunk.
-    pub async fn drop_read_buffer_chunk(
-        &self,
-        partition_key: &str,
-        chunk_id: u32,
-    ) -> Result<Arc<DBChunk>> {
-        self.read_buffer
-            .drop_chunk(partition_key, chunk_id)
-            .context(ReadBufferDrop)?;
-
-        Ok(DBChunk::new_rb(
-            Arc::clone(&self.read_buffer),
+        partition.drop_chunk(chunk_id).context(DroppingChunk {
             partition_key,
             chunk_id,
-        ))
+        })?;
+
+        if drop_rb {
+            self.read_buffer
+                .drop_chunk(partition_key, chunk_id)
+                .expect("Dropping read buffer chunk");
+        }
+
+        Ok(())
     }
 
-    /// Loads a chunk into the ReadBuffer.
+    /// Copies a chunk in the Closing state into the ReadBuffer from
+    /// the mutable buffer and marks the chunk with `Moved` state
     ///
-    /// If the chunk is present in the mutable_buffer then it is
-    /// loaded from there. Otherwise, the chunk must be fetched from the
-    /// object store (Not yet implemented)
-    ///
-    /// Also uncontemplated as of yet is ensuring the read buffer does
-    /// not exceed a memory limit)
+    /// This code does not do any checking of the read buffer against
+    /// memory limits, etc
     ///
     /// This (async) function returns when this process is complete,
     /// but the process may take a long time
     ///
-    /// Returns a reference to the newly loaded chunk in the read buffer
+    /// Returns a handle to the newly loaded chunk in the read buffer
     pub async fn load_chunk_to_read_buffer(
         &self,
         partition_key: &str,
         chunk_id: u32,
     ) -> Result<Arc<DBChunk>> {
-        let mb_chunk = self
-            .mutable_buffer
-            .as_ref()
-            .context(DatatbaseNotWriteable)?
-            .get_chunk(partition_key, chunk_id)
-            .context(UnknownMutableBufferChunk { chunk_id })?;
+        let chunk = {
+            let partition = self
+                .catalog
+                .valid_partition(partition_key)
+                .context(LoadingChunk {
+                    partition_key,
+                    chunk_id,
+                })?;
+            let partition = partition.read();
+
+            partition.chunk(chunk_id).context(LoadingChunk {
+                partition_key,
+                chunk_id,
+            })?
+        };
+
+        // update the catalog to say we are processing this chunk and
+        // then drop the lock while we do the work
+        let mb_chunk = {
+            let mut chunk = chunk.write();
+
+            chunk.set_moving().context(LoadingChunk {
+                partition_key,
+                chunk_id,
+            })?
+        };
+
+        debug!(%partition_key, %chunk_id, "chunk marked MOVING, loading tables into read buffer");
 
         let mut batches = Vec::new();
-        for stats in mb_chunk.table_stats().unwrap() {
+        let table_stats = mb_chunk
+            .table_stats()
+            .expect("Figuring out what tables are in the mutable buffer");
+
+        for stats in table_stats {
+            debug!(%partition_key, %chunk_id, table=%stats.name, "loading table to read buffer");
             mb_chunk
                 .table_to_arrow(&mut batches, &stats.name, Selection::All)
-                .unwrap();
+                // It is probably reasonable to recover from this error
+                // (reset the chunk state to Open) but until that is
+                // implemented (and tested) just panic
+                .expect("Loading chunk to mutable buffer");
+
             for batch in batches.drain(..) {
                 // As implemented now, taking this write lock will wait
                 // until all reads to the read buffer to complete and
@@ -231,11 +364,20 @@ impl Db {
             }
         }
 
-        Ok(DBChunk::new_rb(
-            Arc::clone(&self.read_buffer),
-            partition_key,
-            mb_chunk.id,
-        ))
+        // Relock the chunk again (nothing else should have been able
+        // to modify the chunk state while we were moving it
+        let mut chunk = chunk.write();
+        // update the catalog to say we are done processing
+        chunk
+            .set_moved(Arc::clone(&self.read_buffer))
+            .context(LoadingChunk {
+                partition_key,
+                chunk_id,
+            })?;
+
+        debug!(%partition_key, %chunk_id, "chunk marked MOVED. loading complete");
+
+        Ok(DBChunk::snapshot(&chunk))
     }
 
     /// Returns the next write sequence number
@@ -243,42 +385,41 @@ impl Db {
         self.sequence.fetch_add(1, Ordering::SeqCst)
     }
 
-    /// Drops partitions from the mutable buffer if it is over size
-    pub fn check_size_and_drop_partitions(&self) -> Result<()> {
-        if let (Some(db), Some(config)) = (&self.mutable_buffer, &self.rules.mutable_buffer_config)
-        {
-            let mut size = db.size();
-            if size > config.buffer_size {
-                let mut partitions = db.partitions_sorted_by(&config.partition_drop_order);
-                while let Some(p) = partitions.pop() {
-                    let p = p.read().expect("mutex poisoned");
-                    let partition_size = p.size();
-                    size -= partition_size;
-                    let key = p.key();
-                    db.drop_partition(key);
-                    info!(
-                        partition_key = key,
-                        partition_size, "dropped partition from mutable buffer",
-                    );
-                    if size < config.buffer_size {
-                        return Ok(());
-                    }
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    /// Return Summary information for chunks in the specified partition
+    /// Return Summary information for all chunks in the specified
+    /// partition across all storage systems
     pub fn partition_chunk_summaries(
         &self,
         partition_key: &str,
     ) -> impl Iterator<Item = ChunkSummary> {
-        self.mutable_buffer_chunks(&partition_key)
-            .into_iter()
-            .chain(self.read_buffer_chunks(&partition_key).into_iter())
-            .map(|c| c.summary())
+        self.chunks(partition_key).into_iter().map(|c| c.summary())
+    }
+
+    /// Returns the number of iterations of the background worker loop
+    pub fn worker_iterations(&self) -> usize {
+        self.worker_iterations.load(Ordering::Relaxed)
+    }
+
+    /// Background worker function
+    pub async fn background_worker(&self, shutdown: tokio_util::sync::CancellationToken) {
+        info!("started background worker");
+
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
+
+        while !shutdown.is_cancelled() {
+            self.worker_iterations.fetch_add(1, Ordering::Relaxed);
+
+            tokio::select! {
+                _ = interval.tick() => {},
+                _ = shutdown.cancelled() => break
+            }
+        }
+
+        info!("finished background worker");
+    }
+
+    /// Returns true if this database can accept writes
+    pub fn writeable(&self) -> bool {
+        !self.rules.lifecycle_rules.immutable
     }
 }
 
@@ -295,42 +436,93 @@ impl Database for Db {
     type Chunk = DBChunk;
 
     /// Return a covering set of chunks for a particular partition
+    ///
+    /// Note there could/should be an error here (if the partition
+    /// doesn't exist... but the trait doesn't have an error)
     fn chunks(&self, partition_key: &str) -> Vec<Arc<Self::Chunk>> {
-        // return a coverting set of chunks. TODO include read buffer
-        // chunks and take them preferentially from the read buffer.
-        // returns a coverting set of chunks -- aka take chunks from read buffer
-        // preferentially
-        let mutable_chunk_iter = self.mutable_buffer_chunks(partition_key).into_iter();
+        let partition = match self.catalog.partition(partition_key) {
+            Some(partition) => partition,
+            None => return vec![],
+        };
 
-        let read_buffer_chunk_iter = self.read_buffer_chunks(partition_key).into_iter();
+        let partition = partition.read();
 
-        let chunks: BTreeMap<_, _> = mutable_chunk_iter
-            .chain(read_buffer_chunk_iter)
-            .map(|chunk| (chunk.id(), chunk))
-            .collect();
-
-        // inserting into the map will have removed any dupes
-        chunks.into_iter().map(|(_id, chunk)| chunk).collect()
+        partition
+            .chunks()
+            .map(|chunk| {
+                let chunk = chunk.read();
+                DBChunk::snapshot(&chunk)
+            })
+            .collect()
     }
 
-    // Note that most of the functions below will eventually be removed from
-    // this trait. For now, pass them directly on to the local store
+    fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
+        if !self.writeable() {
+            return DatatbaseNotWriteable {}.fail();
+        }
 
-    async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
-        self.mutable_buffer
-            .as_ref()
-            .context(DatatbaseNotWriteable)?
-            .store_replicated_write(write)
-            .await
-            .context(MutableBufferWrite)
+        let batch = if let Some(batch) = write.write_buffer_batch() {
+            batch
+        } else {
+            return Ok(());
+        };
+
+        let entries = if let Some(entries) = batch.entries() {
+            entries
+        } else {
+            return Ok(());
+        };
+
+        for entry in entries.into_iter() {
+            if let Some(partition_key) = entry.partition_key() {
+                let chunk = match self.catalog.partition(partition_key) {
+                    // no partition key
+                    None => {
+                        // Create a new partition with an empty chunk
+                        let partition = self
+                            .catalog
+                            .create_partition(partition_key)
+                            .context(CreatingPartition { partition_key })?;
+
+                        let mut partition = partition.write();
+                        let chunk = partition
+                            .create_chunk()
+                            .context(CreatingChunk { partition_key })?;
+                        {
+                            let mut chunk = chunk.write();
+                            let chunk_id = chunk.id();
+                            chunk
+                                .set_open(Chunk::new(chunk_id))
+                                .context(CreatingChunk { partition_key })?;
+                        }
+                        chunk
+                    }
+                    Some(partition) => {
+                        let partition = partition.read();
+                        partition
+                            .open_chunk()
+                            .context(InternalNoOpenChunk { partition_key })?
+                    }
+                };
+                let mut chunk = chunk.write();
+                // TODO update the last read/write time of this partition
+                chunk.mutable_buffer().unwrap().write_entry(&entry).unwrap()
+            }
+        }
+        Ok(())
     }
 
     fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
-        self.mutable_buffer
-            .as_ref()
-            .context(DatabaseNotReadable)?
-            .partition_keys()
-            .context(MutableBufferRead)
+        let partition_keys = self
+            .catalog
+            .partitions()
+            .map(|partition| {
+                let partition = partition.read();
+                partition.key().to_string()
+            })
+            .collect();
+
+        Ok(partition_keys)
     }
 
     fn chunk_summaries(&self) -> Result<Vec<ChunkSummary>> {
@@ -344,36 +536,115 @@ impl Database for Db {
     }
 }
 
+/// Temporary newtype Db wrapper to allow it to act as a CatalogProvider
+///
+/// TODO: Make Db implement CatalogProvider and Catalog implement SchemaProvider
+#[derive(Debug)]
+pub struct DbCatalog(Arc<Db>);
+
+impl DbCatalog {
+    pub fn new(db: Arc<Db>) -> Self {
+        Self(db)
+    }
+}
+
+impl CatalogProvider for DbCatalog {
+    fn as_any(&self) -> &dyn Any {
+        self as &dyn Any
+    }
+
+    fn schema_names(&self) -> Vec<String> {
+        vec![DEFAULT_SCHEMA.to_string()]
+    }
+
+    fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
+        info!(%name, "using schema");
+        match name {
+            DEFAULT_SCHEMA => Some(Arc::<Db>::clone(&self.0)),
+            _ => None,
+        }
+    }
+}
+
+impl SchemaProvider for Db {
+    fn as_any(&self) -> &dyn Any {
+        self as &dyn Any
+    }
+
+    fn table_names(&self) -> Vec<String> {
+        let mut names = StringSet::new();
+
+        self.catalog.partitions().for_each(|partition| {
+            let partition = partition.read();
+            partition.chunks().for_each(|chunk| {
+                let chunk = chunk.read();
+                let db_chunk = DBChunk::snapshot(&chunk);
+                db_chunk.all_table_names(&mut names);
+            })
+        });
+
+        names.into_iter().collect::<Vec<_>>()
+    }
+
+    fn table(&self, table_name: &str) -> Option<Arc<dyn TableProvider>> {
+        let mut builder = ProviderBuilder::new(table_name);
+        for partition_key in self.partition_keys().expect("cannot fail") {
+            for chunk in self.chunks(&partition_key) {
+                if chunk.has_table(table_name) {
+                    // This should only fail if the table doesn't exist which isn't possible
+                    let schema = chunk
+                        .table_schema(table_name, Selection::All)
+                        .expect("cannot fail");
+
+                    // This is unfortunate - a table with incompatible chunks ceases to
+                    // be visible to the query engine
+                    builder = builder
+                        .add_chunk(chunk, schema)
+                        .log_if_error("Adding chunks to table")
+                        .ok()?
+                }
+            }
+        }
+
+        match builder.build() {
+            Ok(provider) => Some(Arc::new(provider)),
+            Err(provider::Error::InternalNoChunks { .. }) => None,
+            Err(e) => panic!("unexpected error: {:?}", e),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::query_tests::utils::make_db;
-
-    use super::*;
-
     use arrow_deps::{
         arrow::record_batch::RecordBatch, assert_table_eq, datafusion::physical_plan::collect,
     };
-    use data_types::{
-        chunk::ChunkStorage,
-        database_rules::{MutableBufferConfig, Order, PartitionSort, PartitionSortRules},
-    };
+    use data_types::{chunk::ChunkStorage, database_rules::LifecycleRules};
     use query::{
         exec::Executor, frontend::sql::SQLQueryPlanner, test::TestLPWriter, PartitionChunk,
     };
     use test_helpers::assert_contains;
 
+    use crate::query_tests::utils::make_db;
+
+    use super::*;
+
     #[tokio::test]
     async fn write_no_mutable_buffer() {
         // Validate that writes are rejected if there is no mutable buffer
-        let mutable_buffer = None;
         let db = make_db();
-        let db = Db {
-            mutable_buffer,
-            ..db
+        let rules = DatabaseRules {
+            lifecycle_rules: LifecycleRules {
+                immutable: true,
+                ..Default::default()
+            },
+            ..DatabaseRules::new()
         };
+        let db = Db { rules, ..db };
+        assert!(!db.writeable());
 
         let mut writer = TestLPWriter::default();
-        let res = writer.write_lp_string(&db, "cpu bar=1 10").await;
+        let res = writer.write_lp_string(&db, "cpu bar=1 10");
         assert_contains!(
             res.unwrap_err().to_string(),
             "Cannot write to this database: no mutable buffer configured"
@@ -382,11 +653,11 @@ mod tests {
 
     #[tokio::test]
     async fn read_write() {
-        let db = make_db();
+        let db = Arc::new(make_db());
         let mut writer = TestLPWriter::default();
-        writer.write_lp_string(&db, "cpu bar=1 10").await.unwrap();
+        writer.write_lp_string(db.as_ref(), "cpu bar=1 10").unwrap();
 
-        let batches = run_query(&db, "select * from cpu").await;
+        let batches = run_query(db, "select * from cpu").await;
 
         let expected = vec![
             "+-----+------+",
@@ -400,9 +671,9 @@ mod tests {
 
     #[tokio::test]
     async fn write_with_rollover() {
-        let db = make_db();
+        let db = Arc::new(make_db());
         let mut writer = TestLPWriter::default();
-        writer.write_lp_string(&db, "cpu bar=1 10").await.unwrap();
+        writer.write_lp_string(db.as_ref(), "cpu bar=1 10").unwrap();
         assert_eq!(vec!["1970-01-01T00"], db.partition_keys().unwrap());
 
         let mb_chunk = db.rollover_partition("1970-01-01T00").await.unwrap();
@@ -415,11 +686,11 @@ mod tests {
             "| 1   | 10   |",
             "+-----+------+",
         ];
-        let batches = run_query(&db, "select * from cpu").await;
+        let batches = run_query(Arc::clone(&db), "select * from cpu").await;
         assert_table_eq!(expected, &batches);
 
         // add new data
-        writer.write_lp_string(&db, "cpu bar=2 20").await.unwrap();
+        writer.write_lp_string(db.as_ref(), "cpu bar=2 20").unwrap();
         let expected = vec![
             "+-----+------+",
             "| bar | time |",
@@ -428,24 +699,24 @@ mod tests {
             "| 2   | 20   |",
             "+-----+------+",
         ];
-        let batches = run_query(&db, "select * from cpu").await;
+        let batches = run_query(Arc::clone(&db), "select * from cpu").await;
         assert_table_eq!(&expected, &batches);
 
         // And expect that we still get the same thing when data is rolled over again
         let chunk = db.rollover_partition("1970-01-01T00").await.unwrap();
         assert_eq!(chunk.id(), 1);
 
-        let batches = run_query(&db, "select * from cpu").await;
+        let batches = run_query(db, "select * from cpu").await;
         assert_table_eq!(&expected, &batches);
     }
 
     #[tokio::test]
     async fn read_from_read_buffer() {
         // Test that data can be loaded into the ReadBuffer
-        let db = make_db();
+        let db = Arc::new(make_db());
         let mut writer = TestLPWriter::default();
-        writer.write_lp_string(&db, "cpu bar=1 10").await.unwrap();
-        writer.write_lp_string(&db, "cpu bar=2 20").await.unwrap();
+        writer.write_lp_string(db.as_ref(), "cpu bar=1 10").unwrap();
+        writer.write_lp_string(db.as_ref(), "cpu bar=2 20").unwrap();
 
         let partition_key = "1970-01-01T00";
         let mb_chunk = db.rollover_partition("1970-01-01T00").await.unwrap();
@@ -459,7 +730,7 @@ mod tests {
 
         // we should have chunks in both the mutable buffer and read buffer
         // (Note the currently open chunk is not listed)
-        assert_eq!(mutable_chunk_ids(&db, partition_key), vec![0, 1]);
+        assert_eq!(mutable_chunk_ids(&db, partition_key), vec![1]);
         assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![0]);
 
         // data should be readable
@@ -471,26 +742,13 @@ mod tests {
             "| 2   | 20   |",
             "+-----+------+",
         ];
-        let batches = run_query(&db, "select * from cpu").await;
-        assert_table_eq!(&expected, &batches);
-
-        // now, drop the mutable buffer chunk and results should still be the same
-        db.drop_mutable_buffer_chunk(partition_key, mb_chunk.id())
-            .await
-            .unwrap();
-
-        assert_eq!(mutable_chunk_ids(&db, partition_key), vec![1]);
-        assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![0]);
-
-        let batches = run_query(&db, "select * from cpu").await;
+        let batches = run_query(Arc::clone(&db), "select * from cpu").await;
         assert_table_eq!(&expected, &batches);
 
         // drop, the chunk from the read buffer
-        db.drop_read_buffer_chunk(partition_key, mb_chunk.id())
-            .await
-            .unwrap();
+        db.drop_chunk(partition_key, mb_chunk.id()).unwrap();
         assert_eq!(
-            read_buffer_chunk_ids(&db, partition_key),
+            read_buffer_chunk_ids(db.as_ref(), partition_key),
             vec![] as Vec<u32>
         );
 
@@ -507,8 +765,8 @@ mod tests {
         let db = make_db();
         let partition_key = "1970-01-01T00";
         let mut writer = TestLPWriter::default();
-        writer.write_lp_string(&db, "cpu bar=1 10").await.unwrap();
-        writer.write_lp_string(&db, "cpu bar=1 20").await.unwrap();
+        writer.write_lp_string(&db, "cpu bar=1 10").unwrap();
+        writer.write_lp_string(&db, "cpu bar=1 20").unwrap();
 
         assert_eq!(mutable_chunk_ids(&db, partition_key), vec![0]);
         assert_eq!(
@@ -522,71 +780,16 @@ mod tests {
 
         // add a new chunk in mutable buffer, and move chunk1 (but
         // not chunk 0) to read buffer
-        writer.write_lp_string(&db, "cpu bar=1 30").await.unwrap();
+        writer.write_lp_string(&db, "cpu bar=1 30").unwrap();
         let mb_chunk = db.rollover_partition("1970-01-01T00").await.unwrap();
         db.load_chunk_to_read_buffer(partition_key, mb_chunk.id())
             .await
             .unwrap();
 
-        writer.write_lp_string(&db, "cpu bar=1 40").await.unwrap();
+        writer.write_lp_string(&db, "cpu bar=1 40").unwrap();
 
-        assert_eq!(mutable_chunk_ids(&db, partition_key), vec![0, 1, 2]);
+        assert_eq!(mutable_chunk_ids(&db, partition_key), vec![0, 2]);
         assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![1]);
-    }
-
-    #[tokio::test]
-    async fn check_size_and_drop_partitions() {
-        let mut mbconf = MutableBufferConfig {
-            buffer_size: 300,
-            ..Default::default()
-        };
-        let rules = DatabaseRules {
-            mutable_buffer_config: Some(mbconf.clone()),
-            ..Default::default()
-        };
-
-        let mut db = Db::new(
-            rules,
-            Some(MutableBufferDb::new("foo")),
-            read_buffer::Database::new(),
-            None, // wal buffer
-        );
-
-        let mut writer = TestLPWriter::default();
-
-        writer
-            .write_lp_to_partition(&db, "cpu,adsf=jkl,foo=bar val=1 1", "p1")
-            .await;
-        writer
-            .write_lp_to_partition(&db, "cpu,foo=bar val=1 1", "p2")
-            .await;
-        writer
-            .write_lp_to_partition(&db, "cpu,foo=bar val=1 1", "p3")
-            .await;
-
-        assert!(db.mutable_buffer.as_ref().unwrap().size() > 300);
-        db.check_size_and_drop_partitions().unwrap();
-        assert!(db.mutable_buffer.as_ref().unwrap().size() < 300);
-
-        let mut partitions = db
-            .mutable_buffer
-            .as_ref()
-            .unwrap()
-            .partition_keys()
-            .unwrap();
-        partitions.sort();
-        assert_eq!(&partitions[0], "p2");
-        assert_eq!(&partitions[1], "p3");
-
-        writer
-            .write_lp_to_partition(&db, "cpu,foo=bar val=1 1", "p4")
-            .await;
-        mbconf.buffer_size = db.mutable_buffer.as_ref().unwrap().size();
-        mbconf.partition_drop_order = PartitionSortRules {
-            order: Order::Desc,
-            sort: PartitionSort::LastWriteTime,
-        };
-        db.rules.mutable_buffer_config = Some(mbconf);
     }
 
     #[tokio::test]
@@ -595,13 +798,12 @@ mod tests {
         let db = make_db();
         let mut writer = TestLPWriter::default();
 
-        writer.write_lp_string(&db, "cpu bar=1 1").await.unwrap();
+        writer.write_lp_string(&db, "cpu bar=1 1").unwrap();
         db.rollover_partition("1970-01-01T00").await.unwrap();
 
         // write into a separate partitiion
         writer
             .write_lp_string(&db, "cpu bar=1,baz2,frob=3 400000000000000")
-            .await
             .unwrap();
 
         print!("Partitions: {:?}", db.partition_keys().unwrap());
@@ -637,25 +839,26 @@ mod tests {
         let mut writer = TestLPWriter::default();
 
         // get three chunks: one open, one closed in mb and one close in rb
-
-        writer.write_lp_string(&db, "cpu bar=1 1").await.unwrap();
+        writer.write_lp_string(&db, "cpu bar=1 1").unwrap();
         db.rollover_partition("1970-01-01T00").await.unwrap();
 
-        writer
-            .write_lp_string(&db, "cpu bar=1,baz=2 2")
-            .await
-            .unwrap();
+        writer.write_lp_string(&db, "cpu bar=1,baz=2 2").unwrap();
 
-        // a fourth chunk in a different partition
         writer
-            .write_lp_string(&db, "cpu bar=1,baz2,frob=3 400000000000000")
-            .await
+            .write_lp_string(&db, "cpu bar=1,baz=2,frob=3 400000000000000")
             .unwrap();
 
         print!("Partitions: {:?}", db.partition_keys().unwrap());
 
         db.load_chunk_to_read_buffer("1970-01-01T00", 0)
             .await
+            .unwrap();
+
+        print!("Partitions2: {:?}", db.partition_keys().unwrap());
+
+        db.rollover_partition("1970-01-05T15").await.unwrap();
+        writer
+            .write_lp_string(&db, "cpu bar=1,baz=3,blargh=3 400000000000000")
             .unwrap();
 
         fn to_arc(s: &str) -> Arc<String> {
@@ -666,12 +869,6 @@ mod tests {
         chunk_summaries.sort_unstable();
 
         let expected = vec![
-            ChunkSummary {
-                partition_key: to_arc("1970-01-01T00"),
-                id: 0,
-                storage: ChunkStorage::ClosedMutableBuffer,
-                estimated_bytes: 70,
-            },
             ChunkSummary {
                 partition_key: to_arc("1970-01-01T00"),
                 id: 0,
@@ -687,8 +884,14 @@ mod tests {
             ChunkSummary {
                 partition_key: to_arc("1970-01-05T15"),
                 id: 0,
+                storage: ChunkStorage::ClosedMutableBuffer,
+                estimated_bytes: 133,
+            },
+            ChunkSummary {
+                partition_key: to_arc("1970-01-05T15"),
+                id: 1,
                 storage: ChunkStorage::OpenMutableBuffer,
-                estimated_bytes: 107,
+                estimated_bytes: 135,
             },
         ];
 
@@ -700,20 +903,27 @@ mod tests {
     }
 
     // run a sql query against the database, returning the results as record batches
-    async fn run_query(db: &Db, query: &str) -> Vec<RecordBatch> {
+    async fn run_query(db: Arc<Db>, query: &str) -> Vec<RecordBatch> {
         let planner = SQLQueryPlanner::default();
         let executor = Executor::new();
 
-        let physical_plan = planner.query(db, query, &executor).await.unwrap();
+        let physical_plan = planner
+            .query(Arc::new(DbCatalog::new(db)), query, &executor)
+            .await
+            .unwrap();
 
         collect(physical_plan).await.unwrap()
     }
 
     fn mutable_chunk_ids(db: &Db, partition_key: &str) -> Vec<u32> {
         let mut chunk_ids: Vec<u32> = db
-            .mutable_buffer_chunks(partition_key)
-            .iter()
-            .map(|chunk| chunk.id())
+            .partition_chunk_summaries(partition_key)
+            .filter_map(|chunk| match chunk.storage {
+                ChunkStorage::OpenMutableBuffer | ChunkStorage::ClosedMutableBuffer => {
+                    Some(chunk.id)
+                }
+                _ => None,
+            })
             .collect();
         chunk_ids.sort_unstable();
         chunk_ids
@@ -721,9 +931,11 @@ mod tests {
 
     fn read_buffer_chunk_ids(db: &Db, partition_key: &str) -> Vec<u32> {
         let mut chunk_ids: Vec<u32> = db
-            .read_buffer_chunks(partition_key)
-            .iter()
-            .map(|chunk| chunk.id())
+            .partition_chunk_summaries(partition_key)
+            .filter_map(|chunk| match chunk.storage {
+                ChunkStorage::ReadBuffer => Some(chunk.id),
+                _ => None,
+            })
             .collect();
         chunk_ids.sort_unstable();
         chunk_ids

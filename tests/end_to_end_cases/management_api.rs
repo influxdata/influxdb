@@ -1,15 +1,20 @@
 use std::num::NonZeroU32;
 
-use generated_types::google::protobuf::Empty;
-use generated_types::{google::protobuf::Duration, influxdata::iox::management::v1::*};
+use generated_types::{
+    google::protobuf::{Duration, Empty},
+    influxdata::iox::management::v1::*,
+};
 use influxdb_iox_client::management::CreateDatabaseError;
 use test_helpers::assert_contains;
 
-use crate::common::server_fixture::ServerFixture;
-
-use super::scenario::{
-    create_readable_database, create_two_partition_database, create_unreadable_database, rand_name,
+use super::{
+    operations_api::get_operation_metadata,
+    scenario::{
+        create_readable_database, create_two_partition_database, create_unreadable_database,
+        rand_name,
+    },
 };
+use crate::common::server_fixture::ServerFixture;
 
 #[tokio::test]
 async fn test_list_update_remotes() {
@@ -180,17 +185,15 @@ async fn test_create_get_database() {
                 nanos: 2,
             }),
         }),
-        mutable_buffer_config: Some(MutableBufferConfig {
-            buffer_size: 553,
-            reject_if_not_persisted: true,
-            partition_drop_order: Some(mutable_buffer_config::PartitionDropOrder {
+        lifecycle_rules: Some(LifecycleRules {
+            buffer_size_hard: 553,
+            sort_order: Some(lifecycle_rules::SortOrder {
                 order: Order::Asc as _,
-                sort: Some(
-                    mutable_buffer_config::partition_drop_order::Sort::CreatedAtTime(Empty {}),
-                ),
+                sort: Some(lifecycle_rules::sort_order::Sort::CreatedAtTime(Empty {})),
             }),
-            persist_after_cold_seconds: 34,
+            ..Default::default()
         }),
+        shard_config: None,
     };
 
     client
@@ -274,20 +277,6 @@ async fn test_chunk_get_errors() {
     );
 
     create_unreadable_database(&db_name, fixture.grpc_channel()).await;
-
-    let err = management_client
-        .list_chunks(&db_name)
-        .await
-        .expect_err("db can't be read");
-
-    assert_contains!(
-        err.to_string(),
-        "Precondition violation influxdata.com/iox - database"
-    );
-    assert_contains!(
-        err.to_string(),
-        "Cannot read from database: no mutable buffer configured"
-    );
 }
 
 #[tokio::test]
@@ -503,27 +492,15 @@ async fn test_new_partition_chunk() {
         chunks
     );
 
-    // Rollover a (currently non existent) partition which is OK
-    management_client
+    // Rollover a (currently non existent) partition which is not OK
+    let err = management_client
         .new_partition_chunk(&db_name, "non_existent_partition")
         .await
-        .expect("new partition chunk");
+        .expect_err("new partition chunk");
 
-    assert_eq!(chunks.len(), 2, "Chunks: {:#?}", chunks);
     assert_eq!(
-        chunks.iter().filter(|c| c.partition_key == "cpu").count(),
-        2,
-        "Chunks: {:#?}",
-        chunks
-    );
-    assert_eq!(
-        chunks
-            .iter()
-            .filter(|c| c.partition_key == "non_existent_partition")
-            .count(),
-        0,
-        "Chunks: {:#?}",
-        chunks
+        "Resource partition/non_existent_partition not found",
+        err.to_string()
     );
 }
 
@@ -534,6 +511,90 @@ async fn test_new_partition_chunk_error() {
 
     let err = management_client
         .new_partition_chunk("this database does not exist", "nor_does_this_partition")
+        .await
+        .expect_err("expected error");
+
+    assert_contains!(
+        err.to_string(),
+        "Resource database/this database does not exist not found"
+    );
+}
+
+#[tokio::test]
+async fn test_close_partition_chunk() {
+    use influxdb_iox_client::management::generated_types::operation_metadata::Job;
+    use influxdb_iox_client::management::generated_types::ChunkStorage;
+
+    let fixture = ServerFixture::create_shared().await;
+    let mut management_client = fixture.management_client();
+    let mut write_client = fixture.write_client();
+    let mut operations_client = fixture.operations_client();
+
+    let db_name = rand_name();
+    create_readable_database(&db_name, fixture.grpc_channel()).await;
+
+    let partition_key = "cpu";
+    let lp_lines = vec!["cpu,region=west user=23.2 100"];
+
+    write_client
+        .write(&db_name, lp_lines.join("\n"))
+        .await
+        .expect("write succeded");
+
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+
+    assert_eq!(chunks.len(), 1, "Chunks: {:#?}", chunks);
+    assert_eq!(chunks[0].id, 0);
+    assert_eq!(chunks[0].storage, ChunkStorage::OpenMutableBuffer as i32);
+
+    // Move the chunk to read buffer
+    let operation = management_client
+        .close_partition_chunk(&db_name, partition_key, 0)
+        .await
+        .expect("new partition chunk");
+
+    println!("Operation response is {:?}", operation);
+    let operation_id = operation.name.parse().expect("not an integer");
+
+    let meta = get_operation_metadata(operation.metadata);
+
+    // ensure we got a legit job description back
+    if let Some(Job::CloseChunk(close_chunk)) = meta.job {
+        assert_eq!(close_chunk.db_name, db_name);
+        assert_eq!(close_chunk.partition_key, partition_key);
+        assert_eq!(close_chunk.chunk_id, 0);
+    } else {
+        panic!("unexpected job returned")
+    };
+
+    // wait for the job to be done
+    operations_client
+        .wait_operation(operation_id, Some(std::time::Duration::from_secs(1)))
+        .await
+        .expect("failed to wait operation");
+
+    // And now the chunk  should be good
+    let mut chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+    chunks.sort_by(|c1, c2| c1.id.cmp(&c2.id));
+
+    assert_eq!(chunks.len(), 1, "Chunks: {:#?}", chunks);
+    assert_eq!(chunks[0].id, 0);
+    assert_eq!(chunks[0].storage, ChunkStorage::ReadBuffer as i32);
+}
+
+#[tokio::test]
+async fn test_close_partition_chunk_error() {
+    let fixture = ServerFixture::create_shared().await;
+    let mut management_client = fixture.management_client();
+
+    let err = management_client
+        .close_partition_chunk("this database does not exist", "nor_does_this_partition", 0)
         .await
         .expect_err("expected error");
 

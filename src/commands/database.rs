@@ -67,10 +67,44 @@ struct Create {
     /// The name of the database
     name: String,
 
-    /// Create a mutable buffer of the specified size in bytes.  If
-    /// size is 0, no mutable buffer is created.
-    #[structopt(short, long, default_value = "104857600")] // 104857600 = 100*1024*1024
-    mutable_buffer: u64,
+    /// A chunk of data within a partition that has been cold for writes for
+    /// this many seconds will be frozen and compacted (moved to the read
+    /// buffer) if the chunk is older than mutable_min_lifetime_seconds
+    ///
+    /// Represents the chunk transition open -> moving and closing -> moving
+    #[structopt(long, default_value = "300")] // 5 minutes
+    mutable_linger_seconds: u32,
+
+    /// A chunk of data within a partition is guaranteed to remain mutable
+    /// for at least this number of seconds
+    #[structopt(long, default_value = "1800")] // 30 minutes
+    mutable_minimum_age_seconds: u32,
+
+    /// Once a chunk of data within a partition reaches this number of bytes
+    /// writes outside its keyspace will be directed to a new chunk
+    ///
+    /// This chunk will be then compacted once it becomes cold for writes
+    /// based on the mutable_linger_seconds and mutable_minimum_age_seconds
+    #[structopt(long, default_value = "10485760")] // 10485760 = 10*1024*1024
+    mutable_size_threshold: usize,
+
+    /// Once the total amount of buffered data in memory reaches this size start
+    /// dropping data from memory based on the drop_order
+    #[structopt(long, default_value = "52428800")] // 52428800 = 50*1024*1024
+    buffer_size_soft: usize,
+
+    /// Once the amount of data in memory reaches this size start
+    /// rejecting writes
+    #[structopt(long, default_value = "104857600")] // 104857600 = 100*1024*1024
+    buffer_size_hard: usize,
+
+    /// Allow dropping data that has not been persisted to object storage
+    #[structopt(long)]
+    drop_non_persisted: bool,
+
+    /// Do not allow writing new data to this database
+    #[structopt(long)]
+    immutable: bool,
 }
 
 /// Get list of databases
@@ -126,22 +160,18 @@ pub async fn command(url: String, config: Config) -> Result<()> {
     match config.command {
         Command::Create(command) => {
             let mut client = management::Client::new(connection);
-
-            // Configure a mutable buffer if requested
-            let buffer_size = command.mutable_buffer;
-            let mutable_buffer_config = if buffer_size > 0 {
-                Some(MutableBufferConfig {
-                    buffer_size,
-                    ..Default::default()
-                })
-            } else {
-                None
-            };
-
             let rules = DatabaseRules {
                 name: command.name,
-
-                mutable_buffer_config,
+                lifecycle_rules: Some(LifecycleRules {
+                    mutable_linger_seconds: command.mutable_linger_seconds,
+                    mutable_minimum_age_seconds: command.mutable_minimum_age_seconds,
+                    mutable_size_threshold: command.mutable_size_threshold as _,
+                    buffer_size_soft: command.buffer_size_soft as _,
+                    buffer_size_hard: command.buffer_size_hard as _,
+                    sort_order: None, // Server-side default
+                    drop_non_persisted: command.drop_non_persisted,
+                    immutable: command.immutable,
+                }),
 
                 // Default to hourly partitions
                 partition_template: Some(PartitionTemplate {

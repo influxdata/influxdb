@@ -1,0 +1,28 @@
+[package]
+name = "internal_types"
+version = "0.1.0"
+authors = ["Andrew Lamb <andrew@nerdnetworks.org>"]
+edition = "2018"
+description = "InfluxDB IOx internal types, shared between IOx instances"
+readme = "README.md"
+
+[dependencies]
+arrow_deps = { path = "../arrow_deps" }
+crc32fast = "1.2.0"
+chrono = { version = "0.4", features = ["serde"] }
+data_types = { path = "../data_types" }
+# See docs/regenerating_flatbuffers.md about updating generated code when updating the
+# version of the flatbuffers crate
+flatbuffers = "0.8"
+generated_types = { path = "../generated_types" }
+influxdb_line_protocol = { path = "../influxdb_line_protocol" }
+ouroboros = "0.8.3"
+snafu = "0.6"
+tracing = "0.1"
+
+[dev-dependencies] # In alphabetical order
+criterion = "0.3"
+
+[[bench]]
+name = "benchmark"
+harness = false

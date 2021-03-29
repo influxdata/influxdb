@@ -226,12 +226,7 @@ where
             predicate,
         } = read_filter_request;
 
-        info!(
-            "read_filter for database {}, range: {:?}, predicate: {}",
-            db_name,
-            range,
-            predicate.loggable()
-        );
+        info!(%db_name, ?range, predicate=%predicate.loggable(),"read filter");
 
         read_filter_impl(
             tx.clone(),
@@ -268,11 +263,7 @@ where
             hints,
         } = read_group_request;
 
-        info!(
-            "read_group for database {}, range: {:?}, group_keys: {:?}, group: {:?}, aggregate: {:?}, predicate: {}",
-            db_name, range, group_keys, group, aggregate,
-              predicate.loggable()
-        );
+        info!(%db_name, ?range, ?group_keys, ?group, ?aggregate,predicate=%predicate.loggable(),"read_group");
 
         if hints != 0 {
             InternalHintsFieldNotSupported { hints }.fail()?
@@ -326,11 +317,7 @@ where
             window,
         } = read_window_aggregate_request;
 
-        info!(
-            "read_window_aggregate for database {}, range: {:?}, window_every: {:?}, offset: {:?}, aggregate: {:?}, window: {:?}, predicate: {}",
-            db_name, range, window_every, offset, aggregate, window,
-              predicate.loggable()
-        );
+        info!(%db_name, ?range, ?window_every, ?offset, ?aggregate, ?window, predicate=%predicate.loggable(),"read_window_aggregate");
 
         let aggregate_string = format!(
             "aggregate: {:?}, window_every: {:?}, offset: {:?}, window: {:?}",
@@ -372,12 +359,7 @@ where
             predicate,
         } = tag_keys_request;
 
-        info!(
-            "tag_keys for database {}, range: {:?}, predicate: {}",
-            db_name,
-            range,
-            predicate.loggable()
-        );
+        info!(%db_name, ?range, predicate=%predicate.loggable(), "tag_keys");
 
         let measurement = None;
 
@@ -422,23 +404,18 @@ where
         // Special case a request for 'tag_key=_measurement" means to list all
         // measurements
         let response = if tag_key.is_measurement() {
-            info!(
-                "tag_values with tag_key=[x00] (measurement name) for database {}, range: {:?}, predicate: {} --> returning measurement_names",
-                db_name, range,
-                    predicate.loggable()
-            );
+            info!(%db_name, ?range, predicate=%predicate.loggable(), "tag_values with tag_key=[x00] (measurement name)");
 
             if predicate.is_some() {
-                unimplemented!("tag_value for a measurement, with general predicate");
+                return Err(Error::NotYetImplemented {
+                    operation: "tag_value for a measurement, with general predicate".to_string(),
+                }
+                .to_status());
             }
 
             measurement_name_impl(Arc::clone(&self.db_store), db_name, range).await
         } else if tag_key.is_field() {
-            info!(
-                "tag_values with tag_key=[xff] (field name) for database {}, range: {:?}, predicate: {} --> returning fields",
-                db_name, range,
-                predicate.loggable()
-            );
+            info!(%db_name, ?range, predicate=%predicate.loggable(), "tag_values with tag_key=[xff] (field name)");
 
             let fieldlist =
                 field_names_impl(Arc::clone(&self.db_store), db_name, None, range, predicate)
@@ -455,13 +432,7 @@ where
         } else {
             let tag_key = String::from_utf8(tag_key).context(ConvertingTagKeyInTagValues)?;
 
-            info!(
-                "tag_values for database {}, range: {:?}, tag_key: {}, predicate: {}",
-                db_name,
-                range,
-                tag_key,
-                predicate.loggable()
-            );
+            info!(%db_name, ?range, %tag_key, predicate=%predicate.loggable(), "tag_values",);
 
             tag_values_impl(
                 Arc::clone(&self.db_store),
@@ -557,12 +528,7 @@ where
             .map_err(|e| e.to_status());
         }
 
-        info!(
-            "measurement_names for database {}, range: {:?}, predicate: {}",
-            db_name,
-            range,
-            predicate.loggable()
-        );
+        info!(%db_name, ?range, predicate=%predicate.loggable(), "measurement_names");
 
         let response = measurement_name_impl(Arc::clone(&self.db_store), db_name, range)
             .await
@@ -594,13 +560,7 @@ where
             predicate,
         } = measurement_tag_keys_request;
 
-        info!(
-            "measurement_tag_keys for database {}, range: {:?}, measurement: {}, predicate: {}",
-            db_name,
-            range,
-            measurement,
-            predicate.loggable()
-        );
+        info!(%db_name, ?range, %measurement, predicate=%predicate.loggable(), "measurement_tag_keys");
 
         let measurement = Some(measurement);
 
@@ -641,11 +601,7 @@ where
             tag_key,
         } = measurement_tag_values_request;
 
-        info!(
-            "measurement_tag_values for database {}, range: {:?}, measurement: {}, tag_key: {}, predicate: {}",
-            db_name, range, measurement, tag_key,
-                    predicate.loggable()
-        );
+        info!(%db_name, ?range, %measurement, %tag_key, predicate=%predicate.loggable(), "measurement_tag_values");
 
         let measurement = Some(measurement);
 
@@ -686,12 +642,7 @@ where
             predicate,
         } = measurement_fields_request;
 
-        info!(
-            "measurement_fields for database {}, range: {:?}, predicate: {}",
-            db_name,
-            range,
-            predicate.loggable()
-        );
+        info!(%db_name, ?range, predicate=%predicate.loggable(), "measurement_fields");
 
         let measurement = Some(measurement);
 

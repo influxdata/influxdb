@@ -34,11 +34,14 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use tracing::{debug, error, info};
 
 use data_types::http::WalMetadataResponse;
+use hyper::server::conn::AddrIncoming;
+use server::db::DbCatalog;
 use std::{
     fmt::Debug,
     str::{self, FromStr},
     sync::Arc,
 };
+use tokio_util::sync::CancellationToken;
 
 /// Constants used in API error codes.
 ///
@@ -444,12 +447,16 @@ where
     server
         .write_lines(&db_name, &lines)
         .await
-        .map_err(|e| Box::new(e) as _)
-        .context(WritingPoints {
-            org: write_info.org.clone(),
-            bucket_name: write_info.bucket.clone(),
+        .map_err(|e| match e {
+            server::Error::DatabaseNotFound { .. } => ApplicationError::DatabaseNotFound {
+                name: db_name.to_string(),
+            },
+            _ => ApplicationError::WritingPoints {
+                org: write_info.org.clone(),
+                bucket_name: write_info.bucket.clone(),
+                source: Box::new(e),
+            },
         })?;
-
     Ok(Response::builder()
         .status(StatusCode::NO_CONTENT)
         .body(Body::empty())
@@ -499,7 +506,7 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
     let executor = server.executor();
 
     let physical_plan = planner
-        .query(db.as_ref(), &q, executor.as_ref())
+        .query(Arc::new(DbCatalog::new(db)), &q, executor.as_ref())
         .await
         .context(PlanningSQLQuery { query: &q })?;
 
@@ -680,11 +687,21 @@ async fn snapshot_partition<M: ConnectionManager + Send + Sync + Debug + 'static
     Ok(Response::new(Body::from(ret)))
 }
 
-pub fn router_service<M: ConnectionManager + Send + Sync + Debug + 'static>(
+pub async fn serve<M>(
+    addr: AddrIncoming,
     server: Arc<AppServer<M>>,
-) -> RouterService<Body, ApplicationError> {
+    shutdown: CancellationToken,
+) -> Result<(), hyper::Error>
+where
+    M: ConnectionManager + Send + Sync + Debug + 'static,
+{
     let router = router(server);
-    RouterService::new(router).unwrap()
+    let service = RouterService::new(router).unwrap();
+
+    hyper::Server::builder(addr)
+        .serve(service)
+        .with_graceful_shutdown(shutdown.cancelled())
+        .await
 }
 
 #[cfg(test)]
@@ -695,8 +712,6 @@ mod tests {
     use arrow_deps::{arrow::record_batch::RecordBatch, assert_table_eq};
     use query::exec::Executor;
     use reqwest::{Client, Response};
-
-    use hyper::Server;
 
     use data_types::{
         database_rules::{DatabaseRules, WalBufferConfig, WalBufferRollover},
@@ -762,7 +777,7 @@ mod tests {
             .db(&DatabaseName::new("MyOrg_MyBucket").unwrap())
             .expect("Database exists");
 
-        let batches = run_query(test_db.as_ref(), "select * from h2o_temperature").await;
+        let batches = run_query(test_db, "select * from h2o_temperature").await;
         let expected = vec![
             "+----------------+--------------+-------+-----------------+------------+",
             "| bottom_degrees | location     | state | surface_degrees | time       |",
@@ -952,7 +967,7 @@ mod tests {
             .db(&DatabaseName::new("MyOrg_MyBucket").unwrap())
             .expect("Database exists");
 
-        let batches = run_query(test_db.as_ref(), "select * from h2o_temperature").await;
+        let batches = run_query(test_db, "select * from h2o_temperature").await;
 
         let expected = vec![
             "+----------------+--------------+-------+-----------------+------------+",
@@ -964,6 +979,40 @@ mod tests {
         assert_table_eq!(expected, &batches);
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn write_to_invalid_database() {
+        let test_storage = Arc::new(AppServer::new(
+            ConnectionManagerImpl {},
+            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
+        ));
+        test_storage.set_id(1);
+        test_storage
+            .create_database("MyOrg_MyBucket", DatabaseRules::new())
+            .await
+            .unwrap();
+        let server_url = test_server(Arc::clone(&test_storage));
+
+        let client = Client::new();
+
+        let bucket_name = "NotMyBucket";
+        let org_name = "MyOrg";
+        let response = client
+            .post(&format!(
+                "{}/api/v2/write?bucket={}&org={}",
+                server_url, bucket_name, org_name
+            ))
+            .send()
+            .await;
+
+        check_response(
+            "write_to_invalid_databases",
+            response,
+            StatusCode::NOT_FOUND,
+            "",
+        )
+        .await;
     }
 
     #[tokio::test]
@@ -1132,22 +1181,24 @@ mod tests {
     /// creates an instance of the http service backed by a in-memory
     /// testable database.  Returns the url of the server
     fn test_server(server: Arc<AppServer<ConnectionManagerImpl>>) -> String {
-        let make_svc = router_service(server);
-
         // NB: specify port 0 to let the OS pick the port.
         let bind_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::new(127, 0, 0, 1)), 0);
-        let server = Server::bind(&bind_addr).serve(make_svc);
-        let server_url = format!("http://{}", server.local_addr());
-        tokio::task::spawn(server);
+        let addr = AddrIncoming::bind(&bind_addr).expect("failed to bind server");
+        let server_url = format!("http://{}", addr.local_addr());
+
+        tokio::task::spawn(serve(addr, server, CancellationToken::new()));
         println!("Started server at {}", server_url);
         server_url
     }
 
     /// Run the specified SQL query and return formatted results as a string
-    async fn run_query(db: &Db, query: &str) -> Vec<RecordBatch> {
+    async fn run_query(db: Arc<Db>, query: &str) -> Vec<RecordBatch> {
         let planner = SQLQueryPlanner::default();
         let executor = Executor::new();
-        let physical_plan = planner.query(db, query, &executor).await.unwrap();
+        let physical_plan = planner
+            .query(Arc::new(DbCatalog::new(db)), query, &executor)
+            .await
+            .unwrap();
 
         collect(physical_plan).await.unwrap()
     }

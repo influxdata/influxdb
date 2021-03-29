@@ -96,12 +96,12 @@ impl Scenario {
         })
     }
 
-    /// Create's the database on the server for this scenario
+    /// Creates the database on the server for this scenario
     pub async fn create_database(&self, client: &mut influxdb_iox_client::management::Client) {
         client
             .create_database(DatabaseRules {
                 name: self.database_name().to_string(),
-                mutable_buffer_config: Some(Default::default()),
+                lifecycle_rules: Some(Default::default()),
                 ..Default::default()
             })
             .await
@@ -255,7 +255,7 @@ pub fn rand_id() -> String {
         .collect()
 }
 
-/// given a channel to talk with the managment api, create a new
+/// given a channel to talk with the management api, create a new
 /// database with the specified name configured with a 10MB mutable
 /// buffer, partitioned on table
 pub async fn create_readable_database(
@@ -271,8 +271,8 @@ pub async fn create_readable_database(
                 part: Some(partition_template::part::Part::Table(Empty {})),
             }],
         }),
-        mutable_buffer_config: Some(MutableBufferConfig {
-            buffer_size: 10 * 1024 * 1024,
+        lifecycle_rules: Some(LifecycleRules {
+            buffer_size_hard: 10 * 1024 * 1024,
             ..Default::default()
         }),
         ..Default::default()

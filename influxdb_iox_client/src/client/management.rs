@@ -156,9 +156,25 @@ pub enum ListPartitionChunksError {
 /// Errors returned by Client::new_partition_chunk
 #[derive(Debug, Error)]
 pub enum NewPartitionChunkError {
+    /// Database or partition not found
+    #[error("{}", .0)]
+    NotFound(String),
+
+    /// Client received an unexpected error from the server
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    ServerError(tonic::Status),
+}
+
+/// Errors returned by Client::close_partition_chunk
+#[derive(Debug, Error)]
+pub enum ClosePartitionChunkError {
     /// Database not found
     #[error("Database not found")]
     DatabaseNotFound,
+
+    /// Response contained no payload
+    #[error("Server returned an empty response")]
+    EmptyResponse,
 
     /// Client received an unexpected error from the server
     #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
@@ -421,7 +437,9 @@ impl Client {
             })
             .await
             .map_err(|status| match status.code() {
-                tonic::Code::NotFound => NewPartitionChunkError::DatabaseNotFound,
+                tonic::Code::NotFound => {
+                    NewPartitionChunkError::NotFound(status.message().to_string())
+                }
                 _ => NewPartitionChunkError::ServerError(status),
             })?;
 
@@ -445,5 +463,37 @@ impl Client {
             .into_inner()
             .operation
             .ok_or(CreateDummyJobError::EmptyResponse)?)
+    }
+
+    /// Closes the specified chunk in the specified partition and
+    /// begins it moving to the read buffer.
+    ///
+    /// Returns the job tracking the data's movement
+    pub async fn close_partition_chunk(
+        &mut self,
+        db_name: impl Into<String>,
+        partition_key: impl Into<String>,
+        chunk_id: u32,
+    ) -> Result<Operation, ClosePartitionChunkError> {
+        let db_name = db_name.into();
+        let partition_key = partition_key.into();
+
+        let response = self
+            .inner
+            .close_partition_chunk(ClosePartitionChunkRequest {
+                db_name,
+                partition_key,
+                chunk_id,
+            })
+            .await
+            .map_err(|status| match status.code() {
+                tonic::Code::NotFound => ClosePartitionChunkError::DatabaseNotFound,
+                _ => ClosePartitionChunkError::ServerError(status),
+            })?;
+
+        Ok(response
+            .into_inner()
+            .operation
+            .ok_or(ClosePartitionChunkError::EmptyResponse)?)
     }
 }

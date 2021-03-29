@@ -672,10 +672,10 @@ mod test {
         )
         .unwrap();
         let mut ctx = ExecutionContext::new();
-        ctx.register_table("t", Arc::new(provider));
+        ctx.register_table("t", Arc::new(provider)).unwrap();
 
         let df = ctx.table("t").unwrap();
-        let df = df.aggregate(&[], &aggs).unwrap();
+        let df = df.aggregate(vec![], aggs).unwrap();
 
         // execute the query
         let record_batches = df.collect().await.unwrap();

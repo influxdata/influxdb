@@ -2,7 +2,6 @@ use std::convert::{TryFrom, TryInto};
 
 use chrono::{DateTime, TimeZone, Utc};
 use regex::Regex;
-use serde::{Deserialize, Serialize};
 use snafu::Snafu;
 
 use generated_types::google::protobuf::Empty;
@@ -22,36 +21,37 @@ pub enum Error {
         source_module: &'static str,
         source: Box<dyn std::error::Error + Send + Sync + 'static>,
     },
+
+    #[snafu(context(false))]
+    ProstDecodeError { source: prost::DecodeError },
+
+    #[snafu(context(false))]
+    ProstEncodeError { source: prost::EncodeError },
+
+    #[snafu(context(false))]
+    FieldViolation { source: FieldViolation },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// DatabaseRules contains the rules for replicating data, sending data to
 /// subscribers, and querying data for a single database.
-#[derive(Debug, Serialize, Deserialize, Default, Eq, PartialEq, Clone)]
+#[derive(Debug, Default, Eq, PartialEq, Clone)]
 pub struct DatabaseRules {
     /// The unencoded name of the database. This gets put in by the create
     /// database call, so an empty default is fine.
-    #[serde(default)]
     pub name: String, // TODO: Use DatabaseName here
 
     /// Template that generates a partition key for each row inserted into the
     /// db
-    #[serde(default)]
     pub partition_template: PartitionTemplate,
 
     /// When set this will buffer WAL writes in memory based on the
     /// configuration.
-    #[serde(default)]
     pub wal_buffer_config: Option<WalBufferConfig>,
 
-    /// Unless explicitly disabled by setting this to None (or null in JSON),
-    /// writes will go into a queryable in-memory database
-    /// called the Mutable Buffer. It is optimized to receive writes so they
-    /// can be batched together later to the Read Buffer or to Parquet files
-    /// in object storage.
-    #[serde(default = "MutableBufferConfig::default_option")]
-    pub mutable_buffer_config: Option<MutableBufferConfig>,
+    /// Configure how data flows through the system
+    pub lifecycle_rules: LifecycleRules,
 
     /// An optional config to split writes into different "shards". A shard
     /// is a logical concept, but the usage is meant to split data into
@@ -60,7 +60,6 @@ pub struct DatabaseRules {
     /// based on table name and assign to 1 of 10 shards. Within each
     /// shard you would have partitions, which would likely be based off time.
     /// This makes it possible to horizontally scale out writes.
-    #[serde(default)]
     pub shard_config: Option<ShardConfig>,
 }
 
@@ -74,10 +73,19 @@ impl DatabaseRules {
     }
 
     pub fn new() -> Self {
-        Self {
-            mutable_buffer_config: MutableBufferConfig::default_option(),
-            ..Default::default()
-        }
+        Self::default()
+    }
+}
+
+impl DatabaseRules {
+    pub fn decode(bytes: prost::bytes::Bytes) -> Result<Self> {
+        let message: management::DatabaseRules = prost::Message::decode(bytes)?;
+        Ok(message.try_into()?)
+    }
+
+    pub fn encode(self, bytes: &mut prost::bytes::BytesMut) -> Result<()> {
+        let encoded: management::DatabaseRules = self.into();
+        Ok(prost::Message::encode(&encoded, bytes)?)
     }
 }
 
@@ -102,7 +110,8 @@ impl From<DatabaseRules> for management::DatabaseRules {
             name: rules.name,
             partition_template: Some(rules.partition_template.into()),
             wal_buffer_config: rules.wal_buffer_config.map(Into::into),
-            mutable_buffer_config: rules.mutable_buffer_config.map(Into::into),
+            lifecycle_rules: Some(rules.lifecycle_rules.into()),
+            shard_config: rules.shard_config.map(Into::into),
         }
     }
 }
@@ -115,117 +124,101 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
 
         let wal_buffer_config = proto.wal_buffer_config.optional("wal_buffer_config")?;
 
-        let mutable_buffer_config = proto
-            .mutable_buffer_config
-            .optional("mutable_buffer_config")?;
+        let lifecycle_rules = proto
+            .lifecycle_rules
+            .optional("lifecycle_rules")?
+            .unwrap_or_default();
 
         let partition_template = proto
             .partition_template
             .optional("partition_template")?
             .unwrap_or_default();
 
+        let shard_config = proto
+            .shard_config
+            .optional("shard_config")
+            .unwrap_or_default();
+
         Ok(Self {
             name: proto.name,
             partition_template,
             wal_buffer_config,
-            mutable_buffer_config,
-            shard_config: None,
+            lifecycle_rules,
+            shard_config,
         })
     }
 }
 
-/// MutableBufferConfig defines the configuration for the in-memory database
-/// that is hot for writes as they arrive. Operators can define rules for
-/// evicting data once the mutable buffer passes a set memory threshold.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct MutableBufferConfig {
-    /// The size the mutable buffer should be limited to. Once the buffer gets
-    /// to this size it will drop partitions in the given order. If unable
-    /// to drop partitions (because of later rules in this config) it will
-    /// reject writes until it is able to drop partitions.
-    pub buffer_size: usize,
-    /// If set, the mutable buffer will not drop partitions that have chunks
-    /// that have not yet been persisted. Thus it will reject writes if it
-    /// is over size and is unable to drop partitions. The default is to
-    /// drop partitions in the sort order, regardless of whether they have
-    /// unpersisted chunks or not. The WAL Buffer can be used to ensure
-    /// persistence, but this may cause longer recovery times.
-    pub reject_if_not_persisted: bool,
-    /// Drop partitions to free up space in this order. Can be by the oldest
-    /// created at time, the longest since the last write, or the min or max of
-    /// some column.
-    pub partition_drop_order: PartitionSortRules,
-    /// Attempt to persist partitions after they haven't received a write for
-    /// this number of seconds. If not set, partitions won't be
-    /// automatically persisted.
-    pub persist_after_cold_seconds: Option<u32>,
+/// Configures how data automatically flows through the system
+#[derive(Debug, Default, Eq, PartialEq, Clone)]
+pub struct LifecycleRules {
+    /// A chunk of data within a partition that has been cold for writes for
+    /// this many seconds will be frozen and compacted (moved to the read
+    /// buffer) if the chunk is older than mutable_min_lifetime_seconds
+    ///
+    /// Represents the chunk transition open -> moving and closing -> moving
+    pub mutable_linger_seconds: u32,
+
+    /// A chunk of data within a partition is guaranteed to remain mutable
+    /// for at least this number of seconds
+    pub mutable_minimum_age_seconds: u32,
+
+    /// Once a chunk of data within a partition reaches this number of bytes
+    /// writes outside its keyspace will be directed to a new chunk
+    ///
+    /// This chunk will be then compacted once it becomes cold for writes
+    /// based on the mutable_linger_seconds and mutable_minimum_age_seconds
+    pub mutable_size_threshold: usize,
+
+    /// Once the total amount of buffered data in memory reaches this size start
+    /// dropping data from memory based on the drop_order
+    pub buffer_size_soft: usize,
+
+    /// Once the amount of data in memory reaches this size start
+    /// rejecting writes
+    pub buffer_size_hard: usize,
+
+    /// Configure order to transition data
+    ///
+    /// In the case of multiple candidates, data will be
+    /// compacted, persisted and dropped in this order
+    pub sort_order: SortOrder,
+
+    /// Allow dropping data that has not been persisted to object storage
+    pub drop_non_persisted: bool,
+
+    /// Do not allow writing new data to this database
+    pub immutable: bool,
 }
 
-const DEFAULT_MUTABLE_BUFFER_SIZE: usize = 2_147_483_648; // 2 GB
-const DEFAULT_PERSIST_AFTER_COLD_SECONDS: u32 = 900; // 15 minutes
-
-impl MutableBufferConfig {
-    fn default_option() -> Option<Self> {
-        Some(Self::default())
-    }
-}
-
-// TODO: Remove this when deprecating HTTP API - cannot be used in gRPC as no
-// explicit NULL support
-impl Default for MutableBufferConfig {
-    fn default() -> Self {
+impl From<LifecycleRules> for management::LifecycleRules {
+    fn from(config: LifecycleRules) -> Self {
         Self {
-            buffer_size: DEFAULT_MUTABLE_BUFFER_SIZE,
-            // keep taking writes and drop partitions on the floor
-            reject_if_not_persisted: false,
-            partition_drop_order: PartitionSortRules {
-                order: Order::Desc,
-                sort: PartitionSort::CreatedAtTime,
-            },
-            // rollover the chunk and persist it after the partition has been cold for
-            // 15 minutes
-            persist_after_cold_seconds: Some(DEFAULT_PERSIST_AFTER_COLD_SECONDS),
+            mutable_linger_seconds: config.mutable_linger_seconds,
+            mutable_minimum_age_seconds: config.mutable_minimum_age_seconds,
+            mutable_size_threshold: config.mutable_size_threshold as _,
+            buffer_size_soft: config.buffer_size_soft as _,
+            buffer_size_hard: config.buffer_size_hard as _,
+            sort_order: Some(config.sort_order.into()),
+            drop_non_persisted: config.drop_non_persisted,
+            immutable: config.immutable,
         }
     }
 }
 
-impl From<MutableBufferConfig> for management::MutableBufferConfig {
-    fn from(config: MutableBufferConfig) -> Self {
-        Self {
-            buffer_size: config.buffer_size as _,
-            reject_if_not_persisted: config.reject_if_not_persisted,
-            partition_drop_order: Some(config.partition_drop_order.into()),
-            persist_after_cold_seconds: config.persist_after_cold_seconds.unwrap_or_default(),
-        }
-    }
-}
-
-impl TryFrom<management::MutableBufferConfig> for MutableBufferConfig {
+impl TryFrom<management::LifecycleRules> for LifecycleRules {
     type Error = FieldViolation;
 
-    fn try_from(proto: management::MutableBufferConfig) -> Result<Self, Self::Error> {
-        let partition_drop_order = proto
-            .partition_drop_order
-            .optional("partition_drop_order")?
-            .unwrap_or_default();
-
-        let buffer_size = if proto.buffer_size == 0 {
-            DEFAULT_MUTABLE_BUFFER_SIZE
-        } else {
-            proto.buffer_size as usize
-        };
-
-        let persist_after_cold_seconds = if proto.persist_after_cold_seconds == 0 {
-            None
-        } else {
-            Some(proto.persist_after_cold_seconds)
-        };
-
+    fn try_from(proto: management::LifecycleRules) -> Result<Self, Self::Error> {
         Ok(Self {
-            buffer_size,
-            reject_if_not_persisted: proto.reject_if_not_persisted,
-            partition_drop_order,
-            persist_after_cold_seconds,
+            mutable_linger_seconds: proto.mutable_linger_seconds,
+            mutable_minimum_age_seconds: proto.mutable_minimum_age_seconds,
+            mutable_size_threshold: proto.mutable_size_threshold as _,
+            buffer_size_soft: proto.buffer_size_soft as _,
+            buffer_size_hard: proto.buffer_size_hard as _,
+            sort_order: proto.sort_order.optional("sort_order")?.unwrap_or_default(),
+            drop_non_persisted: proto.drop_non_persisted,
+            immutable: proto.immutable,
         })
     }
 }
@@ -237,24 +230,24 @@ impl TryFrom<management::MutableBufferConfig> for MutableBufferConfig {
 ///
 /// For example, to drop the partition that has been open longest:
 /// ```
-/// use data_types::database_rules::{PartitionSortRules, Order, PartitionSort};
+/// use data_types::database_rules::{SortOrder, Order, Sort};
 ///
-/// let rules = PartitionSortRules{
+/// let rules = SortOrder{
 ///     order: Order::Desc,
-///     sort: PartitionSort::CreatedAtTime,
+///     sort: Sort::CreatedAtTime,
 /// };
 /// ```
-#[derive(Debug, Default, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub struct PartitionSortRules {
+#[derive(Debug, Default, Eq, PartialEq, Clone)]
+pub struct SortOrder {
     /// Sort partitions by this order. Last will be dropped.
     pub order: Order,
     /// Sort by either a column value, or when the partition was opened, or when
     /// it last received a write.
-    pub sort: PartitionSort,
+    pub sort: Sort,
 }
 
-impl From<PartitionSortRules> for management::mutable_buffer_config::PartitionDropOrder {
-    fn from(ps: PartitionSortRules) -> Self {
+impl From<SortOrder> for management::lifecycle_rules::SortOrder {
+    fn from(ps: SortOrder) -> Self {
         let order: management::Order = ps.order.into();
 
         Self {
@@ -264,12 +257,10 @@ impl From<PartitionSortRules> for management::mutable_buffer_config::PartitionDr
     }
 }
 
-impl TryFrom<management::mutable_buffer_config::PartitionDropOrder> for PartitionSortRules {
+impl TryFrom<management::lifecycle_rules::SortOrder> for SortOrder {
     type Error = FieldViolation;
 
-    fn try_from(
-        proto: management::mutable_buffer_config::PartitionDropOrder,
-    ) -> Result<Self, Self::Error> {
+    fn try_from(proto: management::lifecycle_rules::SortOrder) -> Result<Self, Self::Error> {
         Ok(Self {
             order: proto.order().scope("order")?,
             sort: proto.sort.optional("sort")?.unwrap_or_default(),
@@ -278,8 +269,8 @@ impl TryFrom<management::mutable_buffer_config::PartitionDropOrder> for Partitio
 }
 
 /// What to sort the partition by.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
-pub enum PartitionSort {
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub enum Sort {
     /// The last time the partition received a write.
     LastWriteTime,
     /// When the partition was opened in the mutable buffer.
@@ -299,20 +290,20 @@ pub enum PartitionSort {
     Column(String, ColumnType, ColumnValue),
 }
 
-impl Default for PartitionSort {
+impl Default for Sort {
     fn default() -> Self {
         Self::CreatedAtTime
     }
 }
 
-impl From<PartitionSort> for management::mutable_buffer_config::partition_drop_order::Sort {
-    fn from(ps: PartitionSort) -> Self {
-        use management::mutable_buffer_config::partition_drop_order::ColumnSort;
+impl From<Sort> for management::lifecycle_rules::sort_order::Sort {
+    fn from(ps: Sort) -> Self {
+        use management::lifecycle_rules::sort_order::ColumnSort;
 
         match ps {
-            PartitionSort::LastWriteTime => Self::LastWriteTime(Empty {}),
-            PartitionSort::CreatedAtTime => Self::CreatedAtTime(Empty {}),
-            PartitionSort::Column(column_name, column_type, column_value) => {
+            Sort::LastWriteTime => Self::LastWriteTime(Empty {}),
+            Sort::CreatedAtTime => Self::CreatedAtTime(Empty {}),
+            Sort::Column(column_name, column_type, column_value) => {
                 let column_type: management::ColumnType = column_type.into();
                 let column_value: management::Aggregate = column_value.into();
 
@@ -326,13 +317,11 @@ impl From<PartitionSort> for management::mutable_buffer_config::partition_drop_o
     }
 }
 
-impl TryFrom<management::mutable_buffer_config::partition_drop_order::Sort> for PartitionSort {
+impl TryFrom<management::lifecycle_rules::sort_order::Sort> for Sort {
     type Error = FieldViolation;
 
-    fn try_from(
-        proto: management::mutable_buffer_config::partition_drop_order::Sort,
-    ) -> Result<Self, Self::Error> {
-        use management::mutable_buffer_config::partition_drop_order::Sort;
+    fn try_from(proto: management::lifecycle_rules::sort_order::Sort) -> Result<Self, Self::Error> {
+        use management::lifecycle_rules::sort_order::Sort;
 
         Ok(match proto {
             Sort::LastWriteTime(_) => Self::LastWriteTime,
@@ -351,7 +340,7 @@ impl TryFrom<management::mutable_buffer_config::partition_drop_order::Sort> for 
 }
 
 /// The sort order.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Order {
     Asc,
     Desc,
@@ -385,7 +374,7 @@ impl TryFrom<management::Order> for Order {
 }
 
 /// Use columns of this type.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum ColumnType {
     I64,
     U64,
@@ -422,7 +411,7 @@ impl TryFrom<management::ColumnType> for ColumnType {
 }
 
 /// Use either the min or max summary statistic.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum ColumnValue {
     Min,
     Max,
@@ -454,7 +443,7 @@ impl TryFrom<management::Aggregate> for ColumnValue {
 /// WalBufferConfig defines the configuration for buffering data from the WAL in
 /// memory. This buffer is used for asynchronous replication and to collect
 /// segments before sending them to object storage.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct WalBufferConfig {
     /// The size the WAL buffer should be limited to. Once the buffer gets to
     /// this size it will drop old segments to remain below this size, but
@@ -528,7 +517,7 @@ impl TryFrom<management::WalBufferConfig> for WalBufferConfig {
 /// WalBufferRollover defines the behavior of what should happen if a write
 /// comes in that would cause the buffer to exceed its max size AND the oldest
 /// segment can't be dropped because it has not yet been persisted.
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Copy)]
+#[derive(Debug, Clone, Eq, PartialEq, Copy)]
 pub enum WalBufferRollover {
     /// Drop the old segment even though it hasn't been persisted. This part of
     /// the WAL will be lost on this server.
@@ -573,7 +562,7 @@ impl TryFrom<management::wal_buffer_config::Rollover> for WalBufferRollover {
 ///
 /// The key is constructed in order of the template parts; thus ordering changes
 /// what partition key is generated.
-#[derive(Debug, Serialize, Deserialize, Default, Eq, PartialEq, Clone)]
+#[derive(Debug, Default, Eq, PartialEq, Clone)]
 pub struct PartitionTemplate {
     pub parts: Vec<TemplatePart>,
 }
@@ -627,7 +616,7 @@ impl TryFrom<management::PartitionTemplate> for PartitionTemplate {
 
 /// `TemplatePart` specifies what part of a row should be used to compute this
 /// part of a partition key.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum TemplatePart {
     /// The name of a table
     Table,
@@ -647,7 +636,7 @@ pub enum TemplatePart {
 
 /// `RegexCapture` is for pulling parts of a string column into the partition
 /// key.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct RegexCapture {
     column: String,
     regex: String,
@@ -662,7 +651,7 @@ pub struct RegexCapture {
 /// For example, a time format of "%Y-%m-%d %H:%M:%S" will produce
 /// partition key parts such as "2021-03-14 12:25:21" and
 /// "2021-04-14 12:24:21"
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct StrftimeColumn {
     column: String,
     format: String,
@@ -737,7 +726,7 @@ impl TryFrom<management::partition_template::Part> for TemplatePart {
 /// based on table name and assign to 1 of 10 shards. Within each
 /// shard you would have partitions, which would likely be based off time.
 /// This makes it possible to horizontally scale out writes.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct ShardConfig {
     /// An optional matcher. If there is a match, the route will be evaluated to
     /// the given targets, otherwise the hash ring will be evaluated. This is
@@ -758,7 +747,7 @@ pub struct ShardConfig {
 
 /// Maps a matcher with specific target group. If the line/row matches
 /// it should be sent to the group.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone, Default)]
 pub struct MatcherToTargets {
     pub matcher: Matcher,
     pub target: NodeGroup,
@@ -769,7 +758,7 @@ pub type NodeGroup = Vec<WriterId>;
 
 /// HashRing is a rule for creating a hash key for a row and mapping that to
 /// an individual node on a ring.
-#[derive(Debug, Serialize, Deserialize, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct HashRing {
     /// If true the table name will be included in the hash key
     pub table_name: bool,
@@ -781,10 +770,9 @@ pub struct HashRing {
 
 /// A matcher is used to match routing rules or subscriptions on a row-by-row
 /// (or line) basis.
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct Matcher {
     /// if provided, match if the table name matches against the regex
-    #[serde(with = "serde_regex")]
     pub table_name_regex: Option<Regex>,
     // paul: what should we use for predicate matching here against a single row/line?
     pub predicate: Option<String>,
@@ -799,6 +787,148 @@ impl PartialEq for Matcher {
     }
 }
 impl Eq for Matcher {}
+
+impl From<ShardConfig> for management::ShardConfig {
+    fn from(shard_config: ShardConfig) -> Self {
+        Self {
+            specific_targets: shard_config.specific_targets.map(|i| i.into()),
+            hash_ring: shard_config.hash_ring.map(|i| i.into()),
+            ignore_errors: shard_config.ignore_errors,
+        }
+    }
+}
+
+impl TryFrom<management::ShardConfig> for ShardConfig {
+    type Error = FieldViolation;
+
+    fn try_from(proto: management::ShardConfig) -> Result<Self, Self::Error> {
+        Ok(Self {
+            specific_targets: proto
+                .specific_targets
+                .map(|i| i.try_into())
+                .map_or(Ok(None), |r| r.map(Some))?,
+            hash_ring: proto
+                .hash_ring
+                .map(|i| i.try_into())
+                .map_or(Ok(None), |r| r.map(Some))?,
+            ignore_errors: proto.ignore_errors,
+        })
+    }
+}
+
+/// Returns none if v matches its default value.
+fn none_if_default<T: Default + PartialEq>(v: T) -> Option<T> {
+    if v == Default::default() {
+        None
+    } else {
+        Some(v)
+    }
+}
+
+impl From<MatcherToTargets> for management::MatcherToTargets {
+    fn from(matcher_to_targets: MatcherToTargets) -> Self {
+        Self {
+            matcher: none_if_default(matcher_to_targets.matcher.into()),
+            target: none_if_default(from_node_group_for_management_node_group(
+                matcher_to_targets.target,
+            )),
+        }
+    }
+}
+
+impl TryFrom<management::MatcherToTargets> for MatcherToTargets {
+    type Error = FieldViolation;
+
+    fn try_from(proto: management::MatcherToTargets) -> Result<Self, Self::Error> {
+        Ok(Self {
+            matcher: proto.matcher.unwrap_or_default().try_into()?,
+            target: try_from_management_node_group_for_node_group(
+                proto.target.unwrap_or_default(),
+            )?,
+        })
+    }
+}
+
+impl From<HashRing> for management::HashRing {
+    fn from(hash_ring: HashRing) -> Self {
+        Self {
+            table_name: hash_ring.table_name,
+            columns: hash_ring.columns,
+            node_groups: hash_ring
+                .node_groups
+                .into_iter()
+                .map(from_node_group_for_management_node_group)
+                .collect(),
+        }
+    }
+}
+
+impl TryFrom<management::HashRing> for HashRing {
+    type Error = FieldViolation;
+
+    fn try_from(proto: management::HashRing) -> Result<Self, Self::Error> {
+        Ok(Self {
+            table_name: proto.table_name,
+            columns: proto.columns,
+            node_groups: proto
+                .node_groups
+                .into_iter()
+                .map(try_from_management_node_group_for_node_group)
+                .collect::<Result<Vec<_>, _>>()?,
+        })
+    }
+}
+
+// cannot (and/or don't know how to) add impl From inside prost generated code
+fn from_node_group_for_management_node_group(node_group: NodeGroup) -> management::NodeGroup {
+    management::NodeGroup {
+        nodes: node_group
+            .into_iter()
+            .map(|id| management::node_group::Node { id })
+            .collect(),
+    }
+}
+
+fn try_from_management_node_group_for_node_group(
+    proto: management::NodeGroup,
+) -> Result<NodeGroup, FieldViolation> {
+    Ok(proto.nodes.into_iter().map(|i| i.id).collect())
+}
+
+impl From<Matcher> for management::Matcher {
+    fn from(matcher: Matcher) -> Self {
+        Self {
+            table_name_regex: matcher
+                .table_name_regex
+                .map(|r| r.to_string())
+                .unwrap_or_default(),
+            predicate: matcher.predicate.unwrap_or_default(),
+        }
+    }
+}
+
+impl TryFrom<management::Matcher> for Matcher {
+    type Error = FieldViolation;
+
+    fn try_from(proto: management::Matcher) -> Result<Self, Self::Error> {
+        let table_name_regex = match &proto.table_name_regex as &str {
+            "" => None,
+            re => Some(Regex::new(re).map_err(|e| FieldViolation {
+                field: "table_name_regex".to_string(),
+                description: e.to_string(),
+            })?),
+        };
+        let predicate = match proto.predicate {
+            p if p.is_empty() => None,
+            p => Some(p),
+        };
+
+        Ok(Self {
+            table_name_regex,
+            predicate,
+        })
+    }
+}
 
 /// `PartitionId` is the object storage identifier for a specific partition. It
 /// should be a path that can be used against an object store to locate all the
@@ -992,10 +1122,11 @@ mod tests {
         // These will be defaulted as optionality not preserved on non-protobuf
         // DatabaseRules
         assert_eq!(back.partition_template, Some(Default::default()));
+        assert_eq!(back.lifecycle_rules, Some(LifecycleRules::default().into()));
 
         // These should be none as preserved on non-protobuf DatabaseRules
         assert!(back.wal_buffer_config.is_none());
-        assert!(back.mutable_buffer_config.is_none());
+        assert!(back.shard_config.is_none());
     }
 
     #[test]
@@ -1133,89 +1264,87 @@ mod tests {
     }
 
     #[test]
-    fn mutable_buffer_config_default() {
-        let protobuf: management::MutableBufferConfig = Default::default();
-
-        let config: MutableBufferConfig = protobuf.try_into().unwrap();
-        let back: management::MutableBufferConfig = config.clone().into();
-
-        assert_eq!(config.buffer_size, DEFAULT_MUTABLE_BUFFER_SIZE);
-        assert_eq!(config.persist_after_cold_seconds, None);
-        assert_eq!(config.partition_drop_order, PartitionSortRules::default());
-        assert!(!config.reject_if_not_persisted);
-
-        assert_eq!(back.reject_if_not_persisted, config.reject_if_not_persisted);
-        assert_eq!(back.buffer_size as usize, config.buffer_size);
-        assert_eq!(
-            back.partition_drop_order,
-            Some(PartitionSortRules::default().into())
-        );
-        assert_eq!(back.persist_after_cold_seconds, 0);
-    }
-
-    #[test]
-    fn mutable_buffer_config() {
-        let protobuf = management::MutableBufferConfig {
-            buffer_size: 32,
-            reject_if_not_persisted: true,
-            partition_drop_order: Some(management::mutable_buffer_config::PartitionDropOrder {
-                order: management::Order::Desc as _,
-                sort: None,
-            }),
-            persist_after_cold_seconds: 439,
+    fn lifecycle_rules() {
+        let protobuf = management::LifecycleRules {
+            mutable_linger_seconds: 123,
+            mutable_minimum_age_seconds: 5345,
+            mutable_size_threshold: 232,
+            buffer_size_soft: 353,
+            buffer_size_hard: 232,
+            sort_order: None,
+            drop_non_persisted: true,
+            immutable: true,
         };
 
-        let config: MutableBufferConfig = protobuf.clone().try_into().unwrap();
-        let back: management::MutableBufferConfig = config.clone().into();
+        let config: LifecycleRules = protobuf.clone().try_into().unwrap();
+        let back: management::LifecycleRules = config.clone().into();
 
-        assert_eq!(config.buffer_size, protobuf.buffer_size as usize);
+        assert_eq!(config.sort_order, SortOrder::default());
         assert_eq!(
-            config.persist_after_cold_seconds,
-            Some(protobuf.persist_after_cold_seconds)
+            config.mutable_linger_seconds,
+            protobuf.mutable_linger_seconds
         );
-        assert_eq!(config.partition_drop_order.order, Order::Desc);
-        assert!(config.reject_if_not_persisted);
+        assert_eq!(
+            config.mutable_minimum_age_seconds,
+            protobuf.mutable_minimum_age_seconds
+        );
+        assert_eq!(
+            config.mutable_size_threshold,
+            protobuf.mutable_size_threshold as usize
+        );
+        assert_eq!(config.buffer_size_soft, protobuf.buffer_size_soft as usize);
+        assert_eq!(config.buffer_size_hard, protobuf.buffer_size_hard as usize);
+        assert_eq!(config.drop_non_persisted, protobuf.drop_non_persisted);
+        assert_eq!(config.immutable, protobuf.immutable);
 
-        assert_eq!(back.reject_if_not_persisted, config.reject_if_not_persisted);
-        assert_eq!(back.buffer_size as usize, config.buffer_size);
+        assert_eq!(back.mutable_linger_seconds, protobuf.mutable_linger_seconds);
         assert_eq!(
-            back.persist_after_cold_seconds,
-            protobuf.persist_after_cold_seconds
+            back.mutable_minimum_age_seconds,
+            protobuf.mutable_minimum_age_seconds
         );
+        assert_eq!(back.mutable_size_threshold, protobuf.mutable_size_threshold);
+        assert_eq!(back.buffer_size_soft, protobuf.buffer_size_soft);
+        assert_eq!(back.buffer_size_hard, protobuf.buffer_size_hard);
+        assert_eq!(back.drop_non_persisted, protobuf.drop_non_persisted);
+        assert_eq!(back.immutable, protobuf.immutable);
     }
 
     #[test]
-    fn partition_drop_order_default() {
-        let protobuf: management::mutable_buffer_config::PartitionDropOrder = Default::default();
-        let config: PartitionSortRules = protobuf.try_into().unwrap();
+    fn sort_order_default() {
+        let protobuf: management::lifecycle_rules::SortOrder = Default::default();
+        let config: SortOrder = protobuf.try_into().unwrap();
 
-        assert_eq!(config, PartitionSortRules::default());
+        assert_eq!(config, SortOrder::default());
         assert_eq!(config.order, Order::default());
-        assert_eq!(config.sort, PartitionSort::default());
+        assert_eq!(config.sort, Sort::default());
     }
 
     #[test]
-    fn partition_drop_order() {
-        use management::mutable_buffer_config::{partition_drop_order::Sort, PartitionDropOrder};
-        let protobuf = PartitionDropOrder {
+    fn sort_order() {
+        use management::lifecycle_rules::sort_order;
+        let protobuf = management::lifecycle_rules::SortOrder {
             order: management::Order::Asc as _,
-            sort: Some(Sort::CreatedAtTime(Empty {})),
+            sort: Some(sort_order::Sort::CreatedAtTime(Empty {})),
         };
-        let config: PartitionSortRules = protobuf.clone().try_into().unwrap();
-        let back: PartitionDropOrder = config.clone().into();
+        let config: SortOrder = protobuf.clone().try_into().unwrap();
+        let back: management::lifecycle_rules::SortOrder = config.clone().into();
 
         assert_eq!(protobuf, back);
         assert_eq!(config.order, Order::Asc);
-        assert_eq!(config.sort, PartitionSort::CreatedAtTime);
+        assert_eq!(config.sort, Sort::CreatedAtTime);
     }
 
     #[test]
-    fn partition_sort() {
-        use management::mutable_buffer_config::partition_drop_order::{ColumnSort, Sort};
+    fn sort() {
+        use management::lifecycle_rules::sort_order;
 
-        let created_at: PartitionSort = Sort::CreatedAtTime(Empty {}).try_into().unwrap();
-        let last_write: PartitionSort = Sort::LastWriteTime(Empty {}).try_into().unwrap();
-        let column: PartitionSort = Sort::Column(ColumnSort {
+        let created_at: Sort = sort_order::Sort::CreatedAtTime(Empty {})
+            .try_into()
+            .unwrap();
+        let last_write: Sort = sort_order::Sort::LastWriteTime(Empty {})
+            .try_into()
+            .unwrap();
+        let column: Sort = sort_order::Sort::Column(sort_order::ColumnSort {
             column_name: "column".to_string(),
             column_type: management::ColumnType::Bool as _,
             column_value: management::Aggregate::Min as _,
@@ -1223,29 +1352,29 @@ mod tests {
         .try_into()
         .unwrap();
 
-        assert_eq!(created_at, PartitionSort::CreatedAtTime);
-        assert_eq!(last_write, PartitionSort::LastWriteTime);
+        assert_eq!(created_at, Sort::CreatedAtTime);
+        assert_eq!(last_write, Sort::LastWriteTime);
         assert_eq!(
             column,
-            PartitionSort::Column("column".to_string(), ColumnType::Bool, ColumnValue::Min)
+            Sort::Column("column".to_string(), ColumnType::Bool, ColumnValue::Min)
         );
     }
 
     #[test]
     fn partition_sort_column_sort() {
-        use management::mutable_buffer_config::partition_drop_order::{ColumnSort, Sort};
+        use management::lifecycle_rules::sort_order;
 
-        let res: Result<PartitionSort, _> = Sort::Column(Default::default()).try_into();
+        let res: Result<Sort, _> = sort_order::Sort::Column(Default::default()).try_into();
         let err1 = res.expect_err("expected failure");
 
-        let res: Result<PartitionSort, _> = Sort::Column(ColumnSort {
+        let res: Result<Sort, _> = sort_order::Sort::Column(sort_order::ColumnSort {
             column_type: management::ColumnType::F64 as _,
             ..Default::default()
         })
         .try_into();
         let err2 = res.expect_err("expected failure");
 
-        let res: Result<PartitionSort, _> = Sort::Column(ColumnSort {
+        let res: Result<Sort, _> = sort_order::Sort::Column(sort_order::ColumnSort {
             column_type: management::ColumnType::F64 as _,
             column_value: management::Aggregate::Max as _,
             ..Default::default()
@@ -1261,5 +1390,145 @@ mod tests {
 
         assert_eq!(err3.field, "column.column_name");
         assert_eq!(err3.description, "Field is required");
+    }
+
+    #[test]
+    fn test_matcher_default() {
+        let protobuf = management::Matcher {
+            ..Default::default()
+        };
+
+        let matcher: Matcher = protobuf.clone().try_into().unwrap();
+        let back: management::Matcher = matcher.clone().into();
+
+        assert!(matcher.table_name_regex.is_none());
+        assert_eq!(protobuf.table_name_regex, back.table_name_regex);
+
+        assert_eq!(matcher.predicate, None);
+        assert_eq!(protobuf.predicate, back.predicate);
+    }
+
+    #[test]
+    fn test_matcher_regexp() {
+        let protobuf = management::Matcher {
+            table_name_regex: "^foo$".into(),
+            ..Default::default()
+        };
+
+        let matcher: Matcher = protobuf.clone().try_into().unwrap();
+        let back: management::Matcher = matcher.clone().into();
+
+        assert_eq!(matcher.table_name_regex.unwrap().to_string(), "^foo$");
+        assert_eq!(protobuf.table_name_regex, back.table_name_regex);
+    }
+
+    #[test]
+    fn test_matcher_bad_regexp() {
+        let protobuf = management::Matcher {
+            table_name_regex: "*".into(),
+            ..Default::default()
+        };
+
+        let matcher: Result<Matcher, FieldViolation> = protobuf.try_into();
+        assert!(matcher.is_err());
+        assert_eq!(matcher.err().unwrap().field, "table_name_regex");
+    }
+
+    #[test]
+    fn test_hash_ring_default() {
+        let protobuf = management::HashRing {
+            ..Default::default()
+        };
+
+        let hash_ring: HashRing = protobuf.clone().try_into().unwrap();
+        let back: management::HashRing = hash_ring.clone().into();
+
+        assert_eq!(hash_ring.table_name, false);
+        assert_eq!(protobuf.table_name, back.table_name);
+        assert!(hash_ring.columns.is_empty());
+        assert_eq!(protobuf.columns, back.columns);
+        assert!(hash_ring.node_groups.is_empty());
+        assert_eq!(protobuf.node_groups, back.node_groups);
+    }
+
+    #[test]
+    fn test_hash_ring_nodes() {
+        let protobuf = management::HashRing {
+            node_groups: vec![
+                management::NodeGroup {
+                    nodes: vec![
+                        management::node_group::Node { id: 10 },
+                        management::node_group::Node { id: 11 },
+                        management::node_group::Node { id: 12 },
+                    ],
+                },
+                management::NodeGroup {
+                    nodes: vec![management::node_group::Node { id: 20 }],
+                },
+            ],
+            ..Default::default()
+        };
+
+        let hash_ring: HashRing = protobuf.try_into().unwrap();
+
+        assert_eq!(hash_ring.node_groups.len(), 2);
+        assert_eq!(hash_ring.node_groups[0].len(), 3);
+        assert_eq!(hash_ring.node_groups[1].len(), 1);
+    }
+
+    #[test]
+    fn test_matcher_to_targets_default() {
+        let protobuf = management::MatcherToTargets {
+            ..Default::default()
+        };
+
+        let matcher_to_targets: MatcherToTargets = protobuf.clone().try_into().unwrap();
+        let back: management::MatcherToTargets = matcher_to_targets.clone().into();
+
+        assert_eq!(
+            matcher_to_targets.matcher,
+            Matcher {
+                ..Default::default()
+            }
+        );
+        assert_eq!(protobuf.matcher, back.matcher);
+
+        assert_eq!(matcher_to_targets.target, Vec::<WriterId>::new());
+        assert_eq!(protobuf.target, back.target);
+    }
+
+    #[test]
+    fn test_shard_config_default() {
+        let protobuf = management::ShardConfig {
+            ..Default::default()
+        };
+
+        let shard_config: ShardConfig = protobuf.clone().try_into().unwrap();
+        let back: management::ShardConfig = shard_config.clone().into();
+
+        assert!(shard_config.specific_targets.is_none());
+        assert_eq!(protobuf.specific_targets, back.specific_targets);
+
+        assert!(shard_config.hash_ring.is_none());
+        assert_eq!(protobuf.hash_ring, back.hash_ring);
+
+        assert_eq!(shard_config.ignore_errors, false);
+        assert_eq!(protobuf.ignore_errors, back.ignore_errors);
+    }
+
+    #[test]
+    fn test_database_rules_shard_config() {
+        let protobuf = management::DatabaseRules {
+            name: "database".to_string(),
+            shard_config: Some(management::ShardConfig {
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let rules: DatabaseRules = protobuf.try_into().unwrap();
+        let back: management::DatabaseRules = rules.into();
+
+        assert!(back.shard_config.is_some());
     }
 }

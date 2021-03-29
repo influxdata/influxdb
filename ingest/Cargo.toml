@@ -6,9 +6,9 @@ edition = "2018"
 
 [dependencies] # In alphabetical order
 arrow_deps = { path = "../arrow_deps" }
-data_types = { path = "../data_types" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 influxdb_tsm = { path = "../influxdb_tsm" }
+internal_types = { path = "../internal_types" }
 packers = { path = "../packers" }
 snafu = "0.6.2"
 tracing = "0.1"

@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["Paul Dix <paul@pauldix.net>"]
 edition = "2018"
 default-run = "influxdb_iox"
+readme = "README.md"
 
 [workspace] # In alphabetical order
 members = [
@@ -16,6 +17,7 @@ members = [
     "influxdb_tsm",
     "influxdb2_client",
     "ingest",
+    "internal_types",
     "logfmt",
     "mem_qe",
     "mutable_buffer",
@@ -43,6 +45,7 @@ generated_types = { path = "generated_types" }
 influxdb_iox_client = { path = "influxdb_iox_client", features = ["format"] }
 influxdb_line_protocol = { path = "influxdb_line_protocol" }
 influxdb_tsm = { path = "influxdb_tsm" }
+internal_types = { path = "internal_types" }
 ingest = { path = "ingest" }
 logfmt = { path = "logfmt" }
 mem_qe = { path = "mem_qe" }
@@ -81,8 +84,9 @@ serde_urlencoded = "0.7.0"
 snafu = "0.6.9"
 structopt = "0.3.21"
 thiserror = "1.0.23"
-tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "parking_lot"] }
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread", "parking_lot", "signal"] }
 tokio-stream = { version = "0.1.2", features = ["net"] }
+tokio-util = { version = "0.6.3" }
 tonic = "0.4.0"
 tonic-health = "0.3.0"
 tracing = { version = "0.1", features = ["release_max_level_debug"] }
@@ -107,10 +111,6 @@ predicates = "1.0.4"
 rand = "0.8.3"
 reqwest = "0.11"
 tempfile = "3.1.0"
-
-[[bin]]
-name = "cpu_feature_check"
-path = "src/cpu_feature_check/main.rs"
 
 [[bench]]
 name = "encoders"

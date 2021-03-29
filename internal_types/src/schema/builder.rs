@@ -140,7 +140,7 @@ impl SchemaBuilder {
     /// schema validation happens at this time.
 
     /// ```
-    /// use data_types::schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType};
+    /// use internal_types::schema::{builder::SchemaBuilder, InfluxColumnType, InfluxFieldType};
     ///
     /// let schema = SchemaBuilder::new()
     ///   .tag("region")

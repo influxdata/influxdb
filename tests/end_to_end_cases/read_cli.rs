@@ -26,8 +26,6 @@ async fn create_database(db_name: &str, addr: &str) {
         .arg("database")
         .arg("create")
         .arg(db_name)
-        .arg("-m")
-        .arg("100") // give it a mutable buffer
         .arg("--host")
         .arg(addr)
         .assert()
@@ -148,7 +146,7 @@ async fn test_read_error(db_name: &str, addr: &str) {
         .assert()
         .failure()
         .stderr(predicate::str::contains(
-            "no chunks found in builder for table",
+            "Table or CTE with name \\'unknown_table\\' not found",
         ));
 
     Command::cargo_bin("influxdb_iox")

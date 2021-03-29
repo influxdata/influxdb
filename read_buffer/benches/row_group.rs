@@ -35,7 +35,7 @@ fn read_group_predicate_all_time(c: &mut Criterion, row_group: &RowGroup, rng: &
         &time_pred,
         // grouping columns and expected cardinality
         vec![
-            (vec!["env"], 20),
+            (vec!["env"], 2),
             (vec!["env", "data_centre"], 20),
             (vec!["data_centre", "cluster"], 200),
             (vec!["cluster", "node_id"], 2000),

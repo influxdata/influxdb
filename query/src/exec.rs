@@ -8,6 +8,7 @@ pub mod fieldlist;
 mod schema_pivot;
 pub mod seriesset;
 pub mod stringset;
+pub use context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
 
 use std::sync::Arc;
 

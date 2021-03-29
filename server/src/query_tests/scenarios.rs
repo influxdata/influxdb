@@ -6,7 +6,7 @@ use async_trait::async_trait;
 
 use crate::db::Db;
 
-use super::utils::make_db;
+use super::utils::{count_mutable_buffer_chunks, count_read_buffer_chunks, make_db};
 
 /// Holds a database and a description of how its data was configured
 pub struct DBScenario {
@@ -36,8 +36,8 @@ impl DBSetup for NoData {
         // listing partitions (which may create an entry in a map)
         // in an empty database
         let db = make_db();
-        assert_eq!(db.mutable_buffer_chunks(partition_key).len(), 1); // only open chunk
-        assert_eq!(db.read_buffer_chunks(partition_key).len(), 0);
+        assert_eq!(count_mutable_buffer_chunks(&db), 0);
+        assert_eq!(count_read_buffer_chunks(&db), 0);
         let scenario2 = DBScenario {
             scenario_name: "New, Empty Database after partitions are listed".into(),
             db,
@@ -47,17 +47,24 @@ impl DBSetup for NoData {
         let db = make_db();
         let data = "cpu,region=west user=23.2 100";
         let mut writer = TestLPWriter::default();
-        writer.write_lp_string(&db, data).await.unwrap();
+        writer.write_lp_string(&db, data).unwrap();
         // move data out of open chunk
         assert_eq!(db.rollover_partition(partition_key).await.unwrap().id(), 0);
-        // drop it
-        db.drop_mutable_buffer_chunk(partition_key, 0)
+
+        assert_eq!(count_mutable_buffer_chunks(&db), 2);
+        assert_eq!(count_read_buffer_chunks(&db), 0); // only open chunk
+
+        db.load_chunk_to_read_buffer(partition_key, 0)
             .await
             .unwrap();
 
-        assert_eq!(db.mutable_buffer_chunks(partition_key).len(), 1);
+        assert_eq!(count_mutable_buffer_chunks(&db), 1);
+        assert_eq!(count_read_buffer_chunks(&db), 1); // only open chunk
 
-        assert_eq!(db.read_buffer_chunks(partition_key).len(), 0); // only open chunk
+        db.drop_chunk(partition_key, 0).unwrap();
+
+        assert_eq!(count_mutable_buffer_chunks(&db), 1);
+        assert_eq!(count_read_buffer_chunks(&db), 0);
 
         let scenario3 = DBScenario {
             scenario_name: "Empty Database after drop chunk".into(),
@@ -78,6 +85,22 @@ impl DBSetup for TwoMeasurements {
             "cpu,region=west user=23.2 100",
             "cpu,region=west user=21.0 150",
             "disk,region=east bytes=99i 200",
+        ];
+
+        make_one_chunk_scenarios(partition_key, &lp_lines.join("\n")).await
+    }
+}
+
+pub struct TwoMeasurementsUnsignedType {}
+#[async_trait]
+impl DBSetup for TwoMeasurementsUnsignedType {
+    async fn make(&self) -> Vec<DBScenario> {
+        let partition_key = "1970-01-01T00";
+        let lp_lines = vec![
+            "restaurant,town=andover count=40000u 100",
+            "restaurant,town=reading count=632u 120",
+            "school,town=reading count=17u 150",
+            "school,town=andover count=25u 160",
         ];
 
         make_one_chunk_scenarios(partition_key, &lp_lines.join("\n")).await
@@ -185,7 +208,7 @@ impl DBSetup for EndToEndTest {
 
         let db = make_db();
         let mut writer = TestLPWriter::default();
-        let res = writer.write_lp_string(&db, &lp_data).await;
+        let res = writer.write_lp_string(&db, &lp_data);
         assert!(res.is_ok(), "Error: {}", res.unwrap_err());
 
         let scenario1 = DBScenario {
@@ -205,7 +228,7 @@ impl DBSetup for EndToEndTest {
 pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) -> Vec<DBScenario> {
     let db = make_db();
     let mut writer = TestLPWriter::default();
-    writer.write_lp_string(&db, data).await.unwrap();
+    writer.write_lp_string(&db, data).unwrap();
     let scenario1 = DBScenario {
         scenario_name: "Data in open chunk of mutable buffer".into(),
         db,
@@ -213,7 +236,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
 
     let db = make_db();
     let mut writer = TestLPWriter::default();
-    writer.write_lp_string(&db, data).await.unwrap();
+    writer.write_lp_string(&db, data).unwrap();
     db.rollover_partition(partition_key).await.unwrap();
     let scenario2 = DBScenario {
         scenario_name: "Data in closed chunk of mutable buffer".into(),
@@ -222,32 +245,17 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
 
     let db = make_db();
     let mut writer = TestLPWriter::default();
-    writer.write_lp_string(&db, data).await.unwrap();
+    writer.write_lp_string(&db, data).unwrap();
     db.rollover_partition(partition_key).await.unwrap();
     db.load_chunk_to_read_buffer(partition_key, 0)
         .await
         .unwrap();
     let scenario3 = DBScenario {
-        scenario_name: "Data in both read buffer and mutable buffer".into(),
+        scenario_name: "Data in read buffer".into(),
         db,
     };
 
-    let db = make_db();
-    let mut writer = TestLPWriter::default();
-    writer.write_lp_string(&db, data).await.unwrap();
-    db.rollover_partition(partition_key).await.unwrap();
-    db.load_chunk_to_read_buffer(partition_key, 0)
-        .await
-        .unwrap();
-    db.drop_mutable_buffer_chunk(partition_key, 0)
-        .await
-        .unwrap();
-    let scenario4 = DBScenario {
-        scenario_name: "Data in only read buffer and not mutable buffer".into(),
-        db,
-    };
-
-    vec![scenario1, scenario2, scenario3, scenario4]
+    vec![scenario1, scenario2, scenario3]
 }
 
 /// This function loads two chunks of lp data into 4 different scenarios
@@ -263,8 +271,8 @@ pub async fn make_two_chunk_scenarios(
 ) -> Vec<DBScenario> {
     let db = make_db();
     let mut writer = TestLPWriter::default();
-    writer.write_lp_string(&db, data1).await.unwrap();
-    writer.write_lp_string(&db, data2).await.unwrap();
+    writer.write_lp_string(&db, data1).unwrap();
+    writer.write_lp_string(&db, data2).unwrap();
     let scenario1 = DBScenario {
         scenario_name: "Data in single open chunk of mutable buffer".into(),
         db,
@@ -273,9 +281,9 @@ pub async fn make_two_chunk_scenarios(
     // spread across 2 mutable buffer chunks
     let db = make_db();
     let mut writer = TestLPWriter::default();
-    writer.write_lp_string(&db, data1).await.unwrap();
+    writer.write_lp_string(&db, data1).unwrap();
     db.rollover_partition(partition_key).await.unwrap();
-    writer.write_lp_string(&db, data2).await.unwrap();
+    writer.write_lp_string(&db, data2).unwrap();
     let scenario2 = DBScenario {
         scenario_name: "Data in one open chunk and one closed chunk of mutable buffer".into(),
         db,
@@ -284,15 +292,12 @@ pub async fn make_two_chunk_scenarios(
     // spread across 1 mutable buffer, 1 read buffer chunks
     let db = make_db();
     let mut writer = TestLPWriter::default();
-    writer.write_lp_string(&db, data1).await.unwrap();
+    writer.write_lp_string(&db, data1).unwrap();
     db.rollover_partition(partition_key).await.unwrap();
     db.load_chunk_to_read_buffer(partition_key, 0)
         .await
         .unwrap();
-    db.drop_mutable_buffer_chunk(partition_key, 0)
-        .await
-        .unwrap();
-    writer.write_lp_string(&db, data2).await.unwrap();
+    writer.write_lp_string(&db, data2).unwrap();
     let scenario3 = DBScenario {
         scenario_name: "Data in open chunk of mutable buffer, and one chunk of read buffer".into(),
         db,
@@ -301,22 +306,16 @@ pub async fn make_two_chunk_scenarios(
     // in 2 read buffer chunks
     let db = make_db();
     let mut writer = TestLPWriter::default();
-    writer.write_lp_string(&db, data1).await.unwrap();
+    writer.write_lp_string(&db, data1).unwrap();
     db.rollover_partition(partition_key).await.unwrap();
-    writer.write_lp_string(&db, data2).await.unwrap();
+    writer.write_lp_string(&db, data2).unwrap();
     db.rollover_partition(partition_key).await.unwrap();
 
     db.load_chunk_to_read_buffer(partition_key, 0)
         .await
         .unwrap();
-    db.drop_mutable_buffer_chunk(partition_key, 0)
-        .await
-        .unwrap();
 
     db.load_chunk_to_read_buffer(partition_key, 1)
-        .await
-        .unwrap();
-    db.drop_mutable_buffer_chunk(partition_key, 1)
         .await
         .unwrap();
     let scenario4 = DBScenario {

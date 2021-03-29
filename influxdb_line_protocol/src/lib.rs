@@ -30,6 +30,7 @@ use snafu::{ResultExt, Snafu};
 use std::cmp::Ordering;
 use std::{
     borrow::Cow,
+    char,
     collections::{btree_map::Entry, BTreeMap},
     fmt,
     ops::Deref,
@@ -675,7 +676,12 @@ fn field_uinteger_value(i: &str) -> IResult<&str, u64> {
 }
 
 fn field_float_value(i: &str) -> IResult<&str, f64> {
-    let value = alt((field_float_value_with_decimal, field_float_value_no_decimal));
+    let value = alt((
+        field_float_value_with_exponential_and_decimal,
+        field_float_value_with_exponential_no_decimal,
+        field_float_value_with_decimal,
+        field_float_value_no_decimal,
+    ));
     map_fail(value, |value| {
         value.parse().context(FloatValueInvalid { value })
     })(i)
@@ -683,6 +689,26 @@ fn field_float_value(i: &str) -> IResult<&str, f64> {
 
 fn field_float_value_with_decimal(i: &str) -> IResult<&str, &str> {
     recognize(separated_pair(integral_value_signed, tag("."), digit1))(i)
+}
+
+fn field_float_value_with_exponential_and_decimal(i: &str) -> IResult<&str, &str> {
+    recognize(separated_pair(
+        integral_value_signed,
+        tag("."),
+        exponential_value,
+    ))(i)
+}
+
+fn field_float_value_with_exponential_no_decimal(i: &str) -> IResult<&str, &str> {
+    exponential_value(i)
+}
+
+fn exponential_value(i: &str) -> IResult<&str, &str> {
+    recognize(separated_pair(
+        digit1,
+        tuple((alt((tag("e"), tag("E"))), alt((tag("-"), tag("+"))))),
+        digit1,
+    ))(i)
 }
 
 fn field_float_value_no_decimal(i: &str) -> IResult<&str, &str> {
@@ -1461,6 +1487,117 @@ mod test {
         let input = "m0 field=-1u 99";
         let parsed = parse(input);
 
+        assert!(
+            matches!(parsed, Err(super::Error::CannotParseEntireLine { .. })),
+            "Wrong error: {:?}",
+            parsed,
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn parse_scientific_float() -> Result {
+        // Positive tests
+        let input = "m0 field=-1.234456e+06 1615869152385000000";
+        let vals = parse(input)?;
+        assert_eq!(vals.len(), 1);
+
+        let input = "m0 field=-1.234456E+3 1615869152385000000";
+        let vals = parse(input)?;
+        assert_eq!(vals.len(), 1);
+
+        let input = "m0 field=1.234456e+02 1615869152385000000";
+        let vals = parse(input)?;
+        assert_eq!(vals.len(), 1);
+
+        let input = "m0 field=1.234456E+16 1615869152385000000";
+        let vals = parse(input)?;
+        assert_eq!(vals.len(), 1);
+
+        let input = "m0 field=1.234456E-16";
+        let vals = parse(input)?;
+        assert_eq!(vals.len(), 1);
+
+        let input = "m0 field=1.234456e-03";
+        let vals = parse(input)?;
+        assert_eq!(vals.len(), 1);
+
+        let input = "m0 field=1.234456e-0";
+        let vals = parse(input)?;
+        assert_eq!(vals.len(), 1);
+
+        /////////////////////
+        // Negative tests
+
+        // NO "+" sign
+        let input = "m0 field=-1.234456e06 1615869152385000000";
+        let parsed = parse(input);
+        assert!(
+            matches!(parsed, Err(super::Error::CannotParseEntireLine { .. })),
+            "Wrong error: {:?}",
+            parsed,
+        );
+
+        let input = "m0 field=1.234456e06 1615869152385000000";
+        let parsed = parse(input);
+        assert!(
+            matches!(parsed, Err(super::Error::CannotParseEntireLine { .. })),
+            "Wrong error: {:?}",
+            parsed,
+        );
+
+        let input = "m0 field=-1.234456E06 1615869152385000000";
+        let parsed = parse(input);
+        assert!(
+            matches!(parsed, Err(super::Error::CannotParseEntireLine { .. })),
+            "Wrong error: {:?}",
+            parsed,
+        );
+
+        let input = "m0 field=1.234456E06 1615869152385000000";
+        let parsed = parse(input);
+        assert!(
+            matches!(parsed, Err(super::Error::CannotParseEntireLine { .. })),
+            "Wrong error: {:?}",
+            parsed,
+        );
+
+        // No digits after e
+        let input = "m0 field=-1.234456e 1615869152385000000";
+        let parsed = parse(input);
+        assert!(
+            matches!(parsed, Err(super::Error::CannotParseEntireLine { .. })),
+            "Wrong error: {:?}",
+            parsed,
+        );
+
+        let input = "m0 field=-1.234456e+ 1615869152385000000";
+        let parsed = parse(input);
+        assert!(
+            matches!(parsed, Err(super::Error::CannotParseEntireLine { .. })),
+            "Wrong error: {:?}",
+            parsed,
+        );
+
+        let input = "m0 field=-1.234456E 1615869152385000000";
+        let parsed = parse(input);
+        assert!(
+            matches!(parsed, Err(super::Error::CannotParseEntireLine { .. })),
+            "Wrong error: {:?}",
+            parsed,
+        );
+
+        let input = "m0 field=-1.234456E+ 1615869152385000000";
+        let parsed = parse(input);
+        assert!(
+            matches!(parsed, Err(super::Error::CannotParseEntireLine { .. })),
+            "Wrong error: {:?}",
+            parsed,
+        );
+
+        let input = "m0 field=-1.234456E-";
+        let parsed = parse(input);
         assert!(
             matches!(parsed, Err(super::Error::CannotParseEntireLine { .. })),
             "Wrong error: {:?}",

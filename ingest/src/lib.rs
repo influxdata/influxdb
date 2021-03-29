@@ -11,15 +11,14 @@
     clippy::clone_on_ref_ptr
 )]
 
-use data_types::{
-    schema::{builder::InfluxSchemaBuilder, InfluxFieldType, Schema},
-    TIME_COLUMN_NAME,
-};
 use influxdb_line_protocol::{FieldValue, ParsedLine};
 use influxdb_tsm::{
     mapper::{ColumnData, MeasurementTable, TSMMeasurementMapper},
     reader::{BlockDecoder, TSMBlockReader, TSMIndexReader},
     BlockType, TSMError,
+};
+use internal_types::schema::{
+    builder::InfluxSchemaBuilder, InfluxFieldType, Schema, TIME_COLUMN_NAME,
 };
 use packers::{
     ByteArray, Error as TableError, IOxTableWriter, IOxTableWriterSource, Packer, Packers,
@@ -75,7 +74,7 @@ pub enum Error {
 
     #[snafu(display(r#"Error building schema: {}"#, source))]
     BuildingSchema {
-        source: data_types::schema::builder::Error,
+        source: internal_types::schema::builder::Error,
     },
 
     #[snafu(display(r#"Error writing to TableWriter: {}"#, source))]
@@ -96,8 +95,8 @@ pub enum Error {
     CouldNotFindColumn,
 }
 
-impl From<data_types::schema::builder::Error> for Error {
-    fn from(source: data_types::schema::builder::Error) -> Self {
+impl From<internal_types::schema::builder::Error> for Error {
+    fn from(source: internal_types::schema::builder::Error) -> Self {
         Self::BuildingSchema { source }
     }
 }
@@ -494,16 +493,11 @@ fn pack_lines<'a>(schema: &Schema, lines: &[ParsedLine<'a>]) -> Vec<Packers> {
         }
 
         if let Some(packer_for_row) = packer_map.get_mut(TIME_COLUMN_NAME) {
-            // The Rust implementation of the parquet writer doesn't support
-            // Nanosecond precision for timestamps yet, so we downconvert them here
-            // to microseconds
-            let timestamp_micros = line.timestamp.map(|timestamp_nanos| timestamp_nanos / 1000);
-
             // TODO(edd) why would line _not_ have a timestamp??? We should always have them
             packer_for_row
                 .packer()
                 .i64_packer_mut()
-                .push_option(timestamp_micros)
+                .push_option(line.timestamp)
         } else {
             panic!("No {} field present in schema...", TIME_COLUMN_NAME);
         }
@@ -820,7 +814,8 @@ impl TSMFileConverter {
         mut block_reader: impl BlockDecoder,
         m: &mut MeasurementTable,
     ) -> Result<(Schema, Vec<Packers>), Error> {
-        let mut builder = data_types::schema::builder::SchemaBuilder::new().measurement(&m.name);
+        let mut builder =
+            internal_types::schema::builder::SchemaBuilder::new().measurement(&m.name);
         let mut packed_columns: Vec<Packers> = Vec::new();
 
         let mut tks = Vec::new();
@@ -1099,11 +1094,11 @@ impl std::fmt::Debug for TSMFileConverter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types::{assert_column_eq, schema::InfluxColumnType};
     use influxdb_tsm::{
         reader::{BlockData, MockBlockDecoder},
         Block,
     };
+    use internal_types::{assert_column_eq, schema::InfluxColumnType};
     use packers::{Error as TableError, IOxTableWriter, IOxTableWriterSource, Packers};
     use test_helpers::approximately_equal;
 
@@ -1661,17 +1656,17 @@ mod tests {
         assert_eq!(bool_field_packer.get(7).unwrap(), &true);
         assert_eq!(bool_field_packer.get(8).unwrap(), &true);
 
-        // timestamp values (NB The timestamps are truncated to Microseconds)
+        // timestamp valuess
         let timestamp_packer = &packers[5].i64_packer();
-        assert_eq!(timestamp_packer.get(0).unwrap(), &1_590_488_773_254_420);
-        assert_eq!(timestamp_packer.get(1).unwrap(), &1_590_488_773_254_430);
-        assert_eq!(timestamp_packer.get(2).unwrap(), &1_590_488_773_254_440);
-        assert_eq!(timestamp_packer.get(3).unwrap(), &1_590_488_773_254_450);
-        assert_eq!(timestamp_packer.get(4).unwrap(), &1_590_488_773_254_460);
-        assert_eq!(timestamp_packer.get(5).unwrap(), &1_590_488_773_254_470);
-        assert_eq!(timestamp_packer.get(6).unwrap(), &1_590_488_773_254_480);
+        assert_eq!(timestamp_packer.get(0).unwrap(), &1_590_488_773_254_420_000);
+        assert_eq!(timestamp_packer.get(1).unwrap(), &1_590_488_773_254_430_000);
+        assert_eq!(timestamp_packer.get(2).unwrap(), &1_590_488_773_254_440_000);
+        assert_eq!(timestamp_packer.get(3).unwrap(), &1_590_488_773_254_450_000);
+        assert_eq!(timestamp_packer.get(4).unwrap(), &1_590_488_773_254_460_000);
+        assert_eq!(timestamp_packer.get(5).unwrap(), &1_590_488_773_254_470_000);
+        assert_eq!(timestamp_packer.get(6).unwrap(), &1_590_488_773_254_480_000);
         assert!(timestamp_packer.is_null(7));
-        assert_eq!(timestamp_packer.get(8).unwrap(), &1_590_488_773_254_490);
+        assert_eq!(timestamp_packer.get(8).unwrap(), &1_590_488_773_254_490_000);
 
         Ok(())
     }
@@ -1999,15 +1994,15 @@ mod tests {
         assert_eq!(
             packers[6],
             Packers::Integer(Packer::from(vec![
-                Some(3),
-                Some(4),
-                Some(5),
+                Some(3000),
+                Some(4000),
+                Some(5000),
                 Some(0),
-                Some(1),
-                Some(2),
-                Some(2),
-                Some(3),
-                Some(4),
+                Some(1000),
+                Some(2000),
+                Some(2000),
+                Some(3000),
+                Some(4000),
             ]))
         );
 

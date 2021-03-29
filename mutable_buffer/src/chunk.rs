@@ -9,7 +9,8 @@ use chrono::{DateTime, Utc};
 use generated_types::wal as wb;
 use std::collections::{BTreeSet, HashMap};
 
-use data_types::{partition_metadata::TableSummary, schema::Schema, selection::Selection};
+use data_types::partition_metadata::TableSummary;
+use internal_types::{schema::Schema, selection::Selection};
 
 use crate::{
     column::Column,
@@ -190,6 +191,16 @@ impl Chunk {
     pub fn mark_closed(&mut self) {
         assert!(self.time_closed.is_none());
         self.time_closed = Some(Utc::now())
+    }
+
+    // Add all tables names in this chunk to `names` if they are not already present
+    pub fn all_table_names(&self, names: &mut BTreeSet<String>) {
+        for &table_id in self.tables.keys() {
+            let table_name = self.dictionary.lookup_id(table_id).unwrap();
+            if !names.contains(table_name) {
+                names.insert(table_name.to_string());
+            }
+        }
     }
 
     /// Return all the names of the tables names in this chunk that match
