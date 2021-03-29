@@ -1347,7 +1347,7 @@ func TestMergeFilterRule(t *testing.T) {
 		{
 			Context: context.Background(),
 			Name:    "merge filter on",
-			Rules:   []plan.Rule{influxdb.MergeFiltersRule{}},
+			Rules:   []plan.Rule{universe.MergeFiltersRule{}},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.Node{
 					plan.CreatePhysicalNode("from", from),
