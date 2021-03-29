@@ -8,8 +8,15 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/kit/platform"
-	platformtesting "github.com/influxdata/influxdb/testing"
 )
+
+func MustIDBase16(s string) platform.ID {
+	id, err := platform.IDFromString(s)
+	if err != nil {
+		panic(err)
+	}
+	return *id
+}
 
 func TestIDFromString(t *testing.T) {
 	tests := []struct {
@@ -28,12 +35,12 @@ func TestIDFromString(t *testing.T) {
 		{
 			name: "Should be able to decode an all f ID",
 			id:   "ffffffffffffffff",
-			want: platformtesting.MustIDBase16("ffffffffffffffff"),
+			want: MustIDBase16("ffffffffffffffff"),
 		},
 		{
 			name: "Should be able to decode an ID",
 			id:   "020f755c3c082000",
-			want: platformtesting.MustIDBase16("020f755c3c082000"),
+			want: MustIDBase16("020f755c3c082000"),
 		},
 		{
 			name:    "Should not be able to decode a non hex ID",
