@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/http"
 
 	"github.com/influxdata/httprouter"
@@ -18,7 +19,7 @@ const (
 // the SessionHandler.
 type SessionBackend struct {
 	log *zap.Logger
-	platform.HTTPErrorHandler
+	errors.HTTPErrorHandler
 
 	PasswordsService platform.PasswordsService
 	SessionService   platform.SessionService
@@ -40,7 +41,7 @@ func NewSessionBackend(log *zap.Logger, b *APIBackend) *SessionBackend {
 // SessionHandler represents an HTTP API handler for authorizations.
 type SessionHandler struct {
 	*httprouter.Router
-	platform.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	log *zap.Logger
 
 	PasswordsService platform.PasswordsService
@@ -104,11 +105,11 @@ type signinRequest struct {
 	Password string
 }
 
-func decodeSigninRequest(ctx context.Context, r *http.Request) (*signinRequest, *platform.Error) {
+func decodeSigninRequest(ctx context.Context, r *http.Request) (*signinRequest, *errors.Error) {
 	u, p, ok := r.BasicAuth()
 	if !ok {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "invalid basic auth",
 		}
 	}
@@ -165,8 +166,8 @@ func encodeCookieSession(w http.ResponseWriter, s *platform.Session) {
 func decodeCookieSession(ctx context.Context, r *http.Request) (string, error) {
 	c, err := r.Cookie(cookieSessionName)
 	if err != nil {
-		return "", &platform.Error{
-			Code: platform.EInvalid,
+		return "", &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}

@@ -2,6 +2,7 @@ package authorizer_test
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
@@ -14,7 +15,7 @@ import (
 func TestPasswordService(t *testing.T) {
 	t.Run("SetPassword", func(t *testing.T) {
 		t.Run("user with permissions should proceed", func(t *testing.T) {
-			userID := influxdb.ID(1)
+			userID := platform.ID(1)
 
 			permission := influxdb.Permission{
 				Action: influxdb.WriteAction,
@@ -25,7 +26,7 @@ func TestPasswordService(t *testing.T) {
 			}
 
 			fakeSVC := mock.NewPasswordsService()
-			fakeSVC.SetPasswordFn = func(_ context.Context, _ influxdb.ID, _ string) error {
+			fakeSVC.SetPasswordFn = func(_ context.Context, _ platform.ID, _ string) error {
 				return nil
 			}
 			s := authorizer.NewPasswordService(fakeSVC)
@@ -37,8 +38,8 @@ func TestPasswordService(t *testing.T) {
 		})
 
 		t.Run("user without permissions should proceed", func(t *testing.T) {
-			goodUserID := influxdb.ID(1)
-			badUserID := influxdb.ID(3)
+			goodUserID := platform.ID(1)
+			badUserID := platform.ID(3)
 
 			tests := []struct {
 				name          string
@@ -82,7 +83,7 @@ func TestPasswordService(t *testing.T) {
 			for _, tt := range tests {
 				fn := func(t *testing.T) {
 					fakeSVC := &mock.PasswordsService{
-						SetPasswordFn: func(_ context.Context, _ influxdb.ID, _ string) error {
+						SetPasswordFn: func(_ context.Context, _ platform.ID, _ string) error {
 							return nil
 						},
 					}

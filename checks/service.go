@@ -3,6 +3,8 @@ package checks
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
@@ -26,7 +28,7 @@ type Service struct {
 	tasks influxdb.TaskService
 
 	timeGenerator influxdb.TimeGenerator
-	idGenerator   influxdb.IDGenerator
+	idGenerator   platform.IDGenerator
 
 	checkStore *kv.IndexStore
 }
@@ -83,7 +85,7 @@ func newCheckStore() *kv.IndexStore {
 }
 
 // FindCheckByID retrieves a check by id.
-func (s *Service) FindCheckByID(ctx context.Context, id influxdb.ID) (influxdb.Check, error) {
+func (s *Service) FindCheckByID(ctx context.Context, id platform.ID) (influxdb.Check, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -103,7 +105,7 @@ func (s *Service) FindCheckByID(ctx context.Context, id influxdb.ID) (influxdb.C
 	return c, nil
 }
 
-func (s *Service) findCheckByID(ctx context.Context, tx kv.Tx, id influxdb.ID) (influxdb.Check, error) {
+func (s *Service) findCheckByID(ctx context.Context, tx kv.Tx, id platform.ID) (influxdb.Check, error) {
 	chkVal, err := s.checkStore.FindEnt(ctx, tx, kv.Entity{PK: kv.EncID(id)})
 	if err != nil {
 		return nil, err
@@ -111,7 +113,7 @@ func (s *Service) findCheckByID(ctx context.Context, tx kv.Tx, id influxdb.ID) (
 	return chkVal.(influxdb.Check), nil
 }
 
-func (s *Service) findCheckByName(ctx context.Context, tx kv.Tx, orgID influxdb.ID, name string) (influxdb.Check, error) {
+func (s *Service) findCheckByName(ctx context.Context, tx kv.Tx, orgID platform.ID, name string) (influxdb.Check, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -119,8 +121,8 @@ func (s *Service) findCheckByName(ctx context.Context, tx kv.Tx, orgID influxdb.
 		UniqueKey: kv.Encode(kv.EncID(orgID), kv.EncString(name)),
 	})
 	if kv.IsNotFound(err) {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return nil, &errors.Error{
+			Code: errors.ENotFound,
 			Err:  err,
 		}
 	}
@@ -186,8 +188,8 @@ func (s *Service) FindCheck(ctx context.Context, filter influxdb.CheckFilter) (i
 	}
 
 	if c == nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return nil, &errors.Error{
+			Code: errors.ENotFound,
 			Msg:  "check not found",
 		}
 	}
@@ -227,7 +229,7 @@ func (s *Service) FindChecks(ctx context.Context, filter influxdb.CheckFilter, o
 	if filter.Org != nil {
 		o, err := s.orgs.FindOrganization(ctx, influxdb.OrganizationFilter{Name: filter.Org})
 		if err != nil {
-			return nil, 0, &influxdb.Error{Err: err}
+			return nil, 0, &errors.Error{Err: err}
 		}
 
 		filter.OrgID = &o.ID
@@ -270,7 +272,7 @@ func (s *Service) FindChecks(ctx context.Context, filter influxdb.CheckFilter, o
 }
 
 // CreateCheck creates a influxdb check and sets ID.
-func (s *Service) CreateCheck(ctx context.Context, c influxdb.CheckCreate, userID influxdb.ID) (err error) {
+func (s *Service) CreateCheck(ctx context.Context, c influxdb.CheckCreate, userID platform.ID) (err error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -280,8 +282,8 @@ func (s *Service) CreateCheck(ctx context.Context, c influxdb.CheckCreate, userI
 
 	if c.GetOrgID().Valid() {
 		if _, err := s.orgs.FindOrganizationByID(ctx, c.GetOrgID()); err != nil {
-			return &influxdb.Error{
-				Code: influxdb.ENotFound,
+			return &errors.Error{
+				Code: errors.ENotFound,
 				Op:   influxdb.OpCreateCheck,
 				Err:  err,
 			}
@@ -301,8 +303,8 @@ func (s *Service) CreateCheck(ctx context.Context, c influxdb.CheckCreate, userI
 	// create task initially in inactive state
 	t, err := s.createCheckTask(ctx, c)
 	if err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Could not create task from check",
 			Err:  err,
 		}
@@ -378,7 +380,7 @@ func (s *Service) putCheck(ctx context.Context, tx kv.Tx, c influxdb.Check, opts
 }
 
 // PatchCheck updates a check according the parameters set on upd.
-func (s *Service) PatchCheck(ctx context.Context, id influxdb.ID, upd influxdb.CheckUpdate) (influxdb.Check, error) {
+func (s *Service) PatchCheck(ctx context.Context, id platform.ID, upd influxdb.CheckUpdate) (influxdb.Check, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -408,7 +410,7 @@ func (s *Service) PatchCheck(ctx context.Context, id influxdb.ID, upd influxdb.C
 }
 
 // UpdateCheck updates the check.
-func (s *Service) UpdateCheck(ctx context.Context, id influxdb.ID, chk influxdb.CheckCreate) (influxdb.Check, error) {
+func (s *Service) UpdateCheck(ctx context.Context, id platform.ID, chk influxdb.CheckCreate) (influxdb.Check, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -453,7 +455,7 @@ func (s *Service) updateCheckTask(ctx context.Context, chk influxdb.CheckCreate)
 	return err
 }
 
-func (s *Service) patchCheckTask(ctx context.Context, taskID influxdb.ID, upd influxdb.CheckUpdate) error {
+func (s *Service) patchCheckTask(ctx context.Context, taskID platform.ID, upd influxdb.CheckUpdate) error {
 	tu := influxdb.TaskUpdate{
 		Description: upd.Description,
 	}
@@ -469,7 +471,7 @@ func (s *Service) patchCheckTask(ctx context.Context, taskID influxdb.ID, upd in
 	return nil
 }
 
-func (s *Service) updateCheck(ctx context.Context, tx kv.Tx, id influxdb.ID, chk influxdb.CheckCreate) (influxdb.Check, error) {
+func (s *Service) updateCheck(ctx context.Context, tx kv.Tx, id platform.ID, chk influxdb.CheckCreate) (influxdb.Check, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -483,8 +485,8 @@ func (s *Service) updateCheck(ctx context.Context, tx kv.Tx, id influxdb.ID, chk
 	if chk.GetName() != current.GetName() {
 		c0, err := s.findCheckByName(ctx, tx, current.GetOrgID(), chk.GetName())
 		if err == nil && c0.GetID() != id {
-			return nil, &influxdb.Error{
-				Code: influxdb.EConflict,
+			return nil, &errors.Error{
+				Code: errors.EConflict,
 				Msg:  "check name is not unique",
 			}
 		}
@@ -542,7 +544,7 @@ func (s *Service) patchCheck(ctx context.Context, tx kv.Tx, check influxdb.Check
 }
 
 // DeleteCheck deletes a check and prunes it from the index.
-func (s *Service) DeleteCheck(ctx context.Context, id influxdb.ID) error {
+func (s *Service) DeleteCheck(ctx context.Context, id platform.ID) error {
 	ch, err := s.FindCheckByID(ctx, id)
 	if err != nil {
 		return err

@@ -2,6 +2,7 @@ package influxdb
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io"
 	"time"
 )
@@ -25,7 +26,7 @@ type RestoreService interface {
 	RestoreKVStore(ctx context.Context, r io.Reader) error
 
 	// RestoreKVStore restores the metadata database.
-	RestoreBucket(ctx context.Context, id ID, rpiData []byte) (shardIDMap map[uint64]uint64, err error)
+	RestoreBucket(ctx context.Context, id platform.ID, rpiData []byte) (shardIDMap map[uint64]uint64, err error)
 
 	// RestoreShard uploads a backup file for a single shard.
 	RestoreShard(ctx context.Context, shardID uint64, r io.Reader) error

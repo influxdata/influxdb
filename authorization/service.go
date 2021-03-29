@@ -2,6 +2,8 @@ package authorization
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
@@ -27,7 +29,7 @@ func NewService(st *Store, ts TenantService) influxdb.AuthorizationService {
 
 func (s *Service) CreateAuthorization(ctx context.Context, a *influxdb.Authorization) error {
 	if err := a.Valid(); err != nil {
-		return &influxdb.Error{
+		return &errors.Error{
 			Err: err,
 		}
 	}
@@ -53,7 +55,7 @@ func (s *Service) CreateAuthorization(ctx context.Context, a *influxdb.Authoriza
 	if a.Token == "" {
 		token, err := s.tokenGenerator.Token()
 		if err != nil {
-			return &influxdb.Error{
+			return &errors.Error{
 				Err: err,
 			}
 		}
@@ -69,7 +71,7 @@ func (s *Service) CreateAuthorization(ctx context.Context, a *influxdb.Authoriza
 	})
 }
 
-func (s *Service) FindAuthorizationByID(ctx context.Context, id influxdb.ID) (*influxdb.Authorization, error) {
+func (s *Service) FindAuthorizationByID(ctx context.Context, id platform.ID) (*influxdb.Authorization, error) {
 	var a *influxdb.Authorization
 	err := s.store.View(ctx, func(tx kv.Tx) error {
 		auth, err := s.store.GetAuthorizationByID(ctx, tx, id)
@@ -124,7 +126,7 @@ func (s *Service) FindAuthorizations(ctx context.Context, filter influxdb.Author
 			return nil
 		})
 		if err != nil {
-			return nil, 0, &influxdb.Error{
+			return nil, 0, &errors.Error{
 				Err: err,
 			}
 		}
@@ -143,7 +145,7 @@ func (s *Service) FindAuthorizations(ctx context.Context, filter influxdb.Author
 			return nil
 		})
 		if err != nil {
-			return nil, 0, &influxdb.Error{
+			return nil, 0, &errors.Error{
 				Err: err,
 			}
 		}
@@ -162,7 +164,7 @@ func (s *Service) FindAuthorizations(ctx context.Context, filter influxdb.Author
 	})
 
 	if err != nil {
-		return nil, 0, &influxdb.Error{
+		return nil, 0, &errors.Error{
 			Err: err,
 		}
 	}
@@ -171,7 +173,7 @@ func (s *Service) FindAuthorizations(ctx context.Context, filter influxdb.Author
 }
 
 // UpdateAuthorization updates the status and description if available.
-func (s *Service) UpdateAuthorization(ctx context.Context, id influxdb.ID, upd *influxdb.AuthorizationUpdate) (*influxdb.Authorization, error) {
+func (s *Service) UpdateAuthorization(ctx context.Context, id platform.ID, upd *influxdb.AuthorizationUpdate) (*influxdb.Authorization, error) {
 	var auth *influxdb.Authorization
 	err := s.store.View(ctx, func(tx kv.Tx) error {
 		a, e := s.store.GetAuthorizationByID(ctx, tx, id)
@@ -183,8 +185,8 @@ func (s *Service) UpdateAuthorization(ctx context.Context, id influxdb.ID, upd *
 	})
 
 	if err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return nil, &errors.Error{
+			Code: errors.ENotFound,
 			Err:  err,
 		}
 	}
@@ -209,7 +211,7 @@ func (s *Service) UpdateAuthorization(ctx context.Context, id influxdb.ID, upd *
 	return auth, err
 }
 
-func (s *Service) DeleteAuthorization(ctx context.Context, id influxdb.ID) error {
+func (s *Service) DeleteAuthorization(ctx context.Context, id platform.ID) error {
 	return s.store.Update(ctx, func(tx kv.Tx) (err error) {
 		return s.store.DeleteAuthorization(ctx, tx, id)
 	})

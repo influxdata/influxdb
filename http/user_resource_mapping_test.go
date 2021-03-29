@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -41,7 +42,7 @@ func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
 			name: "get members",
 			fields: fields{
 				userService: &mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id platform2.ID) (*platform.User, error) {
 						return &platform.User{ID: id, Name: fmt.Sprintf("user%s", id), Status: platform.Active}, nil
 					},
 				},
@@ -107,7 +108,7 @@ func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
 			name: "get owners",
 			fields: fields{
 				userService: &mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id platform2.ID) (*platform.User, error) {
 						return &platform.User{ID: id, Name: fmt.Sprintf("user%s", id), Status: platform.Active}, nil
 					},
 				},
@@ -249,7 +250,7 @@ func TestUserResourceMappingService_PostMembersHandler(t *testing.T) {
 			name: "post members",
 			fields: fields{
 				userService: &mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id platform2.ID) (*platform.User, error) {
 						return &platform.User{ID: id, Name: fmt.Sprintf("user%s", id), Status: platform.Active}, nil
 					},
 				},
@@ -289,7 +290,7 @@ func TestUserResourceMappingService_PostMembersHandler(t *testing.T) {
 			name: "post owners",
 			fields: fields{
 				userService: &mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id platform2.ID) (*platform.User, error) {
 						return &platform.User{ID: id, Name: fmt.Sprintf("user%s", id), Status: platform.Active}, nil
 					},
 				},

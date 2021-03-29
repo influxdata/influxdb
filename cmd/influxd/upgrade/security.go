@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"sort"
 
 	platform "github.com/influxdata/influxdb/v2"
@@ -21,7 +22,7 @@ func upgradeUsers(
 	v1 *influxDBv1,
 	v2 *influxDBv2,
 	targetOptions *optionsV2,
-	dbBuckets map[string][]platform.ID,
+	dbBuckets map[string][]platform2.ID,
 	log *zap.Logger,
 ) (int, error) {
 	// check if there any 1.x users at all
@@ -128,7 +129,7 @@ func newSecurityUpgradeHelper(log *zap.Logger) *securityUpgradeHelper {
 
 	return helper
 }
-func (h *securityUpgradeHelper) checkDbBuckets(meta *meta.Client, databases map[string][]platform.ID) bool {
+func (h *securityUpgradeHelper) checkDbBuckets(meta *meta.Client, databases map[string][]platform2.ID) bool {
 	ok := true
 	for _, row := range meta.Users() {
 		for database := range row.Privileges {

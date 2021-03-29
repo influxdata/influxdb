@@ -3,6 +3,7 @@ package tenant
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
@@ -48,7 +49,7 @@ func (l *URMLogger) FindUserResourceMappings(ctx context.Context, filter influxd
 	return l.urmService.FindUserResourceMappings(ctx, filter, opt...)
 }
 
-func (l *URMLogger) DeleteUserResourceMapping(ctx context.Context, resourceID, userID influxdb.ID) (err error) {
+func (l *URMLogger) DeleteUserResourceMapping(ctx context.Context, resourceID, userID platform.ID) (err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {

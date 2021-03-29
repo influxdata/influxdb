@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/internal"
@@ -236,7 +237,7 @@ type (
 
 	secret struct {
 		key   string
-		orgID influxdb.ID
+		orgID platform.ID
 	}
 )
 

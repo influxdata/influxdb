@@ -2,6 +2,7 @@ package influxdb
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"time"
 )
 
@@ -39,22 +40,22 @@ type OnboardingRequest struct {
 
 func (r *OnboardingRequest) Valid() error {
 	if r.User == "" {
-		return &Error{
-			Code: EEmptyValue,
+		return &errors.Error{
+			Code: errors.EEmptyValue,
 			Msg:  "username is empty",
 		}
 	}
 
 	if r.Org == "" {
-		return &Error{
-			Code: EEmptyValue,
+		return &errors.Error{
+			Code: errors.EEmptyValue,
 			Msg:  "org name is empty",
 		}
 	}
 
 	if r.Bucket == "" {
-		return &Error{
-			Code: EEmptyValue,
+		return &errors.Error{
+			Code: errors.EEmptyValue,
 			Msg:  "bucket name is empty",
 		}
 	}

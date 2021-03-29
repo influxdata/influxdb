@@ -3,9 +3,9 @@ package influxdb
 import (
 	"context"
 	"fmt"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"time"
 
-	platform "github.com/influxdata/influxdb/v2"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -54,7 +54,7 @@ func (m *metrics) PrometheusCollectors() []prometheus.Collector {
 	}
 }
 
-func (m *metrics) getLabelValues(ctx context.Context, orgID platform.ID, op string) []string {
+func (m *metrics) getLabelValues(ctx context.Context, orgID platform2.ID, op string) []string {
 	if m == nil {
 		return nil
 	}

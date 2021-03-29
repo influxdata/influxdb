@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"io"
 	"net/http"
 	"time"
 
-	platform "github.com/influxdata/influxdb/v2"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
 	"go.uber.org/zap"
@@ -30,10 +30,10 @@ const (
 // Tracer implements opentracing.Tracer and logs each span as its own log.
 type Tracer struct {
 	log         *zap.Logger
-	idGenerator platform.IDGenerator
+	idGenerator platform2.IDGenerator
 }
 
-func NewTracer(log *zap.Logger, idGenerator platform.IDGenerator) *Tracer {
+func NewTracer(log *zap.Logger, idGenerator platform2.IDGenerator) *Tracer {
 	return &Tracer{
 		log:         log,
 		idGenerator: idGenerator,
@@ -265,8 +265,8 @@ func (s *Span) Log(data opentracing.LogData) {
 
 // SpanContext implements opentracing.SpanContext, all span contexts must be created using the Tracer.
 type SpanContext struct {
-	traceID platform.ID
-	spanID  platform.ID
+	traceID platform2.ID
+	spanID  platform2.ID
 	baggage map[string]string
 }
 
@@ -286,8 +286,8 @@ func (c SpanContext) ForeachBaggageItem(handler func(k, v string) bool) {
 
 func (c SpanContext) MarshalJSON() ([]byte, error) {
 	raw := struct {
-		TraceID platform.ID       `json:"trace_id"`
-		SpanID  platform.ID       `json:"span_id"`
+		TraceID platform2.ID      `json:"trace_id"`
+		SpanID  platform2.ID      `json:"span_id"`
 		Baggage map[string]string `json:"baggage"`
 	}{
 		TraceID: c.traceID,
@@ -299,8 +299,8 @@ func (c SpanContext) MarshalJSON() ([]byte, error) {
 
 func (c *SpanContext) UnmarshalJSON(data []byte) error {
 	raw := struct {
-		TraceID platform.ID       `json:"trace_id"`
-		SpanID  platform.ID       `json:"span_id"`
+		TraceID platform2.ID      `json:"trace_id"`
+		SpanID  platform2.ID      `json:"span_id"`
 		Baggage map[string]string `json:"baggage"`
 	}{
 		TraceID: c.traceID,

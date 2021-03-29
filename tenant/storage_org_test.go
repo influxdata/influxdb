@@ -3,6 +3,7 @@ package tenant_test
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 	"time"
 
@@ -22,7 +23,7 @@ import (
 // }
 
 const (
-	firstOrgID influxdb.ID = (iota + 1)
+	firstOrgID platform.ID = (iota + 1)
 	secondOrgID
 	thirdOrgID
 	fourthOrgID
@@ -35,7 +36,7 @@ func TestOrg(t *testing.T) {
 		testOrgs = func(count int, visit ...func(*influxdb.Organization)) (orgs []*influxdb.Organization) {
 			for i := 1; i <= count; i++ {
 				org := &influxdb.Organization{
-					ID:          influxdb.ID(i),
+					ID:          platform.ID(i),
 					Name:        fmt.Sprintf("org%d", i),
 					Description: "words",
 				}

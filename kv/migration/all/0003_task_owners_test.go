@@ -3,9 +3,9 @@ package all
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
 )
 
@@ -40,7 +40,7 @@ func Test_(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	idType, _ := influxdb.IDFromString(id)
+	idType, _ := platform.IDFromString(id)
 	task, err := ts.Service.FindTaskByID(context.Background(), *idType)
 	if err != nil {
 		t.Fatal(err)

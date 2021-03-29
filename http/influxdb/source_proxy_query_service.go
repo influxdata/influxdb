@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"io"
 	"net/http"
 
@@ -22,7 +23,7 @@ import (
 type SourceProxyQueryService struct {
 	InsecureSkipVerify bool
 	URL                string
-	OrganizationID     platform.ID
+	OrganizationID     platform2.ID
 	platform.SourceFields
 	platform.V1SourceFields
 }

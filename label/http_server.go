@@ -3,6 +3,7 @@ package label
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"net/http"
 
 	"github.com/go-chi/chi"
@@ -108,7 +109,7 @@ func (h *LabelHandler) handlePostLabel(w http.ResponseWriter, r *http.Request) {
 
 // handleGetLabel is the HTTP handler for the GET /api/v2/labels/id route.
 func (h *LabelHandler) handleGetLabel(w http.ResponseWriter, r *http.Request) {
-	id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
+	id, err := platform.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -134,7 +135,7 @@ func (h *LabelHandler) handleGetLabels(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if orgID := qp.Get("orgID"); orgID != "" {
-		i, err := influxdb.IDFromString(orgID)
+		i, err := platform.IDFromString(orgID)
 		if err == nil {
 			filter.OrgID = i
 		}
@@ -152,7 +153,7 @@ func (h *LabelHandler) handleGetLabels(w http.ResponseWriter, r *http.Request) {
 
 // handlePatchLabel is the HTTP handler for the PATCH /api/v2/labels route.
 func (h *LabelHandler) handlePatchLabel(w http.ResponseWriter, r *http.Request) {
-	id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
+	id, err := platform.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -177,7 +178,7 @@ func (h *LabelHandler) handlePatchLabel(w http.ResponseWriter, r *http.Request) 
 // handleDeleteLabel is the HTTP handler for the DELETE /api/v2/labels/:id route.
 func (h *LabelHandler) handleDeleteLabel(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
+	id, err := platform.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
 		h.api.Err(w, r, err)
 		return

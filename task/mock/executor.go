@@ -4,6 +4,7 @@ package mock
 import (
 	"context"
 	"errors"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"sync"
 	"time"
 
@@ -24,7 +25,7 @@ type promise struct {
 }
 
 // ID is the id of the run that was created
-func (p *promise) ID() influxdb.ID {
+func (p *promise) ID() platform.ID {
 	return p.run.ID
 }
 
@@ -101,7 +102,7 @@ func (e *Executor) Execute(ctx context.Context, id scheduler.ID, scheduledAt tim
 	return nil
 }
 
-func (e *Executor) ManualRun(ctx context.Context, id influxdb.ID, runID influxdb.ID) (executor.Promise, error) {
+func (e *Executor) ManualRun(ctx context.Context, id platform.ID, runID platform.ID) (executor.Promise, error) {
 	run := &influxdb.Run{ID: runID, TaskID: id, StartedAt: time.Now().UTC()}
 	p, err := e.createPromise(ctx, run)
 	return p, err
@@ -111,7 +112,7 @@ func (e *Executor) Wait() {
 	e.wg.Wait()
 }
 
-func (e *Executor) Cancel(context.Context, influxdb.ID) error {
+func (e *Executor) Cancel(context.Context, platform.ID) error {
 	return nil
 }
 

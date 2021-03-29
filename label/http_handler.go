@@ -3,6 +3,8 @@ package label
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/http"
 
 	"github.com/go-chi/chi"
@@ -31,14 +33,14 @@ func NewHTTPEmbeddedHandler(log *zap.Logger, rt influxdb.ResourceType, ls influx
 
 	r := chi.NewRouter()
 	r.NotFound(func(w http.ResponseWriter, r *http.Request) {
-		h.api.Err(w, r, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		h.api.Err(w, r, &errors.Error{
+			Code: errors.ENotFound,
 			Msg:  "path not found",
 		})
 	})
 	r.MethodNotAllowed(func(w http.ResponseWriter, r *http.Request) {
-		h.api.Err(w, r, &influxdb.Error{
-			Code: influxdb.EMethodNotAllowed,
+		h.api.Err(w, r, &errors.Error{
+			Code: errors.EMethodNotAllowed,
 			Msg:  fmt.Sprintf("allow: %s", w.Header().Get("Allow")),
 		})
 
@@ -66,7 +68,7 @@ func NewHTTPEmbeddedHandler(log *zap.Logger, rt influxdb.ResourceType, ls influx
 func (h *LabelEmbeddedHandler) handlePostLabelMapping(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	embeddedID, err := influxdb.IDFromString(chi.URLParam(r, "id"))
+	embeddedID, err := platform.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -74,8 +76,8 @@ func (h *LabelEmbeddedHandler) handlePostLabelMapping(w http.ResponseWriter, r *
 
 	mapping := &influxdb.LabelMapping{}
 	if err := json.NewDecoder(r.Body).Decode(mapping); err != nil {
-		h.api.Err(w, r, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		h.api.Err(w, r, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Invalid post label map request",
 		})
 	}
@@ -106,7 +108,7 @@ func (h *LabelEmbeddedHandler) handlePostLabelMapping(w http.ResponseWriter, r *
 func (h *LabelEmbeddedHandler) handleFindResourceLabels(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	embeddedID, err := influxdb.IDFromString(chi.URLParam(r, "id"))
+	embeddedID, err := platform.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -129,13 +131,13 @@ func (h *LabelEmbeddedHandler) handleFindResourceLabels(w http.ResponseWriter, r
 func (h *LabelEmbeddedHandler) handleDeleteLabelMapping(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	embeddedID, err := influxdb.IDFromString(chi.URLParam(r, "id"))
+	embeddedID, err := platform.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
 	}
 
-	labelID, err := influxdb.IDFromString(chi.URLParam(r, "labelID"))
+	labelID, err := platform.IDFromString(chi.URLParam(r, "labelID"))
 	if err != nil {
 		h.api.Err(w, r, err)
 		return

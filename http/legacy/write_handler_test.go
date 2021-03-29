@@ -3,6 +3,7 @@ package legacy
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -472,7 +473,7 @@ func (m pointsMatcher) String() string {
 	return fmt.Sprintf("%#v", m.points)
 }
 
-func newPermissions(action influxdb.Action, resourceType influxdb.ResourceType, orgID, id *influxdb.ID) []influxdb.Permission {
+func newPermissions(action influxdb.Action, resourceType influxdb.ResourceType, orgID, id *platform.ID) []influxdb.Permission {
 	return []influxdb.Permission{
 		{
 			Action: action,
@@ -485,7 +486,7 @@ func newPermissions(action influxdb.Action, resourceType influxdb.ResourceType, 
 	}
 }
 
-func newAuthorization(orgID influxdb.ID, permissions ...influxdb.Permission) *influxdb.Authorization {
+func newAuthorization(orgID platform.ID, permissions ...influxdb.Permission) *influxdb.Authorization {
 	return &influxdb.Authorization{
 		ID:          generator.ID(),
 		Status:      influxdb.Active,

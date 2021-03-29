@@ -2,8 +2,8 @@ package influxdb
 
 import (
 	"context"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 
-	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/pkg/errors"
@@ -16,11 +16,11 @@ type HostLookup interface {
 }
 
 type BucketLookup interface {
-	Lookup(ctx context.Context, orgID platform.ID, name string) (platform.ID, bool)
+	Lookup(ctx context.Context, orgID platform2.ID, name string) (platform2.ID, bool)
 }
 
 type OrganizationLookup interface {
-	Lookup(ctx context.Context, name string) (platform.ID, bool)
+	Lookup(ctx context.Context, name string) (platform2.ID, bool)
 }
 
 type FromDependencies struct {

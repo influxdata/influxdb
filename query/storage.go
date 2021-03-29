@@ -3,12 +3,12 @@ package query
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
@@ -26,8 +26,8 @@ type StorageReader interface {
 }
 
 type ReadFilterSpec struct {
-	OrganizationID influxdb.ID
-	BucketID       influxdb.ID
+	OrganizationID platform.ID
+	BucketID       platform.ID
 
 	Bounds    execute.Bounds
 	Predicate *datatypes.Predicate

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"sync"
 	"testing"
 	"time"
@@ -250,7 +251,7 @@ func (ts tables) Do(f func(flux.Table) error) error {
 func (ts tables) Statistics() flux.Statistics { return flux.Statistics{} }
 
 type testCreds struct {
-	OrgID, UserID influxdb.ID
+	OrgID, UserID platform.ID
 	Auth          *influxdb.Authorization
 }
 

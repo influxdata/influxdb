@@ -2,9 +2,10 @@ package tests
 
 import (
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
-func mergePerms(orgID influxdb.ID, in ...[]influxdb.Permission) []influxdb.Permission {
+func mergePerms(orgID platform.ID, in ...[]influxdb.Permission) []influxdb.Permission {
 	var perms []influxdb.Permission
 	for i := range in {
 		perms = append(perms, in[i]...)
@@ -15,7 +16,7 @@ func mergePerms(orgID influxdb.ID, in ...[]influxdb.Permission) []influxdb.Permi
 	return perms
 }
 
-func MakeBucketPerm(bucketID influxdb.ID, actions ...influxdb.Action) []influxdb.Permission {
+func MakeBucketPerm(bucketID platform.ID, actions ...influxdb.Action) []influxdb.Permission {
 	var perms []influxdb.Permission
 	for i := range actions {
 		perms = append(perms, influxdb.Permission{Action: actions[i], Resource: influxdb.Resource{ID: &bucketID, Type: influxdb.BucketsResourceType}})
@@ -23,11 +24,11 @@ func MakeBucketPerm(bucketID influxdb.ID, actions ...influxdb.Action) []influxdb
 	return perms
 }
 
-func MakeBucketRWPerm(bucketID influxdb.ID) []influxdb.Permission {
+func MakeBucketRWPerm(bucketID platform.ID) []influxdb.Permission {
 	return MakeBucketPerm(bucketID, []influxdb.Action{influxdb.ReadAction, influxdb.WriteAction}...)
 }
 
-func MakeAuthorization(org, userID influxdb.ID, perms ...[]influxdb.Permission) *influxdb.Authorization {
+func MakeAuthorization(org, userID platform.ID, perms ...[]influxdb.Permission) *influxdb.Authorization {
 	return &influxdb.Authorization{
 		OrgID:       org,
 		UserID:      userID,

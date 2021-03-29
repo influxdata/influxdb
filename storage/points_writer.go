@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
@@ -11,7 +12,7 @@ import (
 
 // PointsWriter describes the ability to write points into a storage engine.
 type PointsWriter interface {
-	WritePoints(ctx context.Context, orgID influxdb.ID, bucketID influxdb.ID, points []models.Point) error
+	WritePoints(ctx context.Context, orgID platform.ID, bucketID platform.ID, points []models.Point) error
 }
 
 // LoggingPointsWriter wraps an underlying points writer but writes logs to
@@ -28,7 +29,7 @@ type LoggingPointsWriter struct {
 }
 
 // WritePoints writes points to the underlying PointsWriter. Logs on error.
-func (w *LoggingPointsWriter) WritePoints(ctx context.Context, orgID influxdb.ID, bucketID influxdb.ID, p []models.Point) error {
+func (w *LoggingPointsWriter) WritePoints(ctx context.Context, orgID platform.ID, bucketID platform.ID, p []models.Point) error {
 	if len(p) == 0 {
 		return nil
 	}
@@ -69,14 +70,14 @@ func (w *LoggingPointsWriter) WritePoints(ctx context.Context, orgID influxdb.ID
 
 type BufferedPointsWriter struct {
 	buf      []models.Point
-	orgID    influxdb.ID
-	bucketID influxdb.ID
+	orgID    platform.ID
+	bucketID platform.ID
 	n        int
 	wr       PointsWriter
 	err      error
 }
 
-func NewBufferedPointsWriter(orgID influxdb.ID, bucketID influxdb.ID, size int, pointswriter PointsWriter) *BufferedPointsWriter {
+func NewBufferedPointsWriter(orgID platform.ID, bucketID platform.ID, size int, pointswriter PointsWriter) *BufferedPointsWriter {
 	return &BufferedPointsWriter{
 		buf:      make([]models.Point, size),
 		orgID:    orgID,

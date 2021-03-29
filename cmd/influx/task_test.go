@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io/ioutil"
 	"testing"
 
@@ -17,7 +18,7 @@ import (
 //	Purpose of test suite:
 //   	checking if cmd line tool gives all data needed for TaskService to perform functions
 func TestCmdTask(t *testing.T) {
-	orgID := influxdb.ID(9000)
+	orgID := platform.ID(9000)
 
 	fakeSVCFn := func(svc influxdb.TaskService) taskSVCsFn {
 		return func() (influxdb.TaskService, influxdb.OrganizationService, error) {

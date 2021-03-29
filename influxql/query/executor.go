@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"os"
 	"runtime/debug"
 	"strconv"
 	"time"
 
-	"github.com/influxdata/influxdb/v2"
 	iql "github.com/influxdata/influxdb/v2/influxql"
 	"github.com/influxdata/influxdb/v2/influxql/control"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
@@ -103,7 +103,7 @@ func AuthorizerIsOpen(a Authorizer) bool {
 // ExecutionOptions contains the options for executing a query.
 type ExecutionOptions struct {
 	// OrgID is the organization for which this query is being executed.
-	OrgID influxdb.ID
+	OrgID platform.ID
 
 	// The database the query is running against.
 	Database string

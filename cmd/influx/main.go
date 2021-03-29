@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io"
 	"io/ioutil"
 	"os"
@@ -469,7 +471,7 @@ func checkSetupRunEMiddleware(f *globalFlags) cobraRunEMiddleware {
 			}
 
 			ac := f.config()
-			if setupErr := checkSetup(ac.Host, f.skipVerify); setupErr != nil && influxdb.EUnauthorized != influxdb.ErrorCode(setupErr) {
+			if setupErr := checkSetup(ac.Host, f.skipVerify); setupErr != nil && errors.EUnauthorized != errors.ErrorCode(setupErr) {
 				cmd.OutOrStderr().Write([]byte(fmt.Sprintf("Error: %s\n", internal.ErrorFmt(err).Error())))
 				return internal.ErrorFmt(setupErr)
 			}
@@ -510,16 +512,16 @@ func (o *organization) register(v *viper.Viper, cmd *cobra.Command, persistent b
 	opts.mustRegister(v, cmd)
 }
 
-func (o *organization) getID(orgSVC influxdb.OrganizationService) (influxdb.ID, error) {
+func (o *organization) getID(orgSVC influxdb.OrganizationService) (platform.ID, error) {
 	if o.id != "" {
-		influxOrgID, err := influxdb.IDFromString(o.id)
+		influxOrgID, err := platform.IDFromString(o.id)
 		if err != nil {
 			return 0, fmt.Errorf("invalid org ID '%s' provided (did you pass an org name instead of an ID?): %w", o.id, err)
 		}
 		return *influxOrgID, nil
 	}
 
-	getOrgByName := func(name string) (influxdb.ID, error) {
+	getOrgByName := func(name string) (platform.ID, error) {
 		org, err := orgSVC.FindOrganization(context.Background(), influxdb.OrganizationFilter{
 			Name: &name,
 		})

@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -73,7 +75,7 @@ func TestSecretService_handleGetSecrets(t *testing.T) {
 		SecretService influxdb.SecretService
 	}
 	type args struct {
-		orgID influxdb.ID
+		orgID platform.ID
 	}
 	type wants struct {
 		statusCode  int
@@ -91,7 +93,7 @@ func TestSecretService_handleGetSecrets(t *testing.T) {
 			name: "get basic secrets",
 			fields: fields{
 				&mock.SecretService{
-					GetSecretKeysFn: func(ctx context.Context, orgID influxdb.ID) ([]string, error) {
+					GetSecretKeysFn: func(ctx context.Context, orgID platform.ID) ([]string, error) {
 						return []string{"hello", "world"}, nil
 					},
 				},
@@ -109,7 +111,7 @@ func TestSecretService_handleGetSecrets(t *testing.T) {
 			name: "get secrets when there are none",
 			fields: fields{
 				&mock.SecretService{
-					GetSecretKeysFn: func(ctx context.Context, orgID influxdb.ID) ([]string, error) {
+					GetSecretKeysFn: func(ctx context.Context, orgID platform.ID) ([]string, error) {
 						return []string{}, nil
 					},
 				},
@@ -127,9 +129,9 @@ func TestSecretService_handleGetSecrets(t *testing.T) {
 			name: "get secrets when organization has no secret keys",
 			fields: fields{
 				&mock.SecretService{
-					GetSecretKeysFn: func(ctx context.Context, orgID influxdb.ID) ([]string, error) {
-						return []string{}, &influxdb.Error{
-							Code: influxdb.ENotFound,
+					GetSecretKeysFn: func(ctx context.Context, orgID platform.ID) ([]string, error) {
+						return []string{}, &errors.Error{
+							Code: errors.ENotFound,
 							Msg:  "organization has no secret keys",
 						}
 
@@ -183,7 +185,7 @@ func TestSecretService_handlePatchSecrets(t *testing.T) {
 		SecretService influxdb.SecretService
 	}
 	type args struct {
-		orgID   influxdb.ID
+		orgID   platform.ID
 		secrets map[string]string
 	}
 	type wants struct {
@@ -202,7 +204,7 @@ func TestSecretService_handlePatchSecrets(t *testing.T) {
 			name: "get basic secrets",
 			fields: fields{
 				&mock.SecretService{
-					PatchSecretsFn: func(ctx context.Context, orgID influxdb.ID, s map[string]string) error {
+					PatchSecretsFn: func(ctx context.Context, orgID platform.ID, s map[string]string) error {
 						return nil
 					},
 				},
@@ -262,7 +264,7 @@ func TestSecretService_handleDeleteSecrets(t *testing.T) {
 		SecretService influxdb.SecretService
 	}
 	type args struct {
-		orgID   influxdb.ID
+		orgID   platform.ID
 		secrets []string
 	}
 	type wants struct {
@@ -281,7 +283,7 @@ func TestSecretService_handleDeleteSecrets(t *testing.T) {
 			name: "get basic secrets",
 			fields: fields{
 				&mock.SecretService{
-					DeleteSecretFn: func(ctx context.Context, orgID influxdb.ID, s ...string) error {
+					DeleteSecretFn: func(ctx context.Context, orgID platform.ID, s ...string) error {
 						return nil
 					},
 				},

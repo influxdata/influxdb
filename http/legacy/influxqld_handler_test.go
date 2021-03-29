@@ -3,6 +3,7 @@ package legacy
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -94,8 +95,8 @@ func TestInfluxQLdHandler_HandleQuery(t *testing.T) {
 			fields: fields{
 				OrganizationService: &mock.OrganizationService{
 					FindOrganizationF: func(ctx context.Context, filter platform.OrganizationFilter) (*platform.Organization, error) {
-						return nil, &platform.Error{
-							Code: platform.EForbidden,
+						return nil, &errors.Error{
+							Code: errors.EForbidden,
 							Msg:  "nope",
 						}
 					},
@@ -123,8 +124,8 @@ func TestInfluxQLdHandler_HandleQuery(t *testing.T) {
 				},
 				ProxyQueryService: &imock.ProxyQueryService{
 					QueryF: func(ctx context.Context, w io.Writer, req *influxql.QueryRequest) (influxql.Statistics, error) {
-						return influxql.Statistics{}, &platform.Error{
-							Code: platform.EUnprocessableEntity,
+						return influxql.Statistics{}, &errors.Error{
+							Code: errors.EUnprocessableEntity,
 							Msg:  "bad query",
 						}
 					},
@@ -153,8 +154,8 @@ func TestInfluxQLdHandler_HandleQuery(t *testing.T) {
 				ProxyQueryService: &imock.ProxyQueryService{
 					QueryF: func(ctx context.Context, w io.Writer, req *influxql.QueryRequest) (influxql.Statistics, error) {
 						_, _ = io.WriteString(w, "fail")
-						return influxql.Statistics{}, &platform.Error{
-							Code: platform.EInternal,
+						return influxql.Statistics{}, &errors.Error{
+							Code: errors.EInternal,
 							Msg:  "during query",
 						}
 					},

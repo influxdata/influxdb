@@ -3,6 +3,7 @@ package influxdb
 import (
 	"context"
 	"errors"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"time"
 
 	"github.com/influxdata/flux"
@@ -11,7 +12,6 @@ import (
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/metadata"
 	"github.com/influxdata/flux/plan"
-	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
@@ -40,7 +40,7 @@ type Source struct {
 	runner runner
 
 	m     *metrics
-	orgID platform.ID
+	orgID platform2.ID
 	op    string
 }
 

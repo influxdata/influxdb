@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io/ioutil"
 	"net/url"
 	"os"
@@ -98,8 +99,8 @@ type optionsV2 struct {
 	password  string
 	orgName   string
 	bucket    string
-	orgID     influxdb.ID
-	userID    influxdb.ID
+	orgID     platform.ID
+	userID    platform.ID
 	token     string
 	retention string
 }

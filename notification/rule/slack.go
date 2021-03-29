@@ -3,6 +3,7 @@ package rule
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxdb/v2"
@@ -125,8 +126,8 @@ func (s Slack) Valid() error {
 		return err
 	}
 	if s.MessageTemplate == "" {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "slack msg template is empty",
 		}
 	}

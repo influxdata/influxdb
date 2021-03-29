@@ -2,6 +2,8 @@ package dbrp
 
 import (
 	"encoding/json"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/http"
 	"strconv"
 
@@ -77,16 +79,16 @@ func (h *Handler) handlePostDBRP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	var req createDBRPRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.api.Err(w, r, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		h.api.Err(w, r, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "invalid json structure",
 			Err:  err,
 		})
 		return
 	}
 
-	var orgID influxdb.ID
-	var bucketID influxdb.ID
+	var orgID platform.ID
+	var bucketID platform.ID
 
 	if req.OrganizationID == "" {
 		if req.Org == "" {
@@ -154,14 +156,14 @@ func (h *Handler) handleGetDBRP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		h.api.Err(w, r, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		h.api.Err(w, r, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		})
 		return
 	}
 
-	var i influxdb.ID
+	var i platform.ID
 	if err := i.DecodeFromString(id); err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -193,14 +195,14 @@ func (h *Handler) handlePatchDBRP(w http.ResponseWriter, r *http.Request) {
 
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		h.api.Err(w, r, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		h.api.Err(w, r, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		})
 		return
 	}
 
-	var i influxdb.ID
+	var i platform.ID
 	if err := i.DecodeFromString(id); err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -219,8 +221,8 @@ func (h *Handler) handlePatchDBRP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&bodyRequest); err != nil {
-		h.api.Err(w, r, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		h.api.Err(w, r, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "invalid json structure",
 			Err:  err,
 		})
@@ -251,14 +253,14 @@ func (h *Handler) handleDeleteDBRP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		h.api.Err(w, r, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		h.api.Err(w, r, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		})
 		return
 	}
 
-	var i influxdb.ID
+	var i platform.ID
 	if err := i.DecodeFromString(id); err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -304,8 +306,8 @@ func (h *Handler) getFilterFromHTTPRequest(r *http.Request) (f influxdb.DBRPMapp
 	if rawDefault != "" {
 		d, err := strconv.ParseBool(rawDefault)
 		if err != nil {
-			return f, &influxdb.Error{
-				Code: influxdb.EInvalid,
+			return f, &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "invalid default parameter",
 			}
 		}
@@ -314,8 +316,8 @@ func (h *Handler) getFilterFromHTTPRequest(r *http.Request) (f influxdb.DBRPMapp
 	return f, nil
 }
 
-func getIDFromHTTPRequest(r *http.Request, key string, onErr func(string, error) error) (*influxdb.ID, error) {
-	var id influxdb.ID
+func getIDFromHTTPRequest(r *http.Request, key string, onErr func(string, error) error) (*platform.ID, error) {
+	var id platform.ID
 	raw := r.URL.Query().Get(key)
 	if raw != "" {
 		if err := id.DecodeFromString(raw); err != nil {
@@ -329,7 +331,7 @@ func getIDFromHTTPRequest(r *http.Request, key string, onErr func(string, error)
 
 // mustGetOrgIDFromHTTPRequest returns the org ID parameter from the request, falling
 // back to looking up the org ID by org name if the ID parameter is not present.
-func (h *Handler) mustGetOrgIDFromHTTPRequest(r *http.Request) (*influxdb.ID, error) {
+func (h *Handler) mustGetOrgIDFromHTTPRequest(r *http.Request) (*platform.ID, error) {
 	orgID, err := getIDFromHTTPRequest(r, "orgID", ErrInvalidOrgID)
 	if err != nil {
 		return nil, err
@@ -350,10 +352,10 @@ func (h *Handler) mustGetOrgIDFromHTTPRequest(r *http.Request) (*influxdb.ID, er
 	return orgID, nil
 }
 
-func getDBRPIDFromHTTPRequest(r *http.Request) (*influxdb.ID, error) {
+func getDBRPIDFromHTTPRequest(r *http.Request) (*platform.ID, error) {
 	return getIDFromHTTPRequest(r, "id", ErrInvalidDBRPID)
 }
 
-func getBucketIDFromHTTPRequest(r *http.Request) (*influxdb.ID, error) {
+func getBucketIDFromHTTPRequest(r *http.Request) (*platform.ID, error) {
 	return getIDFromHTTPRequest(r, "bucketID", ErrInvalidBucketID)
 }

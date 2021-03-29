@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 	"time"
 
@@ -169,7 +170,7 @@ func TestRetrieveTaskWithBadAuth(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		task.OwnerID = influxdb.ID(1)
+		task.OwnerID = platform.ID(1)
 		tbyte, err := json.Marshal(task)
 		if err != nil {
 			return err

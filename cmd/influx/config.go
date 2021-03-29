@@ -2,10 +2,10 @@ package main
 
 import (
 	"errors"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/url"
 	"path/filepath"
 
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influx/config"
 	"github.com/spf13/cobra"
 )
@@ -198,7 +198,7 @@ func (b *cmdConfigBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) er
 		}
 
 		cfg, err := svc.DeleteConfig(name)
-		if influxdb.ErrorCode(err) == influxdb.ENotFound {
+		if errors2.ErrorCode(err) == errors2.ENotFound {
 			continue
 		}
 		if err != nil {

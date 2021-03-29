@@ -3,6 +3,7 @@ package bolt
 import (
 	"context"
 	"fmt"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"os"
 	"path/filepath"
 	"time"
@@ -22,7 +23,7 @@ type Client struct {
 	db   *bolt.DB
 	log  *zap.Logger
 
-	IDGenerator    platform.IDGenerator
+	IDGenerator    platform2.IDGenerator
 	TokenGenerator platform.TokenGenerator
 	platform.TimeGenerator
 

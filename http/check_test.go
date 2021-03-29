@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -281,7 +283,7 @@ func TestService_handleGetChecks(t *testing.T) {
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.LabelService = tt.fields.LabelService
 			checkBackend.TaskService = &mock.TaskService{
-				FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+				FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
 					return &influxdb.Task{Status: "active"}, nil
 				},
 			}
@@ -353,7 +355,7 @@ func TestService_handleGetCheckQuery(t *testing.T) {
 			name: "get a check query by id",
 			fields: fields{
 				&mock.CheckService{
-					FindCheckByIDFn: func(ctx context.Context, id influxdb.ID) (influxdb.Check, error) {
+					FindCheckByIDFn: func(ctx context.Context, id platform.ID) (influxdb.Check, error) {
 						if id == influxTesting.MustIDBase16("020f755c3c082000") {
 							return &check.Threshold{
 								Base: check.Base{
@@ -423,7 +425,7 @@ func TestService_handleGetCheckQuery(t *testing.T) {
 			checkBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.TaskService = &mock.TaskService{
-				FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+				FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
 					return &influxdb.Task{}, nil
 				},
 			}
@@ -471,7 +473,7 @@ func TestService_handleGetCheck(t *testing.T) {
 			name: "get a check by id",
 			fields: fields{
 				&mock.CheckService{
-					FindCheckByIDFn: func(ctx context.Context, id influxdb.ID) (influxdb.Check, error) {
+					FindCheckByIDFn: func(ctx context.Context, id platform.ID) (influxdb.Check, error) {
 						if id == influxTesting.MustIDBase16("020f755c3c082000") {
 							return &check.Deadman{
 								Base: check.Base{
@@ -541,9 +543,9 @@ func TestService_handleGetCheck(t *testing.T) {
 			name: "not found",
 			fields: fields{
 				&mock.CheckService{
-					FindCheckByIDFn: func(ctx context.Context, id influxdb.ID) (influxdb.Check, error) {
-						return nil, &influxdb.Error{
-							Code: influxdb.ENotFound,
+					FindCheckByIDFn: func(ctx context.Context, id platform.ID) (influxdb.Check, error) {
+						return nil, &errors.Error{
+							Code: errors.ENotFound,
 							Msg:  "check not found",
 						}
 					},
@@ -564,7 +566,7 @@ func TestService_handleGetCheck(t *testing.T) {
 			checkBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.TaskService = &mock.TaskService{
-				FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+				FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
 					return &influxdb.Task{Status: "active"}, nil
 				},
 			}
@@ -614,7 +616,7 @@ func TestService_handlePostCheck(t *testing.T) {
 		OrganizationService influxdb.OrganizationService
 	}
 	type args struct {
-		userID influxdb.ID
+		userID platform.ID
 		check  influxdb.Check
 	}
 	type wants struct {
@@ -633,7 +635,7 @@ func TestService_handlePostCheck(t *testing.T) {
 			name: "create a new check",
 			fields: fields{
 				CheckService: &mock.CheckService{
-					CreateCheckFn: func(ctx context.Context, c influxdb.CheckCreate, userID influxdb.ID) error {
+					CreateCheckFn: func(ctx context.Context, c influxdb.CheckCreate, userID platform.ID) error {
 						c.SetID(influxTesting.MustIDBase16("020f755c3c082000"))
 						c.SetOwnerID(userID)
 						return nil
@@ -731,7 +733,7 @@ func TestService_handlePostCheck(t *testing.T) {
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.OrganizationService = tt.fields.OrganizationService
 			checkBackend.TaskService = &mock.TaskService{
-				FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+				FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
 					return &influxdb.Task{Status: "active"}, nil
 				},
 			}
@@ -791,7 +793,7 @@ func TestService_handleDeleteCheck(t *testing.T) {
 			name: "remove a check by id",
 			fields: fields{
 				&mock.CheckService{
-					DeleteCheckFn: func(ctx context.Context, id influxdb.ID) error {
+					DeleteCheckFn: func(ctx context.Context, id platform.ID) error {
 						if id == influxTesting.MustIDBase16("020f755c3c082000") {
 							return nil
 						}
@@ -811,9 +813,9 @@ func TestService_handleDeleteCheck(t *testing.T) {
 			name: "check not found",
 			fields: fields{
 				&mock.CheckService{
-					DeleteCheckFn: func(ctx context.Context, id influxdb.ID) error {
-						return &influxdb.Error{
-							Code: influxdb.ENotFound,
+					DeleteCheckFn: func(ctx context.Context, id platform.ID) error {
+						return &errors.Error{
+							Code: errors.ENotFound,
 							Msg:  "check not found",
 						}
 					},
@@ -834,7 +836,7 @@ func TestService_handleDeleteCheck(t *testing.T) {
 			checkBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.TaskService = &mock.TaskService{
-				FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+				FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
 					return &influxdb.Task{}, nil
 				},
 			}
@@ -901,7 +903,7 @@ func TestService_handlePatchCheck(t *testing.T) {
 			name: "update a check name",
 			fields: fields{
 				&mock.CheckService{
-					PatchCheckFn: func(ctx context.Context, id influxdb.ID, upd influxdb.CheckUpdate) (influxdb.Check, error) {
+					PatchCheckFn: func(ctx context.Context, id platform.ID, upd influxdb.CheckUpdate) (influxdb.Check, error) {
 						if id == influxTesting.MustIDBase16("020f755c3c082000") {
 							d := &check.Deadman{
 								Base: check.Base{
@@ -976,9 +978,9 @@ func TestService_handlePatchCheck(t *testing.T) {
 			name: "check not found",
 			fields: fields{
 				&mock.CheckService{
-					PatchCheckFn: func(ctx context.Context, id influxdb.ID, upd influxdb.CheckUpdate) (influxdb.Check, error) {
-						return nil, &influxdb.Error{
-							Code: influxdb.ENotFound,
+					PatchCheckFn: func(ctx context.Context, id platform.ID, upd influxdb.CheckUpdate) (influxdb.Check, error) {
+						return nil, &errors.Error{
+							Code: errors.ENotFound,
 							Msg:  "check not found",
 						}
 					},
@@ -1000,7 +1002,7 @@ func TestService_handlePatchCheck(t *testing.T) {
 			checkBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.TaskService = &mock.TaskService{
-				FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+				FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
 					return &influxdb.Task{Status: "active"}, nil
 				},
 			}
@@ -1077,7 +1079,7 @@ func TestService_handleUpdateCheck(t *testing.T) {
 			name: "update a check name",
 			fields: fields{
 				CheckService: &mock.CheckService{
-					UpdateCheckFn: func(ctx context.Context, id influxdb.ID, chk influxdb.CheckCreate) (influxdb.Check, error) {
+					UpdateCheckFn: func(ctx context.Context, id platform.ID, chk influxdb.CheckCreate) (influxdb.Check, error) {
 						if id == influxTesting.MustIDBase16("020f755c3c082000") {
 							d := &check.Deadman{
 								Base: check.Base{
@@ -1163,9 +1165,9 @@ func TestService_handleUpdateCheck(t *testing.T) {
 			name: "check not found",
 			fields: fields{
 				CheckService: &mock.CheckService{
-					UpdateCheckFn: func(ctx context.Context, id influxdb.ID, chk influxdb.CheckCreate) (influxdb.Check, error) {
-						return nil, &influxdb.Error{
-							Code: influxdb.ENotFound,
+					UpdateCheckFn: func(ctx context.Context, id platform.ID, chk influxdb.CheckCreate) (influxdb.Check, error) {
+						return nil, &errors.Error{
+							Code: errors.ENotFound,
 							Msg:  "check not found",
 						}
 					},
@@ -1194,7 +1196,7 @@ func TestService_handleUpdateCheck(t *testing.T) {
 			checkBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.TaskService = &mock.TaskService{
-				FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+				FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
 					return &influxdb.Task{Status: "active"}, nil
 				},
 			}
@@ -1266,7 +1268,7 @@ func TestService_handlePostCheckMember(t *testing.T) {
 			name: "add a check member",
 			fields: fields{
 				UserService: &mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 						return &influxdb.User{
 							ID:     id,
 							Name:   "name",
@@ -1305,7 +1307,7 @@ func TestService_handlePostCheckMember(t *testing.T) {
 			checkBackend := NewMockCheckBackend(t)
 			checkBackend.UserService = tt.fields.UserService
 			checkBackend.TaskService = &mock.TaskService{
-				FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+				FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
 					return &influxdb.Task{}, nil
 				},
 			}
@@ -1365,7 +1367,7 @@ func TestService_handlePostCheckOwner(t *testing.T) {
 			name: "add a check owner",
 			fields: fields{
 				UserService: &mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 						return &influxdb.User{
 							ID:     id,
 							Name:   "name",

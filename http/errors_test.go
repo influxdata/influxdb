@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	stderrors "errors"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/http"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 )
@@ -24,15 +24,15 @@ func TestCheckError(t *testing.T) {
 			name: "platform error",
 			write: func(w *httptest.ResponseRecorder) {
 				h := kithttp.ErrorHandler(0)
-				err := &influxdb.Error{
+				err := &errors.Error{
 					Msg:  "expected",
-					Code: influxdb.EInvalid,
+					Code: errors.EInvalid,
 				}
 				h.HandleHTTPError(context.Background(), err, w)
 			},
-			want: &influxdb.Error{
+			want: &errors.Error{
 				Msg:  "expected",
-				Code: influxdb.EInvalid,
+				Code: errors.EInvalid,
 			},
 		},
 		{
@@ -42,8 +42,8 @@ func TestCheckError(t *testing.T) {
 				w.WriteHeader(500)
 				_, _ = io.WriteString(w, "upstream timeout\n")
 			},
-			want: &influxdb.Error{
-				Code: influxdb.EInternal,
+			want: &errors.Error{
+				Code: errors.EInternal,
 				Err:  stderrors.New("upstream timeout"),
 			},
 		},
@@ -54,8 +54,8 @@ func TestCheckError(t *testing.T) {
 				w.WriteHeader(500)
 				_, _ = io.WriteString(w, "upstream timeout\n")
 			},
-			want: &influxdb.Error{
-				Code: influxdb.EInternal,
+			want: &errors.Error{
+				Code: errors.EInternal,
 				Msg:  `attempted to unmarshal error as JSON but failed: "invalid character 'u' looking for beginning of value"`,
 				Err:  stderrors.New("upstream timeout"),
 			},
@@ -66,8 +66,8 @@ func TestCheckError(t *testing.T) {
 				w.WriteHeader(500)
 				_, _ = io.WriteString(w, `{"error": "service unavailable", "code": "unavailable"}`)
 			},
-			want: &influxdb.Error{
-				Code: influxdb.EUnavailable,
+			want: &errors.Error{
+				Code: errors.EUnavailable,
 				Err:  stderrors.New("service unavailable"),
 			},
 		},
@@ -77,8 +77,8 @@ func TestCheckError(t *testing.T) {
 				w.WriteHeader(503)
 				_, _ = io.WriteString(w, `{"error": "service unavailable"}`)
 			},
-			want: &influxdb.Error{
-				Code: influxdb.EUnavailable,
+			want: &errors.Error{
+				Code: errors.EUnavailable,
 				Err:  stderrors.New("service unavailable"),
 			},
 		},
@@ -87,8 +87,8 @@ func TestCheckError(t *testing.T) {
 			write: func(w *httptest.ResponseRecorder) {
 				w.WriteHeader(503)
 			},
-			want: &influxdb.Error{
-				Code: influxdb.EUnavailable,
+			want: &errors.Error{
+				Code: errors.EUnavailable,
 				Msg:  `attempted to unmarshal error as JSON but failed: "unexpected end of JSON input"`,
 				Err:  stderrors.New(""),
 			},
@@ -100,7 +100,7 @@ func TestCheckError(t *testing.T) {
 
 			resp := w.Result()
 			cmpopt := cmp.Transformer("error", func(e error) string {
-				if e, ok := e.(*influxdb.Error); ok {
+				if e, ok := e.(*errors.Error); ok {
 					out, _ := json.Marshal(e)
 					return string(out)
 				}

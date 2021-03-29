@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/http"
 	"strings"
 
@@ -19,7 +21,7 @@ import (
 // TelegrafBackend is all services and associated parameters required to construct
 // the TelegrafHandler.
 type TelegrafBackend struct {
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	log *zap.Logger
 
 	TelegrafService            influxdb.TelegrafConfigStore
@@ -46,7 +48,7 @@ func NewTelegrafBackend(log *zap.Logger, b *APIBackend) *TelegrafBackend {
 // TelegrafHandler is the handler for the telegraf service
 type TelegrafHandler struct {
 	*httprouter.Router
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	log *zap.Logger
 
 	TelegrafService            influxdb.TelegrafConfigStore
@@ -198,12 +200,12 @@ func newTelegrafResponses(ctx context.Context, tcs []*influxdb.TelegrafConfig, l
 	return resp
 }
 
-func decodeGetTelegrafRequest(ctx context.Context) (i influxdb.ID, err error) {
+func decodeGetTelegrafRequest(ctx context.Context) (i platform.ID, err error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return i, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return i, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
@@ -281,10 +283,10 @@ func decodeTelegrafConfigFilter(ctx context.Context, r *http.Request) (*influxdb
 	q := r.URL.Query()
 
 	if orgIDStr := q.Get("orgID"); orgIDStr != "" {
-		orgID, err := influxdb.IDFromString(orgIDStr)
+		orgID, err := platform.IDFromString(orgIDStr)
 		if err != nil {
-			return f, &influxdb.Error{
-				Code: influxdb.EInvalid,
+			return f, &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "orgID is invalid",
 				Err:  err,
 			}
@@ -334,12 +336,12 @@ func decodePutTelegrafRequest(ctx context.Context, r *http.Request) (*influxdb.T
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
-	i := new(influxdb.ID)
+	i := new(platform.ID)
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -419,7 +421,7 @@ func NewTelegrafService(httpClient *httpc.Client) *TelegrafService {
 var _ influxdb.TelegrafConfigStore = (*TelegrafService)(nil)
 
 // FindTelegrafConfigByID returns a single telegraf config by ID.
-func (s *TelegrafService) FindTelegrafConfigByID(ctx context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
+func (s *TelegrafService) FindTelegrafConfigByID(ctx context.Context, id platform.ID) (*influxdb.TelegrafConfig, error) {
 	var cfg influxdb.TelegrafConfig
 	err := s.client.
 		Get(prefixTelegraf, id.String()).
@@ -459,7 +461,7 @@ func (s *TelegrafService) FindTelegrafConfigs(ctx context.Context, f influxdb.Te
 }
 
 // CreateTelegrafConfig creates a new telegraf config and sets b.ID with the new identifier.
-func (s *TelegrafService) CreateTelegrafConfig(ctx context.Context, tc *influxdb.TelegrafConfig, userID influxdb.ID) error {
+func (s *TelegrafService) CreateTelegrafConfig(ctx context.Context, tc *influxdb.TelegrafConfig, userID platform.ID) error {
 	var teleResp influxdb.TelegrafConfig
 	err := s.client.
 		PostJSON(tc, prefixTelegraf).
@@ -474,7 +476,7 @@ func (s *TelegrafService) CreateTelegrafConfig(ctx context.Context, tc *influxdb
 
 // UpdateTelegrafConfig updates a single telegraf config.
 // Returns the new telegraf config after update.
-func (s *TelegrafService) UpdateTelegrafConfig(ctx context.Context, id influxdb.ID, tc *influxdb.TelegrafConfig, userID influxdb.ID) (*influxdb.TelegrafConfig, error) {
+func (s *TelegrafService) UpdateTelegrafConfig(ctx context.Context, id platform.ID, tc *influxdb.TelegrafConfig, userID platform.ID) (*influxdb.TelegrafConfig, error) {
 	var teleResp influxdb.TelegrafConfig
 	err := s.client.
 		PutJSON(tc, prefixTelegraf, id.String()).
@@ -487,7 +489,7 @@ func (s *TelegrafService) UpdateTelegrafConfig(ctx context.Context, id influxdb.
 }
 
 // DeleteTelegrafConfig removes a telegraf config by ID.
-func (s *TelegrafService) DeleteTelegrafConfig(ctx context.Context, id influxdb.ID) error {
+func (s *TelegrafService) DeleteTelegrafConfig(ctx context.Context, id platform.ID) error {
 	return s.client.
 		Delete(prefixTelegraf, id.String()).
 		Do(ctx)

@@ -2,6 +2,7 @@ package authorizer
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/influxdb/v2"
 )
@@ -27,7 +28,7 @@ func NewCheckService(s influxdb.CheckService, urm influxdb.UserResourceMappingSe
 }
 
 // FindCheckByID checks to see if the authorizer on context has read access to the id provided.
-func (s *CheckService) FindCheckByID(ctx context.Context, id influxdb.ID) (influxdb.Check, error) {
+func (s *CheckService) FindCheckByID(ctx context.Context, id platform.ID) (influxdb.Check, error) {
 	chk, err := s.s.FindCheckByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -62,7 +63,7 @@ func (s *CheckService) FindCheck(ctx context.Context, filter influxdb.CheckFilte
 }
 
 // CreateCheck checks to see if the authorizer on context has write access to the global check resource.
-func (s *CheckService) CreateCheck(ctx context.Context, chk influxdb.CheckCreate, userID influxdb.ID) error {
+func (s *CheckService) CreateCheck(ctx context.Context, chk influxdb.CheckCreate, userID platform.ID) error {
 	if _, _, err := AuthorizeCreate(ctx, influxdb.ChecksResourceType, chk.GetOrgID()); err != nil {
 		return err
 	}
@@ -70,7 +71,7 @@ func (s *CheckService) CreateCheck(ctx context.Context, chk influxdb.CheckCreate
 }
 
 // UpdateCheck checks to see if the authorizer on context has write access to the check provided.
-func (s *CheckService) UpdateCheck(ctx context.Context, id influxdb.ID, upd influxdb.CheckCreate) (influxdb.Check, error) {
+func (s *CheckService) UpdateCheck(ctx context.Context, id platform.ID, upd influxdb.CheckCreate) (influxdb.Check, error) {
 	chk, err := s.FindCheckByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -82,7 +83,7 @@ func (s *CheckService) UpdateCheck(ctx context.Context, id influxdb.ID, upd infl
 }
 
 // PatchCheck checks to see if the authorizer on context has write access to the check provided.
-func (s *CheckService) PatchCheck(ctx context.Context, id influxdb.ID, upd influxdb.CheckUpdate) (influxdb.Check, error) {
+func (s *CheckService) PatchCheck(ctx context.Context, id platform.ID, upd influxdb.CheckUpdate) (influxdb.Check, error) {
 	chk, err := s.FindCheckByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -94,7 +95,7 @@ func (s *CheckService) PatchCheck(ctx context.Context, id influxdb.ID, upd influ
 }
 
 // DeleteCheck checks to see if the authorizer on context has write access to the check provided.
-func (s *CheckService) DeleteCheck(ctx context.Context, id influxdb.ID) error {
+func (s *CheckService) DeleteCheck(ctx context.Context, id platform.ID) error {
 	chk, err := s.FindCheckByID(ctx, id)
 	if err != nil {
 		return err

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io"
 	"io/ioutil"
 	"net/url"
@@ -216,7 +217,7 @@ func (b *cmdTemplateBuilder) applyRunEFn(cmd *cobra.Command, args []string) erro
 		}
 	}
 
-	var stackID influxdb.ID
+	var stackID platform.ID
 	if b.stackID != "" {
 		if err := stackID.DecodeFromString(b.stackID); err != nil {
 			return err
@@ -407,7 +408,7 @@ func (b *cmdTemplateBuilder) exportRunEFn(cmd *cobra.Command, args []string) err
 	}
 
 	if b.stackID != "" {
-		stackID, err := influxdb.IDFromString(b.stackID)
+		stackID, err := platform.IDFromString(b.stackID)
 		if err != nil {
 			return ierror.Wrap(err, "invalid stack ID provided")
 		}
@@ -558,7 +559,7 @@ func (b *cmdTemplateBuilder) exportStackRunEFn(cmd *cobra.Command, args []string
 		return err
 	}
 
-	stackID, err := influxdb.IDFromString(args[0])
+	stackID, err := platform.IDFromString(args[0])
 	if err != nil {
 		return err
 	}
@@ -718,9 +719,9 @@ func (b *cmdTemplateBuilder) stackListRunEFn(cmd *cobra.Command, args []string) 
 		return err
 	}
 
-	var stackIDs []influxdb.ID
+	var stackIDs []platform.ID
 	for _, rawID := range b.stackIDs {
-		id, err := influxdb.IDFromString(rawID)
+		id, err := platform.IDFromString(rawID)
 		if err != nil {
 			return err
 		}
@@ -774,9 +775,9 @@ func (b *cmdTemplateBuilder) stackRemoveRunEFn(cmd *cobra.Command, args []string
 		return err
 	}
 
-	var stackIDs []influxdb.ID
+	var stackIDs []platform.ID
 	for _, rawID := range b.stackIDs {
-		id, err := influxdb.IDFromString(rawID)
+		id, err := platform.IDFromString(rawID)
 		if err != nil {
 			return err
 		}
@@ -820,7 +821,7 @@ func (b *cmdTemplateBuilder) stackRemoveRunEFn(cmd *cobra.Command, args []string
 			}
 		}
 
-		err := templateSVC.DeleteStack(context.Background(), struct{ OrgID, UserID, StackID influxdb.ID }{
+		err := templateSVC.DeleteStack(context.Background(), struct{ OrgID, UserID, StackID platform.ID }{
 			OrgID:   orgID,
 			UserID:  0,
 			StackID: stack.ID,
@@ -883,7 +884,7 @@ func (b *cmdTemplateBuilder) stackUpdateRunEFn(cmd *cobra.Command, args []string
 		return err
 	}
 
-	stackID, err := influxdb.IDFromString(b.stackID)
+	stackID, err := platform.IDFromString(b.stackID)
 	if err != nil {
 		return ierror.Wrap(err, "required stack id is invalid")
 	}
@@ -917,7 +918,7 @@ func (b *cmdTemplateBuilder) stackUpdateRunEFn(cmd *cobra.Command, args []string
 			return errors.New("resource type is invalid; got: " + b.exportOpts.resourceType)
 		}
 
-		id, err := influxdb.IDFromString(idRaw)
+		id, err := platform.IDFromString(idRaw)
 		if err != nil {
 			return ierror.Wrap(err, fmt.Sprintf("%s resource id %q is invalid", kind, idRaw))
 		}
@@ -1197,9 +1198,9 @@ func newResourcesToClone(kind pkger.Kind, idStrs, names []string) (pkger.ExportO
 	return pkger.ExportWithExistingResources(resources...), nil
 }
 
-func toInfluxIDs(args []string) ([]influxdb.ID, error) {
+func toInfluxIDs(args []string) ([]platform.ID, error) {
 	var (
-		ids  []influxdb.ID
+		ids  []platform.ID
 		errs []string
 	)
 	for _, arg := range args {
@@ -1208,7 +1209,7 @@ func toInfluxIDs(args []string) ([]influxdb.ID, error) {
 			continue
 		}
 
-		id, err := influxdb.IDFromString(normedArg)
+		id, err := platform.IDFromString(normedArg)
 		if err != nil {
 			errs = append(errs, "arg must provide a valid 16 length ID; got: "+arg)
 			continue
@@ -1568,7 +1569,7 @@ func (b *cmdTemplateBuilder) printTemplateDiff(diff pkger.Diff) error {
 	return nil
 }
 
-func (b *cmdTemplateBuilder) printTemplateSummary(stackID influxdb.ID, sum pkger.Summary) error {
+func (b *cmdTemplateBuilder) printTemplateSummary(stackID platform.ID, sum pkger.Summary) error {
 	if b.quiet {
 		return nil
 	}

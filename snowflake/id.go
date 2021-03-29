@@ -2,11 +2,11 @@ package snowflake
 
 import (
 	"errors"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"math/rand"
 	"sync"
 	"time"
 
-	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/pkg/snowflake"
 )
 
@@ -85,10 +85,10 @@ func NewIDGenerator(opts ...IDGeneratorOp) *IDGenerator {
 }
 
 // ID returns the next platform.ID from an IDGenerator.
-func (g *IDGenerator) ID() platform.ID {
-	var id platform.ID
+func (g *IDGenerator) ID() platform2.ID {
+	var id platform2.ID
 	for !id.Valid() {
-		id = platform.ID(g.Generator.Next())
+		id = platform2.ID(g.Generator.Next())
 	}
 	return id
 }

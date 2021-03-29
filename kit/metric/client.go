@@ -1,9 +1,9 @@
 package metric
 
 import (
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"time"
 
-	"github.com/influxdata/influxdb/v2"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -32,7 +32,7 @@ func New(reg prometheus.Registerer, service string, opts ...ClientOptFn) *REDCli
 					if o.Err != nil {
 						vec.With(prometheus.Labels{
 							"method": o.Method,
-							"code":   influxdb.ErrorCode(o.Err),
+							"code":   errors.ErrorCode(o.Err),
 						}).Inc()
 					}
 				},

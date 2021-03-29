@@ -1,4 +1,4 @@
-package influxdb
+package errors
 
 // ChronografError is a domain error encountered while processing chronograf requests.
 type ChronografError string

@@ -6,6 +6,7 @@ package mocks
 
 import (
 	context "context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
@@ -50,7 +51,7 @@ func (mr *MockBucketServiceMockRecorder) CreateBucket(arg0, arg1 interface{}) *g
 }
 
 // DeleteBucket mocks base method
-func (m *MockBucketService) DeleteBucket(arg0 context.Context, arg1 influxdb.ID) error {
+func (m *MockBucketService) DeleteBucket(arg0 context.Context, arg1 platform.ID) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteBucket", arg0, arg1)
 	ret0, _ := ret[0].(error)
@@ -79,7 +80,7 @@ func (mr *MockBucketServiceMockRecorder) FindBucket(arg0, arg1 interface{}) *gom
 }
 
 // FindBucketByID mocks base method
-func (m *MockBucketService) FindBucketByID(arg0 context.Context, arg1 influxdb.ID) (*influxdb.Bucket, error) {
+func (m *MockBucketService) FindBucketByID(arg0 context.Context, arg1 platform.ID) (*influxdb.Bucket, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindBucketByID", arg0, arg1)
 	ret0, _ := ret[0].(*influxdb.Bucket)
@@ -94,7 +95,7 @@ func (mr *MockBucketServiceMockRecorder) FindBucketByID(arg0, arg1 interface{}) 
 }
 
 // FindBucketByName mocks base method
-func (m *MockBucketService) FindBucketByName(arg0 context.Context, arg1 influxdb.ID, arg2 string) (*influxdb.Bucket, error) {
+func (m *MockBucketService) FindBucketByName(arg0 context.Context, arg1 platform.ID, arg2 string) (*influxdb.Bucket, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindBucketByName", arg0, arg1, arg2)
 	ret0, _ := ret[0].(*influxdb.Bucket)
@@ -130,7 +131,7 @@ func (mr *MockBucketServiceMockRecorder) FindBuckets(arg0, arg1 interface{}, arg
 }
 
 // UpdateBucket mocks base method
-func (m *MockBucketService) UpdateBucket(arg0 context.Context, arg1 influxdb.ID, arg2 influxdb.BucketUpdate) (*influxdb.Bucket, error) {
+func (m *MockBucketService) UpdateBucket(arg0 context.Context, arg1 platform.ID, arg2 influxdb.BucketUpdate) (*influxdb.Bucket, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateBucket", arg0, arg1, arg2)
 	ret0, _ := ret[0].(*influxdb.Bucket)

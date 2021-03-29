@@ -3,6 +3,7 @@ package kv
 import (
 	"github.com/benbjohnson/clock"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/rand"
 	"github.com/influxdata/influxdb/v2/resource"
 	"github.com/influxdata/influxdb/v2/resource/noop"
@@ -20,7 +21,7 @@ type Service struct {
 	clock       clock.Clock
 	Config      ServiceConfig
 	audit       resource.Logger
-	IDGenerator influxdb.IDGenerator
+	IDGenerator platform.IDGenerator
 
 	// FluxLanguageService is used for parsing flux.
 	// If this is unset, operations that require parsing flux

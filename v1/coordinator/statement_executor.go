@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"strings"
 	"time"
 
@@ -336,7 +337,7 @@ func (e *StatementExecutor) executeShowDatabasesStatement(ctx context.Context, q
 		}
 		err = authorizer.IsAllowed(ctx, *perm)
 		if err != nil {
-			if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+			if errors2.ErrorCode(err) == errors2.EUnauthorized {
 				continue
 			}
 			return nil, err
@@ -455,7 +456,7 @@ func (e *StatementExecutor) executeShowRetentionPoliciesStatement(ctx context.Co
 		}
 		err = authorizer.IsAllowed(ctx, *perm)
 		if err != nil {
-			if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+			if errors2.ErrorCode(err) == errors2.EUnauthorized {
 				continue
 			}
 			return nil, err

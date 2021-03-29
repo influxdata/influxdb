@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"sort"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
 	"github.com/gogo/protobuf/types"
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/pkg/slices"
@@ -129,7 +129,7 @@ func (s *Store) findShardIDs(database, rp string, desc bool, start, end int64) (
 }
 
 func (s *Store) validateArgs(orgID, bucketID uint64, start, end int64) (string, string, int64, int64, error) {
-	database := influxdb.ID(bucketID).String()
+	database := platform.ID(bucketID).String()
 	rp := meta.DefaultRetentionPolicyName
 
 	di := s.MetaClient.Database(database)
@@ -234,7 +234,7 @@ func (s *Store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) 
 }
 
 type metaqueryAttributes struct {
-	orgID      influxdb.ID
+	orgID      platform.ID
 	db, rp     string
 	start, end int64
 	pred       influxql.Expr

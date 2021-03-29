@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/internal"
@@ -87,7 +88,7 @@ func (b *cmdUserBuilder) cmdPasswordRunEFn(cmd *cobra.Command, args []string) er
 		filter.Name = &b.name
 	}
 	if b.id != "" {
-		id, err := influxdb.IDFromString(b.id)
+		id, err := platform.IDFromString(b.id)
 		if err != nil {
 			return err
 		}
@@ -128,7 +129,7 @@ func (b *cmdUserBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) erro
 		return err
 	}
 
-	var id influxdb.ID
+	var id platform.ID
 	if err := id.DecodeFromString(b.id); err != nil {
 		return err
 	}
@@ -257,7 +258,7 @@ func (b *cmdUserBuilder) cmdFindRunEFn(*cobra.Command, []string) error {
 		filter.Name = &b.name
 	}
 	if b.id != "" {
-		id, err := influxdb.IDFromString(b.id)
+		id, err := platform.IDFromString(b.id)
 		if err != nil {
 			return err
 		}
@@ -289,7 +290,7 @@ func (b *cmdUserBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) erro
 		return err
 	}
 
-	var id influxdb.ID
+	var id platform.ID
 	if err := id.DecodeFromString(b.id); err != nil {
 		return err
 	}

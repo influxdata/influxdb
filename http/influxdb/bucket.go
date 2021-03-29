@@ -3,6 +3,7 @@ package influxdb
 import (
 	"context"
 	"fmt"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"time"
 
 	platform "github.com/influxdata/influxdb/v2"
@@ -14,11 +15,11 @@ type BucketService struct {
 	Source *platform.Source
 }
 
-func (s *BucketService) FindBucketByName(ctx context.Context, orgID platform.ID, n string) (*platform.Bucket, error) {
+func (s *BucketService) FindBucketByName(ctx context.Context, orgID platform2.ID, n string) (*platform.Bucket, error) {
 	return nil, fmt.Errorf("not supported")
 }
 
-func (s *BucketService) FindBucketByID(ctx context.Context, id platform.ID) (*platform.Bucket, error) {
+func (s *BucketService) FindBucketByID(ctx context.Context, id platform2.ID) (*platform.Bucket, error) {
 	return nil, fmt.Errorf("not supported")
 }
 
@@ -69,10 +70,10 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *platform.Bucket) er
 	return fmt.Errorf("not supported")
 }
 
-func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd platform.BucketUpdate) (*platform.Bucket, error) {
+func (s *BucketService) UpdateBucket(ctx context.Context, id platform2.ID, upd platform.BucketUpdate) (*platform.Bucket, error) {
 	return nil, fmt.Errorf("not supported")
 }
 
-func (s *BucketService) DeleteBucket(ctx context.Context, id platform.ID) error {
+func (s *BucketService) DeleteBucket(ctx context.Context, id platform2.ID) error {
 	return fmt.Errorf("not supported")
 }

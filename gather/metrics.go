@@ -2,18 +2,18 @@ package gather
 
 import (
 	"bytes"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/models"
 )
 
 // MetricsCollection is the struct including metrics and other requirements.
 type MetricsCollection struct {
-	OrgID        influxdb.ID  `json:"orgID"`
-	BucketID     influxdb.ID  `json:"bucketID"`
+	OrgID        platform.ID  `json:"orgID"`
+	BucketID     platform.ID  `json:"bucketID"`
 	MetricsSlice MetricsSlice `json:"metrics"`
 }
 

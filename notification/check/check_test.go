@@ -2,6 +2,7 @@ package check_test
 
 import (
 	"encoding/json"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"testing"
 	"time"
 
@@ -44,8 +45,8 @@ func TestValidCheck(t *testing.T) {
 		{
 			name: "invalid check id",
 			src:  &check.Deadman{},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "Check ID is invalid",
 			},
 		},
@@ -56,8 +57,8 @@ func TestValidCheck(t *testing.T) {
 					ID: influxTesting.MustIDBase16(id1),
 				},
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "Check Name can't be empty",
 			},
 		},
@@ -69,8 +70,8 @@ func TestValidCheck(t *testing.T) {
 					Name: "name1",
 				},
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "Check OwnerID is invalid",
 			},
 		},
@@ -83,8 +84,8 @@ func TestValidCheck(t *testing.T) {
 					OwnerID: influxTesting.MustIDBase16(id2),
 				},
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "Check OrgID is invalid",
 			},
 		},
@@ -100,8 +101,8 @@ func TestValidCheck(t *testing.T) {
 					Tags:                  []influxdb.Tag{{Key: "key1"}},
 				},
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "Check Every must exist",
 			},
 		},
@@ -117,8 +118,8 @@ func TestValidCheck(t *testing.T) {
 					Offset:  mustDuration("2m"),
 				},
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "Offset should not be equal or greater than the interval",
 			},
 		},
@@ -135,8 +136,8 @@ func TestValidCheck(t *testing.T) {
 					Tags:                  []influxdb.Tag{{Key: "key1"}},
 				},
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "tag must contain a key and a value",
 			},
 		},
@@ -148,8 +149,8 @@ func TestValidCheck(t *testing.T) {
 					&check.Range{Min: 200, Max: 100},
 				},
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "range threshold min can't be larger than max",
 			},
 		},

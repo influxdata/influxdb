@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/csv"
 	"fmt"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"io"
 	"log"
 	"net/http"
@@ -366,7 +367,7 @@ func (b *writeFlagsBuilder) writeRunE(cmd *cobra.Command, args []string) error {
 	)
 
 	if b.BucketID != "" {
-		filter.ID, err = platform.IDFromString(b.BucketID)
+		filter.ID, err = platform2.IDFromString(b.BucketID)
 		if err != nil {
 			return fmt.Errorf("failed to decode bucket-id: %v", err)
 		}
@@ -376,7 +377,7 @@ func (b *writeFlagsBuilder) writeRunE(cmd *cobra.Command, args []string) error {
 	}
 
 	if b.org.id != "" {
-		filter.OrganizationID, err = platform.IDFromString(b.org.id)
+		filter.OrganizationID, err = platform2.IDFromString(b.org.id)
 		if err != nil {
 			return fmt.Errorf("failed to decode org-id id: %v", err)
 		}

@@ -2,6 +2,7 @@ package predicate
 
 import (
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"strings"
 
 	"github.com/influxdata/influxdb/v2"
@@ -108,8 +109,8 @@ func (p *parser) parseLogicalNode() (Node, error) {
 				Operator: LogicalAnd,
 			}
 		case influxql.OR:
-			return *n, &influxdb.Error{
-				Code: influxdb.EInvalid,
+			return *n, &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  fmt.Sprintf("the logical operator OR is not supported yet at position %d", pos.Char),
 			}
 		case influxql.LPAREN:
@@ -120,8 +121,8 @@ func (p *parser) parseLogicalNode() (Node, error) {
 				return *n, err
 			}
 			if p.openParen != currParen-1 {
-				return *n, &influxdb.Error{
-					Code: influxdb.EInvalid,
+				return *n, &errors.Error{
+					Code: errors.EInvalid,
 					Msg:  "extra ( seen",
 				}
 			}
@@ -135,8 +136,8 @@ func (p *parser) parseLogicalNode() (Node, error) {
 			fallthrough
 		case influxql.EOF:
 			if p.openParen < 0 {
-				return *n, &influxdb.Error{
-					Code: influxdb.EInvalid,
+				return *n, &errors.Error{
+					Code: errors.EInvalid,
 					Msg:  "extra ) seen",
 				}
 			}
@@ -145,8 +146,8 @@ func (p *parser) parseLogicalNode() (Node, error) {
 			}
 			return *n, nil
 		default:
-			return *n, &influxdb.Error{
-				Code: influxdb.EInvalid,
+			return *n, &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  fmt.Sprintf("bad logical expression, at position %d", pos.Char),
 			}
 		}
@@ -163,8 +164,8 @@ func (p *parser) parseTagRuleNode() (TagRuleNode, error) {
 	case influxql.NAME:
 		n.Key = "name"
 	default:
-		return *n, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return *n, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("bad tag key, at position %d", pos.Char),
 		}
 	}
@@ -180,13 +181,13 @@ func (p *parser) parseTagRuleNode() (TagRuleNode, error) {
 	case influxql.EQREGEX:
 		fallthrough
 	case influxql.NEQREGEX:
-		return *n, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return *n, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("operator: %q at position: %d is not supported yet", tok.String(), pos.Char),
 		}
 	default:
-		return *n, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return *n, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("invalid operator %q at position: %d", tok.String(), pos.Char),
 		}
 	}
@@ -213,8 +214,8 @@ scanRegularTagValue:
 		n.Value = "false"
 		return *n, nil
 	default:
-		return *n, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return *n, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("bad tag value: %q, at position %d", lit, pos.Char),
 		}
 	}

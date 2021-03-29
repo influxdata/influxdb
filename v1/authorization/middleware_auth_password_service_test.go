@@ -2,6 +2,7 @@ package authorization_test
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"testing"
 
 	"github.com/golang/mock/gomock"
@@ -28,7 +29,7 @@ func TestAuthedPasswordService_SetPassword(t *testing.T) {
 		af := mocks.NewMockAuthFinder(ctrl)
 		af.EXPECT().
 			FindAuthorizationByID(ctx, authID).
-			Return(nil, &influxdb.Error{})
+			Return(nil, &errors.Error{})
 
 		ps := authorization.NewAuthedPasswordService(af, nil)
 		err := ps.SetPassword(ctx, authID, "foo")

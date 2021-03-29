@@ -2,6 +2,7 @@ package testing
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"sort"
 	"strings"
 	"testing"
@@ -12,8 +13,8 @@ import (
 )
 
 type TenantFields struct {
-	OrgIDGenerator       influxdb.IDGenerator
-	BucketIDGenerator    influxdb.IDGenerator
+	OrgIDGenerator       platform.IDGenerator
+	BucketIDGenerator    platform.IDGenerator
 	Users                []*influxdb.User
 	Passwords            []string // passwords are indexed against the Users field
 	UserResourceMappings []*influxdb.UserResourceMapping

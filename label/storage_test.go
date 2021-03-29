@@ -3,6 +3,7 @@ package label_test
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"reflect"
 	"testing"
 
@@ -18,10 +19,10 @@ import (
 func TestLabels(t *testing.T) {
 	setup := func(t *testing.T, store *label.Store, tx kv.Tx) {
 		for i := 1; i <= 10; i++ {
-			mock.SetIDForFunc(&store.IDGenerator, influxdb.ID(i), func() {
+			mock.SetIDForFunc(&store.IDGenerator, platform.ID(i), func() {
 				err := store.CreateLabel(context.Background(), tx, &influxdb.Label{
 					Name:  fmt.Sprintf("labelname%d", i),
-					OrgID: influxdb.ID(i),
+					OrgID: platform.ID(i),
 				})
 
 				if err != nil {
@@ -34,10 +35,10 @@ func TestLabels(t *testing.T) {
 	setupForList := func(t *testing.T, store *label.Store, tx kv.Tx) {
 		setup(t, store, tx)
 
-		mock.SetIDForFunc(&store.IDGenerator, influxdb.ID(11), func() {
+		mock.SetIDForFunc(&store.IDGenerator, platform.ID(11), func() {
 			err := store.CreateLabel(context.Background(), tx, &influxdb.Label{
 				Name:  fmt.Sprintf("labelname%d", 11),
-				OrgID: influxdb.ID(5),
+				OrgID: platform.ID(5),
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -67,9 +68,9 @@ func TestLabels(t *testing.T) {
 				expected := []*influxdb.Label{}
 				for i := 1; i <= 10; i++ {
 					expected = append(expected, &influxdb.Label{
-						ID:    influxdb.ID(i),
+						ID:    platform.ID(i),
 						Name:  fmt.Sprintf("labelname%d", i),
-						OrgID: influxdb.ID(i),
+						OrgID: platform.ID(i),
 					})
 				}
 				if !reflect.DeepEqual(labels, expected) {
@@ -81,15 +82,15 @@ func TestLabels(t *testing.T) {
 			name:  "get",
 			setup: setup,
 			results: func(t *testing.T, store *label.Store, tx kv.Tx) {
-				label, err := store.GetLabel(context.Background(), tx, influxdb.ID(1))
+				label, err := store.GetLabel(context.Background(), tx, platform.ID(1))
 				if err != nil {
 					t.Fatal(err)
 				}
 
 				expected := &influxdb.Label{
-					ID:    influxdb.ID(1),
+					ID:    platform.ID(1),
 					Name:  "labelname1",
-					OrgID: influxdb.ID(1),
+					OrgID: platform.ID(1),
 				}
 
 				if !reflect.DeepEqual(label, expected) {
@@ -114,15 +115,15 @@ func TestLabels(t *testing.T) {
 				expected := []*influxdb.Label{}
 				for i := 1; i <= 10; i++ {
 					expected = append(expected, &influxdb.Label{
-						ID:    influxdb.ID(i),
+						ID:    platform.ID(i),
 						Name:  fmt.Sprintf("labelname%d", i),
-						OrgID: influxdb.ID(i),
+						OrgID: platform.ID(i),
 					})
 				}
 				expected = append(expected, &influxdb.Label{
-					ID:    influxdb.ID(11),
+					ID:    platform.ID(11),
 					Name:  fmt.Sprintf("labelname%d", 11),
-					OrgID: influxdb.ID(5),
+					OrgID: platform.ID(5),
 				})
 
 				if !reflect.DeepEqual(labels, expected) {
@@ -140,16 +141,16 @@ func TestLabels(t *testing.T) {
 				}
 
 				expectedLabel := []*influxdb.Label{&influxdb.Label{
-					ID:    influxdb.ID(5),
+					ID:    platform.ID(5),
 					Name:  "labelname5",
-					OrgID: influxdb.ID(5),
+					OrgID: platform.ID(5),
 				}}
 				if !reflect.DeepEqual(l, expectedLabel) {
 					t.Fatalf("label returned by list did not match expected: \n%+v\n%+v", l, expectedLabel)
 				}
 
 				// filter by org id
-				id := influxdb.ID(5)
+				id := platform.ID(5)
 				l, err = store.ListLabels(context.Background(), tx, influxdb.LabelFilter{OrgID: &id})
 				if err != nil {
 					t.Fatal(err)
@@ -161,13 +162,13 @@ func TestLabels(t *testing.T) {
 
 				expectedLabel = []*influxdb.Label{
 					&influxdb.Label{
-						ID:    influxdb.ID(5),
+						ID:    platform.ID(5),
 						Name:  "labelname5",
-						OrgID: influxdb.ID(5)},
+						OrgID: platform.ID(5)},
 					{
-						ID:    influxdb.ID(11),
+						ID:    platform.ID(11),
 						Name:  "labelname11",
-						OrgID: influxdb.ID(5),
+						OrgID: platform.ID(5),
 					}}
 				if !reflect.DeepEqual(l, expectedLabel) {
 					t.Fatalf("label returned by list did not match expected: \n%+v\n%+v", l, expectedLabel)
@@ -179,7 +180,7 @@ func TestLabels(t *testing.T) {
 			setup: setup,
 			update: func(t *testing.T, store *label.Store, tx kv.Tx) {
 				upd := influxdb.LabelUpdate{Name: "newName"}
-				updated, err := store.UpdateLabel(context.Background(), tx, influxdb.ID(1), upd)
+				updated, err := store.UpdateLabel(context.Background(), tx, platform.ID(1), upd)
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -189,7 +190,7 @@ func TestLabels(t *testing.T) {
 				}
 			},
 			results: func(t *testing.T, store *label.Store, tx kv.Tx) {
-				la, err := store.GetLabel(context.Background(), tx, influxdb.ID(1))
+				la, err := store.GetLabel(context.Background(), tx, platform.ID(1))
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -203,12 +204,12 @@ func TestLabels(t *testing.T) {
 			name:  "delete",
 			setup: setup,
 			update: func(t *testing.T, store *label.Store, tx kv.Tx) {
-				err := store.DeleteLabel(context.Background(), tx, influxdb.ID(5))
+				err := store.DeleteLabel(context.Background(), tx, platform.ID(5))
 				if err != nil {
 					t.Fatal(err)
 				}
 
-				err = store.DeleteLabel(context.Background(), tx, influxdb.ID(5))
+				err = store.DeleteLabel(context.Background(), tx, platform.ID(5))
 				if err != label.ErrLabelNotFound {
 					t.Fatal("expected label not found error when deleting bucket that has already been deleted, got: ", err)
 				}

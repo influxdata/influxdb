@@ -2,6 +2,8 @@ package label
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"strings"
 
 	"github.com/influxdata/influxdb/v2"
@@ -21,8 +23,8 @@ func NewService(st *Store) influxdb.LabelService {
 // CreateLabel creates a new label.
 func (s *Service) CreateLabel(ctx context.Context, l *influxdb.Label) error {
 	if err := l.Validate(); err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}
@@ -49,7 +51,7 @@ func (s *Service) CreateLabel(ctx context.Context, l *influxdb.Label) error {
 }
 
 // FindLabelByID finds a label by its ID
-func (s *Service) FindLabelByID(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
+func (s *Service) FindLabelByID(ctx context.Context, id platform.ID) (*influxdb.Label, error) {
 	var l *influxdb.Label
 
 	err := s.store.View(ctx, func(tx kv.Tx) error {
@@ -62,7 +64,7 @@ func (s *Service) FindLabelByID(ctx context.Context, id influxdb.ID) (*influxdb.
 	})
 
 	if err != nil {
-		return nil, &influxdb.Error{
+		return nil, &errors.Error{
 			Err: err,
 		}
 	}
@@ -101,12 +103,12 @@ func (s *Service) FindResourceLabels(ctx context.Context, filter influxdb.LabelM
 }
 
 // UpdateLabel updates a label.
-func (s *Service) UpdateLabel(ctx context.Context, id influxdb.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
+func (s *Service) UpdateLabel(ctx context.Context, id platform.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
 	var label *influxdb.Label
 	err := s.store.Update(ctx, func(tx kv.Tx) error {
 		l, e := s.store.UpdateLabel(ctx, tx, id, upd)
 		if e != nil {
-			return &influxdb.Error{
+			return &errors.Error{
 				Err: e,
 			}
 		}
@@ -118,12 +120,12 @@ func (s *Service) UpdateLabel(ctx context.Context, id influxdb.ID, upd influxdb.
 }
 
 // DeleteLabel deletes a label.
-func (s *Service) DeleteLabel(ctx context.Context, id influxdb.ID) error {
+func (s *Service) DeleteLabel(ctx context.Context, id platform.ID) error {
 	err := s.store.Update(ctx, func(tx kv.Tx) error {
 		return s.store.DeleteLabel(ctx, tx, id)
 	})
 	if err != nil {
-		return &influxdb.Error{
+		return &errors.Error{
 			Err: err,
 		}
 	}
@@ -167,7 +169,7 @@ func (s *Service) DeleteLabelMapping(ctx context.Context, m *influxdb.LabelMappi
 		return s.store.DeleteLabelMapping(ctx, tx, m)
 	})
 	if err != nil {
-		return &influxdb.Error{
+		return &errors.Error{
 			Err: err,
 		}
 	}

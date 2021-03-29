@@ -1,6 +1,7 @@
 package legacy
 
 import (
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	http2 "net/http"
 
 	"github.com/influxdata/influxdb/v2"
@@ -15,14 +16,14 @@ import (
 
 // Handler is a collection of all the service handlers.
 type Handler struct {
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	PointsWriterHandler *WriteHandler
 	PingHandler         *PingHandler
 	InfluxQLHandler     *InfluxqlHandler
 }
 
 type Backend struct {
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	Logger            *zap.Logger
 	MaxBatchSizeBytes int64
 
