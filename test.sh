@@ -55,20 +55,20 @@ function filename2imagename {
     echo ${1/Dockerfile/influxdb}
 }
 
-# Run a test in a docker container
-# Usage: run_test_docker <Dockerfile> <env_name> <args>...
+# Run go tests in a docker container
+# Usage: run_test_docker <env_name> <args>...
 function run_test_docker {
-  run_docker /root/influxdb/build.py "${@}" --test --junit-report "--parallel=$PARALLELISM" "--timeout=$TIMEOUT"
+  local name=$1
+  shift
+  run_docker "$name" /root/influxdb/build.py "${@}" --test --junit-report "--parallel=$PARALLELISM" "--timeout=$TIMEOUT"
 }
 
 # Run a script in a docker container
-# Usage: run_docker <Dockerfile> <env_name> <args>...
+# Usage: run_docker <env_name> <command> <args>...
 function run_docker {
     local dockerfile=Dockerfile_build_ubuntu64
     local imagename=$(filename2imagename "$dockerfile")
 
-    local entrypoint=$1
-    shift
     local name=$1
     shift
     local logfile="$OUTPUT_DIR/${name}.log"
@@ -85,7 +85,6 @@ function run_docker {
          -e "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" \
          -e "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" \
          "$imagename" \
-         "$entrypoint" \
          "$@" \
          2>&1 | tee "$logfile"
     return "${PIPESTATUS[0]}"
@@ -131,7 +130,7 @@ case $ENVIRONMENT_INDEX in
         ;;
     "flux")
       >&2 echo 'flux tests'
-      run_docker /root/influxdb/test-flux.sh test_flux
+      run_docker test_flux /root/influxdb/test-flux.sh
       ;;
     *)
         echo "No individual test environment specified running tests for all $ENV_COUNT environments."
