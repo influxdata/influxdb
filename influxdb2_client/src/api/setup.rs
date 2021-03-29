@@ -60,7 +60,7 @@ impl Client {
             .context(ReqwestProcessing)?;
 
         match response.status() {
-            StatusCode::OK => Ok(response
+            StatusCode::CREATED => Ok(response
                 .json::<OnboardingResponse>()
                 .await
                 .context(ReqwestProcessing)?),
@@ -100,7 +100,7 @@ impl Client {
             .context(ReqwestProcessing)?;
 
         match response.status() {
-            StatusCode::OK => Ok(response
+            StatusCode::CREATED => Ok(response
                 .json::<OnboardingResponse>()
                 .await
                 .context(ReqwestProcessing)?),
