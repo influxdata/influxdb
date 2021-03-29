@@ -2,9 +2,10 @@ package main
 
 import (
 	"errors"
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/url"
 	"path/filepath"
+
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/influxdb/v2/cmd/influx/config"
 	"github.com/spf13/cobra"

@@ -3,10 +3,11 @@ package bolt
 import (
 	"context"
 	"fmt"
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"os"
 	"path/filepath"
 	"time"
+
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/rand"

@@ -3,6 +3,7 @@ package mock
 import (
 	"context"
 	"fmt"
+
 	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 )
 

@@ -2,9 +2,10 @@ package check
 
 import (
 	"encoding/json"
+	"time"
+
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-	"time"
 
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxdb/v2"

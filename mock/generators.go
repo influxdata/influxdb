@@ -1,9 +1,10 @@
 package mock
 
 import (
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 // IDGenerator is mock implementation of influxdb.IDGenerator.

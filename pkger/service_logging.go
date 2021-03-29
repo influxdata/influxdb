@@ -2,8 +2,9 @@ package pkger
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"go.uber.org/zap"
 )

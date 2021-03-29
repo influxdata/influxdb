@@ -5,9 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
+
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
-	"time"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"

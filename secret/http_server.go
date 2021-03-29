@@ -2,9 +2,10 @@ package secret
 
 import (
 	"fmt"
+	"net/http"
+
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-	"net/http"
 
 	"github.com/go-chi/chi"
 	"github.com/influxdata/influxdb/v2"

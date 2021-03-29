@@ -1,9 +1,10 @@
 package http
 
 import (
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"reflect"
 	"testing"
+
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 
 	platform "github.com/influxdata/influxdb/v2"
 )

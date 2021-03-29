@@ -5,9 +5,10 @@ import (
 	"context"
 	crand "crypto/rand"
 	"crypto/sha256"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io"
 	"sync"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/influxdb/v2"
 )

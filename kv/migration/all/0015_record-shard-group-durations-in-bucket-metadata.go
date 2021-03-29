@@ -3,8 +3,9 @@ package all
 import (
 	"context"
 	"encoding/json"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"

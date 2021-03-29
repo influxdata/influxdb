@@ -2,12 +2,13 @@ package pprof
 
 import (
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io"
 	"net/http"
 	httppprof "net/http/pprof"
 	"strconv"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/go-chi/chi"
 	ihttp "github.com/influxdata/influxdb/v2/kit/transport/http"

@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"strconv"
 	"time"
+
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/hashicorp/vault/api"
 	platform "github.com/influxdata/influxdb/v2"

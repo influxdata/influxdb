@@ -3,8 +3,9 @@ package inmem
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"path"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/influxdb/v2"
 )

@@ -2,6 +2,7 @@ package endpoint
 
 import (
 	"encoding/json"
+
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/influxdb/v2"

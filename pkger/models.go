@@ -3,10 +3,11 @@ package pkger
 import (
 	"encoding/json"
 	"errors"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"reflect"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/influxdb/v2"
 	icheck "github.com/influxdata/influxdb/v2/notification/check"

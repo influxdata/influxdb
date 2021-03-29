@@ -3,13 +3,14 @@ package testing
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/http"
 	"sort"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/google/go-cmp/cmp"
 	influxdb "github.com/influxdata/influxdb/v2"

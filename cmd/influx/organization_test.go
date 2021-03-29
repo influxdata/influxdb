@@ -4,10 +4,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io/ioutil"
 	"reflect"
 	"testing"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/stretchr/testify/assert"
 

@@ -3,10 +3,11 @@ package influxdb
 import (
 	"context"
 	"fmt"
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"sort"
 	"time"
+
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"

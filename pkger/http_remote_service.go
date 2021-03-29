@@ -3,9 +3,10 @@ package pkger
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-	"net/http"
 
 	ihttp "github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"

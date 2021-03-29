@@ -3,10 +3,11 @@ package legacy
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/influxdb/v2"

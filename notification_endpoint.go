@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 )

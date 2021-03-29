@@ -3,9 +3,10 @@ package main
 import (
 	"context"
 	"errors"
+	"io/ioutil"
+
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
-	"io/ioutil"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influx/internal"

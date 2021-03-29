@@ -1,8 +1,9 @@
 package legacy
 
 import (
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	http2 "net/http"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/http/metric"

@@ -1,9 +1,10 @@
 package tests
 
 import (
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"net/http"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/influxdb/v2"
 	influxhttp "github.com/influxdata/influxdb/v2/http"

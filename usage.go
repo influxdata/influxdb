@@ -2,8 +2,9 @@ package influxdb
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 // UsageMetric used to track classes of usage.

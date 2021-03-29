@@ -2,9 +2,10 @@ package rand
 
 import (
 	"encoding/binary"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"reflect"
 	"testing"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 func TestOrgBucketID_ID(t *testing.T) {

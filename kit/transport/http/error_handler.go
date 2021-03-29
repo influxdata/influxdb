@@ -6,11 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io"
 	"mime"
 	"net/http"
 	"strings"
+
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 // ErrorHandler is the error handler in http package.

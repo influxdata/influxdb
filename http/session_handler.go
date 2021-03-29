@@ -2,8 +2,9 @@ package http
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/http"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb/v2"

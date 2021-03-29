@@ -20,10 +20,11 @@ package control
 import (
 	"context"
 	"fmt"
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"runtime/debug"
 	"sync"
 	"sync/atomic"
+
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"

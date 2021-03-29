@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io"
 	"io/ioutil"
 	"net/url"
@@ -17,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/fatih/color"
 	"github.com/influxdata/influxdb/v2"

@@ -2,11 +2,12 @@ package httpc
 
 import (
 	"errors"
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io"
 	"net/http"
 	"net/url"
 	"path"
+
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 type (

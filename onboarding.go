@@ -2,8 +2,9 @@ package influxdb
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 // OnboardingService represents a service for the first run.

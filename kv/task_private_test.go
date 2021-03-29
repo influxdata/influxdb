@@ -1,8 +1,9 @@
 package kv
 
 import (
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"

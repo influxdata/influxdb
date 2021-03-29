@@ -1,10 +1,11 @@
 package prometheus
 
 import (
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"runtime"
 	"strconv"
 	"time"
+
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/prometheus/client_golang/prometheus"

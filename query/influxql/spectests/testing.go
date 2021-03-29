@@ -2,11 +2,12 @@ package spectests
 
 import (
 	"context"
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
+
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/andreyvit/diff"
 	"github.com/influxdata/flux/ast"

@@ -4,8 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"net/http"
+
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/flux"
 	platform "github.com/influxdata/influxdb/v2"

@@ -2,9 +2,10 @@ package rand
 
 import (
 	"encoding/binary"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"math/rand"
 	"sync"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 var _ platform.IDGenerator = (*OrgBucketID)(nil)

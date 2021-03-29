@@ -2,9 +2,10 @@ package influxdb
 
 import (
 	"context"
+	"time"
+
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-	"time"
 )
 
 // ErrSessionNotFound is the error messages for a missing sessions.

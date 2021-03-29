@@ -2,10 +2,11 @@ package query
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"io"
 	"strings"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	iql "github.com/influxdata/influxdb/v2/influxql"
 	"github.com/influxdata/influxdb/v2/kit/check"

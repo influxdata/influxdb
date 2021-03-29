@@ -3,8 +3,9 @@ package influxdb
 import (
 	"context"
 	"encoding/json"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"strings"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 // ErrSecretNotFound is the error msg for a missing secret.

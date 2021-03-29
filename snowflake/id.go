@@ -2,10 +2,11 @@ package snowflake
 
 import (
 	"errors"
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"math/rand"
 	"sync"
 	"time"
+
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/influxdb/v2/pkg/snowflake"
 )

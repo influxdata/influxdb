@@ -4,9 +4,10 @@ package mock
 import (
 	"context"
 	"errors"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"sync"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/task/backend/executor"

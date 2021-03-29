@@ -3,6 +3,7 @@ package kv
 import (
 	"context"
 	"encoding/json"
+
 	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 

@@ -1,9 +1,10 @@
 package executor
 
 import (
+	"time"
+
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-	"time"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/prometheus/client_golang/prometheus"

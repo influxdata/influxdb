@@ -5,9 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"strings"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
@@ -36,21 +37,21 @@ var (
 var _ influxdb.TaskService = (*Service)(nil)
 
 type kvTask struct {
-	ID              platform.ID       `json:"id"`
-	Type            string            `json:"type,omitempty"`
-	OrganizationID  platform.ID       `json:"orgID"`
-	Organization    string            `json:"org"`
-	OwnerID         platform.ID       `json:"ownerID"`
-	Name            string            `json:"name"`
-	Description     string            `json:"description,omitempty"`
-	Status          string            `json:"status"`
-	Flux            string            `json:"flux"`
-	Every           string            `json:"every,omitempty"`
-	Cron            string            `json:"cron,omitempty"`
-	LastRunStatus   string            `json:"lastRunStatus,omitempty"`
-	LastRunError    string            `json:"lastRunError,omitempty"`
-	Offset          influxdb.Duration `json:"offset,omitempty"`
-	LatestCompleted time.Time         `json:"latestCompleted,omitempty"`
+	ID              platform.ID            `json:"id"`
+	Type            string                 `json:"type,omitempty"`
+	OrganizationID  platform.ID            `json:"orgID"`
+	Organization    string                 `json:"org"`
+	OwnerID         platform.ID            `json:"ownerID"`
+	Name            string                 `json:"name"`
+	Description     string                 `json:"description,omitempty"`
+	Status          string                 `json:"status"`
+	Flux            string                 `json:"flux"`
+	Every           string                 `json:"every,omitempty"`
+	Cron            string                 `json:"cron,omitempty"`
+	LastRunStatus   string                 `json:"lastRunStatus,omitempty"`
+	LastRunError    string                 `json:"lastRunError,omitempty"`
+	Offset          influxdb.Duration      `json:"offset,omitempty"`
+	LatestCompleted time.Time              `json:"latestCompleted,omitempty"`
 	LatestScheduled time.Time              `json:"latestScheduled,omitempty"`
 	LatestSuccess   time.Time              `json:"latestSuccess,omitempty"`
 	LatestFailure   time.Time              `json:"latestFailure,omitempty"`

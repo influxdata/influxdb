@@ -5,13 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/http"
 	"net/url"
 	"path"
 	"strconv"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
@@ -158,20 +159,20 @@ func NewTaskHandler(log *zap.Logger, b *TaskBackend) *TaskHandler {
 // Task is a package-specific Task format that preserves the expected format for the API,
 // where time values are represented as strings
 type Task struct {
-	ID              platform.ID `json:"id"`
-	OrganizationID  platform.ID `json:"orgID"`
-	Organization    string      `json:"org"`
-	OwnerID         platform.ID `json:"ownerID"`
-	Name            string      `json:"name"`
-	Description     string      `json:"description,omitempty"`
-	Status          string      `json:"status"`
-	Flux            string      `json:"flux"`
-	Every           string      `json:"every,omitempty"`
-	Cron            string      `json:"cron,omitempty"`
-	Offset          string      `json:"offset,omitempty"`
-	LatestCompleted string      `json:"latestCompleted,omitempty"`
-	LastRunStatus   string      `json:"lastRunStatus,omitempty"`
-	LastRunError    string      `json:"lastRunError,omitempty"`
+	ID              platform.ID            `json:"id"`
+	OrganizationID  platform.ID            `json:"orgID"`
+	Organization    string                 `json:"org"`
+	OwnerID         platform.ID            `json:"ownerID"`
+	Name            string                 `json:"name"`
+	Description     string                 `json:"description,omitempty"`
+	Status          string                 `json:"status"`
+	Flux            string                 `json:"flux"`
+	Every           string                 `json:"every,omitempty"`
+	Cron            string                 `json:"cron,omitempty"`
+	Offset          string                 `json:"offset,omitempty"`
+	LatestCompleted string                 `json:"latestCompleted,omitempty"`
+	LastRunStatus   string                 `json:"lastRunStatus,omitempty"`
+	LastRunError    string                 `json:"lastRunError,omitempty"`
 	CreatedAt       string                 `json:"createdAt,omitempty"`
 	UpdatedAt       string                 `json:"updatedAt,omitempty"`
 	Metadata        map[string]interface{} `json:"metadata,omitempty"`

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	ierrors "github.com/influxdata/influxdb/v2/kit/errors"

@@ -1,8 +1,9 @@
 package snowflake
 
 import (
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
+
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 func TestIDLength(t *testing.T) {

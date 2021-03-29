@@ -2,11 +2,12 @@ package http
 
 import (
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/http"
 	"os"
 	"runtime/debug"
 	"sync"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"

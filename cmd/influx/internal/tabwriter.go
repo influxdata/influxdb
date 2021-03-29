@@ -2,10 +2,11 @@ package internal
 
 import (
 	"fmt"
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"io"
 	"strings"
 	"text/tabwriter"
+
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 // TabWriter wraps tab writer headers logic.

@@ -3,9 +3,10 @@ package session
 import (
 	"context"
 	"encoding/json"
+	"time"
+
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-	"time"
 
 	"github.com/influxdata/influxdb/v2"
 )
