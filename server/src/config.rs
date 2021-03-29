@@ -55,7 +55,7 @@ impl Config {
             });
         }
 
-        let mutable_buffer = if rules.mutable_buffer_config.is_some() {
+        let mutable_buffer = if !rules.lifecycle_rules.immutable {
             Some(MutableBufferDb::new(name.to_string()))
         } else {
             None

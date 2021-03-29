@@ -26,8 +26,6 @@ async fn create_database(db_name: &str, addr: &str) {
         .arg("database")
         .arg("create")
         .arg(db_name)
-        .arg("-m")
-        .arg("100") // give it a mutable buffer
         .arg("--host")
         .arg(addr)
         .assert()

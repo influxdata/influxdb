@@ -84,61 +84,75 @@ message WalBufferConfig {
   google.protobuf.Duration close_segment_after = 5;
 }
 
-message MutableBufferConfig {
-  message PartitionDropOrder {
+message LifecycleRules {
+  message SortOrder {
     message ColumnSort {
       string column_name = 1;
       ColumnType column_type = 2;
       Aggregate column_value = 3;
     }
 
-    // Sort partitions by this order. Last will be dropped first.
+    // Sort by this order
     Order order = 1;
 
     // Configure sort key
     oneof sort {
-      // The last time the partition received a write.
+      // The last time the item received a write.
       google.protobuf.Empty last_write_time = 2;
 
-      // When the partition was opened in the mutable buffer.
+      // When the item was created.
       google.protobuf.Empty created_at_time = 3;
 
       // A column name, its expected type, and whether to use the min or max
       // value. The ColumnType is necessary because the column can appear in
       // any number of tables and be of a different type. This specifies that
-      // when sorting partitions, only columns with the given name and type
-      // should be used for the purposes of determining the partition order. If a
-      // partition doesn't have the given column in any way, the partition will
-      // appear at the beginning of the list with a null value where all
-      // partitions having null for that value will then be
-      // sorted by created_at_time desc. So if none of the partitions in the
-      // mutable buffer had this column with this type, then the partition
-      // that was created first would appear last in the list and thus be the
-      // first up to be dropped.
+      // when sorting j, only columns with the given name and type
+      // should be used for the purposes of determining the order.
+      //
+      // All items are first sorted by created_at_time asc and then stably
+      // sorted based on the selected aggregate. If an item doesn't have the
+      // given column in any way, it will appear at the beginning of the list.
       ColumnSort column = 4;
     }
   }
-  // The size the mutable buffer should be limited to. Once the buffer gets
-  // to this size it will drop partitions in the given order. If unable
-  // to drop partitions (because of later rules in this config) it will
-  // reject writes until it is able to drop partitions.
-  uint64 buffer_size = 1;
 
-  // If set, the mutable buffer will not drop partitions that have chunks
-  // that have not yet been persisted. Thus it will reject writes if it
-  // is over size and is unable to drop partitions. The default is to
-  // drop partitions in the sort order, regardless of whether they have
-  // unpersisted chunks or not. The WAL Buffer can be used to ensure
-  // persistence, but this may cause longer recovery times.
-  bool reject_if_not_persisted = 2;
+  // A chunk of data within a partition that has been cold for writes for this
+  // many seconds will be frozen and compacted (moved to the read buffer)
+  // if the chunk is older than mutable_min_lifetime_seconds
+  //
+  // Represents the chunk transition open -> moving and closing -> moving
+  uint32 mutable_linger_seconds = 1;
 
-  // Configure order to drop partitions in
-  PartitionDropOrder partition_drop_order = 3;
+  // A chunk of data within a partition is guaranteed to remain mutable
+  // for at least this number of seconds
+  uint32 mutable_minimum_age_seconds = 2;
 
-  // Attempt to persist partitions after they haven't received a write for
-  // this number of seconds. If not set, partitions won't be
-  // automatically persisted.
-  uint32 persist_after_cold_seconds = 4;
+  // Once a chunk of data within a partition reaches this number of bytes
+  // writes outside its keyspace will be directed to a new chunk
+  //
+  // This chunk will be then compacted once it becomes cold for writes
+  // based on the mutable_linger_seconds and mutable_minimum_age_seconds
+  uint64 mutable_size_threshold = 3;
+
+  // Once the total amount of buffered data in memory reaches this size start
+  // dropping data from memory based on the drop_order
+  uint64 buffer_size_soft = 4;
+
+  // Once the amount of data in memory reaches this size start
+  // rejecting writes
+  uint64 buffer_size_hard = 5;
+
+  // Configure order to transition data
+  //
+  // In the case of multiple candidates, data will be
+  // compacted, persisted and dropped in this order
+  SortOrder sort_order = 6;
+
+  // Allow dropping data that has not been persisted to object storage
+  bool drop_non_persisted = 7;
+
+  // Do not allow writing new data to this database
+  bool immutable = 8;
 }
 
 message DatabaseRules {
@@ -148,11 +162,11 @@ message DatabaseRules {
   // Template that generates a partition key for each row inserted into the database
   PartitionTemplate partition_template = 2;
 
+  // Configures how data flows through the system
+  LifecycleRules lifecycle_rules = 3;
+
   // WAL configuration for this database
   WalBufferConfig wal_buffer_config = 6;
-
-  // Mutable buffer configuration for this database
-  MutableBufferConfig mutable_buffer_config = 7;
 
   // Shard  config
   ShardConfig shard_config = 8;

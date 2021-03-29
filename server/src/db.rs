@@ -507,34 +507,6 @@ impl Db {
         self.sequence.fetch_add(1, Ordering::SeqCst)
     }
 
-    /// Drops partitions from the mutable buffer if it is over size
-    pub fn check_size_and_drop_partitions(&self) -> Result<()> {
-        // TODO: update the catalog as well??
-        if let (Some(db), Some(config)) = (&self.mutable_buffer, &self.rules.mutable_buffer_config)
-        {
-            let mut size = db.size();
-            if size > config.buffer_size {
-                let mut partitions = db.partitions_sorted_by(&config.partition_drop_order);
-                while let Some(p) = partitions.pop() {
-                    let p = p.read().expect("mutex poisoned");
-                    let partition_size = p.size();
-                    size -= partition_size;
-                    let key = p.key();
-                    db.drop_partition(key);
-                    info!(
-                        partition_key = key,
-                        partition_size, "dropped partition from mutable buffer",
-                    );
-                    if size < config.buffer_size {
-                        return Ok(());
-                    }
-                }
-            }
-        }
-
-        Ok(())
-    }
-
     /// Return Summary information for all chunks in the specified
     /// partition across all storage systems
     pub fn partition_chunk_summaries(
@@ -784,10 +756,7 @@ mod tests {
     use arrow_deps::{
         arrow::record_batch::RecordBatch, assert_table_eq, datafusion::physical_plan::collect,
     };
-    use data_types::{
-        chunk::ChunkStorage,
-        database_rules::{MutableBufferConfig, Order, PartitionSort, PartitionSortRules},
-    };
+    use data_types::chunk::ChunkStorage;
     use query::{
         exec::Executor, frontend::sql::SQLQueryPlanner, test::TestLPWriter, PartitionChunk,
     };
@@ -954,55 +923,6 @@ mod tests {
 
         assert_eq!(mutable_chunk_ids(&db, partition_key), vec![0, 2]);
         assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![1]);
-    }
-
-    #[tokio::test]
-    async fn check_size_and_drop_partitions() {
-        let mut mbconf = MutableBufferConfig {
-            buffer_size: 300,
-            ..Default::default()
-        };
-
-        let rules = DatabaseRules {
-            mutable_buffer_config: Some(mbconf.clone()),
-            ..Default::default()
-        };
-
-        let mut db = Db::new(
-            rules,
-            Some(MutableBufferDb::new("foo")),
-            read_buffer::Database::new(),
-            None, // wal buffer
-            Arc::new(JobRegistry::new()),
-        );
-
-        let mut writer = TestLPWriter::default();
-
-        writer.write_lp_to_partition(&db, "cpu,adsf=jkl,foo=bar val=1 1", "p1");
-        writer.write_lp_to_partition(&db, "cpu,foo=bar val=1 1", "p2");
-        writer.write_lp_to_partition(&db, "cpu,foo=bar val=1 1", "p3");
-
-        assert!(db.mutable_buffer.as_ref().unwrap().size() > 300);
-        db.check_size_and_drop_partitions().unwrap();
-        assert!(db.mutable_buffer.as_ref().unwrap().size() < 300);
-
-        let mut partitions = db
-            .mutable_buffer
-            .as_ref()
-            .unwrap()
-            .partition_keys()
-            .unwrap();
-        partitions.sort();
-        assert_eq!(&partitions[0], "p2");
-        assert_eq!(&partitions[1], "p3");
-
-        writer.write_lp_to_partition(&db, "cpu,foo=bar val=1 1", "p4");
-        mbconf.buffer_size = db.mutable_buffer.as_ref().unwrap().size();
-        mbconf.partition_drop_order = PartitionSortRules {
-            order: Order::Desc,
-            sort: PartitionSort::LastWriteTime,
-        };
-        db.rules.mutable_buffer_config = Some(mbconf);
     }
 
     #[tokio::test]

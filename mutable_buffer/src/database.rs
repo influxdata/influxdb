@@ -1,4 +1,4 @@
-use data_types::database_rules::{PartitionSort, PartitionSortRules};
+use data_types::database_rules::{Sort, SortOrder};
 use generated_types::wal;
 use internal_types::data::ReplicatedWrite;
 
@@ -155,23 +155,20 @@ impl MutableBufferDb {
     }
 
     /// Returns the partitions in the requested sort order
-    pub fn partitions_sorted_by(
-        &self,
-        sort_rules: &PartitionSortRules,
-    ) -> Vec<Arc<RwLock<Partition>>> {
+    pub fn partitions_sorted_by(&self, sort_rules: &SortOrder) -> Vec<Arc<RwLock<Partition>>> {
         let mut partitions: Vec<_> = {
             let partitions = self.partitions.read().expect("poisoned mutex");
             partitions.values().map(Arc::clone).collect()
         };
 
         match &sort_rules.sort {
-            PartitionSort::CreatedAtTime => {
+            Sort::CreatedAtTime => {
                 partitions.sort_by_cached_key(|p| p.read().expect("mutex poisoned").created_at);
             }
-            PartitionSort::LastWriteTime => {
+            Sort::LastWriteTime => {
                 partitions.sort_by_cached_key(|p| p.read().expect("mutex poisoned").last_write_at);
             }
-            PartitionSort::Column(_name, _data_type, _val) => {
+            Sort::Column(_name, _data_type, _val) => {
                 unimplemented!()
             }
         }
@@ -339,17 +336,17 @@ mod tests {
         write_lines_to_partition(&db, &["cpu val=1 2"], "p1").await;
         write_lines_to_partition(&db, &["mem val=2 1"], "p2").await;
 
-        let sort_rules = PartitionSortRules {
+        let sort_rules = SortOrder {
             order: Order::Desc,
-            sort: PartitionSort::LastWriteTime,
+            sort: Sort::LastWriteTime,
         };
         let partitions = db.partitions_sorted_by(&sort_rules);
         assert_eq!(partitions[0].read().unwrap().key(), "p2");
         assert_eq!(partitions[1].read().unwrap().key(), "p1");
 
-        let sort_rules = PartitionSortRules {
+        let sort_rules = SortOrder {
             order: Order::Asc,
-            sort: PartitionSort::CreatedAtTime,
+            sort: Sort::CreatedAtTime,
         };
         let partitions = db.partitions_sorted_by(&sort_rules);
         assert_eq!(partitions[0].read().unwrap().key(), "p1");

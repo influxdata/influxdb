@@ -88,8 +88,8 @@ async fn test_create_database() {
                 .and(predicate::str::contains(format!("name: \"{}\"", db)))
                 // validate the defaults have been set reasonably
                 .and(predicate::str::contains("%Y-%m-%d %H:00:00"))
-                .and(predicate::str::contains("buffer_size: 104857600"))
-                .and(predicate::str::contains("MutableBufferConfig")),
+                .and(predicate::str::contains("buffer_size_hard: 104857600"))
+                .and(predicate::str::contains("LifecycleRules")),
         );
 }
 
@@ -105,7 +105,7 @@ async fn test_create_database_size() {
         .arg("database")
         .arg("create")
         .arg(db)
-        .arg("-m")
+        .arg("--buffer-size-hard")
         .arg("1000")
         .arg("--host")
         .arg(addr)
@@ -123,13 +123,13 @@ async fn test_create_database_size() {
         .assert()
         .success()
         .stdout(
-            predicate::str::contains("buffer_size: 1000")
-                .and(predicate::str::contains("MutableBufferConfig")),
+            predicate::str::contains("buffer_size_hard: 1000")
+                .and(predicate::str::contains("LifecycleRules")),
         );
 }
 
 #[tokio::test]
-async fn test_create_database_zero_size() {
+async fn test_create_database_immutable() {
     let server_fixture = ServerFixture::create_shared().await;
     let addr = server_fixture.grpc_base();
     let db_name = rand_name();
@@ -140,8 +140,7 @@ async fn test_create_database_zero_size() {
         .arg("database")
         .arg("create")
         .arg(db)
-        .arg("-m")
-        .arg("0")
+        .arg("--immutable")
         .arg("--host")
         .arg(addr)
         .assert()
@@ -158,7 +157,7 @@ async fn test_create_database_zero_size() {
         .assert()
         .success()
         // Should not have a mutable buffer
-        .stdout(predicate::str::contains("MutableBufferConfig").not());
+        .stdout(predicate::str::contains("immutable: true"));
 }
 
 #[tokio::test]

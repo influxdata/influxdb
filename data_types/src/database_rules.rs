@@ -50,12 +50,8 @@ pub struct DatabaseRules {
     /// configuration.
     pub wal_buffer_config: Option<WalBufferConfig>,
 
-    /// Unless explicitly disabled by setting this to None (or null in JSON),
-    /// writes will go into a queryable in-memory database
-    /// called the Mutable Buffer. It is optimized to receive writes so they
-    /// can be batched together later to the Read Buffer or to Parquet files
-    /// in object storage.
-    pub mutable_buffer_config: Option<MutableBufferConfig>,
+    /// Configure how data flows through the system
+    pub lifecycle_rules: LifecycleRules,
 
     /// An optional config to split writes into different "shards". A shard
     /// is a logical concept, but the usage is meant to split data into
@@ -77,10 +73,7 @@ impl DatabaseRules {
     }
 
     pub fn new() -> Self {
-        Self {
-            mutable_buffer_config: MutableBufferConfig::default_option(),
-            ..Default::default()
-        }
+        Self::default()
     }
 }
 
@@ -117,7 +110,7 @@ impl From<DatabaseRules> for management::DatabaseRules {
             name: rules.name,
             partition_template: Some(rules.partition_template.into()),
             wal_buffer_config: rules.wal_buffer_config.map(Into::into),
-            mutable_buffer_config: rules.mutable_buffer_config.map(Into::into),
+            lifecycle_rules: Some(rules.lifecycle_rules.into()),
             shard_config: rules.shard_config.map(Into::into),
         }
     }
@@ -131,9 +124,10 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
 
         let wal_buffer_config = proto.wal_buffer_config.optional("wal_buffer_config")?;
 
-        let mutable_buffer_config = proto
-            .mutable_buffer_config
-            .optional("mutable_buffer_config")?;
+        let lifecycle_rules = proto
+            .lifecycle_rules
+            .optional("lifecycle_rules")?
+            .unwrap_or_default();
 
         let partition_template = proto
             .partition_template
@@ -149,104 +143,82 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
             name: proto.name,
             partition_template,
             wal_buffer_config,
-            mutable_buffer_config,
+            lifecycle_rules,
             shard_config,
         })
     }
 }
 
-/// MutableBufferConfig defines the configuration for the in-memory database
-/// that is hot for writes as they arrive. Operators can define rules for
-/// evicting data once the mutable buffer passes a set memory threshold.
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub struct MutableBufferConfig {
-    /// The size the mutable buffer should be limited to. Once the buffer gets
-    /// to this size it will drop partitions in the given order. If unable
-    /// to drop partitions (because of later rules in this config) it will
-    /// reject writes until it is able to drop partitions.
-    pub buffer_size: usize,
-    /// If set, the mutable buffer will not drop partitions that have chunks
-    /// that have not yet been persisted. Thus it will reject writes if it
-    /// is over size and is unable to drop partitions. The default is to
-    /// drop partitions in the sort order, regardless of whether they have
-    /// unpersisted chunks or not. The WAL Buffer can be used to ensure
-    /// persistence, but this may cause longer recovery times.
-    pub reject_if_not_persisted: bool,
-    /// Drop partitions to free up space in this order. Can be by the oldest
-    /// created at time, the longest since the last write, or the min or max of
-    /// some column.
-    pub partition_drop_order: PartitionSortRules,
-    /// Attempt to persist partitions after they haven't received a write for
-    /// this number of seconds. If not set, partitions won't be
-    /// automatically persisted.
-    pub persist_after_cold_seconds: Option<u32>,
+/// Configures how data automatically flows through the system
+#[derive(Debug, Default, Eq, PartialEq, Clone)]
+pub struct LifecycleRules {
+    /// A chunk of data within a partition that has been cold for writes for
+    /// this many seconds will be frozen and compacted (moved to the read
+    /// buffer) if the chunk is older than mutable_min_lifetime_seconds
+    ///
+    /// Represents the chunk transition open -> moving and closing -> moving
+    pub mutable_linger_seconds: u32,
+
+    /// A chunk of data within a partition is guaranteed to remain mutable
+    /// for at least this number of seconds
+    pub mutable_minimum_age_seconds: u32,
+
+    /// Once a chunk of data within a partition reaches this number of bytes
+    /// writes outside its keyspace will be directed to a new chunk
+    ///
+    /// This chunk will be then compacted once it becomes cold for writes
+    /// based on the mutable_linger_seconds and mutable_minimum_age_seconds
+    pub mutable_size_threshold: usize,
+
+    /// Once the total amount of buffered data in memory reaches this size start
+    /// dropping data from memory based on the drop_order
+    pub buffer_size_soft: usize,
+
+    /// Once the amount of data in memory reaches this size start
+    /// rejecting writes
+    pub buffer_size_hard: usize,
+
+    /// Configure order to transition data
+    ///
+    /// In the case of multiple candidates, data will be
+    /// compacted, persisted and dropped in this order
+    pub sort_order: SortOrder,
+
+    /// Allow dropping data that has not been persisted to object storage
+    pub drop_non_persisted: bool,
+
+    /// Do not allow writing new data to this database
+    pub immutable: bool,
 }
 
-const DEFAULT_MUTABLE_BUFFER_SIZE: usize = 2_147_483_648; // 2 GB
-const DEFAULT_PERSIST_AFTER_COLD_SECONDS: u32 = 900; // 15 minutes
-
-impl MutableBufferConfig {
-    fn default_option() -> Option<Self> {
-        Some(Self::default())
-    }
-}
-
-// TODO: Remove this when deprecating HTTP API - cannot be used in gRPC as no
-// explicit NULL support
-impl Default for MutableBufferConfig {
-    fn default() -> Self {
+impl From<LifecycleRules> for management::LifecycleRules {
+    fn from(config: LifecycleRules) -> Self {
         Self {
-            buffer_size: DEFAULT_MUTABLE_BUFFER_SIZE,
-            // keep taking writes and drop partitions on the floor
-            reject_if_not_persisted: false,
-            partition_drop_order: PartitionSortRules {
-                order: Order::Desc,
-                sort: PartitionSort::CreatedAtTime,
-            },
-            // rollover the chunk and persist it after the partition has been cold for
-            // 15 minutes
-            persist_after_cold_seconds: Some(DEFAULT_PERSIST_AFTER_COLD_SECONDS),
+            mutable_linger_seconds: config.mutable_linger_seconds,
+            mutable_minimum_age_seconds: config.mutable_minimum_age_seconds,
+            mutable_size_threshold: config.mutable_size_threshold as _,
+            buffer_size_soft: config.buffer_size_soft as _,
+            buffer_size_hard: config.buffer_size_hard as _,
+            sort_order: Some(config.sort_order.into()),
+            drop_non_persisted: config.drop_non_persisted,
+            immutable: config.immutable,
         }
     }
 }
 
-impl From<MutableBufferConfig> for management::MutableBufferConfig {
-    fn from(config: MutableBufferConfig) -> Self {
-        Self {
-            buffer_size: config.buffer_size as _,
-            reject_if_not_persisted: config.reject_if_not_persisted,
-            partition_drop_order: Some(config.partition_drop_order.into()),
-            persist_after_cold_seconds: config.persist_after_cold_seconds.unwrap_or_default(),
-        }
-    }
-}
-
-impl TryFrom<management::MutableBufferConfig> for MutableBufferConfig {
+impl TryFrom<management::LifecycleRules> for LifecycleRules {
     type Error = FieldViolation;
 
-    fn try_from(proto: management::MutableBufferConfig) -> Result<Self, Self::Error> {
-        let partition_drop_order = proto
-            .partition_drop_order
-            .optional("partition_drop_order")?
-            .unwrap_or_default();
-
-        let buffer_size = if proto.buffer_size == 0 {
-            DEFAULT_MUTABLE_BUFFER_SIZE
-        } else {
-            proto.buffer_size as usize
-        };
-
-        let persist_after_cold_seconds = if proto.persist_after_cold_seconds == 0 {
-            None
-        } else {
-            Some(proto.persist_after_cold_seconds)
-        };
-
+    fn try_from(proto: management::LifecycleRules) -> Result<Self, Self::Error> {
         Ok(Self {
-            buffer_size,
-            reject_if_not_persisted: proto.reject_if_not_persisted,
-            partition_drop_order,
-            persist_after_cold_seconds,
+            mutable_linger_seconds: proto.mutable_linger_seconds,
+            mutable_minimum_age_seconds: proto.mutable_minimum_age_seconds,
+            mutable_size_threshold: proto.mutable_size_threshold as _,
+            buffer_size_soft: proto.buffer_size_soft as _,
+            buffer_size_hard: proto.buffer_size_hard as _,
+            sort_order: proto.sort_order.optional("sort_order")?.unwrap_or_default(),
+            drop_non_persisted: proto.drop_non_persisted,
+            immutable: proto.immutable,
         })
     }
 }
@@ -258,24 +230,24 @@ impl TryFrom<management::MutableBufferConfig> for MutableBufferConfig {
 ///
 /// For example, to drop the partition that has been open longest:
 /// ```
-/// use data_types::database_rules::{PartitionSortRules, Order, PartitionSort};
+/// use data_types::database_rules::{SortOrder, Order, Sort};
 ///
-/// let rules = PartitionSortRules{
+/// let rules = SortOrder{
 ///     order: Order::Desc,
-///     sort: PartitionSort::CreatedAtTime,
+///     sort: Sort::CreatedAtTime,
 /// };
 /// ```
 #[derive(Debug, Default, Eq, PartialEq, Clone)]
-pub struct PartitionSortRules {
+pub struct SortOrder {
     /// Sort partitions by this order. Last will be dropped.
     pub order: Order,
     /// Sort by either a column value, or when the partition was opened, or when
     /// it last received a write.
-    pub sort: PartitionSort,
+    pub sort: Sort,
 }
 
-impl From<PartitionSortRules> for management::mutable_buffer_config::PartitionDropOrder {
-    fn from(ps: PartitionSortRules) -> Self {
+impl From<SortOrder> for management::lifecycle_rules::SortOrder {
+    fn from(ps: SortOrder) -> Self {
         let order: management::Order = ps.order.into();
 
         Self {
@@ -285,12 +257,10 @@ impl From<PartitionSortRules> for management::mutable_buffer_config::PartitionDr
     }
 }
 
-impl TryFrom<management::mutable_buffer_config::PartitionDropOrder> for PartitionSortRules {
+impl TryFrom<management::lifecycle_rules::SortOrder> for SortOrder {
     type Error = FieldViolation;
 
-    fn try_from(
-        proto: management::mutable_buffer_config::PartitionDropOrder,
-    ) -> Result<Self, Self::Error> {
+    fn try_from(proto: management::lifecycle_rules::SortOrder) -> Result<Self, Self::Error> {
         Ok(Self {
             order: proto.order().scope("order")?,
             sort: proto.sort.optional("sort")?.unwrap_or_default(),
@@ -300,7 +270,7 @@ impl TryFrom<management::mutable_buffer_config::PartitionDropOrder> for Partitio
 
 /// What to sort the partition by.
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub enum PartitionSort {
+pub enum Sort {
     /// The last time the partition received a write.
     LastWriteTime,
     /// When the partition was opened in the mutable buffer.
@@ -320,20 +290,20 @@ pub enum PartitionSort {
     Column(String, ColumnType, ColumnValue),
 }
 
-impl Default for PartitionSort {
+impl Default for Sort {
     fn default() -> Self {
         Self::CreatedAtTime
     }
 }
 
-impl From<PartitionSort> for management::mutable_buffer_config::partition_drop_order::Sort {
-    fn from(ps: PartitionSort) -> Self {
-        use management::mutable_buffer_config::partition_drop_order::ColumnSort;
+impl From<Sort> for management::lifecycle_rules::sort_order::Sort {
+    fn from(ps: Sort) -> Self {
+        use management::lifecycle_rules::sort_order::ColumnSort;
 
         match ps {
-            PartitionSort::LastWriteTime => Self::LastWriteTime(Empty {}),
-            PartitionSort::CreatedAtTime => Self::CreatedAtTime(Empty {}),
-            PartitionSort::Column(column_name, column_type, column_value) => {
+            Sort::LastWriteTime => Self::LastWriteTime(Empty {}),
+            Sort::CreatedAtTime => Self::CreatedAtTime(Empty {}),
+            Sort::Column(column_name, column_type, column_value) => {
                 let column_type: management::ColumnType = column_type.into();
                 let column_value: management::Aggregate = column_value.into();
 
@@ -347,13 +317,11 @@ impl From<PartitionSort> for management::mutable_buffer_config::partition_drop_o
     }
 }
 
-impl TryFrom<management::mutable_buffer_config::partition_drop_order::Sort> for PartitionSort {
+impl TryFrom<management::lifecycle_rules::sort_order::Sort> for Sort {
     type Error = FieldViolation;
 
-    fn try_from(
-        proto: management::mutable_buffer_config::partition_drop_order::Sort,
-    ) -> Result<Self, Self::Error> {
-        use management::mutable_buffer_config::partition_drop_order::Sort;
+    fn try_from(proto: management::lifecycle_rules::sort_order::Sort) -> Result<Self, Self::Error> {
+        use management::lifecycle_rules::sort_order::Sort;
 
         Ok(match proto {
             Sort::LastWriteTime(_) => Self::LastWriteTime,
@@ -1154,10 +1122,10 @@ mod tests {
         // These will be defaulted as optionality not preserved on non-protobuf
         // DatabaseRules
         assert_eq!(back.partition_template, Some(Default::default()));
+        assert_eq!(back.lifecycle_rules, Some(LifecycleRules::default().into()));
 
         // These should be none as preserved on non-protobuf DatabaseRules
         assert!(back.wal_buffer_config.is_none());
-        assert!(back.mutable_buffer_config.is_none());
         assert!(back.shard_config.is_none());
     }
 
@@ -1296,89 +1264,87 @@ mod tests {
     }
 
     #[test]
-    fn mutable_buffer_config_default() {
-        let protobuf: management::MutableBufferConfig = Default::default();
-
-        let config: MutableBufferConfig = protobuf.try_into().unwrap();
-        let back: management::MutableBufferConfig = config.clone().into();
-
-        assert_eq!(config.buffer_size, DEFAULT_MUTABLE_BUFFER_SIZE);
-        assert_eq!(config.persist_after_cold_seconds, None);
-        assert_eq!(config.partition_drop_order, PartitionSortRules::default());
-        assert!(!config.reject_if_not_persisted);
-
-        assert_eq!(back.reject_if_not_persisted, config.reject_if_not_persisted);
-        assert_eq!(back.buffer_size as usize, config.buffer_size);
-        assert_eq!(
-            back.partition_drop_order,
-            Some(PartitionSortRules::default().into())
-        );
-        assert_eq!(back.persist_after_cold_seconds, 0);
-    }
-
-    #[test]
-    fn mutable_buffer_config() {
-        let protobuf = management::MutableBufferConfig {
-            buffer_size: 32,
-            reject_if_not_persisted: true,
-            partition_drop_order: Some(management::mutable_buffer_config::PartitionDropOrder {
-                order: management::Order::Desc as _,
-                sort: None,
-            }),
-            persist_after_cold_seconds: 439,
+    fn lifecycle_rules() {
+        let protobuf = management::LifecycleRules {
+            mutable_linger_seconds: 123,
+            mutable_minimum_age_seconds: 5345,
+            mutable_size_threshold: 232,
+            buffer_size_soft: 353,
+            buffer_size_hard: 232,
+            sort_order: None,
+            drop_non_persisted: true,
+            immutable: true,
         };
 
-        let config: MutableBufferConfig = protobuf.clone().try_into().unwrap();
-        let back: management::MutableBufferConfig = config.clone().into();
+        let config: LifecycleRules = protobuf.clone().try_into().unwrap();
+        let back: management::LifecycleRules = config.clone().into();
 
-        assert_eq!(config.buffer_size, protobuf.buffer_size as usize);
+        assert_eq!(config.sort_order, SortOrder::default());
         assert_eq!(
-            config.persist_after_cold_seconds,
-            Some(protobuf.persist_after_cold_seconds)
+            config.mutable_linger_seconds,
+            protobuf.mutable_linger_seconds
         );
-        assert_eq!(config.partition_drop_order.order, Order::Desc);
-        assert!(config.reject_if_not_persisted);
+        assert_eq!(
+            config.mutable_minimum_age_seconds,
+            protobuf.mutable_minimum_age_seconds
+        );
+        assert_eq!(
+            config.mutable_size_threshold,
+            protobuf.mutable_size_threshold as usize
+        );
+        assert_eq!(config.buffer_size_soft, protobuf.buffer_size_soft as usize);
+        assert_eq!(config.buffer_size_hard, protobuf.buffer_size_hard as usize);
+        assert_eq!(config.drop_non_persisted, protobuf.drop_non_persisted);
+        assert_eq!(config.immutable, protobuf.immutable);
 
-        assert_eq!(back.reject_if_not_persisted, config.reject_if_not_persisted);
-        assert_eq!(back.buffer_size as usize, config.buffer_size);
+        assert_eq!(back.mutable_linger_seconds, protobuf.mutable_linger_seconds);
         assert_eq!(
-            back.persist_after_cold_seconds,
-            protobuf.persist_after_cold_seconds
+            back.mutable_minimum_age_seconds,
+            protobuf.mutable_minimum_age_seconds
         );
+        assert_eq!(back.mutable_size_threshold, protobuf.mutable_size_threshold);
+        assert_eq!(back.buffer_size_soft, protobuf.buffer_size_soft);
+        assert_eq!(back.buffer_size_hard, protobuf.buffer_size_hard);
+        assert_eq!(back.drop_non_persisted, protobuf.drop_non_persisted);
+        assert_eq!(back.immutable, protobuf.immutable);
     }
 
     #[test]
-    fn partition_drop_order_default() {
-        let protobuf: management::mutable_buffer_config::PartitionDropOrder = Default::default();
-        let config: PartitionSortRules = protobuf.try_into().unwrap();
+    fn sort_order_default() {
+        let protobuf: management::lifecycle_rules::SortOrder = Default::default();
+        let config: SortOrder = protobuf.try_into().unwrap();
 
-        assert_eq!(config, PartitionSortRules::default());
+        assert_eq!(config, SortOrder::default());
         assert_eq!(config.order, Order::default());
-        assert_eq!(config.sort, PartitionSort::default());
+        assert_eq!(config.sort, Sort::default());
     }
 
     #[test]
-    fn partition_drop_order() {
-        use management::mutable_buffer_config::{partition_drop_order::Sort, PartitionDropOrder};
-        let protobuf = PartitionDropOrder {
+    fn sort_order() {
+        use management::lifecycle_rules::sort_order;
+        let protobuf = management::lifecycle_rules::SortOrder {
             order: management::Order::Asc as _,
-            sort: Some(Sort::CreatedAtTime(Empty {})),
+            sort: Some(sort_order::Sort::CreatedAtTime(Empty {})),
         };
-        let config: PartitionSortRules = protobuf.clone().try_into().unwrap();
-        let back: PartitionDropOrder = config.clone().into();
+        let config: SortOrder = protobuf.clone().try_into().unwrap();
+        let back: management::lifecycle_rules::SortOrder = config.clone().into();
 
         assert_eq!(protobuf, back);
         assert_eq!(config.order, Order::Asc);
-        assert_eq!(config.sort, PartitionSort::CreatedAtTime);
+        assert_eq!(config.sort, Sort::CreatedAtTime);
     }
 
     #[test]
-    fn partition_sort() {
-        use management::mutable_buffer_config::partition_drop_order::{ColumnSort, Sort};
+    fn sort() {
+        use management::lifecycle_rules::sort_order;
 
-        let created_at: PartitionSort = Sort::CreatedAtTime(Empty {}).try_into().unwrap();
-        let last_write: PartitionSort = Sort::LastWriteTime(Empty {}).try_into().unwrap();
-        let column: PartitionSort = Sort::Column(ColumnSort {
+        let created_at: Sort = sort_order::Sort::CreatedAtTime(Empty {})
+            .try_into()
+            .unwrap();
+        let last_write: Sort = sort_order::Sort::LastWriteTime(Empty {})
+            .try_into()
+            .unwrap();
+        let column: Sort = sort_order::Sort::Column(sort_order::ColumnSort {
             column_name: "column".to_string(),
             column_type: management::ColumnType::Bool as _,
             column_value: management::Aggregate::Min as _,
@@ -1386,29 +1352,29 @@ mod tests {
         .try_into()
         .unwrap();
 
-        assert_eq!(created_at, PartitionSort::CreatedAtTime);
-        assert_eq!(last_write, PartitionSort::LastWriteTime);
+        assert_eq!(created_at, Sort::CreatedAtTime);
+        assert_eq!(last_write, Sort::LastWriteTime);
         assert_eq!(
             column,
-            PartitionSort::Column("column".to_string(), ColumnType::Bool, ColumnValue::Min)
+            Sort::Column("column".to_string(), ColumnType::Bool, ColumnValue::Min)
         );
     }
 
     #[test]
     fn partition_sort_column_sort() {
-        use management::mutable_buffer_config::partition_drop_order::{ColumnSort, Sort};
+        use management::lifecycle_rules::sort_order;
 
-        let res: Result<PartitionSort, _> = Sort::Column(Default::default()).try_into();
+        let res: Result<Sort, _> = sort_order::Sort::Column(Default::default()).try_into();
         let err1 = res.expect_err("expected failure");
 
-        let res: Result<PartitionSort, _> = Sort::Column(ColumnSort {
+        let res: Result<Sort, _> = sort_order::Sort::Column(sort_order::ColumnSort {
             column_type: management::ColumnType::F64 as _,
             ..Default::default()
         })
         .try_into();
         let err2 = res.expect_err("expected failure");
 
-        let res: Result<PartitionSort, _> = Sort::Column(ColumnSort {
+        let res: Result<Sort, _> = sort_order::Sort::Column(sort_order::ColumnSort {
             column_type: management::ColumnType::F64 as _,
             column_value: management::Aggregate::Max as _,
             ..Default::default()

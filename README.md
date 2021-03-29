@@ -170,7 +170,7 @@ influxdb_iox writer set 42
 To write data, you need to create a database. You can do so via the API or using the CLI. For example, to create a database called `company_sensors` with a 100MB mutable buffer, use this command:
 
 ```shell
-influxdb_iox database create company_sensors -m 100
+influxdb_iox database create company_sensors
 ```
 
 Data can be stored in InfluxDB IOx by sending it in [line protocol]

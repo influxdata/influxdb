@@ -185,16 +185,13 @@ async fn test_create_get_database() {
                 nanos: 2,
             }),
         }),
-        mutable_buffer_config: Some(MutableBufferConfig {
-            buffer_size: 553,
-            reject_if_not_persisted: true,
-            partition_drop_order: Some(mutable_buffer_config::PartitionDropOrder {
+        lifecycle_rules: Some(LifecycleRules {
+            buffer_size_hard: 553,
+            sort_order: Some(lifecycle_rules::SortOrder {
                 order: Order::Asc as _,
-                sort: Some(
-                    mutable_buffer_config::partition_drop_order::Sort::CreatedAtTime(Empty {}),
-                ),
+                sort: Some(lifecycle_rules::sort_order::Sort::CreatedAtTime(Empty {})),
             }),
-            persist_after_cold_seconds: 34,
+            ..Default::default()
         }),
         shard_config: None,
     };
