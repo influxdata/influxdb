@@ -656,14 +656,13 @@ impl Database for Db {
             .collect()
     }
 
-    async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
+    fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
         self.create_partitions_if_needed(write)?;
 
         self.mutable_buffer
             .as_ref()
             .context(DatatbaseNotWriteable)?
             .store_replicated_write(write)
-            .await
             .context(MutableBufferWrite)
     }
 
@@ -809,7 +808,7 @@ mod tests {
         };
 
         let mut writer = TestLPWriter::default();
-        let res = writer.write_lp_string(&db, "cpu bar=1 10").await;
+        let res = writer.write_lp_string(&db, "cpu bar=1 10");
         assert_contains!(
             res.unwrap_err().to_string(),
             "Cannot write to this database: no mutable buffer configured"
@@ -820,10 +819,7 @@ mod tests {
     async fn read_write() {
         let db = Arc::new(make_db());
         let mut writer = TestLPWriter::default();
-        writer
-            .write_lp_string(db.as_ref(), "cpu bar=1 10")
-            .await
-            .unwrap();
+        writer.write_lp_string(db.as_ref(), "cpu bar=1 10").unwrap();
 
         let batches = run_query(db, "select * from cpu").await;
 
@@ -841,10 +837,7 @@ mod tests {
     async fn write_with_rollover() {
         let db = Arc::new(make_db());
         let mut writer = TestLPWriter::default();
-        writer
-            .write_lp_string(db.as_ref(), "cpu bar=1 10")
-            .await
-            .unwrap();
+        writer.write_lp_string(db.as_ref(), "cpu bar=1 10").unwrap();
         assert_eq!(vec!["1970-01-01T00"], db.partition_keys().unwrap());
 
         let mb_chunk = db.rollover_partition("1970-01-01T00").await.unwrap();
@@ -861,10 +854,7 @@ mod tests {
         assert_table_eq!(expected, &batches);
 
         // add new data
-        writer
-            .write_lp_string(db.as_ref(), "cpu bar=2 20")
-            .await
-            .unwrap();
+        writer.write_lp_string(db.as_ref(), "cpu bar=2 20").unwrap();
         let expected = vec![
             "+-----+------+",
             "| bar | time |",
@@ -889,14 +879,8 @@ mod tests {
         // Test that data can be loaded into the ReadBuffer
         let db = Arc::new(make_db());
         let mut writer = TestLPWriter::default();
-        writer
-            .write_lp_string(db.as_ref(), "cpu bar=1 10")
-            .await
-            .unwrap();
-        writer
-            .write_lp_string(db.as_ref(), "cpu bar=2 20")
-            .await
-            .unwrap();
+        writer.write_lp_string(db.as_ref(), "cpu bar=1 10").unwrap();
+        writer.write_lp_string(db.as_ref(), "cpu bar=2 20").unwrap();
 
         let partition_key = "1970-01-01T00";
         let mb_chunk = db.rollover_partition("1970-01-01T00").await.unwrap();
@@ -945,8 +929,8 @@ mod tests {
         let db = make_db();
         let partition_key = "1970-01-01T00";
         let mut writer = TestLPWriter::default();
-        writer.write_lp_string(&db, "cpu bar=1 10").await.unwrap();
-        writer.write_lp_string(&db, "cpu bar=1 20").await.unwrap();
+        writer.write_lp_string(&db, "cpu bar=1 10").unwrap();
+        writer.write_lp_string(&db, "cpu bar=1 20").unwrap();
 
         assert_eq!(mutable_chunk_ids(&db, partition_key), vec![0]);
         assert_eq!(
@@ -960,13 +944,13 @@ mod tests {
 
         // add a new chunk in mutable buffer, and move chunk1 (but
         // not chunk 0) to read buffer
-        writer.write_lp_string(&db, "cpu bar=1 30").await.unwrap();
+        writer.write_lp_string(&db, "cpu bar=1 30").unwrap();
         let mb_chunk = db.rollover_partition("1970-01-01T00").await.unwrap();
         db.load_chunk_to_read_buffer(partition_key, mb_chunk.id())
             .await
             .unwrap();
 
-        writer.write_lp_string(&db, "cpu bar=1 40").await.unwrap();
+        writer.write_lp_string(&db, "cpu bar=1 40").unwrap();
 
         assert_eq!(mutable_chunk_ids(&db, partition_key), vec![0, 2]);
         assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![1]);
@@ -994,15 +978,9 @@ mod tests {
 
         let mut writer = TestLPWriter::default();
 
-        writer
-            .write_lp_to_partition(&db, "cpu,adsf=jkl,foo=bar val=1 1", "p1")
-            .await;
-        writer
-            .write_lp_to_partition(&db, "cpu,foo=bar val=1 1", "p2")
-            .await;
-        writer
-            .write_lp_to_partition(&db, "cpu,foo=bar val=1 1", "p3")
-            .await;
+        writer.write_lp_to_partition(&db, "cpu,adsf=jkl,foo=bar val=1 1", "p1");
+        writer.write_lp_to_partition(&db, "cpu,foo=bar val=1 1", "p2");
+        writer.write_lp_to_partition(&db, "cpu,foo=bar val=1 1", "p3");
 
         assert!(db.mutable_buffer.as_ref().unwrap().size() > 300);
         db.check_size_and_drop_partitions().unwrap();
@@ -1018,9 +996,7 @@ mod tests {
         assert_eq!(&partitions[0], "p2");
         assert_eq!(&partitions[1], "p3");
 
-        writer
-            .write_lp_to_partition(&db, "cpu,foo=bar val=1 1", "p4")
-            .await;
+        writer.write_lp_to_partition(&db, "cpu,foo=bar val=1 1", "p4");
         mbconf.buffer_size = db.mutable_buffer.as_ref().unwrap().size();
         mbconf.partition_drop_order = PartitionSortRules {
             order: Order::Desc,
@@ -1035,13 +1011,12 @@ mod tests {
         let db = make_db();
         let mut writer = TestLPWriter::default();
 
-        writer.write_lp_string(&db, "cpu bar=1 1").await.unwrap();
+        writer.write_lp_string(&db, "cpu bar=1 1").unwrap();
         db.rollover_partition("1970-01-01T00").await.unwrap();
 
         // write into a separate partitiion
         writer
             .write_lp_string(&db, "cpu bar=1,baz2,frob=3 400000000000000")
-            .await
             .unwrap();
 
         print!("Partitions: {:?}", db.partition_keys().unwrap());
@@ -1077,17 +1052,13 @@ mod tests {
         let mut writer = TestLPWriter::default();
 
         // get three chunks: one open, one closed in mb and one close in rb
-        writer.write_lp_string(&db, "cpu bar=1 1").await.unwrap();
+        writer.write_lp_string(&db, "cpu bar=1 1").unwrap();
         db.rollover_partition("1970-01-01T00").await.unwrap();
 
-        writer
-            .write_lp_string(&db, "cpu bar=1,baz=2 2")
-            .await
-            .unwrap();
+        writer.write_lp_string(&db, "cpu bar=1,baz=2 2").unwrap();
 
         writer
             .write_lp_string(&db, "cpu bar=1,baz=2,frob=3 400000000000000")
-            .await
             .unwrap();
 
         print!("Partitions: {:?}", db.partition_keys().unwrap());
@@ -1101,7 +1072,6 @@ mod tests {
         db.rollover_partition("1970-01-05T15").await.unwrap();
         writer
             .write_lp_string(&db, "cpu bar=1,baz=3,blargh=3 400000000000000")
-            .await
             .unwrap();
 
         fn to_arc(s: &str) -> Arc<String> {

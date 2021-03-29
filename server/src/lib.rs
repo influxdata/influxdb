@@ -365,7 +365,6 @@ impl<M: ConnectionManager> Server<M> {
     ) -> Result<()> {
         if db.writeable() {
             db.store_replicated_write(&write)
-                .await
                 .map_err(|e| Box::new(e) as DatabaseError)
                 .context(UnknownDatabaseError {})?;
         }

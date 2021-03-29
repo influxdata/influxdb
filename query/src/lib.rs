@@ -35,13 +35,12 @@ use self::predicate::Predicate;
 ///
 /// TODO: Move all Query and Line Protocol specific things out of this
 /// trait and into the various query planners.
-#[async_trait]
 pub trait Database: Debug + Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
     type Chunk: PartitionChunk;
 
     /// Stores the replicated write into the database.
-    async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error>;
+    fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error>;
 
     /// Return the partition keys for data in this DB
     fn partition_keys(&self) -> Result<Vec<String>, Self::Error>;

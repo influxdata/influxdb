@@ -385,7 +385,7 @@ mem,host=A,region=west used=45 1
 
         let db = make_db();
         let mut writer = TestLPWriter::default();
-        writer.write_lp_string(&db, &lp).await.unwrap();
+        writer.write_lp_string(&db, &lp).unwrap();
 
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let (tx, rx) = tokio::sync::oneshot::channel();

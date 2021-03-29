@@ -47,7 +47,7 @@ impl DBSetup for NoData {
         let db = make_db();
         let data = "cpu,region=west user=23.2 100";
         let mut writer = TestLPWriter::default();
-        writer.write_lp_string(&db, data).await.unwrap();
+        writer.write_lp_string(&db, data).unwrap();
         // move data out of open chunk
         assert_eq!(db.rollover_partition(partition_key).await.unwrap().id(), 0);
 
@@ -208,7 +208,7 @@ impl DBSetup for EndToEndTest {
 
         let db = make_db();
         let mut writer = TestLPWriter::default();
-        let res = writer.write_lp_string(&db, &lp_data).await;
+        let res = writer.write_lp_string(&db, &lp_data);
         assert!(res.is_ok(), "Error: {}", res.unwrap_err());
 
         let scenario1 = DBScenario {
@@ -228,7 +228,7 @@ impl DBSetup for EndToEndTest {
 pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) -> Vec<DBScenario> {
     let db = make_db();
     let mut writer = TestLPWriter::default();
-    writer.write_lp_string(&db, data).await.unwrap();
+    writer.write_lp_string(&db, data).unwrap();
     let scenario1 = DBScenario {
         scenario_name: "Data in open chunk of mutable buffer".into(),
         db,
@@ -236,7 +236,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
 
     let db = make_db();
     let mut writer = TestLPWriter::default();
-    writer.write_lp_string(&db, data).await.unwrap();
+    writer.write_lp_string(&db, data).unwrap();
     db.rollover_partition(partition_key).await.unwrap();
     let scenario2 = DBScenario {
         scenario_name: "Data in closed chunk of mutable buffer".into(),
@@ -245,7 +245,7 @@ pub(crate) async fn make_one_chunk_scenarios(partition_key: &str, data: &str) ->
 
     let db = make_db();
     let mut writer = TestLPWriter::default();
-    writer.write_lp_string(&db, data).await.unwrap();
+    writer.write_lp_string(&db, data).unwrap();
     db.rollover_partition(partition_key).await.unwrap();
     db.load_chunk_to_read_buffer(partition_key, 0)
         .await
@@ -271,8 +271,8 @@ pub async fn make_two_chunk_scenarios(
 ) -> Vec<DBScenario> {
     let db = make_db();
     let mut writer = TestLPWriter::default();
-    writer.write_lp_string(&db, data1).await.unwrap();
-    writer.write_lp_string(&db, data2).await.unwrap();
+    writer.write_lp_string(&db, data1).unwrap();
+    writer.write_lp_string(&db, data2).unwrap();
     let scenario1 = DBScenario {
         scenario_name: "Data in single open chunk of mutable buffer".into(),
         db,
@@ -281,9 +281,9 @@ pub async fn make_two_chunk_scenarios(
     // spread across 2 mutable buffer chunks
     let db = make_db();
     let mut writer = TestLPWriter::default();
-    writer.write_lp_string(&db, data1).await.unwrap();
+    writer.write_lp_string(&db, data1).unwrap();
     db.rollover_partition(partition_key).await.unwrap();
-    writer.write_lp_string(&db, data2).await.unwrap();
+    writer.write_lp_string(&db, data2).unwrap();
     let scenario2 = DBScenario {
         scenario_name: "Data in one open chunk and one closed chunk of mutable buffer".into(),
         db,
@@ -292,12 +292,12 @@ pub async fn make_two_chunk_scenarios(
     // spread across 1 mutable buffer, 1 read buffer chunks
     let db = make_db();
     let mut writer = TestLPWriter::default();
-    writer.write_lp_string(&db, data1).await.unwrap();
+    writer.write_lp_string(&db, data1).unwrap();
     db.rollover_partition(partition_key).await.unwrap();
     db.load_chunk_to_read_buffer(partition_key, 0)
         .await
         .unwrap();
-    writer.write_lp_string(&db, data2).await.unwrap();
+    writer.write_lp_string(&db, data2).unwrap();
     let scenario3 = DBScenario {
         scenario_name: "Data in open chunk of mutable buffer, and one chunk of read buffer".into(),
         db,
@@ -306,9 +306,9 @@ pub async fn make_two_chunk_scenarios(
     // in 2 read buffer chunks
     let db = make_db();
     let mut writer = TestLPWriter::default();
-    writer.write_lp_string(&db, data1).await.unwrap();
+    writer.write_lp_string(&db, data1).unwrap();
     db.rollover_partition(partition_key).await.unwrap();
-    writer.write_lp_string(&db, data2).await.unwrap();
+    writer.write_lp_string(&db, data2).unwrap();
     db.rollover_partition(partition_key).await.unwrap();
 
     db.load_chunk_to_read_buffer(partition_key, 0)

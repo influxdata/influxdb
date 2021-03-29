@@ -92,7 +92,7 @@ impl TestDatabase {
             .unwrap_or_else(|_| panic!("parsing line protocol: {}", lp_data));
 
         let mut writer = TestLPWriter::default();
-        writer.write_lines(self, &parsed_lines).await.unwrap();
+        writer.write_lines(self, &parsed_lines).unwrap();
 
         // Writes parsed lines into this database
         let mut saved_lines = self.saved_lines.lock();
@@ -128,13 +128,12 @@ impl TestDatabase {
     }
 }
 
-#[async_trait]
 impl Database for TestDatabase {
     type Error = TestError;
     type Chunk = TestChunk;
 
     /// Adds the replicated write to this database
-    async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
+    fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
         self.replicated_writes.lock().push(write.clone());
         Ok(())
     }
@@ -520,7 +519,7 @@ pub struct TestLPWriter {
 
 impl TestLPWriter {
     // writes data in LineProtocol format into a database
-    pub async fn write_lines<D: Database>(
+    pub fn write_lines<D: Database>(
         &mut self,
         database: &D,
         lines: &[ParsedLine<'_>],
@@ -539,28 +538,23 @@ impl TestLPWriter {
         self.sequence_number += 1;
         database
             .store_replicated_write(&write)
-            .await
             .map_err(|e| TestError::DatabaseWrite {
                 source: Box::new(e),
             })
     }
 
     /// Writes line protocol formatted data in lp_data to `database`
-    pub async fn write_lp_string<D: Database>(
-        &mut self,
-        database: &D,
-        lp_data: &str,
-    ) -> Result<()> {
+    pub fn write_lp_string<D: Database>(&mut self, database: &D, lp_data: &str) -> Result<()> {
         let lines = parse_lines(lp_data)
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| Box::new(e) as _)
             .context(DatabaseWrite)?;
 
-        self.write_lines(database, &lines).await
+        self.write_lines(database, &lines)
     }
 
     /// Writes line protocol formatted data to database and partition
-    pub async fn write_lp_to_partition<D: Database>(
+    pub fn write_lp_to_partition<D: Database>(
         &mut self,
         database: &D,
         lp_data: &str,
@@ -568,11 +562,10 @@ impl TestLPWriter {
     ) {
         let lines = parse_lines(lp_data).collect::<Result<Vec<_>, _>>().unwrap();
         self.write_lines_to_partition(database, paritition_key, &lines)
-            .await;
     }
 
     /// Writes lines the the given partition
-    pub async fn write_lines_to_partition<D: Database>(
+    pub fn write_lines_to_partition<D: Database>(
         &mut self,
         database: &D,
         partition_key: impl Into<String>,
@@ -584,7 +577,7 @@ impl TestLPWriter {
         let write =
             lines_to_replicated_write(self.writer_id, self.sequence_number, &lines, &partitioner);
         self.sequence_number += 1;
-        database.store_replicated_write(&write).await.unwrap();
+        database.store_replicated_write(&write).unwrap();
     }
 }
 

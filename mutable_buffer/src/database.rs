@@ -183,7 +183,7 @@ impl MutableBufferDb {
         partitions
     }
 
-    pub async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<()> {
+    pub fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<()> {
         match write.write_buffer_batch() {
             Some(b) => self.write_entries_to_partitions(&b)?,
             None => {
@@ -385,10 +385,7 @@ mod tests {
         let replicated_write =
             lines_to_replicated_write(writer_id, sequence_number, &lines, &partitioner);
 
-        database
-            .store_replicated_write(&replicated_write)
-            .await
-            .unwrap()
+        database.store_replicated_write(&replicated_write).unwrap()
     }
 
     // Outputs a set partition key for testing. Used for parsing line protocol into
