@@ -46,6 +46,8 @@ func (t *testExecutor) Close() error {
 	return nil
 }
 
+// Run executes an e2e test case for every supported index type.
+// On failure, logs collected from the server will be printed to stderr.
 func (t *testExecutor) Run(pkg *ast.Package) error {
 	var failed bool
 	for _, idx := range []string{"inmem", "tsi1"} {
@@ -63,6 +65,8 @@ func (t *testExecutor) Run(pkg *ast.Package) error {
 	return nil
 }
 
+// run executes an e2e test case against a specific index type.
+// Server logs will be written to the specified logOut writer, for reporting.
 func (t *testExecutor) run(pkg *ast.Package, index string, logOut io.Writer) error {
 	_, _ = fmt.Fprintf(os.Stderr, "Testing %s...\n", index)
 
@@ -102,6 +106,9 @@ func (t *testExecutor) run(pkg *ast.Package, index string, logOut io.Writer) err
 	return t.executeWithOptions(bucketOpt, t.readOptAST, pkg, s.URL())
 }
 
+// executeWithOptions runs a Flux query against a running server via the HTTP API.
+// Flux queries executed by this method are expected to return no output on success. If the API call returns any data,
+// it is formatted as a table and returned wrapped in an error.
 func (t *testExecutor) executeWithOptions(bucketOpt *ast.OptionStatement, optionsAST *ast.File, pkg *ast.Package, serverUrl string) error {
 	options := optionsAST.Copy().(*ast.File)
 	options.Body = append([]ast.Statement{bucketOpt}, options.Body...)
