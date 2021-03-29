@@ -112,17 +112,17 @@ impl Chunk {
     }
 
     /// The total number of rows in all row groups in all tables in this chunk.
-    pub fn rows(&self) -> u64 {
+    pub(crate) fn rows(&self) -> u64 {
         self.chunk_data.read().unwrap().rows
     }
 
     /// The total number of row groups in all tables in this chunk.
-    pub fn row_groups(&self) -> usize {
+    pub(crate) fn row_groups(&self) -> usize {
         self.chunk_data.read().unwrap().row_groups
     }
 
     /// The total number of tables in this chunk.
-    pub fn tables(&self) -> usize {
+    pub(crate) fn tables(&self) -> usize {
         self.chunk_data.read().unwrap().data.len()
     }
 
@@ -136,7 +136,7 @@ impl Chunk {
     }
 
     /// Returns true if there are no tables under this chunk.
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.chunk_data.read().unwrap().data.len() == 0
     }
 
@@ -168,7 +168,7 @@ impl Chunk {
     /// the specified table have finished.
     ///
     /// Dropping a table that does not exist is effectively an no-op.
-    pub fn drop_table(&mut self, name: &str) {
+    pub(crate) fn drop_table(&mut self, name: &str) {
         let mut chunk_data = self.chunk_data.write().unwrap();
 
         // Remove table and update chunk meta-data if table exists.
@@ -221,7 +221,7 @@ impl Chunk {
     ///
     /// Note: `read_aggregate` currently only supports grouping on "tag"
     /// columns.
-    pub fn read_aggregate(
+    pub(crate) fn read_aggregate(
         &self,
         table_name: &str,
         predicate: Predicate,
