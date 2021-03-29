@@ -1,7 +1,11 @@
+//! Ready
+//!
+//! Check readiness of an InfluxDB instance at startup
+
 use reqwest::{Method, StatusCode};
 use snafu::ResultExt;
 
-use super::{Client, Http, RequestError, ReqwestProcessing};
+use crate::{Client, Http, RequestError, ReqwestProcessing};
 
 impl Client {
     /// Get the readiness of an instance at startup
