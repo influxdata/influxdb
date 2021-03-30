@@ -15,10 +15,10 @@ import (
 )
 
 const (
-	ReadRangePhysKind           = "ReadRangePhysKind"
-	ReadGroupPhysKind           = "ReadGroupPhysKind"
-	ReadTagKeysPhysKind         = "ReadTagKeysPhysKind"
-	ReadTagValuesPhysKind       = "ReadTagValuesPhysKind"
+	ReadRangePhysKind     = "ReadRangePhysKind"
+	ReadGroupPhysKind     = "ReadGroupPhysKind"
+	ReadTagKeysPhysKind   = "ReadTagKeysPhysKind"
+	ReadTagValuesPhysKind = "ReadTagValuesPhysKind"
 )
 
 type ReadGroupPhysSpec struct {
