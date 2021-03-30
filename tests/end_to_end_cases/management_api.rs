@@ -4,15 +4,11 @@ use generated_types::{
     google::protobuf::{Duration, Empty},
     influxdata::iox::management::v1::*,
 };
-use influxdb_iox_client::management::CreateDatabaseError;
+use influxdb_iox_client::{management::CreateDatabaseError, operations};
 use test_helpers::assert_contains;
 
-use super::{
-    operations_api::get_operation_metadata,
-    scenario::{
-        create_readable_database, create_two_partition_database, create_unreadable_database,
-        rand_name,
-    },
+use super::scenario::{
+    create_readable_database, create_two_partition_database, create_unreadable_database, rand_name,
 };
 use crate::common::server_fixture::ServerFixture;
 
@@ -559,7 +555,9 @@ async fn test_close_partition_chunk() {
     println!("Operation response is {:?}", operation);
     let operation_id = operation.name.parse().expect("not an integer");
 
-    let meta = get_operation_metadata(operation.metadata);
+    let meta = operations::ClientOperation::try_new(operation)
+        .unwrap()
+        .metadata();
 
     // ensure we got a legit job description back
     if let Some(Job::CloseChunk(close_chunk)) = meta.job {
