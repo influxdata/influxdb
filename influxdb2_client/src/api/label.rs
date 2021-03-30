@@ -4,10 +4,11 @@ use crate::models::{LabelCreateRequest, LabelResponse, LabelUpdate, LabelsRespon
 use crate::{Client, Http, RequestError, ReqwestProcessing, Serializing};
 use reqwest::{Method, StatusCode};
 use snafu::ResultExt;
+use std::collections::HashMap;
 
 impl Client {
     /// List all Labels
-    pub async fn find_labels(&self) -> Result<LabelsResponse, RequestError> {
+    pub async fn labels(&self) -> Result<LabelsResponse, RequestError> {
         let labels_url = format!("{}/api/v2/labels", self.url);
         let response = self
             .request(Method::GET, &labels_url)
@@ -27,7 +28,7 @@ impl Client {
     }
 
     /// Retrieve a label by ID
-    pub async fn find_label_by_id(&self, label_id: &str) -> Result<LabelResponse, RequestError> {
+    pub async fn find_label(&self, label_id: &str) -> Result<LabelResponse, RequestError> {
         let labels_by_id_url = format!("{}/api/v2/labels/{}", self.url, label_id);
         let response = self
             .request(Method::GET, &labels_by_id_url)
@@ -51,7 +52,7 @@ impl Client {
         &self,
         org_id: &str,
         name: &str,
-        properties: Option<::std::collections::HashMap<String, String>>,
+        properties: Option<HashMap<String, String>>,
     ) -> Result<LabelResponse, RequestError> {
         let create_label_url = format!("{}/api/v2/labels", self.url);
         let body = LabelCreateRequest {
@@ -81,7 +82,7 @@ impl Client {
     pub async fn update_label(
         &self,
         name: Option<String>,
-        properties: Option<::std::collections::HashMap<String, String>>,
+        properties: Option<HashMap<String, String>>,
         label_id: &str,
     ) -> Result<LabelResponse, RequestError> {
         let update_label_url = format!("{}/api/v2/labels/{}", &self.url, label_id);
@@ -130,33 +131,35 @@ mod tests {
     type Error = Box<dyn std::error::Error>;
     type Result<T = (), E = Error> = std::result::Result<T, E>;
 
+    const BASE_PATH: &str = "/api/v2/labels";
+
     #[tokio::test]
-    async fn find_labels() -> Result {
+    async fn labels() -> Result {
         let token = "some-token";
 
-        let mock_server = mock("GET", "/api/v2/labels")
+        let mock_server = mock("GET", format!("{}", BASE_PATH).as_str())
             .match_header("Authorization", format!("Token {}", token).as_str())
             .create();
 
         let client = Client::new(&mockito::server_url(), token);
 
-        let _result = client.find_labels().await;
+        let _result = client.labels().await;
 
         mock_server.assert();
         Ok(())
     }
 
     #[tokio::test]
-    async fn find_label_by_id() -> Result {
+    async fn find_label() -> Result {
         let token = "some-token";
         let label_id = "some-id";
-        let mock_server = mock("GET", format!("/api/v2/labels/{}", label_id).as_str())
+        let mock_server = mock("GET", format!("{}/{}", BASE_PATH, label_id).as_str())
             .match_header("Authorization", format!("Token {}", token).as_str())
             .create();
 
         let client = Client::new(&mockito::server_url(), token);
 
-        let _result = client.find_label_by_id(label_id).await;
+        let _result = client.find_label(label_id).await;
 
         mock_server.assert();
         Ok(())
@@ -167,10 +170,10 @@ mod tests {
         let token = "some-token";
         let org_id = "some-org";
         let name = "some-user";
-        let mut properties = std::collections::HashMap::new();
+        let mut properties = HashMap::new();
         properties.insert("some-key".to_string(), "some-value".to_string());
 
-        let mock_server = mock("POST", "/api/v2/labels")
+        let mock_server = mock("POST", format!("{}", BASE_PATH).as_str())
             .match_header("Authorization", format!("Token {}", token).as_str())
             .match_body(
                 format!(
@@ -195,7 +198,7 @@ mod tests {
         let org_id = "some-org_id";
         let name = "some-user";
 
-        let mock_server = mock("POST", "/api/v2/labels")
+        let mock_server = mock("POST", format!("{}", BASE_PATH).as_str())
             .match_header("Authorization", format!("Token {}", token).as_str())
             .match_body(format!(r#"{{"orgID":"{}","name":"{}"}}"#, org_id, name).as_str())
             .create();
@@ -213,10 +216,10 @@ mod tests {
         let token = "some-token";
         let name = "some-user";
         let label_id = "some-label_id";
-        let mut properties = std::collections::HashMap::new();
+        let mut properties = HashMap::new();
         properties.insert("some-key".to_string(), "some-value".to_string());
 
-        let mock_server = mock("PATCH", format!("/api/v2/labels/{}", label_id).as_str())
+        let mock_server = mock("PATCH", format!("{}/{}", BASE_PATH, label_id).as_str())
             .match_header("Authorization", format!("Token {}", token).as_str())
             .match_body(
                 format!(
@@ -242,7 +245,7 @@ mod tests {
         let token = "some-token";
         let label_id = "some-label_id";
 
-        let mock_server = mock("PATCH", format!("/api/v2/labels/{}", label_id).as_str())
+        let mock_server = mock("PATCH", format!("{}/{}", BASE_PATH, label_id).as_str())
             .match_header("Authorization", format!("Token {}", token).as_str())
             .match_body("{}")
             .create();
@@ -260,7 +263,7 @@ mod tests {
         let token = "some-token";
         let label_id = "some-label_id";
 
-        let mock_server = mock("DELETE", format!("/api/v2/labels/{}", label_id).as_str())
+        let mock_server = mock("DELETE", format!("{}/{}", BASE_PATH, label_id).as_str())
             .match_header("Authorization", format!("Token {}", token).as_str())
             .create();
 

@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let influx_url = "http://localhost:8888";
@@ -5,9 +7,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let client = influxdb2_client::Client::new(influx_url, token);
 
-    println!("{:?}", client.find_labels().await?);
-    println!("{:?}", client.find_label_by_id("some-label_id").await?);
-    let mut properties = std::collections::HashMap::new();
+    println!("{:?}", client.labels().await?);
+    println!("{:?}", client.find_label("some-label_id").await?);
+    let mut properties = HashMap::new();
     properties.insert("some-key".to_string(), "some-value".to_string());
     println!(
         "{:?}",
