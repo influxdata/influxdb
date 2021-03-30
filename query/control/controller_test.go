@@ -20,14 +20,8 @@ import (
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/plan/plantest"
 	"github.com/influxdata/flux/stdlib/universe"
-	"github.com/influxdata/influxdb/v2/kit/feature"
-	pmock "github.com/influxdata/influxdb/v2/mock"
-	"github.com/influxdata/influxdb/v2/query"
-	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
-	"github.com/influxdata/influxdb/v2/query/control"
-	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
-	"github.com/opentracing/opentracing-go"
-	"github.com/opentracing/opentracing-go/mocktracer"
+	"github.com/influxdata/influxdb/query/control"
+	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
 	"go.uber.org/zap/zaptest"
@@ -131,7 +125,7 @@ func TestController_QuerySuccess(t *testing.T) {
 
 	reg := setupPromRegistry(ctrl)
 
-	q, err := ctrl.Query(context.Background(), makeRequest(mockCompiler))
+	q, err := ctrl.Query(context.Background(), mockCompiler)
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -170,7 +164,7 @@ func TestController_QueryCompileError(t *testing.T) {
 
 	reg := setupPromRegistry(ctrl)
 
-	q, err := ctrl.Query(context.Background(), makeRequest(&mock.Compiler{
+	q, err := ctrl.Query(context.Background(), (&mock.Compiler{
 		CompileFn: func(ctx context.Context) (flux.Program, error) {
 			return nil, errors.New("compile error")
 		},
@@ -196,7 +190,7 @@ func TestController_QueryRuntimeError(t *testing.T) {
 
 	reg := setupPromRegistry(ctrl)
 
-	q, err := ctrl.Query(context.Background(), makeRequest(&mock.Compiler{
+	q, err := ctrl.Query(context.Background(), (&mock.Compiler{
 		CompileFn: func(ctx context.Context) (flux.Program, error) {
 			return &mock.Program{
 				ExecuteFn: func(ctx context.Context, q *mock.Query, alloc *memory.Allocator) {
@@ -253,7 +247,7 @@ func TestController_QueryQueueError(t *testing.T) {
 	// Insert three queries, two that block forever and a last that does not.
 	// The third should error to be enqueued.
 	for i := 0; i < 2; i++ {
-		q, err := ctrl.Query(context.Background(), makeRequest(&mock.Compiler{
+		q, err := ctrl.Query(context.Background(), (&mock.Compiler{
 			CompileFn: func(ctx context.Context) (flux.Program, error) {
 				return &mock.Program{
 					ExecuteFn: func(ctx context.Context, q *mock.Query, alloc *memory.Allocator) {
@@ -270,7 +264,7 @@ func TestController_QueryQueueError(t *testing.T) {
 	}
 
 	// Third "normal" query
-	q, err := ctrl.Query(context.Background(), makeRequest(mockCompiler))
+	q, err := ctrl.Query(context.Background(), (mockCompiler))
 	if err == nil {
 		t.Error("expected queue error")
 	}
@@ -353,7 +347,7 @@ func TestController_AfterShutdown(t *testing.T) {
 		return
 	}
 
-	if _, err := ctrl.Query(context.Background(), makeRequest(mockCompiler)); err == nil {
+	if _, err := ctrl.Query(context.Background(), (mockCompiler)); err == nil {
 		t.Error("expected error")
 	} else if got, want := err.Error(), "query controller shutdown"; got != want {
 		t.Errorf("unexpected error -want/+got\n\t- %q\n\t+ %q", want, got)
@@ -375,7 +369,7 @@ func TestController_CompileError(t *testing.T) {
 			}
 		},
 	}
-	if _, err := ctrl.Query(context.Background(), makeRequest(compiler)); err == nil {
+	if _, err := ctrl.Query(context.Background(), (compiler)); err == nil {
 		t.Error("expected error")
 	} else if got, want := err.Error(), "compilation failed: expected error"; got != want {
 		t.Errorf("unexpected error -want/+got\n\t- %q\n\t+ %q", want, got)
@@ -399,7 +393,7 @@ func TestController_ExecuteError(t *testing.T) {
 		},
 	}
 
-	q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+	q, err := ctrl.Query(context.Background(), (compiler))
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -460,7 +454,7 @@ func TestController_LimitExceededError(t *testing.T) {
 		},
 	}
 
-	q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+	q, err := ctrl.Query(context.Background(), (compiler))
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -509,7 +503,7 @@ func TestController_CompilePanic(t *testing.T) {
 		},
 	}
 
-	_, err = ctrl.Query(context.Background(), makeRequest(compiler))
+	_, err = ctrl.Query(context.Background(), (compiler))
 	if err == nil {
 		t.Fatalf("expected error when query was compiled")
 	} else if !strings.Contains(err.Error(), "panic during compile step") {
@@ -534,7 +528,7 @@ func TestController_StartPanic(t *testing.T) {
 		},
 	}
 
-	q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+	q, err := ctrl.Query(context.Background(), (compiler))
 	if err != nil {
 		t.Fatalf("unexpected error when query was compiled")
 	}
@@ -572,7 +566,7 @@ func TestController_ShutdownWithRunningQuery(t *testing.T) {
 		},
 	}
 
-	q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+	q, err := ctrl.Query(context.Background(), (compiler))
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 	}
@@ -622,7 +616,7 @@ func TestController_ShutdownWithTimeout(t *testing.T) {
 		},
 	}
 
-	q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+	q, err := ctrl.Query(context.Background(), (compiler))
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 	}
@@ -673,7 +667,7 @@ func TestController_PerQueryMemoryLimit(t *testing.T) {
 		},
 	}
 
-	q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+	q, err := ctrl.Query(context.Background(), (compiler))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -720,7 +714,7 @@ func TestController_ConcurrencyQuota(t *testing.T) {
 	}
 
 	for i := 0; i < numQueries; i++ {
-		q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+		q, err := ctrl.Query(context.Background(), (compiler))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -789,7 +783,7 @@ func TestController_QueueSize(t *testing.T) {
 
 	// Start as many queries as can be running at the same time
 	for i := 0; i < concurrencyQuota; i++ {
-		q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+		q, err := ctrl.Query(context.Background(), (compiler))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -806,7 +800,7 @@ func TestController_QueueSize(t *testing.T) {
 
 	// Now fill up the queue
 	for i := 0; i < queueSize; i++ {
-		q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+		q, err := ctrl.Query(context.Background(), (compiler))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -818,7 +812,7 @@ func TestController_QueueSize(t *testing.T) {
 		}()
 	}
 
-	_, err = ctrl.Query(context.Background(), makeRequest(compiler))
+	_, err = ctrl.Query(context.Background(), (compiler))
 	if err == nil {
 		t.Fatal("expected an error about queue length exceeded")
 	}
@@ -860,7 +854,7 @@ func TestController_CancelDone(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+			q, err := ctrl.Query(context.Background(), (compiler))
 			if err != nil {
 				t.Errorf("unexpected error: %s", err)
 				return
@@ -911,7 +905,7 @@ func TestController_DoneWithoutRead(t *testing.T) {
 		go func() {
 			defer wg.Done()
 
-			q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+			q, err := ctrl.Query(context.Background(), (compiler))
 			if err != nil {
 				t.Errorf("unexpected error: %s", err)
 				return
@@ -960,7 +954,7 @@ func TestController_Error_MaxMemory(t *testing.T) {
 		},
 	}
 
-	q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+	q, err := ctrl.Query(context.Background(), (compiler))
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 		return
@@ -1038,7 +1032,7 @@ func TestController_NoisyNeighbor(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for i := 0; i < 1000; i++ {
-				q, err := ctrl.Query(context.Background(), makeRequest(wellBehavedNeighbor))
+				q, err := ctrl.Query(context.Background(), (wellBehavedNeighbor))
 				if err != nil {
 					select {
 					case errCh <- err:
@@ -1057,7 +1051,7 @@ func TestController_NoisyNeighbor(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for i := 0; i < 1000; i++ {
-				q, err := ctrl.Query(context.Background(), makeRequest(noisyNeighbor))
+				q, err := ctrl.Query(context.Background(), (noisyNeighbor))
 				if err != nil {
 					select {
 					case errCh <- err:
@@ -1118,7 +1112,7 @@ func TestController_Error_NoRemainingMemory(t *testing.T) {
 		},
 	}
 
-	q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+	q, err := ctrl.Query(context.Background(), (compiler))
 	if err != nil {
 		t.Fatalf("unexpected error: %s", err)
 	}
@@ -1157,7 +1151,7 @@ func TestController_MemoryRelease(t *testing.T) {
 	// Run 100 queries. If we do not release the memory properly,
 	// this would fail.
 	for i := 0; i < 100; i++ {
-		q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+		q, err := ctrl.Query(context.Background(), (compiler))
 		if err != nil {
 			t.Errorf("unexpected error: %s", err)
 			return
@@ -1210,7 +1204,7 @@ func TestController_IrregularMemoryQuota(t *testing.T) {
 		},
 	}
 
-	q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+	q, err := ctrl.Query(context.Background(), (compiler))
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 		return
@@ -1272,7 +1266,7 @@ func TestController_ReserveMemoryWithoutExceedingMax(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			for i := 0; i < 1000; i++ {
-				q, err := ctrl.Query(context.Background(), makeRequest(compiler))
+				q, err := ctrl.Query(context.Background(), (compiler))
 				if err != nil {
 					select {
 					case errCh <- err:
@@ -1291,102 +1285,6 @@ func TestController_ReserveMemoryWithoutExceedingMax(t *testing.T) {
 		t.Fatalf("unexpected error: %s", err)
 	}
 	validateUnusedMemory(t, reg, config)
-}
-
-func TestController_QueryTracing(t *testing.T) {
-	// temporarily install a mock tracer to see which spans are created.
-	oldTracer := opentracing.GlobalTracer()
-	defer opentracing.SetGlobalTracer(oldTracer)
-	mockTracer := mocktracer.New()
-	opentracing.SetGlobalTracer(mockTracer)
-
-	const memoryBytesQuotaPerQuery = 64
-	config := config
-	config.MemoryBytesQuotaPerQuery = memoryBytesQuotaPerQuery
-	ctrl, err := control.New(config)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer shutdown(t, ctrl)
-
-	flagger := pmock.NewFlagger(map[feature.Flag]interface{}{
-		feature.QueryTracing(): true,
-	})
-	plainCtx := context.Background()
-	withFlagger, err := feature.Annotate(plainCtx, flagger)
-	if err != nil {
-		t.Fatal(err)
-	}
-	tcs := []struct {
-		name          string
-		ctx           context.Context
-		doNotWantSpan string
-		wantSpan      string
-	}{
-		{
-			name:          "feature flag off",
-			ctx:           plainCtx,
-			doNotWantSpan: "*executetest.AllocatingFromProcedureSpec",
-		},
-		{
-			name:     "feature flag on",
-			ctx:      withFlagger,
-			wantSpan: "*executetest.AllocatingFromProcedureSpec",
-		},
-	}
-	for _, tc := range tcs {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			mockTracer.Reset()
-
-			compiler := &mock.Compiler{
-				CompileFn: func(ctx context.Context) (flux.Program, error) {
-					// Return a program that will allocate one more byte than is allowed.
-					pts := plantest.PlanSpec{
-						Nodes: []plan.Node{
-							plan.CreatePhysicalNode("allocating-from-test", &executetest.AllocatingFromProcedureSpec{
-								ByteCount: 16,
-							}),
-							plan.CreatePhysicalNode("yield", &universe.YieldProcedureSpec{Name: "_result"}),
-						},
-						Edges: [][2]int{
-							{0, 1},
-						},
-						Resources: flux.ResourceManagement{
-							ConcurrencyQuota: 1,
-						},
-					}
-
-					ps := plantest.CreatePlanSpec(&pts)
-					prog := &lang.Program{
-						Logger:   zaptest.NewLogger(t),
-						PlanSpec: ps,
-					}
-
-					return prog, nil
-				},
-			}
-
-			// Depending on how the feature flag is set in the context,
-			// we may or may not do query tracing here.
-			q, err := ctrl.Query(tc.ctx, makeRequest(compiler))
-			if err != nil {
-				t.Fatalf("unexpected error: %s", err)
-			}
-
-			consumeResults(t, q)
-			gotSpans := make(map[string]struct{})
-			for _, span := range mockTracer.FinishedSpans() {
-				gotSpans[span.OperationName] = struct{}{}
-			}
-			if _, found := gotSpans[tc.doNotWantSpan]; tc.doNotWantSpan != "" && found {
-				t.Fatalf("did not want to find span %q but it was there", tc.doNotWantSpan)
-			}
-			if _, found := gotSpans[tc.wantSpan]; tc.wantSpan != "" && !found {
-				t.Fatalf("wanted to find span %q but it was not there", tc.wantSpan)
-			}
-		})
-	}
 }
 
 func consumeResults(tb testing.TB, q flux.Query) {
@@ -1412,11 +1310,5 @@ func shutdown(t *testing.T, ctrl *control.Controller) {
 	defer cancel()
 	if err := ctrl.Shutdown(ctx); err != nil {
 		t.Error(err)
-	}
-}
-
-func makeRequest(c flux.Compiler) *query.Request {
-	return &query.Request{
-		Compiler: c,
 	}
 }

@@ -24,7 +24,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
@@ -32,12 +31,11 @@ import (
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/runtime"
-	"github.com/influxdata/influxdb/v2/kit/errors"
-	"github.com/influxdata/influxdb/v2/kit/feature"
-	"github.com/influxdata/influxdb/v2/kit/prom"
-	"github.com/influxdata/influxdb/v2/kit/tracing"
-	influxlogger "github.com/influxdata/influxdb/v2/logger"
-	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/kit/errors"
+	"github.com/influxdata/influxdb/kit/prom"
+	"github.com/influxdata/influxdb/kit/tracing"
+	errors2 "github.com/influxdata/influxdb/kit/platform/errors"
+	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -212,24 +210,15 @@ func New(config Config) (*Controller, error) {
 	return ctrl, nil
 }
 
-// Query satisfies the AsyncQueryService while ensuring the request is propagated on the context.
-func (c *Controller) Query(ctx context.Context, req *query.Request) (flux.Query, error) {
+func (c *Controller) Query(ctx context.Context, compiler flux.Compiler) (flux.Query, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	// Set the request on the context so platform specific Flux operations can retrieve it later.
-	ctx = query.ContextWithRequest(ctx, req)
-	// Set the org label value for controller metrics
-	ctx = context.WithValue(ctx, orgLabel, req.OrganizationID.String()) //lint:ignore SA1029 this is a temporary ignore until we have time to create an appropriate type
 	// The controller injects the dependencies for each incoming request.
 	for _, dep := range c.dependencies {
 		ctx = dep.Inject(ctx)
 	}
-	// Add per-transformation spans if the feature flag is set.
-	if feature.QueryTracing().Enabled(ctx) {
-		ctx = flux.WithQueryTracingEnabled(ctx)
-	}
-	q, err := c.query(ctx, req.Compiler)
+	q, err := c.query(ctx, compiler)
 	if err != nil {
 		return q, err
 	}
