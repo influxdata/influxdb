@@ -2,7 +2,7 @@ syntax = "proto3";
 package influxdata.platform.storage;
 option go_package = "datatypes";
 
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/any.proto";
 import "predicate.proto";

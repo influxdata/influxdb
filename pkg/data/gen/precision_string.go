@@ -4,6 +4,18 @@ package gen
 
 import "strconv"
 
+func _() {
+	// An "invalid array index" compiler error signifies that the constant values have changed.
+	// Re-run the stringer command to generate them again.
+	var x [1]struct{}
+	_ = x[precisionMillisecond-0]
+	_ = x[precisionNanosecond-1]
+	_ = x[precisionMicrosecond-2]
+	_ = x[precisionSecond-3]
+	_ = x[precisionMinute-4]
+	_ = x[precisionHour-5]
+}
+
 const _precision_name = "MillisecondNanosecondMicrosecondSecondMinuteHour"
 
 var _precision_index = [...]uint8{0, 11, 21, 32, 38, 44, 48}
