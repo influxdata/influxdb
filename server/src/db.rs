@@ -8,13 +8,17 @@ use std::sync::{
 };
 
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
 use tracing::{debug, info};
 
 use arrow_deps::datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
 use catalog::{chunk::ChunkState, Catalog};
-use data_types::{chunk::ChunkSummary, database_rules::DatabaseRules};
+use data_types::{
+    chunk::ChunkSummary,
+    database_rules::{DatabaseRules, Order, Sort, SortOrder},
+};
 use internal_types::{data::ReplicatedWrite, selection::Selection};
 use mutable_buffer::chunk::Chunk;
 use query::{Database, DEFAULT_SCHEMA};
@@ -119,11 +123,6 @@ pub enum Error {
         chunk_id: u32,
     },
 
-    #[snafu(display("Error writing to mutable buffer: {}", source))]
-    MutableBufferWrite {
-        source: mutable_buffer::database::Error,
-    },
-
     #[snafu(display("Error dropping data from read buffer: {}", source))]
     ReadBufferDrop { source: read_buffer::Error },
 }
@@ -134,6 +133,49 @@ const STARTING_SEQUENCE: u64 = 1;
 #[derive(Debug)]
 /// This is the main IOx Database object. It is the root object of any
 /// specific InfluxDB IOx instance
+///
+///
+/// The data in a `Db` is structured in this way:
+///
+/// ┌───────────────────────────────────────────────┐
+/// │                                               │
+/// │    ┌────────────────┐                         │
+/// │    │    Database    │                         │
+/// │    └────────────────┘                         │
+/// │             │ one partition per               │
+/// │             │ partition_key                   │
+/// │             ▼                                 │
+/// │    ┌────────────────┐                         │
+/// │    │   Partition    │                         │
+/// │    └────────────────┘                         │
+/// │             │  one open Chunk                 │
+/// │             │  zero or more closed            │
+/// │             ▼  Chunks                         │
+/// │    ┌────────────────┐                         │
+/// │    │     Chunk      │                         │
+/// │    └────────────────┘                         │
+/// │             │  multiple Tables (measurements) │
+/// │             ▼                                 │
+/// │    ┌────────────────┐                         │
+/// │    │     Table      │                         │
+/// │    └────────────────┘                         │
+/// │             │  multiple Colums                │
+/// │             ▼                                 │
+/// │    ┌────────────────┐                         │
+/// │    │     Column     │                         │
+/// │    └────────────────┘                         │
+/// │                              MutableBuffer    │
+/// │                                               │
+/// └───────────────────────────────────────────────┘
+///
+/// Each row of data is routed into a particular partitions based on
+/// column values in that row. The partition's open chunk is updated
+/// with the new data.
+///
+/// The currently open chunk in a partition can be rolled over. When
+/// this happens, the chunk is closed (becomes read-only) and stops
+/// taking writes. Any new writes to the same partition will create a
+/// new active open chunk.
 ///
 /// Catalog Usage: the state of the catalog and the state of the `Db`
 /// must remain in sync. If they are ever out of sync, the IOx system
@@ -387,6 +429,35 @@ impl Db {
         self.chunks(partition_key).into_iter().map(|c| c.summary())
     }
 
+    /// Returns the partition_keys in the requested sort order
+    pub fn partition_keys_sorted_by(&self, sort_rules: &SortOrder) -> Vec<String> {
+        let mut partitions: Vec<(String, DateTime<Utc>, DateTime<Utc>)> = self
+            .catalog
+            .partitions()
+            .map(|p| {
+                let p = p.read();
+                (p.key().to_string(), p.created_at(), p.last_write_at())
+            })
+            .collect();
+
+        match &sort_rules.sort {
+            Sort::CreatedAtTime => partitions.sort_by_key(|(_, created_at, _)| *created_at),
+            Sort::LastWriteTime => partitions.sort_by_key(|(_, _, last_write_at)| *last_write_at),
+            Sort::Column(_name, _data_type, _val) => {
+                unimplemented!()
+            }
+        }
+
+        if sort_rules.order == Order::Desc {
+            partitions.reverse();
+        }
+
+        partitions
+            .into_iter()
+            .map(|(key, _, _)| key)
+            .collect::<Vec<_>>()
+    }
+
     /// Returns the number of iterations of the background worker loop
     pub fn worker_iterations(&self) -> usize {
         self.worker_iterations.load(Ordering::Relaxed)
@@ -488,17 +559,18 @@ impl Database for Db {
                                 .set_open(Chunk::new(chunk_id))
                                 .context(CreatingChunk { partition_key })?;
                         }
+                        partition.update_last_write_at();
                         chunk
                     }
                     Some(partition) => {
-                        let partition = partition.read();
+                        let mut partition = partition.write();
+                        partition.update_last_write_at();
                         partition
                             .open_chunk()
                             .context(InternalNoOpenChunk { partition_key })?
                     }
                 };
                 let mut chunk = chunk.write();
-                // TODO update the last read/write time of this partition
                 chunk.mutable_buffer().unwrap().write_entry(&entry).unwrap()
             }
         }
@@ -543,7 +615,11 @@ mod tests {
     use arrow_deps::{
         arrow::record_batch::RecordBatch, assert_table_eq, datafusion::physical_plan::collect,
     };
-    use data_types::{chunk::ChunkStorage, database_rules::LifecycleRules};
+    use chrono::Utc;
+    use data_types::{
+        chunk::ChunkStorage,
+        database_rules::{LifecycleRules, SortOrder},
+    };
     use query::{
         exec::Executor, frontend::sql::SQLQueryPlanner, test::TestLPWriter, PartitionChunk,
     };
@@ -635,6 +711,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn write_with_missing_tags_are_null() {
+        let db = Arc::new(make_db());
+        let mut writer = TestLPWriter::default();
+
+        // Note the `region` tag is introduced in the second line, so
+        // the values in prior rows for the region column are
+        // null. Likewise the `core` tag is introduced in the third
+        // line so the prior columns are null
+        let lines = vec![
+            "cpu,region=west user=23.2 10",
+            "cpu, user=10.0 11",
+            "cpu,core=one user=10.0 11",
+        ];
+
+        writer
+            .write_lp_string(db.as_ref(), &lines.join("\n"))
+            .unwrap();
+        assert_eq!(vec!["1970-01-01T00"], db.partition_keys().unwrap());
+
+        let mb_chunk = db.rollover_partition("1970-01-01T00").await.unwrap();
+        assert_eq!(mb_chunk.id(), 0);
+
+        let expected = vec![
+            "+------+--------+------+------+",
+            "| core | region | time | user |",
+            "+------+--------+------+------+",
+            "|      | west   | 10   | 23.2 |",
+            "|      |        | 11   | 10   |",
+            "| one  |        | 11   | 10   |",
+            "+------+--------+------+------+",
+        ];
+        let batches = run_query(Arc::clone(&db), "select * from cpu").await;
+        assert_table_eq!(expected, &batches);
+    }
+
+    #[tokio::test]
     async fn read_from_read_buffer() {
         // Test that data can be loaded into the ReadBuffer
         let db = Arc::new(make_db());
@@ -677,10 +789,104 @@ mod tests {
         );
 
         // Currently this doesn't work (as we need to teach the stores how to
-        // purge tables after data bas beend dropped println!("running
+        // purge tables after data bas been dropped println!("running
         // query after all data dropped!"); let expected = vec![] as
         // Vec<&str>; let batches = run_query(&db, "select * from
         // cpu").await; assert_table_eq!(expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn write_updates_last_write_at() {
+        let db = make_db();
+        let before_create = Utc::now();
+
+        let partition_key = "1970-01-01T00";
+        let mut writer = TestLPWriter::default();
+        writer.write_lp_string(&db, "cpu bar=1 10").unwrap();
+        let after_write = Utc::now();
+
+        let last_write_prev = {
+            let partition = db.catalog.valid_partition(partition_key).unwrap();
+            let partition = partition.read();
+
+            assert_ne!(partition.created_at(), partition.last_write_at());
+            assert!(before_create < partition.last_write_at());
+            assert!(after_write > partition.last_write_at());
+            partition.last_write_at()
+        };
+
+        writer.write_lp_string(&db, "cpu bar=1 20").unwrap();
+        {
+            let partition = db.catalog.valid_partition(partition_key).unwrap();
+            let partition = partition.read();
+            assert!(last_write_prev < partition.last_write_at());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_chunk_timestamps() {
+        let start = Utc::now();
+        let db = make_db();
+
+        // Given data loaded into two chunks
+        let mut writer = TestLPWriter::default();
+        writer.write_lp_string(&db, "cpu bar=1 10").unwrap();
+        let after_data_load = Utc::now();
+
+        // When the chunk is rolled over
+        let partition_key = "1970-01-01T00";
+        let chunk_id = db.rollover_partition("1970-01-01T00").await.unwrap().id();
+        let after_rollover = Utc::now();
+
+        let partition = db.catalog.valid_partition(partition_key).unwrap();
+        let partition = partition.read();
+        let chunk = partition.chunk(chunk_id).unwrap();
+        let chunk = chunk.read();
+        let chunk = match chunk.state() {
+            ChunkState::Closing(c) => c,
+            state => panic!("Unexpected chunk state: {}", state.name()),
+        };
+
+        println!(
+            "start: {:?}, after_data_load: {:?}, after_rollover: {:?}",
+            start, after_data_load, after_rollover
+        );
+        println!("Chunk: {:#?}", chunk);
+
+        // then the chunk creation and rollover times are as expected
+        assert!(start < chunk.time_of_first_write.unwrap());
+        assert!(chunk.time_of_first_write.unwrap() < after_data_load);
+        assert!(chunk.time_of_first_write.unwrap() == chunk.time_of_last_write.unwrap());
+        assert!(after_data_load < chunk.time_closing.unwrap());
+        assert!(chunk.time_closing.unwrap() < after_rollover);
+    }
+
+    #[tokio::test]
+    async fn partitions_sorted_by_times() {
+        let db = make_db();
+        let mut writer = TestLPWriter::default();
+        writer.write_lp_string(&db, "cpu val=1 1").unwrap();
+        writer
+            .write_lp_string(&db, "mem val=2 400000000000001")
+            .unwrap();
+        writer.write_lp_string(&db, "cpu val=1 2").unwrap();
+        writer
+            .write_lp_string(&db, "mem val=2 400000000000002")
+            .unwrap();
+
+        let sort_rules = SortOrder {
+            order: Order::Desc,
+            sort: Sort::LastWriteTime,
+        };
+        let partitions = db.partition_keys_sorted_by(&sort_rules);
+        assert_eq!(partitions, vec!["1970-01-05T15", "1970-01-01T00"]);
+
+        let sort_rules = SortOrder {
+            order: Order::Asc,
+            sort: Sort::CreatedAtTime,
+        };
+        let partitions = db.partition_keys_sorted_by(&sort_rules);
+        assert_eq!(partitions, vec!["1970-01-01T00", "1970-01-05T15"]);
     }
 
     #[tokio::test]

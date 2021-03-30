@@ -150,7 +150,8 @@ impl Chunk {
         std::mem::swap(&mut s, &mut self.state);
 
         match s {
-            ChunkState::Open(s) | ChunkState::Closing(s) => {
+            ChunkState::Open(mut s) | ChunkState::Closing(mut s) => {
+                s.mark_closing();
                 self.state = ChunkState::Closing(s);
                 Ok(())
             }
