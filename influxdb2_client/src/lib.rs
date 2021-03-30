@@ -303,5 +303,7 @@ cpu,host=server01,region=us-west usage=0.87
     }
 }
 
+pub mod common;
+
 pub mod api;
 pub mod models;
