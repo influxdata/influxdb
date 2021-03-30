@@ -1,17 +1,16 @@
 package logger
 
 import (
+	"context"
 	"time"
 
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/pkg/snowflake"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
 const (
-	// TraceIDKey is the logging context key used for identifying unique traces.
-	TraceIDKey = "trace_id"
-
 	// OperationNameKey is the logging context key used for identifying name of an operation.
 	OperationNameKey = "op_name"
 
@@ -33,6 +32,12 @@ const (
 
 	// DBShardIDKey is the logging context key used for identifying name of the relevant shard number.
 	DBShardIDKey = "db_shard_id"
+
+	// TraceIDKey is the logging context key used for identifying unique traces.
+	TraceIDKey = "trace_id"
+
+	// TraceSampledKey is the logging context key used for determining whether the current trace will be sampled.
+	TraceSampledKey = "ot_trace_sampled"
 )
 const (
 	eventStart = "start"
@@ -90,6 +95,16 @@ func ShardGroup(id uint64) zapcore.Field {
 // Shard returns a field for tracking the shard identifier.
 func Shard(id uint64) zapcore.Field {
 	return zap.Uint64(DBShardIDKey, id)
+}
+
+// TraceFields returns a fields "ot_trace_id" and "ot_trace_sampled", values pulled from the (Jaeger) trace ID
+// found in the given context. Returns nil if the context doesn't have a trace ID.
+func TraceFields(ctx context.Context) []zap.Field {
+	id, sampled, found := tracing.InfoFromContext(ctx)
+	if !found {
+		return nil
+	}
+	return []zap.Field{zap.String(TraceIDKey, id), zap.Bool(TraceSampledKey, sampled)}
 }
 
 // NewOperation uses the exiting log to create a new logger with context

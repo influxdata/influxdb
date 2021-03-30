@@ -9960,7 +9960,7 @@ Table: keys: [_field, _measurement, k]
 
 	// Test a broken flux query - we get back both the http status code and the underlying flux error
 	buf.Reset()
-	assert.EqualError(t, c.ExecuteFluxQuery(buf, `v1.databases()`), `Error (500): error @1:1-1:3: undefined identifier v1`)
+	assert.EqualError(t, c.ExecuteFluxQuery(buf, `v1.databases()`), "{\"error\":\"error @1:1-1:3: undefined identifier v1\"}")
 	assert.Equal(t, "", buf.String())
 }
 

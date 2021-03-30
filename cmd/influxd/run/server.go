@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math"
 	"net"
 	"os"
 	"path/filepath"
@@ -13,13 +14,15 @@ import (
 	"runtime/pprof"
 	"time"
 
+	"github.com/influxdata/flux"
 	"github.com/influxdata/influxdb"
 	"github.com/influxdata/influxdb/coordinator"
-	"github.com/influxdata/influxdb/flux/control"
+	influxdb2 "github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/query"
+	"github.com/influxdata/influxdb/query/control"
 	"github.com/influxdata/influxdb/services/collectd"
 	"github.com/influxdata/influxdb/services/continuous_querier"
 	"github.com/influxdata/influxdb/services/graphite"
@@ -282,9 +285,9 @@ func (s *Server) appendRetentionPolicyService(c retention.Config) {
 	s.Services = append(s.Services, srv)
 }
 
-func (s *Server) appendHTTPDService(c httpd.Config) {
+func (s *Server) appendHTTPDService(c httpd.Config) error {
 	if !c.Enabled {
-		return
+		return nil
 	}
 	srv := httpd.NewService(c)
 	srv.Handler.MetaClient = s.MetaClient
@@ -299,10 +302,27 @@ func (s *Server) appendHTTPDService(c httpd.Config) {
 	ss := storage.NewStore(s.TSDBStore, s.MetaClient)
 	srv.Handler.Store = ss
 	if s.config.HTTPD.FluxEnabled {
-		srv.Handler.Controller = control.NewController(s.MetaClient, reads.NewReader(ss), authorizer, c.AuthEnabled, s.PointsWriter, s.Logger)
+		storageDep, err := influxdb2.NewDependencies(s.MetaClient, reads.NewReader(ss), authorizer, c.AuthEnabled, s.PointsWriter)
+		if err != nil {
+			return err
+		}
+		config := control.Config{
+			ConcurrencyQuota:                10,
+			InitialMemoryBytesQuotaPerQuery: 0,
+			MemoryBytesQuotaPerQuery:        math.MaxInt32,
+			MaxMemoryBytes:                  0,
+			QueueSize:                       10,
+			Logger:                          s.Logger.With(zap.String("service", "flux-controller")),
+			ExecutorDependencies:            []flux.Dependency{storageDep},
+		}
+		srv.Handler.Controller, err = control.New(config)
+		if err != nil {
+			return err
+		}
 	}
 
 	s.Services = append(s.Services, srv)
+	return nil
 }
 
 func (s *Server) appendCollectdService(c collectd.Config) {
@@ -402,7 +422,9 @@ func (s *Server) Open() error {
 	s.appendPrecreatorService(s.config.Precreator)
 	s.appendSnapshotterService()
 	s.appendContinuousQueryService(s.config.ContinuousQuery)
-	s.appendHTTPDService(s.config.HTTPD)
+	if err := s.appendHTTPDService(s.config.HTTPD); err != nil {
+		return err
+	}
 	s.appendRetentionPolicyService(s.config.Retention)
 	for _, i := range s.config.GraphiteInputs {
 		if err := s.appendGraphiteService(i); err != nil {
