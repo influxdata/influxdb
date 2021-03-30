@@ -1,6 +1,7 @@
 package influxdb_test
 
 import (
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 
 	platform "github.com/influxdata/influxdb/v2"
@@ -279,7 +280,7 @@ func TestPermission_Valid(t *testing.T) {
 				Action: platform.WriteAction,
 				Resource: platform.Resource{
 					Type:  platform.BucketsResourceType,
-					ID:    func() *platform.ID { id := platform.InvalidID(); return &id }(),
+					ID:    func() *platform2.ID { id := platform2.InvalidID(); return &id }(),
 					OrgID: influxdbtesting.IDPtr(1),
 				},
 			},
@@ -431,7 +432,7 @@ func TestPermission_String(t *testing.T) {
 	}
 }
 
-func validID() *platform.ID {
-	id := platform.ID(100)
+func validID() *platform2.ID {
+	id := platform2.ID(100)
 	return &id
 }

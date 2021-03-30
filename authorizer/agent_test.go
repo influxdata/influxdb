@@ -2,6 +2,7 @@ package authorizer_test
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
@@ -17,7 +18,7 @@ func Test_Agent(t *testing.T) {
 		tests := []struct {
 			name        string
 			action      influxdb.Action
-			orgID       influxdb.ID
+			orgID       platform.ID
 			permissions []influxdb.Permission
 			shouldErr   bool
 		}{
@@ -175,7 +176,7 @@ func Test_Agent(t *testing.T) {
 		tests := []struct {
 			name         string
 			resourceType influxdb.ResourceType
-			orgID        influxdb.ID
+			orgID        platform.ID
 			permissions  []influxdb.Permission
 			shouldErr    bool
 		}{

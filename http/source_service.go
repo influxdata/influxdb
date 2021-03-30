@@ -7,6 +7,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/lang"
@@ -77,7 +80,7 @@ func newSourcesResponse(srcs []*influxdb.Source) *sourcesResponse {
 // SourceBackend is all services and associated parameters required to construct
 // the SourceHandler.
 type SourceBackend struct {
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	log *zap.Logger
 
 	SourceService   influxdb.SourceService
@@ -102,7 +105,7 @@ func NewSourceBackend(log *zap.Logger, b *APIBackend) *SourceBackend {
 // SourceHandler is a handler for sources
 type SourceHandler struct {
 	*httprouter.Router
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	log           *zap.Logger
 	SourceService influxdb.SourceService
 	LabelService  influxdb.LabelService
@@ -148,7 +151,7 @@ func decodeSourceQueryRequest(r *http.Request) (*query.ProxyRequest, error) {
 		DB             string      `json:"db"`
 		RP             string      `json:"rp"`
 		Cluster        string      `json:"cluster"`
-		OrganizationID influxdb.ID `json:"organizationID"`
+		OrganizationID platform.ID `json:"organizationID"`
 		// TODO(desa): support influxql dialect
 		Dialect csv.Dialect `json:"dialect"`
 	}{}
@@ -281,7 +284,7 @@ func decodeGetBucketsRequest(r *http.Request) (*getBucketsRequest, error) {
 	req.opts = *opts
 
 	if orgID := qp.Get("orgID"); orgID != "" {
-		id, err := influxdb.IDFromString(orgID)
+		id, err := platform.IDFromString(orgID)
 		if err != nil {
 			return nil, err
 		}
@@ -297,7 +300,7 @@ func decodeGetBucketsRequest(r *http.Request) (*getBucketsRequest, error) {
 	}
 
 	if bucketID := qp.Get("id"); bucketID != "" {
-		id, err := influxdb.IDFromString(bucketID)
+		id, err := platform.IDFromString(bucketID)
 		if err != nil {
 			return nil, err
 		}
@@ -314,8 +317,8 @@ type bucketResponse struct {
 }
 
 type bucket struct {
-	ID                  influxdb.ID     `json:"id,omitempty"`
-	OrgID               influxdb.ID     `json:"orgID,omitempty"`
+	ID                  platform.ID     `json:"id,omitempty"`
+	OrgID               platform.ID     `json:"orgID,omitempty"`
 	Type                string          `json:"type"`
 	Description         string          `json:"description,omitempty"`
 	Name                string          `json:"name"`
@@ -481,20 +484,20 @@ func (h *SourceHandler) handleGetSourceHealth(w http.ResponseWriter, r *http.Req
 }
 
 type getSourceRequest struct {
-	SourceID influxdb.ID
+	SourceID platform.ID
 }
 
 func decodeGetSourceRequest(ctx context.Context, r *http.Request) (*getSourceRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i influxdb.ID
+	var i platform.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -524,20 +527,20 @@ func (h *SourceHandler) handleDeleteSource(w http.ResponseWriter, r *http.Reques
 }
 
 type deleteSourceRequest struct {
-	SourceID influxdb.ID
+	SourceID platform.ID
 }
 
 func decodeDeleteSourceRequest(ctx context.Context, r *http.Request) (*deleteSourceRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i influxdb.ID
+	var i platform.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -605,20 +608,20 @@ func (h *SourceHandler) handlePatchSource(w http.ResponseWriter, r *http.Request
 
 type patchSourceRequest struct {
 	Update   influxdb.SourceUpdate
-	SourceID influxdb.ID
+	SourceID platform.ID
 }
 
 func decodePatchSourceRequest(ctx context.Context, r *http.Request) (*patchSourceRequest, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i influxdb.ID
+	var i platform.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -640,7 +643,7 @@ type SourceService struct {
 }
 
 // FindSourceByID returns a single source by ID.
-func (s *SourceService) FindSourceByID(ctx context.Context, id influxdb.ID) (*influxdb.Source, error) {
+func (s *SourceService) FindSourceByID(ctx context.Context, id platform.ID) (*influxdb.Source, error) {
 	var b influxdb.Source
 	err := s.Client.
 		Get(prefixSources, id.String()).
@@ -677,7 +680,7 @@ func (s *SourceService) CreateSource(ctx context.Context, b *influxdb.Source) er
 
 // UpdateSource updates a single source with changeset.
 // Returns the new source state after update.
-func (s *SourceService) UpdateSource(ctx context.Context, id influxdb.ID, upd influxdb.SourceUpdate) (*influxdb.Source, error) {
+func (s *SourceService) UpdateSource(ctx context.Context, id platform.ID, upd influxdb.SourceUpdate) (*influxdb.Source, error) {
 	var b influxdb.Source
 	err := s.Client.
 		PatchJSON(upd, prefixSources, id.String()).
@@ -690,7 +693,7 @@ func (s *SourceService) UpdateSource(ctx context.Context, id influxdb.ID, upd in
 }
 
 // DeleteSource removes a source by ID.
-func (s *SourceService) DeleteSource(ctx context.Context, id influxdb.ID) error {
+func (s *SourceService) DeleteSource(ctx context.Context, id platform.ID) error {
 	return s.Client.
 		Delete(prefixSources, id.String()).
 		StatusFn(func(resp *http.Response) error {

@@ -5,7 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 )
@@ -14,8 +15,8 @@ var Migration0015_RecordShardGroupDurationsInBucketMetadata = UpOnlyMigration(
 	"record shard group durations in bucket metadata",
 	func(ctx context.Context, store kv.SchemaStore) error {
 		type bucket struct {
-			ID                  influxdb.ID   `json:"id,omitempty"`
-			OrgID               influxdb.ID   `json:"orgID,omitempty"`
+			ID                  platform.ID   `json:"id,omitempty"`
+			OrgID               platform.ID   `json:"orgID,omitempty"`
 			Type                int           `json:"type"`
 			Name                string        `json:"name"`
 			Description         string        `json:"description"`

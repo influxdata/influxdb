@@ -6,14 +6,16 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 )
 
 type TenantFields struct {
-	OrgIDGenerator       influxdb.IDGenerator
-	BucketIDGenerator    influxdb.IDGenerator
+	OrgIDGenerator       platform.IDGenerator
+	BucketIDGenerator    platform.IDGenerator
 	Users                []*influxdb.User
 	Passwords            []string // passwords are indexed against the Users field
 	UserResourceMappings []*influxdb.UserResourceMapping

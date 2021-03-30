@@ -7,6 +7,9 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	pcontext "github.com/influxdata/influxdb/v2/context"
@@ -23,7 +26,7 @@ import (
 // WriteBackend is all services and associated parameters required to construct
 // the WriteHandler.
 type WriteBackend struct {
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	log                *zap.Logger
 	WriteEventRecorder metric.EventRecorder
 
@@ -47,7 +50,7 @@ func NewWriteBackend(log *zap.Logger, b *APIBackend) *WriteBackend {
 
 // WriteHandler receives line protocol and sends to a publish function.
 type WriteHandler struct {
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	BucketService       influxdb.BucketService
 	OrganizationService influxdb.OrganizationService
 	PointsWriter        storage.PointsWriter
@@ -110,13 +113,13 @@ func NewWriteHandler(log *zap.Logger, b *WriteBackend, opts ...WriteHandlerOptio
 	return h
 }
 
-func (h *WriteHandler) findBucket(ctx context.Context, orgID influxdb.ID, bucket string) (*influxdb.Bucket, error) {
-	if id, err := influxdb.IDFromString(bucket); err == nil {
+func (h *WriteHandler) findBucket(ctx context.Context, orgID platform.ID, bucket string) (*influxdb.Bucket, error) {
+	if id, err := platform.IDFromString(bucket); err == nil {
 		b, err := h.BucketService.FindBucket(ctx, influxdb.BucketFilter{
 			OrganizationID: &orgID,
 			ID:             id,
 		})
-		if err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
+		if err != nil && errors.ErrorCode(err) != errors.ENotFound {
 			return nil, err
 		} else if err == nil {
 			return b, err
@@ -189,8 +192,8 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.PointsWriter.WritePoints(ctx, org.ID, bucket.ID, parsed.Points); err != nil {
 		if partialErr, ok := err.(tsdb.PartialWriteError); ok {
-			h.HandleHTTPError(ctx, &influxdb.Error{
-				Code: influxdb.EUnprocessableEntity,
+			h.HandleHTTPError(ctx, &errors.Error{
+				Code: errors.EUnprocessableEntity,
 				Op:   opWriteHandler,
 				Msg:  "failure writing points to database",
 				Err:  partialErr,
@@ -198,8 +201,8 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		h.HandleHTTPError(ctx, &influxdb.Error{
-			Code: influxdb.EInternal,
+		h.HandleHTTPError(ctx, &errors.Error{
+			Code: errors.EInternal,
 			Op:   opWriteHandler,
 			Msg:  "unexpected error writing points to database",
 			Err:  err,
@@ -212,19 +215,19 @@ func (h *WriteHandler) handleWrite(w http.ResponseWriter, r *http.Request) {
 
 // checkBucketWritePermissions checks an Authorizer for write permissions to a
 // specific Bucket.
-func checkBucketWritePermissions(auth influxdb.Authorizer, orgID, bucketID influxdb.ID) error {
+func checkBucketWritePermissions(auth influxdb.Authorizer, orgID, bucketID platform.ID) error {
 	p, err := influxdb.NewPermissionAtID(bucketID, influxdb.WriteAction, influxdb.BucketsResourceType, orgID)
 	if err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EInternal,
+		return &errors.Error{
+			Code: errors.EInternal,
 			Op:   opWriteHandler,
 			Msg:  fmt.Sprintf("unable to create permission for bucket: %v", err),
 			Err:  err,
 		}
 	}
 	if pset, err := auth.PermissionSet(); err != nil || !pset.Allowed(*p) {
-		return &influxdb.Error{
-			Code: influxdb.EForbidden,
+		return &errors.Error{
+			Code: errors.EForbidden,
 			Op:   opWriteHandler,
 			Msg:  "insufficient permissions for write",
 			Err:  err,
@@ -252,8 +255,8 @@ func decodeWriteRequest(ctx context.Context, r *http.Request, maxBatchSizeBytes 
 	}
 
 	if !models.ValidPrecision(precision) {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Op:   "http/newWriteRequest",
 			Msg:  msgInvalidPrecision,
 		}
@@ -261,8 +264,8 @@ func decodeWriteRequest(ctx context.Context, r *http.Request, maxBatchSizeBytes 
 
 	bucket := qp.Get("bucket")
 	if bucket == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return nil, &errors.Error{
+			Code: errors.ENotFound,
 			Op:   "http/newWriteRequest",
 			Msg:  "bucket not found",
 		}
@@ -314,8 +317,8 @@ func (s *WriteService) WriteTo(ctx context.Context, filter influxdb.BucketFilter
 	}
 
 	if !models.ValidPrecision(precision) {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Op:   "http/Write",
 			Msg:  msgInvalidPrecision,
 		}

@@ -16,6 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
@@ -125,7 +127,7 @@ func TestTaskService(t *testing.T, fn BackendComponentFactory, testCategory ...s
 
 // TestCreds encapsulates credentials needed for a system to properly work with tasks.
 type TestCreds struct {
-	OrgID, UserID, AuthorizationID influxdb.ID
+	OrgID, UserID, AuthorizationID platform.ID
 	Org                            string
 	Token                          string
 }
@@ -205,7 +207,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		t.Fatal("no task ID set")
 	}
 
-	findTask := func(tasks []*influxdb.Task, id influxdb.ID) (*influxdb.Task, error) {
+	findTask := func(tasks []*influxdb.Task, id platform.ID) (*influxdb.Task, error) {
 		for _, t := range tasks {
 			if t.ID == id {
 				return t, nil
@@ -586,7 +588,7 @@ from(bucket: "b")
 	}
 
 	var (
-		expected = [][]influxdb.ID{
+		expected = [][]platform.ID{
 			{created[0].ID, created[1].ID},
 			{created[2].ID, created[3].ID},
 			{created[4].ID, created[5].ID},
@@ -595,8 +597,8 @@ from(bucket: "b")
 			// last page should be empty
 			nil,
 		}
-		found = make([][]influxdb.ID, 0, 6)
-		after *influxdb.ID
+		found = make([][]platform.ID, 0, 6)
+		after *platform.ID
 	)
 
 	// one more than expected pages
@@ -610,7 +612,7 @@ from(bucket: "b")
 			t.Fatalf("FindTasks: %v", err)
 		}
 
-		var page []influxdb.ID
+		var page []platform.ID
 		for _, task := range tasks {
 			page = append(page, task.ID)
 		}
@@ -980,13 +982,13 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Look for a run that doesn't exist.
-		_, err = sys.TaskService.FindRunByID(sys.Ctx, task.ID, influxdb.ID(math.MaxUint64))
+		_, err = sys.TaskService.FindRunByID(sys.Ctx, task.ID, platform.ID(math.MaxUint64))
 		if err == nil {
 			t.Fatalf("expected %s but got %s instead", influxdb.ErrRunNotFound, err)
 		}
 
 		// look for a taskID that doesn't exist.
-		_, err = sys.TaskService.FindRunByID(sys.Ctx, influxdb.ID(math.MaxUint64), runs[0].ID)
+		_, err = sys.TaskService.FindRunByID(sys.Ctx, platform.ID(math.MaxUint64), runs[0].ID)
 		if err == nil {
 			t.Fatalf("expected %s but got %s instead", influxdb.ErrRunNotFound, err)
 		}
@@ -1185,7 +1187,7 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 	// we need to keep a whitelist of IDs that are okay to delete.
 	// This only matters when the creds function returns an identical user/org from another test.
 	var idMu sync.Mutex
-	taskIDs := make(map[influxdb.ID]struct{})
+	taskIDs := make(map[platform.ID]struct{})
 
 	var createWg sync.WaitGroup
 	for i := 0; i < runtime.GOMAXPROCS(0); i++ {
@@ -1308,7 +1310,7 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 
 			// Create a run for the last task we found.
 			// The script should run every minute, so use max now.
-			var tid influxdb.ID
+			var tid platform.ID
 			idMu.Lock()
 			for i := len(tasks) - 1; i >= 0; i-- {
 				_, ok := taskIDs[tasks[i].ID]
@@ -1550,13 +1552,13 @@ func testRunStorage(t *testing.T, sys *System) {
 	}
 
 	// Look for a run that doesn't exist.
-	_, err = sys.TaskService.FindRunByID(sys.Ctx, task.ID, influxdb.ID(math.MaxUint64))
+	_, err = sys.TaskService.FindRunByID(sys.Ctx, task.ID, platform.ID(math.MaxUint64))
 	if err == nil {
 		t.Fatalf("expected %s but got %s instead", influxdb.ErrRunNotFound, err)
 	}
 
 	// look for a taskID that doesn't exist.
-	_, err = sys.TaskService.FindRunByID(sys.Ctx, influxdb.ID(math.MaxUint64), runs[0].ID)
+	_, err = sys.TaskService.FindRunByID(sys.Ctx, platform.ID(math.MaxUint64), runs[0].ID)
 	if err == nil {
 		t.Fatalf("expected %s but got %s instead", influxdb.ErrRunNotFound, err)
 	}
@@ -1593,7 +1595,7 @@ func testRetryAcrossStorage(t *testing.T, sys *System) {
 		t.Fatal(err)
 	}
 	// Non-existent ID should return the right error.
-	_, err = sys.TaskService.RetryRun(sys.Ctx, task.ID, influxdb.ID(math.MaxUint64))
+	_, err = sys.TaskService.RetryRun(sys.Ctx, task.ID, platform.ID(math.MaxUint64))
 	if !strings.Contains(err.Error(), "run not found") {
 		t.Errorf("expected retrying run that doesn't exist to return %v, got %v", influxdb.ErrRunNotFound, err)
 	}

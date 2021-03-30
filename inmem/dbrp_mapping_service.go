@@ -5,12 +5,14 @@ import (
 	"fmt"
 	"path"
 
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
 var (
-	errDBRPMappingNotFound = &influxdb.Error{
-		Code: influxdb.ENotFound,
+	errDBRPMappingNotFound = &errors.Error{
+		Code: errors.ENotFound,
 		Msg:  "dbrp mapping not found",
 	}
 )
@@ -71,8 +73,8 @@ func (s *Service) filterDBRPMappings(ctx context.Context, fn func(m *influxdb.DB
 // Find returns the first dbrp mapping that matches filter.
 func (s *Service) Find(ctx context.Context, filter influxdb.DBRPMappingFilter) (*influxdb.DBRPMapping, error) {
 	if filter.Cluster == nil && filter.Database == nil && filter.RetentionPolicy == nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "no filter parameters provided",
 		}
 	}
@@ -135,8 +137,8 @@ func (s *Service) Create(ctx context.Context, m *influxdb.DBRPMapping) error {
 	}
 
 	if !existing.Equal(m) {
-		return &influxdb.Error{
-			Code: influxdb.EConflict,
+		return &errors.Error{
+			Code: errors.EConflict,
 			Msg:  "dbrp mapping already exists",
 		}
 	}

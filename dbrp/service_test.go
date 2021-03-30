@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -55,7 +56,7 @@ func initDBRPMappingService(f itesting.DBRPMappingFieldsV2, t *testing.T) (influ
 
 	if f.BucketSvc == nil {
 		f.BucketSvc = &mock.BucketService{
-			FindBucketByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+			FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
 				// always find a bucket.
 				return &influxdb.Bucket{
 					ID:   id,

@@ -8,8 +8,9 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influx/config"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
@@ -96,7 +97,7 @@ func TestCmdConfig(t *testing.T) {
 							return &mockConfigService{
 								CreateConfigFn: func(cfg config.Config) (config.Config, error) {
 									if diff := cmp.Diff(expected, cfg); diff != "" {
-										return config.Config{}, &influxdb.Error{
+										return config.Config{}, &errors.Error{
 											Msg: fmt.Sprintf("create config failed, diff %s", diff),
 										}
 									}
@@ -255,7 +256,7 @@ func TestCmdConfig(t *testing.T) {
 						cfg.Active = true
 						cfg.PreviousActive = false
 						if diff := cmp.Diff(expected, cfg); diff != "" {
-							return config.Config{}, &influxdb.Error{
+							return config.Config{}, &errors.Error{
 								Msg: fmt.Sprintf("switch config failed, diff %s", diff),
 							}
 						}
@@ -380,7 +381,7 @@ func TestCmdConfig(t *testing.T) {
 					return &mockConfigService{
 						UpdateConfigFn: func(cfg config.Config) (config.Config, error) {
 							if diff := cmp.Diff(expected, cfg); diff != "" {
-								return config.Config{}, &influxdb.Error{
+								return config.Config{}, &errors.Error{
 									Msg: fmt.Sprintf("update config failed, diff %s", diff),
 								}
 							}
@@ -496,7 +497,7 @@ func TestCmdConfig(t *testing.T) {
 							}
 						}
 						if diff := cmp.Diff(expected, cfg); diff != "" {
-							return config.Config{}, &influxdb.Error{
+							return config.Config{}, &errors.Error{
 								Msg: fmt.Sprintf("delete config failed, diff %s", diff),
 							}
 						}

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap"
 )
@@ -37,7 +39,7 @@ func (l *UserLogger) CreateUser(ctx context.Context, u *influxdb.User) (err erro
 	return l.userService.CreateUser(ctx, u)
 }
 
-func (l *UserLogger) FindUserByID(ctx context.Context, id influxdb.ID) (u *influxdb.User, err error) {
+func (l *UserLogger) FindUserByID(ctx context.Context, id platform.ID) (u *influxdb.User, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -74,7 +76,7 @@ func (l *UserLogger) FindUsers(ctx context.Context, filter influxdb.UserFilter, 
 	return l.userService.FindUsers(ctx, filter, opt...)
 }
 
-func (l *UserLogger) UpdateUser(ctx context.Context, id influxdb.ID, upd influxdb.UserUpdate) (u *influxdb.User, err error) {
+func (l *UserLogger) UpdateUser(ctx context.Context, id platform.ID, upd influxdb.UserUpdate) (u *influxdb.User, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -86,7 +88,7 @@ func (l *UserLogger) UpdateUser(ctx context.Context, id influxdb.ID, upd influxd
 	return l.userService.UpdateUser(ctx, id, upd)
 }
 
-func (l *UserLogger) DeleteUser(ctx context.Context, id influxdb.ID) (err error) {
+func (l *UserLogger) DeleteUser(ctx context.Context, id platform.ID) (err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -99,7 +101,7 @@ func (l *UserLogger) DeleteUser(ctx context.Context, id influxdb.ID) (err error)
 	return l.userService.DeleteUser(ctx, id)
 }
 
-func (l *UserLogger) FindPermissionForUser(ctx context.Context, id influxdb.ID) (ps influxdb.PermissionSet, err error) {
+func (l *UserLogger) FindPermissionForUser(ctx context.Context, id platform.ID) (ps influxdb.PermissionSet, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -125,7 +127,7 @@ func NewPasswordLogger(log *zap.Logger, s influxdb.PasswordsService) *PasswordLo
 	}
 }
 
-func (l *PasswordLogger) SetPassword(ctx context.Context, userID influxdb.ID, password string) (err error) {
+func (l *PasswordLogger) SetPassword(ctx context.Context, userID platform.ID, password string) (err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -138,7 +140,7 @@ func (l *PasswordLogger) SetPassword(ctx context.Context, userID influxdb.ID, pa
 	return l.pwdService.SetPassword(ctx, userID, password)
 }
 
-func (l *PasswordLogger) ComparePassword(ctx context.Context, userID influxdb.ID, password string) (err error) {
+func (l *PasswordLogger) ComparePassword(ctx context.Context, userID platform.ID, password string) (err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -151,7 +153,7 @@ func (l *PasswordLogger) ComparePassword(ctx context.Context, userID influxdb.ID
 	return l.pwdService.ComparePassword(ctx, userID, password)
 }
 
-func (l *PasswordLogger) CompareAndSetPassword(ctx context.Context, userID influxdb.ID, old, new string) (err error) {
+func (l *PasswordLogger) CompareAndSetPassword(ctx context.Context, userID platform.ID, old, new string) (err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {

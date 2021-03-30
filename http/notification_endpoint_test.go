@@ -11,6 +11,9 @@ import (
 	"path"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	pcontext "github.com/influxdata/influxdb/v2/context"
@@ -282,7 +285,7 @@ func TestService_handleGetNotificationEndpoint(t *testing.T) {
 			name: "get a notification endpoint by id",
 			fields: fields{
 				&mock.NotificationEndpointService{
-					FindNotificationEndpointByIDF: func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+					FindNotificationEndpointByIDF: func(ctx context.Context, id platform.ID) (influxdb.NotificationEndpoint, error) {
 						if id == influxTesting.MustIDBase16("020f755c3c082000") {
 							return &endpoint.HTTP{
 								Base: endpoint.Base{
@@ -340,9 +343,9 @@ func TestService_handleGetNotificationEndpoint(t *testing.T) {
 			name: "not found",
 			fields: fields{
 				&mock.NotificationEndpointService{
-					FindNotificationEndpointByIDF: func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
-						return nil, &influxdb.Error{
-							Code: influxdb.ENotFound,
+					FindNotificationEndpointByIDF: func(ctx context.Context, id platform.ID) (influxdb.NotificationEndpoint, error) {
+						return nil, &errors.Error{
+							Code: errors.ENotFound,
 							Msg:  "notification endpoint not found",
 						}
 					},
@@ -429,7 +432,7 @@ func TestService_handlePostNotificationEndpoint(t *testing.T) {
 			fields: fields{
 				Secrets: map[string]string{},
 				NotificationEndpointService: &mock.NotificationEndpointService{
-					CreateNotificationEndpointF: func(ctx context.Context, edp influxdb.NotificationEndpoint, userID influxdb.ID) error {
+					CreateNotificationEndpointF: func(ctx context.Context, edp influxdb.NotificationEndpoint, userID platform.ID) error {
 						edp.SetID(influxTesting.MustIDBase16("020f755c3c082000"))
 						edp.BackfillSecretKeys()
 						return nil
@@ -536,7 +539,7 @@ func TestService_handleDeleteNotificationEndpoint(t *testing.T) {
 			name: "remove a notification endpoint by id",
 			fields: fields{
 				NotificationEndpointService: &mock.NotificationEndpointService{
-					DeleteNotificationEndpointF: func(ctx context.Context, id influxdb.ID) ([]influxdb.SecretField, influxdb.ID, error) {
+					DeleteNotificationEndpointF: func(ctx context.Context, id platform.ID) ([]influxdb.SecretField, platform.ID, error) {
 						if id == influxTesting.MustIDBase16("020f755c3c082000") {
 							return []influxdb.SecretField{
 								{Key: "k1"},
@@ -558,9 +561,9 @@ func TestService_handleDeleteNotificationEndpoint(t *testing.T) {
 			name: "notification endpoint not found",
 			fields: fields{
 				NotificationEndpointService: &mock.NotificationEndpointService{
-					DeleteNotificationEndpointF: func(ctx context.Context, id influxdb.ID) ([]influxdb.SecretField, influxdb.ID, error) {
-						return nil, 0, &influxdb.Error{
-							Code: influxdb.ENotFound,
+					DeleteNotificationEndpointF: func(ctx context.Context, id platform.ID) ([]influxdb.SecretField, platform.ID, error) {
+						return nil, 0, &errors.Error{
+							Code: errors.ENotFound,
 							Msg:  "notification endpoint not found",
 						}
 					},
@@ -622,7 +625,7 @@ func TestService_handlePatchNotificationEndpoint(t *testing.T) {
 			name: "update a notification endpoint name",
 			fields: fields{
 				&mock.NotificationEndpointService{
-					PatchNotificationEndpointF: func(ctx context.Context, id influxdb.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error) {
+					PatchNotificationEndpointF: func(ctx context.Context, id platform.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error) {
 						if id == influxTesting.MustIDBase16("020f755c3c082000") {
 							d := &endpoint.Slack{
 								Base: endpoint.Base{
@@ -678,9 +681,9 @@ func TestService_handlePatchNotificationEndpoint(t *testing.T) {
 			name: "notification endpoint not found",
 			fields: fields{
 				&mock.NotificationEndpointService{
-					PatchNotificationEndpointF: func(ctx context.Context, id influxdb.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error) {
-						return nil, &influxdb.Error{
-							Code: influxdb.ENotFound,
+					PatchNotificationEndpointF: func(ctx context.Context, id platform.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error) {
+						return nil, &errors.Error{
+							Code: errors.ENotFound,
 							Msg:  "notification endpoint not found",
 						}
 					},
@@ -775,7 +778,7 @@ func TestService_handleUpdateNotificationEndpoint(t *testing.T) {
 			name: "update a notification endpoint name",
 			fields: fields{
 				NotificationEndpointService: &mock.NotificationEndpointService{
-					UpdateNotificationEndpointF: func(ctx context.Context, id influxdb.ID, edp influxdb.NotificationEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error) {
+					UpdateNotificationEndpointF: func(ctx context.Context, id platform.ID, edp influxdb.NotificationEndpoint, userID platform.ID) (influxdb.NotificationEndpoint, error) {
 						if id == influxTesting.MustIDBase16("020f755c3c082000") {
 							edp.SetID(id)
 							edp.BackfillSecretKeys()
@@ -826,9 +829,9 @@ func TestService_handleUpdateNotificationEndpoint(t *testing.T) {
 			name: "notification endpoint not found",
 			fields: fields{
 				NotificationEndpointService: &mock.NotificationEndpointService{
-					UpdateNotificationEndpointF: func(ctx context.Context, id influxdb.ID, edp influxdb.NotificationEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error) {
-						return nil, &influxdb.Error{
-							Code: influxdb.ENotFound,
+					UpdateNotificationEndpointF: func(ctx context.Context, id platform.ID, edp influxdb.NotificationEndpoint, userID platform.ID) (influxdb.NotificationEndpoint, error) {
+						return nil, &errors.Error{
+							Code: errors.ENotFound,
 							Msg:  "notification endpoint not found",
 						}
 					},
@@ -898,7 +901,7 @@ func TestService_handlePostNotificationEndpointMember(t *testing.T) {
 			name: "add a notification endpoint member",
 			fields: fields{
 				UserService: &mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 						return &influxdb.User{
 							ID:     id,
 							Name:   "name",
@@ -993,7 +996,7 @@ func TestService_handlePostNotificationEndpointOwner(t *testing.T) {
 			name: "add a notification endpoint owner",
 			fields: fields{
 				UserService: &mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 						return &influxdb.User{
 							ID:     id,
 							Name:   "name",
@@ -1138,13 +1141,13 @@ func TestNotificationEndpointService(t *testing.T) {
 	}
 }
 
-func authCtxFn(userID influxdb.ID) func(context.Context) context.Context {
+func authCtxFn(userID platform.ID) func(context.Context) context.Context {
 	return func(ctx context.Context) context.Context {
 		return pcontext.SetAuthorizer(ctx, &influxdb.Session{UserID: userID})
 	}
 }
 
-func withOrgID(store *tenant.Store, orgID influxdb.ID, fn func()) {
+func withOrgID(store *tenant.Store, orgID platform.ID, fn func()) {
 	backup := store.OrgIDGen
 	defer func() { store.OrgIDGen = backup }()
 

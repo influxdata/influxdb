@@ -3,6 +3,7 @@ package endpoint_test
 import (
 	"encoding/json"
 	"fmt"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/http"
 	"net/url"
 	"testing"
@@ -42,8 +43,8 @@ func TestValidEndpoint(t *testing.T) {
 		{
 			name: "invalid endpoint id",
 			src:  &endpoint.Slack{},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors2.Error{
+				Code: errors2.EInvalid,
 				Msg:  "Notification Endpoint ID is invalid",
 			},
 		},
@@ -56,8 +57,8 @@ func TestValidEndpoint(t *testing.T) {
 					OrgID: id3,
 				},
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors2.Error{
+				Code: errors2.EInvalid,
 				Msg:  "invalid status",
 			},
 		},
@@ -72,8 +73,8 @@ func TestValidEndpoint(t *testing.T) {
 				ClientURL:  "https://events.pagerduty.com/v2/enqueue",
 				RoutingKey: influxdb.SecretField{Key: id1.String() + "-routing-key"},
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors2.Error{
+				Code: errors2.EInvalid,
 				Msg:  "Notification Endpoint Name can't be empty",
 			},
 		},
@@ -88,8 +89,8 @@ func TestValidEndpoint(t *testing.T) {
 				Token:   influxdb.SecretField{Key: id1.String() + "-token"},
 				Channel: "-1001406363649",
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors2.Error{
+				Code: errors2.EInvalid,
 				Msg:  "Notification Endpoint Name can't be empty",
 			},
 		},
@@ -98,8 +99,8 @@ func TestValidEndpoint(t *testing.T) {
 			src: &endpoint.Slack{
 				Base: goodBase,
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors2.Error{
+				Code: errors2.EInvalid,
 				Msg:  "slack endpoint URL must be provided",
 			},
 		},
@@ -115,8 +116,8 @@ func TestValidEndpoint(t *testing.T) {
 					URL: "posts://er:{DEf1=ghi@:5432/db?ssl",
 					Err: errors.New("net/url: invalid userinfo"),
 				}
-				return &influxdb.Error{
-					Code: influxdb.EInvalid,
+				return &errors2.Error{
+					Code: errors2.EInvalid,
 					Msg:  fmt.Sprintf("slack endpoint URL is invalid: %s", err.Error()),
 				}
 			},
@@ -135,8 +136,8 @@ func TestValidEndpoint(t *testing.T) {
 				Base: goodBase,
 				URL:  "localhost",
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors2.Error{
+				Code: errors2.EInvalid,
 				Msg:  "invalid http http method",
 			},
 		},
@@ -148,8 +149,8 @@ func TestValidEndpoint(t *testing.T) {
 				Method:     "GET",
 				AuthMethod: "bearer",
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors2.Error{
+				Code: errors2.EInvalid,
 				Msg:  "invalid http token for bearer auth",
 			},
 		},
@@ -161,8 +162,8 @@ func TestValidEndpoint(t *testing.T) {
 				Method:     http.MethodGet,
 				AuthMethod: "basic",
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors2.Error{
+				Code: errors2.EInvalid,
 				Msg:  "invalid http username/password for basic auth",
 			},
 		},
@@ -171,8 +172,8 @@ func TestValidEndpoint(t *testing.T) {
 			src: &endpoint.Telegram{
 				Base: goodBase,
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors2.Error{
+				Code: errors2.EInvalid,
 				Msg:  "empty telegram bot token",
 			},
 		},
@@ -182,8 +183,8 @@ func TestValidEndpoint(t *testing.T) {
 				Base:  goodBase,
 				Token: influxdb.SecretField{Key: id1.String() + "-token"},
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors2.Error{
+				Code: errors2.EInvalid,
 				Msg:  "empty telegram channel",
 			},
 		},

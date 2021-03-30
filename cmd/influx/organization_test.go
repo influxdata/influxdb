@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/stretchr/testify/assert"
 
 	"github.com/influxdata/influxdb/v2"
@@ -87,27 +89,27 @@ func TestCmdOrg(t *testing.T) {
 	t.Run("delete", func(t *testing.T) {
 		tests := []struct {
 			name       string
-			expectedID influxdb.ID
+			expectedID platform.ID
 			flag       string
 		}{
 			{
 				name:       "id",
-				expectedID: influxdb.ID(1),
+				expectedID: platform.ID(1),
 				flag:       "--id=",
 			},
 			{
 				name:       "shorts",
-				expectedID: influxdb.ID(1),
+				expectedID: platform.ID(1),
 				flag:       "-i=",
 			},
 		}
 
-		cmdFn := func(expectedID influxdb.ID) func(*globalFlags, genericCLIOpts) *cobra.Command {
+		cmdFn := func(expectedID platform.ID) func(*globalFlags, genericCLIOpts) *cobra.Command {
 			svc := mock.NewOrganizationService()
-			svc.FindOrganizationByIDF = func(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
+			svc.FindOrganizationByIDF = func(ctx context.Context, id platform.ID) (*influxdb.Organization, error) {
 				return &influxdb.Organization{ID: id}, nil
 			}
-			svc.DeleteOrganizationF = func(ctx context.Context, id influxdb.ID) error {
+			svc.DeleteOrganizationF = func(ctx context.Context, id platform.ID) error {
 				if expectedID != id {
 					return fmt.Errorf("unexpected id:\n\twant= %s\n\tgot=  %s", expectedID, id)
 				}
@@ -140,7 +142,7 @@ func TestCmdOrg(t *testing.T) {
 	t.Run("list", func(t *testing.T) {
 		type called struct {
 			name string
-			id   influxdb.ID
+			id   platform.ID
 		}
 
 		tests := []struct {
@@ -152,7 +154,7 @@ func TestCmdOrg(t *testing.T) {
 		}{
 			{
 				name:     "org id",
-				flags:    []string{"--id=" + influxdb.ID(3).String()},
+				flags:    []string{"--id=" + platform.ID(3).String()},
 				envVars:  envVarsZeroMap,
 				expected: called{id: 3},
 			},
@@ -166,7 +168,7 @@ func TestCmdOrg(t *testing.T) {
 				name: "shorts",
 				flags: []string{
 					"-n=name1",
-					"-i=" + influxdb.ID(1).String(),
+					"-i=" + platform.ID(1).String(),
 				},
 				envVars:  envVarsZeroMap,
 				expected: called{name: "name1", id: 1},
@@ -174,10 +176,10 @@ func TestCmdOrg(t *testing.T) {
 			{
 				name: "env vars",
 				envVars: map[string]string{
-					"INFLUX_ORG_ID": influxdb.ID(1).String(),
+					"INFLUX_ORG_ID": platform.ID(1).String(),
 					"INFLUX_ORG":    "name1",
 				},
-				flags:    []string{"-i=" + influxdb.ID(1).String()},
+				flags:    []string{"-i=" + platform.ID(1).String()},
 				expected: called{name: "name1", id: 1},
 			},
 			{
@@ -251,7 +253,7 @@ func TestCmdOrg(t *testing.T) {
 			{
 				name: "basic just name",
 				flags: []string{
-					"--id=" + influxdb.ID(3).String(),
+					"--id=" + platform.ID(3).String(),
 					"--name=new name",
 				},
 				expected: influxdb.OrganizationUpdate{
@@ -261,7 +263,7 @@ func TestCmdOrg(t *testing.T) {
 			{
 				name: "with all fields",
 				flags: []string{
-					"--id=" + influxdb.ID(3).String(),
+					"--id=" + platform.ID(3).String(),
 					"--name=new name",
 					"--description=desc",
 				},
@@ -273,7 +275,7 @@ func TestCmdOrg(t *testing.T) {
 			{
 				name: "shorts",
 				flags: []string{
-					"-i=" + influxdb.ID(3).String(),
+					"-i=" + platform.ID(3).String(),
 					"-n=new name",
 					"-d=desc",
 				},
@@ -286,7 +288,7 @@ func TestCmdOrg(t *testing.T) {
 				name: "env var",
 				envVars: map[string]string{
 					"INFLUX_ORG":             "new name",
-					"INFLUX_ORG_ID":          influxdb.ID(3).String(),
+					"INFLUX_ORG_ID":          platform.ID(3).String(),
 					"INFLUX_ORG_DESCRIPTION": "desc",
 				},
 				expected: influxdb.OrganizationUpdate{
@@ -298,9 +300,9 @@ func TestCmdOrg(t *testing.T) {
 
 		cmdFn := func(expectedUpdate influxdb.OrganizationUpdate) func(*globalFlags, genericCLIOpts) *cobra.Command {
 			svc := mock.NewOrganizationService()
-			svc.UpdateOrganizationF = func(ctx context.Context, id influxdb.ID, upd influxdb.OrganizationUpdate) (*influxdb.Organization, error) {
+			svc.UpdateOrganizationF = func(ctx context.Context, id platform.ID, upd influxdb.OrganizationUpdate) (*influxdb.Organization, error) {
 				if id != 3 {
-					return nil, fmt.Errorf("unexpecte id:\n\twant= %s\n\tgot=  %s", influxdb.ID(3), id)
+					return nil, fmt.Errorf("unexpecte id:\n\twant= %s\n\tgot=  %s", platform.ID(3), id)
 				}
 				if !reflect.DeepEqual(expectedUpdate, upd) {
 					return nil, fmt.Errorf("unexpected bucket update;\n\twant= %+v\n\tgot=  %+v", expectedUpdate, upd)
@@ -336,8 +338,8 @@ func TestCmdOrg(t *testing.T) {
 		type (
 			called struct {
 				name     string
-				id       influxdb.ID
-				memberID influxdb.ID
+				id       platform.ID
+				memberID platform.ID
 			}
 
 			testCase struct {
@@ -384,13 +386,13 @@ func TestCmdOrg(t *testing.T) {
 			tests := []testCase{
 				{
 					name:        "org id",
-					memberFlags: []string{"--id=" + influxdb.ID(3).String()},
+					memberFlags: []string{"--id=" + platform.ID(3).String()},
 					envVars:     envVarsZeroMap,
 					expected:    called{id: 3},
 				},
 				{
 					name:        "org id short",
-					memberFlags: []string{"-i=" + influxdb.ID(3).String()},
+					memberFlags: []string{"-i=" + platform.ID(3).String()},
 					envVars:     envVarsZeroMap,
 					expected:    called{id: 3},
 				},
@@ -398,7 +400,7 @@ func TestCmdOrg(t *testing.T) {
 					name: "org id env var",
 					envVars: map[string]string{
 						"INFLUX_ORG":    "",
-						"INFLUX_ORG_ID": influxdb.ID(3).String(),
+						"INFLUX_ORG_ID": platform.ID(3).String(),
 					},
 					expected: called{id: 3},
 				},
@@ -476,8 +478,8 @@ func TestCmdOrg(t *testing.T) {
 				{
 					name: "org id",
 					memberFlags: []string{
-						"--id=" + influxdb.ID(3).String(),
-						"--member=" + influxdb.ID(4).String(),
+						"--id=" + platform.ID(3).String(),
+						"--member=" + platform.ID(4).String(),
 					},
 					envVars:  envVarsZeroMap,
 					expected: called{id: 3, memberID: 4},
@@ -485,8 +487,8 @@ func TestCmdOrg(t *testing.T) {
 				{
 					name: "org id shorts",
 					memberFlags: []string{
-						"-i=" + influxdb.ID(3).String(),
-						"-m=" + influxdb.ID(4).String(),
+						"-i=" + platform.ID(3).String(),
+						"-m=" + platform.ID(4).String(),
 					},
 					envVars:  envVarsZeroMap,
 					expected: called{id: 3, memberID: 4},
@@ -495,7 +497,7 @@ func TestCmdOrg(t *testing.T) {
 					name: "org name",
 					memberFlags: []string{
 						"--name=name1",
-						"--member=" + influxdb.ID(4).String(),
+						"--member=" + platform.ID(4).String(),
 					},
 					envVars:  envVarsZeroMap,
 					expected: called{name: "name1", memberID: 4},
@@ -504,7 +506,7 @@ func TestCmdOrg(t *testing.T) {
 					name: "org name shorts",
 					memberFlags: []string{
 						"-n=name1",
-						"-m=" + influxdb.ID(4).String(),
+						"-m=" + platform.ID(4).String(),
 					},
 					envVars:  envVarsZeroMap,
 					expected: called{name: "name1", memberID: 4},
@@ -529,7 +531,7 @@ func TestCmdOrg(t *testing.T) {
 					return &influxdb.Organization{ID: 1}, nil
 				}
 				urmSVC := mock.NewUserResourceMappingService()
-				urmSVC.DeleteMappingFn = func(ctx context.Context, resourceID, userID influxdb.ID) error {
+				urmSVC.DeleteMappingFn = func(ctx context.Context, resourceID, userID platform.ID) error {
 					calls.memberID = userID
 					return nil
 				}
@@ -544,8 +546,8 @@ func TestCmdOrg(t *testing.T) {
 				{
 					name: "org id",
 					memberFlags: []string{
-						"--id=" + influxdb.ID(3).String(),
-						"--member=" + influxdb.ID(4).String(),
+						"--id=" + platform.ID(3).String(),
+						"--member=" + platform.ID(4).String(),
 					},
 					envVars:  envVarsZeroMap,
 					expected: called{id: 3, memberID: 4},
@@ -553,8 +555,8 @@ func TestCmdOrg(t *testing.T) {
 				{
 					name: "org id shorts",
 					memberFlags: []string{
-						"-i=" + influxdb.ID(3).String(),
-						"-m=" + influxdb.ID(4).String(),
+						"-i=" + platform.ID(3).String(),
+						"-m=" + platform.ID(4).String(),
 					},
 					envVars:  envVarsZeroMap,
 					expected: called{id: 3, memberID: 4},
@@ -563,7 +565,7 @@ func TestCmdOrg(t *testing.T) {
 					name: "org name",
 					memberFlags: []string{
 						"--name=name1",
-						"--member=" + influxdb.ID(4).String(),
+						"--member=" + platform.ID(4).String(),
 					},
 					envVars:  envVarsZeroMap,
 					expected: called{name: "name1", memberID: 4},
@@ -572,7 +574,7 @@ func TestCmdOrg(t *testing.T) {
 					name: "org name shorts",
 					memberFlags: []string{
 						"-n=name1",
-						"-m=" + influxdb.ID(4).String(),
+						"-m=" + platform.ID(4).String(),
 					},
 					envVars:  envVarsZeroMap,
 					expected: called{name: "name1", memberID: 4},

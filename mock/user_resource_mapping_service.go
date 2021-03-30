@@ -3,6 +3,8 @@ package mock
 import (
 	"context"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+
 	platform "github.com/influxdata/influxdb/v2"
 )
 
@@ -12,7 +14,7 @@ var _ platform.UserResourceMappingService = &UserResourceMappingService{}
 type UserResourceMappingService struct {
 	FindMappingsFn  func(context.Context, platform.UserResourceMappingFilter) ([]*platform.UserResourceMapping, int, error)
 	CreateMappingFn func(context.Context, *platform.UserResourceMapping) error
-	DeleteMappingFn func(context.Context, platform.ID, platform.ID) error
+	DeleteMappingFn func(context.Context, platform2.ID, platform2.ID) error
 }
 
 // NewUserResourceMappingService returns a mock of UserResourceMappingService
@@ -23,7 +25,7 @@ func NewUserResourceMappingService() *UserResourceMappingService {
 			return nil, 0, nil
 		},
 		CreateMappingFn: func(context.Context, *platform.UserResourceMapping) error { return nil },
-		DeleteMappingFn: func(context.Context, platform.ID, platform.ID) error { return nil },
+		DeleteMappingFn: func(context.Context, platform2.ID, platform2.ID) error { return nil },
 	}
 }
 
@@ -38,6 +40,6 @@ func (s *UserResourceMappingService) CreateUserResourceMapping(ctx context.Conte
 }
 
 // DeleteUserResourceMapping removes a UserResourceMapping.
-func (s *UserResourceMappingService) DeleteUserResourceMapping(ctx context.Context, resourceID platform.ID, userID platform.ID) error {
+func (s *UserResourceMappingService) DeleteUserResourceMapping(ctx context.Context, resourceID platform2.ID, userID platform2.ID) error {
 	return s.DeleteMappingFn(ctx, resourceID, userID)
 }

@@ -6,6 +6,7 @@ package mocks
 
 import (
 	context "context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
@@ -50,7 +51,7 @@ func (mr *MockEngineSchemaMockRecorder) CreateBucket(arg0, arg1 interface{}) *go
 }
 
 // DeleteBucket mocks base method.
-func (m *MockEngineSchema) DeleteBucket(arg0 context.Context, arg1, arg2 influxdb.ID) error {
+func (m *MockEngineSchema) DeleteBucket(arg0 context.Context, arg1, arg2 platform.ID) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteBucket", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
@@ -64,7 +65,7 @@ func (mr *MockEngineSchemaMockRecorder) DeleteBucket(arg0, arg1, arg2 interface{
 }
 
 // UpdateBucketRetentionPolicy mocks base method.
-func (m *MockEngineSchema) UpdateBucketRetentionPolicy(arg0 context.Context, arg1 influxdb.ID, arg2 *influxdb.BucketUpdate) error {
+func (m *MockEngineSchema) UpdateBucketRetentionPolicy(arg0 context.Context, arg1 platform.ID, arg2 *influxdb.BucketUpdate) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateBucketRetentionPolicy", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)

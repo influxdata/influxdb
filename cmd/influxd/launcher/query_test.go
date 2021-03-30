@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"html/template"
 	"io"
 	"io/ioutil"
@@ -590,7 +591,7 @@ from(bucket: "%s")
 	}
 	if err := l.QueryAndNopConsume(ctx, req); err == nil {
 		t.Error("expected error")
-	} else if got, want := influxdb.ErrorCode(err), influxdb.EUnauthorized; got != want {
+	} else if got, want := errors2.ErrorCode(err), errors2.EUnauthorized; got != want {
 		t.Errorf("unexpected error code -want/+got:\n\t- %v\n\t+ %v", got, want)
 	}
 }

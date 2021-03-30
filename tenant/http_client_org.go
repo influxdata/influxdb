@@ -3,6 +3,9 @@ package tenant
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
@@ -24,11 +27,11 @@ func (o orgsResponse) toInfluxdb() []*influxdb.Organization {
 }
 
 // FindOrganizationByID gets a single organization with a given id using HTTP.
-func (s *OrgClientService) FindOrganizationByID(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
+func (s *OrgClientService) FindOrganizationByID(ctx context.Context, id platform.ID) (*influxdb.Organization, error) {
 	filter := influxdb.OrganizationFilter{ID: &id}
 	o, err := s.FindOrganization(ctx, filter)
 	if err != nil {
-		return nil, &influxdb.Error{
+		return nil, &errors.Error{
 			Err: err,
 			Op:  s.OpPrefix + influxdb.OpFindOrganizationByID,
 		}
@@ -43,15 +46,15 @@ func (s *OrgClientService) FindOrganization(ctx context.Context, filter influxdb
 	}
 	os, n, err := s.FindOrganizations(ctx, filter)
 	if err != nil {
-		return nil, &influxdb.Error{
+		return nil, &errors.Error{
 			Err: err,
 			Op:  s.OpPrefix + influxdb.OpFindOrganization,
 		}
 	}
 
 	if n == 0 {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return nil, &errors.Error{
+			Code: errors.ENotFound,
 			Op:   s.OpPrefix + influxdb.OpFindOrganization,
 			Msg:  "organization not found",
 		}
@@ -120,7 +123,7 @@ func (s *OrgClientService) CreateOrganization(ctx context.Context, o *influxdb.O
 }
 
 // UpdateOrganization updates the organization over HTTP.
-func (s *OrgClientService) UpdateOrganization(ctx context.Context, id influxdb.ID, upd influxdb.OrganizationUpdate) (*influxdb.Organization, error) {
+func (s *OrgClientService) UpdateOrganization(ctx context.Context, id platform.ID, upd influxdb.OrganizationUpdate) (*influxdb.Organization, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -140,7 +143,7 @@ func (s *OrgClientService) UpdateOrganization(ctx context.Context, id influxdb.I
 }
 
 // DeleteOrganization removes organization id over HTTP.
-func (s *OrgClientService) DeleteOrganization(ctx context.Context, id influxdb.ID) error {
+func (s *OrgClientService) DeleteOrganization(ctx context.Context, id platform.ID) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 

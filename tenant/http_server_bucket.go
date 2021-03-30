@@ -6,6 +6,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/influxdata/influxdb/v2"
@@ -70,8 +73,8 @@ func (h *BucketHandler) Prefix() string {
 
 // bucket is used for serialization/deserialization with duration string syntax.
 type bucket struct {
-	ID                  influxdb.ID     `json:"id,omitempty"`
-	OrgID               influxdb.ID     `json:"orgID,omitempty"`
+	ID                  platform.ID     `json:"id,omitempty"`
+	OrgID               platform.ID     `json:"orgID,omitempty"`
 	Type                string          `json:"type"`
 	Description         string          `json:"description,omitempty"`
 	Name                string          `json:"name"`
@@ -152,8 +155,8 @@ type bucketUpdate struct {
 
 func (b *bucketUpdate) OK() error {
 	if len(b.RetentionRules) > 1 {
-		return &influxdb.Error{
-			Code: influxdb.EUnprocessableEntity,
+		return &errors.Error{
+			Code: errors.EUnprocessableEntity,
 			Msg:  "buckets cannot have more than one retention rule at this time",
 		}
 	}
@@ -161,14 +164,14 @@ func (b *bucketUpdate) OK() error {
 	if len(b.RetentionRules) > 0 {
 		rule := b.RetentionRules[0]
 		if rule.EverySeconds != nil && *rule.EverySeconds < 0 {
-			return &influxdb.Error{
-				Code: influxdb.EUnprocessableEntity,
+			return &errors.Error{
+				Code: errors.EUnprocessableEntity,
 				Msg:  "expiration seconds cannot be negative",
 			}
 		}
 		if rule.ShardGroupDurationSeconds != nil && *rule.ShardGroupDurationSeconds < 0 {
-			return &influxdb.Error{
-				Code: influxdb.EUnprocessableEntity,
+			return &errors.Error{
+				Code: errors.EUnprocessableEntity,
 				Msg:  "shard-group duration seconds cannot be negative",
 			}
 		}
@@ -303,7 +306,7 @@ func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request)
 }
 
 type postBucketRequest struct {
-	OrgID               influxdb.ID     `json:"orgID,omitempty"`
+	OrgID               platform.ID     `json:"orgID,omitempty"`
 	Name                string          `json:"name"`
 	Description         string          `json:"description"`
 	RetentionPolicyName string          `json:"rp,omitempty"` // This to support v1 sources
@@ -312,15 +315,15 @@ type postBucketRequest struct {
 
 func (b *postBucketRequest) OK() error {
 	if !b.OrgID.Valid() {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "organization id must be provided",
 		}
 	}
 
 	if len(b.RetentionRules) > 1 {
-		return &influxdb.Error{
-			Code: influxdb.EUnprocessableEntity,
+		return &errors.Error{
+			Code: errors.EUnprocessableEntity,
 			Msg:  "buckets cannot have more than one retention rule at this time",
 		}
 	}
@@ -329,14 +332,14 @@ func (b *postBucketRequest) OK() error {
 		rule := b.RetentionRules[0]
 
 		if rule.EverySeconds < 0 {
-			return &influxdb.Error{
-				Code: influxdb.EUnprocessableEntity,
+			return &errors.Error{
+				Code: errors.EUnprocessableEntity,
 				Msg:  "expiration seconds cannot be negative",
 			}
 		}
 		if rule.ShardGroupDurationSeconds < 0 {
-			return &influxdb.Error{
-				Code: influxdb.EUnprocessableEntity,
+			return &errors.Error{
+				Code: errors.EUnprocessableEntity,
 				Msg:  "shard-group duration seconds cannot be negative",
 			}
 		}
@@ -370,7 +373,7 @@ func (b postBucketRequest) toInfluxDB() *influxdb.Bucket {
 func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
+	id, err := platform.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -393,7 +396,7 @@ func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) 
 
 // handleDeleteBucket is the HTTP handler for the DELETE /api/v2/buckets/:id route.
 func (h *BucketHandler) handleDeleteBucket(w http.ResponseWriter, r *http.Request) {
-	id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
+	id, err := platform.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -444,7 +447,7 @@ func decodeGetBucketsRequest(r *http.Request) (*getBucketsRequest, error) {
 	req.opts = *opts
 
 	if orgID := qp.Get("orgID"); orgID != "" {
-		id, err := influxdb.IDFromString(orgID)
+		id, err := platform.IDFromString(orgID)
 		if err != nil {
 			return nil, err
 		}
@@ -460,7 +463,7 @@ func decodeGetBucketsRequest(r *http.Request) (*getBucketsRequest, error) {
 	}
 
 	if bucketID := qp.Get("id"); bucketID != "" {
-		id, err := influxdb.IDFromString(bucketID)
+		id, err := platform.IDFromString(bucketID)
 		if err != nil {
 			return nil, err
 		}
@@ -472,7 +475,7 @@ func decodeGetBucketsRequest(r *http.Request) (*getBucketsRequest, error) {
 
 // handlePatchBucket is the HTTP handler for the PATCH /api/v2/buckets route.
 func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request) {
-	id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
+	id, err := platform.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -504,7 +507,7 @@ func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request
 	h.api.Respond(w, r, http.StatusOK, NewBucketResponse(b))
 }
 
-func (h *BucketHandler) lookupOrgByBucketID(ctx context.Context, id influxdb.ID) (influxdb.ID, error) {
+func (h *BucketHandler) lookupOrgByBucketID(ctx context.Context, id platform.ID) (platform.ID, error) {
 	b, err := h.bucketSvc.FindBucketByID(ctx, id)
 	if err != nil {
 		return 0, err

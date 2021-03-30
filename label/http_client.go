@@ -4,6 +4,8 @@ import (
 	"context"
 	"path"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 )
@@ -14,15 +16,15 @@ type LabelClientService struct {
 	Client *httpc.Client
 }
 
-func labelIDPath(id influxdb.ID) string {
+func labelIDPath(id platform.ID) string {
 	return path.Join(prefixLabels, id.String())
 }
 
-func resourceIDPath(resourceType influxdb.ResourceType, resourceID influxdb.ID, p string) string {
+func resourceIDPath(resourceType influxdb.ResourceType, resourceID platform.ID, p string) string {
 	return path.Join("/api/v2/", string(resourceType), resourceID.String(), p)
 }
 
-func resourceIDMappingPath(resourceType influxdb.ResourceType, resourceID influxdb.ID, p string, labelID influxdb.ID) string {
+func resourceIDMappingPath(resourceType influxdb.ResourceType, resourceID platform.ID, p string, labelID platform.ID) string {
 	return path.Join("/api/v2/", string(resourceType), resourceID.String(), p, labelID.String())
 }
 
@@ -42,7 +44,7 @@ func (s *LabelClientService) CreateLabel(ctx context.Context, l *influxdb.Label)
 }
 
 // FindLabelByID returns a single label by ID.
-func (s *LabelClientService) FindLabelByID(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
+func (s *LabelClientService) FindLabelByID(ctx context.Context, id platform.ID) (*influxdb.Label, error) {
 	var lr labelResponse
 	err := s.Client.
 		Get(labelIDPath(id)).
@@ -94,7 +96,7 @@ func (s *LabelClientService) FindResourceLabels(ctx context.Context, filter infl
 }
 
 // UpdateLabel updates a label and returns the updated label.
-func (s *LabelClientService) UpdateLabel(ctx context.Context, id influxdb.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
+func (s *LabelClientService) UpdateLabel(ctx context.Context, id platform.ID, upd influxdb.LabelUpdate) (*influxdb.Label, error) {
 	var lr labelResponse
 	err := s.Client.
 		PatchJSON(upd, labelIDPath(id)).
@@ -107,7 +109,7 @@ func (s *LabelClientService) UpdateLabel(ctx context.Context, id influxdb.ID, up
 }
 
 // DeleteLabel removes a label by ID.
-func (s *LabelClientService) DeleteLabel(ctx context.Context, id influxdb.ID) error {
+func (s *LabelClientService) DeleteLabel(ctx context.Context, id platform.ID) error {
 	return s.Client.
 		Delete(labelIDPath(id)).
 		Do(ctx)

@@ -2,6 +2,8 @@ package tenant_test
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"net/http/httptest"
 	"testing"
 	"time"
@@ -83,12 +85,12 @@ func TestHTTPBucketService(t *testing.T) {
 	itesting.BucketService(initBucketHttpService, t)
 }
 
-const idOne = influxdb.ID(iota + 1)
+const idOne = platform.ID(iota + 1)
 
 func TestHTTPBucketService_InvalidRetention(t *testing.T) {
 	type args struct {
 		name          string
-		id            influxdb.ID
+		id            platform.ID
 		retention     int
 		shardDuration int
 		description   *string
@@ -136,8 +138,8 @@ func TestHTTPBucketService_InvalidRetention(t *testing.T) {
 				retention: -1,
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EUnprocessableEntity,
+				err: &errors.Error{
+					Code: errors.EUnprocessableEntity,
 					Msg:  "expiration seconds cannot be negative",
 				},
 			},
@@ -174,8 +176,8 @@ func TestHTTPBucketService_InvalidRetention(t *testing.T) {
 				shardDuration: -1,
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EUnprocessableEntity,
+				err: &errors.Error{
+					Code: errors.EUnprocessableEntity,
 					Msg:  "shard-group duration seconds cannot be negative",
 				},
 			},

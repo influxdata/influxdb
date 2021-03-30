@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/dustin/go-humanize"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
@@ -22,25 +24,25 @@ func TestMigration_ShardGroupDuration(t *testing.T) {
 	// Seed some buckets.
 	buckets := []*influxdb.Bucket{
 		{
-			ID:              influxdb.ID(1),
+			ID:              platform.ID(1),
 			Name:            "infinite",
 			OrgID:           ts.Org.ID,
 			RetentionPeriod: 0,
 		},
 		{
-			ID:              influxdb.ID(2),
+			ID:              platform.ID(2),
 			Name:            "1w",
 			OrgID:           ts.Org.ID,
 			RetentionPeriod: humanize.Week,
 		},
 		{
-			ID:              influxdb.ID(3),
+			ID:              platform.ID(3),
 			Name:            "1d",
 			OrgID:           ts.Org.ID,
 			RetentionPeriod: humanize.Day,
 		},
 		{
-			ID:              influxdb.ID(4),
+			ID:              platform.ID(4),
 			Name:            "1h",
 			OrgID:           ts.Org.ID,
 			RetentionPeriod: time.Hour,

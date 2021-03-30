@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap"
 )
@@ -36,7 +38,7 @@ func (l *OrgLogger) CreateOrganization(ctx context.Context, u *influxdb.Organiza
 	return l.orgService.CreateOrganization(ctx, u)
 }
 
-func (l *OrgLogger) FindOrganizationByID(ctx context.Context, id influxdb.ID) (u *influxdb.Organization, err error) {
+func (l *OrgLogger) FindOrganizationByID(ctx context.Context, id platform.ID) (u *influxdb.Organization, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -74,7 +76,7 @@ func (l *OrgLogger) FindOrganizations(ctx context.Context, filter influxdb.Organ
 	return l.orgService.FindOrganizations(ctx, filter, opt...)
 }
 
-func (l *OrgLogger) UpdateOrganization(ctx context.Context, id influxdb.ID, upd influxdb.OrganizationUpdate) (u *influxdb.Organization, err error) {
+func (l *OrgLogger) UpdateOrganization(ctx context.Context, id platform.ID, upd influxdb.OrganizationUpdate) (u *influxdb.Organization, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -86,7 +88,7 @@ func (l *OrgLogger) UpdateOrganization(ctx context.Context, id influxdb.ID, upd 
 	return l.orgService.UpdateOrganization(ctx, id, upd)
 }
 
-func (l *OrgLogger) DeleteOrganization(ctx context.Context, id influxdb.ID) (err error) {
+func (l *OrgLogger) DeleteOrganization(ctx context.Context, id platform.ID) (err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {

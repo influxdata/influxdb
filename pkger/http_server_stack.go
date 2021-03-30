@@ -7,8 +7,10 @@ import (
 	"path"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/go-chi/chi"
-	"github.com/influxdata/influxdb/v2"
 	pctx "github.com/influxdata/influxdb/v2/context"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"go.uber.org/zap"
@@ -109,10 +111,10 @@ func (s *HTTPServerStacks) listStacks(w http.ResponseWriter, r *http.Request) {
 	q := r.URL.Query()
 
 	rawOrgID := q.Get("orgID")
-	orgID, err := influxdb.IDFromString(rawOrgID)
+	orgID, err := platform.IDFromString(rawOrgID)
 	if err != nil {
-		s.api.Err(w, r, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		s.api.Err(w, r, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("organization id[%q] is invalid", rawOrgID),
 			Err:  err,
 		})
@@ -120,8 +122,8 @@ func (s *HTTPServerStacks) listStacks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := r.ParseForm(); err != nil {
-		s.api.Err(w, r, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		s.api.Err(w, r, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "failed to parse form from encoded url",
 			Err:  err,
 		})
@@ -133,10 +135,10 @@ func (s *HTTPServerStacks) listStacks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, idRaw := range r.Form["stackID"] {
-		id, err := influxdb.IDFromString(idRaw)
+		id, err := platform.IDFromString(idRaw)
 		if err != nil {
-			s.api.Err(w, r, &influxdb.Error{
-				Code: influxdb.EInvalid,
+			s.api.Err(w, r, &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  fmt.Sprintf("stack ID[%q] provided is invalid", idRaw),
 				Err:  err,
 			})
@@ -175,17 +177,17 @@ type ReqCreateStack struct {
 // OK validates the request body is valid.
 func (r *ReqCreateStack) OK() error {
 	// TODO: provide multiple errors back for failing validation
-	if _, err := influxdb.IDFromString(r.OrgID); err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+	if _, err := platform.IDFromString(r.OrgID); err != nil {
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("provided org id[%q] is invalid", r.OrgID),
 		}
 	}
 
 	for _, u := range r.URLs {
 		if _, err := url.Parse(u); err != nil {
-			return &influxdb.Error{
-				Code: influxdb.EInvalid,
+			return &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  fmt.Sprintf("provided url[%q] is invalid", u),
 			}
 		}
@@ -193,8 +195,8 @@ func (r *ReqCreateStack) OK() error {
 	return nil
 }
 
-func (r *ReqCreateStack) orgID() influxdb.ID {
-	orgID, _ := influxdb.IDFromString(r.OrgID)
+func (r *ReqCreateStack) orgID() platform.ID {
+	orgID, _ := platform.IDFromString(r.OrgID)
 	return *orgID
 }
 
@@ -245,7 +247,7 @@ func (s *HTTPServerStacks) deleteStack(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = s.svc.DeleteStack(r.Context(), struct{ OrgID, UserID, StackID influxdb.ID }{
+	err = s.svc.DeleteStack(r.Context(), struct{ OrgID, UserID, StackID platform.ID }{
 		OrgID:   orgID,
 		UserID:  auth.GetUserID(),
 		StackID: stackID,
@@ -277,7 +279,7 @@ func (s *HTTPServerStacks) uninstallStack(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	stack, err := s.svc.UninstallStack(r.Context(), struct{ OrgID, UserID, StackID influxdb.ID }{
+	stack, err := s.svc.UninstallStack(r.Context(), struct{ OrgID, UserID, StackID platform.ID }{
 		OrgID:   orgID,
 		UserID:  auth.GetUserID(),
 		StackID: stackID,
@@ -346,9 +348,9 @@ func (s *HTTPServerStacks) updateStack(w http.ResponseWriter, r *http.Request) {
 		TemplateURLs: append(req.TemplateURLs, req.URLs...),
 	}
 	for _, res := range req.AdditionalResources {
-		id, err := influxdb.IDFromString(res.ID)
+		id, err := platform.IDFromString(res.ID)
 		if err != nil {
-			s.api.Err(w, r, influxErr(influxdb.EInvalid, err, fmt.Sprintf("stack resource id %q", res.ID)))
+			s.api.Err(w, r, influxErr(errors.EInvalid, err, fmt.Sprintf("stack resource id %q", res.ID)))
 			return
 		}
 		update.AdditionalResources = append(update.AdditionalResources, StackAdditionalResource{
@@ -441,11 +443,11 @@ func stackResLinks(r StackResource) RespStackResourceLinks {
 	}
 }
 
-func stackIDFromReq(r *http.Request) (influxdb.ID, error) {
-	stackID, err := influxdb.IDFromString(chi.URLParam(r, "stack_id"))
+func stackIDFromReq(r *http.Request) (platform.ID, error) {
+	stackID, err := platform.IDFromString(chi.URLParam(r, "stack_id"))
 	if err != nil {
-		return 0, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return 0, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "the stack id provided in the path was invalid",
 			Err:  err,
 		}
@@ -453,19 +455,19 @@ func stackIDFromReq(r *http.Request) (influxdb.ID, error) {
 	return *stackID, nil
 }
 
-func getRequiredOrgIDFromQuery(q url.Values) (influxdb.ID, error) {
+func getRequiredOrgIDFromQuery(q url.Values) (platform.ID, error) {
 	orgIDRaw := q.Get("orgID")
 	if orgIDRaw == "" {
-		return 0, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return 0, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "the orgID query param is required",
 		}
 	}
 
-	orgID, err := influxdb.IDFromString(orgIDRaw)
+	orgID, err := platform.IDFromString(orgIDRaw)
 	if err != nil {
-		return 0, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return 0, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "the orgID query param was invalid",
 			Err:  err,
 		}

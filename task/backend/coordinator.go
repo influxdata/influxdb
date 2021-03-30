@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap"
 )
@@ -15,7 +17,7 @@ var now = func() time.Time {
 // TaskService is a type on which tasks can be listed
 type TaskService interface {
 	FindTasks(context.Context, influxdb.TaskFilter) ([]*influxdb.Task, int, error)
-	UpdateTask(context.Context, influxdb.ID, influxdb.TaskUpdate) (*influxdb.Task, error)
+	UpdateTask(context.Context, platform.ID, influxdb.TaskUpdate) (*influxdb.Task, error)
 }
 
 // Coordinator is a type with a single method which
@@ -63,7 +65,7 @@ func NotifyCoordinatorOfExisting(ctx context.Context, log *zap.Logger, ts TaskSe
 	return nil
 }
 
-type TaskResumer func(ctx context.Context, id influxdb.ID, runID influxdb.ID) error
+type TaskResumer func(ctx context.Context, id platform.ID, runID platform.ID) error
 
 // TaskNotifyCoordinatorOfExisting lists all tasks by the provided task service and for
 // each task it calls the provided coordinators task created method

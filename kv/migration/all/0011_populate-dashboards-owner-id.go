@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
 )
@@ -13,11 +15,11 @@ import (
 var Migration0011_PopulateDashboardsOwnerId = UpOnlyMigration("populate dashboards owner id", func(ctx context.Context, store kv.SchemaStore) error {
 	var urmBucket = []byte("userresourcemappingsv1")
 	type userResourceMapping struct {
-		UserID       influxdb.ID           `json:"userID"`
+		UserID       platform.ID           `json:"userID"`
 		UserType     influxdb.UserType     `json:"userType"`
 		MappingType  influxdb.MappingType  `json:"mappingType"`
 		ResourceType influxdb.ResourceType `json:"resourceType"`
-		ResourceID   influxdb.ID           `json:"resourceID"`
+		ResourceID   platform.ID           `json:"resourceID"`
 	}
 
 	var mappings []*userResourceMapping
@@ -54,13 +56,13 @@ var Migration0011_PopulateDashboardsOwnerId = UpOnlyMigration("populate dashboar
 	var dashboardsBucket = []byte("dashboardsv2")
 	// dashboard represents all visual and query data for a dashboard.
 	type dashboard struct {
-		ID             influxdb.ID            `json:"id,omitempty"`
-		OrganizationID influxdb.ID            `json:"orgID,omitempty"`
+		ID             platform.ID            `json:"id,omitempty"`
+		OrganizationID platform.ID            `json:"orgID,omitempty"`
 		Name           string                 `json:"name"`
 		Description    string                 `json:"description"`
 		Cells          []*influxdb.Cell       `json:"cells"`
 		Meta           influxdb.DashboardMeta `json:"meta"`
-		OwnerID        *influxdb.ID           `json:"owner,omitempty"`
+		OwnerID        *platform.ID           `json:"owner,omitempty"`
 	}
 
 	var (

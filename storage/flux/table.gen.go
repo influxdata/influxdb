@@ -18,7 +18,7 @@ import (
 	"github.com/influxdata/flux/interval"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/values"
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/models"
 	storage "github.com/influxdata/influxdb/v2/storage/reads"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
@@ -786,8 +786,8 @@ func determineFloatAggregateMethod(agg datatypes.Aggregate_AggregateType) (float
 		return aggregateLastGroupsFloat, nil
 	case datatypes.AggregateTypeCount:
 
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate count: Float",
 		}
 
@@ -804,8 +804,8 @@ func determineFloatAggregateMethod(agg datatypes.Aggregate_AggregateType) (float
 		return aggregateMaxGroupsFloat, nil
 
 	default:
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("unknown/unimplemented aggregate type: %v", agg),
 		}
 	}
@@ -891,8 +891,8 @@ func (t *floatGroupTable) advanceCursor() bool {
 		if typedCur, ok := cur.(cursors.FloatArrayCursor); !ok {
 			// TODO(sgc): error or skip?
 			cur.Close()
-			t.err = &influxdb.Error{
-				Code: influxdb.EInvalid,
+			t.err = &errors.Error{
+				Code: errors.EInvalid,
 				Err: &GroupCursorError{
 					typ:    "float",
 					cursor: cur,
@@ -1697,8 +1697,8 @@ func determineIntegerAggregateMethod(agg datatypes.Aggregate_AggregateType) (int
 		return aggregateMaxGroupsInteger, nil
 
 	default:
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("unknown/unimplemented aggregate type: %v", agg),
 		}
 	}
@@ -1788,8 +1788,8 @@ func (t *integerGroupTable) advanceCursor() bool {
 		if typedCur, ok := cur.(cursors.IntegerArrayCursor); !ok {
 			// TODO(sgc): error or skip?
 			cur.Close()
-			t.err = &influxdb.Error{
-				Code: influxdb.EInvalid,
+			t.err = &errors.Error{
+				Code: errors.EInvalid,
 				Err: &GroupCursorError{
 					typ:    "integer",
 					cursor: cur,
@@ -2577,8 +2577,8 @@ func determineUnsignedAggregateMethod(agg datatypes.Aggregate_AggregateType) (un
 		return aggregateLastGroupsUnsigned, nil
 	case datatypes.AggregateTypeCount:
 
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate count: Unsigned",
 		}
 
@@ -2595,8 +2595,8 @@ func determineUnsignedAggregateMethod(agg datatypes.Aggregate_AggregateType) (un
 		return aggregateMaxGroupsUnsigned, nil
 
 	default:
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("unknown/unimplemented aggregate type: %v", agg),
 		}
 	}
@@ -2682,8 +2682,8 @@ func (t *unsignedGroupTable) advanceCursor() bool {
 		if typedCur, ok := cur.(cursors.UnsignedArrayCursor); !ok {
 			// TODO(sgc): error or skip?
 			cur.Close()
-			t.err = &influxdb.Error{
-				Code: influxdb.EInvalid,
+			t.err = &errors.Error{
+				Code: errors.EInvalid,
 				Err: &GroupCursorError{
 					typ:    "unsigned",
 					cursor: cur,
@@ -3471,35 +3471,35 @@ func determineStringAggregateMethod(agg datatypes.Aggregate_AggregateType) (stri
 		return aggregateLastGroupsString, nil
 	case datatypes.AggregateTypeCount:
 
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate count: String",
 		}
 
 	case datatypes.AggregateTypeSum:
 
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate sum: String",
 		}
 
 	case datatypes.AggregateTypeMin:
 
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate min: String",
 		}
 
 	case datatypes.AggregateTypeMax:
 
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate max: String",
 		}
 
 	default:
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("unknown/unimplemented aggregate type: %v", agg),
 		}
 	}
@@ -3549,8 +3549,8 @@ func (t *stringGroupTable) advanceCursor() bool {
 		if typedCur, ok := cur.(cursors.StringArrayCursor); !ok {
 			// TODO(sgc): error or skip?
 			cur.Close()
-			t.err = &influxdb.Error{
-				Code: influxdb.EInvalid,
+			t.err = &errors.Error{
+				Code: errors.EInvalid,
 				Err: &GroupCursorError{
 					typ:    "string",
 					cursor: cur,
@@ -4338,35 +4338,35 @@ func determineBooleanAggregateMethod(agg datatypes.Aggregate_AggregateType) (boo
 		return aggregateLastGroupsBoolean, nil
 	case datatypes.AggregateTypeCount:
 
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate count: Boolean",
 		}
 
 	case datatypes.AggregateTypeSum:
 
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate sum: Boolean",
 		}
 
 	case datatypes.AggregateTypeMin:
 
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate min: Boolean",
 		}
 
 	case datatypes.AggregateTypeMax:
 
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "unsupported for aggregate max: Boolean",
 		}
 
 	default:
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("unknown/unimplemented aggregate type: %v", agg),
 		}
 	}
@@ -4416,8 +4416,8 @@ func (t *booleanGroupTable) advanceCursor() bool {
 		if typedCur, ok := cur.(cursors.BooleanArrayCursor); !ok {
 			// TODO(sgc): error or skip?
 			cur.Close()
-			t.err = &influxdb.Error{
-				Code: influxdb.EInvalid,
+			t.err = &errors.Error{
+				Code: errors.EInvalid,
 				Err: &GroupCursorError{
 					typ:    "boolean",
 					cursor: cur,

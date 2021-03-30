@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 const (
@@ -29,8 +32,8 @@ const InfiniteRetention = 0
 
 // Bucket is a bucket. 🎉
 type Bucket struct {
-	ID                  ID            `json:"id,omitempty"`
-	OrgID               ID            `json:"orgID,omitempty"`
+	ID                  platform.ID   `json:"id,omitempty"`
+	OrgID               platform.ID   `json:"orgID,omitempty"`
 	Type                BucketType    `json:"type"`
 	Name                string        `json:"name"`
 	Description         string        `json:"description"`
@@ -79,7 +82,7 @@ var (
 // BucketService represents a service for managing bucket data.
 type BucketService interface {
 	// FindBucketByID returns a single bucket by ID.
-	FindBucketByID(ctx context.Context, id ID) (*Bucket, error)
+	FindBucketByID(ctx context.Context, id platform.ID) (*Bucket, error)
 
 	// FindBucket returns the first bucket that matches filter.
 	FindBucket(ctx context.Context, filter BucketFilter) (*Bucket, error)
@@ -93,11 +96,11 @@ type BucketService interface {
 
 	// UpdateBucket updates a single bucket with changeset.
 	// Returns the new bucket state after update.
-	UpdateBucket(ctx context.Context, id ID, upd BucketUpdate) (*Bucket, error)
+	UpdateBucket(ctx context.Context, id platform.ID, upd BucketUpdate) (*Bucket, error)
 
 	// DeleteBucket removes a bucket by ID.
-	DeleteBucket(ctx context.Context, id ID) error
-	FindBucketByName(ctx context.Context, orgID ID, name string) (*Bucket, error)
+	DeleteBucket(ctx context.Context, id platform.ID) error
+	FindBucketByName(ctx context.Context, orgID platform.ID, name string) (*Bucket, error)
 }
 
 // BucketUpdate represents updates to a bucket.
@@ -111,9 +114,9 @@ type BucketUpdate struct {
 
 // BucketFilter represents a set of filter that restrict the returned results.
 type BucketFilter struct {
-	ID             *ID
+	ID             *platform.ID
 	Name           *string
-	OrganizationID *ID
+	OrganizationID *platform.ID
 	Org            *string
 }
 
@@ -159,9 +162,9 @@ func (f BucketFilter) String() string {
 	return "[" + strings.Join(parts, ", ") + "]"
 }
 
-func ErrInternalBucketServiceError(op string, err error) *Error {
-	return &Error{
-		Code: EInternal,
+func ErrInternalBucketServiceError(op string, err error) *errors.Error {
+	return &errors.Error{
+		Code: errors.EInternal,
 		Msg:  fmt.Sprintf("unexpected error in buckets; Err: %v", err),
 		Op:   op,
 		Err:  err,

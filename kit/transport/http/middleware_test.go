@@ -5,7 +5,8 @@ import (
 	"path"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2/pkg/testttp"
 	"github.com/stretchr/testify/assert"
 )
@@ -18,7 +19,7 @@ func Test_normalizePath(t *testing.T) {
 	}{
 		{
 			name:     "1",
-			path:     path.Join("/api/v2/organizations", influxdb.ID(2).String()),
+			path:     path.Join("/api/v2/organizations", platform.ID(2).String()),
 			expected: "/api/v2/organizations/:id",
 		},
 		{
@@ -33,7 +34,7 @@ func Test_normalizePath(t *testing.T) {
 		},
 		{
 			name:     "4",
-			path:     path.Join("/api/v2/organizations", influxdb.ID(2).String(), "users", influxdb.ID(3).String()),
+			path:     path.Join("/api/v2/organizations", platform.ID(2).String(), "users", platform.ID(3).String()),
 			expected: "/api/v2/organizations/:id/users/:id",
 		},
 	}

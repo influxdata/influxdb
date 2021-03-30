@@ -3,6 +3,8 @@ package authorizer_test
 import (
 	"bytes"
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"sort"
 	"testing"
 
@@ -34,7 +36,7 @@ func TestNotificationEndpointService_FindNotificationEndpointByID(t *testing.T) 
 	}
 	type args struct {
 		permission influxdb.Permission
-		id         influxdb.ID
+		id         platform.ID
 	}
 	type wants struct {
 		err error
@@ -50,8 +52,8 @@ func TestNotificationEndpointService_FindNotificationEndpointByID(t *testing.T) 
 			name: "authorized to access id with org",
 			fields: fields{
 				NotificationEndpointService: &mock.NotificationEndpointService{
-					FindNotificationEndpointByIDF: func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
-						orgID := influxdb.ID(10)
+					FindNotificationEndpointByIDF: func(ctx context.Context, id platform.ID) (influxdb.NotificationEndpoint, error) {
+						orgID := platform.ID(10)
 						return &endpoint.Slack{
 							Base: endpoint.Base{
 								ID:    &id,
@@ -79,8 +81,8 @@ func TestNotificationEndpointService_FindNotificationEndpointByID(t *testing.T) 
 			name: "unauthorized to access id",
 			fields: fields{
 				NotificationEndpointService: &mock.NotificationEndpointService{
-					FindNotificationEndpointByIDF: func(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
-						orgID := influxdb.ID(10)
+					FindNotificationEndpointByIDF: func(ctx context.Context, id platform.ID) (influxdb.NotificationEndpoint, error) {
+						orgID := platform.ID(10)
 						return &endpoint.Slack{
 							Base: endpoint.Base{
 								ID:    &id,
@@ -101,9 +103,9 @@ func TestNotificationEndpointService_FindNotificationEndpointByID(t *testing.T) 
 				id: 1,
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "read:orgs/000000000000000a/notificationEndpoints/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -199,7 +201,7 @@ func TestNotificationEndpointService_FindNotificationEndpoints(t *testing.T) {
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
-			oid := influxdb.ID(10)
+			oid := platform.ID(10)
 			edps, _, err := s.FindNotificationEndpoints(ctx, influxdb.NotificationEndpointFilter{OrgID: &oid})
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 
@@ -215,7 +217,7 @@ func TestNotificationEndpointService_UpdateNotificationEndpoint(t *testing.T) {
 		NotificationEndpointService influxdb.NotificationEndpointService
 	}
 	type args struct {
-		id          influxdb.ID
+		id          platform.ID
 		permissions []influxdb.Permission
 	}
 	type wants struct {
@@ -232,7 +234,7 @@ func TestNotificationEndpointService_UpdateNotificationEndpoint(t *testing.T) {
 			name: "authorized to update notificationEndpoint with org owner",
 			fields: fields{
 				NotificationEndpointService: &mock.NotificationEndpointService{
-					FindNotificationEndpointByIDF: func(ctc context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+					FindNotificationEndpointByIDF: func(ctc context.Context, id platform.ID) (influxdb.NotificationEndpoint, error) {
 						return &endpoint.Slack{
 							Base: endpoint.Base{
 								ID:    idPtr(1),
@@ -240,7 +242,7 @@ func TestNotificationEndpointService_UpdateNotificationEndpoint(t *testing.T) {
 							},
 						}, nil
 					},
-					UpdateNotificationEndpointF: func(ctx context.Context, id influxdb.ID, upd influxdb.NotificationEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error) {
+					UpdateNotificationEndpointF: func(ctx context.Context, id platform.ID, upd influxdb.NotificationEndpoint, userID platform.ID) (influxdb.NotificationEndpoint, error) {
 						return &endpoint.Slack{
 							Base: endpoint.Base{
 								ID:    idPtr(1),
@@ -277,7 +279,7 @@ func TestNotificationEndpointService_UpdateNotificationEndpoint(t *testing.T) {
 			name: "unauthorized to update notificationEndpoint",
 			fields: fields{
 				NotificationEndpointService: &mock.NotificationEndpointService{
-					FindNotificationEndpointByIDF: func(ctc context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+					FindNotificationEndpointByIDF: func(ctc context.Context, id platform.ID) (influxdb.NotificationEndpoint, error) {
 						return &endpoint.Slack{
 							Base: endpoint.Base{
 								ID:    idPtr(1),
@@ -285,7 +287,7 @@ func TestNotificationEndpointService_UpdateNotificationEndpoint(t *testing.T) {
 							},
 						}, nil
 					},
-					UpdateNotificationEndpointF: func(ctx context.Context, id influxdb.ID, upd influxdb.NotificationEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error) {
+					UpdateNotificationEndpointF: func(ctx context.Context, id platform.ID, upd influxdb.NotificationEndpoint, userID platform.ID) (influxdb.NotificationEndpoint, error) {
 						return &endpoint.Slack{
 							Base: endpoint.Base{
 								ID:    idPtr(1),
@@ -308,9 +310,9 @@ func TestNotificationEndpointService_UpdateNotificationEndpoint(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/notificationEndpoints/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -325,7 +327,7 @@ func TestNotificationEndpointService_UpdateNotificationEndpoint(t *testing.T) {
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
-			_, err := s.UpdateNotificationEndpoint(ctx, tt.args.id, &endpoint.Slack{}, influxdb.ID(1))
+			_, err := s.UpdateNotificationEndpoint(ctx, tt.args.id, &endpoint.Slack{}, platform.ID(1))
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
@@ -336,7 +338,7 @@ func TestNotificationEndpointService_PatchNotificationEndpoint(t *testing.T) {
 		NotificationEndpointService influxdb.NotificationEndpointService
 	}
 	type args struct {
-		id          influxdb.ID
+		id          platform.ID
 		permissions []influxdb.Permission
 	}
 	type wants struct {
@@ -353,7 +355,7 @@ func TestNotificationEndpointService_PatchNotificationEndpoint(t *testing.T) {
 			name: "authorized to patch notificationEndpoint",
 			fields: fields{
 				NotificationEndpointService: &mock.NotificationEndpointService{
-					FindNotificationEndpointByIDF: func(ctc context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+					FindNotificationEndpointByIDF: func(ctc context.Context, id platform.ID) (influxdb.NotificationEndpoint, error) {
 						return &endpoint.Slack{
 							Base: endpoint.Base{
 								ID:    idPtr(1),
@@ -361,7 +363,7 @@ func TestNotificationEndpointService_PatchNotificationEndpoint(t *testing.T) {
 							},
 						}, nil
 					},
-					PatchNotificationEndpointF: func(ctx context.Context, id influxdb.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error) {
+					PatchNotificationEndpointF: func(ctx context.Context, id platform.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error) {
 						return &endpoint.Slack{
 							Base: endpoint.Base{
 								ID:    idPtr(1),
@@ -398,7 +400,7 @@ func TestNotificationEndpointService_PatchNotificationEndpoint(t *testing.T) {
 			name: "unauthorized to patch notificationEndpoint",
 			fields: fields{
 				NotificationEndpointService: &mock.NotificationEndpointService{
-					FindNotificationEndpointByIDF: func(ctc context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+					FindNotificationEndpointByIDF: func(ctc context.Context, id platform.ID) (influxdb.NotificationEndpoint, error) {
 						return &endpoint.Slack{
 							Base: endpoint.Base{
 								ID:    idPtr(1),
@@ -406,7 +408,7 @@ func TestNotificationEndpointService_PatchNotificationEndpoint(t *testing.T) {
 							},
 						}, nil
 					},
-					PatchNotificationEndpointF: func(ctx context.Context, id influxdb.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error) {
+					PatchNotificationEndpointF: func(ctx context.Context, id platform.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error) {
 						return &endpoint.Slack{
 							Base: endpoint.Base{
 								ID:    idPtr(1),
@@ -429,9 +431,9 @@ func TestNotificationEndpointService_PatchNotificationEndpoint(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/notificationEndpoints/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -456,7 +458,7 @@ func TestNotificationEndpointService_DeleteNotificationEndpoint(t *testing.T) {
 		NotificationEndpointService influxdb.NotificationEndpointService
 	}
 	type args struct {
-		id          influxdb.ID
+		id          platform.ID
 		permissions []influxdb.Permission
 	}
 	type wants struct {
@@ -473,7 +475,7 @@ func TestNotificationEndpointService_DeleteNotificationEndpoint(t *testing.T) {
 			name: "authorized to delete notificationEndpoint",
 			fields: fields{
 				NotificationEndpointService: &mock.NotificationEndpointService{
-					FindNotificationEndpointByIDF: func(ctc context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+					FindNotificationEndpointByIDF: func(ctc context.Context, id platform.ID) (influxdb.NotificationEndpoint, error) {
 						return &endpoint.Slack{
 							Base: endpoint.Base{
 								ID:    idPtr(1),
@@ -481,7 +483,7 @@ func TestNotificationEndpointService_DeleteNotificationEndpoint(t *testing.T) {
 							},
 						}, nil
 					},
-					DeleteNotificationEndpointF: func(ctx context.Context, id influxdb.ID) ([]influxdb.SecretField, influxdb.ID, error) {
+					DeleteNotificationEndpointF: func(ctx context.Context, id platform.ID) ([]influxdb.SecretField, platform.ID, error) {
 						return nil, 0, nil
 					},
 				},
@@ -513,7 +515,7 @@ func TestNotificationEndpointService_DeleteNotificationEndpoint(t *testing.T) {
 			name: "unauthorized to delete notificationEndpoint",
 			fields: fields{
 				NotificationEndpointService: &mock.NotificationEndpointService{
-					FindNotificationEndpointByIDF: func(ctc context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+					FindNotificationEndpointByIDF: func(ctc context.Context, id platform.ID) (influxdb.NotificationEndpoint, error) {
 						return &endpoint.Slack{
 							Base: endpoint.Base{
 								ID:    idPtr(1),
@@ -521,7 +523,7 @@ func TestNotificationEndpointService_DeleteNotificationEndpoint(t *testing.T) {
 							},
 						}, nil
 					},
-					DeleteNotificationEndpointF: func(ctx context.Context, id influxdb.ID) ([]influxdb.SecretField, influxdb.ID, error) {
+					DeleteNotificationEndpointF: func(ctx context.Context, id platform.ID) ([]influxdb.SecretField, platform.ID, error) {
 						return nil, 0, nil
 					},
 				},
@@ -539,9 +541,9 @@ func TestNotificationEndpointService_DeleteNotificationEndpoint(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/notificationEndpoints/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -568,7 +570,7 @@ func TestNotificationEndpointService_CreateNotificationEndpoint(t *testing.T) {
 	}
 	type args struct {
 		permission influxdb.Permission
-		orgID      influxdb.ID
+		orgID      platform.ID
 	}
 	type wants struct {
 		err error
@@ -584,7 +586,7 @@ func TestNotificationEndpointService_CreateNotificationEndpoint(t *testing.T) {
 			name: "authorized to create notificationEndpoint",
 			fields: fields{
 				NotificationEndpointService: &mock.NotificationEndpointService{
-					CreateNotificationEndpointF: func(ctx context.Context, tc influxdb.NotificationEndpoint, userID influxdb.ID) error {
+					CreateNotificationEndpointF: func(ctx context.Context, tc influxdb.NotificationEndpoint, userID platform.ID) error {
 						return nil
 					},
 				},
@@ -607,7 +609,7 @@ func TestNotificationEndpointService_CreateNotificationEndpoint(t *testing.T) {
 			name: "authorized to create notificationEndpoint with org owner",
 			fields: fields{
 				NotificationEndpointService: &mock.NotificationEndpointService{
-					CreateNotificationEndpointF: func(ctx context.Context, tc influxdb.NotificationEndpoint, userID influxdb.ID) error {
+					CreateNotificationEndpointF: func(ctx context.Context, tc influxdb.NotificationEndpoint, userID platform.ID) error {
 						return nil
 					},
 				},
@@ -630,7 +632,7 @@ func TestNotificationEndpointService_CreateNotificationEndpoint(t *testing.T) {
 			name: "unauthorized to create notificationEndpoint",
 			fields: fields{
 				NotificationEndpointService: &mock.NotificationEndpointService{
-					CreateNotificationEndpointF: func(ctx context.Context, tc influxdb.NotificationEndpoint, userID influxdb.ID) error {
+					CreateNotificationEndpointF: func(ctx context.Context, tc influxdb.NotificationEndpoint, userID platform.ID) error {
 						return nil
 					},
 				},
@@ -646,9 +648,9 @@ func TestNotificationEndpointService_CreateNotificationEndpoint(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/notificationEndpoints is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -666,12 +668,12 @@ func TestNotificationEndpointService_CreateNotificationEndpoint(t *testing.T) {
 			err := s.CreateNotificationEndpoint(ctx, &endpoint.Slack{
 				Base: endpoint.Base{
 					OrgID: idPtr(tt.args.orgID)},
-			}, influxdb.ID(1))
+			}, platform.ID(1))
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
 }
 
-func idPtr(id influxdb.ID) *influxdb.ID {
+func idPtr(id platform.ID) *platform.ID {
 	return &id
 }

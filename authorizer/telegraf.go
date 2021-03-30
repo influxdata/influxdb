@@ -3,6 +3,8 @@ package authorizer
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
@@ -24,7 +26,7 @@ func NewTelegrafConfigService(s influxdb.TelegrafConfigStore, urm influxdb.UserR
 }
 
 // FindTelegrafConfigByID checks to see if the authorizer on context has read access to the id provided.
-func (s *TelegrafConfigService) FindTelegrafConfigByID(ctx context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
+func (s *TelegrafConfigService) FindTelegrafConfigByID(ctx context.Context, id platform.ID) (*influxdb.TelegrafConfig, error) {
 	tc, err := s.s.FindTelegrafConfigByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -47,7 +49,7 @@ func (s *TelegrafConfigService) FindTelegrafConfigs(ctx context.Context, filter 
 }
 
 // CreateTelegrafConfig checks to see if the authorizer on context has write access to the global telegraf config resource.
-func (s *TelegrafConfigService) CreateTelegrafConfig(ctx context.Context, tc *influxdb.TelegrafConfig, userID influxdb.ID) error {
+func (s *TelegrafConfigService) CreateTelegrafConfig(ctx context.Context, tc *influxdb.TelegrafConfig, userID platform.ID) error {
 	if _, _, err := AuthorizeCreate(ctx, influxdb.TelegrafsResourceType, tc.OrgID); err != nil {
 		return err
 	}
@@ -55,7 +57,7 @@ func (s *TelegrafConfigService) CreateTelegrafConfig(ctx context.Context, tc *in
 }
 
 // UpdateTelegrafConfig checks to see if the authorizer on context has write access to the telegraf config provided.
-func (s *TelegrafConfigService) UpdateTelegrafConfig(ctx context.Context, id influxdb.ID, upd *influxdb.TelegrafConfig, userID influxdb.ID) (*influxdb.TelegrafConfig, error) {
+func (s *TelegrafConfigService) UpdateTelegrafConfig(ctx context.Context, id platform.ID, upd *influxdb.TelegrafConfig, userID platform.ID) (*influxdb.TelegrafConfig, error) {
 	tc, err := s.FindTelegrafConfigByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -67,7 +69,7 @@ func (s *TelegrafConfigService) UpdateTelegrafConfig(ctx context.Context, id inf
 }
 
 // DeleteTelegrafConfig checks to see if the authorizer on context has write access to the telegraf config provided.
-func (s *TelegrafConfigService) DeleteTelegrafConfig(ctx context.Context, id influxdb.ID) error {
+func (s *TelegrafConfigService) DeleteTelegrafConfig(ctx context.Context, id platform.ID) error {
 	tc, err := s.FindTelegrafConfigByID(ctx, id)
 	if err != nil {
 		return err

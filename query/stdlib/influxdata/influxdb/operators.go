@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/values"
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 )
 
@@ -71,7 +72,7 @@ func (s *ReadRangePhysSpec) Copy() plan.ProcedureSpec {
 	return &ns
 }
 
-func (s *ReadRangePhysSpec) LookupBucketID(ctx context.Context, orgID influxdb.ID, buckets BucketLookup) (influxdb.ID, error) {
+func (s *ReadRangePhysSpec) LookupBucketID(ctx context.Context, orgID platform.ID, buckets BucketLookup) (platform.ID, error) {
 	// Determine bucketID
 	switch {
 	case s.Bucket != "":
@@ -84,7 +85,7 @@ func (s *ReadRangePhysSpec) LookupBucketID(ctx context.Context, orgID influxdb.I
 		}
 		return b, nil
 	case len(s.BucketID) != 0:
-		var b influxdb.ID
+		var b platform.ID
 		if err := b.DecodeFromString(s.BucketID); err != nil {
 			return 0, &flux.Error{
 				Code: codes.Invalid,

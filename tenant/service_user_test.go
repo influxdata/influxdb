@@ -2,6 +2,7 @@ package tenant_test
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -135,7 +136,7 @@ func TestFindPermissionsFromUser(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	orgID := influxdb.ID(1)
+	orgID := platform.ID(1)
 	expected := influxdb.PermissionSet{
 		influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &orgID, Type: influxdb.AuthorizationsResourceType}},
 		influxdb.Permission{Action: influxdb.ReadAction, Resource: influxdb.Resource{OrgID: &orgID, Type: influxdb.BucketsResourceType}},

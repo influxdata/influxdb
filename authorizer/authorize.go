@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
 )
@@ -16,8 +19,8 @@ func isAllowedAll(a influxdb.Authorizer, permissions []influxdb.Permission) erro
 
 	for _, p := range permissions {
 		if !pset.Allowed(p) {
-			return &influxdb.Error{
-				Code: influxdb.EUnauthorized,
+			return &errors.Error{
+				Code: errors.EUnauthorized,
 				Msg:  fmt.Sprintf("%s is unauthorized", p),
 			}
 		}
@@ -61,13 +64,13 @@ func IsAllowedAny(ctx context.Context, permissions []influxdb.Permission) error 
 			return nil
 		}
 	}
-	return &influxdb.Error{
-		Code: influxdb.EUnauthorized,
+	return &errors.Error{
+		Code: errors.EUnauthorized,
 		Msg:  fmt.Sprintf("none of %v is authorized", permissions),
 	}
 }
 
-func authorize(ctx context.Context, a influxdb.Action, rt influxdb.ResourceType, rid, oid *influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
+func authorize(ctx context.Context, a influxdb.Action, rt influxdb.ResourceType, rid, oid *platform.ID) (influxdb.Authorizer, influxdb.Permission, error) {
 	var p *influxdb.Permission
 	var err error
 	if rid != nil && oid != nil {
@@ -89,7 +92,7 @@ func authorize(ctx context.Context, a influxdb.Action, rt influxdb.ResourceType,
 	return auth, *p, isAllowed(auth, *p)
 }
 
-func authorizeReadSystemBucket(ctx context.Context, bid, oid influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
+func authorizeReadSystemBucket(ctx context.Context, bid, oid platform.ID) (influxdb.Authorizer, influxdb.Permission, error) {
 	return AuthorizeReadOrg(ctx, oid)
 }
 
@@ -98,7 +101,7 @@ func authorizeReadSystemBucket(ctx context.Context, bid, oid influxdb.ID) (influ
 //  AuthorizeRead(ctx, influxdb.BucketsResourceType, b.ID, b.OrgID)
 // use:
 //  AuthorizeReadBucket(ctx, b.Type, b.ID, b.OrgID)
-func AuthorizeReadBucket(ctx context.Context, bt influxdb.BucketType, bid, oid influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
+func AuthorizeReadBucket(ctx context.Context, bt influxdb.BucketType, bid, oid platform.ID) (influxdb.Authorizer, influxdb.Permission, error) {
 	switch bt {
 	case influxdb.BucketTypeSystem:
 		return authorizeReadSystemBucket(ctx, bid, oid)
@@ -109,54 +112,54 @@ func AuthorizeReadBucket(ctx context.Context, bt influxdb.BucketType, bid, oid i
 
 // AuthorizeRead authorizes the user in the context to read the specified resource (identified by its type, ID, and orgID).
 // NOTE: authorization will pass even if the user only has permissions for the resource type and organization ID only.
-func AuthorizeRead(ctx context.Context, rt influxdb.ResourceType, rid, oid influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
+func AuthorizeRead(ctx context.Context, rt influxdb.ResourceType, rid, oid platform.ID) (influxdb.Authorizer, influxdb.Permission, error) {
 	return authorize(ctx, influxdb.ReadAction, rt, &rid, &oid)
 }
 
 // AuthorizeWrite authorizes the user in the context to write the specified resource (identified by its type, ID, and orgID).
 // NOTE: authorization will pass even if the user only has permissions for the resource type and organization ID only.
-func AuthorizeWrite(ctx context.Context, rt influxdb.ResourceType, rid, oid influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
+func AuthorizeWrite(ctx context.Context, rt influxdb.ResourceType, rid, oid platform.ID) (influxdb.Authorizer, influxdb.Permission, error) {
 	return authorize(ctx, influxdb.WriteAction, rt, &rid, &oid)
 }
 
 // AuthorizeRead authorizes the user in the context to read the specified resource (identified by its type, ID).
 // NOTE: authorization will pass only if the user has a specific permission for the given resource.
-func AuthorizeReadResource(ctx context.Context, rt influxdb.ResourceType, rid influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
+func AuthorizeReadResource(ctx context.Context, rt influxdb.ResourceType, rid platform.ID) (influxdb.Authorizer, influxdb.Permission, error) {
 	return authorize(ctx, influxdb.ReadAction, rt, &rid, nil)
 }
 
 // AuthorizeWrite authorizes the user in the context to write the specified resource (identified by its type, ID).
 // NOTE: authorization will pass only if the user has a specific permission for the given resource.
-func AuthorizeWriteResource(ctx context.Context, rt influxdb.ResourceType, rid influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
+func AuthorizeWriteResource(ctx context.Context, rt influxdb.ResourceType, rid platform.ID) (influxdb.Authorizer, influxdb.Permission, error) {
 	return authorize(ctx, influxdb.WriteAction, rt, &rid, nil)
 }
 
 // AuthorizeOrgReadResource authorizes the given org to read the resources of the given type.
 // NOTE: this is pretty much the same as AuthorizeRead, in the case that the resource ID is ignored.
 // Use it in the case that you do not know which resource in particular you want to give access to.
-func AuthorizeOrgReadResource(ctx context.Context, rt influxdb.ResourceType, oid influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
+func AuthorizeOrgReadResource(ctx context.Context, rt influxdb.ResourceType, oid platform.ID) (influxdb.Authorizer, influxdb.Permission, error) {
 	return authorize(ctx, influxdb.ReadAction, rt, nil, &oid)
 }
 
 // AuthorizeOrgWriteResource authorizes the given org to write the resources of the given type.
 // NOTE: this is pretty much the same as AuthorizeWrite, in the case that the resource ID is ignored.
 // Use it in the case that you do not know which resource in particular you want to give access to.
-func AuthorizeOrgWriteResource(ctx context.Context, rt influxdb.ResourceType, oid influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
+func AuthorizeOrgWriteResource(ctx context.Context, rt influxdb.ResourceType, oid platform.ID) (influxdb.Authorizer, influxdb.Permission, error) {
 	return authorize(ctx, influxdb.WriteAction, rt, nil, &oid)
 }
 
 // AuthorizeCreate authorizes a user to create a resource of the given type for the given org.
-func AuthorizeCreate(ctx context.Context, rt influxdb.ResourceType, oid influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
+func AuthorizeCreate(ctx context.Context, rt influxdb.ResourceType, oid platform.ID) (influxdb.Authorizer, influxdb.Permission, error) {
 	return AuthorizeOrgWriteResource(ctx, rt, oid)
 }
 
 // AuthorizeReadOrg authorizes the user to read the given org.
-func AuthorizeReadOrg(ctx context.Context, oid influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
+func AuthorizeReadOrg(ctx context.Context, oid platform.ID) (influxdb.Authorizer, influxdb.Permission, error) {
 	return authorize(ctx, influxdb.ReadAction, influxdb.OrgsResourceType, &oid, nil)
 }
 
 // AuthorizeWriteOrg authorizes the user to write the given org.
-func AuthorizeWriteOrg(ctx context.Context, oid influxdb.ID) (influxdb.Authorizer, influxdb.Permission, error) {
+func AuthorizeWriteOrg(ctx context.Context, oid platform.ID) (influxdb.Authorizer, influxdb.Permission, error) {
 	return authorize(ctx, influxdb.WriteAction, influxdb.OrgsResourceType, &oid, nil)
 }
 

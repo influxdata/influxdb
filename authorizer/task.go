@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"go.uber.org/zap"
@@ -20,13 +23,13 @@ func (ae *authError) AuthzError() error {
 }
 
 var (
-	ErrInactiveTask = &influxdb.Error{
-		Code: influxdb.EInvalid,
+	ErrInactiveTask = &errors.Error{
+		Code: errors.EInvalid,
 		Msg:  "inactive task",
 	}
 
-	ErrFailedPermission = &influxdb.Error{
-		Code: influxdb.EInvalid,
+	ErrFailedPermission = &errors.Error{
+		Code: errors.EInvalid,
 		Msg:  "unauthorized",
 	}
 )
@@ -46,7 +49,7 @@ func NewTaskService(log *zap.Logger, ts influxdb.TaskService) influxdb.TaskServi
 }
 
 func (ts *taskServiceValidator) processPermissionError(a influxdb.Authorizer, p influxdb.Permission, err error, loggerFields ...zap.Field) error {
-	if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+	if errors.ErrorCode(err) == errors.EUnauthorized {
 		ts.log.With(loggerFields...).Info("Authorization failed",
 			zap.String("user_id", a.GetUserID().String()),
 			zap.String("auth_kind", a.Kind()),
@@ -58,7 +61,7 @@ func (ts *taskServiceValidator) processPermissionError(a influxdb.Authorizer, p 
 	return err
 }
 
-func (ts *taskServiceValidator) FindTaskByID(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+func (ts *taskServiceValidator) FindTaskByID(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -103,7 +106,7 @@ func (ts *taskServiceValidator) CreateTask(ctx context.Context, t influxdb.TaskC
 	return ts.TaskService.CreateTask(ctx, t)
 }
 
-func (ts *taskServiceValidator) UpdateTask(ctx context.Context, id influxdb.ID, upd influxdb.TaskUpdate) (*influxdb.Task, error) {
+func (ts *taskServiceValidator) UpdateTask(ctx context.Context, id platform.ID, upd influxdb.TaskUpdate) (*influxdb.Task, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -121,7 +124,7 @@ func (ts *taskServiceValidator) UpdateTask(ctx context.Context, id influxdb.ID, 
 	return ts.TaskService.UpdateTask(ctx, id, upd)
 }
 
-func (ts *taskServiceValidator) DeleteTask(ctx context.Context, id influxdb.ID) error {
+func (ts *taskServiceValidator) DeleteTask(ctx context.Context, id platform.ID) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -171,7 +174,7 @@ func (ts *taskServiceValidator) FindRuns(ctx context.Context, filter influxdb.Ru
 	return ts.TaskService.FindRuns(ctx, filter)
 }
 
-func (ts *taskServiceValidator) FindRunByID(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
+func (ts *taskServiceValidator) FindRunByID(ctx context.Context, taskID, runID platform.ID) (*influxdb.Run, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -189,7 +192,7 @@ func (ts *taskServiceValidator) FindRunByID(ctx context.Context, taskID, runID i
 	return ts.TaskService.FindRunByID(ctx, taskID, runID)
 }
 
-func (ts *taskServiceValidator) CancelRun(ctx context.Context, taskID, runID influxdb.ID) error {
+func (ts *taskServiceValidator) CancelRun(ctx context.Context, taskID, runID platform.ID) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -207,7 +210,7 @@ func (ts *taskServiceValidator) CancelRun(ctx context.Context, taskID, runID inf
 	return ts.TaskService.CancelRun(ctx, taskID, runID)
 }
 
-func (ts *taskServiceValidator) RetryRun(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
+func (ts *taskServiceValidator) RetryRun(ctx context.Context, taskID, runID platform.ID) (*influxdb.Run, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -229,7 +232,7 @@ func (ts *taskServiceValidator) RetryRun(ctx context.Context, taskID, runID infl
 	return ts.TaskService.RetryRun(ctx, taskID, runID)
 }
 
-func (ts *taskServiceValidator) ForceRun(ctx context.Context, taskID influxdb.ID, scheduledFor int64) (*influxdb.Run, error) {
+func (ts *taskServiceValidator) ForceRun(ctx context.Context, taskID platform.ID, scheduledFor int64) (*influxdb.Run, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 

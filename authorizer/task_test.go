@@ -2,6 +2,7 @@ package authorizer_test
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 	"time"
 
@@ -52,7 +53,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 	}
 }
 
-func mockTaskService(orgID, taskID, runID influxdb.ID) influxdb.TaskService {
+func mockTaskService(orgID, taskID, runID platform.ID) influxdb.TaskService {
 	task := influxdb.Task{
 		ID:             taskID,
 		OrganizationID: orgID,
@@ -79,7 +80,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 	}
 
 	return &mock.TaskService{
-		FindTaskByIDFn: func(context.Context, influxdb.ID) (*influxdb.Task, error) {
+		FindTaskByIDFn: func(context.Context, platform.ID) (*influxdb.Task, error) {
 			return &task, nil
 		},
 		FindTasksFn: func(context.Context, influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
@@ -89,10 +90,10 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 			taskCopy := task
 			return &taskCopy, nil
 		},
-		UpdateTaskFn: func(context.Context, influxdb.ID, influxdb.TaskUpdate) (*influxdb.Task, error) {
+		UpdateTaskFn: func(context.Context, platform.ID, influxdb.TaskUpdate) (*influxdb.Task, error) {
 			return &task, nil
 		},
-		DeleteTaskFn: func(context.Context, influxdb.ID) error {
+		DeleteTaskFn: func(context.Context, platform.ID) error {
 			return nil
 		},
 		FindLogsFn: func(context.Context, influxdb.LogFilter) ([]*influxdb.Log, int, error) {
@@ -101,16 +102,16 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 		FindRunsFn: func(context.Context, influxdb.RunFilter) ([]*influxdb.Run, int, error) {
 			return []*influxdb.Run{&run}, 1, nil
 		},
-		FindRunByIDFn: func(context.Context, influxdb.ID, influxdb.ID) (*influxdb.Run, error) {
+		FindRunByIDFn: func(context.Context, platform.ID, platform.ID) (*influxdb.Run, error) {
 			return &run, nil
 		},
-		CancelRunFn: func(context.Context, influxdb.ID, influxdb.ID) error {
+		CancelRunFn: func(context.Context, platform.ID, platform.ID) error {
 			return nil
 		},
-		RetryRunFn: func(context.Context, influxdb.ID, influxdb.ID) (*influxdb.Run, error) {
+		RetryRunFn: func(context.Context, platform.ID, platform.ID) (*influxdb.Run, error) {
 			return &run, nil
 		},
-		ForceRunFn: func(context.Context, influxdb.ID, int64) (*influxdb.Run, error) {
+		ForceRunFn: func(context.Context, platform.ID, int64) (*influxdb.Run, error) {
 			return &run, nil
 		},
 	}
@@ -118,8 +119,8 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 
 func TestValidations(t *testing.T) {
 	var (
-		taskID   = influxdb.ID(0x7456)
-		runID    = influxdb.ID(0x402)
+		taskID   = platform.ID(0x7456)
+		runID    = platform.ID(0x402)
 		otherOrg = &influxdb.Organization{Name: "other_org"}
 	)
 

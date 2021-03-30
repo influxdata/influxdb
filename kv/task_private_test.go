@@ -3,6 +3,8 @@ package kv
 import (
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 )
@@ -17,12 +19,12 @@ func Test_newTaskMatchFN(t *testing.T) {
 	}
 
 	const (
-		NoOrg = influxdb.ID(0)
+		NoOrg = platform.ID(0)
 		NoTyp = "-"
 		NoNam = "-"
 	)
 
-	newMatch := func(orgID influxdb.ID, typ string, name string) taskMatchFn {
+	newMatch := func(orgID platform.ID, typ string, name string) taskMatchFn {
 		var (
 			org *influxdb.Organization
 			fil influxdb.TaskFilter

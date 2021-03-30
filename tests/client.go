@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
@@ -18,9 +20,9 @@ import (
 )
 
 type ClientConfig struct {
-	UserID             influxdb.ID
-	OrgID              influxdb.ID
-	BucketID           influxdb.ID
+	UserID             platform.ID
+	OrgID              platform.ID
+	BucketID           platform.ID
 	DocumentsNamespace string
 
 	// If Session is provided, Token is ignored.
@@ -149,7 +151,7 @@ func QueryRequestBody(flux string) *influxhttp.QueryRequest {
 //
 // This authorization token is an operator token for the default
 // organization for the default user.
-func (c *Client) MustCreateAuth(t *testing.T) influxdb.ID {
+func (c *Client) MustCreateAuth(t *testing.T) platform.ID {
 	t.Helper()
 
 	perms := influxdb.OperPermissions()
@@ -167,7 +169,7 @@ func (c *Client) MustCreateAuth(t *testing.T) influxdb.ID {
 
 // MustCreateBucket creates a bucket or is a fatal error.
 // Used in tests where the content of the bucket does not matter.
-func (c *Client) MustCreateBucket(t *testing.T) influxdb.ID {
+func (c *Client) MustCreateBucket(t *testing.T) platform.ID {
 	t.Helper()
 
 	bucket := &influxdb.Bucket{OrgID: c.OrgID, Name: "n1"}
@@ -180,7 +182,7 @@ func (c *Client) MustCreateBucket(t *testing.T) influxdb.ID {
 
 // MustCreateOrg creates an org or is a fatal error.
 // Used in tests where the content of the org does not matter.
-func (c *Client) MustCreateOrg(t *testing.T) influxdb.ID {
+func (c *Client) MustCreateOrg(t *testing.T) platform.ID {
 	t.Helper()
 
 	org := &influxdb.Organization{Name: "n1"}
@@ -193,7 +195,7 @@ func (c *Client) MustCreateOrg(t *testing.T) influxdb.ID {
 
 // MustCreateLabel creates a label or is a fatal error.
 // Used in tests where the content of the label does not matter.
-func (c *Client) MustCreateLabel(t *testing.T) influxdb.ID {
+func (c *Client) MustCreateLabel(t *testing.T) platform.ID {
 	t.Helper()
 
 	l := &influxdb.Label{OrgID: c.OrgID, Name: "n1"}
@@ -206,7 +208,7 @@ func (c *Client) MustCreateLabel(t *testing.T) influxdb.ID {
 
 // MustCreateCheck creates a check or is a fatal error.
 // Used in tests where the content of the check does not matter.
-func (c *Client) MustCreateCheck(t *testing.T) influxdb.ID {
+func (c *Client) MustCreateCheck(t *testing.T) platform.ID {
 	t.Helper()
 
 	chk, err := c.CreateCheck(context.Background(), MockCheck("c", c.OrgID, c.UserID))
@@ -218,7 +220,7 @@ func (c *Client) MustCreateCheck(t *testing.T) influxdb.ID {
 
 // MustCreateTelegraf creates a telegraf config or is a fatal error.
 // Used in tests where the content of the telegraf config does not matter.
-func (c *Client) MustCreateTelegraf(t *testing.T) influxdb.ID {
+func (c *Client) MustCreateTelegraf(t *testing.T) platform.ID {
 	t.Helper()
 
 	tc := &influxdb.TelegrafConfig{
@@ -227,7 +229,7 @@ func (c *Client) MustCreateTelegraf(t *testing.T) influxdb.ID {
 		Description: "d1",
 		Config:      "[[howdy]]",
 	}
-	unused := influxdb.ID(1) /* this id is not used in the API */
+	unused := platform.ID(1) /* this id is not used in the API */
 	err := c.CreateTelegrafConfig(context.Background(), tc, unused)
 	if err != nil {
 		t.Fatalf("unable to create telegraf config: %v", err)
@@ -237,7 +239,7 @@ func (c *Client) MustCreateTelegraf(t *testing.T) influxdb.ID {
 
 // MustCreateUser creates a user or is a fatal error.
 // Used in tests where the content of the user does not matter.
-func (c *Client) MustCreateUser(t *testing.T) influxdb.ID {
+func (c *Client) MustCreateUser(t *testing.T) platform.ID {
 	t.Helper()
 
 	u := &influxdb.User{Name: "n1"}
@@ -250,7 +252,7 @@ func (c *Client) MustCreateUser(t *testing.T) influxdb.ID {
 
 // MustCreateVariable creates a variable or is a fatal error.
 // Used in tests where the content of the variable does not matter.
-func (c *Client) MustCreateVariable(t *testing.T) influxdb.ID {
+func (c *Client) MustCreateVariable(t *testing.T) platform.ID {
 	t.Helper()
 
 	v := &influxdb.Variable{
@@ -270,7 +272,7 @@ func (c *Client) MustCreateVariable(t *testing.T) influxdb.ID {
 
 // MustCreateNotificationEndpoint creates a notification endpoint or is a fatal error.
 // Used in tests where the content of the notification endpoint does not matter.
-func (c *Client) MustCreateNotificationEndpoint(t *testing.T) influxdb.ID {
+func (c *Client) MustCreateNotificationEndpoint(t *testing.T) platform.ID {
 	t.Helper()
 
 	ne := ValidNotificationEndpoint(c.OrgID)
@@ -283,7 +285,7 @@ func (c *Client) MustCreateNotificationEndpoint(t *testing.T) influxdb.ID {
 
 // MustCreateNotificationRule creates a Notification Rule or is a fatal error
 // Used in tests where the content of the notification rule does not matter
-func (c *Client) MustCreateNotificationRule(t *testing.T) influxdb.ID {
+func (c *Client) MustCreateNotificationRule(t *testing.T) platform.ID {
 	t.Helper()
 	ctx := context.Background()
 
@@ -313,7 +315,7 @@ func (c *Client) MustCreateNotificationRule(t *testing.T) influxdb.ID {
 // MustCreateDBRPMapping creates a DBRP Mapping or is a fatal error.
 // Used in tests where the content of the mapping does not matter.
 // The created mapping points to the user's default bucket.
-func (c *Client) MustCreateDBRPMapping(t *testing.T) influxdb.ID {
+func (c *Client) MustCreateDBRPMapping(t *testing.T) platform.ID {
 	t.Helper()
 	ctx := context.Background()
 
@@ -341,7 +343,7 @@ func (c *Client) MustCreateDBRPMapping(t *testing.T) influxdb.ID {
 //  // Create a variable:
 //  id := client.MustCreateResource(t, influxdb.VariablesResourceType)
 //  defer client.MustDeleteResource(t, influxdb.VariablesResourceType, id)
-func (c *Client) MustCreateResource(t *testing.T, r influxdb.ResourceType) influxdb.ID {
+func (c *Client) MustCreateResource(t *testing.T, r influxdb.ResourceType) platform.ID {
 	t.Helper()
 
 	switch r {
@@ -382,7 +384,7 @@ func (c *Client) MustCreateResource(t *testing.T, r influxdb.ResourceType) influ
 }
 
 // DeleteResource will remove a resource using the API.
-func (c *Client) DeleteResource(t *testing.T, r influxdb.ResourceType, id influxdb.ID) error {
+func (c *Client) DeleteResource(t *testing.T, r influxdb.ResourceType, id platform.ID) error {
 	t.Helper()
 
 	ctx := context.Background()
@@ -426,7 +428,7 @@ func (c *Client) DeleteResource(t *testing.T, r influxdb.ResourceType, id influx
 }
 
 // MustDeleteResource requires no error when deleting a resource.
-func (c *Client) MustDeleteResource(t *testing.T, r influxdb.ResourceType, id influxdb.ID) {
+func (c *Client) MustDeleteResource(t *testing.T, r influxdb.ResourceType, id platform.ID) {
 	t.Helper()
 
 	if err := c.DeleteResource(t, r, id); err != nil {
@@ -435,10 +437,10 @@ func (c *Client) MustDeleteResource(t *testing.T, r influxdb.ResourceType, id in
 }
 
 // FindAll returns all the IDs of a specific resource type.
-func (c *Client) FindAll(t *testing.T, r influxdb.ResourceType) ([]influxdb.ID, error) {
+func (c *Client) FindAll(t *testing.T, r influxdb.ResourceType) ([]platform.ID, error) {
 	t.Helper()
 
-	var ids []influxdb.ID
+	var ids []platform.ID
 	ctx := context.Background()
 	switch r {
 	case influxdb.AuthorizationsResourceType: // 0
@@ -546,7 +548,7 @@ func (c *Client) FindAll(t *testing.T, r influxdb.ResourceType) ([]influxdb.ID, 
 
 // MustFindAll returns all the IDs of a specific resource type; any error
 // is fatal.
-func (c *Client) MustFindAll(t *testing.T, r influxdb.ResourceType) []influxdb.ID {
+func (c *Client) MustFindAll(t *testing.T, r influxdb.ResourceType) []platform.ID {
 	t.Helper()
 
 	ids, err := c.FindAll(t, r)
@@ -556,7 +558,7 @@ func (c *Client) MustFindAll(t *testing.T, r influxdb.ResourceType) []influxdb.I
 	return ids
 }
 
-func (c *Client) AddURM(u influxdb.ID, typ influxdb.UserType, r influxdb.ResourceType, id influxdb.ID) error {
+func (c *Client) AddURM(u platform.ID, typ influxdb.UserType, r influxdb.ResourceType, id platform.ID) error {
 	access := &influxdb.UserResourceMapping{
 		UserID:       u,
 		UserType:     typ,
@@ -572,13 +574,13 @@ func (c *Client) AddURM(u influxdb.ID, typ influxdb.UserType, r influxdb.Resourc
 }
 
 // AddOwner associates the user as owner of the resource.
-func (c *Client) AddOwner(user influxdb.ID, r influxdb.ResourceType, id influxdb.ID) error {
+func (c *Client) AddOwner(user platform.ID, r influxdb.ResourceType, id platform.ID) error {
 	return c.AddURM(user, influxdb.Owner, r, id)
 }
 
 // MustAddOwner requires that the user is associated with the resource
 // or the test will be stopped fatally.
-func (c *Client) MustAddOwner(t *testing.T, user influxdb.ID, r influxdb.ResourceType, id influxdb.ID) {
+func (c *Client) MustAddOwner(t *testing.T, user platform.ID, r influxdb.ResourceType, id platform.ID) {
 	t.Helper()
 
 	if err := c.AddOwner(user, r, id); err != nil {
@@ -587,13 +589,13 @@ func (c *Client) MustAddOwner(t *testing.T, user influxdb.ID, r influxdb.Resourc
 }
 
 // AddMember associates the user as member of the resource.
-func (c *Client) AddMember(user influxdb.ID, r influxdb.ResourceType, id influxdb.ID) error {
+func (c *Client) AddMember(user platform.ID, r influxdb.ResourceType, id platform.ID) error {
 	return c.AddURM(user, influxdb.Member, r, id)
 }
 
 // MustAddMember requires that the user is associated with the resource
 // or the test will be stopped fatally.
-func (c *Client) MustAddMember(t *testing.T, user influxdb.ID, r influxdb.ResourceType, id influxdb.ID) {
+func (c *Client) MustAddMember(t *testing.T, user platform.ID, r influxdb.ResourceType, id platform.ID) {
 	t.Helper()
 
 	if err := c.AddMember(user, r, id); err != nil {
@@ -607,18 +609,18 @@ func (c *Client) MustAddMember(t *testing.T, user influxdb.ID, r influxdb.Resour
 // from that user to that resource.
 // Or, put in another way, there can only be one resource mapping from a user to a
 // resource at a time: either you are a member, or an owner (in that case you are a member too).
-func (c *Client) RemoveURM(user, id influxdb.ID) error {
+func (c *Client) RemoveURM(user, id platform.ID) error {
 	return c.DeleteUserResourceMapping(context.Background(), id, user)
 }
 
 // RemoveSpecificURM gets around a client issue where deletes doesn't have enough context to remove a urm from
 // a specific resource type
-func (c *Client) RemoveSpecificURM(rt influxdb.ResourceType, ut influxdb.UserType, user, id influxdb.ID) error {
+func (c *Client) RemoveSpecificURM(rt influxdb.ResourceType, ut influxdb.UserType, user, id platform.ID) error {
 	return c.SpecificURMSvc(rt, ut).DeleteUserResourceMapping(context.Background(), id, user)
 }
 
 // MustRemoveURM requires that the user is removed as owner/member from the resource.
-func (c *Client) MustRemoveURM(t *testing.T, user, id influxdb.ID) {
+func (c *Client) MustRemoveURM(t *testing.T, user, id platform.ID) {
 	t.Helper()
 
 	if err := c.RemoveURM(user, id); err != nil {
@@ -627,7 +629,7 @@ func (c *Client) MustRemoveURM(t *testing.T, user, id influxdb.ID) {
 }
 
 // CreateLabelMapping creates a label mapping for label `l` to the resource with `id`.
-func (c *Client) CreateLabelMapping(l influxdb.ID, r influxdb.ResourceType, id influxdb.ID) error {
+func (c *Client) CreateLabelMapping(l platform.ID, r influxdb.ResourceType, id platform.ID) error {
 	mapping := &influxdb.LabelMapping{
 		LabelID:      l,
 		ResourceType: r,
@@ -641,7 +643,7 @@ func (c *Client) CreateLabelMapping(l influxdb.ID, r influxdb.ResourceType, id i
 
 // MustCreateLabelMapping requires that the label is associated with the resource
 // or the test will be stopped fatally.
-func (c *Client) MustCreateLabelMapping(t *testing.T, l influxdb.ID, r influxdb.ResourceType, id influxdb.ID) {
+func (c *Client) MustCreateLabelMapping(t *testing.T, l platform.ID, r influxdb.ResourceType, id platform.ID) {
 	t.Helper()
 
 	if err := c.CreateLabelMapping(l, r, id); err != nil {
@@ -650,7 +652,7 @@ func (c *Client) MustCreateLabelMapping(t *testing.T, l influxdb.ID, r influxdb.
 }
 
 // FindLabelMappings finds the labels for the specified resource.
-func (c *Client) FindLabelMappings(r influxdb.ResourceType, id influxdb.ID) ([]influxdb.ID, error) {
+func (c *Client) FindLabelMappings(r influxdb.ResourceType, id platform.ID) ([]platform.ID, error) {
 	filter := influxdb.LabelMappingFilter{
 		ResourceType: r,
 		ResourceID:   id,
@@ -662,7 +664,7 @@ func (c *Client) FindLabelMappings(r influxdb.ResourceType, id influxdb.ID) ([]i
 	if err != nil {
 		return nil, err
 	}
-	var ids []influxdb.ID
+	var ids []platform.ID
 	for _, r := range ls {
 		ids = append(ids, r.ID)
 	}
@@ -670,7 +672,7 @@ func (c *Client) FindLabelMappings(r influxdb.ResourceType, id influxdb.ID) ([]i
 }
 
 // MustFindLabelMappings makes the test fail if an error is found.
-func (c *Client) MustFindLabelMappings(t *testing.T, r influxdb.ResourceType, id influxdb.ID) []influxdb.ID {
+func (c *Client) MustFindLabelMappings(t *testing.T, r influxdb.ResourceType, id platform.ID) []platform.ID {
 	t.Helper()
 
 	ls, err := c.FindLabelMappings(r, id)
@@ -681,7 +683,7 @@ func (c *Client) MustFindLabelMappings(t *testing.T, r influxdb.ResourceType, id
 }
 
 // DeleteLabelMapping deletes the label for the specified resource.
-func (c *Client) DeleteLabelMapping(l influxdb.ID, r influxdb.ResourceType, id influxdb.ID) error {
+func (c *Client) DeleteLabelMapping(l platform.ID, r influxdb.ResourceType, id platform.ID) error {
 	m := &influxdb.LabelMapping{
 		ResourceType: r,
 		ResourceID:   id,
@@ -694,7 +696,7 @@ func (c *Client) DeleteLabelMapping(l influxdb.ID, r influxdb.ResourceType, id i
 }
 
 // MustDeleteLabelMapping makes the test fail if an error is found.
-func (c *Client) MustDeleteLabelMapping(t *testing.T, l influxdb.ID, r influxdb.ResourceType, id influxdb.ID) {
+func (c *Client) MustDeleteLabelMapping(t *testing.T, l platform.ID, r influxdb.ResourceType, id platform.ID) {
 	t.Helper()
 
 	if err := c.DeleteLabelMapping(l, r, id); err != nil {

@@ -3,6 +3,8 @@ package influxdb
 import (
 	"context"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 // UsageMetric used to track classes of usage.
@@ -27,10 +29,10 @@ const (
 
 // Usage is a metric associated with the utilization of a particular resource.
 type Usage struct {
-	OrganizationID *ID         `json:"organizationID,omitempty"`
-	BucketID       *ID         `json:"bucketID,omitempty"`
-	Type           UsageMetric `json:"type"`
-	Value          float64     `json:"value"`
+	OrganizationID *platform.ID `json:"organizationID,omitempty"`
+	BucketID       *platform.ID `json:"bucketID,omitempty"`
+	Type           UsageMetric  `json:"type"`
+	Value          float64      `json:"value"`
 }
 
 // UsageService is a service for accessing usage statistics.
@@ -40,8 +42,8 @@ type UsageService interface {
 
 // UsageFilter is used to filter usage.
 type UsageFilter struct {
-	OrgID    *ID
-	BucketID *ID
+	OrgID    *platform.ID
+	BucketID *platform.ID
 	Range    *Timespan
 }
 

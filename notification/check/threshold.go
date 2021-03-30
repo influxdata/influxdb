@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/notification"
@@ -82,7 +84,7 @@ func (t *Threshold) UnmarshalJSON(b []byte) error {
 			}
 			t.Thresholds = append(t.Thresholds, td)
 		default:
-			return &influxdb.Error{
+			return &errors.Error{
 				Msg: fmt.Sprintf("invalid threshold type %s", tdRaw.Type),
 			}
 		}
@@ -466,8 +468,8 @@ func (td Range) MarshalJSON() ([]byte, error) {
 // Valid overwrite the base threshold.
 func (td Range) Valid() error {
 	if td.Min > td.Max {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "range threshold min can't be larger than max",
 		}
 	}

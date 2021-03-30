@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -38,8 +41,8 @@ var organizationCmpOptions = cmp.Options{
 
 // OrganizationFields will include the IDGenerator, and organizations
 type OrganizationFields struct {
-	IDGenerator   influxdb.IDGenerator
-	OrgBucketIDs  influxdb.IDGenerator
+	IDGenerator   platform.IDGenerator
+	OrgBucketIDs  platform.IDGenerator
 	Organizations []*influxdb.Organization
 	TimeGenerator influxdb.TimeGenerator
 }
@@ -125,7 +128,7 @@ func CreateOrganization(
 				organizations: []*influxdb.Organization{
 					{
 						Name:        "name1",
-						ID:          influxdb.ID(mock.FirstMockID),
+						ID:          platform.ID(mock.FirstMockID),
 						Description: "desc1",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
@@ -161,7 +164,7 @@ func CreateOrganization(
 						Name: "organization1",
 					},
 					{
-						ID:   influxdb.ID(mock.FirstMockID),
+						ID:   platform.ID(mock.FirstMockID),
 						Name: "organization2",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
@@ -254,8 +257,8 @@ func CreateOrganization(
 						Name: "organization1",
 					},
 				},
-				err: &influxdb.Error{
-					Code: influxdb.EConflict,
+				err: &errors.Error{
+					Code: errors.EConflict,
 					Op:   influxdb.OpCreateOrganization,
 					Msg:  "organization with name organization1 already exists",
 				},
@@ -286,7 +289,7 @@ func CreateOrganization(
 						Name: "organization1",
 					},
 					{
-						ID:   influxdb.ID(mock.FirstMockID),
+						ID:   platform.ID(mock.FirstMockID),
 						Name: "organization2",
 						CRUDLog: influxdb.CRUDLog{
 							CreatedAt: time.Date(2006, 5, 4, 1, 2, 3, 0, time.UTC),
@@ -325,7 +328,7 @@ func FindOrganizationByID(
 	t *testing.T,
 ) {
 	type args struct {
-		id influxdb.ID
+		id platform.ID
 	}
 	type wants struct {
 		err          error
@@ -383,8 +386,8 @@ func FindOrganizationByID(
 			},
 			wants: wants{
 				organization: nil,
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpFindOrganizationByID,
 					Msg:  "organization not found",
 				},
@@ -414,7 +417,7 @@ func FindOrganizations(
 	t *testing.T,
 ) {
 	type args struct {
-		ID          influxdb.ID
+		ID          platform.ID
 		name        string
 		findOptions influxdb.FindOptions
 	}
@@ -570,8 +573,8 @@ func FindOrganizations(
 			},
 			wants: wants{
 				organizations: []*influxdb.Organization{},
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpFindOrganizations,
 					Msg:  "organization not found",
 				},
@@ -597,8 +600,8 @@ func FindOrganizations(
 			},
 			wants: wants{
 				organizations: []*influxdb.Organization{},
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpFindOrganizations,
 					Msg:  "organization name \"na\" not found",
 				},
@@ -636,7 +639,7 @@ func DeleteOrganization(
 	t *testing.T,
 ) {
 	type args struct {
-		ID influxdb.ID
+		ID platform.ID
 	}
 	type wants struct {
 		err           error
@@ -696,8 +699,8 @@ func DeleteOrganization(
 				ID: MustIDBase16("1234567890654321"),
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpDeleteOrganization,
 					Msg:  "organization not found",
 				},
@@ -741,7 +744,7 @@ func FindOrganization(
 ) {
 	type args struct {
 		name string
-		id   influxdb.ID
+		id   platform.ID
 	}
 
 	type wants struct {
@@ -786,8 +789,8 @@ func FindOrganization(
 				name: "unknown",
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpFindOrganization,
 					Msg:  "organization name \"unknown\" not found",
 				},
@@ -796,11 +799,11 @@ func FindOrganization(
 		{
 			name: "find organization in which no id filter matches should return no org",
 			args: args{
-				id: influxdb.ID(3),
+				id: platform.ID(3),
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Msg:  "organization not found",
 				},
 			},
@@ -830,8 +833,8 @@ func FindOrganization(
 				name: "abc",
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpFindOrganization,
 					Msg:  "organization name \"abc\" not found",
 				},
@@ -848,7 +851,7 @@ func FindOrganization(
 			if tt.args.name != "" {
 				filter.Name = &tt.args.name
 			}
-			if tt.args.id != influxdb.InvalidID() {
+			if tt.args.id != platform.InvalidID() {
 				filter.ID = &tt.args.id
 			}
 
@@ -868,7 +871,7 @@ func UpdateOrganization(
 	t *testing.T,
 ) {
 	type args struct {
-		id          influxdb.ID
+		id          platform.ID
 		name        *string
 		description *string
 	}
@@ -904,8 +907,8 @@ func UpdateOrganization(
 				name: strPtr("changed"),
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpUpdateOrganization,
 					Msg:  "organization not found",
 				},
@@ -991,8 +994,8 @@ func UpdateOrganization(
 				name: strPtr("organization2"),
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EConflict,
+				err: &errors.Error{
+					Code: errors.EConflict,
 					Op:   influxdb.OpUpdateOrganization,
 					Msg:  "organization with name organization2 already exists",
 				},

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/tests"
 )
@@ -29,7 +31,7 @@ type BaseFixture struct {
 
 // NewBaseFixture creates a BaseFixture with and admin, an org owner, a member, and an outsider
 // for the given orgID and bucketID.
-func NewBaseFixture(t *testing.T, p *tests.Pipeline, orgID, bucketID influxdb.ID) BaseFixture {
+func NewBaseFixture(t *testing.T, p *tests.Pipeline, orgID, bucketID platform.ID) BaseFixture {
 	fx := BaseFixture{}
 	admin := p.MustNewAdminClient()
 	fx.Admin = admin

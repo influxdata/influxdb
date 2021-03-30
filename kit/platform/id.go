@@ -1,10 +1,12 @@
-package influxdb
+package platform
 
 import (
 	"encoding/binary"
 	"encoding/hex"
 	"strconv"
 	"unsafe"
+
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 // IDLength is the exact length a string (or a byte slice representing it) must have in order to be decoded into a valid ID.
@@ -12,22 +14,22 @@ const IDLength = 16
 
 var (
 	// ErrInvalidID signifies invalid IDs.
-	ErrInvalidID = &Error{
-		Code: EInvalid,
+	ErrInvalidID = &errors.Error{
+		Code: errors.EInvalid,
 		Msg:  "invalid ID",
 	}
 
 	// ErrInvalidIDLength is returned when an ID has the incorrect number of bytes.
-	ErrInvalidIDLength = &Error{
-		Code: EInvalid,
+	ErrInvalidIDLength = &errors.Error{
+		Code: errors.EInvalid,
 		Msg:  "id must have a length of 16 bytes",
 	}
 )
 
 // ErrCorruptID means the ID stored in the Store is corrupt.
-func ErrCorruptID(err error) *Error {
-	return &Error{
-		Code: EInvalid,
+func ErrCorruptID(err error) *errors.Error {
+	return &errors.Error{
+		Code: errors.EInvalid,
 		Msg:  "corrupt ID provided",
 		Err:  err,
 	}

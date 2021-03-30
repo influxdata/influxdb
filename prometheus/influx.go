@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"time"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -16,7 +18,7 @@ type influxCollector struct {
 }
 
 // NewInfluxCollector returns a collector which exports influxdb process metrics.
-func NewInfluxCollector(procID platform.IDGenerator, build platform.BuildInfo) prometheus.Collector {
+func NewInfluxCollector(procID platform2.IDGenerator, build platform.BuildInfo) prometheus.Collector {
 	id := procID.ID().String()
 
 	return &influxCollector{

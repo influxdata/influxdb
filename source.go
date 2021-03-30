@@ -1,6 +1,10 @@
 package influxdb
 
-import "context"
+import (
+	"context"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+)
 
 const (
 	// ErrSourceNotFound is an error message when a source does not exist.
@@ -23,14 +27,14 @@ const (
 // TODO(desa): do we still need default?
 // TODO(desa): do sources belong
 type Source struct {
-	ID                 ID         `json:"id,omitempty"`                 // ID is the unique ID of the source
-	OrganizationID     ID         `json:"orgID"`                        // OrganizationID is the organization ID that resource belongs to
-	Default            bool       `json:"default"`                      // Default specifies the default source for the application
-	Name               string     `json:"name"`                         // Name is the user-defined name for the source
-	Type               SourceType `json:"type,omitempty"`               // Type specifies which kinds of source (enterprise vs oss vs 2.0)
-	URL                string     `json:"url"`                          // URL are the connections to the source
-	InsecureSkipVerify bool       `json:"insecureSkipVerify,omitempty"` // InsecureSkipVerify as true means any certificate presented by the source is accepted
-	Telegraf           string     `json:"telegraf"`                     // Telegraf is the db telegraf is written to.  By default it is "telegraf"
+	ID                 platform.ID `json:"id,omitempty"`                 // ID is the unique ID of the source
+	OrganizationID     platform.ID `json:"orgID"`                        // OrganizationID is the organization ID that resource belongs to
+	Default            bool        `json:"default"`                      // Default specifies the default source for the application
+	Name               string      `json:"name"`                         // Name is the user-defined name for the source
+	Type               SourceType  `json:"type,omitempty"`               // Type specifies which kinds of source (enterprise vs oss vs 2.0)
+	URL                string      `json:"url"`                          // URL are the connections to the source
+	InsecureSkipVerify bool        `json:"insecureSkipVerify,omitempty"` // InsecureSkipVerify as true means any certificate presented by the source is accepted
+	Telegraf           string      `json:"telegraf"`                     // Telegraf is the db telegraf is written to.  By default it is "telegraf"
 	SourceFields
 	V1SourceFields
 }
@@ -64,15 +68,15 @@ type SourceService interface {
 	// DefaultSource retrieves the default source.
 	DefaultSource(ctx context.Context) (*Source, error)
 	// FindSourceByID retrieves a source by its ID.
-	FindSourceByID(ctx context.Context, id ID) (*Source, error)
+	FindSourceByID(ctx context.Context, id platform.ID) (*Source, error)
 	// FindSources returns a list of all sources.
 	FindSources(ctx context.Context, opts FindOptions) ([]*Source, int, error)
 	// CreateSource sets the sources ID and stores it.
 	CreateSource(ctx context.Context, s *Source) error
 	// UpdateSource updates the source.
-	UpdateSource(ctx context.Context, id ID, upd SourceUpdate) (*Source, error)
+	UpdateSource(ctx context.Context, id platform.ID, upd SourceUpdate) (*Source, error)
 	// DeleteSource removes the source.
-	DeleteSource(ctx context.Context, id ID) error
+	DeleteSource(ctx context.Context, id platform.ID) error
 }
 
 // DefaultSourceFindOptions are the default find options for sources

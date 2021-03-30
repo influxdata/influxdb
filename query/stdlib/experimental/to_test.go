@@ -3,6 +3,7 @@ package experimental_test
 import (
 	"context"
 	"errors"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 	"time"
 
@@ -12,10 +13,9 @@ import (
 	"github.com/influxdata/flux/execute/executetest"
 	"github.com/influxdata/flux/querytest"
 	"github.com/influxdata/flux/stdlib/universe"
-	platform "github.com/influxdata/influxdb/v2"
+	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/models"
-	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/query/stdlib/experimental"
 	"github.com/influxdata/influxdb/v2/query/stdlib/influxdata/influxdb"
 )
@@ -526,7 +526,7 @@ func mockDependencies() influxdb.ToDependencies {
 	}
 }
 
-func mockPoints(org, bucket platform.ID, pointdata string) []models.Point {
+func mockPoints(org, bucket platform2.ID, pointdata string) []models.Point {
 	points, err := models.ParsePoints([]byte(pointdata))
 	if err != nil {
 		return nil

@@ -4,29 +4,30 @@ import (
 	"bytes"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/v2"
 	influxtesting "github.com/influxdata/influxdb/v2/testing"
 )
 
 func TestWriteConfigs(t *testing.T) {
 	cases := []struct {
 		name   string
-		err    *influxdb.Error
+		err    *errors.Error
 		pp     Configs
 		result string
 	}{
 		{
 			name: "bad name -",
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  `"-" is not a valid config name`,
 			},
 		},
 		{
 			name: "bad name create",
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  `"create" is not a valid config name`,
 			},
 		},
@@ -259,8 +260,8 @@ func TestConfigsSwith(t *testing.T) {
 				"a1": {Host: "host1"},
 				"a2": {Host: "host2"},
 			},
-			err: &influxdb.Error{
-				Code: influxdb.ENotFound,
+			err: &errors.Error{
+				Code: errors.ENotFound,
 				Msg:  `config "p1" is not found`,
 			},
 		},
@@ -315,8 +316,8 @@ func TestConfigCreate(t *testing.T) {
 	}{
 		{
 			name: "invalid name",
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "config name is empty",
 			},
 		},
@@ -381,8 +382,8 @@ func TestConfigCreate(t *testing.T) {
 				Name: "default",
 				Host: "host1",
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EConflict,
+			err: &errors.Error{
+				Code: errors.EConflict,
 				Msg:  `config "default" already exists`,
 			},
 		},
@@ -460,16 +461,16 @@ func TestConfigSwitch(t *testing.T) {
 	}{
 		{
 			name: "empty",
-			err: &influxdb.Error{
-				Code: influxdb.ENotFound,
+			err: &errors.Error{
+				Code: errors.ENotFound,
 				Msg:  `config "" is not found`,
 			},
 		},
 		{
 			name: "not found",
 			src:  "default",
-			err: &influxdb.Error{
-				Code: influxdb.ENotFound,
+			err: &errors.Error{
+				Code: errors.ENotFound,
 				Msg:  `config "default" is not found`,
 			},
 		},
@@ -576,8 +577,8 @@ func TestConfigSwitch(t *testing.T) {
 				},
 			},
 			src: "-",
-			err: &influxdb.Error{
-				Code: influxdb.ENotFound,
+			err: &errors.Error{
+				Code: errors.ENotFound,
 				Msg:  "previous activated config is not found",
 			},
 		},
@@ -613,8 +614,8 @@ func TestConfigUpdate(t *testing.T) {
 	}{
 		{
 			name: "empty",
-			err: &influxdb.Error{
-				Code: influxdb.ENotFound,
+			err: &errors.Error{
+				Code: errors.ENotFound,
 				Msg:  `config "" is not found`,
 			},
 		},
@@ -626,8 +627,8 @@ func TestConfigUpdate(t *testing.T) {
 				Org:   "org1",
 				Token: "tok1",
 			},
-			err: &influxdb.Error{
-				Code: influxdb.ENotFound,
+			err: &errors.Error{
+				Code: errors.ENotFound,
 				Msg:  `config "default" is not found`,
 			},
 		},
@@ -711,8 +712,8 @@ func TestConfigDelete(t *testing.T) {
 	}{
 		{
 			name: "empty",
-			err: &influxdb.Error{
-				Code: influxdb.ENotFound,
+			err: &errors.Error{
+				Code: errors.ENotFound,
 				Msg:  `config "" is not found`,
 			},
 		},
@@ -725,8 +726,8 @@ func TestConfigDelete(t *testing.T) {
 					Host: "host1",
 				},
 			},
-			err: &influxdb.Error{
-				Code: influxdb.ENotFound,
+			err: &errors.Error{
+				Code: errors.ENotFound,
 				Msg:  `config "bad" is not found`,
 			},
 		},

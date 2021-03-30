@@ -10,6 +10,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
@@ -83,7 +86,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 					},
 				},
 				&mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id platform2.ID) (*platform.User, error) {
 						return &platform.User{
 							ID:   id,
 							Name: id.String(),
@@ -91,7 +94,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 					},
 				},
 				&mock.OrganizationService{
-					FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+					FindOrganizationByIDF: func(ctx context.Context, id platform2.ID) (*platform.Organization, error) {
 						return &platform.Organization{
 							ID:   id,
 							Name: id.String(),
@@ -176,18 +179,18 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 					},
 				},
 				&mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id platform2.ID) (*platform.User, error) {
 						if id.String() == "2070616e656d2076" {
 							return &platform.User{
 								ID:   id,
 								Name: id.String(),
 							}, nil
 						}
-						return nil, &platform.Error{}
+						return nil, &errors.Error{}
 					},
 				},
 				&mock.OrganizationService{
-					FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+					FindOrganizationByIDF: func(ctx context.Context, id platform2.ID) (*platform.Organization, error) {
 						return &platform.Organization{
 							ID:   id,
 							Name: id.String(),
@@ -254,7 +257,7 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 					},
 				},
 				&mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id platform2.ID) (*platform.User, error) {
 						return &platform.User{
 							ID:   id,
 							Name: id.String(),
@@ -262,14 +265,14 @@ func TestService_handleGetAuthorizations(t *testing.T) {
 					},
 				},
 				&mock.OrganizationService{
-					FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+					FindOrganizationByIDF: func(ctx context.Context, id platform2.ID) (*platform.Organization, error) {
 						if id.String() == "3070616e656d2076" {
 							return &platform.Organization{
 								ID:   id,
 								Name: id.String(),
 							}, nil
 						}
-						return nil, &platform.Error{}
+						return nil, &errors.Error{}
 					},
 				},
 			},
@@ -399,7 +402,7 @@ func TestService_handleGetAuthorization(t *testing.T) {
 			name: "get a authorization by id",
 			fields: fields{
 				AuthorizationService: &mock.AuthorizationService{
-					FindAuthorizationByIDFn: func(ctx context.Context, id platform.ID) (*platform.Authorization, error) {
+					FindAuthorizationByIDFn: func(ctx context.Context, id platform2.ID) (*platform.Authorization, error) {
 						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return &platform.Authorization{
 								ID:     platformtesting.MustIDBase16("020f755c3c082000"),
@@ -411,7 +414,7 @@ func TestService_handleGetAuthorization(t *testing.T) {
 										Resource: platform.Resource{
 											Type:  platform.BucketsResourceType,
 											OrgID: platformtesting.IDPtr(platformtesting.MustIDBase16("020f755c3c083000")),
-											ID: func() *platform.ID {
+											ID: func() *platform2.ID {
 												id := platformtesting.MustIDBase16("020f755c3c084000")
 												return &id
 											}(),
@@ -426,7 +429,7 @@ func TestService_handleGetAuthorization(t *testing.T) {
 					},
 				},
 				UserService: &mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id platform2.ID) (*platform.User, error) {
 						return &platform.User{
 							ID:   id,
 							Name: "u1",
@@ -434,7 +437,7 @@ func TestService_handleGetAuthorization(t *testing.T) {
 					},
 				},
 				OrganizationService: &mock.OrganizationService{
-					FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+					FindOrganizationByIDF: func(ctx context.Context, id platform2.ID) (*platform.Organization, error) {
 						return &platform.Organization{
 							ID:   id,
 							Name: "o1",
@@ -442,7 +445,7 @@ func TestService_handleGetAuthorization(t *testing.T) {
 					},
 				},
 				LookupService: &mock.LookupService{
-					NameFn: func(ctx context.Context, resource platform.ResourceType, id platform.ID) (string, error) {
+					NameFn: func(ctx context.Context, resource platform.ResourceType, id platform2.ID) (string, error) {
 						switch resource {
 						case platform.BucketsResourceType:
 							return "b1", nil
@@ -495,9 +498,9 @@ func TestService_handleGetAuthorization(t *testing.T) {
 			name: "not found",
 			fields: fields{
 				AuthorizationService: &mock.AuthorizationService{
-					FindAuthorizationByIDFn: func(ctx context.Context, id platform.ID) (*platform.Authorization, error) {
-						return nil, &platform.Error{
-							Code: platform.ENotFound,
+					FindAuthorizationByIDFn: func(ctx context.Context, id platform2.ID) (*platform.Authorization, error) {
+						return nil, &errors.Error{
+							Code: errors.ENotFound,
 							Msg:  "authorization not found",
 						}
 					},
@@ -595,7 +598,7 @@ func TestService_handlePostAuthorization(t *testing.T) {
 					},
 				},
 				LookupService: &mock.LookupService{
-					NameFn: func(ctx context.Context, resource platform.ResourceType, id platform.ID) (string, error) {
+					NameFn: func(ctx context.Context, resource platform.ResourceType, id platform2.ID) (string, error) {
 						switch resource {
 						case platform.BucketsResourceType:
 							return "b1", nil
@@ -606,9 +609,9 @@ func TestService_handlePostAuthorization(t *testing.T) {
 					},
 				},
 				UserService: &mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id platform2.ID) (*platform.User, error) {
 						if !id.Valid() {
-							return nil, platform.ErrInvalidID
+							return nil, platform2.ErrInvalidID
 						}
 						return &platform.User{
 							ID:   id,
@@ -617,9 +620,9 @@ func TestService_handlePostAuthorization(t *testing.T) {
 					},
 				},
 				OrganizationService: &mock.OrganizationService{
-					FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*platform.Organization, error) {
+					FindOrganizationByIDF: func(ctx context.Context, id platform2.ID) (*platform.Organization, error) {
 						if !id.Valid() {
-							return nil, platform.ErrInvalidID
+							return nil, platform2.ErrInvalidID
 						}
 						return &platform.Organization{
 							ID:   id,
@@ -767,7 +770,7 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 			name: "remove a authorization by id",
 			fields: fields{
 				&mock.AuthorizationService{
-					DeleteAuthorizationFn: func(ctx context.Context, id platform.ID) error {
+					DeleteAuthorizationFn: func(ctx context.Context, id platform2.ID) error {
 						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return nil
 						}
@@ -789,9 +792,9 @@ func TestService_handleDeleteAuthorization(t *testing.T) {
 			name: "authorization not found",
 			fields: fields{
 				&mock.AuthorizationService{
-					DeleteAuthorizationFn: func(ctx context.Context, id platform.ID) error {
-						return &platform.Error{
-							Code: platform.ENotFound,
+					DeleteAuthorizationFn: func(ctx context.Context, id platform2.ID) error {
+						return &errors.Error{
+							Code: errors.ENotFound,
 							Msg:  "authorization not found",
 						}
 					},
@@ -911,7 +914,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 	}
 
 	mus := &mock.UserService{
-		FindUserByIDFn: func(ctx context.Context, id platform.ID) (*platform.User, error) {
+		FindUserByIDFn: func(ctx context.Context, id platform2.ID) (*platform.User, error) {
 			return &platform.User{}, nil
 		},
 	}
@@ -922,7 +925,7 @@ func initAuthorizationService(f platformtesting.AuthorizationFields, t *testing.
 	authorizationBackend.UserService = mus
 	authorizationBackend.OrganizationService = tenantService
 	authorizationBackend.LookupService = &mock.LookupService{
-		NameFn: func(ctx context.Context, resource platform.ResourceType, id platform.ID) (string, error) {
+		NameFn: func(ctx context.Context, resource platform.ResourceType, id platform2.ID) (string, error) {
 			switch resource {
 			case platform.BucketsResourceType:
 				return "b1", nil

@@ -3,6 +3,8 @@ package authorizer_test
 import (
 	"bytes"
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"sort"
 	"testing"
 
@@ -33,7 +35,7 @@ func TestUserService_FindUserByID(t *testing.T) {
 	}
 	type args struct {
 		permission influxdb.Permission
-		id         influxdb.ID
+		id         platform.ID
 	}
 	type wants struct {
 		err error
@@ -49,7 +51,7 @@ func TestUserService_FindUserByID(t *testing.T) {
 			name: "authorized to access id",
 			fields: fields{
 				UserService: &mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 						return &influxdb.User{
 							ID: id,
 						}, nil
@@ -74,7 +76,7 @@ func TestUserService_FindUserByID(t *testing.T) {
 			name: "unauthorized to access id",
 			fields: fields{
 				UserService: &mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 						return &influxdb.User{
 							ID: id,
 						}, nil
@@ -92,9 +94,9 @@ func TestUserService_FindUserByID(t *testing.T) {
 				id: 1,
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "read:users/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -175,9 +177,9 @@ func TestUserService_FindUser(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "read:users/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -315,7 +317,7 @@ func TestUserService_UpdateUser(t *testing.T) {
 		UserService influxdb.UserService
 	}
 	type args struct {
-		id         influxdb.ID
+		id         platform.ID
 		permission influxdb.Permission
 	}
 	type wants struct {
@@ -332,7 +334,7 @@ func TestUserService_UpdateUser(t *testing.T) {
 			name: "authorized to update user",
 			fields: fields{
 				UserService: &mock.UserService{
-					UpdateUserFn: func(ctx context.Context, id influxdb.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
+					UpdateUserFn: func(ctx context.Context, id platform.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
 						return &influxdb.User{
 							ID: 1,
 						}, nil
@@ -357,7 +359,7 @@ func TestUserService_UpdateUser(t *testing.T) {
 			name: "unauthorized to update user",
 			fields: fields{
 				UserService: &mock.UserService{
-					UpdateUserFn: func(ctx context.Context, id influxdb.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
+					UpdateUserFn: func(ctx context.Context, id platform.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
 						return &influxdb.User{
 							ID: 1,
 						}, nil
@@ -375,9 +377,9 @@ func TestUserService_UpdateUser(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:users/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -401,7 +403,7 @@ func TestUserService_DeleteUser(t *testing.T) {
 		UserService influxdb.UserService
 	}
 	type args struct {
-		id         influxdb.ID
+		id         platform.ID
 		permission influxdb.Permission
 	}
 	type wants struct {
@@ -418,7 +420,7 @@ func TestUserService_DeleteUser(t *testing.T) {
 			name: "authorized to delete user",
 			fields: fields{
 				UserService: &mock.UserService{
-					DeleteUserFn: func(ctx context.Context, id influxdb.ID) error {
+					DeleteUserFn: func(ctx context.Context, id platform.ID) error {
 						return nil
 					},
 				},
@@ -441,7 +443,7 @@ func TestUserService_DeleteUser(t *testing.T) {
 			name: "unauthorized to delete user",
 			fields: fields{
 				UserService: &mock.UserService{
-					DeleteUserFn: func(ctx context.Context, id influxdb.ID) error {
+					DeleteUserFn: func(ctx context.Context, id platform.ID) error {
 						return nil
 					},
 				},
@@ -457,9 +459,9 @@ func TestUserService_DeleteUser(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:users/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -535,9 +537,9 @@ func TestUserService_CreateUser(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:users is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},

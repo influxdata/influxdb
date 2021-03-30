@@ -3,7 +3,8 @@ package pkger
 import (
 	"context"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/opentracing/opentracing-go/log"
 )
@@ -21,25 +22,25 @@ func MWTracing() SVCMiddleware {
 
 var _ SVC = (*traceMW)(nil)
 
-func (s *traceMW) InitStack(ctx context.Context, userID influxdb.ID, newStack StackCreate) (Stack, error) {
+func (s *traceMW) InitStack(ctx context.Context, userID platform.ID, newStack StackCreate) (Stack, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 	return s.next.InitStack(ctx, userID, newStack)
 }
 
-func (s *traceMW) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (Stack, error) {
+func (s *traceMW) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID platform.ID }) (Stack, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 	return s.next.UninstallStack(ctx, identifiers)
 }
 
-func (s *traceMW) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {
+func (s *traceMW) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID platform.ID }) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 	return s.next.DeleteStack(ctx, identifiers)
 }
 
-func (s *traceMW) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) ([]Stack, error) {
+func (s *traceMW) ListStacks(ctx context.Context, orgID platform.ID, f ListFilter) ([]Stack, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -51,7 +52,7 @@ func (s *traceMW) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilte
 	return stacks, err
 }
 
-func (s *traceMW) ReadStack(ctx context.Context, id influxdb.ID) (Stack, error) {
+func (s *traceMW) ReadStack(ctx context.Context, id platform.ID) (Stack, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 	return s.next.ReadStack(ctx, id)
@@ -69,14 +70,14 @@ func (s *traceMW) Export(ctx context.Context, opts ...ExportOptFn) (template *Te
 	return s.next.Export(ctx, opts...)
 }
 
-func (s *traceMW) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
+func (s *traceMW) DryRun(ctx context.Context, orgID, userID platform.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	span.LogKV("orgID", orgID.String(), "userID", userID.String())
 	defer span.Finish()
 	return s.next.DryRun(ctx, orgID, userID, opts...)
 }
 
-func (s *traceMW) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
+func (s *traceMW) Apply(ctx context.Context, orgID, userID platform.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	span.LogKV("orgID", orgID.String(), "userID", userID.String())
 	defer span.Finish()

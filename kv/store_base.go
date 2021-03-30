@@ -6,7 +6,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/opentracing/opentracing-go"
 )
@@ -51,7 +53,7 @@ type DecodeBucketValFn func(key, val []byte) (keyRepeat []byte, decodedVal inter
 
 // DecIndexID decodes the bucket val into an influxdb.ID.
 func DecIndexID(key, val []byte) ([]byte, interface{}, error) {
-	var i influxdb.ID
+	var i platform.ID
 	return key, i, i.Decode(val)
 }
 
@@ -60,19 +62,19 @@ type ConvertValToEntFn func(k []byte, v interface{}) (Entity, error)
 
 // DecodeOrgNameKey decodes a raw bucket key into the organization id and name
 // used to create it.
-func DecodeOrgNameKey(k []byte) (influxdb.ID, string, error) {
-	var orgID influxdb.ID
-	if err := orgID.Decode(k[:influxdb.IDLength]); err != nil {
+func DecodeOrgNameKey(k []byte) (platform.ID, string, error) {
+	var orgID platform.ID
+	if err := orgID.Decode(k[:platform.IDLength]); err != nil {
 		return 0, "", err
 	}
-	return orgID, string(k[influxdb.IDLength:]), nil
+	return orgID, string(k[platform.IDLength:]), nil
 }
 
 // NewOrgNameKeyStore creates a store for an entity's unique index on organization id and name.
 // This is used throughout the kv pkg here to provide an entity uniquness by name within an org.
 func NewOrgNameKeyStore(resource string, bktName []byte, caseSensitive bool) *StoreBase {
 	var decValToEntFn ConvertValToEntFn = func(k []byte, v interface{}) (Entity, error) {
-		id, ok := v.(influxdb.ID)
+		id, ok := v.(platform.ID)
 		if err := IsErrUnexpectedDecodeVal(ok); err != nil {
 			return Entity{}, err
 		}
@@ -299,8 +301,8 @@ func (s *StoreBase) Put(ctx context.Context, tx Tx, ent Entity, opts ...PutOptio
 	var opt putOption
 	for _, o := range opts {
 		if err := o(&opt); err != nil {
-			return &influxdb.Error{
-				Code: influxdb.EConflict,
+			return &errors2.Error{
+				Code: errors2.EConflict,
 				Err:  err,
 			}
 		}
@@ -333,9 +335,9 @@ func (s *StoreBase) putValidate(ctx context.Context, tx Tx, ent Entity, opt putO
 
 	_, err := s.FindEnt(ctx, tx, ent)
 	if opt.isNew {
-		if err == nil || influxdb.ErrorCode(err) != influxdb.ENotFound {
-			return &influxdb.Error{
-				Code: influxdb.EConflict,
+		if err == nil || errors2.ErrorCode(err) != errors2.ENotFound {
+			return &errors2.Error{
+				Code: errors2.EConflict,
 				Msg:  fmt.Sprintf("%s is not unique", s.Resource),
 				Err:  err,
 			}
@@ -351,8 +353,8 @@ func (s *StoreBase) bucket(ctx context.Context, tx Tx) (Bucket, error) {
 
 	bkt, err := tx.Bucket(s.BktName)
 	if err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInternal,
+		return nil, &errors2.Error{
+			Code: errors2.EInternal,
 			Msg:  fmt.Sprintf("unexpected error retrieving bucket %q; Err %v", string(s.BktName), err),
 			Err:  err,
 		}
@@ -371,8 +373,8 @@ func (s *StoreBase) bucketCursor(ctx context.Context, tx Tx) (Cursor, error) {
 
 	cur, err := b.Cursor()
 	if err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInternal,
+		return nil, &errors2.Error{
+			Code: errors2.EInternal,
 			Msg:  "failed to retrieve cursor",
 			Err:  err,
 		}
@@ -394,12 +396,12 @@ func (s *StoreBase) bucketDelete(ctx context.Context, tx Tx, key []byte) error {
 		return nil
 	}
 
-	iErr := &influxdb.Error{
-		Code: influxdb.EInternal,
+	iErr := &errors2.Error{
+		Code: errors2.EInternal,
 		Err:  err,
 	}
 	if IsNotFound(err) {
-		iErr.Code = influxdb.ENotFound
+		iErr.Code = errors2.ENotFound
 		iErr.Msg = fmt.Sprintf("%s does exist for key: %q", s.Resource, string(key))
 	}
 	return iErr
@@ -416,14 +418,14 @@ func (s *StoreBase) bucketGet(ctx context.Context, tx Tx, key []byte) ([]byte, e
 
 	body, err := b.Get(key)
 	if IsNotFound(err) {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return nil, &errors2.Error{
+			Code: errors2.ENotFound,
 			Msg:  fmt.Sprintf("%s not found for key %q", s.Resource, string(key)),
 		}
 	}
 	if err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInternal,
+		return nil, &errors2.Error{
+			Code: errors2.EInternal,
 			Err:  err,
 		}
 	}
@@ -441,8 +443,8 @@ func (s *StoreBase) bucketPut(ctx context.Context, tx Tx, key, body []byte) erro
 	}
 
 	if err := b.Put(key, body); err != nil {
-		return &influxdb.Error{
-			Code: influxdb.EInternal,
+		return &errors2.Error{
+			Code: errors2.EInternal,
 			Err:  err,
 		}
 	}
@@ -455,8 +457,8 @@ func (s *StoreBase) decodeEnt(ctx context.Context, body []byte) (interface{}, er
 
 	_, v, err := s.DecodeEntFn([]byte{}, body) // ignore key here
 	if err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInternal,
+		return nil, &errors2.Error{
+			Code: errors2.EInternal,
 			Msg:  fmt.Sprintf("failed to decode %s body", s.Resource),
 			Err:  err,
 		}
@@ -469,16 +471,16 @@ func (s *StoreBase) encodeEnt(ctx context.Context, ent Entity, fn EncodeEntFn) (
 	defer span.Finish()
 
 	if fn == nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors2.Error{
+			Code: errors2.EInvalid,
 			Msg:  fmt.Sprintf("no key was provided for %s", s.Resource),
 		}
 	}
 
 	encoded, field, err := fn(ent)
 	if err != nil {
-		return encoded, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return encoded, &errors2.Error{
+			Code: errors2.EInvalid,
 			Msg:  fmt.Sprintf("provided %s %s is an invalid format", s.Resource, field),
 			Err:  err,
 		}

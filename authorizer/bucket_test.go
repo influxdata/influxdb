@@ -3,6 +3,8 @@ package authorizer_test
 import (
 	"bytes"
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"sort"
 	"testing"
 
@@ -33,7 +35,7 @@ func TestBucketService_FindBucketByID(t *testing.T) {
 	}
 	type args struct {
 		permission influxdb.Permission
-		id         influxdb.ID
+		id         platform.ID
 	}
 	type wants struct {
 		err error
@@ -49,7 +51,7 @@ func TestBucketService_FindBucketByID(t *testing.T) {
 			name: "authorized to access id",
 			fields: fields{
 				BucketService: &mock.BucketService{
-					FindBucketByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
 							ID:    id,
 							OrgID: 10,
@@ -75,7 +77,7 @@ func TestBucketService_FindBucketByID(t *testing.T) {
 			name: "unauthorized to access id",
 			fields: fields{
 				BucketService: &mock.BucketService{
-					FindBucketByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
 							ID:    id,
 							OrgID: 10,
@@ -94,9 +96,9 @@ func TestBucketService_FindBucketByID(t *testing.T) {
 				id: 1,
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "read:orgs/000000000000000a/buckets/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -179,9 +181,9 @@ func TestBucketService_FindBucket(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "read:orgs/000000000000000a/buckets/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -334,7 +336,7 @@ func TestBucketService_UpdateBucket(t *testing.T) {
 		BucketService influxdb.BucketService
 	}
 	type args struct {
-		id          influxdb.ID
+		id          platform.ID
 		permissions []influxdb.Permission
 	}
 	type wants struct {
@@ -351,13 +353,13 @@ func TestBucketService_UpdateBucket(t *testing.T) {
 			name: "authorized to update bucket",
 			fields: fields{
 				BucketService: &mock.BucketService{
-					FindBucketByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+					FindBucketByIDFn: func(ctc context.Context, id platform.ID) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
 							ID:    1,
 							OrgID: 10,
 						}, nil
 					},
-					UpdateBucketFn: func(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
+					UpdateBucketFn: func(ctx context.Context, id platform.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
 							ID:    1,
 							OrgID: 10,
@@ -392,13 +394,13 @@ func TestBucketService_UpdateBucket(t *testing.T) {
 			name: "unauthorized to update bucket",
 			fields: fields{
 				BucketService: &mock.BucketService{
-					FindBucketByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+					FindBucketByIDFn: func(ctc context.Context, id platform.ID) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
 							ID:    1,
 							OrgID: 10,
 						}, nil
 					},
-					UpdateBucketFn: func(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
+					UpdateBucketFn: func(ctx context.Context, id platform.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
 							ID:    1,
 							OrgID: 10,
@@ -419,9 +421,9 @@ func TestBucketService_UpdateBucket(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/buckets/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -445,7 +447,7 @@ func TestBucketService_DeleteBucket(t *testing.T) {
 		BucketService influxdb.BucketService
 	}
 	type args struct {
-		id          influxdb.ID
+		id          platform.ID
 		permissions []influxdb.Permission
 	}
 	type wants struct {
@@ -462,13 +464,13 @@ func TestBucketService_DeleteBucket(t *testing.T) {
 			name: "authorized to delete bucket",
 			fields: fields{
 				BucketService: &mock.BucketService{
-					FindBucketByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+					FindBucketByIDFn: func(ctc context.Context, id platform.ID) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
 							ID:    1,
 							OrgID: 10,
 						}, nil
 					},
-					DeleteBucketFn: func(ctx context.Context, id influxdb.ID) error {
+					DeleteBucketFn: func(ctx context.Context, id platform.ID) error {
 						return nil
 					},
 				},
@@ -500,13 +502,13 @@ func TestBucketService_DeleteBucket(t *testing.T) {
 			name: "unauthorized to delete bucket",
 			fields: fields{
 				BucketService: &mock.BucketService{
-					FindBucketByIDFn: func(ctc context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+					FindBucketByIDFn: func(ctc context.Context, id platform.ID) (*influxdb.Bucket, error) {
 						return &influxdb.Bucket{
 							ID:    1,
 							OrgID: 10,
 						}, nil
 					},
-					DeleteBucketFn: func(ctx context.Context, id influxdb.ID) error {
+					DeleteBucketFn: func(ctx context.Context, id platform.ID) error {
 						return nil
 					},
 				},
@@ -524,9 +526,9 @@ func TestBucketService_DeleteBucket(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/buckets/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -551,7 +553,7 @@ func TestBucketService_CreateBucket(t *testing.T) {
 	}
 	type args struct {
 		permission influxdb.Permission
-		orgID      influxdb.ID
+		orgID      platform.ID
 	}
 	type wants struct {
 		err error
@@ -606,9 +608,9 @@ func TestBucketService_CreateBucket(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/buckets is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 var (
@@ -97,16 +99,16 @@ type UserResourceMappingService interface {
 	CreateUserResourceMapping(ctx context.Context, m *UserResourceMapping) error
 
 	// DeleteUserResourceMapping deletes a user resource mapping.
-	DeleteUserResourceMapping(ctx context.Context, resourceID, userID ID) error
+	DeleteUserResourceMapping(ctx context.Context, resourceID, userID platform.ID) error
 }
 
 // UserResourceMapping represents a mapping of a resource to its user.
 type UserResourceMapping struct {
-	UserID       ID           `json:"userID"`
+	UserID       platform.ID  `json:"userID"`
 	UserType     UserType     `json:"userType"`
 	MappingType  MappingType  `json:"mappingType"`
 	ResourceType ResourceType `json:"resourceType"`
-	ResourceID   ID           `json:"resourceID"`
+	ResourceID   platform.ID  `json:"resourceID"`
 }
 
 // Validate reports any validation errors for the mapping.
@@ -136,9 +138,9 @@ func (m UserResourceMapping) Validate() error {
 
 // UserResourceMappingFilter represents a set of filters that restrict the returned results.
 type UserResourceMappingFilter struct {
-	ResourceID   ID
+	ResourceID   platform.ID
 	ResourceType ResourceType
-	UserID       ID
+	UserID       platform.ID
 	UserType     UserType
 }
 

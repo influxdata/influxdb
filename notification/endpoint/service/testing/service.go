@@ -9,6 +9,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/google/go-cmp/cmp"
 	influxdb "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -18,7 +21,7 @@ import (
 )
 
 const (
-	oneID = influxdb.ID(iota + 1)
+	oneID = platform.ID(iota + 1)
 	twoID
 	threeID
 	fourID
@@ -35,7 +38,7 @@ var (
 
 // NotificationEndpointFields includes prepopulated data for mapping tests.
 type NotificationEndpointFields struct {
-	IDGenerator           influxdb.IDGenerator
+	IDGenerator           platform.IDGenerator
 	TimeGenerator         influxdb.TimeGenerator
 	NotificationEndpoints []influxdb.NotificationEndpoint
 	Orgs                  []*influxdb.Organization
@@ -101,7 +104,7 @@ func CreateNotificationEndpoint(
 ) {
 	type args struct {
 		notificationEndpoint influxdb.NotificationEndpoint
-		userID               influxdb.ID
+		userID               platform.ID
 	}
 	type wants struct {
 		err                   error
@@ -198,10 +201,10 @@ func FindNotificationEndpointByID(
 	t *testing.T,
 ) {
 	type args struct {
-		id influxdb.ID
+		id platform.ID
 	}
 	type wants struct {
-		err                  *influxdb.Error
+		err                  *errors.Error
 		notificationEndpoint influxdb.NotificationEndpoint
 	}
 
@@ -250,11 +253,11 @@ func FindNotificationEndpointByID(
 				},
 			},
 			args: args{
-				id: influxdb.ID(0),
+				id: platform.ID(0),
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EInvalid,
+				err: &errors.Error{
+					Code: errors.EInvalid,
 					Msg:  "no key was provided for notification endpoint",
 				},
 			},
@@ -297,8 +300,8 @@ func FindNotificationEndpointByID(
 				id: threeID,
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Msg:  "notification endpoint not found",
 				},
 			},
@@ -985,15 +988,15 @@ func UpdateNotificationEndpoint(
 	t *testing.T,
 ) {
 	type args struct {
-		userID               influxdb.ID
-		orgID                influxdb.ID
-		id                   influxdb.ID
+		userID               platform.ID
+		orgID                platform.ID
+		id                   platform.ID
 		notificationEndpoint influxdb.NotificationEndpoint
 	}
 
 	type wants struct {
 		notificationEndpoint influxdb.NotificationEndpoint
-		err                  *influxdb.Error
+		err                  *errors.Error
 	}
 	tests := []struct {
 		name   string
@@ -1051,8 +1054,8 @@ func UpdateNotificationEndpoint(
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Msg:  `notification endpoint not found for key "0000000000000004"`,
 				},
 			},
@@ -1225,13 +1228,13 @@ func PatchNotificationEndpoint(
 
 	type args struct {
 		//userID           influxdb.ID
-		id  influxdb.ID
+		id  platform.ID
 		upd influxdb.NotificationEndpointUpdate
 	}
 
 	type wants struct {
 		notificationEndpoint influxdb.NotificationEndpoint
-		err                  *influxdb.Error
+		err                  *errors.Error
 	}
 	tests := []struct {
 		name   string
@@ -1282,8 +1285,8 @@ func PatchNotificationEndpoint(
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Msg:  "notification endpoint not found",
 				},
 			},
@@ -1359,7 +1362,7 @@ func PatchNotificationEndpoint(
 				if tt.wants.err == nil {
 					require.NoError(t, err)
 				}
-				iErr, ok := err.(*influxdb.Error)
+				iErr, ok := err.(*errors.Error)
 				require.True(t, ok, err)
 				assert.Equal(t, tt.wants.err.Code, iErr.Code)
 				return
@@ -1377,16 +1380,16 @@ func DeleteNotificationEndpoint(
 	t *testing.T,
 ) {
 	type args struct {
-		id     influxdb.ID
-		orgID  influxdb.ID
-		userID influxdb.ID
+		id     platform.ID
+		orgID  platform.ID
+		userID platform.ID
 	}
 
 	type wants struct {
 		notificationEndpoints []influxdb.NotificationEndpoint
 		secretFlds            []influxdb.SecretField
-		orgID                 influxdb.ID
-		err                   *influxdb.Error
+		orgID                 platform.ID
+		err                   *errors.Error
 	}
 	tests := []struct {
 		name   string
@@ -1429,13 +1432,13 @@ func DeleteNotificationEndpoint(
 				},
 			},
 			args: args{
-				id:     influxdb.ID(0),
+				id:     platform.ID(0),
 				orgID:  fourID,
 				userID: sixID,
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EInvalid,
+				err: &errors.Error{
+					Code: errors.EInvalid,
 					Msg:  "no key was provided for notification endpoint",
 				},
 				notificationEndpoints: []influxdb.NotificationEndpoint{
@@ -1508,8 +1511,8 @@ func DeleteNotificationEndpoint(
 				userID: sixID,
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Msg:  "notification endpoint not found",
 				},
 				notificationEndpoints: []influxdb.NotificationEndpoint{
@@ -1655,7 +1658,7 @@ func DeleteNotificationEndpoint(
 	}
 }
 
-func influxErrsEqual(t *testing.T, expected *influxdb.Error, actual error) {
+func influxErrsEqual(t *testing.T, expected *errors.Error, actual error) {
 	t.Helper()
 
 	if expected != nil {
@@ -1670,13 +1673,13 @@ func influxErrsEqual(t *testing.T, expected *influxdb.Error, actual error) {
 		require.NoError(t, actual)
 		return
 	}
-	iErr, ok := actual.(*influxdb.Error)
+	iErr, ok := actual.(*errors.Error)
 	require.True(t, ok)
 	assert.Equal(t, expected.Code, iErr.Code)
 	assert.Truef(t, strings.HasPrefix(iErr.Error(), expected.Error()), "expected: %s got err: %s", expected.Error(), actual.Error())
 }
 
-func idPtr(id influxdb.ID) *influxdb.ID {
+func idPtr(id platform.ID) *platform.ID {
 	return &id
 }
 
@@ -1697,13 +1700,13 @@ func ErrorsEqual(t *testing.T, actual, expected error) {
 		t.Errorf("expected error %s but received nil", expected.Error())
 	}
 
-	if influxdb.ErrorCode(expected) != influxdb.ErrorCode(actual) {
+	if errors.ErrorCode(expected) != errors.ErrorCode(actual) {
 		t.Logf("\nexpected: %v\nactual: %v\n\n", expected, actual)
-		t.Errorf("expected error code %q but received %q", influxdb.ErrorCode(expected), influxdb.ErrorCode(actual))
+		t.Errorf("expected error code %q but received %q", errors.ErrorCode(expected), errors.ErrorCode(actual))
 	}
 
-	if influxdb.ErrorMessage(expected) != influxdb.ErrorMessage(actual) {
+	if errors.ErrorMessage(expected) != errors.ErrorMessage(actual) {
 		t.Logf("\nexpected: %v\nactual: %v\n\n", expected, actual)
-		t.Errorf("expected error message %q but received %q", influxdb.ErrorMessage(expected), influxdb.ErrorMessage(actual))
+		t.Errorf("expected error message %q but received %q", errors.ErrorMessage(expected), errors.ErrorMessage(actual))
 	}
 }

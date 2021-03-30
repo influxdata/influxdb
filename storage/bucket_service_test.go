@@ -2,6 +2,7 @@ package storage_test
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"testing"
 	"time"
 
@@ -119,7 +120,7 @@ func TestBucketService_DeleteNonexistentBucket(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	i, err := influxdb.IDFromString("2222222222222222")
+	i, err := platform.IDFromString("2222222222222222")
 	require.NoError(t, err)
 
 	engine := mocks.NewMockEngineSchema(ctrl)
