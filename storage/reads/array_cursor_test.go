@@ -8,7 +8,7 @@ import (
 
 	"github.com/golang/mock/gomock"
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/interval"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
@@ -101,13 +101,13 @@ func copyFloatArray(src *cursors.FloatArray) *cursors.FloatArray {
 
 type aggArrayCursorTest struct {
 	name           string
-	createCursorFn func(cur cursors.IntegerArrayCursor, every, offset int64, window execute.Window) cursors.Cursor
+	createCursorFn func(cur cursors.IntegerArrayCursor, every, offset int64, window interval.Window) cursors.Cursor
 	every          time.Duration
 	offset         time.Duration
 	inputArrays    []*cursors.IntegerArray
 	wantIntegers   []*cursors.IntegerArray
 	wantFloats     []*cursors.FloatArray
-	window         execute.Window
+	window         interval.Window
 }
 
 func (a *aggArrayCursorTest) run(t *testing.T) {
@@ -616,21 +616,20 @@ func TestWindowFirstArrayCursor(t *testing.T) {
 		},
 	}
 	for _, tc := range testcases {
-		tc.createCursorFn = func(cur cursors.IntegerArrayCursor, every, offset int64, window execute.Window) cursors.Cursor {
+		tc.createCursorFn = func(cur cursors.IntegerArrayCursor, every, offset int64, window interval.Window) cursors.Cursor {
 			if every == 0 {
-				if window.Every.IsZero() {
+				if window.IsZero() {
 					return newIntegerLimitArrayCursor(cur)
 				}
 			}
 			// if either the every or offset are set, then create a window for nsec values
 			// every and window.Every should never BOTH be zero here
 			if every != 0 || offset != 0 {
-				everyDur := values.MakeDuration(every, 0, false)
-				offsetDur := values.MakeDuration(offset, 0, false)
-				window = execute.Window{
-					Every:  everyDur,
-					Offset: offsetDur,
-				}
+				window, _ = interval.NewWindow(
+					values.MakeDuration(every, 0, false),
+					values.MakeDuration(every, 0, false),
+					values.MakeDuration(offset, 0, false),
+				)
 			}
 
 			// otherwise just use the window that was passed in
@@ -828,14 +827,13 @@ func TestWindowLastArrayCursor(t *testing.T) {
 		},
 	}
 	for _, tc := range testcases {
-		tc.createCursorFn = func(cur cursors.IntegerArrayCursor, every, offset int64, window execute.Window) cursors.Cursor {
+		tc.createCursorFn = func(cur cursors.IntegerArrayCursor, every, offset int64, window interval.Window) cursors.Cursor {
 			if every != 0 || offset != 0 {
-				everyDur := values.MakeDuration(every, 0, false)
-				offsetDur := values.MakeDuration(offset, 0, false)
-				window = execute.Window{
-					Every:  everyDur,
-					Offset: offsetDur,
-				}
+				window, _ = interval.NewWindow(
+					values.MakeDuration(every, 0, false),
+					values.MakeDuration(every, 0, false),
+					values.MakeDuration(offset, 0, false),
+				)
 			}
 			return newIntegerWindowLastArrayCursor(cur, window)
 		}
@@ -1255,9 +1253,14 @@ func TestIntegerCountArrayCursor(t *testing.T) {
 		},
 		{
 			name: "monthly spans multiple periods",
-			window: execute.Window{
-				Every: values.MakeDuration(0, 1, false),
-			},
+			window: func() interval.Window {
+				window, _ := interval.NewWindow(
+					values.MakeDuration(0, 1, false),
+					values.MakeDuration(0, 1, false),
+					values.MakeDuration(0, 0, false),
+				)
+				return window
+			}(),
 			inputArrays: []*cursors.IntegerArray{
 				makeIntegerArray(
 					60,
@@ -1276,10 +1279,14 @@ func TestIntegerCountArrayCursor(t *testing.T) {
 		},
 		{
 			name: "monthly window w/ offset",
-			window: execute.Window{
-				Every:  values.MakeDuration(0, 1, false),
-				Offset: values.MakeDuration(1209600000000000, 0, false),
-			},
+			window: func() interval.Window {
+				window, _ := interval.NewWindow(
+					values.MakeDuration(0, 1, false),
+					values.MakeDuration(0, 1, false),
+					values.MakeDuration(1209600000000000, 0, false),
+				)
+				return window
+			}(),
 			inputArrays: []*cursors.IntegerArray{
 				makeIntegerArray(
 					60,
@@ -1293,9 +1300,14 @@ func TestIntegerCountArrayCursor(t *testing.T) {
 		},
 		{
 			name: "monthly windows",
-			window: execute.Window{
-				Every: values.MakeDuration(0, 1, false),
-			},
+			window: func() interval.Window {
+				window, _ := interval.NewWindow(
+					values.MakeDuration(0, 1, false),
+					values.MakeDuration(0, 1, false),
+					values.MakeDuration(0, 0, false),
+				)
+				return window
+			}(),
 			inputArrays: []*cursors.IntegerArray{
 				makeIntegerArray(
 					60,
@@ -1309,14 +1321,13 @@ func TestIntegerCountArrayCursor(t *testing.T) {
 		},
 	}
 	for _, tc := range testcases {
-		tc.createCursorFn = func(cur cursors.IntegerArrayCursor, every, offset int64, window execute.Window) cursors.Cursor {
+		tc.createCursorFn = func(cur cursors.IntegerArrayCursor, every, offset int64, window interval.Window) cursors.Cursor {
 			if every != 0 || offset != 0 {
-				everyDur := values.MakeDuration(every, 0, false)
-				offsetDur := values.MakeDuration(offset, 0, false)
-				window = execute.Window{
-					Every:  everyDur,
-					Offset: offsetDur,
-				}
+				window, _ = interval.NewWindow(
+					values.MakeDuration(every, 0, false),
+					values.MakeDuration(every, 0, false),
+					values.MakeDuration(offset, 0, false),
+				)
 			}
 			return newIntegerWindowCountArrayCursor(cur, window)
 		}
@@ -1587,14 +1598,13 @@ func TestIntegerSumArrayCursor(t *testing.T) {
 		},
 	}
 	for _, tc := range testcases {
-		tc.createCursorFn = func(cur cursors.IntegerArrayCursor, every, offset int64, window execute.Window) cursors.Cursor {
+		tc.createCursorFn = func(cur cursors.IntegerArrayCursor, every, offset int64, window interval.Window) cursors.Cursor {
 			if every != 0 || offset != 0 {
-				everyDur := values.MakeDuration(every, 0, false)
-				offsetDur := values.MakeDuration(offset, 0, false)
-				window = execute.Window{
-					Every:  everyDur,
-					Offset: offsetDur,
-				}
+				window, _ = interval.NewWindow(
+					values.MakeDuration(every, 0, false),
+					values.MakeDuration(every, 0, false),
+					values.MakeDuration(offset, 0, false),
+				)
 			}
 			return newIntegerWindowSumArrayCursor(cur, window)
 		}
@@ -1803,9 +1813,14 @@ func TestWindowMinArrayCursor(t *testing.T) {
 		},
 		{
 			name: "monthly windows",
-			window: execute.Window{
-				Every: values.MakeDuration(0, 1, false),
-			},
+			window: func() interval.Window {
+				window, _ := interval.NewWindow(
+					values.MakeDuration(0, 1, false),
+					values.MakeDuration(0, 1, false),
+					values.MakeDuration(0, 0, false),
+				)
+				return window
+			}(),
 			inputArrays: []*cursors.IntegerArray{
 				makeIntegerArray(
 					1,
@@ -1819,14 +1834,13 @@ func TestWindowMinArrayCursor(t *testing.T) {
 		},
 	}
 	for _, tc := range testcases {
-		tc.createCursorFn = func(cur cursors.IntegerArrayCursor, every, offset int64, window execute.Window) cursors.Cursor {
+		tc.createCursorFn = func(cur cursors.IntegerArrayCursor, every, offset int64, window interval.Window) cursors.Cursor {
 			if every != 0 || offset != 0 {
-				everyDur := values.MakeDuration(every, 0, false)
-				offsetDur := values.MakeDuration(offset, 0, false)
-				window = execute.Window{
-					Every:  everyDur,
-					Offset: offsetDur,
-				}
+				window, _ = interval.NewWindow(
+					values.MakeDuration(every, 0, false),
+					values.MakeDuration(every, 0, false),
+					values.MakeDuration(offset, 0, false),
+				)
 			}
 			return newIntegerWindowMinArrayCursor(cur, window)
 		}
@@ -2035,14 +2049,13 @@ func TestWindowMaxArrayCursor(t *testing.T) {
 		},
 	}
 	for _, tc := range testcases {
-		tc.createCursorFn = func(cur cursors.IntegerArrayCursor, every, offset int64, window execute.Window) cursors.Cursor {
+		tc.createCursorFn = func(cur cursors.IntegerArrayCursor, every, offset int64, window interval.Window) cursors.Cursor {
 			if every != 0 || offset != 0 {
-				everyDur := values.MakeDuration(every, 0, false)
-				offsetDur := values.MakeDuration(offset, 0, false)
-				window = execute.Window{
-					Every:  everyDur,
-					Offset: offsetDur,
-				}
+				window, _ = interval.NewWindow(
+					values.MakeDuration(every, 0, false),
+					values.MakeDuration(every, 0, false),
+					values.MakeDuration(offset, 0, false),
+				)
 			}
 			return newIntegerWindowMaxArrayCursor(cur, window)
 		}
@@ -2142,14 +2155,13 @@ func TestWindowMeanArrayCursor(t *testing.T) {
 		},
 	}
 	for _, tc := range testcases {
-		tc.createCursorFn = func(cur cursors.IntegerArrayCursor, every, offset int64, window execute.Window) cursors.Cursor {
+		tc.createCursorFn = func(cur cursors.IntegerArrayCursor, every, offset int64, window interval.Window) cursors.Cursor {
 			if every != 0 || offset != 0 {
-				everyDur := values.MakeDuration(every, 0, false)
-				offsetDur := values.MakeDuration(offset, 0, false)
-				window = execute.Window{
-					Every:  everyDur,
-					Offset: offsetDur,
-				}
+				window, _ = interval.NewWindow(
+					values.MakeDuration(every, 0, false),
+					values.MakeDuration(every, 0, false),
+					values.MakeDuration(offset, 0, false),
+				)
 			}
 			return newIntegerWindowMeanArrayCursor(cur, window)
 		}
