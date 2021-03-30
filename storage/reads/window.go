@@ -2,7 +2,6 @@ package reads
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync/atomic"
 
@@ -12,6 +11,7 @@ import (
 	"github.com/influxdata/flux/arrow"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/values"
+	"github.com/influxdata/influxdb/kit/platform/errors"
 )
 
 // splitWindows will split a windowTable by creating a new table from each
@@ -111,9 +111,15 @@ func (w *windowTableSplitter) Do(f func(flux.Table) error) error {
 func (w *windowTableSplitter) getTimeColumnIndex(label string) (int, error) {
 	j := execute.ColIdx(label, w.in.Cols())
 	if j < 0 {
-		return -1, fmt.Errorf("missing %q column from window splitter", label)
+		return -1, &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  fmt.Sprintf("missing %q column from window splitter", label),
+		}
 	} else if c := w.in.Cols()[j]; c.Type != flux.TTime {
-		return -1, fmt.Errorf("%q column must be of type time", label)
+		return -1, &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  fmt.Sprintf("%q column must be of type time", label),
+		}
 	}
 	return j, nil
 }
@@ -134,7 +140,10 @@ func (w *windowTableRow) Cols() []flux.ColMeta {
 
 func (w *windowTableRow) Do(f func(flux.ColReader) error) error {
 	if !atomic.CompareAndSwapInt32(&w.used, 0, 1) {
-		return errors.New("table already read")
+		return &errors.Error{
+			Code: errors.EInternal,
+			Msg:  "table already read",
+		}
 	}
 	defer close(w.done)
 
