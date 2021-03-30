@@ -1,4 +1,4 @@
-namespace buffer;
+namespace influxdata.iox.write.v1;
 
 // Every modification to a database is represented as an entry. These can be forwarded
 // on to other IOx servers or can be wrapped with a logical clock value and writer id
@@ -59,18 +59,18 @@ table Row {
   values: [Value];
 }
 
-// A value for a specific column
-table Value {
-  value: ColumnValue;
-}
-
 union ColumnValue {
   TagValue,
   I64Value,
   U64Value,
   F64Value,
   BoolValue,
-  StringValue,
+  StringValue
+}
+
+// A value for a specific column
+table Value {
+  value: ColumnValue;
 }
 
 table TagValue {
@@ -130,5 +130,5 @@ table Segment {
 table SequencedEntry {
   clock_value: uint64;
   writer_id: uint32;
-  entry_data: [ubyte];
+  entry: Entry;
 }
