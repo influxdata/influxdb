@@ -1,5 +1,7 @@
 package reads
 
+//go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@types.tmpldata flux_table.gen.go.tmpl
+
 import (
 	"errors"
 	"sync/atomic"

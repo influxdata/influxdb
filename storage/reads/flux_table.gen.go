@@ -7,15 +7,21 @@
 package reads
 
 import (
+	"errors"
+	"fmt"
+	"math"
 	"sync"
 
+	"github.com/apache/arrow/go/arrow/array"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/arrow"
 	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/interval"
 	"github.com/influxdata/flux/memory"
+	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/models"
+	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
-	"github.com/pkg/errors"
 )
 
 //
@@ -45,7 +51,7 @@ func newFloatTable(
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -123,7 +129,7 @@ func newFloatGroupTable(
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -146,27 +152,175 @@ func (t *floatGroupTable) Do(f func(flux.ColReader) error) error {
 }
 
 func (t *floatGroupTable) advance() bool {
-RETRY:
-	a := t.cur.Next()
-	l := a.Len()
-	if l == 0 {
-		if t.advanceCursor() {
-			goto RETRY
+	if t.cur == nil {
+		// For group aggregates, we will try to get all the series and all table buffers within those series
+		// all at once and merge them into one row when this advance() function is first called.
+		// At the end of this process, t.advanceCursor() already returns false and t.cur becomes nil.
+		// But we still need to return true to indicate that there is data to be returned.
+		// The second time when we call this advance(), t.cur is already nil, so we directly return false.
+		return false
+	}
+	var arr *cursors.FloatArray
+	var len int
+	for {
+		arr = t.cur.Next()
+		len = arr.Len()
+		if len > 0 {
+			break
 		}
+		if !t.advanceCursor() {
+			return false
+		}
+	}
 
+	// handle the group without aggregate case
+	if t.gc.Aggregate() == nil {
+		// Retrieve the buffer for the data to avoid allocating
+		// additional slices. If the buffer is still being used
+		// because the references were retained, then we will
+		// allocate a new buffer.
+		colReader := t.allocateBuffer(len)
+		colReader.cols[timeColIdx] = arrow.NewInt(arr.Timestamps, t.alloc)
+		colReader.cols[valueColIdx] = t.toArrowBuffer(arr.Values)
+		t.appendTags(colReader)
+		t.appendBounds(colReader)
+		return true
+	}
+
+	aggregate, err := determineFloatAggregateMethod(t.gc.Aggregate().Type)
+	if err != nil {
+		t.err = err
 		return false
 	}
 
-	// Retrieve the buffer for the data to avoid allocating
-	// additional slices. If the buffer is still being used
-	// because the references were retained, then we will
-	// allocate a new buffer.
-	cr := t.allocateBuffer(l)
-	cr.cols[timeColIdx] = arrow.NewInt(a.Timestamps, t.alloc)
-	cr.cols[valueColIdx] = t.toArrowBuffer(a.Values)
-	t.appendTags(cr)
-	t.appendBounds(cr)
+	ts, v := aggregate(arr.Timestamps, arr.Values)
+	timestamps, values := []int64{ts}, []float64{v}
+	for {
+		arr = t.cur.Next()
+		if arr.Len() > 0 {
+			ts, v := aggregate(arr.Timestamps, arr.Values)
+			timestamps = append(timestamps, ts)
+			values = append(values, v)
+			continue
+		}
+
+		if !t.advanceCursor() {
+			break
+		}
+	}
+	timestamp, value := aggregate(timestamps, values)
+
+	colReader := t.allocateBuffer(1)
+	if IsSelector(t.gc.Aggregate()) {
+		colReader.cols[timeColIdx] = arrow.NewInt([]int64{timestamp}, t.alloc)
+		colReader.cols[valueColIdx] = t.toArrowBuffer([]float64{value})
+	} else {
+		colReader.cols[valueColIdxWithoutTime] = t.toArrowBuffer([]float64{value})
+	}
+	t.appendTags(colReader)
+	t.appendBounds(colReader)
 	return true
+}
+
+type floatAggregateMethod func([]int64, []float64) (int64, float64)
+
+// determineFloatAggregateMethod returns the method for aggregating
+// returned points within the same group. The incoming points are the
+// ones returned for each series and the method returned here will
+// aggregate the aggregates.
+func determineFloatAggregateMethod(agg datatypes.Aggregate_AggregateType) (floatAggregateMethod, error) {
+	switch agg {
+	case datatypes.AggregateTypeFirst:
+		return aggregateFirstGroupsFloat, nil
+	case datatypes.AggregateTypeLast:
+		return aggregateLastGroupsFloat, nil
+	case datatypes.AggregateTypeCount:
+
+		return nil, errors.New("unsupported for aggregate count: Float")
+
+	case datatypes.AggregateTypeSum:
+
+		return aggregateSumGroupsFloat, nil
+
+	case datatypes.AggregateTypeMin:
+
+		return aggregateMinGroupsFloat, nil
+
+	case datatypes.AggregateTypeMax:
+
+		return aggregateMaxGroupsFloat, nil
+
+	default:
+		return nil, fmt.Errorf("unknown/unimplemented aggregate type: %v", agg)
+	}
+}
+
+func aggregateMinGroupsFloat(timestamps []int64, values []float64) (int64, float64) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if value > values[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
+}
+
+func aggregateMaxGroupsFloat(timestamps []int64, values []float64) (int64, float64) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if value < values[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
+}
+
+// For group count and sum, the timestamp here is always math.MaxInt64.
+// their final result does not contain _time, so this timestamp value can be anything
+// and it won't matter.
+
+func aggregateSumGroupsFloat(_ []int64, values []float64) (int64, float64) {
+	var sum float64
+	for _, v := range values {
+		sum += v
+	}
+	return math.MaxInt64, sum
+}
+
+func aggregateFirstGroupsFloat(timestamps []int64, values []float64) (int64, float64) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if timestamp > timestamps[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
+}
+
+func aggregateLastGroupsFloat(timestamps []int64, values []float64) (int64, float64) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if timestamp < timestamps[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
 }
 
 func (t *floatGroupTable) advanceCursor() bool {
@@ -181,7 +335,10 @@ func (t *floatGroupTable) advanceCursor() bool {
 		if typedCur, ok := cur.(cursors.FloatArrayCursor); !ok {
 			// TODO(sgc): error or skip?
 			cur.Close()
-			t.err = errors.Errorf("expected float cursor type, got %T", cur)
+			t.err = &GroupCursorError{
+				typ:    "float",
+				cursor: cur,
+			}
 			return false
 		} else {
 			t.readTags(t.gc.Tags())
@@ -230,7 +387,7 @@ func newIntegerTable(
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -308,7 +465,7 @@ func newIntegerGroupTable(
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -331,27 +488,179 @@ func (t *integerGroupTable) Do(f func(flux.ColReader) error) error {
 }
 
 func (t *integerGroupTable) advance() bool {
-RETRY:
-	a := t.cur.Next()
-	l := a.Len()
-	if l == 0 {
-		if t.advanceCursor() {
-			goto RETRY
+	if t.cur == nil {
+		// For group aggregates, we will try to get all the series and all table buffers within those series
+		// all at once and merge them into one row when this advance() function is first called.
+		// At the end of this process, t.advanceCursor() already returns false and t.cur becomes nil.
+		// But we still need to return true to indicate that there is data to be returned.
+		// The second time when we call this advance(), t.cur is already nil, so we directly return false.
+		return false
+	}
+	var arr *cursors.IntegerArray
+	var len int
+	for {
+		arr = t.cur.Next()
+		len = arr.Len()
+		if len > 0 {
+			break
 		}
+		if !t.advanceCursor() {
+			return false
+		}
+	}
 
+	// handle the group without aggregate case
+	if t.gc.Aggregate() == nil {
+		// Retrieve the buffer for the data to avoid allocating
+		// additional slices. If the buffer is still being used
+		// because the references were retained, then we will
+		// allocate a new buffer.
+		colReader := t.allocateBuffer(len)
+		colReader.cols[timeColIdx] = arrow.NewInt(arr.Timestamps, t.alloc)
+		colReader.cols[valueColIdx] = t.toArrowBuffer(arr.Values)
+		t.appendTags(colReader)
+		t.appendBounds(colReader)
+		return true
+	}
+
+	aggregate, err := determineIntegerAggregateMethod(t.gc.Aggregate().Type)
+	if err != nil {
+		t.err = err
 		return false
 	}
 
-	// Retrieve the buffer for the data to avoid allocating
-	// additional slices. If the buffer is still being used
-	// because the references were retained, then we will
-	// allocate a new buffer.
-	cr := t.allocateBuffer(l)
-	cr.cols[timeColIdx] = arrow.NewInt(a.Timestamps, t.alloc)
-	cr.cols[valueColIdx] = t.toArrowBuffer(a.Values)
-	t.appendTags(cr)
-	t.appendBounds(cr)
+	ts, v := aggregate(arr.Timestamps, arr.Values)
+	timestamps, values := []int64{ts}, []int64{v}
+	for {
+		arr = t.cur.Next()
+		if arr.Len() > 0 {
+			ts, v := aggregate(arr.Timestamps, arr.Values)
+			timestamps = append(timestamps, ts)
+			values = append(values, v)
+			continue
+		}
+
+		if !t.advanceCursor() {
+			break
+		}
+	}
+	timestamp, value := aggregate(timestamps, values)
+
+	colReader := t.allocateBuffer(1)
+	if IsSelector(t.gc.Aggregate()) {
+		colReader.cols[timeColIdx] = arrow.NewInt([]int64{timestamp}, t.alloc)
+		colReader.cols[valueColIdx] = t.toArrowBuffer([]int64{value})
+	} else {
+		colReader.cols[valueColIdxWithoutTime] = t.toArrowBuffer([]int64{value})
+	}
+	t.appendTags(colReader)
+	t.appendBounds(colReader)
 	return true
+}
+
+type integerAggregateMethod func([]int64, []int64) (int64, int64)
+
+// determineIntegerAggregateMethod returns the method for aggregating
+// returned points within the same group. The incoming points are the
+// ones returned for each series and the method returned here will
+// aggregate the aggregates.
+func determineIntegerAggregateMethod(agg datatypes.Aggregate_AggregateType) (integerAggregateMethod, error) {
+	switch agg {
+	case datatypes.AggregateTypeFirst:
+		return aggregateFirstGroupsInteger, nil
+	case datatypes.AggregateTypeLast:
+		return aggregateLastGroupsInteger, nil
+	case datatypes.AggregateTypeCount:
+
+		return aggregateCountGroupsInteger, nil
+
+	case datatypes.AggregateTypeSum:
+
+		return aggregateSumGroupsInteger, nil
+
+	case datatypes.AggregateTypeMin:
+
+		return aggregateMinGroupsInteger, nil
+
+	case datatypes.AggregateTypeMax:
+
+		return aggregateMaxGroupsInteger, nil
+
+	default:
+		return nil, fmt.Errorf("unknown/unimplemented aggregate type: %v", agg)
+	}
+}
+
+func aggregateMinGroupsInteger(timestamps []int64, values []int64) (int64, int64) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if value > values[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
+}
+
+func aggregateMaxGroupsInteger(timestamps []int64, values []int64) (int64, int64) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if value < values[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
+}
+
+// For group count and sum, the timestamp here is always math.MaxInt64.
+// their final result does not contain _time, so this timestamp value can be anything
+// and it won't matter.
+
+func aggregateCountGroupsInteger(timestamps []int64, values []int64) (int64, int64) {
+	return aggregateSumGroupsInteger(timestamps, values)
+}
+
+func aggregateSumGroupsInteger(_ []int64, values []int64) (int64, int64) {
+	var sum int64
+	for _, v := range values {
+		sum += v
+	}
+	return math.MaxInt64, sum
+}
+
+func aggregateFirstGroupsInteger(timestamps []int64, values []int64) (int64, int64) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if timestamp > timestamps[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
+}
+
+func aggregateLastGroupsInteger(timestamps []int64, values []int64) (int64, int64) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if timestamp < timestamps[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
 }
 
 func (t *integerGroupTable) advanceCursor() bool {
@@ -366,7 +675,10 @@ func (t *integerGroupTable) advanceCursor() bool {
 		if typedCur, ok := cur.(cursors.IntegerArrayCursor); !ok {
 			// TODO(sgc): error or skip?
 			cur.Close()
-			t.err = errors.Errorf("expected integer cursor type, got %T", cur)
+			t.err = &GroupCursorError{
+				typ:    "integer",
+				cursor: cur,
+			}
 			return false
 		} else {
 			t.readTags(t.gc.Tags())
@@ -415,7 +727,7 @@ func newUnsignedTable(
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -493,7 +805,7 @@ func newUnsignedGroupTable(
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -516,27 +828,175 @@ func (t *unsignedGroupTable) Do(f func(flux.ColReader) error) error {
 }
 
 func (t *unsignedGroupTable) advance() bool {
-RETRY:
-	a := t.cur.Next()
-	l := a.Len()
-	if l == 0 {
-		if t.advanceCursor() {
-			goto RETRY
+	if t.cur == nil {
+		// For group aggregates, we will try to get all the series and all table buffers within those series
+		// all at once and merge them into one row when this advance() function is first called.
+		// At the end of this process, t.advanceCursor() already returns false and t.cur becomes nil.
+		// But we still need to return true to indicate that there is data to be returned.
+		// The second time when we call this advance(), t.cur is already nil, so we directly return false.
+		return false
+	}
+	var arr *cursors.UnsignedArray
+	var len int
+	for {
+		arr = t.cur.Next()
+		len = arr.Len()
+		if len > 0 {
+			break
 		}
+		if !t.advanceCursor() {
+			return false
+		}
+	}
 
+	// handle the group without aggregate case
+	if t.gc.Aggregate() == nil {
+		// Retrieve the buffer for the data to avoid allocating
+		// additional slices. If the buffer is still being used
+		// because the references were retained, then we will
+		// allocate a new buffer.
+		colReader := t.allocateBuffer(len)
+		colReader.cols[timeColIdx] = arrow.NewInt(arr.Timestamps, t.alloc)
+		colReader.cols[valueColIdx] = t.toArrowBuffer(arr.Values)
+		t.appendTags(colReader)
+		t.appendBounds(colReader)
+		return true
+	}
+
+	aggregate, err := determineUnsignedAggregateMethod(t.gc.Aggregate().Type)
+	if err != nil {
+		t.err = err
 		return false
 	}
 
-	// Retrieve the buffer for the data to avoid allocating
-	// additional slices. If the buffer is still being used
-	// because the references were retained, then we will
-	// allocate a new buffer.
-	cr := t.allocateBuffer(l)
-	cr.cols[timeColIdx] = arrow.NewInt(a.Timestamps, t.alloc)
-	cr.cols[valueColIdx] = t.toArrowBuffer(a.Values)
-	t.appendTags(cr)
-	t.appendBounds(cr)
+	ts, v := aggregate(arr.Timestamps, arr.Values)
+	timestamps, values := []int64{ts}, []uint64{v}
+	for {
+		arr = t.cur.Next()
+		if arr.Len() > 0 {
+			ts, v := aggregate(arr.Timestamps, arr.Values)
+			timestamps = append(timestamps, ts)
+			values = append(values, v)
+			continue
+		}
+
+		if !t.advanceCursor() {
+			break
+		}
+	}
+	timestamp, value := aggregate(timestamps, values)
+
+	colReader := t.allocateBuffer(1)
+	if IsSelector(t.gc.Aggregate()) {
+		colReader.cols[timeColIdx] = arrow.NewInt([]int64{timestamp}, t.alloc)
+		colReader.cols[valueColIdx] = t.toArrowBuffer([]uint64{value})
+	} else {
+		colReader.cols[valueColIdxWithoutTime] = t.toArrowBuffer([]uint64{value})
+	}
+	t.appendTags(colReader)
+	t.appendBounds(colReader)
 	return true
+}
+
+type unsignedAggregateMethod func([]int64, []uint64) (int64, uint64)
+
+// determineUnsignedAggregateMethod returns the method for aggregating
+// returned points within the same group. The incoming points are the
+// ones returned for each series and the method returned here will
+// aggregate the aggregates.
+func determineUnsignedAggregateMethod(agg datatypes.Aggregate_AggregateType) (unsignedAggregateMethod, error) {
+	switch agg {
+	case datatypes.AggregateTypeFirst:
+		return aggregateFirstGroupsUnsigned, nil
+	case datatypes.AggregateTypeLast:
+		return aggregateLastGroupsUnsigned, nil
+	case datatypes.AggregateTypeCount:
+
+		return nil, errors.New("unsupported for aggregate count: Unsigned")
+
+	case datatypes.AggregateTypeSum:
+
+		return aggregateSumGroupsUnsigned, nil
+
+	case datatypes.AggregateTypeMin:
+
+		return aggregateMinGroupsUnsigned, nil
+
+	case datatypes.AggregateTypeMax:
+
+		return aggregateMaxGroupsUnsigned, nil
+
+	default:
+		return nil, fmt.Errorf("unknown/unimplemented aggregate type: %v", agg)
+	}
+}
+
+func aggregateMinGroupsUnsigned(timestamps []int64, values []uint64) (int64, uint64) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if value > values[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
+}
+
+func aggregateMaxGroupsUnsigned(timestamps []int64, values []uint64) (int64, uint64) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if value < values[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
+}
+
+// For group count and sum, the timestamp here is always math.MaxInt64.
+// their final result does not contain _time, so this timestamp value can be anything
+// and it won't matter.
+
+func aggregateSumGroupsUnsigned(_ []int64, values []uint64) (int64, uint64) {
+	var sum uint64
+	for _, v := range values {
+		sum += v
+	}
+	return math.MaxInt64, sum
+}
+
+func aggregateFirstGroupsUnsigned(timestamps []int64, values []uint64) (int64, uint64) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if timestamp > timestamps[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
+}
+
+func aggregateLastGroupsUnsigned(timestamps []int64, values []uint64) (int64, uint64) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if timestamp < timestamps[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
 }
 
 func (t *unsignedGroupTable) advanceCursor() bool {
@@ -551,7 +1011,10 @@ func (t *unsignedGroupTable) advanceCursor() bool {
 		if typedCur, ok := cur.(cursors.UnsignedArrayCursor); !ok {
 			// TODO(sgc): error or skip?
 			cur.Close()
-			t.err = errors.Errorf("expected unsigned cursor type, got %T", cur)
+			t.err = &GroupCursorError{
+				typ:    "unsigned",
+				cursor: cur,
+			}
 			return false
 		} else {
 			t.readTags(t.gc.Tags())
@@ -600,7 +1063,7 @@ func newStringTable(
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -678,7 +1141,7 @@ func newStringGroupTable(
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -701,27 +1164,139 @@ func (t *stringGroupTable) Do(f func(flux.ColReader) error) error {
 }
 
 func (t *stringGroupTable) advance() bool {
-RETRY:
-	a := t.cur.Next()
-	l := a.Len()
-	if l == 0 {
-		if t.advanceCursor() {
-			goto RETRY
+	if t.cur == nil {
+		// For group aggregates, we will try to get all the series and all table buffers within those series
+		// all at once and merge them into one row when this advance() function is first called.
+		// At the end of this process, t.advanceCursor() already returns false and t.cur becomes nil.
+		// But we still need to return true to indicate that there is data to be returned.
+		// The second time when we call this advance(), t.cur is already nil, so we directly return false.
+		return false
+	}
+	var arr *cursors.StringArray
+	var len int
+	for {
+		arr = t.cur.Next()
+		len = arr.Len()
+		if len > 0 {
+			break
 		}
+		if !t.advanceCursor() {
+			return false
+		}
+	}
 
+	// handle the group without aggregate case
+	if t.gc.Aggregate() == nil {
+		// Retrieve the buffer for the data to avoid allocating
+		// additional slices. If the buffer is still being used
+		// because the references were retained, then we will
+		// allocate a new buffer.
+		colReader := t.allocateBuffer(len)
+		colReader.cols[timeColIdx] = arrow.NewInt(arr.Timestamps, t.alloc)
+		colReader.cols[valueColIdx] = t.toArrowBuffer(arr.Values)
+		t.appendTags(colReader)
+		t.appendBounds(colReader)
+		return true
+	}
+
+	aggregate, err := determineStringAggregateMethod(t.gc.Aggregate().Type)
+	if err != nil {
+		t.err = err
 		return false
 	}
 
-	// Retrieve the buffer for the data to avoid allocating
-	// additional slices. If the buffer is still being used
-	// because the references were retained, then we will
-	// allocate a new buffer.
-	cr := t.allocateBuffer(l)
-	cr.cols[timeColIdx] = arrow.NewInt(a.Timestamps, t.alloc)
-	cr.cols[valueColIdx] = t.toArrowBuffer(a.Values)
-	t.appendTags(cr)
-	t.appendBounds(cr)
+	ts, v := aggregate(arr.Timestamps, arr.Values)
+	timestamps, values := []int64{ts}, []string{v}
+	for {
+		arr = t.cur.Next()
+		if arr.Len() > 0 {
+			ts, v := aggregate(arr.Timestamps, arr.Values)
+			timestamps = append(timestamps, ts)
+			values = append(values, v)
+			continue
+		}
+
+		if !t.advanceCursor() {
+			break
+		}
+	}
+	timestamp, value := aggregate(timestamps, values)
+
+	colReader := t.allocateBuffer(1)
+	if IsSelector(t.gc.Aggregate()) {
+		colReader.cols[timeColIdx] = arrow.NewInt([]int64{timestamp}, t.alloc)
+		colReader.cols[valueColIdx] = t.toArrowBuffer([]string{value})
+	} else {
+		colReader.cols[valueColIdxWithoutTime] = t.toArrowBuffer([]string{value})
+	}
+	t.appendTags(colReader)
+	t.appendBounds(colReader)
 	return true
+}
+
+type stringAggregateMethod func([]int64, []string) (int64, string)
+
+// determineStringAggregateMethod returns the method for aggregating
+// returned points within the same group. The incoming points are the
+// ones returned for each series and the method returned here will
+// aggregate the aggregates.
+func determineStringAggregateMethod(agg datatypes.Aggregate_AggregateType) (stringAggregateMethod, error) {
+	switch agg {
+	case datatypes.AggregateTypeFirst:
+		return aggregateFirstGroupsString, nil
+	case datatypes.AggregateTypeLast:
+		return aggregateLastGroupsString, nil
+	case datatypes.AggregateTypeCount:
+
+		return nil, errors.New("unsupported for aggregate count: String")
+
+	case datatypes.AggregateTypeSum:
+
+		return nil, errors.New("unsupported for aggregate sum: String")
+
+	case datatypes.AggregateTypeMin:
+
+		return nil, errors.New("unsupported for aggregate min: String")
+
+	case datatypes.AggregateTypeMax:
+
+		return nil, errors.New("unsupported for aggregate max: String")
+
+	default:
+		return nil, fmt.Errorf("unknown/unimplemented aggregate type: %v", agg)
+	}
+}
+
+// For group count and sum, the timestamp here is always math.MaxInt64.
+// their final result does not contain _time, so this timestamp value can be anything
+// and it won't matter.
+
+func aggregateFirstGroupsString(timestamps []int64, values []string) (int64, string) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if timestamp > timestamps[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
+}
+
+func aggregateLastGroupsString(timestamps []int64, values []string) (int64, string) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if timestamp < timestamps[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
 }
 
 func (t *stringGroupTable) advanceCursor() bool {
@@ -736,7 +1311,10 @@ func (t *stringGroupTable) advanceCursor() bool {
 		if typedCur, ok := cur.(cursors.StringArrayCursor); !ok {
 			// TODO(sgc): error or skip?
 			cur.Close()
-			t.err = errors.Errorf("expected string cursor type, got %T", cur)
+			t.err = &GroupCursorError{
+				typ:    "string",
+				cursor: cur,
+			}
 			return false
 		} else {
 			t.readTags(t.gc.Tags())
@@ -785,7 +1363,7 @@ func newBooleanTable(
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -863,7 +1441,7 @@ func newBooleanGroupTable(
 		cur:   cur,
 	}
 	t.readTags(tags)
-	t.advance()
+	t.init(t.advance)
 
 	return t
 }
@@ -886,27 +1464,139 @@ func (t *booleanGroupTable) Do(f func(flux.ColReader) error) error {
 }
 
 func (t *booleanGroupTable) advance() bool {
-RETRY:
-	a := t.cur.Next()
-	l := a.Len()
-	if l == 0 {
-		if t.advanceCursor() {
-			goto RETRY
+	if t.cur == nil {
+		// For group aggregates, we will try to get all the series and all table buffers within those series
+		// all at once and merge them into one row when this advance() function is first called.
+		// At the end of this process, t.advanceCursor() already returns false and t.cur becomes nil.
+		// But we still need to return true to indicate that there is data to be returned.
+		// The second time when we call this advance(), t.cur is already nil, so we directly return false.
+		return false
+	}
+	var arr *cursors.BooleanArray
+	var len int
+	for {
+		arr = t.cur.Next()
+		len = arr.Len()
+		if len > 0 {
+			break
 		}
+		if !t.advanceCursor() {
+			return false
+		}
+	}
 
+	// handle the group without aggregate case
+	if t.gc.Aggregate() == nil {
+		// Retrieve the buffer for the data to avoid allocating
+		// additional slices. If the buffer is still being used
+		// because the references were retained, then we will
+		// allocate a new buffer.
+		colReader := t.allocateBuffer(len)
+		colReader.cols[timeColIdx] = arrow.NewInt(arr.Timestamps, t.alloc)
+		colReader.cols[valueColIdx] = t.toArrowBuffer(arr.Values)
+		t.appendTags(colReader)
+		t.appendBounds(colReader)
+		return true
+	}
+
+	aggregate, err := determineBooleanAggregateMethod(t.gc.Aggregate().Type)
+	if err != nil {
+		t.err = err
 		return false
 	}
 
-	// Retrieve the buffer for the data to avoid allocating
-	// additional slices. If the buffer is still being used
-	// because the references were retained, then we will
-	// allocate a new buffer.
-	cr := t.allocateBuffer(l)
-	cr.cols[timeColIdx] = arrow.NewInt(a.Timestamps, t.alloc)
-	cr.cols[valueColIdx] = t.toArrowBuffer(a.Values)
-	t.appendTags(cr)
-	t.appendBounds(cr)
+	ts, v := aggregate(arr.Timestamps, arr.Values)
+	timestamps, values := []int64{ts}, []bool{v}
+	for {
+		arr = t.cur.Next()
+		if arr.Len() > 0 {
+			ts, v := aggregate(arr.Timestamps, arr.Values)
+			timestamps = append(timestamps, ts)
+			values = append(values, v)
+			continue
+		}
+
+		if !t.advanceCursor() {
+			break
+		}
+	}
+	timestamp, value := aggregate(timestamps, values)
+
+	colReader := t.allocateBuffer(1)
+	if IsSelector(t.gc.Aggregate()) {
+		colReader.cols[timeColIdx] = arrow.NewInt([]int64{timestamp}, t.alloc)
+		colReader.cols[valueColIdx] = t.toArrowBuffer([]bool{value})
+	} else {
+		colReader.cols[valueColIdxWithoutTime] = t.toArrowBuffer([]bool{value})
+	}
+	t.appendTags(colReader)
+	t.appendBounds(colReader)
 	return true
+}
+
+type booleanAggregateMethod func([]int64, []bool) (int64, bool)
+
+// determineBooleanAggregateMethod returns the method for aggregating
+// returned points within the same group. The incoming points are the
+// ones returned for each series and the method returned here will
+// aggregate the aggregates.
+func determineBooleanAggregateMethod(agg datatypes.Aggregate_AggregateType) (booleanAggregateMethod, error) {
+	switch agg {
+	case datatypes.AggregateTypeFirst:
+		return aggregateFirstGroupsBoolean, nil
+	case datatypes.AggregateTypeLast:
+		return aggregateLastGroupsBoolean, nil
+	case datatypes.AggregateTypeCount:
+
+		return nil, errors.New("unsupported for aggregate count: Boolean")
+
+	case datatypes.AggregateTypeSum:
+
+		return nil, errors.New("unsupported for aggregate sum: Boolean")
+
+	case datatypes.AggregateTypeMin:
+
+		return nil, errors.New("unsupported for aggregate min: Boolean")
+
+	case datatypes.AggregateTypeMax:
+
+		return nil, errors.New("unsupported for aggregate max: Boolean")
+
+	default:
+		return nil, fmt.Errorf("unknown/unimplemented aggregate type: %v", agg)
+	}
+}
+
+// For group count and sum, the timestamp here is always math.MaxInt64.
+// their final result does not contain _time, so this timestamp value can be anything
+// and it won't matter.
+
+func aggregateFirstGroupsBoolean(timestamps []int64, values []bool) (int64, bool) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if timestamp > timestamps[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
+}
+
+func aggregateLastGroupsBoolean(timestamps []int64, values []bool) (int64, bool) {
+	value := values[0]
+	timestamp := timestamps[0]
+
+	for i := 1; i < len(values); i++ {
+		if timestamp < timestamps[i] {
+			value = values[i]
+			timestamp = timestamps[i]
+		}
+	}
+
+	return timestamp, value
 }
 
 func (t *booleanGroupTable) advanceCursor() bool {
@@ -921,7 +1611,10 @@ func (t *booleanGroupTable) advanceCursor() bool {
 		if typedCur, ok := cur.(cursors.BooleanArrayCursor); !ok {
 			// TODO(sgc): error or skip?
 			cur.Close()
-			t.err = errors.Errorf("expected boolean cursor type, got %T", cur)
+			t.err = &GroupCursorError{
+				typ:    "boolean",
+				cursor: cur,
+			}
 			return false
 		} else {
 			t.readTags(t.gc.Tags())
