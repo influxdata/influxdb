@@ -76,6 +76,7 @@ pub async fn command(url: String, config: Config) -> Result<()> {
                 .list_operations()
                 .await?
                 .into_iter()
+                .map(|c| c.operation())
                 .map(TryInto::try_into)
                 .collect();
             let operations = result?;
