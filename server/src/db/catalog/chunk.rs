@@ -9,8 +9,10 @@ use super::{InternalChunkState, Result};
 /// The state a Chunk is in and what its underlying backing storage is
 #[derive(Debug)]
 pub enum ChunkState {
-    /// Chunk has no backing state, and it ca
-    None,
+    /// An invalid chunk state that should not be externally observed
+    ///
+    /// Used internally to allow moving data between enum variants
+    Invalid,
 
     /// Chunk can accept new writes
     Open(MBChunk),
@@ -32,7 +34,7 @@ pub enum ChunkState {
 impl ChunkState {
     pub fn name(&self) -> &'static str {
         match self {
-            Self::None => "None",
+            Self::Invalid => "Invalid",
             Self::Open(_) => "Open",
             Self::Closing(_) => "Closing",
             Self::Closed(_) => "Closed",
@@ -55,8 +57,6 @@ pub struct Chunk {
 
     /// The state of this chunk
     state: ChunkState,
-    /* TODO: Additional fields
-     * such as object_store_path, etc */
 }
 
 macro_rules! unexpected_state {
@@ -74,13 +74,9 @@ macro_rules! unexpected_state {
 
 impl Chunk {
     /// Create a new chunk in the Open state
-    pub(crate) fn new(partition_key: impl Into<String>, id: u32) -> Self {
-        let partition_key = Arc::new(partition_key.into());
-
-        let state = ChunkState::None;
-
+    pub(crate) fn new(partition_key: impl Into<String>, id: u32, state: ChunkState) -> Self {
         Self {
-            partition_key,
+            partition_key: Arc::new(partition_key.into()),
             id,
             state,
         }
@@ -101,7 +97,7 @@ impl Chunk {
     /// Returns true if this chunk contains a table with the provided name
     pub fn has_table(&self, table_name: &str) -> bool {
         match &self.state {
-            ChunkState::None => false,
+            ChunkState::Invalid => false,
             ChunkState::Open(chunk) | ChunkState::Closing(chunk) => chunk.has_table(table_name),
             ChunkState::Moving(chunk) | ChunkState::Closed(chunk) => chunk.has_table(table_name),
             ChunkState::Moved(db) => {
@@ -113,7 +109,7 @@ impl Chunk {
     /// Collects the chunk's table names into `names`
     pub fn table_names(&self, names: &mut BTreeSet<String>) {
         match &self.state {
-            ChunkState::None => {}
+            ChunkState::Invalid => {}
             ChunkState::Open(chunk) | ChunkState::Closing(chunk) => chunk.all_table_names(names),
             ChunkState::Moving(chunk) | ChunkState::Closed(chunk) => chunk.all_table_names(names),
             ChunkState::Moved(db) => {
@@ -134,19 +130,9 @@ impl Chunk {
         }
     }
 
-    /// Set the chunk to Open, suitable for writing new data
-    pub fn set_open(&mut self, chunk: MBChunk) -> Result<()> {
-        if matches!(self.state, ChunkState::None) {
-            self.state = ChunkState::Open(chunk);
-            Ok(())
-        } else {
-            unexpected_state!(self, "setting open", "None", &self.state)
-        }
-    }
-
     /// Set the chunk to the Closing state
     pub fn set_closing(&mut self) -> Result<()> {
-        let mut s = ChunkState::None;
+        let mut s = ChunkState::Invalid;
         std::mem::swap(&mut s, &mut self.state);
 
         match s {
@@ -165,7 +151,7 @@ impl Chunk {
     /// Set the chunk to the Moving state, returning a handle to the underlying
     /// storage
     pub fn set_moving(&mut self) -> Result<Arc<MBChunk>> {
-        let mut s = ChunkState::None;
+        let mut s = ChunkState::Invalid;
         std::mem::swap(&mut s, &mut self.state);
 
         match s {
@@ -194,7 +180,7 @@ impl Chunk {
     /// storage handle to db, and discarding the underlying mutable buffer
     /// storage.
     pub fn set_moved(&mut self, db: Arc<ReadBufferDb>) -> Result<()> {
-        let mut s = ChunkState::None;
+        let mut s = ChunkState::Invalid;
         std::mem::swap(&mut s, &mut self.state);
 
         match s {

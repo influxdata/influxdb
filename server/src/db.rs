@@ -20,7 +20,6 @@ use data_types::{
     database_rules::{DatabaseRules, Order, Sort, SortOrder},
 };
 use internal_types::{data::ReplicatedWrite, selection::Selection};
-use mutable_buffer::chunk::Chunk;
 use query::{Database, DEFAULT_SCHEMA};
 use read_buffer::Database as ReadBufferDb;
 
@@ -59,15 +58,6 @@ pub enum Error {
     ))]
     InternalNoOpenChunk { partition_key: String },
 
-    #[snafu(display("Internal error: unexpected state rolling over partition chunk {} {}: expected {:?}, but was {:?}",
-                    partition_key, chunk_id, expected_state, actual_state))]
-    InternalRollingOverUnexpectedState {
-        partition_key: String,
-        chunk_id: u32,
-        expected_state: String,
-        actual_state: String,
-    },
-
     #[snafu(display(
         "Can not drop chunk {} {} which is {:?}. Wait for the movement to complete",
         partition_key,
@@ -98,33 +88,12 @@ pub enum Error {
     #[snafu(display("Cannot write to this database: no mutable buffer configured"))]
     DatabaseNotWriteable {},
 
-    #[snafu(display("Internal error: cannot create partition in catalog: {}", source))]
-    CreatingPartition {
-        partition_key: String,
-        source: catalog::Error,
-    },
-
-    #[snafu(display("Internal error: cannot create chunk in catalog: {}", source))]
-    CreatingChunk {
-        partition_key: String,
-        source: catalog::Error,
-    },
-
-    #[snafu(display("Cannot read to this database: no mutable buffer configured"))]
-    DatabaseNotReadable {},
-
-    #[snafu(display(
-        "Only closed chunks can be moved to read buffer. Chunk {} {} was open",
-        partition_key,
-        chunk_id
-    ))]
-    ChunkNotClosed {
+    #[snafu(display("Can not write entry {} {}: {}", partition_key, chunk_id, source))]
+    WriteEntry {
         partition_key: String,
         chunk_id: u32,
+        source: mutable_buffer::chunk::Error,
     },
-
-    #[snafu(display("Error dropping data from read buffer: {}", source))]
-    ReadBufferDrop { source: read_buffer::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -233,10 +202,6 @@ impl Db {
     /// Rolls over the active chunk in the database's specified
     /// partition. Returns the previously open (now closed) Chunk
     pub async fn rollover_partition(&self, partition_key: &str) -> Result<Arc<DBChunk>> {
-        // After this point, the catalog transaction has to succeed or
-        // we need to crash / force a recovery as the in-memory state
-        // may be inconsistent with the catalog state
-
         let partition = self
             .catalog
             .valid_partition(partition_key)
@@ -253,15 +218,7 @@ impl Db {
             .context(RollingOverPartition { partition_key })?;
 
         // make a new chunk to track the newly created chunk in this partition
-        let new_chunk = partition
-            .create_chunk()
-            .context(RollingOverPartition { partition_key })?;
-
-        let mut new_chunk = new_chunk.write();
-        let chunk_id = new_chunk.id();
-        new_chunk
-            .set_open(Chunk::new(chunk_id))
-            .context(RollingOverPartition { partition_key })?;
+        partition.create_open_chunk();
 
         return Ok(DBChunk::snapshot(&chunk));
     }
@@ -525,53 +482,40 @@ impl Database for Db {
             return DatabaseNotWriteable {}.fail();
         }
 
-        let batch = if let Some(batch) = write.write_buffer_batch() {
-            batch
-        } else {
-            return Ok(());
+        let entries = match write.write_buffer_batch().and_then(|batch| batch.entries()) {
+            Some(entries) => entries,
+            None => return Ok(()),
         };
 
-        let entries = if let Some(entries) = batch.entries() {
-            entries
-        } else {
-            return Ok(());
-        };
+        // TODO: Direct writes to closing chunks
 
         for entry in entries.into_iter() {
             if let Some(partition_key) = entry.partition_key() {
-                let chunk = match self.catalog.partition(partition_key) {
-                    // no partition key
-                    None => {
-                        // Create a new partition with an empty chunk
-                        let partition = self
-                            .catalog
-                            .create_partition(partition_key)
-                            .context(CreatingPartition { partition_key })?;
+                let partition = self.catalog.get_or_create_partition(partition_key);
+                let mut partition = partition.write();
+                partition.update_last_write_at();
 
-                        let mut partition = partition.write();
-                        let chunk = partition
-                            .create_chunk()
-                            .context(CreatingChunk { partition_key })?;
-                        {
-                            let mut chunk = chunk.write();
-                            let chunk_id = chunk.id();
-                            chunk
-                                .set_open(Chunk::new(chunk_id))
-                                .context(CreatingChunk { partition_key })?;
-                        }
-                        partition.update_last_write_at();
-                        chunk
-                    }
-                    Some(partition) => {
-                        let mut partition = partition.write();
-                        partition.update_last_write_at();
-                        partition
-                            .open_chunk()
-                            .context(InternalNoOpenChunk { partition_key })?
-                    }
-                };
+                let chunk = partition
+                    .open_chunk()
+                    .unwrap_or_else(|| partition.create_open_chunk());
+
                 let mut chunk = chunk.write();
-                chunk.mutable_buffer().unwrap().write_entry(&entry).unwrap()
+                let chunk_id = chunk.id();
+
+                let mb_chunk = chunk.mutable_buffer().expect("cannot mutate open chunk");
+
+                mb_chunk.write_entry(&entry).context(WriteEntry {
+                    partition_key,
+                    chunk_id,
+                })?;
+
+                let size = mb_chunk.size();
+
+                if let Some(threshold) = self.rules.lifecycle_rules.mutable_size_threshold {
+                    if size > threshold.get() {
+                        chunk.set_closing().expect("cannot close open chunk")
+                    }
+                }
             }
         }
         Ok(())
@@ -628,6 +572,7 @@ mod tests {
     use crate::query_tests::utils::make_db;
 
     use super::*;
+    use std::num::NonZeroUsize;
 
     #[tokio::test]
     async fn write_no_mutable_buffer() {
@@ -859,6 +804,27 @@ mod tests {
         assert!(chunk.time_of_first_write.unwrap() == chunk.time_of_last_write.unwrap());
         assert!(after_data_load < chunk.time_closing.unwrap());
         assert!(chunk.time_closing.unwrap() < after_rollover);
+    }
+
+    #[tokio::test]
+    async fn test_chunk_closing() {
+        let mut db = make_db();
+        db.rules.lifecycle_rules.mutable_size_threshold = Some(NonZeroUsize::new(2).unwrap());
+
+        let mut writer = TestLPWriter::default();
+        writer.write_lp_string(&db, "cpu bar=1 10").unwrap();
+        writer.write_lp_string(&db, "cpu bar=1 20").unwrap();
+
+        let partitions = db.catalog.partition_keys();
+        assert_eq!(partitions.len(), 1);
+
+        let partition = db.catalog.partition(&partitions[0]).unwrap();
+        let partition = partition.read();
+
+        let chunks: Vec<_> = partition.chunks().collect();
+        assert_eq!(chunks.len(), 2);
+        assert!(matches!(chunks[0].read().state(), ChunkState::Closing(_)));
+        assert!(matches!(chunks[1].read().state(), ChunkState::Closing(_)));
     }
 
     #[tokio::test]

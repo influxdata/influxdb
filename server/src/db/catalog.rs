@@ -32,15 +32,6 @@ pub enum Error {
         chunk_id: u32,
     },
 
-    #[snafu(display("partition already exists: {}", partition_key))]
-    PartitionAlreadyExists { partition_key: String },
-
-    #[snafu(display("chunk already exists: {}:{}", partition_key, chunk_id))]
-    ChunkAlreadyExists {
-        partition_key: String,
-        chunk_id: u32,
-    },
-
     #[snafu(display(
         "Internal unexpected chunk state for {}:{}  during {}. Expected {}, got {}",
         partition_key,
@@ -98,12 +89,12 @@ impl Catalog {
         self.partitions.read().keys().cloned().collect()
     }
 
-    /// Create a new partition in the catalog and return a reference to
-    /// it. Returns an error if the partition already exists
-    pub fn create_partition(
+    /// Gets or creates a new partition in the catalog and returns
+    /// a reference to it
+    pub fn get_or_create_partition(
         &self,
         partition_key: impl Into<String>,
-    ) -> Result<Arc<RwLock<Partition>>> {
+    ) -> Arc<RwLock<Partition>> {
         let partition_key = partition_key.into();
 
         let mut partitions = self.partitions.write();
@@ -113,12 +104,9 @@ impl Catalog {
                 let partition = Partition::new(entry.key());
                 let partition = Arc::new(RwLock::new(partition));
                 entry.insert(Arc::clone(&partition));
-                Ok(partition)
+                partition
             }
-            Entry::Occupied(entry) => PartitionAlreadyExists {
-                partition_key: entry.key(),
-            }
-            .fail(),
+            Entry::Occupied(entry) => Arc::clone(entry.get()),
         }
     }
 
@@ -191,19 +179,10 @@ mod tests {
     use super::*;
 
     #[test]
-    fn partition_create() {
-        let catalog = Catalog::new();
-        catalog.create_partition("p1").unwrap();
-
-        let err = catalog.create_partition("p1").unwrap_err();
-        assert_eq!(err.to_string(), "partition already exists: p1");
-    }
-
-    #[test]
     fn partition_get() {
         let catalog = Catalog::new();
-        catalog.create_partition("p1").unwrap();
-        catalog.create_partition("p2").unwrap();
+        catalog.get_or_create_partition("p1");
+        catalog.get_or_create_partition("p2");
 
         let p1 = catalog.partition("p1").unwrap();
         assert_eq!(p1.read().key(), "p1");
@@ -221,9 +200,9 @@ mod tests {
 
         assert_eq!(catalog.partitions().count(), 0);
 
-        catalog.create_partition("p1").unwrap();
-        catalog.create_partition("p2").unwrap();
-        catalog.create_partition("p3").unwrap();
+        catalog.get_or_create_partition("p1");
+        catalog.get_or_create_partition("p2");
+        catalog.get_or_create_partition("p3");
 
         let mut partition_keys: Vec<String> = catalog
             .partitions()
@@ -237,11 +216,11 @@ mod tests {
     #[test]
     fn chunk_create() {
         let catalog = Catalog::new();
-        let p1 = catalog.create_partition("p1").unwrap();
+        let p1 = catalog.get_or_create_partition("p1");
 
         let mut p1 = p1.write();
-        p1.create_chunk().unwrap();
-        p1.create_chunk().unwrap();
+        p1.create_open_chunk();
+        p1.create_open_chunk();
 
         let c1_0 = p1.chunk(0).unwrap();
         assert_eq!(c1_0.read().key(), "p1");
@@ -259,18 +238,18 @@ mod tests {
     fn chunk_list() {
         let catalog = Catalog::new();
 
-        let p1 = catalog.create_partition("p1").unwrap();
+        let p1 = catalog.get_or_create_partition("p1");
         {
             let mut p1 = p1.write();
 
-            p1.create_chunk().unwrap();
-            p1.create_chunk().unwrap();
+            p1.create_open_chunk();
+            p1.create_open_chunk();
         }
 
-        let p2 = catalog.create_partition("p2").unwrap();
+        let p2 = catalog.get_or_create_partition("p2");
         {
             let mut p2 = p2.write();
-            p2.create_chunk().unwrap();
+            p2.create_open_chunk();
         }
 
         assert_eq!(
@@ -324,17 +303,17 @@ mod tests {
     fn chunk_drop() {
         let catalog = Catalog::new();
 
-        let p1 = catalog.create_partition("p1").unwrap();
+        let p1 = catalog.get_or_create_partition("p1");
         {
             let mut p1 = p1.write();
-            p1.create_chunk().unwrap();
-            p1.create_chunk().unwrap();
+            p1.create_open_chunk();
+            p1.create_open_chunk();
         }
 
-        let p2 = catalog.create_partition("p2").unwrap();
+        let p2 = catalog.get_or_create_partition("p2");
         {
             let mut p2 = p2.write();
-            p2.create_chunk().unwrap();
+            p2.create_open_chunk();
         }
 
         assert_eq!(chunk_strings(&catalog).len(), 3);
@@ -357,7 +336,7 @@ mod tests {
     #[test]
     fn chunk_drop_non_existent_chunk() {
         let catalog = Catalog::new();
-        let p3 = catalog.create_partition("p3").unwrap();
+        let p3 = catalog.get_or_create_partition("p3");
         let mut p3 = p3.write();
 
         let err = p3.drop_chunk(0).unwrap_err();
@@ -368,12 +347,12 @@ mod tests {
     fn chunk_recreate_dropped() {
         let catalog = Catalog::new();
 
-        let p1 = catalog.create_partition("p1").unwrap();
+        let p1 = catalog.get_or_create_partition("p1");
 
         {
             let mut p1 = p1.write();
-            p1.create_chunk().unwrap();
-            p1.create_chunk().unwrap();
+            p1.create_open_chunk();
+            p1.create_open_chunk();
         }
         assert_eq!(chunk_strings(&catalog).len(), 2);
 
@@ -386,7 +365,7 @@ mod tests {
         // should be ok to recreate (thought maybe not a great idea)
         {
             let mut p1 = p1.write();
-            p1.create_chunk().unwrap();
+            p1.create_open_chunk();
         }
         assert_eq!(chunk_strings(&catalog).len(), 2);
     }
