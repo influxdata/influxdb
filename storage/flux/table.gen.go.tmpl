@@ -9,7 +9,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/arrow"
 	"github.com/influxdata/flux/execute"
-    "github.com/influxdata/flux/interval"
+	"github.com/influxdata/flux/interval"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2"
@@ -136,7 +136,7 @@ func new{{.Name}}WindowTable(
 	}
 	if t.createEmpty {
 		start := int64(bounds.Start)
-        t.windowBounds = window.GetLatestBounds(values.Time(start))
+		t.windowBounds = window.GetLatestBounds(values.Time(start))
 	}
 	t.readTags(tags)
 	t.init(t.advance)
@@ -443,7 +443,7 @@ func new{{.Name}}EmptyWindowSelectorTable(
 		arr: cur.Next(),
 		rangeStart:  rangeStart,
 		rangeStop:   rangeStop,
-        windowBounds: window.GetLatestBounds(values.Time(rangeStart)),
+		windowBounds: window.GetLatestBounds(values.Time(rangeStart)),
 		window: window,
 		timeColumn:  timeColumn,
 	}
@@ -521,7 +521,7 @@ func (t *{{.name}}EmptyWindowSelectorTable) startTimes(builder *array.{{.ArrowTy
 			builder.AppendNull()
 		}
 
-        t.windowBounds = t.window.NextBounds(t.windowBounds)
+		t.windowBounds = t.window.NextBounds(t.windowBounds)
 
 		// If the current array is non-empty and has
 		// been read in its entirety, call Next().
@@ -568,7 +568,7 @@ func (t *{{.name}}EmptyWindowSelectorTable) stopTimes(builder *array.{{.ArrowTyp
 			builder.AppendNull()
 		}
 
-        t.windowBounds = t.window.NextBounds(t.windowBounds)
+		t.windowBounds = t.window.NextBounds(t.windowBounds)
 
 		// If the current array is non-empty and has
 		// been read in its entirety, call Next().
@@ -632,7 +632,7 @@ func (t *{{.name}}EmptyWindowSelectorTable) startStopTimes(builder *array.{{.Arr
 			builder.AppendNull()
 		}
 
-        t.windowBounds = t.window.NextBounds(t.windowBounds)
+		t.windowBounds = t.window.NextBounds(t.windowBounds)
 
 		// If the current array is non-empty and has
 		// been read in its entirety, call Next().

@@ -1514,9 +1514,11 @@ func (si *ShardInfo) unmarshal(pb *internal.ShardInfo) {
 	si.ID = pb.GetID()
 
 	// If deprecated "OwnerIDs" exists then convert it to "Owners" format.
-	if len(pb.GetOwnerIDs()) > 0 {
-		si.Owners = make([]ShardOwner, len(pb.GetOwnerIDs()))
-		for i, x := range pb.GetOwnerIDs() {
+	//lint:ignore SA1019 we need to check for the presence of the deprecated field so we can convert it
+	oldStyleOwnerIds := pb.GetOwnerIDs()
+	if len(oldStyleOwnerIds) > 0 {
+		si.Owners = make([]ShardOwner, len(oldStyleOwnerIds))
+		for i, x := range oldStyleOwnerIds {
 			si.Owners[i].unmarshal(&internal.ShardOwner{
 				NodeID: proto.Uint64(x),
 			})
