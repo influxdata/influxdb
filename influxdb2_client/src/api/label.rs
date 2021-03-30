@@ -1,3 +1,5 @@
+//! Labels
+
 use crate::models::{LabelCreateRequest, LabelResponse, LabelUpdate, LabelsResponse};
 use crate::{Client, Http, RequestError, ReqwestProcessing, Serializing};
 use reqwest::{Method, StatusCode};
@@ -172,8 +174,8 @@ mod tests {
             .match_header("Authorization", format!("Token {}", token).as_str())
             .match_body(
                 format!(
-                    r#"{{"org_id":"{}","name":"{}","properties":"{:?}"}}"#,
-                    org_id, name, properties
+                    r#"{{"orgID":"{}","name":"{}","properties":{{"some-key":"some-value"}}}}"#,
+                    org_id, name
                 )
                 .as_str(),
             )
@@ -195,7 +197,7 @@ mod tests {
 
         let mock_server = mock("POST", "/api/v2/labels")
             .match_header("Authorization", format!("Token {}", token).as_str())
-            .match_body(format!(r#"{{"org_id":"{}","name":"{}"}}"#, org_id, name).as_str())
+            .match_body(format!(r#"{{"orgID":"{}","name":"{}"}}"#, org_id, name).as_str())
             .create();
 
         let client = Client::new(&mockito::server_url(), token);
@@ -217,7 +219,11 @@ mod tests {
         let mock_server = mock("PATCH", format!("/api/v2/labels/{}", label_id).as_str())
             .match_header("Authorization", format!("Token {}", token).as_str())
             .match_body(
-                format!(r#"{{"name":"{}","properties":"{:?}"}}"#, name, properties).as_str(),
+                format!(
+                    r#"{{"name":"{}","properties":{{"some-key":"some-value"}}}}"#,
+                    name
+                )
+                .as_str(),
             )
             .create();
 
