@@ -380,6 +380,28 @@ impl Db {
         Ok(DBChunk::snapshot(&chunk))
     }
 
+    pub fn load_chunk_to_parquet(&self,
+        partition_key: &str,
+        chunk_id: u32,
+    ) -> Result<Arc<DBChunk>> {
+        let chunk = {
+            let partition = self
+                .catalog
+                .valid_partition(partition_key)
+                .context(LoadingChunk {
+                    partition_key,
+                    chunk_id,
+                })?;
+            let partition = partition.read();
+
+            partition.chunk(chunk_id).context(LoadingChunk {
+                partition_key,
+                chunk_id,
+            })?
+        };
+        Ok(&chunk)
+    }
+
     /// Returns the next write sequence number
     pub fn next_sequence(&self) -> u64 {
         self.sequence.fetch_add(1, Ordering::SeqCst)

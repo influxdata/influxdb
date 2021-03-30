@@ -7,7 +7,7 @@ use read_buffer::Database as ReadBufferDb;
 use snafu::{ResultExt, Snafu};
 use tracing::debug;
 
-use std::sync::Arc;
+use std::{path::Path, sync::Arc};
 
 use super::{
     pred::{to_mutable_buffer_predicate, to_read_buffer_predicate},
@@ -68,7 +68,11 @@ pub enum DBChunk {
         partition_key: Arc<String>,
         chunk_id: u32,
     },
-    ParquetFile, // TODO add appropriate type here
+    ParquetFile {
+        path: String, // name of the parquet file
+        partition_key: Arc<String>,
+        chunk_id: u32, // ID of the chunk stored in this parquet file
+    }
 }
 
 impl DBChunk {
