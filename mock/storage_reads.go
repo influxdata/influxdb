@@ -175,6 +175,7 @@ type GroupCursor struct {
 	CloseFunc            func()
 	ErrFunc              func() error
 	StatsFunc            func() cursors.CursorStats
+	AggregateFunc func() *datatypes.Aggregate
 }
 
 func NewGroupCursor() *GroupCursor {
@@ -187,6 +188,7 @@ func NewGroupCursor() *GroupCursor {
 		CloseFunc:            func() {},
 		ErrFunc:              func() error { return nil },
 		StatsFunc:            func() cursors.CursorStats { return cursors.CursorStats{} },
+		AggregateFunc: func() *datatypes.Aggregate { return nil },
 	}
 }
 
@@ -222,11 +224,16 @@ func (c *GroupCursor) Stats() cursors.CursorStats {
 	return c.StatsFunc()
 }
 
+func (c *GroupCursor) Aggregate() *datatypes.Aggregate {
+	return c.AggregateFunc()
+}
+
 type StoreReader struct {
-	ReadFilterFunc func(ctx context.Context, req *datatypes.ReadFilterRequest) (reads.ResultSet, error)
-	ReadGroupFunc  func(ctx context.Context, req *datatypes.ReadGroupRequest) (reads.GroupResultSet, error)
-	TagKeysFunc    func(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error)
-	TagValuesFunc  func(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error)
+	ReadFilterFunc      func(ctx context.Context, req *datatypes.ReadFilterRequest) (reads.ResultSet, error)
+	ReadGroupFunc       func(ctx context.Context, req *datatypes.ReadGroupRequest) (reads.GroupResultSet, error)
+	WindowAggregateFunc func(ctx context.Context, req *datatypes.ReadWindowAggregateRequest) (reads.ResultSet, error)
+	TagKeysFunc         func(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error)
+	TagValuesFunc       func(ctx context.Context, req *datatypes.TagValuesRequest) (cursors.StringIterator, error)
 }
 
 func NewStoreReader() *StoreReader {
@@ -239,6 +246,10 @@ func (s *StoreReader) ReadFilter(ctx context.Context, req *datatypes.ReadFilterR
 
 func (s *StoreReader) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) (reads.GroupResultSet, error) {
 	return s.ReadGroupFunc(ctx, req)
+}
+
+func (s *StoreReader) WindowAggregate(ctx context.Context, req *datatypes.ReadWindowAggregateRequest) (reads.ResultSet, error) {
+	return s.WindowAggregateFunc(ctx, req)
 }
 
 func (s *StoreReader) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cursors.StringIterator, error) {

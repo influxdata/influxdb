@@ -6,6 +6,7 @@ require (
 	collectd.org v0.3.0
 	github.com/BurntSushi/toml v0.3.1
 	github.com/apache/arrow/go/arrow v0.0.0-20200923215132-ac86123a3f01
+	github.com/benbjohnson/tmpl v1.0.0
 	github.com/bmizerany/pat v0.0.0-20170815010413-6226ea591a40
 	github.com/boltdb/bolt v1.3.1
 	github.com/cespare/xxhash v1.1.0

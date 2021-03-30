@@ -1,0 +1,173 @@
+[
+	{
+		"Name":"Float",
+		"name":"float",
+		"Type":"float64",
+		"Aggs": [
+			{
+				"Name":"Count",
+				"OutputTypeName":"Integer",
+				"AccDecls":"var acc int64 = 0",
+				"Accumulate":"acc++",
+				"AccEmit": "c.res.Timestamps[pos] = windowEnd; c.res.Values[pos] = acc",
+				"AccReset":"acc = 0"
+			},
+			{
+				"Name":"Sum",
+				"OutputTypeName":"Float",
+				"AccDecls":"var acc float64 = 0",
+				"Accumulate":"acc += a.Values[rowIdx]",
+				"AccEmit":"c.res.Timestamps[pos] = windowEnd; c.res.Values[pos] = acc",
+				"AccReset":"acc = 0"
+			},
+			{
+				"Name":"Min",
+				"OutputTypeName":"Float",
+				"AccDecls":"var acc float64 = math.MaxFloat64; var tsAcc int64",
+				"Accumulate":"if !windowHasPoints || a.Values[rowIdx] < acc { acc = a.Values[rowIdx]; tsAcc = a.Timestamps[rowIdx] }",
+				"AccEmit":"c.res.Timestamps[pos] = tsAcc; c.res.Values[pos] = acc",
+				"AccReset":"acc = math.MaxFloat64"
+			},
+			{
+				"Name":"Max",
+				"OutputTypeName":"Float",
+				"AccDecls":"var acc float64 = -math.MaxFloat64; var tsAcc int64",
+				"Accumulate":"if !windowHasPoints || a.Values[rowIdx] > acc { acc = a.Values[rowIdx]; tsAcc = a.Timestamps[rowIdx] }",
+				"AccEmit":"c.res.Timestamps[pos] = tsAcc; c.res.Values[pos] = acc",
+				"AccReset":"acc = -math.MaxFloat64"
+			},
+			{
+				"Name":"Mean",
+				"OutputTypeName":"Float",
+				"AccDecls":"var sum float64; var count int64",
+				"Accumulate":"sum += a.Values[rowIdx]; count++",
+				"AccEmit":"c.res.Timestamps[pos] = windowEnd; c.res.Values[pos] = sum / float64(count)",
+				"AccReset":"sum = 0; count = 0"
+			}
+		]
+	},
+	{
+		"Name":"Integer",
+		"name":"integer",
+		"Type":"int64",
+		"Aggs": [
+			{
+				"Name":"Count",
+				"OutputTypeName":"Integer",
+				"AccDecls":"var acc int64 = 0",
+				"Accumulate":"acc++",
+				"AccEmit": "c.res.Timestamps[pos] = windowEnd; c.res.Values[pos] = acc",
+				"AccReset":"acc = 0"
+			},
+			{
+				"Name":"Sum",
+				"OutputTypeName":"Integer",
+				"AccDecls":"var acc int64 = 0",
+				"Accumulate":"acc += a.Values[rowIdx]",
+				"AccEmit":"c.res.Timestamps[pos] = windowEnd; c.res.Values[pos] = acc",
+				"AccReset":"acc = 0"
+			},
+			{
+				"Name":"Min",
+				"OutputTypeName":"Integer",
+				"AccDecls":"var acc int64 = math.MaxInt64; var tsAcc int64",
+				"Accumulate":"if !windowHasPoints || a.Values[rowIdx] < acc { acc = a.Values[rowIdx]; tsAcc = a.Timestamps[rowIdx] }",
+				"AccEmit":"c.res.Timestamps[pos] = tsAcc; c.res.Values[pos] = acc",
+				"AccReset":"acc = math.MaxInt64"
+			},
+			{
+				"Name":"Max",
+				"OutputTypeName":"Integer",
+				"AccDecls":"var acc int64 = math.MinInt64; var tsAcc int64",
+				"Accumulate":"if !windowHasPoints || a.Values[rowIdx] > acc { acc = a.Values[rowIdx]; tsAcc = a.Timestamps[rowIdx] }",
+				"AccEmit":"c.res.Timestamps[pos] = tsAcc; c.res.Values[pos] = acc",
+				"AccReset":"acc = math.MinInt64"
+			},
+			{
+				"Name":"Mean",
+				"OutputTypeName":"Float",
+				"AccDecls":"var sum int64; var count int64",
+				"Accumulate":"sum += a.Values[rowIdx]; count++",
+				"AccEmit":"c.res.Timestamps[pos] = windowEnd; c.res.Values[pos] = float64(sum) / float64(count)",
+				"AccReset":"sum = 0; count = 0"
+			}
+		]
+	},
+	{
+		"Name":"Unsigned",
+		"name":"unsigned",
+		"Type":"uint64",
+		"Aggs": [
+			{
+				"Name":"Count",
+				"OutputTypeName":"Integer",
+				"AccDecls":"var acc int64 = 0",
+				"Accumulate":"acc++",
+				"AccEmit": "c.res.Timestamps[pos] = windowEnd; c.res.Values[pos] = acc",
+				"AccReset":"acc = 0"
+			},
+			{
+				"Name":"Sum",
+				"OutputTypeName":"Unsigned",
+				"AccDecls":"var acc uint64 = 0",
+				"Accumulate":"acc += a.Values[rowIdx]",
+				"AccEmit":"c.res.Timestamps[pos] = windowEnd; c.res.Values[pos] = acc",
+				"AccReset":"acc = 0"
+			},
+			{
+				"Name":"Min",
+				"OutputTypeName":"Unsigned",
+				"AccDecls":"var acc uint64 = math.MaxUint64; var tsAcc int64",
+				"Accumulate":"if !windowHasPoints || a.Values[rowIdx] < acc { acc = a.Values[rowIdx]; tsAcc = a.Timestamps[rowIdx] }",
+				"AccEmit":"c.res.Timestamps[pos] = tsAcc; c.res.Values[pos] = acc",
+				"AccReset":"acc = math.MaxUint64"
+			},
+			{
+				"Name":"Max",
+				"OutputTypeName":"Unsigned",
+				"AccDecls":"var acc uint64 = 0; var tsAcc int64",
+				"Accumulate":"if !windowHasPoints || a.Values[rowIdx] > acc { acc = a.Values[rowIdx]; tsAcc = a.Timestamps[rowIdx] }",
+				"AccEmit":"c.res.Timestamps[pos] = tsAcc; c.res.Values[pos] = acc",
+				"AccReset":"acc = 0"
+			},
+			{
+				"Name":"Mean",
+				"OutputTypeName":"Float",
+				"AccDecls":"var sum uint64; var count int64",
+				"Accumulate":"sum += a.Values[rowIdx]; count++",
+				"AccEmit":"c.res.Timestamps[pos] = windowEnd; c.res.Values[pos] = float64(sum) / float64(count)",
+				"AccReset":"sum = 0; count = 0"
+			}
+		]
+	},
+	{
+		"Name":"String",
+		"name":"string",
+		"Type":"string",
+		"Aggs": [
+			{
+				"Name":"Count",
+				"OutputTypeName":"Integer",
+				"AccDecls":"var acc int64 = 0",
+				"Accumulate":"acc++",
+				"AccEmit": "c.res.Timestamps[pos] = windowEnd; c.res.Values[pos] = acc",
+				"AccReset":"acc = 0"
+			}
+		]
+	},
+	{
+		"Name":"Boolean",
+		"name":"boolean",
+		"Type":"bool",
+		"Aggs": [
+			{
+				"Name":"Count",
+				"OutputTypeName":"Integer",
+				"AccDecls":"var acc int64 = 0",
+				"Accumulate":"acc++",
+				"AccEmit": "c.res.Timestamps[pos] = windowEnd; c.res.Values[pos] = acc",
+				"AccReset":"acc = 0"
+			}
+		]
+	}
+]

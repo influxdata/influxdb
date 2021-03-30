@@ -1,5 +1,7 @@
 package reads
 
+//go:generate env GO111MODULE=on go run github.com/benbjohnson/tmpl -data=@types.tmpldata flux_table.gen.go.tmpl
+
 import (
 	"errors"
 	"sync/atomic"
@@ -25,6 +27,7 @@ type table struct {
 	done chan struct{}
 
 	colBufs *colReader
+	empty   bool
 
 	err error
 
@@ -65,6 +68,10 @@ func (t *table) Cancel() {
 
 func (t *table) isCancelled() bool {
 	return atomic.LoadInt32(&t.cancelled) != 0
+}
+
+func (t *table) init(advance func() bool) {
+	t.empty = !advance() && t.err == nil
 }
 
 func (t *table) do(f func(flux.ColReader) error, advance func() bool) error {
@@ -222,11 +229,45 @@ func (t *floatTable) toArrowBuffer(vs []float64) *array.Float64 {
 func (t *floatGroupTable) toArrowBuffer(vs []float64) *array.Float64 {
 	return arrow.NewFloat(vs, t.alloc)
 }
+func (t *floatWindowSelectorTable) toArrowBuffer(vs []float64) *array.Float64 {
+	return arrow.NewFloat(vs, t.alloc)
+}
+func (t *floatWindowTable) mergeValues(intervals []int64) *array.Float64 {
+	b := arrow.NewFloatBuilder(t.alloc)
+	b.Resize(len(intervals))
+	t.appendValues(intervals, b.Append, b.AppendNull)
+	return b.NewFloat64Array()
+}
+func (t *floatEmptyWindowSelectorTable) arrowBuilder() *array.Float64Builder {
+	return arrow.NewFloatBuilder(t.alloc)
+}
+func (t *floatEmptyWindowSelectorTable) append(builder *array.Float64Builder, v float64) {
+	builder.Append(v)
+}
 func (t *integerTable) toArrowBuffer(vs []int64) *array.Int64 {
+	return arrow.NewInt(vs, t.alloc)
+}
+func (t *integerWindowSelectorTable) toArrowBuffer(vs []int64) *array.Int64 {
 	return arrow.NewInt(vs, t.alloc)
 }
 func (t *integerGroupTable) toArrowBuffer(vs []int64) *array.Int64 {
 	return arrow.NewInt(vs, t.alloc)
+}
+func (t *integerWindowTable) mergeValues(intervals []int64) *array.Int64 {
+	b := arrow.NewIntBuilder(t.alloc)
+	b.Resize(len(intervals))
+	appendNull := b.AppendNull
+	if t.fillValue != nil {
+		appendNull = func() { b.Append(*t.fillValue) }
+	}
+	t.appendValues(intervals, b.Append, appendNull)
+	return b.NewInt64Array()
+}
+func (t *integerEmptyWindowSelectorTable) arrowBuilder() *array.Int64Builder {
+	return arrow.NewIntBuilder(t.alloc)
+}
+func (t *integerEmptyWindowSelectorTable) append(builder *array.Int64Builder, v int64) {
+	builder.Append(v)
 }
 func (t *unsignedTable) toArrowBuffer(vs []uint64) *array.Uint64 {
 	return arrow.NewUint(vs, t.alloc)
@@ -234,15 +275,60 @@ func (t *unsignedTable) toArrowBuffer(vs []uint64) *array.Uint64 {
 func (t *unsignedGroupTable) toArrowBuffer(vs []uint64) *array.Uint64 {
 	return arrow.NewUint(vs, t.alloc)
 }
+func (t *unsignedWindowSelectorTable) toArrowBuffer(vs []uint64) *array.Uint64 {
+	return arrow.NewUint(vs, t.alloc)
+}
+func (t *unsignedWindowTable) mergeValues(intervals []int64) *array.Uint64 {
+	b := arrow.NewUintBuilder(t.alloc)
+	b.Resize(len(intervals))
+	t.appendValues(intervals, b.Append, b.AppendNull)
+	return b.NewUint64Array()
+}
+func (t *unsignedEmptyWindowSelectorTable) arrowBuilder() *array.Uint64Builder {
+	return arrow.NewUintBuilder(t.alloc)
+}
+func (t *unsignedEmptyWindowSelectorTable) append(builder *array.Uint64Builder, v uint64) {
+	builder.Append(v)
+}
 func (t *stringTable) toArrowBuffer(vs []string) *array.Binary {
 	return arrow.NewString(vs, t.alloc)
 }
 func (t *stringGroupTable) toArrowBuffer(vs []string) *array.Binary {
 	return arrow.NewString(vs, t.alloc)
 }
+func (t *stringWindowSelectorTable) toArrowBuffer(vs []string) *array.Binary {
+	return arrow.NewString(vs, t.alloc)
+}
+func (t *stringWindowTable) mergeValues(intervals []int64) *array.Binary {
+	b := arrow.NewStringBuilder(t.alloc)
+	b.Resize(len(intervals))
+	t.appendValues(intervals, b.AppendString, b.AppendNull)
+	return b.NewBinaryArray()
+}
+func (t *stringEmptyWindowSelectorTable) arrowBuilder() *array.BinaryBuilder {
+	return arrow.NewStringBuilder(t.alloc)
+}
+func (t *stringEmptyWindowSelectorTable) append(builder *array.BinaryBuilder, v string) {
+	builder.AppendString(v)
+}
 func (t *booleanTable) toArrowBuffer(vs []bool) *array.Boolean {
 	return arrow.NewBool(vs, t.alloc)
 }
 func (t *booleanGroupTable) toArrowBuffer(vs []bool) *array.Boolean {
 	return arrow.NewBool(vs, t.alloc)
+}
+func (t *booleanWindowSelectorTable) toArrowBuffer(vs []bool) *array.Boolean {
+	return arrow.NewBool(vs, t.alloc)
+}
+func (t *booleanWindowTable) mergeValues(intervals []int64) *array.Boolean {
+	b := arrow.NewBoolBuilder(t.alloc)
+	b.Resize(len(intervals))
+	t.appendValues(intervals, b.Append, b.AppendNull)
+	return b.NewBooleanArray()
+}
+func (t *booleanEmptyWindowSelectorTable) arrowBuilder() *array.BooleanBuilder {
+	return arrow.NewBoolBuilder(t.alloc)
+}
+func (t *booleanEmptyWindowSelectorTable) append(builder *array.BooleanBuilder, v bool) {
+	builder.Append(v)
 }
