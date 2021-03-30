@@ -1,3 +1,3 @@
 package storage
 
-//go:generate protoc -I$GOPATH/src -I. --gogofaster_out=. source.proto
+//go:generate sh -c "protoc -I$(go list -f '{{ .Dir }}' -m github.com/gogo/protobuf) -I. --gogofaster_out=. source.proto"
