@@ -13,16 +13,12 @@ import (
 	"github.com/influxdata/flux/querytest"
 	"github.com/influxdata/flux/values/valuestest"
 	"github.com/influxdata/influxdb/coordinator"
-	"github.com/influxdata/influxdb/flux/builtin"
+	_ "github.com/influxdata/influxdb/flux/init/static"
 	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/meta"
 	"github.com/stretchr/testify/assert"
 )
-
-func init() {
-	builtin.Initialize()
-}
 
 func TestTo_Query(t *testing.T) {
 	tests := []querytest.NewQueryTestCase{
@@ -32,9 +28,9 @@ func TestTo_Query(t *testing.T) {
 			Want: &flux.Spec{
 				Operations: []*flux.Operation{
 					{
-						ID: "influxDBFrom0",
+						ID: "from0",
 						Spec: &influxdb.FromOpSpec{
-							Bucket: "mydb",
+							Bucket: influxdb.NameOrID{Name: "mydb"},
 						},
 					},
 					{
@@ -47,7 +43,7 @@ func TestTo_Query(t *testing.T) {
 					},
 				},
 				Edges: []flux.Edge{
-					{Parent: "influxDBFrom0", Child: "influx1x/toKind1"},
+					{Parent: "from0", Child: "influx1x/toKind1"},
 				},
 			},
 		},

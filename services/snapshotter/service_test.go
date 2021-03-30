@@ -424,7 +424,7 @@ func NewTestService() (*snapshotter.Service, net.Listener, error) {
 	}
 
 	// The snapshotter needs to be used with a tcp.Mux listener.
-	mux := tcp.NewMux()
+	mux := tcp.NewMux(tcp.MuxLogger(os.Stderr))
 	go mux.Serve(l)
 
 	s.Listener = mux.Listen(snapshotter.MuxHeader)

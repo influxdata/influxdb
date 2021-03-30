@@ -5,9 +5,11 @@ import (
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
+	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/semantic"
+	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
@@ -15,6 +17,7 @@ import (
 
 func init() {
 	plan.RegisterPhysicalRules(
+		FromStorageRule{},
 		PushDownRangeRule{},
 		PushDownFilterRule{},
 		PushDownGroupRule{},
@@ -22,6 +25,35 @@ func init() {
 		PushDownReadTagValuesRule{},
 		SortedPivotRule{},
 	)
+	plan.RegisterLogicalRules(
+		universe.MergeFiltersRule{},
+	)
+}
+
+type FromStorageRule struct{}
+
+func (rule FromStorageRule) Name() string {
+	return "influxdata/influxdb.FromStorageRule"
+}
+
+func (rule FromStorageRule) Pattern() plan.Pattern {
+	return plan.Pat(influxdb.FromKind)
+}
+
+func (rule FromStorageRule) Rewrite(ctx context.Context, node plan.Node) (plan.Node, bool, error) {
+	fromSpec := node.ProcedureSpec().(*influxdb.FromProcedureSpec)
+	if fromSpec.Host != nil {
+		return node, false, nil
+	} else if fromSpec.Org != nil {
+		return node, false, &flux.Error{
+			Code: codes.Unimplemented,
+			Msg:  "reads from the storage engine cannot read from a separate organization; please specify a host or remove the organization",
+		}
+	}
+
+	return plan.CreateLogicalNode("fromStorage", &FromStorageProcedureSpec{
+		Bucket: fromSpec.Bucket,
+	}), true, nil
 }
 
 // PushDownGroupRule pushes down a group operation to storage
@@ -77,12 +109,12 @@ func (rule PushDownRangeRule) Pattern() plan.Pattern {
 // Rewrite converts 'from |> range' into 'ReadRange'
 func (rule PushDownRangeRule) Rewrite(ctx context.Context, node plan.Node) (plan.Node, bool, error) {
 	fromNode := node.Predecessors()[0]
-	fromSpec := fromNode.ProcedureSpec().(*FromProcedureSpec)
+	fromSpec := fromNode.ProcedureSpec().(*FromStorageProcedureSpec)
 
 	rangeSpec := node.ProcedureSpec().(*universe.RangeProcedureSpec)
 	return plan.CreatePhysicalNode("ReadRange", &ReadRangePhysSpec{
-		Bucket:   fromSpec.Bucket,
-		BucketID: fromSpec.BucketID,
+		Bucket:   fromSpec.Bucket.Name,
+		BucketID: fromSpec.Bucket.ID,
 		Bounds:   rangeSpec.Bounds,
 	}), true, nil
 }

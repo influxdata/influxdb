@@ -1,16 +1,19 @@
 package influxdb_test
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/execute"
+	"github.com/influxdata/flux/execute/executetest"
 	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/plan/plantest"
 	"github.com/influxdata/flux/semantic"
+	fluxinfluxdb "github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/flux/stdlib/universe"
 	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
@@ -23,8 +26,8 @@ func fluxTime(t int64) flux.Time {
 }
 
 func TestPushDownRangeRule(t *testing.T) {
-	fromSpec := influxdb.FromProcedureSpec{
-		Bucket: "my-bucket",
+	fromSpec := influxdb.FromStorageProcedureSpec{
+		Bucket: influxdb.NameOrID{Name: "my-bucket"},
 	}
 	rangeSpec := universe.RangeProcedureSpec{
 		Bounds: flux.Bounds{
@@ -314,7 +317,7 @@ func TestPushDownFilterRule(t *testing.T) {
 			},
 			Before: &plantest.PlanSpec{
 				Nodes: []plan.Node{
-					plan.CreateLogicalNode("from", &influxdb.FromProcedureSpec{}),
+					plan.CreateLogicalNode("from", &influxdb.FromStorageProcedureSpec{}),
 					plan.CreatePhysicalNode("range", &universe.RangeProcedureSpec{
 						Bounds: bounds,
 					}),
@@ -863,8 +866,8 @@ func TestPushDownGroupRule(t *testing.T) {
 }
 
 func TestReadTagKeysRule(t *testing.T) {
-	fromSpec := influxdb.FromProcedureSpec{
-		Bucket: "my-bucket",
+	fromSpec := influxdb.FromStorageProcedureSpec{
+		Bucket: influxdb.NameOrID{Name: "my-bucket"},
 	}
 	rangeSpec := universe.RangeProcedureSpec{
 		Bounds: flux.Bounds{
@@ -1089,8 +1092,8 @@ func TestReadTagKeysRule(t *testing.T) {
 }
 
 func TestReadTagValuesRule(t *testing.T) {
-	fromSpec := influxdb.FromProcedureSpec{
-		Bucket: "my-bucket",
+	fromSpec := influxdb.FromStorageProcedureSpec{
+		Bucket: influxdb.NameOrID{Name: "my-bucket"},
 	}
 	rangeSpec := universe.RangeProcedureSpec{
 		Bounds: flux.Bounds{
@@ -1312,6 +1315,80 @@ func TestReadTagValuesRule(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			plantest.PhysicalRuleTestHelper(t, &tc)
+		})
+	}
+}
+
+func TestMergeFilterRule(t *testing.T) {
+	from := &fluxinfluxdb.FromProcedureSpec{}
+	filter0 := func() *universe.FilterProcedureSpec {
+		return &universe.FilterProcedureSpec{
+			Fn: interpreter.ResolvedFunction{
+				Fn: executetest.FunctionExpression(t, `(r) => r._field == "usage_idle"`),
+			},
+		}
+	}
+	filter1 := func() *universe.FilterProcedureSpec {
+		return &universe.FilterProcedureSpec{
+			Fn: interpreter.ResolvedFunction{
+				Fn: executetest.FunctionExpression(t, `(r) => r._measurement == "cpu"`),
+			},
+		}
+	}
+	filterMerge := func() *universe.FilterProcedureSpec {
+		return &universe.FilterProcedureSpec{
+			Fn: interpreter.ResolvedFunction{
+				Fn: executetest.FunctionExpression(t, `(r) => r._measurement == "cpu" and r._field == "usage_idle"`),
+			},
+		}
+	}
+
+	testcases := []plantest.RuleTestCase{
+		{
+			Context: context.Background(),
+			Name:    "merge filter on",
+			Rules:   []plan.Rule{universe.MergeFiltersRule{}},
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("from", from),
+					plan.CreatePhysicalNode("filter0", filter0()),
+					plan.CreatePhysicalNode("filter1", filter1()),
+				},
+				Edges: [][2]int{
+					{0, 1},
+					{1, 2},
+				},
+			},
+			After: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("from", from),
+					plan.CreatePhysicalNode("filter0", filterMerge()),
+				},
+				Edges: [][2]int{{0, 1}},
+			},
+		},
+		{
+			Context: context.Background(),
+			Name:    "merge filter off",
+			Before: &plantest.PlanSpec{
+				Nodes: []plan.Node{
+					plan.CreatePhysicalNode("from", from),
+					plan.CreatePhysicalNode("filter0", filter0()),
+					plan.CreatePhysicalNode("filter1", filter1()),
+				},
+				Edges: [][2]int{
+					{0, 1},
+					{1, 2},
+				},
+			},
+			NoChange: true,
+		},
+	}
+	for _, tc := range testcases {
+		tc := tc
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			plantest.LogicalRuleTestHelper(t, &tc)
 		})
 	}
 }

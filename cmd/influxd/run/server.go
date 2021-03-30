@@ -70,7 +70,8 @@ type Server struct {
 	BindAddress string
 	Listener    net.Listener
 
-	Logger *zap.Logger
+	Logger    *zap.Logger
+	MuxLogger *log.Logger
 
 	MetaClient *meta.Client
 
@@ -172,7 +173,8 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 
 		BindAddress: bind,
 
-		Logger: logger.New(os.Stderr),
+		Logger:    logger.New(os.Stderr),
+		MuxLogger: tcp.MuxLogger(os.Stderr),
 
 		MetaClient: meta.NewClient(c.Meta),
 
@@ -263,6 +265,7 @@ func (s *Server) appendSnapshotterService() {
 // after the Open method has been called.
 func (s *Server) SetLogOutput(w io.Writer) {
 	s.Logger = logger.New(w)
+	s.MuxLogger = tcp.MuxLogger(w)
 }
 
 func (s *Server) appendMonitorService() {
@@ -391,7 +394,7 @@ func (s *Server) Open() error {
 	s.Listener = ln
 
 	// Multiplex listener.
-	mux := tcp.NewMux()
+	mux := tcp.NewMux(s.MuxLogger)
 	go mux.Serve(ln)
 
 	// Append services.

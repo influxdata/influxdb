@@ -15,7 +15,7 @@ require (
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/snappy v0.0.1
 	github.com/google/go-cmp v0.5.0
-	github.com/influxdata/flux v0.108.1
+	github.com/influxdata/flux v0.111.0
 	github.com/influxdata/influxql v1.1.1-0.20210223160523-b6ab99450c93
 	github.com/influxdata/pkg-config v0.2.7
 	github.com/influxdata/roaring v0.4.13-0.20180809181101-fc520f41fab6
@@ -31,6 +31,7 @@ require (
 	github.com/prometheus/prometheus v0.0.0-20200609090129-a6600f564e3c
 	github.com/retailnext/hllpp v1.0.1-0.20180308014038-101a6d2f8b52
 	github.com/spf13/cast v1.3.0
+	github.com/spf13/cobra v0.0.3
 	github.com/stretchr/testify v1.5.1
 	github.com/tinylib/msgp v1.1.0
 	github.com/willf/bitset v1.1.9 // indirect

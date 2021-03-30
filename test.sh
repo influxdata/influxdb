@@ -10,6 +10,7 @@
 #      2: normal 32bit tests
 #      3: tsi build
 #      count: print the number of test environments
+#      flux: run Flux e2e tests via the external test harness
 #      *: to run all tests in parallel containers
 #
 # Logs from the test runs will be saved in OUTPUT_DIR, which defaults to ./test-logs
@@ -54,12 +55,20 @@ function filename2imagename {
     echo ${1/Dockerfile/influxdb}
 }
 
-# Run a test in a docker container
-# Usage: run_test_docker <Dockerfile> <env_name>
+# Run go tests in a docker container
+# Usage: run_test_docker <env_name> <args>...
 function run_test_docker {
-    local dockerfile=$1
+  local name=$1
+  shift
+  run_docker "$name" /root/influxdb/build.py "${@}" --test --junit-report "--parallel=$PARALLELISM" "--timeout=$TIMEOUT"
+}
+
+# Run a script in a docker container
+# Usage: run_docker <env_name> <command> <args>...
+function run_docker {
+    local dockerfile=Dockerfile_build_ubuntu64
     local imagename=$(filename2imagename "$dockerfile")
-    shift
+
     local name=$1
     shift
     local logfile="$OUTPUT_DIR/${name}.log"
@@ -76,8 +85,6 @@ function run_test_docker {
          -e "AWS_ACCESS_KEY_ID=$AWS_ACCESS_KEY_ID" \
          -e "AWS_SECRET_ACCESS_KEY=$AWS_SECRET_ACCESS_KEY" \
          "$imagename" \
-         "--parallel=$PARALLELISM" \
-         "--timeout=$TIMEOUT" \
          "$@" \
          2>&1 | tee "$logfile"
     return "${PIPESTATUS[0]}"
@@ -103,29 +110,33 @@ fi
 case $ENVIRONMENT_INDEX in
     0)
         >&2 echo '64 bit tests'
-        run_test_docker Dockerfile_build_ubuntu64 test_64bit --test --junit-report
+        run_test_docker test_64bit
         rc=$?
         ;;
     1)
         >&2 echo '64 bit race tests'
         GORACE="halt_on_error=1"
-        run_test_docker Dockerfile_build_ubuntu64 test_64bit_race --test --junit-report --race
+        run_test_docker test_64bit_race --race
         rc=$?
         ;;
     2)
         >&2 echo 'tsi tests'
         INFLUXDB_DATA_INDEX_VERSION="tsi1"
-        run_test_docker Dockerfile_build_ubuntu64 test_64bit --test --junit-report
+        run_test_docker test_64bit_tsi
         rc=$?
         ;;
     "count")
         echo $ENV_COUNT
         ;;
+    "flux")
+      >&2 echo 'flux tests'
+      run_docker test_flux /root/influxdb/test-flux.sh
+      ;;
     *)
         echo "No individual test environment specified running tests for all $ENV_COUNT environments."
         # Run all test environments
         pids=()
-        for t in $(seq 0 "$(($ENV_COUNT - 1))")
+        for t in $(seq 0 "$(($ENV_COUNT - 1))") flux
         do
             $0 $t 2>&1 > /dev/null &
             # add PID to list

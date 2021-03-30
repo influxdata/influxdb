@@ -15,6 +15,7 @@ import (
 	"strconv"
 	"time"
 
+	fluxinit "github.com/influxdata/influxdb/flux/init"
 	"github.com/influxdata/influxdb/logger"
 	"go.uber.org/zap"
 )
@@ -99,6 +100,11 @@ func (cmd *Command) Run(args ...string) error {
 		runtime.SetBlockProfileRate(int(1 * time.Second))
 		runtime.SetMutexProfileFraction(1)
 		go func() { http.ListenAndServe("localhost:6060", nil) }()
+	}
+
+	// Initialize the Flux built-ins if enabled.
+	if config.HTTPD.FluxEnabled {
+		fluxinit.Initialize()
 	}
 
 	// Print sweet InfluxDB logo.

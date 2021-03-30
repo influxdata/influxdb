@@ -12,7 +12,8 @@ v1.9.0 [unreleased]
 -	[#20544](https://github.com/influxdata/influxdb/pull/20544): feat(tsi): optimize series iteration
 -	[#17814](https://github.com/influxdata/influxdb/pull/17814): feat(prometheus): update prometheus remote protocol
 -	[#17596](https://github.com/influxdata/influxdb/pull/17596): improvement(query): performance improvement for sorted merge iterator [Tristan Su]
--       [#21015](https://github.com/influxdata/influxdb/pull/21015): chore: go 1.15.10 and flux 0.108.1 upgrade
+-	[#21015](https://github.com/influxdata/influxdb/pull/21015): build: upgrade to go 1.15.10
+-	[#21074](https://github.com/influxdata/influxdb/pull/21074): feat: upgrade to flux 0.111.0
 
 ### Bugfixes
 

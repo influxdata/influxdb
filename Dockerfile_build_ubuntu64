@@ -1,4 +1,4 @@
-FROM ubuntu:xenial
+FROM ubuntu:focal
 
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     asciidoc \
@@ -12,8 +12,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     mercurial \
     pkg-config \
     python \
-    python-boto \
-    python-software-properties \
+    python3-pip \
     rpm \
     ruby \
     ruby-dev \
@@ -22,12 +21,13 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -y \
     xmlto \
     zip
 
+RUN pip3 install boto
 RUN gem install fpm
 
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y
 
 # setup environment
-ENV GO_VERSION  1.13.8
+ENV GO_VERSION  1.15.10
 ENV GOARCH      amd64
 ENV GOROOT      /usr/local/go
 ENV GOPATH      /root/go
@@ -42,5 +42,3 @@ RUN mkdir -p $PROJECT_DIR
 
 WORKDIR $PROJECT_DIR
 VOLUME  $PROJECT_DIR
-
-ENTRYPOINT [ "/root/influxdb/build.py" ]

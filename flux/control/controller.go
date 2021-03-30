@@ -5,11 +5,11 @@ import (
 	"time"
 
 	"github.com/influxdata/flux"
+	"github.com/influxdata/flux/dependencies/testing"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/influxdb/coordinator"
-	"github.com/influxdata/influxdb/flux/builtin"
 	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
@@ -72,15 +72,13 @@ func (p *program) Start(ctx context.Context, allocator *memory.Allocator) (flux.
 }
 
 func NewController(mc MetaClient, reader influxdb.Reader, auth Authorizer, authEnabled bool, writer influxdb.PointsWriter, logger *zap.Logger) *Controller {
-	builtin.Initialize()
-
 	storageDeps, err := influxdb.NewDependencies(mc, reader, auth, authEnabled, writer)
 	if err != nil {
 		panic(err)
 	}
 
 	return &Controller{
-		deps:   []flux.Dependency{storageDeps},
+		deps:   append([]flux.Dependency{storageDeps}, testing.FrameworkConfig{}),
 		logger: logger,
 	}
 }
