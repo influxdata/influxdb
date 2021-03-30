@@ -2,6 +2,7 @@ use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 use data_types::chunk::{ChunkStorage, ChunkSummary};
 use internal_types::{schema::Schema, selection::Selection};
 use mutable_buffer::chunk::Chunk as MBChunk;
+use object_store::ObjectStore;
 use query::{exec::stringset::StringSet, predicate::Predicate, PartitionChunk};
 use read_buffer::Database as ReadBufferDb;
 use snafu::{ResultExt, Snafu};
@@ -69,7 +70,7 @@ pub enum DBChunk {
         chunk_id: u32,
     },
     ParquetFile {
-        path: String, // name of the parquet file
+        path: ObjectStore,
         partition_key: Arc<String>,
         chunk_id: u32, // ID of the chunk stored in this parquet file
     }
