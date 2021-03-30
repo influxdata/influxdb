@@ -14,6 +14,7 @@ v1.9.0 [unreleased]
 -	[#17596](https://github.com/influxdata/influxdb/pull/17596): improvement(query): performance improvement for sorted merge iterator [Tristan Su]
 -	[#21015](https://github.com/influxdata/influxdb/pull/21015): build: upgrade to go 1.15.10
 -	[#21074](https://github.com/influxdata/influxdb/pull/21074): feat: upgrade to flux 0.111.0
+-	[#21100](https://github.com/influxdata/influxdb/pull/21100): feat: add memory and concurrency limits in flux controller
 
 ### Bugfixes
 
