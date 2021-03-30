@@ -3,6 +3,7 @@ use std::{
     sync::RwLock,
 };
 
+use arrow_deps::arrow::record_batch::RecordBatch;
 use data_types::partition_metadata::TableSummary;
 use internal_types::selection::Selection;
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -55,12 +56,12 @@ pub struct Chunk {
     //               lock-free. At the moment the read-lock is held for the duration of the
     //               call. Whilst this execution will probably be in the order of micro-seconds
     //               I plan to improve this situation in due course.
-    chunk_data: RwLock<TableData>,
+    pub(crate) chunk_data: RwLock<TableData>,
 }
 
 // Tie data and meta-data together so that they can be wrapped in RWLock.
 #[derive(Default)]
-struct TableData {
+pub(crate) struct TableData {
     rows: u64, // Total number of rows across all tables
 
     // Total number of row groups across all tables in the chunk.
@@ -81,6 +82,8 @@ impl Chunk {
     }
 
     /// Initialises a new `Chunk` seeded with the provided `Table`.
+    ///
+    /// TODO(edd): potentially deprecate.
     pub(crate) fn new_with_table(id: u32, table: Table) -> Self {
         Self {
             id,
@@ -143,7 +146,13 @@ impl Chunk {
     /// Add a row_group to a table in the chunk, updating all Chunk meta data.
     ///
     /// This operation locks the chunk for the duration of the call.
-    pub fn upsert_table(&mut self, table_name: impl Into<String>, row_group: RowGroup) {
+    ///
+    /// TODO(edd): to be deprecated.
+    pub(crate) fn upsert_table_with_row_group(
+        &mut self,
+        table_name: impl Into<String>,
+        row_group: RowGroup,
+    ) {
         let table_name = table_name.into();
         let mut chunk_data = self.chunk_data.write().unwrap();
 
@@ -151,6 +160,38 @@ impl Chunk {
         chunk_data.rows += row_group.rows() as u64;
         chunk_data.row_groups += 1;
 
+        match chunk_data.data.entry(table_name.clone()) {
+            Entry::Occupied(mut table_entry) => {
+                let table = table_entry.get_mut();
+                table.add_row_group(row_group);
+            }
+            Entry::Vacant(table_entry) => {
+                // add a new table to this chunk.
+                table_entry.insert(Table::new(table_name, row_group));
+            }
+        };
+    }
+
+    /// Add a record batch of data to to a `Table` in the chunk.
+    ///
+    /// The data is converted to a `RowGroup` outside of any locking on the
+    /// `Chunk` so the caller does not need to be concerned about the size of
+    /// the update. If the `Table` already exists then a new `RowGroup` will be
+    /// added to the `Table`. Otherwise a new `Table` with a single `RowGroup`
+    /// will be created.
+    pub fn upsert_table(&mut self, table_name: impl Into<String>, table_data: RecordBatch) {
+        // This call is expensive. Complete it before locking.
+        let row_group = RowGroup::from(table_data);
+        let table_name = table_name.into();
+
+        let mut chunk_data = self.chunk_data.write().unwrap();
+
+        // update the meta-data for this chunk with contents of row group.
+        chunk_data.rows += row_group.rows() as u64;
+        chunk_data.row_groups += 1;
+
+        // create a new table if one doesn't exist, or add the table data to
+        // the existing table.
         match chunk_data.data.entry(table_name.clone()) {
             Entry::Occupied(mut table_entry) => {
                 let table = table_entry.get_mut();
@@ -341,77 +382,195 @@ impl Chunk {
 
 #[cfg(test)]
 mod test {
-    use std::collections::BTreeMap;
+    use std::{collections::BTreeMap, sync::Arc};
+
+    use arrow_deps::arrow::{
+        array::{
+            ArrayRef, BinaryArray, BooleanArray, Float64Array, Int64Array, StringArray, UInt64Array,
+        },
+        datatypes::DataType::{Boolean, Float64},
+    };
+    use internal_types::schema::builder::SchemaBuilder;
 
     use super::*;
-    use crate::row_group::{ColumnType, RowGroup};
     use crate::{column::Column, BinaryExpr};
+    use crate::{
+        row_group::{ColumnType, RowGroup},
+        value::Values,
+    };
+
+    // helper to make the `add_remove_tables` test simpler to read.
+    fn gen_recordbatch() -> RecordBatch {
+        let schema = SchemaBuilder::new()
+            .non_null_tag("region")
+            .non_null_field("counter", Float64)
+            .non_null_field("active", Boolean)
+            .timestamp()
+            .field("sketchy_sensor", Float64)
+            .build()
+            .unwrap()
+            .into();
+
+        let data: Vec<ArrayRef> = vec![
+            Arc::new(StringArray::from(vec!["west", "west", "east"])),
+            Arc::new(Float64Array::from(vec![1.2, 3.3, 45.3])),
+            Arc::new(BooleanArray::from(vec![true, false, true])),
+            Arc::new(Int64Array::from(vec![11111111, 222222, 3333])),
+            Arc::new(Float64Array::from(vec![Some(11.0), None, Some(12.0)])),
+        ];
+
+        RecordBatch::try_new(schema, data).unwrap()
+    }
+
+    // Helper function to assert the contents of a column on a record batch.
+    fn assert_rb_column_equals(rb: &RecordBatch, col_name: &str, exp: &Values<'_>) {
+        let got_column = rb.column(rb.schema().index_of(col_name).unwrap());
+
+        match exp {
+            Values::String(exp_data) => {
+                let arr: &StringArray = got_column.as_any().downcast_ref::<StringArray>().unwrap();
+                assert_eq!(&arr.iter().collect::<Vec<_>>(), exp_data);
+            }
+            Values::I64(exp_data) => {
+                let arr: &Int64Array = got_column.as_any().downcast_ref::<Int64Array>().unwrap();
+                assert_eq!(arr.values(), exp_data);
+            }
+            Values::U64(exp_data) => {
+                let arr: &UInt64Array = got_column.as_any().downcast_ref::<UInt64Array>().unwrap();
+                assert_eq!(arr.values(), exp_data);
+            }
+            Values::F64(exp_data) => {
+                let arr: &Float64Array =
+                    got_column.as_any().downcast_ref::<Float64Array>().unwrap();
+                assert_eq!(arr.values(), exp_data);
+            }
+            Values::I64N(exp_data) => {
+                let arr: &Int64Array = got_column.as_any().downcast_ref::<Int64Array>().unwrap();
+                let got_data = (0..got_column.len())
+                    .map(|i| {
+                        if got_column.is_null(i) {
+                            None
+                        } else {
+                            Some(arr.value(i))
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(&got_data, exp_data);
+            }
+            Values::U64N(exp_data) => {
+                let arr: &UInt64Array = got_column.as_any().downcast_ref::<UInt64Array>().unwrap();
+                let got_data = (0..got_column.len())
+                    .map(|i| {
+                        if got_column.is_null(i) {
+                            None
+                        } else {
+                            Some(arr.value(i))
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(&got_data, exp_data);
+            }
+            Values::F64N(exp_data) => {
+                let arr: &Float64Array =
+                    got_column.as_any().downcast_ref::<Float64Array>().unwrap();
+                let got_data = (0..got_column.len())
+                    .map(|i| {
+                        if got_column.is_null(i) {
+                            None
+                        } else {
+                            Some(arr.value(i))
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(&got_data, exp_data);
+            }
+            Values::Bool(exp_data) => {
+                let arr: &BooleanArray =
+                    got_column.as_any().downcast_ref::<BooleanArray>().unwrap();
+                let got_data = (0..got_column.len())
+                    .map(|i| {
+                        if got_column.is_null(i) {
+                            None
+                        } else {
+                            Some(arr.value(i))
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(&got_data, exp_data);
+            }
+            Values::ByteArray(exp_data) => {
+                let arr: &BinaryArray = got_column.as_any().downcast_ref::<BinaryArray>().unwrap();
+                let got_data = (0..got_column.len())
+                    .map(|i| {
+                        if got_column.is_null(i) {
+                            None
+                        } else {
+                            Some(arr.value(i))
+                        }
+                    })
+                    .collect::<Vec<_>>();
+                assert_eq!(&got_data, exp_data);
+            }
+        }
+    }
 
     #[test]
     fn add_remove_tables() {
-        // Create a Chunk from a Table.
-        let columns = vec![(
-            "time".to_owned(),
-            ColumnType::create_time(&[1_i64, 2, 3, 4, 5, 6]),
-        )]
-        .into_iter()
-        .collect();
-        let rg = RowGroup::new(6, columns);
-        let table = Table::new("table_1", rg);
-        let mut chunk = Chunk::new_with_table(22, table);
+        let mut chunk = Chunk::new(22);
 
-        assert_eq!(chunk.rows(), 6);
-        assert_eq!(chunk.row_groups(), 1);
+        // Add a new table to the chunk.
+        chunk.upsert_table("a_table", gen_recordbatch());
+
+        assert_eq!(chunk.rows(), 3);
         assert_eq!(chunk.tables(), 1);
-        let chunk_size = chunk.size();
-        assert!(chunk_size > 0);
+        assert_eq!(chunk.row_groups(), 1);
+        assert!(chunk.size() > 0);
+
+        {
+            let chunk_data = chunk.chunk_data.read().unwrap();
+            let table = chunk_data.data.get("a_table").unwrap();
+            assert_eq!(table.rows(), 3);
+            assert_eq!(table.row_groups(), 1);
+        }
 
         // Add a row group to the same table in the Chunk.
-        let columns = vec![("time", ColumnType::create_time(&[-2_i64, 2, 8]))]
-            .into_iter()
-            .map(|(k, v)| (k.to_owned(), v))
-            .collect();
-        let rg = RowGroup::new(3, columns);
-        let rg_size = rg.size();
-        chunk.upsert_table("table_1", rg);
-        assert_eq!(chunk.size(), chunk_size + rg_size);
+        let last_chunk_size = chunk.size();
+        chunk.upsert_table("a_table", gen_recordbatch());
+
+        assert_eq!(chunk.rows(), 6);
+        assert_eq!(chunk.tables(), 1);
+        assert_eq!(chunk.row_groups(), 2);
+        assert!(chunk.size() > last_chunk_size);
+
+        {
+            let chunk_data = chunk.chunk_data.read().unwrap();
+            let table = chunk_data.data.get("a_table").unwrap();
+            assert_eq!(table.rows(), 6);
+            assert_eq!(table.row_groups(), 2);
+        }
+
+        // Add a row group to a new table in the Chunk.
+        let last_chunk_size = chunk.size();
+        chunk.upsert_table("b_table", gen_recordbatch());
 
         assert_eq!(chunk.rows(), 9);
-        assert_eq!(chunk.row_groups(), 2);
-        assert_eq!(chunk.tables(), 1);
-
-        // Add a row group to another table in the Chunk.
-        let columns = vec![("time", ColumnType::create_time(&[-3_i64, 2]))]
-            .into_iter()
-            .map(|(k, v)| (k.to_owned(), v))
-            .collect();
-        let rg = RowGroup::new(2, columns);
-        chunk.upsert_table("table_2", rg);
-
-        assert_eq!(chunk.rows(), 11);
-        assert_eq!(chunk.row_groups(), 3);
         assert_eq!(chunk.tables(), 2);
+        assert_eq!(chunk.row_groups(), 3);
+        assert!(chunk.size() > last_chunk_size);
 
-        // Drop table_1
-        let chunk_size = chunk.size();
-        chunk.drop_table("table_1");
-        assert_eq!(chunk.rows(), 2);
-        assert_eq!(chunk.row_groups(), 1);
-        assert_eq!(chunk.tables(), 1);
-        assert!(chunk.size() < chunk_size);
+        {
+            let chunk_data = chunk.chunk_data.read().unwrap();
+            let table = chunk_data.data.get("b_table").unwrap();
+            assert_eq!(table.rows(), 3);
+            assert_eq!(table.row_groups(), 1);
+        }
 
-        // Drop table_2 - empty table
-        chunk.drop_table("table_2");
-        assert_eq!(chunk.rows(), 0);
-        assert_eq!(chunk.row_groups(), 0);
-        assert_eq!(chunk.tables(), 0);
-        assert_eq!(chunk.size(), 64); // base size of `Chunk`
-
-        // Drop table_2 - no-op
-        chunk.drop_table("table_2");
-        assert_eq!(chunk.rows(), 0);
-        assert_eq!(chunk.row_groups(), 0);
-        assert_eq!(chunk.tables(), 0);
+        {
+            let chunk_data = chunk.chunk_data.read().unwrap();
+            let table = chunk_data.data.get("a_table").unwrap();
+            assert_eq!(table.rows(), 6);
+            assert_eq!(table.row_groups(), 2);
+        }
     }
 
     #[test]
@@ -495,7 +654,7 @@ mod test {
         .map(|(k, v)| (k.to_owned(), v))
         .collect::<BTreeMap<_, _>>();
         let rg = RowGroup::new(6, columns);
-        chunk.upsert_table("table_2", rg);
+        chunk.upsert_table_with_row_group("table_2", rg);
 
         // all tables returned when predicate matches both
         let table_names = chunk.table_names(

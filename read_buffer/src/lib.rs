@@ -646,7 +646,7 @@ impl Partition {
         match chunk_data.chunks.entry(chunk_id) {
             Entry::Occupied(mut chunk_entry) => {
                 let chunk = chunk_entry.get_mut();
-                chunk.upsert_table(table_name, row_group);
+                chunk.upsert_table_with_row_group(table_name, row_group);
             }
             Entry::Vacant(chunk_entry) => {
                 chunk_entry.insert(Chunk::new_with_table(
