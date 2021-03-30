@@ -15,6 +15,7 @@ v1.9.0 [unreleased]
 -	[#21015](https://github.com/influxdata/influxdb/pull/21015): build: upgrade to go 1.15.10
 -	[#21074](https://github.com/influxdata/influxdb/pull/21074): feat: upgrade to flux 0.111.0
 -	[#21100](https://github.com/influxdata/influxdb/pull/21100): feat: add memory and concurrency limits in flux controller
+-	[#21108](https://github.com/influxdata/influxdb/pull/21108): feat: make flux controller limits configurable
 
 ### Bugfixes
 
