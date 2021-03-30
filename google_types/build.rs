@@ -19,6 +19,11 @@ fn main() -> Result<()> {
     prost_build::Config::new()
         .compile_well_known_types()
         .disable_comments(&["."])
+        // approximates jsonpb. This is still not enough to deal with the special cases like Any.
+        .type_attribute(
+            ".google",
+            "#[derive(serde::Serialize,serde::Deserialize)] #[serde(rename_all = \"camelCase\")]",
+        )
         .bytes(&[".google"])
         .compile_protos(&proto_files, &[root])?;
 

@@ -126,10 +126,9 @@ pub struct Chunk {
     /// itself
     pub time_of_last_write: Option<DateTime<Utc>>,
 
-    /// Time at which this chunk was closed and became immutable (no
-    /// new data was written after this time). Note this is not the
-    /// same as the timestamps on the data itself
-    pub time_closed: Option<DateTime<Utc>>,
+    /// Time at which this chunk was maked as closing. Note this is
+    /// not the same as the timestamps on the data itself
+    pub time_closing: Option<DateTime<Utc>>,
 
     /// `dictionary` maps &str -> u32. The u32s are used in place of String or
     /// str to avoid slow string operations. The same dictionary is used for
@@ -149,7 +148,7 @@ impl Chunk {
             tables: HashMap::new(),
             time_of_first_write: None,
             time_of_last_write: None,
-            time_closed: None,
+            time_closing: None,
         }
     }
 
@@ -187,10 +186,10 @@ impl Chunk {
         Ok(())
     }
 
-    /// Mark the chunk as closed
-    pub fn mark_closed(&mut self) {
-        assert!(self.time_closed.is_none());
-        self.time_closed = Some(Utc::now())
+    /// Mark the chunk as closing
+    pub fn mark_closing(&mut self) {
+        assert!(self.time_closing.is_none());
+        self.time_closing = Some(Utc::now())
     }
 
     // Add all tables names in this chunk to `names` if they are not already present

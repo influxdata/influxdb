@@ -85,11 +85,11 @@ async fn test_create_database() {
         .success()
         .stdout(
             predicate::str::contains(db)
-                .and(predicate::str::contains(format!("name: \"{}\"", db)))
+                .and(predicate::str::contains(format!(r#""name": "{}"#, db)))
                 // validate the defaults have been set reasonably
                 .and(predicate::str::contains("%Y-%m-%d %H:00:00"))
-                .and(predicate::str::contains("buffer_size_hard: 104857600"))
-                .and(predicate::str::contains("LifecycleRules")),
+                .and(predicate::str::contains(r#""bufferSizeHard": 104857600"#))
+                .and(predicate::str::contains("lifecycleRules")),
         );
 }
 
@@ -123,8 +123,8 @@ async fn test_create_database_size() {
         .assert()
         .success()
         .stdout(
-            predicate::str::contains("buffer_size_hard: 1000")
-                .and(predicate::str::contains("LifecycleRules")),
+            predicate::str::contains(r#""bufferSizeHard": 1000"#)
+                .and(predicate::str::contains("lifecycleRules")),
         );
 }
 
@@ -157,7 +157,7 @@ async fn test_create_database_immutable() {
         .assert()
         .success()
         // Should not have a mutable buffer
-        .stdout(predicate::str::contains("immutable: true"));
+        .stdout(predicate::str::contains(r#""immutable": true"#));
 }
 
 #[tokio::test]

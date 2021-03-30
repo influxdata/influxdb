@@ -1,6 +1,8 @@
+use std::collections::BTreeSet;
+use std::sync::Arc;
+
 use mutable_buffer::chunk::Chunk as MBChunk;
 use read_buffer::Database as ReadBufferDb;
-use std::sync::Arc;
 
 use super::{InternalChunkState, Result};
 
@@ -96,6 +98,30 @@ impl Chunk {
         &self.state
     }
 
+    /// Returns true if this chunk contains a table with the provided name
+    pub fn has_table(&self, table_name: &str) -> bool {
+        match &self.state {
+            ChunkState::None => false,
+            ChunkState::Open(chunk) | ChunkState::Closing(chunk) => chunk.has_table(table_name),
+            ChunkState::Moving(chunk) | ChunkState::Closed(chunk) => chunk.has_table(table_name),
+            ChunkState::Moved(db) => {
+                db.has_table(self.partition_key.as_str(), table_name, &[self.id])
+            }
+        }
+    }
+
+    /// Collects the chunk's table names into `names`
+    pub fn table_names(&self, names: &mut BTreeSet<String>) {
+        match &self.state {
+            ChunkState::None => {}
+            ChunkState::Open(chunk) | ChunkState::Closing(chunk) => chunk.all_table_names(names),
+            ChunkState::Moving(chunk) | ChunkState::Closed(chunk) => chunk.all_table_names(names),
+            ChunkState::Moved(db) => {
+                db.all_table_names(self.partition_key.as_str(), &[self.id], names)
+            }
+        }
+    }
+
     /// Returns a mutable reference to the mutable buffer storage for
     /// chunks in the Open or Closing state
     ///
@@ -124,7 +150,8 @@ impl Chunk {
         std::mem::swap(&mut s, &mut self.state);
 
         match s {
-            ChunkState::Open(s) | ChunkState::Closing(s) => {
+            ChunkState::Open(mut s) | ChunkState::Closing(mut s) => {
+                s.mark_closing();
                 self.state = ChunkState::Closing(s);
                 Ok(())
             }

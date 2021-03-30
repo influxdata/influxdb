@@ -13,6 +13,7 @@ use influxdb_line_protocol::ParsedLine;
 
 use crate::field_validation::{FromField, FromFieldOpt, FromFieldString, FromFieldVec};
 use crate::DatabaseName;
+use std::num::{NonZeroU32, NonZeroUsize};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -157,26 +158,26 @@ pub struct LifecycleRules {
     /// buffer) if the chunk is older than mutable_min_lifetime_seconds
     ///
     /// Represents the chunk transition open -> moving and closing -> moving
-    pub mutable_linger_seconds: u32,
+    pub mutable_linger_seconds: Option<NonZeroU32>,
 
     /// A chunk of data within a partition is guaranteed to remain mutable
     /// for at least this number of seconds
-    pub mutable_minimum_age_seconds: u32,
+    pub mutable_minimum_age_seconds: Option<NonZeroU32>,
 
     /// Once a chunk of data within a partition reaches this number of bytes
     /// writes outside its keyspace will be directed to a new chunk
     ///
     /// This chunk will be then compacted once it becomes cold for writes
     /// based on the mutable_linger_seconds and mutable_minimum_age_seconds
-    pub mutable_size_threshold: usize,
+    pub mutable_size_threshold: Option<NonZeroUsize>,
 
     /// Once the total amount of buffered data in memory reaches this size start
     /// dropping data from memory based on the drop_order
-    pub buffer_size_soft: usize,
+    pub buffer_size_soft: Option<NonZeroUsize>,
 
     /// Once the amount of data in memory reaches this size start
     /// rejecting writes
-    pub buffer_size_hard: usize,
+    pub buffer_size_hard: Option<NonZeroUsize>,
 
     /// Configure order to transition data
     ///
@@ -194,11 +195,26 @@ pub struct LifecycleRules {
 impl From<LifecycleRules> for management::LifecycleRules {
     fn from(config: LifecycleRules) -> Self {
         Self {
-            mutable_linger_seconds: config.mutable_linger_seconds,
-            mutable_minimum_age_seconds: config.mutable_minimum_age_seconds,
-            mutable_size_threshold: config.mutable_size_threshold as _,
-            buffer_size_soft: config.buffer_size_soft as _,
-            buffer_size_hard: config.buffer_size_hard as _,
+            mutable_linger_seconds: config
+                .mutable_linger_seconds
+                .map(Into::into)
+                .unwrap_or_default(),
+            mutable_minimum_age_seconds: config
+                .mutable_minimum_age_seconds
+                .map(Into::into)
+                .unwrap_or_default(),
+            mutable_size_threshold: config
+                .mutable_size_threshold
+                .map(|x| x.get() as u64)
+                .unwrap_or_default(),
+            buffer_size_soft: config
+                .buffer_size_soft
+                .map(|x| x.get() as u64)
+                .unwrap_or_default(),
+            buffer_size_hard: config
+                .buffer_size_hard
+                .map(|x| x.get() as u64)
+                .unwrap_or_default(),
             sort_order: Some(config.sort_order.into()),
             drop_non_persisted: config.drop_non_persisted,
             immutable: config.immutable,
@@ -211,11 +227,11 @@ impl TryFrom<management::LifecycleRules> for LifecycleRules {
 
     fn try_from(proto: management::LifecycleRules) -> Result<Self, Self::Error> {
         Ok(Self {
-            mutable_linger_seconds: proto.mutable_linger_seconds,
-            mutable_minimum_age_seconds: proto.mutable_minimum_age_seconds,
-            mutable_size_threshold: proto.mutable_size_threshold as _,
-            buffer_size_soft: proto.buffer_size_soft as _,
-            buffer_size_hard: proto.buffer_size_hard as _,
+            mutable_linger_seconds: proto.mutable_linger_seconds.try_into().ok(),
+            mutable_minimum_age_seconds: proto.mutable_minimum_age_seconds.try_into().ok(),
+            mutable_size_threshold: (proto.mutable_size_threshold as usize).try_into().ok(),
+            buffer_size_soft: (proto.buffer_size_soft as usize).try_into().ok(),
+            buffer_size_hard: (proto.buffer_size_hard as usize).try_into().ok(),
             sort_order: proto.sort_order.optional("sort_order")?.unwrap_or_default(),
             drop_non_persisted: proto.drop_non_persisted,
             immutable: proto.immutable,
@@ -1281,19 +1297,25 @@ mod tests {
 
         assert_eq!(config.sort_order, SortOrder::default());
         assert_eq!(
-            config.mutable_linger_seconds,
+            config.mutable_linger_seconds.unwrap().get(),
             protobuf.mutable_linger_seconds
         );
         assert_eq!(
-            config.mutable_minimum_age_seconds,
+            config.mutable_minimum_age_seconds.unwrap().get(),
             protobuf.mutable_minimum_age_seconds
         );
         assert_eq!(
-            config.mutable_size_threshold,
+            config.mutable_size_threshold.unwrap().get(),
             protobuf.mutable_size_threshold as usize
         );
-        assert_eq!(config.buffer_size_soft, protobuf.buffer_size_soft as usize);
-        assert_eq!(config.buffer_size_hard, protobuf.buffer_size_hard as usize);
+        assert_eq!(
+            config.buffer_size_soft.unwrap().get(),
+            protobuf.buffer_size_soft as usize
+        );
+        assert_eq!(
+            config.buffer_size_hard.unwrap().get(),
+            protobuf.buffer_size_hard as usize
+        );
         assert_eq!(config.drop_non_persisted, protobuf.drop_non_persisted);
         assert_eq!(config.immutable, protobuf.immutable);
 
