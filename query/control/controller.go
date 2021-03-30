@@ -24,7 +24,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute/table"
@@ -32,9 +31,9 @@ import (
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/influxdb/kit/errors"
+	errors2 "github.com/influxdata/influxdb/kit/platform/errors"
 	"github.com/influxdata/influxdb/kit/prom"
 	"github.com/influxdata/influxdb/kit/tracing"
-	errors2 "github.com/influxdata/influxdb/kit/platform/errors"
 	influxlogger "github.com/influxdata/influxdb/logger"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"

@@ -1,8 +1,8 @@
 package logger
 
 import (
-	"time"
 	"context"
+	"time"
 
 	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/pkg/snowflake"
