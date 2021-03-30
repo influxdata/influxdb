@@ -235,18 +235,35 @@ async fn test_chunk_get() {
     // ensure the output order is consistent
     chunks.sort_by(|c1, c2| c1.partition_key.cmp(&c2.partition_key));
 
+    // make sure there were timestamps prior to normalization
+    assert!(
+        chunks[0].time_of_first_write.is_some()
+            && chunks[0].time_of_last_write.is_some()
+            && chunks[0].time_closing.is_none(), // chunk is not yet closed
+        "actual:{:#?}",
+        chunks[0]
+    );
+
+    let chunks = normalize_chunks(chunks);
+
     let expected: Vec<Chunk> = vec![
         Chunk {
             partition_key: "cpu".into(),
             id: 0,
             storage: ChunkStorage::OpenMutableBuffer as i32,
             estimated_bytes: 145,
+            time_of_first_write: None,
+            time_of_last_write: None,
+            time_closing: None,
         },
         Chunk {
             partition_key: "disk".into(),
             id: 0,
             storage: ChunkStorage::OpenMutableBuffer as i32,
             estimated_bytes: 107,
+            time_of_first_write: None,
+            time_of_last_write: None,
+            time_closing: None,
         },
     ];
     assert_eq!(
@@ -403,11 +420,16 @@ async fn test_list_partition_chunks() {
         .await
         .expect("getting partition chunks");
 
+    let chunks = normalize_chunks(chunks);
+
     let expected: Vec<Chunk> = vec![Chunk {
         partition_key: "cpu".into(),
         id: 0,
         storage: ChunkStorage::OpenMutableBuffer as i32,
         estimated_bytes: 145,
+        time_of_first_write: None,
+        time_of_last_write: None,
+        time_closing: None,
     }];
 
     assert_eq!(
@@ -597,4 +619,29 @@ async fn test_close_partition_chunk_error() {
         .expect_err("expected error");
 
     assert_contains!(err.to_string(), "Database not found");
+}
+
+/// Normalizes a set of Chunks for comparison by removing timestamps
+fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
+    chunks
+        .into_iter()
+        .map(|summary| {
+            let Chunk {
+                partition_key,
+                id,
+                storage,
+                estimated_bytes,
+                ..
+            } = summary;
+            Chunk {
+                partition_key,
+                id,
+                storage,
+                estimated_bytes,
+                time_of_first_write: None,
+                time_of_last_write: None,
+                time_closing: None,
+            }
+        })
+        .collect::<Vec<_>>()
 }

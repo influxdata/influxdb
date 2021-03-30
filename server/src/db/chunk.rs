@@ -124,6 +124,9 @@ impl DBChunk {
         Arc::new(db_chunk)
     }
 
+    /// Return a partially filled `ChunkSummary` that includes storage
+    /// details. Information such as timestamps are provided by the
+    /// the catalog
     pub fn summary(&self) -> ChunkSummary {
         match self {
             Self::MutableBuffer {
@@ -136,12 +139,12 @@ impl DBChunk {
                 } else {
                     ChunkStorage::ClosedMutableBuffer
                 };
-                ChunkSummary {
-                    partition_key: Arc::clone(partition_key),
-                    id: chunk.id(),
+                ChunkSummary::new_without_timestamps(
+                    Arc::clone(partition_key),
+                    chunk.id(),
                     storage,
-                    estimated_bytes: chunk.size(),
-                }
+                    chunk.size(),
+                )
             }
             Self::ReadBuffer {
                 db,
@@ -152,12 +155,12 @@ impl DBChunk {
                     .chunks_size(partition_key.as_ref(), &[*chunk_id])
                     .unwrap_or(0) as usize;
 
-                ChunkSummary {
-                    partition_key: Arc::clone(&partition_key),
-                    id: *chunk_id,
-                    storage: ChunkStorage::ReadBuffer,
+                ChunkSummary::new_without_timestamps(
+                    Arc::clone(&partition_key),
+                    *chunk_id,
+                    ChunkStorage::ReadBuffer,
                     estimated_bytes,
-                }
+                )
             }
             Self::ParquetFile => {
                 unimplemented!("parquet file summary not implemented")

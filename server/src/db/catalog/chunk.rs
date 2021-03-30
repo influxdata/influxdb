@@ -1,8 +1,12 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
+use chrono::{DateTime, Utc};
+use data_types::chunk::ChunkSummary;
 use mutable_buffer::chunk::Chunk as MBChunk;
 use read_buffer::Database as ReadBufferDb;
+
+use crate::db::DBChunk;
 
 use super::{InternalChunkState, Result};
 
@@ -57,6 +61,19 @@ pub struct Chunk {
 
     /// The state of this chunk
     state: ChunkState,
+
+    /// Time at which the first data was written into this chunk. Note
+    /// this is not the same as the timestamps on the data itself
+    time_of_first_write: Option<DateTime<Utc>>,
+
+    /// Most recent time at which data write was initiated into this
+    /// chunk. Note this is not the same as the timestamps on the data
+    /// itself
+    time_of_last_write: Option<DateTime<Utc>>,
+
+    /// Time at which this chunk was maked as closing. Note this is
+    /// not the same as the timestamps on the data itself
+    time_closing: Option<DateTime<Utc>>,
 }
 
 macro_rules! unexpected_state {
@@ -79,6 +96,9 @@ impl Chunk {
             partition_key: Arc::new(partition_key.into()),
             id,
             state,
+            time_of_first_write: None,
+            time_of_last_write: None,
+            time_closing: None,
         }
     }
 
@@ -92,6 +112,37 @@ impl Chunk {
 
     pub fn state(&self) -> &ChunkState {
         &self.state
+    }
+
+    pub fn time_of_first_write(&self) -> Option<DateTime<Utc>> {
+        self.time_of_first_write
+    }
+
+    pub fn time_of_last_write(&self) -> Option<DateTime<Utc>> {
+        self.time_of_last_write
+    }
+
+    pub fn time_closing(&self) -> Option<DateTime<Utc>> {
+        self.time_closing
+    }
+
+    /// Update the write timestamps for this chunk
+    pub fn record_write(&mut self) {
+        let now = Utc::now();
+        if self.time_of_first_write.is_none() {
+            self.time_of_first_write = Some(now);
+        }
+        self.time_of_last_write = Some(now);
+    }
+
+    /// Return ChunkSummary metadata for this chunk
+    pub fn summary(&self) -> ChunkSummary {
+        ChunkSummary {
+            time_of_first_write: self.time_of_first_write,
+            time_of_last_write: self.time_of_last_write,
+            time_closing: self.time_closing,
+            ..DBChunk::snapshot(self).summary()
+        }
     }
 
     /// Returns true if this chunk contains a table with the provided name
@@ -136,8 +187,9 @@ impl Chunk {
         std::mem::swap(&mut s, &mut self.state);
 
         match s {
-            ChunkState::Open(mut s) | ChunkState::Closing(mut s) => {
-                s.mark_closing();
+            ChunkState::Open(s) | ChunkState::Closing(s) => {
+                assert!(self.time_closing.is_none());
+                self.time_closing = Some(Utc::now());
                 self.state = ChunkState::Closing(s);
                 Ok(())
             }

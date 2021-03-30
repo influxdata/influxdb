@@ -1,7 +1,11 @@
 //! Module contains a representation of chunk metadata
-use std::{convert::TryFrom, sync::Arc};
+use std::{
+    convert::{TryFrom, TryInto},
+    sync::Arc,
+};
 
 use crate::field_validation::FromField;
+use chrono::{DateTime, Utc};
 use generated_types::{google::FieldViolation, influxdata::iox::management::v1 as management};
 use serde::{Deserialize, Serialize};
 
@@ -36,6 +40,39 @@ pub struct ChunkSummary {
 
     /// The total estimated size of this chunk, in bytes
     pub estimated_bytes: usize,
+
+    /// Time at which the first data was written into this chunk. Note
+    /// this is not the same as the timestamps on the data itself
+    pub time_of_first_write: Option<DateTime<Utc>>,
+
+    /// Most recent time at which data write was initiated into this
+    /// chunk. Note this is not the same as the timestamps on the data
+    /// itself
+    pub time_of_last_write: Option<DateTime<Utc>>,
+
+    /// Time at which this chunk was marked as closing. Note this is
+    /// not the same as the timestamps on the data itself
+    pub time_closing: Option<DateTime<Utc>>,
+}
+
+impl ChunkSummary {
+    /// Construct a ChunkSummary that has None for all timestamps
+    pub fn new_without_timestamps(
+        partition_key: Arc<String>,
+        id: u32,
+        storage: ChunkStorage,
+        estimated_bytes: usize,
+    ) -> Self {
+        Self {
+            partition_key,
+            id,
+            storage,
+            estimated_bytes,
+            time_of_first_write: None,
+            time_of_last_write: None,
+            time_closing: None,
+        }
+    }
 }
 
 /// Conversion code to management API chunk structure
@@ -46,6 +83,9 @@ impl From<ChunkSummary> for management::Chunk {
             id,
             storage,
             estimated_bytes,
+            time_of_first_write,
+            time_of_last_write,
+            time_closing,
         } = summary;
 
         let storage: management::ChunkStorage = storage.into();
@@ -60,11 +100,18 @@ impl From<ChunkSummary> for management::Chunk {
             Err(partition_key) => partition_key.as_ref().clone(),
         };
 
+        let time_of_first_write = time_of_first_write.map(|t| t.into());
+        let time_of_last_write = time_of_last_write.map(|t| t.into());
+        let time_closing = time_closing.map(|t| t.into());
+
         Self {
             partition_key,
             id,
             storage,
             estimated_bytes,
+            time_of_first_write,
+            time_of_last_write,
+            time_closing,
         }
     }
 }
@@ -88,6 +135,33 @@ impl TryFrom<management::Chunk> for ChunkSummary {
         // Use prost enum conversion
         let storage = proto.storage().scope("storage")?;
 
+        let time_of_first_write = proto
+            .time_of_first_write
+            .map(TryInto::try_into)
+            .transpose()
+            .map_err(|_| FieldViolation {
+                field: "time_of_first_write".to_string(),
+                description: "Timestamp must be positive".to_string(),
+            })?;
+
+        let time_of_last_write = proto
+            .time_of_last_write
+            .map(TryInto::try_into)
+            .transpose()
+            .map_err(|_| FieldViolation {
+                field: "time_of_last_write".to_string(),
+                description: "Timestamp must be positive".to_string(),
+            })?;
+
+        let time_closing = proto
+            .time_closing
+            .map(TryInto::try_into)
+            .transpose()
+            .map_err(|_| FieldViolation {
+                field: "time_closing".to_string(),
+                description: "Timestamp must be positive".to_string(),
+            })?;
+
         let management::Chunk {
             partition_key,
             id,
@@ -103,6 +177,9 @@ impl TryFrom<management::Chunk> for ChunkSummary {
             id,
             storage,
             estimated_bytes,
+            time_of_first_write,
+            time_of_last_write,
+            time_closing,
         })
     }
 }
@@ -132,6 +209,9 @@ mod test {
             id: 42,
             estimated_bytes: 1234,
             storage: management::ChunkStorage::ObjectStore.into(),
+            time_of_first_write: None,
+            time_of_last_write: None,
+            time_closing: None,
         };
 
         let summary = ChunkSummary::try_from(proto).expect("conversion successful");
@@ -140,6 +220,9 @@ mod test {
             id: 42,
             estimated_bytes: 1234,
             storage: ChunkStorage::ObjectStore,
+            time_of_first_write: None,
+            time_of_last_write: None,
+            time_closing: None,
         };
 
         assert_eq!(
@@ -156,6 +239,9 @@ mod test {
             id: 42,
             estimated_bytes: 1234,
             storage: ChunkStorage::ObjectStore,
+            time_of_first_write: None,
+            time_of_last_write: None,
+            time_closing: None,
         };
 
         let proto = management::Chunk::try_from(summary).expect("conversion successful");
@@ -165,6 +251,9 @@ mod test {
             id: 42,
             estimated_bytes: 1234,
             storage: management::ChunkStorage::ObjectStore.into(),
+            time_of_first_write: None,
+            time_of_last_write: None,
+            time_closing: None,
         };
 
         assert_eq!(

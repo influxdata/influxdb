@@ -383,7 +383,18 @@ impl Db {
         &self,
         partition_key: &str,
     ) -> impl Iterator<Item = ChunkSummary> {
-        self.chunks(partition_key).into_iter().map(|c| c.summary())
+        let chunks = match self.catalog.partition(partition_key) {
+            Some(partition) => {
+                let partition = partition.read();
+                partition.chunks().cloned().collect::<Vec<_>>()
+            }
+            None => vec![],
+        };
+
+        chunks.into_iter().map(|chunk| {
+            let chunk = chunk.read();
+            chunk.summary()
+        })
     }
 
     /// Returns the partition_keys in the requested sort order
@@ -500,6 +511,7 @@ impl Database for Db {
                     .unwrap_or_else(|| partition.create_open_chunk());
 
                 let mut chunk = chunk.write();
+                chunk.record_write();
                 let chunk_id = chunk.id();
 
                 let mb_chunk = chunk.mutable_buffer().expect("cannot mutate open chunk");
@@ -787,10 +799,6 @@ mod tests {
         let partition = partition.read();
         let chunk = partition.chunk(chunk_id).unwrap();
         let chunk = chunk.read();
-        let chunk = match chunk.state() {
-            ChunkState::Closing(c) => c,
-            state => panic!("Unexpected chunk state: {}", state.name()),
-        };
 
         println!(
             "start: {:?}, after_data_load: {:?}, after_rollover: {:?}",
@@ -799,11 +807,11 @@ mod tests {
         println!("Chunk: {:#?}", chunk);
 
         // then the chunk creation and rollover times are as expected
-        assert!(start < chunk.time_of_first_write.unwrap());
-        assert!(chunk.time_of_first_write.unwrap() < after_data_load);
-        assert!(chunk.time_of_first_write.unwrap() == chunk.time_of_last_write.unwrap());
-        assert!(after_data_load < chunk.time_closing.unwrap());
-        assert!(chunk.time_closing.unwrap() < after_rollover);
+        assert!(start < chunk.time_of_first_write().unwrap());
+        assert!(chunk.time_of_first_write().unwrap() < after_data_load);
+        assert!(chunk.time_of_first_write().unwrap() == chunk.time_of_last_write().unwrap());
+        assert!(after_data_load < chunk.time_closing().unwrap());
+        assert!(chunk.time_closing().unwrap() < after_rollover);
     }
 
     #[tokio::test]
@@ -888,6 +896,25 @@ mod tests {
         assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![1]);
     }
 
+    /// Normalizes a set of ChunkSummaries for comparison by removing timestamps
+    fn normalize_summaries(summaries: Vec<ChunkSummary>) -> Vec<ChunkSummary> {
+        let mut summaries = summaries
+            .into_iter()
+            .map(|summary| {
+                let ChunkSummary {
+                    partition_key,
+                    id,
+                    storage,
+                    estimated_bytes,
+                    ..
+                } = summary;
+                ChunkSummary::new_without_timestamps(partition_key, id, storage, estimated_bytes)
+            })
+            .collect::<Vec<_>>();
+        summaries.sort_unstable();
+        summaries
+    }
+
     #[tokio::test]
     async fn partition_chunk_summaries() {
         // Test that chunk id listing is hooked up
@@ -908,23 +935,74 @@ mod tests {
             Arc::new(s.to_string())
         }
 
-        let mut chunk_summaries = db
+        let chunk_summaries = db
             .partition_chunk_summaries("1970-01-05T15")
             .collect::<Vec<_>>();
+        let chunk_summaries = normalize_summaries(chunk_summaries);
 
-        chunk_summaries.sort_unstable();
-
-        let expected = vec![ChunkSummary {
-            partition_key: to_arc("1970-01-05T15"),
-            id: 0,
-            storage: ChunkStorage::OpenMutableBuffer,
-            estimated_bytes: 107,
-        }];
+        let expected = vec![ChunkSummary::new_without_timestamps(
+            to_arc("1970-01-05T15"),
+            0,
+            ChunkStorage::OpenMutableBuffer,
+            107,
+        )];
 
         assert_eq!(
             expected, chunk_summaries,
             "expected:\n{:#?}\n\nactual:{:#?}\n\n",
             expected, chunk_summaries
+        );
+    }
+
+    #[tokio::test]
+    async fn partition_chunk_summaries_timestamp() {
+        let db = make_db();
+        let mut writer = TestLPWriter::default();
+
+        let start = Utc::now();
+        writer.write_lp_string(&db, "cpu bar=1 1").unwrap();
+        let after_first_write = Utc::now();
+        writer.write_lp_string(&db, "cpu bar=2 2").unwrap();
+        db.rollover_partition("1970-01-01T00").await.unwrap();
+        let after_close = Utc::now();
+
+        let mut chunk_summaries = db.chunk_summaries().unwrap();
+
+        chunk_summaries.sort_by_key(|s| s.id);
+
+        let summary = &chunk_summaries[0];
+        assert_eq!(summary.id, 0, "summary; {:#?}", summary);
+        assert!(
+            summary.time_of_first_write.unwrap() > start,
+            "summary; {:#?}",
+            summary
+        );
+        assert!(
+            summary.time_of_first_write.unwrap() < after_close,
+            "summary; {:#?}",
+            summary
+        );
+
+        assert!(
+            summary.time_of_last_write.unwrap() > after_first_write,
+            "summary; {:#?}",
+            summary
+        );
+        assert!(
+            summary.time_of_last_write.unwrap() < after_close,
+            "summary; {:#?}",
+            summary
+        );
+
+        assert!(
+            summary.time_closing.unwrap() > after_first_write,
+            "summary; {:#?}",
+            summary
+        );
+        assert!(
+            summary.time_closing.unwrap() < after_close,
+            "summary; {:#?}",
+            summary
         );
     }
 
@@ -961,34 +1039,34 @@ mod tests {
             Arc::new(s.to_string())
         }
 
-        let mut chunk_summaries = db.chunk_summaries().expect("expected summary to return");
-        chunk_summaries.sort_unstable();
+        let chunk_summaries = db.chunk_summaries().expect("expected summary to return");
+        let chunk_summaries = normalize_summaries(chunk_summaries);
 
         let expected = vec![
-            ChunkSummary {
-                partition_key: to_arc("1970-01-01T00"),
-                id: 0,
-                storage: ChunkStorage::ReadBuffer,
-                estimated_bytes: 1221,
-            },
-            ChunkSummary {
-                partition_key: to_arc("1970-01-01T00"),
-                id: 1,
-                storage: ChunkStorage::OpenMutableBuffer,
-                estimated_bytes: 101,
-            },
-            ChunkSummary {
-                partition_key: to_arc("1970-01-05T15"),
-                id: 0,
-                storage: ChunkStorage::ClosedMutableBuffer,
-                estimated_bytes: 133,
-            },
-            ChunkSummary {
-                partition_key: to_arc("1970-01-05T15"),
-                id: 1,
-                storage: ChunkStorage::OpenMutableBuffer,
-                estimated_bytes: 135,
-            },
+            ChunkSummary::new_without_timestamps(
+                to_arc("1970-01-01T00"),
+                0,
+                ChunkStorage::ReadBuffer,
+                1221,
+            ),
+            ChunkSummary::new_without_timestamps(
+                to_arc("1970-01-01T00"),
+                1,
+                ChunkStorage::OpenMutableBuffer,
+                101,
+            ),
+            ChunkSummary::new_without_timestamps(
+                to_arc("1970-01-05T15"),
+                0,
+                ChunkStorage::ClosedMutableBuffer,
+                133,
+            ),
+            ChunkSummary::new_without_timestamps(
+                to_arc("1970-01-05T15"),
+                1,
+                ChunkStorage::OpenMutableBuffer,
+                135,
+            ),
         ];
 
         assert_eq!(
