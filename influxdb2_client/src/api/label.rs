@@ -137,7 +137,7 @@ mod tests {
     async fn labels() -> Result {
         let token = "some-token";
 
-        let mock_server = mock("GET", format!("{}", BASE_PATH).as_str())
+        let mock_server = mock("GET", BASE_PATH)
             .match_header("Authorization", format!("Token {}", token).as_str())
             .create();
 
@@ -173,7 +173,7 @@ mod tests {
         let mut properties = HashMap::new();
         properties.insert("some-key".to_string(), "some-value".to_string());
 
-        let mock_server = mock("POST", format!("{}", BASE_PATH).as_str())
+        let mock_server = mock("POST", BASE_PATH)
             .match_header("Authorization", format!("Token {}", token).as_str())
             .match_body(
                 format!(
@@ -198,7 +198,7 @@ mod tests {
         let org_id = "some-org_id";
         let name = "some-user";
 
-        let mock_server = mock("POST", format!("{}", BASE_PATH).as_str())
+        let mock_server = mock("POST", BASE_PATH)
             .match_header("Authorization", format!("Token {}", token).as_str())
             .match_body(format!(r#"{{"orgID":"{}","name":"{}"}}"#, org_id, name).as_str())
             .create();
