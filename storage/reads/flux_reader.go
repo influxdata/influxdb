@@ -13,6 +13,7 @@ import (
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
+	"github.com/influxdata/influxdb/kit/platform/errors"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
@@ -55,6 +56,7 @@ type storeReader struct {
 	s Store
 }
 
+// NewReader returns a new storageflux reader
 func NewReader(s Store) influxdb.Reader {
 	return &storeReader{s: s}
 }
@@ -257,6 +259,12 @@ func (gi *groupIterator) Do(f func(flux.Table) error) error {
 	req.Range.Start = int64(gi.spec.Bounds.Start)
 	req.Range.End = int64(gi.spec.Bounds.Stop)
 
+	if len(gi.spec.GroupKeys) > 0 && gi.spec.GroupMode == influxdb.GroupModeNone {
+		return &errors.Error{
+			Code: errors.EInternal,
+			Msg:  "cannot have group mode none with group key values",
+		}
+	}
 	req.Group = convertGroupMode(gi.spec.GroupMode)
 	req.GroupKeys = gi.spec.GroupKeys
 
@@ -320,19 +328,19 @@ READ:
 		done := make(chan struct{})
 		switch typedCur := cur.(type) {
 		case cursors.IntegerArrayCursor:
-			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TInt)
+			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TInt, gc.Aggregate(), key)
 			table = newIntegerGroupTable(done, gc, typedCur, bnds, key, cols, gc.Tags(), defs, gi.cache, gi.alloc)
 		case cursors.FloatArrayCursor:
-			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TFloat)
+			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TFloat, gc.Aggregate(), key)
 			table = newFloatGroupTable(done, gc, typedCur, bnds, key, cols, gc.Tags(), defs, gi.cache, gi.alloc)
 		case cursors.UnsignedArrayCursor:
-			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TUInt)
+			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TUInt, gc.Aggregate(), key)
 			table = newUnsignedGroupTable(done, gc, typedCur, bnds, key, cols, gc.Tags(), defs, gi.cache, gi.alloc)
 		case cursors.BooleanArrayCursor:
-			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TBool)
+			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TBool, gc.Aggregate(), key)
 			table = newBooleanGroupTable(done, gc, typedCur, bnds, key, cols, gc.Tags(), defs, gi.cache, gi.alloc)
 		case cursors.StringArrayCursor:
-			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TString)
+			cols, defs := determineTableColsForGroup(gc.Keys(), flux.TString, gc.Aggregate(), key)
 			table = newStringGroupTable(done, gc, typedCur, bnds, key, cols, gc.Tags(), defs, gi.cache, gi.alloc)
 		default:
 			panic(fmt.Sprintf("unreachable: %T", typedCur))
@@ -387,12 +395,56 @@ func convertGroupMode(m influxdb.GroupMode) datatypes.ReadGroupRequest_Group {
 }
 
 const (
-	startColIdx = 0
-	stopColIdx  = 1
-	timeColIdx  = 2
+	startColIdx            = 0
+	stopColIdx             = 1
+	timeColIdx             = 2
 	valueColIdxWithoutTime = 2
-	valueColIdx = 3
+	valueColIdx            = 3
 )
+
+func determineTableColsForWindowAggregate(tags models.Tags, typ flux.ColType, hasTimeCol bool) ([]flux.ColMeta, [][]byte) {
+	var cols []flux.ColMeta
+	var defs [][]byte
+
+	// aggregates remove the _time column
+	size := 3
+	if hasTimeCol {
+		size++
+	}
+	cols = make([]flux.ColMeta, size+len(tags))
+	defs = make([][]byte, size+len(tags))
+	cols[startColIdx] = flux.ColMeta{
+		Label: execute.DefaultStartColLabel,
+		Type:  flux.TTime,
+	}
+	cols[stopColIdx] = flux.ColMeta{
+		Label: execute.DefaultStopColLabel,
+		Type:  flux.TTime,
+	}
+	if hasTimeCol {
+		cols[timeColIdx] = flux.ColMeta{
+			Label: execute.DefaultTimeColLabel,
+			Type:  flux.TTime,
+		}
+		cols[valueColIdx] = flux.ColMeta{
+			Label: execute.DefaultValueColLabel,
+			Type:  typ,
+		}
+	} else {
+		cols[valueColIdxWithoutTime] = flux.ColMeta{
+			Label: execute.DefaultValueColLabel,
+			Type:  typ,
+		}
+	}
+	for j, tag := range tags {
+		cols[size+j] = flux.ColMeta{
+			Label: string(tag.Key),
+			Type:  flux.TString,
+		}
+		defs[size+j] = []byte("")
+	}
+	return cols, defs
+}
 
 func determineTableColsForSeries(tags models.Tags, typ flux.ColType) ([]flux.ColMeta, [][]byte) {
 	cols := make([]flux.ColMeta, 4+len(tags))
@@ -426,16 +478,16 @@ func determineTableColsForSeries(tags models.Tags, typ flux.ColType) ([]flux.Col
 func defaultGroupKeyForSeries(tags models.Tags, bnds execute.Bounds) flux.GroupKey {
 	cols := make([]flux.ColMeta, 2, len(tags)+2)
 	vs := make([]values.Value, 2, len(tags)+2)
-	cols[0] = flux.ColMeta{
+	cols[startColIdx] = flux.ColMeta{
 		Label: execute.DefaultStartColLabel,
 		Type:  flux.TTime,
 	}
-	vs[0] = values.NewTime(bnds.Start)
-	cols[1] = flux.ColMeta{
+	vs[startColIdx] = values.NewTime(bnds.Start)
+	cols[stopColIdx] = flux.ColMeta{
 		Label: execute.DefaultStopColLabel,
 		Type:  flux.TTime,
 	}
-	vs[1] = values.NewTime(bnds.Stop)
+	vs[stopColIdx] = values.NewTime(bnds.Stop)
 	for i := range tags {
 		cols = append(cols, flux.ColMeta{
 			Label: string(tags[i].Key),
@@ -454,9 +506,27 @@ func IsSelector(agg *datatypes.Aggregate) bool {
 		agg.Type == datatypes.AggregateTypeFirst || agg.Type == datatypes.AggregateTypeLast
 }
 
-func determineTableColsForGroup(tagKeys [][]byte, typ flux.ColType) ([]flux.ColMeta, [][]byte) {
-	cols := make([]flux.ColMeta, 4+len(tagKeys))
-	defs := make([][]byte, 4+len(tagKeys))
+func determineTableColsForGroup(tagKeys [][]byte, typ flux.ColType, agg *datatypes.Aggregate, groupKey flux.GroupKey) ([]flux.ColMeta, [][]byte) {
+	var colSize int
+	if agg == nil || IsSelector(agg) {
+		// The group without aggregate or with selector (min, max, first, last) case:
+		// _start, _stop, _time, _value + tags
+		colSize += 4 + len(tagKeys)
+	} else {
+		// The group aggregate case:
+		// Only the group keys + _value are needed.
+		// Note that `groupKey` will contain _start, _stop, plus any group columns specified.
+		// _start and _stop will always be in the first two slots, see: groupKeyForGroup()
+		// For the group aggregate case the output does not contain a _time column.
+
+		// Also note that if in the future we will add support for mean, then it should also fall onto this branch.
+
+		colSize = len(groupKey.Cols()) + 1
+	}
+
+	cols := make([]flux.ColMeta, colSize)
+	defs := make([][]byte, colSize)
+	// No matter this has aggregate, selector, or neither, the first two columns are always _start and _stop
 	cols[startColIdx] = flux.ColMeta{
 		Label: execute.DefaultStartColLabel,
 		Type:  flux.TTime,
@@ -465,21 +535,42 @@ func determineTableColsForGroup(tagKeys [][]byte, typ flux.ColType) ([]flux.ColM
 		Label: execute.DefaultStopColLabel,
 		Type:  flux.TTime,
 	}
-	cols[timeColIdx] = flux.ColMeta{
-		Label: execute.DefaultTimeColLabel,
-		Type:  flux.TTime,
-	}
-	cols[valueColIdx] = flux.ColMeta{
-		Label: execute.DefaultValueColLabel,
-		Type:  typ,
-	}
-	for j, tag := range tagKeys {
-		cols[4+j] = flux.ColMeta{
-			Label: string(tag),
-			Type:  flux.TString,
-		}
-		defs[4+j] = []byte("")
 
+	if agg == nil || IsSelector(agg) {
+		// For the group without aggregate or with selector case:
+		cols[timeColIdx] = flux.ColMeta{
+			Label: execute.DefaultTimeColLabel,
+			Type:  flux.TTime,
+		}
+		cols[valueColIdx] = flux.ColMeta{
+			Label: execute.DefaultValueColLabel,
+			Type:  typ,
+		}
+		for j, tag := range tagKeys {
+			cols[4+j] = flux.ColMeta{
+				Label: string(tag),
+				Type:  flux.TString,
+			}
+			defs[4+j] = []byte("")
+		}
+	} else {
+		// Aggregate has no _time
+		cols[valueColIdxWithoutTime] = flux.ColMeta{
+			Label: execute.DefaultValueColLabel,
+			Type:  typ,
+		}
+		// From now on, only include group keys that are not _start and _stop.
+		// which are already included as the first two columns
+		// This highly depends on the implementation of groupKeyForGroup() which
+		// put _start and _stop into the first two slots.
+		for j := 2; j < len(groupKey.Cols()); j++ {
+			// the starting columns index for other group key columns is 3 (1+j)
+			cols[1+j] = flux.ColMeta{
+				Label: groupKey.Cols()[j].Label,
+				Type:  groupKey.Cols()[j].Type,
+			}
+			defs[1+j] = []byte("")
+		}
 	}
 	return cols, defs
 }
@@ -487,16 +578,16 @@ func determineTableColsForGroup(tagKeys [][]byte, typ flux.ColType) ([]flux.ColM
 func groupKeyForGroup(kv [][]byte, spec *influxdb.ReadGroupSpec, bnds execute.Bounds) flux.GroupKey {
 	cols := make([]flux.ColMeta, 2, len(spec.GroupKeys)+2)
 	vs := make([]values.Value, 2, len(spec.GroupKeys)+2)
-	cols[0] = flux.ColMeta{
+	cols[startColIdx] = flux.ColMeta{
 		Label: execute.DefaultStartColLabel,
 		Type:  flux.TTime,
 	}
-	vs[0] = values.NewTime(bnds.Start)
-	cols[1] = flux.ColMeta{
+	vs[startColIdx] = values.NewTime(bnds.Start)
+	cols[stopColIdx] = flux.ColMeta{
 		Label: execute.DefaultStopColLabel,
 		Type:  flux.TTime,
 	}
-	vs[1] = values.NewTime(bnds.Stop)
+	vs[stopColIdx] = values.NewTime(bnds.Stop)
 	for i := range spec.GroupKeys {
 		if spec.GroupKeys[i] == execute.DefaultStartColLabel || spec.GroupKeys[i] == execute.DefaultStopColLabel {
 			continue
@@ -522,7 +613,10 @@ type windowAggregateIterator struct {
 func (wai *windowAggregateIterator) Statistics() cursors.CursorStats { return wai.stats }
 
 func (wai *windowAggregateIterator) Do(f func(flux.Table) error) error {
-	src := wai.s.GetSource(wai.spec.Database, wai.spec.RetentionPolicy)
+	src := wai.s.GetSource(
+		wai.spec.Database,
+		wai.spec.RetentionPolicy,
+	)
 
 	// Setup read request
 	any, err := types.MarshalAny(src)
@@ -569,7 +663,6 @@ func (wai *windowAggregateIterator) Do(f func(flux.Table) error) error {
 	}
 	return wai.handleRead(f, rs)
 }
-
 
 const (
 	CountKind = "count"
@@ -741,50 +834,6 @@ func isAggregateCount(kind plan.ProcedureKind) bool {
 	return kind == CountKind
 }
 
-func determineTableColsForWindowAggregate(tags models.Tags, typ flux.ColType, hasTimeCol bool) ([]flux.ColMeta, [][]byte) {
-	var cols []flux.ColMeta
-	var defs [][]byte
-
-	// aggregates remove the _time column
-	size := 3
-	if hasTimeCol {
-		size++
-	}
-	cols = make([]flux.ColMeta, size+len(tags))
-	defs = make([][]byte, size+len(tags))
-	cols[startColIdx] = flux.ColMeta{
-		Label: execute.DefaultStartColLabel,
-		Type:  flux.TTime,
-	}
-	cols[stopColIdx] = flux.ColMeta{
-		Label: execute.DefaultStopColLabel,
-		Type:  flux.TTime,
-	}
-	if hasTimeCol {
-		cols[timeColIdx] = flux.ColMeta{
-			Label: execute.DefaultTimeColLabel,
-			Type:  flux.TTime,
-		}
-		cols[valueColIdx] = flux.ColMeta{
-			Label: execute.DefaultValueColLabel,
-			Type:  typ,
-		}
-	} else {
-		cols[valueColIdxWithoutTime] = flux.ColMeta{
-			Label: execute.DefaultValueColLabel,
-			Type:  typ,
-		}
-	}
-	for j, tag := range tags {
-		cols[size+j] = flux.ColMeta{
-			Label: string(tag.Key),
-			Type:  flux.TString,
-		}
-		defs[size+j] = []byte("")
-	}
-	return cols, defs
-}
-
 type tagKeysIterator struct {
 	ctx       context.Context
 	bounds    execute.Bounds
@@ -801,11 +850,12 @@ func (ti *tagKeysIterator) Do(f func(flux.Table) error) error {
 	)
 
 	var req datatypes.TagKeysRequest
-	if any, err := types.MarshalAny(src); err != nil {
+	any, err := types.MarshalAny(src)
+	if err != nil {
 		return err
-	} else {
-		req.TagsSource = any
 	}
+
+	req.TagsSource = any
 	req.Predicate = ti.predicate
 	req.Range.Start = int64(ti.bounds.Start)
 	req.Range.End = int64(ti.bounds.Stop)
@@ -883,11 +933,12 @@ func (ti *tagValuesIterator) Do(f func(flux.Table) error) error {
 	)
 
 	var req datatypes.TagValuesRequest
-	if any, err := types.MarshalAny(src); err != nil {
+	any, err := types.MarshalAny(src)
+	if err != nil {
 		return err
-	} else {
-		req.TagsSource = any
 	}
+	req.TagsSource = any
+
 	switch ti.readSpec.TagKey {
 	case "_measurement":
 		req.TagKey = models.MeasurementTagKey
