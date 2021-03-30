@@ -1,4 +1,5 @@
 //! This module contains the implementation of the InfluxDB IOx Metadata catalog
+use std::any::Any;
 use std::{
     collections::{btree_map::Entry, BTreeMap},
     sync::Arc,
@@ -7,10 +8,18 @@ use std::{
 use parking_lot::RwLock;
 use snafu::{OptionExt, Snafu};
 
+use arrow_deps::datafusion::{catalog::schema::SchemaProvider, datasource::TableProvider};
+use data_types::error::ErrorLogger;
+use internal_types::selection::Selection;
+use partition::Partition;
+use query::{
+    exec::stringset::StringSet,
+    provider::{self, ProviderBuilder},
+    PartitionChunk,
+};
+
 pub mod chunk;
 pub mod partition;
-
-use partition::Partition;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -19,15 +28,6 @@ pub enum Error {
 
     #[snafu(display("unknown chunk: {}:{}", partition_key, chunk_id))]
     UnknownChunk {
-        partition_key: String,
-        chunk_id: u32,
-    },
-
-    #[snafu(display("partition already exists: {}", partition_key))]
-    PartitionAlreadyExists { partition_key: String },
-
-    #[snafu(display("chunk already exists: {}:{}", partition_key, chunk_id))]
-    ChunkAlreadyExists {
         partition_key: String,
         chunk_id: u32,
     },
@@ -70,26 +70,31 @@ impl Catalog {
         }
     }
 
-    // List all partitions in this database
+    /// List all partitions in this database
     pub fn partitions(&self) -> impl Iterator<Item = Arc<RwLock<Partition>>> {
         let partitions = self.partitions.read();
         partitions.values().cloned().collect::<Vec<_>>().into_iter()
     }
 
-    // Get a specific partition by name, returning `None` if there is no such
-    // partition
+    /// Get a specific partition by name, returning `None` if there is no such
+    /// partition
     pub fn partition(&self, partition_key: impl AsRef<str>) -> Option<Arc<RwLock<Partition>>> {
         let partition_key = partition_key.as_ref();
         let partitions = self.partitions.read();
         partitions.get(partition_key).cloned()
     }
 
-    // Create a new partition in the catalog and return a reference to
-    // it. Returns an error if the partition already exists
-    pub fn create_partition(
+    /// List all partition keys in this database
+    pub fn partition_keys(&self) -> Vec<String> {
+        self.partitions.read().keys().cloned().collect()
+    }
+
+    /// Gets or creates a new partition in the catalog and returns
+    /// a reference to it
+    pub fn get_or_create_partition(
         &self,
         partition_key: impl Into<String>,
-    ) -> Result<Arc<RwLock<Partition>>> {
+    ) -> Arc<RwLock<Partition>> {
         let partition_key = partition_key.into();
 
         let mut partitions = self.partitions.write();
@@ -99,12 +104,9 @@ impl Catalog {
                 let partition = Partition::new(entry.key());
                 let partition = Arc::new(RwLock::new(partition));
                 entry.insert(Arc::clone(&partition));
-                Ok(partition)
+                partition
             }
-            Entry::Occupied(entry) => PartitionAlreadyExists {
-                partition_key: entry.key(),
-            }
-            .fail(),
+            Entry::Occupied(entry) => Arc::clone(entry.get()),
         }
     }
 
@@ -119,24 +121,68 @@ impl Catalog {
     }
 }
 
+impl SchemaProvider for Catalog {
+    fn as_any(&self) -> &dyn Any {
+        self as &dyn Any
+    }
+
+    fn table_names(&self) -> Vec<String> {
+        let mut names = StringSet::new();
+
+        self.partitions().for_each(|partition| {
+            let partition = partition.read();
+            partition.chunks().for_each(|chunk| {
+                chunk.read().table_names(&mut names);
+            })
+        });
+
+        names.into_iter().collect()
+    }
+
+    fn table(&self, table_name: &str) -> Option<Arc<dyn TableProvider>> {
+        let mut builder = ProviderBuilder::new(table_name);
+        let partitions = self.partitions.read();
+
+        for partition in partitions.values() {
+            let partition = partition.read();
+            for chunk in partition.chunks() {
+                let chunk = chunk.read();
+
+                if chunk.has_table(table_name) {
+                    let chunk = super::DBChunk::snapshot(&chunk);
+
+                    // This should only fail if the table doesn't exist which isn't possible
+                    let schema = chunk
+                        .table_schema(table_name, Selection::All)
+                        .expect("cannot fail");
+
+                    // This is unfortunate - a table with incompatible chunks ceases to
+                    // be visible to the query engine
+                    builder = builder
+                        .add_chunk(chunk, schema)
+                        .log_if_error("Adding chunks to table")
+                        .ok()?
+                }
+            }
+        }
+
+        match builder.build() {
+            Ok(provider) => Some(Arc::new(provider)),
+            Err(provider::Error::InternalNoChunks { .. }) => None,
+            Err(e) => panic!("unexpected error: {:?}", e),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn partition_create() {
-        let catalog = Catalog::new();
-        catalog.create_partition("p1").unwrap();
-
-        let err = catalog.create_partition("p1").unwrap_err();
-        assert_eq!(err.to_string(), "partition already exists: p1");
-    }
-
-    #[test]
     fn partition_get() {
         let catalog = Catalog::new();
-        catalog.create_partition("p1").unwrap();
-        catalog.create_partition("p2").unwrap();
+        catalog.get_or_create_partition("p1");
+        catalog.get_or_create_partition("p2");
 
         let p1 = catalog.partition("p1").unwrap();
         assert_eq!(p1.read().key(), "p1");
@@ -154,9 +200,9 @@ mod tests {
 
         assert_eq!(catalog.partitions().count(), 0);
 
-        catalog.create_partition("p1").unwrap();
-        catalog.create_partition("p2").unwrap();
-        catalog.create_partition("p3").unwrap();
+        catalog.get_or_create_partition("p1");
+        catalog.get_or_create_partition("p2");
+        catalog.get_or_create_partition("p3");
 
         let mut partition_keys: Vec<String> = catalog
             .partitions()
@@ -170,11 +216,11 @@ mod tests {
     #[test]
     fn chunk_create() {
         let catalog = Catalog::new();
-        let p1 = catalog.create_partition("p1").unwrap();
+        let p1 = catalog.get_or_create_partition("p1");
 
         let mut p1 = p1.write();
-        p1.create_chunk().unwrap();
-        p1.create_chunk().unwrap();
+        p1.create_open_chunk();
+        p1.create_open_chunk();
 
         let c1_0 = p1.chunk(0).unwrap();
         assert_eq!(c1_0.read().key(), "p1");
@@ -192,18 +238,18 @@ mod tests {
     fn chunk_list() {
         let catalog = Catalog::new();
 
-        let p1 = catalog.create_partition("p1").unwrap();
+        let p1 = catalog.get_or_create_partition("p1");
         {
             let mut p1 = p1.write();
 
-            p1.create_chunk().unwrap();
-            p1.create_chunk().unwrap();
+            p1.create_open_chunk();
+            p1.create_open_chunk();
         }
 
-        let p2 = catalog.create_partition("p2").unwrap();
+        let p2 = catalog.get_or_create_partition("p2");
         {
             let mut p2 = p2.write();
-            p2.create_chunk().unwrap();
+            p2.create_open_chunk();
         }
 
         assert_eq!(
@@ -257,17 +303,17 @@ mod tests {
     fn chunk_drop() {
         let catalog = Catalog::new();
 
-        let p1 = catalog.create_partition("p1").unwrap();
+        let p1 = catalog.get_or_create_partition("p1");
         {
             let mut p1 = p1.write();
-            p1.create_chunk().unwrap();
-            p1.create_chunk().unwrap();
+            p1.create_open_chunk();
+            p1.create_open_chunk();
         }
 
-        let p2 = catalog.create_partition("p2").unwrap();
+        let p2 = catalog.get_or_create_partition("p2");
         {
             let mut p2 = p2.write();
-            p2.create_chunk().unwrap();
+            p2.create_open_chunk();
         }
 
         assert_eq!(chunk_strings(&catalog).len(), 3);
@@ -290,7 +336,7 @@ mod tests {
     #[test]
     fn chunk_drop_non_existent_chunk() {
         let catalog = Catalog::new();
-        let p3 = catalog.create_partition("p3").unwrap();
+        let p3 = catalog.get_or_create_partition("p3");
         let mut p3 = p3.write();
 
         let err = p3.drop_chunk(0).unwrap_err();
@@ -301,12 +347,12 @@ mod tests {
     fn chunk_recreate_dropped() {
         let catalog = Catalog::new();
 
-        let p1 = catalog.create_partition("p1").unwrap();
+        let p1 = catalog.get_or_create_partition("p1");
 
         {
             let mut p1 = p1.write();
-            p1.create_chunk().unwrap();
-            p1.create_chunk().unwrap();
+            p1.create_open_chunk();
+            p1.create_open_chunk();
         }
         assert_eq!(chunk_strings(&catalog).len(), 2);
 
@@ -319,7 +365,7 @@ mod tests {
         // should be ok to recreate (thought maybe not a great idea)
         {
             let mut p1 = p1.write();
-            p1.create_chunk().unwrap();
+            p1.create_open_chunk();
         }
         assert_eq!(chunk_strings(&catalog).len(), 2);
     }

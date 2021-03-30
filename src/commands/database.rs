@@ -50,6 +50,9 @@ pub enum Error {
 
     #[error("Error in partition subcommand: {0}")]
     Partition(#[from] partition::Error),
+
+    #[error("JSON Serialization error: {0}")]
+    Serde(#[from] serde_json::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -198,8 +201,7 @@ pub async fn command(url: String, config: Config) -> Result<()> {
         Command::Get(get) => {
             let mut client = management::Client::new(connection);
             let database = client.get_database(get.name).await?;
-            // TOOD: Do something better than this
-            println!("{:#?}", database);
+            println!("{}", serde_json::to_string_pretty(&database)?);
         }
         Command::Write(write) => {
             let mut client = write::Client::new(connection);

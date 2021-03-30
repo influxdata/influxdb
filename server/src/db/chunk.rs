@@ -83,7 +83,7 @@ impl DBChunk {
         let chunk_id = chunk.id();
 
         let db_chunk = match chunk.state() {
-            super::catalog::chunk::ChunkState::None => {
+            super::catalog::chunk::ChunkState::Invalid => {
                 panic!("Invalid internal state");
             }
             super::catalog::chunk::ChunkState::Open(chunk) => {

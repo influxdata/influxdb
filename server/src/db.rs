@@ -8,23 +8,19 @@ use std::sync::{
 };
 
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
 use tracing::{debug, info};
 
-use arrow_deps::datafusion::{
-    catalog::{catalog::CatalogProvider, schema::SchemaProvider},
-    datasource::TableProvider,
-};
+use arrow_deps::datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
 use catalog::{chunk::ChunkState, Catalog};
-use data_types::{chunk::ChunkSummary, database_rules::DatabaseRules, error::ErrorLogger};
-use internal_types::{data::ReplicatedWrite, selection::Selection};
-use mutable_buffer::chunk::Chunk;
-use query::{
-    exec::stringset::StringSet,
-    provider::{self, ProviderBuilder},
-    Database, PartitionChunk, DEFAULT_SCHEMA,
+use data_types::{
+    chunk::ChunkSummary,
+    database_rules::{DatabaseRules, Order, Sort, SortOrder},
 };
+use internal_types::{data::ReplicatedWrite, selection::Selection};
+use query::{Database, DEFAULT_SCHEMA};
 use read_buffer::Database as ReadBufferDb;
 
 pub(crate) use chunk::DBChunk;
@@ -62,15 +58,6 @@ pub enum Error {
     ))]
     InternalNoOpenChunk { partition_key: String },
 
-    #[snafu(display("Internal error: unexpected state rolling over partition chunk {} {}: expected {:?}, but was {:?}",
-                    partition_key, chunk_id, expected_state, actual_state))]
-    InternalRollingOverUnexpectedState {
-        partition_key: String,
-        chunk_id: u32,
-        expected_state: String,
-        actual_state: String,
-    },
-
     #[snafu(display(
         "Can not drop chunk {} {} which is {:?}. Wait for the movement to complete",
         partition_key,
@@ -99,40 +86,14 @@ pub enum Error {
     UnknownMutableBufferChunk { chunk_id: u32 },
 
     #[snafu(display("Cannot write to this database: no mutable buffer configured"))]
-    DatatbaseNotWriteable {},
+    DatabaseNotWriteable {},
 
-    #[snafu(display("Internal error: cannot create partition in catalog: {}", source))]
-    CreatingPartition {
-        partition_key: String,
-        source: catalog::Error,
-    },
-
-    #[snafu(display("Internal error: cannot create chunk in catalog: {}", source))]
-    CreatingChunk {
-        partition_key: String,
-        source: catalog::Error,
-    },
-
-    #[snafu(display("Cannot read to this database: no mutable buffer configured"))]
-    DatabaseNotReadable {},
-
-    #[snafu(display(
-        "Only closed chunks can be moved to read buffer. Chunk {} {} was open",
-        partition_key,
-        chunk_id
-    ))]
-    ChunkNotClosed {
+    #[snafu(display("Can not write entry {} {}: {}", partition_key, chunk_id, source))]
+    WriteEntry {
         partition_key: String,
         chunk_id: u32,
+        source: mutable_buffer::chunk::Error,
     },
-
-    #[snafu(display("Error writing to mutable buffer: {}", source))]
-    MutableBufferWrite {
-        source: mutable_buffer::database::Error,
-    },
-
-    #[snafu(display("Error dropping data from read buffer: {}", source))]
-    ReadBufferDrop { source: read_buffer::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -141,6 +102,49 @@ const STARTING_SEQUENCE: u64 = 1;
 #[derive(Debug)]
 /// This is the main IOx Database object. It is the root object of any
 /// specific InfluxDB IOx instance
+///
+///
+/// The data in a `Db` is structured in this way:
+///
+/// ┌───────────────────────────────────────────────┐
+/// │                                               │
+/// │    ┌────────────────┐                         │
+/// │    │    Database    │                         │
+/// │    └────────────────┘                         │
+/// │             │ one partition per               │
+/// │             │ partition_key                   │
+/// │             ▼                                 │
+/// │    ┌────────────────┐                         │
+/// │    │   Partition    │                         │
+/// │    └────────────────┘                         │
+/// │             │  one open Chunk                 │
+/// │             │  zero or more closed            │
+/// │             ▼  Chunks                         │
+/// │    ┌────────────────┐                         │
+/// │    │     Chunk      │                         │
+/// │    └────────────────┘                         │
+/// │             │  multiple Tables (measurements) │
+/// │             ▼                                 │
+/// │    ┌────────────────┐                         │
+/// │    │     Table      │                         │
+/// │    └────────────────┘                         │
+/// │             │  multiple Colums                │
+/// │             ▼                                 │
+/// │    ┌────────────────┐                         │
+/// │    │     Column     │                         │
+/// │    └────────────────┘                         │
+/// │                              MutableBuffer    │
+/// │                                               │
+/// └───────────────────────────────────────────────┘
+///
+/// Each row of data is routed into a particular partitions based on
+/// column values in that row. The partition's open chunk is updated
+/// with the new data.
+///
+/// The currently open chunk in a partition can be rolled over. When
+/// this happens, the chunk is closed (becomes read-only) and stops
+/// taking writes. Any new writes to the same partition will create a
+/// new active open chunk.
 ///
 /// Catalog Usage: the state of the catalog and the state of the `Db`
 /// must remain in sync. If they are ever out of sync, the IOx system
@@ -155,7 +159,7 @@ pub struct Db {
     pub rules: DatabaseRules,
 
     /// The metadata catalog
-    catalog: Catalog,
+    catalog: Arc<Catalog>,
 
     /// The read buffer holds chunk data in an in-memory optimized
     /// format.
@@ -183,7 +187,7 @@ impl Db {
     ) -> Self {
         let wal_buffer = wal_buffer.map(Mutex::new);
         let read_buffer = Arc::new(read_buffer);
-        let catalog = Catalog::new();
+        let catalog = Arc::new(Catalog::new());
         Self {
             rules,
             catalog,
@@ -198,10 +202,6 @@ impl Db {
     /// Rolls over the active chunk in the database's specified
     /// partition. Returns the previously open (now closed) Chunk
     pub async fn rollover_partition(&self, partition_key: &str) -> Result<Arc<DBChunk>> {
-        // After this point, the catalog transaction has to succeed or
-        // we need to crash / force a recovery as the in-memory state
-        // may be inconsistent with the catalog state
-
         let partition = self
             .catalog
             .valid_partition(partition_key)
@@ -218,15 +218,7 @@ impl Db {
             .context(RollingOverPartition { partition_key })?;
 
         // make a new chunk to track the newly created chunk in this partition
-        let new_chunk = partition
-            .create_chunk()
-            .context(RollingOverPartition { partition_key })?;
-
-        let mut new_chunk = new_chunk.write();
-        let chunk_id = new_chunk.id();
-        new_chunk
-            .set_open(Chunk::new(chunk_id))
-            .context(RollingOverPartition { partition_key })?;
+        partition.create_open_chunk();
 
         return Ok(DBChunk::snapshot(&chunk));
     }
@@ -477,6 +469,35 @@ impl Db {
         self.chunks(partition_key).into_iter().map(|c| c.summary())
     }
 
+    /// Returns the partition_keys in the requested sort order
+    pub fn partition_keys_sorted_by(&self, sort_rules: &SortOrder) -> Vec<String> {
+        let mut partitions: Vec<(String, DateTime<Utc>, DateTime<Utc>)> = self
+            .catalog
+            .partitions()
+            .map(|p| {
+                let p = p.read();
+                (p.key().to_string(), p.created_at(), p.last_write_at())
+            })
+            .collect();
+
+        match &sort_rules.sort {
+            Sort::CreatedAtTime => partitions.sort_by_key(|(_, created_at, _)| *created_at),
+            Sort::LastWriteTime => partitions.sort_by_key(|(_, _, last_write_at)| *last_write_at),
+            Sort::Column(_name, _data_type, _val) => {
+                unimplemented!()
+            }
+        }
+
+        if sort_rules.order == Order::Desc {
+            partitions.reverse();
+        }
+
+        partitions
+            .into_iter()
+            .map(|(key, _, _)| key)
+            .collect::<Vec<_>>()
+    }
+
     /// Returns the number of iterations of the background worker loop
     pub fn worker_iterations(&self) -> usize {
         self.worker_iterations.load(Ordering::Relaxed)
@@ -541,71 +562,50 @@ impl Database for Db {
 
     fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
         if !self.writeable() {
-            return DatatbaseNotWriteable {}.fail();
+            return DatabaseNotWriteable {}.fail();
         }
 
-        let batch = if let Some(batch) = write.write_buffer_batch() {
-            batch
-        } else {
-            return Ok(());
+        let entries = match write.write_buffer_batch().and_then(|batch| batch.entries()) {
+            Some(entries) => entries,
+            None => return Ok(()),
         };
 
-        let entries = if let Some(entries) = batch.entries() {
-            entries
-        } else {
-            return Ok(());
-        };
+        // TODO: Direct writes to closing chunks
 
         for entry in entries.into_iter() {
             if let Some(partition_key) = entry.partition_key() {
-                let chunk = match self.catalog.partition(partition_key) {
-                    // no partition key
-                    None => {
-                        // Create a new partition with an empty chunk
-                        let partition = self
-                            .catalog
-                            .create_partition(partition_key)
-                            .context(CreatingPartition { partition_key })?;
+                let partition = self.catalog.get_or_create_partition(partition_key);
+                let mut partition = partition.write();
+                partition.update_last_write_at();
 
-                        let mut partition = partition.write();
-                        let chunk = partition
-                            .create_chunk()
-                            .context(CreatingChunk { partition_key })?;
-                        {
-                            let mut chunk = chunk.write();
-                            let chunk_id = chunk.id();
-                            chunk
-                                .set_open(Chunk::new(chunk_id))
-                                .context(CreatingChunk { partition_key })?;
-                        }
-                        chunk
-                    }
-                    Some(partition) => {
-                        let partition = partition.read();
-                        partition
-                            .open_chunk()
-                            .context(InternalNoOpenChunk { partition_key })?
-                    }
-                };
+                let chunk = partition
+                    .open_chunk()
+                    .unwrap_or_else(|| partition.create_open_chunk());
+
                 let mut chunk = chunk.write();
-                // TODO update the last read/write time of this partition
-                chunk.mutable_buffer().unwrap().write_entry(&entry).unwrap()
+                let chunk_id = chunk.id();
+
+                let mb_chunk = chunk.mutable_buffer().expect("cannot mutate open chunk");
+
+                mb_chunk.write_entry(&entry).context(WriteEntry {
+                    partition_key,
+                    chunk_id,
+                })?;
+
+                let size = mb_chunk.size();
+
+                if let Some(threshold) = self.rules.lifecycle_rules.mutable_size_threshold {
+                    if size > threshold.get() {
+                        chunk.set_closing().expect("cannot close open chunk")
+                    }
+                }
             }
         }
         Ok(())
     }
 
     fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
-        let partition_keys = self
-            .catalog
-            .partitions()
-            .map(|partition| {
-                let partition = partition.read();
-                partition.key().to_string()
-            })
-            .collect();
-
-        Ok(partition_keys)
+        Ok(self.catalog.partition_keys())
     }
 
     fn chunk_summaries(&self) -> Result<Vec<ChunkSummary>> {
@@ -619,19 +619,7 @@ impl Database for Db {
     }
 }
 
-/// Temporary newtype Db wrapper to allow it to act as a CatalogProvider
-///
-/// TODO: Make Db implement CatalogProvider and Catalog implement SchemaProvider
-#[derive(Debug)]
-pub struct DbCatalog(Arc<Db>);
-
-impl DbCatalog {
-    pub fn new(db: Arc<Db>) -> Self {
-        Self(db)
-    }
-}
-
-impl CatalogProvider for DbCatalog {
+impl CatalogProvider for Db {
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
@@ -643,56 +631,8 @@ impl CatalogProvider for DbCatalog {
     fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
         info!(%name, "using schema");
         match name {
-            DEFAULT_SCHEMA => Some(Arc::<Db>::clone(&self.0)),
+            DEFAULT_SCHEMA => Some(Arc::<Catalog>::clone(&self.catalog)),
             _ => None,
-        }
-    }
-}
-
-impl SchemaProvider for Db {
-    fn as_any(&self) -> &dyn Any {
-        self as &dyn Any
-    }
-
-    fn table_names(&self) -> Vec<String> {
-        let mut names = StringSet::new();
-
-        self.catalog.partitions().for_each(|partition| {
-            let partition = partition.read();
-            partition.chunks().for_each(|chunk| {
-                let chunk = chunk.read();
-                let db_chunk = DBChunk::snapshot(&chunk);
-                db_chunk.all_table_names(&mut names);
-            })
-        });
-
-        names.into_iter().collect::<Vec<_>>()
-    }
-
-    fn table(&self, table_name: &str) -> Option<Arc<dyn TableProvider>> {
-        let mut builder = ProviderBuilder::new(table_name);
-        for partition_key in self.partition_keys().expect("cannot fail") {
-            for chunk in self.chunks(&partition_key) {
-                if chunk.has_table(table_name) {
-                    // This should only fail if the table doesn't exist which isn't possible
-                    let schema = chunk
-                        .table_schema(table_name, Selection::All)
-                        .expect("cannot fail");
-
-                    // This is unfortunate - a table with incompatible chunks ceases to
-                    // be visible to the query engine
-                    builder = builder
-                        .add_chunk(chunk, schema)
-                        .log_if_error("Adding chunks to table")
-                        .ok()?
-                }
-            }
-        }
-
-        match builder.build() {
-            Ok(provider) => Some(Arc::new(provider)),
-            Err(provider::Error::InternalNoChunks { .. }) => None,
-            Err(e) => panic!("unexpected error: {:?}", e),
         }
     }
 }
@@ -702,7 +642,11 @@ mod tests {
     use arrow_deps::{
         arrow::record_batch::RecordBatch, assert_table_eq, datafusion::physical_plan::collect,
     };
-    use data_types::{chunk::ChunkStorage, database_rules::LifecycleRules};
+    use chrono::Utc;
+    use data_types::{
+        chunk::ChunkStorage,
+        database_rules::{LifecycleRules, SortOrder},
+    };
     use query::{
         exec::Executor, frontend::sql::SQLQueryPlanner, test::TestLPWriter, PartitionChunk,
     };
@@ -711,6 +655,7 @@ mod tests {
     use crate::query_tests::utils::make_db;
 
     use super::*;
+    use std::num::NonZeroUsize;
 
     #[tokio::test]
     async fn write_no_mutable_buffer() {
@@ -794,6 +739,42 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn write_with_missing_tags_are_null() {
+        let db = Arc::new(make_db());
+        let mut writer = TestLPWriter::default();
+
+        // Note the `region` tag is introduced in the second line, so
+        // the values in prior rows for the region column are
+        // null. Likewise the `core` tag is introduced in the third
+        // line so the prior columns are null
+        let lines = vec![
+            "cpu,region=west user=23.2 10",
+            "cpu, user=10.0 11",
+            "cpu,core=one user=10.0 11",
+        ];
+
+        writer
+            .write_lp_string(db.as_ref(), &lines.join("\n"))
+            .unwrap();
+        assert_eq!(vec!["1970-01-01T00"], db.partition_keys().unwrap());
+
+        let mb_chunk = db.rollover_partition("1970-01-01T00").await.unwrap();
+        assert_eq!(mb_chunk.id(), 0);
+
+        let expected = vec![
+            "+------+--------+------+------+",
+            "| core | region | time | user |",
+            "+------+--------+------+------+",
+            "|      | west   | 10   | 23.2 |",
+            "|      |        | 11   | 10   |",
+            "| one  |        | 11   | 10   |",
+            "+------+--------+------+------+",
+        ];
+        let batches = run_query(Arc::clone(&db), "select * from cpu").await;
+        assert_table_eq!(expected, &batches);
+    }
+
+    #[tokio::test]
     async fn read_from_read_buffer() {
         // Test that data can be loaded into the ReadBuffer
         let db = Arc::new(make_db());
@@ -836,10 +817,125 @@ mod tests {
         );
 
         // Currently this doesn't work (as we need to teach the stores how to
-        // purge tables after data bas beend dropped println!("running
+        // purge tables after data bas been dropped println!("running
         // query after all data dropped!"); let expected = vec![] as
         // Vec<&str>; let batches = run_query(&db, "select * from
         // cpu").await; assert_table_eq!(expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn write_updates_last_write_at() {
+        let db = make_db();
+        let before_create = Utc::now();
+
+        let partition_key = "1970-01-01T00";
+        let mut writer = TestLPWriter::default();
+        writer.write_lp_string(&db, "cpu bar=1 10").unwrap();
+        let after_write = Utc::now();
+
+        let last_write_prev = {
+            let partition = db.catalog.valid_partition(partition_key).unwrap();
+            let partition = partition.read();
+
+            assert_ne!(partition.created_at(), partition.last_write_at());
+            assert!(before_create < partition.last_write_at());
+            assert!(after_write > partition.last_write_at());
+            partition.last_write_at()
+        };
+
+        writer.write_lp_string(&db, "cpu bar=1 20").unwrap();
+        {
+            let partition = db.catalog.valid_partition(partition_key).unwrap();
+            let partition = partition.read();
+            assert!(last_write_prev < partition.last_write_at());
+        }
+    }
+
+    #[tokio::test]
+    async fn test_chunk_timestamps() {
+        let start = Utc::now();
+        let db = make_db();
+
+        // Given data loaded into two chunks
+        let mut writer = TestLPWriter::default();
+        writer.write_lp_string(&db, "cpu bar=1 10").unwrap();
+        let after_data_load = Utc::now();
+
+        // When the chunk is rolled over
+        let partition_key = "1970-01-01T00";
+        let chunk_id = db.rollover_partition("1970-01-01T00").await.unwrap().id();
+        let after_rollover = Utc::now();
+
+        let partition = db.catalog.valid_partition(partition_key).unwrap();
+        let partition = partition.read();
+        let chunk = partition.chunk(chunk_id).unwrap();
+        let chunk = chunk.read();
+        let chunk = match chunk.state() {
+            ChunkState::Closing(c) => c,
+            state => panic!("Unexpected chunk state: {}", state.name()),
+        };
+
+        println!(
+            "start: {:?}, after_data_load: {:?}, after_rollover: {:?}",
+            start, after_data_load, after_rollover
+        );
+        println!("Chunk: {:#?}", chunk);
+
+        // then the chunk creation and rollover times are as expected
+        assert!(start < chunk.time_of_first_write.unwrap());
+        assert!(chunk.time_of_first_write.unwrap() < after_data_load);
+        assert!(chunk.time_of_first_write.unwrap() == chunk.time_of_last_write.unwrap());
+        assert!(after_data_load < chunk.time_closing.unwrap());
+        assert!(chunk.time_closing.unwrap() < after_rollover);
+    }
+
+    #[tokio::test]
+    async fn test_chunk_closing() {
+        let mut db = make_db();
+        db.rules.lifecycle_rules.mutable_size_threshold = Some(NonZeroUsize::new(2).unwrap());
+
+        let mut writer = TestLPWriter::default();
+        writer.write_lp_string(&db, "cpu bar=1 10").unwrap();
+        writer.write_lp_string(&db, "cpu bar=1 20").unwrap();
+
+        let partitions = db.catalog.partition_keys();
+        assert_eq!(partitions.len(), 1);
+
+        let partition = db.catalog.partition(&partitions[0]).unwrap();
+        let partition = partition.read();
+
+        let chunks: Vec<_> = partition.chunks().collect();
+        assert_eq!(chunks.len(), 2);
+        assert!(matches!(chunks[0].read().state(), ChunkState::Closing(_)));
+        assert!(matches!(chunks[1].read().state(), ChunkState::Closing(_)));
+    }
+
+    #[tokio::test]
+    async fn partitions_sorted_by_times() {
+        let db = make_db();
+        let mut writer = TestLPWriter::default();
+        writer.write_lp_string(&db, "cpu val=1 1").unwrap();
+        writer
+            .write_lp_string(&db, "mem val=2 400000000000001")
+            .unwrap();
+        writer.write_lp_string(&db, "cpu val=1 2").unwrap();
+        writer
+            .write_lp_string(&db, "mem val=2 400000000000002")
+            .unwrap();
+
+        let sort_rules = SortOrder {
+            order: Order::Desc,
+            sort: Sort::LastWriteTime,
+        };
+        let partitions = db.partition_keys_sorted_by(&sort_rules);
+        assert_eq!(partitions, vec!["1970-01-05T15", "1970-01-01T00"]);
+
+        let sort_rules = SortOrder {
+            order: Order::Asc,
+            sort: Sort::CreatedAtTime,
+        };
+        let partitions = db.partition_keys_sorted_by(&sort_rules);
+        assert_eq!(partitions, vec!["1970-01-01T00", "1970-01-05T15"]);
     }
 
     #[tokio::test]
@@ -990,10 +1086,7 @@ mod tests {
         let planner = SQLQueryPlanner::default();
         let executor = Executor::new();
 
-        let physical_plan = planner
-            .query(Arc::new(DbCatalog::new(db)), query, &executor)
-            .await
-            .unwrap();
+        let physical_plan = planner.query(db, query, &executor).await.unwrap();
 
         collect(physical_plan).await.unwrap()
     }
