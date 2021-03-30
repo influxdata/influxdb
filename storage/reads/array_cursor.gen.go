@@ -13,6 +13,7 @@ import (
 
 	"github.com/influxdata/flux/interval"
 	"github.com/influxdata/flux/values"
+	errors2 "github.com/influxdata/influxdb/kit/platform/errors"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
@@ -134,7 +135,10 @@ func newWindowSumArrayCursor(cur cursors.Cursor, window interval.Window) (cursor
 		return newUnsignedWindowSumArrayCursor(cur, window), nil
 
 	default:
-		return nil, fmt.Errorf("unsupported input type for sum aggregate: %s", arrayCursorType(cur))
+		return nil, &errors2.Error{
+			Code: errors2.EInvalid,
+			Msg:  fmt.Sprintf("unsupported input type for sum aggregate: %s", arrayCursorType(cur)),
+		}
 	}
 }
 
@@ -185,7 +189,10 @@ func newWindowMeanArrayCursor(cur cursors.Cursor, window interval.Window) (curso
 		return newUnsignedWindowMeanArrayCursor(cur, window), nil
 
 	default:
-		return nil, fmt.Errorf("unsupported input type for mean aggregate: %s", arrayCursorType(cur))
+		return nil, &errors2.Error{
+			Code: errors2.EInvalid,
+			Msg:  fmt.Sprintf("unsupported input type for mean aggregate: %s", arrayCursorType(cur)),
+		}
 	}
 }
 

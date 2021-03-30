@@ -2,11 +2,11 @@ package reads
 
 import (
 	"context"
-	"fmt"
 	"math"
 
 	"github.com/influxdata/flux/interval"
 	"github.com/influxdata/flux/values"
+	"github.com/influxdata/influxdb/kit/errors"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
@@ -24,7 +24,7 @@ type windowAggregateResultSet struct {
 
 func NewWindowAggregateResultSet(ctx context.Context, req *datatypes.ReadWindowAggregateRequest, cursor SeriesCursor) (ResultSet, error) {
 	if nAggs := len(req.Aggregate); nAggs != 1 {
-		return nil, fmt.Errorf("attempt to create a windowAggregateResultSet with %v aggregate functions", nAggs)
+		return nil, errors.Errorf(errors.InternalError, "attempt to create a windowAggregateResultSet with %v aggregate functions", nAggs)
 	}
 
 	ascending := true
