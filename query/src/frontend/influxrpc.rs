@@ -204,7 +204,6 @@ impl InfluxRPCPlanner {
         for chunk in self.filtered_chunks(database, &predicate).await? {
             let new_table_names = chunk
                 .table_names(&predicate, builder.known_strings())
-                .await
                 .map_err(|e| Box::new(e) as _)
                 .context(TableNamePlan)?;
 
@@ -261,7 +260,6 @@ impl InfluxRPCPlanner {
                 // get only tag columns from metadata
                 let schema = chunk
                     .table_schema(&table_name, Selection::All)
-                    .await
                     .expect("to be able to get table schema");
                 let column_names: Vec<&str> = schema
                     .tags_iter()
@@ -273,7 +271,6 @@ impl InfluxRPCPlanner {
                 // filter the columns further from the predicate
                 let maybe_names = chunk
                     .column_names(&table_name, &predicate, selection)
-                    .await
                     .map_err(|e| Box::new(e) as _)
                     .context(FindingColumnNames)?;
 
@@ -367,7 +364,6 @@ impl InfluxRPCPlanner {
                 // use schema to validate column type
                 let schema = chunk
                     .table_schema(&table_name, Selection::All)
-                    .await
                     .expect("to be able to get table schema");
 
                 // Skip this table if the tag_name is not a column in this table
@@ -397,7 +393,6 @@ impl InfluxRPCPlanner {
                 // try and get the list of values directly from metadata
                 let maybe_values = chunk
                     .column_values(&table_name, tag_name, &predicate)
-                    .await
                     .map_err(|e| Box::new(e) as _)
                     .context(FindingColumnValues)?;
 
@@ -452,7 +447,7 @@ impl InfluxRPCPlanner {
                 //    Projection
                 //      Filter(is not null)
                 //        Filter(predicate)
-                //          InMemoryScan
+                //          Scan
                 let plan = plan_builder
                     .project(select_exprs.clone())
                     .context(BuildingPlan)?
@@ -671,7 +666,6 @@ impl InfluxRPCPlanner {
         // try and get the table names that have rows that match the predicate
         let table_names = chunk
             .table_names(&predicate, &no_tables)
-            .await
             .map_err(|e| Box::new(e) as _)
             .context(TableNamePlan)?;
 
@@ -692,7 +686,6 @@ impl InfluxRPCPlanner {
                 };
                 chunk
                     .table_names(&table_name_predicate, &no_tables)
-                    .await
                     .map_err(|e| Box::new(e) as _)
                     .context(InternalTableNamePlanForDefault)?
                     // unwrap the Option
@@ -772,7 +765,7 @@ impl InfluxRPCPlanner {
     /// ```text
     ///  Projection (select the field columns needed)
     ///      Filter(predicate) [optional]
-    ///        InMemoryScan
+    ///        Scan
     /// ```
     async fn field_columns_plan<C>(
         &self,
@@ -823,7 +816,7 @@ impl InfluxRPCPlanner {
     ///    Projection (select the columns needed)
     ///      Order by (tag_columns, timestamp_column)
     ///        Filter(predicate)
-    ///          InMemoryScan
+    ///          Scan
     async fn read_filter_plan<C>(
         &self,
         table_name: impl Into<String>,
@@ -1033,7 +1026,7 @@ impl InfluxRPCPlanner {
     ///  OrderBy(gby: tag columns, window_function; agg: aggregate(field)
     ///      GroupBy(gby: tag columns, window_function; agg: aggregate(field)
     ///        Filter(predicate)
-    ///          InMemoryScan
+    ///          Scan
     pub async fn read_window_aggregate_plan<C>(
         &self,
         table_name: impl Into<String>,
@@ -1119,7 +1112,7 @@ impl InfluxRPCPlanner {
     ///
     /// ```text
     ///   Filter(predicate) [optional]
-    ///     InMemoryScan
+    ///     Scan
     /// ```
     async fn scan_and_filter<C>(
         &self,
@@ -1150,7 +1143,6 @@ impl InfluxRPCPlanner {
 
             let chunk_table_schema = chunk
                 .table_schema(table_name, selection)
-                .await
                 .map_err(|e| Box::new(e) as _)
                 .context(GettingTableSchema {
                     table_name,

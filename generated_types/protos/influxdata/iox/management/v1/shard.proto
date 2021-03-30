@@ -65,4 +65,3 @@ message HashRing {
   // ring of node groups. Each group holds a shard
   repeated NodeGroup node_groups = 3;
 }
-

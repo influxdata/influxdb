@@ -92,7 +92,7 @@ impl TestDatabase {
             .unwrap_or_else(|_| panic!("parsing line protocol: {}", lp_data));
 
         let mut writer = TestLPWriter::default();
-        writer.write_lines(self, &parsed_lines).await.unwrap();
+        writer.write_lines(self, &parsed_lines).unwrap();
 
         // Writes parsed lines into this database
         let mut saved_lines = self.saved_lines.lock();
@@ -128,13 +128,12 @@ impl TestDatabase {
     }
 }
 
-#[async_trait]
 impl Database for TestDatabase {
     type Error = TestError;
     type Chunk = TestChunk;
 
     /// Adds the replicated write to this database
-    async fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
+    fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
         self.replicated_writes.lock().push(write.clone());
         Ok(())
     }
@@ -339,7 +338,6 @@ impl TestChunk {
     }
 }
 
-#[async_trait]
 impl PartitionChunk for TestChunk {
     type Error = TestError;
 
@@ -353,7 +351,7 @@ impl PartitionChunk for TestChunk {
         unimplemented!()
     }
 
-    async fn read_filter(
+    fn read_filter(
         &self,
         table_name: &str,
         predicate: &Predicate,
@@ -369,7 +367,7 @@ impl PartitionChunk for TestChunk {
         Ok(Box::pin(stream))
     }
 
-    async fn table_names(
+    fn table_names(
         &self,
         predicate: &Predicate,
         _known_tables: &StringSet,
@@ -390,7 +388,11 @@ impl PartitionChunk for TestChunk {
         Ok(Some(names))
     }
 
-    async fn table_schema(
+    fn all_table_names(&self, known_tables: &mut StringSet) {
+        known_tables.extend(self.table_schemas.keys().cloned())
+    }
+
+    fn table_schema(
         &self,
         table_name: &str,
         selection: Selection<'_>,
@@ -407,7 +409,7 @@ impl PartitionChunk for TestChunk {
             })
     }
 
-    async fn column_values(
+    fn column_values(
         &self,
         _table_name: &str,
         _column_name: &str,
@@ -421,7 +423,7 @@ impl PartitionChunk for TestChunk {
         self.table_schemas.contains_key(table_name)
     }
 
-    async fn column_names(
+    fn column_names(
         &self,
         table_name: &str,
         predicate: &Predicate,
@@ -520,7 +522,7 @@ pub struct TestLPWriter {
 
 impl TestLPWriter {
     // writes data in LineProtocol format into a database
-    pub async fn write_lines<D: Database>(
+    pub fn write_lines<D: Database>(
         &mut self,
         database: &D,
         lines: &[ParsedLine<'_>],
@@ -539,28 +541,23 @@ impl TestLPWriter {
         self.sequence_number += 1;
         database
             .store_replicated_write(&write)
-            .await
             .map_err(|e| TestError::DatabaseWrite {
                 source: Box::new(e),
             })
     }
 
     /// Writes line protocol formatted data in lp_data to `database`
-    pub async fn write_lp_string<D: Database>(
-        &mut self,
-        database: &D,
-        lp_data: &str,
-    ) -> Result<()> {
+    pub fn write_lp_string<D: Database>(&mut self, database: &D, lp_data: &str) -> Result<()> {
         let lines = parse_lines(lp_data)
             .collect::<Result<Vec<_>, _>>()
             .map_err(|e| Box::new(e) as _)
             .context(DatabaseWrite)?;
 
-        self.write_lines(database, &lines).await
+        self.write_lines(database, &lines)
     }
 
     /// Writes line protocol formatted data to database and partition
-    pub async fn write_lp_to_partition<D: Database>(
+    pub fn write_lp_to_partition<D: Database>(
         &mut self,
         database: &D,
         lp_data: &str,
@@ -568,11 +565,10 @@ impl TestLPWriter {
     ) {
         let lines = parse_lines(lp_data).collect::<Result<Vec<_>, _>>().unwrap();
         self.write_lines_to_partition(database, paritition_key, &lines)
-            .await;
     }
 
     /// Writes lines the the given partition
-    pub async fn write_lines_to_partition<D: Database>(
+    pub fn write_lines_to_partition<D: Database>(
         &mut self,
         database: &D,
         partition_key: impl Into<String>,
@@ -584,7 +580,7 @@ impl TestLPWriter {
         let write =
             lines_to_replicated_write(self.writer_id, self.sequence_number, &lines, &partitioner);
         self.sequence_number += 1;
-        database.store_replicated_write(&write).await.unwrap();
+        database.store_replicated_write(&write).unwrap();
     }
 }
 

@@ -164,7 +164,7 @@ impl DBSetup for MeasurementForWindowAggregateMonths {
         let db = make_db();
         let mut writer = TestLPWriter::default();
         let data = lp_lines.join("\n");
-        writer.write_lp_string(&db, &data).await.unwrap();
+        writer.write_lp_string(&db, &data).unwrap();
         let scenario1 = DBScenario {
             scenario_name: "Data in 4 partitions, open chunks of mutable buffer".into(),
             db,
@@ -173,7 +173,7 @@ impl DBSetup for MeasurementForWindowAggregateMonths {
         let db = make_db();
         let mut writer = TestLPWriter::default();
         let data = lp_lines.join("\n");
-        writer.write_lp_string(&db, &data).await.unwrap();
+        writer.write_lp_string(&db, &data).unwrap();
         db.rollover_partition("2020-03-01T00").await.unwrap();
         db.rollover_partition("2020-03-02T00").await.unwrap();
         let scenario2 = DBScenario {
@@ -186,7 +186,7 @@ impl DBSetup for MeasurementForWindowAggregateMonths {
         let db = make_db();
         let mut writer = TestLPWriter::default();
         let data = lp_lines.join("\n");
-        writer.write_lp_string(&db, &data).await.unwrap();
+        writer.write_lp_string(&db, &data).unwrap();
         rollover_and_load(&db, "2020-03-01T00").await;
         rollover_and_load(&db, "2020-03-02T00").await;
         rollover_and_load(&db, "2020-04-01T00").await;

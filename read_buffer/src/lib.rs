@@ -409,6 +409,29 @@ impl Database {
     // ---- Schema API queries
     //
 
+    /// Adds all tables in the specified chunks to names and returns
+    pub fn all_table_names(
+        &self,
+        partition_key: &str,
+        chunk_ids: &[u32],
+        names: &mut BTreeSet<String>,
+    ) {
+        let partition_data = self.data.read().unwrap();
+
+        let partition = partition_data.partitions.get(partition_key).unwrap();
+
+        let chunk_data = partition.data.read().unwrap();
+        chunk_ids.iter().for_each(|id| {
+            let chunk = chunk_data.chunks.get(id).unwrap();
+
+            // notice that `names` is pushed into the chunk `table_name`
+            // implementation. This ensure we don't process more tables than
+            // we need to.
+            let predicate = Predicate::default();
+            names.append(&mut chunk.table_names(&predicate, names));
+        })
+    }
+
     /// Returns the distinct set of table names that contain data that satisfies
     /// the provided predicate.
     pub fn table_names(

@@ -1,7 +1,10 @@
 //! This module contains the code to write table data to parquet
 use arrow_deps::parquet::{
     self,
-    basic::{Compression, ConvertedType, Encoding, Repetition, Type as PhysicalType},
+    basic::{
+        Compression, Encoding, IntType, LogicalType, Repetition, TimeUnit, TimestampType,
+        Type as PhysicalType,
+    },
     errors::ParquetError,
     file::{
         properties::{WriterProperties, WriterPropertiesBuilder},
@@ -297,35 +300,35 @@ fn convert_to_parquet_schema(schema: &Schema) -> Result<Arc<parquet::schema::typ
             i, influxdb_column_type, field
         );
         let (physical_type, logical_type) = match influxdb_column_type {
-            Some(InfluxColumnType::Tag) => (PhysicalType::BYTE_ARRAY, Some(ConvertedType::UTF8)),
+            Some(InfluxColumnType::Tag) => (
+                PhysicalType::BYTE_ARRAY,
+                Some(LogicalType::STRING(Default::default())),
+            ),
             Some(InfluxColumnType::Field(InfluxFieldType::Boolean)) => {
                 (PhysicalType::BOOLEAN, None)
             }
             Some(InfluxColumnType::Field(InfluxFieldType::Float)) => (PhysicalType::DOUBLE, None),
-            Some(InfluxColumnType::Field(InfluxFieldType::Integer)) => {
-                (PhysicalType::INT64, Some(ConvertedType::UINT_64))
-            }
-            Some(InfluxColumnType::Field(InfluxFieldType::UInteger)) => {
-                (PhysicalType::INT64, Some(ConvertedType::UINT_64))
-            }
-            Some(InfluxColumnType::Field(InfluxFieldType::String)) => {
-                (PhysicalType::BYTE_ARRAY, Some(ConvertedType::UTF8))
-            }
+            Some(InfluxColumnType::Field(InfluxFieldType::Integer)) => (PhysicalType::INT64, None),
+            Some(InfluxColumnType::Field(InfluxFieldType::UInteger)) => (
+                PhysicalType::INT64,
+                Some(LogicalType::INTEGER(IntType {
+                    bit_width: 64,
+                    is_signed: false,
+                })),
+            ),
+            Some(InfluxColumnType::Field(InfluxFieldType::String)) => (
+                PhysicalType::BYTE_ARRAY,
+                Some(LogicalType::STRING(Default::default())),
+            ),
             Some(InfluxColumnType::Timestamp) => {
-                // At the time of writing, the underlying rust parquet
-                // library doesn't support nanosecond timestamp
-                // precisions yet
-                //
-                // Timestamp handling (including nanosecond support)
-                // was changed as part of Parquet version 2.6 according
-                // to
-                // https://github.com/apache/parquet-format/blob/master/CHANGES.md#version-260
-                //
-                // The rust implementation claims to only support parquet-version 2.4
-                // https://github.com/apache/arrow/tree/master/rust/parquet#supported-parquet-version
-                //
-                // Thus store timestampts using microsecond precision instead of nanosecond
-                (PhysicalType::INT64, Some(ConvertedType::TIMESTAMP_MICROS))
+                (
+                    PhysicalType::INT64,
+                    Some(LogicalType::TIMESTAMP(TimestampType {
+                        unit: TimeUnit::NANOS(Default::default()),
+                        // Indicates that the timestamp is stored as UTC values
+                        is_adjusted_to_u_t_c: true,
+                    })),
+                )
             }
             None => {
                 return UnsupportedDataType {
@@ -336,12 +339,9 @@ fn convert_to_parquet_schema(schema: &Schema) -> Result<Arc<parquet::schema::typ
         };
 
         // All fields are optional
-        let mut parquet_column_builder = Type::primitive_type_builder(field.name(), physical_type)
-            .with_repetition(Repetition::OPTIONAL);
-
-        if let Some(t) = logical_type {
-            parquet_column_builder = parquet_column_builder.with_converted_type(t);
-        }
+        let parquet_column_builder = Type::primitive_type_builder(field.name(), physical_type)
+            .with_repetition(Repetition::OPTIONAL)
+            .with_logical_type(logical_type);
 
         let parquet_column_type = parquet_column_builder
             .build()
@@ -539,6 +539,7 @@ mod tests {
             .influx_field("string_field", InfluxFieldType::String)
             .influx_field("float_field", InfluxFieldType::Float)
             .influx_field("int_field", InfluxFieldType::Integer)
+            .influx_field("uint_field", InfluxFieldType::UInteger)
             .influx_field("bool_field", InfluxFieldType::Boolean)
             .timestamp()
             .build()
@@ -548,12 +549,13 @@ mod tests {
         let parquet_schema_string = normalize_spaces(&parquet_schema_as_string(&parquet_schema));
         let expected_schema_string = normalize_spaces(
             r#"message measurement_name {
-            OPTIONAL BYTE_ARRAY tag1 (UTF8);
-            OPTIONAL BYTE_ARRAY string_field (UTF8);
+            OPTIONAL BYTE_ARRAY tag1 (STRING);
+            OPTIONAL BYTE_ARRAY string_field (STRING);
             OPTIONAL DOUBLE float_field;
-            OPTIONAL INT64 int_field (UINT_64);
+            OPTIONAL INT64 int_field;
+            OPTIONAL INT64 uint_field (INTEGER(64,false));
             OPTIONAL BOOLEAN bool_field;
-            OPTIONAL INT64 time (TIMESTAMP_MICROS);
+            OPTIONAL INT64 time (TIMESTAMP(NANOS,true));
 }"#,
         );
 

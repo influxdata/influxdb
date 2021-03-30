@@ -104,7 +104,6 @@ impl<C: PartitionChunk + 'static> ExecutionPlan for IOxReadFilterNode<C> {
 
         let stream = chunk
             .read_filter(&self.table_name, &self.predicate, selection)
-            .await
             .map_err(|e| {
                 DataFusionError::Execution(format!(
                     "Error creating scan for table {} chunk {}: {}",

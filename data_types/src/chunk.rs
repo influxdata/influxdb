@@ -25,7 +25,7 @@ pub enum ChunkStorage {
 /// Represents metadata about a chunk in a database.
 /// A chunk can contain one or more tables.
 pub struct ChunkSummary {
-    /// The partitition key of this chunk
+    /// The partition key of this chunk
     pub partition_key: Arc<String>,
 
     /// The id of this chunk

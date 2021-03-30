@@ -1,3 +1,5 @@
+//! Labels
+
 use serde::{Deserialize, Serialize};
 
 /// Post create label request, to create a new label
@@ -95,7 +97,8 @@ pub struct Label {
     /// Label name
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    /// Key/Value pairs associated with properties.
+    /// Key/Value pairs associated with this label. Keys can be removed by
+    /// sending an update with an empty value.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub properties: Option<::std::collections::HashMap<String, String>>,
 }

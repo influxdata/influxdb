@@ -185,17 +185,15 @@ async fn test_create_get_database() {
                 nanos: 2,
             }),
         }),
-        mutable_buffer_config: Some(MutableBufferConfig {
-            buffer_size: 553,
-            reject_if_not_persisted: true,
-            partition_drop_order: Some(mutable_buffer_config::PartitionDropOrder {
+        lifecycle_rules: Some(LifecycleRules {
+            buffer_size_hard: 553,
+            sort_order: Some(lifecycle_rules::SortOrder {
                 order: Order::Asc as _,
-                sort: Some(
-                    mutable_buffer_config::partition_drop_order::Sort::CreatedAtTime(Empty {}),
-                ),
+                sort: Some(lifecycle_rules::sort_order::Sort::CreatedAtTime(Empty {})),
             }),
-            persist_after_cold_seconds: 34,
+            ..Default::default()
         }),
+        shard_config: None,
     };
 
     client
@@ -585,11 +583,9 @@ async fn test_close_partition_chunk() {
         .expect("listing chunks");
     chunks.sort_by(|c1, c2| c1.id.cmp(&c2.id));
 
-    assert_eq!(chunks.len(), 2, "Chunks: {:#?}", chunks);
+    assert_eq!(chunks.len(), 1, "Chunks: {:#?}", chunks);
     assert_eq!(chunks[0].id, 0);
     assert_eq!(chunks[0].storage, ChunkStorage::ReadBuffer as i32);
-    assert_eq!(chunks[1].id, 1);
-    assert_eq!(chunks[1].storage, ChunkStorage::OpenMutableBuffer as i32);
 }
 
 #[tokio::test]

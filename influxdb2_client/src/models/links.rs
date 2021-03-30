@@ -6,19 +6,19 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Links {
-    /// URI of resource.
+    /// Next link
     #[serde(skip_serializing_if = "Option::is_none")]
     pub next: Option<String>,
-    /// URI of resource.
+    /// Link to self
     #[serde(rename = "self")]
     pub self_: String,
-    /// URI of resource.
+    /// Previous Link
     #[serde(skip_serializing_if = "Option::is_none")]
     pub prev: Option<String>,
 }
 
 impl Links {
-    /// Returns instance of Links
+    /// Returns list of Links
     pub fn new(self_: String) -> Self {
         Self {
             self_,

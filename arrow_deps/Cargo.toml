@@ -8,14 +8,14 @@ description = "Apache Arrow / Parquet / DataFusion dependencies for InfluxDB IOx
 [dependencies] # In alphabetical order
 # We are using development version of arrow/parquet/datafusion and the dependencies are at the same rev
 
-# The version can be found here: https://github.com/apache/arrow/commit/9262a5d83b6037d0c39668310b1875e32f1b7e83
+# The version can be found here: https://github.com/apache/arrow/commit/2c5e26423550d82ab2bd3f7a8f7f1d7eac89cf36
 #
-arrow = { git = "https://github.com/apache/arrow.git", rev = "9262a5d83b6037d0c39668310b1875e32f1b7e83" , features = ["simd"] }
-arrow-flight = { git = "https://github.com/apache/arrow.git", rev = "9262a5d83b6037d0c39668310b1875e32f1b7e83" }
+arrow = { git = "https://github.com/apache/arrow.git", rev = "2c5e26423550d82ab2bd3f7a8f7f1d7eac89cf36" , features = ["simd"] }
+arrow-flight = { git = "https://github.com/apache/arrow.git", rev = "2c5e26423550d82ab2bd3f7a8f7f1d7eac89cf36" }
 
 # Turn off optional datafusion features (function packages)
-datafusion = { git = "https://github.com/apache/arrow.git", rev = "9262a5d83b6037d0c39668310b1875e32f1b7e83", default-features = false }
+datafusion = { git = "https://github.com/apache/arrow.git", rev = "2c5e26423550d82ab2bd3f7a8f7f1d7eac89cf36", default-features = false }
 
 # Turn off the "arrow" feature; it currently has a bug that causes the crate to rebuild every time
 # and we're not currently using it anyway
-parquet = { git = "https://github.com/apache/arrow.git", rev = "9262a5d83b6037d0c39668310b1875e32f1b7e83", default-features = false, features = ["snap", "brotli", "flate2", "lz4", "zstd"] }
+parquet = { git = "https://github.com/apache/arrow.git", rev = "2c5e26423550d82ab2bd3f7a8f7f1d7eac89cf36", default-features = false, features = ["snap", "brotli", "flate2", "lz4", "zstd"] }
