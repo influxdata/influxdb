@@ -423,6 +423,9 @@ name = "bytes"
 version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b700ce4376041dcd0a327fd0097c41095743c4c8af8887265942faf1100bd040"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "cast"
@@ -1140,6 +1143,8 @@ dependencies = [
  "prost",
  "prost-build",
  "prost-types",
+ "serde",
+ "serde_json",
  "tonic",
  "tonic-build",
  "tracing",
@@ -1195,6 +1200,8 @@ version = "0.1.0"
 dependencies = [
  "prost",
  "prost-build",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
