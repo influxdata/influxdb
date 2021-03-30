@@ -11,8 +11,6 @@ import (
 	"math"
 	"sync"
 
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/apache/arrow/go/arrow/array"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/arrow"
@@ -20,6 +18,7 @@ import (
 	"github.com/influxdata/flux/interval"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/values"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/models"
 	storage "github.com/influxdata/influxdb/v2/storage/reads"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"

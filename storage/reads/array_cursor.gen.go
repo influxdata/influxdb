@@ -11,10 +11,9 @@ import (
 	"fmt"
 	"math"
 
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/flux/interval"
 	"github.com/influxdata/flux/values"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/tsdb/cursors"
 )
 

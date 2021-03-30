@@ -12,7 +12,7 @@ import (
 	"github.com/influxdata/flux/interval"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/values"
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
 	storage "github.com/influxdata/influxdb/v2/storage/reads"
@@ -784,8 +784,8 @@ func determine{{.Name}}AggregateMethod(agg datatypes.Aggregate_AggregateType) ({
 		{{if eq .Name "Integer"}}
 		return aggregateCountGroups{{.Name}}, nil
 		{{else}}
-		return nil, &influxdb.Error {
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error {
+			Code: errors.EInvalid,
 			Msg: "unsupported for aggregate count: {{.Name}}",
 		}
 		{{end}}
@@ -793,8 +793,8 @@ func determine{{.Name}}AggregateMethod(agg datatypes.Aggregate_AggregateType) ({
 		{{if and (ne .Name "Boolean") (ne .Name "String")}}
 		return aggregateSumGroups{{.Name}}, nil
 		{{else}}
-		return nil, &influxdb.Error {
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error {
+			Code: errors.EInvalid,
 			Msg: "unsupported for aggregate sum: {{.Name}}",
 		}
 		{{end}}
@@ -802,8 +802,8 @@ func determine{{.Name}}AggregateMethod(agg datatypes.Aggregate_AggregateType) ({
 		{{if and (ne .Name "Boolean") (ne .Name "String")}}
 		return aggregateMinGroups{{.Name}}, nil
 		{{else}}
-		return nil, &influxdb.Error {
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error {
+			Code: errors.EInvalid,
 			Msg: "unsupported for aggregate min: {{.Name}}",
 		}
 		{{end}}
@@ -811,14 +811,14 @@ func determine{{.Name}}AggregateMethod(agg datatypes.Aggregate_AggregateType) ({
 		{{if and (ne .Name "Boolean") (ne .Name "String")}}
 		return aggregateMaxGroups{{.Name}}, nil
 		{{else}}
-		return nil, &influxdb.Error {
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error {
+			Code: errors.EInvalid,
 			Msg: "unsupported for aggregate max: {{.Name}}",
 		}
 		{{end}}
 	default:
-		return nil, &influxdb.Error {
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error {
+			Code: errors.EInvalid,
 			Msg: fmt.Sprintf("unknown/unimplemented aggregate type: %v", agg),
 		}
 	}
@@ -915,8 +915,8 @@ func (t *{{.name}}GroupTable) advanceCursor() bool {
 		if typedCur, ok := cur.(cursors.{{.Name}}ArrayCursor); !ok {
 			// TODO(sgc): error or skip?
 			cur.Close()
-			t.err = &influxdb.Error {
-				Code: influxdb.EInvalid,
+			t.err = &errors.Error {
+				Code: errors.EInvalid,
 				Err: &GroupCursorError {
 					typ: "{{.name}}",
 					cursor: cur,
