@@ -1,7 +1,6 @@
 package reads
 
 import (
-    "errors"
 	"fmt"
 	"math"
 	"sync"
@@ -10,9 +9,10 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/arrow"
 	"github.com/influxdata/flux/execute"
-    "github.com/influxdata/flux/interval"
+	"github.com/influxdata/flux/interval"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/values"
+	"github.com/influxdata/influxdb/kit/platform/errors"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
@@ -135,7 +135,7 @@ func new{{.Name}}WindowTable(
 	}
 	if t.createEmpty {
 		start := int64(bounds.Start)
-        t.windowBounds = window.GetLatestBounds(values.Time(start))
+		t.windowBounds = window.GetLatestBounds(values.Time(start))
 	}
 	t.readTags(tags)
 	t.init(t.advance)
@@ -520,7 +520,7 @@ func (t *{{.name}}EmptyWindowSelectorTable) startTimes(builder *array.{{.ArrowTy
 			builder.AppendNull()
 		}
 
-        t.windowBounds = t.window.NextBounds(t.windowBounds)
+		t.windowBounds = t.window.NextBounds(t.windowBounds)
 
 		// If the current array is non-empty and has
 		// been read in its entirety, call Next().
@@ -567,7 +567,7 @@ func (t *{{.name}}EmptyWindowSelectorTable) stopTimes(builder *array.{{.ArrowTyp
 			builder.AppendNull()
 		}
 
-        t.windowBounds = t.window.NextBounds(t.windowBounds)
+		t.windowBounds = t.window.NextBounds(t.windowBounds)
 
 		// If the current array is non-empty and has
 		// been read in its entirety, call Next().
@@ -631,7 +631,7 @@ func (t *{{.name}}EmptyWindowSelectorTable) startStopTimes(builder *array.{{.Arr
 			builder.AppendNull()
 		}
 
-        t.windowBounds = t.window.NextBounds(t.windowBounds)
+		t.windowBounds = t.window.NextBounds(t.windowBounds)
 
 		// If the current array is non-empty and has
 		// been read in its entirety, call Next().
@@ -783,28 +783,43 @@ func determine{{.Name}}AggregateMethod(agg datatypes.Aggregate_AggregateType) ({
 		{{if eq .Name "Integer"}}
 		return aggregateCountGroups{{.Name}}, nil
 		{{else}}
-		return nil, errors.New("unsupported for aggregate count: {{.Name}}")
+		return nil, &errors.Error {
+			Code: errors.EInvalid,
+			Msg: "unsupported for aggregate count: {{.Name}}",
+		}
 		{{end}}
 	case datatypes.AggregateTypeSum:
 		{{if and (ne .Name "Boolean") (ne .Name "String")}}
 		return aggregateSumGroups{{.Name}}, nil
 		{{else}}
-		return nil, errors.New("unsupported for aggregate sum: {{.Name}}")
+		return nil, &errors.Error {
+			Code: errors.EInvalid,
+			Msg: "unsupported for aggregate sum: {{.Name}}",
+		}
 		{{end}}
 	case datatypes.AggregateTypeMin:
 		{{if and (ne .Name "Boolean") (ne .Name "String")}}
 		return aggregateMinGroups{{.Name}}, nil
 		{{else}}
-		return nil, errors.New("unsupported for aggregate min: {{.Name}}")
+		return nil, &errors.Error {
+			Code: errors.EInvalid,
+			Msg: "unsupported for aggregate min: {{.Name}}",
+		}
 		{{end}}
 	case datatypes.AggregateTypeMax:
 		{{if and (ne .Name "Boolean") (ne .Name "String")}}
 		return aggregateMaxGroups{{.Name}}, nil
 		{{else}}
-		return nil, errors.New("unsupported for aggregate max: {{.Name}}")
+		return nil, &errors.Error {
+			Code: errors.EInvalid,
+			Msg: "unsupported for aggregate max: {{.Name}}",
+		}
 		{{end}}
 	default:
-		return nil, fmt.Errorf("unknown/unimplemented aggregate type: %v", agg)
+		return nil, &errors.Error {
+			Code: errors.EInvalid,
+			Msg: fmt.Sprintf("unknown/unimplemented aggregate type: %v", agg),
+		}
 	}
 }
 
@@ -899,9 +914,12 @@ func (t *{{.name}}GroupTable) advanceCursor() bool {
 		if typedCur, ok := cur.(cursors.{{.Name}}ArrayCursor); !ok {
 			// TODO(sgc): error or skip?
 			cur.Close()
-			t.err = &GroupCursorError {
-                typ: "{{.name}}",
-                cursor: cur,
+			t.err = &errors.Error {
+				Code: errors.EInvalid,
+				Err: &GroupCursorError {
+					typ: "{{.name}}",
+					cursor: cur,
+                },
 			}
 			return false
 		} else {

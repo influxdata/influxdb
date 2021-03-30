@@ -7,7 +7,6 @@
 package reads
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"sync"
@@ -19,6 +18,7 @@ import (
 	"github.com/influxdata/flux/interval"
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/values"
+	"github.com/influxdata/influxdb/kit/platform/errors"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
@@ -785,7 +785,10 @@ func determineFloatAggregateMethod(agg datatypes.Aggregate_AggregateType) (float
 		return aggregateLastGroupsFloat, nil
 	case datatypes.AggregateTypeCount:
 
-		return nil, errors.New("unsupported for aggregate count: Float")
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  "unsupported for aggregate count: Float",
+		}
 
 	case datatypes.AggregateTypeSum:
 
@@ -800,7 +803,10 @@ func determineFloatAggregateMethod(agg datatypes.Aggregate_AggregateType) (float
 		return aggregateMaxGroupsFloat, nil
 
 	default:
-		return nil, fmt.Errorf("unknown/unimplemented aggregate type: %v", agg)
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  fmt.Sprintf("unknown/unimplemented aggregate type: %v", agg),
+		}
 	}
 }
 
@@ -884,9 +890,12 @@ func (t *floatGroupTable) advanceCursor() bool {
 		if typedCur, ok := cur.(cursors.FloatArrayCursor); !ok {
 			// TODO(sgc): error or skip?
 			cur.Close()
-			t.err = &GroupCursorError{
-				typ:    "float",
-				cursor: cur,
+			t.err = &errors.Error{
+				Code: errors.EInvalid,
+				Err: &GroupCursorError{
+					typ:    "float",
+					cursor: cur,
+				},
 			}
 			return false
 		} else {
@@ -1687,7 +1696,10 @@ func determineIntegerAggregateMethod(agg datatypes.Aggregate_AggregateType) (int
 		return aggregateMaxGroupsInteger, nil
 
 	default:
-		return nil, fmt.Errorf("unknown/unimplemented aggregate type: %v", agg)
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  fmt.Sprintf("unknown/unimplemented aggregate type: %v", agg),
+		}
 	}
 }
 
@@ -1775,9 +1787,12 @@ func (t *integerGroupTable) advanceCursor() bool {
 		if typedCur, ok := cur.(cursors.IntegerArrayCursor); !ok {
 			// TODO(sgc): error or skip?
 			cur.Close()
-			t.err = &GroupCursorError{
-				typ:    "integer",
-				cursor: cur,
+			t.err = &errors.Error{
+				Code: errors.EInvalid,
+				Err: &GroupCursorError{
+					typ:    "integer",
+					cursor: cur,
+				},
 			}
 			return false
 		} else {
@@ -2561,7 +2576,10 @@ func determineUnsignedAggregateMethod(agg datatypes.Aggregate_AggregateType) (un
 		return aggregateLastGroupsUnsigned, nil
 	case datatypes.AggregateTypeCount:
 
-		return nil, errors.New("unsupported for aggregate count: Unsigned")
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  "unsupported for aggregate count: Unsigned",
+		}
 
 	case datatypes.AggregateTypeSum:
 
@@ -2576,7 +2594,10 @@ func determineUnsignedAggregateMethod(agg datatypes.Aggregate_AggregateType) (un
 		return aggregateMaxGroupsUnsigned, nil
 
 	default:
-		return nil, fmt.Errorf("unknown/unimplemented aggregate type: %v", agg)
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  fmt.Sprintf("unknown/unimplemented aggregate type: %v", agg),
+		}
 	}
 }
 
@@ -2660,9 +2681,12 @@ func (t *unsignedGroupTable) advanceCursor() bool {
 		if typedCur, ok := cur.(cursors.UnsignedArrayCursor); !ok {
 			// TODO(sgc): error or skip?
 			cur.Close()
-			t.err = &GroupCursorError{
-				typ:    "unsigned",
-				cursor: cur,
+			t.err = &errors.Error{
+				Code: errors.EInvalid,
+				Err: &GroupCursorError{
+					typ:    "unsigned",
+					cursor: cur,
+				},
 			}
 			return false
 		} else {
@@ -3446,22 +3470,37 @@ func determineStringAggregateMethod(agg datatypes.Aggregate_AggregateType) (stri
 		return aggregateLastGroupsString, nil
 	case datatypes.AggregateTypeCount:
 
-		return nil, errors.New("unsupported for aggregate count: String")
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  "unsupported for aggregate count: String",
+		}
 
 	case datatypes.AggregateTypeSum:
 
-		return nil, errors.New("unsupported for aggregate sum: String")
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  "unsupported for aggregate sum: String",
+		}
 
 	case datatypes.AggregateTypeMin:
 
-		return nil, errors.New("unsupported for aggregate min: String")
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  "unsupported for aggregate min: String",
+		}
 
 	case datatypes.AggregateTypeMax:
 
-		return nil, errors.New("unsupported for aggregate max: String")
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  "unsupported for aggregate max: String",
+		}
 
 	default:
-		return nil, fmt.Errorf("unknown/unimplemented aggregate type: %v", agg)
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  fmt.Sprintf("unknown/unimplemented aggregate type: %v", agg),
+		}
 	}
 }
 
@@ -3509,9 +3548,12 @@ func (t *stringGroupTable) advanceCursor() bool {
 		if typedCur, ok := cur.(cursors.StringArrayCursor); !ok {
 			// TODO(sgc): error or skip?
 			cur.Close()
-			t.err = &GroupCursorError{
-				typ:    "string",
-				cursor: cur,
+			t.err = &errors.Error{
+				Code: errors.EInvalid,
+				Err: &GroupCursorError{
+					typ:    "string",
+					cursor: cur,
+				},
 			}
 			return false
 		} else {
@@ -4295,22 +4337,37 @@ func determineBooleanAggregateMethod(agg datatypes.Aggregate_AggregateType) (boo
 		return aggregateLastGroupsBoolean, nil
 	case datatypes.AggregateTypeCount:
 
-		return nil, errors.New("unsupported for aggregate count: Boolean")
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  "unsupported for aggregate count: Boolean",
+		}
 
 	case datatypes.AggregateTypeSum:
 
-		return nil, errors.New("unsupported for aggregate sum: Boolean")
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  "unsupported for aggregate sum: Boolean",
+		}
 
 	case datatypes.AggregateTypeMin:
 
-		return nil, errors.New("unsupported for aggregate min: Boolean")
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  "unsupported for aggregate min: Boolean",
+		}
 
 	case datatypes.AggregateTypeMax:
 
-		return nil, errors.New("unsupported for aggregate max: Boolean")
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  "unsupported for aggregate max: Boolean",
+		}
 
 	default:
-		return nil, fmt.Errorf("unknown/unimplemented aggregate type: %v", agg)
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
+			Msg:  fmt.Sprintf("unknown/unimplemented aggregate type: %v", agg),
+		}
 	}
 }
 
@@ -4358,9 +4415,12 @@ func (t *booleanGroupTable) advanceCursor() bool {
 		if typedCur, ok := cur.(cursors.BooleanArrayCursor); !ok {
 			// TODO(sgc): error or skip?
 			cur.Close()
-			t.err = &GroupCursorError{
-				typ:    "boolean",
-				cursor: cur,
+			t.err = &errors.Error{
+				Code: errors.EInvalid,
+				Err: &GroupCursorError{
+					typ:    "boolean",
+					cursor: cur,
+				},
 			}
 			return false
 		} else {
