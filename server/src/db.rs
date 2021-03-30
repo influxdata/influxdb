@@ -12,19 +12,12 @@ use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
 use tracing::{debug, info};
 
-use arrow_deps::datafusion::{
-    catalog::{catalog::CatalogProvider, schema::SchemaProvider},
-    datasource::TableProvider,
-};
+use arrow_deps::datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
 use catalog::{chunk::ChunkState, Catalog};
-use data_types::{chunk::ChunkSummary, database_rules::DatabaseRules, error::ErrorLogger};
+use data_types::{chunk::ChunkSummary, database_rules::DatabaseRules};
 use internal_types::{data::ReplicatedWrite, selection::Selection};
 use mutable_buffer::chunk::Chunk;
-use query::{
-    exec::stringset::StringSet,
-    provider::{self, ProviderBuilder},
-    Database, PartitionChunk, DEFAULT_SCHEMA,
-};
+use query::{Database, DEFAULT_SCHEMA};
 use read_buffer::Database as ReadBufferDb;
 
 pub(crate) use chunk::DBChunk;
@@ -99,7 +92,7 @@ pub enum Error {
     UnknownMutableBufferChunk { chunk_id: u32 },
 
     #[snafu(display("Cannot write to this database: no mutable buffer configured"))]
-    DatatbaseNotWriteable {},
+    DatabaseNotWriteable {},
 
     #[snafu(display("Internal error: cannot create partition in catalog: {}", source))]
     CreatingPartition {
@@ -155,7 +148,7 @@ pub struct Db {
     pub rules: DatabaseRules,
 
     /// The metadata catalog
-    catalog: Catalog,
+    catalog: Arc<Catalog>,
 
     /// The read buffer holds chunk data in an in-memory optimized
     /// format.
@@ -183,7 +176,7 @@ impl Db {
     ) -> Self {
         let wal_buffer = wal_buffer.map(Mutex::new);
         let read_buffer = Arc::new(read_buffer);
-        let catalog = Catalog::new();
+        let catalog = Arc::new(Catalog::new());
         Self {
             rules,
             catalog,
@@ -458,7 +451,7 @@ impl Database for Db {
 
     fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
         if !self.writeable() {
-            return DatatbaseNotWriteable {}.fail();
+            return DatabaseNotWriteable {}.fail();
         }
 
         let batch = if let Some(batch) = write.write_buffer_batch() {
@@ -513,16 +506,7 @@ impl Database for Db {
     }
 
     fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
-        let partition_keys = self
-            .catalog
-            .partitions()
-            .map(|partition| {
-                let partition = partition.read();
-                partition.key().to_string()
-            })
-            .collect();
-
-        Ok(partition_keys)
+        Ok(self.catalog.partition_keys())
     }
 
     fn chunk_summaries(&self) -> Result<Vec<ChunkSummary>> {
@@ -536,19 +520,7 @@ impl Database for Db {
     }
 }
 
-/// Temporary newtype Db wrapper to allow it to act as a CatalogProvider
-///
-/// TODO: Make Db implement CatalogProvider and Catalog implement SchemaProvider
-#[derive(Debug)]
-pub struct DbCatalog(Arc<Db>);
-
-impl DbCatalog {
-    pub fn new(db: Arc<Db>) -> Self {
-        Self(db)
-    }
-}
-
-impl CatalogProvider for DbCatalog {
+impl CatalogProvider for Db {
     fn as_any(&self) -> &dyn Any {
         self as &dyn Any
     }
@@ -560,56 +532,8 @@ impl CatalogProvider for DbCatalog {
     fn schema(&self, name: &str) -> Option<Arc<dyn SchemaProvider>> {
         info!(%name, "using schema");
         match name {
-            DEFAULT_SCHEMA => Some(Arc::<Db>::clone(&self.0)),
+            DEFAULT_SCHEMA => Some(Arc::<Catalog>::clone(&self.catalog)),
             _ => None,
-        }
-    }
-}
-
-impl SchemaProvider for Db {
-    fn as_any(&self) -> &dyn Any {
-        self as &dyn Any
-    }
-
-    fn table_names(&self) -> Vec<String> {
-        let mut names = StringSet::new();
-
-        self.catalog.partitions().for_each(|partition| {
-            let partition = partition.read();
-            partition.chunks().for_each(|chunk| {
-                let chunk = chunk.read();
-                let db_chunk = DBChunk::snapshot(&chunk);
-                db_chunk.all_table_names(&mut names);
-            })
-        });
-
-        names.into_iter().collect::<Vec<_>>()
-    }
-
-    fn table(&self, table_name: &str) -> Option<Arc<dyn TableProvider>> {
-        let mut builder = ProviderBuilder::new(table_name);
-        for partition_key in self.partition_keys().expect("cannot fail") {
-            for chunk in self.chunks(&partition_key) {
-                if chunk.has_table(table_name) {
-                    // This should only fail if the table doesn't exist which isn't possible
-                    let schema = chunk
-                        .table_schema(table_name, Selection::All)
-                        .expect("cannot fail");
-
-                    // This is unfortunate - a table with incompatible chunks ceases to
-                    // be visible to the query engine
-                    builder = builder
-                        .add_chunk(chunk, schema)
-                        .log_if_error("Adding chunks to table")
-                        .ok()?
-                }
-            }
-        }
-
-        match builder.build() {
-            Ok(provider) => Some(Arc::new(provider)),
-            Err(provider::Error::InternalNoChunks { .. }) => None,
-            Err(e) => panic!("unexpected error: {:?}", e),
         }
     }
 }
@@ -907,10 +831,7 @@ mod tests {
         let planner = SQLQueryPlanner::default();
         let executor = Executor::new();
 
-        let physical_plan = planner
-            .query(Arc::new(DbCatalog::new(db)), query, &executor)
-            .await
-            .unwrap();
+        let physical_plan = planner.query(db, query, &executor).await.unwrap();
 
         collect(physical_plan).await.unwrap()
     }

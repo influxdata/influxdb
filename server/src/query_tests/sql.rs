@@ -4,7 +4,6 @@
 //! important SQL does not regress)
 
 use super::scenarios::*;
-use crate::db::DbCatalog;
 use arrow_deps::{
     arrow::record_batch::RecordBatch, assert_table_eq, datafusion::physical_plan::collect,
 };
@@ -29,7 +28,7 @@ macro_rules! run_sql_test_case {
             let executor = Executor::new();
 
             let physical_plan = planner
-                .query(Arc::new(DbCatalog::new(db)), &sql, &executor)
+                .query(db, &sql, &executor)
                 .await
                 .expect("built plan successfully");
 

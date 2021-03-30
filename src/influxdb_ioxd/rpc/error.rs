@@ -66,7 +66,7 @@ pub fn default_db_error_handler(error: server::db::Error) -> tonic::Status {
             description: "Cannot read from database: no mutable buffer configured".to_string(),
         }
         .into(),
-        Error::DatatbaseNotWriteable {} => PreconditionViolation {
+        Error::DatabaseNotWriteable {} => PreconditionViolation {
             category: "database".to_string(),
             subject: "influxdata.com/iox".to_string(),
             description: "Cannot write to database: no mutable buffer configured".to_string(),
