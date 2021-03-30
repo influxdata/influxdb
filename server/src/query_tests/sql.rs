@@ -181,6 +181,50 @@ async fn sql_select_from_school() {
 }
 
 #[tokio::test]
+async fn sql_select_from_information_schema_tables() {
+    // validate we have access to information schema for listing table
+    // names
+    let expected = vec![
+        "+---------------+--------------------+------------+------------+",
+        "| table_catalog | table_schema       | table_name | table_type |",
+        "+---------------+--------------------+------------+------------+",
+        "| public        | iox                | h2o        | BASE TABLE |",
+        "| public        | iox                | o2         | BASE TABLE |",
+        "| public        | information_schema | tables     | VIEW       |",
+        "+---------------+--------------------+------------+------------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsManyFields {},
+        "SELECT * from information_schema.tables",
+        &expected
+    );
+}
+
+#[tokio::test]
+async fn sql_union_all() {
+    // validate name resolution works for UNION ALL queries
+    let expected = vec![
+        "+--------+",
+        "| name   |",
+        "+--------+",
+        "| MA     |",
+        "| MA     |",
+        "| CA     |",
+        "| MA     |",
+        "| Boston |",
+        "| Boston |",
+        "| Boston |",
+        "| Boston |",
+        "+--------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsManyFields {},
+        "select state as name from h2o UNION ALL select city as name from h2o",
+        &expected
+    );
+}
+
+#[tokio::test]
 async fn sql_select_with_schema_merge_subset() {
     let expected = vec![
         "+------+--------+--------+",
