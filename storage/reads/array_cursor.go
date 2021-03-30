@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/influxdata/flux/interval"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
@@ -16,66 +17,50 @@ func (v *singleValue) Value(key string) (interface{}, bool) {
 	return v.v, true
 }
 
-func newAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate, cursor cursors.Cursor) cursors.Cursor {
+func newAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate, cursor cursors.Cursor) (cursors.Cursor, error) {
+	switch agg.Type {
+	case datatypes.AggregateTypeFirst, datatypes.AggregateTypeLast:
+		return newLimitArrayCursor(cursor), nil
+	}
+	return newWindowAggregateArrayCursor(ctx, agg, interval.Window{}, cursor)
+}
+
+func newWindowAggregateArrayCursor(ctx context.Context, agg *datatypes.Aggregate, window interval.Window, cursor cursors.Cursor) (cursors.Cursor, error) {
 	if cursor == nil {
-		return nil
+		return nil, nil
 	}
 
 	switch agg.Type {
-	case datatypes.AggregateTypeSum:
-		return newSumArrayCursor(cursor)
 	case datatypes.AggregateTypeCount:
-		return newCountArrayCursor(cursor)
+		return newWindowCountArrayCursor(cursor, window), nil
+	case datatypes.AggregateTypeSum:
+		return newWindowSumArrayCursor(cursor, window)
+	case datatypes.AggregateTypeFirst:
+		return newWindowFirstArrayCursor(cursor, window), nil
+	case datatypes.AggregateTypeLast:
+		return newWindowLastArrayCursor(cursor, window), nil
+	case datatypes.AggregateTypeMin:
+		return newWindowMinArrayCursor(cursor, window), nil
+	case datatypes.AggregateTypeMax:
+		return newWindowMaxArrayCursor(cursor, window), nil
+	case datatypes.AggregateTypeMean:
+		return newWindowMeanArrayCursor(cursor, window)
 	default:
 		// TODO(sgc): should be validated higher up
 		panic("invalid aggregate")
 	}
 }
 
-func newSumArrayCursor(cur cursors.Cursor) cursors.Cursor {
-	switch cur := cur.(type) {
-	case cursors.FloatArrayCursor:
-		return newFloatArraySumCursor(cur)
-	case cursors.IntegerArrayCursor:
-		return newIntegerArraySumCursor(cur)
-	case cursors.UnsignedArrayCursor:
-		return newUnsignedArraySumCursor(cur)
-	default:
-		// TODO(sgc): propagate an error instead?
-		return nil
-	}
-}
-
-func newCountArrayCursor(cur cursors.Cursor) cursors.Cursor {
-	switch cur := cur.(type) {
-	case cursors.FloatArrayCursor:
-		return &integerFloatCountArrayCursor{FloatArrayCursor: cur}
-	case cursors.IntegerArrayCursor:
-		return &integerIntegerCountArrayCursor{IntegerArrayCursor: cur}
-	case cursors.UnsignedArrayCursor:
-		return &integerUnsignedCountArrayCursor{UnsignedArrayCursor: cur}
-	case cursors.StringArrayCursor:
-		return &integerStringCountArrayCursor{StringArrayCursor: cur}
-	case cursors.BooleanArrayCursor:
-		return &integerBooleanCountArrayCursor{BooleanArrayCursor: cur}
-	default:
-		panic(fmt.Sprintf("unreachable: %T", cur))
-	}
-}
-
 type cursorContext struct {
-	ctx   context.Context
-	req   *cursors.CursorRequest
-	itrs  cursors.CursorIterators
-	limit int64
-	count int64
-	err   error
+	ctx  context.Context
+	req  *cursors.CursorRequest
+	itrs cursors.CursorIterators
+	err  error
 }
 
 type multiShardArrayCursors struct {
-	ctx   context.Context
-	limit int64
-	req   cursors.CursorRequest
+	ctx context.Context
+	req cursors.CursorRequest
 
 	cursors struct {
 		i integerMultiShardArrayCursor
@@ -86,14 +71,9 @@ type multiShardArrayCursors struct {
 	}
 }
 
-func newMultiShardArrayCursors(ctx context.Context, start, end int64, asc bool, limit int64) *multiShardArrayCursors {
-	if limit < 0 {
-		limit = 1
-	}
-
+func newMultiShardArrayCursors(ctx context.Context, start, end int64, asc bool) *multiShardArrayCursors {
 	m := &multiShardArrayCursors{
-		ctx:   ctx,
-		limit: limit,
+		ctx: ctx,
 		req: cursors.CursorRequest{
 			Ascending: asc,
 			StartTime: start,
@@ -102,9 +82,8 @@ func newMultiShardArrayCursors(ctx context.Context, start, end int64, asc bool, 
 	}
 
 	cc := cursorContext{
-		ctx:   ctx,
-		limit: limit,
-		req:   &m.req,
+		ctx: ctx,
+		req: &m.req,
 	}
 
 	m.cursors.i.cursorContext = cc
@@ -156,8 +135,4 @@ func (m *multiShardArrayCursors) createCursor(row SeriesRow) cursors.Cursor {
 	default:
 		panic(fmt.Sprintf("unreachable: %T", cur))
 	}
-}
-
-func (m *multiShardArrayCursors) newAggregateCursor(ctx context.Context, agg *datatypes.Aggregate, cursor cursors.Cursor) cursors.Cursor {
-	return newAggregateArrayCursor(ctx, agg, cursor)
 }

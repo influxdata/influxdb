@@ -175,6 +175,7 @@ type GroupCursor struct {
 	CloseFunc            func()
 	ErrFunc              func() error
 	StatsFunc            func() cursors.CursorStats
+	AggregateFunc        func() *datatypes.Aggregate
 }
 
 func NewGroupCursor() *GroupCursor {
@@ -187,6 +188,7 @@ func NewGroupCursor() *GroupCursor {
 		CloseFunc:            func() {},
 		ErrFunc:              func() error { return nil },
 		StatsFunc:            func() cursors.CursorStats { return cursors.CursorStats{} },
+		AggregateFunc:        func() *datatypes.Aggregate { return nil },
 	}
 }
 
@@ -220,6 +222,10 @@ func (c *GroupCursor) Err() error {
 
 func (c *GroupCursor) Stats() cursors.CursorStats {
 	return c.StatsFunc()
+}
+
+func (c *GroupCursor) Aggregate() *datatypes.Aggregate {
+	return c.AggregateFunc()
 }
 
 type StoreReader struct {

@@ -141,7 +141,7 @@ func (s *Store) ReadFilter(ctx context.Context, req *datatypes.ReadFilterRequest
 	req.Range.Start = start
 	req.Range.End = end
 
-	return reads.NewFilteredResultSet(ctx, req, cur), nil
+	return reads.NewFilteredResultSet(ctx, req.Range.Start, req.Range.End, cur), nil
 }
 
 func (s *Store) ReadGroup(ctx context.Context, req *datatypes.ReadGroupRequest) (reads.GroupResultSet, error) {
