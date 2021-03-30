@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"testing"
@@ -42,13 +43,11 @@ var (
 		},
 	}
 	config = control.Config{
-		ConcurrencyQuota:         1,
-		MemoryBytesQuotaPerQuery: 1024,
-		QueueSize:                1,
-		ExecutorDependencies: []flux.Dependency{
-			influxdb.Dependencies{
-				FluxDeps: executetest.NewTestExecuteDependencies(),
-			},
+		MemoryBytesQuotaPerQuery: math.MaxInt64,
+	}
+	executorDependencies = []flux.Dependency{
+		influxdb.Dependencies{
+			FluxDeps: executetest.NewTestExecuteDependencies(),
 		},
 	}
 )
@@ -117,7 +116,7 @@ func validateUnusedMemory(t testing.TB, reg *prometheus.Registry, c control.Conf
 }
 
 func TestController_QuerySuccess(t *testing.T) {
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, nil, executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -156,7 +155,7 @@ func TestController_QuerySuccess(t *testing.T) {
 }
 
 func TestController_QueryCompileError(t *testing.T) {
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, nil, executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -182,7 +181,7 @@ func TestController_QueryCompileError(t *testing.T) {
 }
 
 func TestController_QueryRuntimeError(t *testing.T) {
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, nil, executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -231,7 +230,7 @@ func TestController_QueryRuntimeError(t *testing.T) {
 func TestController_QueryQueueError(t *testing.T) {
 	t.Skip("This test exposed several race conditions, its not clear if the races are specific to the test case")
 
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, nil, executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -335,7 +334,7 @@ func findMetric(mfs []*dto.MetricFamily, name string, labels map[string]string) 
 }
 
 func TestController_AfterShutdown(t *testing.T) {
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, nil, executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -355,7 +354,7 @@ func TestController_AfterShutdown(t *testing.T) {
 }
 
 func TestController_CompileError(t *testing.T) {
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, nil, executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -377,7 +376,7 @@ func TestController_CompileError(t *testing.T) {
 }
 
 func TestController_ExecuteError(t *testing.T) {
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, nil, executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -420,7 +419,7 @@ func TestController_LimitExceededError(t *testing.T) {
 	const memoryBytesQuotaPerQuery = 64
 	config := config
 	config.MemoryBytesQuotaPerQuery = memoryBytesQuotaPerQuery
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, nil, executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -491,7 +490,7 @@ func TestController_LimitExceededError(t *testing.T) {
 }
 
 func TestController_CompilePanic(t *testing.T) {
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, nil, executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -512,7 +511,7 @@ func TestController_CompilePanic(t *testing.T) {
 }
 
 func TestController_StartPanic(t *testing.T) {
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, nil, executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -545,7 +544,7 @@ func TestController_StartPanic(t *testing.T) {
 }
 
 func TestController_ShutdownWithRunningQuery(t *testing.T) {
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, nil, executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -591,7 +590,7 @@ func TestController_ShutdownWithRunningQuery(t *testing.T) {
 }
 
 func TestController_ShutdownWithTimeout(t *testing.T) {
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, nil, executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -642,7 +641,7 @@ func TestController_ShutdownWithTimeout(t *testing.T) {
 }
 
 func TestController_PerQueryMemoryLimit(t *testing.T) {
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, nil, executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -691,7 +690,7 @@ func TestController_ConcurrencyQuota(t *testing.T) {
 	config := config
 	config.ConcurrencyQuota = concurrencyQuota
 	config.QueueSize = numQueries
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, nil, executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -757,7 +756,7 @@ func TestController_QueueSize(t *testing.T) {
 	config := config
 	config.ConcurrencyQuota = concurrencyQuota
 	config.QueueSize = queueSize
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, nil, executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -820,12 +819,107 @@ func TestController_QueueSize(t *testing.T) {
 
 // Test that rapidly starting and canceling the query and then calling done will correctly
 // cancel the query and not result in a race condition.
+func TestController_CancelDone_Unlimited(t *testing.T) {
+	config := config
+
+	ctrl, err := control.New(config, nil, executorDependencies)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer shutdown(t, ctrl)
+
+	compiler := &mock.Compiler{
+		CompileFn: func(ctx context.Context) (flux.Program, error) {
+			return &mock.Program{
+				ExecuteFn: func(ctx context.Context, q *mock.Query, alloc *memory.Allocator) {
+					// Ensure the query takes a little bit of time so the cancel actually cancels something.
+					t := time.NewTimer(time.Second)
+					defer t.Stop()
+
+					select {
+					case <-t.C:
+					case <-ctx.Done():
+					}
+				},
+			}, nil
+		},
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			q, err := ctrl.Query(context.Background(), compiler)
+			if err != nil {
+				t.Errorf("unexpected error: %s", err)
+				return
+			}
+			q.Cancel()
+			q.Done()
+		}()
+	}
+	wg.Wait()
+}
+
+// Test that rapidly starts and calls done on queries without reading the result.
+func TestController_DoneWithoutRead_Unlimited(t *testing.T) {
+	config := config
+
+	ctrl, err := control.New(config, nil, executorDependencies)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer shutdown(t, ctrl)
+
+	compiler := &mock.Compiler{
+		CompileFn: func(ctx context.Context) (flux.Program, error) {
+			return &mock.Program{
+				ExecuteFn: func(ctx context.Context, q *mock.Query, alloc *memory.Allocator) {
+					// Ensure the query takes a little bit of time so the cancel actually cancels something.
+					t := time.NewTimer(time.Second)
+					defer t.Stop()
+
+					select {
+					case <-t.C:
+						q.ResultsCh <- &executetest.Result{
+							Nm:   "_result",
+							Tbls: []*executetest.Table{},
+						}
+					case <-ctx.Done():
+					}
+				},
+			}, nil
+		},
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+
+			q, err := ctrl.Query(context.Background(), compiler)
+			if err != nil {
+				t.Errorf("unexpected error: %s", err)
+				return
+			}
+			// If we call done without reading anything it should work just fine.
+			q.Done()
+		}()
+	}
+	wg.Wait()
+}
+
+// Test that rapidly starting and canceling the query and then calling done will correctly
+// cancel the query and not result in a race condition.
 func TestController_CancelDone(t *testing.T) {
 	config := config
 	config.ConcurrencyQuota = 10
 	config.QueueSize = 200
 
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, nil, executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -872,7 +966,7 @@ func TestController_DoneWithoutRead(t *testing.T) {
 	config.ConcurrencyQuota = 10
 	config.QueueSize = 200
 
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, nil, executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -921,10 +1015,13 @@ func TestController_DoneWithoutRead(t *testing.T) {
 // but we would go above the maximum amount of available memory.
 func TestController_Error_MaxMemory(t *testing.T) {
 	config := config
-	config.InitialMemoryBytesQuotaPerQuery = config.MemoryBytesQuotaPerQuery / 2
-	config.MaxMemoryBytes = config.MemoryBytesQuotaPerQuery * 2
+	config.InitialMemoryBytesQuotaPerQuery = 512
+	config.MaxMemoryBytes = 2048
+	config.MemoryBytesQuotaPerQuery = 512
+	config.QueueSize = 1
+	config.ConcurrencyQuota = 1
 
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, nil, executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -982,7 +1079,7 @@ func TestController_NoisyNeighbor(t *testing.T) {
 	// Set the queue length to something that can accommodate the input.
 	config.QueueSize = 1000
 
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, nil, executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1084,7 +1181,11 @@ func TestController_Error_NoRemainingMemory(t *testing.T) {
 	// The maximum memory available on the system is double the initial quota.
 	config.MaxMemoryBytes = config.InitialMemoryBytesQuotaPerQuery * 2
 
-	ctrl, err := control.New(config)
+	// Need to limit concurrency along with max memory or the config validation complains
+	config.ConcurrencyQuota = 1
+	config.QueueSize = 1
+
+	ctrl, err := control.New(config, nil, executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1125,9 +1226,12 @@ func TestController_Error_NoRemainingMemory(t *testing.T) {
 func TestController_MemoryRelease(t *testing.T) {
 	config := config
 	config.InitialMemoryBytesQuotaPerQuery = 16
+	config.MemoryBytesQuotaPerQuery = 1024
 	config.MaxMemoryBytes = config.MemoryBytesQuotaPerQuery * 2
+	config.QueueSize = 1
+	config.ConcurrencyQuota = 1
 
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, nil, executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1173,8 +1277,10 @@ func TestController_IrregularMemoryQuota(t *testing.T) {
 	config.InitialMemoryBytesQuotaPerQuery = 64
 	config.MemoryBytesQuotaPerQuery = 768
 	config.MaxMemoryBytes = config.MemoryBytesQuotaPerQuery * 2
+	config.QueueSize = 1
+	config.ConcurrencyQuota = 1
 
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, nil, executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1233,7 +1339,7 @@ func TestController_ReserveMemoryWithoutExceedingMax(t *testing.T) {
 	// Set the queue length to something that can accommodate the input.
 	config.QueueSize = 1000
 
-	ctrl, err := control.New(config)
+	ctrl, err := control.New(config, nil, executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
