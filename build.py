@@ -184,7 +184,7 @@ def run_tests(race, parallel, timeout, no_vet, junit=False):
     run("go mod download")
 
     logging.info("Ensuring code is properly formatted with goimports ...")
-    out = run("go run golang.org/x/tools/cmd/goimports -l ./")
+    out = run("./checkfmt.sh")
     if len(out) > 0:
         logging.error("Code not formatted. Please use 'goimports -w ./' to fix formatting errors.")
         logging.error("{}".format(out))
