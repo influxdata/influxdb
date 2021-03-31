@@ -4,7 +4,7 @@ builds:
     goos:
       - linux
       - darwin
-      - widows
+      - windows
     goarch:
       - amd64
       - arm64
