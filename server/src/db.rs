@@ -1080,12 +1080,14 @@ mod tests {
         let mut writer = TestLPWriter::default();
 
         writer.write_lp_string(&db, "cpu bar=1 1").unwrap();
-        let _chunk_id = db.rollover_partition("1970-01-01T00").await.unwrap().id();
+        let chunk_id = db.rollover_partition("1970-01-01T00").await.unwrap().id();
         writer.write_lp_string(&db, "cpu bar=2,baz=3.0 2").unwrap();
         writer.write_lp_string(&db, "mem foo=1 1").unwrap();
 
-        // TODO: load a chunk to the read buffer (needs read buffer to be hooked up)
-        //db.load_chunk_to_read_buffer("1970-01-01T00", chunk_id).unwrap()
+        // load a chunk to the read buffer
+        db.load_chunk_to_read_buffer("1970-01-01T00", chunk_id)
+            .await
+            .unwrap();
 
         // write into a separate partitiion
         writer

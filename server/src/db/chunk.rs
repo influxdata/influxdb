@@ -183,9 +183,11 @@ impl PartitionChunk for DBChunk {
     fn table_summaries(&self) -> Vec<data_types::partition_metadata::TableSummary> {
         match self {
             Self::MutableBuffer { chunk, .. } => chunk.table_summaries(),
-            Self::ReadBuffer { .. } => {
-                unimplemented!("table_summaries not implemented for read buffer")
-            }
+            Self::ReadBuffer {
+                chunk_id,
+                partition_key,
+                db,
+            } => db.table_summaries(partition_key, &[*chunk_id]),
             Self::ParquetFile => unimplemented!("parquet file not implemented"),
         }
     }

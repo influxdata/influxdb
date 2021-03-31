@@ -2711,6 +2711,7 @@ dependencies = [
  "arrow_deps",
  "criterion",
  "croaring",
+ "data_types",
  "either",
  "hashbrown 0.9.1",
  "internal_types",
