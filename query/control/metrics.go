@@ -31,62 +31,62 @@ const (
 func newControllerMetrics(labels []string) *controllerMetrics {
 	return &controllerMetrics{
 		requests: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name:      "qc_requests_total",
-			Help:      "Count of the query requests",
+			Name: "qc_requests_total",
+			Help: "Count of the query requests",
 		}, append(labels, "result")),
 
 		functions: prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name:      "qc_functions_total",
-			Help:      "Count of functions in queries",
+			Name: "qc_functions_total",
+			Help: "Count of functions in queries",
 		}, append(labels, "function")),
 
 		all: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name:      "qc_all_active",
-			Help:      "Number of queries in all states",
+			Name: "qc_all_active",
+			Help: "Number of queries in all states",
 		}, labels),
 
 		compiling: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name:      "qc_compiling_active",
-			Help:      "Number of queries actively compiling",
+			Name: "qc_compiling_active",
+			Help: "Number of queries actively compiling",
 		}, append(labels, "compiler_type")),
 
 		queueing: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name:      "qc_queueing_active",
-			Help:      "Number of queries actively queueing",
+			Name: "qc_queueing_active",
+			Help: "Number of queries actively queueing",
 		}, labels),
 
 		executing: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name:      "qc_executing_active",
-			Help:      "Number of queries actively executing",
+			Name: "qc_executing_active",
+			Help: "Number of queries actively executing",
 		}, labels),
 
 		memoryUnused: prometheus.NewGaugeVec(prometheus.GaugeOpts{
-			Name:      "qc_memory_unused_bytes",
-			Help:      "The free memory as seen by the internal memory manager",
+			Name: "qc_memory_unused_bytes",
+			Help: "The free memory as seen by the internal memory manager",
 		}, labels),
 
 		allDur: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Name:      "qc_all_duration_seconds",
-			Help:      "Histogram of total times spent in all query states",
-			Buckets:   prometheus.ExponentialBuckets(1e-3, 5, 7),
+			Name:    "qc_all_duration_seconds",
+			Help:    "Histogram of total times spent in all query states",
+			Buckets: prometheus.ExponentialBuckets(1e-3, 5, 7),
 		}, labels),
 
 		compilingDur: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Name:      "qc_compiling_duration_seconds",
-			Help:      "Histogram of times spent compiling queries",
-			Buckets:   prometheus.ExponentialBuckets(1e-3, 5, 7),
+			Name:    "qc_compiling_duration_seconds",
+			Help:    "Histogram of times spent compiling queries",
+			Buckets: prometheus.ExponentialBuckets(1e-3, 5, 7),
 		}, append(labels, "compiler_type")),
 
 		queueingDur: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Name:      "qc_queueing_duration_seconds",
-			Help:      "Histogram of times spent queueing queries",
-			Buckets:   prometheus.ExponentialBuckets(1e-3, 5, 7),
+			Name:    "qc_queueing_duration_seconds",
+			Help:    "Histogram of times spent queueing queries",
+			Buckets: prometheus.ExponentialBuckets(1e-3, 5, 7),
 		}, labels),
 
 		executingDur: prometheus.NewHistogramVec(prometheus.HistogramOpts{
-			Name:      "qc_executing_duration_seconds",
-			Help:      "Histogram of times spent executing queries",
-			Buckets:   prometheus.ExponentialBuckets(1e-3, 5, 7),
+			Name:    "qc_executing_duration_seconds",
+			Help:    "Histogram of times spent executing queries",
+			Buckets: prometheus.ExponentialBuckets(1e-3, 5, 7),
 		}, labels),
 	}
 }

@@ -72,7 +72,7 @@ func validateRequestTotals(t testing.TB, reg *prometheus.Registry, success, comp
 	validate := func(name string, want int) {
 		m := FindMetric(
 			metrics,
-			"query_control_requests_total",
+			"qc_requests_total",
 			map[string]string{
 				"result": name,
 				"org":    "",
@@ -100,7 +100,7 @@ func validateUnusedMemory(t testing.TB, reg *prometheus.Registry, c control.Conf
 	}
 	m := FindMetric(
 		metrics,
-		"query_control_memory_unused_bytes",
+		"qc_memory_unused_bytes",
 		map[string]string{
 			"org": "",
 		},
@@ -116,7 +116,7 @@ func validateUnusedMemory(t testing.TB, reg *prometheus.Registry, c control.Conf
 }
 
 func TestController_QuerySuccess(t *testing.T) {
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -155,7 +155,7 @@ func TestController_QuerySuccess(t *testing.T) {
 }
 
 func TestController_QueryCompileError(t *testing.T) {
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -181,7 +181,7 @@ func TestController_QueryCompileError(t *testing.T) {
 }
 
 func TestController_QueryRuntimeError(t *testing.T) {
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -230,7 +230,7 @@ func TestController_QueryRuntimeError(t *testing.T) {
 func TestController_QueryQueueError(t *testing.T) {
 	t.Skip("This test exposed several race conditions, its not clear if the races are specific to the test case")
 
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -334,7 +334,7 @@ func findMetric(mfs []*dto.MetricFamily, name string, labels map[string]string) 
 }
 
 func TestController_AfterShutdown(t *testing.T) {
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -354,7 +354,7 @@ func TestController_AfterShutdown(t *testing.T) {
 }
 
 func TestController_CompileError(t *testing.T) {
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,7 +376,7 @@ func TestController_CompileError(t *testing.T) {
 }
 
 func TestController_ExecuteError(t *testing.T) {
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -419,7 +419,7 @@ func TestController_LimitExceededError(t *testing.T) {
 	const memoryBytesQuotaPerQuery = 64
 	config := config
 	config.MemoryBytesQuotaPerQuery = memoryBytesQuotaPerQuery
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -490,7 +490,7 @@ func TestController_LimitExceededError(t *testing.T) {
 }
 
 func TestController_CompilePanic(t *testing.T) {
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -511,7 +511,7 @@ func TestController_CompilePanic(t *testing.T) {
 }
 
 func TestController_StartPanic(t *testing.T) {
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -544,7 +544,7 @@ func TestController_StartPanic(t *testing.T) {
 }
 
 func TestController_ShutdownWithRunningQuery(t *testing.T) {
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -590,7 +590,7 @@ func TestController_ShutdownWithRunningQuery(t *testing.T) {
 }
 
 func TestController_ShutdownWithTimeout(t *testing.T) {
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -641,7 +641,7 @@ func TestController_ShutdownWithTimeout(t *testing.T) {
 }
 
 func TestController_PerQueryMemoryLimit(t *testing.T) {
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -690,7 +690,7 @@ func TestController_ConcurrencyQuota(t *testing.T) {
 	config := config
 	config.ConcurrencyQuota = concurrencyQuota
 	config.QueueSize = numQueries
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -756,7 +756,7 @@ func TestController_QueueSize(t *testing.T) {
 	config := config
 	config.ConcurrencyQuota = concurrencyQuota
 	config.QueueSize = queueSize
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -822,7 +822,7 @@ func TestController_QueueSize(t *testing.T) {
 func TestController_CancelDone_Unlimited(t *testing.T) {
 	config := config
 
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -867,7 +867,7 @@ func TestController_CancelDone_Unlimited(t *testing.T) {
 func TestController_DoneWithoutRead_Unlimited(t *testing.T) {
 	config := config
 
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -919,7 +919,7 @@ func TestController_CancelDone(t *testing.T) {
 	config.ConcurrencyQuota = 10
 	config.QueueSize = 200
 
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -966,7 +966,7 @@ func TestController_DoneWithoutRead(t *testing.T) {
 	config.ConcurrencyQuota = 10
 	config.QueueSize = 200
 
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1021,7 +1021,7 @@ func TestController_Error_MaxMemory(t *testing.T) {
 	config.QueueSize = 1
 	config.ConcurrencyQuota = 1
 
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1079,7 +1079,7 @@ func TestController_NoisyNeighbor(t *testing.T) {
 	// Set the queue length to something that can accommodate the input.
 	config.QueueSize = 1000
 
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1185,7 +1185,7 @@ func TestController_Error_NoRemainingMemory(t *testing.T) {
 	config.ConcurrencyQuota = 1
 	config.QueueSize = 1
 
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1231,7 +1231,7 @@ func TestController_MemoryRelease(t *testing.T) {
 	config.QueueSize = 1
 	config.ConcurrencyQuota = 1
 
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1280,7 +1280,7 @@ func TestController_IrregularMemoryQuota(t *testing.T) {
 	config.QueueSize = 1
 	config.ConcurrencyQuota = 1
 
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1339,7 +1339,7 @@ func TestController_ReserveMemoryWithoutExceedingMax(t *testing.T) {
 	// Set the queue length to something that can accommodate the input.
 	config.QueueSize = 1000
 
-	ctrl, err := control.New(config, nil, executorDependencies)
+	ctrl, err := control.New(config, zaptest.NewLogger(t), executorDependencies)
 	if err != nil {
 		t.Fatal(err)
 	}
