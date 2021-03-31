@@ -2,11 +2,7 @@ package http
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"net/http"
-
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/go-chi/chi"
 	"github.com/influxdata/httprouter"
@@ -17,9 +13,12 @@ import (
 	"github.com/influxdata/influxdb/v2/http/metric"
 	"github.com/influxdata/influxdb/v2/influxql"
 	"github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/storage"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"

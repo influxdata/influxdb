@@ -3,16 +3,15 @@ package check
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"strings"
-
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/flux"
 	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 )
 
 var _ influxdb.Check = (*Threshold)(nil)

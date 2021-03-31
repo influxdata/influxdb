@@ -3,10 +3,10 @@ package influxdb
 import (
 	"context"
 	"encoding/json"
-	"github.com/influxdata/influxdb/v2/query/fluxlang"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 )
 
 // consts for checks config.

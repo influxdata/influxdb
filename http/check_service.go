@@ -4,21 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"io/ioutil"
 	"net/http"
 	"path"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	pctx "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/notification/check"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"go.uber.org/zap"
 )
 

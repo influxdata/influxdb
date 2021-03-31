@@ -2,16 +2,15 @@ package check
 
 import (
 	"encoding/json"
-	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"time"
-
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/notification/flux"
 	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 )
 
 var _ influxdb.Check = &Custom{}

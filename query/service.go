@@ -2,16 +2,15 @@ package query
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"io"
-
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/interpreter"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2/kit/check"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 )
 
 // QueryService represents a type capable of performing queries.

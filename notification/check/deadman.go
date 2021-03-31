@@ -3,7 +3,6 @@ package check
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"strings"
 
 	"github.com/influxdata/flux/ast"
@@ -11,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/flux"
 	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 )
 
 var _ influxdb.Check = (*Deadman)(nil)

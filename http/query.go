@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"io"
 	"io/ioutil"
 	"mime"
@@ -22,6 +21,7 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/jsonweb"
 	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	transpiler "github.com/influxdata/influxdb/v2/query/influxql"
 	"github.com/influxdata/influxql"
 )
