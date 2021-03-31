@@ -158,7 +158,7 @@ impl Table {
 
     // Helper function used in tests.
     // Returns an immutable reference to the table's current meta data.
-    fn meta(&self) -> Arc<MetaData> {
+    pub fn meta(&self) -> Arc<MetaData> {
         Arc::clone(&self.table_data.read().unwrap().meta)
     }
 
@@ -451,7 +451,7 @@ impl Table {
 
 // TODO(edd): reduce owned strings here by, e.g., using references as keys.
 #[derive(Clone)]
-struct MetaData {
+pub struct MetaData {
     // The total size of the table in bytes.
     size: u64,
 
@@ -463,6 +463,7 @@ struct MetaData {
     // columns including their schema and range.
     columns: BTreeMap<String, row_group::ColumnMeta>,
 
+    // The names of the columns for this table in the order they appear.
     column_names: Vec<String>,
 
     // The total time range of this table spanning all of the row groups within
@@ -479,7 +480,7 @@ impl MetaData {
             size: rg.size(),
             rows: rg.rows() as u64,
             columns: rg.metadata().columns.clone(),
-            column_names: rg.metadata().columns.keys().cloned().collect(),
+            column_names: rg.metadata().column_names.clone(),
             time_range: Some(rg.metadata().time_range),
         }
     }
@@ -543,10 +544,10 @@ impl MetaData {
         this
     }
 
-    // Extract schema information for a set of columns. If a column name does
-    // not exist within the `Table` schema it is ignored and not present within
-    // the resulting schema information.
-    fn schema_for_column_names(
+    /// Extract schema information for a set of columns. If a column name does
+    /// not exist within the `Table` schema it is ignored and not present within
+    /// the resulting schema information.
+    pub fn schema_for_column_names(
         &self,
         names: &[ColumnName<'_>],
     ) -> Vec<(ColumnType, LogicalDataType)> {
@@ -559,12 +560,16 @@ impl MetaData {
             .collect::<Vec<_>>()
     }
 
-    // As `schema_for_column_names` but for all columns in the table.
-    fn schema_for_all_columns(&self) -> Vec<(ColumnType, LogicalDataType)> {
-        self.columns
-            .iter()
-            .map(|(_, schema)| (schema.typ.clone(), schema.logical_data_type))
-            .collect::<Vec<_>>()
+    /// As `schema_for_column_names` but for all columns in the table. Schema
+    /// information is returned in the same order as columns in the table.
+    pub fn schema_for_all_columns(&self) -> Vec<(ColumnType, LogicalDataType)> {
+        println!("{:?}", self.column_names);
+        let mut column_schema = vec![];
+        for column_name in &self.column_names {
+            let schema = self.columns.get(column_name).unwrap();
+            column_schema.push((schema.typ.clone(), schema.logical_data_type));
+        }
+        column_schema
     }
 
     // As `schema_for_column_names` but also embeds the provided aggregate type.
@@ -659,6 +664,10 @@ impl MetaData {
             name: table_name.into(),
             columns,
         }
+    }
+
+    pub fn has_column(&self, name: &str) -> bool {
+        self.columns.contains_key(name)
     }
 }
 
@@ -900,15 +909,15 @@ mod test {
 
     #[test]
     fn meta_data_update_with() {
-        let mut columns = BTreeMap::new();
-        columns.insert(
+        let mut columns = vec![];
+        columns.push((
             "time".to_string(),
             ColumnType::create_time(&[100, 200, 300]),
-        );
-        columns.insert(
+        ));
+        columns.push((
             "region".to_string(),
             ColumnType::create_tag(&["west", "west", "north"]),
-        );
+        ));
         let rg = RowGroup::new(3, columns);
 
         let mut meta = MetaData::new(&rg);
@@ -924,12 +933,12 @@ mod test {
             )
         );
 
-        let mut columns = BTreeMap::new();
-        columns.insert("time".to_string(), ColumnType::create_time(&[10, 400]));
-        columns.insert(
+        let mut columns = vec![];
+        columns.push(("time".to_string(), ColumnType::create_time(&[10, 400])));
+        columns.push((
             "region".to_string(),
             ColumnType::create_tag(&["east", "south"]),
-        );
+        ));
         let rg = RowGroup::new(2, columns);
 
         meta = MetaData::update_with(meta, &rg);
@@ -947,9 +956,9 @@ mod test {
 
     #[test]
     fn add_remove_row_groups() {
-        let mut columns = BTreeMap::new();
+        let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[0_i64, 2, 3][..]));
-        columns.insert("time".to_string(), tc);
+        columns.push(("time".to_string(), tc));
 
         let rg = RowGroup::new(3, columns);
         let mut table = Table::new("cpu".to_owned(), rg);
@@ -957,9 +966,9 @@ mod test {
         assert_eq!(table.rows(), 3);
 
         // add another row group
-        let mut columns = BTreeMap::new();
+        let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5][..]));
-        columns.insert("time".to_string(), tc);
+        columns.push(("time".to_string(), tc));
         let rg = RowGroup::new(5, columns);
         table.add_row_group(rg);
 
@@ -994,17 +1003,17 @@ mod test {
     #[test]
     fn select() {
         // Build first row group.
-        let mut columns = BTreeMap::new();
+        let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
-        columns.insert("time".to_string(), tc);
+        columns.push(("time".to_string(), tc));
 
         let rc = ColumnType::Tag(Column::from(
             &["west", "west", "east", "west", "south", "north"][..],
         ));
-        columns.insert("region".to_string(), rc);
+        columns.push(("region".to_string(), rc));
 
         let fc = ColumnType::Field(Column::from(&[100_u64, 101, 200, 203, 203, 10][..]));
-        columns.insert("count".to_string(), fc);
+        columns.push(("count".to_string(), fc));
 
         let rg = RowGroup::new(6, columns);
 
@@ -1027,13 +1036,13 @@ mod test {
         );
 
         // Build another row group.
-        let mut columns = BTreeMap::new();
+        let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[10_i64, 20, 30][..]));
-        columns.insert("time".to_string(), tc);
+        columns.push(("time".to_string(), tc));
         let rc = ColumnType::Tag(Column::from(&["south", "north", "east"][..]));
-        columns.insert("region".to_string(), rc);
+        columns.push(("region".to_string(), rc));
         let fc = ColumnType::Field(Column::from(&[1000_u64, 1002, 1200][..]));
-        columns.insert("count".to_string(), fc);
+        columns.push(("count".to_string(), fc));
         let row_group = RowGroup::new(3, columns);
         table.add_row_group(row_group);
 
@@ -1122,25 +1131,25 @@ mod test {
     #[test]
     fn read_aggregate_no_groups() {
         // Build first row group.
-        let mut columns = BTreeMap::new();
-        columns.insert(
+        let mut columns = vec![];
+        columns.push((
             "time".to_string(),
             ColumnType::create_time(&[100, 200, 300]),
-        );
-        columns.insert(
+        ));
+        columns.push((
             "region".to_string(),
             ColumnType::create_tag(&["west", "west", "east"]),
-        );
+        ));
         let rg = RowGroup::new(3, columns);
         let mut table = Table::new("cpu", rg);
 
         // Build another row group.
-        let mut columns = BTreeMap::new();
-        columns.insert("time".to_string(), ColumnType::create_time(&[2, 3]));
-        columns.insert(
+        let mut columns = vec![];
+        columns.push(("time".to_string(), ColumnType::create_time(&[2, 3])));
+        columns.push((
             "region".to_string(),
             ColumnType::create_tag(&["north", "north"]),
-        );
+        ));
         let rg = RowGroup::new(2, columns);
         table.add_row_group(rg);
 
@@ -1268,23 +1277,23 @@ west,host-b,100
     #[test]
     fn column_names() {
         // Build a row group.
-        let mut columns = BTreeMap::new();
+        let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3][..]));
-        columns.insert("time".to_string(), tc);
+        columns.push(("time".to_string(), tc));
 
         let rc = ColumnType::Tag(Column::from(&["west", "south", "north"][..]));
-        columns.insert("region".to_string(), rc);
+        columns.push(("region".to_string(), rc));
 
         let rg = RowGroup::new(3, columns);
         let mut table = Table::new("cpu".to_owned(), rg);
 
         // add another row group
-        let mut columns = BTreeMap::new();
+        let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[200_i64, 300, 400][..]));
-        columns.insert("time".to_string(), tc);
+        columns.push(("time".to_string(), tc));
 
         let rc = ColumnType::Tag(Column::from(vec![Some("north"), None, None].as_slice()));
-        columns.insert("region".to_string(), rc);
+        columns.push(("region".to_string(), rc));
 
         let rg = RowGroup::new(3, columns);
         table.add_row_group(rg);

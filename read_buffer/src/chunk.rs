@@ -1,16 +1,17 @@
 use std::{
     collections::{btree_map::Entry, BTreeMap, BTreeSet},
+    convert::TryFrom,
     sync::RwLock,
 };
 
 use arrow_deps::arrow::record_batch::RecordBatch;
 use data_types::partition_metadata::TableSummary;
-use internal_types::selection::Selection;
+use internal_types::{schema::builder::Error as SchemaError, schema::Schema, selection::Selection};
 use snafu::{OptionExt, ResultExt, Snafu};
 
 use crate::row_group::RowGroup;
 use crate::row_group::{ColumnName, Predicate};
-use crate::schema::AggregateType;
+use crate::schema::{AggregateType, ResultSchema};
 use crate::table;
 use crate::table::Table;
 
@@ -18,11 +19,20 @@ type TableName = String;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
+    #[snafu(display("error processing table: {}", source))]
+    TableError { source: table::Error },
+
+    #[snafu(display("error generating schema for table: {}", source))]
+    TableSchemaError { source: SchemaError },
+
     #[snafu(display("table '{}' does not exist", table_name))]
     TableNotFound { table_name: String },
 
-    #[snafu(display("error processing table: {}", source))]
-    TableError { source: table::Error },
+    #[snafu(display("column '{}' does not exist in table '{}'", column_name, table_name))]
+    ColumnDoesNotExist {
+        column_name: String,
+        table_name: String,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -286,6 +296,47 @@ impl Chunk {
     // ---- Schema API queries
     //
 
+    /// Returns a schema object for a `read_filter` operation using the provided
+    /// column selection. An error is returned if the specified columns do not
+    /// exist.
+    pub fn read_filter_table_schema(
+        &self,
+        table_name: &str,
+        columns: Selection<'_>,
+    ) -> Result<Schema> {
+        // read lock on chunk.
+        let chunk_data = self.chunk_data.read().unwrap();
+
+        let table = chunk_data
+            .data
+            .get(table_name)
+            .context(TableNotFound { table_name })?;
+
+        // Validate columns exist in table.
+        let table_meta = table.meta();
+        if let Selection::Some(cols) = columns {
+            for column_name in cols {
+                if !table_meta.has_column(column_name) {
+                    return ColumnDoesNotExist {
+                        column_name: column_name.to_string(),
+                        table_name: table_name.to_string(),
+                    }
+                    .fail();
+                }
+            }
+        }
+
+        // Build a table schema
+        Schema::try_from(&ResultSchema {
+            select_columns: match columns {
+                Selection::All => table_meta.schema_for_all_columns(),
+                Selection::Some(column_names) => table_meta.schema_for_column_names(column_names),
+            },
+            ..ResultSchema::default()
+        })
+        .context(TableSchemaError)
+    }
+
     /// Returns the distinct set of table names that contain data satisfying the
     /// provided predicate.
     ///
@@ -382,7 +433,7 @@ impl Chunk {
 
 #[cfg(test)]
 mod test {
-    use std::{collections::BTreeMap, sync::Arc};
+    use std::sync::Arc;
 
     use arrow_deps::arrow::{
         array::{
@@ -521,6 +572,7 @@ mod test {
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
 
+        assert_eq!(chunk.id(), 22);
         assert_eq!(chunk.rows(), 3);
         assert_eq!(chunk.tables(), 1);
         assert_eq!(chunk.row_groups(), 1);
@@ -574,17 +626,61 @@ mod test {
     }
 
     #[test]
+    fn read_filter_table_schema() {
+        let mut chunk = Chunk::new(22);
+
+        // Add a new table to the chunk.
+        chunk.upsert_table("a_table", gen_recordbatch());
+        let schema = chunk
+            .read_filter_table_schema("a_table", Selection::All)
+            .unwrap();
+
+        let exp_schema: Arc<Schema> = SchemaBuilder::new()
+            .tag("region")
+            .field("counter", Float64)
+            .field("active", Boolean)
+            .timestamp()
+            .field("sketchy_sensor", Float64)
+            .build()
+            .unwrap()
+            .into();
+        assert_eq!(Arc::new(schema), exp_schema);
+
+        let schema = chunk
+            .read_filter_table_schema(
+                "a_table",
+                Selection::Some(&["sketchy_sensor", "counter", "region"]),
+            )
+            .unwrap();
+
+        let exp_schema: Arc<Schema> = SchemaBuilder::new()
+            .field("sketchy_sensor", Float64)
+            .field("counter", Float64)
+            .tag("region")
+            .build()
+            .unwrap()
+            .into();
+        assert_eq!(Arc::new(schema), exp_schema);
+
+        // Verify error handling
+        assert!(matches!(
+            chunk.read_filter_table_schema("a_table", Selection::Some(&["random column name"])),
+            Err(Error::ColumnDoesNotExist { .. })
+        ));
+    }
+
+    #[test]
     fn table_names() {
         let columns = vec![
-            ("time", ColumnType::create_time(&[1_i64, 2, 3, 4, 5, 6])),
             (
-                "region",
+                "time".to_owned(),
+                ColumnType::create_time(&[1_i64, 2, 3, 4, 5, 6]),
+            ),
+            (
+                "region".to_owned(),
                 ColumnType::create_tag(&["west", "west", "east", "west", "south", "north"]),
             ),
-        ]
-        .into_iter()
-        .map(|(k, v)| (k.to_owned(), v))
-        .collect::<BTreeMap<_, _>>();
+        ];
         let rg = RowGroup::new(6, columns);
         let table = Table::new("table_1", rg);
         let mut chunk = Chunk::new_with_table(22, table);
@@ -642,17 +738,14 @@ mod test {
         // create another table with different timestamps.
         let columns = vec![
             (
-                "time",
+                "time".to_owned(),
                 ColumnType::Time(Column::from(&[100_i64, 200, 300, 400, 500, 600][..])),
             ),
             (
-                "region",
+                "region".to_owned(),
                 ColumnType::create_tag(&["west", "west", "east", "west", "south", "north"][..]),
             ),
-        ]
-        .into_iter()
-        .map(|(k, v)| (k.to_owned(), v))
-        .collect::<BTreeMap<_, _>>();
+        ];
         let rg = RowGroup::new(6, columns);
         chunk.upsert_table_with_row_group("table_2", rg);
 
