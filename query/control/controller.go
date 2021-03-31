@@ -512,15 +512,24 @@ func (c *Controller) Queries() []*Query {
 // This will return once the Controller's run loop has been exited and all
 // queries have been finished or until the Context has been canceled.
 func (c *Controller) Shutdown(ctx context.Context) error {
+	// Wait for query processing goroutines to finish.
+	defer c.wg.Wait()
+
 	// Mark that the controller is shutdown so it does not
 	// accept new queries.
-	c.queriesMu.Lock()
-	c.shutdown = true
-	if len(c.queries) == 0 {
-		c.queriesMu.Unlock()
-		return nil
-	}
-	c.queriesMu.Unlock()
+	func() {
+		c.queriesMu.Lock()
+		defer c.queriesMu.Unlock()
+		if !c.shutdown {
+			c.shutdown = true
+			if len(c.queries) == 0 {
+				// We hold the lock. No other queries can be spawned.
+				// No other queries are waiting to be finished, so we have to
+				// close the done channel here instead of in finish(*Query)
+				close(c.done)
+			}
+		}
+	}()
 
 	// Cancel all of the currently active queries.
 	c.queriesMu.RLock()
@@ -528,9 +537,6 @@ func (c *Controller) Shutdown(ctx context.Context) error {
 		q.Cancel()
 	}
 	c.queriesMu.RUnlock()
-
-	// Wait for query processing goroutines to finish.
-	defer c.wg.Wait()
 
 	// Wait for all of the queries to be cleaned up or until the
 	// context is done.
