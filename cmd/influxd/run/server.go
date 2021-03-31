@@ -35,7 +35,7 @@ import (
 	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxdb/services/subscriber"
 	"github.com/influxdata/influxdb/services/udp"
-	"github.com/influxdata/influxdb/storage/reads"
+	reads "github.com/influxdata/influxdb/storage/flux"
 	"github.com/influxdata/influxdb/tcp"
 	"github.com/influxdata/influxdb/tsdb"
 	client "github.com/influxdata/usage-client/v1"

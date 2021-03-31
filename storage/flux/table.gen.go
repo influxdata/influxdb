@@ -2,9 +2,9 @@
 // https://github.com/benbjohnson/tmpl
 //
 // DO NOT EDIT!
-// Source: flux_table.gen.go.tmpl
+// Source: table.gen.go.tmpl
 
-package reads
+package storageflux
 
 import (
 	"fmt"
@@ -20,6 +20,7 @@ import (
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/kit/platform/errors"
 	"github.com/influxdata/influxdb/models"
+	storage "github.com/influxdata/influxdb/storage/reads"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
@@ -166,8 +167,8 @@ func (t *floatWindowTable) createNextBufferTimes() (start, stop *array.Int64, ok
 
 		// Create a buffer with the buffer size.
 		// TODO(jsternberg): Calculate the exact size with max points as the maximum.
-		startB.Resize(MaxPointsPerBlock)
-		stopB.Resize(MaxPointsPerBlock)
+		startB.Resize(storage.MaxPointsPerBlock)
+		stopB.Resize(storage.MaxPointsPerBlock)
 		for ; ; t.windowBounds = t.window.NextBounds(t.windowBounds) {
 			startT, stopT := t.getWindowBoundsFor(t.windowBounds)
 			if startT >= int64(t.bounds.Stop) {
@@ -465,7 +466,7 @@ func (t *floatEmptyWindowSelectorTable) advance() bool {
 	}
 
 	values := t.arrowBuilder()
-	values.Resize(MaxPointsPerBlock)
+	values.Resize(storage.MaxPointsPerBlock)
 
 	var cr *colReader
 
@@ -495,7 +496,7 @@ func (t *floatEmptyWindowSelectorTable) advance() bool {
 
 func (t *floatEmptyWindowSelectorTable) startTimes(builder *array.Float64Builder) *array.Int64 {
 	start := arrow.NewIntBuilder(t.alloc)
-	start.Resize(MaxPointsPerBlock)
+	start.Resize(storage.MaxPointsPerBlock)
 
 	for int64(t.windowBounds.Start()) < t.rangeStop {
 		// The first window should start at the
@@ -533,7 +534,7 @@ func (t *floatEmptyWindowSelectorTable) startTimes(builder *array.Float64Builder
 			t.idx = 0
 		}
 
-		if start.Len() == MaxPointsPerBlock {
+		if start.Len() == storage.MaxPointsPerBlock {
 			break
 		}
 	}
@@ -542,7 +543,7 @@ func (t *floatEmptyWindowSelectorTable) startTimes(builder *array.Float64Builder
 
 func (t *floatEmptyWindowSelectorTable) stopTimes(builder *array.Float64Builder) *array.Int64 {
 	stop := arrow.NewIntBuilder(t.alloc)
-	stop.Resize(MaxPointsPerBlock)
+	stop.Resize(storage.MaxPointsPerBlock)
 
 	for int64(t.windowBounds.Start()) < t.rangeStop {
 		// The last window should stop at the end of
@@ -580,7 +581,7 @@ func (t *floatEmptyWindowSelectorTable) stopTimes(builder *array.Float64Builder)
 			t.idx = 0
 		}
 
-		if stop.Len() == MaxPointsPerBlock {
+		if stop.Len() == storage.MaxPointsPerBlock {
 			break
 		}
 	}
@@ -589,13 +590,13 @@ func (t *floatEmptyWindowSelectorTable) stopTimes(builder *array.Float64Builder)
 
 func (t *floatEmptyWindowSelectorTable) startStopTimes(builder *array.Float64Builder) (*array.Int64, *array.Int64, *array.Int64) {
 	start := arrow.NewIntBuilder(t.alloc)
-	start.Resize(MaxPointsPerBlock)
+	start.Resize(storage.MaxPointsPerBlock)
 
 	stop := arrow.NewIntBuilder(t.alloc)
-	stop.Resize(MaxPointsPerBlock)
+	stop.Resize(storage.MaxPointsPerBlock)
 
 	time := arrow.NewIntBuilder(t.alloc)
-	time.Resize(MaxPointsPerBlock)
+	time.Resize(storage.MaxPointsPerBlock)
 
 	for int64(t.windowBounds.Start()) < t.rangeStop {
 
@@ -644,7 +645,7 @@ func (t *floatEmptyWindowSelectorTable) startStopTimes(builder *array.Float64Bui
 			t.idx = 0
 		}
 
-		if time.Len() == MaxPointsPerBlock {
+		if time.Len() == storage.MaxPointsPerBlock {
 			break
 		}
 	}
@@ -656,13 +657,13 @@ func (t *floatEmptyWindowSelectorTable) startStopTimes(builder *array.Float64Bui
 type floatGroupTable struct {
 	table
 	mu  sync.Mutex
-	gc  GroupCursor
+	gc  storage.GroupCursor
 	cur cursors.FloatArrayCursor
 }
 
 func newFloatGroupTable(
 	done chan struct{},
-	gc GroupCursor,
+	gc storage.GroupCursor,
 	cur cursors.FloatArrayCursor,
 	bounds execute.Bounds,
 	key flux.GroupKey,
@@ -1062,8 +1063,8 @@ func (t *integerWindowTable) createNextBufferTimes() (start, stop *array.Int64, 
 
 		// Create a buffer with the buffer size.
 		// TODO(jsternberg): Calculate the exact size with max points as the maximum.
-		startB.Resize(MaxPointsPerBlock)
-		stopB.Resize(MaxPointsPerBlock)
+		startB.Resize(storage.MaxPointsPerBlock)
+		stopB.Resize(storage.MaxPointsPerBlock)
 		for ; ; t.windowBounds = t.window.NextBounds(t.windowBounds) {
 			startT, stopT := t.getWindowBoundsFor(t.windowBounds)
 			if startT >= int64(t.bounds.Stop) {
@@ -1361,7 +1362,7 @@ func (t *integerEmptyWindowSelectorTable) advance() bool {
 	}
 
 	values := t.arrowBuilder()
-	values.Resize(MaxPointsPerBlock)
+	values.Resize(storage.MaxPointsPerBlock)
 
 	var cr *colReader
 
@@ -1391,7 +1392,7 @@ func (t *integerEmptyWindowSelectorTable) advance() bool {
 
 func (t *integerEmptyWindowSelectorTable) startTimes(builder *array.Int64Builder) *array.Int64 {
 	start := arrow.NewIntBuilder(t.alloc)
-	start.Resize(MaxPointsPerBlock)
+	start.Resize(storage.MaxPointsPerBlock)
 
 	for int64(t.windowBounds.Start()) < t.rangeStop {
 		// The first window should start at the
@@ -1429,7 +1430,7 @@ func (t *integerEmptyWindowSelectorTable) startTimes(builder *array.Int64Builder
 			t.idx = 0
 		}
 
-		if start.Len() == MaxPointsPerBlock {
+		if start.Len() == storage.MaxPointsPerBlock {
 			break
 		}
 	}
@@ -1438,7 +1439,7 @@ func (t *integerEmptyWindowSelectorTable) startTimes(builder *array.Int64Builder
 
 func (t *integerEmptyWindowSelectorTable) stopTimes(builder *array.Int64Builder) *array.Int64 {
 	stop := arrow.NewIntBuilder(t.alloc)
-	stop.Resize(MaxPointsPerBlock)
+	stop.Resize(storage.MaxPointsPerBlock)
 
 	for int64(t.windowBounds.Start()) < t.rangeStop {
 		// The last window should stop at the end of
@@ -1476,7 +1477,7 @@ func (t *integerEmptyWindowSelectorTable) stopTimes(builder *array.Int64Builder)
 			t.idx = 0
 		}
 
-		if stop.Len() == MaxPointsPerBlock {
+		if stop.Len() == storage.MaxPointsPerBlock {
 			break
 		}
 	}
@@ -1485,13 +1486,13 @@ func (t *integerEmptyWindowSelectorTable) stopTimes(builder *array.Int64Builder)
 
 func (t *integerEmptyWindowSelectorTable) startStopTimes(builder *array.Int64Builder) (*array.Int64, *array.Int64, *array.Int64) {
 	start := arrow.NewIntBuilder(t.alloc)
-	start.Resize(MaxPointsPerBlock)
+	start.Resize(storage.MaxPointsPerBlock)
 
 	stop := arrow.NewIntBuilder(t.alloc)
-	stop.Resize(MaxPointsPerBlock)
+	stop.Resize(storage.MaxPointsPerBlock)
 
 	time := arrow.NewIntBuilder(t.alloc)
-	time.Resize(MaxPointsPerBlock)
+	time.Resize(storage.MaxPointsPerBlock)
 
 	for int64(t.windowBounds.Start()) < t.rangeStop {
 
@@ -1540,7 +1541,7 @@ func (t *integerEmptyWindowSelectorTable) startStopTimes(builder *array.Int64Bui
 			t.idx = 0
 		}
 
-		if time.Len() == MaxPointsPerBlock {
+		if time.Len() == storage.MaxPointsPerBlock {
 			break
 		}
 	}
@@ -1552,13 +1553,13 @@ func (t *integerEmptyWindowSelectorTable) startStopTimes(builder *array.Int64Bui
 type integerGroupTable struct {
 	table
 	mu  sync.Mutex
-	gc  GroupCursor
+	gc  storage.GroupCursor
 	cur cursors.IntegerArrayCursor
 }
 
 func newIntegerGroupTable(
 	done chan struct{},
-	gc GroupCursor,
+	gc storage.GroupCursor,
 	cur cursors.IntegerArrayCursor,
 	bounds execute.Bounds,
 	key flux.GroupKey,
@@ -1957,8 +1958,8 @@ func (t *unsignedWindowTable) createNextBufferTimes() (start, stop *array.Int64,
 
 		// Create a buffer with the buffer size.
 		// TODO(jsternberg): Calculate the exact size with max points as the maximum.
-		startB.Resize(MaxPointsPerBlock)
-		stopB.Resize(MaxPointsPerBlock)
+		startB.Resize(storage.MaxPointsPerBlock)
+		stopB.Resize(storage.MaxPointsPerBlock)
 		for ; ; t.windowBounds = t.window.NextBounds(t.windowBounds) {
 			startT, stopT := t.getWindowBoundsFor(t.windowBounds)
 			if startT >= int64(t.bounds.Stop) {
@@ -2256,7 +2257,7 @@ func (t *unsignedEmptyWindowSelectorTable) advance() bool {
 	}
 
 	values := t.arrowBuilder()
-	values.Resize(MaxPointsPerBlock)
+	values.Resize(storage.MaxPointsPerBlock)
 
 	var cr *colReader
 
@@ -2286,7 +2287,7 @@ func (t *unsignedEmptyWindowSelectorTable) advance() bool {
 
 func (t *unsignedEmptyWindowSelectorTable) startTimes(builder *array.Uint64Builder) *array.Int64 {
 	start := arrow.NewIntBuilder(t.alloc)
-	start.Resize(MaxPointsPerBlock)
+	start.Resize(storage.MaxPointsPerBlock)
 
 	for int64(t.windowBounds.Start()) < t.rangeStop {
 		// The first window should start at the
@@ -2324,7 +2325,7 @@ func (t *unsignedEmptyWindowSelectorTable) startTimes(builder *array.Uint64Build
 			t.idx = 0
 		}
 
-		if start.Len() == MaxPointsPerBlock {
+		if start.Len() == storage.MaxPointsPerBlock {
 			break
 		}
 	}
@@ -2333,7 +2334,7 @@ func (t *unsignedEmptyWindowSelectorTable) startTimes(builder *array.Uint64Build
 
 func (t *unsignedEmptyWindowSelectorTable) stopTimes(builder *array.Uint64Builder) *array.Int64 {
 	stop := arrow.NewIntBuilder(t.alloc)
-	stop.Resize(MaxPointsPerBlock)
+	stop.Resize(storage.MaxPointsPerBlock)
 
 	for int64(t.windowBounds.Start()) < t.rangeStop {
 		// The last window should stop at the end of
@@ -2371,7 +2372,7 @@ func (t *unsignedEmptyWindowSelectorTable) stopTimes(builder *array.Uint64Builde
 			t.idx = 0
 		}
 
-		if stop.Len() == MaxPointsPerBlock {
+		if stop.Len() == storage.MaxPointsPerBlock {
 			break
 		}
 	}
@@ -2380,13 +2381,13 @@ func (t *unsignedEmptyWindowSelectorTable) stopTimes(builder *array.Uint64Builde
 
 func (t *unsignedEmptyWindowSelectorTable) startStopTimes(builder *array.Uint64Builder) (*array.Int64, *array.Int64, *array.Int64) {
 	start := arrow.NewIntBuilder(t.alloc)
-	start.Resize(MaxPointsPerBlock)
+	start.Resize(storage.MaxPointsPerBlock)
 
 	stop := arrow.NewIntBuilder(t.alloc)
-	stop.Resize(MaxPointsPerBlock)
+	stop.Resize(storage.MaxPointsPerBlock)
 
 	time := arrow.NewIntBuilder(t.alloc)
-	time.Resize(MaxPointsPerBlock)
+	time.Resize(storage.MaxPointsPerBlock)
 
 	for int64(t.windowBounds.Start()) < t.rangeStop {
 
@@ -2435,7 +2436,7 @@ func (t *unsignedEmptyWindowSelectorTable) startStopTimes(builder *array.Uint64B
 			t.idx = 0
 		}
 
-		if time.Len() == MaxPointsPerBlock {
+		if time.Len() == storage.MaxPointsPerBlock {
 			break
 		}
 	}
@@ -2447,13 +2448,13 @@ func (t *unsignedEmptyWindowSelectorTable) startStopTimes(builder *array.Uint64B
 type unsignedGroupTable struct {
 	table
 	mu  sync.Mutex
-	gc  GroupCursor
+	gc  storage.GroupCursor
 	cur cursors.UnsignedArrayCursor
 }
 
 func newUnsignedGroupTable(
 	done chan struct{},
-	gc GroupCursor,
+	gc storage.GroupCursor,
 	cur cursors.UnsignedArrayCursor,
 	bounds execute.Bounds,
 	key flux.GroupKey,
@@ -2851,8 +2852,8 @@ func (t *stringWindowTable) createNextBufferTimes() (start, stop *array.Int64, o
 
 		// Create a buffer with the buffer size.
 		// TODO(jsternberg): Calculate the exact size with max points as the maximum.
-		startB.Resize(MaxPointsPerBlock)
-		stopB.Resize(MaxPointsPerBlock)
+		startB.Resize(storage.MaxPointsPerBlock)
+		stopB.Resize(storage.MaxPointsPerBlock)
 		for ; ; t.windowBounds = t.window.NextBounds(t.windowBounds) {
 			startT, stopT := t.getWindowBoundsFor(t.windowBounds)
 			if startT >= int64(t.bounds.Stop) {
@@ -3150,7 +3151,7 @@ func (t *stringEmptyWindowSelectorTable) advance() bool {
 	}
 
 	values := t.arrowBuilder()
-	values.Resize(MaxPointsPerBlock)
+	values.Resize(storage.MaxPointsPerBlock)
 
 	var cr *colReader
 
@@ -3180,7 +3181,7 @@ func (t *stringEmptyWindowSelectorTable) advance() bool {
 
 func (t *stringEmptyWindowSelectorTable) startTimes(builder *array.BinaryBuilder) *array.Int64 {
 	start := arrow.NewIntBuilder(t.alloc)
-	start.Resize(MaxPointsPerBlock)
+	start.Resize(storage.MaxPointsPerBlock)
 
 	for int64(t.windowBounds.Start()) < t.rangeStop {
 		// The first window should start at the
@@ -3218,7 +3219,7 @@ func (t *stringEmptyWindowSelectorTable) startTimes(builder *array.BinaryBuilder
 			t.idx = 0
 		}
 
-		if start.Len() == MaxPointsPerBlock {
+		if start.Len() == storage.MaxPointsPerBlock {
 			break
 		}
 	}
@@ -3227,7 +3228,7 @@ func (t *stringEmptyWindowSelectorTable) startTimes(builder *array.BinaryBuilder
 
 func (t *stringEmptyWindowSelectorTable) stopTimes(builder *array.BinaryBuilder) *array.Int64 {
 	stop := arrow.NewIntBuilder(t.alloc)
-	stop.Resize(MaxPointsPerBlock)
+	stop.Resize(storage.MaxPointsPerBlock)
 
 	for int64(t.windowBounds.Start()) < t.rangeStop {
 		// The last window should stop at the end of
@@ -3265,7 +3266,7 @@ func (t *stringEmptyWindowSelectorTable) stopTimes(builder *array.BinaryBuilder)
 			t.idx = 0
 		}
 
-		if stop.Len() == MaxPointsPerBlock {
+		if stop.Len() == storage.MaxPointsPerBlock {
 			break
 		}
 	}
@@ -3274,13 +3275,13 @@ func (t *stringEmptyWindowSelectorTable) stopTimes(builder *array.BinaryBuilder)
 
 func (t *stringEmptyWindowSelectorTable) startStopTimes(builder *array.BinaryBuilder) (*array.Int64, *array.Int64, *array.Int64) {
 	start := arrow.NewIntBuilder(t.alloc)
-	start.Resize(MaxPointsPerBlock)
+	start.Resize(storage.MaxPointsPerBlock)
 
 	stop := arrow.NewIntBuilder(t.alloc)
-	stop.Resize(MaxPointsPerBlock)
+	stop.Resize(storage.MaxPointsPerBlock)
 
 	time := arrow.NewIntBuilder(t.alloc)
-	time.Resize(MaxPointsPerBlock)
+	time.Resize(storage.MaxPointsPerBlock)
 
 	for int64(t.windowBounds.Start()) < t.rangeStop {
 
@@ -3329,7 +3330,7 @@ func (t *stringEmptyWindowSelectorTable) startStopTimes(builder *array.BinaryBui
 			t.idx = 0
 		}
 
-		if time.Len() == MaxPointsPerBlock {
+		if time.Len() == storage.MaxPointsPerBlock {
 			break
 		}
 	}
@@ -3341,13 +3342,13 @@ func (t *stringEmptyWindowSelectorTable) startStopTimes(builder *array.BinaryBui
 type stringGroupTable struct {
 	table
 	mu  sync.Mutex
-	gc  GroupCursor
+	gc  storage.GroupCursor
 	cur cursors.StringArrayCursor
 }
 
 func newStringGroupTable(
 	done chan struct{},
-	gc GroupCursor,
+	gc storage.GroupCursor,
 	cur cursors.StringArrayCursor,
 	bounds execute.Bounds,
 	key flux.GroupKey,
@@ -3718,8 +3719,8 @@ func (t *booleanWindowTable) createNextBufferTimes() (start, stop *array.Int64, 
 
 		// Create a buffer with the buffer size.
 		// TODO(jsternberg): Calculate the exact size with max points as the maximum.
-		startB.Resize(MaxPointsPerBlock)
-		stopB.Resize(MaxPointsPerBlock)
+		startB.Resize(storage.MaxPointsPerBlock)
+		stopB.Resize(storage.MaxPointsPerBlock)
 		for ; ; t.windowBounds = t.window.NextBounds(t.windowBounds) {
 			startT, stopT := t.getWindowBoundsFor(t.windowBounds)
 			if startT >= int64(t.bounds.Stop) {
@@ -4017,7 +4018,7 @@ func (t *booleanEmptyWindowSelectorTable) advance() bool {
 	}
 
 	values := t.arrowBuilder()
-	values.Resize(MaxPointsPerBlock)
+	values.Resize(storage.MaxPointsPerBlock)
 
 	var cr *colReader
 
@@ -4047,7 +4048,7 @@ func (t *booleanEmptyWindowSelectorTable) advance() bool {
 
 func (t *booleanEmptyWindowSelectorTable) startTimes(builder *array.BooleanBuilder) *array.Int64 {
 	start := arrow.NewIntBuilder(t.alloc)
-	start.Resize(MaxPointsPerBlock)
+	start.Resize(storage.MaxPointsPerBlock)
 
 	for int64(t.windowBounds.Start()) < t.rangeStop {
 		// The first window should start at the
@@ -4085,7 +4086,7 @@ func (t *booleanEmptyWindowSelectorTable) startTimes(builder *array.BooleanBuild
 			t.idx = 0
 		}
 
-		if start.Len() == MaxPointsPerBlock {
+		if start.Len() == storage.MaxPointsPerBlock {
 			break
 		}
 	}
@@ -4094,7 +4095,7 @@ func (t *booleanEmptyWindowSelectorTable) startTimes(builder *array.BooleanBuild
 
 func (t *booleanEmptyWindowSelectorTable) stopTimes(builder *array.BooleanBuilder) *array.Int64 {
 	stop := arrow.NewIntBuilder(t.alloc)
-	stop.Resize(MaxPointsPerBlock)
+	stop.Resize(storage.MaxPointsPerBlock)
 
 	for int64(t.windowBounds.Start()) < t.rangeStop {
 		// The last window should stop at the end of
@@ -4132,7 +4133,7 @@ func (t *booleanEmptyWindowSelectorTable) stopTimes(builder *array.BooleanBuilde
 			t.idx = 0
 		}
 
-		if stop.Len() == MaxPointsPerBlock {
+		if stop.Len() == storage.MaxPointsPerBlock {
 			break
 		}
 	}
@@ -4141,13 +4142,13 @@ func (t *booleanEmptyWindowSelectorTable) stopTimes(builder *array.BooleanBuilde
 
 func (t *booleanEmptyWindowSelectorTable) startStopTimes(builder *array.BooleanBuilder) (*array.Int64, *array.Int64, *array.Int64) {
 	start := arrow.NewIntBuilder(t.alloc)
-	start.Resize(MaxPointsPerBlock)
+	start.Resize(storage.MaxPointsPerBlock)
 
 	stop := arrow.NewIntBuilder(t.alloc)
-	stop.Resize(MaxPointsPerBlock)
+	stop.Resize(storage.MaxPointsPerBlock)
 
 	time := arrow.NewIntBuilder(t.alloc)
-	time.Resize(MaxPointsPerBlock)
+	time.Resize(storage.MaxPointsPerBlock)
 
 	for int64(t.windowBounds.Start()) < t.rangeStop {
 
@@ -4196,7 +4197,7 @@ func (t *booleanEmptyWindowSelectorTable) startStopTimes(builder *array.BooleanB
 			t.idx = 0
 		}
 
-		if time.Len() == MaxPointsPerBlock {
+		if time.Len() == storage.MaxPointsPerBlock {
 			break
 		}
 	}
@@ -4208,13 +4209,13 @@ func (t *booleanEmptyWindowSelectorTable) startStopTimes(builder *array.BooleanB
 type booleanGroupTable struct {
 	table
 	mu  sync.Mutex
-	gc  GroupCursor
+	gc  storage.GroupCursor
 	cur cursors.BooleanArrayCursor
 }
 
 func newBooleanGroupTable(
 	done chan struct{},
-	gc GroupCursor,
+	gc storage.GroupCursor,
 	cur cursors.BooleanArrayCursor,
 	bounds execute.Bounds,
 	key flux.GroupKey,
