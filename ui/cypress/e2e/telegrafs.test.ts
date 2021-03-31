@@ -162,8 +162,10 @@ describe('Collectors', () => {
         cy.getByTestID('inline-labels--popover-field').type('zoe')
         cy.getByTestID('inline-labels--create-new').click()
         cy.getByTestID('overlay--container').should('exist')
+        // Wait for animation to complete
+        cy.wait(500)
         cy.getByTestID('create-label-form--submit').click()
-        cy.getByTestID('label--pill zoe').should('exist')
+        cy.getByTestID('label--pill--delete zoe').should('exist')
         cy.getByTestID('label--pill--delete zoe').click({force: true})
 
         cy.getByTestID('inline-labels--empty').should('exist')
@@ -394,7 +396,10 @@ describe('Collectors', () => {
       cy.contains('Your configurations have been saved')
 
       cy.contains('Label 1').click()
-      cy.contains('Telegraf Configuration - Label 1').should('exist')
+
+      cy.getByTestID('telegraf-overlay').within(() => {
+        cy.contains('Label 1').should('exist')
+      })
     })
 
     describe('Label creation and searching', () => {
@@ -411,6 +416,8 @@ describe('Collectors', () => {
         cy.getByTestID('inline-labels--popover-field').type('zoe')
         cy.getByTestID('inline-labels--create-new').click()
         cy.getByTestID('overlay--container').should('exist')
+        // Wait for animation to complete
+        cy.wait(500)
         cy.getByTestID('create-label-form--submit').click()
         cy.getByTestID('label--pill zoe').should('exist')
         // search by label
