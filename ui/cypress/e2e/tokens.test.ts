@@ -434,9 +434,13 @@ describe('tokens', () => {
         cy.getByTestID('resource-sorter--status-asc').click()
       })
       .then(() => {
-        const sortedtoken = testTokens.sort((a, b) =>
-          a.status > b.status ? 1 : -1
-        )
+        const sortedtoken = testTokens.sort((a, b) => {
+          if (a.status !== b.status) {
+            return a.status > b.status ? 1 : -1
+          } else {
+            return a.description > b.description  ? 1 : -1
+          }
+        })
         cy.get('[data-testid*="token-card"]').each((val, index) => {
           const testID = val.attr('data-testid')
           expect(testID).to.contain(sortedtoken[index].description)
@@ -450,9 +454,13 @@ describe('tokens', () => {
         cy.getByTestID('resource-sorter--status-desc').click()
       })
       .then(() => {
-        const sortedtoken = testTokens
-          .sort((a, b) => (a.status > b.status ? 1 : -1))
-          .reverse()
+        const sortedtoken = testTokens.sort((a, b) => {
+          if (a.status !== b.status) {
+            return a.status > b.status ? -1 : 1
+          } else {
+            return a.description > b.description  ? 1 : -1
+          }
+        })
         cy.get('[data-testid*="token-card"]').each((val, index) => {
           const testID = val.attr('data-testid')
           expect(testID).to.contain(sortedtoken[index].description)
