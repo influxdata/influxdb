@@ -10,12 +10,14 @@ import (
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/metadata"
 	"github.com/influxdata/flux/plan"
+	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
 func init() {
 	execute.RegisterSource(ReadRangePhysKind, createReadFilterSource)
 	execute.RegisterSource(ReadGroupPhysKind, createReadGroupSource)
+	execute.RegisterSource(ReadWindowAggregatePhysKind, createReadWindowAggregateSource)
 	execute.RegisterSource(ReadTagKeysPhysKind, createReadTagKeysSource)
 	execute.RegisterSource(ReadTagValuesPhysKind, createReadTagValuesSource)
 }
@@ -234,6 +236,82 @@ func createReadGroupSource(s plan.ProcedureSpec, id execute.DatasetID, a execute
 			GroupMode:       ToGroupMode(spec.GroupMode),
 			GroupKeys:       spec.GroupKeys,
 			AggregateMethod: spec.AggregateMethod,
+		},
+		a,
+	), nil
+}
+
+type readWindowAggregateSource struct {
+	Source
+	reader   Reader
+	readSpec ReadWindowAggregateSpec
+}
+
+func ReadWindowAggregateSource(id execute.DatasetID, r Reader, readSpec ReadWindowAggregateSpec, a execute.Administration) execute.Source {
+	src := new(readWindowAggregateSource)
+
+	src.id = id
+	src.alloc = a.Allocator()
+
+	src.reader = r
+	src.readSpec = readSpec
+
+	src.runner = src
+	return src
+}
+
+func (s *readWindowAggregateSource) run(ctx context.Context) error {
+	stop := s.readSpec.Bounds.Stop
+	tables, err := s.reader.ReadWindowAggregate(
+		ctx,
+		s.readSpec,
+		s.alloc,
+	)
+	if err != nil {
+		return err
+	}
+	return s.processTables(ctx, tables, stop)
+}
+
+func createReadWindowAggregateSource(s plan.ProcedureSpec, id execute.DatasetID, a execute.Administration) (execute.Source, error) {
+	span, ctx := tracing.StartSpanFromContext(a.Context())
+	defer span.Finish()
+
+	spec := s.(*ReadWindowAggregatePhysSpec)
+
+	bounds := a.StreamContext().Bounds()
+	if bounds == nil {
+		return nil, &flux.Error{
+			Code: codes.Internal,
+			Msg:  "nil bounds passed to from",
+		}
+	}
+
+	deps := GetStorageDependencies(a.Context())
+
+	db, rp, err := spec.LookupDatabase(ctx, deps, a)
+	if err != nil {
+		return nil, err
+	}
+
+	return ReadWindowAggregateSource(
+		id,
+		deps.Reader,
+		ReadWindowAggregateSpec{
+			ReadFilterSpec: ReadFilterSpec{
+				Database:        db,
+				RetentionPolicy: rp,
+				Bounds:          *bounds,
+				Predicate:       spec.Predicate,
+			},
+			Window: execute.Window{
+				Every:  spec.WindowEvery,
+				Period: spec.WindowEvery,
+				Offset: spec.Offset,
+			},
+			Aggregates:  spec.Aggregates,
+			CreateEmpty: spec.CreateEmpty,
+			TimeColumn:  spec.TimeColumn,
 		},
 		a,
 	), nil

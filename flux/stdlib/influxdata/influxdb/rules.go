@@ -2,6 +2,8 @@ package influxdb
 
 import (
 	"context"
+	"math"
+	"time"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
@@ -11,8 +13,7 @@ import (
 	"github.com/influxdata/flux/semantic"
 	"github.com/influxdata/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/flux/stdlib/universe"
-	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/flux/values"
 )
 
 func init() {
@@ -24,6 +25,9 @@ func init() {
 		PushDownReadTagKeysRule{},
 		PushDownReadTagValuesRule{},
 		SortedPivotRule{},
+		PushDownWindowAggregateRule{},
+		PushDownWindowAggregateByTimeRule{},
+		PushDownBareAggregateRule{},
 	)
 	plan.RegisterLogicalRules(
 		universe.MergeFiltersRule{},
@@ -224,27 +228,11 @@ func (rule PushDownReadTagKeysRule) Pattern() plan.Pattern {
 				plan.Pat(ReadRangePhysKind))))
 }
 
-func hasFieldRef(node *datatypes.Node) bool {
-	if node == nil {
-		return false
-	}
-	// NodeType should imply the type, panic if it doesn't
-	if node.NodeType == datatypes.NodeTypeTagRef && node.Value.(*datatypes.Node_TagRefValue).TagRefValue == models.FieldKeyTagKey {
-		return true
-	}
-	for _, c := range node.Children {
-		if hasFieldRef(c) {
-			return true
-		}
-	}
-	return false
-}
-
 func (rule PushDownReadTagKeysRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
 	// Retrieve the nodes and specs for all of the predecessors.
 	distinctSpec := pn.ProcedureSpec().(*universe.DistinctProcedureSpec)
 	keepNode := pn.Predecessors()[0]
-	keepSpec := keepNode.ProcedureSpec().(*universe.SchemaMutationProcedureSpec)
+	keepSpec := asSchemaMutationProcedureSpec(keepNode.ProcedureSpec())
 	keysNode := keepNode.Predecessors()[0]
 	keysSpec := keysNode.ProcedureSpec().(*universe.KeysProcedureSpec)
 	fromNode := keysNode.Predecessors()[0]
@@ -254,12 +242,6 @@ func (rule PushDownReadTagKeysRule) Rewrite(ctx context.Context, pn plan.Node) (
 	// from spec if it existed so we will take that one when
 	// constructing our own replacement. We do not care about it
 	// at the moment though which is why it is not in the pattern.
-
-	// The tag keys mechanism doesn't know about fields so we cannot
-	// push down _field comparisons in 1.x.
-	if fromSpec.Predicate != nil && hasFieldRef(fromSpec.Predicate.Root) {
-		return pn, false, nil
-	}
 
 	// The schema mutator needs to correspond to a keep call
 	// on the column specified by the keys procedure.
@@ -285,23 +267,9 @@ func (rule PushDownReadTagKeysRule) Rewrite(ctx context.Context, pn plan.Node) (
 
 	// We have passed all of the necessary prerequisites
 	// so construct the procedure spec.
-	return plan.CreatePhysicalNode("ReadTagKeys", &ReadTagKeysPhysSpec{
+	return plan.CreateUniquePhysicalNode(ctx, "ReadTagKeys", &ReadTagKeysPhysSpec{
 		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
 	}), true, nil
-}
-
-func hasFieldExpr(expr semantic.Expression) bool {
-	hasField := false
-	v := semantic.CreateVisitor(func(node semantic.Node) {
-		switch n := node.(type) {
-		case *semantic.MemberExpression:
-			if n.Property == "_field" {
-				hasField = true
-			}
-		}
-	})
-	semantic.Walk(v, expr)
-	return hasField
 }
 
 // PushDownReadTagValuesRule matches 'ReadRange |> keep(columns: [tag]) |> group() |> distinct(column: tag)'.
@@ -329,7 +297,7 @@ func (rule PushDownReadTagValuesRule) Rewrite(ctx context.Context, pn plan.Node)
 	groupNode := distinctNode.Predecessors()[0]
 	groupSpec := groupNode.ProcedureSpec().(*universe.GroupProcedureSpec)
 	keepNode := groupNode.Predecessors()[0]
-	keepSpec := keepNode.ProcedureSpec().(*universe.SchemaMutationProcedureSpec)
+	keepSpec := asSchemaMutationProcedureSpec(keepNode.ProcedureSpec())
 	fromNode := keepNode.Predecessors()[0]
 	fromSpec := fromNode.ProcedureSpec().(*ReadRangePhysSpec)
 
@@ -370,7 +338,7 @@ func (rule PushDownReadTagValuesRule) Rewrite(ctx context.Context, pn plan.Node)
 
 	// We have passed all of the necessary prerequisites
 	// so construct the procedure spec.
-	return plan.CreatePhysicalNode("ReadTagValues", &ReadTagValuesPhysSpec{
+	return plan.CreateUniquePhysicalNode(ctx, "ReadTagValues", &ReadTagValuesPhysSpec{
 		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
 		TagKey:            tagKey,
 	}), true, nil
@@ -674,4 +642,204 @@ func (SortedPivotRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bo
 		return nil, false, err
 	}
 	return pn, false, nil
+}
+
+
+//
+// Push Down of window aggregates.
+// ReadRangePhys |> window |> { min, max, mean, count, sum }
+//
+type PushDownWindowAggregateRule struct{}
+
+func (PushDownWindowAggregateRule) Name() string {
+	return "PushDownWindowAggregateRule"
+}
+
+var windowPushableAggs = []plan.ProcedureKind{
+	universe.CountKind,
+	universe.SumKind,
+	universe.MinKind,
+	universe.MaxKind,
+	universe.MeanKind,
+	universe.FirstKind,
+	universe.LastKind,
+}
+
+func (rule PushDownWindowAggregateRule) Pattern() plan.Pattern {
+	return plan.OneOf(windowPushableAggs,
+		plan.Pat(universe.WindowKind, plan.Pat(ReadRangePhysKind)))
+}
+
+func canPushWindowedAggregate(ctx context.Context, fnNode plan.Node) bool {
+	// Check the aggregate function spec. Require the operation on _value
+	// and check the feature flag associated with the aggregate function.
+	switch fnNode.Kind() {
+	case universe.MinKind:
+		minSpec := fnNode.ProcedureSpec().(*universe.MinProcedureSpec)
+		return minSpec.Column == execute.DefaultValueColLabel
+	case universe.MaxKind:
+		maxSpec := fnNode.ProcedureSpec().(*universe.MaxProcedureSpec)
+		return maxSpec.Column == execute.DefaultValueColLabel
+	case universe.MeanKind:
+		meanSpec := fnNode.ProcedureSpec().(*universe.MeanProcedureSpec)
+		return len(meanSpec.Columns) == 1 &&
+			meanSpec.Columns[0] == execute.DefaultValueColLabel
+	case universe.CountKind:
+		countSpec := fnNode.ProcedureSpec().(*universe.CountProcedureSpec)
+		return len(countSpec.Columns) == 1 &&
+			countSpec.Columns[0] == execute.DefaultValueColLabel
+	case universe.SumKind:
+		sumSpec := fnNode.ProcedureSpec().(*universe.SumProcedureSpec)
+		return len(sumSpec.Columns) == 1 &&
+			sumSpec.Columns[0] == execute.DefaultValueColLabel
+	case universe.FirstKind:
+		firstSpec := fnNode.ProcedureSpec().(*universe.FirstProcedureSpec)
+		return firstSpec.Column == execute.DefaultValueColLabel
+	case universe.LastKind:
+		lastSpec := fnNode.ProcedureSpec().(*universe.LastProcedureSpec)
+		return lastSpec.Column == execute.DefaultValueColLabel
+	}
+	return true
+}
+
+func isPushableWindow(windowSpec *universe.WindowProcedureSpec) bool {
+	// every and period must be equal
+	// every.isNegative must be false
+	// offset.isNegative must be false
+	// timeColumn: must be "_time"
+	// startColumn: must be "_start"
+	// stopColumn: must be "_stop"
+	// createEmpty: must be false
+	window := windowSpec.Window
+	return window.Every.Equal(window.Period) &&
+		!window.Every.IsNegative() &&
+		!window.Offset.IsNegative() &&
+		windowSpec.TimeColumn == "_time" &&
+		windowSpec.StartColumn == "_start" &&
+		windowSpec.StopColumn == "_stop"
+}
+
+func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
+	fnNode := pn
+	if !canPushWindowedAggregate(ctx, fnNode) {
+		return pn, false, nil
+	}
+
+	windowNode := fnNode.Predecessors()[0]
+	windowSpec := windowNode.ProcedureSpec().(*universe.WindowProcedureSpec)
+	fromNode := windowNode.Predecessors()[0]
+	fromSpec := fromNode.ProcedureSpec().(*ReadRangePhysSpec)
+
+	if !isPushableWindow(windowSpec) {
+		return pn, false, nil
+	}
+
+	// Rule passes.
+	return plan.CreateUniquePhysicalNode(ctx, "ReadWindowAggregate", &ReadWindowAggregatePhysSpec{
+		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
+		Aggregates:        []plan.ProcedureKind{fnNode.Kind()},
+		WindowEvery:       windowSpec.Window.Every,
+		Offset:            windowSpec.Window.Offset,
+		CreateEmpty:       windowSpec.CreateEmpty,
+	}), true, nil
+}
+
+// PushDownWindowAggregateWithTimeRule will match the given pattern.
+// ReadWindowAggregatePhys |> duplicate |> window(every: inf)
+//
+// If this pattern matches and the arguments to duplicate are
+// matching time column names, it will set the time column on
+// the spec.
+type PushDownWindowAggregateByTimeRule struct{}
+
+func (PushDownWindowAggregateByTimeRule) Name() string {
+	return "PushDownWindowAggregateByTimeRule"
+}
+
+func (rule PushDownWindowAggregateByTimeRule) Pattern() plan.Pattern {
+	return plan.Pat(universe.WindowKind,
+		plan.Pat(universe.SchemaMutationKind,
+			plan.Pat(ReadWindowAggregatePhysKind)))
+}
+
+func (PushDownWindowAggregateByTimeRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
+	windowNode := pn
+	windowSpec := windowNode.ProcedureSpec().(*universe.WindowProcedureSpec)
+
+	duplicateNode := windowNode.Predecessors()[0]
+	duplicateSpec, duplicateSpecOk := func() (*universe.DuplicateOpSpec, bool) {
+		s := asSchemaMutationProcedureSpec(duplicateNode.ProcedureSpec())
+		if len(s.Mutations) != 1 {
+			return nil, false
+		}
+		mutator, ok := s.Mutations[0].(*universe.DuplicateOpSpec)
+		return mutator, ok
+	}()
+	if !duplicateSpecOk {
+		return pn, false, nil
+	}
+
+	// The As field must be the default time value
+	// and the column must be start or stop.
+	if duplicateSpec.As != execute.DefaultTimeColLabel ||
+		(duplicateSpec.Column != execute.DefaultStartColLabel && duplicateSpec.Column != execute.DefaultStopColLabel) {
+		return pn, false, nil
+	}
+
+	// window(every: inf)
+	if windowSpec.Window.Every != values.ConvertDurationNsecs(math.MaxInt64) ||
+		windowSpec.Window.Every != windowSpec.Window.Period ||
+		windowSpec.TimeColumn != execute.DefaultTimeColLabel ||
+		windowSpec.StartColumn != execute.DefaultStartColLabel ||
+		windowSpec.StopColumn != execute.DefaultStopColLabel ||
+		windowSpec.CreateEmpty {
+		return pn, false, nil
+	}
+
+	// Cannot rewrite if already was rewritten.
+	windowAggregateNode := duplicateNode.Predecessors()[0]
+	windowAggregateSpec := windowAggregateNode.ProcedureSpec().(*ReadWindowAggregatePhysSpec)
+	if windowAggregateSpec.TimeColumn != "" {
+		return pn, false, nil
+	}
+
+	// Rule passes.
+	windowAggregateSpec.TimeColumn = duplicateSpec.Column
+	return plan.CreateUniquePhysicalNode(ctx, "ReadWindowAggregateByTime", windowAggregateSpec), true, nil
+}
+
+// PushDownBareAggregateRule is a rule that allows pushing down of aggregates
+// that are directly over a ReadRange source.
+type PushDownBareAggregateRule struct{}
+
+func (p PushDownBareAggregateRule) Name() string {
+	return "PushDownBareAggregateRule"
+}
+
+func (p PushDownBareAggregateRule) Pattern() plan.Pattern {
+	return plan.OneOf(windowPushableAggs,
+		plan.Pat(ReadRangePhysKind))
+}
+
+func (p PushDownBareAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
+	fnNode := pn
+	if !canPushWindowedAggregate(ctx, fnNode) {
+		return pn, false, nil
+	}
+
+	fromNode := fnNode.Predecessors()[0]
+	fromSpec := fromNode.ProcedureSpec().(*ReadRangePhysSpec)
+
+	return plan.CreateUniquePhysicalNode(ctx, "ReadWindowAggregate", &ReadWindowAggregatePhysSpec{
+		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
+		Aggregates:        []plan.ProcedureKind{fnNode.Kind()},
+		WindowEvery:       flux.ConvertDuration(math.MaxInt64 * time.Nanosecond),
+	}), true, nil
+}
+
+func asSchemaMutationProcedureSpec(spec plan.ProcedureSpec) *universe.SchemaMutationProcedureSpec {
+	if s, ok := spec.(*universe.DualImplProcedureSpec); ok {
+		spec = s.ProcedureSpec
+	}
+	return spec.(*universe.SchemaMutationProcedureSpec)
 }
