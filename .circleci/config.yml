@@ -13,7 +13,13 @@
 #   cargo target and pushes a container with the binary to
 #   `quay.io/influxdb/fusion` (see perf_image below).
 #
-# CI for all other branches is performed by the GitHub actions (see .github dir)
+# CI for all other branches:
+#
+#   - cargo build with the default cargo profile ("dev")
+#   - cargo test
+#   - cargo fmt
+#   - clippy (with warnings denied)
+#   - lint protobufs
 
 version: 2.1
 
@@ -27,37 +33,72 @@ commands:
       - run:
           name: Install rustfmt and clippy for nightly-2020-11-19
           command: rustup component add rustfmt clippy --toolchain nightly-2020-11-19
+  cache_restore:
+    description: Restore Cargo Cache
+    steps:
+      - restore_cache:
+          name: Restoring Cargo Cache
+          keys:
+            - cargo-cache-{{ arch }}-{{ .Branch }}-{{ checksum "Cargo.lock" }}
+            - cargo-cache-{{ arch }}-{{ .Branch }}
+            - cargo-cache
+  cache_save:
+    description: Save Cargo Cache
+    steps:
+      - save_cache:
+          name: Save Cargo Cache
+          paths:
+            - /usr/local/cargo/registry
+          key: cargo-cache-{{ arch }}-{{ .Branch }}-{{ checksum "Cargo.lock" }}
 
 jobs:
   fmt:
     docker:
       - image: quay.io/influxdb/rust:ci
+    environment:
+        # Disable full debug symbol generation to speed up CI build
+        # "1" means line tables only, which is useful for panic tracebacks.
+        RUSTFLAGS: "-C debuginfo=1"
     steps:
       - checkout
       - rust_nightly
+      - cache_restore
       - run:
           name: Rust fmt
           command: cargo fmt --all -- --check
+      - cache_save
   lint:
     docker:
       - image: quay.io/influxdb/rust:ci
+    environment:
+        # Disable full debug symbol generation to speed up CI build
+        # "1" means line tables only, which is useful for panic tracebacks.
+        RUSTFLAGS: "-C debuginfo=1"
     steps:
       - checkout
       - rust_nightly
+      - cache_restore
       - run:
           name: Clippy
           command: cargo clippy --all-targets --workspace -- -D warnings
+      - cache_save
   test:
     docker:
       - image: quay.io/influxdb/rust:ci
     resource_class: xlarge # use of a smaller executor tends crashes on link
+    environment:
+        # Disable full debug symbol generation to speed up CI build
+        # "1" means line tables only, which is useful for panic tracebacks.
+        RUSTFLAGS: "-C debuginfo=1"
     steps:
       - checkout
       - rust_nightly
+      - cache_restore
       - run:
           name: Cargo test
           command: cargo test --workspace
-  
+      - cache_save
+
   # Build a dev binary.
   #
   # Compiles a binary with the default ("dev") cargo profile from the iox source
@@ -65,13 +106,33 @@ jobs:
   build:
     docker:
       - image: quay.io/influxdb/rust:ci
+    resource_class: xlarge # use of a smaller executor tends crashes on link
+    environment:
+        # Disable full debug symbol generation to speed up CI build
+        # "1" means line tables only, which is useful for panic tracebacks.
+        RUSTFLAGS: "-C debuginfo=1"
     steps:
       - checkout
       - rust_nightly
+      - cache_restore
       - run:
           name: Cargo build
           command: cargo build --workspace
-  
+      - run:
+          name: Build benches
+          command: cargo test --workspace --benches --no-run
+      - cache_save
+
+  # Lint protobufs.
+  protobuf-lint:
+    docker:
+      - image: bufbuild/buf:0.40.0
+    steps:
+      - checkout
+      - run:
+          name: buf lint
+          command: buf lint
+
   # Compile a cargo "release" profile binary for branches that end in `/perf`
   #
   # Uses the latest ci_image (influxdb/rust below) to build a release binary and
@@ -79,7 +140,7 @@ jobs:
   # minimal image is then pushed to `quay.io/influxdb/fusion:${BRANCH}` with '/'
   # repaced by '.' - as an example:
   #
-  #   git branch: dom/my-awesome-feature/perf 
+  #   git branch: dom/my-awesome-feature/perf
   #   container: quay.io/influxdb/fusion:dom.my-awesome-feature.perf
   #
   # Subsequent CI runs will overwrite the tag if you push more changes, so watch
@@ -90,9 +151,14 @@ jobs:
   perf_image:
     docker:
       - image: quay.io/influxdb/rust:ci
+    environment:
+        # Disable full debug symbol generation to speed up CI build
+        # "1" means line tables only, which is useful for panic tracebacks.
+        RUSTFLAGS: "-C debuginfo=1"
     steps:
       - checkout
       - rust_nightly
+      - cache_restore
       - run:
           name: Cargo release build with target arch set for CRoaring
           command: ROARING_ARCH=x86-64 cargo build --release
@@ -111,6 +177,7 @@ jobs:
       - run:
           name: Deploy tags
           command: ./.circleci/get-deploy-tags.sh "${BRANCH}"
+      - cache_save
 
   # Prepare the CI image used for other tasks.
   #
@@ -134,8 +201,17 @@ jobs:
 
 workflows:
   version: 2
-  
-  # Internal pipeline for perf builds.
+
+  # CI for all pull requests.
+  ci:
+    jobs:
+      - fmt
+      - lint
+      - protobuf-lint
+      - test
+      - build
+
+  # Internal pipeline for perf builds.
   #
   # Filter ensures this only runs for git branches ending in `/perf`.
   perf_build:
@@ -165,7 +241,7 @@ workflows:
             - lint
             - test
             - build
-  
+
   # Nightly rebuild of the build container
   ci_image:
     triggers:

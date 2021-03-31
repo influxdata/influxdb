@@ -102,7 +102,7 @@ pub struct ColumnSummary {
 
 impl ColumnSummary {
     /// Returns the total number of rows in this column
-    pub fn count(&self) -> u32 {
+    pub fn count(&self) -> u64 {
         self.stats.count()
     }
 
@@ -174,7 +174,7 @@ pub struct Column {
 
 impl Column {
     /// Returns the total number of rows in this column
-    pub fn count(&self) -> u32 {
+    pub fn count(&self) -> u64 {
         self.stats.count()
     }
 }
@@ -191,7 +191,7 @@ pub enum Statistics {
 
 impl Statistics {
     /// Returns the total number of rows in this column
-    pub fn count(&self) -> u32 {
+    pub fn count(&self) -> u64 {
         match self {
             Self::I64(s) => s.count,
             Self::U64(s) => s.count,
@@ -208,7 +208,7 @@ pub struct StatValues<T: PartialEq + PartialOrd + Debug + Display + Clone> {
     pub min: T,
     pub max: T,
     /// number of non-nil values in this column
-    pub count: u32,
+    pub count: u64,
 }
 
 impl<T> StatValues<T>

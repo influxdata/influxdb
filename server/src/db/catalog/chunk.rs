@@ -2,8 +2,9 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
-use data_types::chunk::ChunkSummary;
+use data_types::{chunk::ChunkSummary, partition_metadata::TableSummary};
 use mutable_buffer::chunk::Chunk as MBChunk;
+use query::PartitionChunk;
 use read_buffer::Database as ReadBufferDb;
 
 use crate::db::DBChunk;
@@ -143,6 +144,11 @@ impl Chunk {
             time_closing: self.time_closing,
             ..DBChunk::snapshot(self).summary()
         }
+    }
+
+    /// Return TableSummary metadata for each table in this chunk
+    pub fn table_summaries(&self) -> impl Iterator<Item = TableSummary> {
+        DBChunk::snapshot(self).table_summaries().into_iter()
     }
 
     /// Returns true if this chunk contains a table with the provided name

@@ -1,9 +1,6 @@
 //! Represents a Chunk of data (a collection of tables and their data within
 //! some chunk) in the mutable store.
-use arrow_deps::{
-    arrow::record_batch::RecordBatch,
-    datafusion::{error::DataFusionError, logical_plan::Expr},
-};
+use arrow_deps::{arrow::record_batch::RecordBatch, datafusion::logical_plan::Expr};
 
 use generated_types::wal as wb;
 use std::collections::{BTreeSet, HashMap};
@@ -50,9 +47,6 @@ pub enum Error {
         exprs
     ))]
     PredicateNotYetSupported { exprs: Vec<Expr> },
-
-    #[snafu(display("Unsupported predicate. Mutable buffer does not support: {}", source))]
-    UnsupportedPredicate { source: DataFusionError },
 
     #[snafu(display("Table ID {} not found in dictionary of chunk {}", table_id, chunk))]
     TableIdNotFoundInDictionary {
@@ -410,29 +404,21 @@ impl Chunk {
     }
 
     /// Returns a vec of the summary statistics of the tables in this chunk
-    pub fn table_stats(&self) -> Result<Vec<TableSummary>> {
-        let mut stats = Vec::with_capacity(self.tables.len());
-
-        for (&table_id, table) in &self.tables {
-            let name =
-                self.dictionary
+    pub fn table_summaries(&self) -> Vec<TableSummary> {
+        self.tables
+            .iter()
+            .map(|(&table_id, table)| {
+                let name = self
+                    .dictionary
                     .lookup_id(table_id)
-                    .context(TableIdNotFoundInDictionary {
-                        table_id,
-                        chunk: self.id,
-                    })?;
+                    .expect("table name not found in dictionary");
 
-            let columns = table
-                .stats(&self)
-                .context(NamedTableError { table_name: name })?;
-
-            stats.push(TableSummary {
-                name: name.to_string(),
-                columns,
-            });
-        }
-
-        Ok(stats)
+                TableSummary {
+                    name: name.to_string(),
+                    columns: table.stats(&self),
+                }
+            })
+            .collect()
     }
 
     /// Returns the named table, or None if no such table exists in this chunk
