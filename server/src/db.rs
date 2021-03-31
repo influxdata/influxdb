@@ -8,17 +8,13 @@ use std::sync::{
 };
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
 use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
 use tracing::{debug, info};
 
 use arrow_deps::datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
 use catalog::{chunk::ChunkState, Catalog};
-use data_types::{
-    chunk::ChunkSummary,
-    database_rules::{DatabaseRules, Order, Sort, SortOrder},
-};
+use data_types::{chunk::ChunkSummary, database_rules::DatabaseRules};
 use internal_types::{data::ReplicatedWrite, selection::Selection};
 use query::{Database, DEFAULT_SCHEMA};
 use read_buffer::Database as ReadBufferDb;
@@ -149,7 +145,7 @@ const STARTING_SEQUENCE: u64 = 1;
 /// Catalog Usage: the state of the catalog and the state of the `Db`
 /// must remain in sync. If they are ever out of sync, the IOx system
 /// should be shutdown and forced through a "recovery" to correctly
-/// recconcile the state.
+/// reconcile the state.
 ///
 /// Ensuring the Catalog and Db remain in sync is accomplished by
 /// manipulating the catalog state alongside the state in the `Db`
@@ -397,35 +393,6 @@ impl Db {
         })
     }
 
-    /// Returns the partition_keys in the requested sort order
-    pub fn partition_keys_sorted_by(&self, sort_rules: &SortOrder) -> Vec<String> {
-        let mut partitions: Vec<(String, DateTime<Utc>, DateTime<Utc>)> = self
-            .catalog
-            .partitions()
-            .map(|p| {
-                let p = p.read();
-                (p.key().to_string(), p.created_at(), p.last_write_at())
-            })
-            .collect();
-
-        match &sort_rules.sort {
-            Sort::CreatedAtTime => partitions.sort_by_key(|(_, created_at, _)| *created_at),
-            Sort::LastWriteTime => partitions.sort_by_key(|(_, _, last_write_at)| *last_write_at),
-            Sort::Column(_name, _data_type, _val) => {
-                unimplemented!()
-            }
-        }
-
-        if sort_rules.order == Order::Desc {
-            partitions.reverse();
-        }
-
-        partitions
-            .into_iter()
-            .map(|(key, _, _)| key)
-            .collect::<Vec<_>>()
-    }
-
     /// Returns the number of iterations of the background worker loop
     pub fn worker_iterations(&self) -> usize {
         self.worker_iterations.load(Ordering::Relaxed)
@@ -574,7 +541,7 @@ mod tests {
     use chrono::Utc;
     use data_types::{
         chunk::ChunkStorage,
-        database_rules::{LifecycleRules, SortOrder},
+        database_rules::{LifecycleRules, Order, Sort, SortOrder},
     };
     use query::{
         exec::Executor, frontend::sql::SQLQueryPlanner, test::TestLPWriter, PartitionChunk,
@@ -836,7 +803,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn partitions_sorted_by_times() {
+    async fn chunks_sorted_by_times() {
         let db = make_db();
         let mut writer = TestLPWriter::default();
         writer.write_lp_string(&db, "cpu val=1 1").unwrap();
@@ -852,14 +819,23 @@ mod tests {
             order: Order::Desc,
             sort: Sort::LastWriteTime,
         };
-        let partitions = db.partition_keys_sorted_by(&sort_rules);
+        let chunks = db.catalog.chunks_sorted_by(&sort_rules);
+        let partitions: Vec<_> = chunks
+            .into_iter()
+            .map(|x| x.read().key().to_string())
+            .collect();
+
         assert_eq!(partitions, vec!["1970-01-05T15", "1970-01-01T00"]);
 
         let sort_rules = SortOrder {
             order: Order::Asc,
             sort: Sort::CreatedAtTime,
         };
-        let partitions = db.partition_keys_sorted_by(&sort_rules);
+        let chunks = db.catalog.chunks_sorted_by(&sort_rules);
+        let partitions: Vec<_> = chunks
+            .into_iter()
+            .map(|x| x.read().key().to_string())
+            .collect();
         assert_eq!(partitions, vec!["1970-01-01T00", "1970-01-05T15"]);
     }
 

@@ -9,6 +9,8 @@ use parking_lot::RwLock;
 use snafu::{OptionExt, Snafu};
 
 use arrow_deps::datafusion::{catalog::schema::SchemaProvider, datasource::TableProvider};
+use chunk::Chunk;
+use data_types::database_rules::{Order, Sort, SortOrder};
 use data_types::error::ErrorLogger;
 use internal_types::selection::Selection;
 use partition::Partition;
@@ -118,6 +120,38 @@ impl Catalog {
             .get(partition_key)
             .cloned()
             .context(UnknownPartition { partition_key })
+    }
+
+    /// Returns all chunks within the catalog in an arbitrary order
+    pub fn chunks(&self) -> Vec<Arc<RwLock<Chunk>>> {
+        let mut chunks = Vec::new();
+        let partitions = self.partitions.read();
+
+        for partition in partitions.values() {
+            let partition = partition.read();
+            chunks.extend(partition.chunks().cloned())
+        }
+        chunks
+    }
+
+    /// Returns the chunks in the requested sort order
+    pub fn chunks_sorted_by(&self, sort_rules: &SortOrder) -> Vec<Arc<RwLock<Chunk>>> {
+        let mut chunks = self.chunks();
+
+        match &sort_rules.sort {
+            // The first write is technically not the created time but is in practice close enough
+            Sort::CreatedAtTime => chunks.sort_by_cached_key(|x| x.read().time_of_first_write()),
+            Sort::LastWriteTime => chunks.sort_by_cached_key(|x| x.read().time_of_last_write()),
+            Sort::Column(_name, _data_type, _val) => {
+                unimplemented!()
+            }
+        }
+
+        if sort_rules.order == Order::Desc {
+            chunks.reverse();
+        }
+
+        chunks
     }
 }
 
