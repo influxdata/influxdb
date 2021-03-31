@@ -37,18 +37,6 @@ type RunRecorder interface {
 	Record(ctx context.Context, orgID platform.ID, org string, bucketID platform.ID, bucket string, run *influxdb.Run) error
 }
 
-// NewAnalyticalRunStorage creates a new analytical store with access to the necessary systems for storing data and to act as a middleware
-func NewAnalyticalRunStorage(log *zap.Logger, ts influxdb.TaskService, bs influxdb.BucketService, tcs TaskControlService, rr RunRecorder, qs query.QueryService) *AnalyticalStorage {
-	return &AnalyticalStorage{
-		log:                log,
-		TaskService:        ts,
-		BucketService:      bs,
-		TaskControlService: tcs,
-		rr:                 rr,
-		qs:                 qs,
-	}
-}
-
 // NewAnalyticalStorage creates a new analytical store with access to the necessary systems for storing data and to act as a middleware (deprecated)
 func NewAnalyticalStorage(log *zap.Logger, ts influxdb.TaskService, bs influxdb.BucketService, tcs TaskControlService, pw storage.PointsWriter, qs query.QueryService) *AnalyticalStorage {
 	return &AnalyticalStorage{

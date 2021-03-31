@@ -62,8 +62,7 @@ func TestAnalyticalStore(t *testing.T) {
 
 			var (
 				ab       = newAnalyticalBackend(t, ts.OrganizationService, ts.BucketService, metaClient)
-				rr       = backend.NewStoragePointsWriterRecorder(logger, ab.PointsWriter())
-				svcStack = backend.NewAnalyticalRunStorage(logger, svc, ts.BucketService, svc, rr, ab.QueryService())
+				svcStack = backend.NewAnalyticalStorage(logger, svc, ts.BucketService, svc, ab.PointsWriter(), ab.QueryService())
 			)
 
 			ts.BucketService = storage.NewBucketService(logger, ts.BucketService, ab.storageEngine)
