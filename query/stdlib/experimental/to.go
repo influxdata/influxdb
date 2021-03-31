@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/codes"
 	"github.com/influxdata/flux/execute"
@@ -94,13 +96,13 @@ func (ToOpSpec) Kind() flux.OperationKind {
 }
 
 // BucketsAccessed returns the buckets accessed by the spec.
-func (o *ToOpSpec) BucketsAccessed(orgID *platform.ID) (readBuckets, writeBuckets []platform.BucketFilter) {
+func (o *ToOpSpec) BucketsAccessed(orgID *platform2.ID) (readBuckets, writeBuckets []platform.BucketFilter) {
 	bf := platform.BucketFilter{}
 	if o.Bucket != "" {
 		bf.Name = &o.Bucket
 	}
 	if o.BucketID != "" {
-		id, err := platform.IDFromString(o.BucketID)
+		id, err := platform2.IDFromString(o.BucketID)
 		if err == nil {
 			bf.ID = id
 		}
@@ -109,7 +111,7 @@ func (o *ToOpSpec) BucketsAccessed(orgID *platform.ID) (readBuckets, writeBucket
 		bf.Org = &o.Org
 	}
 	if o.OrgID != "" {
-		id, err := platform.IDFromString(o.OrgID)
+		id, err := platform2.IDFromString(o.OrgID)
 		if err == nil {
 			bf.OrganizationID = id
 		}
@@ -176,8 +178,8 @@ func createToTransformation(id execute.DatasetID, mode execute.AccumulationMode,
 type ToTransformation struct {
 	execute.ExecutionNode
 	ctx      context.Context
-	bucketID platform.ID
-	orgID    platform.ID
+	bucketID platform2.ID
+	orgID    platform2.ID
 	d        execute.Dataset
 	cache    execute.TableBuilderCache
 	spec     *ToOpSpec
@@ -194,7 +196,7 @@ func (t *ToTransformation) RetractTable(id execute.DatasetID, key flux.GroupKey)
 func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.TableBuilderCache, spec *ToProcedureSpec, deps influxdb.ToDependencies) (*ToTransformation, error) {
 	var err error
 
-	var orgID platform.ID
+	var orgID platform2.ID
 	// Get organization name and ID
 	if spec.Spec.Org != "" {
 		oID, ok := deps.OrganizationLookup.Lookup(ctx, spec.Spec.Org)
@@ -203,7 +205,7 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 		}
 		orgID = oID
 	} else if spec.Spec.OrgID != "" {
-		if oid, err := platform.IDFromString(spec.Spec.OrgID); err != nil {
+		if oid, err := platform2.IDFromString(spec.Spec.OrgID); err != nil {
 			return nil, err
 		} else {
 			orgID = *oid
@@ -217,7 +219,7 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 		orgID = req.OrganizationID
 	}
 
-	var bucketID *platform.ID
+	var bucketID *platform2.ID
 	// Get bucket name and ID
 	// User will have specified exactly one in the ToOpSpec.
 	if spec.Spec.Bucket != "" {
@@ -227,7 +229,7 @@ func NewToTransformation(ctx context.Context, d execute.Dataset, cache execute.T
 		}
 		bucketID = &bID
 	} else {
-		if bucketID, err = platform.IDFromString(spec.Spec.BucketID); err != nil {
+		if bucketID, err = platform2.IDFromString(spec.Spec.BucketID); err != nil {
 			return nil, err
 		}
 	}

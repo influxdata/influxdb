@@ -4,6 +4,9 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/go-chi/chi"
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
@@ -31,7 +34,7 @@ type APIHandler struct {
 type APIBackend struct {
 	AssetsPath string // if empty then assets are served from bindata.
 	Logger     *zap.Logger
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	SessionRenewDisabled bool
 	// MaxBatchSizeBytes is the maximum number of bytes which can be written
 	// in a single points batch
@@ -261,7 +264,7 @@ var apiLinks = map[string]interface{}{
 	"delete":    "/api/v2/delete",
 }
 
-func serveLinksHandler(errorHandler influxdb.HTTPErrorHandler) http.Handler {
+func serveLinksHandler(errorHandler errors.HTTPErrorHandler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		if err := encodeResponse(ctx, w, http.StatusOK, apiLinks); err != nil {
@@ -271,21 +274,21 @@ func serveLinksHandler(errorHandler influxdb.HTTPErrorHandler) http.Handler {
 	return http.HandlerFunc(fn)
 }
 
-func decodeIDFromCtx(ctx context.Context, name string) (influxdb.ID, error) {
+func decodeIDFromCtx(ctx context.Context, name string) (platform.ID, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	idStr := params.ByName(name)
 
 	if idStr == "" {
-		return 0, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return 0, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing " + name,
 		}
 	}
 
-	var i influxdb.ID
+	var i platform.ID
 	if err := i.DecodeFromString(idStr); err != nil {
-		return 0, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return 0, &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}

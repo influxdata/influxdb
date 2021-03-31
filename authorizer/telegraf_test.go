@@ -3,6 +3,8 @@ package authorizer_test
 import (
 	"bytes"
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"sort"
 	"testing"
 
@@ -33,7 +35,7 @@ func TestTelegrafConfigStore_FindTelegrafConfigByID(t *testing.T) {
 	}
 	type args struct {
 		permission influxdb.Permission
-		id         influxdb.ID
+		id         platform.ID
 	}
 	type wants struct {
 		err error
@@ -49,7 +51,7 @@ func TestTelegrafConfigStore_FindTelegrafConfigByID(t *testing.T) {
 			name: "authorized to access id",
 			fields: fields{
 				TelegrafConfigStore: &mock.TelegrafConfigStore{
-					FindTelegrafConfigByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
+					FindTelegrafConfigByIDF: func(ctx context.Context, id platform.ID) (*influxdb.TelegrafConfig, error) {
 						return &influxdb.TelegrafConfig{
 							ID:    id,
 							OrgID: 10,
@@ -75,7 +77,7 @@ func TestTelegrafConfigStore_FindTelegrafConfigByID(t *testing.T) {
 			name: "unauthorized to access id",
 			fields: fields{
 				TelegrafConfigStore: &mock.TelegrafConfigStore{
-					FindTelegrafConfigByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
+					FindTelegrafConfigByIDF: func(ctx context.Context, id platform.ID) (*influxdb.TelegrafConfig, error) {
 						return &influxdb.TelegrafConfig{
 							ID:    id,
 							OrgID: 10,
@@ -94,9 +96,9 @@ func TestTelegrafConfigStore_FindTelegrafConfigByID(t *testing.T) {
 				id: 1,
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "read:orgs/000000000000000a/telegrafs/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -248,7 +250,7 @@ func TestTelegrafConfigStore_UpdateTelegrafConfig(t *testing.T) {
 		TelegrafConfigStore influxdb.TelegrafConfigStore
 	}
 	type args struct {
-		id          influxdb.ID
+		id          platform.ID
 		permissions []influxdb.Permission
 	}
 	type wants struct {
@@ -265,13 +267,13 @@ func TestTelegrafConfigStore_UpdateTelegrafConfig(t *testing.T) {
 			name: "authorized to update telegraf",
 			fields: fields{
 				TelegrafConfigStore: &mock.TelegrafConfigStore{
-					FindTelegrafConfigByIDF: func(ctc context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
+					FindTelegrafConfigByIDF: func(ctc context.Context, id platform.ID) (*influxdb.TelegrafConfig, error) {
 						return &influxdb.TelegrafConfig{
 							ID:    1,
 							OrgID: 10,
 						}, nil
 					},
-					UpdateTelegrafConfigF: func(ctx context.Context, id influxdb.ID, upd *influxdb.TelegrafConfig, userID influxdb.ID) (*influxdb.TelegrafConfig, error) {
+					UpdateTelegrafConfigF: func(ctx context.Context, id platform.ID, upd *influxdb.TelegrafConfig, userID platform.ID) (*influxdb.TelegrafConfig, error) {
 						return &influxdb.TelegrafConfig{
 							ID:    1,
 							OrgID: 10,
@@ -306,13 +308,13 @@ func TestTelegrafConfigStore_UpdateTelegrafConfig(t *testing.T) {
 			name: "unauthorized to update telegraf",
 			fields: fields{
 				TelegrafConfigStore: &mock.TelegrafConfigStore{
-					FindTelegrafConfigByIDF: func(ctc context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
+					FindTelegrafConfigByIDF: func(ctc context.Context, id platform.ID) (*influxdb.TelegrafConfig, error) {
 						return &influxdb.TelegrafConfig{
 							ID:    1,
 							OrgID: 10,
 						}, nil
 					},
-					UpdateTelegrafConfigF: func(ctx context.Context, id influxdb.ID, upd *influxdb.TelegrafConfig, userID influxdb.ID) (*influxdb.TelegrafConfig, error) {
+					UpdateTelegrafConfigF: func(ctx context.Context, id platform.ID, upd *influxdb.TelegrafConfig, userID platform.ID) (*influxdb.TelegrafConfig, error) {
 						return &influxdb.TelegrafConfig{
 							ID:    1,
 							OrgID: 10,
@@ -333,9 +335,9 @@ func TestTelegrafConfigStore_UpdateTelegrafConfig(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/telegrafs/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -348,7 +350,7 @@ func TestTelegrafConfigStore_UpdateTelegrafConfig(t *testing.T) {
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, tt.args.permissions))
 
-			_, err := s.UpdateTelegrafConfig(ctx, tt.args.id, &influxdb.TelegrafConfig{}, influxdb.ID(1))
+			_, err := s.UpdateTelegrafConfig(ctx, tt.args.id, &influxdb.TelegrafConfig{}, platform.ID(1))
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}
@@ -359,7 +361,7 @@ func TestTelegrafConfigStore_DeleteTelegrafConfig(t *testing.T) {
 		TelegrafConfigStore influxdb.TelegrafConfigStore
 	}
 	type args struct {
-		id          influxdb.ID
+		id          platform.ID
 		permissions []influxdb.Permission
 	}
 	type wants struct {
@@ -376,13 +378,13 @@ func TestTelegrafConfigStore_DeleteTelegrafConfig(t *testing.T) {
 			name: "authorized to delete telegraf",
 			fields: fields{
 				TelegrafConfigStore: &mock.TelegrafConfigStore{
-					FindTelegrafConfigByIDF: func(ctc context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
+					FindTelegrafConfigByIDF: func(ctc context.Context, id platform.ID) (*influxdb.TelegrafConfig, error) {
 						return &influxdb.TelegrafConfig{
 							ID:    1,
 							OrgID: 10,
 						}, nil
 					},
-					DeleteTelegrafConfigF: func(ctx context.Context, id influxdb.ID) error {
+					DeleteTelegrafConfigF: func(ctx context.Context, id platform.ID) error {
 						return nil
 					},
 				},
@@ -414,13 +416,13 @@ func TestTelegrafConfigStore_DeleteTelegrafConfig(t *testing.T) {
 			name: "unauthorized to delete telegraf",
 			fields: fields{
 				TelegrafConfigStore: &mock.TelegrafConfigStore{
-					FindTelegrafConfigByIDF: func(ctc context.Context, id influxdb.ID) (*influxdb.TelegrafConfig, error) {
+					FindTelegrafConfigByIDF: func(ctc context.Context, id platform.ID) (*influxdb.TelegrafConfig, error) {
 						return &influxdb.TelegrafConfig{
 							ID:    1,
 							OrgID: 10,
 						}, nil
 					},
-					DeleteTelegrafConfigF: func(ctx context.Context, id influxdb.ID) error {
+					DeleteTelegrafConfigF: func(ctx context.Context, id platform.ID) error {
 						return nil
 					},
 				},
@@ -438,9 +440,9 @@ func TestTelegrafConfigStore_DeleteTelegrafConfig(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/telegrafs/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -465,7 +467,7 @@ func TestTelegrafConfigStore_CreateTelegrafConfig(t *testing.T) {
 	}
 	type args struct {
 		permission influxdb.Permission
-		orgID      influxdb.ID
+		orgID      platform.ID
 	}
 	type wants struct {
 		err error
@@ -481,7 +483,7 @@ func TestTelegrafConfigStore_CreateTelegrafConfig(t *testing.T) {
 			name: "authorized to create telegraf",
 			fields: fields{
 				TelegrafConfigStore: &mock.TelegrafConfigStore{
-					CreateTelegrafConfigF: func(ctx context.Context, tc *influxdb.TelegrafConfig, userID influxdb.ID) error {
+					CreateTelegrafConfigF: func(ctx context.Context, tc *influxdb.TelegrafConfig, userID platform.ID) error {
 						return nil
 					},
 				},
@@ -504,7 +506,7 @@ func TestTelegrafConfigStore_CreateTelegrafConfig(t *testing.T) {
 			name: "unauthorized to create telegraf",
 			fields: fields{
 				TelegrafConfigStore: &mock.TelegrafConfigStore{
-					CreateTelegrafConfigF: func(ctx context.Context, tc *influxdb.TelegrafConfig, userID influxdb.ID) error {
+					CreateTelegrafConfigF: func(ctx context.Context, tc *influxdb.TelegrafConfig, userID platform.ID) error {
 						return nil
 					},
 				},
@@ -520,9 +522,9 @@ func TestTelegrafConfigStore_CreateTelegrafConfig(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/telegrafs is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -535,7 +537,7 @@ func TestTelegrafConfigStore_CreateTelegrafConfig(t *testing.T) {
 			ctx := context.Background()
 			ctx = influxdbcontext.SetAuthorizer(ctx, mock.NewMockAuthorizer(false, []influxdb.Permission{tt.args.permission}))
 
-			err := s.CreateTelegrafConfig(ctx, &influxdb.TelegrafConfig{OrgID: tt.args.orgID}, influxdb.ID(1))
+			err := s.CreateTelegrafConfig(ctx, &influxdb.TelegrafConfig{OrgID: tt.args.orgID}, platform.ID(1))
 			influxdbtesting.ErrorsEqual(t, err, tt.wants.err)
 		})
 	}

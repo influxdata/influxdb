@@ -6,6 +6,7 @@ package mocks
 
 import (
 	context "context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	reflect "reflect"
 
 	gomock "github.com/golang/mock/gomock"
@@ -50,7 +51,7 @@ func (mr *MockOrganizationServiceMockRecorder) CreateOrganization(arg0, arg1 int
 }
 
 // DeleteOrganization mocks base method
-func (m *MockOrganizationService) DeleteOrganization(arg0 context.Context, arg1 influxdb.ID) error {
+func (m *MockOrganizationService) DeleteOrganization(arg0 context.Context, arg1 platform.ID) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "DeleteOrganization", arg0, arg1)
 	ret0, _ := ret[0].(error)
@@ -79,7 +80,7 @@ func (mr *MockOrganizationServiceMockRecorder) FindOrganization(arg0, arg1 inter
 }
 
 // FindOrganizationByID mocks base method
-func (m *MockOrganizationService) FindOrganizationByID(arg0 context.Context, arg1 influxdb.ID) (*influxdb.Organization, error) {
+func (m *MockOrganizationService) FindOrganizationByID(arg0 context.Context, arg1 platform.ID) (*influxdb.Organization, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FindOrganizationByID", arg0, arg1)
 	ret0, _ := ret[0].(*influxdb.Organization)
@@ -115,7 +116,7 @@ func (mr *MockOrganizationServiceMockRecorder) FindOrganizations(arg0, arg1 inte
 }
 
 // UpdateOrganization mocks base method
-func (m *MockOrganizationService) UpdateOrganization(arg0 context.Context, arg1 influxdb.ID, arg2 influxdb.OrganizationUpdate) (*influxdb.Organization, error) {
+func (m *MockOrganizationService) UpdateOrganization(arg0 context.Context, arg1 platform.ID, arg2 influxdb.OrganizationUpdate) (*influxdb.Organization, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateOrganization", arg0, arg1, arg2)
 	ret0, _ := ret[0].(*influxdb.Organization)

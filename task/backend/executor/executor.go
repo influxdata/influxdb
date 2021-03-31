@@ -7,6 +7,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/lang"
@@ -31,11 +33,11 @@ const (
 var _ scheduler.Executor = (*Executor)(nil)
 
 type PermissionService interface {
-	FindPermissionForUser(ctx context.Context, UserID influxdb.ID) (influxdb.PermissionSet, error)
+	FindPermissionForUser(ctx context.Context, UserID platform.ID) (influxdb.PermissionSet, error)
 }
 
 type Promise interface {
-	ID() influxdb.ID
+	ID() platform.ID
 	Cancel(ctx context.Context)
 	Done() <-chan struct{}
 	Error() error
@@ -206,7 +208,7 @@ func (e *Executor) Execute(ctx context.Context, id scheduler.ID, scheduledFor ti
 // If the queue is full the call to execute should hang and apply back pressure to the caller
 // We then start a worker to work the newly queued jobs.
 func (e *Executor) PromisedExecute(ctx context.Context, id scheduler.ID, scheduledFor time.Time, runAt time.Time) (Promise, error) {
-	iid := influxdb.ID(id)
+	iid := platform.ID(id)
 	// create a run
 	p, err := e.createRun(ctx, iid, scheduledFor, runAt)
 	if err != nil {
@@ -217,7 +219,7 @@ func (e *Executor) PromisedExecute(ctx context.Context, id scheduler.ID, schedul
 	return p, nil
 }
 
-func (e *Executor) ManualRun(ctx context.Context, id influxdb.ID, runID influxdb.ID) (Promise, error) {
+func (e *Executor) ManualRun(ctx context.Context, id platform.ID, runID platform.ID) (Promise, error) {
 	// create promises for any manual runs
 	r, err := e.tcs.StartManualRun(ctx, id, runID)
 	if err != nil {
@@ -230,7 +232,7 @@ func (e *Executor) ManualRun(ctx context.Context, id influxdb.ID, runID influxdb
 	return p, err
 }
 
-func (e *Executor) ResumeCurrentRun(ctx context.Context, id influxdb.ID, runID influxdb.ID) (Promise, error) {
+func (e *Executor) ResumeCurrentRun(ctx context.Context, id platform.ID, runID platform.ID) (Promise, error) {
 	cr, err := e.tcs.CurrentlyRunning(ctx, id)
 	if err != nil {
 		return nil, err
@@ -252,7 +254,7 @@ func (e *Executor) ResumeCurrentRun(ctx context.Context, id influxdb.ID, runID i
 	return nil, influxdb.ErrRunNotFound
 }
 
-func (e *Executor) createRun(ctx context.Context, id influxdb.ID, scheduledFor time.Time, runAt time.Time) (*promise, error) {
+func (e *Executor) createRun(ctx context.Context, id platform.ID, scheduledFor time.Time, runAt time.Time) (*promise, error) {
 	r, err := e.tcs.CreateRun(ctx, id, scheduledFor.UTC(), runAt.UTC())
 	if err != nil {
 		return nil, err
@@ -297,7 +299,7 @@ func (e *Executor) startWorker() {
 }
 
 // Cancel a run of a specific task.
-func (e *Executor) Cancel(ctx context.Context, runID influxdb.ID) error {
+func (e *Executor) Cancel(ctx context.Context, runID platform.ID) error {
 	// find the promise
 	val, ok := e.currentPromises.Load(runID)
 	if !ok {
@@ -333,7 +335,7 @@ func (e *Executor) createPromise(ctx context.Context, run *influxdb.Run) (*promi
 		auth: &influxdb.Authorization{
 			Status:      influxdb.Active,
 			UserID:      t.OwnerID,
-			ID:          influxdb.ID(1),
+			ID:          platform.ID(1),
 			OrgID:       t.OrganizationID,
 			Permissions: perm,
 		},
@@ -583,7 +585,7 @@ type promise struct {
 }
 
 // ID is the id of the run that was created
-func (p *promise) ID() influxdb.ID {
+func (p *promise) ID() platform.ID {
 	return p.run.ID
 }
 

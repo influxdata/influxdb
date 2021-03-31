@@ -13,6 +13,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
@@ -40,17 +43,17 @@ func NewMockTaskBackend(t *testing.T) *TaskBackend {
 		AuthorizationService: mock.NewAuthorizationService(),
 		TaskService:          &mock.TaskService{},
 		OrganizationService: &mock.OrganizationService{
-			FindOrganizationByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
+			FindOrganizationByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Organization, error) {
 				return &influxdb.Organization{ID: id, Name: "test"}, nil
 			},
 			FindOrganizationF: func(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
 				org := &influxdb.Organization{}
 				if filter.Name != nil {
 					if *filter.Name == "non-existent-org" {
-						return nil, &influxdb.Error{
+						return nil, &errors2.Error{
 							Err:  errors.New("org not found or unauthorized"),
 							Msg:  "org " + *filter.Name + " not found or unauthorized",
-							Code: influxdb.ENotFound,
+							Code: errors2.ENotFound,
 						}
 					}
 					org.Name = *filter.Name
@@ -499,10 +502,10 @@ func TestTaskHandler_handlePostTasks(t *testing.T) {
 			fields: fields{
 				taskService: &mock.TaskService{
 					CreateTaskFn: func(ctx context.Context, tc influxdb.TaskCreate) (*influxdb.Task, error) {
-						return nil, influxdb.NewError(
-							influxdb.WithErrorErr(errors.New("something went wrong")),
-							influxdb.WithErrorMsg("something really went wrong"),
-							influxdb.WithErrorCode(influxdb.EInvalid),
+						return nil, errors2.NewError(
+							errors2.WithErrorErr(errors.New("something went wrong")),
+							errors2.WithErrorMsg("something really went wrong"),
+							errors2.WithErrorCode(errors2.EInvalid),
 						)
 					},
 				},
@@ -591,8 +594,8 @@ func TestTaskHandler_handleGetRun(t *testing.T) {
 		taskService influxdb.TaskService
 	}
 	type args struct {
-		taskID influxdb.ID
-		runID  influxdb.ID
+		taskID platform.ID
+		runID  platform.ID
 	}
 	type wants struct {
 		statusCode  int
@@ -610,7 +613,7 @@ func TestTaskHandler_handleGetRun(t *testing.T) {
 			name: "get a run by id",
 			fields: fields{
 				taskService: &mock.TaskService{
-					FindRunByIDFn: func(ctx context.Context, taskID influxdb.ID, runID influxdb.ID) (*influxdb.Run, error) {
+					FindRunByIDFn: func(ctx context.Context, taskID platform.ID, runID platform.ID) (*influxdb.Run, error) {
 						scheduledFor, _ := time.Parse(time.RFC3339, "2018-12-01T17:00:13Z")
 						startedAt, _ := time.Parse(time.RFC3339Nano, "2018-12-01T17:00:03.155645Z")
 						finishedAt, _ := time.Parse(time.RFC3339Nano, "2018-12-01T17:00:13.155645Z")
@@ -705,7 +708,7 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 		taskService influxdb.TaskService
 	}
 	type args struct {
-		taskID influxdb.ID
+		taskID platform.ID
 	}
 	type wants struct {
 		statusCode  int
@@ -730,7 +733,7 @@ func TestTaskHandler_handleGetRuns(t *testing.T) {
 						requestedAt, _ := time.Parse(time.RFC3339, "2018-12-01T17:00:13Z")
 						runs := []*influxdb.Run{
 							{
-								ID:           influxdb.ID(2),
+								ID:           platform.ID(2),
 								TaskID:       f.Task,
 								Status:       "success",
 								ScheduledFor: scheduledFor,
@@ -844,7 +847,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 	// Create a session to associate with the contexts, so authorization checks pass.
 	authz := &influxdb.Authorization{Permissions: influxdb.OperPermissions()}
 
-	const taskID, runID = influxdb.ID(0xCCCCCC), influxdb.ID(0xAAAAAA)
+	const taskID, runID = platform.ID(0xCCCCCC), platform.ID(0xAAAAAA)
 
 	var (
 		okTask    = []interface{}{taskID}
@@ -872,7 +875,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 		{
 			name: "get task",
 			svc: &mock.TaskService{
-				FindTaskByIDFn: func(_ context.Context, id influxdb.ID) (*influxdb.Task, error) {
+				FindTaskByIDFn: func(_ context.Context, id platform.ID) (*influxdb.Task, error) {
 					if id == taskID {
 						return &influxdb.Task{ID: taskID, Organization: "o"}, nil
 					}
@@ -888,7 +891,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 		{
 			name: "update task",
 			svc: &mock.TaskService{
-				UpdateTaskFn: func(_ context.Context, id influxdb.ID, _ influxdb.TaskUpdate) (*influxdb.Task, error) {
+				UpdateTaskFn: func(_ context.Context, id platform.ID, _ influxdb.TaskUpdate) (*influxdb.Task, error) {
 					if id == taskID {
 						return &influxdb.Task{ID: taskID, Organization: "o"}, nil
 					}
@@ -905,7 +908,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 		{
 			name: "delete task",
 			svc: &mock.TaskService{
-				DeleteTaskFn: func(_ context.Context, id influxdb.ID) error {
+				DeleteTaskFn: func(_ context.Context, id platform.ID) error {
 					if id == taskID {
 						return nil
 					}
@@ -988,7 +991,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 		{
 			name: "force run",
 			svc: &mock.TaskService{
-				ForceRunFn: func(_ context.Context, tid influxdb.ID, _ int64) (*influxdb.Run, error) {
+				ForceRunFn: func(_ context.Context, tid platform.ID, _ int64) (*influxdb.Run, error) {
 					if tid != taskID {
 						return nil, influxdb.ErrTaskNotFound
 					}
@@ -1005,7 +1008,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 		{
 			name: "get run",
 			svc: &mock.TaskService{
-				FindRunByIDFn: func(_ context.Context, tid, rid influxdb.ID) (*influxdb.Run, error) {
+				FindRunByIDFn: func(_ context.Context, tid, rid platform.ID) (*influxdb.Run, error) {
 					if tid != taskID {
 						return nil, influxdb.ErrTaskNotFound
 					}
@@ -1024,7 +1027,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 		{
 			name: "retry run",
 			svc: &mock.TaskService{
-				RetryRunFn: func(_ context.Context, tid, rid influxdb.ID) (*influxdb.Run, error) {
+				RetryRunFn: func(_ context.Context, tid, rid platform.ID) (*influxdb.Run, error) {
 					if tid != taskID {
 						return nil, influxdb.ErrTaskNotFound
 					}
@@ -1043,7 +1046,7 @@ func TestTaskHandler_NotFoundStatus(t *testing.T) {
 		{
 			name: "cancel run",
 			svc: &mock.TaskService{
-				CancelRunFn: func(_ context.Context, tid, rid influxdb.ID) error {
+				CancelRunFn: func(_ context.Context, tid, rid platform.ID) error {
 					if tid != taskID {
 						return influxdb.ErrTaskNotFound
 					}
@@ -1117,7 +1120,7 @@ func TestService_handlePostTaskLabel(t *testing.T) {
 	}
 	type args struct {
 		labelMapping *influxdb.LabelMapping
-		taskID       influxdb.ID
+		taskID       platform.ID
 	}
 	type wants struct {
 		statusCode  int
@@ -1135,7 +1138,7 @@ func TestService_handlePostTaskLabel(t *testing.T) {
 			name: "add label to task",
 			fields: fields{
 				LabelService: &mock.LabelService{
-					FindLabelByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Label, error) {
+					FindLabelByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Label, error) {
 						return &influxdb.Label{
 							ID:   1,
 							Name: "label",
@@ -1391,8 +1394,8 @@ func TestTaskHandler_Sessions(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		const taskID = influxdb.ID(12345)
-		const runID = influxdb.ID(9876)
+		const taskID = platform.ID(12345)
+		const runID = platform.ID(9876)
 
 		var findRunsCtx context.Context
 		ts := &mock.TaskService{
@@ -1407,7 +1410,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 				}, 1, nil
 			},
 
-			FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+			FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
 				if id != taskID {
 					return nil, influxdb.ErrTaskNotFound
 				}
@@ -1483,12 +1486,12 @@ func TestTaskHandler_Sessions(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		const taskID = influxdb.ID(12345)
-		const runID = influxdb.ID(9876)
+		const taskID = platform.ID(12345)
+		const runID = platform.ID(9876)
 
 		var findRunByIDCtx context.Context
 		ts := &mock.TaskService{
-			FindRunByIDFn: func(ctx context.Context, tid, rid influxdb.ID) (*influxdb.Run, error) {
+			FindRunByIDFn: func(ctx context.Context, tid, rid platform.ID) (*influxdb.Run, error) {
 				findRunByIDCtx = ctx
 				if tid != taskID {
 					t.Fatalf("expected task ID %v, got %v", taskID, tid)
@@ -1500,7 +1503,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 				return &influxdb.Run{ID: runID, TaskID: taskID}, nil
 			},
 
-			FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+			FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
 				if id != taskID {
 					return nil, influxdb.ErrTaskNotFound
 				}
@@ -1577,8 +1580,8 @@ func TestTaskHandler_Sessions(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		const taskID = influxdb.ID(12345)
-		const runID = influxdb.ID(9876)
+		const taskID = platform.ID(12345)
+		const runID = platform.ID(9876)
 
 		var findLogsCtx context.Context
 		ts := &mock.TaskService{
@@ -1595,7 +1598,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 				return []*influxdb.Log{&line}, 1, nil
 			},
 
-			FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+			FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
 				if id != taskID {
 					return nil, influxdb.ErrTaskNotFound
 				}
@@ -1672,12 +1675,12 @@ func TestTaskHandler_Sessions(t *testing.T) {
 			t.Fatal(err)
 		}
 
-		const taskID = influxdb.ID(12345)
-		const runID = influxdb.ID(9876)
+		const taskID = platform.ID(12345)
+		const runID = platform.ID(9876)
 
 		var retryRunCtx context.Context
 		ts := &mock.TaskService{
-			RetryRunFn: func(ctx context.Context, tid, rid influxdb.ID) (*influxdb.Run, error) {
+			RetryRunFn: func(ctx context.Context, tid, rid platform.ID) (*influxdb.Run, error) {
 				retryRunCtx = ctx
 				if tid != taskID {
 					t.Fatalf("expected task ID %v, got %v", taskID, tid)
@@ -1689,7 +1692,7 @@ func TestTaskHandler_Sessions(t *testing.T) {
 				return &influxdb.Run{ID: 10 * runID, TaskID: taskID}, nil
 			},
 
-			FindTaskByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+			FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
 				if id != taskID {
 					return nil, influxdb.ErrTaskNotFound
 				}

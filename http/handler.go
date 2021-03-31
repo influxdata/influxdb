@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/go-chi/chi"
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/pprof"
@@ -60,7 +61,7 @@ func (o *handlerOpts) metricsHTTPHandler() http.Handler {
 		return o.metricsRegistry.HTTPHandler()
 	}
 	handlerFunc := func(rw http.ResponseWriter, r *http.Request) {
-		kithttp.WriteErrorResponse(r.Context(), rw, influxdb.EForbidden, "metrics disabled")
+		kithttp.WriteErrorResponse(r.Context(), rw, errors.EForbidden, "metrics disabled")
 	}
 	return http.HandlerFunc(handlerFunc)
 }

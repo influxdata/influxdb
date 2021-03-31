@@ -3,6 +3,8 @@ package authorizer
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
@@ -22,7 +24,7 @@ func NewDashboardService(s influxdb.DashboardService) *DashboardService {
 }
 
 // FindDashboardByID checks to see if the authorizer on context has read access to the id provided.
-func (s *DashboardService) FindDashboardByID(ctx context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+func (s *DashboardService) FindDashboardByID(ctx context.Context, id platform.ID) (*influxdb.Dashboard, error) {
 	b, err := s.s.FindDashboardByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -53,7 +55,7 @@ func (s *DashboardService) CreateDashboard(ctx context.Context, b *influxdb.Dash
 }
 
 // UpdateDashboard checks to see if the authorizer on context has write access to the dashboard provided.
-func (s *DashboardService) UpdateDashboard(ctx context.Context, id influxdb.ID, upd influxdb.DashboardUpdate) (*influxdb.Dashboard, error) {
+func (s *DashboardService) UpdateDashboard(ctx context.Context, id platform.ID, upd influxdb.DashboardUpdate) (*influxdb.Dashboard, error) {
 	b, err := s.s.FindDashboardByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -65,7 +67,7 @@ func (s *DashboardService) UpdateDashboard(ctx context.Context, id influxdb.ID, 
 }
 
 // DeleteDashboard checks to see if the authorizer on context has write access to the dashboard provided.
-func (s *DashboardService) DeleteDashboard(ctx context.Context, id influxdb.ID) error {
+func (s *DashboardService) DeleteDashboard(ctx context.Context, id platform.ID) error {
 	b, err := s.s.FindDashboardByID(ctx, id)
 	if err != nil {
 		return err
@@ -76,7 +78,7 @@ func (s *DashboardService) DeleteDashboard(ctx context.Context, id influxdb.ID) 
 	return s.s.DeleteDashboard(ctx, id)
 }
 
-func (s *DashboardService) AddDashboardCell(ctx context.Context, id influxdb.ID, c *influxdb.Cell, opts influxdb.AddDashboardCellOptions) error {
+func (s *DashboardService) AddDashboardCell(ctx context.Context, id platform.ID, c *influxdb.Cell, opts influxdb.AddDashboardCellOptions) error {
 	b, err := s.s.FindDashboardByID(ctx, id)
 	if err != nil {
 		return err
@@ -87,7 +89,7 @@ func (s *DashboardService) AddDashboardCell(ctx context.Context, id influxdb.ID,
 	return s.s.AddDashboardCell(ctx, id, c, opts)
 }
 
-func (s *DashboardService) RemoveDashboardCell(ctx context.Context, dashboardID influxdb.ID, cellID influxdb.ID) error {
+func (s *DashboardService) RemoveDashboardCell(ctx context.Context, dashboardID platform.ID, cellID platform.ID) error {
 	b, err := s.s.FindDashboardByID(ctx, dashboardID)
 	if err != nil {
 		return err
@@ -98,7 +100,7 @@ func (s *DashboardService) RemoveDashboardCell(ctx context.Context, dashboardID 
 	return s.s.RemoveDashboardCell(ctx, dashboardID, cellID)
 }
 
-func (s *DashboardService) UpdateDashboardCell(ctx context.Context, dashboardID influxdb.ID, cellID influxdb.ID, upd influxdb.CellUpdate) (*influxdb.Cell, error) {
+func (s *DashboardService) UpdateDashboardCell(ctx context.Context, dashboardID platform.ID, cellID platform.ID, upd influxdb.CellUpdate) (*influxdb.Cell, error) {
 	b, err := s.s.FindDashboardByID(ctx, dashboardID)
 	if err != nil {
 		return nil, err
@@ -109,7 +111,7 @@ func (s *DashboardService) UpdateDashboardCell(ctx context.Context, dashboardID 
 	return s.s.UpdateDashboardCell(ctx, dashboardID, cellID, upd)
 }
 
-func (s *DashboardService) GetDashboardCellView(ctx context.Context, dashboardID influxdb.ID, cellID influxdb.ID) (*influxdb.View, error) {
+func (s *DashboardService) GetDashboardCellView(ctx context.Context, dashboardID platform.ID, cellID platform.ID) (*influxdb.View, error) {
 	b, err := s.s.FindDashboardByID(ctx, dashboardID)
 	if err != nil {
 		return nil, err
@@ -120,7 +122,7 @@ func (s *DashboardService) GetDashboardCellView(ctx context.Context, dashboardID
 	return s.s.GetDashboardCellView(ctx, dashboardID, cellID)
 }
 
-func (s *DashboardService) UpdateDashboardCellView(ctx context.Context, dashboardID influxdb.ID, cellID influxdb.ID, upd influxdb.ViewUpdate) (*influxdb.View, error) {
+func (s *DashboardService) UpdateDashboardCellView(ctx context.Context, dashboardID platform.ID, cellID platform.ID, upd influxdb.ViewUpdate) (*influxdb.View, error) {
 	b, err := s.s.FindDashboardByID(ctx, dashboardID)
 	if err != nil {
 		return nil, err
@@ -131,7 +133,7 @@ func (s *DashboardService) UpdateDashboardCellView(ctx context.Context, dashboar
 	return s.s.UpdateDashboardCellView(ctx, dashboardID, cellID, upd)
 }
 
-func (s *DashboardService) ReplaceDashboardCells(ctx context.Context, id influxdb.ID, c []*influxdb.Cell) error {
+func (s *DashboardService) ReplaceDashboardCells(ctx context.Context, id platform.ID, c []*influxdb.Cell) error {
 	b, err := s.s.FindDashboardByID(ctx, id)
 	if err != nil {
 		return err

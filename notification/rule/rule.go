@@ -6,6 +6,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/notification"
@@ -25,13 +28,13 @@ func UnmarshalJSON(b []byte) (influxdb.NotificationRule, error) {
 		Typ string `json:"type"`
 	}
 	if err := json.Unmarshal(b, &raw); err != nil {
-		return nil, &influxdb.Error{
+		return nil, &errors.Error{
 			Msg: "unable to detect the notification type from json",
 		}
 	}
 	convertedFunc, ok := typeToRule[raw.Typ]
 	if !ok {
-		return nil, &influxdb.Error{
+		return nil, &errors.Error{
 			Msg: fmt.Sprintf("invalid notification type %s", raw.Typ),
 		}
 	}
@@ -42,13 +45,13 @@ func UnmarshalJSON(b []byte) (influxdb.NotificationRule, error) {
 
 // Base is the embed struct of every notification rule.
 type Base struct {
-	ID          influxdb.ID `json:"id,omitempty"`
+	ID          platform.ID `json:"id,omitempty"`
 	Name        string      `json:"name"`
 	Description string      `json:"description,omitempty"`
-	EndpointID  influxdb.ID `json:"endpointID,omitempty"`
-	OrgID       influxdb.ID `json:"orgID,omitempty"`
-	OwnerID     influxdb.ID `json:"ownerID,omitempty"`
-	TaskID      influxdb.ID `json:"taskID,omitempty"`
+	EndpointID  platform.ID `json:"endpointID,omitempty"`
+	OrgID       platform.ID `json:"orgID,omitempty"`
+	OwnerID     platform.ID `json:"ownerID,omitempty"`
+	TaskID      platform.ID `json:"taskID,omitempty"`
 	// SleepUntil is an optional sleeptime to start a task.
 	SleepUntil *time.Time             `json:"sleepUntil,omitempty"`
 	Every      *notification.Duration `json:"every,omitempty"`
@@ -64,38 +67,38 @@ type Base struct {
 
 func (b Base) valid() error {
 	if !b.ID.Valid() {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Notification Rule ID is invalid",
 		}
 	}
 	if b.Name == "" {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Notification Rule Name can't be empty",
 		}
 	}
 	if !b.OwnerID.Valid() {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Notification Rule OwnerID is invalid",
 		}
 	}
 	if !b.OrgID.Valid() {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Notification Rule OrgID is invalid",
 		}
 	}
 	if !b.EndpointID.Valid() {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Notification Rule EndpointID is invalid",
 		}
 	}
 	if b.Offset != nil && b.Every != nil && b.Offset.TimeDuration() >= b.Every.TimeDuration() {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Offset should not be equal or greater than the interval",
 		}
 	}
@@ -106,8 +109,8 @@ func (b Base) valid() error {
 	}
 	if b.Limit != nil {
 		if b.Limit.Every <= 0 || b.Limit.Rate <= 0 {
-			return &influxdb.Error{
-				Code: influxdb.EInvalid,
+			return &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "if limit is set, limit and limitEvery must be larger than 0",
 			}
 		}
@@ -308,27 +311,27 @@ func (b *Base) generateFluxASTStatuses() ast.Statement {
 }
 
 // GetID implements influxdb.Getter interface.
-func (b Base) GetID() influxdb.ID {
+func (b Base) GetID() platform.ID {
 	return b.ID
 }
 
 // GetEndpointID gets the endpointID for a base.
-func (b Base) GetEndpointID() influxdb.ID {
+func (b Base) GetEndpointID() platform.ID {
 	return b.EndpointID
 }
 
 // GetOrgID implements influxdb.Getter interface.
-func (b Base) GetOrgID() influxdb.ID {
+func (b Base) GetOrgID() platform.ID {
 	return b.OrgID
 }
 
 // GetTaskID gets the task ID for a base.
-func (b Base) GetTaskID() influxdb.ID {
+func (b Base) GetTaskID() platform.ID {
 	return b.TaskID
 }
 
 // SetTaskID sets the task ID for a base.
-func (b *Base) SetTaskID(id influxdb.ID) {
+func (b *Base) SetTaskID(id platform.ID) {
 	b.TaskID = id
 }
 
@@ -370,7 +373,7 @@ func (b *Base) MatchesTags(tags []influxdb.Tag) bool {
 }
 
 // GetOwnerID returns the owner id.
-func (b Base) GetOwnerID() influxdb.ID {
+func (b Base) GetOwnerID() platform.ID {
 	return b.OwnerID
 }
 
@@ -395,17 +398,17 @@ func (b *Base) GetDescription() string {
 }
 
 // SetID will set the primary key.
-func (b *Base) SetID(id influxdb.ID) {
+func (b *Base) SetID(id platform.ID) {
 	b.ID = id
 }
 
 // SetOrgID will set the org key.
-func (b *Base) SetOrgID(id influxdb.ID) {
+func (b *Base) SetOrgID(id platform.ID) {
 	b.OrgID = id
 }
 
 // SetOwnerID will set the owner id.
-func (b *Base) SetOwnerID(id influxdb.ID) {
+func (b *Base) SetOwnerID(id platform.ID) {
 	b.OwnerID = id
 }
 

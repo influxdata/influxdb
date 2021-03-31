@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
 )
@@ -69,7 +72,7 @@ var Migration0003_TaskOwnerIDUpMigration = UpOnlyMigration(
 						return influxdb.ErrTaskNotFound
 					}
 					authType := struct {
-						AuthorizationID influxdb.ID `json:"authorizationID"`
+						AuthorizationID platform.ID `json:"authorizationID"`
 					}{}
 					if err := json.Unmarshal(v, &authType); err != nil {
 						return influxdb.ErrInternalTaskServiceError(err)
@@ -131,8 +134,8 @@ var Migration0003_TaskOwnerIDUpMigration = UpOnlyMigration(
 
 				// if population fails return error
 				if !t.OwnerID.Valid() {
-					return &influxdb.Error{
-						Code: influxdb.EInternal,
+					return &errors.Error{
+						Code: errors.EInternal,
 						Msg:  "could not populate owner ID for task",
 					}
 				}
@@ -158,11 +161,11 @@ var Migration0003_TaskOwnerIDUpMigration = UpOnlyMigration(
 )
 
 type kvTask struct {
-	ID              influxdb.ID            `json:"id"`
+	ID              platform.ID            `json:"id"`
 	Type            string                 `json:"type,omitempty"`
-	OrganizationID  influxdb.ID            `json:"orgID"`
+	OrganizationID  platform.ID            `json:"orgID"`
 	Organization    string                 `json:"org"`
-	OwnerID         influxdb.ID            `json:"ownerID"`
+	OwnerID         platform.ID            `json:"ownerID"`
 	Name            string                 `json:"name"`
 	Description     string                 `json:"description,omitempty"`
 	Status          string                 `json:"status"`
@@ -203,7 +206,7 @@ func kvToInfluxTask(k *kvTask) *influxdb.Task {
 	}
 }
 
-func taskKey(taskID influxdb.ID) ([]byte, error) {
+func taskKey(taskID platform.ID) ([]byte, error) {
 	encodedID, err := taskID.Encode()
 	if err != nil {
 		return nil, influxdb.ErrInvalidTaskID

@@ -5,6 +5,8 @@ import (
 	"errors"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/task/backend/executor"
 	"github.com/influxdata/influxdb/v2/task/backend/middleware"
@@ -20,8 +22,8 @@ const DefaultLimit = 1000
 
 // Executor is an abstraction of the task executor with only the functions needed by the coordinator
 type Executor interface {
-	ManualRun(ctx context.Context, id influxdb.ID, runID influxdb.ID) (executor.Promise, error)
-	Cancel(ctx context.Context, runID influxdb.ID) error
+	ManualRun(ctx context.Context, id platform.ID, runID platform.ID) (executor.Promise, error)
+	Cancel(ctx context.Context, runID platform.ID) error
 }
 
 // Coordinator is the intermediary between the scheduling/executing system and the rest of the task system
@@ -144,7 +146,7 @@ func (c *Coordinator) TaskUpdated(ctx context.Context, from, to *influxdb.Task) 
 }
 
 //TaskDeleted asks the Scheduler to release the deleted task
-func (c *Coordinator) TaskDeleted(ctx context.Context, id influxdb.ID) error {
+func (c *Coordinator) TaskDeleted(ctx context.Context, id platform.ID) error {
 	tid := scheduler.ID(id)
 	if err := c.sch.Release(tid); err != nil && err != influxdb.ErrTaskNotClaimed {
 		return err
@@ -154,7 +156,7 @@ func (c *Coordinator) TaskDeleted(ctx context.Context, id influxdb.ID) error {
 }
 
 // RunCancelled speaks directly to the executor to cancel a task run
-func (c *Coordinator) RunCancelled(ctx context.Context, runID influxdb.ID) error {
+func (c *Coordinator) RunCancelled(ctx context.Context, runID platform.ID) error {
 	err := c.ex.Cancel(ctx, runID)
 
 	return err

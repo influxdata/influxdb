@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/influxdb/v2"
@@ -130,7 +132,7 @@ func testQuerySuccess(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	promiseID := influxdb.ID(promise.ID())
+	promiseID := platform.ID(promise.ID())
 
 	run, err := tes.i.FindRunByID(context.Background(), task.ID, promiseID)
 	if err != nil {
@@ -192,7 +194,7 @@ func testQueryFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	promiseID := influxdb.ID(promise.ID())
+	promiseID := platform.ID(promise.ID())
 
 	run, err := tes.i.FindRunByID(context.Background(), task.ID, promiseID)
 	if err != nil {
@@ -470,7 +472,7 @@ func testIteratorFailure(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	promiseID := influxdb.ID(promise.ID())
+	promiseID := platform.ID(promise.ID())
 
 	run, err := tes.i.FindRunByID(context.Background(), task.ID, promiseID)
 	if err != nil {
@@ -588,7 +590,7 @@ type taskControlService struct {
 	run *influxdb.Run
 }
 
-func (t *taskControlService) FinishRun(ctx context.Context, taskID influxdb.ID, runID influxdb.ID) (*influxdb.Run, error) {
+func (t *taskControlService) FinishRun(ctx context.Context, taskID platform.ID, runID platform.ID) (*influxdb.Run, error) {
 	// ensure auth set on context
 	_, err := icontext.GetAuthorizer(ctx)
 	if err != nil {

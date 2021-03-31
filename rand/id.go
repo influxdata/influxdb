@@ -5,10 +5,10 @@ import (
 	"math/rand"
 	"sync"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
-var _ influxdb.IDGenerator = (*OrgBucketID)(nil)
+var _ platform.IDGenerator = (*OrgBucketID)(nil)
 
 // OrgBucketID creates an id that does not have ascii
 // backslash, commas, or spaces.  Used to create IDs for organizations
@@ -46,13 +46,13 @@ func (r *OrgBucketID) Seed(seed int64) {
 }
 
 // ID generates an ID that does not have backslashes, commas, or spaces.
-func (r *OrgBucketID) ID() influxdb.ID {
+func (r *OrgBucketID) ID() platform.ID {
 	r.m.Lock()
 	n := r.src.Uint64()
 	r.m.Unlock()
 
 	n = sanitize(n)
-	return influxdb.ID(n)
+	return platform.ID(n)
 }
 
 func sanitize(n uint64) uint64 {

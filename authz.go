@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 var (
@@ -22,10 +25,10 @@ type Authorizer interface {
 	PermissionSet() (PermissionSet, error)
 
 	// ID returns an identifier used for auditing.
-	Identifier() ID
+	Identifier() platform.ID
 
 	// GetUserID returns the user id.
-	GetUserID() ID
+	GetUserID() platform.ID
 
 	// Kind metadata for auditing.
 	Kind() string
@@ -74,8 +77,8 @@ type ResourceType string
 // Resource is an authorizable resource.
 type Resource struct {
 	Type  ResourceType `json:"type"`
-	ID    *ID          `json:"id,omitempty"`
-	OrgID *ID          `json:"orgID,omitempty"`
+	ID    *platform.ID `json:"id,omitempty"`
+	OrgID *platform.ID `json:"orgID,omitempty"`
 }
 
 // String stringifies a resource
@@ -330,33 +333,33 @@ func (p Permission) String() string {
 // Valid checks if there the resource and action provided is known.
 func (p *Permission) Valid() error {
 	if err := p.Resource.Valid(); err != nil {
-		return &Error{
-			Code: EInvalid,
+		return &errors2.Error{
+			Code: errors2.EInvalid,
 			Err:  err,
 			Msg:  "invalid resource type for permission",
 		}
 	}
 
 	if err := p.Action.Valid(); err != nil {
-		return &Error{
-			Code: EInvalid,
+		return &errors2.Error{
+			Code: errors2.EInvalid,
 			Err:  err,
 			Msg:  "invalid action type for permission",
 		}
 	}
 
 	if p.Resource.OrgID != nil && !p.Resource.OrgID.Valid() {
-		return &Error{
-			Code: EInvalid,
-			Err:  ErrInvalidID,
+		return &errors2.Error{
+			Code: errors2.EInvalid,
+			Err:  platform.ErrInvalidID,
 			Msg:  "invalid org id for permission",
 		}
 	}
 
 	if p.Resource.ID != nil && !p.Resource.ID.Valid() {
-		return &Error{
-			Code: EInvalid,
-			Err:  ErrInvalidID,
+		return &errors2.Error{
+			Code: errors2.EInvalid,
+			Err:  platform.ErrInvalidID,
 			Msg:  "invalid id for permission",
 		}
 	}
@@ -365,7 +368,7 @@ func (p *Permission) Valid() error {
 }
 
 // NewPermission returns a permission with provided arguments.
-func NewPermission(a Action, rt ResourceType, orgID ID) (*Permission, error) {
+func NewPermission(a Action, rt ResourceType, orgID platform.ID) (*Permission, error) {
 	p := &Permission{
 		Action: a,
 		Resource: Resource{
@@ -378,7 +381,7 @@ func NewPermission(a Action, rt ResourceType, orgID ID) (*Permission, error) {
 }
 
 // NewResourcePermission returns a permission with provided arguments.
-func NewResourcePermission(a Action, rt ResourceType, rid ID) (*Permission, error) {
+func NewResourcePermission(a Action, rt ResourceType, rid platform.ID) (*Permission, error) {
 	p := &Permission{
 		Action: a,
 		Resource: Resource{
@@ -402,7 +405,7 @@ func NewGlobalPermission(a Action, rt ResourceType) (*Permission, error) {
 }
 
 // NewPermissionAtID creates a permission with the provided arguments.
-func NewPermissionAtID(id ID, a Action, rt ResourceType, orgID ID) (*Permission, error) {
+func NewPermissionAtID(id platform.ID, a Action, rt ResourceType, orgID platform.ID) (*Permission, error) {
 	p := &Permission{
 		Action: a,
 		Resource: Resource{
@@ -438,7 +441,7 @@ func ReadAllPermissions() []Permission {
 }
 
 // OwnerPermissions are the default permissions for those who own a resource.
-func OwnerPermissions(orgID ID) []Permission {
+func OwnerPermissions(orgID platform.ID) []Permission {
 	ps := []Permission{}
 	for _, r := range AllResourceTypes {
 		for _, a := range actions {
@@ -453,7 +456,7 @@ func OwnerPermissions(orgID ID) []Permission {
 }
 
 // MePermissions is the permission to read/write myself.
-func MePermissions(userID ID) []Permission {
+func MePermissions(userID platform.ID) []Permission {
 	ps := []Permission{}
 	for _, a := range actions {
 		ps = append(ps, Permission{Action: a, Resource: Resource{Type: UsersResourceType, ID: &userID}})
@@ -463,7 +466,7 @@ func MePermissions(userID ID) []Permission {
 }
 
 // MemberPermissions are the default permissions for those who can see a resource.
-func MemberPermissions(orgID ID) []Permission {
+func MemberPermissions(orgID platform.ID) []Permission {
 	ps := []Permission{}
 	for _, r := range AllResourceTypes {
 		if r == OrgsResourceType {
@@ -477,6 +480,6 @@ func MemberPermissions(orgID ID) []Permission {
 }
 
 // MemberPermissions are the default permissions for those who can see a resource.
-func MemberBucketPermission(bucketID ID) Permission {
+func MemberBucketPermission(bucketID platform.ID) Permission {
 	return Permission{Action: ReadAction, Resource: Resource{Type: BucketsResourceType, ID: &bucketID}}
 }

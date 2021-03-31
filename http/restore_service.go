@@ -10,6 +10,9 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
@@ -19,7 +22,7 @@ import (
 // RestoreBackend is all services and associated parameters required to construct the RestoreHandler.
 type RestoreBackend struct {
 	Logger *zap.Logger
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 
 	RestoreService influxdb.RestoreService
 }
@@ -37,7 +40,7 @@ func NewRestoreBackend(b *APIBackend) *RestoreBackend {
 // RestoreHandler is http handler for restore service.
 type RestoreHandler struct {
 	*httprouter.Router
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	Logger *zap.Logger
 
 	RestoreService influxdb.RestoreService
@@ -167,7 +170,7 @@ func (s *RestoreService) RestoreKVStore(ctx context.Context, r io.Reader) error 
 	return nil
 }
 
-func (s *RestoreService) RestoreBucket(ctx context.Context, id influxdb.ID, dbi []byte) (map[uint64]uint64, error) {
+func (s *RestoreService) RestoreBucket(ctx context.Context, id platform.ID, dbi []byte) (map[uint64]uint64, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 

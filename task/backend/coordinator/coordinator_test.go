@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/influxdb/v2"
@@ -15,7 +17,7 @@ import (
 
 func Test_Coordinator_Executor_Methods(t *testing.T) {
 	var (
-		one     = influxdb.ID(1)
+		one     = platform.ID(1)
 		taskOne = &influxdb.Task{ID: one}
 
 		runOne = &influxdb.Run{
@@ -96,7 +98,7 @@ func Test_Coordinator_Executor_Methods(t *testing.T) {
 
 func TestNewSchedulableTask(t *testing.T) {
 	now := time.Now().UTC()
-	one := influxdb.ID(1)
+	one := platform.ID(1)
 	taskOne := &influxdb.Task{ID: one, CreatedAt: now, Cron: "* * * * *", LatestCompleted: now}
 	schedulableT, err := NewSchedulableTask(taskOne)
 	if err != nil {
@@ -121,9 +123,9 @@ func TestNewSchedulableTask(t *testing.T) {
 func Test_Coordinator_Scheduler_Methods(t *testing.T) {
 
 	var (
-		one   = influxdb.ID(1)
-		two   = influxdb.ID(2)
-		three = influxdb.ID(3)
+		one   = platform.ID(1)
+		two   = platform.ID(2)
+		three = platform.ID(3)
 		now   = time.Now().UTC()
 
 		taskOne           = &influxdb.Task{ID: one, CreatedAt: now, Cron: "* * * * *"}

@@ -3,6 +3,8 @@ package authorization
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/metric"
 	"github.com/prometheus/client_golang/prometheus"
@@ -31,7 +33,7 @@ func (m *AuthMetrics) CreateAuthorization(ctx context.Context, a *influxdb.Autho
 	return rec(err)
 }
 
-func (m *AuthMetrics) FindAuthorizationByID(ctx context.Context, id influxdb.ID) (*influxdb.Authorization, error) {
+func (m *AuthMetrics) FindAuthorizationByID(ctx context.Context, id platform.ID) (*influxdb.Authorization, error) {
 	rec := m.rec.Record("find_authorization_by_id")
 	a, err := m.authService.FindAuthorizationByID(ctx, id)
 	return a, rec(err)
@@ -47,13 +49,13 @@ func (m *AuthMetrics) FindAuthorizations(ctx context.Context, filter influxdb.Au
 	return a, n, rec(err)
 }
 
-func (m *AuthMetrics) UpdateAuthorization(ctx context.Context, id influxdb.ID, upd *influxdb.AuthorizationUpdate) (*influxdb.Authorization, error) {
+func (m *AuthMetrics) UpdateAuthorization(ctx context.Context, id platform.ID, upd *influxdb.AuthorizationUpdate) (*influxdb.Authorization, error) {
 	rec := m.rec.Record("update_authorization")
 	a, err := m.authService.UpdateAuthorization(ctx, id, upd)
 	return a, rec(err)
 }
 
-func (m *AuthMetrics) DeleteAuthorization(ctx context.Context, id influxdb.ID) error {
+func (m *AuthMetrics) DeleteAuthorization(ctx context.Context, id platform.ID) error {
 	rec := m.rec.Record("delete_authorization")
 	err := m.authService.DeleteAuthorization(ctx, id)
 	return rec(err)

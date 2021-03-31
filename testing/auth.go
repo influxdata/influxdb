@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/influxdb/v2"
@@ -49,8 +52,8 @@ func WithoutFindByToken() AuthTestOpts {
 
 // AuthorizationFields will include the IDGenerator, and authorizations
 type AuthorizationFields struct {
-	IDGenerator    influxdb.IDGenerator
-	OrgIDGenerator influxdb.IDGenerator
+	IDGenerator    platform.IDGenerator
+	OrgIDGenerator platform.IDGenerator
 	TokenGenerator influxdb.TokenGenerator
 	TimeGenerator  influxdb.TimeGenerator
 	Authorizations []*influxdb.Authorization
@@ -441,7 +444,7 @@ func UpdateAuthorization(
 	t *testing.T,
 ) {
 	type args struct {
-		id  influxdb.ID
+		id  platform.ID
 		upd *influxdb.AuthorizationUpdate
 	}
 	type wants struct {
@@ -587,8 +590,8 @@ func UpdateAuthorization(
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpUpdateAuthorization,
 					Msg:  "authorization not found",
 				},
@@ -658,8 +661,8 @@ func UpdateAuthorization(
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EInvalid,
+				err: &errors.Error{
+					Code: errors.EInvalid,
 					Op:   influxdb.OpUpdateAuthorization,
 					Msg:  "unknown authorization status",
 				},
@@ -866,9 +869,9 @@ func FindAuthorizations(
 	t *testing.T,
 ) {
 	type args struct {
-		ID     influxdb.ID
-		UserID influxdb.ID
-		OrgID  influxdb.ID
+		ID     platform.ID
+		UserID platform.ID
+		OrgID  platform.ID
 		token  string
 	}
 
@@ -1189,7 +1192,7 @@ func DeleteAuthorization(
 	t *testing.T,
 ) {
 	type args struct {
-		ID influxdb.ID
+		ID platform.ID
 	}
 	type wants struct {
 		err            error
@@ -1294,8 +1297,8 @@ func DeleteAuthorization(
 				ID: MustIDBase16(authThreeID),
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Msg:  "authorization not found",
 					Op:   influxdb.OpDeleteAuthorization,
 				},
@@ -1341,20 +1344,20 @@ func DeleteAuthorization(
 	}
 }
 
-func allUsersPermission(orgID influxdb.ID) []influxdb.Permission {
+func allUsersPermission(orgID platform.ID) []influxdb.Permission {
 	return []influxdb.Permission{
 		{Action: influxdb.WriteAction, Resource: influxdb.Resource{Type: influxdb.UsersResourceType, OrgID: &orgID}},
 		{Action: influxdb.ReadAction, Resource: influxdb.Resource{Type: influxdb.UsersResourceType, OrgID: &orgID}},
 	}
 }
 
-func createUsersPermission(orgID influxdb.ID) []influxdb.Permission {
+func createUsersPermission(orgID platform.ID) []influxdb.Permission {
 	return []influxdb.Permission{
 		{Action: influxdb.WriteAction, Resource: influxdb.Resource{Type: influxdb.UsersResourceType, OrgID: &orgID}},
 	}
 }
 
-func deleteUsersPermission(orgID influxdb.ID) []influxdb.Permission {
+func deleteUsersPermission(orgID platform.ID) []influxdb.Permission {
 	return []influxdb.Permission{
 		{Action: influxdb.WriteAction, Resource: influxdb.Resource{Type: influxdb.UsersResourceType, OrgID: &orgID}},
 	}

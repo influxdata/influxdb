@@ -7,6 +7,9 @@ import (
 	"sort"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/dbrp"
@@ -310,10 +313,10 @@ func CreateDBRPMappingV2(
 			name: "error bucket does not exist",
 			fields: DBRPMappingFieldsV2{
 				BucketSvc: &mock.BucketService{
-					FindBucketByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+					FindBucketByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
 						if id == MustIDBase16(dbrpBucket2ID) {
-							return nil, &influxdb.Error{
-								Code: influxdb.ENotFound,
+							return nil, &errors2.Error{
+								Code: errors2.ENotFound,
 								Msg:  "bucket not found",
 							}
 						}
@@ -340,8 +343,8 @@ func CreateDBRPMappingV2(
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors2.Error{
+					Code: errors2.ENotFound,
 					Msg:  "bucket not found",
 				},
 				dbrpMappings: []*influxdb.DBRPMappingV2{{
@@ -914,8 +917,8 @@ func FindDBRPMappingByIDV2(
 	t *testing.T,
 ) {
 	type args struct {
-		OrgID influxdb.ID
-		ID    influxdb.ID
+		OrgID platform.ID
+		ID    platform.ID
 	}
 
 	type wants struct {
@@ -1456,8 +1459,8 @@ func DeleteDBRPMappingV2(
 	t *testing.T,
 ) {
 	type args struct {
-		OrgID influxdb.ID
-		ID    influxdb.ID
+		OrgID platform.ID
+		ID    platform.ID
 	}
 	type wants struct {
 		err          error

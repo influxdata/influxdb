@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	influxdb "github.com/influxdata/influxdb/v2"
 )
 
@@ -52,14 +55,14 @@ func (s *Service) DefaultSource(ctx context.Context) (*influxdb.Source, error) {
 				return nil
 			}
 		}
-		return &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return &errors.Error{
+			Code: errors.ENotFound,
 			Msg:  "no default source found",
 		}
 	})
 
 	if err != nil {
-		return nil, &influxdb.Error{
+		return nil, &errors.Error{
 			Err: err,
 		}
 	}
@@ -68,13 +71,13 @@ func (s *Service) DefaultSource(ctx context.Context) (*influxdb.Source, error) {
 }
 
 // FindSourceByID retrieves a source by id.
-func (s *Service) FindSourceByID(ctx context.Context, id influxdb.ID) (*influxdb.Source, error) {
+func (s *Service) FindSourceByID(ctx context.Context, id platform.ID) (*influxdb.Source, error) {
 	var sr *influxdb.Source
 
 	err := s.kv.View(ctx, func(tx Tx) error {
 		src, pe := s.findSourceByID(ctx, tx, id)
 		if pe != nil {
-			return &influxdb.Error{
+			return &errors.Error{
 				Err: pe,
 			}
 		}
@@ -84,10 +87,10 @@ func (s *Service) FindSourceByID(ctx context.Context, id influxdb.ID) (*influxdb
 	return sr, err
 }
 
-func (s *Service) findSourceByID(ctx context.Context, tx Tx, id influxdb.ID) (*influxdb.Source, error) {
+func (s *Service) findSourceByID(ctx context.Context, tx Tx, id platform.ID) (*influxdb.Source, error) {
 	encodedID, err := id.Encode()
 	if err != nil {
-		return nil, &influxdb.Error{
+		return nil, &errors.Error{
 			Err: err,
 		}
 	}
@@ -99,8 +102,8 @@ func (s *Service) findSourceByID(ctx context.Context, tx Tx, id influxdb.ID) (*i
 
 	v, err := b.Get(encodedID)
 	if IsNotFound(err) {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return nil, &errors.Error{
+			Code: errors.ENotFound,
 			Msg:  influxdb.ErrSourceNotFound,
 		}
 	}
@@ -115,7 +118,7 @@ func (s *Service) findSourceByID(ctx context.Context, tx Tx, id influxdb.ID) (*i
 
 	var sr influxdb.Source
 	if err := json.Unmarshal(v, &sr); err != nil {
-		return nil, &influxdb.Error{
+		return nil, &errors.Error{
 			Err: err,
 		}
 	}
@@ -138,7 +141,7 @@ func (s *Service) FindSources(ctx context.Context, opt influxdb.FindOptions) ([]
 	})
 
 	if err != nil {
-		return nil, 0, &influxdb.Error{
+		return nil, 0, &errors.Error{
 			Op:  influxdb.OpFindSources,
 			Err: err,
 		}
@@ -175,7 +178,7 @@ func (s *Service) CreateSource(ctx context.Context, src *influxdb.Source) error 
 		return s.putSource(ctx, tx, src)
 	})
 	if err != nil {
-		return &influxdb.Error{
+		return &errors.Error{
 			Err: err,
 		}
 	}
@@ -238,12 +241,12 @@ func (s *Service) forEachSource(ctx context.Context, tx Tx, fn func(*influxdb.So
 }
 
 // UpdateSource updates a source according the parameters set on upd.
-func (s *Service) UpdateSource(ctx context.Context, id influxdb.ID, upd influxdb.SourceUpdate) (*influxdb.Source, error) {
+func (s *Service) UpdateSource(ctx context.Context, id platform.ID, upd influxdb.SourceUpdate) (*influxdb.Source, error) {
 	var sr *influxdb.Source
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		src, err := s.updateSource(ctx, tx, id, upd)
 		if err != nil {
-			return &influxdb.Error{
+			return &errors.Error{
 				Err: err,
 			}
 		}
@@ -254,7 +257,7 @@ func (s *Service) UpdateSource(ctx context.Context, id influxdb.ID, upd influxdb
 	return sr, err
 }
 
-func (s *Service) updateSource(ctx context.Context, tx Tx, id influxdb.ID, upd influxdb.SourceUpdate) (*influxdb.Source, error) {
+func (s *Service) updateSource(ctx context.Context, tx Tx, id platform.ID, upd influxdb.SourceUpdate) (*influxdb.Source, error) {
 	src, pe := s.findSourceByID(ctx, tx, id)
 	if pe != nil {
 		return nil, pe
@@ -272,11 +275,11 @@ func (s *Service) updateSource(ctx context.Context, tx Tx, id influxdb.ID, upd i
 }
 
 // DeleteSource deletes a source and prunes it from the index.
-func (s *Service) DeleteSource(ctx context.Context, id influxdb.ID) error {
+func (s *Service) DeleteSource(ctx context.Context, id platform.ID) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
 		pe := s.deleteSource(ctx, tx, id)
 		if pe != nil {
-			return &influxdb.Error{
+			return &errors.Error{
 				Err: pe,
 			}
 		}
@@ -284,10 +287,10 @@ func (s *Service) DeleteSource(ctx context.Context, id influxdb.ID) error {
 	})
 }
 
-func (s *Service) deleteSource(ctx context.Context, tx Tx, id influxdb.ID) error {
+func (s *Service) deleteSource(ctx context.Context, tx Tx, id platform.ID) error {
 	if id == DefaultSource.ID {
-		return &influxdb.Error{
-			Code: influxdb.EForbidden,
+		return &errors.Error{
+			Code: errors.EForbidden,
 			Msg:  "cannot delete autogen source",
 		}
 	}
@@ -298,7 +301,7 @@ func (s *Service) deleteSource(ctx context.Context, tx Tx, id influxdb.ID) error
 
 	encodedID, err := id.Encode()
 	if err != nil {
-		return &influxdb.Error{
+		return &errors.Error{
 			Err: err,
 		}
 	}
@@ -309,7 +312,7 @@ func (s *Service) deleteSource(ctx context.Context, tx Tx, id influxdb.ID) error
 	}
 
 	if err = b.Delete(encodedID); err != nil {
-		return &influxdb.Error{
+		return &errors.Error{
 			Err: err,
 		}
 	}

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
 )
@@ -133,7 +135,7 @@ func (s *Store) ListURMs(ctx context.Context, tx kv.Tx, filter influxdb.UserReso
 	return ms, cur.Err()
 }
 
-func (s *Store) GetURM(ctx context.Context, tx kv.Tx, resourceID, userID influxdb.ID) (*influxdb.UserResourceMapping, error) {
+func (s *Store) GetURM(ctx context.Context, tx kv.Tx, resourceID, userID platform.ID) (*influxdb.UserResourceMapping, error) {
 	key, err := userResourceKey(resourceID, userID)
 	if err != nil {
 		return nil, err
@@ -156,7 +158,7 @@ func (s *Store) GetURM(ctx context.Context, tx kv.Tx, resourceID, userID influxd
 	return m, nil
 }
 
-func (s *Store) DeleteURM(ctx context.Context, tx kv.Tx, resourceID, userID influxdb.ID) error {
+func (s *Store) DeleteURM(ctx context.Context, tx kv.Tx, resourceID, userID platform.ID) error {
 	key, err := userResourceKey(resourceID, userID)
 	if err != nil {
 		return err
@@ -180,7 +182,7 @@ func (s *Store) DeleteURM(ctx context.Context, tx kv.Tx, resourceID, userID infl
 	return b.Delete(key)
 }
 
-func userResourcePrefixKey(resourceID influxdb.ID) ([]byte, error) {
+func userResourcePrefixKey(resourceID platform.ID) ([]byte, error) {
 	encodedResourceID, err := resourceID.Encode()
 	if err != nil {
 		return nil, ErrInvalidURMID
@@ -188,7 +190,7 @@ func userResourcePrefixKey(resourceID influxdb.ID) ([]byte, error) {
 	return encodedResourceID, nil
 }
 
-func userResourceKey(resourceID, userID influxdb.ID) ([]byte, error) {
+func userResourceKey(resourceID, userID platform.ID) ([]byte, error) {
 	encodedResourceID, err := resourceID.Encode()
 	if err != nil {
 		return nil, ErrInvalidURMID

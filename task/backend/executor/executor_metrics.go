@@ -3,6 +3,9 @@ package executor
 import (
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -153,7 +156,7 @@ func (em *ExecutorMetrics) FinishRun(task *influxdb.Task, status influxdb.RunSta
 // LogError increments the count of errors by error code.
 func (em *ExecutorMetrics) LogError(taskType string, err error) {
 	switch e := err.(type) {
-	case *influxdb.Error:
+	case *errors.Error:
 		em.errorsCounter.WithLabelValues(taskType, e.Code).Inc()
 	default:
 		em.errorsCounter.WithLabelValues(taskType, "unknown").Inc()
@@ -163,9 +166,9 @@ func (em *ExecutorMetrics) LogError(taskType string, err error) {
 // LogUnrecoverableError increments the count of unrecoverable errors, which require admin intervention to resolve or deactivate
 // This count is separate from the errors count so that the errors metric can be used to identify only internal, rather than user errors
 // and so that unrecoverable errors can be quickly identified for deactivation
-func (em *ExecutorMetrics) LogUnrecoverableError(taskID influxdb.ID, err error) {
+func (em *ExecutorMetrics) LogUnrecoverableError(taskID platform.ID, err error) {
 	switch e := err.(type) {
-	case *influxdb.Error:
+	case *errors.Error:
 		em.unrecoverableCounter.WithLabelValues(taskID.String(), e.Code).Inc()
 	default:
 		em.unrecoverableCounter.WithLabelValues(taskID.String(), "unknown").Inc()

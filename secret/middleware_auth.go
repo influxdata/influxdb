@@ -3,6 +3,8 @@ package secret
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
 )
@@ -23,7 +25,7 @@ func NewAuthedService(s influxdb.SecretService) *AuthedSvc {
 }
 
 // LoadSecret checks to see if the authorizer on context has read access to the secret key provided.
-func (s *AuthedSvc) LoadSecret(ctx context.Context, orgID influxdb.ID, key string) (string, error) {
+func (s *AuthedSvc) LoadSecret(ctx context.Context, orgID platform.ID, key string) (string, error) {
 	if _, _, err := authorizer.AuthorizeOrgReadResource(ctx, influxdb.SecretsResourceType, orgID); err != nil {
 		return "", err
 	}
@@ -35,7 +37,7 @@ func (s *AuthedSvc) LoadSecret(ctx context.Context, orgID influxdb.ID, key strin
 }
 
 // GetSecretKeys checks to see if the authorizer on context has read access to all the secrets belonging to orgID.
-func (s *AuthedSvc) GetSecretKeys(ctx context.Context, orgID influxdb.ID) ([]string, error) {
+func (s *AuthedSvc) GetSecretKeys(ctx context.Context, orgID platform.ID) ([]string, error) {
 	if _, _, err := authorizer.AuthorizeOrgReadResource(ctx, influxdb.SecretsResourceType, orgID); err != nil {
 		return []string{}, err
 	}
@@ -47,7 +49,7 @@ func (s *AuthedSvc) GetSecretKeys(ctx context.Context, orgID influxdb.ID) ([]str
 }
 
 // PutSecret checks to see if the authorizer on context has write access to the secret key provided.
-func (s *AuthedSvc) PutSecret(ctx context.Context, orgID influxdb.ID, key string, val string) error {
+func (s *AuthedSvc) PutSecret(ctx context.Context, orgID platform.ID, key string, val string) error {
 	if _, _, err := authorizer.AuthorizeCreate(ctx, influxdb.SecretsResourceType, orgID); err != nil {
 		return err
 	}
@@ -59,7 +61,7 @@ func (s *AuthedSvc) PutSecret(ctx context.Context, orgID influxdb.ID, key string
 }
 
 // PutSecrets checks to see if the authorizer on context has read and write access to the secret keys provided.
-func (s *AuthedSvc) PutSecrets(ctx context.Context, orgID influxdb.ID, m map[string]string) error {
+func (s *AuthedSvc) PutSecrets(ctx context.Context, orgID platform.ID, m map[string]string) error {
 	// PutSecrets operates on intersection between m and keys beloging to orgID.
 	// We need to have read access to those secrets since it deletes the secrets (within the intersection) that have not be overridden.
 	if _, _, err := authorizer.AuthorizeOrgReadResource(ctx, influxdb.SecretsResourceType, orgID); err != nil {
@@ -76,7 +78,7 @@ func (s *AuthedSvc) PutSecrets(ctx context.Context, orgID influxdb.ID, m map[str
 }
 
 // PatchSecrets checks to see if the authorizer on context has write access to the secret keys provided.
-func (s *AuthedSvc) PatchSecrets(ctx context.Context, orgID influxdb.ID, m map[string]string) error {
+func (s *AuthedSvc) PatchSecrets(ctx context.Context, orgID platform.ID, m map[string]string) error {
 	if _, _, err := authorizer.AuthorizeOrgWriteResource(ctx, influxdb.SecretsResourceType, orgID); err != nil {
 		return err
 	}
@@ -88,7 +90,7 @@ func (s *AuthedSvc) PatchSecrets(ctx context.Context, orgID influxdb.ID, m map[s
 }
 
 // DeleteSecret checks to see if the authorizer on context has write access to the secret keys provided.
-func (s *AuthedSvc) DeleteSecret(ctx context.Context, orgID influxdb.ID, keys ...string) error {
+func (s *AuthedSvc) DeleteSecret(ctx context.Context, orgID platform.ID, keys ...string) error {
 	if _, _, err := authorizer.AuthorizeOrgWriteResource(ctx, influxdb.SecretsResourceType, orgID); err != nil {
 		return err
 	}

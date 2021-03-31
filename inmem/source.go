@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	platform "github.com/influxdata/influxdb/v2"
 )
 
@@ -33,11 +36,11 @@ func init() {
 
 func (s *Service) initializeSources(ctx context.Context) error {
 	_, pe := s.FindSourceByID(ctx, DefaultSource.ID)
-	if pe != nil && platform.ErrorCode(pe) != platform.ENotFound {
+	if pe != nil && errors.ErrorCode(pe) != errors.ENotFound {
 		return pe
 	}
 
-	if platform.ErrorCode(pe) == platform.ENotFound {
+	if errors.ErrorCode(pe) == errors.ENotFound {
 		if err := s.PutSource(ctx, &DefaultSource); err != nil {
 			return err
 		}
@@ -59,27 +62,27 @@ func (s *Service) DefaultSource(ctx context.Context) (*platform.Source, error) {
 			return src, nil
 		}
 	}
-	return nil, &platform.Error{
-		Code: platform.ENotFound,
+	return nil, &errors.Error{
+		Code: errors.ENotFound,
 		Msg:  "no default source found",
 	}
 
 }
 
 // FindSourceByID retrieves a source by id.
-func (s *Service) FindSourceByID(ctx context.Context, id platform.ID) (*platform.Source, error) {
+func (s *Service) FindSourceByID(ctx context.Context, id platform2.ID) (*platform.Source, error) {
 	i, ok := s.sourceKV.Load(id.String())
 	if !ok {
-		return nil, &platform.Error{
-			Code: platform.ENotFound,
+		return nil, &errors.Error{
+			Code: errors.ENotFound,
 			Msg:  platform.ErrSourceNotFound,
 		}
 	}
 
 	src, ok := i.(*platform.Source)
 	if !ok {
-		return nil, &platform.Error{
-			Code: platform.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("type %T is not a source", i),
 		}
 	}

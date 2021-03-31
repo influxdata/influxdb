@@ -8,6 +8,8 @@ import (
 	"io"
 	"sync"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
@@ -20,16 +22,16 @@ type CachingPasswordsService struct {
 	inner influxdb.PasswordsService
 
 	mu        sync.RWMutex // protects concurrent access to authCache
-	authCache map[influxdb.ID]authUser
+	authCache map[platform.ID]authUser
 }
 
 func NewCachingPasswordsService(inner influxdb.PasswordsService) *CachingPasswordsService {
-	return &CachingPasswordsService{inner: inner, authCache: make(map[influxdb.ID]authUser)}
+	return &CachingPasswordsService{inner: inner, authCache: make(map[platform.ID]authUser)}
 }
 
 var _ influxdb.PasswordsService = (*CachingPasswordsService)(nil)
 
-func (c *CachingPasswordsService) SetPassword(ctx context.Context, id influxdb.ID, password string) error {
+func (c *CachingPasswordsService) SetPassword(ctx context.Context, id platform.ID, password string) error {
 	err := c.inner.SetPassword(ctx, id, password)
 	if err == nil {
 		c.mu.Lock()
@@ -41,7 +43,7 @@ func (c *CachingPasswordsService) SetPassword(ctx context.Context, id influxdb.I
 
 // ComparePassword will attempt to perform the comparison using a lower cost hashing function
 // if influxdb.ContextHasPasswordCacheOption returns true for ctx.
-func (c *CachingPasswordsService) ComparePassword(ctx context.Context, id influxdb.ID, password string) error {
+func (c *CachingPasswordsService) ComparePassword(ctx context.Context, id platform.ID, password string) error {
 	c.mu.RLock()
 	au, ok := c.authCache[id]
 	c.mu.RUnlock()
@@ -68,7 +70,7 @@ func (c *CachingPasswordsService) ComparePassword(ctx context.Context, id influx
 	return nil
 }
 
-func (c *CachingPasswordsService) CompareAndSetPassword(ctx context.Context, id influxdb.ID, old, new string) error {
+func (c *CachingPasswordsService) CompareAndSetPassword(ctx context.Context, id platform.ID, old, new string) error {
 	err := c.inner.CompareAndSetPassword(ctx, id, old, new)
 	if err == nil {
 		c.mu.Lock()

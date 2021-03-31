@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	influxtesting "github.com/influxdata/influxdb/v2/testing"
@@ -39,8 +41,8 @@ func TestParseNode(t *testing.T) {
 		},
 		{
 			str: ` abc="opq" Or gender="male" OR temp=1123`,
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "the logical operator OR is not supported yet at position 11",
 			},
 		},
@@ -65,15 +67,15 @@ func TestParseNode(t *testing.T) {
 		},
 		{
 			str: ` (t1="v1" and t2="v2") and (`,
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "extra ( seen",
 			},
 		},
 		{
 			str: ` (t1="v1" and t2="v2"))`,
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "extra ) seen",
 			},
 		},
@@ -133,22 +135,22 @@ func TestParseTagRule(t *testing.T) {
 		},
 		{
 			str: `abc!~/^payments\./`,
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  `operator: "!~" at position: 3 is not supported yet`,
 			},
 		},
 		{
 			str: `abc=~/^payments\./`,
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  `operator: "=~" at position: 3 is not supported yet`,
 			},
 		},
 		{
 			str: `abc>1000`,
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  `invalid operator ">" at position: 3`,
 			},
 		},

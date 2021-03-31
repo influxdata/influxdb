@@ -11,6 +11,8 @@ import (
 	"testing"
 	"time"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -175,8 +177,8 @@ func TestBatcher_write(t *testing.T) {
 	type args struct {
 		cancel     bool
 		writeError bool
-		org        platform.ID
-		bucket     platform.ID
+		org        platform2.ID
+		bucket     platform2.ID
 		line       string
 		lines      chan []byte
 		errC       chan error
@@ -195,8 +197,8 @@ func TestBatcher_write(t *testing.T) {
 				MaxFlushBytes: 1,
 			},
 			args: args{
-				org:    platform.ID(1),
-				bucket: platform.ID(2),
+				org:    platform2.ID(1),
+				bucket: platform2.ID(2),
 				line:   "m1,t1=v1 f1=1",
 				lines:  make(chan []byte),
 				errC:   make(chan error),
@@ -209,8 +211,8 @@ func TestBatcher_write(t *testing.T) {
 				MaxFlushInterval: time.Millisecond,
 			},
 			args: args{
-				org:    platform.ID(1),
-				bucket: platform.ID(2),
+				org:    platform2.ID(1),
+				bucket: platform2.ID(2),
 				line:   "m1,t1=v1 f1=1",
 				lines:  make(chan []byte),
 				errC:   make(chan error),
@@ -224,8 +226,8 @@ func TestBatcher_write(t *testing.T) {
 			},
 			args: args{
 				writeError: true,
-				org:        platform.ID(1),
-				bucket:     platform.ID(2),
+				org:        platform2.ID(1),
+				bucket:     platform2.ID(2),
 				line:       "m1,t1=v1 f1=1",
 				lines:      make(chan []byte),
 				errC:       make(chan error),
@@ -239,8 +241,8 @@ func TestBatcher_write(t *testing.T) {
 			},
 			args: args{
 				cancel: true,
-				org:    platform.ID(1),
-				bucket: platform.ID(2),
+				org:    platform2.ID(1),
+				bucket: platform2.ID(2),
 				line:   "m1,t1=v1 f1=1",
 				lines:  make(chan []byte, 1),
 				errC:   make(chan error, 1),
@@ -255,8 +257,8 @@ func TestBatcher_write(t *testing.T) {
 			},
 			args: args{
 				writeError: true,
-				org:        platform.ID(1),
-				bucket:     platform.ID(2),
+				org:        platform2.ID(1),
+				bucket:     platform2.ID(2),
 				line:       "m1,t1=v1 f1=1",
 				lines:      make(chan []byte),
 				errC:       make(chan error),
@@ -269,8 +271,8 @@ func TestBatcher_write(t *testing.T) {
 				MaxFlushBytes: 1,
 			},
 			args: args{
-				org:    platform.ID(1),
-				bucket: platform.ID(2),
+				org:    platform2.ID(1),
+				bucket: platform2.ID(2),
 				line:   "\n",
 				lines:  make(chan []byte),
 				errC:   make(chan error),
@@ -357,8 +359,8 @@ func TestBatcher_WriteTo(t *testing.T) {
 	}
 	type args struct {
 		writeError bool
-		org        platform.ID
-		bucket     platform.ID
+		org        platform2.ID
+		bucket     platform2.ID
 		r          func() io.Reader
 	}
 	tests := []struct {
@@ -375,8 +377,8 @@ func TestBatcher_WriteTo(t *testing.T) {
 				MaxFlushBytes: 1,
 			},
 			args: args{
-				org:    platform.ID(1),
-				bucket: platform.ID(2),
+				org:    platform2.ID(1),
+				bucket: platform2.ID(2),
 				r:      createReader("m1,t1=v1 f1=1"),
 			},
 			want:        "m1,t1=v1 f1=1",
@@ -388,8 +390,8 @@ func TestBatcher_WriteTo(t *testing.T) {
 				MaxFlushBytes: len([]byte("m1,t1=v1 f1=1\n")),
 			},
 			args: args{
-				org:    platform.ID(1),
-				bucket: platform.ID(2),
+				org:    platform2.ID(1),
+				bucket: platform2.ID(2),
 				r:      createReader("m1,t1=v1 f1=1\nm2,t2=v2 f2=2\nm3,t3=v3 f3=3"),
 			},
 			want:        "m3,t3=v3 f3=3",
@@ -399,8 +401,8 @@ func TestBatcher_WriteTo(t *testing.T) {
 			name:   "errors during read return error",
 			fields: fields{},
 			args: args{
-				org:    platform.ID(1),
-				bucket: platform.ID(2),
+				org:    platform2.ID(1),
+				bucket: platform2.ID(2),
 				r:      createReader("error"),
 			},
 			wantErr: true,
@@ -493,8 +495,8 @@ func TestBatcher_WriteTo(t *testing.T) {
 func TestBatcher_WriteTimeout(t *testing.T) {
 	// mocking the write service here to either return an error
 	// or get back all the bytes from the reader.
-	bucketId := platform.ID(2)
-	orgId := platform.ID(1)
+	bucketId := platform2.ID(2)
+	orgId := platform2.ID(1)
 
 	var got string
 	svc := &mock.WriteService{

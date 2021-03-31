@@ -7,15 +7,16 @@ import (
 	"runtime/debug"
 	"sync"
 
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/httprouter"
-	platform "github.com/influxdata/influxdb/v2"
 	influxlogger "github.com/influxdata/influxdb/v2/logger"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
 // NewRouter returns a new router with a 404 handler, a 405 handler, and a panic handler.
-func NewRouter(h platform.HTTPErrorHandler) *httprouter.Router {
+func NewRouter(h errors.HTTPErrorHandler) *httprouter.Router {
 	b := baseHandler{HTTPErrorHandler: h}
 	router := httprouter.New()
 	router.NotFound = http.HandlerFunc(b.notFound)
@@ -26,14 +27,14 @@ func NewRouter(h platform.HTTPErrorHandler) *httprouter.Router {
 }
 
 type baseHandler struct {
-	platform.HTTPErrorHandler
+	errors.HTTPErrorHandler
 }
 
 // notFound represents a 404 handler that return a JSON response.
 func (h baseHandler) notFound(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	pe := &platform.Error{
-		Code: platform.ENotFound,
+	pe := &errors.Error{
+		Code: errors.ENotFound,
 		Msg:  "path not found",
 	}
 
@@ -44,8 +45,8 @@ func (h baseHandler) notFound(w http.ResponseWriter, r *http.Request) {
 func (h baseHandler) methodNotAllowed(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	allow := w.Header().Get("Allow")
-	pe := &platform.Error{
-		Code: platform.EMethodNotAllowed,
+	pe := &errors.Error{
+		Code: errors.EMethodNotAllowed,
 		Msg:  fmt.Sprintf("allow: %s", allow),
 	}
 
@@ -56,8 +57,8 @@ func (h baseHandler) methodNotAllowed(w http.ResponseWriter, r *http.Request) {
 // It returns a json response with http status code 500 and the recovered error message.
 func (h baseHandler) panic(w http.ResponseWriter, r *http.Request, rcv interface{}) {
 	ctx := r.Context()
-	pe := &platform.Error{
-		Code: platform.EInternal,
+	pe := &errors.Error{
+		Code: errors.EInternal,
 		Msg:  "a panic has occurred",
 		Err:  fmt.Errorf("%s: %v", r.URL.String(), rcv),
 	}

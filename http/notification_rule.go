@@ -9,6 +9,9 @@ import (
 	"path"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	pctx "github.com/influxdata/influxdb/v2/context"
@@ -26,7 +29,7 @@ type statusDecode struct {
 // NotificationRuleBackend is all services and associated parameters required to construct
 // the NotificationRuleBackendHandler.
 type NotificationRuleBackend struct {
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	log *zap.Logger
 
 	AlgoWProxy                  FeatureProxyHandler
@@ -59,7 +62,7 @@ func NewNotificationRuleBackend(log *zap.Logger, b *APIBackend) *NotificationRul
 // NotificationRuleHandler is the handler for the notification rule service
 type NotificationRuleHandler struct {
 	*httprouter.Router
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	log *zap.Logger
 
 	NotificationRuleStore       influxdb.NotificationRuleStore
@@ -266,12 +269,12 @@ func (h *NotificationRuleHandler) newNotificationRulesResponse(ctx context.Conte
 	return resp, nil
 }
 
-func decodeGetNotificationRuleRequest(ctx context.Context, r *http.Request) (i influxdb.ID, err error) {
+func decodeGetNotificationRuleRequest(ctx context.Context, r *http.Request) (i platform.ID, err error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return i, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return i, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
@@ -323,8 +326,8 @@ func (h *NotificationRuleHandler) handleGetNotificationRuleQuery(w http.Response
 	}
 	edp, err := h.NotificationEndpointService.FindNotificationEndpointByID(ctx, nr.GetEndpointID())
 	if err != nil {
-		h.HandleHTTPError(ctx, &influxdb.Error{
-			Code: influxdb.EInternal,
+		h.HandleHTTPError(ctx, &errors.Error{
+			Code: errors.EInternal,
 			Op:   "http/handleGetNotificationRuleQuery",
 			Err:  err,
 		}, w)
@@ -388,10 +391,10 @@ func decodeNotificationRuleFilter(ctx context.Context, r *http.Request) (*influx
 
 	q := r.URL.Query()
 	if orgIDStr := q.Get("orgID"); orgIDStr != "" {
-		orgID, err := influxdb.IDFromString(orgIDStr)
+		orgID, err := platform.IDFromString(orgIDStr)
 		if err != nil {
-			return f, opts, &influxdb.Error{
-				Code: influxdb.EInvalid,
+			return f, opts, &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "orgID is invalid",
 				Err:  err,
 			}
@@ -418,7 +421,7 @@ func decodeUserResourceMappingFilter(ctx context.Context, r *http.Request, typ i
 		ResourceType: typ,
 	}
 	if idStr := q.Get("resourceID"); idStr != "" {
-		id, err := influxdb.IDFromString(idStr)
+		id, err := platform.IDFromString(idStr)
 		if err != nil {
 			return nil, err
 		}
@@ -426,7 +429,7 @@ func decodeUserResourceMappingFilter(ctx context.Context, r *http.Request, typ i
 	}
 
 	if idStr := q.Get("userID"); idStr != "" {
-		id, err := influxdb.IDFromString(idStr)
+		id, err := platform.IDFromString(idStr)
 		if err != nil {
 			return nil, err
 		}
@@ -448,8 +451,8 @@ func decodePostNotificationRuleRequest(ctx context.Context, r *http.Request) (po
 	buf := new(bytes.Buffer)
 	_, err := buf.ReadFrom(r.Body)
 	if err != nil {
-		return pnrr, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return pnrr, &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}
@@ -457,8 +460,8 @@ func decodePostNotificationRuleRequest(ctx context.Context, r *http.Request) (po
 
 	nr, err := rule.UnmarshalJSON(buf.Bytes())
 	if err != nil {
-		return pnrr, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return pnrr, &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}
@@ -489,28 +492,28 @@ func decodePutNotificationRuleRequest(ctx context.Context, r *http.Request) (inf
 	buf := new(bytes.Buffer)
 	_, err := buf.ReadFrom(r.Body)
 	if err != nil {
-		return nrc, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nrc, &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}
 	defer r.Body.Close()
 	nr, err := rule.UnmarshalJSON(buf.Bytes())
 	if err != nil {
-		return nrc, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nrc, &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nrc, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nrc, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
-	i := new(influxdb.ID)
+	i := new(platform.ID)
 	if err := i.DecodeFromString(id); err != nil {
 		return nrc, err
 	}
@@ -530,7 +533,7 @@ func decodePutNotificationRuleRequest(ctx context.Context, r *http.Request) (inf
 }
 
 type patchNotificationRuleRequest struct {
-	influxdb.ID
+	platform.ID
 	Update influxdb.NotificationRuleUpdate
 }
 
@@ -539,13 +542,13 @@ func decodePatchNotificationRuleRequest(ctx context.Context, r *http.Request) (*
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i influxdb.ID
+	var i platform.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -553,14 +556,14 @@ func decodePatchNotificationRuleRequest(ctx context.Context, r *http.Request) (*
 
 	upd := &influxdb.NotificationRuleUpdate{}
 	if err := json.NewDecoder(r.Body).Decode(upd); err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  err.Error(),
 		}
 	}
 	if err := upd.Valid(); err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  err.Error(),
 		}
 	}
@@ -608,7 +611,7 @@ func (h *NotificationRuleHandler) handlePostNotificationRule(w http.ResponseWrit
 func (h *NotificationRuleHandler) mapNewNotificationRuleLabels(ctx context.Context, nrc influxdb.NotificationRuleCreate, labels []string) []*influxdb.Label {
 	var ls []*influxdb.Label
 	for _, sid := range labels {
-		var lid influxdb.ID
+		var lid platform.ID
 		err := lid.DecodeFromString(sid)
 
 		if err != nil {
@@ -773,7 +776,7 @@ func (n *notificationRuleDecoder) UnmarshalJSON(b []byte) error {
 
 // CreateNotificationRule creates a new NotificationRule from a NotificationRuleCreate
 // the Status on the NotificationRuleCreate is used to determine the status (active/inactive) of the associated Task
-func (s *NotificationRuleService) CreateNotificationRule(ctx context.Context, nr influxdb.NotificationRuleCreate, userID influxdb.ID) error {
+func (s *NotificationRuleService) CreateNotificationRule(ctx context.Context, nr influxdb.NotificationRuleCreate, userID platform.ID) error {
 	var resp notificationRuleDecoder
 	err := s.Client.
 		PostJSON(notificationRuleCreateEncoder{nrc: nr}, prefixNotificationRules).
@@ -791,7 +794,7 @@ func (s *NotificationRuleService) CreateNotificationRule(ctx context.Context, nr
 }
 
 // FindNotificationRuleByID finds and returns one Notification Rule with a matching ID
-func (s *NotificationRuleService) FindNotificationRuleByID(ctx context.Context, id influxdb.ID) (influxdb.NotificationRule, error) {
+func (s *NotificationRuleService) FindNotificationRuleByID(ctx context.Context, id platform.ID) (influxdb.NotificationRule, error) {
 	var resp notificationRuleResponse
 	err := s.Client.
 		Get(getNotificationRulesIDPath(id)).
@@ -843,7 +846,7 @@ func (s *NotificationRuleService) FindNotificationRules(ctx context.Context, fil
 
 // UpdateNotificationRule updates a single notification rule.
 // Returns the new notification rule after update.
-func (s *NotificationRuleService) UpdateNotificationRule(ctx context.Context, id influxdb.ID, nr influxdb.NotificationRuleCreate, userID influxdb.ID) (influxdb.NotificationRule, error) {
+func (s *NotificationRuleService) UpdateNotificationRule(ctx context.Context, id platform.ID, nr influxdb.NotificationRuleCreate, userID platform.ID) (influxdb.NotificationRule, error) {
 	var resp notificationRuleDecoder
 	err := s.Client.
 		PutJSON(notificationRuleCreateEncoder{nrc: nr}, getNotificationRulesIDPath(id)).
@@ -858,7 +861,7 @@ func (s *NotificationRuleService) UpdateNotificationRule(ctx context.Context, id
 
 // PatchNotificationRule updates a single  notification rule with changeset.
 // Returns the new notification rule state after update.
-func (s *NotificationRuleService) PatchNotificationRule(ctx context.Context, id influxdb.ID, upd influxdb.NotificationRuleUpdate) (influxdb.NotificationRule, error) {
+func (s *NotificationRuleService) PatchNotificationRule(ctx context.Context, id platform.ID, upd influxdb.NotificationRuleUpdate) (influxdb.NotificationRule, error) {
 	var resp notificationRuleDecoder
 	err := s.Client.
 		PatchJSON(&upd, getNotificationRulesIDPath(id)).
@@ -872,12 +875,12 @@ func (s *NotificationRuleService) PatchNotificationRule(ctx context.Context, id 
 }
 
 // DeleteNotificationRule removes a notification rule by ID.
-func (s *NotificationRuleService) DeleteNotificationRule(ctx context.Context, id influxdb.ID) error {
+func (s *NotificationRuleService) DeleteNotificationRule(ctx context.Context, id platform.ID) error {
 	return s.Client.
 		Delete(getNotificationRulesIDPath(id)).
 		Do(ctx)
 }
 
-func getNotificationRulesIDPath(id influxdb.ID) string {
+func getNotificationRulesIDPath(id platform.ID) string {
 	return path.Join(prefixNotificationRules, id.String())
 }

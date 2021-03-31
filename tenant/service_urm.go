@@ -3,6 +3,8 @@ package tenant
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
 )
@@ -45,7 +47,7 @@ func (s *URMSvc) CreateUserResourceMapping(ctx context.Context, m *influxdb.User
 }
 
 // DeleteUserResourceMapping deletes a user resource mapping.
-func (s *URMSvc) DeleteUserResourceMapping(ctx context.Context, resourceID, userID influxdb.ID) error {
+func (s *URMSvc) DeleteUserResourceMapping(ctx context.Context, resourceID, userID platform.ID) error {
 	err := s.store.Update(ctx, func(tx kv.Tx) error {
 		_, err := s.store.GetURM(ctx, tx, resourceID, userID)
 		if err != nil {

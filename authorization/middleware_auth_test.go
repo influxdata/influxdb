@@ -3,6 +3,8 @@ package authorization_test
 import (
 	"bytes"
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"sort"
 	"testing"
 
@@ -97,9 +99,9 @@ func TestAuthorizationService_ReadAuthorization(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "read:orgs/0000000000000001/authorizations/000000000000000a is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 				authorizations: []*influxdb.Authorization{},
 			},
@@ -125,9 +127,9 @@ func TestAuthorizationService_ReadAuthorization(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "read:users/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 				authorizations: []*influxdb.Authorization{},
 			},
@@ -137,7 +139,7 @@ func TestAuthorizationService_ReadAuthorization(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := &mock.AuthorizationService{}
-			m.FindAuthorizationByIDFn = func(ctx context.Context, id influxdb.ID) (*influxdb.Authorization, error) {
+			m.FindAuthorizationByIDFn = func(ctx context.Context, id platform.ID) (*influxdb.Authorization, error) {
 				return &influxdb.Authorization{
 					ID:     id,
 					UserID: 1,
@@ -252,9 +254,9 @@ func TestAuthorizationService_WriteAuthorization(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/0000000000000001/authorizations/000000000000000a is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -279,9 +281,9 @@ func TestAuthorizationService_WriteAuthorization(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:users/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -290,7 +292,7 @@ func TestAuthorizationService_WriteAuthorization(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := &mock.AuthorizationService{}
-			m.FindAuthorizationByIDFn = func(ctx context.Context, id influxdb.ID) (*influxdb.Authorization, error) {
+			m.FindAuthorizationByIDFn = func(ctx context.Context, id platform.ID) (*influxdb.Authorization, error) {
 				return &influxdb.Authorization{
 					ID:     id,
 					UserID: 1,
@@ -300,10 +302,10 @@ func TestAuthorizationService_WriteAuthorization(t *testing.T) {
 			m.CreateAuthorizationFn = func(ctx context.Context, a *influxdb.Authorization) error {
 				return nil
 			}
-			m.DeleteAuthorizationFn = func(ctx context.Context, id influxdb.ID) error {
+			m.DeleteAuthorizationFn = func(ctx context.Context, id platform.ID) error {
 				return nil
 			}
-			m.UpdateAuthorizationFn = func(ctx context.Context, id influxdb.ID, upd *influxdb.AuthorizationUpdate) (*influxdb.Authorization, error) {
+			m.UpdateAuthorizationFn = func(ctx context.Context, id platform.ID, upd *influxdb.AuthorizationUpdate) (*influxdb.Authorization, error) {
 				return nil, nil
 			}
 			// set up tenant service
@@ -391,9 +393,9 @@ func TestAuthorizationService_CreateAuthorization(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/0000000000000001/authorizations is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -418,9 +420,9 @@ func TestAuthorizationService_CreateAuthorization(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:users/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -429,7 +431,7 @@ func TestAuthorizationService_CreateAuthorization(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			m := &mock.AuthorizationService{}
-			m.FindAuthorizationByIDFn = func(ctx context.Context, id influxdb.ID) (*influxdb.Authorization, error) {
+			m.FindAuthorizationByIDFn = func(ctx context.Context, id platform.ID) (*influxdb.Authorization, error) {
 				return &influxdb.Authorization{
 					ID:     id,
 					UserID: 1,
@@ -439,10 +441,10 @@ func TestAuthorizationService_CreateAuthorization(t *testing.T) {
 			m.CreateAuthorizationFn = func(ctx context.Context, a *influxdb.Authorization) error {
 				return nil
 			}
-			m.DeleteAuthorizationFn = func(ctx context.Context, id influxdb.ID) error {
+			m.DeleteAuthorizationFn = func(ctx context.Context, id platform.ID) error {
 				return nil
 			}
-			m.UpdateAuthorizationFn = func(ctx context.Context, id influxdb.ID, upd *influxdb.AuthorizationUpdate) (*influxdb.Authorization, error) {
+			m.UpdateAuthorizationFn = func(ctx context.Context, id platform.ID, upd *influxdb.AuthorizationUpdate) (*influxdb.Authorization, error) {
 				return nil, nil
 			}
 			// set up tenant service

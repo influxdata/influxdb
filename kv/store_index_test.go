@@ -2,9 +2,9 @@ package kv_test
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration"
 	"github.com/stretchr/testify/assert"
@@ -87,7 +87,7 @@ func TestIndexStore(t *testing.T) {
 				return indexStore.Put(context.TODO(), tx, ent, kv.PutUpdate())
 			})
 			require.Error(t, err)
-			assert.Equal(t, influxdb.ENotFound, influxdb.ErrorCode(err))
+			assert.Equal(t, errors.ENotFound, errors.ErrorCode(err))
 		})
 
 		t.Run("updating entity with no naming collision succeeds", func(t *testing.T) {
@@ -140,7 +140,7 @@ func TestIndexStore(t *testing.T) {
 					return indexStore.Put(context.TODO(), tx, entCopy, kv.PutNew())
 				})
 				require.Error(t, err)
-				assert.Equal(t, influxdb.EConflict, influxdb.ErrorCode(err))
+				assert.Equal(t, errors.EConflict, errors.ErrorCode(err))
 			})
 
 			t.Run("updating entity that does not exist", func(t *testing.T) {
@@ -160,7 +160,7 @@ func TestIndexStore(t *testing.T) {
 					return indexStore.Put(context.TODO(), tx, entCopy, kv.PutUpdate())
 				})
 				require.Error(t, err)
-				assert.Equal(t, influxdb.ENotFound, influxdb.ErrorCode(err), "got: "+err.Error())
+				assert.Equal(t, errors.ENotFound, errors.ErrorCode(err), "got: "+err.Error())
 			})
 
 			t.Run("updating entity that does collides with an existing entity", func(t *testing.T) {
@@ -180,7 +180,7 @@ func TestIndexStore(t *testing.T) {
 					return indexStore.Put(context.TODO(), tx, entCopy, kv.PutUpdate())
 				})
 				require.Error(t, err)
-				assert.Equal(t, influxdb.EConflict, influxdb.ErrorCode(err))
+				assert.Equal(t, errors.EConflict, errors.ErrorCode(err))
 				assert.Contains(t, err.Error(), "update conflicts")
 			})
 		})

@@ -11,7 +11,8 @@ import (
 	"net/http"
 	"strings"
 
-	platform "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	khttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 )
 
@@ -52,13 +53,13 @@ func CheckError(resp *http.Response) (err error) {
 		return nil
 	default:
 		// TODO(jsternberg): Figure out what to do here?
-		return &platform.Error{
-			Code: platform.EInternal,
+		return &errors.Error{
+			Code: errors.EInternal,
 			Msg:  fmt.Sprintf("unexpected status code: %d %s", resp.StatusCode, resp.Status),
 		}
 	}
 
-	perr := &platform.Error{
+	perr := &errors.Error{
 		Code: khttp.StatusCodeToErrorCode(resp.StatusCode),
 	}
 
@@ -105,17 +106,17 @@ func firstLineAsError(buf bytes.Buffer) error {
 }
 
 // UnauthorizedError encodes a error message and status code for unauthorized access.
-func UnauthorizedError(ctx context.Context, h platform.HTTPErrorHandler, w http.ResponseWriter) {
-	h.HandleHTTPError(ctx, &platform.Error{
-		Code: platform.EUnauthorized,
+func UnauthorizedError(ctx context.Context, h errors.HTTPErrorHandler, w http.ResponseWriter) {
+	h.HandleHTTPError(ctx, &errors.Error{
+		Code: errors.EUnauthorized,
 		Msg:  "unauthorized access",
 	}, w)
 }
 
 // InactiveUserError encode a error message and status code for inactive users.
-func InactiveUserError(ctx context.Context, h platform.HTTPErrorHandler, w http.ResponseWriter) {
-	h.HandleHTTPError(ctx, &platform.Error{
-		Code: platform.EForbidden,
+func InactiveUserError(ctx context.Context, h errors.HTTPErrorHandler, w http.ResponseWriter) {
+	h.HandleHTTPError(ctx, &errors.Error{
+		Code: errors.EForbidden,
 		Msg:  "User is inactive",
 	}, w)
 }

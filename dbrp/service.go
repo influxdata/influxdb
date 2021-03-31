@@ -29,6 +29,8 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/snowflake"
@@ -45,7 +47,7 @@ var _ influxdb.DBRPMappingServiceV2 = (*AuthorizedService)(nil)
 
 type Service struct {
 	store kv.Store
-	IDGen influxdb.IDGenerator
+	IDGen platform.IDGenerator
 
 	bucketSvc        influxdb.BucketService
 	byOrgAndDatabase *kv.Index
@@ -56,7 +58,7 @@ func indexForeignKey(dbrp influxdb.DBRPMappingV2) []byte {
 	return composeForeignKey(dbrp.OrganizationID, dbrp.Database)
 }
 
-func composeForeignKey(orgID influxdb.ID, db string) []byte {
+func composeForeignKey(orgID platform.ID, db string) []byte {
 	encID, _ := orgID.Encode()
 	key := make([]byte, len(encID)+len(db))
 	copy(key, encID)
@@ -94,12 +96,12 @@ func (s *Service) getDefault(tx kv.Tx, compKey []byte) ([]byte, error) {
 }
 
 // getDefaultID returns the default mapping ID for the given orgID and db.
-func (s *Service) getDefaultID(tx kv.Tx, compKey []byte) (influxdb.ID, error) {
+func (s *Service) getDefaultID(tx kv.Tx, compKey []byte) (platform.ID, error) {
 	defID, err := s.getDefault(tx, compKey)
 	if err != nil {
 		return 0, err
 	}
-	id := new(influxdb.ID)
+	id := new(platform.ID)
 	if err := id.Decode(defID); err != nil {
 		return 0, err
 	}
@@ -200,7 +202,7 @@ func (s *Service) isDBRPUnique(ctx context.Context, m influxdb.DBRPMappingV2) er
 }
 
 // FindBy returns the mapping for the given ID.
-func (s *Service) FindByID(ctx context.Context, orgID, id influxdb.ID) (*influxdb.DBRPMappingV2, error) {
+func (s *Service) FindByID(ctx context.Context, orgID, id platform.ID) (*influxdb.DBRPMappingV2, error) {
 	encodedID, err := id.Encode()
 	if err != nil {
 		return nil, ErrInvalidDBRPID(id.String(), err)
@@ -239,8 +241,8 @@ func (s *Service) FindByID(ctx context.Context, orgID, id influxdb.ID) (*influxd
 // TODO(affo): find a smart way to apply FindOptions to a list of items.
 func (s *Service) FindMany(ctx context.Context, filter influxdb.DBRPMappingFilterV2, opts ...influxdb.FindOptions) ([]*influxdb.DBRPMappingV2, int, error) {
 	// Memoize default IDs.
-	defs := make(map[string]*influxdb.ID)
-	get := func(tx kv.Tx, orgID influxdb.ID, db string) (*influxdb.ID, error) {
+	defs := make(map[string]*platform.ID)
+	get := func(tx kv.Tx, orgID platform.ID, db string) (*platform.ID, error) {
 		k := orgID.String() + db
 		if _, ok := defs[k]; !ok {
 			id, err := s.getDefaultID(tx, composeForeignKey(orgID, db))
@@ -471,7 +473,7 @@ func (s *Service) Update(ctx context.Context, dbrp *influxdb.DBRPMappingV2) erro
 // Delete removes a mapping.
 // Deleting a mapping that does not exists is not an error.
 // Deleting the default mapping will cause the first one (if any) to become the default.
-func (s *Service) Delete(ctx context.Context, orgID, id influxdb.ID) error {
+func (s *Service) Delete(ctx context.Context, orgID, id platform.ID) error {
 	dbrp, err := s.FindByID(ctx, orgID, id)
 	if err != nil {
 		return nil

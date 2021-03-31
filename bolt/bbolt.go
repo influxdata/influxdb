@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/rand"
 	"github.com/influxdata/influxdb/v2/snowflake"
@@ -22,7 +24,7 @@ type Client struct {
 	db   *bolt.DB
 	log  *zap.Logger
 
-	IDGenerator    platform.IDGenerator
+	IDGenerator    platform2.IDGenerator
 	TokenGenerator platform.TokenGenerator
 	platform.TimeGenerator
 

@@ -1,0 +1,26 @@
+[
+	{
+		"Name":"Float",
+		"Type":"float64"
+	},
+	{
+		"Name":"Integer",
+		"Type":"int64"
+	},
+	{
+		"Name":"Unsigned",
+		"Type":"uint64"
+	},
+	{
+		"Name":"String",
+		"Type":"string"
+	},
+	{
+		"Name":"Boolean",
+		"Type":"bool"
+	},
+	{
+		"Name":"Timestamp",
+		"Type": null
+	}
+]

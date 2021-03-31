@@ -3,6 +3,9 @@ package service
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	influxdb "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/notification/endpoint"
@@ -11,9 +14,9 @@ import (
 
 var (
 	// ErrNotificationEndpointNotFound is used when the notification endpoint is not found.
-	ErrNotificationEndpointNotFound = &influxdb.Error{
+	ErrNotificationEndpointNotFound = &errors.Error{
 		Msg:  "notification endpoint not found",
-		Code: influxdb.ENotFound,
+		Code: errors.ENotFound,
 	}
 
 	notificationEndpointBucket      = []byte("notificationEndpointv1")
@@ -54,7 +57,7 @@ type Store struct {
 
 	endpointStore *kv.IndexStore
 
-	IDGenerator   influxdb.IDGenerator
+	IDGenerator   platform.IDGenerator
 	TimeGenerator influxdb.TimeGenerator
 }
 
@@ -68,13 +71,13 @@ func NewStore(store kv.Store) *Store {
 }
 
 // CreateNotificationEndpoint creates a new notification endpoint and sets b.ID with the new identifier.
-func (s *Store) CreateNotificationEndpoint(ctx context.Context, edp influxdb.NotificationEndpoint, userID influxdb.ID) error {
+func (s *Store) CreateNotificationEndpoint(ctx context.Context, edp influxdb.NotificationEndpoint, userID platform.ID) error {
 	return s.kv.Update(ctx, func(tx kv.Tx) error {
 		return s.createNotificationEndpoint(ctx, tx, edp, userID)
 	})
 }
 
-func (s *Store) createNotificationEndpoint(ctx context.Context, tx kv.Tx, edp influxdb.NotificationEndpoint, userID influxdb.ID) error {
+func (s *Store) createNotificationEndpoint(ctx context.Context, tx kv.Tx, edp influxdb.NotificationEndpoint, userID platform.ID) error {
 	id := s.IDGenerator.ID()
 	edp.SetID(id)
 	now := s.TimeGenerator.Now()
@@ -100,7 +103,7 @@ func (s *Store) createNotificationEndpoint(ctx context.Context, tx kv.Tx, edp in
 
 // UpdateNotificationEndpoint updates a single notification endpoint.
 // Returns the new notification endpoint after update.
-func (s *Store) UpdateNotificationEndpoint(ctx context.Context, id influxdb.ID, edp influxdb.NotificationEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error) {
+func (s *Store) UpdateNotificationEndpoint(ctx context.Context, id platform.ID, edp influxdb.NotificationEndpoint, userID platform.ID) (influxdb.NotificationEndpoint, error) {
 	var err error
 	err = s.kv.Update(ctx, func(tx kv.Tx) error {
 		edp, err = s.updateNotificationEndpoint(ctx, tx, id, edp, userID)
@@ -109,7 +112,7 @@ func (s *Store) UpdateNotificationEndpoint(ctx context.Context, id influxdb.ID, 
 	return edp, err
 }
 
-func (s *Store) updateNotificationEndpoint(ctx context.Context, tx kv.Tx, id influxdb.ID, edp influxdb.NotificationEndpoint, userID influxdb.ID) (influxdb.NotificationEndpoint, error) {
+func (s *Store) updateNotificationEndpoint(ctx context.Context, tx kv.Tx, id platform.ID, edp influxdb.NotificationEndpoint, userID platform.ID) (influxdb.NotificationEndpoint, error) {
 	current, err := s.findNotificationEndpointByID(ctx, tx, id)
 	if err != nil {
 		return nil, err
@@ -137,7 +140,7 @@ func (s *Store) updateNotificationEndpoint(ctx context.Context, tx kv.Tx, id inf
 
 // PatchNotificationEndpoint updates a single  notification endpoint with changeset.
 // Returns the new notification endpoint state after update.
-func (s *Store) PatchNotificationEndpoint(ctx context.Context, id influxdb.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error) {
+func (s *Store) PatchNotificationEndpoint(ctx context.Context, id platform.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error) {
 	var edp influxdb.NotificationEndpoint
 	if err := s.kv.Update(ctx, func(tx kv.Tx) (err error) {
 		edp, err = s.patchNotificationEndpoint(ctx, tx, id, upd)
@@ -152,7 +155,7 @@ func (s *Store) PatchNotificationEndpoint(ctx context.Context, id influxdb.ID, u
 	return edp, nil
 }
 
-func (s *Store) patchNotificationEndpoint(ctx context.Context, tx kv.Tx, id influxdb.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error) {
+func (s *Store) patchNotificationEndpoint(ctx context.Context, tx kv.Tx, id platform.ID, upd influxdb.NotificationEndpointUpdate) (influxdb.NotificationEndpoint, error) {
 	edp, err := s.findNotificationEndpointByID(ctx, tx, id)
 	if err != nil {
 		return nil, err
@@ -206,7 +209,7 @@ func (s *Store) PutNotificationEndpoint(ctx context.Context, edp influxdb.Notifi
 }
 
 // FindNotificationEndpointByID returns a single notification endpoint by ID.
-func (s *Store) FindNotificationEndpointByID(ctx context.Context, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+func (s *Store) FindNotificationEndpointByID(ctx context.Context, id platform.ID) (influxdb.NotificationEndpoint, error) {
 	var (
 		edp influxdb.NotificationEndpoint
 		err error
@@ -220,7 +223,7 @@ func (s *Store) FindNotificationEndpointByID(ctx context.Context, id influxdb.ID
 	return edp, err
 }
 
-func (s *Store) findNotificationEndpointByID(ctx context.Context, tx kv.Tx, id influxdb.ID) (influxdb.NotificationEndpoint, error) {
+func (s *Store) findNotificationEndpointByID(ctx context.Context, tx kv.Tx, id platform.ID) (influxdb.NotificationEndpoint, error) {
 	decodedEnt, err := s.endpointStore.FindEnt(ctx, tx, kv.Entity{PK: kv.EncID(id)})
 	if err != nil {
 		return nil, err
@@ -283,7 +286,7 @@ func filterEndpointsFn(filter influxdb.NotificationEndpointFilter) func([]byte, 
 }
 
 // DeleteNotificationEndpoint removes a notification endpoint by ID.
-func (s *Store) DeleteNotificationEndpoint(ctx context.Context, id influxdb.ID) (flds []influxdb.SecretField, orgID influxdb.ID, err error) {
+func (s *Store) DeleteNotificationEndpoint(ctx context.Context, id platform.ID) (flds []influxdb.SecretField, orgID platform.ID, err error) {
 	err = s.kv.Update(ctx, func(tx kv.Tx) error {
 		flds, orgID, err = s.deleteNotificationEndpoint(ctx, tx, id)
 		return err
@@ -291,7 +294,7 @@ func (s *Store) DeleteNotificationEndpoint(ctx context.Context, id influxdb.ID) 
 	return flds, orgID, err
 }
 
-func (s *Store) deleteNotificationEndpoint(ctx context.Context, tx kv.Tx, id influxdb.ID) (flds []influxdb.SecretField, orgID influxdb.ID, err error) {
+func (s *Store) deleteNotificationEndpoint(ctx context.Context, tx kv.Tx, id platform.ID) (flds []influxdb.SecretField, orgID platform.ID, err error) {
 	edp, err := s.findNotificationEndpointByID(ctx, tx, id)
 	if err != nil {
 		return nil, 0, err

@@ -8,6 +8,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/ast/edit"
 	"github.com/influxdata/influxdb/v2/task/options"
@@ -30,11 +33,11 @@ var (
 
 // Task is a task. 🎊
 type Task struct {
-	ID              ID                     `json:"id"`
+	ID              platform.ID            `json:"id"`
 	Type            string                 `json:"type,omitempty"`
-	OrganizationID  ID                     `json:"orgID"`
+	OrganizationID  platform.ID            `json:"orgID"`
 	Organization    string                 `json:"org"`
-	OwnerID         ID                     `json:"ownerID"`
+	OwnerID         platform.ID            `json:"ownerID"`
 	Name            string                 `json:"name"`
 	Description     string                 `json:"description,omitempty"`
 	Status          string                 `json:"status"`
@@ -70,22 +73,22 @@ func (t *Task) EffectiveCron() string {
 
 // Run is a record createId when a run of a task is scheduled.
 type Run struct {
-	ID           ID        `json:"id,omitempty"`
-	TaskID       ID        `json:"taskID"`
-	Status       string    `json:"status"`
-	ScheduledFor time.Time `json:"scheduledFor"`          // ScheduledFor is the Now time used in the task's query
-	RunAt        time.Time `json:"runAt"`                 // RunAt is the time the task is scheduled to be run, which is ScheduledFor + Offset
-	StartedAt    time.Time `json:"startedAt,omitempty"`   // StartedAt is the time the executor begins running the task
-	FinishedAt   time.Time `json:"finishedAt,omitempty"`  // FinishedAt is the time the executor finishes running the task
-	RequestedAt  time.Time `json:"requestedAt,omitempty"` // RequestedAt is the time the coordinator told the scheduler to schedule the task
-	Log          []Log     `json:"log,omitempty"`
+	ID           platform.ID `json:"id,omitempty"`
+	TaskID       platform.ID `json:"taskID"`
+	Status       string      `json:"status"`
+	ScheduledFor time.Time   `json:"scheduledFor"`          // ScheduledFor is the Now time used in the task's query
+	RunAt        time.Time   `json:"runAt"`                 // RunAt is the time the task is scheduled to be run, which is ScheduledFor + Offset
+	StartedAt    time.Time   `json:"startedAt,omitempty"`   // StartedAt is the time the executor begins running the task
+	FinishedAt   time.Time   `json:"finishedAt,omitempty"`  // FinishedAt is the time the executor finishes running the task
+	RequestedAt  time.Time   `json:"requestedAt,omitempty"` // RequestedAt is the time the coordinator told the scheduler to schedule the task
+	Log          []Log       `json:"log,omitempty"`
 }
 
 // Log represents a link to a log resource
 type Log struct {
-	RunID   ID     `json:"runID,omitempty"`
-	Time    string `json:"time"`
-	Message string `json:"message"`
+	RunID   platform.ID `json:"runID,omitempty"`
+	Time    string      `json:"time"`
+	Message string      `json:"message"`
 }
 
 func (l Log) String() string {
@@ -95,7 +98,7 @@ func (l Log) String() string {
 // TaskService represents a service for managing one-off and recurring tasks.
 type TaskService interface {
 	// FindTaskByID returns a single task
-	FindTaskByID(ctx context.Context, id ID) (*Task, error)
+	FindTaskByID(ctx context.Context, id platform.ID) (*Task, error)
 
 	// FindTasks returns a list of tasks that match a filter (limit 100) and the total count
 	// of matching tasks.
@@ -106,10 +109,10 @@ type TaskService interface {
 	CreateTask(ctx context.Context, t TaskCreate) (*Task, error)
 
 	// UpdateTask updates a single task with changeset.
-	UpdateTask(ctx context.Context, id ID, upd TaskUpdate) (*Task, error)
+	UpdateTask(ctx context.Context, id platform.ID, upd TaskUpdate) (*Task, error)
 
 	// DeleteTask removes a task by ID and purges all associated data and scheduled runs.
-	DeleteTask(ctx context.Context, id ID) error
+	DeleteTask(ctx context.Context, id platform.ID) error
 
 	// FindLogs returns logs for a run.
 	FindLogs(ctx context.Context, filter LogFilter) ([]*Log, int, error)
@@ -118,17 +121,17 @@ type TaskService interface {
 	FindRuns(ctx context.Context, filter RunFilter) ([]*Run, int, error)
 
 	// FindRunByID returns a single run.
-	FindRunByID(ctx context.Context, taskID, runID ID) (*Run, error)
+	FindRunByID(ctx context.Context, taskID, runID platform.ID) (*Run, error)
 
 	// CancelRun cancels a currently running run.
-	CancelRun(ctx context.Context, taskID, runID ID) error
+	CancelRun(ctx context.Context, taskID, runID platform.ID) error
 
 	// RetryRun creates and returns a new run (which is a retry of another run).
-	RetryRun(ctx context.Context, taskID, runID ID) (*Run, error)
+	RetryRun(ctx context.Context, taskID, runID platform.ID) (*Run, error)
 
 	// ForceRun forces a run to occur with unix timestamp scheduledFor, to be executed as soon as possible.
 	// The value of scheduledFor may or may not align with the task's schedule.
-	ForceRun(ctx context.Context, taskID ID, scheduledFor int64) (*Run, error)
+	ForceRun(ctx context.Context, taskID platform.ID, scheduledFor int64) (*Run, error)
 }
 
 // TaskCreate is the set of values to create a task.
@@ -137,9 +140,9 @@ type TaskCreate struct {
 	Flux           string                 `json:"flux"`
 	Description    string                 `json:"description,omitempty"`
 	Status         string                 `json:"status,omitempty"`
-	OrganizationID ID                     `json:"orgID,omitempty"`
+	OrganizationID platform.ID            `json:"orgID,omitempty"`
 	Organization   string                 `json:"org,omitempty"`
-	OwnerID        ID                     `json:"-"`
+	OwnerID        platform.ID            `json:"-"`
 	Metadata       map[string]interface{} `json:"-"` // not to be set through a web request but rather used by a http service using tasks backend.
 }
 
@@ -275,15 +278,15 @@ func (t *TaskUpdate) Validate() error {
 // and is guaranteed not to panic.
 func safeParseSource(parser FluxLanguageService, f string) (pkg *ast.Package, err error) {
 	if parser == nil {
-		return nil, &Error{
-			Code: EInternal,
+		return nil, &errors2.Error{
+			Code: errors2.EInternal,
 			Msg:  "flux parser is not configured; updating a task requires the flux parser to be set",
 		}
 	}
 	defer func() {
 		if r := recover(); r != nil {
-			err = &Error{
-				Code: EInternal,
+			err = &errors2.Error{
+				Code: errors2.EInternal,
 				Msg:  "internal error in flux engine; unable to parse",
 			}
 		}
@@ -408,10 +411,10 @@ func (t *TaskUpdate) updateFlux(parser FluxLanguageService, oldFlux string) erro
 type TaskFilter struct {
 	Type           *string
 	Name           *string
-	After          *ID
-	OrganizationID *ID
+	After          *platform.ID
+	OrganizationID *platform.ID
 	Organization   string
-	User           *ID
+	User           *platform.ID
 	Limit          int
 	Status         *string
 }
@@ -445,9 +448,9 @@ func (f TaskFilter) QueryParams() map[string][]string {
 // RunFilter represents a set of filters that restrict the returned results
 type RunFilter struct {
 	// Task ID is required for listing runs.
-	Task ID
+	Task platform.ID
 
-	After      *ID
+	After      *platform.ID
 	Limit      int
 	AfterTime  string
 	BeforeTime string
@@ -456,10 +459,10 @@ type RunFilter struct {
 // LogFilter represents a set of filters that restrict the returned log results.
 type LogFilter struct {
 	// Task ID is required.
-	Task ID
+	Task platform.ID
 
 	// The optional Run ID limits logs to a single run.
-	Run *ID
+	Run *platform.ID
 }
 
 type TaskStatus string

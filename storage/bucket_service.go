@@ -3,6 +3,8 @@ package storage
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
@@ -11,8 +13,8 @@ import (
 
 type EngineSchema interface {
 	CreateBucket(context.Context, *influxdb.Bucket) error
-	UpdateBucketRetentionPolicy(context.Context, influxdb.ID, *influxdb.BucketUpdate) error
-	DeleteBucket(context.Context, influxdb.ID, influxdb.ID) error
+	UpdateBucketRetentionPolicy(context.Context, platform.ID, *influxdb.BucketUpdate) error
+	DeleteBucket(context.Context, platform.ID, platform.ID) error
 }
 
 // BucketService wraps an existing influxdb.BucketService implementation.
@@ -66,7 +68,7 @@ func (s *BucketService) CreateBucket(ctx context.Context, b *influxdb.Bucket) (e
 	return nil
 }
 
-func (s *BucketService) UpdateBucket(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (b *influxdb.Bucket, err error) {
+func (s *BucketService) UpdateBucket(ctx context.Context, id platform.ID, upd influxdb.BucketUpdate) (b *influxdb.Bucket, err error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -78,7 +80,7 @@ func (s *BucketService) UpdateBucket(ctx context.Context, id influxdb.ID, upd in
 }
 
 // DeleteBucket removes a bucket by ID.
-func (s *BucketService) DeleteBucket(ctx context.Context, bucketID influxdb.ID) error {
+func (s *BucketService) DeleteBucket(ctx context.Context, bucketID platform.ID) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 

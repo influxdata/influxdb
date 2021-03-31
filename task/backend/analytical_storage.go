@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb/v2"
@@ -31,7 +34,7 @@ const (
 // RunRecorder is a type which records runs into an influxdb
 // backed storage mechanism
 type RunRecorder interface {
-	Record(ctx context.Context, orgID influxdb.ID, org string, bucketID influxdb.ID, bucket string, run *influxdb.Run) error
+	Record(ctx context.Context, orgID platform.ID, org string, bucketID platform.ID, bucket string, run *influxdb.Run) error
 }
 
 // NewAnalyticalRunStorage creates a new analytical store with access to the necessary systems for storing data and to act as a middleware
@@ -68,7 +71,7 @@ type AnalyticalStorage struct {
 	log *zap.Logger
 }
 
-func (as *AnalyticalStorage) FinishRun(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
+func (as *AnalyticalStorage) FinishRun(ctx context.Context, taskID, runID platform.ID) (*influxdb.Run, error) {
 	run, err := as.TaskControlService.FinishRun(ctx, taskID, runID)
 	if run != nil && run.ID.String() != "" {
 		task, err := as.TaskService.FindTaskByID(ctx, run.TaskID)
@@ -240,7 +243,7 @@ func (as *AnalyticalStorage) FindRuns(ctx context.Context, filter influxdb.RunFi
 
 // remove any kv runs that exist in the list of completed runs
 func (as *AnalyticalStorage) combineRuns(currentRuns, completeRuns []*influxdb.Run) []*influxdb.Run {
-	crMap := map[influxdb.ID]int{}
+	crMap := map[platform.ID]int{}
 
 	// track the current runs
 	for i, cr := range currentRuns {
@@ -260,11 +263,11 @@ func (as *AnalyticalStorage) combineRuns(currentRuns, completeRuns []*influxdb.R
 
 // FindRunByID returns a single run.
 // First see if it is in the existing TaskService. If not pull it from analytical storage.
-func (as *AnalyticalStorage) FindRunByID(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
+func (as *AnalyticalStorage) FindRunByID(ctx context.Context, taskID, runID platform.ID) (*influxdb.Run, error) {
 	// check the taskService to see if the run is on its list
 	run, err := as.TaskService.FindRunByID(ctx, taskID, runID)
 	if err != nil {
-		if err, ok := err.(*influxdb.Error); !ok || err.Msg != "run not found" {
+		if err, ok := err.(*errors2.Error); !ok || err.Msg != "run not found" {
 			return run, err
 		}
 	}
@@ -336,19 +339,19 @@ func (as *AnalyticalStorage) FindRunByID(ctx context.Context, taskID, runID infl
 	}
 
 	if len(re.runs) != 1 {
-		return nil, &influxdb.Error{
+		return nil, &errors2.Error{
 			Msg:  "found multiple runs with id " + runID.String(),
-			Code: influxdb.EInternal,
+			Code: errors2.EInternal,
 		}
 	}
 
 	return re.runs[0], err
 }
 
-func (as *AnalyticalStorage) RetryRun(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
+func (as *AnalyticalStorage) RetryRun(ctx context.Context, taskID, runID platform.ID) (*influxdb.Run, error) {
 	run, err := as.TaskService.RetryRun(ctx, taskID, runID)
 	if err != nil {
-		if err, ok := err.(*influxdb.Error); !ok || err.Msg != "run not found" {
+		if err, ok := err.(*errors2.Error); !ok || err.Msg != "run not found" {
 			return run, err
 		}
 	}
@@ -384,7 +387,7 @@ func (re *runReader) readRuns(cr flux.ColReader) error {
 			switch col.Label {
 			case runIDField:
 				if cr.Strings(j).ValueString(i) != "" {
-					id, err := influxdb.IDFromString(cr.Strings(j).ValueString(i))
+					id, err := platform.IDFromString(cr.Strings(j).ValueString(i))
 					if err != nil {
 						re.log.Info("Failed to parse runID", zap.Error(err))
 						continue
@@ -393,7 +396,7 @@ func (re *runReader) readRuns(cr flux.ColReader) error {
 				}
 			case taskIDTag:
 				if cr.Strings(j).ValueString(i) != "" {
-					id, err := influxdb.IDFromString(cr.Strings(j).ValueString(i))
+					id, err := platform.IDFromString(cr.Strings(j).ValueString(i))
 					if err != nil {
 						re.log.Info("Failed to parse taskID", zap.Error(err))
 						continue

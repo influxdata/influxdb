@@ -3,6 +3,8 @@ package tenant
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
@@ -67,7 +69,7 @@ func (s *AuthedURMService) CreateUserResourceMapping(ctx context.Context, m *inf
 	return s.s.CreateUserResourceMapping(ctx, m)
 }
 
-func (s *AuthedURMService) DeleteUserResourceMapping(ctx context.Context, resourceID influxdb.ID, userID influxdb.ID) error {
+func (s *AuthedURMService) DeleteUserResourceMapping(ctx context.Context, resourceID platform.ID, userID platform.ID) error {
 	if !resourceID.Valid() || !userID.Valid() {
 		return ErrInvalidURMID
 	}

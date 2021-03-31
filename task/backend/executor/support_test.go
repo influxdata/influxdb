@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/lang"
@@ -250,7 +252,7 @@ func (ts tables) Do(f func(flux.Table) error) error {
 func (ts tables) Statistics() flux.Statistics { return flux.Statistics{} }
 
 type testCreds struct {
-	OrgID, UserID influxdb.ID
+	OrgID, UserID platform.ID
 	Auth          *influxdb.Authorization
 }
 

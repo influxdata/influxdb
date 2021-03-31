@@ -3,6 +3,8 @@ package authorizer_test
 import (
 	"bytes"
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"sort"
 	"testing"
 
@@ -33,7 +35,7 @@ func TestVariableService_FindVariableByID(t *testing.T) {
 	}
 	type args struct {
 		permission influxdb.Permission
-		id         influxdb.ID
+		id         platform.ID
 	}
 	type wants struct {
 		err error
@@ -49,7 +51,7 @@ func TestVariableService_FindVariableByID(t *testing.T) {
 			name: "authorized to access id",
 			fields: fields{
 				VariableService: &mock.VariableService{
-					FindVariableByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Variable, error) {
+					FindVariableByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Variable, error) {
 						return &influxdb.Variable{
 							ID:             id,
 							OrganizationID: 10,
@@ -75,7 +77,7 @@ func TestVariableService_FindVariableByID(t *testing.T) {
 			name: "unauthorized to access id",
 			fields: fields{
 				VariableService: &mock.VariableService{
-					FindVariableByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Variable, error) {
+					FindVariableByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Variable, error) {
 						return &influxdb.Variable{
 							ID:             id,
 							OrganizationID: 10,
@@ -94,9 +96,9 @@ func TestVariableService_FindVariableByID(t *testing.T) {
 				id: 1,
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "read:orgs/000000000000000a/variables/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -248,7 +250,7 @@ func TestVariableService_UpdateVariable(t *testing.T) {
 		VariableService influxdb.VariableService
 	}
 	type args struct {
-		id          influxdb.ID
+		id          platform.ID
 		permissions []influxdb.Permission
 	}
 	type wants struct {
@@ -265,13 +267,13 @@ func TestVariableService_UpdateVariable(t *testing.T) {
 			name: "authorized to update variable",
 			fields: fields{
 				VariableService: &mock.VariableService{
-					FindVariableByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Variable, error) {
+					FindVariableByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Variable, error) {
 						return &influxdb.Variable{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
 					},
-					UpdateVariableF: func(ctx context.Context, id influxdb.ID, upd *influxdb.VariableUpdate) (*influxdb.Variable, error) {
+					UpdateVariableF: func(ctx context.Context, id platform.ID, upd *influxdb.VariableUpdate) (*influxdb.Variable, error) {
 						return &influxdb.Variable{
 							ID:             1,
 							OrganizationID: 10,
@@ -306,13 +308,13 @@ func TestVariableService_UpdateVariable(t *testing.T) {
 			name: "unauthorized to update variable",
 			fields: fields{
 				VariableService: &mock.VariableService{
-					FindVariableByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Variable, error) {
+					FindVariableByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Variable, error) {
 						return &influxdb.Variable{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
 					},
-					UpdateVariableF: func(ctx context.Context, id influxdb.ID, upd *influxdb.VariableUpdate) (*influxdb.Variable, error) {
+					UpdateVariableF: func(ctx context.Context, id platform.ID, upd *influxdb.VariableUpdate) (*influxdb.Variable, error) {
 						return &influxdb.Variable{
 							ID:             1,
 							OrganizationID: 10,
@@ -333,9 +335,9 @@ func TestVariableService_UpdateVariable(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/variables/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -376,7 +378,7 @@ func TestVariableService_ReplaceVariable(t *testing.T) {
 			name: "authorized to replace variable",
 			fields: fields{
 				VariableService: &mock.VariableService{
-					FindVariableByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Variable, error) {
+					FindVariableByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Variable, error) {
 						return &influxdb.Variable{
 							ID:             1,
 							OrganizationID: 10,
@@ -418,7 +420,7 @@ func TestVariableService_ReplaceVariable(t *testing.T) {
 			name: "unauthorized to replace variable",
 			fields: fields{
 				VariableService: &mock.VariableService{
-					FindVariableByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Variable, error) {
+					FindVariableByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Variable, error) {
 						return &influxdb.Variable{
 							ID:             1,
 							OrganizationID: 10,
@@ -445,9 +447,9 @@ func TestVariableService_ReplaceVariable(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/variables/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -471,7 +473,7 @@ func TestVariableService_DeleteVariable(t *testing.T) {
 		VariableService influxdb.VariableService
 	}
 	type args struct {
-		id          influxdb.ID
+		id          platform.ID
 		permissions []influxdb.Permission
 	}
 	type wants struct {
@@ -488,13 +490,13 @@ func TestVariableService_DeleteVariable(t *testing.T) {
 			name: "authorized to delete variable",
 			fields: fields{
 				VariableService: &mock.VariableService{
-					FindVariableByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Variable, error) {
+					FindVariableByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Variable, error) {
 						return &influxdb.Variable{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
 					},
-					DeleteVariableF: func(ctx context.Context, id influxdb.ID) error {
+					DeleteVariableF: func(ctx context.Context, id platform.ID) error {
 						return nil
 					},
 				},
@@ -526,13 +528,13 @@ func TestVariableService_DeleteVariable(t *testing.T) {
 			name: "unauthorized to delete variable",
 			fields: fields{
 				VariableService: &mock.VariableService{
-					FindVariableByIDF: func(ctx context.Context, id influxdb.ID) (*influxdb.Variable, error) {
+					FindVariableByIDF: func(ctx context.Context, id platform.ID) (*influxdb.Variable, error) {
 						return &influxdb.Variable{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
 					},
-					DeleteVariableF: func(ctx context.Context, id influxdb.ID) error {
+					DeleteVariableF: func(ctx context.Context, id platform.ID) error {
 						return nil
 					},
 				},
@@ -550,9 +552,9 @@ func TestVariableService_DeleteVariable(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/variables/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -577,7 +579,7 @@ func TestVariableService_CreateVariable(t *testing.T) {
 	}
 	type args struct {
 		permission influxdb.Permission
-		orgID      influxdb.ID
+		orgID      platform.ID
 	}
 	type wants struct {
 		err error
@@ -632,9 +634,9 @@ func TestVariableService_CreateVariable(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/variables is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},

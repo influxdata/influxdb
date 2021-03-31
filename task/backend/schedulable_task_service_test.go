@@ -5,16 +5,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 )
 
 var (
-	mockTaskID  = influxdb.ID(1)
+	mockTaskID  = platform.ID(1)
 	mockTimeNow = time.Now()
 )
 
-func (m MockTaskService) UpdateTask(_ context.Context, id influxdb.ID, _ influxdb.TaskUpdate) (*influxdb.Task, error) {
+func (m MockTaskService) UpdateTask(_ context.Context, id platform.ID, _ influxdb.TaskUpdate) (*influxdb.Task, error) {
 	return &influxdb.Task{ID: id, UpdatedAt: mockTimeNow}, nil
 }
 

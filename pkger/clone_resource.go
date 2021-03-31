@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	ierrors "github.com/influxdata/influxdb/v2/kit/errors"
 	"github.com/influxdata/influxdb/v2/notification"
@@ -27,7 +29,7 @@ type NameGenerator func() string
 // ResourceToClone is a resource that will be cloned.
 type ResourceToClone struct {
 	Kind Kind        `json:"kind"`
-	ID   influxdb.ID `json:"id,omitempty"`
+	ID   platform.ID `json:"id,omitempty"`
 	Name string      `json:"name"`
 	// note(jsteenb2): For time being we'll allow this internally, but not externally. A lot of
 	// issues to account for when exposing this to the outside world. Not something I'm keen
@@ -40,7 +42,7 @@ func (r ResourceToClone) OK() error {
 	if err := r.Kind.OK(); err != nil {
 		return err
 	}
-	if r.ID == influxdb.ID(0) && len(r.Name) == 0 {
+	if r.ID == platform.ID(0) && len(r.Name) == 0 {
 		return errors.New("must provide an ID or name")
 	}
 	return nil
@@ -64,13 +66,13 @@ var kindPriorities = map[Kind]int{
 }
 
 type exportKey struct {
-	orgID influxdb.ID
-	id    influxdb.ID
+	orgID platform.ID
+	id    platform.ID
 	name  string
 	kind  Kind
 }
 
-func newExportKey(orgID, id influxdb.ID, k Kind, name string) exportKey {
+func newExportKey(orgID, id platform.ID, k Kind, name string) exportKey {
 	return exportKey{
 		orgID: orgID,
 		id:    id,
@@ -116,7 +118,7 @@ func newResourceExporter(svc *Service) *resourceExporter {
 }
 
 func (ex *resourceExporter) Export(ctx context.Context, resourcesToClone []ResourceToClone, labelNames ...string) error {
-	mLabelIDsToMetaName := make(map[influxdb.ID]string)
+	mLabelIDsToMetaName := make(map[platform.ID]string)
 	for _, r := range resourcesToClone {
 		if !r.Kind.is(KindLabel) || r.MetaName == "" {
 			continue
@@ -174,7 +176,7 @@ func (ex *resourceExporter) StackResources() []StackResource {
 // we only need an id when we have resources that are not unique by name via the
 // metastore. resoureces that are unique by name will be provided a default stamp
 // making looksup unique since each resource will be unique by name.
-const uniqByNameResID = influxdb.ID(0)
+const uniqByNameResID = platform.ID(0)
 
 type cloneAssociationsFn func(context.Context, ResourceToClone) (associations []ObjectAssociation, skipResource bool, err error)
 
@@ -193,7 +195,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		return nil
 	}
 
-	mapResource := func(orgID, uniqResID influxdb.ID, k Kind, object Object) {
+	mapResource := func(orgID, uniqResID platform.ID, k Kind, object Object) {
 		// overwrite the default metadata.name field with export generated one here
 		metaName := r.MetaName
 		if r.MetaName == "" {
@@ -220,7 +222,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 	switch {
 	case r.Kind.is(KindBucket):
 		filter := influxdb.BucketFilter{}
-		if r.ID != influxdb.ID(0) {
+		if r.ID != platform.ID(0) {
 			filter.ID = &r.ID
 		}
 		if len(r.Name) > 0 {
@@ -240,7 +242,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		}
 	case r.Kind.is(KindCheck), r.Kind.is(KindCheckDeadman), r.Kind.is(KindCheckThreshold):
 		filter := influxdb.CheckFilter{}
-		if r.ID != influxdb.ID(0) {
+		if r.ID != platform.ID(0) {
 			filter.ID = &r.ID
 		}
 		if len(r.Name) > 0 {
@@ -262,9 +264,9 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 			hasID  bool
 			filter = influxdb.DashboardFilter{}
 		)
-		if r.ID != influxdb.ID(0) {
+		if r.ID != platform.ID(0) {
 			hasID = true
-			filter.IDs = []*influxdb.ID{&r.ID}
+			filter.IDs = []*platform.ID{&r.ID}
 		}
 
 		dashes, _, err := ex.dashSVC.FindDashboards(ctx, filter, influxdb.DefaultDashboardFindOptions)
@@ -295,7 +297,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		}
 	case r.Kind.is(KindLabel):
 		switch {
-		case r.ID != influxdb.ID(0):
+		case r.ID != platform.ID(0):
 			l, err := ex.labelSVC.FindLabelByID(ctx, r.ID)
 			if err != nil {
 				return err
@@ -319,7 +321,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		var endpoints []influxdb.NotificationEndpoint
 
 		switch {
-		case r.ID != influxdb.ID(0):
+		case r.ID != platform.ID(0):
 			notifEndpoint, err := ex.endpointSVC.FindNotificationEndpointByID(ctx, r.ID)
 			if err != nil {
 				return err
@@ -350,7 +352,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		var rules []influxdb.NotificationRule
 
 		switch {
-		case r.ID != influxdb.ID(0):
+		case r.ID != platform.ID(0):
 			r, err := ex.ruleSVC.FindNotificationRuleByID(ctx, r.ID)
 			if err != nil {
 				return err
@@ -392,7 +394,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		}
 	case r.Kind.is(KindTask):
 		switch {
-		case r.ID != influxdb.ID(0):
+		case r.ID != platform.ID(0):
 			t, err := ex.taskSVC.FindTaskByID(ctx, r.ID)
 			if err != nil {
 				return err
@@ -413,7 +415,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		}
 	case r.Kind.is(KindTelegraf):
 		switch {
-		case r.ID != influxdb.ID(0):
+		case r.ID != platform.ID(0):
 			t, err := ex.teleSVC.FindTelegrafConfigByID(ctx, r.ID)
 			if err != nil {
 				return err
@@ -441,7 +443,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		}
 	case r.Kind.is(KindVariable):
 		switch {
-		case r.ID != influxdb.ID(0):
+		case r.ID != platform.ID(0):
 			v, err := ex.varSVC.FindVariableByID(ctx, r.ID)
 			if err != nil {
 				return err
@@ -473,7 +475,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 	return nil
 }
 
-func (ex *resourceExporter) resourceCloneAssociationsGen(ctx context.Context, labelIDsToMetaName map[influxdb.ID]string, labelNames ...string) (cloneAssociationsFn, error) {
+func (ex *resourceExporter) resourceCloneAssociationsGen(ctx context.Context, labelIDsToMetaName map[platform.ID]string, labelNames ...string) (cloneAssociationsFn, error) {
 	mLabelNames := make(map[string]bool)
 	for _, labelName := range labelNames {
 		mLabelNames[labelName] = true
@@ -494,7 +496,7 @@ func (ex *resourceExporter) resourceCloneAssociationsGen(ctx context.Context, la
 			return nil, shouldSkip, nil
 		}
 
-		if len(r.Name) > 0 && r.ID == influxdb.ID(0) {
+		if len(r.Name) > 0 && r.ID == platform.ID(0) {
 			return nil, false, nil
 		}
 
@@ -562,7 +564,7 @@ func (ex *resourceExporter) uniqName() string {
 	return uniqMetaName(ex.nameGen, idGenerator, ex.mPkgNames)
 }
 
-func uniqMetaName(nameGen NameGenerator, idGen influxdb.IDGenerator, existingNames map[string]bool) string {
+func uniqMetaName(nameGen NameGenerator, idGen platform.IDGenerator, existingNames map[string]bool) string {
 	uuid := strings.ToLower(idGen.ID().String())
 	name := uuid
 	for i := 1; i < 250; i++ {
@@ -577,7 +579,7 @@ func uniqMetaName(nameGen NameGenerator, idGen influxdb.IDGenerator, existingNam
 func uniqResourcesToClone(resources []ResourceToClone) []ResourceToClone {
 	type key struct {
 		kind Kind
-		id   influxdb.ID
+		id   platform.ID
 	}
 	m := make(map[key]ResourceToClone)
 

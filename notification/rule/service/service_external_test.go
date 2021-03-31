@@ -8,6 +8,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/flux/ast"
@@ -38,7 +41,7 @@ var (
 
 // NotificationRuleFields includes prepopulated data for mapping tests.
 type NotificationRuleFields struct {
-	IDGenerator       influxdb.IDGenerator
+	IDGenerator       platform.IDGenerator
 	TimeGenerator     influxdb.TimeGenerator
 	NotificationRules []influxdb.NotificationRule
 	Orgs              []*influxdb.Organization
@@ -127,7 +130,7 @@ func CreateNotificationRule(
 ) {
 	type args struct {
 		notificationRule influxdb.NotificationRule
-		userID           influxdb.ID
+		userID           platform.ID
 	}
 	type wants struct {
 		err              error
@@ -403,8 +406,8 @@ func CreateNotificationRule(
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EInvalid,
+				err: &errors.Error{
+					Code: errors.EInvalid,
 					Msg:  "tag must contain a key and a value",
 				},
 			},
@@ -480,7 +483,7 @@ func FindNotificationRuleByID(
 	t *testing.T,
 ) {
 	type args struct {
-		id influxdb.ID
+		id platform.ID
 	}
 	type wants struct {
 		err              error
@@ -535,11 +538,11 @@ func FindNotificationRuleByID(
 				},
 			},
 			args: args{
-				id: influxdb.ID(0),
+				id: platform.ID(0),
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EInvalid,
+				err: &errors.Error{
+					Code: errors.EInvalid,
 					Msg:  "provided notification rule ID has invalid format",
 				},
 			},
@@ -589,8 +592,8 @@ func FindNotificationRuleByID(
 				id: MustIDBase16(threeID),
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Msg:  "notification rule not found",
 				},
 			},
@@ -1234,8 +1237,8 @@ func UpdateNotificationRule(
 	t *testing.T,
 ) {
 	type args struct {
-		userID           influxdb.ID
-		id               influxdb.ID
+		userID           platform.ID
+		id               platform.ID
 		notificationRule influxdb.NotificationRule
 	}
 
@@ -1309,8 +1312,8 @@ func UpdateNotificationRule(
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Msg:  "notification rule not found",
 				},
 			},
@@ -1480,7 +1483,7 @@ func PatchNotificationRule(
 
 	type args struct {
 		//userID           influxdb.ID
-		id  influxdb.ID
+		id  platform.ID
 		upd influxdb.NotificationRuleUpdate
 	}
 
@@ -1544,8 +1547,8 @@ func PatchNotificationRule(
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Msg:  "notification rule not found",
 				},
 			},
@@ -1823,8 +1826,8 @@ func DeleteNotificationRule(
 	t *testing.T,
 ) {
 	type args struct {
-		id    influxdb.ID
-		orgID influxdb.ID
+		id    platform.ID
+		orgID platform.ID
 	}
 
 	type wants struct {
@@ -1879,12 +1882,12 @@ func DeleteNotificationRule(
 				},
 			},
 			args: args{
-				id:    influxdb.ID(0),
+				id:    platform.ID(0),
 				orgID: MustIDBase16(fourID),
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EInvalid,
+				err: &errors.Error{
+					Code: errors.EInvalid,
 					Msg:  "provided notification rule ID has invalid format",
 				},
 				notificationRules: []influxdb.NotificationRule{
@@ -1989,8 +1992,8 @@ func DeleteNotificationRule(
 				orgID: MustIDBase16(fourID),
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Msg:  "notification rule not found",
 				},
 				notificationRules: []influxdb.NotificationRule{
@@ -2153,8 +2156,8 @@ func DeleteNotificationRule(
 }
 
 // MustIDBase16 is an helper to ensure a correct ID is built during testing.
-func MustIDBase16(s string) influxdb.ID {
-	id, err := influxdb.IDFromString(s)
+func MustIDBase16(s string) platform.ID {
+	id, err := platform.IDFromString(s)
 	if err != nil {
 		panic(err)
 	}
@@ -2162,7 +2165,7 @@ func MustIDBase16(s string) influxdb.ID {
 }
 
 // MustIDBase16Ptr is an helper to ensure a correct *ID is built during testing.
-func MustIDBase16Ptr(s string) *influxdb.ID {
+func MustIDBase16Ptr(s string) *platform.ID {
 	id := MustIDBase16(s)
 	return &id
 }
@@ -2182,18 +2185,18 @@ func ErrorsEqual(t *testing.T, actual, expected error) {
 		t.Errorf("expected error %s but received nil", expected.Error())
 	}
 
-	if influxdb.ErrorCode(expected) != influxdb.ErrorCode(actual) {
+	if errors.ErrorCode(expected) != errors.ErrorCode(actual) {
 		t.Logf("\nexpected: %v\nactual: %v\n\n", expected, actual)
-		t.Errorf("expected error code %q but received %q", influxdb.ErrorCode(expected), influxdb.ErrorCode(actual))
+		t.Errorf("expected error code %q but received %q", errors.ErrorCode(expected), errors.ErrorCode(actual))
 	}
 
-	if influxdb.ErrorMessage(expected) != influxdb.ErrorMessage(actual) {
+	if errors.ErrorMessage(expected) != errors.ErrorMessage(actual) {
 		t.Logf("\nexpected: %v\nactual: %v\n\n", expected, actual)
-		t.Errorf("expected error message %q but received %q", influxdb.ErrorMessage(expected), influxdb.ErrorMessage(actual))
+		t.Errorf("expected error message %q but received %q", errors.ErrorMessage(expected), errors.ErrorMessage(actual))
 	}
 }
 
-func idPtr(id influxdb.ID) *influxdb.ID {
+func idPtr(id platform.ID) *platform.ID {
 	return &id
 }
 

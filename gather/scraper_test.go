@@ -9,13 +9,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 )
 
 var (
-	orgID, _    = influxdb.IDFromString("020f755c3c082000")
-	bucketID, _ = influxdb.IDFromString("020f755c3c082001")
+	orgID, _    = platform.IDFromString("020f755c3c082000")
+	bucketID, _ = platform.IDFromString("020f755c3c082001")
 )
 
 func TestPrometheusScraper(t *testing.T) {
@@ -220,7 +222,7 @@ func (s *mockStorage) ListTargets(ctx context.Context, filter influxdb.ScraperTa
 	return s.Targets, nil
 }
 
-func (s *mockStorage) AddTarget(ctx context.Context, t *influxdb.ScraperTarget, userID influxdb.ID) error {
+func (s *mockStorage) AddTarget(ctx context.Context, t *influxdb.ScraperTarget, userID platform.ID) error {
 	s.Lock()
 	defer s.Unlock()
 	if s.Targets == nil {
@@ -230,7 +232,7 @@ func (s *mockStorage) AddTarget(ctx context.Context, t *influxdb.ScraperTarget, 
 	return nil
 }
 
-func (s *mockStorage) RemoveTarget(ctx context.Context, id influxdb.ID) error {
+func (s *mockStorage) RemoveTarget(ctx context.Context, id platform.ID) error {
 	s.Lock()
 	defer s.Unlock()
 
@@ -246,7 +248,7 @@ func (s *mockStorage) RemoveTarget(ctx context.Context, id influxdb.ID) error {
 	return nil
 }
 
-func (s *mockStorage) GetTargetByID(ctx context.Context, id influxdb.ID) (target *influxdb.ScraperTarget, err error) {
+func (s *mockStorage) GetTargetByID(ctx context.Context, id platform.ID) (target *influxdb.ScraperTarget, err error) {
 	s.RLock()
 	defer s.RUnlock()
 
@@ -261,7 +263,7 @@ func (s *mockStorage) GetTargetByID(ctx context.Context, id influxdb.ID) (target
 
 }
 
-func (s *mockStorage) UpdateTarget(ctx context.Context, update *influxdb.ScraperTarget, userID influxdb.ID) (target *influxdb.ScraperTarget, err error) {
+func (s *mockStorage) UpdateTarget(ctx context.Context, update *influxdb.ScraperTarget, userID platform.ID) (target *influxdb.ScraperTarget, err error) {
 	s.Lock()
 	defer s.Unlock()
 

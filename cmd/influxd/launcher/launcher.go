@@ -14,6 +14,8 @@ import (
 	"sync"
 	"time"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/dependencies/testing"
 	platform "github.com/influxdata/influxdb/v2"
@@ -480,7 +482,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 				scheduler.WithOnErrorFn(func(ctx context.Context, taskID scheduler.ID, scheduledAt time.Time, err error) {
 					schLogger.Info(
 						"error in scheduler run",
-						zap.String("taskID", platform.ID(taskID).String()),
+						zap.String("taskID", platform2.ID(taskID).String()),
 						zap.Time("scheduledAt", scheduledAt),
 						zap.Error(err))
 				}),
@@ -506,7 +508,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 			taskSvc,
 			combinedTaskService,
 			taskCoord,
-			func(ctx context.Context, taskID platform.ID, runID platform.ID) error {
+			func(ctx context.Context, taskID platform2.ID, runID platform2.ID) error {
 				_, err := executor.ResumeCurrentRun(ctx, taskID, runID)
 				return err
 			},

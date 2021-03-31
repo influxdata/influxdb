@@ -3,6 +3,8 @@ package authorizer_test
 import (
 	"bytes"
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"sort"
 	"testing"
 
@@ -34,7 +36,7 @@ func TestCheckService_FindCheckByID(t *testing.T) {
 	}
 	type args struct {
 		permission influxdb.Permission
-		id         influxdb.ID
+		id         platform.ID
 	}
 	type wants struct {
 		err error
@@ -50,7 +52,7 @@ func TestCheckService_FindCheckByID(t *testing.T) {
 			name: "authorized to access id",
 			fields: fields{
 				CheckService: &mock.CheckService{
-					FindCheckByIDFn: func(ctx context.Context, id influxdb.ID) (influxdb.Check, error) {
+					FindCheckByIDFn: func(ctx context.Context, id platform.ID) (influxdb.Check, error) {
 						return &check.Deadman{
 							Base: check.Base{
 								ID:    id,
@@ -78,7 +80,7 @@ func TestCheckService_FindCheckByID(t *testing.T) {
 			name: "unauthorized to access id",
 			fields: fields{
 				CheckService: &mock.CheckService{
-					FindCheckByIDFn: func(ctx context.Context, id influxdb.ID) (influxdb.Check, error) {
+					FindCheckByIDFn: func(ctx context.Context, id platform.ID) (influxdb.Check, error) {
 						return &check.Deadman{
 							Base: check.Base{
 								ID:    id,
@@ -99,9 +101,9 @@ func TestCheckService_FindCheckByID(t *testing.T) {
 				id: 1,
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "read:orgs/000000000000000a/checks/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -275,7 +277,7 @@ func TestCheckService_UpdateCheck(t *testing.T) {
 		CheckService influxdb.CheckService
 	}
 	type args struct {
-		id          influxdb.ID
+		id          platform.ID
 		permissions []influxdb.Permission
 	}
 	type wants struct {
@@ -292,7 +294,7 @@ func TestCheckService_UpdateCheck(t *testing.T) {
 			name: "authorized to update check",
 			fields: fields{
 				CheckService: &mock.CheckService{
-					FindCheckByIDFn: func(ctx context.Context, id influxdb.ID) (influxdb.Check, error) {
+					FindCheckByIDFn: func(ctx context.Context, id platform.ID) (influxdb.Check, error) {
 						return &check.Deadman{
 							Base: check.Base{
 								ID:    1,
@@ -300,7 +302,7 @@ func TestCheckService_UpdateCheck(t *testing.T) {
 							},
 						}, nil
 					},
-					UpdateCheckFn: func(ctx context.Context, id influxdb.ID, upd influxdb.CheckCreate) (influxdb.Check, error) {
+					UpdateCheckFn: func(ctx context.Context, id platform.ID, upd influxdb.CheckCreate) (influxdb.Check, error) {
 						return &check.Deadman{
 							Base: check.Base{
 								ID:    1,
@@ -337,7 +339,7 @@ func TestCheckService_UpdateCheck(t *testing.T) {
 			name: "unauthorized to update check",
 			fields: fields{
 				CheckService: &mock.CheckService{
-					FindCheckByIDFn: func(ctx context.Context, id influxdb.ID) (influxdb.Check, error) {
+					FindCheckByIDFn: func(ctx context.Context, id platform.ID) (influxdb.Check, error) {
 						return &check.Deadman{
 							Base: check.Base{
 								ID:    1,
@@ -345,7 +347,7 @@ func TestCheckService_UpdateCheck(t *testing.T) {
 							},
 						}, nil
 					},
-					UpdateCheckFn: func(ctx context.Context, id influxdb.ID, upd influxdb.CheckCreate) (influxdb.Check, error) {
+					UpdateCheckFn: func(ctx context.Context, id platform.ID, upd influxdb.CheckCreate) (influxdb.Check, error) {
 						return &check.Deadman{
 							Base: check.Base{
 								ID:    1,
@@ -368,9 +370,9 @@ func TestCheckService_UpdateCheck(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/checks/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -399,7 +401,7 @@ func TestCheckService_PatchCheck(t *testing.T) {
 		CheckService influxdb.CheckService
 	}
 	type args struct {
-		id          influxdb.ID
+		id          platform.ID
 		permissions []influxdb.Permission
 	}
 	type wants struct {
@@ -416,7 +418,7 @@ func TestCheckService_PatchCheck(t *testing.T) {
 			name: "authorized to patch check",
 			fields: fields{
 				CheckService: &mock.CheckService{
-					FindCheckByIDFn: func(ctx context.Context, id influxdb.ID) (influxdb.Check, error) {
+					FindCheckByIDFn: func(ctx context.Context, id platform.ID) (influxdb.Check, error) {
 						return &check.Deadman{
 							Base: check.Base{
 								ID:    1,
@@ -424,7 +426,7 @@ func TestCheckService_PatchCheck(t *testing.T) {
 							},
 						}, nil
 					},
-					PatchCheckFn: func(ctx context.Context, id influxdb.ID, upd influxdb.CheckUpdate) (influxdb.Check, error) {
+					PatchCheckFn: func(ctx context.Context, id platform.ID, upd influxdb.CheckUpdate) (influxdb.Check, error) {
 						return &check.Deadman{
 							Base: check.Base{
 								ID:    1,
@@ -461,7 +463,7 @@ func TestCheckService_PatchCheck(t *testing.T) {
 			name: "unauthorized to patch check",
 			fields: fields{
 				CheckService: &mock.CheckService{
-					FindCheckByIDFn: func(ctx context.Context, id influxdb.ID) (influxdb.Check, error) {
+					FindCheckByIDFn: func(ctx context.Context, id platform.ID) (influxdb.Check, error) {
 						return &check.Deadman{
 							Base: check.Base{
 								ID:    1,
@@ -469,7 +471,7 @@ func TestCheckService_PatchCheck(t *testing.T) {
 							},
 						}, nil
 					},
-					PatchCheckFn: func(ctx context.Context, id influxdb.ID, upd influxdb.CheckUpdate) (influxdb.Check, error) {
+					PatchCheckFn: func(ctx context.Context, id platform.ID, upd influxdb.CheckUpdate) (influxdb.Check, error) {
 						return &check.Deadman{
 							Base: check.Base{
 								ID:    1,
@@ -492,9 +494,9 @@ func TestCheckService_PatchCheck(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/checks/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -518,7 +520,7 @@ func TestCheckService_DeleteCheck(t *testing.T) {
 		CheckService influxdb.CheckService
 	}
 	type args struct {
-		id          influxdb.ID
+		id          platform.ID
 		permissions []influxdb.Permission
 	}
 	type wants struct {
@@ -535,7 +537,7 @@ func TestCheckService_DeleteCheck(t *testing.T) {
 			name: "authorized to delete check",
 			fields: fields{
 				CheckService: &mock.CheckService{
-					FindCheckByIDFn: func(ctx context.Context, id influxdb.ID) (influxdb.Check, error) {
+					FindCheckByIDFn: func(ctx context.Context, id platform.ID) (influxdb.Check, error) {
 						return &check.Deadman{
 							Base: check.Base{
 								ID:    1,
@@ -543,7 +545,7 @@ func TestCheckService_DeleteCheck(t *testing.T) {
 							},
 						}, nil
 					},
-					DeleteCheckFn: func(ctx context.Context, id influxdb.ID) error {
+					DeleteCheckFn: func(ctx context.Context, id platform.ID) error {
 						return nil
 					},
 				},
@@ -575,7 +577,7 @@ func TestCheckService_DeleteCheck(t *testing.T) {
 			name: "unauthorized to delete check",
 			fields: fields{
 				CheckService: &mock.CheckService{
-					FindCheckByIDFn: func(ctx context.Context, id influxdb.ID) (influxdb.Check, error) {
+					FindCheckByIDFn: func(ctx context.Context, id platform.ID) (influxdb.Check, error) {
 						return &check.Deadman{
 							Base: check.Base{
 								ID:    1,
@@ -583,7 +585,7 @@ func TestCheckService_DeleteCheck(t *testing.T) {
 							},
 						}, nil
 					},
-					DeleteCheckFn: func(ctx context.Context, id influxdb.ID) error {
+					DeleteCheckFn: func(ctx context.Context, id platform.ID) error {
 						return nil
 					},
 				},
@@ -601,9 +603,9 @@ func TestCheckService_DeleteCheck(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/checks/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -628,7 +630,7 @@ func TestCheckService_CreateCheck(t *testing.T) {
 	}
 	type args struct {
 		permission influxdb.Permission
-		orgID      influxdb.ID
+		orgID      platform.ID
 	}
 	type wants struct {
 		err error
@@ -644,7 +646,7 @@ func TestCheckService_CreateCheck(t *testing.T) {
 			name: "authorized to create check with org owner",
 			fields: fields{
 				CheckService: &mock.CheckService{
-					CreateCheckFn: func(ctx context.Context, chk influxdb.CheckCreate, userID influxdb.ID) error {
+					CreateCheckFn: func(ctx context.Context, chk influxdb.CheckCreate, userID platform.ID) error {
 						return nil
 					},
 				},
@@ -667,7 +669,7 @@ func TestCheckService_CreateCheck(t *testing.T) {
 			name: "unauthorized to create check",
 			fields: fields{
 				CheckService: &mock.CheckService{
-					CreateCheckFn: func(ctx context.Context, chk influxdb.CheckCreate, userID influxdb.ID) error {
+					CreateCheckFn: func(ctx context.Context, chk influxdb.CheckCreate, userID platform.ID) error {
 						return nil
 					},
 				},
@@ -683,9 +685,9 @@ func TestCheckService_CreateCheck(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/checks is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},

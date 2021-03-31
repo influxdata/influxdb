@@ -3,6 +3,8 @@ package predicate
 import (
 	"fmt"
 
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/storage/reads/datatypes"
@@ -48,13 +50,13 @@ func NodeComparison(op influxdb.Operator) (datatypes.Node_Comparison, error) {
 	case influxdb.RegexEqual:
 		fallthrough
 	case influxdb.NotRegexEqual:
-		return 0, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return 0, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("Operator %s is not supported for delete predicate yet", op),
 		}
 	default:
-		return 0, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return 0, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("Unsupported operator: %s", op),
 		}
 	}

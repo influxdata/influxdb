@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
 )
@@ -22,7 +25,7 @@ func NewBucketSvc(st *Store, svc *Service) *BucketSvc {
 }
 
 // FindBucketByID returns a single bucket by ID.
-func (s *BucketSvc) FindBucketByID(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+func (s *BucketSvc) FindBucketByID(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
 	var bucket *influxdb.Bucket
 	err := s.store.View(ctx, func(tx kv.Tx) error {
 		b, err := s.store.GetBucket(ctx, tx, id)
@@ -40,7 +43,7 @@ func (s *BucketSvc) FindBucketByID(ctx context.Context, id influxdb.ID) (*influx
 	return bucket, nil
 }
 
-func (s *BucketSvc) FindBucketByName(ctx context.Context, orgID influxdb.ID, name string) (*influxdb.Bucket, error) {
+func (s *BucketSvc) FindBucketByName(ctx context.Context, orgID platform.ID, name string) (*influxdb.Bucket, error) {
 	var bucket *influxdb.Bucket
 	err := s.store.View(ctx, func(tx kv.Tx) error {
 		b, err := s.store.GetBucketByName(ctx, tx, orgID, name)
@@ -154,7 +157,7 @@ func (s *BucketSvc) CreateBucket(ctx context.Context, b *influxdb.Bucket) error 
 
 // UpdateBucket updates a single bucket with changeset.
 // Returns the new bucket state after update.
-func (s *BucketSvc) UpdateBucket(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
+func (s *BucketSvc) UpdateBucket(ctx context.Context, id platform.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
 	var bucket *influxdb.Bucket
 	err := s.store.Update(ctx, func(tx kv.Tx) error {
 		b, err := s.store.UpdateBucket(ctx, tx, id, upd)
@@ -173,7 +176,7 @@ func (s *BucketSvc) UpdateBucket(ctx context.Context, id influxdb.ID, upd influx
 }
 
 // DeleteBucket removes a bucket by ID.
-func (s *BucketSvc) DeleteBucket(ctx context.Context, id influxdb.ID) error {
+func (s *BucketSvc) DeleteBucket(ctx context.Context, id platform.ID) error {
 	err := s.store.Update(ctx, func(tx kv.Tx) error {
 		bucket, err := s.store.GetBucket(ctx, tx, id)
 		if err != nil {
@@ -196,7 +199,7 @@ func (s *BucketSvc) DeleteBucket(ctx context.Context, id influxdb.ID) error {
 }
 
 // removeResourceRelations allows us to clean up any resource relationship that would have normally been left over after a delete action of a resource.
-func (s *BucketSvc) removeResourceRelations(ctx context.Context, resourceID influxdb.ID) error {
+func (s *BucketSvc) removeResourceRelations(ctx context.Context, resourceID platform.ID) error {
 	urms, _, err := s.svc.FindUserResourceMappings(ctx, influxdb.UserResourceMappingFilter{
 		ResourceID: resourceID,
 	})
@@ -216,16 +219,16 @@ func (s *BucketSvc) removeResourceRelations(ctx context.Context, resourceID infl
 func validBucketName(name string, typ influxdb.BucketType) error {
 	// names starting with an underscore are reserved for system buckets
 	if strings.HasPrefix(name, "_") && typ != influxdb.BucketTypeSystem {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("bucket name %s is invalid. Buckets may not start with underscore", name),
 			Op:   influxdb.OpCreateBucket,
 		}
 	}
 	// quotation marks will cause queries to fail
 	if strings.Contains(name, "\"") {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  fmt.Sprintf("bucket name %s is invalid. Bucket names may not include quotation marks", name),
 			Op:   influxdb.OpCreateBucket,
 		}

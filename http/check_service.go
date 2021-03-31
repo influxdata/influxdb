@@ -9,6 +9,9 @@ import (
 	"path"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	pctx "github.com/influxdata/influxdb/v2/context"
@@ -21,7 +24,7 @@ import (
 // CheckBackend is all services and associated parameters required to construct
 // the CheckBackendHandler.
 type CheckBackend struct {
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	log *zap.Logger
 
 	AlgoWProxy                 FeatureProxyHandler
@@ -53,7 +56,7 @@ func NewCheckBackend(log *zap.Logger, b *APIBackend) *CheckBackend {
 // CheckHandler is the handler for the check service
 type CheckHandler struct {
 	*httprouter.Router
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	log *zap.Logger
 
 	TaskService                influxdb.TaskService
@@ -254,12 +257,12 @@ func (h *CheckHandler) newChecksResponse(ctx context.Context, chks []influxdb.Ch
 	return resp
 }
 
-func decodeGetCheckRequest(ctx context.Context, r *http.Request) (i influxdb.ID, err error) {
+func decodeGetCheckRequest(ctx context.Context, r *http.Request) (i platform.ID, err error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return i, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return i, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
@@ -376,10 +379,10 @@ func decodeCheckFilter(ctx context.Context, r *http.Request) (*influxdb.CheckFil
 
 	q := r.URL.Query()
 	if orgIDStr := q.Get("orgID"); orgIDStr != "" {
-		orgID, err := influxdb.IDFromString(orgIDStr)
+		orgID, err := platform.IDFromString(orgIDStr)
 		if err != nil {
-			return f, opts, &influxdb.Error{
-				Code: influxdb.EInvalid,
+			return f, opts, &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "orgID is invalid",
 				Err:  err,
 			}
@@ -398,8 +401,8 @@ type decodeStatus struct {
 func decodePostCheckRequest(r *http.Request) (postCheckRequest, error) {
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return postCheckRequest{}, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return postCheckRequest{}, &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}
@@ -407,24 +410,24 @@ func decodePostCheckRequest(r *http.Request) (postCheckRequest, error) {
 
 	chk, err := check.UnmarshalJSON(b)
 	if err != nil {
-		return postCheckRequest{}, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return postCheckRequest{}, &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}
 
 	var ds decodeStatus
 	if err := json.Unmarshal(b, &ds); err != nil {
-		return postCheckRequest{}, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return postCheckRequest{}, &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}
 
 	var dl decodeLabels
 	if err := json.Unmarshal(b, &dl); err != nil {
-		return postCheckRequest{}, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return postCheckRequest{}, &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}
@@ -442,24 +445,24 @@ func decodePutCheckRequest(ctx context.Context, lang influxdb.FluxLanguageServic
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
-		return influxdb.CheckCreate{}, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return influxdb.CheckCreate{}, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	i := new(influxdb.ID)
+	i := new(platform.ID)
 	if err := i.DecodeFromString(id); err != nil {
-		return influxdb.CheckCreate{}, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return influxdb.CheckCreate{}, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "invalid check id format",
 		}
 	}
 
 	b, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return influxdb.CheckCreate{}, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return influxdb.CheckCreate{}, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "unable to read HTTP body",
 			Err:  err,
 		}
@@ -468,8 +471,8 @@ func decodePutCheckRequest(ctx context.Context, lang influxdb.FluxLanguageServic
 
 	chk, err := check.UnmarshalJSON(b)
 	if err != nil {
-		return influxdb.CheckCreate{}, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return influxdb.CheckCreate{}, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "malformed check body",
 			Err:  err,
 		}
@@ -483,8 +486,8 @@ func decodePutCheckRequest(ctx context.Context, lang influxdb.FluxLanguageServic
 	var ds decodeStatus
 	err = json.Unmarshal(b, &ds)
 	if err != nil {
-		return influxdb.CheckCreate{}, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return influxdb.CheckCreate{}, &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}
@@ -496,34 +499,34 @@ func decodePutCheckRequest(ctx context.Context, lang influxdb.FluxLanguageServic
 }
 
 type patchCheckRequest struct {
-	influxdb.ID
+	platform.ID
 	Update influxdb.CheckUpdate
 }
 
 func decodePatchCheckRequest(ctx context.Context, r *http.Request) (*patchCheckRequest, error) {
 	id := httprouter.ParamsFromContext(ctx).ByName("id")
 	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i influxdb.ID
+	var i platform.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
 
 	var upd influxdb.CheckUpdate
 	if err := json.NewDecoder(r.Body).Decode(&upd); err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  err.Error(),
 		}
 	}
 	if err := upd.Valid(); err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  err.Error(),
 		}
 	}
@@ -574,7 +577,7 @@ func (h *CheckHandler) handlePostCheck(w http.ResponseWriter, r *http.Request) {
 func (h *CheckHandler) mapNewCheckLabels(ctx context.Context, chk influxdb.CheckCreate, labels []string) []*influxdb.Label {
 	var ls []*influxdb.Label
 	for _, sid := range labels {
-		var lid influxdb.ID
+		var lid platform.ID
 		err := lid.DecodeFromString(sid)
 
 		if err != nil {
@@ -689,7 +692,7 @@ func (h *CheckHandler) handleDeleteCheck(w http.ResponseWriter, r *http.Request)
 	w.WriteHeader(http.StatusNoContent)
 }
 
-func checkIDPath(id influxdb.ID) string {
+func checkIDPath(id platform.ID) string {
 	return path.Join(prefixChecks, id.String())
 }
 
@@ -701,7 +704,7 @@ type CheckService struct {
 }
 
 // FindCheckByID returns the Check matching the ID.
-func (s *CheckService) FindCheckByID(ctx context.Context, id influxdb.ID) (*Check, error) {
+func (s *CheckService) FindCheckByID(ctx context.Context, id platform.ID) (*Check, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -728,14 +731,14 @@ func (s *CheckService) FindCheck(ctx context.Context, filter influxdb.CheckFilte
 	}
 
 	if n == 0 && filter.Name != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return nil, &errors.Error{
+			Code: errors.ENotFound,
 			Op:   influxdb.OpFindBucket,
 			Msg:  fmt.Sprintf("check %q not found", *filter.Name),
 		}
 	} else if n == 0 {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return nil, &errors.Error{
+			Code: errors.ENotFound,
 			Op:   influxdb.OpFindBucket,
 			Msg:  "check not found",
 		}
@@ -795,7 +798,7 @@ func (s *CheckService) CreateCheck(ctx context.Context, c *Check) (*Check, error
 }
 
 // UpdateCheck updates a check.
-func (s *CheckService) UpdateCheck(ctx context.Context, id influxdb.ID, u *Check) (*Check, error) {
+func (s *CheckService) UpdateCheck(ctx context.Context, id platform.ID, u *Check) (*Check, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -812,7 +815,7 @@ func (s *CheckService) UpdateCheck(ctx context.Context, id influxdb.ID, u *Check
 }
 
 // PatchCheck changes the status, description or name of a check.
-func (s *CheckService) PatchCheck(ctx context.Context, id influxdb.ID, u influxdb.CheckUpdate) (*Check, error) {
+func (s *CheckService) PatchCheck(ctx context.Context, id platform.ID, u influxdb.CheckUpdate) (*Check, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -829,7 +832,7 @@ func (s *CheckService) PatchCheck(ctx context.Context, id influxdb.ID, u influxd
 }
 
 // DeleteCheck removes a check.
-func (s *CheckService) DeleteCheck(ctx context.Context, id influxdb.ID) error {
+func (s *CheckService) DeleteCheck(ctx context.Context, id platform.ID) error {
 	return s.Client.
 		Delete(checkIDPath(id)).
 		Do(ctx)
@@ -843,10 +846,10 @@ type Checks struct {
 }
 
 type Check struct {
-	ID                    influxdb.ID       `json:"id,omitempty"`
+	ID                    platform.ID       `json:"id,omitempty"`
 	Name                  string            `json:"name"`
-	OrgID                 influxdb.ID       `json:"orgID,omitempty"`
-	OwnerID               influxdb.ID       `json:"ownerID,omitempty"`
+	OrgID                 platform.ID       `json:"orgID,omitempty"`
+	OwnerID               platform.ID       `json:"ownerID,omitempty"`
 	CreatedAt             time.Time         `json:"createdAt,omitempty"`
 	UpdatedAt             time.Time         `json:"updatedAt,omitempty"`
 	Query                 *CheckQuery       `json:"query"`

@@ -8,8 +8,9 @@ import (
 	"io/ioutil"
 	"os"
 
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/BurntSushi/toml"
-	"github.com/influxdata/influxdb/v2"
 )
 
 // Config store the crendentials of influxdb host and token.
@@ -52,8 +53,8 @@ type store interface {
 // Switch to another config.
 func (cfgs Configs) Switch(name string) error {
 	if _, ok := cfgs[name]; !ok {
-		return &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return &errors.Error{
+			Code: errors.ENotFound,
 			Msg:  fmt.Sprintf(`config %q is not found`, name),
 		}
 	}
@@ -135,8 +136,8 @@ var badNames = map[string]bool{
 func blockBadName(cfgs Configs) error {
 	for n := range cfgs {
 		if _, ok := badNames[n]; ok {
-			return &influxdb.Error{
-				Code: influxdb.EInvalid,
+			return &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  fmt.Sprintf(`%q is not a valid config name`, n),
 			}
 		}
@@ -194,8 +195,8 @@ func (s baseRW) ListConfigs() (Configs, error) {
 // CreateConfig create new config.
 func (svc localConfigsSVC) CreateConfig(cfg Config) (Config, error) {
 	if cfg.Name == "" {
-		return Config{}, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return Config{}, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "config name is empty",
 		}
 	}
@@ -204,8 +205,8 @@ func (svc localConfigsSVC) CreateConfig(cfg Config) (Config, error) {
 		return Config{}, err
 	}
 	if _, ok := cfgs[cfg.Name]; ok {
-		return Config{}, &influxdb.Error{
-			Code: influxdb.EConflict,
+		return Config{}, &errors.Error{
+			Code: errors.EConflict,
 			Msg:  fmt.Sprintf("config %q already exists", cfg.Name),
 		}
 	}
@@ -228,8 +229,8 @@ func (svc localConfigsSVC) DeleteConfig(name string) (Config, error) {
 
 	p, ok := cfgs[name]
 	if !ok {
-		return Config{}, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return Config{}, &errors.Error{
+			Code: errors.ENotFound,
 			Msg:  fmt.Sprintf("config %q is not found", name),
 		}
 	}
@@ -270,8 +271,8 @@ func (svc localConfigsSVC) UpdateConfig(up Config) (Config, error) {
 	}
 	p0, ok := cfgs[up.Name]
 	if !ok {
-		return Config{}, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return Config{}, &errors.Error{
+			Code: errors.ENotFound,
 			Msg:  fmt.Sprintf("config %q is not found", up.Name),
 		}
 	}
@@ -337,8 +338,8 @@ func (s baseRW) parseActiveConfig(currentOrPrevious bool) (Config, error) {
 			activated = cfg
 			hasActive = true
 		} else if check {
-			return DefaultConfig, &influxdb.Error{
-				Code: influxdb.EConflict,
+			return DefaultConfig, &errors.Error{
+				Code: errors.EConflict,
 				Msg:  "more than one " + previousText + "activated configs found",
 			}
 		}
@@ -346,8 +347,8 @@ func (s baseRW) parseActiveConfig(currentOrPrevious bool) (Config, error) {
 	if hasActive {
 		return activated, nil
 	}
-	return DefaultConfig, &influxdb.Error{
-		Code: influxdb.ENotFound,
+	return DefaultConfig, &errors.Error{
+		Code: errors.ENotFound,
 		Msg:  previousText + "activated config is not found",
 	}
 }

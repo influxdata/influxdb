@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/prometheus/client_golang/prometheus"
 )
@@ -42,7 +44,7 @@ func NewAuthorizationService() *AuthorizationService {
 }
 
 // FindAuthorizationByID returns an authorization given a id, records function call latency, and counts function calls.
-func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id platform.ID) (a *platform.Authorization, err error) {
+func (s *AuthorizationService) FindAuthorizationByID(ctx context.Context, id platform2.ID) (a *platform.Authorization, err error) {
 	defer func(start time.Time) {
 		labels := prometheus.Labels{
 			"method": "FindAuthorizationByID",
@@ -96,7 +98,7 @@ func (s *AuthorizationService) CreateAuthorization(ctx context.Context, a *platf
 }
 
 // DeleteAuthorization deletes an authorization, records function call latency, and counts function calls.
-func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platform.ID) (err error) {
+func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platform2.ID) (err error) {
 	defer func(start time.Time) {
 		labels := prometheus.Labels{
 			"method": "DeleteAuthorization",
@@ -110,7 +112,7 @@ func (s *AuthorizationService) DeleteAuthorization(ctx context.Context, id platf
 }
 
 // UpdateAuthorization updates the status and description.
-func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platform.ID, upd *platform.AuthorizationUpdate) (a *platform.Authorization, err error) {
+func (s *AuthorizationService) UpdateAuthorization(ctx context.Context, id platform2.ID, upd *platform.AuthorizationUpdate) (a *platform.Authorization, err error) {
 	defer func(start time.Time) {
 		labels := prometheus.Labels{
 			"method": "setAuthorizationStatus",

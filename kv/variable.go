@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"strings"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
@@ -15,34 +18,34 @@ var (
 	variableOrgsIndex = []byte("variableorgsv1")
 )
 
-func decodeVariableOrgsIndexKey(indexKey []byte) (orgID influxdb.ID, variableID influxdb.ID, err error) {
-	if len(indexKey) != 2*influxdb.IDLength {
-		return 0, 0, &influxdb.Error{
-			Code: influxdb.EInvalid,
+func decodeVariableOrgsIndexKey(indexKey []byte) (orgID platform.ID, variableID platform.ID, err error) {
+	if len(indexKey) != 2*platform.IDLength {
+		return 0, 0, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "malformed variable orgs index key (please report this error)",
 		}
 	}
 
-	if err := (&orgID).Decode(indexKey[:influxdb.IDLength]); err != nil {
-		return 0, 0, &influxdb.Error{
-			Code: influxdb.EInvalid,
+	if err := (&orgID).Decode(indexKey[:platform.IDLength]); err != nil {
+		return 0, 0, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "bad org id",
-			Err:  influxdb.ErrInvalidID,
+			Err:  platform.ErrInvalidID,
 		}
 	}
 
-	if err := (&variableID).Decode(indexKey[influxdb.IDLength:]); err != nil {
-		return 0, 0, &influxdb.Error{
-			Code: influxdb.EInvalid,
+	if err := (&variableID).Decode(indexKey[platform.IDLength:]); err != nil {
+		return 0, 0, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "bad variable id",
-			Err:  influxdb.ErrInvalidID,
+			Err:  platform.ErrInvalidID,
 		}
 	}
 
 	return orgID, variableID, nil
 }
 
-func (s *Service) findOrganizationVariables(ctx context.Context, tx Tx, orgID influxdb.ID) ([]*influxdb.Variable, error) {
+func (s *Service) findOrganizationVariables(ctx context.Context, tx Tx, orgID platform.ID) ([]*influxdb.Variable, error) {
 	idx, err := tx.Bucket(variableOrgsIndex)
 	if err != nil {
 		return nil, err
@@ -166,7 +169,7 @@ func (s *Service) FindVariables(ctx context.Context, filter influxdb.VariableFil
 	res := []*influxdb.Variable{}
 	err := s.kv.View(ctx, func(tx Tx) error {
 		variables, err := s.findVariables(ctx, tx, filter, opt...)
-		if err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
+		if err != nil && errors.ErrorCode(err) != errors.ENotFound {
 			return err
 		}
 		res = variables
@@ -176,7 +179,7 @@ func (s *Service) FindVariables(ctx context.Context, filter influxdb.VariableFil
 }
 
 // FindVariableByID finds a single variable in the store by its ID
-func (s *Service) FindVariableByID(ctx context.Context, id influxdb.ID) (*influxdb.Variable, error) {
+func (s *Service) FindVariableByID(ctx context.Context, id platform.ID) (*influxdb.Variable, error) {
 	var variable *influxdb.Variable
 	err := s.kv.View(ctx, func(tx Tx) error {
 		m, err := s.findVariableByID(ctx, tx, id)
@@ -189,7 +192,7 @@ func (s *Service) FindVariableByID(ctx context.Context, id influxdb.ID) (*influx
 	return variable, err
 }
 
-func (s *Service) findVariableByID(ctx context.Context, tx Tx, id influxdb.ID) (*influxdb.Variable, error) {
+func (s *Service) findVariableByID(ctx context.Context, tx Tx, id platform.ID) (*influxdb.Variable, error) {
 	body, err := s.variableStore.FindEnt(ctx, tx, Entity{PK: EncID(id)})
 	if err != nil {
 		return nil, err
@@ -203,8 +206,8 @@ func (s *Service) findVariableByID(ctx context.Context, tx Tx, id influxdb.ID) (
 func (s *Service) CreateVariable(ctx context.Context, v *influxdb.Variable) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
 		if err := v.Valid(); err != nil {
-			return &influxdb.Error{
-				Code: influxdb.EInvalid,
+			return &errors.Error{
+				Code: errors.EInvalid,
 				Err:  err,
 			}
 		}
@@ -241,7 +244,7 @@ func (s *Service) putVariable(ctx context.Context, tx Tx, v *influxdb.Variable, 
 }
 
 // UpdateVariable updates a single variable in the store with a changeset
-func (s *Service) UpdateVariable(ctx context.Context, id influxdb.ID, update *influxdb.VariableUpdate) (*influxdb.Variable, error) {
+func (s *Service) UpdateVariable(ctx context.Context, id platform.ID, update *influxdb.VariableUpdate) (*influxdb.Variable, error) {
 	var v *influxdb.Variable
 	err := s.kv.Update(ctx, func(tx Tx) error {
 		m, err := s.findVariableByID(ctx, tx, id)
@@ -262,7 +265,7 @@ func (s *Service) UpdateVariable(ctx context.Context, id influxdb.ID, update *in
 }
 
 // DeleteVariable removes a single variable from the store by its ID
-func (s *Service) DeleteVariable(ctx context.Context, id influxdb.ID) error {
+func (s *Service) DeleteVariable(ctx context.Context, id platform.ID) error {
 	return s.kv.Update(ctx, func(tx Tx) error {
 		v, err := s.findVariableByID(ctx, tx, id)
 		if err != nil {
@@ -279,7 +282,7 @@ func (s *Service) DeleteVariable(ctx context.Context, id influxdb.ID) error {
 func encodeVariableOrgsIndex(variable *influxdb.Variable) ([]byte, error) {
 	oID, err := variable.OrganizationID.Encode()
 	if err != nil {
-		return nil, &influxdb.Error{
+		return nil, &errors.Error{
 			Err: err,
 			Msg: "bad organization id",
 		}
@@ -287,13 +290,13 @@ func encodeVariableOrgsIndex(variable *influxdb.Variable) ([]byte, error) {
 
 	mID, err := variable.ID.Encode()
 	if err != nil {
-		return nil, &influxdb.Error{
+		return nil, &errors.Error{
 			Err: err,
 			Msg: "bad variable id",
 		}
 	}
 
-	key := make([]byte, 0, influxdb.IDLength*2)
+	key := make([]byte, 0, platform.IDLength*2)
 	key = append(key, oID...)
 	key = append(key, mID...)
 
@@ -308,11 +311,11 @@ func (s *Service) putVariableOrgsIndex(tx Tx, variable *influxdb.Variable) error
 
 	idx, err := tx.Bucket(variableOrgsIndex)
 	if err != nil {
-		return &influxdb.Error{Code: influxdb.EInternal, Err: err}
+		return &errors.Error{Code: errors.EInternal, Err: err}
 	}
 
 	if err := idx.Put(key, nil); err != nil {
-		return &influxdb.Error{Code: influxdb.EInternal, Err: err}
+		return &errors.Error{Code: errors.EInternal, Err: err}
 	}
 
 	return nil
@@ -326,11 +329,11 @@ func (s *Service) removeVariableOrgsIndex(tx Tx, variable *influxdb.Variable) er
 
 	idx, err := tx.Bucket(variableOrgsIndex)
 	if err != nil {
-		return &influxdb.Error{Code: influxdb.EInternal, Err: err}
+		return &errors.Error{Code: errors.EInternal, Err: err}
 	}
 
 	if err := idx.Delete(key); err != nil {
-		return &influxdb.Error{Code: influxdb.EInternal, Err: err}
+		return &errors.Error{Code: errors.EInternal, Err: err}
 	}
 
 	return nil

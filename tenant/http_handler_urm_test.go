@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -45,7 +46,7 @@ func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
 			name: "get members",
 			fields: fields{
 				userService: &mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 						return &influxdb.User{ID: id, Name: fmt.Sprintf("user%s", id), Status: influxdb.Active}, nil
 					},
 				},
@@ -108,7 +109,7 @@ func TestUserResourceMappingService_GetMembersHandler(t *testing.T) {
 			name: "get owners",
 			fields: fields{
 				userService: &mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 						return &influxdb.User{ID: id, Name: fmt.Sprintf("user%s", id), Status: influxdb.Active}, nil
 					},
 				},
@@ -243,7 +244,7 @@ func TestUserResourceMappingService_PostMembersHandler(t *testing.T) {
 			name: "post members",
 			fields: fields{
 				userService: &mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 						return &influxdb.User{ID: id, Name: fmt.Sprintf("user%s", id), Status: influxdb.Active}, nil
 					},
 				},
@@ -281,7 +282,7 @@ func TestUserResourceMappingService_PostMembersHandler(t *testing.T) {
 			name: "post owners",
 			fields: fields{
 				userService: &mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 						return &influxdb.User{ID: id, Name: fmt.Sprintf("user%s", id), Status: influxdb.Active}, nil
 					},
 				},
@@ -391,7 +392,7 @@ func TestUserResourceMappingService_Client(t *testing.T) {
 			name: "post members",
 			fields: fields{
 				userService: &mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 						return &influxdb.User{ID: id, Name: fmt.Sprintf("user%s", id), Status: influxdb.Active}, nil
 					},
 				},
@@ -419,7 +420,7 @@ func TestUserResourceMappingService_Client(t *testing.T) {
 			name: "post owners",
 			fields: fields{
 				userService: &mock.UserService{
-					FindUserByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+					FindUserByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 						return &influxdb.User{ID: id, Name: fmt.Sprintf("user%s", id), Status: influxdb.Active}, nil
 					},
 				},

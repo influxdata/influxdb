@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
@@ -13,8 +15,8 @@ import (
 type Coordinator interface {
 	TaskCreated(context.Context, *influxdb.Task) error
 	TaskUpdated(ctx context.Context, from, to *influxdb.Task) error
-	TaskDeleted(context.Context, influxdb.ID) error
-	RunCancelled(ctx context.Context, runID influxdb.ID) error
+	TaskDeleted(context.Context, platform.ID) error
+	RunCancelled(ctx context.Context, runID platform.ID) error
 	RunRetried(ctx context.Context, task *influxdb.Task, run *influxdb.Run) error
 	RunForced(ctx context.Context, task *influxdb.Task, run *influxdb.Run) error
 }
@@ -64,7 +66,7 @@ func (s *CoordinatingTaskService) CreateTask(ctx context.Context, tc influxdb.Ta
 }
 
 // UpdateTask Updates a task and publishes the change so the task owner can act on the update
-func (s *CoordinatingTaskService) UpdateTask(ctx context.Context, id influxdb.ID, upd influxdb.TaskUpdate) (*influxdb.Task, error) {
+func (s *CoordinatingTaskService) UpdateTask(ctx context.Context, id platform.ID, upd influxdb.TaskUpdate) (*influxdb.Task, error) {
 	from, err := s.TaskService.FindTaskByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -79,7 +81,7 @@ func (s *CoordinatingTaskService) UpdateTask(ctx context.Context, id influxdb.ID
 }
 
 // DeleteTask delete the task and publishes the change, to allow the task owner to find out about this change faster.
-func (s *CoordinatingTaskService) DeleteTask(ctx context.Context, id influxdb.ID) error {
+func (s *CoordinatingTaskService) DeleteTask(ctx context.Context, id platform.ID) error {
 	if err := s.coordinator.TaskDeleted(ctx, id); err != nil {
 		return err
 	}
@@ -88,7 +90,7 @@ func (s *CoordinatingTaskService) DeleteTask(ctx context.Context, id influxdb.ID
 }
 
 // CancelRun Cancel the run and publish the cancellation.
-func (s *CoordinatingTaskService) CancelRun(ctx context.Context, taskID, runID influxdb.ID) error {
+func (s *CoordinatingTaskService) CancelRun(ctx context.Context, taskID, runID platform.ID) error {
 	if err := s.TaskService.CancelRun(ctx, taskID, runID); err != nil {
 		return err
 	}
@@ -97,7 +99,7 @@ func (s *CoordinatingTaskService) CancelRun(ctx context.Context, taskID, runID i
 }
 
 // RetryRun calls retry on the task service and publishes the retry.
-func (s *CoordinatingTaskService) RetryRun(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
+func (s *CoordinatingTaskService) RetryRun(ctx context.Context, taskID, runID platform.ID) (*influxdb.Run, error) {
 	t, err := s.TaskService.FindTaskByID(ctx, taskID)
 	if err != nil {
 		return nil, err
@@ -112,7 +114,7 @@ func (s *CoordinatingTaskService) RetryRun(ctx context.Context, taskID, runID in
 }
 
 // ForceRun create the forced run in the task system and publish to the pubSub.
-func (s *CoordinatingTaskService) ForceRun(ctx context.Context, taskID influxdb.ID, scheduledFor int64) (*influxdb.Run, error) {
+func (s *CoordinatingTaskService) ForceRun(ctx context.Context, taskID platform.ID, scheduledFor int64) (*influxdb.Run, error) {
 	t, err := s.TaskService.FindTaskByID(ctx, taskID)
 	if err != nil {
 		return nil, err

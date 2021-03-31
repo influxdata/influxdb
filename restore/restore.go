@@ -11,6 +11,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/tenant"
@@ -24,7 +27,7 @@ type Request struct {
 
 	// Original ID/name of the organization to restore.
 	// If not set, all orgs will be restored.
-	OrgID influxdb.ID
+	OrgID platform.ID
 	Org   string
 
 	// New name to use for the restored organization.
@@ -33,7 +36,7 @@ type Request struct {
 
 	// Original ID/name of the bucket to restore.
 	// If not set, all buckets within the org filter will be restored.
-	BucketID influxdb.ID
+	BucketID platform.ID
 	Bucket   string
 
 	// New name to use for the restored bucket.
@@ -241,7 +244,7 @@ func (r *restoreRunner) restoreOrganization(ctx context.Context, org *influxdb.O
 	)
 
 	// Create organization on server if it doesn't already exist.
-	if o, err := r.OrgService.FindOrganization(ctx, influxdb.OrganizationFilter{Name: &newOrg.Name}); influxdb.ErrorCode(err) == influxdb.ENotFound {
+	if o, err := r.OrgService.FindOrganization(ctx, influxdb.OrganizationFilter{Name: &newOrg.Name}); errors.ErrorCode(err) == errors.ENotFound {
 		if err := r.OrgService.CreateOrganization(ctx, &newOrg); err != nil {
 			return fmt.Errorf("failed to create organization %q: %w", newOrg.Name, err)
 		}

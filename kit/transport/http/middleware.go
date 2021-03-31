@@ -8,8 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/go-chi/chi"
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	ua "github.com/mileusna/useragent"
 	"github.com/prometheus/client_golang/prometheus"
@@ -113,8 +115,8 @@ func normalizePath(p string) string {
 	var parts []string
 	for head, tail := shiftPath(p); ; head, tail = shiftPath(tail) {
 		piece := head
-		if len(piece) == influxdb.IDLength {
-			if _, err := influxdb.IDFromString(head); err == nil {
+		if len(piece) == platform.IDLength {
+			if _, err := platform.IDFromString(head); err == nil {
 				piece = ":id"
 			}
 		}
@@ -140,13 +142,13 @@ type OrgContext string
 const CtxOrgKey OrgContext = "orgID"
 
 // ValidResource make sure a resource exists when a sub system needs to be mounted to an api
-func ValidResource(api *API, lookupOrgByResourceID func(context.Context, influxdb.ID) (influxdb.ID, error)) Middleware {
+func ValidResource(api *API, lookupOrgByResourceID func(context.Context, platform.ID) (platform.ID, error)) Middleware {
 	return func(next http.Handler) http.Handler {
 		fn := func(w http.ResponseWriter, r *http.Request) {
 			statusW := NewStatusResponseWriter(w)
-			id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
+			id, err := platform.IDFromString(chi.URLParam(r, "id"))
 			if err != nil {
-				api.Err(w, r, influxdb.ErrCorruptID(err))
+				api.Err(w, r, platform.ErrCorruptID(err))
 				return
 			}
 
@@ -155,8 +157,8 @@ func ValidResource(api *API, lookupOrgByResourceID func(context.Context, influxd
 			orgID, err := lookupOrgByResourceID(ctx, *id)
 			if err != nil {
 				// if this function returns an error we will squash the error message and replace it with a not found error
-				api.Err(w, r, &influxdb.Error{
-					Code: influxdb.ENotFound,
+				api.Err(w, r, &errors.Error{
+					Code: errors.ENotFound,
 					Msg:  "404 page not found",
 				})
 				return
@@ -170,11 +172,11 @@ func ValidResource(api *API, lookupOrgByResourceID func(context.Context, influxd
 }
 
 // OrgIDFromContext ....
-func OrgIDFromContext(ctx context.Context) *influxdb.ID {
+func OrgIDFromContext(ctx context.Context) *platform.ID {
 	v := ctx.Value(CtxOrgKey)
 	if v == nil {
 		return nil
 	}
-	id := v.(influxdb.ID)
+	id := v.(platform.ID)
 	return &id
 }

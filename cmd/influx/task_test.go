@@ -7,6 +7,8 @@ import (
 	"io/ioutil"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -17,7 +19,7 @@ import (
 //	Purpose of test suite:
 //   	checking if cmd line tool gives all data needed for TaskService to perform functions
 func TestCmdTask(t *testing.T) {
-	orgID := influxdb.ID(9000)
+	orgID := platform.ID(9000)
 
 	fakeSVCFn := func(svc influxdb.TaskService) taskSVCsFn {
 		return func() (influxdb.TaskService, influxdb.OrganizationService, error) {

@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
@@ -41,14 +43,14 @@ type documentStore struct {
 	s influxdb.DocumentStore
 }
 
-func newDocumentPermission(a influxdb.Action, orgID influxdb.ID, did *influxdb.ID) (*influxdb.Permission, error) {
+func newDocumentPermission(a influxdb.Action, orgID platform.ID, did *platform.ID) (*influxdb.Permission, error) {
 	if did != nil {
 		return influxdb.NewPermissionAtID(*did, a, influxdb.DocumentsResourceType, orgID)
 	}
 	return influxdb.NewPermission(a, influxdb.DocumentsResourceType, orgID)
 }
 
-func toPerms(action influxdb.Action, orgs map[influxdb.ID]influxdb.UserType, did *influxdb.ID) ([]influxdb.Permission, error) {
+func toPerms(action influxdb.Action, orgs map[platform.ID]influxdb.UserType, did *platform.ID) ([]influxdb.Permission, error) {
 	ps := make([]influxdb.Permission, 0, len(orgs))
 	for orgID := range orgs {
 		p, err := newDocumentPermission(action, orgID, did)
@@ -74,7 +76,7 @@ func (s *documentStore) CreateDocument(ctx context.Context, d *influxdb.Document
 	return s.s.CreateDocument(ctx, d)
 }
 
-func (s *documentStore) FindDocument(ctx context.Context, id influxdb.ID) (*influxdb.Document, error) {
+func (s *documentStore) FindDocument(ctx context.Context, id platform.ID) (*influxdb.Document, error) {
 	d, err := s.s.FindDocument(ctx, id)
 	if err != nil {
 		return nil, err
@@ -89,7 +91,7 @@ func (s *documentStore) FindDocument(ctx context.Context, id influxdb.ID) (*infl
 	return d, nil
 }
 
-func (s *documentStore) FindDocuments(ctx context.Context, oid influxdb.ID) ([]*influxdb.Document, error) {
+func (s *documentStore) FindDocuments(ctx context.Context, oid platform.ID) ([]*influxdb.Document, error) {
 	if _, _, err := AuthorizeOrgReadResource(ctx, influxdb.DocumentsResourceType, oid); err != nil {
 		return nil, err
 	}

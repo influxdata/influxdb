@@ -3,7 +3,8 @@ package http
 import (
 	"context"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2/http/metric"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 )
@@ -24,7 +25,7 @@ func (w *WriteUsageRecorder) Write(b []byte) (int, error) {
 	return w.Writer.Write(b)
 }
 
-func (w *WriteUsageRecorder) Record(ctx context.Context, requestBytes int, orgID influxdb.ID, endpoint string) {
+func (w *WriteUsageRecorder) Record(ctx context.Context, requestBytes int, orgID platform.ID, endpoint string) {
 	w.EventRecorder.Record(ctx, metric.Event{
 		OrgID:         orgID,
 		Endpoint:      endpoint,

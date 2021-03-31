@@ -3,6 +3,8 @@ package authorizer
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
@@ -22,7 +24,7 @@ func NewSecretService(s influxdb.SecretService) *SecretService {
 }
 
 // LoadSecret checks to see if the authorizer on context has read access to the secret key provided.
-func (s *SecretService) LoadSecret(ctx context.Context, orgID influxdb.ID, key string) (string, error) {
+func (s *SecretService) LoadSecret(ctx context.Context, orgID platform.ID, key string) (string, error) {
 	if _, _, err := AuthorizeOrgReadResource(ctx, influxdb.SecretsResourceType, orgID); err != nil {
 		return "", err
 	}
@@ -34,7 +36,7 @@ func (s *SecretService) LoadSecret(ctx context.Context, orgID influxdb.ID, key s
 }
 
 // GetSecretKeys checks to see if the authorizer on context has read access to all the secrets belonging to orgID.
-func (s *SecretService) GetSecretKeys(ctx context.Context, orgID influxdb.ID) ([]string, error) {
+func (s *SecretService) GetSecretKeys(ctx context.Context, orgID platform.ID) ([]string, error) {
 	if _, _, err := AuthorizeOrgReadResource(ctx, influxdb.SecretsResourceType, orgID); err != nil {
 		return []string{}, err
 	}
@@ -46,7 +48,7 @@ func (s *SecretService) GetSecretKeys(ctx context.Context, orgID influxdb.ID) ([
 }
 
 // PutSecret checks to see if the authorizer on context has write access to the secret key provided.
-func (s *SecretService) PutSecret(ctx context.Context, orgID influxdb.ID, key string, val string) error {
+func (s *SecretService) PutSecret(ctx context.Context, orgID platform.ID, key string, val string) error {
 	if _, _, err := AuthorizeCreate(ctx, influxdb.SecretsResourceType, orgID); err != nil {
 		return err
 	}
@@ -58,7 +60,7 @@ func (s *SecretService) PutSecret(ctx context.Context, orgID influxdb.ID, key st
 }
 
 // PutSecrets checks to see if the authorizer on context has read and write access to the secret keys provided.
-func (s *SecretService) PutSecrets(ctx context.Context, orgID influxdb.ID, m map[string]string) error {
+func (s *SecretService) PutSecrets(ctx context.Context, orgID platform.ID, m map[string]string) error {
 	// PutSecrets operates on intersection between m and keys beloging to orgID.
 	// We need to have read access to those secrets since it deletes the secrets (within the intersection) that have not be overridden.
 	if _, _, err := AuthorizeOrgReadResource(ctx, influxdb.SecretsResourceType, orgID); err != nil {
@@ -75,7 +77,7 @@ func (s *SecretService) PutSecrets(ctx context.Context, orgID influxdb.ID, m map
 }
 
 // PatchSecrets checks to see if the authorizer on context has write access to the secret keys provided.
-func (s *SecretService) PatchSecrets(ctx context.Context, orgID influxdb.ID, m map[string]string) error {
+func (s *SecretService) PatchSecrets(ctx context.Context, orgID platform.ID, m map[string]string) error {
 	if _, _, err := AuthorizeOrgWriteResource(ctx, influxdb.SecretsResourceType, orgID); err != nil {
 		return err
 	}
@@ -87,7 +89,7 @@ func (s *SecretService) PatchSecrets(ctx context.Context, orgID influxdb.ID, m m
 }
 
 // DeleteSecret checks to see if the authorizer on context has write access to the secret keys provided.
-func (s *SecretService) DeleteSecret(ctx context.Context, orgID influxdb.ID, keys ...string) error {
+func (s *SecretService) DeleteSecret(ctx context.Context, orgID platform.ID, keys ...string) error {
 	if _, _, err := AuthorizeOrgWriteResource(ctx, influxdb.SecretsResourceType, orgID); err != nil {
 		return err
 	}

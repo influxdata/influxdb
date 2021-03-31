@@ -5,6 +5,9 @@ import (
 	"testing"
 	"time"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -29,7 +32,7 @@ var onboardCmpOptions = cmp.Options{
 // OnboardingFields will include the IDGenerator, TokenGenerator
 // and IsOnboarding
 type OnboardingFields struct {
-	IDGenerator    platform.IDGenerator
+	IDGenerator    platform2.IDGenerator
 	TokenGenerator platform.TokenGenerator
 	TimeGenerator  platform.TimeGenerator
 	IsOnboarding   bool
@@ -63,7 +66,7 @@ func OnboardInitialUser(
 				IsOnboarding:   false,
 			},
 			wants: wants{
-				errCode: platform.EConflict,
+				errCode: errors.EConflict,
 			},
 		},
 		{
@@ -82,7 +85,7 @@ func OnboardInitialUser(
 				},
 			},
 			wants: wants{
-				errCode: platform.EEmptyValue,
+				errCode: errors.EEmptyValue,
 			},
 		},
 		{
@@ -101,7 +104,7 @@ func OnboardInitialUser(
 				},
 			},
 			wants: wants{
-				errCode: platform.EEmptyValue,
+				errCode: errors.EEmptyValue,
 			},
 		},
 		{
@@ -120,7 +123,7 @@ func OnboardInitialUser(
 				},
 			},
 			wants: wants{
-				errCode: platform.EEmptyValue,
+				errCode: errors.EEmptyValue,
 			},
 		},
 		{
@@ -139,7 +142,7 @@ func OnboardInitialUser(
 				},
 			},
 			wants: wants{
-				errCode: platform.EEmptyValue,
+				errCode: errors.EEmptyValue,
 			},
 		},
 		{
@@ -214,7 +217,7 @@ func OnboardInitialUser(
 				t.Fatalf("expected error code '%s' got '%v'", tt.wants.errCode, err)
 			}
 			if err != nil && tt.wants.errCode != "" {
-				if code := platform.ErrorCode(err); code != tt.wants.errCode {
+				if code := errors.ErrorCode(err); code != tt.wants.errCode {
 					t.Logf("Error: %v", err)
 					t.Fatalf("expected error code to match '%s' got '%v'", tt.wants.errCode, code)
 				}
@@ -242,7 +245,7 @@ type loopIDGenerator struct {
 	p int
 }
 
-func (g *loopIDGenerator) ID() platform.ID {
+func (g *loopIDGenerator) ID() platform2.ID {
 	if g.p == len(g.s) {
 		g.p = 0
 	}

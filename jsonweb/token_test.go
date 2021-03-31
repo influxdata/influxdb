@@ -4,14 +4,16 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/dgrijalva/jwt-go"
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 )
 
 var (
-	one      = influxdb.ID(1)
-	two      = influxdb.ID(2)
+	one      = platform.ID(1)
+	two      = platform.ID(2)
 	keyStore = KeyStoreFunc(func(kid string) ([]byte, error) {
 		if kid != "some-key" {
 			return nil, ErrKeyNotFound

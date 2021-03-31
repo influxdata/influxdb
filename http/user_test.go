@@ -8,6 +8,8 @@ import (
 	"path"
 	"testing"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+
 	platform "github.com/influxdata/influxdb/v2"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -70,8 +72,8 @@ func TestUserHandler_SettingPassword(t *testing.T) {
 	be := NewMockUserBackend(t)
 	fakePassSVC := mock.NewPasswordsService()
 
-	userID := platform.ID(1)
-	fakePassSVC.SetPasswordFn = func(_ context.Context, id platform.ID, newPass string) error {
+	userID := platform2.ID(1)
+	fakePassSVC.SetPasswordFn = func(_ context.Context, id platform2.ID, newPass string) error {
 		if id != userID {
 			return errors.New("unexpected id: " + id.String())
 		}

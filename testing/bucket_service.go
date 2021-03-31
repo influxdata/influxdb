@@ -7,6 +7,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/dustin/go-humanize"
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
@@ -14,7 +17,7 @@ import (
 )
 
 const (
-	idOne = influxdb.ID(iota + 1)
+	idOne = platform.ID(iota + 1)
 	idTwo
 	idThree
 	idFour
@@ -51,9 +54,9 @@ var bucketCmpOptions = cmp.Options{
 
 // BucketFields will include the IDGenerator, and buckets
 type BucketFields struct {
-	IDGenerator   influxdb.IDGenerator
-	OrgIDs        influxdb.IDGenerator
-	BucketIDs     influxdb.IDGenerator
+	IDGenerator   platform.IDGenerator
+	OrgIDs        platform.IDGenerator
+	BucketIDs     platform.IDGenerator
 	TimeGenerator influxdb.TimeGenerator
 	Buckets       []*influxdb.Bucket
 	Organizations []*influxdb.Organization
@@ -256,8 +259,8 @@ func CreateBucket(
 						OrgID: idOne,
 					},
 				},
-				err: &influxdb.Error{
-					Code: influxdb.EConflict,
+				err: &errors.Error{
+					Code: errors.EConflict,
 					Op:   influxdb.OpCreateBucket,
 					Msg:  "bucket with name bucket1 already exists",
 				},
@@ -333,8 +336,8 @@ func CreateBucket(
 			},
 			wants: wants{
 				buckets: []*influxdb.Bucket{},
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Msg:  "organization not found",
 					Op:   influxdb.OpCreateBucket,
 				},
@@ -362,8 +365,8 @@ func CreateBucket(
 			},
 			wants: wants{
 				buckets: []*influxdb.Bucket{},
-				err: &influxdb.Error{
-					Code: influxdb.EInvalid,
+				err: &errors.Error{
+					Code: errors.EInvalid,
 					Op:   influxdb.OpCreateBucket,
 					Msg:  "bucket name namewith\"quote is invalid. Bucket names may not include quotation marks",
 				},
@@ -410,7 +413,7 @@ func FindBucketByID(
 	t *testing.T,
 ) {
 	type args struct {
-		id influxdb.ID
+		id platform.ID
 	}
 	type wants struct {
 		err    error
@@ -487,8 +490,8 @@ func FindBucketByID(
 				id: idThree,
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpFindBucketByID,
 					Msg:  "bucket not found",
 				},
@@ -518,10 +521,10 @@ func FindBuckets(
 	t *testing.T,
 ) {
 	type args struct {
-		ID             influxdb.ID
+		ID             platform.ID
 		name           string
 		organization   string
-		organizationID influxdb.ID
+		organizationID platform.ID
 		findOptions    influxdb.FindOptions
 	}
 
@@ -928,7 +931,7 @@ func DeleteBucket(
 	t *testing.T,
 ) {
 	type args struct {
-		ID influxdb.ID
+		ID platform.ID
 	}
 	type wants struct {
 		err     error
@@ -1006,10 +1009,10 @@ func DeleteBucket(
 				ID: MustIDBase16("1234567890654321"),
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Op:   influxdb.OpDeleteBucket,
 					Msg:  "bucket not found",
-					Code: influxdb.ENotFound,
+					Code: errors.ENotFound,
 				},
 				buckets: []*influxdb.Bucket{
 					{
@@ -1049,10 +1052,10 @@ func DeleteBucket(
 				ID: idOne,
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Op:   influxdb.OpDeleteBucket,
 					Msg:  "system buckets cannot be deleted",
-					Code: influxdb.EInvalid,
+					Code: errors.EInvalid,
 				},
 				buckets: []*influxdb.Bucket{
 					{
@@ -1102,8 +1105,8 @@ func FindBucket(
 ) {
 	type args struct {
 		name           string
-		organizationID influxdb.ID
-		id             influxdb.ID
+		organizationID platform.ID
+		id             platform.ID
 	}
 
 	type wants struct {
@@ -1215,8 +1218,8 @@ func FindBucket(
 				organizationID: idOne,
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Op:   influxdb.OpFindBucket,
 					Msg:  "bucket \"xyz\" not found",
 				},
@@ -1257,7 +1260,7 @@ func UpdateBucket(
 ) {
 	type args struct {
 		name          string
-		id            influxdb.ID
+		id            platform.ID
 		retention     int
 		shardDuration int
 		description   *string
@@ -1343,8 +1346,8 @@ func UpdateBucket(
 				name: "bucket2",
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EConflict,
+				err: &errors.Error{
+					Code: errors.EConflict,
 					Msg:  "bucket name is not unique",
 				},
 			},
@@ -1375,8 +1378,8 @@ func UpdateBucket(
 				name: "bucket2",
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EInvalid,
+				err: &errors.Error{
+					Code: errors.EInvalid,
 					Msg:  "system buckets cannot be renamed",
 				},
 			},
@@ -1705,8 +1708,8 @@ func UpdateBucket(
 				name: "namewith\"quote",
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EInvalid,
+				err: &errors.Error{
+					Code: errors.EInvalid,
 					Op:   influxdb.OpCreateBucket,
 					Msg:  "bucket name namewith\"quote is invalid. Bucket names may not include quotation marks",
 				},
