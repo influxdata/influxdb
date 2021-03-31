@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"io"
 	"io/ioutil"
 	"net/http"
@@ -51,7 +52,7 @@ type FluxBackend struct {
 	AlgoWProxy          FeatureProxyHandler
 	OrganizationService influxdb.OrganizationService
 	ProxyQueryService   query.ProxyQueryService
-	FluxLanguageService influxdb.FluxLanguageService
+	FluxLanguageService fluxlang.FluxLanguageService
 	Flagger             feature.Flagger
 }
 
@@ -86,7 +87,7 @@ type FluxHandler struct {
 	Now                 func() time.Time
 	OrganizationService influxdb.OrganizationService
 	ProxyQueryService   query.ProxyQueryService
-	FluxLanguageService influxdb.FluxLanguageService
+	FluxLanguageService fluxlang.FluxLanguageService
 
 	EventRecorder metric.EventRecorder
 

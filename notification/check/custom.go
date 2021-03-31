@@ -2,6 +2,7 @@ package check
 
 import (
 	"encoding/json"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"time"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
@@ -64,12 +65,12 @@ type Custom struct {
 // 	|> monitor.check(data: check, messageFn:messageFn, warn:warn, crit:crit, info:info)
 
 // GenerateFlux returns the check query text directly
-func (c Custom) GenerateFlux(lang influxdb.FluxLanguageService) (string, error) {
+func (c Custom) GenerateFlux(lang fluxlang.FluxLanguageService) (string, error) {
 	return c.Query.Text, nil
 }
 
 // sanitizeFlux modifies the check query text to include correct _check_id param in check object
-func (c Custom) sanitizeFlux(lang influxdb.FluxLanguageService) (string, error) {
+func (c Custom) sanitizeFlux(lang fluxlang.FluxLanguageService) (string, error) {
 	p, err := query.Parse(lang, c.Query.Text)
 	if p == nil {
 		return "", err
@@ -106,7 +107,7 @@ func propertyHasValue(prop *ast.Property, key string, value string) bool {
 	return ok && prop.Key.Key() == key && stringLit.Value == value
 }
 
-func (c *Custom) hasRequiredTaskOptions(lang influxdb.FluxLanguageService) (err error) {
+func (c *Custom) hasRequiredTaskOptions(lang fluxlang.FluxLanguageService) (err error) {
 
 	p, err := query.Parse(lang, c.Query.Text)
 	if p == nil {
@@ -175,7 +176,7 @@ func (c *Custom) hasRequiredTaskOptions(lang influxdb.FluxLanguageService) (err 
 	return nil
 }
 
-func (c *Custom) hasRequiredCheckParameters(lang influxdb.FluxLanguageService) (err error) {
+func (c *Custom) hasRequiredCheckParameters(lang fluxlang.FluxLanguageService) (err error) {
 	p, err := query.Parse(lang, c.Query.Text)
 	if p == nil {
 		return err
@@ -223,7 +224,7 @@ func (c *Custom) hasRequiredCheckParameters(lang influxdb.FluxLanguageService) (
 }
 
 // Valid checks whether check flux is valid, returns error if invalid
-func (c *Custom) Valid(lang influxdb.FluxLanguageService) error {
+func (c *Custom) Valid(lang fluxlang.FluxLanguageService) error {
 
 	if err := c.hasRequiredCheckParameters(lang); err != nil {
 		return err

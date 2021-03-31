@@ -3,6 +3,7 @@ package influxdb
 import (
 	"context"
 	"encoding/json"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
@@ -16,14 +17,14 @@ const (
 
 // Check represents the information required to generate a periodic check task.
 type Check interface {
-	Valid(lang FluxLanguageService) error
+	Valid(lang fluxlang.FluxLanguageService) error
 	Type() string
 	ClearPrivateData()
 	SetTaskID(platform.ID)
 	GetTaskID() platform.ID
 	GetOwnerID() platform.ID
 	SetOwnerID(platform.ID)
-	GenerateFlux(lang FluxLanguageService) (string, error)
+	GenerateFlux(lang fluxlang.FluxLanguageService) (string, error)
 	json.Marshaler
 
 	CRUDLogSetter

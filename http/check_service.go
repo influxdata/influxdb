@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"io/ioutil"
 	"net/http"
 	"path"
@@ -34,7 +35,7 @@ type CheckBackend struct {
 	LabelService               influxdb.LabelService
 	UserService                influxdb.UserService
 	OrganizationService        influxdb.OrganizationService
-	FluxLanguageService        influxdb.FluxLanguageService
+	FluxLanguageService        fluxlang.FluxLanguageService
 }
 
 // NewCheckBackend returns a new instance of CheckBackend.
@@ -65,7 +66,7 @@ type CheckHandler struct {
 	LabelService               influxdb.LabelService
 	UserService                influxdb.UserService
 	OrganizationService        influxdb.OrganizationService
-	FluxLanguageService        influxdb.FluxLanguageService
+	FluxLanguageService        fluxlang.FluxLanguageService
 }
 
 const (
@@ -441,7 +442,7 @@ func decodePostCheckRequest(r *http.Request) (postCheckRequest, error) {
 	}, nil
 }
 
-func decodePutCheckRequest(ctx context.Context, lang influxdb.FluxLanguageService, r *http.Request) (influxdb.CheckCreate, error) {
+func decodePutCheckRequest(ctx context.Context, lang fluxlang.FluxLanguageService, r *http.Request) (influxdb.CheckCreate, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {

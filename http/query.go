@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"io"
 	"io/ioutil"
 	"mime"
@@ -144,7 +145,7 @@ type queryParseError struct {
 
 // Analyze attempts to parse the query request and returns any errors
 // encountered in a structured way.
-func (r QueryRequest) Analyze(l influxdb.FluxLanguageService) (*QueryAnalysis, error) {
+func (r QueryRequest) Analyze(l fluxlang.FluxLanguageService) (*QueryAnalysis, error) {
 	switch r.Type {
 	case "flux":
 		return r.analyzeFluxQuery(l)
@@ -155,7 +156,7 @@ func (r QueryRequest) Analyze(l influxdb.FluxLanguageService) (*QueryAnalysis, e
 	return nil, fmt.Errorf("unknown query request type %s", r.Type)
 }
 
-func (r QueryRequest) analyzeFluxQuery(l influxdb.FluxLanguageService) (*QueryAnalysis, error) {
+func (r QueryRequest) analyzeFluxQuery(l fluxlang.FluxLanguageService) (*QueryAnalysis, error) {
 	a := &QueryAnalysis{}
 	pkg, err := query.Parse(l, r.Query)
 	if pkg == nil {

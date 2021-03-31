@@ -3,6 +3,7 @@ package check
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
@@ -39,7 +40,7 @@ type Base struct {
 }
 
 // Valid returns err if the check is invalid.
-func (b Base) Valid(lang influxdb.FluxLanguageService) error {
+func (b Base) Valid(lang fluxlang.FluxLanguageService) error {
 	if !b.ID.Valid() {
 		return &errors.Error{
 			Code: errors.EInvalid,

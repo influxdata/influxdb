@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"net/http"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
@@ -85,7 +86,7 @@ type APIBackend struct {
 	InfluxQLService                 query.ProxyQueryService
 	InfluxqldService                influxql.ProxyQueryService
 	FluxService                     query.ProxyQueryService
-	FluxLanguageService             influxdb.FluxLanguageService
+	FluxLanguageService             fluxlang.FluxLanguageService
 	TaskService                     influxdb.TaskService
 	CheckService                    influxdb.CheckService
 	TelegrafService                 influxdb.TelegrafConfigStore

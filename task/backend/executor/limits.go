@@ -2,6 +2,7 @@ package executor
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"sort"
 
 	"github.com/influxdata/influxdb/v2"
@@ -10,7 +11,7 @@ import (
 
 // ConcurrencyLimit creates a concurrency limit func that uses the executor to determine
 // if the task has exceeded the concurrency limit.
-func ConcurrencyLimit(exec *Executor, lang influxdb.FluxLanguageService) LimitFunc {
+func ConcurrencyLimit(exec *Executor, lang fluxlang.FluxLanguageService) LimitFunc {
 	return func(t *influxdb.Task, r *influxdb.Run) error {
 		o, err := options.FromScriptAST(lang, t.Flux)
 		if err != nil {
