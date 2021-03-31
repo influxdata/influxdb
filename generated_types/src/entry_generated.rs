@@ -43,66 +43,44 @@ pub mod influxdata {
                     since = "2.0.0",
                     note = "Use associated constants instead. This will no longer be generated in 2021."
                 )]
-                pub const ENUM_MIN_COLUMN_VALUE: u8 = 0;
+                pub const ENUM_MIN_OPERATION: u8 = 0;
                 #[deprecated(
                     since = "2.0.0",
                     note = "Use associated constants instead. This will no longer be generated in 2021."
                 )]
-                pub const ENUM_MAX_COLUMN_VALUE: u8 = 6;
+                pub const ENUM_MAX_OPERATION: u8 = 2;
                 #[deprecated(
                     since = "2.0.0",
                     note = "Use associated constants instead. This will no longer be generated in 2021."
                 )]
                 #[allow(non_camel_case_types)]
-                pub const ENUM_VALUES_COLUMN_VALUE: [ColumnValue; 7] = [
-                    ColumnValue::NONE,
-                    ColumnValue::TagValue,
-                    ColumnValue::I64Value,
-                    ColumnValue::U64Value,
-                    ColumnValue::F64Value,
-                    ColumnValue::BoolValue,
-                    ColumnValue::StringValue,
-                ];
+                pub const ENUM_VALUES_OPERATION: [Operation; 3] =
+                    [Operation::NONE, Operation::write, Operation::delete];
 
                 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
                 #[repr(transparent)]
-                pub struct ColumnValue(pub u8);
+                pub struct Operation(pub u8);
                 #[allow(non_upper_case_globals)]
-                impl ColumnValue {
+                impl Operation {
                     pub const NONE: Self = Self(0);
-                    pub const TagValue: Self = Self(1);
-                    pub const I64Value: Self = Self(2);
-                    pub const U64Value: Self = Self(3);
-                    pub const F64Value: Self = Self(4);
-                    pub const BoolValue: Self = Self(5);
-                    pub const StringValue: Self = Self(6);
+                    pub const write: Self = Self(1);
+                    pub const delete: Self = Self(2);
 
                     pub const ENUM_MIN: u8 = 0;
-                    pub const ENUM_MAX: u8 = 6;
-                    pub const ENUM_VALUES: &'static [Self] = &[
-                        Self::NONE,
-                        Self::TagValue,
-                        Self::I64Value,
-                        Self::U64Value,
-                        Self::F64Value,
-                        Self::BoolValue,
-                        Self::StringValue,
-                    ];
+                    pub const ENUM_MAX: u8 = 2;
+                    pub const ENUM_VALUES: &'static [Self] =
+                        &[Self::NONE, Self::write, Self::delete];
                     /// Returns the variant's name or "" if unknown.
                     pub fn variant_name(self) -> Option<&'static str> {
                         match self {
                             Self::NONE => Some("NONE"),
-                            Self::TagValue => Some("TagValue"),
-                            Self::I64Value => Some("I64Value"),
-                            Self::U64Value => Some("U64Value"),
-                            Self::F64Value => Some("F64Value"),
-                            Self::BoolValue => Some("BoolValue"),
-                            Self::StringValue => Some("StringValue"),
+                            Self::write => Some("write"),
+                            Self::delete => Some("delete"),
                             _ => None,
                         }
                     }
                 }
-                impl std::fmt::Debug for ColumnValue {
+                impl std::fmt::Debug for Operation {
                     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
                         if let Some(name) = self.variant_name() {
                             f.write_str(name)
@@ -111,7 +89,7 @@ pub mod influxdata {
                         }
                     }
                 }
-                impl<'a> flatbuffers::Follow<'a> for ColumnValue {
+                impl<'a> flatbuffers::Follow<'a> for Operation {
                     type Inner = Self;
                     #[inline]
                     fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
@@ -120,15 +98,15 @@ pub mod influxdata {
                     }
                 }
 
-                impl flatbuffers::Push for ColumnValue {
-                    type Output = ColumnValue;
+                impl flatbuffers::Push for Operation {
+                    type Output = Operation;
                     #[inline]
                     fn push(&self, dst: &mut [u8], _rest: &[u8]) {
                         flatbuffers::emplace_scalar::<u8>(dst, self.0);
                     }
                 }
 
-                impl flatbuffers::EndianScalar for ColumnValue {
+                impl flatbuffers::EndianScalar for Operation {
                     #[inline]
                     fn to_little_endian(self) -> Self {
                         let b = u8::to_le(self.0);
@@ -141,7 +119,7 @@ pub mod influxdata {
                     }
                 }
 
-                impl<'a> flatbuffers::Verifiable for ColumnValue {
+                impl<'a> flatbuffers::Verifiable for Operation {
                     #[inline]
                     fn run_verifier(
                         v: &mut flatbuffers::Verifier,
@@ -152,9 +130,471 @@ pub mod influxdata {
                     }
                 }
 
-                impl flatbuffers::SimpleToVerifyInSlice for ColumnValue {}
-                pub struct ColumnValueUnionTableOffset {}
+                impl flatbuffers::SimpleToVerifyInSlice for Operation {}
+                pub struct OperationUnionTableOffset {}
 
+                #[deprecated(
+                    since = "2.0.0",
+                    note = "Use associated constants instead. This will no longer be generated in 2021."
+                )]
+                pub const ENUM_MIN_LOGICAL_COLUMN_TYPE: i8 = 0;
+                #[deprecated(
+                    since = "2.0.0",
+                    note = "Use associated constants instead. This will no longer be generated in 2021."
+                )]
+                pub const ENUM_MAX_LOGICAL_COLUMN_TYPE: i8 = 3;
+                #[deprecated(
+                    since = "2.0.0",
+                    note = "Use associated constants instead. This will no longer be generated in 2021."
+                )]
+                #[allow(non_camel_case_types)]
+                pub const ENUM_VALUES_LOGICAL_COLUMN_TYPE: [LogicalColumnType; 4] = [
+                    LogicalColumnType::IOx,
+                    LogicalColumnType::Tag,
+                    LogicalColumnType::Field,
+                    LogicalColumnType::Time,
+                ];
+
+                #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+                #[repr(transparent)]
+                pub struct LogicalColumnType(pub i8);
+                #[allow(non_upper_case_globals)]
+                impl LogicalColumnType {
+                    pub const IOx: Self = Self(0);
+                    pub const Tag: Self = Self(1);
+                    pub const Field: Self = Self(2);
+                    pub const Time: Self = Self(3);
+
+                    pub const ENUM_MIN: i8 = 0;
+                    pub const ENUM_MAX: i8 = 3;
+                    pub const ENUM_VALUES: &'static [Self] =
+                        &[Self::IOx, Self::Tag, Self::Field, Self::Time];
+                    /// Returns the variant's name or "" if unknown.
+                    pub fn variant_name(self) -> Option<&'static str> {
+                        match self {
+                            Self::IOx => Some("IOx"),
+                            Self::Tag => Some("Tag"),
+                            Self::Field => Some("Field"),
+                            Self::Time => Some("Time"),
+                            _ => None,
+                        }
+                    }
+                }
+                impl std::fmt::Debug for LogicalColumnType {
+                    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                        if let Some(name) = self.variant_name() {
+                            f.write_str(name)
+                        } else {
+                            f.write_fmt(format_args!("<UNKNOWN {:?}>", self.0))
+                        }
+                    }
+                }
+                impl<'a> flatbuffers::Follow<'a> for LogicalColumnType {
+                    type Inner = Self;
+                    #[inline]
+                    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+                        let b = flatbuffers::read_scalar_at::<i8>(buf, loc);
+                        Self(b)
+                    }
+                }
+
+                impl flatbuffers::Push for LogicalColumnType {
+                    type Output = LogicalColumnType;
+                    #[inline]
+                    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
+                        flatbuffers::emplace_scalar::<i8>(dst, self.0);
+                    }
+                }
+
+                impl flatbuffers::EndianScalar for LogicalColumnType {
+                    #[inline]
+                    fn to_little_endian(self) -> Self {
+                        let b = i8::to_le(self.0);
+                        Self(b)
+                    }
+                    #[inline]
+                    fn from_little_endian(self) -> Self {
+                        let b = i8::from_le(self.0);
+                        Self(b)
+                    }
+                }
+
+                impl<'a> flatbuffers::Verifiable for LogicalColumnType {
+                    #[inline]
+                    fn run_verifier(
+                        v: &mut flatbuffers::Verifier,
+                        pos: usize,
+                    ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+                        use self::flatbuffers::Verifiable;
+                        i8::run_verifier(v, pos)
+                    }
+                }
+
+                impl flatbuffers::SimpleToVerifyInSlice for LogicalColumnType {}
+                #[deprecated(
+                    since = "2.0.0",
+                    note = "Use associated constants instead. This will no longer be generated in 2021."
+                )]
+                pub const ENUM_MIN_COLUMN_VALUES: u8 = 0;
+                #[deprecated(
+                    since = "2.0.0",
+                    note = "Use associated constants instead. This will no longer be generated in 2021."
+                )]
+                pub const ENUM_MAX_COLUMN_VALUES: u8 = 6;
+                #[deprecated(
+                    since = "2.0.0",
+                    note = "Use associated constants instead. This will no longer be generated in 2021."
+                )]
+                #[allow(non_camel_case_types)]
+                pub const ENUM_VALUES_COLUMN_VALUES: [ColumnValues; 7] = [
+                    ColumnValues::NONE,
+                    ColumnValues::I64Values,
+                    ColumnValues::F64Values,
+                    ColumnValues::U64Values,
+                    ColumnValues::StringValues,
+                    ColumnValues::BoolValues,
+                    ColumnValues::BytesValues,
+                ];
+
+                #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+                #[repr(transparent)]
+                pub struct ColumnValues(pub u8);
+                #[allow(non_upper_case_globals)]
+                impl ColumnValues {
+                    pub const NONE: Self = Self(0);
+                    pub const I64Values: Self = Self(1);
+                    pub const F64Values: Self = Self(2);
+                    pub const U64Values: Self = Self(3);
+                    pub const StringValues: Self = Self(4);
+                    pub const BoolValues: Self = Self(5);
+                    pub const BytesValues: Self = Self(6);
+
+                    pub const ENUM_MIN: u8 = 0;
+                    pub const ENUM_MAX: u8 = 6;
+                    pub const ENUM_VALUES: &'static [Self] = &[
+                        Self::NONE,
+                        Self::I64Values,
+                        Self::F64Values,
+                        Self::U64Values,
+                        Self::StringValues,
+                        Self::BoolValues,
+                        Self::BytesValues,
+                    ];
+                    /// Returns the variant's name or "" if unknown.
+                    pub fn variant_name(self) -> Option<&'static str> {
+                        match self {
+                            Self::NONE => Some("NONE"),
+                            Self::I64Values => Some("I64Values"),
+                            Self::F64Values => Some("F64Values"),
+                            Self::U64Values => Some("U64Values"),
+                            Self::StringValues => Some("StringValues"),
+                            Self::BoolValues => Some("BoolValues"),
+                            Self::BytesValues => Some("BytesValues"),
+                            _ => None,
+                        }
+                    }
+                }
+                impl std::fmt::Debug for ColumnValues {
+                    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                        if let Some(name) = self.variant_name() {
+                            f.write_str(name)
+                        } else {
+                            f.write_fmt(format_args!("<UNKNOWN {:?}>", self.0))
+                        }
+                    }
+                }
+                impl<'a> flatbuffers::Follow<'a> for ColumnValues {
+                    type Inner = Self;
+                    #[inline]
+                    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+                        let b = flatbuffers::read_scalar_at::<u8>(buf, loc);
+                        Self(b)
+                    }
+                }
+
+                impl flatbuffers::Push for ColumnValues {
+                    type Output = ColumnValues;
+                    #[inline]
+                    fn push(&self, dst: &mut [u8], _rest: &[u8]) {
+                        flatbuffers::emplace_scalar::<u8>(dst, self.0);
+                    }
+                }
+
+                impl flatbuffers::EndianScalar for ColumnValues {
+                    #[inline]
+                    fn to_little_endian(self) -> Self {
+                        let b = u8::to_le(self.0);
+                        Self(b)
+                    }
+                    #[inline]
+                    fn from_little_endian(self) -> Self {
+                        let b = u8::from_le(self.0);
+                        Self(b)
+                    }
+                }
+
+                impl<'a> flatbuffers::Verifiable for ColumnValues {
+                    #[inline]
+                    fn run_verifier(
+                        v: &mut flatbuffers::Verifier,
+                        pos: usize,
+                    ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+                        use self::flatbuffers::Verifiable;
+                        u8::run_verifier(v, pos)
+                    }
+                }
+
+                impl flatbuffers::SimpleToVerifyInSlice for ColumnValues {}
+                pub struct ColumnValuesUnionTableOffset {}
+
+                pub enum WriteOperationsOffset {}
+                #[derive(Copy, Clone, PartialEq)]
+
+                pub struct WriteOperations<'a> {
+                    pub _tab: flatbuffers::Table<'a>,
+                }
+
+                impl<'a> flatbuffers::Follow<'a> for WriteOperations<'a> {
+                    type Inner = WriteOperations<'a>;
+                    #[inline]
+                    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+                        Self {
+                            _tab: flatbuffers::Table { buf, loc },
+                        }
+                    }
+                }
+
+                impl<'a> WriteOperations<'a> {
+                    #[inline]
+                    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+                        WriteOperations { _tab: table }
+                    }
+                    #[allow(unused_mut)]
+                    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+                        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+                        args: &'args WriteOperationsArgs<'args>,
+                    ) -> flatbuffers::WIPOffset<WriteOperations<'bldr>> {
+                        let mut builder = WriteOperationsBuilder::new(_fbb);
+                        if let Some(x) = args.partition_writes {
+                            builder.add_partition_writes(x);
+                        }
+                        builder.finish()
+                    }
+
+                    pub const VT_PARTITION_WRITES: flatbuffers::VOffsetT = 4;
+
+                    #[inline]
+                    pub fn partition_writes(
+                        &self,
+                    ) -> Option<
+                        flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<PartitionWrite<'a>>>,
+                    > {
+                        self._tab.get::<flatbuffers::ForwardsUOffset<
+                            flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<PartitionWrite>>,
+                        >>(
+                            WriteOperations::VT_PARTITION_WRITES, None
+                        )
+                    }
+                }
+
+                impl flatbuffers::Verifiable for WriteOperations<'_> {
+                    #[inline]
+                    fn run_verifier(
+                        v: &mut flatbuffers::Verifier,
+                        pos: usize,
+                    ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+                        use self::flatbuffers::Verifiable;
+                        v.visit_table(pos)?
+                            .visit_field::<flatbuffers::ForwardsUOffset<
+                                flatbuffers::Vector<
+                                    '_,
+                                    flatbuffers::ForwardsUOffset<PartitionWrite>,
+                                >,
+                            >>(
+                                &"partition_writes", Self::VT_PARTITION_WRITES, false
+                            )?
+                            .finish();
+                        Ok(())
+                    }
+                }
+                pub struct WriteOperationsArgs<'a> {
+                    pub partition_writes: Option<
+                        flatbuffers::WIPOffset<
+                            flatbuffers::Vector<
+                                'a,
+                                flatbuffers::ForwardsUOffset<PartitionWrite<'a>>,
+                            >,
+                        >,
+                    >,
+                }
+                impl<'a> Default for WriteOperationsArgs<'a> {
+                    #[inline]
+                    fn default() -> Self {
+                        WriteOperationsArgs {
+                            partition_writes: None,
+                        }
+                    }
+                }
+                pub struct WriteOperationsBuilder<'a: 'b, 'b> {
+                    fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+                    start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+                }
+                impl<'a: 'b, 'b> WriteOperationsBuilder<'a, 'b> {
+                    #[inline]
+                    pub fn add_partition_writes(
+                        &mut self,
+                        partition_writes: flatbuffers::WIPOffset<
+                            flatbuffers::Vector<
+                                'b,
+                                flatbuffers::ForwardsUOffset<PartitionWrite<'b>>,
+                            >,
+                        >,
+                    ) {
+                        self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
+                            WriteOperations::VT_PARTITION_WRITES,
+                            partition_writes,
+                        );
+                    }
+                    #[inline]
+                    pub fn new(
+                        _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+                    ) -> WriteOperationsBuilder<'a, 'b> {
+                        let start = _fbb.start_table();
+                        WriteOperationsBuilder {
+                            fbb_: _fbb,
+                            start_: start,
+                        }
+                    }
+                    #[inline]
+                    pub fn finish(self) -> flatbuffers::WIPOffset<WriteOperations<'a>> {
+                        let o = self.fbb_.end_table(self.start_);
+                        flatbuffers::WIPOffset::new(o.value())
+                    }
+                }
+
+                impl std::fmt::Debug for WriteOperations<'_> {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        let mut ds = f.debug_struct("WriteOperations");
+                        ds.field("partition_writes", &self.partition_writes());
+                        ds.finish()
+                    }
+                }
+                pub enum DeleteOperationsOffset {}
+                #[derive(Copy, Clone, PartialEq)]
+
+                pub struct DeleteOperations<'a> {
+                    pub _tab: flatbuffers::Table<'a>,
+                }
+
+                impl<'a> flatbuffers::Follow<'a> for DeleteOperations<'a> {
+                    type Inner = DeleteOperations<'a>;
+                    #[inline]
+                    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+                        Self {
+                            _tab: flatbuffers::Table { buf, loc },
+                        }
+                    }
+                }
+
+                impl<'a> DeleteOperations<'a> {
+                    #[inline]
+                    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+                        DeleteOperations { _tab: table }
+                    }
+                    #[allow(unused_mut)]
+                    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+                        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+                        args: &'args DeleteOperationsArgs<'args>,
+                    ) -> flatbuffers::WIPOffset<DeleteOperations<'bldr>> {
+                        let mut builder = DeleteOperationsBuilder::new(_fbb);
+                        if let Some(x) = args.deletes {
+                            builder.add_deletes(x);
+                        }
+                        builder.finish()
+                    }
+
+                    pub const VT_DELETES: flatbuffers::VOffsetT = 4;
+
+                    #[inline]
+                    pub fn deletes(
+                        &self,
+                    ) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Delete<'a>>>>
+                    {
+                        self._tab.get::<flatbuffers::ForwardsUOffset<
+                            flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Delete>>,
+                        >>(DeleteOperations::VT_DELETES, None)
+                    }
+                }
+
+                impl flatbuffers::Verifiable for DeleteOperations<'_> {
+                    #[inline]
+                    fn run_verifier(
+                        v: &mut flatbuffers::Verifier,
+                        pos: usize,
+                    ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+                        use self::flatbuffers::Verifiable;
+                        v.visit_table(pos)?
+                            .visit_field::<flatbuffers::ForwardsUOffset<
+                                flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<Delete>>,
+                            >>(&"deletes", Self::VT_DELETES, false)?
+                            .finish();
+                        Ok(())
+                    }
+                }
+                pub struct DeleteOperationsArgs<'a> {
+                    pub deletes: Option<
+                        flatbuffers::WIPOffset<
+                            flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Delete<'a>>>,
+                        >,
+                    >,
+                }
+                impl<'a> Default for DeleteOperationsArgs<'a> {
+                    #[inline]
+                    fn default() -> Self {
+                        DeleteOperationsArgs { deletes: None }
+                    }
+                }
+                pub struct DeleteOperationsBuilder<'a: 'b, 'b> {
+                    fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+                    start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+                }
+                impl<'a: 'b, 'b> DeleteOperationsBuilder<'a, 'b> {
+                    #[inline]
+                    pub fn add_deletes(
+                        &mut self,
+                        deletes: flatbuffers::WIPOffset<
+                            flatbuffers::Vector<'b, flatbuffers::ForwardsUOffset<Delete<'b>>>,
+                        >,
+                    ) {
+                        self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
+                            DeleteOperations::VT_DELETES,
+                            deletes,
+                        );
+                    }
+                    #[inline]
+                    pub fn new(
+                        _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+                    ) -> DeleteOperationsBuilder<'a, 'b> {
+                        let start = _fbb.start_table();
+                        DeleteOperationsBuilder {
+                            fbb_: _fbb,
+                            start_: start,
+                        }
+                    }
+                    #[inline]
+                    pub fn finish(self) -> flatbuffers::WIPOffset<DeleteOperations<'a>> {
+                        let o = self.fbb_.end_table(self.start_);
+                        flatbuffers::WIPOffset::new(o.value())
+                    }
+                }
+
+                impl std::fmt::Debug for DeleteOperations<'_> {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        let mut ds = f.debug_struct("DeleteOperations");
+                        ds.field("deletes", &self.deletes());
+                        ds.finish()
+                    }
+                }
                 pub enum EntryOffset {}
                 #[derive(Copy, Clone, PartialEq)]
 
@@ -180,39 +620,51 @@ pub mod influxdata {
                     #[allow(unused_mut)]
                     pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
                         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-                        args: &'args EntryArgs<'args>,
+                        args: &'args EntryArgs,
                     ) -> flatbuffers::WIPOffset<Entry<'bldr>> {
                         let mut builder = EntryBuilder::new(_fbb);
-                        if let Some(x) = args.deletes {
-                            builder.add_deletes(x);
+                        if let Some(x) = args.operation {
+                            builder.add_operation(x);
                         }
-                        if let Some(x) = args.writes {
-                            builder.add_writes(x);
-                        }
+                        builder.add_operation_type(args.operation_type);
                         builder.finish()
                     }
 
-                    pub const VT_WRITES: flatbuffers::VOffsetT = 4;
-                    pub const VT_DELETES: flatbuffers::VOffsetT = 6;
+                    pub const VT_OPERATION_TYPE: flatbuffers::VOffsetT = 4;
+                    pub const VT_OPERATION: flatbuffers::VOffsetT = 6;
 
                     #[inline]
-                    pub fn writes(
-                        &self,
-                    ) -> Option<
-                        flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<PartitionWrite<'a>>>,
-                    > {
-                        self._tab.get::<flatbuffers::ForwardsUOffset<
-                            flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<PartitionWrite>>,
-                        >>(Entry::VT_WRITES, None)
+                    pub fn operation_type(&self) -> Operation {
+                        self._tab
+                            .get::<Operation>(Entry::VT_OPERATION_TYPE, Some(Operation::NONE))
+                            .unwrap()
                     }
                     #[inline]
-                    pub fn deletes(
-                        &self,
-                    ) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Delete<'a>>>>
-                    {
-                        self._tab.get::<flatbuffers::ForwardsUOffset<
-                            flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Delete>>,
-                        >>(Entry::VT_DELETES, None)
+                    pub fn operation(&self) -> Option<flatbuffers::Table<'a>> {
+                        self._tab
+                            .get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(
+                                Entry::VT_OPERATION,
+                                None,
+                            )
+                    }
+                    #[inline]
+                    #[allow(non_snake_case)]
+                    pub fn operation_as_write(&self) -> Option<WriteOperations<'a>> {
+                        if self.operation_type() == Operation::write {
+                            self.operation().map(WriteOperations::init_from_table)
+                        } else {
+                            None
+                        }
+                    }
+
+                    #[inline]
+                    #[allow(non_snake_case)]
+                    pub fn operation_as_delete(&self) -> Option<DeleteOperations<'a>> {
+                        if self.operation_type() == Operation::delete {
+                            self.operation().map(DeleteOperations::init_from_table)
+                        } else {
+                            None
+                        }
                     }
                 }
 
@@ -224,40 +676,27 @@ pub mod influxdata {
                     ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
                         use self::flatbuffers::Verifiable;
                         v.visit_table(pos)?
-                            .visit_field::<flatbuffers::ForwardsUOffset<
-                                flatbuffers::Vector<
-                                    '_,
-                                    flatbuffers::ForwardsUOffset<PartitionWrite>,
-                                >,
-                            >>(&"writes", Self::VT_WRITES, false)?
-                            .visit_field::<flatbuffers::ForwardsUOffset<
-                                flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<Delete>>,
-                            >>(&"deletes", Self::VT_DELETES, false)?
-                            .finish();
+     .visit_union::<Operation, _>(&"operation_type", Self::VT_OPERATION_TYPE, &"operation", Self::VT_OPERATION, false, |key, v, pos| {
+        match key {
+          Operation::write => v.verify_union_variant::<flatbuffers::ForwardsUOffset<WriteOperations>>("Operation::write", pos),
+          Operation::delete => v.verify_union_variant::<flatbuffers::ForwardsUOffset<DeleteOperations>>("Operation::delete", pos),
+          _ => Ok(()),
+        }
+     })?
+     .finish();
                         Ok(())
                     }
                 }
-                pub struct EntryArgs<'a> {
-                    pub writes: Option<
-                        flatbuffers::WIPOffset<
-                            flatbuffers::Vector<
-                                'a,
-                                flatbuffers::ForwardsUOffset<PartitionWrite<'a>>,
-                            >,
-                        >,
-                    >,
-                    pub deletes: Option<
-                        flatbuffers::WIPOffset<
-                            flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Delete<'a>>>,
-                        >,
-                    >,
+                pub struct EntryArgs {
+                    pub operation_type: Operation,
+                    pub operation: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
                 }
-                impl<'a> Default for EntryArgs<'a> {
+                impl<'a> Default for EntryArgs {
                     #[inline]
                     fn default() -> Self {
                         EntryArgs {
-                            writes: None,
-                            deletes: None,
+                            operation_type: Operation::NONE,
+                            operation: None,
                         }
                     }
                 }
@@ -267,30 +706,21 @@ pub mod influxdata {
                 }
                 impl<'a: 'b, 'b> EntryBuilder<'a, 'b> {
                     #[inline]
-                    pub fn add_writes(
-                        &mut self,
-                        writes: flatbuffers::WIPOffset<
-                            flatbuffers::Vector<
-                                'b,
-                                flatbuffers::ForwardsUOffset<PartitionWrite<'b>>,
-                            >,
-                        >,
-                    ) {
-                        self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
-                            Entry::VT_WRITES,
-                            writes,
+                    pub fn add_operation_type(&mut self, operation_type: Operation) {
+                        self.fbb_.push_slot::<Operation>(
+                            Entry::VT_OPERATION_TYPE,
+                            operation_type,
+                            Operation::NONE,
                         );
                     }
                     #[inline]
-                    pub fn add_deletes(
+                    pub fn add_operation(
                         &mut self,
-                        deletes: flatbuffers::WIPOffset<
-                            flatbuffers::Vector<'b, flatbuffers::ForwardsUOffset<Delete<'b>>>,
-                        >,
+                        operation: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>,
                     ) {
                         self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
-                            Entry::VT_DELETES,
-                            deletes,
+                            Entry::VT_OPERATION,
+                            operation,
                         );
                     }
                     #[inline]
@@ -313,139 +743,27 @@ pub mod influxdata {
                 impl std::fmt::Debug for Entry<'_> {
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                         let mut ds = f.debug_struct("Entry");
-                        ds.field("writes", &self.writes());
-                        ds.field("deletes", &self.deletes());
-                        ds.finish()
-                    }
-                }
-                pub enum DeleteOffset {}
-                #[derive(Copy, Clone, PartialEq)]
-
-                pub struct Delete<'a> {
-                    pub _tab: flatbuffers::Table<'a>,
-                }
-
-                impl<'a> flatbuffers::Follow<'a> for Delete<'a> {
-                    type Inner = Delete<'a>;
-                    #[inline]
-                    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-                        Self {
-                            _tab: flatbuffers::Table { buf, loc },
-                        }
-                    }
-                }
-
-                impl<'a> Delete<'a> {
-                    #[inline]
-                    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-                        Delete { _tab: table }
-                    }
-                    #[allow(unused_mut)]
-                    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-                        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-                        args: &'args DeleteArgs<'args>,
-                    ) -> flatbuffers::WIPOffset<Delete<'bldr>> {
-                        let mut builder = DeleteBuilder::new(_fbb);
-                        if let Some(x) = args.predicate {
-                            builder.add_predicate(x);
-                        }
-                        if let Some(x) = args.table_name {
-                            builder.add_table_name(x);
-                        }
-                        builder.finish()
-                    }
-
-                    pub const VT_TABLE_NAME: flatbuffers::VOffsetT = 4;
-                    pub const VT_PREDICATE: flatbuffers::VOffsetT = 6;
-
-                    #[inline]
-                    pub fn table_name(&self) -> Option<&'a str> {
-                        self._tab
-                            .get::<flatbuffers::ForwardsUOffset<&str>>(Delete::VT_TABLE_NAME, None)
-                    }
-                    #[inline]
-                    pub fn predicate(&self) -> Option<&'a str> {
-                        self._tab
-                            .get::<flatbuffers::ForwardsUOffset<&str>>(Delete::VT_PREDICATE, None)
-                    }
-                }
-
-                impl flatbuffers::Verifiable for Delete<'_> {
-                    #[inline]
-                    fn run_verifier(
-                        v: &mut flatbuffers::Verifier,
-                        pos: usize,
-                    ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
-                        use self::flatbuffers::Verifiable;
-                        v.visit_table(pos)?
-                            .visit_field::<flatbuffers::ForwardsUOffset<&str>>(
-                                &"table_name",
-                                Self::VT_TABLE_NAME,
-                                false,
-                            )?
-                            .visit_field::<flatbuffers::ForwardsUOffset<&str>>(
-                                &"predicate",
-                                Self::VT_PREDICATE,
-                                false,
-                            )?
-                            .finish();
-                        Ok(())
-                    }
-                }
-                pub struct DeleteArgs<'a> {
-                    pub table_name: Option<flatbuffers::WIPOffset<&'a str>>,
-                    pub predicate: Option<flatbuffers::WIPOffset<&'a str>>,
-                }
-                impl<'a> Default for DeleteArgs<'a> {
-                    #[inline]
-                    fn default() -> Self {
-                        DeleteArgs {
-                            table_name: None,
-                            predicate: None,
-                        }
-                    }
-                }
-                pub struct DeleteBuilder<'a: 'b, 'b> {
-                    fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-                    start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-                }
-                impl<'a: 'b, 'b> DeleteBuilder<'a, 'b> {
-                    #[inline]
-                    pub fn add_table_name(&mut self, table_name: flatbuffers::WIPOffset<&'b str>) {
-                        self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
-                            Delete::VT_TABLE_NAME,
-                            table_name,
-                        );
-                    }
-                    #[inline]
-                    pub fn add_predicate(&mut self, predicate: flatbuffers::WIPOffset<&'b str>) {
-                        self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
-                            Delete::VT_PREDICATE,
-                            predicate,
-                        );
-                    }
-                    #[inline]
-                    pub fn new(
-                        _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-                    ) -> DeleteBuilder<'a, 'b> {
-                        let start = _fbb.start_table();
-                        DeleteBuilder {
-                            fbb_: _fbb,
-                            start_: start,
-                        }
-                    }
-                    #[inline]
-                    pub fn finish(self) -> flatbuffers::WIPOffset<Delete<'a>> {
-                        let o = self.fbb_.end_table(self.start_);
-                        flatbuffers::WIPOffset::new(o.value())
-                    }
-                }
-
-                impl std::fmt::Debug for Delete<'_> {
-                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        let mut ds = f.debug_struct("Delete");
-                        ds.field("table_name", &self.table_name());
-                        ds.field("predicate", &self.predicate());
+                        ds.field("operation_type", &self.operation_type());
+                        match self.operation_type() {
+                            Operation::write => {
+                                if let Some(x) = self.operation_as_write() {
+                                    ds.field("operation", &x)
+                                } else {
+                                    ds.field("operation", &"InvalidFlatbuffer: Union discriminant does not match value.")
+                                }
+                            }
+                            Operation::delete => {
+                                if let Some(x) = self.operation_as_delete() {
+                                    ds.field("operation", &x)
+                                } else {
+                                    ds.field("operation", &"InvalidFlatbuffer: Union discriminant does not match value.")
+                                }
+                            }
+                            _ => {
+                                let x: Option<()> = None;
+                                ds.field("operation", &x)
+                            }
+                        };
                         ds.finish()
                     }
                 }
@@ -603,6 +921,137 @@ pub mod influxdata {
                         ds.finish()
                     }
                 }
+                pub enum DeleteOffset {}
+                #[derive(Copy, Clone, PartialEq)]
+
+                pub struct Delete<'a> {
+                    pub _tab: flatbuffers::Table<'a>,
+                }
+
+                impl<'a> flatbuffers::Follow<'a> for Delete<'a> {
+                    type Inner = Delete<'a>;
+                    #[inline]
+                    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+                        Self {
+                            _tab: flatbuffers::Table { buf, loc },
+                        }
+                    }
+                }
+
+                impl<'a> Delete<'a> {
+                    #[inline]
+                    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+                        Delete { _tab: table }
+                    }
+                    #[allow(unused_mut)]
+                    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+                        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+                        args: &'args DeleteArgs<'args>,
+                    ) -> flatbuffers::WIPOffset<Delete<'bldr>> {
+                        let mut builder = DeleteBuilder::new(_fbb);
+                        if let Some(x) = args.predicate {
+                            builder.add_predicate(x);
+                        }
+                        if let Some(x) = args.table_name {
+                            builder.add_table_name(x);
+                        }
+                        builder.finish()
+                    }
+
+                    pub const VT_TABLE_NAME: flatbuffers::VOffsetT = 4;
+                    pub const VT_PREDICATE: flatbuffers::VOffsetT = 6;
+
+                    #[inline]
+                    pub fn table_name(&self) -> Option<&'a str> {
+                        self._tab
+                            .get::<flatbuffers::ForwardsUOffset<&str>>(Delete::VT_TABLE_NAME, None)
+                    }
+                    #[inline]
+                    pub fn predicate(&self) -> Option<&'a str> {
+                        self._tab
+                            .get::<flatbuffers::ForwardsUOffset<&str>>(Delete::VT_PREDICATE, None)
+                    }
+                }
+
+                impl flatbuffers::Verifiable for Delete<'_> {
+                    #[inline]
+                    fn run_verifier(
+                        v: &mut flatbuffers::Verifier,
+                        pos: usize,
+                    ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+                        use self::flatbuffers::Verifiable;
+                        v.visit_table(pos)?
+                            .visit_field::<flatbuffers::ForwardsUOffset<&str>>(
+                                &"table_name",
+                                Self::VT_TABLE_NAME,
+                                false,
+                            )?
+                            .visit_field::<flatbuffers::ForwardsUOffset<&str>>(
+                                &"predicate",
+                                Self::VT_PREDICATE,
+                                false,
+                            )?
+                            .finish();
+                        Ok(())
+                    }
+                }
+                pub struct DeleteArgs<'a> {
+                    pub table_name: Option<flatbuffers::WIPOffset<&'a str>>,
+                    pub predicate: Option<flatbuffers::WIPOffset<&'a str>>,
+                }
+                impl<'a> Default for DeleteArgs<'a> {
+                    #[inline]
+                    fn default() -> Self {
+                        DeleteArgs {
+                            table_name: None,
+                            predicate: None,
+                        }
+                    }
+                }
+                pub struct DeleteBuilder<'a: 'b, 'b> {
+                    fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+                    start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+                }
+                impl<'a: 'b, 'b> DeleteBuilder<'a, 'b> {
+                    #[inline]
+                    pub fn add_table_name(&mut self, table_name: flatbuffers::WIPOffset<&'b str>) {
+                        self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
+                            Delete::VT_TABLE_NAME,
+                            table_name,
+                        );
+                    }
+                    #[inline]
+                    pub fn add_predicate(&mut self, predicate: flatbuffers::WIPOffset<&'b str>) {
+                        self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
+                            Delete::VT_PREDICATE,
+                            predicate,
+                        );
+                    }
+                    #[inline]
+                    pub fn new(
+                        _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+                    ) -> DeleteBuilder<'a, 'b> {
+                        let start = _fbb.start_table();
+                        DeleteBuilder {
+                            fbb_: _fbb,
+                            start_: start,
+                        }
+                    }
+                    #[inline]
+                    pub fn finish(self) -> flatbuffers::WIPOffset<Delete<'a>> {
+                        let o = self.fbb_.end_table(self.start_);
+                        flatbuffers::WIPOffset::new(o.value())
+                    }
+                }
+
+                impl std::fmt::Debug for Delete<'_> {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        let mut ds = f.debug_struct("Delete");
+                        ds.field("table_name", &self.table_name());
+                        ds.field("predicate", &self.predicate());
+                        ds.finish()
+                    }
+                }
                 pub enum TableWriteBatchOffset {}
                 #[derive(Copy, Clone, PartialEq)]
 
@@ -631,11 +1080,8 @@ pub mod influxdata {
                         args: &'args TableWriteBatchArgs<'args>,
                     ) -> flatbuffers::WIPOffset<TableWriteBatch<'bldr>> {
                         let mut builder = TableWriteBatchBuilder::new(_fbb);
-                        if let Some(x) = args.rows {
-                            builder.add_rows(x);
-                        }
-                        if let Some(x) = args.column_names {
-                            builder.add_column_names(x);
+                        if let Some(x) = args.columns {
+                            builder.add_columns(x);
                         }
                         if let Some(x) = args.name {
                             builder.add_name(x);
@@ -644,8 +1090,7 @@ pub mod influxdata {
                     }
 
                     pub const VT_NAME: flatbuffers::VOffsetT = 4;
-                    pub const VT_COLUMN_NAMES: flatbuffers::VOffsetT = 6;
-                    pub const VT_ROWS: flatbuffers::VOffsetT = 8;
+                    pub const VT_COLUMNS: flatbuffers::VOffsetT = 6;
 
                     #[inline]
                     pub fn name(&self) -> Option<&'a str> {
@@ -655,22 +1100,13 @@ pub mod influxdata {
                         )
                     }
                     #[inline]
-                    pub fn column_names(
+                    pub fn columns(
                         &self,
-                    ) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>>
+                    ) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Column<'a>>>>
                     {
                         self._tab.get::<flatbuffers::ForwardsUOffset<
-                            flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>,
-                        >>(TableWriteBatch::VT_COLUMN_NAMES, None)
-                    }
-                    #[inline]
-                    pub fn rows(
-                        &self,
-                    ) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Row<'a>>>>
-                    {
-                        self._tab.get::<flatbuffers::ForwardsUOffset<
-                            flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Row>>,
-                        >>(TableWriteBatch::VT_ROWS, None)
+                            flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Column>>,
+                        >>(TableWriteBatch::VT_COLUMNS, None)
                     }
                 }
 
@@ -688,27 +1124,17 @@ pub mod influxdata {
                                 false,
                             )?
                             .visit_field::<flatbuffers::ForwardsUOffset<
-                                flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<&'_ str>>,
-                            >>(
-                                &"column_names", Self::VT_COLUMN_NAMES, false
-                            )?
-                            .visit_field::<flatbuffers::ForwardsUOffset<
-                                flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<Row>>,
-                            >>(&"rows", Self::VT_ROWS, false)?
+                                flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<Column>>,
+                            >>(&"columns", Self::VT_COLUMNS, false)?
                             .finish();
                         Ok(())
                     }
                 }
                 pub struct TableWriteBatchArgs<'a> {
                     pub name: Option<flatbuffers::WIPOffset<&'a str>>,
-                    pub column_names: Option<
+                    pub columns: Option<
                         flatbuffers::WIPOffset<
-                            flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>,
-                        >,
-                    >,
-                    pub rows: Option<
-                        flatbuffers::WIPOffset<
-                            flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Row<'a>>>,
+                            flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Column<'a>>>,
                         >,
                     >,
                 }
@@ -717,8 +1143,7 @@ pub mod influxdata {
                     fn default() -> Self {
                         TableWriteBatchArgs {
                             name: None,
-                            column_names: None,
-                            rows: None,
+                            columns: None,
                         }
                     }
                 }
@@ -735,27 +1160,15 @@ pub mod influxdata {
                         );
                     }
                     #[inline]
-                    pub fn add_column_names(
+                    pub fn add_columns(
                         &mut self,
-                        column_names: flatbuffers::WIPOffset<
-                            flatbuffers::Vector<'b, flatbuffers::ForwardsUOffset<&'b str>>,
+                        columns: flatbuffers::WIPOffset<
+                            flatbuffers::Vector<'b, flatbuffers::ForwardsUOffset<Column<'b>>>,
                         >,
                     ) {
                         self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
-                            TableWriteBatch::VT_COLUMN_NAMES,
-                            column_names,
-                        );
-                    }
-                    #[inline]
-                    pub fn add_rows(
-                        &mut self,
-                        rows: flatbuffers::WIPOffset<
-                            flatbuffers::Vector<'b, flatbuffers::ForwardsUOffset<Row<'b>>>,
-                        >,
-                    ) {
-                        self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
-                            TableWriteBatch::VT_ROWS,
-                            rows,
+                            TableWriteBatch::VT_COLUMNS,
+                            columns,
                         );
                     }
                     #[inline]
@@ -779,20 +1192,19 @@ pub mod influxdata {
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                         let mut ds = f.debug_struct("TableWriteBatch");
                         ds.field("name", &self.name());
-                        ds.field("column_names", &self.column_names());
-                        ds.field("rows", &self.rows());
+                        ds.field("columns", &self.columns());
                         ds.finish()
                     }
                 }
-                pub enum RowOffset {}
+                pub enum ColumnOffset {}
                 #[derive(Copy, Clone, PartialEq)]
 
-                pub struct Row<'a> {
+                pub struct Column<'a> {
                     pub _tab: flatbuffers::Table<'a>,
                 }
 
-                impl<'a> flatbuffers::Follow<'a> for Row<'a> {
-                    type Inner = Row<'a>;
+                impl<'a> flatbuffers::Follow<'a> for Column<'a> {
+                    type Inner = Column<'a>;
                     #[inline]
                     fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
                         Self {
@@ -801,17 +1213,653 @@ pub mod influxdata {
                     }
                 }
 
-                impl<'a> Row<'a> {
+                impl<'a> Column<'a> {
                     #[inline]
                     pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-                        Row { _tab: table }
+                        Column { _tab: table }
                     }
                     #[allow(unused_mut)]
                     pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
                         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-                        args: &'args RowArgs<'args>,
-                    ) -> flatbuffers::WIPOffset<Row<'bldr>> {
-                        let mut builder = RowBuilder::new(_fbb);
+                        args: &'args ColumnArgs<'args>,
+                    ) -> flatbuffers::WIPOffset<Column<'bldr>> {
+                        let mut builder = ColumnBuilder::new(_fbb);
+                        if let Some(x) = args.null_bitmask {
+                            builder.add_null_bitmask(x);
+                        }
+                        if let Some(x) = args.values {
+                            builder.add_values(x);
+                        }
+                        if let Some(x) = args.name {
+                            builder.add_name(x);
+                        }
+                        builder.add_values_type(args.values_type);
+                        builder.add_logical_column_type(args.logical_column_type);
+                        builder.finish()
+                    }
+
+                    pub const VT_NAME: flatbuffers::VOffsetT = 4;
+                    pub const VT_LOGICAL_COLUMN_TYPE: flatbuffers::VOffsetT = 6;
+                    pub const VT_VALUES_TYPE: flatbuffers::VOffsetT = 8;
+                    pub const VT_VALUES: flatbuffers::VOffsetT = 10;
+                    pub const VT_NULL_BITMASK: flatbuffers::VOffsetT = 12;
+
+                    #[inline]
+                    pub fn name(&self) -> Option<&'a str> {
+                        self._tab
+                            .get::<flatbuffers::ForwardsUOffset<&str>>(Column::VT_NAME, None)
+                    }
+                    #[inline]
+                    pub fn logical_column_type(&self) -> LogicalColumnType {
+                        self._tab
+                            .get::<LogicalColumnType>(
+                                Column::VT_LOGICAL_COLUMN_TYPE,
+                                Some(LogicalColumnType::IOx),
+                            )
+                            .unwrap()
+                    }
+                    #[inline]
+                    pub fn values_type(&self) -> ColumnValues {
+                        self._tab
+                            .get::<ColumnValues>(Column::VT_VALUES_TYPE, Some(ColumnValues::NONE))
+                            .unwrap()
+                    }
+                    #[inline]
+                    pub fn values(&self) -> Option<flatbuffers::Table<'a>> {
+                        self._tab
+                            .get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(
+                                Column::VT_VALUES,
+                                None,
+                            )
+                    }
+                    #[inline]
+                    pub fn null_bitmask(&self) -> Option<&'a [u8]> {
+                        self._tab
+                            .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(
+                                Column::VT_NULL_BITMASK,
+                                None,
+                            )
+                            .map(|v| v.safe_slice())
+                    }
+                    #[inline]
+                    #[allow(non_snake_case)]
+                    pub fn values_as_i64values(&self) -> Option<I64Values<'a>> {
+                        if self.values_type() == ColumnValues::I64Values {
+                            self.values().map(I64Values::init_from_table)
+                        } else {
+                            None
+                        }
+                    }
+
+                    #[inline]
+                    #[allow(non_snake_case)]
+                    pub fn values_as_f64values(&self) -> Option<F64Values<'a>> {
+                        if self.values_type() == ColumnValues::F64Values {
+                            self.values().map(F64Values::init_from_table)
+                        } else {
+                            None
+                        }
+                    }
+
+                    #[inline]
+                    #[allow(non_snake_case)]
+                    pub fn values_as_u64values(&self) -> Option<U64Values<'a>> {
+                        if self.values_type() == ColumnValues::U64Values {
+                            self.values().map(U64Values::init_from_table)
+                        } else {
+                            None
+                        }
+                    }
+
+                    #[inline]
+                    #[allow(non_snake_case)]
+                    pub fn values_as_string_values(&self) -> Option<StringValues<'a>> {
+                        if self.values_type() == ColumnValues::StringValues {
+                            self.values().map(StringValues::init_from_table)
+                        } else {
+                            None
+                        }
+                    }
+
+                    #[inline]
+                    #[allow(non_snake_case)]
+                    pub fn values_as_bool_values(&self) -> Option<BoolValues<'a>> {
+                        if self.values_type() == ColumnValues::BoolValues {
+                            self.values().map(BoolValues::init_from_table)
+                        } else {
+                            None
+                        }
+                    }
+
+                    #[inline]
+                    #[allow(non_snake_case)]
+                    pub fn values_as_bytes_values(&self) -> Option<BytesValues<'a>> {
+                        if self.values_type() == ColumnValues::BytesValues {
+                            self.values().map(BytesValues::init_from_table)
+                        } else {
+                            None
+                        }
+                    }
+                }
+
+                impl flatbuffers::Verifiable for Column<'_> {
+                    #[inline]
+                    fn run_verifier(
+                        v: &mut flatbuffers::Verifier,
+                        pos: usize,
+                    ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+                        use self::flatbuffers::Verifiable;
+                        v.visit_table(pos)?
+     .visit_field::<flatbuffers::ForwardsUOffset<&str>>(&"name", Self::VT_NAME, false)?
+     .visit_field::<LogicalColumnType>(&"logical_column_type", Self::VT_LOGICAL_COLUMN_TYPE, false)?
+     .visit_union::<ColumnValues, _>(&"values_type", Self::VT_VALUES_TYPE, &"values", Self::VT_VALUES, false, |key, v, pos| {
+        match key {
+          ColumnValues::I64Values => v.verify_union_variant::<flatbuffers::ForwardsUOffset<I64Values>>("ColumnValues::I64Values", pos),
+          ColumnValues::F64Values => v.verify_union_variant::<flatbuffers::ForwardsUOffset<F64Values>>("ColumnValues::F64Values", pos),
+          ColumnValues::U64Values => v.verify_union_variant::<flatbuffers::ForwardsUOffset<U64Values>>("ColumnValues::U64Values", pos),
+          ColumnValues::StringValues => v.verify_union_variant::<flatbuffers::ForwardsUOffset<StringValues>>("ColumnValues::StringValues", pos),
+          ColumnValues::BoolValues => v.verify_union_variant::<flatbuffers::ForwardsUOffset<BoolValues>>("ColumnValues::BoolValues", pos),
+          ColumnValues::BytesValues => v.verify_union_variant::<flatbuffers::ForwardsUOffset<BytesValues>>("ColumnValues::BytesValues", pos),
+          _ => Ok(()),
+        }
+     })?
+     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, u8>>>(&"null_bitmask", Self::VT_NULL_BITMASK, false)?
+     .finish();
+                        Ok(())
+                    }
+                }
+                pub struct ColumnArgs<'a> {
+                    pub name: Option<flatbuffers::WIPOffset<&'a str>>,
+                    pub logical_column_type: LogicalColumnType,
+                    pub values_type: ColumnValues,
+                    pub values: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
+                    pub null_bitmask: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, u8>>>,
+                }
+                impl<'a> Default for ColumnArgs<'a> {
+                    #[inline]
+                    fn default() -> Self {
+                        ColumnArgs {
+                            name: None,
+                            logical_column_type: LogicalColumnType::IOx,
+                            values_type: ColumnValues::NONE,
+                            values: None,
+                            null_bitmask: None,
+                        }
+                    }
+                }
+                pub struct ColumnBuilder<'a: 'b, 'b> {
+                    fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+                    start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+                }
+                impl<'a: 'b, 'b> ColumnBuilder<'a, 'b> {
+                    #[inline]
+                    pub fn add_name(&mut self, name: flatbuffers::WIPOffset<&'b str>) {
+                        self.fbb_
+                            .push_slot_always::<flatbuffers::WIPOffset<_>>(Column::VT_NAME, name);
+                    }
+                    #[inline]
+                    pub fn add_logical_column_type(
+                        &mut self,
+                        logical_column_type: LogicalColumnType,
+                    ) {
+                        self.fbb_.push_slot::<LogicalColumnType>(
+                            Column::VT_LOGICAL_COLUMN_TYPE,
+                            logical_column_type,
+                            LogicalColumnType::IOx,
+                        );
+                    }
+                    #[inline]
+                    pub fn add_values_type(&mut self, values_type: ColumnValues) {
+                        self.fbb_.push_slot::<ColumnValues>(
+                            Column::VT_VALUES_TYPE,
+                            values_type,
+                            ColumnValues::NONE,
+                        );
+                    }
+                    #[inline]
+                    pub fn add_values(
+                        &mut self,
+                        values: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>,
+                    ) {
+                        self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
+                            Column::VT_VALUES,
+                            values,
+                        );
+                    }
+                    #[inline]
+                    pub fn add_null_bitmask(
+                        &mut self,
+                        null_bitmask: flatbuffers::WIPOffset<flatbuffers::Vector<'b, u8>>,
+                    ) {
+                        self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
+                            Column::VT_NULL_BITMASK,
+                            null_bitmask,
+                        );
+                    }
+                    #[inline]
+                    pub fn new(
+                        _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+                    ) -> ColumnBuilder<'a, 'b> {
+                        let start = _fbb.start_table();
+                        ColumnBuilder {
+                            fbb_: _fbb,
+                            start_: start,
+                        }
+                    }
+                    #[inline]
+                    pub fn finish(self) -> flatbuffers::WIPOffset<Column<'a>> {
+                        let o = self.fbb_.end_table(self.start_);
+                        flatbuffers::WIPOffset::new(o.value())
+                    }
+                }
+
+                impl std::fmt::Debug for Column<'_> {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        let mut ds = f.debug_struct("Column");
+                        ds.field("name", &self.name());
+                        ds.field("logical_column_type", &self.logical_column_type());
+                        ds.field("values_type", &self.values_type());
+                        match self.values_type() {
+                            ColumnValues::I64Values => {
+                                if let Some(x) = self.values_as_i64values() {
+                                    ds.field("values", &x)
+                                } else {
+                                    ds.field("values", &"InvalidFlatbuffer: Union discriminant does not match value.")
+                                }
+                            }
+                            ColumnValues::F64Values => {
+                                if let Some(x) = self.values_as_f64values() {
+                                    ds.field("values", &x)
+                                } else {
+                                    ds.field("values", &"InvalidFlatbuffer: Union discriminant does not match value.")
+                                }
+                            }
+                            ColumnValues::U64Values => {
+                                if let Some(x) = self.values_as_u64values() {
+                                    ds.field("values", &x)
+                                } else {
+                                    ds.field("values", &"InvalidFlatbuffer: Union discriminant does not match value.")
+                                }
+                            }
+                            ColumnValues::StringValues => {
+                                if let Some(x) = self.values_as_string_values() {
+                                    ds.field("values", &x)
+                                } else {
+                                    ds.field("values", &"InvalidFlatbuffer: Union discriminant does not match value.")
+                                }
+                            }
+                            ColumnValues::BoolValues => {
+                                if let Some(x) = self.values_as_bool_values() {
+                                    ds.field("values", &x)
+                                } else {
+                                    ds.field("values", &"InvalidFlatbuffer: Union discriminant does not match value.")
+                                }
+                            }
+                            ColumnValues::BytesValues => {
+                                if let Some(x) = self.values_as_bytes_values() {
+                                    ds.field("values", &x)
+                                } else {
+                                    ds.field("values", &"InvalidFlatbuffer: Union discriminant does not match value.")
+                                }
+                            }
+                            _ => {
+                                let x: Option<()> = None;
+                                ds.field("values", &x)
+                            }
+                        };
+                        ds.field("null_bitmask", &self.null_bitmask());
+                        ds.finish()
+                    }
+                }
+                pub enum I64ValuesOffset {}
+                #[derive(Copy, Clone, PartialEq)]
+
+                pub struct I64Values<'a> {
+                    pub _tab: flatbuffers::Table<'a>,
+                }
+
+                impl<'a> flatbuffers::Follow<'a> for I64Values<'a> {
+                    type Inner = I64Values<'a>;
+                    #[inline]
+                    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+                        Self {
+                            _tab: flatbuffers::Table { buf, loc },
+                        }
+                    }
+                }
+
+                impl<'a> I64Values<'a> {
+                    #[inline]
+                    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+                        I64Values { _tab: table }
+                    }
+                    #[allow(unused_mut)]
+                    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+                        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+                        args: &'args I64ValuesArgs<'args>,
+                    ) -> flatbuffers::WIPOffset<I64Values<'bldr>> {
+                        let mut builder = I64ValuesBuilder::new(_fbb);
+                        if let Some(x) = args.values {
+                            builder.add_values(x);
+                        }
+                        builder.finish()
+                    }
+
+                    pub const VT_VALUES: flatbuffers::VOffsetT = 4;
+
+                    #[inline]
+                    pub fn values(&self) -> Option<flatbuffers::Vector<'a, i64>> {
+                        self._tab
+                            .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, i64>>>(
+                                I64Values::VT_VALUES,
+                                None,
+                            )
+                    }
+                }
+
+                impl flatbuffers::Verifiable for I64Values<'_> {
+                    #[inline]
+                    fn run_verifier(
+                        v: &mut flatbuffers::Verifier,
+                        pos: usize,
+                    ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+                        use self::flatbuffers::Verifiable;
+                        v.visit_table(pos)?
+     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, i64>>>(&"values", Self::VT_VALUES, false)?
+     .finish();
+                        Ok(())
+                    }
+                }
+                pub struct I64ValuesArgs<'a> {
+                    pub values: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, i64>>>,
+                }
+                impl<'a> Default for I64ValuesArgs<'a> {
+                    #[inline]
+                    fn default() -> Self {
+                        I64ValuesArgs { values: None }
+                    }
+                }
+                pub struct I64ValuesBuilder<'a: 'b, 'b> {
+                    fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+                    start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+                }
+                impl<'a: 'b, 'b> I64ValuesBuilder<'a, 'b> {
+                    #[inline]
+                    pub fn add_values(
+                        &mut self,
+                        values: flatbuffers::WIPOffset<flatbuffers::Vector<'b, i64>>,
+                    ) {
+                        self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
+                            I64Values::VT_VALUES,
+                            values,
+                        );
+                    }
+                    #[inline]
+                    pub fn new(
+                        _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+                    ) -> I64ValuesBuilder<'a, 'b> {
+                        let start = _fbb.start_table();
+                        I64ValuesBuilder {
+                            fbb_: _fbb,
+                            start_: start,
+                        }
+                    }
+                    #[inline]
+                    pub fn finish(self) -> flatbuffers::WIPOffset<I64Values<'a>> {
+                        let o = self.fbb_.end_table(self.start_);
+                        flatbuffers::WIPOffset::new(o.value())
+                    }
+                }
+
+                impl std::fmt::Debug for I64Values<'_> {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        let mut ds = f.debug_struct("I64Values");
+                        ds.field("values", &self.values());
+                        ds.finish()
+                    }
+                }
+                pub enum F64ValuesOffset {}
+                #[derive(Copy, Clone, PartialEq)]
+
+                pub struct F64Values<'a> {
+                    pub _tab: flatbuffers::Table<'a>,
+                }
+
+                impl<'a> flatbuffers::Follow<'a> for F64Values<'a> {
+                    type Inner = F64Values<'a>;
+                    #[inline]
+                    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+                        Self {
+                            _tab: flatbuffers::Table { buf, loc },
+                        }
+                    }
+                }
+
+                impl<'a> F64Values<'a> {
+                    #[inline]
+                    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+                        F64Values { _tab: table }
+                    }
+                    #[allow(unused_mut)]
+                    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+                        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+                        args: &'args F64ValuesArgs<'args>,
+                    ) -> flatbuffers::WIPOffset<F64Values<'bldr>> {
+                        let mut builder = F64ValuesBuilder::new(_fbb);
+                        if let Some(x) = args.values {
+                            builder.add_values(x);
+                        }
+                        builder.finish()
+                    }
+
+                    pub const VT_VALUES: flatbuffers::VOffsetT = 4;
+
+                    #[inline]
+                    pub fn values(&self) -> Option<flatbuffers::Vector<'a, f64>> {
+                        self._tab
+                            .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, f64>>>(
+                                F64Values::VT_VALUES,
+                                None,
+                            )
+                    }
+                }
+
+                impl flatbuffers::Verifiable for F64Values<'_> {
+                    #[inline]
+                    fn run_verifier(
+                        v: &mut flatbuffers::Verifier,
+                        pos: usize,
+                    ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+                        use self::flatbuffers::Verifiable;
+                        v.visit_table(pos)?
+     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, f64>>>(&"values", Self::VT_VALUES, false)?
+     .finish();
+                        Ok(())
+                    }
+                }
+                pub struct F64ValuesArgs<'a> {
+                    pub values: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, f64>>>,
+                }
+                impl<'a> Default for F64ValuesArgs<'a> {
+                    #[inline]
+                    fn default() -> Self {
+                        F64ValuesArgs { values: None }
+                    }
+                }
+                pub struct F64ValuesBuilder<'a: 'b, 'b> {
+                    fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+                    start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+                }
+                impl<'a: 'b, 'b> F64ValuesBuilder<'a, 'b> {
+                    #[inline]
+                    pub fn add_values(
+                        &mut self,
+                        values: flatbuffers::WIPOffset<flatbuffers::Vector<'b, f64>>,
+                    ) {
+                        self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
+                            F64Values::VT_VALUES,
+                            values,
+                        );
+                    }
+                    #[inline]
+                    pub fn new(
+                        _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+                    ) -> F64ValuesBuilder<'a, 'b> {
+                        let start = _fbb.start_table();
+                        F64ValuesBuilder {
+                            fbb_: _fbb,
+                            start_: start,
+                        }
+                    }
+                    #[inline]
+                    pub fn finish(self) -> flatbuffers::WIPOffset<F64Values<'a>> {
+                        let o = self.fbb_.end_table(self.start_);
+                        flatbuffers::WIPOffset::new(o.value())
+                    }
+                }
+
+                impl std::fmt::Debug for F64Values<'_> {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        let mut ds = f.debug_struct("F64Values");
+                        ds.field("values", &self.values());
+                        ds.finish()
+                    }
+                }
+                pub enum U64ValuesOffset {}
+                #[derive(Copy, Clone, PartialEq)]
+
+                pub struct U64Values<'a> {
+                    pub _tab: flatbuffers::Table<'a>,
+                }
+
+                impl<'a> flatbuffers::Follow<'a> for U64Values<'a> {
+                    type Inner = U64Values<'a>;
+                    #[inline]
+                    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+                        Self {
+                            _tab: flatbuffers::Table { buf, loc },
+                        }
+                    }
+                }
+
+                impl<'a> U64Values<'a> {
+                    #[inline]
+                    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+                        U64Values { _tab: table }
+                    }
+                    #[allow(unused_mut)]
+                    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+                        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+                        args: &'args U64ValuesArgs<'args>,
+                    ) -> flatbuffers::WIPOffset<U64Values<'bldr>> {
+                        let mut builder = U64ValuesBuilder::new(_fbb);
+                        if let Some(x) = args.values {
+                            builder.add_values(x);
+                        }
+                        builder.finish()
+                    }
+
+                    pub const VT_VALUES: flatbuffers::VOffsetT = 4;
+
+                    #[inline]
+                    pub fn values(&self) -> Option<flatbuffers::Vector<'a, u64>> {
+                        self._tab
+                            .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u64>>>(
+                                U64Values::VT_VALUES,
+                                None,
+                            )
+                    }
+                }
+
+                impl flatbuffers::Verifiable for U64Values<'_> {
+                    #[inline]
+                    fn run_verifier(
+                        v: &mut flatbuffers::Verifier,
+                        pos: usize,
+                    ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+                        use self::flatbuffers::Verifiable;
+                        v.visit_table(pos)?
+     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, u64>>>(&"values", Self::VT_VALUES, false)?
+     .finish();
+                        Ok(())
+                    }
+                }
+                pub struct U64ValuesArgs<'a> {
+                    pub values: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, u64>>>,
+                }
+                impl<'a> Default for U64ValuesArgs<'a> {
+                    #[inline]
+                    fn default() -> Self {
+                        U64ValuesArgs { values: None }
+                    }
+                }
+                pub struct U64ValuesBuilder<'a: 'b, 'b> {
+                    fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+                    start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+                }
+                impl<'a: 'b, 'b> U64ValuesBuilder<'a, 'b> {
+                    #[inline]
+                    pub fn add_values(
+                        &mut self,
+                        values: flatbuffers::WIPOffset<flatbuffers::Vector<'b, u64>>,
+                    ) {
+                        self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
+                            U64Values::VT_VALUES,
+                            values,
+                        );
+                    }
+                    #[inline]
+                    pub fn new(
+                        _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+                    ) -> U64ValuesBuilder<'a, 'b> {
+                        let start = _fbb.start_table();
+                        U64ValuesBuilder {
+                            fbb_: _fbb,
+                            start_: start,
+                        }
+                    }
+                    #[inline]
+                    pub fn finish(self) -> flatbuffers::WIPOffset<U64Values<'a>> {
+                        let o = self.fbb_.end_table(self.start_);
+                        flatbuffers::WIPOffset::new(o.value())
+                    }
+                }
+
+                impl std::fmt::Debug for U64Values<'_> {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        let mut ds = f.debug_struct("U64Values");
+                        ds.field("values", &self.values());
+                        ds.finish()
+                    }
+                }
+                pub enum StringValuesOffset {}
+                #[derive(Copy, Clone, PartialEq)]
+
+                pub struct StringValues<'a> {
+                    pub _tab: flatbuffers::Table<'a>,
+                }
+
+                impl<'a> flatbuffers::Follow<'a> for StringValues<'a> {
+                    type Inner = StringValues<'a>;
+                    #[inline]
+                    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+                        Self {
+                            _tab: flatbuffers::Table { buf, loc },
+                        }
+                    }
+                }
+
+                impl<'a> StringValues<'a> {
+                    #[inline]
+                    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+                        StringValues { _tab: table }
+                    }
+                    #[allow(unused_mut)]
+                    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+                        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+                        args: &'args StringValuesArgs<'args>,
+                    ) -> flatbuffers::WIPOffset<StringValues<'bldr>> {
+                        let mut builder = StringValuesBuilder::new(_fbb);
                         if let Some(x) = args.values {
                             builder.add_values(x);
                         }
@@ -823,15 +1871,15 @@ pub mod influxdata {
                     #[inline]
                     pub fn values(
                         &self,
-                    ) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Value<'a>>>>
+                    ) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>>
                     {
                         self._tab.get::<flatbuffers::ForwardsUOffset<
-                            flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Value>>,
-                        >>(Row::VT_VALUES, None)
+                            flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>,
+                        >>(StringValues::VT_VALUES, None)
                     }
                 }
 
-                impl flatbuffers::Verifiable for Row<'_> {
+                impl flatbuffers::Verifiable for StringValues<'_> {
                     #[inline]
                     fn run_verifier(
                         v: &mut flatbuffers::Verifier,
@@ -840,73 +1888,75 @@ pub mod influxdata {
                         use self::flatbuffers::Verifiable;
                         v.visit_table(pos)?
                             .visit_field::<flatbuffers::ForwardsUOffset<
-                                flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<Value>>,
+                                flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<&'_ str>>,
                             >>(&"values", Self::VT_VALUES, false)?
                             .finish();
                         Ok(())
                     }
                 }
-                pub struct RowArgs<'a> {
+                pub struct StringValuesArgs<'a> {
                     pub values: Option<
                         flatbuffers::WIPOffset<
-                            flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Value<'a>>>,
+                            flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<&'a str>>,
                         >,
                     >,
                 }
-                impl<'a> Default for RowArgs<'a> {
+                impl<'a> Default for StringValuesArgs<'a> {
                     #[inline]
                     fn default() -> Self {
-                        RowArgs { values: None }
+                        StringValuesArgs { values: None }
                     }
                 }
-                pub struct RowBuilder<'a: 'b, 'b> {
+                pub struct StringValuesBuilder<'a: 'b, 'b> {
                     fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
                     start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
                 }
-                impl<'a: 'b, 'b> RowBuilder<'a, 'b> {
+                impl<'a: 'b, 'b> StringValuesBuilder<'a, 'b> {
                     #[inline]
                     pub fn add_values(
                         &mut self,
                         values: flatbuffers::WIPOffset<
-                            flatbuffers::Vector<'b, flatbuffers::ForwardsUOffset<Value<'b>>>,
+                            flatbuffers::Vector<'b, flatbuffers::ForwardsUOffset<&'b str>>,
                         >,
                     ) {
-                        self.fbb_
-                            .push_slot_always::<flatbuffers::WIPOffset<_>>(Row::VT_VALUES, values);
+                        self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
+                            StringValues::VT_VALUES,
+                            values,
+                        );
                     }
                     #[inline]
                     pub fn new(
                         _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-                    ) -> RowBuilder<'a, 'b> {
+                    ) -> StringValuesBuilder<'a, 'b> {
                         let start = _fbb.start_table();
-                        RowBuilder {
+                        StringValuesBuilder {
                             fbb_: _fbb,
                             start_: start,
                         }
                     }
                     #[inline]
-                    pub fn finish(self) -> flatbuffers::WIPOffset<Row<'a>> {
+                    pub fn finish(self) -> flatbuffers::WIPOffset<StringValues<'a>> {
                         let o = self.fbb_.end_table(self.start_);
                         flatbuffers::WIPOffset::new(o.value())
                     }
                 }
 
-                impl std::fmt::Debug for Row<'_> {
+                impl std::fmt::Debug for StringValues<'_> {
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        let mut ds = f.debug_struct("Row");
+                        let mut ds = f.debug_struct("StringValues");
                         ds.field("values", &self.values());
                         ds.finish()
                     }
                 }
-                pub enum ValueOffset {}
+                pub enum BoolValuesOffset {}
                 #[derive(Copy, Clone, PartialEq)]
 
-                pub struct Value<'a> {
+                pub struct BoolValues<'a> {
                     pub _tab: flatbuffers::Table<'a>,
                 }
 
-                impl<'a> flatbuffers::Follow<'a> for Value<'a> {
-                    type Inner = Value<'a>;
+                impl<'a> flatbuffers::Follow<'a> for BoolValues<'a> {
+                    type Inner = BoolValues<'a>;
                     #[inline]
                     fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
                         Self {
@@ -915,103 +1965,37 @@ pub mod influxdata {
                     }
                 }
 
-                impl<'a> Value<'a> {
+                impl<'a> BoolValues<'a> {
                     #[inline]
                     pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-                        Value { _tab: table }
+                        BoolValues { _tab: table }
                     }
                     #[allow(unused_mut)]
                     pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
                         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-                        args: &'args ValueArgs,
-                    ) -> flatbuffers::WIPOffset<Value<'bldr>> {
-                        let mut builder = ValueBuilder::new(_fbb);
-                        if let Some(x) = args.value {
-                            builder.add_value(x);
+                        args: &'args BoolValuesArgs<'args>,
+                    ) -> flatbuffers::WIPOffset<BoolValues<'bldr>> {
+                        let mut builder = BoolValuesBuilder::new(_fbb);
+                        if let Some(x) = args.values {
+                            builder.add_values(x);
                         }
-                        builder.add_value_type(args.value_type);
                         builder.finish()
                     }
 
-                    pub const VT_VALUE_TYPE: flatbuffers::VOffsetT = 4;
-                    pub const VT_VALUE: flatbuffers::VOffsetT = 6;
+                    pub const VT_VALUES: flatbuffers::VOffsetT = 4;
 
                     #[inline]
-                    pub fn value_type(&self) -> ColumnValue {
+                    pub fn values(&self) -> Option<&'a [bool]> {
                         self._tab
-                            .get::<ColumnValue>(Value::VT_VALUE_TYPE, Some(ColumnValue::NONE))
-                            .unwrap()
-                    }
-                    #[inline]
-                    pub fn value(&self) -> Option<flatbuffers::Table<'a>> {
-                        self._tab
-                            .get::<flatbuffers::ForwardsUOffset<flatbuffers::Table<'a>>>(
-                                Value::VT_VALUE,
+                            .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, bool>>>(
+                                BoolValues::VT_VALUES,
                                 None,
                             )
-                    }
-                    #[inline]
-                    #[allow(non_snake_case)]
-                    pub fn value_as_tag_value(&self) -> Option<TagValue<'a>> {
-                        if self.value_type() == ColumnValue::TagValue {
-                            self.value().map(TagValue::init_from_table)
-                        } else {
-                            None
-                        }
-                    }
-
-                    #[inline]
-                    #[allow(non_snake_case)]
-                    pub fn value_as_i64value(&self) -> Option<I64Value<'a>> {
-                        if self.value_type() == ColumnValue::I64Value {
-                            self.value().map(I64Value::init_from_table)
-                        } else {
-                            None
-                        }
-                    }
-
-                    #[inline]
-                    #[allow(non_snake_case)]
-                    pub fn value_as_u64value(&self) -> Option<U64Value<'a>> {
-                        if self.value_type() == ColumnValue::U64Value {
-                            self.value().map(U64Value::init_from_table)
-                        } else {
-                            None
-                        }
-                    }
-
-                    #[inline]
-                    #[allow(non_snake_case)]
-                    pub fn value_as_f64value(&self) -> Option<F64Value<'a>> {
-                        if self.value_type() == ColumnValue::F64Value {
-                            self.value().map(F64Value::init_from_table)
-                        } else {
-                            None
-                        }
-                    }
-
-                    #[inline]
-                    #[allow(non_snake_case)]
-                    pub fn value_as_bool_value(&self) -> Option<BoolValue<'a>> {
-                        if self.value_type() == ColumnValue::BoolValue {
-                            self.value().map(BoolValue::init_from_table)
-                        } else {
-                            None
-                        }
-                    }
-
-                    #[inline]
-                    #[allow(non_snake_case)]
-                    pub fn value_as_string_value(&self) -> Option<StringValue<'a>> {
-                        if self.value_type() == ColumnValue::StringValue {
-                            self.value().map(StringValue::init_from_table)
-                        } else {
-                            None
-                        }
+                            .map(|v| v.safe_slice())
                     }
                 }
 
-                impl flatbuffers::Verifiable for Value<'_> {
+                impl flatbuffers::Verifiable for BoolValues<'_> {
                     #[inline]
                     fn run_verifier(
                         v: &mut flatbuffers::Verifier,
@@ -1019,241 +2003,68 @@ pub mod influxdata {
                     ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
                         use self::flatbuffers::Verifiable;
                         v.visit_table(pos)?
-     .visit_union::<ColumnValue, _>(&"value_type", Self::VT_VALUE_TYPE, &"value", Self::VT_VALUE, false, |key, v, pos| {
-        match key {
-          ColumnValue::TagValue => v.verify_union_variant::<flatbuffers::ForwardsUOffset<TagValue>>("ColumnValue::TagValue", pos),
-          ColumnValue::I64Value => v.verify_union_variant::<flatbuffers::ForwardsUOffset<I64Value>>("ColumnValue::I64Value", pos),
-          ColumnValue::U64Value => v.verify_union_variant::<flatbuffers::ForwardsUOffset<U64Value>>("ColumnValue::U64Value", pos),
-          ColumnValue::F64Value => v.verify_union_variant::<flatbuffers::ForwardsUOffset<F64Value>>("ColumnValue::F64Value", pos),
-          ColumnValue::BoolValue => v.verify_union_variant::<flatbuffers::ForwardsUOffset<BoolValue>>("ColumnValue::BoolValue", pos),
-          ColumnValue::StringValue => v.verify_union_variant::<flatbuffers::ForwardsUOffset<StringValue>>("ColumnValue::StringValue", pos),
-          _ => Ok(()),
-        }
-     })?
+     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, bool>>>(&"values", Self::VT_VALUES, false)?
      .finish();
                         Ok(())
                     }
                 }
-                pub struct ValueArgs {
-                    pub value_type: ColumnValue,
-                    pub value: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
+                pub struct BoolValuesArgs<'a> {
+                    pub values: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, bool>>>,
                 }
-                impl<'a> Default for ValueArgs {
+                impl<'a> Default for BoolValuesArgs<'a> {
                     #[inline]
                     fn default() -> Self {
-                        ValueArgs {
-                            value_type: ColumnValue::NONE,
-                            value: None,
-                        }
+                        BoolValuesArgs { values: None }
                     }
                 }
-                pub struct ValueBuilder<'a: 'b, 'b> {
+                pub struct BoolValuesBuilder<'a: 'b, 'b> {
                     fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
                     start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
                 }
-                impl<'a: 'b, 'b> ValueBuilder<'a, 'b> {
+                impl<'a: 'b, 'b> BoolValuesBuilder<'a, 'b> {
                     #[inline]
-                    pub fn add_value_type(&mut self, value_type: ColumnValue) {
-                        self.fbb_.push_slot::<ColumnValue>(
-                            Value::VT_VALUE_TYPE,
-                            value_type,
-                            ColumnValue::NONE,
-                        );
-                    }
-                    #[inline]
-                    pub fn add_value(
+                    pub fn add_values(
                         &mut self,
-                        value: flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>,
+                        values: flatbuffers::WIPOffset<flatbuffers::Vector<'b, bool>>,
                     ) {
-                        self.fbb_
-                            .push_slot_always::<flatbuffers::WIPOffset<_>>(Value::VT_VALUE, value);
-                    }
-                    #[inline]
-                    pub fn new(
-                        _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-                    ) -> ValueBuilder<'a, 'b> {
-                        let start = _fbb.start_table();
-                        ValueBuilder {
-                            fbb_: _fbb,
-                            start_: start,
-                        }
-                    }
-                    #[inline]
-                    pub fn finish(self) -> flatbuffers::WIPOffset<Value<'a>> {
-                        let o = self.fbb_.end_table(self.start_);
-                        flatbuffers::WIPOffset::new(o.value())
-                    }
-                }
-
-                impl std::fmt::Debug for Value<'_> {
-                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        let mut ds = f.debug_struct("Value");
-                        ds.field("value_type", &self.value_type());
-                        match self.value_type() {
-                            ColumnValue::TagValue => {
-                                if let Some(x) = self.value_as_tag_value() {
-                                    ds.field("value", &x)
-                                } else {
-                                    ds.field("value", &"InvalidFlatbuffer: Union discriminant does not match value.")
-                                }
-                            }
-                            ColumnValue::I64Value => {
-                                if let Some(x) = self.value_as_i64value() {
-                                    ds.field("value", &x)
-                                } else {
-                                    ds.field("value", &"InvalidFlatbuffer: Union discriminant does not match value.")
-                                }
-                            }
-                            ColumnValue::U64Value => {
-                                if let Some(x) = self.value_as_u64value() {
-                                    ds.field("value", &x)
-                                } else {
-                                    ds.field("value", &"InvalidFlatbuffer: Union discriminant does not match value.")
-                                }
-                            }
-                            ColumnValue::F64Value => {
-                                if let Some(x) = self.value_as_f64value() {
-                                    ds.field("value", &x)
-                                } else {
-                                    ds.field("value", &"InvalidFlatbuffer: Union discriminant does not match value.")
-                                }
-                            }
-                            ColumnValue::BoolValue => {
-                                if let Some(x) = self.value_as_bool_value() {
-                                    ds.field("value", &x)
-                                } else {
-                                    ds.field("value", &"InvalidFlatbuffer: Union discriminant does not match value.")
-                                }
-                            }
-                            ColumnValue::StringValue => {
-                                if let Some(x) = self.value_as_string_value() {
-                                    ds.field("value", &x)
-                                } else {
-                                    ds.field("value", &"InvalidFlatbuffer: Union discriminant does not match value.")
-                                }
-                            }
-                            _ => {
-                                let x: Option<()> = None;
-                                ds.field("value", &x)
-                            }
-                        };
-                        ds.finish()
-                    }
-                }
-                pub enum TagValueOffset {}
-                #[derive(Copy, Clone, PartialEq)]
-
-                pub struct TagValue<'a> {
-                    pub _tab: flatbuffers::Table<'a>,
-                }
-
-                impl<'a> flatbuffers::Follow<'a> for TagValue<'a> {
-                    type Inner = TagValue<'a>;
-                    #[inline]
-                    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-                        Self {
-                            _tab: flatbuffers::Table { buf, loc },
-                        }
-                    }
-                }
-
-                impl<'a> TagValue<'a> {
-                    #[inline]
-                    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-                        TagValue { _tab: table }
-                    }
-                    #[allow(unused_mut)]
-                    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-                        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-                        args: &'args TagValueArgs<'args>,
-                    ) -> flatbuffers::WIPOffset<TagValue<'bldr>> {
-                        let mut builder = TagValueBuilder::new(_fbb);
-                        if let Some(x) = args.value {
-                            builder.add_value(x);
-                        }
-                        builder.finish()
-                    }
-
-                    pub const VT_VALUE: flatbuffers::VOffsetT = 4;
-
-                    #[inline]
-                    pub fn value(&self) -> Option<&'a str> {
-                        self._tab
-                            .get::<flatbuffers::ForwardsUOffset<&str>>(TagValue::VT_VALUE, None)
-                    }
-                }
-
-                impl flatbuffers::Verifiable for TagValue<'_> {
-                    #[inline]
-                    fn run_verifier(
-                        v: &mut flatbuffers::Verifier,
-                        pos: usize,
-                    ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
-                        use self::flatbuffers::Verifiable;
-                        v.visit_table(pos)?
-                            .visit_field::<flatbuffers::ForwardsUOffset<&str>>(
-                                &"value",
-                                Self::VT_VALUE,
-                                false,
-                            )?
-                            .finish();
-                        Ok(())
-                    }
-                }
-                pub struct TagValueArgs<'a> {
-                    pub value: Option<flatbuffers::WIPOffset<&'a str>>,
-                }
-                impl<'a> Default for TagValueArgs<'a> {
-                    #[inline]
-                    fn default() -> Self {
-                        TagValueArgs { value: None }
-                    }
-                }
-                pub struct TagValueBuilder<'a: 'b, 'b> {
-                    fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-                    start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-                }
-                impl<'a: 'b, 'b> TagValueBuilder<'a, 'b> {
-                    #[inline]
-                    pub fn add_value(&mut self, value: flatbuffers::WIPOffset<&'b str>) {
                         self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
-                            TagValue::VT_VALUE,
-                            value,
+                            BoolValues::VT_VALUES,
+                            values,
                         );
                     }
                     #[inline]
                     pub fn new(
                         _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-                    ) -> TagValueBuilder<'a, 'b> {
+                    ) -> BoolValuesBuilder<'a, 'b> {
                         let start = _fbb.start_table();
-                        TagValueBuilder {
+                        BoolValuesBuilder {
                             fbb_: _fbb,
                             start_: start,
                         }
                     }
                     #[inline]
-                    pub fn finish(self) -> flatbuffers::WIPOffset<TagValue<'a>> {
+                    pub fn finish(self) -> flatbuffers::WIPOffset<BoolValues<'a>> {
                         let o = self.fbb_.end_table(self.start_);
                         flatbuffers::WIPOffset::new(o.value())
                     }
                 }
 
-                impl std::fmt::Debug for TagValue<'_> {
+                impl std::fmt::Debug for BoolValues<'_> {
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        let mut ds = f.debug_struct("TagValue");
-                        ds.field("value", &self.value());
+                        let mut ds = f.debug_struct("BoolValues");
+                        ds.field("values", &self.values());
                         ds.finish()
                     }
                 }
-                pub enum I64ValueOffset {}
+                pub enum BytesValuesOffset {}
                 #[derive(Copy, Clone, PartialEq)]
 
-                pub struct I64Value<'a> {
+                pub struct BytesValues<'a> {
                     pub _tab: flatbuffers::Table<'a>,
                 }
 
-                impl<'a> flatbuffers::Follow<'a> for I64Value<'a> {
-                    type Inner = I64Value<'a>;
+                impl<'a> flatbuffers::Follow<'a> for BytesValues<'a> {
+                    type Inner = BytesValues<'a>;
                     #[inline]
                     fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
                         Self {
@@ -1262,30 +2073,37 @@ pub mod influxdata {
                     }
                 }
 
-                impl<'a> I64Value<'a> {
+                impl<'a> BytesValues<'a> {
                     #[inline]
                     pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-                        I64Value { _tab: table }
+                        BytesValues { _tab: table }
                     }
                     #[allow(unused_mut)]
                     pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
                         _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-                        args: &'args I64ValueArgs,
-                    ) -> flatbuffers::WIPOffset<I64Value<'bldr>> {
-                        let mut builder = I64ValueBuilder::new(_fbb);
-                        builder.add_value(args.value);
+                        args: &'args BytesValuesArgs<'args>,
+                    ) -> flatbuffers::WIPOffset<BytesValues<'bldr>> {
+                        let mut builder = BytesValuesBuilder::new(_fbb);
+                        if let Some(x) = args.values {
+                            builder.add_values(x);
+                        }
                         builder.finish()
                     }
 
-                    pub const VT_VALUE: flatbuffers::VOffsetT = 4;
+                    pub const VT_VALUES: flatbuffers::VOffsetT = 4;
 
                     #[inline]
-                    pub fn value(&self) -> i64 {
-                        self._tab.get::<i64>(I64Value::VT_VALUE, Some(0)).unwrap()
+                    pub fn values(
+                        &self,
+                    ) -> Option<flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<BytesValue<'a>>>>
+                    {
+                        self._tab.get::<flatbuffers::ForwardsUOffset<
+                            flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<BytesValue>>,
+                        >>(BytesValues::VT_VALUES, None)
                     }
                 }
 
-                impl flatbuffers::Verifiable for I64Value<'_> {
+                impl flatbuffers::Verifiable for BytesValues<'_> {
                     #[inline]
                     fn run_verifier(
                         v: &mut flatbuffers::Verifier,
@@ -1293,443 +2111,172 @@ pub mod influxdata {
                     ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
                         use self::flatbuffers::Verifiable;
                         v.visit_table(pos)?
-                            .visit_field::<i64>(&"value", Self::VT_VALUE, false)?
+                            .visit_field::<flatbuffers::ForwardsUOffset<
+                                flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<BytesValue>>,
+                            >>(&"values", Self::VT_VALUES, false)?
                             .finish();
                         Ok(())
                     }
                 }
-                pub struct I64ValueArgs {
-                    pub value: i64,
+                pub struct BytesValuesArgs<'a> {
+                    pub values: Option<
+                        flatbuffers::WIPOffset<
+                            flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<BytesValue<'a>>>,
+                        >,
+                    >,
                 }
-                impl<'a> Default for I64ValueArgs {
+                impl<'a> Default for BytesValuesArgs<'a> {
                     #[inline]
                     fn default() -> Self {
-                        I64ValueArgs { value: 0 }
+                        BytesValuesArgs { values: None }
                     }
                 }
-                pub struct I64ValueBuilder<'a: 'b, 'b> {
+                pub struct BytesValuesBuilder<'a: 'b, 'b> {
                     fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
                     start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
                 }
-                impl<'a: 'b, 'b> I64ValueBuilder<'a, 'b> {
+                impl<'a: 'b, 'b> BytesValuesBuilder<'a, 'b> {
                     #[inline]
-                    pub fn add_value(&mut self, value: i64) {
-                        self.fbb_.push_slot::<i64>(I64Value::VT_VALUE, value, 0);
-                    }
-                    #[inline]
-                    pub fn new(
-                        _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-                    ) -> I64ValueBuilder<'a, 'b> {
-                        let start = _fbb.start_table();
-                        I64ValueBuilder {
-                            fbb_: _fbb,
-                            start_: start,
-                        }
-                    }
-                    #[inline]
-                    pub fn finish(self) -> flatbuffers::WIPOffset<I64Value<'a>> {
-                        let o = self.fbb_.end_table(self.start_);
-                        flatbuffers::WIPOffset::new(o.value())
-                    }
-                }
-
-                impl std::fmt::Debug for I64Value<'_> {
-                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        let mut ds = f.debug_struct("I64Value");
-                        ds.field("value", &self.value());
-                        ds.finish()
-                    }
-                }
-                pub enum U64ValueOffset {}
-                #[derive(Copy, Clone, PartialEq)]
-
-                pub struct U64Value<'a> {
-                    pub _tab: flatbuffers::Table<'a>,
-                }
-
-                impl<'a> flatbuffers::Follow<'a> for U64Value<'a> {
-                    type Inner = U64Value<'a>;
-                    #[inline]
-                    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-                        Self {
-                            _tab: flatbuffers::Table { buf, loc },
-                        }
-                    }
-                }
-
-                impl<'a> U64Value<'a> {
-                    #[inline]
-                    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-                        U64Value { _tab: table }
-                    }
-                    #[allow(unused_mut)]
-                    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-                        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-                        args: &'args U64ValueArgs,
-                    ) -> flatbuffers::WIPOffset<U64Value<'bldr>> {
-                        let mut builder = U64ValueBuilder::new(_fbb);
-                        builder.add_value(args.value);
-                        builder.finish()
-                    }
-
-                    pub const VT_VALUE: flatbuffers::VOffsetT = 4;
-
-                    #[inline]
-                    pub fn value(&self) -> u64 {
-                        self._tab.get::<u64>(U64Value::VT_VALUE, Some(0)).unwrap()
-                    }
-                }
-
-                impl flatbuffers::Verifiable for U64Value<'_> {
-                    #[inline]
-                    fn run_verifier(
-                        v: &mut flatbuffers::Verifier,
-                        pos: usize,
-                    ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
-                        use self::flatbuffers::Verifiable;
-                        v.visit_table(pos)?
-                            .visit_field::<u64>(&"value", Self::VT_VALUE, false)?
-                            .finish();
-                        Ok(())
-                    }
-                }
-                pub struct U64ValueArgs {
-                    pub value: u64,
-                }
-                impl<'a> Default for U64ValueArgs {
-                    #[inline]
-                    fn default() -> Self {
-                        U64ValueArgs { value: 0 }
-                    }
-                }
-                pub struct U64ValueBuilder<'a: 'b, 'b> {
-                    fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-                    start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-                }
-                impl<'a: 'b, 'b> U64ValueBuilder<'a, 'b> {
-                    #[inline]
-                    pub fn add_value(&mut self, value: u64) {
-                        self.fbb_.push_slot::<u64>(U64Value::VT_VALUE, value, 0);
-                    }
-                    #[inline]
-                    pub fn new(
-                        _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-                    ) -> U64ValueBuilder<'a, 'b> {
-                        let start = _fbb.start_table();
-                        U64ValueBuilder {
-                            fbb_: _fbb,
-                            start_: start,
-                        }
-                    }
-                    #[inline]
-                    pub fn finish(self) -> flatbuffers::WIPOffset<U64Value<'a>> {
-                        let o = self.fbb_.end_table(self.start_);
-                        flatbuffers::WIPOffset::new(o.value())
-                    }
-                }
-
-                impl std::fmt::Debug for U64Value<'_> {
-                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        let mut ds = f.debug_struct("U64Value");
-                        ds.field("value", &self.value());
-                        ds.finish()
-                    }
-                }
-                pub enum F64ValueOffset {}
-                #[derive(Copy, Clone, PartialEq)]
-
-                pub struct F64Value<'a> {
-                    pub _tab: flatbuffers::Table<'a>,
-                }
-
-                impl<'a> flatbuffers::Follow<'a> for F64Value<'a> {
-                    type Inner = F64Value<'a>;
-                    #[inline]
-                    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-                        Self {
-                            _tab: flatbuffers::Table { buf, loc },
-                        }
-                    }
-                }
-
-                impl<'a> F64Value<'a> {
-                    #[inline]
-                    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-                        F64Value { _tab: table }
-                    }
-                    #[allow(unused_mut)]
-                    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-                        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-                        args: &'args F64ValueArgs,
-                    ) -> flatbuffers::WIPOffset<F64Value<'bldr>> {
-                        let mut builder = F64ValueBuilder::new(_fbb);
-                        builder.add_value(args.value);
-                        builder.finish()
-                    }
-
-                    pub const VT_VALUE: flatbuffers::VOffsetT = 4;
-
-                    #[inline]
-                    pub fn value(&self) -> f64 {
-                        self._tab.get::<f64>(F64Value::VT_VALUE, Some(0.0)).unwrap()
-                    }
-                }
-
-                impl flatbuffers::Verifiable for F64Value<'_> {
-                    #[inline]
-                    fn run_verifier(
-                        v: &mut flatbuffers::Verifier,
-                        pos: usize,
-                    ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
-                        use self::flatbuffers::Verifiable;
-                        v.visit_table(pos)?
-                            .visit_field::<f64>(&"value", Self::VT_VALUE, false)?
-                            .finish();
-                        Ok(())
-                    }
-                }
-                pub struct F64ValueArgs {
-                    pub value: f64,
-                }
-                impl<'a> Default for F64ValueArgs {
-                    #[inline]
-                    fn default() -> Self {
-                        F64ValueArgs { value: 0.0 }
-                    }
-                }
-                pub struct F64ValueBuilder<'a: 'b, 'b> {
-                    fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-                    start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-                }
-                impl<'a: 'b, 'b> F64ValueBuilder<'a, 'b> {
-                    #[inline]
-                    pub fn add_value(&mut self, value: f64) {
-                        self.fbb_.push_slot::<f64>(F64Value::VT_VALUE, value, 0.0);
-                    }
-                    #[inline]
-                    pub fn new(
-                        _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-                    ) -> F64ValueBuilder<'a, 'b> {
-                        let start = _fbb.start_table();
-                        F64ValueBuilder {
-                            fbb_: _fbb,
-                            start_: start,
-                        }
-                    }
-                    #[inline]
-                    pub fn finish(self) -> flatbuffers::WIPOffset<F64Value<'a>> {
-                        let o = self.fbb_.end_table(self.start_);
-                        flatbuffers::WIPOffset::new(o.value())
-                    }
-                }
-
-                impl std::fmt::Debug for F64Value<'_> {
-                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        let mut ds = f.debug_struct("F64Value");
-                        ds.field("value", &self.value());
-                        ds.finish()
-                    }
-                }
-                pub enum BoolValueOffset {}
-                #[derive(Copy, Clone, PartialEq)]
-
-                pub struct BoolValue<'a> {
-                    pub _tab: flatbuffers::Table<'a>,
-                }
-
-                impl<'a> flatbuffers::Follow<'a> for BoolValue<'a> {
-                    type Inner = BoolValue<'a>;
-                    #[inline]
-                    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-                        Self {
-                            _tab: flatbuffers::Table { buf, loc },
-                        }
-                    }
-                }
-
-                impl<'a> BoolValue<'a> {
-                    #[inline]
-                    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-                        BoolValue { _tab: table }
-                    }
-                    #[allow(unused_mut)]
-                    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-                        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-                        args: &'args BoolValueArgs,
-                    ) -> flatbuffers::WIPOffset<BoolValue<'bldr>> {
-                        let mut builder = BoolValueBuilder::new(_fbb);
-                        builder.add_value(args.value);
-                        builder.finish()
-                    }
-
-                    pub const VT_VALUE: flatbuffers::VOffsetT = 4;
-
-                    #[inline]
-                    pub fn value(&self) -> bool {
-                        self._tab
-                            .get::<bool>(BoolValue::VT_VALUE, Some(false))
-                            .unwrap()
-                    }
-                }
-
-                impl flatbuffers::Verifiable for BoolValue<'_> {
-                    #[inline]
-                    fn run_verifier(
-                        v: &mut flatbuffers::Verifier,
-                        pos: usize,
-                    ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
-                        use self::flatbuffers::Verifiable;
-                        v.visit_table(pos)?
-                            .visit_field::<bool>(&"value", Self::VT_VALUE, false)?
-                            .finish();
-                        Ok(())
-                    }
-                }
-                pub struct BoolValueArgs {
-                    pub value: bool,
-                }
-                impl<'a> Default for BoolValueArgs {
-                    #[inline]
-                    fn default() -> Self {
-                        BoolValueArgs { value: false }
-                    }
-                }
-                pub struct BoolValueBuilder<'a: 'b, 'b> {
-                    fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-                    start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-                }
-                impl<'a: 'b, 'b> BoolValueBuilder<'a, 'b> {
-                    #[inline]
-                    pub fn add_value(&mut self, value: bool) {
-                        self.fbb_
-                            .push_slot::<bool>(BoolValue::VT_VALUE, value, false);
-                    }
-                    #[inline]
-                    pub fn new(
-                        _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-                    ) -> BoolValueBuilder<'a, 'b> {
-                        let start = _fbb.start_table();
-                        BoolValueBuilder {
-                            fbb_: _fbb,
-                            start_: start,
-                        }
-                    }
-                    #[inline]
-                    pub fn finish(self) -> flatbuffers::WIPOffset<BoolValue<'a>> {
-                        let o = self.fbb_.end_table(self.start_);
-                        flatbuffers::WIPOffset::new(o.value())
-                    }
-                }
-
-                impl std::fmt::Debug for BoolValue<'_> {
-                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        let mut ds = f.debug_struct("BoolValue");
-                        ds.field("value", &self.value());
-                        ds.finish()
-                    }
-                }
-                pub enum StringValueOffset {}
-                #[derive(Copy, Clone, PartialEq)]
-
-                pub struct StringValue<'a> {
-                    pub _tab: flatbuffers::Table<'a>,
-                }
-
-                impl<'a> flatbuffers::Follow<'a> for StringValue<'a> {
-                    type Inner = StringValue<'a>;
-                    #[inline]
-                    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
-                        Self {
-                            _tab: flatbuffers::Table { buf, loc },
-                        }
-                    }
-                }
-
-                impl<'a> StringValue<'a> {
-                    #[inline]
-                    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
-                        StringValue { _tab: table }
-                    }
-                    #[allow(unused_mut)]
-                    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
-                        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
-                        args: &'args StringValueArgs<'args>,
-                    ) -> flatbuffers::WIPOffset<StringValue<'bldr>> {
-                        let mut builder = StringValueBuilder::new(_fbb);
-                        if let Some(x) = args.value {
-                            builder.add_value(x);
-                        }
-                        builder.finish()
-                    }
-
-                    pub const VT_VALUE: flatbuffers::VOffsetT = 4;
-
-                    #[inline]
-                    pub fn value(&self) -> Option<&'a str> {
-                        self._tab
-                            .get::<flatbuffers::ForwardsUOffset<&str>>(StringValue::VT_VALUE, None)
-                    }
-                }
-
-                impl flatbuffers::Verifiable for StringValue<'_> {
-                    #[inline]
-                    fn run_verifier(
-                        v: &mut flatbuffers::Verifier,
-                        pos: usize,
-                    ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
-                        use self::flatbuffers::Verifiable;
-                        v.visit_table(pos)?
-                            .visit_field::<flatbuffers::ForwardsUOffset<&str>>(
-                                &"value",
-                                Self::VT_VALUE,
-                                false,
-                            )?
-                            .finish();
-                        Ok(())
-                    }
-                }
-                pub struct StringValueArgs<'a> {
-                    pub value: Option<flatbuffers::WIPOffset<&'a str>>,
-                }
-                impl<'a> Default for StringValueArgs<'a> {
-                    #[inline]
-                    fn default() -> Self {
-                        StringValueArgs { value: None }
-                    }
-                }
-                pub struct StringValueBuilder<'a: 'b, 'b> {
-                    fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-                    start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
-                }
-                impl<'a: 'b, 'b> StringValueBuilder<'a, 'b> {
-                    #[inline]
-                    pub fn add_value(&mut self, value: flatbuffers::WIPOffset<&'b str>) {
+                    pub fn add_values(
+                        &mut self,
+                        values: flatbuffers::WIPOffset<
+                            flatbuffers::Vector<'b, flatbuffers::ForwardsUOffset<BytesValue<'b>>>,
+                        >,
+                    ) {
                         self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
-                            StringValue::VT_VALUE,
-                            value,
+                            BytesValues::VT_VALUES,
+                            values,
                         );
                     }
                     #[inline]
                     pub fn new(
                         _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
-                    ) -> StringValueBuilder<'a, 'b> {
+                    ) -> BytesValuesBuilder<'a, 'b> {
                         let start = _fbb.start_table();
-                        StringValueBuilder {
+                        BytesValuesBuilder {
                             fbb_: _fbb,
                             start_: start,
                         }
                     }
                     #[inline]
-                    pub fn finish(self) -> flatbuffers::WIPOffset<StringValue<'a>> {
+                    pub fn finish(self) -> flatbuffers::WIPOffset<BytesValues<'a>> {
                         let o = self.fbb_.end_table(self.start_);
                         flatbuffers::WIPOffset::new(o.value())
                     }
                 }
 
-                impl std::fmt::Debug for StringValue<'_> {
+                impl std::fmt::Debug for BytesValues<'_> {
                     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                        let mut ds = f.debug_struct("StringValue");
-                        ds.field("value", &self.value());
+                        let mut ds = f.debug_struct("BytesValues");
+                        ds.field("values", &self.values());
+                        ds.finish()
+                    }
+                }
+                pub enum BytesValueOffset {}
+                #[derive(Copy, Clone, PartialEq)]
+
+                pub struct BytesValue<'a> {
+                    pub _tab: flatbuffers::Table<'a>,
+                }
+
+                impl<'a> flatbuffers::Follow<'a> for BytesValue<'a> {
+                    type Inner = BytesValue<'a>;
+                    #[inline]
+                    fn follow(buf: &'a [u8], loc: usize) -> Self::Inner {
+                        Self {
+                            _tab: flatbuffers::Table { buf, loc },
+                        }
+                    }
+                }
+
+                impl<'a> BytesValue<'a> {
+                    #[inline]
+                    pub fn init_from_table(table: flatbuffers::Table<'a>) -> Self {
+                        BytesValue { _tab: table }
+                    }
+                    #[allow(unused_mut)]
+                    pub fn create<'bldr: 'args, 'args: 'mut_bldr, 'mut_bldr>(
+                        _fbb: &'mut_bldr mut flatbuffers::FlatBufferBuilder<'bldr>,
+                        args: &'args BytesValueArgs<'args>,
+                    ) -> flatbuffers::WIPOffset<BytesValue<'bldr>> {
+                        let mut builder = BytesValueBuilder::new(_fbb);
+                        if let Some(x) = args.data {
+                            builder.add_data(x);
+                        }
+                        builder.finish()
+                    }
+
+                    pub const VT_DATA: flatbuffers::VOffsetT = 4;
+
+                    #[inline]
+                    pub fn data(&self) -> Option<&'a [u8]> {
+                        self._tab
+                            .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(
+                                BytesValue::VT_DATA,
+                                None,
+                            )
+                            .map(|v| v.safe_slice())
+                    }
+                }
+
+                impl flatbuffers::Verifiable for BytesValue<'_> {
+                    #[inline]
+                    fn run_verifier(
+                        v: &mut flatbuffers::Verifier,
+                        pos: usize,
+                    ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
+                        use self::flatbuffers::Verifiable;
+                        v.visit_table(pos)?
+     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, u8>>>(&"data", Self::VT_DATA, false)?
+     .finish();
+                        Ok(())
+                    }
+                }
+                pub struct BytesValueArgs<'a> {
+                    pub data: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, u8>>>,
+                }
+                impl<'a> Default for BytesValueArgs<'a> {
+                    #[inline]
+                    fn default() -> Self {
+                        BytesValueArgs { data: None }
+                    }
+                }
+                pub struct BytesValueBuilder<'a: 'b, 'b> {
+                    fbb_: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+                    start_: flatbuffers::WIPOffset<flatbuffers::TableUnfinishedWIPOffset>,
+                }
+                impl<'a: 'b, 'b> BytesValueBuilder<'a, 'b> {
+                    #[inline]
+                    pub fn add_data(
+                        &mut self,
+                        data: flatbuffers::WIPOffset<flatbuffers::Vector<'b, u8>>,
+                    ) {
+                        self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
+                            BytesValue::VT_DATA,
+                            data,
+                        );
+                    }
+                    #[inline]
+                    pub fn new(
+                        _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
+                    ) -> BytesValueBuilder<'a, 'b> {
+                        let start = _fbb.start_table();
+                        BytesValueBuilder {
+                            fbb_: _fbb,
+                            start_: start,
+                        }
+                    }
+                    #[inline]
+                    pub fn finish(self) -> flatbuffers::WIPOffset<BytesValue<'a>> {
+                        let o = self.fbb_.end_table(self.start_);
+                        flatbuffers::WIPOffset::new(o.value())
+                    }
+                }
+
+                impl std::fmt::Debug for BytesValue<'_> {
+                    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                        let mut ds = f.debug_struct("BytesValue");
+                        ds.field("data", &self.data());
                         ds.finish()
                     }
                 }

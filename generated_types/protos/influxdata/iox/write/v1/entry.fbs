@@ -15,26 +15,28 @@ namespace influxdata.iox.write.v1;
 // layer generate the partition keys while it's at the job of parsing and validating
 // the line protocol. This will save the downstream stateful layers from doing
 // extra work.
-//
-// Even though this entry type has multiple fields (writes, deletes, others), they
-// are mutually exclusive. That is an Entry will only ever have one of those fields.
-// So you won't have an entry that has writes and deletes.
-table Entry {
+
+// An entry can only be one of these Operation types
+union Operation {
+  write: WriteOperations,
+  delete: DeleteOperations,
+}
+
+table WriteOperations {
   // A collection of partition writes. A given partition will have at most one
   // write in this collection.
-  writes: [PartitionWrite];
+  partition_writes: [PartitionWrite];
+}
+
+table DeleteOperations {
   // A collection of deletes. Each delete targets a single table, with each table
   // having no more than one delete. Deletes can span partitions because they
   // only have a predicate and do not target any specific partition.
   deletes: [Delete];
 }
 
-// A delete from a single table with a predicate. Deletes can span partitions since
-// they're concerned with data that has already been written. Partitioning is a way
-// to split up writes as they land.
-table Delete {
-  table_name: string;
-  predicate: string;
+table Entry {
+  operation: Operation;
 }
 
 // A write to a  partition. If the IOx server creating this PartitionWrite has
@@ -45,56 +47,73 @@ table PartitionWrite {
   table_batches: [TableWriteBatch];
 }
 
-// A collection of rows to write to a single table.
+// A delete from a single table with a predicate. Deletes can span partitions since
+// they're concerned with data that has already been written. Partitioning is a way
+// to split up writes as they land.
+table Delete {
+  table_name: string;
+  predicate: string;
+}
+
+// A collection of rows in a table in column oriented representation
 table TableWriteBatch {
   name: string;
-  column_names: [string];
-  // every row should have the same number of elements as column_names
-  rows: [Row];
+  // every column must have the same number of values in its null bitmask
+  columns: [Column];
 }
 
-// A single row
-table Row {
-  // the value's position in the array matches the column name position
-  values: [Value];
+enum LogicalColumnType : byte { IOx, Tag, Field, Time }
+
+union ColumnValues {
+  I64Values,
+  F64Values,
+  U64Values,
+  StringValues,
+  BoolValues,
+  BytesValues,
 }
 
-union ColumnValue {
-  TagValue,
-  I64Value,
-  U64Value,
-  F64Value,
-  BoolValue,
-  StringValue
+table Column {
+  name: string;
+  // this keeps a mapping of what kind of InfluxDB or IOx type this column came from
+  logical_column_type: LogicalColumnType;
+  // the set of non-null values for this column. Their position in this array does not
+  // map to their row position in the batch. The bitmask must be used to map the row
+  // position to the position in this array.
+  values: ColumnValues;
+  // bitmask that maps the position to if that value is null. Null positions will
+  // not have a value represented in the values array. To read the values out of the
+  // column requires traversing the bitmask to determine what position in the values
+  // array that index is located in.
+  null_bitmask: [ubyte];
 }
 
-// A value for a specific column
-table Value {
-  value: ColumnValue;
+table I64Values {
+  values: [int64];
 }
 
-table TagValue {
-  value: string;
+table F64Values {
+  values: [float64];
 }
 
-table I64Value {
-  value: int64;
+table U64Values {
+  values: [uint64];
 }
 
-table U64Value {
-  value: uint64;
+table StringValues {
+  values: [string];
 }
 
-table F64Value {
-  value: float64;
+table BoolValues {
+  values: [bool];
 }
 
-table BoolValue {
-  value: bool;
+table BytesValues {
+  values: [BytesValue];
 }
 
-table StringValue {
-  value: string;
+table BytesValue {
+  data: [ubyte];
 }
 
 // The following definitions are for the write buffer and for downstream subscribers to
