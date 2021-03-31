@@ -15,6 +15,7 @@ require (
 	github.com/dgryski/go-bitstream v0.0.0-20180413035011-3522498ce2c8
 	github.com/go-chi/chi v4.1.0+incompatible
 	github.com/gogo/protobuf v1.3.1
+	github.com/golang/mock v1.4.3
 	github.com/golang/snappy v0.0.1
 	github.com/google/go-cmp v0.5.0
 	github.com/influxdata/flux v0.111.0
