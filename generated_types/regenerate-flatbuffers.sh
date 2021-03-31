@@ -43,6 +43,11 @@ WAL_RS_DIR="$DIR/src"
 
 $FLATC --rust -o $WAL_RS_DIR $WAL_FBS
 
+ENTRY_FBS="$DIR/protos/influxdata/iox/write/v1/entry.fbs"
+ENTRY_RS_DIR="$DIR/src"
+
+$FLATC --rust -o $ENTRY_RS_DIR $ENTRY_FBS
+
 cargo fmt
 popd
 

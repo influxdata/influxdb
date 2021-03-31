@@ -1,0 +1,155 @@
+namespace influxdata.iox.write.v1;
+
+// Every modification to a database is represented as an entry. These can be forwarded
+// on to other IOx servers or can be wrapped with a logical clock value and writer id
+// for ordering in a buffer or to subscribers. An Entry is what gets sent from the
+// routing layer to the write buffer layer. The write buffer layer uses seqenced entries
+// to replicate to its peers and to send to downstream subscribers.
+//
+// Take the example of sharding, where an IOx server is configured to split an
+// incoming write into shards and send the write onto other servers. The batch of line protocol
+// written in a request will be split up so that each shard with data will have a
+// single Entry that will be sent to it. If the server that is doing the
+// sharding is not generating partition keys, the key in partition write won't be
+// present. It can be generated downstream. Although it's better to have the sharding
+// layer generate the partition keys while it's at the job of parsing and validating
+// the line protocol. This will save the downstream stateful layers from doing
+// extra work.
+
+// An entry can only be one of these Operation types
+union Operation {
+  write: WriteOperations,
+  delete: DeleteOperations,
+}
+
+table WriteOperations {
+  // A collection of partition writes. A given partition will have at most one
+  // write in this collection.
+  partition_writes: [PartitionWrite];
+}
+
+table DeleteOperations {
+  // A collection of deletes. Each delete targets a single table, with each table
+  // having no more than one delete. Deletes can span partitions because they
+  // only have a predicate and do not target any specific partition.
+  deletes: [Delete];
+}
+
+table Entry {
+  operation: Operation;
+}
+
+// A write to a  partition. If the IOx server creating this PartitionWrite has
+// no rules for generating partition keys, the key will be null, representing
+// the empty string.
+table PartitionWrite {
+  key: string;
+  table_batches: [TableWriteBatch];
+}
+
+// A delete from a single table with a predicate. Deletes can span partitions since
+// they're concerned with data that has already been written. Partitioning is a way
+// to split up writes as they land.
+table Delete {
+  table_name: string;
+  predicate: string;
+}
+
+// A collection of rows in a table in column oriented representation
+table TableWriteBatch {
+  name: string;
+  // every column must have the same number of values in its null bitmask
+  columns: [Column];
+}
+
+enum LogicalColumnType : byte { IOx, Tag, Field, Time }
+
+union ColumnValues {
+  I64Values,
+  F64Values,
+  U64Values,
+  StringValues,
+  BoolValues,
+  BytesValues,
+}
+
+table Column {
+  name: string;
+  // this keeps a mapping of what kind of InfluxDB or IOx type this column came from
+  logical_column_type: LogicalColumnType;
+  // the set of non-null values for this column. Their position in this array does not
+  // map to their row position in the batch. The bitmask must be used to map the row
+  // position to the position in this array.
+  values: ColumnValues;
+  // mask that maps the position to if that value is null. Null positions will
+  // not have a value represented in the values array. To read the values out of the
+  // column requires traversing the mask to determine what position in the values
+  // array that index is located in. Here's what it might look like:
+  //    position:   0      8  9                 24
+  //         bit:   00100011  00111000   00000001
+  null_mask: [ubyte];
+}
+
+table I64Values {
+  values: [int64];
+}
+
+table F64Values {
+  values: [float64];
+}
+
+table U64Values {
+  values: [uint64];
+}
+
+table StringValues {
+  values: [string];
+}
+
+table BoolValues {
+  values: [bool];
+}
+
+table BytesValues {
+  values: [BytesValue];
+}
+
+table BytesValue {
+  data: [ubyte];
+}
+
+// The following definitions are for the write buffer and for downstream subscribers to
+// the buffer.
+
+// Segment is a collection of Entries. It is the payload of a Write Buffer
+// segment file. Because Write Buffer servers can replicate data with peers,
+// entries in the collection may come from different writer ids. Entries within
+// a segment should be ordered by ascending order by the clock value then writer id.
+table Segment {
+  // the segment number
+  id: uint64;
+  // the writer id of the server that persisted this segment
+  writer_id: uint32;
+  // this is the clock value that the writer has verified with its peers that
+  // entries are ordered and consistent up to. If the writer has no peers this
+  // value will just be the clock value for the last sequenced entry in this segment.
+  // This value could be lower than the first clock value in the segment if a
+  // consistency check has not occured since this segment was started. Or, if
+  // a consistency check has occured in a segment following this one, but before
+  // this segment has been persisted, the clock value could be higher than the last
+  // entry in the segment. This latter condition indicates that all entries in the
+  // segment are properly ordered and consistent with other write buffer peers.
+  consistency_high_water_clock: uint64;
+  // the raw entry data along with their sequence numbers
+  entries: [SequencedEntry];
+}
+
+// SequencedEntry are what get inserted into a Write Buffer. These are
+// what Write Buffer servers replicate to their peers and what go out to
+// downstream subscribers of the Buffer. The clock values can be used to order
+// the entries from a Buffer server. They are guaranteed to never go backwards.
+table SequencedEntry {
+  clock_value: uint64;
+  writer_id: uint32;
+  entry: Entry;
+}
