@@ -81,11 +81,13 @@ table Column {
   // map to their row position in the batch. The bitmask must be used to map the row
   // position to the position in this array.
   values: ColumnValues;
-  // bitmask that maps the position to if that value is null. Null positions will
+  // mask that maps the position to if that value is null. Null positions will
   // not have a value represented in the values array. To read the values out of the
-  // column requires traversing the bitmask to determine what position in the values
-  // array that index is located in.
-  null_bitmask: [ubyte];
+  // column requires traversing the mask to determine what position in the values
+  // array that index is located in. Here's what it might look like:
+  //    position:   0      8  9                 24
+  //         bit:   00100011  00111000   00000001
+  null_mask: [ubyte];
 }
 
 table I64Values {
