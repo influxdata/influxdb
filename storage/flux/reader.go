@@ -15,7 +15,6 @@ import (
 	query "github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
 	"github.com/influxdata/influxdb/kit/platform/errors"
 	"github.com/influxdata/influxdb/models"
-	"github.com/influxdata/influxdb/storage/reads"
 	storage "github.com/influxdata/influxdb/storage/reads"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb/cursors"
@@ -158,7 +157,7 @@ func (fi *filterIterator) Do(f func(flux.Table) error) error {
 	return fi.handleRead(f, rs)
 }
 
-func (fi *filterIterator) handleRead(f func(flux.Table) error, rs reads.ResultSet) error {
+func (fi *filterIterator) handleRead(f func(flux.Table) error, rs storage.ResultSet) error {
 	// these resources must be closed if not nil on return
 	var (
 		cur   cursors.Cursor
@@ -287,10 +286,10 @@ func (gi *groupIterator) Do(f func(flux.Table) error) error {
 	return gi.handleRead(f, rs)
 }
 
-func (gi *groupIterator) handleRead(f func(flux.Table) error, rs reads.GroupResultSet) error {
+func (gi *groupIterator) handleRead(f func(flux.Table) error, rs storage.GroupResultSet) error {
 	// these resources must be closed if not nil on return
 	var (
-		gc    reads.GroupCursor
+		gc    storage.GroupCursor
 		cur   cursors.Cursor
 		table storageTable
 	)
@@ -681,7 +680,7 @@ func isSelector(kind plan.ProcedureKind) bool {
 	return kind == FirstKind || kind == LastKind || kind == MinKind || kind == MaxKind
 }
 
-func (wai *windowAggregateIterator) handleRead(f func(flux.Table) error, rs reads.ResultSet) error {
+func (wai *windowAggregateIterator) handleRead(f func(flux.Table) error, rs storage.ResultSet) error {
 	createEmpty := wai.spec.CreateEmpty
 
 	selector := len(wai.spec.Aggregates) > 0 && isSelector(wai.spec.Aggregates[0])
