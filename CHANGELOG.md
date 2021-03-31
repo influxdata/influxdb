@@ -1,6 +1,10 @@
 ## v2.0.5 [unreleased]
 ----------------------
 
+### Windows Support
+
+This release includes our initial Windows preview build.
+
 ### Breaking Changes
 
 #### /debug/vars removed
