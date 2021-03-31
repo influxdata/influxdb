@@ -70,8 +70,8 @@ pub enum DBChunk {
         chunk_id: u32,
     },
     ParquetFile {
-        chunk: Arc<ParquetChunk>
-    }
+        chunk: Arc<ParquetChunk>,
+    },
 }
 
 impl DBChunk {
@@ -162,10 +162,7 @@ impl DBChunk {
                     estimated_bytes,
                 }
             }
-            Self::ParquetFile {
-                chunk,
-            } => {
-                // TODO:
+            Self::ParquetFile { .. } => {
                 unimplemented!("parquet file summary not implemented")
             }
         }
@@ -179,7 +176,7 @@ impl PartitionChunk for DBChunk {
         match self {
             Self::MutableBuffer { chunk, .. } => chunk.id(),
             Self::ReadBuffer { chunk_id, .. } => *chunk_id,
-            Self::ParquetFile { .. } => unimplemented!("parquet file not implemented"), //TODO
+            Self::ParquetFile { .. } => unimplemented!("parquet file not implemented"),
         }
     }
 
@@ -189,7 +186,7 @@ impl PartitionChunk for DBChunk {
         match self {
             Self::MutableBuffer { chunk, .. } => chunk.table_stats().context(MutableBufferChunk),
             Self::ReadBuffer { .. } => unimplemented!("read buffer not implemented"),
-            Self::ParquetFile { .. } => unimplemented!("parquet file not implemented"), // TODO
+            Self::ParquetFile { .. } => unimplemented!("parquet file not implemented"),
         }
     }
 
@@ -201,8 +198,8 @@ impl PartitionChunk for DBChunk {
                 partition_key,
                 chunk_id,
             } => db.all_table_names(partition_key, &[*chunk_id], known_tables),
-            Self::ParquetFile { .. }=> {
-                unimplemented!("parquet files") //TODO
+            Self::ParquetFile { .. } => {
+                unimplemented!("parquet files")
             }
         }
     }
@@ -264,7 +261,7 @@ impl PartitionChunk for DBChunk {
                 Some(names)
             }
             Self::ParquetFile { .. } => {
-                unimplemented!("parquet file not implemented") // TODO
+                unimplemented!("parquet file not implemented")
             }
         };
 
@@ -325,7 +322,7 @@ impl PartitionChunk for DBChunk {
                 Ok(schema)
             }
             Self::ParquetFile { .. } => {
-                unimplemented!("parquet file not implemented for table schema") // TODO
+                unimplemented!("parquet file not implemented for table schema")
             }
         }
     }
@@ -341,8 +338,8 @@ impl PartitionChunk for DBChunk {
                 let chunk_id = *chunk_id;
                 db.has_table(partition_key, table_name, &[chunk_id])
             }
-            Self::ParquetFile { .. }=> {
-                unimplemented!("parquet file not implemented for has_table")// TODO
+            Self::ParquetFile { .. } => {
+                unimplemented!("parquet file not implemented for has_table")
             }
         }
     }
@@ -401,8 +398,8 @@ impl PartitionChunk for DBChunk {
 
                 Ok(Box::pin(ReadFilterResultsStream::new(read_results, schema)))
             }
-            Self::ParquetFile { .. }=> {
-                unimplemented!("parquet file not implemented for scan_data") // TODO
+            Self::ParquetFile { .. } => {
+                unimplemented!("parquet file not implemented for scan_data")
             }
         }
     }
@@ -424,7 +421,7 @@ impl PartitionChunk for DBChunk {
                 // TODO: ask Edd how he wants this wired up in the read buffer
                 Ok(true)
             }
-            Self::ParquetFile { .. }=> {
+            Self::ParquetFile { .. } => {
                 // TODO proper filtering for parquet files
                 Ok(true)
             }
@@ -473,8 +470,8 @@ impl PartitionChunk for DBChunk {
 
                 Ok(names)
             }
-            Self::ParquetFile { .. }=> {
-                unimplemented!("parquet file not implemented for column_names") // TODO
+            Self::ParquetFile { .. } => {
+                unimplemented!("parquet file not implemented for column_names")
             }
         }
     }
@@ -513,8 +510,8 @@ impl PartitionChunk for DBChunk {
                 // https://github.com/influxdata/influxdb_iox/issues/857
                 Ok(None)
             }
-            Self::ParquetFile { .. }=> {
-                unimplemented!("parquet file not implemented for column_values") // TODO
+            Self::ParquetFile { .. } => {
+                unimplemented!("parquet file not implemented for column_values")
             }
         }
     }

@@ -2279,7 +2279,12 @@ dependencies = [
 name = "parquet_file"
 version = "0.1.0"
 dependencies = [
+ "arrow_deps",
+ "bytes",
+ "futures",
  "object_store",
+ "parking_lot",
+ "snafu",
 ]
 
 [[package]]

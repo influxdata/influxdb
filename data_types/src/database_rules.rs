@@ -76,6 +76,10 @@ impl DatabaseRules {
     pub fn new() -> Self {
         Self::default()
     }
+
+    pub fn db_name(&self) -> String {
+        self.name.clone()
+    }
 }
 
 impl DatabaseRules {

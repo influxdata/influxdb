@@ -317,7 +317,7 @@ where
 }
 
 #[derive(Debug, Default, Clone)]
-struct MemWriter {
+pub struct MemWriter {
     mem: Arc<Mutex<Cursor<Vec<u8>>>>,
 }
 
