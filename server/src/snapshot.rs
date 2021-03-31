@@ -284,10 +284,7 @@ pub fn snapshot_chunk<T>(
 where
     T: Send + Sync + 'static + PartitionChunk,
 {
-    let table_stats = chunk
-        .table_stats()
-        .map_err(|e| Box::new(e) as _)
-        .context(PartitionError)?;
+    let table_stats = chunk.table_summaries();
 
     let snapshot = Snapshot::new(
         partition_key.to_string(),

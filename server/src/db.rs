@@ -14,7 +14,9 @@ use tracing::{debug, info};
 
 use arrow_deps::datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider};
 use catalog::{chunk::ChunkState, Catalog};
-use data_types::{chunk::ChunkSummary, database_rules::DatabaseRules};
+use data_types::{
+    chunk::ChunkSummary, database_rules::DatabaseRules, partition_metadata::PartitionSummary,
+};
 use internal_types::{data::ReplicatedWrite, selection::Selection};
 use query::{Database, DEFAULT_SCHEMA};
 use read_buffer::Database as ReadBufferDb;
@@ -330,9 +332,7 @@ impl Db {
         debug!(%partition_key, %chunk_id, "chunk marked MOVING, loading tables into read buffer");
 
         let mut batches = Vec::new();
-        let table_stats = mb_chunk
-            .table_stats()
-            .expect("Figuring out what tables are in the mutable buffer");
+        let table_stats = mb_chunk.table_summaries();
 
         for stats in table_stats {
             debug!(%partition_key, %chunk_id, table=%stats.name, "loading table to read buffer");
@@ -393,6 +393,26 @@ impl Db {
         })
     }
 
+    /// Return Summary information for all columns in all chunks in the
+    /// partition across all storage systems
+    pub fn partition_summary(&self, partition_key: &str) -> PartitionSummary {
+        let table_summaries = self
+            .catalog
+            .partition(partition_key)
+            .map(|partition| {
+                let partition = partition.read();
+                partition
+                    .chunks()
+                    .flat_map(|chunk| {
+                        let chunk = chunk.read();
+                        chunk.table_summaries()
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_else(Vec::new);
+
+        PartitionSummary::from_table_summaries(partition_key, table_summaries)
+    }
     /// Returns the number of iterations of the background worker loop
     pub fn worker_iterations(&self) -> usize {
         self.worker_iterations.load(Ordering::Relaxed)
@@ -542,6 +562,7 @@ mod tests {
     use data_types::{
         chunk::ChunkStorage,
         database_rules::{LifecycleRules, Order, Sort, SortOrder},
+        partition_metadata::{ColumnSummary, StatValues, Statistics, TableSummary},
     };
     use query::{
         exec::Executor, frontend::sql::SQLQueryPlanner, test::TestLPWriter, PartitionChunk,
@@ -1049,6 +1070,147 @@ mod tests {
             expected, chunk_summaries,
             "expected:\n{:#?}\n\nactual:{:#?}\n\n",
             expected, chunk_summaries
+        );
+    }
+
+    #[tokio::test]
+    async fn partition_summaries() {
+        // Test that chunk id listing is hooked up
+        let db = make_db();
+        let mut writer = TestLPWriter::default();
+
+        writer.write_lp_string(&db, "cpu bar=1 1").unwrap();
+        let _chunk_id = db.rollover_partition("1970-01-01T00").await.unwrap().id();
+        writer.write_lp_string(&db, "cpu bar=2,baz=3.0 2").unwrap();
+        writer.write_lp_string(&db, "mem foo=1 1").unwrap();
+
+        // TODO: load a chunk to the read buffer (needs read buffer to be hooked up)
+        //db.load_chunk_to_read_buffer("1970-01-01T00", chunk_id).unwrap()
+
+        // write into a separate partitiion
+        writer
+            .write_lp_string(&db, "cpu bar=1 400000000000000")
+            .unwrap();
+        writer
+            .write_lp_string(&db, "mem frob=3 400000000000001")
+            .unwrap();
+
+        print!("Partitions: {:?}", db.partition_keys().unwrap());
+
+        let partition_summaries = vec![
+            db.partition_summary("1970-01-01T00"),
+            db.partition_summary("1970-01-05T15"),
+        ];
+
+        let expected = vec![
+            PartitionSummary {
+                key: "1970-01-01T00".into(),
+                tables: vec![
+                    TableSummary {
+                        name: "cpu".into(),
+                        columns: vec![
+                            ColumnSummary {
+                                name: "bar".into(),
+                                stats: Statistics::F64(StatValues {
+                                    min: 1.0,
+                                    max: 2.0,
+                                    count: 2,
+                                }),
+                            },
+                            ColumnSummary {
+                                name: "time".into(),
+                                stats: Statistics::I64(StatValues {
+                                    min: 1,
+                                    max: 2,
+                                    count: 2,
+                                }),
+                            },
+                            ColumnSummary {
+                                name: "baz".into(),
+                                stats: Statistics::F64(StatValues {
+                                    min: 3.0,
+                                    max: 3.0,
+                                    count: 1,
+                                }),
+                            },
+                        ],
+                    },
+                    TableSummary {
+                        name: "mem".into(),
+                        columns: vec![
+                            ColumnSummary {
+                                name: "time".into(),
+                                stats: Statistics::I64(StatValues {
+                                    min: 1,
+                                    max: 1,
+                                    count: 1,
+                                }),
+                            },
+                            ColumnSummary {
+                                name: "foo".into(),
+                                stats: Statistics::F64(StatValues {
+                                    min: 1.0,
+                                    max: 1.0,
+                                    count: 1,
+                                }),
+                            },
+                        ],
+                    },
+                ],
+            },
+            PartitionSummary {
+                key: "1970-01-05T15".into(),
+                tables: vec![
+                    TableSummary {
+                        name: "cpu".into(),
+                        columns: vec![
+                            ColumnSummary {
+                                name: "bar".into(),
+                                stats: Statistics::F64(StatValues {
+                                    min: 1.0,
+                                    max: 1.0,
+                                    count: 1,
+                                }),
+                            },
+                            ColumnSummary {
+                                name: "time".into(),
+                                stats: Statistics::I64(StatValues {
+                                    min: 400000000000000,
+                                    max: 400000000000000,
+                                    count: 1,
+                                }),
+                            },
+                        ],
+                    },
+                    TableSummary {
+                        name: "mem".into(),
+                        columns: vec![
+                            ColumnSummary {
+                                name: "time".into(),
+                                stats: Statistics::I64(StatValues {
+                                    min: 400000000000001,
+                                    max: 400000000000001,
+                                    count: 1,
+                                }),
+                            },
+                            ColumnSummary {
+                                name: "frob".into(),
+                                stats: Statistics::F64(StatValues {
+                                    min: 3.0,
+                                    max: 3.0,
+                                    count: 1,
+                                }),
+                            },
+                        ],
+                    },
+                ],
+            },
+        ];
+
+        assert_eq!(
+            expected, partition_summaries,
+            "expected:\n{:#?}\n\nactual:{:#?}\n\n",
+            expected, partition_summaries
         );
     }
 
