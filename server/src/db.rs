@@ -425,8 +425,18 @@ impl Db {
                 // implemented (and tested) just panic
                 .expect("Loading chunk to mutable buffer");
 
+            // TODO : return error if this happens
+            // And not sure why table_to_arrow return batches. The implementation shows only one batch
+            assert_eq!(batches.len(), 1);
+
+            // TODO
+            // build schema from TableSummary
+
+
             for batch in batches.drain(..) {
                 // TODO: function to write this batch to a parquet file
+                
+
 
                 // TODO: remove this when done
                 // // As implemented now, taking this write lock will wait
@@ -452,7 +462,7 @@ impl Db {
         // TODO: mark down the right state
         debug!(%partition_key, %chunk_id, "chunk marked MOVED. Persisting to object store complete");
 
-        Ok(DBChunk::snapshot(&chunk))
+        Ok(DBChunk::snapshot(&chunk))  // TODO: need to return ParquetFile here
     }
 
     /// Returns the next write sequence number

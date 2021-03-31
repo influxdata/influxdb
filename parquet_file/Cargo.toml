@@ -1,0 +1,8 @@
+[package]
+name = "parquet_file"
+version = "0.1.0"
+authors = ["Nga Tran <nga-tran@live.com>"]
+edition = "2018"
+
+[dependencies] # In alphabetical order
+object_store = {path = "../object_store"}
