@@ -94,6 +94,14 @@ pub trait PartitionChunk: Debug + Send + Sync {
         known_tables: &StringSet,
     ) -> Result<Option<StringSet>, Self::Error>;
 
+    /// Adds all table names from this chunk without any predicate to
+    /// `known_tables)
+    ///
+    /// `known_tables` is a list of table names already known to be in
+    /// other chunks from the same partition. It may be empty or
+    /// contain `table_names` not in this chunk.
+    fn all_table_names(&self, known_tables: &mut StringSet);
+
     /// Returns a set of Strings with column names from the specified
     /// table that have at least one row that matches `predicate`, if
     /// the predicate can be evaluated entirely on the metadata of

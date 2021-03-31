@@ -18,7 +18,6 @@ use arrow_deps::{
 };
 use data_types::{DatabaseName, DatabaseNameError};
 use query::{frontend::sql::SQLQueryPlanner, DatabaseStore};
-use server::db::DbCatalog;
 use server::{ConnectionManager, Server};
 use std::fmt::Debug;
 
@@ -150,11 +149,7 @@ where
         let executor = self.server.executor();
 
         let physical_plan = planner
-            .query(
-                Arc::new(DbCatalog::new(db)),
-                &read_info.sql_query,
-                &executor,
-            )
+            .query(db, &read_info.sql_query, &executor)
             .await
             .context(PlanningSQLQuery {
                 query: &read_info.sql_query,

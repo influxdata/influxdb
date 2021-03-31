@@ -72,34 +72,61 @@ pub enum DBChunk {
 }
 
 impl DBChunk {
-    /// Create a new mutable buffer chunk
-    pub fn new_mb(
-        chunk: Arc<mutable_buffer::chunk::Chunk>,
-        partition_key: impl Into<String>,
-        open: bool,
-    ) -> Arc<Self> {
-        let partition_key = Arc::new(partition_key.into());
-        Arc::new(Self::MutableBuffer {
-            chunk,
-            partition_key,
-            open,
-        })
+    /// Create a DBChunk snapshot of the catalog chunk
+    pub fn snapshot(chunk: &super::catalog::chunk::Chunk) -> Arc<Self> {
+        let partition_key = Arc::new(chunk.key().to_string());
+        let chunk_id = chunk.id();
+
+        let db_chunk = match chunk.state() {
+            super::catalog::chunk::ChunkState::Invalid => {
+                panic!("Invalid internal state");
+            }
+            super::catalog::chunk::ChunkState::Open(chunk) => {
+                // TODO the performance if cloning the chunk is terrible
+                // Proper performance is tracked in
+                // https://github.com/influxdata/influxdb_iox/issues/635
+                let chunk = Arc::new(chunk.clone());
+                Self::MutableBuffer {
+                    chunk,
+                    partition_key,
+                    open: true,
+                }
+            }
+            super::catalog::chunk::ChunkState::Closing(chunk) => {
+                // TODO the performance if cloning the chunk is terrible
+                // Proper performance is tracked in
+                // https://github.com/influxdata/influxdb_iox/issues/635
+                let chunk = Arc::new(chunk.clone());
+                Self::MutableBuffer {
+                    chunk,
+                    partition_key,
+                    open: false,
+                }
+            }
+            super::catalog::chunk::ChunkState::Closed(chunk)
+            | super::catalog::chunk::ChunkState::Moving(chunk) => {
+                let chunk = Arc::clone(chunk);
+                Self::MutableBuffer {
+                    chunk,
+                    partition_key,
+                    open: false,
+                }
+            }
+            super::catalog::chunk::ChunkState::Moved(db) => {
+                let db = Arc::clone(db);
+                Self::ReadBuffer {
+                    db,
+                    partition_key,
+                    chunk_id,
+                }
+            }
+        };
+        Arc::new(db_chunk)
     }
 
-    /// create a new read buffer chunk
-    pub fn new_rb(
-        db: Arc<ReadBufferDb>,
-        partition_key: impl Into<String>,
-        chunk_id: u32,
-    ) -> Arc<Self> {
-        let partition_key = Arc::new(partition_key.into());
-        Arc::new(Self::ReadBuffer {
-            db,
-            chunk_id,
-            partition_key,
-        })
-    }
-
+    /// Return a partially filled `ChunkSummary` that includes storage
+    /// details. Information such as timestamps are provided by the
+    /// the catalog
     pub fn summary(&self) -> ChunkSummary {
         match self {
             Self::MutableBuffer {
@@ -112,12 +139,12 @@ impl DBChunk {
                 } else {
                     ChunkStorage::ClosedMutableBuffer
                 };
-                ChunkSummary {
-                    partition_key: Arc::clone(partition_key),
-                    id: chunk.id(),
+                ChunkSummary::new_without_timestamps(
+                    Arc::clone(partition_key),
+                    chunk.id(),
                     storage,
-                    estimated_bytes: chunk.size(),
-                }
+                    chunk.size(),
+                )
             }
             Self::ReadBuffer {
                 db,
@@ -128,12 +155,12 @@ impl DBChunk {
                     .chunks_size(partition_key.as_ref(), &[*chunk_id])
                     .unwrap_or(0) as usize;
 
-                ChunkSummary {
-                    partition_key: Arc::clone(&partition_key),
-                    id: *chunk_id,
-                    storage: ChunkStorage::ReadBuffer,
+                ChunkSummary::new_without_timestamps(
+                    Arc::clone(&partition_key),
+                    *chunk_id,
+                    ChunkStorage::ReadBuffer,
                     estimated_bytes,
-                }
+                )
             }
             Self::ParquetFile => {
                 unimplemented!("parquet file summary not implemented")
@@ -160,6 +187,20 @@ impl PartitionChunk for DBChunk {
             Self::MutableBuffer { chunk, .. } => chunk.table_stats().context(MutableBufferChunk),
             Self::ReadBuffer { .. } => unimplemented!("read buffer not implemented"),
             Self::ParquetFile => unimplemented!("parquet file not implemented"),
+        }
+    }
+
+    fn all_table_names(&self, known_tables: &mut StringSet) {
+        match self {
+            Self::MutableBuffer { chunk, .. } => chunk.all_table_names(known_tables),
+            Self::ReadBuffer {
+                db,
+                partition_key,
+                chunk_id,
+            } => db.all_table_names(partition_key, &[*chunk_id], known_tables),
+            Self::ParquetFile => {
+                unimplemented!("parquet files")
+            }
         }
     }
 

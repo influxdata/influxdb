@@ -683,7 +683,6 @@ mod tests {
     use crate::buffer::Segment;
 
     use super::*;
-    use crate::db::DbCatalog;
 
     type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T = (), E = TestError> = std::result::Result<T, E>;
@@ -860,11 +859,7 @@ mod tests {
         let planner = SQLQueryPlanner::default();
         let executor = server.executor();
         let physical_plan = planner
-            .query(
-                Arc::new(DbCatalog::new(db)),
-                "select * from cpu",
-                executor.as_ref(),
-            )
+            .query(db, "select * from cpu", executor.as_ref())
             .await
             .unwrap();
 
@@ -930,7 +925,7 @@ mod tests {
             .map(|s| format!("{:?} {}", s.storage, s.id))
             .collect::<Vec<_>>();
 
-        let expected = vec!["ReadBuffer 0", "OpenMutableBuffer 1"];
+        let expected = vec!["ReadBuffer 0"];
 
         assert_eq!(
             expected, actual,

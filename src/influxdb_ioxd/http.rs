@@ -35,7 +35,6 @@ use tracing::{debug, error, info};
 
 use data_types::http::WalMetadataResponse;
 use hyper::server::conn::AddrIncoming;
-use server::db::DbCatalog;
 use std::{
     fmt::Debug,
     str::{self, FromStr},
@@ -506,7 +505,7 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
     let executor = server.executor();
 
     let physical_plan = planner
-        .query(Arc::new(DbCatalog::new(db)), &q, executor.as_ref())
+        .query(db, &q, executor.as_ref())
         .await
         .context(PlanningSQLQuery { query: &q })?;
 
@@ -1195,10 +1194,7 @@ mod tests {
     async fn run_query(db: Arc<Db>, query: &str) -> Vec<RecordBatch> {
         let planner = SQLQueryPlanner::default();
         let executor = Executor::new();
-        let physical_plan = planner
-            .query(Arc::new(DbCatalog::new(db)), query, &executor)
-            .await
-            .unwrap();
+        let physical_plan = planner.query(db, query, &executor).await.unwrap();
 
         collect(physical_plan).await.unwrap()
     }

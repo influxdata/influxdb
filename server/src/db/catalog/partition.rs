@@ -1,24 +1,35 @@
 //! The catalog representation of a Partition
 
-use std::{
-    collections::{btree_map::Entry, BTreeMap},
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
-use super::{chunk::Chunk, ChunkAlreadyExists, Result, UnknownChunk};
+use super::{
+    chunk::{Chunk, ChunkState},
+    Result, UnknownChunk,
+};
+use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
 use snafu::OptionExt;
 
 /// IOx Catalog Partition
 ///
 /// A partition contains multiple Chunks.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Partition {
     /// The partition key
     key: String,
 
+    /// What the next chunk id is
+    next_chunk_id: u32,
+
     /// The chunks that make up this partition, indexed by id
     chunks: BTreeMap<u32, Arc<RwLock<Chunk>>>,
+
+    /// When this partition was created
+    created_at: DateTime<Utc>,
+
+    /// the last time at which write was made to this
+    /// partition. Partition::new initializes this to now.
+    last_write_at: DateTime<Utc>,
 }
 
 impl Partition {
@@ -37,32 +48,45 @@ impl Partition {
     pub(crate) fn new(key: impl Into<String>) -> Self {
         let key = key.into();
 
+        let now = Utc::now();
         Self {
             key,
-            ..Default::default()
+            next_chunk_id: 0,
+            chunks: BTreeMap::new(),
+            created_at: now,
+            last_write_at: now,
         }
     }
 
-    /// Create a new Chunk
-    ///
-    /// This function is not pub because `Chunks`s should be created
-    /// using the interfaces on [`Catalog`] and not instantiated
-    /// directly.
-    pub fn create_chunk(&mut self, chunk_id: u32) -> Result<Arc<RwLock<Chunk>>> {
-        let entry = self.chunks.entry(chunk_id);
-        match entry {
-            Entry::Vacant(entry) => {
-                let chunk = Chunk::new(&self.key, chunk_id);
-                let chunk = Arc::new(RwLock::new(chunk));
-                entry.insert(Arc::clone(&chunk));
-                Ok(chunk)
-            }
-            Entry::Occupied(_) => ChunkAlreadyExists {
-                partition_key: self.key(),
-                chunk_id,
-            }
-            .fail(),
+    /// Update the last write time to now
+    pub fn update_last_write_at(&mut self) {
+        self.last_write_at = Utc::now();
+    }
+
+    /// Return the time at which this partition was created
+    pub fn created_at(&self) -> DateTime<Utc> {
+        self.created_at
+    }
+
+    /// Return the time at which the last write was written to this partititon
+    pub fn last_write_at(&self) -> DateTime<Utc> {
+        self.last_write_at
+    }
+
+    /// Create a new Chunk in the open state
+    pub fn create_open_chunk(&mut self) -> Arc<RwLock<Chunk>> {
+        let chunk_id = self.next_chunk_id;
+        self.next_chunk_id += 1;
+
+        let state = ChunkState::Open(mutable_buffer::chunk::Chunk::new(chunk_id));
+        let chunk = Arc::new(RwLock::new(Chunk::new(&self.key, chunk_id, state)));
+
+        if self.chunks.insert(chunk_id, Arc::clone(&chunk)).is_some() {
+            // A fundamental invariant has been violated - abort
+            panic!("chunk already existed with id {}", chunk_id)
         }
+
+        chunk
     }
 
     /// Drop the specified chunk
@@ -75,6 +99,17 @@ impl Partition {
             }
             .fail(),
         }
+    }
+
+    /// return the first currently open chunk, if any
+    pub fn open_chunk(&self) -> Option<Arc<RwLock<Chunk>>> {
+        self.chunks
+            .values()
+            .find(|chunk| {
+                let chunk = chunk.read();
+                matches!(chunk.state(), ChunkState::Open(_))
+            })
+            .cloned()
     }
 
     /// Return an immutable chunk reference by chunk id

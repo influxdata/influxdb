@@ -85,11 +85,11 @@ async fn test_create_database() {
         .success()
         .stdout(
             predicate::str::contains(db)
-                .and(predicate::str::contains(format!("name: \"{}\"", db)))
+                .and(predicate::str::contains(format!(r#""name": "{}"#, db)))
                 // validate the defaults have been set reasonably
                 .and(predicate::str::contains("%Y-%m-%d %H:00:00"))
-                .and(predicate::str::contains("buffer_size_hard: 104857600"))
-                .and(predicate::str::contains("LifecycleRules")),
+                .and(predicate::str::contains(r#""bufferSizeHard": 104857600"#))
+                .and(predicate::str::contains("lifecycleRules")),
         );
 }
 
@@ -123,8 +123,8 @@ async fn test_create_database_size() {
         .assert()
         .success()
         .stdout(
-            predicate::str::contains("buffer_size_hard: 1000")
-                .and(predicate::str::contains("LifecycleRules")),
+            predicate::str::contains(r#""bufferSizeHard": 1000"#)
+                .and(predicate::str::contains("lifecycleRules")),
         );
 }
 
@@ -157,7 +157,7 @@ async fn test_create_database_immutable() {
         .assert()
         .success()
         // Should not have a mutable buffer
-        .stdout(predicate::str::contains("immutable: true"));
+        .stdout(predicate::str::contains(r#""immutable": true"#));
 }
 
 #[tokio::test]
@@ -175,14 +175,15 @@ async fn test_get_chunks() {
 
     load_lp(addr, &db_name, lp_data);
 
-    let expected = r#"[
-  {
-    "partition_key": "cpu",
-    "id": 0,
-    "storage": "OpenMutableBuffer",
-    "estimated_bytes": 145
-  }
-]"#;
+    let predicate = predicate::str::contains(r#""partition_key": "cpu","#)
+        .and(predicate::str::contains(r#""id": 0,"#))
+        .and(predicate::str::contains(
+            r#""storage": "OpenMutableBuffer","#,
+        ))
+        .and(predicate::str::contains(r#""estimated_bytes": 145"#))
+        // Check for a non empty timestamp such as
+        // "time_of_first_write": "2021-03-30T17:11:10.723866Z",
+        .and(predicate::str::contains(r#""time_of_first_write": "20"#));
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -194,7 +195,7 @@ async fn test_get_chunks() {
         .arg(addr)
         .assert()
         .success()
-        .stdout(predicate::str::contains(expected));
+        .stdout(predicate);
 }
 
 #[tokio::test]
