@@ -442,7 +442,7 @@ func new{{.Name}}EmptyWindowSelectorTable(
 		arr: cur.Next(),
 		rangeStart:  rangeStart,
 		rangeStop:   rangeStop,
-        windowBounds: window.GetLatestBounds(values.Time(rangeStart)),
+		windowBounds: window.GetLatestBounds(values.Time(rangeStart)),
 		window: window,
 		timeColumn:  timeColumn,
 	}
@@ -774,7 +774,7 @@ type {{.name}}AggregateMethod func([]int64, []{{.Type}}) (int64, {{.Type}})
 // ones returned for each series and the method returned here will
 // aggregate the aggregates.
 func determine{{.Name}}AggregateMethod(agg datatypes.Aggregate_AggregateType) ({{.name}}AggregateMethod, error){
- 	switch agg {
+	switch agg {
 	case datatypes.AggregateTypeFirst:
 		return aggregateFirstGroups{{.Name}}, nil
 	case datatypes.AggregateTypeLast:
@@ -919,7 +919,7 @@ func (t *{{.name}}GroupTable) advanceCursor() bool {
 				Err: &GroupCursorError {
 					typ: "{{.name}}",
 					cursor: cur,
-                },
+				},
 			}
 			return false
 		} else {
