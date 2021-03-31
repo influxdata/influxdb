@@ -204,6 +204,7 @@ commands:
               libxml2-dev \
               llvm-dev \
               lzma-dev \
+              mingw-w64 \
               zlib1g-dev
       - run:
           name: Install cross-compilers
@@ -242,10 +243,12 @@ commands:
             rustup target add \
               x86_64-unknown-linux-musl \
               aarch64-unknown-linux-musl \
-              x86_64-apple-darwin
+              x86_64-apple-darwin \
+              x86_64-pc-windows-gnu
             echo 'export CARGO_TARGET_X86_64_UNKNOWN_LINUX_MUSL_LINKER=/usr/local/musl/bin/musl-gcc' >> $BASH_ENV
             echo 'export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=/usr/local/musl-cross/bin/aarch64-unknown-linux-musl-gcc' >> $BASH_ENV
             echo 'export CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER=/usr/local/osxcross/target/bin/x86_64-apple-darwin15-clang' >> $BASH_ENV
+            echo 'export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER=/usr/bin/x86_64-w64-mingw32-gcc' >> $BASH_ENV
       - run:
           name: Install goreleaser
           environment:
