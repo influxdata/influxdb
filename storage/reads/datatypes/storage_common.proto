@@ -19,6 +19,8 @@ service Storage {
   // ReadGroup performs a group operation at storage
   rpc ReadGroup (ReadGroupRequest) returns (stream ReadResponse);
 
+  rpc ReadWindowAggregate (ReadWindowAggregateRequest) returns (stream ReadResponse);
+
   // TagKeys performs a read operation for tag keys
   rpc TagKeys (TagKeysRequest) returns (stream StringValuesResponse);
 
@@ -81,12 +83,39 @@ message Aggregate {
     NONE = 0 [(gogoproto.enumvalue_customname) = "AggregateTypeNone"];
     SUM = 1 [(gogoproto.enumvalue_customname) = "AggregateTypeSum"];
     COUNT = 2 [(gogoproto.enumvalue_customname) = "AggregateTypeCount"];
+    MIN = 3 [(gogoproto.enumvalue_customname) = "AggregateTypeMin"];
+    MAX = 4 [(gogoproto.enumvalue_customname) = "AggregateTypeMax"];
+    FIRST = 5 [(gogoproto.enumvalue_customname) = "AggregateTypeFirst"];
+    LAST = 6 [(gogoproto.enumvalue_customname) = "AggregateTypeLast"];
+    MEAN = 7 [(gogoproto.enumvalue_customname) = "AggregateTypeMean"];
   }
 
   AggregateType type = 1;
 
   // additional arguments?
 }
+
+message ReadWindowAggregateRequest {
+  google.protobuf.Any read_source = 1 [(gogoproto.customname) = "ReadSource"];
+  TimestampRange range = 2 [(gogoproto.nullable) = false];
+  Predicate predicate = 3;
+  int64 WindowEvery = 4;
+  int64 Offset = 6;
+  repeated Aggregate aggregate = 5;
+  Window window = 7;
+}
+
+message Window {
+  Duration every = 1;
+  Duration offset = 2;
+}
+
+message Duration {
+  int64 nsecs = 1;
+  int64 months = 2;
+  bool negative = 3;
+}
+
 
 message Tag {
   bytes key = 1;

@@ -6,6 +6,7 @@ require (
 	collectd.org v0.3.0
 	github.com/BurntSushi/toml v0.3.1
 	github.com/apache/arrow/go/arrow v0.0.0-20200923215132-ac86123a3f01
+	github.com/benbjohnson/tmpl v1.0.0
 	github.com/bmizerany/pat v0.0.0-20170815010413-6226ea591a40
 	github.com/boltdb/bolt v1.3.1
 	github.com/cespare/xxhash v1.1.0
@@ -14,6 +15,7 @@ require (
 	github.com/dgryski/go-bitstream v0.0.0-20180413035011-3522498ce2c8
 	github.com/go-chi/chi v4.1.0+incompatible
 	github.com/gogo/protobuf v1.3.1
+	github.com/golang/mock v1.4.3
 	github.com/golang/snappy v0.0.1
 	github.com/google/go-cmp v0.5.0
 	github.com/influxdata/flux v0.111.0
