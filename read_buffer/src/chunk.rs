@@ -160,7 +160,7 @@ impl Chunk {
     ///
     /// TODO(edd): to be deprecated.
     pub(crate) fn upsert_table_with_row_group(
-        &mut self,
+        &self,
         table_name: impl Into<String>,
         row_group: RowGroup,
     ) {
@@ -190,7 +190,7 @@ impl Chunk {
     /// the update. If the `Table` already exists then a new `RowGroup` will be
     /// added to the `Table`. Otherwise a new `Table` with a single `RowGroup`
     /// will be created.
-    pub fn upsert_table(&mut self, table_name: impl Into<String>, table_data: RecordBatch) {
+    pub fn upsert_table(&self, table_name: impl Into<String>, table_data: RecordBatch) {
         // This call is expensive. Complete it before locking.
         let row_group = RowGroup::from(table_data);
         let table_name = table_name.into();
@@ -600,7 +600,7 @@ mod test {
 
     #[test]
     fn add_remove_tables() {
-        let mut chunk = Chunk::new(22);
+        let chunk = Chunk::new(22);
 
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
@@ -660,7 +660,7 @@ mod test {
 
     #[test]
     fn read_filter_table_schema() {
-        let mut chunk = Chunk::new(22);
+        let chunk = Chunk::new(22);
 
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
@@ -704,7 +704,7 @@ mod test {
 
     #[test]
     fn has_table() {
-        let mut chunk = Chunk::new(22);
+        let chunk = Chunk::new(22);
 
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
@@ -714,7 +714,7 @@ mod test {
 
     #[test]
     fn read_filter() {
-        let mut chunk = Chunk::new(22);
+        let chunk = Chunk::new(22);
 
         // Add a bunch of row groups to a single table in a single chunk
         for &i in &[100, 200, 300] {
@@ -804,7 +804,7 @@ mod test {
 
     #[test]
     fn could_pass_predicate() {
-        let mut chunk = Chunk::new(22);
+        let chunk = Chunk::new(22);
 
         // Add a new table to the chunk.
         chunk.upsert_table("a_table", gen_recordbatch());
@@ -830,7 +830,7 @@ mod test {
         ];
         let rg = RowGroup::new(6, columns);
         let table = Table::new("table_1", rg);
-        let mut chunk = Chunk::new_with_table(22, table);
+        let chunk = Chunk::new_with_table(22, table);
 
         // All table names returned when no predicate.
         let table_names = chunk.table_names(&Predicate::default(), &BTreeSet::new());
@@ -929,7 +929,7 @@ mod test {
 
     #[test]
     fn column_names() {
-        let mut chunk = Chunk::new(22);
+        let chunk = Chunk::new(22);
 
         let schema = SchemaBuilder::new()
             .non_null_tag("region")
