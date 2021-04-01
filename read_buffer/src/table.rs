@@ -707,6 +707,10 @@ impl ReadFilterResults {
         self.row_groups.is_empty()
     }
 
+    pub fn len(&self) -> usize {
+        self.row_groups.len()
+    }
+
     /// Returns the schema associated with table result and therefore all of the
     /// results for all of row groups in the table results.
     pub fn schema(&self) -> &ResultSchema {

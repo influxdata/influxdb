@@ -1,6 +1,7 @@
 use std::{
     collections::{btree_map::Entry, BTreeMap, BTreeSet},
-    convert::TryFrom,
+    convert::{TryFrom, TryInto},
+    fmt,
     sync::RwLock,
 };
 
@@ -242,16 +243,24 @@ impl Chunk {
             .collect()
     }
 
-    /// Returns an iterator of lazily executed `read_filter` operations on the
-    /// provided table for the specified column selections.
+    /// Returns selected data for the specified columns in the provided table.
     ///
-    /// Results may be filtered by conjunctive predicates. Returns an error if
-    /// the specified table does not exist.
+    /// Results may be filtered by conjunctive predicates.
+    /// The `ReadBuffer` will optimally prune columns and tables to improve
+    /// execution where possible.
+    ///
+    /// `read_filter` return an iterator that will emit record batches for all
+    /// row groups help under the provided chunks.
+    ///
+    /// `read_filter` is lazy - it does not execute against the next chunk until
+    /// the results for the previous one have been emitted.
+    ///
+    /// Returns an error if `table_name` does not exist.
     pub fn read_filter(
         &self,
         table_name: &str,
-        predicate: &Predicate,
-        select_columns: &Selection<'_>,
+        predicate: Predicate,
+        select_columns: Selection<'_>,
     ) -> Result<table::ReadFilterResults, Error> {
         // read lock on chunk.
         let chunk_data = self.chunk_data.read().unwrap();
@@ -261,7 +270,7 @@ impl Chunk {
             .get(table_name)
             .context(TableNotFound { table_name })?;
 
-        Ok(table.read_filter(select_columns, predicate))
+        Ok(table.read_filter(&select_columns, &predicate))
     }
 
     /// Returns an iterable collection of data in group columns and aggregate
@@ -439,7 +448,7 @@ mod test {
         array::{
             ArrayRef, BinaryArray, BooleanArray, Float64Array, Int64Array, StringArray, UInt64Array,
         },
-        datatypes::DataType::{Boolean, Float64},
+        datatypes::DataType::{Boolean, Float64, Int64, Utf8},
     };
     use internal_types::schema::builder::SchemaBuilder;
 
@@ -677,6 +686,96 @@ mod test {
         chunk.upsert_table("a_table", gen_recordbatch());
         assert!(chunk.has_table("a_table"));
         assert!(!chunk.has_table("b_table"));
+    }
+
+    #[test]
+    fn read_filter() {
+        let mut chunk = Chunk::new(22);
+
+        // Add a bunch of row groups to a single table in a single chunk
+        for &i in &[100, 200, 300] {
+            let schema = SchemaBuilder::new()
+                .non_null_tag("env")
+                .non_null_tag("region")
+                .non_null_field("counter", Float64)
+                .field("sketchy_sensor", Int64)
+                .non_null_field("active", Boolean)
+                .field("msg", Utf8)
+                .timestamp()
+                .build()
+                .unwrap();
+
+            let data: Vec<ArrayRef> = vec![
+                Arc::new(StringArray::from(vec!["us-west", "us-east", "us-west"])),
+                Arc::new(StringArray::from(vec!["west", "west", "east"])),
+                Arc::new(Float64Array::from(vec![1.2, 300.3, 4500.3])),
+                Arc::new(Int64Array::from(vec![None, Some(33), Some(44)])),
+                Arc::new(BooleanArray::from(vec![true, false, false])),
+                Arc::new(StringArray::from(vec![
+                    Some("message a"),
+                    Some("message b"),
+                    None,
+                ])),
+                Arc::new(Int64Array::from(vec![i, 2 * i, 3 * i])),
+            ];
+
+            // Add a record batch to a single partition
+            let rb = RecordBatch::try_new(schema.into(), data).unwrap();
+            chunk.upsert_table("Coolverine", rb);
+        }
+
+        // Build the operation equivalent to the following query:
+        //
+        //   SELECT * FROM "table_1"
+        //   WHERE "env" = 'us-west' AND
+        //   "time" >= 100 AND  "time" < 205
+        //
+        let predicate =
+            Predicate::with_time_range(&[BinaryExpr::from(("env", "=", "us-west"))], 100, 205); // filter on time
+
+        let mut itr = chunk
+            .read_filter("Coolverine", predicate, Selection::All)
+            .unwrap();
+
+        let exp_env_values = Values::String(vec![Some("us-west")]);
+        let exp_region_values = Values::String(vec![Some("west")]);
+        let exp_counter_values = Values::F64(vec![1.2]);
+        let exp_sketchy_sensor_values = Values::I64N(vec![None]);
+        let exp_active_values = Values::Bool(vec![Some(true)]);
+
+        let first_row_group = itr.next().unwrap();
+        println!("{:?}", first_row_group);
+        assert_rb_column_equals(&first_row_group, "env", &exp_env_values);
+        assert_rb_column_equals(&first_row_group, "region", &exp_region_values);
+        assert_rb_column_equals(&first_row_group, "counter", &exp_counter_values);
+        assert_rb_column_equals(
+            &first_row_group,
+            "sketchy_sensor",
+            &exp_sketchy_sensor_values,
+        );
+        assert_rb_column_equals(&first_row_group, "active", &exp_active_values);
+        assert_rb_column_equals(
+            &first_row_group,
+            "msg",
+            &Values::String(vec![Some("message a")]),
+        );
+        assert_rb_column_equals(&first_row_group, "time", &Values::I64(vec![100])); // first row from first record batch
+
+        let second_row_group = itr.next().unwrap();
+        println!("{:?}", second_row_group);
+        assert_rb_column_equals(&second_row_group, "env", &exp_env_values);
+        assert_rb_column_equals(&second_row_group, "region", &exp_region_values);
+        assert_rb_column_equals(&second_row_group, "counter", &exp_counter_values);
+        assert_rb_column_equals(
+            &first_row_group,
+            "sketchy_sensor",
+            &exp_sketchy_sensor_values,
+        );
+        assert_rb_column_equals(&first_row_group, "active", &exp_active_values);
+        assert_rb_column_equals(&second_row_group, "time", &Values::I64(vec![200])); // first row from second record batch
+
+        // No more data
+        assert!(itr.next().is_none());
     }
 
     #[test]

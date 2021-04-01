@@ -276,6 +276,8 @@ impl Database {
     ///
     /// `read_filter` is lazy - it does not execute against the next chunk until
     /// the results for the previous one have been emitted.
+    ///
+    /// Note(edd): to be deprecated
     pub fn read_filter<'a>(
         &self,
         partition_key: &str,
@@ -306,7 +308,7 @@ impl Database {
                     // but just gets pointers to the necessary data for
                     // execution.
                     let chunk_result = chunk
-                        .read_filter(table_name, &predicate, &select_columns)
+                        .read_filter(table_name, predicate.clone(), select_columns.clone())
                         .context(ChunkError)?;
                     chunk_table_results.push(chunk_result);
                 }
