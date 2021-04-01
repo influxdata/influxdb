@@ -367,10 +367,13 @@ impl<M: ConnectionManager> Server<M> {
         db: &Db,
         write: ReplicatedWrite,
     ) -> Result<()> {
-        if db.writeable() {
-            db.store_replicated_write(&write)
-                .map_err(|e| Box::new(e) as DatabaseError)
-                .context(UnknownDatabaseError {})?;
+        match db.store_replicated_write(&write) {
+            Err(db::Error::DatabaseNotWriteable {}) | Ok(_) => {}
+            Err(e) => {
+                return Err(Error::UnknownDatabaseError {
+                    source: Box::new(e),
+                })
+            }
         }
 
         let write = Arc::new(write);
