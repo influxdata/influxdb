@@ -1,7 +1,6 @@
 use std::{
     collections::{btree_map::Entry, BTreeMap, BTreeSet},
-    convert::{TryFrom, TryInto},
-    fmt,
+    convert::TryFrom,
     sync::RwLock,
 };
 
@@ -314,8 +313,8 @@ impl Chunk {
         }
     }
 
-    /// Return table summaries or all tables in this chunk. Note that
-    /// there can be more than one TableSummary for each table.
+    /// Return table summaries or all tables in this chunk.
+    /// Each table will be represented exactly once.
     pub fn table_summaries(&self) -> Vec<TableSummary> {
         // read lock on chunk.
         let chunk_data = self.chunk_data.read().unwrap();
@@ -495,8 +494,9 @@ mod test {
         array::{
             ArrayRef, BinaryArray, BooleanArray, Float64Array, Int64Array, StringArray, UInt64Array,
         },
-        datatypes::DataType::{Boolean, Float64, Int64, Utf8},
+        datatypes::DataType::{Boolean, Float64, Int64, UInt64, Utf8},
     };
+    use data_types::partition_metadata::{ColumnSummary, StatValues, Statistics};
     use internal_types::schema::builder::SchemaBuilder;
 
     use super::*;
@@ -736,6 +736,106 @@ mod test {
     }
 
     #[test]
+    fn table_summaries() {
+        let chunk = Chunk::new(22);
+
+        let schema = SchemaBuilder::new()
+            .non_null_tag("env")
+            .non_null_field("temp", Float64)
+            .non_null_field("counter", UInt64)
+            .non_null_field("icounter", Int64)
+            .non_null_field("active", Boolean)
+            .non_null_field("msg", Utf8)
+            .timestamp()
+            .build()
+            .unwrap();
+
+        let data: Vec<ArrayRef> = vec![
+            Arc::new(StringArray::from(vec!["prod", "dev", "prod"])),
+            Arc::new(Float64Array::from(vec![10.0, 30000.0, 4500.0])),
+            Arc::new(UInt64Array::from(vec![1000, 3000, 5000])),
+            Arc::new(Int64Array::from(vec![1000, -1000, 4000])),
+            Arc::new(BooleanArray::from(vec![true, true, false])),
+            Arc::new(StringArray::from(vec![Some("msg a"), Some("msg b"), None])),
+            Arc::new(Int64Array::from(vec![11111111, 222222, 3333])),
+        ];
+
+        // Add a record batch to a single partition
+        let rb = RecordBatch::try_new(schema.into(), data).unwrap();
+        // The row group gets added to the same chunk each time.
+        chunk.upsert_table("table1", rb);
+
+        let summaries = chunk.table_summaries();
+        let expected = vec![TableSummary {
+            name: "table1".into(),
+            columns: vec![
+                ColumnSummary {
+                    name: "active".into(),
+                    stats: Statistics::Bool(StatValues {
+                        min: false,
+                        max: true,
+                        count: 3,
+                    }),
+                },
+                ColumnSummary {
+                    name: "counter".into(),
+                    stats: Statistics::U64(StatValues {
+                        min: 1000,
+                        max: 5000,
+                        count: 3,
+                    }),
+                },
+                ColumnSummary {
+                    name: "env".into(),
+                    stats: Statistics::String(StatValues {
+                        min: "dev".into(),
+                        max: "prod".into(),
+                        count: 3,
+                    }),
+                },
+                ColumnSummary {
+                    name: "icounter".into(),
+                    stats: Statistics::I64(StatValues {
+                        min: -1000,
+                        max: 4000,
+                        count: 3,
+                    }),
+                },
+                ColumnSummary {
+                    name: "msg".into(),
+                    stats: Statistics::String(StatValues {
+                        min: "msg a".into(),
+                        max: "msg b".into(),
+                        count: 3,
+                    }),
+                },
+                ColumnSummary {
+                    name: "temp".into(),
+                    stats: Statistics::F64(StatValues {
+                        min: 10.0,
+                        max: 30000.0,
+                        count: 3,
+                    }),
+                },
+                ColumnSummary {
+                    name: "time".into(),
+                    stats: Statistics::I64(StatValues {
+                        min: 3333,
+                        max: 11111111,
+                        count: 3,
+                    }),
+                },
+            ],
+        }];
+
+        assert_eq!(
+            expected, summaries,
+            "expected:\n{:#?}\n\nactual:{:#?}\n\n",
+            expected, summaries
+        );
+    }
+
+    #[test]
     fn read_filter() {
         let chunk = Chunk::new(22);
 
@@ -853,6 +953,7 @@ mod test {
         ];
         let rg = RowGroup::new(6, columns);
         let table = Table::new("table_1", rg);
+
         let chunk = Chunk::new_with_table(22, table);
 
         // All table names returned when no predicate.

@@ -700,6 +700,8 @@ impl Partition {
     /// returns TableSummaries for all the tables in all row groups in
     /// this partition.  Note that there can be more than one
     /// TableSummary for each table
+    ///
+    /// TODO(edd): to deprecate
     pub fn table_summaries(&self, chunk_ids: &[u32]) -> Vec<TableSummary> {
         let chunk_data = self.data.read().unwrap();
         chunk_ids
