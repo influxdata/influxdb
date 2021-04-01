@@ -25,9 +25,6 @@ pub enum ChunkState {
     /// Chunk can still accept new writes, but will likely be closed soon
     Closing(MBChunk),
 
-    /// Chunk is closed for new writes and has become read only
-    Closed(Arc<MBChunk>),
-
     /// Chunk is closed for new writes, and is actively moving to the read
     /// buffer
     Moving(Arc<MBChunk>),
@@ -42,7 +39,6 @@ impl ChunkState {
             Self::Invalid => "Invalid",
             Self::Open(_) => "Open",
             Self::Closing(_) => "Closing",
-            Self::Closed(_) => "Closed",
             Self::Moving(_) => "Moving",
             Self::Moved(_) => "Moved",
         }
@@ -91,7 +87,7 @@ macro_rules! unexpected_state {
 }
 
 impl Chunk {
-    /// Create a new chunk in the Open state
+    /// Create a new chunk in the provided state
     pub(crate) fn new(partition_key: impl Into<String>, id: u32, state: ChunkState) -> Self {
         Self {
             partition_key: Arc::new(partition_key.into()),
@@ -101,6 +97,23 @@ impl Chunk {
             time_of_last_write: None,
             time_closing: None,
         }
+    }
+
+    /// Creates a new open chunk
+    pub(crate) fn new_open(partition_key: impl Into<String>, id: u32) -> Self {
+        let state = ChunkState::Open(mutable_buffer::chunk::Chunk::new(id));
+        Self::new(partition_key, id, state)
+    }
+
+    /// Used for testing
+    #[cfg(test)]
+    pub(crate) fn set_timestamps(
+        &mut self,
+        time_of_first_write: Option<DateTime<Utc>>,
+        time_of_last_write: Option<DateTime<Utc>>,
+    ) {
+        self.time_of_first_write = time_of_first_write;
+        self.time_of_last_write = time_of_last_write;
     }
 
     pub fn id(&self) -> u32 {
@@ -156,7 +169,7 @@ impl Chunk {
         match &self.state {
             ChunkState::Invalid => false,
             ChunkState::Open(chunk) | ChunkState::Closing(chunk) => chunk.has_table(table_name),
-            ChunkState::Moving(chunk) | ChunkState::Closed(chunk) => chunk.has_table(table_name),
+            ChunkState::Moving(chunk) => chunk.has_table(table_name),
             ChunkState::Moved(db) => {
                 db.has_table(self.partition_key.as_str(), table_name, &[self.id])
             }
@@ -168,10 +181,23 @@ impl Chunk {
         match &self.state {
             ChunkState::Invalid => {}
             ChunkState::Open(chunk) | ChunkState::Closing(chunk) => chunk.all_table_names(names),
-            ChunkState::Moving(chunk) | ChunkState::Closed(chunk) => chunk.all_table_names(names),
+            ChunkState::Moving(chunk) => chunk.all_table_names(names),
             ChunkState::Moved(db) => {
                 db.all_table_names(self.partition_key.as_str(), &[self.id], names)
             }
+        }
+    }
+
+    /// Returns an approximation of the amount of process memory consumed by the
+    /// chunk
+    pub fn size(&self) -> usize {
+        match &self.state {
+            ChunkState::Invalid => 0,
+            ChunkState::Open(chunk) | ChunkState::Closing(chunk) => chunk.size(),
+            ChunkState::Moving(chunk) => chunk.size(),
+            ChunkState::Moved(db) => db
+                .chunks_size(self.partition_key.as_str(), &[self.id])
+                .unwrap_or(0) as usize,
         }
     }
 
@@ -218,18 +244,9 @@ impl Chunk {
                 self.state = ChunkState::Moving(Arc::clone(&chunk));
                 Ok(chunk)
             }
-            ChunkState::Closed(chunk) => {
-                self.state = ChunkState::Moving(Arc::clone(&chunk));
-                Ok(chunk)
-            }
             state => {
                 self.state = state;
-                unexpected_state!(
-                    self,
-                    "setting moving",
-                    "Open, Closing or Closed",
-                    &self.state
-                )
+                unexpected_state!(self, "setting moving", "Open or Closing", &self.state)
             }
         }
     }

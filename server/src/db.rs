@@ -23,10 +23,14 @@ use read_buffer::Database as ReadBufferDb;
 
 pub(crate) use chunk::DBChunk;
 
+use crate::db::lifecycle::LifecycleManager;
+use crate::tracker::{TrackedFutureExt, Tracker};
 use crate::{buffer::Buffer, JobRegistry};
+use data_types::job::Job;
 
 pub mod catalog;
 mod chunk;
+mod lifecycle;
 pub mod pred;
 mod streams;
 
@@ -369,6 +373,40 @@ impl Db {
         Ok(DBChunk::snapshot(&chunk))
     }
 
+    /// Spawns a task to perform load_chunk_to_read_buffer
+    pub fn load_chunk_to_read_buffer_in_background(
+        self: &Arc<Self>,
+        partition_key: String,
+        chunk_id: u32,
+    ) -> Tracker<Job> {
+        let name = self.rules.read().name.clone();
+        let (tracker, registration) = self.jobs.register(Job::CloseChunk {
+            db_name: name.clone(),
+            partition_key: partition_key.clone(),
+            chunk_id,
+        });
+
+        let captured = Arc::clone(&self);
+        let task = async move {
+            debug!(%name, %partition_key, %chunk_id, "background task loading chunk to read buffer");
+            let result = captured
+                .load_chunk_to_read_buffer(&partition_key, chunk_id)
+                .await;
+            if let Err(e) = result {
+                info!(?e, %name, %partition_key, %chunk_id, "background task error loading read buffer chunk");
+                return Err(e);
+            }
+
+            debug!(%name, %partition_key, %chunk_id, "background task completed closing chunk");
+
+            Ok(())
+        };
+
+        tokio::spawn(task.track(registration));
+
+        tracker
+    }
+
     /// Returns the next write sequence number
     pub fn next_sequence(&self) -> u64 {
         self.sequence.fetch_add(1, Ordering::SeqCst)
@@ -420,13 +458,19 @@ impl Db {
     }
 
     /// Background worker function
-    pub async fn background_worker(&self, shutdown: tokio_util::sync::CancellationToken) {
+    pub async fn background_worker(
+        self: &Arc<Self>,
+        shutdown: tokio_util::sync::CancellationToken,
+    ) {
         info!("started background worker");
 
         let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(1));
+        let mut lifecycle_manager = LifecycleManager::new(Arc::clone(&self));
 
         while !shutdown.is_cancelled() {
             self.worker_iterations.fetch_add(1, Ordering::Relaxed);
+
+            lifecycle_manager.check_for_work();
 
             tokio::select! {
                 _ = interval.tick() => {},

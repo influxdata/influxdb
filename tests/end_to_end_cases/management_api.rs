@@ -621,6 +621,53 @@ async fn test_close_partition_chunk_error() {
     assert_contains!(err.to_string(), "Database not found");
 }
 
+#[tokio::test]
+async fn test_chunk_lifecycle() {
+    use influxdb_iox_client::management::generated_types::ChunkStorage;
+
+    let fixture = ServerFixture::create_shared().await;
+    let mut management_client = fixture.management_client();
+    let mut write_client = fixture.write_client();
+
+    let db_name = rand_name();
+    management_client
+        .create_database(DatabaseRules {
+            name: db_name.clone(),
+            lifecycle_rules: Some(LifecycleRules {
+                mutable_linger_seconds: 1,
+                ..Default::default()
+            }),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let lp_lines = vec!["cpu,region=west user=23.2 100"];
+
+    write_client
+        .write(&db_name, lp_lines.join("\n"))
+        .await
+        .expect("write succeded");
+
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(chunks[0].storage, ChunkStorage::OpenMutableBuffer as i32);
+
+    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(chunks[0].storage, ChunkStorage::ReadBuffer as i32);
+}
+
 /// Normalizes a set of Chunks for comparison by removing timestamps
 fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
     chunks

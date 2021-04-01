@@ -78,8 +78,7 @@ impl Partition {
         let chunk_id = self.next_chunk_id;
         self.next_chunk_id += 1;
 
-        let state = ChunkState::Open(mutable_buffer::chunk::Chunk::new(chunk_id));
-        let chunk = Arc::new(RwLock::new(Chunk::new(&self.key, chunk_id, state)));
+        let chunk = Arc::new(RwLock::new(Chunk::new_open(&self.key, chunk_id)));
 
         if self.chunks.insert(chunk_id, Arc::clone(&chunk)).is_some() {
             // A fundamental invariant has been violated - abort

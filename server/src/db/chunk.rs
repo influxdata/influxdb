@@ -77,11 +77,13 @@ impl DBChunk {
         let partition_key = Arc::new(chunk.key().to_string());
         let chunk_id = chunk.id();
 
+        use super::catalog::chunk::ChunkState;
+
         let db_chunk = match chunk.state() {
-            super::catalog::chunk::ChunkState::Invalid => {
+            ChunkState::Invalid => {
                 panic!("Invalid internal state");
             }
-            super::catalog::chunk::ChunkState::Open(chunk) => {
+            ChunkState::Open(chunk) => {
                 // TODO the performance if cloning the chunk is terrible
                 // Proper performance is tracked in
                 // https://github.com/influxdata/influxdb_iox/issues/635
@@ -92,7 +94,7 @@ impl DBChunk {
                     open: true,
                 }
             }
-            super::catalog::chunk::ChunkState::Closing(chunk) => {
+            ChunkState::Closing(chunk) => {
                 // TODO the performance if cloning the chunk is terrible
                 // Proper performance is tracked in
                 // https://github.com/influxdata/influxdb_iox/issues/635
@@ -103,8 +105,7 @@ impl DBChunk {
                     open: false,
                 }
             }
-            super::catalog::chunk::ChunkState::Closed(chunk)
-            | super::catalog::chunk::ChunkState::Moving(chunk) => {
+            ChunkState::Moving(chunk) => {
                 let chunk = Arc::clone(chunk);
                 Self::MutableBuffer {
                     chunk,
@@ -112,7 +113,7 @@ impl DBChunk {
                     open: false,
                 }
             }
-            super::catalog::chunk::ChunkState::Moved(db) => {
+            ChunkState::Moved(db) => {
                 let db = Arc::clone(db);
                 Self::ReadBuffer {
                     db,

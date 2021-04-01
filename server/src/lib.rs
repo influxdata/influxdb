@@ -77,7 +77,7 @@ use bytes::BytesMut;
 use futures::stream::TryStreamExt;
 use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 use data_types::{
     database_rules::{DatabaseRules, WriterId},
@@ -463,28 +463,7 @@ impl<M: ConnectionManager> Server<M> {
             .db(&name)
             .context(DatabaseNotFound { db_name: &db_name })?;
 
-        let (tracker, registration) = self.jobs.register(Job::CloseChunk {
-            db_name: db_name.clone(),
-            partition_key: partition_key.clone(),
-            chunk_id,
-        });
-
-        let task = async move {
-            debug!(%db_name, %partition_key, %chunk_id, "background task loading chunk to read buffer");
-            let result = db.load_chunk_to_read_buffer(&partition_key, chunk_id).await;
-            if let Err(e) = result {
-                info!(?e, %db_name, %partition_key, %chunk_id, "background task error loading read buffer chunk");
-                return Err(e);
-            }
-
-            debug!(%db_name, %partition_key, %chunk_id, "background task completed closing chunk");
-
-            Ok(())
-        };
-
-        tokio::spawn(task.track(registration));
-
-        Ok(tracker)
+        Ok(db.load_chunk_to_read_buffer_in_background(partition_key, chunk_id))
     }
 
     /// Returns a list of all jobs tracked by this server
