@@ -9,7 +9,6 @@ import (
 	"net"
 	"os"
 	"reflect"
-	"sync"
 	"testing"
 	"time"
 
@@ -165,7 +164,7 @@ func TestSnapshotter_RequestMetastoreBackup(t *testing.T) {
 	}
 	defer l.Close()
 
-	s.MetaClient = &MetaClient{data: data.Clone()}
+	s.MetaClient = &MetaClient{data: data}
 	if err := s.Open(); err != nil {
 		t.Fatalf("unexpected open error: %s", err)
 	}
@@ -214,7 +213,7 @@ func TestSnapshotter_RequestDatabaseInfo(t *testing.T) {
 		return "", fmt.Errorf("no such shard id: %d", id)
 	}
 
-	s.MetaClient = &MetaClient{data: data.Clone()}
+	s.MetaClient = &MetaClient{data: data}
 	s.TSDBStore = &tsdbStore
 	if err := s.Open(); err != nil {
 		t.Fatalf("unexpected open error: %s", err)
@@ -269,7 +268,7 @@ func TestSnapshotter_RequestDatabaseInfo_ErrDatabaseNotFound(t *testing.T) {
 	}
 	defer l.Close()
 
-	s.MetaClient = &MetaClient{data: data.Clone()}
+	s.MetaClient = &MetaClient{data: data}
 	if err := s.Open(); err != nil {
 		t.Fatalf("unexpected open error: %s", err)
 	}
@@ -332,7 +331,7 @@ func TestSnapshotter_RequestRetentionPolicyInfo(t *testing.T) {
 		return "", fmt.Errorf("no such shard id: %d", id)
 	}
 
-	s.MetaClient = &MetaClient{data: data.Clone()}
+	s.MetaClient = &MetaClient{data: data}
 	s.TSDBStore = &tsdbStore
 	if err := s.Open(); err != nil {
 		t.Fatalf("unexpected open error: %s", err)
@@ -470,19 +469,14 @@ func NewTestService() (*snapshotter.Service, net.Listener, error) {
 }
 
 type MetaClient struct {
-	mu   sync.RWMutex
-	data *meta.Data
+	data meta.Data
 }
 
 func (m *MetaClient) MarshalBinary() ([]byte, error) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
 	return m.data.MarshalBinary()
 }
 
 func (m *MetaClient) Database(name string) *meta.DatabaseInfo {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
 	for _, dbi := range m.data.Databases {
 		if dbi.Name == name {
 			return &dbi
@@ -492,14 +486,10 @@ func (m *MetaClient) Database(name string) *meta.DatabaseInfo {
 }
 
 func (m *MetaClient) Data() meta.Data {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
 	return *m.data.Clone()
 }
 
 func (m *MetaClient) SetData(data *meta.Data) error {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.data = data.Clone()
+	m.data = *data.Clone()
 	return nil
 }
