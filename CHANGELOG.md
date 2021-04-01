@@ -1,6 +1,5 @@
 ## v2.0.5 [unreleased]
-
----
+----------------------
 
 ### Windows Support
 
@@ -38,7 +37,7 @@ or `/query` HTTP endpoints.
 1. [21049](https://github.com/influxdata/influxdb/pull/21049): Write to standard out when `--output-path -` is passed to `influxd inspect export-lp`.
 1. [21050](https://github.com/influxdata/influxdb/pull/21050): Add `-p, --profilers` flag to `influx query` command.
 1. [21119](https://github.com/influxdata/influxdb/pull/21119): Upgrade Flux to v0.111.0.
-1. [21090](https://github.com/influxdata/influxdb/pull/21090): Update UI to match InfluxDB Cloud.
+1. [21126](https://github.com/influxdata/influxdb/pull/21090): Update UI to match InfluxDB Cloud.
 
 ### Bug Fixes
 
@@ -62,17 +61,14 @@ or `/query` HTTP endpoints.
 1. [21048](https://github.com/influxdata/influxdb/pull/21048): Prevent concurrent access panic when gathering bolt metrics.
 
 ## v2.0.4 [2021-02-08]
-
----
+----------------------
 
 ### Docker
 
 #### ARM64
-
 This release extends the Docker builds hosted in `quay.io` to support the `linux/arm64` platform.
 
 #### 2.x nightly images
-
 Prior to this release, competing nightly builds caused the `nightly` Docker tag to contain outdated
 binaries. This conflict has been fixed, and the image tagged with `nightly` will now contain `2.x`
 binaries built from the `HEAD` of the `master` branch.
@@ -80,11 +76,9 @@ binaries built from the `HEAD` of the `master` branch.
 ### Breaking Changes
 
 #### inmem index option removed
-
 This release fully removes the `inmem` indexing option, along with the associated config options:
-
-- `max-series-per-database`
-- `max-values-per-tag`
+* `max-series-per-database`
+* `max-values-per-tag`
 
 Replacement `tsi1` indexes will be automatically generated on startup for shards that need it.
 
@@ -142,8 +136,7 @@ RPM packages, which has been left unchanged.
 1. [20708](https://github.com/influxdata/influxdb/pull/20708): Update API spec to document Flux dictionary features.
 
 ## v2.0.3 [2020-12-14]
-
----
+----------------------
 
 ### ARM Support
 
@@ -152,12 +145,10 @@ This release includes our initial ARM64 "preview" build.
 ### Breaking Changes
 
 #### influxd upgrade
-
 Previously, `influxd upgrade` would attempt to write upgraded `config.toml` files into the same directory as the source
 `influxdb.conf` file. If this failed, a warning would be logged and `config.toml` would be written into the `HOME` directory.
 
 This release breaks this behavior in two ways:
-
 1. By default, `config.toml` is now written into the same directory as the Bolt DB and engine files (`~/.influxdbv2/`)
 2. If writing upgraded config fails, the `upgrade` process exits with an error instead of falling back to the `HOME` directory
 
@@ -165,8 +156,7 @@ Users can use the new `--v2-config-path` option to override the output path for 
 want to use the default.
 
 #### v2 packaging
-
-Based on community feedback, the v2 deb and rpm packaging has been improved to avoid confusion between versions. The package
+Based on community feedback, the v2 deb and rpm packaging has been improved to avoid confusion between versions.  The package
 name is now influxdb2 and conflicts with any previous influxdb package (including initial 2.0.0, 2.0.1, and 2.0.2 packages).
 Additionally, v2 specific path defaults are now defined and helper scripts are provided for `influxd upgrade` and cleanup cases.
 
@@ -195,8 +185,7 @@ Additionally, v2 specific path defaults are now defined and helper scripts are p
 1. [20329](https://github.com/influxdata/influxdb/pull/20329): Set v2 default paths and provide upgrade helper scripts in release packages.
 
 ## v2.0.2 [2020-11-18]
-
----
+----------------------
 
 ### Features
 
@@ -211,7 +200,7 @@ Additionally, v2 specific path defaults are now defined and helper scripts are p
 
 1. [19992](https://github.com/influxdata/influxdb/pull/19992): Fix various typos. Thanks @kumakichi!
 1. [19999](https://github.com/influxdata/influxdb/pull/19999): Use --skip-verify flag for backup/restore CLI command.
-1. [19999](https://github.com/influxdata/influxdb/pull/19999): Suggest running with -h on error instead of printing usage when launching `influxd`.
+1. [19999](https://github.com/influxdata/influxdb/pull/19999): Suggest running with -h on error instead of printing usage when launching `influxd`. 
 1. [20047](https://github.com/influxdata/influxdb/pull/20072): Allow self signed certificates for scraper targets. Thanks @cmackenzie1!
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Add locking during TSI iterator creation.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Do not use global viper APIs, which breaks testing.
@@ -222,7 +211,7 @@ Additionally, v2 specific path defaults are now defined and helper scripts are p
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Reinstate minimal read-only document store for dashboard template.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): UI: Skip dashboard index CRUD case.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Task: Fixed logic checking time filter exists.
-1. [20072](https://github.com/influxdata/influxdb/pull/20072): Task: Fixed error message semantic.
+1. [20072](https://github.com/influxdata/influxdb/pull/20072): Task: Fixed error message semantic. 
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Track seen databases in map and skip duplicates.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): Build: Remove lint-feature-flag job from OSS.
 1. [20072](https://github.com/influxdata/influxdb/pull/20072): CLI: Don't validate unused paths in `upgrade`.
@@ -233,12 +222,11 @@ Additionally, v2 specific path defaults are now defined and helper scripts are p
 1. [20089](https://github.com/influxdata/influxdb/pull/20089): UI: UX improvements and bug fixes to dbrp commands.
 1. [20089](https://github.com/influxdata/influxdb/pull/20089): API: Make the dbrp api match the swagger spec.
 1. [20089](https://github.com/influxdata/influxdb/pull/20089): Revert changes to API page-sizes.
-1. [20089](https://github.com/influxdata/influxdb/pull/20089): Exclude pkger_test.go from linting
+1. [20089](https://github.com/influxdata/influxdb/pull/20089): Exclude pkger\_test.go from linting 
 1. [20091](https://github.com/influxdata/influxdb/pull/20091): Make the DBRP http API match the swagger spec.
 
 ## v2.0.1 [2020-11-10]
-
----
+----------------------
 
 ### Bug Fixes
 
@@ -250,8 +238,7 @@ Additionally, v2 specific path defaults are now defined and helper scripts are p
 1. [19980](https://github.com/influxdata/influxdb/pull/19980): check write permission in legacy write path
 
 ## v2.0.0 [2020-11-09]
-
----
+----------------------
 
 ### Features
 
@@ -446,7 +433,6 @@ need to update any InfluxDB CLI config profiles with the new port number.
 1. [19317](https://github.com/influxdata/influxdb/pull/19317): Add validation to Variable name creation for valid Flux identifiers.
 
 ### UI Improvements
-
 1. [19231](https://github.com/influxdata/influxdb/pull/19231): Alerts page filter inputs now have tab indices for keyboard navigation
 1. [19364](https://github.com/influxdata/influxdb/pull/19364): Errors in OSS are now properly printed to the console
 
