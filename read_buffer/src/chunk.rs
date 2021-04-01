@@ -20,6 +20,9 @@ type TableName = String;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
+    #[snafu(display("unsupported operation: {}", msg))]
+    UnsupportedOperation { msg: String },
+
     #[snafu(display("error processing table: {}", source))]
     TableError { source: table::Error },
 
@@ -416,7 +419,8 @@ impl Chunk {
     /// `dst` is a buffer that will be populated with results. `column_names` is
     /// smart enough to short-circuit processing on row groups when it
     /// determines that all the columns in the row group are already contained
-    /// in the results buffer.
+    /// in the results buffer. Callers can skip this behaviour by passing in
+    /// an empty `BTreeSet`.
     pub fn column_names(
         &self,
         table_name: &str,
@@ -438,28 +442,47 @@ impl Chunk {
     }
 
     /// Returns the distinct set of column values for each provided column,
-    /// where each returned value sits in a row matching the provided
+    /// where each returned value lives in a row matching the provided
     /// predicate. All values are deduplicated across row groups in the table.
     ///
-    /// All specified columns must be of `String` type
     /// If the predicate is empty then all distinct values are returned for the
     /// table.
-    pub fn column_values<'a>(
-        &'a self,
+    ///
+    /// Returns an error if the provided table does not exist.
+    ///
+    /// `dst` is intended to allow for some more sophisticated execution,
+    /// wherein execution can be short-circuited for distinct values that have
+    /// already been found. Callers can simply provide an empty `BTreeMap` to
+    /// skip this behaviour.
+    pub fn column_values(
+        &self,
         table_name: &str,
-        predicate: &Predicate,
-        columns: &[ColumnName<'_>],
+        predicate: Predicate,
+        columns: Selection<'_>,
         dst: BTreeMap<String, BTreeSet<String>>,
     ) -> Result<BTreeMap<String, BTreeSet<String>>> {
+        let columns = match columns {
+            Selection::All => {
+                return UnsupportedOperation {
+                    msg: "column_values does not support All columns".to_owned(),
+                }
+                .fail();
+            }
+            Selection::Some(columns) => columns,
+        };
+
         let chunk_data = self.chunk_data.read().unwrap();
 
         // TODO(edd): same potential contention as `table_names` but I'm ok
         // with this for now.
         match chunk_data.data.get(table_name) {
             Some(table) => table
-                .column_values(predicate, columns, dst)
+                .column_values(&predicate, columns, dst)
                 .context(TableError),
-            None => Ok(dst),
+            None => TableNotFound {
+                table_name: table_name.to_owned(),
+            }
+            .fail(),
         }
     }
 }
@@ -978,5 +1001,86 @@ mod test {
         // sketchy_sensor won't be returned because it has a NULL value for the
         // only matching row.
         assert_eq!(result, to_set(&["counter", "region", "time"]));
+    }
+
+    fn to_map(arr: Vec<(&str, &[&str])>) -> BTreeMap<String, BTreeSet<String>> {
+        arr.iter()
+            .map(|(k, values)| {
+                (
+                    k.to_string(),
+                    values
+                        .iter()
+                        .map(|s| s.to_string())
+                        .collect::<BTreeSet<_>>(),
+                )
+            })
+            .collect::<BTreeMap<_, _>>()
+    }
+
+    #[test]
+    fn column_values() {
+        let chunk = Chunk::new(22);
+
+        let schema = SchemaBuilder::new()
+            .non_null_tag("region")
+            .non_null_tag("env")
+            .timestamp()
+            .build()
+            .unwrap()
+            .into();
+
+        let data: Vec<ArrayRef> = vec![
+            Arc::new(StringArray::from(vec!["north", "south", "east"])),
+            Arc::new(StringArray::from(vec![Some("prod"), None, Some("stag")])),
+            Arc::new(Int64Array::from(vec![11111111, 222222, 3333])),
+        ];
+
+        // Add the above table to a chunk and partition
+        let rb = RecordBatch::try_new(schema, data).unwrap();
+        chunk.upsert_table("my_table", rb);
+
+        let result = chunk
+            .column_values(
+                "my_table",
+                Predicate::default(),
+                Selection::Some(&["region", "env"]),
+                BTreeMap::new(),
+            )
+            .unwrap();
+
+        assert_eq!(
+            result,
+            to_map(vec![
+                ("region", &["north", "south", "east"]),
+                ("env", &["prod", "stag"])
+            ])
+        );
+
+        // With a predicate
+        let result = chunk
+            .column_values(
+                "my_table",
+                Predicate::new(vec![
+                    BinaryExpr::from(("time", ">=", 20_i64)),
+                    BinaryExpr::from(("time", "<=", 3333_i64)),
+                ]),
+                Selection::Some(&["region", "env"]),
+                BTreeMap::new(),
+            )
+            .unwrap();
+
+        assert_eq!(
+            result,
+            to_map(vec![
+                ("region", &["east"]),
+                ("env", &["stag"]) // column_values returns non-null values.
+            ])
+        );
+
+        // Error when All column selection provided.
+        assert!(matches!(
+            chunk.column_values("x", Predicate::default(), Selection::All, BTreeMap::new()),
+            Err(Error::UnsupportedOperation { .. })
+        ));
     }
 }

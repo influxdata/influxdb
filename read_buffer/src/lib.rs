@@ -492,6 +492,8 @@ impl Database {
     /// predicate. Columns can be limited via a selection, which means callers
     /// that know they are only interested in certain columns can specify those
     /// and reduce total execution time.
+    ///
+    /// TODO(edd): to be deprecated
     pub fn column_names(
         &self,
         partition_key: &str,
@@ -537,6 +539,8 @@ impl Database {
     ///
     /// `columns` must only contain columns that have the InfluxData tag
     /// semantic type.
+    ///
+    /// TODO(edd): to be deprecated
     pub fn column_values(
         &self,
         partition_key: &str,
@@ -545,15 +549,6 @@ impl Database {
         predicate: Predicate,
         columns: Selection<'_>,
     ) -> Result<BTreeMap<String, BTreeSet<String>>> {
-        let columns = match columns {
-            Selection::All => {
-                return UnsupportedOperation {
-                    msg: "column_values does not support All columns".to_owned(),
-                }
-                .fail();
-            }
-            Selection::Some(columns) => columns,
-        };
         let partition_data = self.data.read().unwrap();
 
         let partition = partition_data
@@ -580,7 +575,7 @@ impl Database {
         let mut values = BTreeMap::new();
         for chunk in filtered_chunks {
             values = chunk
-                .column_values(table_name, &predicate, columns, values)
+                .column_values(table_name, predicate.clone(), columns, values)
                 .context(ChunkError)?;
         }
 
@@ -1684,12 +1679,6 @@ mod test {
                 ("env", &["stag"]) // column_values returns non-null values.
             ])
         );
-
-        // Error when All column selection provided.
-        assert!(matches!(
-            db.column_values("x", "x", &[22, 40], Predicate::default(), Selection::All),
-            Err(Error::UnsupportedOperation { .. })
-        ));
 
         // Error when unsupported column pushed down.
         assert!(matches!(
