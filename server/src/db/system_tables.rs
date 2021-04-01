@@ -147,24 +147,11 @@ fn from_partition_summaries(partitions: Vec<PartitionSummary>) -> Result<RecordB
     let mut column_name = StringBuilder::new(row_estimate);
     let mut count = UInt64Builder::new(row_estimate);
 
+    // Note no rows are produced for partitions with no tabes, or
+    // tables with no columns: There are other tables to list tables
+    // and columns
     for partition in partitions {
-        if partition.tables.is_empty() {
-            partition_key.append_value(&partition.key)?;
-            table_name.append_null()?;
-            column_name.append_null()?;
-            count.append_null()?;
-            continue;
-        }
-
         for table in partition.tables {
-            if table.columns.is_empty() {
-                partition_key.append_value(&partition.key)?;
-                table_name.append_value(&table.name)?;
-                column_name.append_null()?;
-                count.append_null()?;
-                continue;
-            }
-
             for column in table.columns {
                 partition_key.append_value(&partition.key)?;
                 table_name.append_value(&table.name)?;
@@ -285,8 +272,6 @@ mod tests {
             "+---------------+------------+-------------+-------+",
             "| p1            | t1         | c1          | 1     |",
             "| p1            | t1         | c2          | 1     |",
-            "| p2            |            |             |       |",
-            "| p3            | t1         |             |       |",
             "+---------------+------------+-------------+-------+",
         ];
 
