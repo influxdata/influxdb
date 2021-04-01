@@ -1,5 +1,3 @@
-use std::collections::BTreeMap;
-
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion, Throughput};
 use rand::distributions::Alphanumeric;
 use rand::prelude::*;
@@ -333,9 +331,7 @@ fn generate_row_group(rows: usize, rng: &mut ThreadRng) -> RowGroup {
                 column_packers[10].i64_packer().some_values().as_slice(),
             )),
         ),
-    ]
-    .into_iter()
-    .collect::<BTreeMap<_, _>>();
+    ];
 
     RowGroup::new(rows as u32, columns)
 }

@@ -1,7 +1,7 @@
 #![deny(rust_2018_idioms)]
 #![warn(clippy::clone_on_ref_ptr, clippy::use_self)]
 #![allow(dead_code, clippy::too_many_arguments)]
-pub(crate) mod chunk;
+pub mod chunk;
 pub(crate) mod column;
 pub(crate) mod row_group;
 mod schema;
@@ -308,7 +308,7 @@ impl Database {
                     // but just gets pointers to the necessary data for
                     // execution.
                     let chunk_result = chunk
-                        .read_filter(table_name, predicate.clone(), select_columns.clone())
+                        .read_filter(table_name, predicate.clone(), select_columns)
                         .context(ChunkError)?;
                     chunk_table_results.push(chunk_result);
                 }

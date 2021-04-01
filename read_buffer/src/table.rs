@@ -573,7 +573,6 @@ impl MetaData {
     /// As `schema_for_column_names` but for all columns in the table. Schema
     /// information is returned in the same order as columns in the table.
     pub fn schema_for_all_columns(&self) -> Vec<(ColumnType, LogicalDataType)> {
-        println!("{:?}", self.column_names);
         let mut column_schema = vec![];
         for column_name in &self.column_names {
             let schema = self.columns.get(column_name).unwrap();
