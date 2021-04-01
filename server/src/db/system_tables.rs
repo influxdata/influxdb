@@ -76,10 +76,6 @@ fn append_time(
     }
 }
 
-fn append_str(builder: &mut StringBuilder, value: impl Into<&'static str>) -> Result<()> {
-    builder.append_value(value.into())
-}
-
 // TODO: Use a custom proc macro or serde to reduce the boilerplate
 
 fn from_chunk_summaries(chunks: Vec<ChunkSummary>) -> Result<RecordBatch> {
@@ -94,7 +90,7 @@ fn from_chunk_summaries(chunks: Vec<ChunkSummary>) -> Result<RecordBatch> {
     for chunk in chunks {
         id.append_value(chunk.id)?;
         partition_key.append_value(chunk.partition_key.as_ref())?;
-        append_str(&mut storage, chunk.storage)?;
+        storage.append_value(chunk.storage.as_str())?;
         estimated_bytes.append_value(chunk.estimated_bytes as u64)?;
 
         append_time(&mut time_of_first_write, chunk.time_of_first_write)?;

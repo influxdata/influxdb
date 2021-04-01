@@ -10,9 +10,7 @@ use generated_types::{google::FieldViolation, influxdata::iox::management::v1 as
 use serde::{Deserialize, Serialize};
 
 /// Which storage system is a chunk located in?
-#[derive(
-    Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, strum::IntoStaticStr, Serialize, Deserialize,
-)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Serialize, Deserialize)]
 pub enum ChunkStorage {
     /// The chunk is still open for new writes, in the Mutable Buffer
     OpenMutableBuffer,
@@ -25,6 +23,18 @@ pub enum ChunkStorage {
 
     /// The chunk is stored in Object Storage (where it can not be mutated)
     ObjectStore,
+}
+
+impl ChunkStorage {
+    /// Return a str representation of this storage state
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::OpenMutableBuffer => "OpenMutableBuffer",
+            Self::ClosedMutableBuffer => "ClosedMutableBuffer",
+            Self::ReadBuffer => "ReadBuffer",
+            Self::ObjectStore => "ObjectStore",
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Serialize, Deserialize)]
