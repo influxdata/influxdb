@@ -168,6 +168,29 @@ impl DBSetup for TwoMeasurementsManyFields {
     }
 }
 
+pub struct TwoMeasurementsManyFieldsOneChunk {}
+#[async_trait]
+impl DBSetup for TwoMeasurementsManyFieldsOneChunk {
+    async fn make(&self) -> Vec<DBScenario> {
+        let db = make_db();
+        let mut writer = TestLPWriter::default();
+
+        let lp_lines = vec![
+            "h2o,state=MA,city=Boston temp=70.4 50",
+            "h2o,state=MA,city=Boston other_temp=70.4 250",
+            "h2o,state=CA,city=Boston other_temp=72.4 350",
+            "o2,state=MA,city=Boston temp=53.4,reading=51 50",
+            "o2,state=CA temp=79.0 300",
+        ];
+
+        writer.write_lp_string(&db, &lp_lines.join("\n")).unwrap();
+        vec![DBScenario {
+            scenario_name: "Data in open chunk of mutable buffer".into(),
+            db,
+        }]
+    }
+}
+
 pub struct OneMeasurementManyFields {}
 #[async_trait]
 impl DBSetup for OneMeasurementManyFields {
