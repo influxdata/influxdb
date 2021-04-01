@@ -524,7 +524,9 @@ impl Database {
             // the dst buffer is pushed into each chunk's `column_names`
             // implementation ensuring that we short-circuit any tables where
             // we have already determined column names.
-            chunk.column_names(table_name, &predicate, only_columns, dst)
+            chunk
+                .column_names(table_name, predicate.clone(), only_columns, dst)
+                .unwrap()
         });
 
         Ok(Some(names))

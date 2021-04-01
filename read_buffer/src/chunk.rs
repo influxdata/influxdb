@@ -411,6 +411,8 @@ impl Chunk {
     /// Returns the distinct set of column names that contain data matching the
     /// provided predicate, which may be empty.
     ///
+    /// Results can be further limited to a specific selection of columns.
+    ///
     /// `dst` is a buffer that will be populated with results. `column_names` is
     /// smart enough to short-circuit processing on row groups when it
     /// determines that all the columns in the row group are already contained
@@ -418,17 +420,20 @@ impl Chunk {
     pub fn column_names(
         &self,
         table_name: &str,
-        predicate: &Predicate,
-        columns: Selection<'_>,
+        predicate: Predicate,
+        only_columns: Selection<'_>,
         dst: BTreeSet<String>,
-    ) -> BTreeSet<String> {
+    ) -> Result<BTreeSet<String>> {
         let chunk_data = self.chunk_data.read().unwrap();
 
         // TODO(edd): same potential contention as `table_names` but I'm ok
         // with this for now.
         match chunk_data.data.get(table_name) {
-            Some(table) => table.column_names(predicate, columns, dst),
-            None => dst,
+            Some(table) => Ok(table.column_names(&predicate, only_columns, dst)),
+            None => TableNotFound {
+                table_name: table_name.to_owned(),
+            }
+            .fail(),
         }
     }
 
@@ -916,5 +921,62 @@ mod test {
                 .collect::<Vec<&str>>(),
             vec!["table_2"]
         );
+    }
+
+    fn to_set(v: &[&str]) -> BTreeSet<String> {
+        v.iter().map(|s| s.to_string()).collect()
+    }
+
+    #[test]
+    fn column_names() {
+        let mut chunk = Chunk::new(22);
+
+        let schema = SchemaBuilder::new()
+            .non_null_tag("region")
+            .non_null_field("counter", Float64)
+            .timestamp()
+            .field("sketchy_sensor", Float64)
+            .build()
+            .unwrap()
+            .into();
+
+        let data: Vec<ArrayRef> = vec![
+            Arc::new(StringArray::from(vec!["west", "west", "east"])),
+            Arc::new(Float64Array::from(vec![1.2, 3.3, 45.3])),
+            Arc::new(Int64Array::from(vec![11111111, 222222, 3333])),
+            Arc::new(Float64Array::from(vec![Some(11.0), None, Some(12.0)])),
+        ];
+
+        // Add the above table to the chunk
+        let rb = RecordBatch::try_new(schema, data).unwrap();
+        chunk.upsert_table("Utopia", rb);
+
+        let result = chunk
+            .column_names(
+                "Utopia",
+                Predicate::default(),
+                Selection::All,
+                BTreeSet::new(),
+            )
+            .unwrap();
+
+        assert_eq!(
+            result,
+            to_set(&["counter", "region", "sketchy_sensor", "time"])
+        );
+
+        // Testing predicates
+        let result = chunk
+            .column_names(
+                "Utopia",
+                Predicate::new(vec![BinaryExpr::from(("time", "=", 222222_i64))]),
+                Selection::All,
+                BTreeSet::new(),
+            )
+            .unwrap();
+
+        // sketchy_sensor won't be returned because it has a NULL value for the
+        // only matching row.
+        assert_eq!(result, to_set(&["counter", "region", "time"]));
     }
 }
