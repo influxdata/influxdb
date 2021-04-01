@@ -4,6 +4,7 @@ use std::sync::Arc;
 use chrono::{DateTime, Utc};
 use data_types::{chunk::ChunkSummary, partition_metadata::TableSummary};
 use mutable_buffer::chunk::Chunk as MBChunk;
+use parquet_file::chunk::Chunk as ParquetChunk;
 use query::PartitionChunk;
 use read_buffer::Database as ReadBufferDb;
 
@@ -31,6 +32,9 @@ pub enum ChunkState {
 
     /// Chunk has been completely loaded in the read buffer
     Moved(Arc<ReadBufferDb>), // todo use read buffer chunk here
+
+    /// Chunk has been completely loaded in the object store
+    ObjectStore(Arc<ParquetChunk>),
 }
 
 impl ChunkState {
@@ -41,6 +45,7 @@ impl ChunkState {
             Self::Closing(_) => "Closing",
             Self::Moving(_) => "Moving",
             Self::Moved(_) => "Moved",
+            Self::ObjectStore(_) => "ObjectStore",
         }
     }
 }
@@ -173,6 +178,7 @@ impl Chunk {
             ChunkState::Moved(db) => {
                 db.has_table(self.partition_key.as_str(), table_name, &[self.id])
             }
+            ChunkState::ObjectStore(chunk) => chunk.has_table(table_name),
         }
     }
 
@@ -185,6 +191,7 @@ impl Chunk {
             ChunkState::Moved(db) => {
                 db.all_table_names(self.partition_key.as_str(), &[self.id], names)
             }
+            ChunkState::ObjectStore(chunk) => chunk.all_table_names(names),
         }
     }
 
@@ -198,6 +205,7 @@ impl Chunk {
             ChunkState::Moved(db) => db
                 .chunks_size(self.partition_key.as_str(), &[self.id])
                 .unwrap_or(0) as usize,
+            ChunkState::ObjectStore(chunk) => chunk.size(),
         }
     }
 
@@ -266,6 +274,25 @@ impl Chunk {
             state => {
                 self.state = state;
                 unexpected_state!(self, "setting moved", "Moving", &self.state)
+            }
+        }
+    }
+
+    /// Set the chunk to the ObjectStore state, returning a handle to the
+    /// underlying storage
+    pub fn set_object_store(&mut self, chunk: Arc<ParquetChunk>) -> Result<Arc<ParquetChunk>> {
+        let mut s = ChunkState::Invalid;
+        std::mem::swap(&mut s, &mut self.state);
+
+        // TODO: Need to see from which state we can persist to object store
+        match s {
+            ChunkState::Moved(_) => {
+                self.state = ChunkState::ObjectStore(Arc::clone(&chunk));
+                Ok(chunk)
+            }
+            state => {
+                self.state = state;
+                unexpected_state!(self, "setting object store", "Moved", &self.state)
             }
         }
     }

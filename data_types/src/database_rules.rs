@@ -76,6 +76,10 @@ impl DatabaseRules {
     pub fn new() -> Self {
         Self::default()
     }
+
+    pub fn db_name(&self) -> &str {
+        &self.name.as_str()
+    }
 }
 
 impl DatabaseRules {

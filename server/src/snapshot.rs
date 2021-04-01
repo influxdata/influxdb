@@ -3,17 +3,15 @@
 use arrow_deps::{
     arrow::datatypes::SchemaRef,
     datafusion::physical_plan::SendableRecordBatchStream,
-    parquet::{self, arrow::ArrowWriter, file::writer::TryClone},
+    parquet::{self, arrow::ArrowWriter},
 };
 use data_types::partition_metadata::{PartitionSummary, TableSummary};
 use internal_types::selection::Selection;
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
+use parquet_file::chunk::MemWriter;
 use query::{predicate::EMPTY_PREDICATE, PartitionChunk};
 
-use std::{
-    io::{Cursor, Seek, SeekFrom, Write},
-    sync::Arc,
-};
+use std::sync::Arc;
 
 use bytes::Bytes;
 use futures::StreamExt;
@@ -311,48 +309,6 @@ where
     });
 
     Ok(return_snapshot)
-}
-
-#[derive(Debug, Default, Clone)]
-struct MemWriter {
-    mem: Arc<Mutex<Cursor<Vec<u8>>>>,
-}
-
-impl MemWriter {
-    /// Returns the inner buffer as long as there are no other references to the
-    /// Arc.
-    pub fn into_inner(self) -> Option<Vec<u8>> {
-        Arc::try_unwrap(self.mem)
-            .ok()
-            .map(|mutex| mutex.into_inner().into_inner())
-    }
-}
-
-impl Write for MemWriter {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        let mut inner = self.mem.lock();
-        inner.write(buf)
-    }
-
-    fn flush(&mut self) -> std::io::Result<()> {
-        let mut inner = self.mem.lock();
-        inner.flush()
-    }
-}
-
-impl Seek for MemWriter {
-    fn seek(&mut self, pos: SeekFrom) -> std::io::Result<u64> {
-        let mut inner = self.mem.lock();
-        inner.seek(pos)
-    }
-}
-
-impl TryClone for MemWriter {
-    fn try_clone(&self) -> std::io::Result<Self> {
-        Ok(Self {
-            mem: Arc::clone(&self.mem),
-        })
-    }
 }
 
 #[cfg(test)]

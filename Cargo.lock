@@ -2280,6 +2280,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "parquet_file"
+version = "0.1.0"
+dependencies = [
+ "arrow_deps",
+ "bytes",
+ "futures",
+ "object_store",
+ "parking_lot",
+ "snafu",
+]
+
+[[package]]
 name = "paste"
 version = "1.0.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3190,6 +3202,7 @@ dependencies = [
  "mutable_buffer",
  "object_store",
  "parking_lot",
+ "parquet_file",
  "pin-project 1.0.6",
  "query",
  "read_buffer",
