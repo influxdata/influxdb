@@ -644,7 +644,6 @@ func (SortedPivotRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bo
 	return pn, false, nil
 }
 
-
 //
 // Push Down of window aggregates.
 // ReadRangePhys |> window |> { min, max, mean, count, sum }
