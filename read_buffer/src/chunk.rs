@@ -670,6 +670,16 @@ mod test {
     }
 
     #[test]
+    fn has_table() {
+        let mut chunk = Chunk::new(22);
+
+        // Add a new table to the chunk.
+        chunk.upsert_table("a_table", gen_recordbatch());
+        assert!(chunk.has_table("a_table"));
+        assert!(!chunk.has_table("b_table"));
+    }
+
+    #[test]
     fn table_names() {
         let columns = vec![
             (
