@@ -88,7 +88,6 @@ function run_docker {
          "$@" \
          2>&1 | tee "$logfile"
     return "${PIPESTATUS[0]}"
-
 }
 
 # Build the docker image defined by given dockerfile.
@@ -131,6 +130,7 @@ case $ENVIRONMENT_INDEX in
     "flux")
       >&2 echo 'flux tests'
       run_docker test_flux /root/influxdb/test-flux.sh
+      rc=$?
       ;;
     *)
         echo "No individual test environment specified running tests for all $ENV_COUNT environments."

@@ -314,7 +314,11 @@ func (s *Server) appendHTTPDService(c httpd.Config) error {
 		if err != nil {
 			return err
 		}
-		srv.Handler.Controller, err = control.New(s.config.FluxController, s.Logger.With(zap.String("service", "flux-controller")), []flux.Dependency{storageDep})
+		srv.Handler.Controller, err = control.New(
+			s.config.FluxController,
+			s.Logger.With(zap.String("service", "flux-controller")),
+			[]flux.Dependency{storageDep/*, testing.FrameworkConfig{}*/},
+		)
 		if err != nil {
 			return err
 		}
