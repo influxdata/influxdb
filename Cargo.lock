@@ -111,7 +111,7 @@ checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
 [[package]]
 name = "arrow"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=9aa0f85a2750b7faaf8ad069e05a89b4f8a1754f#9aa0f85a2750b7faaf8ad069e05a89b4f8a1754f"
+source = "git+https://github.com/apache/arrow.git?rev=090f11cf9583a72a967956d383e5d452db17bd96#090f11cf9583a72a967956d383e5d452db17bd96"
 dependencies = [
  "cfg_aliases",
  "chrono",
@@ -134,7 +134,7 @@ dependencies = [
 [[package]]
 name = "arrow-flight"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=9aa0f85a2750b7faaf8ad069e05a89b4f8a1754f#9aa0f85a2750b7faaf8ad069e05a89b4f8a1754f"
+source = "git+https://github.com/apache/arrow.git?rev=090f11cf9583a72a967956d383e5d452db17bd96#090f11cf9583a72a967956d383e5d452db17bd96"
 dependencies = [
  "arrow",
  "bytes",
@@ -777,7 +777,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=9aa0f85a2750b7faaf8ad069e05a89b4f8a1754f#9aa0f85a2750b7faaf8ad069e05a89b4f8a1754f"
+source = "git+https://github.com/apache/arrow.git?rev=090f11cf9583a72a967956d383e5d452db17bd96#090f11cf9583a72a967956d383e5d452db17bd96"
 dependencies = [
  "ahash 0.7.2",
  "arrow",
@@ -792,6 +792,7 @@ dependencies = [
  "parquet",
  "paste",
  "pin-project-lite",
+ "smallvec",
  "sqlparser",
  "tokio",
  "tokio-stream",
@@ -2253,7 +2254,7 @@ dependencies = [
 [[package]]
 name = "parquet"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=9aa0f85a2750b7faaf8ad069e05a89b4f8a1754f#9aa0f85a2750b7faaf8ad069e05a89b4f8a1754f"
+source = "git+https://github.com/apache/arrow.git?rev=090f11cf9583a72a967956d383e5d452db17bd96#090f11cf9583a72a967956d383e5d452db17bd96"
 dependencies = [
  "arrow",
  "base64 0.12.3",
