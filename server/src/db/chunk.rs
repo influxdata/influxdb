@@ -2,7 +2,7 @@ use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 use data_types::chunk::{ChunkStorage, ChunkSummary};
 use internal_types::{schema::Schema, selection::Selection};
 use mutable_buffer::chunk::Chunk as MBChunk;
-use parquet_file::parquet_chunk::ParquetChunk;
+use parquet_file::chunk::Chunk as ParquetChunk;
 use query::{exec::stringset::StringSet, predicate::Predicate, PartitionChunk};
 use read_buffer::Database as ReadBufferDb;
 use snafu::{ResultExt, Snafu};
@@ -122,6 +122,10 @@ impl DBChunk {
                     partition_key,
                     chunk_id,
                 }
+            }
+            super::catalog::chunk::ChunkState::ObjectStore(chunk) => {
+                let chunk = Arc::clone(chunk);
+                Self::ParquetFile { chunk }
             }
         };
         Arc::new(db_chunk)

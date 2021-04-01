@@ -8,7 +8,7 @@ use arrow_deps::{
 use data_types::partition_metadata::{PartitionSummary, TableSummary};
 use internal_types::selection::Selection;
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
-use parquet_file::parquet_chunk::MemWriter;
+use parquet_file::chunk::MemWriter;
 use query::{predicate::EMPTY_PREDICATE, PartitionChunk};
 
 use std::sync::Arc;

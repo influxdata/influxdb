@@ -6,6 +6,7 @@ use object_store::{
 use parking_lot::Mutex;
 use snafu::{ResultExt, Snafu};
 use std::{
+    collections::BTreeSet,
     io::{Cursor, Seek, SeekFrom, Write},
     sync::Arc,
 };
@@ -18,7 +19,7 @@ pub enum Error {
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, Clone)]
-pub struct ParquetChunk {
+pub struct Chunk {
     /// Partition this chunk belongs to
     pub partition_key: String,
 
@@ -32,13 +33,26 @@ pub struct ParquetChunk {
      * store them for now but we might need them here for easy-to-use reason. Will see */
 }
 
-impl ParquetChunk {
+impl Chunk {
     pub fn new(part_key: String, chunk_id: u32) -> Self {
         Self {
             partition_key: part_key,
             id: chunk_id,
             object_store_paths: vec![],
         }
+    }
+
+    pub fn has_table(&self, table_name: &str) -> bool {
+        // TODO: check if this table exists in the chunk
+        if table_name.is_empty() {
+            return false;
+        }
+        true
+    }
+
+    pub fn all_table_names(&self, names: &mut BTreeSet<String>) {
+        // TODO
+        names.insert("todo".to_string());
     }
 
     pub async fn write_to_object_store(

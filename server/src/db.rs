@@ -25,7 +25,7 @@ use data_types::{
     database_rules::{DatabaseRules, Order, Sort, SortOrder},
 };
 use internal_types::{data::ReplicatedWrite, selection::Selection};
-use parquet_file::parquet_chunk::{MemWriter, ParquetChunk};
+use parquet_file::chunk::{Chunk, MemWriter};
 use query::{Database, DEFAULT_SCHEMA};
 use read_buffer::Database as ReadBufferDb;
 
@@ -452,7 +452,7 @@ impl Db {
             .expect("Figuring out what tables are in the mutable buffer");
 
         // Create a parquet chunk for this chunk
-        let _parquet_chunk = ParquetChunk::new(partition_key.to_string(), chunk_id);
+        let _chunk = Chunk::new(partition_key.to_string(), chunk_id);
 
         for stats in table_stats {
             debug!(%partition_key, %chunk_id, table=%stats.name, "loading table to object store");
@@ -484,11 +484,11 @@ impl Db {
 
             // TODO: put this function under a tokio
             // Put the file to object store
-            // parquet_chunk.write_to_object_store(self.db_name(), stats.name,
+            // chunk.write_to_object_store(self.db_name(), stats.name,
             // cursor);
         }
 
-        // TOOD: add the parquet_chunk into a member of this Db (which maybe Catalog or
+        // TOOD: add the chunk into a member of this Db (which maybe Catalog or
         // so) Need to talk with Andrew and Raphael about this
 
         // Relock the chunk again (nothing else should have been able

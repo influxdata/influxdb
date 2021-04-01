@@ -7,4 +7,4 @@
     clippy::clone_on_ref_ptr
 )]
 
-pub mod parquet_chunk;
+pub mod chunk;
