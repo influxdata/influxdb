@@ -1,4 +1,4 @@
-package reads
+package storageflux
 
 import (
 	"container/list"
