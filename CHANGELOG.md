@@ -42,6 +42,7 @@ v1.8.5 [2021-04-19]
 -	[#20909](https://github.com/influxdata/influxdb/pull/20909): fix(tsm1): data race when accessing tombstone stats
 -	[#20912](https://github.com/influxdata/influxdb/pull/20912): fix(tsdb): minimize lock contention when adding new fields or measure
 -	[#20914](https://github.com/influxdata/influxdb/pull/20914): fix: infinite recursion bug (#20862)
+-	[#20115](https://github.com/influxdata/influxdb/pull/20115): fix: restore portable backup bug
 
 v1.8.4 [2021-01-27]
 -------------------
@@ -49,7 +50,6 @@ v1.8.4 [2021-01-27]
 ### Bugfixes
 
 -	[#19696](https://github.com/influxdata/influxdb/pull/19697): fix(flux): add durations to Flux logging
--	[#20115](https://github.com/influxdata/influxdb/pull/20115): fix: restore portable backup error
 
 v1.8.3 [2020-09-30]
 -------------------
