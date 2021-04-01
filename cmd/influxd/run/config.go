@@ -16,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/monitor"
 	"github.com/influxdata/influxdb/monitor/diagnostics"
 	"github.com/influxdata/influxdb/pkg/tlsconfig"
+	"github.com/influxdata/influxdb/query/control"
 	"github.com/influxdata/influxdb/services/collectd"
 	"github.com/influxdata/influxdb/services/continuous_querier"
 	"github.com/influxdata/influxdb/services/graphite"
@@ -39,11 +40,12 @@ const (
 
 // Config represents the configuration format for the influxd binary.
 type Config struct {
-	Meta        *meta.Config       `toml:"meta"`
-	Data        tsdb.Config        `toml:"data"`
-	Coordinator coordinator.Config `toml:"coordinator"`
-	Retention   retention.Config   `toml:"retention"`
-	Precreator  precreator.Config  `toml:"shard-precreation"`
+	Meta           *meta.Config       `toml:"meta"`
+	Data           tsdb.Config        `toml:"data"`
+	Coordinator    coordinator.Config `toml:"coordinator"`
+	FluxController control.Config     `toml:"flux-controller"`
+	Retention      retention.Config   `toml:"retention"`
+	Precreator     precreator.Config  `toml:"shard-precreation"`
 
 	Monitor        monitor.Config    `toml:"monitor"`
 	Subscriber     subscriber.Config `toml:"subscriber"`
@@ -72,6 +74,7 @@ func NewConfig() *Config {
 	c.Meta = meta.NewConfig()
 	c.Data = tsdb.NewConfig()
 	c.Coordinator = coordinator.NewConfig()
+	c.FluxController = control.NewConfig()
 	c.Precreator = precreator.NewConfig()
 
 	c.Monitor = monitor.NewConfig()

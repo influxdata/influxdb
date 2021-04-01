@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/services/storage"
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/prometheus/prompb"
 )
 
@@ -296,4 +297,85 @@ func TagsToLabelPairs(tags map[string]string) []*prompb.Label {
 		})
 	}
 	return pairs
+}
+
+// PrometheusToStatistics converts a prometheus metric family (from Registry.Gather)
+// to a []model.Statistics for /debug/vars .
+// This code is strongly inspired by the telegraf prometheus plugin.
+func PrometheusToStatistics(family []*dto.MetricFamily, tags map[string]string) []models.Statistic {
+	statistics := []models.Statistic{}
+	for _, mf := range family {
+		for _, m := range mf.Metric {
+			newTags := make(map[string]string, len(tags)+len(m.Label))
+			for key, value := range tags {
+				newTags[key] = value
+			}
+			for _, lp := range m.Label {
+				newTags[lp.GetName()] = lp.GetValue()
+			}
+
+			// reading fields
+			var fields map[string]interface{}
+			if mf.GetType() == dto.MetricType_SUMMARY {
+				// summary metric
+				fields = makeQuantiles(m)
+				fields["count"] = float64(m.GetSummary().GetSampleCount())
+				fields["sum"] = float64(m.GetSummary().GetSampleSum())
+			} else if mf.GetType() == dto.MetricType_HISTOGRAM {
+				// histogram metric
+				fields = makeBuckets(m)
+				fields["count"] = float64(m.GetHistogram().GetSampleCount())
+				fields["sum"] = float64(m.GetHistogram().GetSampleSum())
+			} else {
+				// standard metric
+				fields = getNameAndValue(m)
+			}
+
+			statistics = append(statistics, models.Statistic{
+				Name:   *mf.Name,
+				Tags:   tags,
+				Values: fields,
+			})
+		}
+	}
+	return statistics
+}
+
+// Get Quantiles from summary metric
+func makeQuantiles(m *dto.Metric) map[string]interface{} {
+	fields := make(map[string]interface{})
+	for _, q := range m.GetSummary().Quantile {
+		if !math.IsNaN(q.GetValue()) {
+			fields[fmt.Sprint(q.GetQuantile())] = float64(q.GetValue())
+		}
+	}
+	return fields
+}
+
+// Get Buckets  from histogram metric
+func makeBuckets(m *dto.Metric) map[string]interface{} {
+	fields := make(map[string]interface{})
+	for _, b := range m.GetHistogram().Bucket {
+		fields[fmt.Sprint(b.GetUpperBound())] = float64(b.GetCumulativeCount())
+	}
+	return fields
+}
+
+// Get name and value from metric
+func getNameAndValue(m *dto.Metric) map[string]interface{} {
+	fields := make(map[string]interface{})
+	if m.Gauge != nil {
+		if !math.IsNaN(m.GetGauge().GetValue()) {
+			fields["gauge"] = float64(m.GetGauge().GetValue())
+		}
+	} else if m.Counter != nil {
+		if !math.IsNaN(m.GetCounter().GetValue()) {
+			fields["counter"] = float64(m.GetCounter().GetValue())
+		}
+	} else if m.Untyped != nil {
+		if !math.IsNaN(m.GetUntyped().GetValue()) {
+			fields["value"] = float64(m.GetUntyped().GetValue())
+		}
+	}
+	return fields
 }

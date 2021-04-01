@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"math"
 	"net"
 	"os"
 	"path/filepath"
@@ -21,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb/logger"
 	"github.com/influxdata/influxdb/models"
 	"github.com/influxdata/influxdb/monitor"
+	prometheus2 "github.com/influxdata/influxdb/prometheus"
 	"github.com/influxdata/influxdb/query"
 	"github.com/influxdata/influxdb/query/control"
 	"github.com/influxdata/influxdb/services/collectd"
@@ -39,6 +39,7 @@ import (
 	"github.com/influxdata/influxdb/tcp"
 	"github.com/influxdata/influxdb/tsdb"
 	client "github.com/influxdata/usage-client/v1"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 
 	// Initialize the engine package
@@ -84,6 +85,8 @@ type Server struct {
 	Subscriber    *subscriber.Service
 
 	Services []Service
+
+	Prometheus *prometheus.Registry
 
 	// These references are required for the tcp muxer.
 	SnapshotterService *snapshotter.Service
@@ -175,6 +178,7 @@ func NewServer(c *Config, buildInfo *BuildInfo) (*Server, error) {
 		closing:   make(chan struct{}),
 
 		BindAddress: bind,
+		Prometheus:  prometheus.NewRegistry(),
 
 		Logger:    logger.New(os.Stderr),
 		MuxLogger: tcp.MuxLogger(os.Stderr),
@@ -253,6 +257,10 @@ func (s *Server) Statistics(tags map[string]string) []models.Statistic {
 			statistics = append(statistics, m.Statistics(tags)...)
 		}
 	}
+	metricFamily, err := s.Prometheus.Gather()
+	if err == nil {
+		statistics = append(statistics, prometheus2.PrometheusToStatistics(metricFamily, tags)...)
+	}
 	return statistics
 }
 
@@ -306,19 +314,11 @@ func (s *Server) appendHTTPDService(c httpd.Config) error {
 		if err != nil {
 			return err
 		}
-		config := control.Config{
-			ConcurrencyQuota:                10,
-			InitialMemoryBytesQuotaPerQuery: 0,
-			MemoryBytesQuotaPerQuery:        math.MaxInt32,
-			MaxMemoryBytes:                  0,
-			QueueSize:                       10,
-			Logger:                          s.Logger.With(zap.String("service", "flux-controller")),
-			ExecutorDependencies:            []flux.Dependency{storageDep},
-		}
-		srv.Handler.Controller, err = control.New(config)
+		srv.Handler.Controller, err = control.New(s.config.FluxController, s.Logger.With(zap.String("service", "flux-controller")), []flux.Dependency{storageDep})
 		if err != nil {
 			return err
 		}
+		s.Prometheus.MustRegister(srv.Handler.Controller.PrometheusCollectors()...)
 	}
 
 	s.Services = append(s.Services, srv)
