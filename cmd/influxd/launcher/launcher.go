@@ -435,9 +435,8 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 		MemoryBytesQuotaPerQuery:        opts.MemoryBytesQuotaPerQuery,
 		MaxMemoryBytes:                  opts.MaxMemoryBytes,
 		QueueSize:                       opts.QueueSize,
-		Logger:                          m.log.With(zap.String("service", "storage-reads")),
 		ExecutorDependencies:            dependencyList,
-	})
+	}, m.log.With(zap.String("service", "storage-reads")))
 	if err != nil {
 		m.log.Error("Failed to create query controller", zap.Error(err))
 		return err
