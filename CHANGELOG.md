@@ -17,6 +17,13 @@ the endpoint has been removed. Use the `/metrics` endpoint to collect system sta
 The `transpile` command has been retired. Users can send InfluxQL directly to the server via the `/api/v2/query`
 or `/query` HTTP endpoints.
 
+#### Default query concurrency changed
+
+The default setting for the max number of concurrent Flux queries has been changed from 10 to unlimited. Set the
+`query-concurrency` config parameter to > 0 when running `influxd` to re-limit the maximum running query count,
+and the `query-queue-size` config parameter to > 0 to set the max number of queries that can be queued before the
+server starts rejecting requests.
+
 ### Features
 
 1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells.
@@ -38,6 +45,7 @@ or `/query` HTTP endpoints.
 1. [21046](https://github.com/influxdata/influxdb/pull/21046): Write to standard out when `--output-path -` is passed to `influxd inspect export-lp`.
 1. [21006](https://github.com/influxdata/influxdb/pull/21006): Add `-p, --profilers` flag to `influx query` command.
 1. [21090](https://github.com/influxdata/influxdb/pull/21090): Update UI to match InfluxDB Cloud.
+1. [21127](https://github.com/influxdata/influxdb/pull/21127): Allow for disabling concurrency-limits in Flux controller.
 
 ### Bug Fixes
 
@@ -59,6 +67,7 @@ or `/query` HTTP endpoints.
 1. [20921](https://github.com/influxdata/influxdb/pull/20921): Fix the cipher suite used when TLS strict ciphers are enabled in `influxd`.
 1. [20925](https://github.com/influxdata/influxdb/pull/20925): Fix parse error in UI for tag filters containing regex meta characters.
 1. [21042](https://github.com/influxdata/influxdb/pull/21042): Prevent concurrent access panic when gathering bolt metrics.
+1. [21127](https://github.com/influxdata/influxdb/pull/21127): Fix race condition in Flux controller shutdown.
 
 ## v2.0.4 [2021-02-08]
 
