@@ -25,7 +25,7 @@ RUN pip3 install boto
 RUN gem install fpm
 
 ENV PATH "/root/.cargo/bin:$PATH"
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y && \
+RUN curl --proto '=https' --tlsv1.2 --tls-max 1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain stable -y && \
     cargo --help
 
 # setup environment
