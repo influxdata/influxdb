@@ -191,11 +191,41 @@ async fn sql_select_from_information_schema_tables() {
         "| public        | iox                | h2o        | BASE TABLE |",
         "| public        | iox                | o2         | BASE TABLE |",
         "| public        | information_schema | tables     | VIEW       |",
+        "| public        | information_schema | columns    | VIEW       |",
         "+---------------+--------------------+------------+------------+",
     ];
     run_sql_test_case!(
         TwoMeasurementsManyFields {},
         "SELECT * from information_schema.tables",
+        &expected
+    );
+    run_sql_test_case!(TwoMeasurementsManyFields {}, "SHOW TABLES", &expected);
+}
+
+#[tokio::test]
+async fn sql_select_from_information_schema_columns() {
+    // validate we have access to information schema for listing columns
+    // names
+    let expected = vec![
+    "+---------------+--------------+------------+-------------+------------------+----------------+-------------+-----------+--------------------------+------------------------+-------------------+-------------------------+---------------+--------------------+---------------+",
+    "| table_catalog | table_schema | table_name | column_name | ordinal_position | column_default | is_nullable | data_type | character_maximum_length | character_octet_length | numeric_precision | numeric_precision_radix | numeric_scale | datetime_precision | interval_type |",
+    "+---------------+--------------+------------+-------------+------------------+----------------+-------------+-----------+--------------------------+------------------------+-------------------+-------------------------+---------------+--------------------+---------------+",
+    "| public        | iox          | h2o        | city        | 0                |                | YES         | Utf8      |                          | 2147483647             |                   |                         |               |                    |               |",
+    "| public        | iox          | h2o        | moisture    | 1                |                | YES         | Float64   |                          |                        | 24                | 2                       |               |                    |               |",
+    "| public        | iox          | h2o        | other_temp  | 2                |                | YES         | Float64   |                          |                        | 24                | 2                       |               |                    |               |",
+    "| public        | iox          | h2o        | state       | 3                |                | YES         | Utf8      |                          | 2147483647             |                   |                         |               |                    |               |",
+    "| public        | iox          | h2o        | temp        | 4                |                | YES         | Float64   |                          |                        | 24                | 2                       |               |                    |               |",
+    "| public        | iox          | h2o        | time        | 5                |                | NO          | Int64     |                          |                        |                   |                         |               |                    |               |",
+    "| public        | iox          | o2         | city        | 0                |                | YES         | Utf8      |                          | 2147483647             |                   |                         |               |                    |               |",
+    "| public        | iox          | o2         | reading     | 1                |                | YES         | Float64   |                          |                        | 24                | 2                       |               |                    |               |",
+    "| public        | iox          | o2         | state       | 2                |                | YES         | Utf8      |                          | 2147483647             |                   |                         |               |                    |               |",
+    "| public        | iox          | o2         | temp        | 3                |                | YES         | Float64   |                          |                        | 24                | 2                       |               |                    |               |",
+    "| public        | iox          | o2         | time        | 4                |                | NO          | Int64     |                          |                        |                   |                         |               |                    |               |",
+    "+---------------+--------------+------------+-------------+------------------+----------------+-------------+-----------+--------------------------+------------------------+-------------------+-------------------------+---------------+--------------------+---------------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsManyFields {},
+        "SELECT * from information_schema.columns",
         &expected
     );
 }

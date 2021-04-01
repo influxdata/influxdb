@@ -542,36 +542,31 @@ impl Table {
         }
     }
 
-    pub fn stats(&self, chunk: &Chunk) -> Result<Vec<ColumnSummary>> {
-        let mut summaries = Vec::with_capacity(self.columns.len());
-
-        for (column_id, c) in &self.columns {
-            let column_name =
-                chunk
+    pub fn stats(&self, chunk: &Chunk) -> Vec<ColumnSummary> {
+        self.columns
+            .iter()
+            .map(|(column_id, c)| {
+                let column_name = chunk
                     .dictionary
                     .lookup_id(*column_id)
-                    .context(ColumnIdNotFoundInDictionary {
-                        column_id: *column_id,
-                        chunk: chunk.id,
-                    })?;
+                    .expect("column name in dictionary");
 
-            let stats = match c {
-                Column::F64(_, stats) => Statistics::F64(stats.clone()),
-                Column::I64(_, stats) => Statistics::I64(stats.clone()),
-                Column::U64(_, stats) => Statistics::U64(stats.clone()),
-                Column::Bool(_, stats) => Statistics::Bool(stats.clone()),
-                Column::String(_, stats) | Column::Tag(_, stats) => {
-                    Statistics::String(stats.clone())
+                let stats = match c {
+                    Column::F64(_, stats) => Statistics::F64(stats.clone()),
+                    Column::I64(_, stats) => Statistics::I64(stats.clone()),
+                    Column::U64(_, stats) => Statistics::U64(stats.clone()),
+                    Column::Bool(_, stats) => Statistics::Bool(stats.clone()),
+                    Column::String(_, stats) | Column::Tag(_, stats) => {
+                        Statistics::String(stats.clone())
+                    }
+                };
+
+                ColumnSummary {
+                    name: column_name.to_string(),
+                    stats,
                 }
-            };
-
-            summaries.push(ColumnSummary {
-                name: column_name.to_string(),
-                stats,
-            });
-        }
-
-        Ok(summaries)
+            })
+            .collect()
     }
 }
 

@@ -7,6 +7,7 @@ use std::{
 };
 
 use arrow_deps::arrow::record_batch::RecordBatch;
+use data_types::partition_metadata::TableSummary;
 use internal_types::selection::Selection;
 use snafu::{ensure, Snafu};
 
@@ -143,6 +144,11 @@ impl Table {
     /// The number of rows in this table.
     pub fn rows(&self) -> u64 {
         self.table_data.read().unwrap().meta.rows
+    }
+
+    /// Return a summary of all columns in this table
+    pub fn table_summary(&self) -> TableSummary {
+        self.table_data.read().unwrap().meta.to_summary(&self.name)
     }
 
     /// The time range of all row groups within this table.
@@ -589,6 +595,70 @@ impl MetaData {
 
     pub fn all_column_names(&self) -> Vec<&str> {
         self.column_names.iter().map(|name| name.as_str()).collect()
+    }
+
+    pub fn to_summary(&self, table_name: impl Into<String>) -> TableSummary {
+        use crate::value::{OwnedValue, Scalar};
+        use data_types::partition_metadata::{ColumnSummary, StatValues, Statistics};
+        let columns = self
+            .columns
+            .iter()
+            .map(|(name, column_meta)| {
+                let count = self.rows;
+
+                let stats = match &column_meta.range {
+                    (OwnedValue::String(min), OwnedValue::String(max)) => {
+                        Statistics::String(StatValues {
+                            min: min.to_string(),
+                            max: max.to_string(),
+                            count,
+                        })
+                    }
+                    (OwnedValue::Boolean(min), OwnedValue::Boolean(max)) => {
+                        Statistics::Bool(StatValues {
+                            min: *min,
+                            max: *max,
+                            count,
+                        })
+                    }
+                    (OwnedValue::Scalar(min), OwnedValue::Scalar(max)) => match (min, max) {
+                        (Scalar::I64(min), Scalar::I64(max)) => Statistics::I64(StatValues {
+                            min: *min,
+                            max: *max,
+                            count,
+                        }),
+                        (Scalar::U64(min), Scalar::U64(max)) => Statistics::U64(StatValues {
+                            min: *min,
+                            max: *max,
+                            count,
+                        }),
+                        (Scalar::F64(min), Scalar::F64(max)) => Statistics::F64(StatValues {
+                            min: *min,
+                            max: *max,
+                            count,
+                        }),
+                        _ => panic!(
+                            "unsupported type scalar stats in read buffer: {:?}, {:?}",
+                            min, max
+                        ),
+                    },
+                    _ => panic!(
+                        "unsupported type of stats in read buffer: {:?}",
+                        column_meta.range
+                    ),
+                };
+
+                ColumnSummary {
+                    name: name.to_string(),
+                    stats,
+                }
+            })
+            .collect();
+
+        TableSummary {
+            name: table_name.into(),
+            columns,
+        }
     }
 }
 

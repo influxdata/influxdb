@@ -77,8 +77,8 @@ impl DatabaseRules {
         Self::default()
     }
 
-    pub fn db_name(&self) -> String {
-        self.name.clone()
+    pub fn db_name(&self) -> &str {
+        &self.name.as_str()
     }
 }
 
@@ -181,6 +181,8 @@ pub struct LifecycleRules {
 
     /// Once the amount of data in memory reaches this size start
     /// rejecting writes
+    ///
+    /// TODO: Implement this limit
     pub buffer_size_hard: Option<NonZeroUsize>,
 
     /// Configure order to transition data
@@ -368,7 +370,7 @@ pub enum Order {
 
 impl Default for Order {
     fn default() -> Self {
-        Self::Desc
+        Self::Asc
     }
 }
 

@@ -55,6 +55,13 @@ impl Chunk {
         names.insert("todo".to_string());
     }
 
+    /// Return the approximate memory size of the chunk, in bytes including the
+    /// dictionary, tables, and their rows.
+    pub fn size(&self) -> usize {
+        // TODO
+        0
+    }
+
     pub async fn write_to_object_store(
         &self,
         db_name: String,

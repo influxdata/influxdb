@@ -1,6 +1,7 @@
 syntax = "proto3";
 package influxdata.iox.management.v1;
 
+import "google/protobuf/timestamp.proto";
 
  // Which storage system is a chunk located in?
 enum ChunkStorage {
@@ -34,4 +35,18 @@ message Chunk {
 
   // The total estimated size of this chunk, in bytes
   uint64 estimated_bytes = 4;
+
+  // Time at which the first data was written into this chunk. Note
+  // this is not the same as the timestamps on the data itself
+  google.protobuf.Timestamp time_of_first_write = 5;
+
+  // Most recent time at which data write was initiated into this
+  // chunk. Note this is not the same as the timestamps on the data
+  // itself
+  google.protobuf.Timestamp time_of_last_write = 6;
+
+  /// Time at which this chunk was marked as closing. Note this is not
+  /// the same as the timestamps on the data itself
+  google.protobuf.Timestamp time_closing = 7;
+
 }

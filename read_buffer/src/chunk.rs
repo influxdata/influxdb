@@ -3,6 +3,7 @@ use std::{
     sync::RwLock,
 };
 
+use data_types::partition_metadata::TableSummary;
 use internal_types::selection::Selection;
 use snafu::{OptionExt, ResultExt, Snafu};
 
@@ -165,6 +166,19 @@ impl Chunk {
             chunk_data.rows -= table.rows();
             chunk_data.row_groups -= table.row_groups();
         }
+    }
+
+    /// Return table summaries or all tables in this chunk. Note that
+    /// there can be more than one TableSummary for each table.
+    pub fn table_summaries(&self) -> Vec<TableSummary> {
+        // read lock on chunk.
+        let chunk_data = self.chunk_data.read().unwrap();
+
+        chunk_data
+            .data
+            .values()
+            .map(|table| table.table_summary())
+            .collect()
     }
 
     /// Returns an iterator of lazily executed `read_filter` operations on the

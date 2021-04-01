@@ -80,11 +80,13 @@ impl DBChunk {
         let partition_key = Arc::new(chunk.key().to_string());
         let chunk_id = chunk.id();
 
+        use super::catalog::chunk::ChunkState;
+
         let db_chunk = match chunk.state() {
-            super::catalog::chunk::ChunkState::Invalid => {
+            ChunkState::Invalid => {
                 panic!("Invalid internal state");
             }
-            super::catalog::chunk::ChunkState::Open(chunk) => {
+            ChunkState::Open(chunk) => {
                 // TODO the performance if cloning the chunk is terrible
                 // Proper performance is tracked in
                 // https://github.com/influxdata/influxdb_iox/issues/635
@@ -95,7 +97,7 @@ impl DBChunk {
                     open: true,
                 }
             }
-            super::catalog::chunk::ChunkState::Closing(chunk) => {
+            ChunkState::Closing(chunk) => {
                 // TODO the performance if cloning the chunk is terrible
                 // Proper performance is tracked in
                 // https://github.com/influxdata/influxdb_iox/issues/635
@@ -106,8 +108,7 @@ impl DBChunk {
                     open: false,
                 }
             }
-            super::catalog::chunk::ChunkState::Closed(chunk)
-            | super::catalog::chunk::ChunkState::Moving(chunk) => {
+            ChunkState::Moving(chunk) => {
                 let chunk = Arc::clone(chunk);
                 Self::MutableBuffer {
                     chunk,
@@ -115,7 +116,7 @@ impl DBChunk {
                     open: false,
                 }
             }
-            super::catalog::chunk::ChunkState::Moved(db) => {
+            ChunkState::Moved(db) => {
                 let db = Arc::clone(db);
                 Self::ReadBuffer {
                     db,
@@ -131,6 +132,9 @@ impl DBChunk {
         Arc::new(db_chunk)
     }
 
+    /// Return a partially filled `ChunkSummary` that includes storage
+    /// details. Information such as timestamps are provided by the
+    /// the catalog
     pub fn summary(&self) -> ChunkSummary {
         match self {
             Self::MutableBuffer {
@@ -143,12 +147,12 @@ impl DBChunk {
                 } else {
                     ChunkStorage::ClosedMutableBuffer
                 };
-                ChunkSummary {
-                    partition_key: Arc::clone(partition_key),
-                    id: chunk.id(),
+                ChunkSummary::new_without_timestamps(
+                    Arc::clone(partition_key),
+                    chunk.id(),
                     storage,
-                    estimated_bytes: chunk.size(),
-                }
+                    chunk.size(),
+                )
             }
             Self::ReadBuffer {
                 db,
@@ -159,12 +163,12 @@ impl DBChunk {
                     .chunks_size(partition_key.as_ref(), &[*chunk_id])
                     .unwrap_or(0) as usize;
 
-                ChunkSummary {
-                    partition_key: Arc::clone(&partition_key),
-                    id: *chunk_id,
-                    storage: ChunkStorage::ReadBuffer,
+                ChunkSummary::new_without_timestamps(
+                    Arc::clone(&partition_key),
+                    *chunk_id,
+                    ChunkStorage::ReadBuffer,
                     estimated_bytes,
-                }
+                )
             }
             Self::ParquetFile { .. } => {
                 unimplemented!("parquet file summary not implemented")
@@ -184,12 +188,14 @@ impl PartitionChunk for DBChunk {
         }
     }
 
-    fn table_stats(
-        &self,
-    ) -> Result<Vec<data_types::partition_metadata::TableSummary>, Self::Error> {
+    fn table_summaries(&self) -> Vec<data_types::partition_metadata::TableSummary> {
         match self {
-            Self::MutableBuffer { chunk, .. } => chunk.table_stats().context(MutableBufferChunk),
-            Self::ReadBuffer { .. } => unimplemented!("read buffer not implemented"),
+            Self::MutableBuffer { chunk, .. } => chunk.table_summaries(),
+            Self::ReadBuffer {
+                chunk_id,
+                partition_key,
+                db,
+            } => db.table_summaries(partition_key, &[*chunk_id]),
             Self::ParquetFile { .. } => unimplemented!("parquet file not implemented"),
         }
     }

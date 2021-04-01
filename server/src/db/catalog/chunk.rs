@@ -1,9 +1,14 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
+use chrono::{DateTime, Utc};
+use data_types::{chunk::ChunkSummary, partition_metadata::TableSummary};
 use mutable_buffer::chunk::Chunk as MBChunk;
 use parquet_file::chunk::Chunk as ParquetChunk;
+use query::PartitionChunk;
 use read_buffer::Database as ReadBufferDb;
+
+use crate::db::DBChunk;
 
 use super::{InternalChunkState, Result};
 
@@ -20,9 +25,6 @@ pub enum ChunkState {
 
     /// Chunk can still accept new writes, but will likely be closed soon
     Closing(MBChunk),
-
-    /// Chunk is closed for new writes and has become read only
-    Closed(Arc<MBChunk>),
 
     /// Chunk is closed for new writes, and is actively moving to the read
     /// buffer
@@ -41,7 +43,6 @@ impl ChunkState {
             Self::Invalid => "Invalid",
             Self::Open(_) => "Open",
             Self::Closing(_) => "Closing",
-            Self::Closed(_) => "Closed",
             Self::Moving(_) => "Moving",
             Self::Moved(_) => "Moved",
             Self::ObjectStore(_) => "ObjectStore",
@@ -62,6 +63,19 @@ pub struct Chunk {
 
     /// The state of this chunk
     state: ChunkState,
+
+    /// Time at which the first data was written into this chunk. Note
+    /// this is not the same as the timestamps on the data itself
+    time_of_first_write: Option<DateTime<Utc>>,
+
+    /// Most recent time at which data write was initiated into this
+    /// chunk. Note this is not the same as the timestamps on the data
+    /// itself
+    time_of_last_write: Option<DateTime<Utc>>,
+
+    /// Time at which this chunk was maked as closing. Note this is
+    /// not the same as the timestamps on the data itself
+    time_closing: Option<DateTime<Utc>>,
 }
 
 macro_rules! unexpected_state {
@@ -78,13 +92,33 @@ macro_rules! unexpected_state {
 }
 
 impl Chunk {
-    /// Create a new chunk in the Open state
+    /// Create a new chunk in the provided state
     pub(crate) fn new(partition_key: impl Into<String>, id: u32, state: ChunkState) -> Self {
         Self {
             partition_key: Arc::new(partition_key.into()),
             id,
             state,
+            time_of_first_write: None,
+            time_of_last_write: None,
+            time_closing: None,
         }
+    }
+
+    /// Creates a new open chunk
+    pub(crate) fn new_open(partition_key: impl Into<String>, id: u32) -> Self {
+        let state = ChunkState::Open(mutable_buffer::chunk::Chunk::new(id));
+        Self::new(partition_key, id, state)
+    }
+
+    /// Used for testing
+    #[cfg(test)]
+    pub(crate) fn set_timestamps(
+        &mut self,
+        time_of_first_write: Option<DateTime<Utc>>,
+        time_of_last_write: Option<DateTime<Utc>>,
+    ) {
+        self.time_of_first_write = time_of_first_write;
+        self.time_of_last_write = time_of_last_write;
     }
 
     pub fn id(&self) -> u32 {
@@ -99,12 +133,48 @@ impl Chunk {
         &self.state
     }
 
+    pub fn time_of_first_write(&self) -> Option<DateTime<Utc>> {
+        self.time_of_first_write
+    }
+
+    pub fn time_of_last_write(&self) -> Option<DateTime<Utc>> {
+        self.time_of_last_write
+    }
+
+    pub fn time_closing(&self) -> Option<DateTime<Utc>> {
+        self.time_closing
+    }
+
+    /// Update the write timestamps for this chunk
+    pub fn record_write(&mut self) {
+        let now = Utc::now();
+        if self.time_of_first_write.is_none() {
+            self.time_of_first_write = Some(now);
+        }
+        self.time_of_last_write = Some(now);
+    }
+
+    /// Return ChunkSummary metadata for this chunk
+    pub fn summary(&self) -> ChunkSummary {
+        ChunkSummary {
+            time_of_first_write: self.time_of_first_write,
+            time_of_last_write: self.time_of_last_write,
+            time_closing: self.time_closing,
+            ..DBChunk::snapshot(self).summary()
+        }
+    }
+
+    /// Return TableSummary metadata for each table in this chunk
+    pub fn table_summaries(&self) -> impl Iterator<Item = TableSummary> {
+        DBChunk::snapshot(self).table_summaries().into_iter()
+    }
+
     /// Returns true if this chunk contains a table with the provided name
     pub fn has_table(&self, table_name: &str) -> bool {
         match &self.state {
             ChunkState::Invalid => false,
             ChunkState::Open(chunk) | ChunkState::Closing(chunk) => chunk.has_table(table_name),
-            ChunkState::Moving(chunk) | ChunkState::Closed(chunk) => chunk.has_table(table_name),
+            ChunkState::Moving(chunk) => chunk.has_table(table_name),
             ChunkState::Moved(db) => {
                 db.has_table(self.partition_key.as_str(), table_name, &[self.id])
             }
@@ -117,11 +187,25 @@ impl Chunk {
         match &self.state {
             ChunkState::Invalid => {}
             ChunkState::Open(chunk) | ChunkState::Closing(chunk) => chunk.all_table_names(names),
-            ChunkState::Moving(chunk) | ChunkState::Closed(chunk) => chunk.all_table_names(names),
+            ChunkState::Moving(chunk) => chunk.all_table_names(names),
             ChunkState::Moved(db) => {
                 db.all_table_names(self.partition_key.as_str(), &[self.id], names)
             }
             ChunkState::ObjectStore(chunk) => chunk.all_table_names(names),
+        }
+    }
+
+    /// Returns an approximation of the amount of process memory consumed by the
+    /// chunk
+    pub fn size(&self) -> usize {
+        match &self.state {
+            ChunkState::Invalid => 0,
+            ChunkState::Open(chunk) | ChunkState::Closing(chunk) => chunk.size(),
+            ChunkState::Moving(chunk) => chunk.size(),
+            ChunkState::Moved(db) => db
+                .chunks_size(self.partition_key.as_str(), &[self.id])
+                .unwrap_or(0) as usize,
+            ChunkState::ObjectStore(chunk) => chunk.size(),
         }
     }
 
@@ -143,8 +227,9 @@ impl Chunk {
         std::mem::swap(&mut s, &mut self.state);
 
         match s {
-            ChunkState::Open(mut s) | ChunkState::Closing(mut s) => {
-                s.mark_closing();
+            ChunkState::Open(s) | ChunkState::Closing(s) => {
+                assert!(self.time_closing.is_none());
+                self.time_closing = Some(Utc::now());
                 self.state = ChunkState::Closing(s);
                 Ok(())
             }
@@ -167,18 +252,9 @@ impl Chunk {
                 self.state = ChunkState::Moving(Arc::clone(&chunk));
                 Ok(chunk)
             }
-            ChunkState::Closed(chunk) => {
-                self.state = ChunkState::Moving(Arc::clone(&chunk));
-                Ok(chunk)
-            }
             state => {
                 self.state = state;
-                unexpected_state!(
-                    self,
-                    "setting moving",
-                    "Open, Closing or Closed",
-                    &self.state
-                )
+                unexpected_state!(self, "setting moving", "Open or Closing", &self.state)
             }
         }
     }
@@ -210,13 +286,13 @@ impl Chunk {
 
         // TODO: Need to see from which state we can persist to object store
         match s {
-            ChunkState::Closed(_) => {
+            ChunkState::Moved(_) => {
                 self.state = ChunkState::ObjectStore(Arc::clone(&chunk));
                 Ok(chunk)
             }
             state => {
                 self.state = state;
-                unexpected_state!(self, "setting object store", "Closed", &self.state)
+                unexpected_state!(self, "setting object store", "Moved", &self.state)
             }
         }
     }

@@ -16,6 +16,7 @@ use std::{
 };
 
 use arrow_deps::arrow::record_batch::RecordBatch;
+use data_types::partition_metadata::TableSummary;
 use internal_types::{
     schema::{builder::SchemaMerger, Schema},
     selection::Selection,
@@ -163,6 +164,19 @@ impl Database {
             .keys()
             .cloned()
             .collect()
+    }
+
+    /// Return table summaries for all the tables in the specified
+    /// chunks. Note that there can be more than one TableSummary for
+    /// each table.
+    pub fn table_summaries(&self, partition_key: &str, chunk_ids: &[u32]) -> Vec<TableSummary> {
+        self.data
+            .read()
+            .unwrap()
+            .partitions
+            .get(partition_key)
+            .map(|partition| partition.table_summaries(chunk_ids))
+            .unwrap_or_default()
     }
 
     /// Lists all chunk ids in the given partition key. Returns empty
@@ -681,6 +695,18 @@ impl Partition {
             .any(|chunk| chunk.has_table(table_name))
     }
 
+    /// returns TableSummaries for all the tables in all row groups in
+    /// this partition.  Note that there can be more than one
+    /// TableSummary for each table
+    pub fn table_summaries(&self, chunk_ids: &[u32]) -> Vec<TableSummary> {
+        let chunk_data = self.data.read().unwrap();
+        chunk_ids
+            .iter()
+            .filter_map(|chunk_id| chunk_data.chunks.get(chunk_id))
+            .flat_map(|chunk| chunk.table_summaries().into_iter())
+            .collect()
+    }
+
     /// Determines the total number of row groups under all tables under all
     /// chunks, within the partition.
     pub fn row_groups(&self) -> usize {
@@ -865,6 +891,7 @@ mod test {
         },
         datatypes::DataType::{Boolean, Float64, Int64, UInt64, Utf8},
     };
+    use data_types::partition_metadata::{ColumnSummary, StatValues, Statistics};
     use internal_types::schema::builder::SchemaBuilder;
 
     use crate::value::Values;
@@ -1673,6 +1700,110 @@ mod test {
                     },
             })
         ));
+    }
+
+    #[test]
+    fn table_summaries() {
+        let db = Database::new();
+
+        // Test plumbing for getting out table summaries
+
+        for _ in &[100, 200, 300] {
+            let schema = SchemaBuilder::new()
+                .non_null_tag("env")
+                .non_null_field("temp", Float64)
+                .non_null_field("counter", UInt64)
+                .non_null_field("icounter", Int64)
+                .non_null_field("active", Boolean)
+                .non_null_field("msg", Utf8)
+                .timestamp()
+                .build()
+                .unwrap();
+
+            let data: Vec<ArrayRef> = vec![
+                Arc::new(StringArray::from(vec!["prod", "dev", "prod"])),
+                Arc::new(Float64Array::from(vec![10.0, 30000.0, 4500.0])),
+                Arc::new(UInt64Array::from(vec![1000, 3000, 5000])),
+                Arc::new(Int64Array::from(vec![1000, -1000, 4000])),
+                Arc::new(BooleanArray::from(vec![true, true, false])),
+                Arc::new(StringArray::from(vec![Some("msg a"), Some("msg b"), None])),
+                Arc::new(Int64Array::from(vec![11111111, 222222, 3333])),
+            ];
+
+            // Add a record batch to a single partition
+            let rb = RecordBatch::try_new(schema.into(), data).unwrap();
+            // The row group gets added to the same chunk each time.
+            db.upsert_partition("hour_1", 1, "table1", rb);
+        }
+
+        let summaries = db.table_summaries("hour_1", &[1]);
+        let expected = vec![TableSummary {
+            name: "table1".into(),
+            columns: vec![
+                ColumnSummary {
+                    name: "active".into(),
+                    stats: Statistics::Bool(StatValues {
+                        min: false,
+                        max: true,
+                        count: 9,
+                    }),
+                },
+                ColumnSummary {
+                    name: "counter".into(),
+                    stats: Statistics::U64(StatValues {
+                        min: 1000,
+                        max: 5000,
+                        count: 9,
+                    }),
+                },
+                ColumnSummary {
+                    name: "env".into(),
+                    stats: Statistics::String(StatValues {
+                        min: "dev".into(),
+                        max: "prod".into(),
+                        count: 9,
+                    }),
+                },
+                ColumnSummary {
+                    name: "icounter".into(),
+                    stats: Statistics::I64(StatValues {
+                        min: -1000,
+                        max: 4000,
+                        count: 9,
+                    }),
+                },
+                ColumnSummary {
+                    name: "msg".into(),
+                    stats: Statistics::String(StatValues {
+                        min: "msg a".into(),
+                        max: "msg b".into(),
+                        count: 9,
+                    }),
+                },
+                ColumnSummary {
+                    name: "temp".into(),
+                    stats: Statistics::F64(StatValues {
+                        min: 10.0,
+                        max: 30000.0,
+                        count: 9,
+                    }),
+                },
+                ColumnSummary {
+                    name: "time".into(),
+                    stats: Statistics::I64(StatValues {
+                        min: 3333,
+                        max: 11111111,
+                        count: 9,
+                    }),
+                },
+            ],
+        }];
+
+        assert_eq!(
+            expected, summaries,
+            "expected:\n{:#?}\n\nactual:{:#?}\n\n",
+            expected, summaries
+        );
     }
 }
 

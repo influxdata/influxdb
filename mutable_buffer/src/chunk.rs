@@ -1,11 +1,7 @@
 //! Represents a Chunk of data (a collection of tables and their data within
 //! some chunk) in the mutable store.
-use arrow_deps::{
-    arrow::record_batch::RecordBatch,
-    datafusion::{error::DataFusionError, logical_plan::Expr},
-};
+use arrow_deps::{arrow::record_batch::RecordBatch, datafusion::logical_plan::Expr};
 
-use chrono::{DateTime, Utc};
 use generated_types::wal as wb;
 use std::collections::{BTreeSet, HashMap};
 
@@ -51,9 +47,6 @@ pub enum Error {
         exprs
     ))]
     PredicateNotYetSupported { exprs: Vec<Expr> },
-
-    #[snafu(display("Unsupported predicate. Mutable buffer does not support: {}", source))]
-    UnsupportedPredicate { source: DataFusionError },
 
     #[snafu(display("Table ID {} not found in dictionary of chunk {}", table_id, chunk))]
     TableIdNotFoundInDictionary {
@@ -117,19 +110,6 @@ pub struct Chunk {
     /// The id for this chunk
     pub id: u32,
 
-    /// Time at which the first data was written into this chunk. Note
-    /// this is not the same as the timestamps on the data itself
-    pub time_of_first_write: Option<DateTime<Utc>>,
-
-    /// Most recent time at which data write was initiated into this
-    /// chunk. Note this is not the same as the timestamps on the data
-    /// itself
-    pub time_of_last_write: Option<DateTime<Utc>>,
-
-    /// Time at which this chunk was maked as closing. Note this is
-    /// not the same as the timestamps on the data itself
-    pub time_closing: Option<DateTime<Utc>>,
-
     /// `dictionary` maps &str -> u32. The u32s are used in place of String or
     /// str to avoid slow string operations. The same dictionary is used for
     /// table names, tag names, tag values, and column names.
@@ -146,20 +126,11 @@ impl Chunk {
             id,
             dictionary: Dictionary::new(),
             tables: HashMap::new(),
-            time_of_first_write: None,
-            time_of_last_write: None,
-            time_closing: None,
         }
     }
 
     pub fn write_entry(&mut self, entry: &wb::WriteBufferEntry<'_>) -> Result<()> {
         if let Some(table_batches) = entry.table_batches() {
-            let now = Utc::now();
-            if self.time_of_first_write.is_none() {
-                self.time_of_first_write = Some(now);
-            }
-            self.time_of_last_write = Some(now);
-
             for batch in table_batches {
                 self.write_table_batch(&batch)?;
             }
@@ -184,12 +155,6 @@ impl Chunk {
         }
 
         Ok(())
-    }
-
-    /// Mark the chunk as closing
-    pub fn mark_closing(&mut self) {
-        assert!(self.time_closing.is_none());
-        self.time_closing = Some(Utc::now())
     }
 
     // Add all tables names in this chunk to `names` if they are not already present
@@ -439,29 +404,21 @@ impl Chunk {
     }
 
     /// Returns a vec of the summary statistics of the tables in this chunk
-    pub fn table_stats(&self) -> Result<Vec<TableSummary>> {
-        let mut stats = Vec::with_capacity(self.tables.len());
-
-        for (&table_id, table) in &self.tables {
-            let name =
-                self.dictionary
+    pub fn table_summaries(&self) -> Vec<TableSummary> {
+        self.tables
+            .iter()
+            .map(|(&table_id, table)| {
+                let name = self
+                    .dictionary
                     .lookup_id(table_id)
-                    .context(TableIdNotFoundInDictionary {
-                        table_id,
-                        chunk: self.id,
-                    })?;
+                    .expect("table name not found in dictionary");
 
-            let columns = table
-                .stats(&self)
-                .context(NamedTableError { table_name: name })?;
-
-            stats.push(TableSummary {
-                name: name.to_string(),
-                columns,
-            });
-        }
-
-        Ok(stats)
+                TableSummary {
+                    name: name.to_string(),
+                    columns: table.stats(&self),
+                }
+            })
+            .collect()
     }
 
     /// Returns the named table, or None if no such table exists in this chunk

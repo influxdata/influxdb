@@ -77,7 +77,7 @@ use bytes::BytesMut;
 use futures::stream::TryStreamExt;
 use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 
 use data_types::{
     database_rules::{DatabaseRules, WriterId},
@@ -225,8 +225,7 @@ impl<M: ConnectionManager> Server<M> {
         }
     }
 
-    /// Tells the server the set of rules for a database. Currently, this is not
-    /// persisted and is for in-memory processing rules only.
+    /// Tells the server the set of rules for a database.
     pub async fn create_database(
         &self,
         db_name: impl Into<String>,
@@ -241,17 +240,25 @@ impl<M: ConnectionManager> Server<M> {
 
         let db_reservation = self.config.create_db(db_name, rules)?;
 
+        let rules = db_reservation.db.rules.read().clone();
+        self.persist_database_rules(&db_reservation.name, rules)
+            .await?;
+
+        db_reservation.commit();
+
+        Ok(())
+    }
+
+    pub async fn persist_database_rules<'a>(
+        &self,
+        db_name: &DatabaseName<'static>,
+        rules: DatabaseRules,
+    ) -> Result<()> {
         let mut data = BytesMut::new();
-        db_reservation
-            .db
-            .rules
-            .clone()
-            .encode(&mut data)
-            .context(ErrorSerializing)?;
+        rules.encode(&mut data).context(ErrorSerializing)?;
 
         let len = data.len();
-        let location =
-            object_store_path_for_database_config(&self.root_path()?, &db_reservation.name);
+        let location = object_store_path_for_database_config(&self.root_path()?, db_name);
 
         let stream_data = std::io::Result::Ok(data.freeze());
         self.store
@@ -262,9 +269,6 @@ impl<M: ConnectionManager> Server<M> {
             )
             .await
             .context(StoreError)?;
-
-        db_reservation.commit();
-
         Ok(())
     }
 
@@ -350,7 +354,7 @@ impl<M: ConnectionManager> Server<M> {
             .context(DatabaseNotFound { db_name: &*db_name })?;
 
         let sequence = db.next_sequence();
-        let write = lines_to_replicated_write(id, sequence, lines, &db.rules);
+        let write = lines_to_replicated_write(id, sequence, lines, &*db.rules.read());
 
         self.handle_replicated_write(&db_name, &db, write).await?;
 
@@ -363,10 +367,13 @@ impl<M: ConnectionManager> Server<M> {
         db: &Db,
         write: ReplicatedWrite,
     ) -> Result<()> {
-        if db.writeable() {
-            db.store_replicated_write(&write)
-                .map_err(|e| Box::new(e) as DatabaseError)
-                .context(UnknownDatabaseError {})?;
+        match db.store_replicated_write(&write) {
+            Err(db::Error::DatabaseNotWriteable {}) | Ok(_) => {}
+            Err(e) => {
+                return Err(Error::UnknownDatabaseError {
+                    source: Box::new(e),
+                })
+            }
         }
 
         let write = Arc::new(write);
@@ -411,7 +418,7 @@ impl<M: ConnectionManager> Server<M> {
     }
 
     pub fn db_rules(&self, name: &DatabaseName<'_>) -> Option<DatabaseRules> {
-        self.config.db(name).map(|d| d.rules.clone())
+        self.config.db(name).map(|d| d.rules.read().clone())
     }
 
     pub fn remotes_sorted(&self) -> Vec<(WriterId, String)> {
@@ -459,28 +466,7 @@ impl<M: ConnectionManager> Server<M> {
             .db(&name)
             .context(DatabaseNotFound { db_name: &db_name })?;
 
-        let (tracker, registration) = self.jobs.register(Job::CloseChunk {
-            db_name: db_name.clone(),
-            partition_key: partition_key.clone(),
-            chunk_id,
-        });
-
-        let task = async move {
-            debug!(%db_name, %partition_key, %chunk_id, "background task loading chunk to read buffer");
-            let result = db.load_chunk_to_read_buffer(&partition_key, chunk_id).await;
-            if let Err(e) = result {
-                info!(?e, %db_name, %partition_key, %chunk_id, "background task error loading read buffer chunk");
-                return Err(e);
-            }
-
-            debug!(%db_name, %partition_key, %chunk_id, "background task completed closing chunk");
-
-            Ok(())
-        };
-
-        tokio::spawn(task.track(registration));
-
-        Ok(tracker)
+        Ok(db.load_chunk_to_read_buffer_in_background(partition_key, chunk_id))
     }
 
     /// Returns a list of all jobs tracked by this server

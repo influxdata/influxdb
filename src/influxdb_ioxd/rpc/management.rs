@@ -252,6 +252,7 @@ where
 
         let chunks: Vec<Chunk> = db
             .partition_chunk_summaries(&partition_key)
+            .into_iter()
             .map(|summary| summary.into())
             .collect();
 
