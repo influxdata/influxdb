@@ -84,7 +84,7 @@ pub(crate) struct TableData {
 }
 
 impl Chunk {
-    /// Initialises a new `Chunk`.
+    /// Initialises a new `Chunk` with the associated chunk ID.
     pub fn new(id: u32) -> Self {
         Self {
             id,
@@ -230,18 +230,9 @@ impl Chunk {
         }
     }
 
-    /// Return table summaries or all tables in this chunk. Note that
-    /// there can be more than one TableSummary for each table.
-    pub fn table_summaries(&self) -> Vec<TableSummary> {
-        // read lock on chunk.
-        let chunk_data = self.chunk_data.read().unwrap();
-
-        chunk_data
-            .data
-            .values()
-            .map(|table| table.table_summary())
-            .collect()
-    }
+    //
+    // Methods for executing queries.
+    //
 
     /// Returns selected data for the specified columns in the provided table.
     ///
@@ -302,8 +293,36 @@ impl Chunk {
     }
 
     //
-    // ---- Schema API queries
+    // ---- Schema queries
     //
+
+    /// Determines if one of more rows in the provided table could possibly
+    /// match the provided predicate.
+    ///
+    /// If the provided table does not exist then `could_pass_predicate` returns
+    /// `false`.
+    pub fn could_pass_predicate(&self, table_name: &str, predicate: Predicate) -> bool {
+        // read lock on chunk.
+        let chunk_data = self.chunk_data.read().unwrap();
+
+        match chunk_data.data.get(table_name) {
+            Some(table) => table.could_pass_predicate(&predicate),
+            None => false,
+        }
+    }
+
+    /// Return table summaries or all tables in this chunk. Note that
+    /// there can be more than one TableSummary for each table.
+    pub fn table_summaries(&self) -> Vec<TableSummary> {
+        // read lock on chunk.
+        let chunk_data = self.chunk_data.read().unwrap();
+
+        chunk_data
+            .data
+            .values()
+            .map(|table| table.table_summary())
+            .collect()
+    }
 
     /// Returns a schema object for a `read_filter` operation using the provided
     /// column selection. An error is returned if the specified columns do not
@@ -776,6 +795,20 @@ mod test {
 
         // No more data
         assert!(itr.next().is_none());
+    }
+
+    #[test]
+    fn could_pass_predicate() {
+        let mut chunk = Chunk::new(22);
+
+        // Add a new table to the chunk.
+        chunk.upsert_table("a_table", gen_recordbatch());
+
+        assert!(!chunk.could_pass_predicate("not my table", Predicate::default()));
+        assert!(chunk.could_pass_predicate(
+            "a_table",
+            Predicate::new(vec![BinaryExpr::from(("region", "=", "east"))])
+        ));
     }
 
     #[test]

@@ -162,6 +162,16 @@ impl Table {
         Arc::clone(&self.table_data.read().unwrap().meta)
     }
 
+    /// Determines if one of more row groups in the `Table` could possibly
+    /// contain one or more rows that satisfy the provided predicate.
+    pub fn could_pass_predicate(&self, predicate: &Predicate) -> bool {
+        let table_data = self.table_data.read().unwrap();
+
+        table_data.data.iter().any(|row_group| {
+            row_group.could_satisfy_conjunctive_binary_expressions(predicate.iter())
+        })
+    }
+
     // Identify set of row groups that might satisfy the predicate.
     //
     // Produce a set of these row groups along with a snapshot of the table meta
@@ -1002,6 +1012,80 @@ mod test {
         table
             .drop_row_group(0)
             .expect_err("drop_row_group should have returned an error");
+    }
+
+    #[test]
+    fn could_pass_predicate() {
+        let mut columns = vec![];
+        let tc = ColumnType::Time(Column::from(&[10_i64, 20, 30][..]));
+        columns.push(("time".to_string(), tc));
+        let rc = ColumnType::Tag(Column::from(&["south", "north", "east"][..]));
+        columns.push(("region".to_string(), rc));
+        let fc = ColumnType::Field(Column::from(&[1000_u64, 1002, 1200][..]));
+        columns.push(("count".to_string(), fc));
+        let row_group = RowGroup::new(3, columns);
+
+        let mut table = Table::new("cpu".to_owned(), row_group);
+
+        // add another row group
+        let mut columns = vec![];
+        let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
+        columns.push(("time".to_string(), tc));
+        let rc = ColumnType::Tag(Column::from(
+            &["west", "west", "east", "west", "south", "north"][..],
+        ));
+        columns.push(("region".to_string(), rc));
+        let fc = ColumnType::Field(Column::from(&[100_u64, 101, 200, 203, 203, 10][..]));
+        columns.push(("count".to_string(), fc));
+        let rg = RowGroup::new(6, columns);
+        table.add_row_group(rg);
+
+        // everything could match empty predicate
+        let predicate = Predicate::default();
+        assert!(table.could_pass_predicate(&predicate));
+
+        // matches first row group
+        let predicate = Predicate::new(vec![BinaryExpr::from(("time", ">=", 7_i64))]);
+        assert!(table.could_pass_predicate(&predicate));
+
+        // matches first row group different column
+        let predicate = Predicate::new(vec![BinaryExpr::from(("region", "=", "east"))]);
+        assert!(table.could_pass_predicate(&predicate));
+
+        // matches multiple columns
+        let predicate = Predicate::new(vec![
+            BinaryExpr::from(("region", "=", "east")),
+            BinaryExpr::from(("count", "=", 1200_u64)),
+        ]);
+        assert!(table.could_pass_predicate(&predicate));
+
+        // Columns matches predicate but on different rows (although no row
+        // exists that satisfies the predicate).
+        let predicate = Predicate::new(vec![
+            BinaryExpr::from(("region", "=", "east")),
+            BinaryExpr::from(("count", "=", 1002_u64)),
+        ]);
+        assert!(table.could_pass_predicate(&predicate));
+
+        // matches second row group
+        let predicate = Predicate::new(vec![BinaryExpr::from(("region", ">=", "west"))]);
+        assert!(table.could_pass_predicate(&predicate));
+
+        // doesn't match either row group no column
+        let predicate = Predicate::new(vec![BinaryExpr::from(("temp", ">=", 0_u64))]);
+        assert!(!table.could_pass_predicate(&predicate));
+
+        // doesn't match either row group column exists but no matching value
+        let predicate = Predicate::new(vec![BinaryExpr::from(("time", ">=", 10192929_i64))]);
+        assert!(!table.could_pass_predicate(&predicate));
+
+        // doesn't match either row group; one column could satisfy predicate but
+        // other can't.
+        let predicate = Predicate::new(vec![
+            BinaryExpr::from(("region", "=", "east")),
+            BinaryExpr::from(("count", "<=", 0_u64)),
+        ]);
+        assert!(!table.could_pass_predicate(&predicate));
     }
 
     #[test]
