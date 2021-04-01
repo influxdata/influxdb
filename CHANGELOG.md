@@ -37,6 +37,7 @@ or `/query` HTTP endpoints.
 1. [21049](https://github.com/influxdata/influxdb/pull/21049): Write to standard out when `--output-path -` is passed to `influxd inspect export-lp`.
 1. [21050](https://github.com/influxdata/influxdb/pull/21050): Add `-p, --profilers` flag to `influx query` command.
 1. [21119](https://github.com/influxdata/influxdb/pull/21119): Upgrade Flux to v0.111.0.
+1. [21126](https://github.com/influxdata/influxdb/pull/21090): Update UI to match InfluxDB Cloud.
 
 ### Bug Fixes
 

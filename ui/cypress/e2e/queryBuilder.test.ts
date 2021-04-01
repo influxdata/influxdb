@@ -34,6 +34,7 @@ describe('The Query Builder', () => {
     it('creates a query, edits it to add another field, then views its results with pride and satisfaction', () => {
       cy.get('@org').then((org: Organization) => {
         cy.visit(`orgs/${org.id}/data-explorer`)
+        cy.getByTestID('tree-nav')
       })
 
       cy.contains('mem').click('right') // users sometimes click in random spots
@@ -59,16 +60,18 @@ describe('The Query Builder', () => {
       cy.getByTestID('save-as-dashboard-cell--submit').click()
 
       // wait for the notification since it's highly animated
-      // we close the notification since it contains the name of the dashboard and interfers with cy.contains
+      // we close the notification since it contains the name of the dashboard and interferes with cy.contains
       cy.wait(250)
       cy.get('.cf-notification--dismiss').click()
       cy.wait(250)
 
       // force a click on the hidden dashboard nav item (cypress can't do the hover)
       // i assure you i spent a nonzero amount of time trying to do this the way a user would
-      cy.getByTestID('nav-item-dashboards').click()
+      cy.getByTestID('nav-item-dashboards').click({force: true})
 
       cy.contains('Basic Ole Dashboard').click()
+      cy.getByTestID('giraffe-layer-line').should('exist')
+      cy.getByTestID('cell-context--toggle').should('exist')
       cy.getByTestID('cell-context--toggle').click()
       cy.contains('Configure').click()
 
@@ -81,6 +84,8 @@ describe('The Query Builder', () => {
       cy.getByTestID('nav-item-dashboards').click()
 
       cy.contains('Basic Ole Dashboard').click()
+      cy.getByTestID('giraffe-layer-line').should('be.visible')
+      cy.getByTestID('cell-context--toggle').should('be.visible')
       cy.getByTestID('cell-context--toggle').click()
       cy.contains('Configure').click()
 

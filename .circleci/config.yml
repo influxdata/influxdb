@@ -9,9 +9,6 @@ workflows:
       - gotest:
           requires:
             - godeps
-      - jstest:
-          requires:
-            - jsdeps
       - tlstest:
           requires:
             - godeps
@@ -24,9 +21,6 @@ workflows:
       - golint:
           requires:
             - godeps
-      - jslint:
-          requires:
-            - jsdeps
       - build:
           requires:
             - godeps
@@ -81,22 +75,6 @@ workflows:
               ignore: /.*/
             tags:
               only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-      - jstest:
-          requires:
-            - jsdeps
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
-      - jslint:
-          requires:
-            - jsdeps
-          filters:
-            branches:
-              ignore: /.*/
-            tags:
-              only: /^v[0-9]+\.[0-9]+\.[0-9]+(-(rc|alpha|beta)\.[0-9]+)?$/
       - influxql_validation:
           requires:
             - godeps
@@ -125,8 +103,6 @@ workflows:
           requires:
             - gotest
             - golint
-            - jstest
-            - jslint
             - influxql_validation
             - influxql_integration
             - tlstest
@@ -317,7 +293,6 @@ commands:
                 command: goreleaser --debug release -p 1 --rm-dist --skip-validate
 
 jobs:
-
   ####################
   ### UI-only jobs ###
   ####################
@@ -346,62 +321,6 @@ jobs:
             - /home/circleci/go/src/github.com/influxdata/influxdb/ui/node_modules
             - ~/.cache/yarn
             - ~/.cache/Cypress
-
-  jstest:
-    docker:
-      - image: cimg/go:1.15.6-node
-    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
-    steps:
-      - checkout
-      - restore_cache:
-          name: Restore Yarn Cache
-          keys:
-            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
-      - run:
-          name: install dependencies
-          command: |
-            cd ui
-            # This should usually be a no-op (fully contained in the Yarn cache above), but we
-            # include it to be safe since `yarn test` won't auto-install missing modules.
-            yarn install --immutable
-      - run: make ui_client
-      - run:
-          name: run tests
-          command: |
-            cd ui
-            yarn test:circleci
-      - store_test_results:
-          path: ui/coverage
-      - store_artifacts:
-          path: ui/coverage
-          destination: raw-test-output
-
-  jslint:
-    docker:
-      - image: cimg/go:1.15.6-node
-    working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
-    parallelism: 8
-    steps:
-      - checkout
-      - restore_cache:
-          name: Restore Yarn Cache
-          keys:
-            - yarn-deps-lock-{{ checksum "ui/yarn.lock" }}
-      - run:
-          name: install dependencies
-          command: |
-            cd ui
-            # This should usually be a no-op (fully contained in the Yarn cache above), but we
-            # include it to be safe since the lint commands won't auto-install missing modules.
-            yarn install --immutable
-      - run: make ui_client
-      - run:
-          name: parallel eslint
-          command: |
-            cd ui
-            TESTFILES=$(circleci tests glob "src/**/*.ts*" "cypress/**/*.ts*" | circleci tests split --split-by=filesize)
-            yarn prettier:circleci ${TESTFILES[@]}
-            yarn eslint:circleci ${TESTFILES[@]}
 
   #########################
   ### Backend-only jobs ###
@@ -700,6 +619,7 @@ jobs:
   e2e:
     docker:
       - image: cimg/go:1.15.6-browsers
+    resource_class: large
     environment:
       GOCACHE: /tmp/go-cache
     working_directory: /home/circleci/go/src/github.com/influxdata/influxdb
