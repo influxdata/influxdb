@@ -24,6 +24,10 @@ The default setting for the max number of concurrent Flux queries has been chang
 and the `query-queue-size` config parameter to > 0 to set the max number of queries that can be queued before the
 server starts rejecting requests.
 
+#### Prefix for query-controller metrics changed
+
+The prefix used for Prometheus metrics from the query controller has changed from `query_control_` to `qc_`.
+
 ### Features
 
 1. [19811](https://github.com/influxdata/influxdb/pull/19811): Add Geo graph type to be able to store in Dashboard cells.
