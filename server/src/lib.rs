@@ -77,7 +77,7 @@ use bytes::BytesMut;
 use futures::stream::TryStreamExt;
 use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
-use tracing::{error, info, warn};
+use tracing_deps::tracing::{error, info, warn};
 
 use data_types::{
     database_rules::{DatabaseRules, WriterId},

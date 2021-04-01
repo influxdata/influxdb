@@ -22,7 +22,7 @@ use super::{TAG_KEY_FIELD, TAG_KEY_MEASUREMENT};
 use query::group_by::{Aggregate as QueryAggregate, WindowDuration};
 use query::predicate::PredicateBuilder;
 use snafu::{ResultExt, Snafu};
-use tracing::warn;
+use tracing_deps::tracing::warn;
 
 #[derive(Debug, Snafu)]
 pub enum Error {

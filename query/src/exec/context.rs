@@ -20,7 +20,7 @@ use arrow_deps::{
 
 use crate::exec::schema_pivot::{SchemaPivotExec, SchemaPivotNode};
 
-use tracing::debug;
+use tracing_deps::tracing::debug;
 
 // Reuse DataFusion error and Result types for this module
 pub use arrow_deps::datafusion::error::{DataFusionError as Error, Result};

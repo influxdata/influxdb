@@ -2,7 +2,7 @@
 
 use snafu::{ResultExt, Snafu};
 use structopt::StructOpt;
-use tracing::info;
+use tracing_deps::tracing::info;
 
 use ingest::parquet::{error::IOxParquetError, stats as parquet_stats};
 use packers::{

@@ -10,7 +10,7 @@ use futures::{channel::mpsc, SinkExt, StreamExt};
 use snafu::{ResultExt, Snafu};
 
 use serde::{Deserialize, Serialize};
-use tracing::{error, info};
+use tracing_deps::tracing::{error, info};
 
 use std::path::PathBuf;
 

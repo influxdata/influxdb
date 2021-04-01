@@ -85,7 +85,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use tokio_util::sync::CancellationToken;
-use tracing::warn;
+use tracing_deps::tracing::warn;
 
 pub use future::{TrackedFuture, TrackedFutureExt};
 pub use history::TrackerRegistryWithHistory;

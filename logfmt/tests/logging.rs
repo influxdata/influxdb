@@ -11,8 +11,8 @@ use std::{
     fmt,
     io::{self, Cursor},
 };
-use tracing::{debug, error, info, span, trace, warn, Level};
-use tracing_subscriber::{fmt::MakeWriter, prelude::*};
+use tracing_deps::tracing::{debug, error, info, span, trace, warn, Level};
+use tracing_deps::tracing_subscriber::{self, fmt::MakeWriter, prelude::*};
 
 /// Compares the captured messages with the expected messages,
 /// normalizing for time and location

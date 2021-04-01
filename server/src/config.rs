@@ -14,7 +14,7 @@ use read_buffer::Database as ReadBufferDb;
 use crate::{db::Db, Error, JobRegistry, Result};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
-use tracing::{error, info, warn, Instrument};
+use tracing_deps::tracing::{self, error, info, warn, Instrument};
 
 pub(crate) const DB_RULES_FILE_NAME: &str = "rules.pb";
 

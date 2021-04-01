@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 use parking_lot::{RwLock, RwLockUpgradableReadGuard};
-use tracing::{error, info};
+use tracing_deps::tracing::{error, info};
 
 use data_types::{database_rules::LifecycleRules, error::ErrorLogger, job::Job};
 

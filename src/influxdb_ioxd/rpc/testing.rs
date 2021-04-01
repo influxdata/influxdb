@@ -1,6 +1,6 @@
 use generated_types::i_ox_testing_server::{IOxTesting, IOxTestingServer};
 use generated_types::{TestErrorRequest, TestErrorResponse};
-use tracing::warn;
+use tracing_deps::tracing::warn;
 
 /// Concrete implementation of the gRPC IOx testing service API
 struct IOxTestingService {}
