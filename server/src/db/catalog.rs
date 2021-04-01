@@ -10,6 +10,7 @@ use snafu::{OptionExt, Snafu};
 
 use arrow_deps::datafusion::{catalog::schema::SchemaProvider, datasource::TableProvider};
 use chunk::Chunk;
+use data_types::chunk::ChunkSummary;
 use data_types::database_rules::{Order, Sort, SortOrder};
 use data_types::error::ErrorLogger;
 use internal_types::selection::Selection;
@@ -132,6 +133,15 @@ impl Catalog {
             chunks.extend(partition.chunks().cloned())
         }
         chunks
+    }
+
+    pub fn chunk_summaries(&self) -> Vec<ChunkSummary> {
+        let mut summaries = Vec::new();
+        for partition in self.partitions.read().values() {
+            let partition = partition.read();
+            summaries.extend(partition.chunk_summaries())
+        }
+        summaries
     }
 
     /// Returns the chunks in the requested sort order

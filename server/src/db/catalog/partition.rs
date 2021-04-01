@@ -7,6 +7,8 @@ use super::{
     Result, UnknownChunk,
 };
 use chrono::{DateTime, Utc};
+use data_types::chunk::ChunkSummary;
+use data_types::partition_metadata::PartitionSummary;
 use parking_lot::RwLock;
 use snafu::OptionExt;
 
@@ -126,5 +128,23 @@ impl Partition {
     /// Return a iterator over chunks in this partition
     pub fn chunks(&self) -> impl Iterator<Item = &Arc<RwLock<Chunk>>> {
         self.chunks.values()
+    }
+
+    /// Return a PartitionSummary for this partition
+    pub fn summary(&self) -> PartitionSummary {
+        let table_summaries = self
+            .chunks()
+            .flat_map(|chunk| {
+                let chunk = chunk.read();
+                chunk.table_summaries()
+            })
+            .collect();
+
+        PartitionSummary::from_table_summaries(&self.key, table_summaries)
+    }
+
+    /// Return chunk summaries for all chunks in this partition
+    pub fn chunk_summaries(&self) -> impl Iterator<Item = ChunkSummary> + '_ {
+        self.chunks.values().map(|x| x.read().summary())
     }
 }

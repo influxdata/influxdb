@@ -414,43 +414,23 @@ impl Db {
 
     /// Return Summary information for all chunks in the specified
     /// partition across all storage systems
-    pub fn partition_chunk_summaries(
-        &self,
-        partition_key: &str,
-    ) -> impl Iterator<Item = ChunkSummary> {
-        let chunks = match self.catalog.partition(partition_key) {
-            Some(partition) => {
-                let partition = partition.read();
-                partition.chunks().cloned().collect::<Vec<_>>()
-            }
-            None => vec![],
-        };
-
-        chunks.into_iter().map(|chunk| {
-            let chunk = chunk.read();
-            chunk.summary()
-        })
+    pub fn partition_chunk_summaries(&self, partition_key: &str) -> Vec<ChunkSummary> {
+        self.catalog
+            .partition(partition_key)
+            .map(|partition| partition.read().chunk_summaries().collect())
+            .unwrap_or_default()
     }
 
     /// Return Summary information for all columns in all chunks in the
     /// partition across all storage systems
     pub fn partition_summary(&self, partition_key: &str) -> PartitionSummary {
-        let table_summaries = self
-            .catalog
+        self.catalog
             .partition(partition_key)
-            .map(|partition| {
-                let partition = partition.read();
-                partition
-                    .chunks()
-                    .flat_map(|chunk| {
-                        let chunk = chunk.read();
-                        chunk.table_summaries()
-                    })
-                    .collect::<Vec<_>>()
+            .map(|partition| partition.read().summary())
+            .unwrap_or_else(|| PartitionSummary {
+                key: partition_key.to_string(),
+                tables: vec![],
             })
-            .unwrap_or_else(Vec::new);
-
-        PartitionSummary::from_table_summaries(partition_key, table_summaries)
     }
     /// Returns the number of iterations of the background worker loop
     pub fn worker_iterations(&self) -> usize {
@@ -561,13 +541,7 @@ impl Database for Db {
     }
 
     fn chunk_summaries(&self) -> Result<Vec<ChunkSummary>> {
-        let summaries = self
-            .partition_keys()?
-            .into_iter()
-            .map(|partition_key| self.partition_chunk_summaries(&partition_key))
-            .flatten()
-            .collect();
-        Ok(summaries)
+        Ok(self.catalog.chunk_summaries())
     }
 }
 
@@ -969,9 +943,7 @@ mod tests {
             Arc::new(s.to_string())
         }
 
-        let chunk_summaries = db
-            .partition_chunk_summaries("1970-01-05T15")
-            .collect::<Vec<_>>();
+        let chunk_summaries = db.partition_chunk_summaries("1970-01-05T15");
         let chunk_summaries = normalize_summaries(chunk_summaries);
 
         let expected = vec![ChunkSummary::new_without_timestamps(
@@ -1266,6 +1238,7 @@ mod tests {
     fn mutable_chunk_ids(db: &Db, partition_key: &str) -> Vec<u32> {
         let mut chunk_ids: Vec<u32> = db
             .partition_chunk_summaries(partition_key)
+            .into_iter()
             .filter_map(|chunk| match chunk.storage {
                 ChunkStorage::OpenMutableBuffer | ChunkStorage::ClosedMutableBuffer => {
                     Some(chunk.id)
@@ -1280,6 +1253,7 @@ mod tests {
     fn read_buffer_chunk_ids(db: &Db, partition_key: &str) -> Vec<u32> {
         let mut chunk_ids: Vec<u32> = db
             .partition_chunk_summaries(partition_key)
+            .into_iter()
             .filter_map(|chunk| match chunk.storage {
                 ChunkStorage::ReadBuffer => Some(chunk.id),
                 _ => None,
