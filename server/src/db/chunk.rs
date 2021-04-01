@@ -124,7 +124,15 @@ impl DBChunk {
                     chunk_id,
                 }
             }
-            super::catalog::chunk::ChunkState::ObjectStore(chunk) => {
+            ChunkState::WritingToObjectStore(db) => {
+                let db = Arc::clone(db);
+                Self::ReadBuffer {
+                    db,
+                    partition_key,
+                    chunk_id,
+                }
+            }
+            ChunkState::WrittenToObjectStore(_, chunk) => {
                 let chunk = Arc::clone(chunk);
                 Self::ParquetFile { chunk }
             }

@@ -31,10 +31,14 @@ pub enum ChunkState {
     Moving(Arc<MBChunk>),
 
     /// Chunk has been completely loaded in the read buffer
-    Moved(Arc<ReadBufferDb>), // todo use read buffer chunk here
+    /// Still need both MB and RD for moving the MB to Object Store
+    Moved(Arc<ReadBufferDb>), // todo use read buffer chunk instead of ReadBufferDb
 
-    /// Chunk has been completely loaded in the object store
-    ObjectStore(Arc<ParquetChunk>),
+    // Chunk is actively writing to object store
+    WritingToObjectStore(Arc<ReadBufferDb>), // todo use read buffer chunk instead of ReadBufferD
+
+    // Chunk has been completely written into object store
+    WrittenToObjectStore(Arc<ReadBufferDb>, Arc<ParquetChunk>),
 }
 
 impl ChunkState {
@@ -45,7 +49,8 @@ impl ChunkState {
             Self::Closing(_) => "Closing",
             Self::Moving(_) => "Moving",
             Self::Moved(_) => "Moved",
-            Self::ObjectStore(_) => "ObjectStore",
+            Self::WritingToObjectStore(_) => "Writing to Object Store",
+            Self::WrittenToObjectStore(_, _) => "Written to Object Store",
         }
     }
 }
@@ -178,7 +183,12 @@ impl Chunk {
             ChunkState::Moved(db) => {
                 db.has_table(self.partition_key.as_str(), table_name, &[self.id])
             }
-            ChunkState::ObjectStore(chunk) => chunk.has_table(table_name),
+            ChunkState::WritingToObjectStore(db) => {
+                db.has_table(self.partition_key.as_str(), table_name, &[self.id])
+            }
+            ChunkState::WrittenToObjectStore(db, _) => {
+                db.has_table(self.partition_key.as_str(), table_name, &[self.id])
+            }
         }
     }
 
@@ -191,7 +201,12 @@ impl Chunk {
             ChunkState::Moved(db) => {
                 db.all_table_names(self.partition_key.as_str(), &[self.id], names)
             }
-            ChunkState::ObjectStore(chunk) => chunk.all_table_names(names),
+            ChunkState::WritingToObjectStore(db) => {
+                db.all_table_names(self.partition_key.as_str(), &[self.id], names)
+            }
+            ChunkState::WrittenToObjectStore(db, _) => {
+                db.all_table_names(self.partition_key.as_str(), &[self.id], names)
+            }
         }
     }
 
@@ -205,7 +220,14 @@ impl Chunk {
             ChunkState::Moved(db) => db
                 .chunks_size(self.partition_key.as_str(), &[self.id])
                 .unwrap_or(0) as usize,
-            ChunkState::ObjectStore(chunk) => chunk.size(),
+            ChunkState::WritingToObjectStore(db) => db
+                .chunks_size(self.partition_key.as_str(), &[self.id])
+                .unwrap_or(0) as usize,
+            ChunkState::WrittenToObjectStore(db, parquet_chunk) => {
+                parquet_chunk.size()
+                    + db.chunks_size(self.partition_key.as_str(), &[self.id])
+                        .unwrap_or(0) as usize
+            }
         }
     }
 
@@ -278,21 +300,42 @@ impl Chunk {
         }
     }
 
-    /// Set the chunk to the ObjectStore state, returning a handle to the
-    /// underlying storage
-    pub fn set_object_store(&mut self, chunk: Arc<ParquetChunk>) -> Result<Arc<ParquetChunk>> {
+    /// Set the chunk to the MovingToObjectStore state
+    pub fn set_writing_to_object_store(&mut self) -> Result<Arc<ReadBufferDb>> {
         let mut s = ChunkState::Invalid;
         std::mem::swap(&mut s, &mut self.state);
 
-        // TODO: Need to see from which state we can persist to object store
         match s {
-            ChunkState::Moved(_) => {
-                self.state = ChunkState::ObjectStore(Arc::clone(&chunk));
-                Ok(chunk)
+            ChunkState::Moved(db) => {
+                self.state = ChunkState::WritingToObjectStore(Arc::clone(&db));
+                Ok(db)
             }
             state => {
                 self.state = state;
                 unexpected_state!(self, "setting object store", "Moved", &self.state)
+            }
+        }
+    }
+
+    /// Set the chunk to the MovedToObjectStore state, returning a handle to the
+    /// underlying storage
+    pub fn set_written_to_object_store(&mut self, chunk: Arc<ParquetChunk>) -> Result<()> {
+        let mut s = ChunkState::Invalid;
+        std::mem::swap(&mut s, &mut self.state);
+
+        match s {
+            ChunkState::WritingToObjectStore(db) => {
+                self.state = ChunkState::WrittenToObjectStore(db, chunk);
+                Ok(())
+            }
+            state => {
+                self.state = state;
+                unexpected_state!(
+                    self,
+                    "setting object store",
+                    "MovingToObjectStore",
+                    &self.state
+                )
             }
         }
     }
