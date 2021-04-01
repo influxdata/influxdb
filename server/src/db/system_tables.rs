@@ -144,7 +144,7 @@ fn from_chunk_summaries(chunks: Vec<ChunkSummary>) -> Result<RecordBatch> {
 
 fn from_partition_summaries(partitions: Vec<PartitionSummary>) -> Result<RecordBatch> {
     // Assume each partition has roughly 5 tables with 5 columns
-    let row_estimate = partitions.len() * 5;
+    let row_estimate = partitions.len() * 25;
 
     let mut partition_key = StringBuilder::new(row_estimate);
     let mut table_name = StringBuilder::new(row_estimate);
