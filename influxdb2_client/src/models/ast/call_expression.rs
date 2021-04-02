@@ -7,13 +7,13 @@ use serde::{Deserialize, Serialize};
 pub struct CallExpression {
     /// Type of AST node
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
-    pub _type: Option<String>,
+    pub r#type: Option<String>,
     /// Callee
-    #[serde(rename = "callee", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub callee: Option<Box<crate::models::ast::Expression>>,
     /// Function arguments
-    #[serde(rename = "arguments", skip_serializing_if = "Option::is_none")]
-    pub arguments: Option<Vec<crate::models::ast::Expression>>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub arguments: Vec<crate::models::ast::Expression>,
 }
 
 impl CallExpression {
