@@ -11,6 +11,7 @@
 //! database names and may remove this quasi /v2 API.
 
 // Influx crates
+use super::super::commands::metrics;
 use arrow_deps::datafusion::physical_plan::collect;
 use data_types::{
     http::WalMetadataQuery,
@@ -316,6 +317,7 @@ where
         })) // this endpoint is for API backward compatibility with InfluxDB 2.x
         .post("/api/v2/write", write::<M>)
         .get("/health", health)
+        .get("/metrics", handle_metrics)
         .get("/iox/api/v1/databases/:name/query", query::<M>)
         .get("/iox/api/v1/databases/:name/wal/meta", get_wal_meta::<M>)
         .get("/api/v1/partitions", list_partitions::<M>)
@@ -590,6 +592,11 @@ async fn get_wal_meta<M: ConnectionManager + Send + Sync + Debug + 'static>(
 async fn health(_: Request<Body>) -> Result<Response<Body>, ApplicationError> {
     let response_body = "OK";
     Ok(Response::new(Body::from(response_body.to_string())))
+}
+
+#[tracing::instrument(level = "debug")]
+async fn handle_metrics(_: Request<Body>) -> Result<Response<Body>, ApplicationError> {
+    Ok(Response::new(Body::from(metrics::metrics_as_text())))
 }
 
 #[derive(Deserialize, Debug)]
