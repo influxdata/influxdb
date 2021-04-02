@@ -19,7 +19,7 @@ use internal_types::{
     selection::Selection,
 };
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
-use tracing::debug;
+use tracing_deps::tracing::debug;
 
 use crate::{
     exec::{field::FieldColumns, make_schema_pivot, stringset::StringSet},

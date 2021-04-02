@@ -4,7 +4,7 @@ use std::sync::Arc;
 use bytes::BytesMut;
 use prost::Message;
 use tonic::Response;
-use tracing::debug;
+use tracing_deps::tracing::debug;
 
 use data_types::job::Job;
 use generated_types::google::FieldViolationExt;

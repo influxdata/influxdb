@@ -1,0 +1,15 @@
+[package]
+name = "tracing_deps"
+version = "0.1.0"
+authors = ["Paul Dix <paul@pauldix.net>"]
+edition = "2018"
+description = "Tracing ecosystem dependencies for InfluxDB IOx, to ensure consistent versions and unified updates"
+
+[dependencies] # In alphabetical order
+env_logger = "0.8.3"
+opentelemetry = { version = "0.12", default-features = false, features = ["trace", "tokio-support"] }
+opentelemetry-jaeger = { version = "0.11", features = ["tokio"] }
+tracing = { version = "0.1", features = ["release_max_level_debug"] }
+tracing-futures = "0.2.4"
+tracing-opentelemetry = "0.11.0"
+tracing-subscriber = { version = "0.2.15", features = ["parking_lot"] }

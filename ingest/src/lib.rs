@@ -28,7 +28,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     io::{Read, Seek},
 };
-use tracing::debug;
+use tracing_deps::tracing::debug;
 
 pub mod parquet;
 

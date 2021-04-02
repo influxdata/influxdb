@@ -18,7 +18,7 @@ use futures::StreamExt;
 use parking_lot::Mutex;
 use snafu::{ResultExt, Snafu};
 use tokio::sync::oneshot;
-use tracing::{error, info};
+use tracing_deps::tracing::{error, info};
 use uuid::Uuid;
 
 #[derive(Debug, Snafu)]

@@ -19,7 +19,7 @@ use prost::{
 use std::convert::{TryFrom, TryInto};
 use std::iter::FromIterator;
 use tonic::Status;
-use tracing::error;
+use tracing_deps::tracing::error;
 
 // A newtype struct to provide conversion into tonic::Status
 struct EncodeError(prost::EncodeError);

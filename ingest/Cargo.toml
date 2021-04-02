@@ -11,7 +11,7 @@ influxdb_tsm = { path = "../influxdb_tsm" }
 internal_types = { path = "../internal_types" }
 packers = { path = "../packers" }
 snafu = "0.6.2"
-tracing = "0.1"
+tracing_deps = { path = "../tracing_deps" }
 
 [dev-dependencies] # In alphabetical order
 flate2 = "1.0"

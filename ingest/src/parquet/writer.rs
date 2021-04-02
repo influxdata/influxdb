@@ -21,7 +21,7 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
-use tracing::{debug, log::warn};
+use tracing_deps::tracing::{debug, log::warn};
 
 use super::metadata::parquet_schema_as_string;
 use packers::{Error as TableError, IOxTableWriter, Packers};

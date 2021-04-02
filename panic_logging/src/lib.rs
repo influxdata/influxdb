@@ -12,7 +12,7 @@
 use std::{fmt, panic, sync::Arc};
 
 use panic::PanicInfo;
-use tracing::{error, warn};
+use tracing_deps::tracing::{error, warn};
 
 type PanicFunctionPtr = Arc<Box<dyn Fn(&PanicInfo<'_>) + Sync + Send + 'static>>;
 

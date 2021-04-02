@@ -2,7 +2,7 @@ use super::{Tracker, TrackerRegistration};
 use hashbrown::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
-use tracing::debug;
+use tracing_deps::tracing::debug;
 
 /// Every future registered with a `TrackerRegistry` is assigned a unique
 /// `TrackerId`

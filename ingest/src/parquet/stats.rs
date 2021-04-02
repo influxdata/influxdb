@@ -9,7 +9,7 @@ use packers::{
 };
 use snafu::ResultExt;
 use std::{collections::BTreeMap, convert::TryInto};
-use tracing::debug;
+use tracing_deps::tracing::debug;
 
 use super::{
     error::{ParquetLibraryError, Result},

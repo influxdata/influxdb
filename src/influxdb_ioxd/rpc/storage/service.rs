@@ -32,7 +32,7 @@ use std::{collections::HashMap, sync::Arc};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
-use tracing::{error, info};
+use tracing_deps::tracing::{error, info};
 
 #[derive(Debug, Snafu)]
 pub enum Error {

@@ -5,7 +5,7 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     convert::TryInto,
 };
-use tracing::{debug, info};
+use tracing_deps::tracing::{debug, info};
 
 use crate::commands::input::{FileType, InputReader};
 

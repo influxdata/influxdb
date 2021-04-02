@@ -3,7 +3,7 @@ use std::{
     collections::{HashMap, HashSet},
     convert::TryInto,
 };
-use tracing::warn;
+use tracing_deps::tracing::warn;
 
 use arrow_deps::arrow::datatypes::{DataType as ArrowDataType, Field as ArrowField};
 
