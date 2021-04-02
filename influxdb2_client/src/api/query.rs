@@ -72,10 +72,7 @@ impl Client {
             .header("Accepting-Encoding", "identity")
             .header("Content-Type", "application/json")
             .query(&[("org", &org), ("orgID", &org_id)])
-            .body(
-                serde_json::to_string(&query.unwrap_or_else(|| Query::new("".to_string())))
-                    .context(Serializing)?,
-            )
+            .body(serde_json::to_string(&query.unwrap_or_default()).context(Serializing)?)
             .send()
             .await
             .context(ReqwestProcessing)?;
@@ -99,10 +96,7 @@ impl Client {
         let response = self
             .request(Method::POST, &req_url)
             .header("Content-Type", "application/json")
-            .body(
-                serde_json::to_string(&query.unwrap_or_else(|| Query::new("".to_string())))
-                    .context(Serializing)?,
-            )
+            .body(serde_json::to_string(&query.unwrap_or_default()).context(Serializing)?)
             .send()
             .await
             .context(ReqwestProcessing)?;
@@ -130,10 +124,8 @@ impl Client {
             .request(Method::POST, &req_url)
             .header("Content-Type", "application/json")
             .body(
-                serde_json::to_string(
-                    &language_request.unwrap_or_else(|| LanguageRequest::new("".to_string())),
-                )
-                .context(Serializing)?,
+                serde_json::to_string(&language_request.unwrap_or_default())
+                    .context(Serializing)?,
             )
             .send()
             .await
@@ -208,7 +200,7 @@ mod tests {
             .match_query(Matcher::UrlEncoded("org".into(), org.into()))
             .match_query(Matcher::UrlEncoded("orgID".into(), org_id.into()))
             .match_body(
-                serde_json::to_string(&query.clone().unwrap_or_else(|| Query::new("".to_string())))
+                serde_json::to_string(&query.clone().unwrap_or_default())
                     .unwrap()
                     .as_str(),
             )
@@ -235,7 +227,7 @@ mod tests {
             .match_query(Matcher::UrlEncoded("org".into(), org.into()))
             .match_query(Matcher::UrlEncoded("orgID".into(), org_id.into()))
             .match_body(
-                serde_json::to_string(&query.unwrap_or_else(|| Query::new("".to_string())))
+                serde_json::to_string(&query.unwrap_or_default())
                     .unwrap()
                     .as_str(),
             )
@@ -256,7 +248,7 @@ mod tests {
             .match_header("Authorization", format!("Token {}", token).as_str())
             .match_header("Content-Type", "application/json")
             .match_body(
-                serde_json::to_string(&query.clone().unwrap_or_else(|| Query::new("".to_string())))
+                serde_json::to_string(&query.clone().unwrap_or_default())
                     .unwrap()
                     .as_str(),
             )
@@ -277,7 +269,7 @@ mod tests {
             .match_header("Authorization", format!("Token {}", token).as_str())
             .match_header("Content-Type", "application/json")
             .match_body(
-                serde_json::to_string(&query.clone().unwrap_or_else(|| Query::new("".to_string())))
+                serde_json::to_string(&query.clone().unwrap_or_default())
                     .unwrap()
                     .as_str(),
             )
@@ -299,13 +291,9 @@ mod tests {
             .match_header("Authorization", format!("Token {}", token).as_str())
             .match_header("Content-Type", "application/json")
             .match_body(
-                serde_json::to_string(
-                    &language_request
-                        .clone()
-                        .unwrap_or_else(|| LanguageRequest::new("".to_string())),
-                )
-                .unwrap()
-                .as_str(),
+                serde_json::to_string(&language_request.clone().unwrap_or_default())
+                    .unwrap()
+                    .as_str(),
             )
             .create();
 
@@ -324,13 +312,9 @@ mod tests {
             .match_header("Authorization", format!("Token {}", token).as_str())
             .match_header("Content-Type", "application/json")
             .match_body(
-                serde_json::to_string(
-                    &language_request
-                        .clone()
-                        .unwrap_or_else(|| LanguageRequest::new("".to_string())),
-                )
-                .unwrap()
-                .as_str(),
+                serde_json::to_string(&language_request.clone().unwrap_or_default())
+                    .unwrap()
+                    .as_str(),
             )
             .create();
 
