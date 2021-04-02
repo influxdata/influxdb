@@ -10,7 +10,7 @@ use std::collections::HashMap;
 pub struct Query {
     /// Query Script
     #[serde(rename = "extern", skip_serializing_if = "Option::is_none")]
-    pub extern_: Option<File>,
+    pub r#extern: Option<File>,
     /// Query script to execute.
     pub query: String,
     /// The type of query. Must be \"flux\".
@@ -119,7 +119,7 @@ impl AnalyzeQueryResponseErrors {
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct AstResponse {
     /// AST of Flux query
-    #[serde(rename = "ast", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub ast: Option<Package>,
 }
 
@@ -134,7 +134,6 @@ impl AstResponse {
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct LanguageRequest {
     /// Flux query script to be analyzed
-    #[serde(rename = "query")]
     pub query: String,
 }
 
