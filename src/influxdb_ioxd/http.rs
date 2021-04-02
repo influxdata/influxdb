@@ -31,7 +31,7 @@ use hyper::{Body, Method, Request, Response, StatusCode};
 use routerify::{prelude::*, Middleware, RequestInfo, Router, RouterError, RouterService};
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
-use tracing::{debug, error, info};
+use tracing_deps::tracing::{self, debug, error, info};
 
 use data_types::http::WalMetadataResponse;
 use hyper::server::conn::AddrIncoming;
@@ -411,7 +411,7 @@ async fn parse_body(req: hyper::Request<Body>) -> Result<Bytes, ApplicationError
     }
 }
 
-#[tracing::instrument(level = "debug")]
+#[tracing_deps::instrument(level = "debug")]
 async fn write<M>(req: Request<Body>) -> Result<Response<Body>, ApplicationError>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,

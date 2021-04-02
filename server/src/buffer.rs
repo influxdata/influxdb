@@ -23,7 +23,7 @@ use data_types::database_rules::WalBufferConfig;
 use data_types::wal::{SegmentPersistence, SegmentSummary, WriterSummary};
 use parking_lot::Mutex;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
-use tracing::{error, info, warn};
+use tracing_deps::tracing::{error, info, warn};
 
 #[derive(Debug, Snafu)]
 pub enum Error {

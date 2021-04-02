@@ -35,7 +35,7 @@ use std::{
     fmt,
     ops::Deref,
 };
-use tracing::debug;
+use tracing_deps::tracing::debug;
 
 #[derive(Debug, Snafu)]
 pub enum Error {

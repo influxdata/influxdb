@@ -18,7 +18,7 @@ generated_types = { path = "../generated_types" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 ouroboros = "0.8.3"
 snafu = "0.6"
-tracing = "0.1"
+tracing_deps = { path = "../tracing_deps" }
 
 [dev-dependencies] # In alphabetical order
 criterion = "0.3"

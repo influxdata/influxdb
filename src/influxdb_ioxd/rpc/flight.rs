@@ -4,7 +4,7 @@ use futures::Stream;
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
 use tonic::{Request, Response, Streaming};
-use tracing::error;
+use tracing_deps::tracing::error;
 
 use arrow_deps::{
     arrow,

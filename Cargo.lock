@@ -771,7 +771,7 @@ dependencies = [
  "snafu",
  "test_helpers",
  "tonic",
- "tracing",
+ "tracing_deps",
 ]
 
 [[package]]
@@ -1149,7 +1149,7 @@ dependencies = [
  "serde_json",
  "tonic",
  "tonic-build",
- "tracing",
+ "tracing_deps",
 ]
 
 [[package]]
@@ -1435,7 +1435,6 @@ dependencies = [
  "data_types",
  "dirs 3.0.1",
  "dotenv",
- "env_logger",
  "flate2",
  "futures",
  "generated_types",
@@ -1453,8 +1452,6 @@ dependencies = [
  "mutable_buffer",
  "object_store",
  "once_cell",
- "opentelemetry",
- "opentelemetry-jaeger",
  "packers",
  "panic_logging",
  "parking_lot",
@@ -1480,10 +1477,7 @@ dependencies = [
  "tokio-util",
  "tonic",
  "tonic-health",
- "tracing",
- "tracing-futures",
- "tracing-opentelemetry",
- "tracing-subscriber",
+ "tracing_deps",
  "wal",
 ]
 
@@ -1514,7 +1508,7 @@ dependencies = [
  "smallvec",
  "snafu",
  "test_helpers",
- "tracing",
+ "tracing_deps",
 ]
 
 [[package]]
@@ -1528,7 +1522,7 @@ dependencies = [
  "snafu",
  "snap",
  "test_helpers",
- "tracing",
+ "tracing_deps",
 ]
 
 [[package]]
@@ -1544,7 +1538,7 @@ dependencies = [
  "parking_lot",
  "snafu",
  "test_helpers",
- "tracing",
+ "tracing_deps",
 ]
 
 [[package]]
@@ -1576,7 +1570,7 @@ dependencies = [
  "influxdb_line_protocol",
  "ouroboros",
  "snafu",
- "tracing",
+ "tracing_deps",
 ]
 
 [[package]]
@@ -1719,8 +1713,7 @@ dependencies = [
  "once_cell",
  "parking_lot",
  "regex",
- "tracing",
- "tracing-subscriber",
+ "tracing_deps",
 ]
 
 [[package]]
@@ -1773,11 +1766,10 @@ dependencies = [
  "criterion",
  "croaring",
  "crossbeam",
- "env_logger",
  "human_format",
  "packers",
  "snafu",
- "tracing",
+ "tracing_deps",
 ]
 
 [[package]]
@@ -1873,7 +1865,7 @@ dependencies = [
  "string-interner",
  "test_helpers",
  "tokio",
- "tracing",
+ "tracing_deps",
 ]
 
 [[package]]
@@ -2216,14 +2208,14 @@ dependencies = [
  "rand 0.8.3",
  "snafu",
  "test_helpers",
- "tracing",
+ "tracing_deps",
 ]
 
 [[package]]
 name = "panic_logging"
 version = "0.1.0"
 dependencies = [
- "tracing",
+ "tracing_deps",
 ]
 
 [[package]]
@@ -2585,7 +2577,7 @@ dependencies = [
  "test_helpers",
  "tokio",
  "tokio-stream",
- "tracing",
+ "tracing_deps",
 ]
 
 [[package]]
@@ -3213,7 +3205,7 @@ dependencies = [
  "test_helpers",
  "tokio",
  "tokio-util",
- "tracing",
+ "tracing_deps",
  "uuid",
 ]
 
@@ -3521,8 +3513,7 @@ dependencies = [
  "dotenv",
  "parking_lot",
  "tempfile",
- "tracing",
- "tracing-subscriber",
+ "tracing_deps",
 ]
 
 [[package]]
@@ -3924,6 +3915,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "tracing_deps"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "opentelemetry",
+ "opentelemetry-jaeger",
+ "tracing",
+ "tracing-futures",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "treeline"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4049,7 +4053,7 @@ dependencies = [
  "snap",
  "test_helpers",
  "tokio",
- "tracing",
+ "tracing_deps",
 ]
 
 [[package]]

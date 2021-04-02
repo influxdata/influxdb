@@ -2,7 +2,8 @@
 use std::{fmt, sync::Arc};
 
 use parking_lot::Mutex;
-use tracing::{
+use tracing_deps::tracing::{
+    self,
     field::Field,
     span::{Attributes, Id, Record},
     subscriber::{DefaultGuard, Subscriber},

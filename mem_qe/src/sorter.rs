@@ -19,7 +19,7 @@ use std::ops::Range;
 
 use snafu::ensure;
 use snafu::Snafu;
-use tracing::debug;
+use tracing_deps::tracing::debug;
 
 use super::column;
 

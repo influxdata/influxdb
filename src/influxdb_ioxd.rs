@@ -11,7 +11,7 @@ use panic_logging::SendPanicsToTracing;
 use server::{ConnectionManagerImpl as ConnectionManager, Server as AppServer};
 use snafu::{ResultExt, Snafu};
 use std::{convert::TryFrom, fs, net::SocketAddr, path::PathBuf, sync::Arc};
-use tracing::{error, info, warn, Instrument};
+use tracing_deps::tracing::{self, error, info, warn, Instrument};
 
 mod http;
 mod rpc;

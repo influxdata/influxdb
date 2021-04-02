@@ -5,7 +5,7 @@ use influxdb_line_protocol::parse_lines;
 use server::{ConnectionManager, Server};
 use std::fmt::Debug;
 use tonic::Response;
-use tracing::debug;
+use tracing_deps::tracing::debug;
 
 use super::error::default_server_error_handler;
 

@@ -13,7 +13,7 @@ use std::{
     io::{BufReader, Read},
     path::{Path, PathBuf},
 };
-use tracing::{debug, info, warn};
+use tracing_deps::tracing::{debug, info, warn};
 
 use crate::commands::input::{FileType, InputReader};
 

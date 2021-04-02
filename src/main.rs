@@ -12,7 +12,7 @@ use std::str::FromStr;
 use dotenv::dotenv;
 use structopt::StructOpt;
 use tokio::runtime::Runtime;
-use tracing::{debug, warn};
+use tracing_deps::tracing::{debug, warn};
 
 use commands::logging::LoggingLevel;
 use ingest::parquet::writer::CompressionLevel;

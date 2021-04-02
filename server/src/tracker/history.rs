@@ -2,7 +2,7 @@ use super::{Tracker, TrackerId, TrackerRegistration, TrackerRegistry};
 use hashbrown::hash_map::Entry;
 use hashbrown::HashMap;
 use std::hash::Hash;
-use tracing::info;
+use tracing_deps::tracing::info;
 
 /// A wrapper around a TrackerRegistry that automatically retains a history
 #[derive(Debug)]

@@ -6,7 +6,7 @@ use parquet_file::chunk::Chunk as ParquetChunk;
 use query::{exec::stringset::StringSet, predicate::Predicate, PartitionChunk};
 use read_buffer::Database as ReadBufferDb;
 use snafu::{ResultExt, Snafu};
-use tracing::debug;
+use tracing_deps::tracing::debug;
 
 use std::sync::Arc;
 
