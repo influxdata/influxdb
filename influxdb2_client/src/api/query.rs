@@ -6,7 +6,6 @@ use crate::{Client, Http, RequestError, ReqwestProcessing, Serializing};
 use reqwest::{Method, StatusCode};
 use snafu::ResultExt;
 
-// use crate::urlencode;
 use crate::models::{
     AnalyzeQueryResponse, AstResponse, FluxSuggestion, FluxSuggestions, LanguageRequest, Query,
 };
