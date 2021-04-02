@@ -1,6 +1,6 @@
 use std::{
     collections::{btree_map::Entry, BTreeMap, BTreeSet},
-    sync::RwLock,
+    sync::{Arc, RwLock},
 };
 
 use data_types::partition_metadata::TableSummary;
@@ -12,6 +12,8 @@ use crate::row_group::{ColumnName, Predicate};
 use crate::schema::AggregateType;
 use crate::table;
 use crate::table::Table;
+
+use table::MetaData;
 
 type TableName = String;
 
@@ -179,6 +181,18 @@ impl Chunk {
             .values()
             .map(|table| table.table_summary())
             .collect()
+    }
+
+    pub fn read_row_groups(&self, table_name: &str) -> (Arc<MetaData>, Vec<Arc<RowGroup>>) {
+        let chunk_data = self.chunk_data.read().unwrap();
+
+        let table = chunk_data
+            .data
+            .get(table_name)
+            .context(TableNotFound { table_name })
+            .unwrap();
+
+        table.filter_row_groups(&Predicate::default())
     }
 
     /// Returns an iterator of lazily executed `read_filter` operations on the

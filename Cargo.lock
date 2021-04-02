@@ -2280,6 +2280,7 @@ dependencies = [
  "futures",
  "object_store",
  "parking_lot",
+ "read_buffer",
  "snafu",
 ]
 

@@ -10,4 +10,5 @@ bytes = "1.0"
 futures = "0.3.7"
 object_store = {path = "../object_store"}
 parking_lot = "0.11.1"
+read_buffer = { path = "../read_buffer" }
 snafu = "0.6"

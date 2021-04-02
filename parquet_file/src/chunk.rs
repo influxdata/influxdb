@@ -1,8 +1,7 @@
+use crate::table::Table;
 use arrow_deps::parquet::file::writer::TryClone;
 use bytes::Bytes;
-use object_store::{
-    memory::InMemory, path::ObjectStorePath, path::Path, ObjectStore, ObjectStoreApi,
-};
+use object_store::{memory::InMemory, path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use parking_lot::Mutex;
 use snafu::{ResultExt, Snafu};
 use std::{
@@ -18,7 +17,7 @@ pub enum Error {
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct Chunk {
     /// Partition this chunk belongs to
     pub partition_key: String,
@@ -26,11 +25,8 @@ pub struct Chunk {
     /// The id for this chunk
     pub id: u32,
 
-    /// paths of files in object store, one for each table of this chunk
-    pub object_store_paths: Vec<Path>,
-    /* Note: table names can be extracted from the file and
-     * the table meta data can be extracted from the parquet file so I do not
-     * store them for now but we might need them here for easy-to-use reason. Will see */
+    /// Tables of this chunk
+    pub tables: Vec<Table>,
 }
 
 impl Chunk {
@@ -38,8 +34,12 @@ impl Chunk {
         Self {
             partition_key: part_key,
             id: chunk_id,
-            object_store_paths: vec![],
-        }
+            tables: vec![],
+        };
+        Self::default()
+    }
+    pub fn add_table(&mut self, table: Table) {
+        self.tables.push(table);
     }
 
     pub fn has_table(&self, table_name: &str) -> bool {
