@@ -26,7 +26,7 @@ influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 snafu = "0.6.2"
 string-interner = "0.12.2"
 tokio = { version = "1.0", features = ["macros"] }
-tracing_deps = { path = "../tracing_deps" }
+observability_deps = { path = "../observability_deps" }
 
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }

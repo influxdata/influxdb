@@ -1,9 +1,9 @@
 use super::run::Config;
-use parking_lot::{const_rwlock, RwLock};
-use tracing_deps::{
+use observability_deps::{
     opentelemetry_prometheus,
     prometheus::{Encoder, TextEncoder},
 };
+use parking_lot::{const_rwlock, RwLock};
 
 // TODO(jacobmarble): better way to write-once-read-many without a lock
 // TODO(jacobmarble): generic OTel exporter, rather than just prometheus

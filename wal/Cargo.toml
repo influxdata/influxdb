@@ -16,7 +16,7 @@ serde_json = "1.0.44"
 snafu = "0.6.6"
 snap = "1.0.0"
 tokio = { version = "1.0", features=["macros", "fs"] }
-tracing_deps = { path = "../tracing_deps" }
+observability_deps = { path = "../observability_deps" }
 
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }

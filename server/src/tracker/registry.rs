@@ -1,8 +1,8 @@
 use super::{Tracker, TrackerRegistration};
 use hashbrown::HashMap;
+use observability_deps::tracing::debug;
 use std::str::FromStr;
 use std::sync::Arc;
-use tracing_deps::tracing::debug;
 
 /// Every future registered with a `TrackerRegistry` is assigned a unique
 /// `TrackerId`

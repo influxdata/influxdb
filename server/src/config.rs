@@ -12,9 +12,9 @@ use read_buffer::Database as ReadBufferDb;
 
 /// This module contains code for managing the configuration of the server.
 use crate::{db::Db, Error, JobRegistry, Result};
+use observability_deps::tracing::{self, error, info, warn, Instrument};
 use tokio::task::JoinHandle;
 use tokio_util::sync::CancellationToken;
-use tracing_deps::tracing::{self, error, info, warn, Instrument};
 
 pub(crate) const DB_RULES_FILE_NAME: &str = "rules.pb";
 

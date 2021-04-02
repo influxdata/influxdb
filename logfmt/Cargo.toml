@@ -6,7 +6,7 @@ description="tracing_subscriber layer for writing out logfmt formatted events"
 edition = "2018"
 
 [dependencies] # In alphabetical order
-tracing_deps = { path = "../tracing_deps" }
+observability_deps = { path = "../observability_deps" }
 
 [dev-dependencies] # In alphabetical order
 once_cell = { version = "1.4.0", features = ["parking_lot"] }

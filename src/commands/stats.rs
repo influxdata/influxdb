@@ -1,8 +1,8 @@
 //! This module contains code to report compression statistics for storage files
 
+use observability_deps::tracing::info;
 use snafu::{ResultExt, Snafu};
 use structopt::StructOpt;
-use tracing_deps::tracing::info;
 
 use ingest::parquet::{error::IOxParquetError, stats as parquet_stats};
 use packers::{

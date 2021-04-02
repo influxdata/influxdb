@@ -1,5 +1,5 @@
 use generated_types::google::{FieldViolation, InternalError, NotFound, PreconditionViolation};
-use tracing_deps::tracing::error;
+use observability_deps::tracing::error;
 
 /// map common `server::Error` errors  to the appropriate tonic Status
 pub fn default_server_error_handler(error: server::Error) -> tonic::Status {

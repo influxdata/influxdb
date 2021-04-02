@@ -2,11 +2,11 @@ use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 use data_types::chunk::{ChunkStorage, ChunkSummary};
 use internal_types::{schema::Schema, selection::Selection};
 use mutable_buffer::chunk::Chunk as MBChunk;
+use observability_deps::tracing::debug;
 use parquet_file::chunk::Chunk as ParquetChunk;
 use query::{exec::stringset::StringSet, predicate::Predicate, PartitionChunk};
 use read_buffer::Database as ReadBufferDb;
 use snafu::{ResultExt, Snafu};
-use tracing_deps::tracing::debug;
 
 use std::sync::Arc;
 

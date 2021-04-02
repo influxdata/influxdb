@@ -27,7 +27,7 @@ snafu = "0.6.2"
 sqlparser = "0.8.0"
 tokio = { version = "1.0", features = ["macros"] }
 tokio-stream = "0.1.2"
-tracing_deps = { path = "../tracing_deps" }
+observability_deps = { path = "../observability_deps" }
 
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }
