@@ -1,5 +1,6 @@
 use crate::commands::{
     logging::LoggingLevel,
+    metrics,
     run::{Config, ObjectStore as ObjStoreOpt},
 };
 use futures::{future::FusedFuture, pin_mut, FutureExt};
@@ -101,6 +102,7 @@ pub async fn main(logging_level: LoggingLevel, config: Config) -> Result<()> {
     let logging_level = logging_level.combine(LoggingLevel::new(config.verbose_count));
 
     let _drop_handle = logging_level.setup_logging(&config);
+    let _metrics_guard = metrics::init_metrics();
 
     // Install custom panic handler and forget about it.
     //

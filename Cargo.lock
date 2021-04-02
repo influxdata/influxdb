@@ -757,6 +757,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "dashmap"
+version = "4.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e77a43b28d0668df09411cb0bc9a8c2adc40f9a048afe863e05fd43251e8e39c"
+dependencies = [
+ "cfg-if 1.0.0",
+ "num_cpus",
+]
+
+[[package]]
 name = "data_types"
 version = "0.1.0"
 dependencies = [
@@ -2121,6 +2131,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "514d24875c140ed269eecc2d1b56d7b71b573716922a763c317fb1b1b4b58f15"
 dependencies = [
  "async-trait",
+ "dashmap",
+ "fnv",
  "futures",
  "js-sys",
  "lazy_static",
@@ -2144,6 +2156,17 @@ dependencies = [
  "thiserror",
  "thrift",
  "tokio",
+]
+
+[[package]]
+name = "opentelemetry-prometheus"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5407eac459699e03e83f55a557920c612d09f202b58f44212b5cdc4e8a7666e"
+dependencies = [
+ "opentelemetry",
+ "prometheus",
+ "protobuf",
 ]
 
 [[package]]
@@ -2509,6 +2532,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "prometheus"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c8425533e7122f0c3cc7a37e6244b16ad3a2cc32ae7ac6276e2a75da0d9c200d"
+dependencies = [
+ "cfg-if 1.0.0",
+ "fnv",
+ "lazy_static",
+ "parking_lot",
+ "protobuf",
+ "regex",
+ "thiserror",
+]
+
+[[package]]
 name = "prost"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2558,6 +2596,12 @@ dependencies = [
  "bytes",
  "prost",
 ]
+
+[[package]]
+name = "protobuf"
+version = "2.22.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b7f4a129bb3754c25a4e04032a90173c68f85168f77118ac4cb4936e7f06f92"
 
 [[package]]
 name = "query"
@@ -3921,6 +3965,8 @@ dependencies = [
  "env_logger",
  "opentelemetry",
  "opentelemetry-jaeger",
+ "opentelemetry-prometheus",
+ "prometheus",
  "tracing",
  "tracing-futures",
  "tracing-opentelemetry",

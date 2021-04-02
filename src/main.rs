@@ -23,6 +23,7 @@ mod commands {
     mod input;
     pub mod logging;
     pub mod meta;
+    pub mod metrics;
     pub mod operations;
     pub mod run;
     pub mod server;
