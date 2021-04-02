@@ -420,6 +420,9 @@ impl Db {
         partition_key: &str,
         chunk_id: u32,
     ) -> Result<Arc<DBChunk>> {
+        // TODO: the below was done for MB --> Parquet. Need to rewrite to RB
+        // --> Parquet
+
         // Get the chunk from the catalog
         let chunk = {
             let partition =
@@ -439,29 +442,39 @@ impl Db {
 
         // update the catalog to say we are processing this chunk and
         // then drop the lock while we do the work
+        // TODO: this read_buffer in the near future will be rb_chunk
+        //let read_buffer = {
         let mb_chunk = {
             let mut chunk = chunk.write();
 
-            // TODO: Make sure this is set to the corresponding "moving to object store
-            // state"
+            // chunk.set_writing_to_object_store().context(LoadingChunkToParquet {
+            //     partition_key,
+            //     chunk_id,
+            // })?
             chunk.set_moving().context(LoadingChunkToParquet {
                 partition_key,
                 chunk_id,
             })?
         };
 
-        // TODO: Change to the right state that move data to object store
-        debug!(%partition_key, %chunk_id, "chunk marked MOVING , loading tables into object store");
+        debug!(%partition_key, %chunk_id, "chunk marked WRITING , loading tables into object store");
 
         //Get all tables in this chunk
         let mut batches = Vec::new();
-        let table_stats = mb_chunk.table_summaries();
-        // let table_stats = mb_chunk
-        //     .table_stats()
-        //     .expect("Figuring out what tables are in the mutable buffer");
+        let table_stats = mb_chunk.table_summaries(); // read_buffer.table_summaries(partition_key, &[chunk_id]);
 
         // Create a parquet chunk for this chunk
         let _chunk = Chunk::new(partition_key.to_string(), chunk_id);
+
+        // TODO: This code will be removed when the read_buffer become rb_chunk
+        // let partition_data = read_buffer.data.write().unwrap();
+        // let partition = partition_data
+        //     .partitions
+        //     .get_mut(partition_key).expect("Read buffer partition not found");
+
+        // let chunk_data = partition.data.write().unwrap();
+        // let rb_chunk = chunk_data.chunks.get_mut(&chunk_id).expect("Read buffer chunk
+        // not found");
 
         for stats in table_stats {
             debug!(%partition_key, %chunk_id, table=%stats.name, "loading table to object store");
