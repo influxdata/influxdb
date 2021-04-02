@@ -15,10 +15,10 @@ use std::sync::Arc;
 
 use bytes::Bytes;
 use futures::StreamExt;
+use observability_deps::tracing::{error, info};
 use parking_lot::Mutex;
 use snafu::{ResultExt, Snafu};
 use tokio::sync::oneshot;
-use tracing_deps::tracing::{error, info};
 use uuid::Uuid;
 
 #[derive(Debug, Snafu)]

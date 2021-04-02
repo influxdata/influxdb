@@ -29,10 +29,10 @@ use bytes::{Bytes, BytesMut};
 use futures::{self, StreamExt};
 use http::header::{CONTENT_ENCODING, CONTENT_TYPE};
 use hyper::{Body, Method, Request, Response, StatusCode};
+use observability_deps::tracing::{self, debug, error, info};
 use routerify::{prelude::*, Middleware, RequestInfo, Router, RouterError, RouterService};
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
-use tracing_deps::tracing::{self, debug, error, info};
 
 use data_types::http::WalMetadataResponse;
 use hyper::server::conn::AddrIncoming;
@@ -413,7 +413,7 @@ async fn parse_body(req: hyper::Request<Body>) -> Result<Bytes, ApplicationError
     }
 }
 
-#[tracing_deps::instrument(level = "debug")]
+#[observability_deps::instrument(level = "debug")]
 async fn write<M>(req: Request<Body>) -> Result<Response<Body>, ApplicationError>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,

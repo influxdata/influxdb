@@ -1,10 +1,10 @@
 use std::{pin::Pin, sync::Arc};
 
 use futures::Stream;
+use observability_deps::tracing::error;
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
 use tonic::{Request, Response, Streaming};
-use tracing_deps::tracing::error;
 
 use arrow_deps::{
     arrow,

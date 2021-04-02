@@ -21,9 +21,9 @@ use chrono::{DateTime, Utc};
 use crc32fast::Hasher;
 use data_types::database_rules::WalBufferConfig;
 use data_types::wal::{SegmentPersistence, SegmentSummary, WriterSummary};
+use observability_deps::tracing::{error, info, warn};
 use parking_lot::Mutex;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
-use tracing_deps::tracing::{error, info, warn};
 
 #[derive(Debug, Snafu)]
 pub enum Error {

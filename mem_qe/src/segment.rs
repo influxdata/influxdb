@@ -1,6 +1,6 @@
 use std::collections::{BTreeMap, BTreeSet};
 
-use tracing_deps::tracing::{debug, error, info};
+use observability_deps::tracing::{debug, error, info};
 
 use super::column;
 use super::column::{AggregateType, Column};

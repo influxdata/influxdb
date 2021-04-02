@@ -13,6 +13,7 @@ use arrow_deps::parquet::{
     schema::types::{ColumnPath, Type},
 };
 use internal_types::schema::{InfluxColumnType, InfluxFieldType, Schema};
+use observability_deps::tracing::{debug, log::warn};
 use parquet::file::writer::ParquetWriter;
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
@@ -21,7 +22,6 @@ use std::{
     str::FromStr,
     sync::Arc,
 };
-use tracing_deps::tracing::{debug, log::warn};
 
 use super::metadata::parquet_schema_as_string;
 use packers::{Error as TableError, IOxTableWriter, Packers};

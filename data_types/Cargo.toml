@@ -17,7 +17,7 @@ serde = { version = "1.0", features = ["rc"] }
 serde_regex = "1.1"
 snafu = "0.6"
 tonic = { version = "0.4.0" }
-tracing_deps = { path = "../tracing_deps" }
+observability_deps = { path = "../observability_deps" }
 
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }

@@ -17,9 +17,9 @@ use std::cmp::Ordering;
 use std::collections::BTreeSet;
 use std::ops::Range;
 
+use observability_deps::tracing::debug;
 use snafu::ensure;
 use snafu::Snafu;
-use tracing_deps::tracing::debug;
 
 use super::column;
 

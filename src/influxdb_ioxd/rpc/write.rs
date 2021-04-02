@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use generated_types::{google::FieldViolation, influxdata::iox::write::v1::*};
 use influxdb_line_protocol::parse_lines;
+use observability_deps::tracing::debug;
 use server::{ConnectionManager, Server};
 use std::fmt::Debug;
 use tonic::Response;
-use tracing_deps::tracing::debug;
 
 use super::error::default_server_error_handler;
 

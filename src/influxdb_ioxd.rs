@@ -8,11 +8,11 @@ use hyper::server::conn::AddrIncoming;
 use object_store::{
     self, aws::AmazonS3, azure::MicrosoftAzure, gcp::GoogleCloudStorage, ObjectStore,
 };
+use observability_deps::tracing::{self, error, info, warn, Instrument};
 use panic_logging::SendPanicsToTracing;
 use server::{ConnectionManagerImpl as ConnectionManager, Server as AppServer};
 use snafu::{ResultExt, Snafu};
 use std::{convert::TryFrom, fs, net::SocketAddr, path::PathBuf, sync::Arc};
-use tracing_deps::tracing::{self, error, info, warn, Instrument};
 
 mod http;
 mod rpc;

@@ -25,6 +25,7 @@ use nom::{
     multi::many0,
     sequence::{preceded, separated_pair, terminated, tuple},
 };
+use observability_deps::tracing::debug;
 use smallvec::SmallVec;
 use snafu::{ResultExt, Snafu};
 use std::cmp::Ordering;
@@ -35,7 +36,6 @@ use std::{
     fmt,
     ops::Deref,
 };
-use tracing_deps::tracing::debug;
 
 #[derive(Debug, Snafu)]
 pub enum Error {

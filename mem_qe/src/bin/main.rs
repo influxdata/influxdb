@@ -8,8 +8,8 @@ use std::{
 };
 
 use datatypes::TimeUnit;
+use observability_deps::tracing::debug;
 use snafu::Snafu;
-use tracing_deps::tracing::debug;
 
 use arrow_deps::arrow::record_batch::{RecordBatch, RecordBatchReader};
 use arrow_deps::arrow::{array, array::Array, datatypes, ipc};
@@ -27,7 +27,7 @@ fn format_size(sz: usize) -> String {
 }
 
 fn main() {
-    tracing_deps::env_logger::init();
+    observability_deps::env_logger::init();
     let args: Vec<String> = env::args().collect();
 
     let path = &args[1];
