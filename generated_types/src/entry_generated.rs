@@ -1086,11 +1086,13 @@ pub mod influxdata {
                         if let Some(x) = args.name {
                             builder.add_name(x);
                         }
+                        builder.add_bits_in_last_null_byte(args.bits_in_last_null_byte);
                         builder.finish()
                     }
 
                     pub const VT_NAME: flatbuffers::VOffsetT = 4;
                     pub const VT_COLUMNS: flatbuffers::VOffsetT = 6;
+                    pub const VT_BITS_IN_LAST_NULL_BYTE: flatbuffers::VOffsetT = 8;
 
                     #[inline]
                     pub fn name(&self) -> Option<&'a str> {
@@ -1107,6 +1109,12 @@ pub mod influxdata {
                         self._tab.get::<flatbuffers::ForwardsUOffset<
                             flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Column>>,
                         >>(TableWriteBatch::VT_COLUMNS, None)
+                    }
+                    #[inline]
+                    pub fn bits_in_last_null_byte(&self) -> u8 {
+                        self._tab
+                            .get::<u8>(TableWriteBatch::VT_BITS_IN_LAST_NULL_BYTE, Some(0))
+                            .unwrap()
                     }
                 }
 
@@ -1126,6 +1134,11 @@ pub mod influxdata {
                             .visit_field::<flatbuffers::ForwardsUOffset<
                                 flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<Column>>,
                             >>(&"columns", Self::VT_COLUMNS, false)?
+                            .visit_field::<u8>(
+                                &"bits_in_last_null_byte",
+                                Self::VT_BITS_IN_LAST_NULL_BYTE,
+                                false,
+                            )?
                             .finish();
                         Ok(())
                     }
@@ -1137,6 +1150,7 @@ pub mod influxdata {
                             flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Column<'a>>>,
                         >,
                     >,
+                    pub bits_in_last_null_byte: u8,
                 }
                 impl<'a> Default for TableWriteBatchArgs<'a> {
                     #[inline]
@@ -1144,6 +1158,7 @@ pub mod influxdata {
                         TableWriteBatchArgs {
                             name: None,
                             columns: None,
+                            bits_in_last_null_byte: 0,
                         }
                     }
                 }
@@ -1172,6 +1187,14 @@ pub mod influxdata {
                         );
                     }
                     #[inline]
+                    pub fn add_bits_in_last_null_byte(&mut self, bits_in_last_null_byte: u8) {
+                        self.fbb_.push_slot::<u8>(
+                            TableWriteBatch::VT_BITS_IN_LAST_NULL_BYTE,
+                            bits_in_last_null_byte,
+                            0,
+                        );
+                    }
+                    #[inline]
                     pub fn new(
                         _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
                     ) -> TableWriteBatchBuilder<'a, 'b> {
@@ -1193,6 +1216,7 @@ pub mod influxdata {
                         let mut ds = f.debug_struct("TableWriteBatch");
                         ds.field("name", &self.name());
                         ds.field("columns", &self.columns());
+                        ds.field("bits_in_last_null_byte", &self.bits_in_last_null_byte());
                         ds.finish()
                     }
                 }
@@ -1224,8 +1248,8 @@ pub mod influxdata {
                         args: &'args ColumnArgs<'args>,
                     ) -> flatbuffers::WIPOffset<Column<'bldr>> {
                         let mut builder = ColumnBuilder::new(_fbb);
-                        if let Some(x) = args.null_bitmask {
-                            builder.add_null_bitmask(x);
+                        if let Some(x) = args.null_mask {
+                            builder.add_null_mask(x);
                         }
                         if let Some(x) = args.values {
                             builder.add_values(x);
@@ -1242,7 +1266,7 @@ pub mod influxdata {
                     pub const VT_LOGICAL_COLUMN_TYPE: flatbuffers::VOffsetT = 6;
                     pub const VT_VALUES_TYPE: flatbuffers::VOffsetT = 8;
                     pub const VT_VALUES: flatbuffers::VOffsetT = 10;
-                    pub const VT_NULL_BITMASK: flatbuffers::VOffsetT = 12;
+                    pub const VT_NULL_MASK: flatbuffers::VOffsetT = 12;
 
                     #[inline]
                     pub fn name(&self) -> Option<&'a str> {
@@ -1273,10 +1297,10 @@ pub mod influxdata {
                             )
                     }
                     #[inline]
-                    pub fn null_bitmask(&self) -> Option<&'a [u8]> {
+                    pub fn null_mask(&self) -> Option<&'a [u8]> {
                         self._tab
                             .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(
-                                Column::VT_NULL_BITMASK,
+                                Column::VT_NULL_MASK,
                                 None,
                             )
                             .map(|v| v.safe_slice())
@@ -1363,7 +1387,7 @@ pub mod influxdata {
           _ => Ok(()),
         }
      })?
-     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, u8>>>(&"null_bitmask", Self::VT_NULL_BITMASK, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, u8>>>(&"null_mask", Self::VT_NULL_MASK, false)?
      .finish();
                         Ok(())
                     }
@@ -1373,7 +1397,7 @@ pub mod influxdata {
                     pub logical_column_type: LogicalColumnType,
                     pub values_type: ColumnValues,
                     pub values: Option<flatbuffers::WIPOffset<flatbuffers::UnionWIPOffset>>,
-                    pub null_bitmask: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, u8>>>,
+                    pub null_mask: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, u8>>>,
                 }
                 impl<'a> Default for ColumnArgs<'a> {
                     #[inline]
@@ -1383,7 +1407,7 @@ pub mod influxdata {
                             logical_column_type: LogicalColumnType::IOx,
                             values_type: ColumnValues::NONE,
                             values: None,
-                            null_bitmask: None,
+                            null_mask: None,
                         }
                     }
                 }
@@ -1427,13 +1451,13 @@ pub mod influxdata {
                         );
                     }
                     #[inline]
-                    pub fn add_null_bitmask(
+                    pub fn add_null_mask(
                         &mut self,
-                        null_bitmask: flatbuffers::WIPOffset<flatbuffers::Vector<'b, u8>>,
+                        null_mask: flatbuffers::WIPOffset<flatbuffers::Vector<'b, u8>>,
                     ) {
                         self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
-                            Column::VT_NULL_BITMASK,
-                            null_bitmask,
+                            Column::VT_NULL_MASK,
+                            null_mask,
                         );
                     }
                     #[inline]
@@ -1507,7 +1531,7 @@ pub mod influxdata {
                                 ds.field("values", &x)
                             }
                         };
-                        ds.field("null_bitmask", &self.null_bitmask());
+                        ds.field("null_mask", &self.null_mask());
                         ds.finish()
                     }
                 }

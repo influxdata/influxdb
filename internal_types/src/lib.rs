@@ -8,5 +8,6 @@
 
 pub mod data;
 pub mod once;
+pub mod entry;
 pub mod schema;
 pub mod selection;
