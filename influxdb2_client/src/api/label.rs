@@ -9,9 +9,19 @@ use std::collections::HashMap;
 impl Client {
     /// List all Labels
     pub async fn labels(&self) -> Result<LabelsResponse, RequestError> {
+        Ok(self.get_labels("").await?)
+    }
+
+    /// List all Labels by organization ID
+    pub async fn labels_by_org(&self, org_id: &str) -> Result<LabelsResponse, RequestError> {
+        Ok(self.get_labels(org_id).await?)
+    }
+
+    async fn get_labels(&self, org_id: &str) -> Result<LabelsResponse, RequestError> {
         let labels_url = format!("{}/api/v2/labels", self.url);
         let response = self
             .request(Method::GET, &labels_url)
+            .query(&[("orgID", org_id)])
             .send()
             .await
             .context(ReqwestProcessing)?;
@@ -137,7 +147,7 @@ mod tests {
     async fn labels() -> Result {
         let token = "some-token";
 
-        let mock_server = mock("GET", BASE_PATH)
+        let mock_server = mock("GET", format!("{}?orgID=", BASE_PATH).as_str())
             .match_header("Authorization", format!("Token {}", token).as_str())
             .create();
 
@@ -150,9 +160,27 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn labels_by_org() -> Result {
+        let token = "some-token";
+        let org_id = "some-org_id";
+
+        let mock_server = mock("GET", format!("{}?orgID={}", BASE_PATH, org_id).as_str())
+            .match_header("Authorization", format!("Token {}", token).as_str())
+            .create();
+
+        let client = Client::new(&mockito::server_url(), token);
+
+        let _result = client.labels_by_org(org_id).await;
+
+        mock_server.assert();
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn find_label() -> Result {
         let token = "some-token";
         let label_id = "some-id";
+
         let mock_server = mock("GET", format!("{}/{}", BASE_PATH, label_id).as_str())
             .match_header("Authorization", format!("Token {}", token).as_str())
             .create();

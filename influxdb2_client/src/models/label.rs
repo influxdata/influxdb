@@ -9,9 +9,9 @@ pub struct LabelCreateRequest {
     /// Organisation ID
     #[serde(rename = "orgID")]
     pub org_id: String,
-    /// Organisation name
+    /// Label name
     pub name: String,
-    /// Key/Value pairs associated with properties.
+    /// Key/Value pairs associated with this label.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub properties: Option<::std::collections::HashMap<String, String>>,
 }
@@ -72,7 +72,7 @@ pub struct LabelUpdate {
     /// Name
     #[serde(skip_serializing_if = "Option::is_none")]
     pub name: Option<String>,
-    /// Key/Value pairs associated with properties.
+    /// Key/Value pairs associated with this label.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub properties: Option<::std::collections::HashMap<String, String>>,
 }

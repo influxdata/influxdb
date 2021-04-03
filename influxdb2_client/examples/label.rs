@@ -8,6 +8,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = influxdb2_client::Client::new(influx_url, token);
 
     println!("{:?}", client.labels().await?);
+    println!("{:?}", client.labels_by_org("some-org_id").await?);
     println!("{:?}", client.find_label("some-label_id").await?);
     let mut properties = HashMap::new();
     properties.insert("some-key".to_string(), "some-value".to_string());
