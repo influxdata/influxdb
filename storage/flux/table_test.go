@@ -7,9 +7,7 @@ import (
 	"math"
 	"math/rand"
 	"os"
-	"path/filepath"
 	"sort"
-	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -24,30 +22,26 @@ import (
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/values"
-	"github.com/influxdata/influxdb/v2/inmem"
-	"github.com/influxdata/influxdb/v2/internal/shard"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/mock"
-	"github.com/influxdata/influxdb/v2/models"
-	datagen "github.com/influxdata/influxdb/v2/pkg/data/gen"
-	"github.com/influxdata/influxdb/v2/query"
-	"github.com/influxdata/influxdb/v2/storage"
-	storageflux "github.com/influxdata/influxdb/v2/storage/flux"
-	storageproto "github.com/influxdata/influxdb/v2/storage/reads/datatypes"
-	"github.com/influxdata/influxdb/v2/tsdb"
-	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
-	"github.com/influxdata/influxdb/v2/v1/services/meta"
-	storagev1 "github.com/influxdata/influxdb/v2/v1/services/storage"
+	"github.com/influxdata/influxdb/flux/stdlib/influxdata/influxdb"
+	"github.com/influxdata/influxdb/internal/shard"
+	"github.com/influxdata/influxdb/models"
+	datagen "github.com/influxdata/influxdb/pkg/data/gen"
+	"github.com/influxdata/influxdb/services/meta"
+	"github.com/influxdata/influxdb/services/storage"
+	storageflux "github.com/influxdata/influxdb/storage/flux"
+	storageproto "github.com/influxdata/influxdb/storage/reads/datatypes"
+	"github.com/influxdata/influxdb/tsdb"
+	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 )
 
-type SetupFunc func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange)
+type SetupFunc func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange)
 
 type StorageReader struct {
-	Org    platform.ID
-	Bucket platform.ID
-	Bounds execute.Bounds
-	Close  func()
-	query.StorageReader
+	Database        string
+	RetentionPolicy string
+	Bounds          execute.Bounds
+	Close           func()
+	influxdb.Reader
 }
 
 func NewStorageReader(tb testing.TB, setupFn SetupFunc) *StorageReader {
@@ -66,57 +60,34 @@ func NewStorageReader(tb testing.TB, setupFn SetupFunc) *StorageReader {
 		_ = os.RemoveAll(rootDir)
 	}
 
-	// Create an underlying kv store. We use the inmem version to speed
-	// up test runs.
-	kvStore := inmem.NewKVStore()
-
-	// Manually create the meta bucket.
-	// This seems to be the only bucket used for the read path.
-	// If, in the future, there are any "bucket not found" errors due to
-	// a change in the storage code, then this section of code will need
-	// to be changed to correctly configure the kv store.
-	// We do this abbreviated setup instead of a full migration because
-	// the full migration is both unnecessary and long.
-	if err := kvStore.CreateBucket(context.Background(), meta.BucketName); err != nil {
-		close()
-		tb.Fatalf("failed to create meta bucket: %s", err)
-	}
-
-	// Use this kv store for the meta client. The storage reader
-	// uses the meta client for shard information.
-	metaClient := meta.NewClient(meta.NewConfig(), kvStore)
+	// Create a meta client for the storage reader to use.
+	metaConfig := meta.NewConfig()
+	metaConfig.Dir = rootDir
+	metaClient := meta.NewClient(metaConfig)
 	if err := metaClient.Open(); err != nil {
 		close()
 		tb.Fatalf("failed to open meta client: %s", err)
 	}
 	closers = append(closers, metaClient)
 
-	// Create the organization and the bucket.
-	idgen := mock.NewMockIDGenerator()
-	org, bucket := idgen.ID(), idgen.ID()
+	// Create the database.
+	dbName := "db"
+	rpName := "rp"
 
 	// Run the setup function to create the series generator.
-	sg, tr := setupFn(org, bucket)
-
-	// Construct a database with a retention policy.
-	// This would normally be done by the storage bucket service, but the storage
-	// bucket service requires us to already have a storage engine and a fully migrated
-	// kv store. Since we don't have either of those, we add the metadata necessary
-	// for the storage reader to function.
-	// We construct the database with a retention policy that is a year long
-	// so that we do not have to generate more than one shard which can get complicated.
+	sg, tr := setupFn(dbName, rpName)
 	rp := &meta.RetentionPolicySpec{
-		Name:               meta.DefaultRetentionPolicyName,
+		Name:               rpName,
 		ShardGroupDuration: 24 * 7 * time.Hour * 52,
 	}
-	if _, err := metaClient.CreateDatabaseWithRetentionPolicy(bucket.String(), rp); err != nil {
+	if _, err := metaClient.CreateDatabaseWithRetentionPolicy(dbName, rp); err != nil {
 		close()
 		tb.Fatalf("failed to create database: %s", err)
 	}
 
 	// Create the shard group for the data. There should only be one and
 	// it should include the entire time range.
-	sgi, err := metaClient.CreateShardGroup(bucket.String(), rp.Name, tr.Start)
+	sgi, err := metaClient.CreateShardGroup(dbName, rp.Name, tr.Start)
 	if err != nil {
 		close()
 		tb.Fatalf("failed to create shard group: %s", err)
@@ -125,30 +96,32 @@ func NewStorageReader(tb testing.TB, setupFn SetupFunc) *StorageReader {
 		tb.Fatal("shard data range exceeded the shard group range; please use a range for data that is within the same year")
 	}
 
-	// Open the series file and prepare the directory for the shard writer.
-	enginePath := filepath.Join(rootDir, "engine")
-	dbPath := filepath.Join(enginePath, "data", bucket.String())
-	if err := os.MkdirAll(dbPath, 0700); err != nil {
+	// Create a TSDB for the reader to access.
+	tsdbStore := tsdb.NewStore(rootDir)
+	if err := tsdbStore.Open(); err != nil {
 		close()
-		tb.Fatalf("failed to create data directory: %s", err)
+		tb.Fatalf("failed to open TSDB store: %s", err)
 	}
+	closers = append(closers, tsdbStore)
 
-	sfile := tsdb.NewSeriesFile(filepath.Join(dbPath, tsdb.SeriesFileDirectory))
-	if err := sfile.Open(); err != nil {
+	// Write data into the shard.
+	if err := tsdbStore.CreateShard(dbName, rpName, sgi.Shards[0].ID, true); err != nil {
 		close()
-		tb.Fatalf("failed to open series file: %s", err)
+		tb.Fatalf("failed to create shard: %s", err)
 	}
-	// Ensure the series file is closed in case of failure.
-	defer sfile.Close()
-	// Disable compactions to speed up the shard writer.
+	shard := tsdbStore.Shard(sgi.Shards[0].ID)
+	sfile, err := shard.SeriesFile()
+	if err != nil {
+		close()
+		tb.Fatalf("failed to get series file: %s", err)
+	}
 	sfile.DisableCompactions()
-
-	// Write the shard data.
-	shardPath := filepath.Join(dbPath, rp.Name)
-	if err := os.MkdirAll(filepath.Join(shardPath, strconv.FormatUint(sgi.Shards[0].ID, 10)), 0700); err != nil {
+	shardPath := shard.Path()
+	if err := os.MkdirAll(shardPath,0700); err != nil {
 		close()
 		tb.Fatalf("failed to create shard directory: %s", err)
 	}
+
 	if err := writeShard(sfile, sg, sgi.Shards[0].ID, shardPath); err != nil {
 		close()
 		tb.Fatalf("failed to write shard: %s", err)
@@ -163,45 +136,37 @@ func NewStorageReader(tb testing.TB, setupFn SetupFunc) *StorageReader {
 		}
 	}
 
-	// Close the series file as it will be opened by the storage engine.
-	if err := sfile.Close(); err != nil {
+	// Reset the TSDB store.
+	if err := tsdbStore.Close(); err != nil {
 		close()
-		tb.Fatalf("failed to close series file: %s", err)
+		tb.Fatalf("failed to close TSDB store: %s", err)
+	}
+	if err := tsdbStore.Open(); err != nil {
+		close()
+		tb.Fatalf("failed to reopen TSDB store: %s", err)
 	}
 
-	// Now load the engine.
-	engine := storage.NewEngine(
-		enginePath,
-		storage.NewConfig(),
-		storage.WithMetaClient(metaClient),
-	)
-	if err := engine.Open(context.Background()); err != nil {
-		close()
-		tb.Fatalf("failed to open storage engine: %s", err)
-	}
-	closers = append(closers, engine)
-
-	store := storagev1.NewStore(engine.TSDBStore(), engine.MetaClient())
+	store := storage.NewStore(tsdbStore, metaClient)
 	reader := storageflux.NewReader(store)
 	return &StorageReader{
-		Org:    org,
-		Bucket: bucket,
+		Database:        dbName,
+		RetentionPolicy: rpName,
 		Bounds: execute.Bounds{
 			Start: values.ConvertTime(tr.Start),
 			Stop:  values.ConvertTime(tr.End),
 		},
-		Close:         close,
-		StorageReader: reader,
+		Close:  close,
+		Reader: reader,
 	}
 }
 
-func (r *StorageReader) ReadWindowAggregate(ctx context.Context, spec query.ReadWindowAggregateSpec, alloc *memory.Allocator) (query.TableIterator, error) {
-	return r.StorageReader.ReadWindowAggregate(ctx, spec, alloc)
+func (r *StorageReader) ReadWindowAggregate(ctx context.Context, spec influxdb.ReadWindowAggregateSpec, alloc *memory.Allocator) (influxdb.TableIterator, error) {
+	return r.Reader.ReadWindowAggregate(ctx, spec, alloc)
 }
 
 func TestStorageReader_ReadFilter(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
-		spec := Spec(org, bucket,
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
+		spec := Spec(db, rp,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 10*time.Second, []float64{1.0, 2.0, 3.0}),
 				TagValuesSequence("t0", "a-%s", 0, 3),
@@ -218,10 +183,10 @@ func TestStorageReader_ReadFilter(t *testing.T) {
 	alloc := &memory.Allocator{
 		Allocator: mem,
 	}
-	ti, err := reader.ReadFilter(context.Background(), query.ReadFilterSpec{
-		OrganizationID: reader.Org,
-		BucketID:       reader.Bucket,
-		Bounds:         reader.Bounds,
+	ti, err := reader.ReadFilter(context.Background(), influxdb.ReadFilterSpec{
+		Database:        reader.Database,
+		RetentionPolicy: reader.RetentionPolicy,
+		Bounds:          reader.Bounds,
 	}, alloc)
 	if err != nil {
 		t.Fatal(err)
@@ -277,8 +242,8 @@ func TestStorageReader_ReadFilter(t *testing.T) {
 }
 
 func TestStorageReader_Table(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
-		spec := Spec(org, bucket,
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
+		spec := Spec(db, rp,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 10*time.Second, []float64{1.0, 2.0, 3.0}),
 				TagValuesSequence("t0", "a-%s", 0, 3),
@@ -296,10 +261,10 @@ func TestStorageReader_Table(t *testing.T) {
 		{
 			name: "ReadFilter",
 			newFn: func(ctx context.Context, alloc *memory.Allocator) flux.TableIterator {
-				ti, err := reader.ReadFilter(context.Background(), query.ReadFilterSpec{
-					OrganizationID: reader.Org,
-					BucketID:       reader.Bucket,
-					Bounds:         reader.Bounds,
+				ti, err := reader.ReadFilter(context.Background(), influxdb.ReadFilterSpec{
+					Database:        reader.Database,
+					RetentionPolicy: reader.RetentionPolicy,
+					Bounds:          reader.Bounds,
 				}, alloc)
 				if err != nil {
 					t.Fatal(err)
@@ -322,8 +287,8 @@ func TestStorageReader_Table(t *testing.T) {
 }
 
 func TestStorageReader_ReadWindowAggregate(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
-		spec := Spec(org, bucket,
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
+		spec := Spec(db, rp,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 10*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
 				TagValuesSequence("t0", "a-%s", 0, 3),
@@ -450,11 +415,11 @@ func TestStorageReader_ReadWindowAggregate(t *testing.T) {
 			alloc := &memory.Allocator{
 				Allocator: mem,
 			}
-			got, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
-				ReadFilterSpec: query.ReadFilterSpec{
-					OrganizationID: reader.Org,
-					BucketID:       reader.Bucket,
-					Bounds:         reader.Bounds,
+			got, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
+				ReadFilterSpec: influxdb.ReadFilterSpec{
+					Database:        reader.Database,
+					RetentionPolicy: reader.RetentionPolicy,
+					Bounds:          reader.Bounds,
 				},
 				Window: execute.Window{
 					Every:  flux.ConvertDuration(30 * time.Second),
@@ -476,8 +441,8 @@ func TestStorageReader_ReadWindowAggregate(t *testing.T) {
 }
 
 func TestStorageReader_ReadWindowAggregate_ByStopTime(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
-		spec := Spec(org, bucket,
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
+		spec := Spec(db, rp,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 10*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
 				TagValuesSequence("t0", "a-%s", 0, 3),
@@ -548,11 +513,11 @@ func TestStorageReader_ReadWindowAggregate_ByStopTime(t *testing.T) {
 		},
 	} {
 		mem := &memory.Allocator{}
-		got, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
-			ReadFilterSpec: query.ReadFilterSpec{
-				OrganizationID: reader.Org,
-				BucketID:       reader.Bucket,
-				Bounds:         reader.Bounds,
+		got, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
+			ReadFilterSpec: influxdb.ReadFilterSpec{
+				Database:        reader.Database,
+				RetentionPolicy: reader.RetentionPolicy,
+				Bounds:          reader.Bounds,
 			},
 			TimeColumn: execute.DefaultStopColLabel,
 			Window: execute.Window{
@@ -574,8 +539,8 @@ func TestStorageReader_ReadWindowAggregate_ByStopTime(t *testing.T) {
 }
 
 func TestStorageReader_ReadWindowAggregate_ByStartTime(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
-		spec := Spec(org, bucket,
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
+		spec := Spec(db, rp,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 10*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
 				TagValuesSequence("t0", "a-%s", 0, 3),
@@ -647,11 +612,11 @@ func TestStorageReader_ReadWindowAggregate_ByStartTime(t *testing.T) {
 	} {
 		t.Run(string(tt.aggregate), func(t *testing.T) {
 			mem := &memory.Allocator{}
-			got, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
-				ReadFilterSpec: query.ReadFilterSpec{
-					OrganizationID: reader.Org,
-					BucketID:       reader.Bucket,
-					Bounds:         reader.Bounds,
+			got, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
+				ReadFilterSpec: influxdb.ReadFilterSpec{
+					Database:        reader.Database,
+					RetentionPolicy: reader.RetentionPolicy,
+					Bounds:          reader.Bounds,
 				},
 				TimeColumn: execute.DefaultStartColLabel,
 				Window: execute.Window{
@@ -674,8 +639,8 @@ func TestStorageReader_ReadWindowAggregate_ByStartTime(t *testing.T) {
 }
 
 func TestStorageReader_ReadWindowAggregate_CreateEmpty(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
-		spec := Spec(org, bucket,
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
+		spec := Spec(db, rp,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 15*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
 				TagValuesSequence("t0", "a-%s", 0, 3),
@@ -831,11 +796,11 @@ func TestStorageReader_ReadWindowAggregate_CreateEmpty(t *testing.T) {
 	} {
 		t.Run(string(tt.aggregate), func(t *testing.T) {
 			mem := &memory.Allocator{}
-			got, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
-				ReadFilterSpec: query.ReadFilterSpec{
-					OrganizationID: reader.Org,
-					BucketID:       reader.Bucket,
-					Bounds:         reader.Bounds,
+			got, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
+				ReadFilterSpec: influxdb.ReadFilterSpec{
+					Database:        reader.Database,
+					RetentionPolicy: reader.RetentionPolicy,
+					Bounds:          reader.Bounds,
 				},
 				Window: execute.Window{
 					Every:  flux.ConvertDuration(10 * time.Second),
@@ -858,8 +823,8 @@ func TestStorageReader_ReadWindowAggregate_CreateEmpty(t *testing.T) {
 }
 
 func TestStorageReader_ReadWindowAggregate_CreateEmptyByStopTime(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
-		spec := Spec(org, bucket,
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
+		spec := Spec(db, rp,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 15*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
 				TagValuesSequence("t0", "a-%s", 0, 3),
@@ -931,11 +896,11 @@ func TestStorageReader_ReadWindowAggregate_CreateEmptyByStopTime(t *testing.T) {
 	} {
 		t.Run(string(tt.aggregate), func(t *testing.T) {
 			mem := &memory.Allocator{}
-			got, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
-				ReadFilterSpec: query.ReadFilterSpec{
-					OrganizationID: reader.Org,
-					BucketID:       reader.Bucket,
-					Bounds:         reader.Bounds,
+			got, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
+				ReadFilterSpec: influxdb.ReadFilterSpec{
+					Database:        reader.Database,
+					RetentionPolicy: reader.RetentionPolicy,
+					Bounds:          reader.Bounds,
 				},
 				TimeColumn: execute.DefaultStopColLabel,
 				Window: execute.Window{
@@ -959,8 +924,8 @@ func TestStorageReader_ReadWindowAggregate_CreateEmptyByStopTime(t *testing.T) {
 }
 
 func TestStorageReader_ReadWindowAggregate_CreateEmptyByStartTime(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
-		spec := Spec(org, bucket,
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
+		spec := Spec(db, rp,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 15*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
 				TagValuesSequence("t0", "a-%s", 0, 3),
@@ -1032,11 +997,11 @@ func TestStorageReader_ReadWindowAggregate_CreateEmptyByStartTime(t *testing.T) 
 	} {
 		t.Run(string(tt.aggregate), func(t *testing.T) {
 			mem := &memory.Allocator{}
-			got, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
-				ReadFilterSpec: query.ReadFilterSpec{
-					OrganizationID: reader.Org,
-					BucketID:       reader.Bucket,
-					Bounds:         reader.Bounds,
+			got, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
+				ReadFilterSpec: influxdb.ReadFilterSpec{
+					Database:        reader.Database,
+					RetentionPolicy: reader.RetentionPolicy,
+					Bounds:          reader.Bounds,
 				},
 				TimeColumn: execute.DefaultStartColLabel,
 				Window: execute.Window{
@@ -1060,8 +1025,8 @@ func TestStorageReader_ReadWindowAggregate_CreateEmptyByStartTime(t *testing.T) 
 }
 
 func TestStorageReader_ReadWindowAggregate_TruncatedBounds(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
-		spec := Spec(org, bucket,
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
+		spec := Spec(db, rp,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 5*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
 				TagValuesSequence("t0", "a-%s", 0, 3),
@@ -1166,10 +1131,10 @@ func TestStorageReader_ReadWindowAggregate_TruncatedBounds(t *testing.T) {
 	} {
 		t.Run(string(tt.aggregate), func(t *testing.T) {
 			mem := &memory.Allocator{}
-			got, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
-				ReadFilterSpec: query.ReadFilterSpec{
-					OrganizationID: reader.Org,
-					BucketID:       reader.Bucket,
+			got, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
+				ReadFilterSpec: influxdb.ReadFilterSpec{
+					Database:        reader.Database,
+					RetentionPolicy: reader.RetentionPolicy,
 					Bounds: execute.Bounds{
 						Start: values.ConvertTime(mustParseTime("2019-11-25T00:00:05Z")),
 						Stop:  values.ConvertTime(mustParseTime("2019-11-25T00:00:25Z")),
@@ -1195,8 +1160,8 @@ func TestStorageReader_ReadWindowAggregate_TruncatedBounds(t *testing.T) {
 }
 
 func TestStorageReader_ReadWindowAggregate_TruncatedBoundsCreateEmpty(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
-		spec := Spec(org, bucket,
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
+		spec := Spec(db, rp,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 15*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
 				TagValuesSequence("t0", "a-%s", 0, 3),
@@ -1301,10 +1266,10 @@ func TestStorageReader_ReadWindowAggregate_TruncatedBoundsCreateEmpty(t *testing
 	} {
 		t.Run(string(tt.aggregate), func(t *testing.T) {
 			mem := &memory.Allocator{}
-			got, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
-				ReadFilterSpec: query.ReadFilterSpec{
-					OrganizationID: reader.Org,
-					BucketID:       reader.Bucket,
+			got, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
+				ReadFilterSpec: influxdb.ReadFilterSpec{
+					Database:        reader.Database,
+					RetentionPolicy: reader.RetentionPolicy,
 					Bounds: execute.Bounds{
 						Start: values.ConvertTime(mustParseTime("2019-11-25T00:00:05Z")),
 						Stop:  values.ConvertTime(mustParseTime("2019-11-25T00:00:25Z")),
@@ -1331,7 +1296,7 @@ func TestStorageReader_ReadWindowAggregate_TruncatedBoundsCreateEmpty(t *testing
 }
 
 func TestStorageReader_ReadWindowAggregate_Mean(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -1375,11 +1340,11 @@ func TestStorageReader_ReadWindowAggregate_Mean(t *testing.T) {
 
 	t.Run("unwindowed mean", func(t *testing.T) {
 		mem := &memory.Allocator{}
-		ti, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
-			ReadFilterSpec: query.ReadFilterSpec{
-				OrganizationID: reader.Org,
-				BucketID:       reader.Bucket,
-				Bounds:         reader.Bounds,
+		ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
+			ReadFilterSpec: influxdb.ReadFilterSpec{
+				Database:        reader.Database,
+				RetentionPolicy: reader.RetentionPolicy,
+				Bounds:          reader.Bounds,
 			},
 			Window: execute.Window{
 				Every:  flux.ConvertDuration(math.MaxInt64 * time.Nanosecond),
@@ -1408,11 +1373,11 @@ func TestStorageReader_ReadWindowAggregate_Mean(t *testing.T) {
 
 	t.Run("windowed mean", func(t *testing.T) {
 		mem := &memory.Allocator{}
-		ti, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
-			ReadFilterSpec: query.ReadFilterSpec{
-				OrganizationID: reader.Org,
-				BucketID:       reader.Bucket,
-				Bounds:         reader.Bounds,
+		ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
+			ReadFilterSpec: influxdb.ReadFilterSpec{
+				Database:        reader.Database,
+				RetentionPolicy: reader.RetentionPolicy,
+				Bounds:          reader.Bounds,
 			},
 			Window: execute.Window{
 				Every:  flux.ConvertDuration(10 * time.Second),
@@ -1468,11 +1433,11 @@ func TestStorageReader_ReadWindowAggregate_Mean(t *testing.T) {
 
 	t.Run("windowed mean with offset", func(t *testing.T) {
 		mem := &memory.Allocator{}
-		ti, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
-			ReadFilterSpec: query.ReadFilterSpec{
-				OrganizationID: reader.Org,
-				BucketID:       reader.Bucket,
-				Bounds:         reader.Bounds,
+		ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
+			ReadFilterSpec: influxdb.ReadFilterSpec{
+				Database:        reader.Database,
+				RetentionPolicy: reader.RetentionPolicy,
+				Bounds:          reader.Bounds,
 			},
 			Window: execute.Window{
 				Every:  flux.ConvertDuration(10 * time.Second),
@@ -1534,7 +1499,7 @@ func TestStorageReader_ReadWindowAggregate_Mean(t *testing.T) {
 }
 
 func TestStorageReader_ReadWindowFirst(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -1577,11 +1542,11 @@ func TestStorageReader_ReadWindowFirst(t *testing.T) {
 	defer reader.Close()
 
 	mem := &memory.Allocator{}
-	ti, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
-		ReadFilterSpec: query.ReadFilterSpec{
-			OrganizationID: reader.Org,
-			BucketID:       reader.Bucket,
-			Bounds:         reader.Bounds,
+	ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
+		ReadFilterSpec: influxdb.ReadFilterSpec{
+			Database:        reader.Database,
+			RetentionPolicy: reader.RetentionPolicy,
+			Bounds:          reader.Bounds,
 		},
 		Window: execute.Window{
 			Every:  flux.ConvertDuration(10 * time.Second),
@@ -1645,7 +1610,7 @@ func TestStorageReader_ReadWindowFirst(t *testing.T) {
 }
 
 func TestStorageReader_WindowFirstOffset(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -1688,11 +1653,11 @@ func TestStorageReader_WindowFirstOffset(t *testing.T) {
 	defer reader.Close()
 
 	mem := &memory.Allocator{}
-	ti, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
-		ReadFilterSpec: query.ReadFilterSpec{
-			OrganizationID: reader.Org,
-			BucketID:       reader.Bucket,
-			Bounds:         reader.Bounds,
+	ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
+		ReadFilterSpec: influxdb.ReadFilterSpec{
+			Database:        reader.Database,
+			RetentionPolicy: reader.RetentionPolicy,
+			Bounds:          reader.Bounds,
 		},
 		Window: execute.Window{
 			Every:  flux.ConvertDuration(10 * time.Second),
@@ -1758,7 +1723,7 @@ func TestStorageReader_WindowFirstOffset(t *testing.T) {
 }
 
 func TestStorageReader_WindowSumOffset(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -1801,11 +1766,11 @@ func TestStorageReader_WindowSumOffset(t *testing.T) {
 	defer reader.Close()
 
 	mem := &memory.Allocator{}
-	ti, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
-		ReadFilterSpec: query.ReadFilterSpec{
-			OrganizationID: reader.Org,
-			BucketID:       reader.Bucket,
-			Bounds:         reader.Bounds,
+	ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
+		ReadFilterSpec: influxdb.ReadFilterSpec{
+			Database:        reader.Database,
+			RetentionPolicy: reader.RetentionPolicy,
+			Bounds:          reader.Bounds,
 		},
 		Window: execute.Window{
 			Every:  flux.ConvertDuration(10 * time.Second),
@@ -1870,7 +1835,7 @@ func TestStorageReader_WindowSumOffset(t *testing.T) {
 }
 
 func TestStorageReader_ReadWindowFirstCreateEmpty(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -1913,11 +1878,11 @@ func TestStorageReader_ReadWindowFirstCreateEmpty(t *testing.T) {
 	defer reader.Close()
 
 	mem := &memory.Allocator{}
-	ti, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
-		ReadFilterSpec: query.ReadFilterSpec{
-			OrganizationID: reader.Org,
-			BucketID:       reader.Bucket,
-			Bounds:         reader.Bounds,
+	ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
+		ReadFilterSpec: influxdb.ReadFilterSpec{
+			Database:        reader.Database,
+			RetentionPolicy: reader.RetentionPolicy,
+			Bounds:          reader.Bounds,
 		},
 		Window: execute.Window{
 			Every:  flux.ConvertDuration(10 * time.Second),
@@ -2010,7 +1975,7 @@ func TestStorageReader_ReadWindowFirstCreateEmpty(t *testing.T) {
 }
 
 func TestStorageReader_WindowFirstOffsetCreateEmpty(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -2053,11 +2018,11 @@ func TestStorageReader_WindowFirstOffsetCreateEmpty(t *testing.T) {
 	defer reader.Close()
 
 	mem := &memory.Allocator{}
-	ti, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
-		ReadFilterSpec: query.ReadFilterSpec{
-			OrganizationID: reader.Org,
-			BucketID:       reader.Bucket,
-			Bounds:         reader.Bounds,
+	ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
+		ReadFilterSpec: influxdb.ReadFilterSpec{
+			Database:        reader.Database,
+			RetentionPolicy: reader.RetentionPolicy,
+			Bounds:          reader.Bounds,
 		},
 		Window: execute.Window{
 			Every:  flux.ConvertDuration(10 * time.Second),
@@ -2154,7 +2119,7 @@ func TestStorageReader_WindowFirstOffsetCreateEmpty(t *testing.T) {
 }
 
 func TestStorageReader_WindowSumOffsetCreateEmpty(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -2197,11 +2162,11 @@ func TestStorageReader_WindowSumOffsetCreateEmpty(t *testing.T) {
 	defer reader.Close()
 
 	mem := &memory.Allocator{}
-	ti, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
-		ReadFilterSpec: query.ReadFilterSpec{
-			OrganizationID: reader.Org,
-			BucketID:       reader.Bucket,
-			Bounds:         reader.Bounds,
+	ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
+		ReadFilterSpec: influxdb.ReadFilterSpec{
+			Database:        reader.Database,
+			RetentionPolicy: reader.RetentionPolicy,
+			Bounds:          reader.Bounds,
 		},
 		Window: execute.Window{
 			Every:  flux.ConvertDuration(10 * time.Second),
@@ -2298,7 +2263,7 @@ func TestStorageReader_WindowSumOffsetCreateEmpty(t *testing.T) {
 }
 
 func TestStorageReader_ReadWindowFirstTimeColumn(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -2341,11 +2306,11 @@ func TestStorageReader_ReadWindowFirstTimeColumn(t *testing.T) {
 	defer reader.Close()
 
 	mem := &memory.Allocator{}
-	ti, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
-		ReadFilterSpec: query.ReadFilterSpec{
-			OrganizationID: reader.Org,
-			BucketID:       reader.Bucket,
-			Bounds:         reader.Bounds,
+	ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
+		ReadFilterSpec: influxdb.ReadFilterSpec{
+			Database:        reader.Database,
+			RetentionPolicy: reader.RetentionPolicy,
+			Bounds:          reader.Bounds,
 		},
 		Window: execute.Window{
 			Every:  flux.ConvertDuration(10 * time.Second),
@@ -2403,7 +2368,7 @@ func TestStorageReader_ReadWindowFirstTimeColumn(t *testing.T) {
 }
 
 func TestStorageReader_WindowFirstOffsetTimeColumn(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -2446,11 +2411,11 @@ func TestStorageReader_WindowFirstOffsetTimeColumn(t *testing.T) {
 	defer reader.Close()
 
 	mem := &memory.Allocator{}
-	ti, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
-		ReadFilterSpec: query.ReadFilterSpec{
-			OrganizationID: reader.Org,
-			BucketID:       reader.Bucket,
-			Bounds:         reader.Bounds,
+	ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
+		ReadFilterSpec: influxdb.ReadFilterSpec{
+			Database:        reader.Database,
+			RetentionPolicy: reader.RetentionPolicy,
+			Bounds:          reader.Bounds,
 		},
 		Window: execute.Window{
 			Every:  flux.ConvertDuration(10 * time.Second),
@@ -2509,7 +2474,7 @@ func TestStorageReader_WindowFirstOffsetTimeColumn(t *testing.T) {
 }
 
 func TestStorageReader_WindowSumOffsetTimeColumn(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -2552,11 +2517,11 @@ func TestStorageReader_WindowSumOffsetTimeColumn(t *testing.T) {
 	defer reader.Close()
 
 	mem := &memory.Allocator{}
-	ti, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
-		ReadFilterSpec: query.ReadFilterSpec{
-			OrganizationID: reader.Org,
-			BucketID:       reader.Bucket,
-			Bounds:         reader.Bounds,
+	ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
+		ReadFilterSpec: influxdb.ReadFilterSpec{
+			Database:        reader.Database,
+			RetentionPolicy: reader.RetentionPolicy,
+			Bounds:          reader.Bounds,
 		},
 		Window: execute.Window{
 			Every:  flux.ConvertDuration(10 * time.Second),
@@ -2619,7 +2584,7 @@ func TestStorageReader_WindowSumOffsetTimeColumn(t *testing.T) {
 }
 
 func TestStorageReader_EmptyTableNoEmptyWindows(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -2662,11 +2627,11 @@ func TestStorageReader_EmptyTableNoEmptyWindows(t *testing.T) {
 	defer reader.Close()
 
 	mem := &memory.Allocator{}
-	ti, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
-		ReadFilterSpec: query.ReadFilterSpec{
-			OrganizationID: reader.Org,
-			BucketID:       reader.Bucket,
-			Bounds:         reader.Bounds,
+	ti, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
+		ReadFilterSpec: influxdb.ReadFilterSpec{
+			Database:        reader.Database,
+			RetentionPolicy: reader.RetentionPolicy,
+			Bounds:          reader.Bounds,
 		},
 		Window: execute.Window{
 			Every:  flux.ConvertDuration(10 * time.Second),
@@ -2756,8 +2721,8 @@ func getStorageEqPred(lhsTagKey, rhsTagValue string) *storageproto.Predicate {
 }
 
 func TestStorageReader_ReadGroup(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
-		spec := Spec(org, bucket,
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
+		spec := Spec(db, rp,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 10*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
 				TagValuesSequence("t0", "a-%s", 0, 3),
@@ -2861,14 +2826,14 @@ func TestStorageReader_ReadGroup(t *testing.T) {
 			alloc := &memory.Allocator{
 				Allocator: mem,
 			}
-			got, err := reader.ReadGroup(context.Background(), query.ReadGroupSpec{
-				ReadFilterSpec: query.ReadFilterSpec{
-					OrganizationID: reader.Org,
-					BucketID:       reader.Bucket,
-					Bounds:         reader.Bounds,
-					Predicate:      tt.filter,
+			got, err := reader.ReadGroup(context.Background(), influxdb.ReadGroupSpec{
+				ReadFilterSpec: influxdb.ReadFilterSpec{
+					Database:        reader.Database,
+					RetentionPolicy: reader.RetentionPolicy,
+					Bounds:          reader.Bounds,
+					Predicate:       tt.filter,
 				},
-				GroupMode:       query.GroupModeBy,
+				GroupMode:       influxdb.GroupModeBy,
 				GroupKeys:       []string{"_measurement", "_field", "t0"},
 				AggregateMethod: tt.aggregate,
 			}, alloc)
@@ -2888,8 +2853,8 @@ func TestStorageReader_ReadGroup(t *testing.T) {
 // operation must track and return the correct set of tags.
 func TestStorageReader_ReadGroupSelectTags(t *testing.T) {
 	t.Skip("fixme")
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
-		spec := Spec(org, bucket,
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
+		spec := Spec(db, rp,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 10*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
 				TagValuesSequence("t0", "a-%s", 0, 3),
@@ -2952,13 +2917,13 @@ func TestStorageReader_ReadGroupSelectTags(t *testing.T) {
 
 	for _, tt := range cases {
 		mem := &memory.Allocator{}
-		got, err := reader.ReadGroup(context.Background(), query.ReadGroupSpec{
-			ReadFilterSpec: query.ReadFilterSpec{
-				OrganizationID: reader.Org,
-				BucketID:       reader.Bucket,
-				Bounds:         reader.Bounds,
+		got, err := reader.ReadGroup(context.Background(), influxdb.ReadGroupSpec{
+			ReadFilterSpec: influxdb.ReadFilterSpec{
+				Database:        reader.Database,
+				RetentionPolicy: reader.RetentionPolicy,
+				Bounds:          reader.Bounds,
 			},
-			GroupMode:       query.GroupModeBy,
+			GroupMode:       influxdb.GroupModeBy,
 			GroupKeys:       []string{"t0"},
 			AggregateMethod: tt.aggregate,
 		}, mem)
@@ -2973,8 +2938,8 @@ func TestStorageReader_ReadGroupSelectTags(t *testing.T) {
 }
 
 func TestStorageReader_ReadWindowAggregateMonths(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
-		spec := Spec(org, bucket,
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
+		spec := Spec(db, rp,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 24*time.Hour, []float64{1.0, 2.0, 3.0, 4.0}),
 				TagValuesSequence("t0", "a-%s", 0, 3),
@@ -3081,34 +3046,36 @@ func TestStorageReader_ReadWindowAggregateMonths(t *testing.T) {
 			},
 		},
 	} {
-		mem := arrowmem.NewCheckedAllocator(arrowmem.DefaultAllocator)
-		defer mem.AssertSize(t, 0)
+		t.Run(string(tt.aggregate), func(t *testing.T) {
+			mem := arrowmem.NewCheckedAllocator(arrowmem.DefaultAllocator)
+			defer mem.AssertSize(t, 0)
 
-		alloc := &memory.Allocator{
-			Allocator: mem,
-		}
-		got, err := reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
-			ReadFilterSpec: query.ReadFilterSpec{
-				OrganizationID: reader.Org,
-				BucketID:       reader.Bucket,
-				Bounds:         reader.Bounds,
-			},
-			Window: execute.Window{
-				Every:  values.MakeDuration(0, 1, false),
-				Period: values.MakeDuration(0, 1, false),
-			},
-			Aggregates: []plan.ProcedureKind{
-				tt.aggregate,
-			},
-		}, alloc)
+			alloc := &memory.Allocator{
+				Allocator: mem,
+			}
+			got, err := reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
+				ReadFilterSpec: influxdb.ReadFilterSpec{
+					Database:        reader.Database,
+					RetentionPolicy: reader.RetentionPolicy,
+					Bounds:          reader.Bounds,
+				},
+				Window: execute.Window{
+					Every:  values.MakeDuration(0, 1, false),
+					Period: values.MakeDuration(0, 1, false),
+				},
+				Aggregates: []plan.ProcedureKind{
+					tt.aggregate,
+				},
+			}, alloc)
 
-		if err != nil {
-			t.Fatal(err)
-		}
+			if err != nil {
+				t.Fatal(err)
+			}
 
-		if diff := table.Diff(tt.want, got); diff != "" {
-			t.Errorf("unexpected results for %v aggregate -want/+got:\n%s", tt.aggregate, diff)
-		}
+			if diff := table.Diff(tt.want, got); diff != "" {
+				t.Errorf("unexpected results for %v aggregate -want/+got:\n%s", tt.aggregate, diff)
+			}
+		})
 	}
 }
 
@@ -3118,8 +3085,8 @@ func TestStorageReader_ReadWindowAggregateMonths(t *testing.T) {
 // until it is read by the other goroutine.
 func TestStorageReader_Backoff(t *testing.T) {
 	t.Skip("memory allocations are not tracked properly")
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
-		spec := Spec(org, bucket,
+	reader := NewStorageReader(t, func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
+		spec := Spec(db, rp,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 10*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
 				TagValuesSequence("t0", "a-%s", 0, 3),
@@ -3137,23 +3104,23 @@ func TestStorageReader_Backoff(t *testing.T) {
 		{
 			name: "ReadFilter",
 			read: func(reader *StorageReader, mem *memory.Allocator) (flux.TableIterator, error) {
-				return reader.ReadFilter(context.Background(), query.ReadFilterSpec{
-					OrganizationID: reader.Org,
-					BucketID:       reader.Bucket,
-					Bounds:         reader.Bounds,
+				return reader.ReadFilter(context.Background(), influxdb.ReadFilterSpec{
+					Database:        reader.Database,
+					RetentionPolicy: reader.RetentionPolicy,
+					Bounds:          reader.Bounds,
 				}, mem)
 			},
 		},
 		{
 			name: "ReadGroup",
 			read: func(reader *StorageReader, mem *memory.Allocator) (flux.TableIterator, error) {
-				return reader.ReadGroup(context.Background(), query.ReadGroupSpec{
-					ReadFilterSpec: query.ReadFilterSpec{
-						OrganizationID: reader.Org,
-						BucketID:       reader.Bucket,
-						Bounds:         reader.Bounds,
+				return reader.ReadGroup(context.Background(), influxdb.ReadGroupSpec{
+					ReadFilterSpec: influxdb.ReadFilterSpec{
+						Database:        reader.Database,
+						RetentionPolicy: reader.RetentionPolicy,
+						Bounds:          reader.Bounds,
 					},
-					GroupMode: query.GroupModeBy,
+					GroupMode: influxdb.GroupModeBy,
 					GroupKeys: []string{"_measurement", "_field"},
 				}, mem)
 			},
@@ -3161,11 +3128,11 @@ func TestStorageReader_Backoff(t *testing.T) {
 		{
 			name: "ReadWindowAggregate",
 			read: func(reader *StorageReader, mem *memory.Allocator) (flux.TableIterator, error) {
-				return reader.ReadWindowAggregate(context.Background(), query.ReadWindowAggregateSpec{
-					ReadFilterSpec: query.ReadFilterSpec{
-						OrganizationID: reader.Org,
-						BucketID:       reader.Bucket,
-						Bounds:         reader.Bounds,
+				return reader.ReadWindowAggregate(context.Background(), influxdb.ReadWindowAggregateSpec{
+					ReadFilterSpec: influxdb.ReadFilterSpec{
+						Database:        reader.Database,
+						RetentionPolicy: reader.RetentionPolicy,
+						Bounds:          reader.Bounds,
 					},
 					Aggregates: []plan.ProcedureKind{
 						storageflux.MeanKind,
@@ -3232,7 +3199,7 @@ func TestStorageReader_Backoff(t *testing.T) {
 }
 
 func BenchmarkReadFilter(b *testing.B) {
-	setupFn := func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	setupFn := func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -3321,10 +3288,10 @@ func BenchmarkReadFilter(b *testing.B) {
 	}
 	benchmarkRead(b, setupFn, func(r *StorageReader) error {
 		mem := &memory.Allocator{}
-		tables, err := r.ReadFilter(context.Background(), query.ReadFilterSpec{
-			OrganizationID: r.Org,
-			BucketID:       r.Bucket,
-			Bounds:         r.Bounds,
+		tables, err := r.ReadFilter(context.Background(), influxdb.ReadFilterSpec{
+			Database:        r.Database,
+			RetentionPolicy: r.RetentionPolicy,
+			Bounds:          r.Bounds,
 		}, mem)
 		if err != nil {
 			return err
@@ -3337,7 +3304,7 @@ func BenchmarkReadFilter(b *testing.B) {
 }
 
 func BenchmarkReadGroup(b *testing.B) {
-	setupFn := func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	setupFn := func(db, rp string) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -3426,13 +3393,13 @@ func BenchmarkReadGroup(b *testing.B) {
 	}
 	benchmarkRead(b, setupFn, func(r *StorageReader) error {
 		mem := &memory.Allocator{}
-		tables, err := r.ReadGroup(context.Background(), query.ReadGroupSpec{
-			ReadFilterSpec: query.ReadFilterSpec{
-				OrganizationID: r.Org,
-				BucketID:       r.Bucket,
-				Bounds:         r.Bounds,
+		tables, err := r.ReadGroup(context.Background(), influxdb.ReadGroupSpec{
+			ReadFilterSpec: influxdb.ReadFilterSpec{
+				Database:        r.Database,
+				RetentionPolicy: r.RetentionPolicy,
+				Bounds:          r.Bounds,
 			},
-			GroupMode:       query.GroupModeBy,
+			GroupMode:       influxdb.GroupModeBy,
 			GroupKeys:       []string{"_start", "_stop", "t0"},
 			AggregateMethod: storageflux.MinKind,
 		}, mem)
@@ -3475,7 +3442,7 @@ func mustParseTime(s string) time.Time {
 	return ts
 }
 
-func Spec(org, bucket platform.ID, measurements ...datagen.MeasurementSpec) *datagen.Spec {
+func Spec(db, rp string, measurements ...datagen.MeasurementSpec) *datagen.Spec {
 	return &datagen.Spec{
 		Measurements: measurements,
 	}
@@ -3547,7 +3514,7 @@ func writeShard(sfile *tsdb.SeriesFile, sg datagen.SeriesGenerator, id uint64, p
 		tags = append(tags, sg.Tags())
 
 		if len(keys) == seriesBatchSize {
-			if _, err := sfile.CreateSeriesListIfNotExists(names, tags); err != nil {
+			if _, err := sfile.CreateSeriesListIfNotExists(names, tags, tsdb.NoopStatsTracker()); err != nil {
 				return err
 			}
 			keys = keys[:0]
@@ -3567,8 +3534,8 @@ func writeShard(sfile *tsdb.SeriesFile, sg datagen.SeriesGenerator, id uint64, p
 		}
 	}
 
-	if len(keys) > seriesBatchSize {
-		if _, err := sfile.CreateSeriesListIfNotExists(names, tags); err != nil {
+	if len(keys) > 0 {
+		if _, err := sfile.CreateSeriesListIfNotExists(names, tags, tsdb.NoopStatsTracker()); err != nil {
 			return err
 		}
 	}

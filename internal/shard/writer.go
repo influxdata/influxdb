@@ -4,10 +4,9 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strconv"
 
-	"github.com/influxdata/influxdb/v2/pkg/data/gen"
-	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
+	"github.com/influxdata/influxdb/pkg/data/gen"
+	"github.com/influxdata/influxdb/tsdb/engine/tsm1"
 	"go.uber.org/multierr"
 )
 
@@ -132,7 +131,7 @@ func (w *Writer) Err() error { return w.err }
 func (w *Writer) Files() []string { return w.files }
 
 func (w *Writer) nextTSM() {
-	fileName := filepath.Join(w.path, strconv.Itoa(int(w.id)), fmt.Sprintf("%09d-%09d.%s", w.gen, w.seq, w.ext))
+	fileName := filepath.Join(w.path, fmt.Sprintf("%09d-%09d.%s", w.gen, w.seq, w.ext))
 	w.files = append(w.files, fileName)
 	w.seq++
 
