@@ -7,8 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/influxdb/v2"

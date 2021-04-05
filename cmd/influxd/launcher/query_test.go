@@ -15,8 +15,6 @@ import (
 	"testing"
 	"time"
 
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/csv"
 	"github.com/influxdata/flux/execute"
