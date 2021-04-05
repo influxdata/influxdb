@@ -23,8 +23,8 @@ type windowAggregateResultSet struct {
 	err          error
 }
 
-// IsAscendingWindowAggregate checks two things: If if the request passed in
-// is using the `Last` aggregate type, and if it has a window. If both
+// IsAscendingWindowAggregate checks two things: If the request passed in
+// is using the `last` aggregate type, and if it has a window. If both
 // conditions are met, it returns false, otherwise, it returns true.
 func IsAscendingWindowAggregate(req *datatypes.ReadWindowAggregateRequest) bool {
 	if len(req.Aggregate) != 1 {
