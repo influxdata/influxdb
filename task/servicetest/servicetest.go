@@ -8,6 +8,7 @@ package servicetest
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"math"
 	"reflect"
 	"runtime"
@@ -173,7 +174,7 @@ type System struct {
 	Ctx context.Context
 
 	// TaskService is the task service we would like to test
-	TaskService influxdb.TaskService
+	TaskService taskmodel.TaskService
 
 	// Override for accessing credentials for an individual test.
 	// Callers can leave this nil and the test will create its own random IDs for each test.
@@ -190,11 +191,11 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	cr := creds(t, sys)
 
 	// Create a task.
-	tc := influxdb.TaskCreate{
+	tc := taskmodel.TaskCreate{
 		OrganizationID: cr.OrgID,
 		Flux:           fmt.Sprintf(scriptFmt, 0),
 		OwnerID:        cr.UserID,
-		Type:           influxdb.TaskSystemType,
+		Type:           taskmodel.TaskSystemType,
 	}
 
 	authorizedCtx := icontext.SetAuthorizer(sys.Ctx, cr.Authorizer())
@@ -207,7 +208,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		t.Fatal("no task ID set")
 	}
 
-	findTask := func(tasks []*influxdb.Task, id platform.ID) (*influxdb.Task, error) {
+	findTask := func(tasks []*taskmodel.Task, id platform.ID) (*taskmodel.Task, error) {
 		for _, t := range tasks {
 			if t.ID == id {
 				return t, nil
@@ -216,8 +217,8 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		return nil, fmt.Errorf("failed to find task by id %s", id)
 	}
 
-	findTasksByStatus := func(tasks []*influxdb.Task, status string) []*influxdb.Task {
-		var foundTasks = []*influxdb.Task{}
+	findTasksByStatus := func(tasks []*taskmodel.Task, status string) []*taskmodel.Task {
+		var foundTasks = []*taskmodel.Task{}
 		for _, t := range tasks {
 			if t.Status == status {
 				foundTasks = append(foundTasks, t)
@@ -241,7 +242,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 
 	// Look up a task the different ways we can.
 	// Map of method name to found task.
-	found := map[string]*influxdb.Task{
+	found := map[string]*taskmodel.Task{
 		"Created": tsk,
 	}
 
@@ -252,7 +253,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 	found["FindTaskByID"] = f
 
-	fs, _, err := sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{OrganizationID: &cr.OrgID})
+	fs, _, err := sys.TaskService.FindTasks(sys.Ctx, taskmodel.TaskFilter{OrganizationID: &cr.OrgID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +263,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 	found["FindTasks with Organization filter"] = f
 
-	fs, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{Organization: cr.Org})
+	fs, _, err = sys.TaskService.FindTasks(sys.Ctx, taskmodel.TaskFilter{Organization: cr.Org})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -272,7 +273,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 	found["FindTasks with Organization name filter"] = f
 
-	fs, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{User: &cr.UserID})
+	fs, _, err = sys.TaskService.FindTasks(sys.Ctx, taskmodel.TaskFilter{User: &cr.UserID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -282,7 +283,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 	found["FindTasks with User filter"] = f
 
-	want := &influxdb.Task{
+	want := &taskmodel.Task{
 		ID:              tsk.ID,
 		CreatedAt:       tsk.CreatedAt,
 		LatestCompleted: tsk.LatestCompleted,
@@ -293,9 +294,9 @@ func testTaskCRUD(t *testing.T, sys *System) {
 		Name:            "task #0",
 		Cron:            "* * * * *",
 		Offset:          5 * time.Second,
-		Status:          string(influxdb.DefaultTaskStatus),
+		Status:          string(taskmodel.DefaultTaskStatus),
 		Flux:            fmt.Sprintf(scriptFmt, 0),
-		Type:            influxdb.TaskSystemType,
+		Type:            taskmodel.TaskSystemType,
 	}
 
 	for fn, f := range found {
@@ -306,11 +307,11 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 
 	// Check limits
-	tc2 := influxdb.TaskCreate{
+	tc2 := taskmodel.TaskCreate{
 		OrganizationID: cr.OrgID,
 		Flux:           fmt.Sprintf(scriptFmt, 1),
 		OwnerID:        cr.UserID,
-		Status:         string(influxdb.TaskInactive),
+		Status:         string(taskmodel.TaskInactive),
 	}
 
 	if _, err := sys.TaskService.CreateTask(authorizedCtx, tc2); err != nil {
@@ -319,7 +320,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	if !tsk.ID.Valid() {
 		t.Fatal("no task ID set")
 	}
-	tasks, _, err := sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{OrganizationID: &cr.OrgID, Limit: 1})
+	tasks, _, err := sys.TaskService.FindTasks(sys.Ctx, taskmodel.TaskFilter{OrganizationID: &cr.OrgID, Limit: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -329,7 +330,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 
 	// Check after
 	first := tasks[0]
-	tasks, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{OrganizationID: &cr.OrgID, After: &first.ID})
+	tasks, _, err = sys.TaskService.FindTasks(sys.Ctx, taskmodel.TaskFilter{OrganizationID: &cr.OrgID, After: &first.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -345,24 +346,24 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 
 	// Check task status filter
-	active := string(influxdb.TaskActive)
-	fs, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{Status: &active})
+	active := string(taskmodel.TaskActive)
+	fs, _, err = sys.TaskService.FindTasks(sys.Ctx, taskmodel.TaskFilter{Status: &active})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	activeTasks := findTasksByStatus(fs, string(influxdb.TaskActive))
+	activeTasks := findTasksByStatus(fs, string(taskmodel.TaskActive))
 	if len(fs) != len(activeTasks) {
 		t.Fatalf("expected to find %d active tasks, found: %d", len(activeTasks), len(fs))
 	}
 
-	inactive := string(influxdb.TaskInactive)
-	fs, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{Status: &inactive})
+	inactive := string(taskmodel.TaskInactive)
+	fs, _, err = sys.TaskService.FindTasks(sys.Ctx, taskmodel.TaskFilter{Status: &inactive})
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	inactiveTasks := findTasksByStatus(fs, string(influxdb.TaskInactive))
+	inactiveTasks := findTasksByStatus(fs, string(taskmodel.TaskInactive))
 	if len(fs) != len(inactiveTasks) {
 		t.Fatalf("expected to find %d inactive tasks, found: %d", len(inactiveTasks), len(fs))
 	}
@@ -370,7 +371,7 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	// Update task: script only.
 	newFlux := fmt.Sprintf(scriptFmt, 99)
 	origID := f.ID
-	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, influxdb.TaskUpdate{Flux: &newFlux})
+	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, taskmodel.TaskUpdate{Flux: &newFlux})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -382,13 +383,13 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	if f.Flux != newFlux {
 		t.Fatalf("wrong flux from update; want %q, got %q", newFlux, f.Flux)
 	}
-	if f.Status != string(influxdb.TaskActive) {
+	if f.Status != string(taskmodel.TaskActive) {
 		t.Fatalf("expected task to be created active, got %q", f.Status)
 	}
 
 	// Update task: status only.
-	newStatus := string(influxdb.TaskInactive)
-	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, influxdb.TaskUpdate{Status: &newStatus})
+	newStatus := string(taskmodel.TaskInactive)
+	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, taskmodel.TaskUpdate{Status: &newStatus})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -400,9 +401,9 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 
 	// Update task: reactivate status and update script.
-	newStatus = string(influxdb.TaskActive)
+	newStatus = string(taskmodel.TaskActive)
 	newFlux = fmt.Sprintf(scriptFmt, 98)
-	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, influxdb.TaskUpdate{Flux: &newFlux, Status: &newStatus})
+	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, taskmodel.TaskUpdate{Flux: &newFlux, Status: &newStatus})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -414,9 +415,9 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 
 	// Update task: just update an option.
-	newStatus = string(influxdb.TaskActive)
+	newStatus = string(taskmodel.TaskActive)
 	newFlux = "option task = {\n\tname: \"task-changed #98\",\n\tcron: \"* * * * *\",\n\toffset: 5s,\n\tconcurrency: 100,\n}\n\nfrom(bucket: \"b\")\n\t|> to(bucket: \"two\", orgID: \"000000000000000\")"
-	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, influxdb.TaskUpdate{Options: options.Options{Name: "task-changed #98"}})
+	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, taskmodel.TaskUpdate{Options: options.Options{Name: "task-changed #98"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -429,9 +430,9 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 
 	// Update task: switch to every.
-	newStatus = string(influxdb.TaskActive)
+	newStatus = string(taskmodel.TaskActive)
 	newFlux = "option task = {\n\tname: \"task-changed #98\",\n\tevery: 30s,\n\toffset: 5s,\n\tconcurrency: 100,\n}\n\nfrom(bucket: \"b\")\n\t|> to(bucket: \"two\", orgID: \"000000000000000\")"
-	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, influxdb.TaskUpdate{Options: options.Options{Every: *(options.MustParseDuration("30s"))}})
+	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, taskmodel.TaskUpdate{Options: options.Options{Every: *(options.MustParseDuration("30s"))}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -444,9 +445,9 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 
 	// Update task: just cron.
-	newStatus = string(influxdb.TaskActive)
+	newStatus = string(taskmodel.TaskActive)
 	newFlux = fmt.Sprintf(scriptDifferentName, 98)
-	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, influxdb.TaskUpdate{Options: options.Options{Cron: "* * * * *"}})
+	f, err = sys.TaskService.UpdateTask(authorizedCtx, origID, taskmodel.TaskUpdate{Options: options.Options{Cron: "* * * * *"}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -491,8 +492,8 @@ func testTaskCRUD(t *testing.T, sys *System) {
 	}
 
 	// Task should not be returned.
-	if _, err := sys.TaskService.FindTaskByID(sys.Ctx, origID); err != influxdb.ErrTaskNotFound {
-		t.Fatalf("expected %v, got %v", influxdb.ErrTaskNotFound, err)
+	if _, err := sys.TaskService.FindTaskByID(sys.Ctx, origID); err != taskmodel.ErrTaskNotFound {
+		t.Fatalf("expected %v, got %v", taskmodel.ErrTaskNotFound, err)
 	}
 }
 
@@ -509,15 +510,15 @@ from(bucket: "b")
 
 	cr := creds(t, sys)
 
-	tc := influxdb.TaskCreate{
+	tc := taskmodel.TaskCreate{
 		OrganizationID: cr.OrgID,
 		OwnerID:        cr.UserID,
-		Type:           influxdb.TaskSystemType,
+		Type:           taskmodel.TaskSystemType,
 	}
 
 	authorizedCtx := icontext.SetAuthorizer(sys.Ctx, cr.Authorizer())
 
-	created := make([]*influxdb.Task, 50)
+	created := make([]*taskmodel.Task, 50)
 	for i := 0; i < 50; i++ {
 		tc.Flux = fmt.Sprintf(script, i/10)
 		tsk, err := sys.TaskService.CreateTask(authorizedCtx, tc)
@@ -531,7 +532,7 @@ from(bucket: "b")
 		created[i] = tsk
 	}
 
-	tasks, _, err := sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{Limit: 5})
+	tasks, _, err := sys.TaskService.FindTasks(sys.Ctx, taskmodel.TaskFilter{Limit: 5})
 	if err != nil {
 		t.Fatalf("FindTasks: %v", err)
 	}
@@ -542,7 +543,7 @@ from(bucket: "b")
 
 	// find tasks using name which are after first 10
 	name := "Task 004"
-	tasks, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{Limit: 5, Name: &name})
+	tasks, _, err = sys.TaskService.FindTasks(sys.Ctx, taskmodel.TaskFilter{Limit: 5, Name: &name})
 	if err != nil {
 		t.Fatalf("FindTasks: %v", err)
 	}
@@ -564,14 +565,14 @@ func testTaskFindTasksAfterPaging(t *testing.T, sys *System) {
 from(bucket: "b")
 	|> to(bucket: "two", orgID: "000000000000000")`
 		cr = creds(t, sys)
-		tc = influxdb.TaskCreate{
+		tc = taskmodel.TaskCreate{
 			OrganizationID: cr.OrgID,
 			OwnerID:        cr.UserID,
-			Type:           influxdb.TaskSystemType,
+			Type:           taskmodel.TaskSystemType,
 			Flux:           script,
 		}
 		authorizedCtx = icontext.SetAuthorizer(sys.Ctx, cr.Authorizer())
-		created       = make([]*influxdb.Task, 10)
+		created       = make([]*taskmodel.Task, 10)
 		taskName      = "some-unique-task-name"
 	)
 
@@ -603,7 +604,7 @@ from(bucket: "b")
 
 	// one more than expected pages
 	for i := 0; i < 6; i++ {
-		tasks, _, err := sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{
+		tasks, _, err := sys.TaskService.FindTasks(sys.Ctx, taskmodel.TaskFilter{
 			Limit: 2,
 			After: after,
 			Name:  &taskName,
@@ -648,7 +649,7 @@ from(bucket: "b")
 
 	cr := creds(t, sys)
 
-	ct := influxdb.TaskCreate{
+	ct := taskmodel.TaskCreate{
 		OrganizationID: cr.OrgID,
 		Flux:           script,
 		OwnerID:        cr.UserID,
@@ -663,7 +664,7 @@ from(bucket: "b")
 
 from(bucket: "b")
 	|> to(bucket: "two", orgID: "000000000000000")`
-		f, err := sys.TaskService.UpdateTask(authorizedCtx, task.ID, influxdb.TaskUpdate{Options: options.Options{Offset: &options.Duration{}, Every: *(options.MustParseDuration("10s"))}})
+		f, err := sys.TaskService.UpdateTask(authorizedCtx, task.ID, taskmodel.TaskUpdate{Options: options.Options{Offset: &options.Duration{}, Every: *(options.MustParseDuration("10s"))}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -686,7 +687,7 @@ from(bucket: "b")
 
 from(bucket: "b")
 	|> to(bucket: "two", orgID: "000000000000000")`
-		f, err := sys.TaskService.UpdateTask(authorizedCtx, task.ID, influxdb.TaskUpdate{Options: options.Options{Offset: options.MustParseDuration("10s")}})
+		f, err := sys.TaskService.UpdateTask(authorizedCtx, task.ID, taskmodel.TaskUpdate{Options: options.Options{Offset: options.MustParseDuration("10s")}})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -707,7 +708,7 @@ from(bucket: "b")
 
 from(bucket: "b")
 	|> to(bucket: "two", orgID: "000000000000000")`
-		fNoOffset, err := sys.TaskService.UpdateTask(authorizedCtx, task.ID, influxdb.TaskUpdate{Flux: &withoutOffset})
+		fNoOffset, err := sys.TaskService.UpdateTask(authorizedCtx, task.ID, taskmodel.TaskUpdate{Flux: &withoutOffset})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -725,7 +726,7 @@ func testUpdate(t *testing.T, sys *System) {
 	now := time.Now()
 	earliestCA := now.Add(-time.Second)
 
-	ct := influxdb.TaskCreate{
+	ct := taskmodel.TaskCreate{
 		OrganizationID: cr.OrgID,
 		Flux:           fmt.Sprintf(scriptFmt, 0),
 		OwnerID:        cr.UserID,
@@ -767,11 +768,11 @@ func testUpdate(t *testing.T, sys *System) {
 		t.Fatal(err)
 	}
 
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.ID, time.Now(), influxdb.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.ID, time.Now(), taskmodel.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.ID, time.Now(), influxdb.RunSuccess); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.ID, time.Now(), taskmodel.RunSuccess); err != nil {
 		t.Fatal(err)
 	}
 
@@ -801,7 +802,7 @@ func testUpdate(t *testing.T, sys *System) {
 		t.Fatal(err)
 	}
 
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, time.Now(), influxdb.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, time.Now(), taskmodel.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
@@ -809,7 +810,7 @@ func testUpdate(t *testing.T, sys *System) {
 		t.Fatal(err)
 	}
 
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, time.Now(), influxdb.RunFail); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, time.Now(), taskmodel.RunFail); err != nil {
 		t.Fatal(err)
 	}
 
@@ -840,7 +841,7 @@ func testUpdate(t *testing.T, sys *System) {
 
 	now = time.Now()
 	flux := fmt.Sprintf(scriptFmt, 1)
-	task, err = sys.TaskService.UpdateTask(authorizedCtx, task.ID, influxdb.TaskUpdate{Flux: &flux})
+	task, err = sys.TaskService.UpdateTask(authorizedCtx, task.ID, taskmodel.TaskUpdate{Flux: &flux})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -867,7 +868,7 @@ func testUpdate(t *testing.T, sys *System) {
 	}
 
 	ls := time.Now().Round(time.Second) // round to remove monotonic clock
-	task, err = sys.TaskService.UpdateTask(authorizedCtx, task.ID, influxdb.TaskUpdate{LatestScheduled: &ls})
+	task, err = sys.TaskService.UpdateTask(authorizedCtx, task.ID, taskmodel.TaskUpdate{LatestScheduled: &ls})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -890,7 +891,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 
 		// Script is set to run every minute. The platform adapter is currently hardcoded to schedule after "now",
 		// which makes timing of runs somewhat difficult.
-		ct := influxdb.TaskCreate{
+		ct := taskmodel.TaskCreate{
 			OrganizationID: cr.OrgID,
 			Flux:           fmt.Sprintf(scriptFmt, 0),
 			OwnerID:        cr.UserID,
@@ -901,14 +902,14 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// check run filter errors
-		_, _, err0 := sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID, Limit: -1})
-		if err0 != influxdb.ErrOutOfBoundsLimit {
+		_, _, err0 := sys.TaskService.FindRuns(sys.Ctx, taskmodel.RunFilter{Task: task.ID, Limit: -1})
+		if err0 != taskmodel.ErrOutOfBoundsLimit {
 			t.Fatalf("failed to error with out of bounds run limit: %d", -1)
 		}
 
-		_, _, err1 := sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID, Limit: influxdb.TaskMaxPageSize + 1})
-		if err1 != influxdb.ErrOutOfBoundsLimit {
-			t.Fatalf("failed to error with out of bounds run limit: %d", influxdb.TaskMaxPageSize+1)
+		_, _, err1 := sys.TaskService.FindRuns(sys.Ctx, taskmodel.RunFilter{Task: task.ID, Limit: taskmodel.TaskMaxPageSize + 1})
+		if err1 != taskmodel.ErrOutOfBoundsLimit {
+			t.Fatalf("failed to error with out of bounds run limit: %d", taskmodel.TaskMaxPageSize+1)
 		}
 
 		requestedAt := time.Now().Add(time.Hour * -1).UTC() // This should guarantee we can make two runs.
@@ -924,7 +925,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		startedAt := time.Now().UTC()
 
 		// Update the run state to Started; normally the scheduler would do this.
-		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc0.ID, startedAt, influxdb.RunStarted); err != nil {
+		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc0.ID, startedAt, taskmodel.RunStarted); err != nil {
 			t.Fatal(err)
 		}
 
@@ -937,11 +938,11 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Update the run state to Started; normally the scheduler would do this.
-		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt, influxdb.RunStarted); err != nil {
+		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt, taskmodel.RunStarted); err != nil {
 			t.Fatal(err)
 		}
 
-		runs, _, err := sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID, Limit: 1})
+		runs, _, err := sys.TaskService.FindRuns(sys.Ctx, taskmodel.RunFilter{Task: task.ID, Limit: 1})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -951,7 +952,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Mark the second run finished.
-		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt.Add(time.Second), influxdb.RunSuccess); err != nil {
+		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt.Add(time.Second), taskmodel.RunSuccess); err != nil {
 			t.Fatal(err)
 		}
 
@@ -960,7 +961,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Limit 1 should only return the earlier run.
-		runs, _, err = sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID, Limit: 1})
+		runs, _, err = sys.TaskService.FindRuns(sys.Ctx, taskmodel.RunFilter{Task: task.ID, Limit: 1})
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -973,8 +974,8 @@ func testTaskRuns(t *testing.T, sys *System) {
 		if runs[0].StartedAt != startedAt {
 			t.Fatalf("unexpectedStartedAt; want %s, got %s", startedAt, runs[0].StartedAt)
 		}
-		if runs[0].Status != influxdb.RunStarted.String() {
-			t.Fatalf("unexpected run status; want %s, got %s", influxdb.RunStarted.String(), runs[0].Status)
+		if runs[0].Status != taskmodel.RunStarted.String() {
+			t.Fatalf("unexpected run status; want %s, got %s", taskmodel.RunStarted.String(), runs[0].Status)
 		}
 
 		if !runs[0].FinishedAt.IsZero() {
@@ -984,13 +985,13 @@ func testTaskRuns(t *testing.T, sys *System) {
 		// Look for a run that doesn't exist.
 		_, err = sys.TaskService.FindRunByID(sys.Ctx, task.ID, platform.ID(math.MaxUint64))
 		if err == nil {
-			t.Fatalf("expected %s but got %s instead", influxdb.ErrRunNotFound, err)
+			t.Fatalf("expected %s but got %s instead", taskmodel.ErrRunNotFound, err)
 		}
 
 		// look for a taskID that doesn't exist.
 		_, err = sys.TaskService.FindRunByID(sys.Ctx, platform.ID(math.MaxUint64), runs[0].ID)
 		if err == nil {
-			t.Fatalf("expected %s but got %s instead", influxdb.ErrRunNotFound, err)
+			t.Fatalf("expected %s but got %s instead", taskmodel.ErrRunNotFound, err)
 		}
 
 		foundRun0, err := sys.TaskService.FindRunByID(sys.Ctx, task.ID, runs[0].ID)
@@ -1014,7 +1015,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 
 		// Script is set to run every minute. The platform adapter is currently hardcoded to schedule after "now",
 		// which makes timing of runs somewhat difficult.
-		ct := influxdb.TaskCreate{
+		ct := taskmodel.TaskCreate{
 			OrganizationID: cr.OrgID,
 			Flux:           fmt.Sprintf(scriptFmt, 0),
 			OwnerID:        cr.UserID,
@@ -1026,18 +1027,18 @@ func testTaskRuns(t *testing.T, sys *System) {
 
 		// set to one hour before now because of bucket retention policy
 		scheduledFor := time.Now().Add(time.Hour * -1).UTC()
-		runs := make([]*influxdb.Run, 0, 5)
+		runs := make([]*taskmodel.Run, 0, 5)
 		// create runs to put into Context
 		for i := 5; i > 0; i-- {
 			run, err := sys.TaskControlService.CreateRun(ctx, task.ID, scheduledFor.Add(time.Second*time.Duration(i)), scheduledFor.Add(time.Second*time.Duration(i)))
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = sys.TaskControlService.UpdateRunState(ctx, task.ID, run.ID, scheduledFor.Add(time.Second*time.Duration(i+1)), influxdb.RunStarted)
+			err = sys.TaskControlService.UpdateRunState(ctx, task.ID, run.ID, scheduledFor.Add(time.Second*time.Duration(i+1)), taskmodel.RunStarted)
 			if err != nil {
 				t.Fatal(err)
 			}
-			err = sys.TaskControlService.UpdateRunState(ctx, task.ID, run.ID, scheduledFor.Add(time.Second*time.Duration(i+2)), influxdb.RunSuccess)
+			err = sys.TaskControlService.UpdateRunState(ctx, task.ID, run.ID, scheduledFor.Add(time.Second*time.Duration(i+2)), taskmodel.RunSuccess)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1045,7 +1046,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 			run.StartedAt = scheduledFor.Add(time.Second * time.Duration(i+1))
 			run.FinishedAt = scheduledFor.Add(time.Second * time.Duration(i+2))
 			run.RunAt = scheduledFor.Add(time.Second * time.Duration(i))
-			run.Status = influxdb.RunSuccess.String()
+			run.Status = taskmodel.RunSuccess.String()
 			run.Log = nil
 
 			if sys.CallFinishRun {
@@ -1061,7 +1062,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		found, _, err := sys.TaskService.FindRuns(ctx,
-			influxdb.RunFilter{
+			taskmodel.RunFilter{
 				Task:       task.ID,
 				Limit:      2,
 				AfterTime:  scheduledFor.Add(time.Second * time.Duration(1)).Format(time.RFC3339),
@@ -1078,7 +1079,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 	t.Run("ForceRun", func(t *testing.T) {
 		t.Parallel()
 
-		ct := influxdb.TaskCreate{
+		ct := taskmodel.TaskCreate{
 			OrganizationID: cr.OrgID,
 			Flux:           fmt.Sprintf(scriptFmt, 0),
 			OwnerID:        cr.UserID,
@@ -1107,7 +1108,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 	t.Run("FindLogs", func(t *testing.T) {
 		t.Parallel()
 
-		ct := influxdb.TaskCreate{
+		ct := taskmodel.TaskCreate{
 			OrganizationID: cr.OrgID,
 			Flux:           fmt.Sprintf(scriptFmt, 0),
 			OwnerID:        cr.UserID,
@@ -1124,7 +1125,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, time.Now(), influxdb.RunStarted); err != nil {
+		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, time.Now(), taskmodel.RunStarted); err != nil {
 			t.Fatal(err)
 		}
 
@@ -1132,7 +1133,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, time.Now(), influxdb.RunStarted); err != nil {
+		if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, time.Now(), taskmodel.RunStarted); err != nil {
 			t.Fatal(err)
 		}
 		// Add a log for the first run.
@@ -1142,7 +1143,7 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Ensure it is returned when filtering logs by run ID.
-		logs, _, err := sys.TaskService.FindLogs(sys.Ctx, influxdb.LogFilter{
+		logs, _, err := sys.TaskService.FindLogs(sys.Ctx, taskmodel.LogFilter{
 			Task: task.ID,
 			Run:  &rc1.ID,
 		})
@@ -1150,8 +1151,8 @@ func testTaskRuns(t *testing.T, sys *System) {
 			t.Fatal(err)
 		}
 
-		expLine1 := &influxdb.Log{RunID: rc1.ID, Time: log1Time.Format(time.RFC3339Nano), Message: "entry 1"}
-		exp := []*influxdb.Log{expLine1}
+		expLine1 := &taskmodel.Log{RunID: rc1.ID, Time: log1Time.Format(time.RFC3339Nano), Message: "entry 1"}
+		exp := []*taskmodel.Log{expLine1}
 		if diff := cmp.Diff(logs, exp); diff != "" {
 			t.Fatalf("unexpected log: -got/+want: %s", diff)
 		}
@@ -1163,14 +1164,14 @@ func testTaskRuns(t *testing.T, sys *System) {
 		}
 
 		// Ensure both returned when filtering logs by task ID.
-		logs, _, err = sys.TaskService.FindLogs(sys.Ctx, influxdb.LogFilter{
+		logs, _, err = sys.TaskService.FindLogs(sys.Ctx, taskmodel.LogFilter{
 			Task: task.ID,
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		expLine2 := &influxdb.Log{RunID: rc2.ID, Time: log2Time.Format(time.RFC3339Nano), Message: "entry 2"}
-		exp = []*influxdb.Log{expLine1, expLine2}
+		expLine2 := &taskmodel.Log{RunID: rc2.ID, Time: log2Time.Format(time.RFC3339Nano), Message: "entry 2"}
+		exp = []*taskmodel.Log{expLine1, expLine2}
 		if diff := cmp.Diff(logs, exp); diff != "" {
 			t.Fatalf("unexpected log: -got/+want: %s", diff)
 		}
@@ -1181,7 +1182,7 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 	cr := creds(t, sys)
 
 	const numTasks = 450 // Arbitrarily chosen to get a reasonable count of concurrent creates and deletes.
-	createTaskCh := make(chan influxdb.TaskCreate, numTasks)
+	createTaskCh := make(chan taskmodel.TaskCreate, numTasks)
 
 	// Since this test is run in parallel with other tests,
 	// we need to keep a whitelist of IDs that are okay to delete.
@@ -1234,7 +1235,7 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 			}
 
 			// Get all the tasks.
-			tasks, _, err := sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{OrganizationID: &cr.OrgID})
+			tasks, _, err := sys.TaskService.FindTasks(sys.Ctx, taskmodel.TaskFilter{OrganizationID: &cr.OrgID})
 			if err != nil {
 				t.Errorf("error finding tasks: %v", err)
 				return
@@ -1292,7 +1293,7 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 			}
 
 			// Get all the tasks.
-			tasks, _, err := sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{OrganizationID: &cr.OrgID})
+			tasks, _, err := sys.TaskService.FindTasks(sys.Ctx, taskmodel.TaskFilter{OrganizationID: &cr.OrgID})
 			if err != nil {
 				t.Errorf("error finding tasks: %v", err)
 				return
@@ -1326,7 +1327,7 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 			if _, err := sys.TaskControlService.CreateRun(sys.Ctx, tid, time.Unix(253339232461, 0), time.Unix(253339232469, 1)); err != nil {
 				// This may have errored due to the task being deleted. Check if the task still exists.
 
-				if _, err2 := sys.TaskService.FindTaskByID(sys.Ctx, tid); err2 == influxdb.ErrTaskNotFound {
+				if _, err2 := sys.TaskService.FindTaskByID(sys.Ctx, tid); err2 == taskmodel.ErrTaskNotFound {
 					// It was deleted. Just continue.
 					continue
 				}
@@ -1343,7 +1344,7 @@ func testTaskConcurrency(t *testing.T, sys *System) {
 
 	// Start adding tasks.
 	for i := 0; i < numTasks; i++ {
-		createTaskCh <- influxdb.TaskCreate{
+		createTaskCh <- taskmodel.TaskCreate{
 			OrganizationID: cr.OrgID,
 			Flux:           fmt.Sprintf(scriptFmt, i),
 			OwnerID:        cr.UserID,
@@ -1360,7 +1361,7 @@ func testManualRun(t *testing.T, s *System) {
 	cr := creds(t, s)
 
 	// Create a task.
-	tc := influxdb.TaskCreate{
+	tc := taskmodel.TaskCreate{
 		OrganizationID: cr.OrgID,
 		Flux:           fmt.Sprintf(scriptFmt, 0),
 		OwnerID:        cr.UserID,
@@ -1405,7 +1406,7 @@ func testRunStorage(t *testing.T, sys *System) {
 
 	// Script is set to run every minute. The platform adapter is currently hardcoded to schedule after "now",
 	// which makes timing of runs somewhat difficult.
-	ct := influxdb.TaskCreate{
+	ct := taskmodel.TaskCreate{
 		OrganizationID: cr.OrgID,
 		Flux:           fmt.Sprintf(scriptFmt, 0),
 		OwnerID:        cr.UserID,
@@ -1416,14 +1417,14 @@ func testRunStorage(t *testing.T, sys *System) {
 	}
 
 	// check run filter errors
-	_, _, err0 := sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID, Limit: -1})
-	if err0 != influxdb.ErrOutOfBoundsLimit {
+	_, _, err0 := sys.TaskService.FindRuns(sys.Ctx, taskmodel.RunFilter{Task: task.ID, Limit: -1})
+	if err0 != taskmodel.ErrOutOfBoundsLimit {
 		t.Fatalf("failed to error with out of bounds run limit: %d", -1)
 	}
 
-	_, _, err1 := sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID, Limit: influxdb.TaskMaxPageSize + 1})
-	if err1 != influxdb.ErrOutOfBoundsLimit {
-		t.Fatalf("failed to error with out of bounds run limit: %d", influxdb.TaskMaxPageSize+1)
+	_, _, err1 := sys.TaskService.FindRuns(sys.Ctx, taskmodel.RunFilter{Task: task.ID, Limit: taskmodel.TaskMaxPageSize + 1})
+	if err1 != taskmodel.ErrOutOfBoundsLimit {
+		t.Fatalf("failed to error with out of bounds run limit: %d", taskmodel.TaskMaxPageSize+1)
 	}
 
 	requestedAt := time.Now().Add(time.Hour * -1).UTC() // This should guarantee we can make two runs.
@@ -1439,7 +1440,7 @@ func testRunStorage(t *testing.T, sys *System) {
 	startedAt := time.Now().UTC().Add(time.Second * -10)
 
 	// Update the run state to Started; normally the scheduler would do this.
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc0.ID, startedAt, influxdb.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc0.ID, startedAt, taskmodel.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1452,12 +1453,12 @@ func testRunStorage(t *testing.T, sys *System) {
 	}
 
 	// Update the run state to Started; normally the scheduler would do this.
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt.Add(time.Second), influxdb.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt.Add(time.Second), taskmodel.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
 	// Mark the second run finished.
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt.Add(time.Second*2), influxdb.RunFail); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt.Add(time.Second*2), taskmodel.RunFail); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1466,7 +1467,7 @@ func testRunStorage(t *testing.T, sys *System) {
 	}
 
 	// Limit 1 should only return the earlier run.
-	runs, _, err := sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID, Limit: 1})
+	runs, _, err := sys.TaskService.FindRuns(sys.Ctx, taskmodel.RunFilter{Task: task.ID, Limit: 1})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1479,8 +1480,8 @@ func testRunStorage(t *testing.T, sys *System) {
 	if runs[0].StartedAt != startedAt {
 		t.Fatalf("unexpectedStartedAt; want %s, got %s", startedAt, runs[0].StartedAt)
 	}
-	if runs[0].Status != influxdb.RunStarted.String() {
-		t.Fatalf("unexpected run status; want %s, got %s", influxdb.RunStarted.String(), runs[0].Status)
+	if runs[0].Status != taskmodel.RunStarted.String() {
+		t.Fatalf("unexpected run status; want %s, got %s", taskmodel.RunStarted.String(), runs[0].Status)
 	}
 
 	if !runs[0].FinishedAt.IsZero() {
@@ -1492,18 +1493,18 @@ func testRunStorage(t *testing.T, sys *System) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, startedAt.Add(time.Second*3), influxdb.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, startedAt.Add(time.Second*3), taskmodel.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, startedAt.Add(time.Second*4), influxdb.RunSuccess); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc2.ID, startedAt.Add(time.Second*4), taskmodel.RunSuccess); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc2.ID); err != nil {
 		t.Fatal(err)
 	}
 
-	runsLimit2, _, err := sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID, Limit: 2})
+	runsLimit2, _, err := sys.TaskService.FindRuns(sys.Ctx, taskmodel.RunFilter{Task: task.ID, Limit: 2})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1515,7 +1516,7 @@ func testRunStorage(t *testing.T, sys *System) {
 	}
 
 	// Unspecified limit returns all three runs, sorted by most recently scheduled first.
-	runs, _, err = sys.TaskService.FindRuns(sys.Ctx, influxdb.RunFilter{Task: task.ID})
+	runs, _, err = sys.TaskService.FindRuns(sys.Ctx, taskmodel.RunFilter{Task: task.ID})
 
 	if err != nil {
 		t.Fatal(err)
@@ -1529,8 +1530,8 @@ func testRunStorage(t *testing.T, sys *System) {
 	if runs[0].StartedAt != startedAt {
 		t.Fatalf("unexpectedStartedAt; want %s, got %s", startedAt, runs[0].StartedAt)
 	}
-	if runs[0].Status != influxdb.RunStarted.String() {
-		t.Fatalf("unexpected run status; want %s, got %s", influxdb.RunStarted.String(), runs[0].Status)
+	if runs[0].Status != taskmodel.RunStarted.String() {
+		t.Fatalf("unexpected run status; want %s, got %s", taskmodel.RunStarted.String(), runs[0].Status)
 	}
 	// TODO (al): handle empty finishedAt
 	// if runs[0].FinishedAt != "" {
@@ -1544,8 +1545,8 @@ func testRunStorage(t *testing.T, sys *System) {
 	if exp := startedAt.Add(time.Second); runs[2].StartedAt != exp {
 		t.Fatalf("unexpected StartedAt; want %s, got %s", exp, runs[2].StartedAt)
 	}
-	if runs[2].Status != influxdb.RunFail.String() {
-		t.Fatalf("unexpected run status; want %s, got %s", influxdb.RunSuccess.String(), runs[2].Status)
+	if runs[2].Status != taskmodel.RunFail.String() {
+		t.Fatalf("unexpected run status; want %s, got %s", taskmodel.RunSuccess.String(), runs[2].Status)
 	}
 	if exp := startedAt.Add(time.Second * 2); runs[2].FinishedAt != exp {
 		t.Fatalf("unexpected FinishedAt; want %s, got %s", exp, runs[2].FinishedAt)
@@ -1554,13 +1555,13 @@ func testRunStorage(t *testing.T, sys *System) {
 	// Look for a run that doesn't exist.
 	_, err = sys.TaskService.FindRunByID(sys.Ctx, task.ID, platform.ID(math.MaxUint64))
 	if err == nil {
-		t.Fatalf("expected %s but got %s instead", influxdb.ErrRunNotFound, err)
+		t.Fatalf("expected %s but got %s instead", taskmodel.ErrRunNotFound, err)
 	}
 
 	// look for a taskID that doesn't exist.
 	_, err = sys.TaskService.FindRunByID(sys.Ctx, platform.ID(math.MaxUint64), runs[0].ID)
 	if err == nil {
-		t.Fatalf("expected %s but got %s instead", influxdb.ErrRunNotFound, err)
+		t.Fatalf("expected %s but got %s instead", taskmodel.ErrRunNotFound, err)
 	}
 
 	foundRun0, err := sys.TaskService.FindRunByID(sys.Ctx, task.ID, runs[0].ID)
@@ -1585,7 +1586,7 @@ func testRetryAcrossStorage(t *testing.T, sys *System) {
 	cr := creds(t, sys)
 
 	// Script is set to run every minute.
-	ct := influxdb.TaskCreate{
+	ct := taskmodel.TaskCreate{
 		OrganizationID: cr.OrgID,
 		Flux:           fmt.Sprintf(scriptFmt, 0),
 		OwnerID:        cr.UserID,
@@ -1597,7 +1598,7 @@ func testRetryAcrossStorage(t *testing.T, sys *System) {
 	// Non-existent ID should return the right error.
 	_, err = sys.TaskService.RetryRun(sys.Ctx, task.ID, platform.ID(math.MaxUint64))
 	if !strings.Contains(err.Error(), "run not found") {
-		t.Errorf("expected retrying run that doesn't exist to return %v, got %v", influxdb.ErrRunNotFound, err)
+		t.Errorf("expected retrying run that doesn't exist to return %v, got %v", taskmodel.ErrRunNotFound, err)
 	}
 
 	requestedAt := time.Now().Add(time.Hour * -1).UTC() // This should guarantee we can make a run.
@@ -1613,10 +1614,10 @@ func testRetryAcrossStorage(t *testing.T, sys *System) {
 	startedAt := time.Now().UTC()
 
 	// Update the run state to Started then Failed; normally the scheduler would do this.
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.ID, startedAt, influxdb.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.ID, startedAt, taskmodel.RunStarted); err != nil {
 		t.Fatal(err)
 	}
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.ID, startedAt.Add(time.Second), influxdb.RunFail); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc.ID, startedAt.Add(time.Second), taskmodel.RunFail); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := sys.TaskControlService.FinishRun(sys.Ctx, task.ID, rc.ID); err != nil {
@@ -1639,7 +1640,7 @@ func testRetryAcrossStorage(t *testing.T, sys *System) {
 		t.Fatalf("wrong scheduledFor on task: got %s, want %s", m.ScheduledFor, rc.ScheduledFor)
 	}
 
-	exp := influxdb.RequestStillQueuedError{Start: rc.ScheduledFor.Unix(), End: rc.ScheduledFor.Unix()}
+	exp := taskmodel.RequestStillQueuedError{Start: rc.ScheduledFor.Unix(), End: rc.ScheduledFor.Unix()}
 
 	// Retrying a run which has been queued but not started, should be rejected.
 	if _, err = sys.TaskService.RetryRun(sys.Ctx, task.ID, rc.ID); err != exp && err.Error() != "run already queued" {
@@ -1652,7 +1653,7 @@ func testLogsAcrossStorage(t *testing.T, sys *System) {
 
 	// Script is set to run every minute. The platform adapter is currently hardcoded to schedule after "now",
 	// which makes timing of runs somewhat difficult.
-	ct := influxdb.TaskCreate{
+	ct := taskmodel.TaskCreate{
 		OrganizationID: cr.OrgID,
 		Flux:           fmt.Sprintf(scriptFmt, 0),
 		OwnerID:        cr.UserID,
@@ -1675,7 +1676,7 @@ func testLogsAcrossStorage(t *testing.T, sys *System) {
 	startedAt := time.Now().UTC()
 
 	// Update the run state to Started; normally the scheduler would do this.
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc0.ID, startedAt, influxdb.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc0.ID, startedAt, taskmodel.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1688,12 +1689,12 @@ func testLogsAcrossStorage(t *testing.T, sys *System) {
 	}
 
 	// Update the run state to Started; normally the scheduler would do this.
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt, influxdb.RunStarted); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt, taskmodel.RunStarted); err != nil {
 		t.Fatal(err)
 	}
 
 	// Mark the second run finished.
-	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt.Add(time.Second), influxdb.RunSuccess); err != nil {
+	if err := sys.TaskControlService.UpdateRunState(sys.Ctx, task.ID, rc1.ID, startedAt.Add(time.Second), taskmodel.RunSuccess); err != nil {
 		t.Fatal(err)
 	}
 
@@ -1710,7 +1711,7 @@ func testLogsAcrossStorage(t *testing.T, sys *System) {
 		t.Fatal(err)
 	}
 
-	logs, _, err := sys.TaskService.FindLogs(sys.Ctx, influxdb.LogFilter{Task: task.ID})
+	logs, _, err := sys.TaskService.FindLogs(sys.Ctx, taskmodel.LogFilter{Task: task.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1720,7 +1721,7 @@ func testLogsAcrossStorage(t *testing.T, sys *System) {
 		}
 		t.Fatalf("failed to get all logs: expected: 7 got: %d", len(logs))
 	}
-	smash := func(logs []*influxdb.Log) string {
+	smash := func(logs []*taskmodel.Log) string {
 		smashed := ""
 		for _, log := range logs {
 			smashed = smashed + log.Message
@@ -1731,7 +1732,7 @@ func testLogsAcrossStorage(t *testing.T, sys *System) {
 		t.Fatalf("log contents not acceptable, expected: %q, got: %q", "0-00-10-21-01-11-21-3", smash(logs))
 	}
 
-	logs, _, err = sys.TaskService.FindLogs(sys.Ctx, influxdb.LogFilter{Task: task.ID, Run: &rc1.ID})
+	logs, _, err = sys.TaskService.FindLogs(sys.Ctx, taskmodel.LogFilter{Task: task.ID, Run: &rc1.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1743,7 +1744,7 @@ func testLogsAcrossStorage(t *testing.T, sys *System) {
 		t.Fatalf("log contents not acceptable, expected: %q, got: %q", "1-01-11-21-3", smash(logs))
 	}
 
-	logs, _, err = sys.TaskService.FindLogs(sys.Ctx, influxdb.LogFilter{Task: task.ID, Run: &rc0.ID})
+	logs, _, err = sys.TaskService.FindLogs(sys.Ctx, taskmodel.LogFilter{Task: task.ID, Run: &rc0.ID})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1830,7 +1831,7 @@ func testTaskType(t *testing.T, sys *System) {
 	authorizedCtx := icontext.SetAuthorizer(sys.Ctx, cr.Authorizer())
 
 	// Create a tasks
-	ts := influxdb.TaskCreate{
+	ts := taskmodel.TaskCreate{
 		OrganizationID: cr.OrgID,
 		Flux:           fmt.Sprintf(scriptFmt, 0),
 		OwnerID:        cr.UserID,
@@ -1844,7 +1845,7 @@ func testTaskType(t *testing.T, sys *System) {
 		t.Fatal("no task ID set")
 	}
 
-	tc := influxdb.TaskCreate{
+	tc := taskmodel.TaskCreate{
 		Type:           "cows",
 		OrganizationID: cr.OrgID,
 		Flux:           fmt.Sprintf(scriptFmt, 0),
@@ -1859,7 +1860,7 @@ func testTaskType(t *testing.T, sys *System) {
 		t.Fatal("no task ID set")
 	}
 
-	tp := influxdb.TaskCreate{
+	tp := taskmodel.TaskCreate{
 		Type:           "pigs",
 		OrganizationID: cr.OrgID,
 		Flux:           fmt.Sprintf(scriptFmt, 0),
@@ -1875,19 +1876,19 @@ func testTaskType(t *testing.T, sys *System) {
 	}
 
 	// get system tasks (or task's with no type)
-	tasks, _, err := sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{OrganizationID: &cr.OrgID, Type: &influxdb.TaskSystemType})
+	tasks, _, err := sys.TaskService.FindTasks(sys.Ctx, taskmodel.TaskFilter{OrganizationID: &cr.OrgID, Type: &taskmodel.TaskSystemType})
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	for _, task := range tasks {
-		if task.Type != "" && task.Type != influxdb.TaskSystemType {
+		if task.Type != "" && task.Type != taskmodel.TaskSystemType {
 			t.Fatal("received a task with a type when sending no type restriction")
 		}
 	}
 
 	// get filtered tasks
-	tasks, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{OrganizationID: &cr.OrgID, Type: &tc.Type})
+	tasks, _, err = sys.TaskService.FindTasks(sys.Ctx, taskmodel.TaskFilter{OrganizationID: &cr.OrgID, Type: &tc.Type})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1898,7 +1899,7 @@ func testTaskType(t *testing.T, sys *System) {
 	}
 
 	// get all tasks
-	tasks, _, err = sys.TaskService.FindTasks(sys.Ctx, influxdb.TaskFilter{OrganizationID: &cr.OrgID})
+	tasks, _, err = sys.TaskService.FindTasks(sys.Ctx, taskmodel.TaskFilter{OrganizationID: &cr.OrgID})
 	if err != nil {
 		t.Fatal(err)
 	}

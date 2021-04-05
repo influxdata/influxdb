@@ -2,10 +2,10 @@ package coordinator
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/task/backend/executor"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 )
@@ -45,7 +45,7 @@ type (
 
 type (
 	promise struct {
-		run *influxdb.Run
+		run *taskmodel.Run
 
 		done chan struct{}
 		err  error

@@ -3,6 +3,7 @@ package coordinator
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"testing"
 	"time"
 
@@ -10,7 +11,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 	"go.uber.org/zap/zaptest"
 )
@@ -18,9 +18,9 @@ import (
 func Test_Coordinator_Executor_Methods(t *testing.T) {
 	var (
 		one     = platform.ID(1)
-		taskOne = &influxdb.Task{ID: one}
+		taskOne = &taskmodel.Task{ID: one}
 
-		runOne = &influxdb.Run{
+		runOne = &taskmodel.Run{
 			ID:           one,
 			TaskID:       one,
 			ScheduledFor: time.Now(),
@@ -99,7 +99,7 @@ func Test_Coordinator_Executor_Methods(t *testing.T) {
 func TestNewSchedulableTask(t *testing.T) {
 	now := time.Now().UTC()
 	one := platform.ID(1)
-	taskOne := &influxdb.Task{ID: one, CreatedAt: now, Cron: "* * * * *", LatestCompleted: now}
+	taskOne := &taskmodel.Task{ID: one, CreatedAt: now, Cron: "* * * * *", LatestCompleted: now}
 	schedulableT, err := NewSchedulableTask(taskOne)
 	if err != nil {
 		t.Fatal(err)
@@ -109,7 +109,7 @@ func TestNewSchedulableTask(t *testing.T) {
 		t.Fatalf("expected SchedulableTask's LatestScheduled to equal %s but it was %s", now.Truncate(time.Second), schedulableT.LastScheduled())
 	}
 
-	taskTwo := &influxdb.Task{ID: one, CreatedAt: now, Cron: "* * * * *", LatestCompleted: now, LatestScheduled: now.Add(-10 * time.Second)}
+	taskTwo := &taskmodel.Task{ID: one, CreatedAt: now, Cron: "* * * * *", LatestCompleted: now, LatestScheduled: now.Add(-10 * time.Second)}
 	schedulableT, err = NewSchedulableTask(taskTwo)
 	if err != nil {
 		t.Fatal(err)
@@ -128,17 +128,17 @@ func Test_Coordinator_Scheduler_Methods(t *testing.T) {
 		three = platform.ID(3)
 		now   = time.Now().UTC()
 
-		taskOne           = &influxdb.Task{ID: one, CreatedAt: now, Cron: "* * * * *"}
-		taskTwo           = &influxdb.Task{ID: two, Status: "active", CreatedAt: now, Cron: "* * * * *"}
-		taskTwoInactive   = &influxdb.Task{ID: two, Status: "inactive", CreatedAt: now, Cron: "* * * * *"}
-		taskThreeOriginal = &influxdb.Task{
+		taskOne           = &taskmodel.Task{ID: one, CreatedAt: now, Cron: "* * * * *"}
+		taskTwo           = &taskmodel.Task{ID: two, Status: "active", CreatedAt: now, Cron: "* * * * *"}
+		taskTwoInactive   = &taskmodel.Task{ID: two, Status: "inactive", CreatedAt: now, Cron: "* * * * *"}
+		taskThreeOriginal = &taskmodel.Task{
 			ID:        three,
 			Status:    "active",
 			Name:      "Previous",
 			CreatedAt: now,
 			Cron:      "* * * * *",
 		}
-		taskThreeNew = &influxdb.Task{
+		taskThreeNew = &taskmodel.Task{
 			ID:        three,
 			Status:    "active",
 			Name:      "Renamed",
@@ -161,7 +161,7 @@ func Test_Coordinator_Scheduler_Methods(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	runOne := &influxdb.Run{
+	runOne := &taskmodel.Run{
 		ID:           one,
 		TaskID:       one,
 		ScheduledFor: time.Now().UTC(),

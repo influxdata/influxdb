@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"net/http"
 
 	"github.com/go-chi/chi"
@@ -86,7 +87,7 @@ type APIBackend struct {
 	InfluxqldService                influxql.ProxyQueryService
 	FluxService                     query.ProxyQueryService
 	FluxLanguageService             fluxlang.FluxLanguageService
-	TaskService                     influxdb.TaskService
+	TaskService                     taskmodel.TaskService
 	CheckService                    influxdb.CheckService
 	TelegrafService                 influxdb.TelegrafConfigStore
 	ScraperTargetStoreService       influxdb.ScraperTargetStoreService

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"testing"
 	"time"
 
@@ -16,20 +17,20 @@ import (
 
 type pipingCoordinator struct {
 	err             error
-	taskCreatedPipe chan *influxdb.Task
-	taskUpdatedPipe chan *influxdb.Task
+	taskCreatedPipe chan *taskmodel.Task
+	taskUpdatedPipe chan *taskmodel.Task
 	taskDeletedPipe chan platform.ID
 }
 
-func (p *pipingCoordinator) taskCreatedChan() <-chan *influxdb.Task {
+func (p *pipingCoordinator) taskCreatedChan() <-chan *taskmodel.Task {
 	if p.taskCreatedPipe == nil {
-		p.taskCreatedPipe = make(chan *influxdb.Task, 1)
+		p.taskCreatedPipe = make(chan *taskmodel.Task, 1)
 	}
 	return p.taskCreatedPipe
 }
-func (p *pipingCoordinator) taskUpdatedChan() <-chan *influxdb.Task {
+func (p *pipingCoordinator) taskUpdatedChan() <-chan *taskmodel.Task {
 	if p.taskUpdatedPipe == nil {
-		p.taskUpdatedPipe = make(chan *influxdb.Task, 1)
+		p.taskUpdatedPipe = make(chan *taskmodel.Task, 1)
 	}
 	return p.taskUpdatedPipe
 }
@@ -40,13 +41,13 @@ func (p *pipingCoordinator) taskDeletedChan() <-chan platform.ID {
 	return p.taskDeletedPipe
 }
 
-func (p *pipingCoordinator) TaskCreated(_ context.Context, t *influxdb.Task) error {
+func (p *pipingCoordinator) TaskCreated(_ context.Context, t *taskmodel.Task) error {
 	if p.taskCreatedPipe != nil {
 		p.taskCreatedPipe <- t
 	}
 	return p.err
 }
-func (p *pipingCoordinator) TaskUpdated(_ context.Context, from, to *influxdb.Task) error {
+func (p *pipingCoordinator) TaskUpdated(_ context.Context, from, to *taskmodel.Task) error {
 	if p.taskUpdatedPipe != nil {
 		p.taskUpdatedPipe <- to
 	}
@@ -61,10 +62,10 @@ func (p *pipingCoordinator) TaskDeleted(_ context.Context, id platform.ID) error
 func (p *pipingCoordinator) RunCancelled(ctx context.Context, runID platform.ID) error {
 	return p.err
 }
-func (p *pipingCoordinator) RunRetried(ctx context.Context, task *influxdb.Task, run *influxdb.Run) error {
+func (p *pipingCoordinator) RunRetried(ctx context.Context, task *taskmodel.Task, run *taskmodel.Run) error {
 	return p.err
 }
-func (p *pipingCoordinator) RunForced(ctx context.Context, task *influxdb.Task, run *influxdb.Run) error {
+func (p *pipingCoordinator) RunForced(ctx context.Context, task *taskmodel.Task, run *taskmodel.Run) error {
 	return p.err
 }
 
@@ -78,10 +79,10 @@ type mockedSvc struct {
 func newMockServices() mockedSvc {
 	return mockedSvc{
 		taskSvc: &mock.TaskService{
-			FindTaskByIDFn: func(_ context.Context, id platform.ID) (*influxdb.Task, error) { return &influxdb.Task{ID: id}, nil },
-			CreateTaskFn:   func(context.Context, influxdb.TaskCreate) (*influxdb.Task, error) { return &influxdb.Task{ID: 1}, nil },
-			UpdateTaskFn: func(_ context.Context, id platform.ID, _ influxdb.TaskUpdate) (*influxdb.Task, error) {
-				return &influxdb.Task{ID: id}, nil
+			FindTaskByIDFn: func(_ context.Context, id platform.ID) (*taskmodel.Task, error) { return &taskmodel.Task{ID: id}, nil },
+			CreateTaskFn:   func(context.Context, taskmodel.TaskCreate) (*taskmodel.Task, error) { return &taskmodel.Task{ID: 1}, nil },
+			UpdateTaskFn: func(_ context.Context, id platform.ID, _ taskmodel.TaskUpdate) (*taskmodel.Task, error) {
+				return &taskmodel.Task{ID: id}, nil
 			},
 			DeleteTaskFn: func(context.Context, platform.ID) error { return nil },
 		},
@@ -189,13 +190,13 @@ func TestCheckUpdateFromInactive(t *testing.T) {
 		return c, nil
 	}
 
-	mocks.taskSvc.FindTaskByIDFn = func(_ context.Context, id platform.ID) (*influxdb.Task, error) {
+	mocks.taskSvc.FindTaskByIDFn = func(_ context.Context, id platform.ID) (*taskmodel.Task, error) {
 		if id == 1 {
-			return &influxdb.Task{ID: id, Status: string(influxdb.TaskInactive)}, nil
+			return &taskmodel.Task{ID: id, Status: string(taskmodel.TaskInactive)}, nil
 		} else if id == 10 {
-			return &influxdb.Task{ID: id, Status: string(influxdb.TaskActive)}, nil
+			return &taskmodel.Task{ID: id, Status: string(taskmodel.TaskActive)}, nil
 		}
-		return &influxdb.Task{ID: id}, nil
+		return &taskmodel.Task{ID: id}, nil
 	}
 
 	deadman := &check.Deadman{}

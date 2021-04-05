@@ -2,13 +2,13 @@ package backend
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"testing"
 	"time"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap/zaptest"
 )
 
@@ -20,12 +20,12 @@ var (
 
 	aTime = time.Now().UTC()
 
-	taskOne   = &influxdb.Task{ID: one}
-	taskTwo   = &influxdb.Task{ID: two, Status: "active"}
-	taskThree = &influxdb.Task{ID: three, Status: "inactive"}
-	taskFour  = &influxdb.Task{ID: four}
+	taskOne   = &taskmodel.Task{ID: one}
+	taskTwo   = &taskmodel.Task{ID: two, Status: "active"}
+	taskThree = &taskmodel.Task{ID: three, Status: "inactive"}
+	taskFour  = &taskmodel.Task{ID: four}
 
-	allTasks = map[platform.ID]*influxdb.Task{
+	allTasks = map[platform.ID]*taskmodel.Task{
 		one:   taskOne,
 		two:   taskTwo,
 		three: taskThree,
@@ -38,8 +38,8 @@ func Test_NotifyCoordinatorOfCreated(t *testing.T) {
 		coordinator = &coordinator{}
 		tasks       = &taskService{
 			// paginated responses
-			pageOne: []*influxdb.Task{taskOne},
-			otherPages: map[platform.ID][]*influxdb.Task{
+			pageOne: []*taskmodel.Task{taskOne},
+			otherPages: map[platform.ID][]*taskmodel.Task{
 				one:   {taskTwo, taskThree},
 				three: {taskFour},
 			},
@@ -57,12 +57,12 @@ func Test_NotifyCoordinatorOfCreated(t *testing.T) {
 	}
 
 	if diff := cmp.Diff([]update{
-		{two, influxdb.TaskUpdate{LatestCompleted: &aTime, LatestScheduled: &aTime}},
+		{two, taskmodel.TaskUpdate{LatestCompleted: &aTime, LatestScheduled: &aTime}},
 	}, tasks.updates); diff != "" {
 		t.Errorf("unexpected updates to task service %v", diff)
 	}
 
-	if diff := cmp.Diff([]*influxdb.Task{
+	if diff := cmp.Diff([]*taskmodel.Task{
 		taskTwo,
 	}, coordinator.tasks); diff != "" {
 		t.Errorf("unexpected tasks sent to coordinator %v", diff)
@@ -70,10 +70,10 @@ func Test_NotifyCoordinatorOfCreated(t *testing.T) {
 }
 
 type coordinator struct {
-	tasks []*influxdb.Task
+	tasks []*taskmodel.Task
 }
 
-func (c *coordinator) TaskCreated(_ context.Context, task *influxdb.Task) error {
+func (c *coordinator) TaskCreated(_ context.Context, task *taskmodel.Task) error {
 	c.tasks = append(c.tasks, task)
 
 	return nil
@@ -82,27 +82,27 @@ func (c *coordinator) TaskCreated(_ context.Context, task *influxdb.Task) error 
 // TasksService mocking
 type taskService struct {
 	// paginated tasks
-	pageOne    []*influxdb.Task
-	otherPages map[platform.ID][]*influxdb.Task
+	pageOne    []*taskmodel.Task
+	otherPages map[platform.ID][]*taskmodel.Task
 
 	// find tasks call
-	filter influxdb.TaskFilter
+	filter taskmodel.TaskFilter
 	// update call
 	updates []update
 }
 
 type update struct {
 	ID     platform.ID
-	Update influxdb.TaskUpdate
+	Update taskmodel.TaskUpdate
 }
 
-func (t *taskService) UpdateTask(_ context.Context, id platform.ID, upd influxdb.TaskUpdate) (*influxdb.Task, error) {
+func (t *taskService) UpdateTask(_ context.Context, id platform.ID, upd taskmodel.TaskUpdate) (*taskmodel.Task, error) {
 	t.updates = append(t.updates, update{id, upd})
 
 	return allTasks[id], nil
 }
 
-func (t *taskService) FindTasks(_ context.Context, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
+func (t *taskService) FindTasks(_ context.Context, filter taskmodel.TaskFilter) ([]*taskmodel.Task, int, error) {
 	t.filter = filter
 
 	if filter.After == nil {

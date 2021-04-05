@@ -4,18 +4,18 @@ package mock
 import (
 	"context"
 	"errors"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"sync"
 	"time"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/task/backend/executor"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 )
 
 type promise struct {
-	run        *influxdb.Run
+	run        *taskmodel.Run
 	hangingFor time.Duration
 
 	done chan struct{}
@@ -54,7 +54,7 @@ func (p *promise) Error() error {
 	return p.err
 }
 
-func (e *Executor) createPromise(ctx context.Context, run *influxdb.Run) (*promise, error) {
+func (e *Executor) createPromise(ctx context.Context, run *taskmodel.Run) (*promise, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	p := &promise{
 		run:        run,
@@ -104,7 +104,7 @@ func (e *Executor) Execute(ctx context.Context, id scheduler.ID, scheduledAt tim
 }
 
 func (e *Executor) ManualRun(ctx context.Context, id platform.ID, runID platform.ID) (executor.Promise, error) {
-	run := &influxdb.Run{ID: runID, TaskID: id, StartedAt: time.Now().UTC()}
+	run := &taskmodel.Run{ID: runID, TaskID: id, StartedAt: time.Now().UTC()}
 	p, err := e.createPromise(ctx, run)
 	return p, err
 }

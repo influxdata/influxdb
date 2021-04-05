@@ -2,6 +2,7 @@ package backend_test
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -111,18 +112,18 @@ func TestDeduplicateRuns(t *testing.T) {
 	defer ab.Close(t)
 
 	mockTS := &mock.TaskService{
-		FindTaskByIDFn: func(context.Context, platform.ID) (*influxdb.Task, error) {
-			return &influxdb.Task{ID: 1, OrganizationID: 20}, nil
+		FindTaskByIDFn: func(context.Context, platform.ID) (*taskmodel.Task, error) {
+			return &taskmodel.Task{ID: 1, OrganizationID: 20}, nil
 		},
-		FindRunsFn: func(context.Context, influxdb.RunFilter) ([]*influxdb.Run, int, error) {
-			return []*influxdb.Run{
-				&influxdb.Run{ID: 2, Status: "started"},
+		FindRunsFn: func(context.Context, taskmodel.RunFilter) ([]*taskmodel.Run, int, error) {
+			return []*taskmodel.Run{
+				&taskmodel.Run{ID: 2, Status: "started"},
 			}, 1, nil
 		},
 	}
 	mockTCS := &mock.TaskControlService{
-		FinishRunFn: func(ctx context.Context, taskID, runID platform.ID) (*influxdb.Run, error) {
-			return &influxdb.Run{ID: 2, TaskID: 1, Status: "success", ScheduledFor: time.Now(), StartedAt: time.Now().Add(1), FinishedAt: time.Now().Add(2)}, nil
+		FinishRunFn: func(ctx context.Context, taskID, runID platform.ID) (*taskmodel.Run, error) {
+			return &taskmodel.Run{ID: 2, TaskID: 1, Status: "success", ScheduledFor: time.Now(), StartedAt: time.Now().Add(1), FinishedAt: time.Now().Add(2)}, nil
 		},
 	}
 	mockBS := mock.NewBucketService()
@@ -134,7 +135,7 @@ func TestDeduplicateRuns(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	runs, _, err := svcStack.FindRuns(context.Background(), influxdb.RunFilter{Task: 1})
+	runs, _, err := svcStack.FindRuns(context.Background(), taskmodel.RunFilter{Task: 1})
 	if err != nil {
 		t.Fatal(err)
 	}

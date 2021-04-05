@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"math/rand"
 	"net/url"
 	"regexp"
@@ -453,7 +454,7 @@ func TestService(t *testing.T) {
 							ID:          &id,
 							Name:        "http-none-auth-notification-endpoint",
 							Description: "old desc",
-							Status:      influxdb.TaskStatusInactive,
+							Status:      taskmodel.TaskStatusInactive,
 						},
 						Method:     "POST",
 						AuthMethod: "none",
@@ -500,7 +501,7 @@ func TestService(t *testing.T) {
 									ID:          &id,
 									Name:        "http-none-auth-notification-endpoint",
 									Description: "http none auth desc",
-									Status:      influxdb.TaskStatusActive,
+									Status:      taskmodel.TaskStatusActive,
 								},
 								AuthMethod: "none",
 								Method:     "GET",
@@ -561,7 +562,7 @@ func TestService(t *testing.T) {
 							// This name here matches the endpoint identified in the template notification rule
 							Name:        "endpoint-0",
 							Description: "old desc",
-							Status:      influxdb.TaskStatusInactive,
+							Status:      taskmodel.TaskStatusInactive,
 						},
 						Method:     "POST",
 						AuthMethod: "none",
@@ -1330,13 +1331,13 @@ func TestService(t *testing.T) {
 			t.Run("maps tasks with labels", func(t *testing.T) {
 				opts := func() []ServiceSetterFn {
 					fakeTaskSVC := mock.NewTaskService()
-					fakeTaskSVC.CreateTaskFn = func(ctx context.Context, tc influxdb.TaskCreate) (*influxdb.Task, error) {
+					fakeTaskSVC.CreateTaskFn = func(ctx context.Context, tc taskmodel.TaskCreate) (*taskmodel.Task, error) {
 						reg := regexp.MustCompile(`name: "(.+)",`)
 						names := reg.FindStringSubmatch(tc.Flux)
 						if len(names) < 2 {
 							return nil, errors.New("bad flux query provided: " + tc.Flux)
 						}
-						return &influxdb.Task{
+						return &taskmodel.Task{
 							ID:             platform.ID(rand.Int()),
 							Type:           tc.Type,
 							OrganizationID: tc.OrganizationID,
@@ -1546,13 +1547,13 @@ func TestService(t *testing.T) {
 					orgID := platform.ID(9000)
 
 					fakeTaskSVC := mock.NewTaskService()
-					fakeTaskSVC.CreateTaskFn = func(ctx context.Context, tc influxdb.TaskCreate) (*influxdb.Task, error) {
+					fakeTaskSVC.CreateTaskFn = func(ctx context.Context, tc taskmodel.TaskCreate) (*taskmodel.Task, error) {
 						reg := regexp.MustCompile(`name: "(.+)",`)
 						names := reg.FindStringSubmatch(tc.Flux)
 						if len(names) < 2 {
 							return nil, errors.New("bad flux query provided: " + tc.Flux)
 						}
-						return &influxdb.Task{
+						return &taskmodel.Task{
 							ID:             platform.ID(fakeTaskSVC.CreateTaskCalls.Count() + 1),
 							Type:           tc.Type,
 							OrganizationID: tc.OrganizationID,
@@ -1586,11 +1587,11 @@ func TestService(t *testing.T) {
 			t.Run("rolls back all created tasks on an error", func(t *testing.T) {
 				testfileRunner(t, "testdata/tasks.yml", func(t *testing.T, template *Template) {
 					fakeTaskSVC := mock.NewTaskService()
-					fakeTaskSVC.CreateTaskFn = func(ctx context.Context, tc influxdb.TaskCreate) (*influxdb.Task, error) {
+					fakeTaskSVC.CreateTaskFn = func(ctx context.Context, tc taskmodel.TaskCreate) (*taskmodel.Task, error) {
 						if fakeTaskSVC.CreateTaskCalls.Count() == 1 {
 							return nil, errors.New("expected error")
 						}
-						return &influxdb.Task{
+						return &taskmodel.Task{
 							ID: platform.ID(fakeTaskSVC.CreateTaskCalls.Count() + 1),
 						}, nil
 					}
@@ -3275,7 +3276,7 @@ func TestService(t *testing.T) {
 							Base: endpoint.Base{
 								Name:        "pd-endpoint",
 								Description: "desc",
-								Status:      influxdb.TaskStatusActive,
+								Status:      taskmodel.TaskStatusActive,
 							},
 							ClientURL:  "http://example.com",
 							RoutingKey: influxdb.SecretField{Key: "-routing-key"},
@@ -3288,7 +3289,7 @@ func TestService(t *testing.T) {
 							Base: endpoint.Base{
 								Name:        "pd-endpoint",
 								Description: "desc",
-								Status:      influxdb.TaskStatusActive,
+								Status:      taskmodel.TaskStatusActive,
 							},
 							ClientURL:  "http://example.com",
 							RoutingKey: influxdb.SecretField{Key: "-routing-key"},
@@ -3300,7 +3301,7 @@ func TestService(t *testing.T) {
 							Base: endpoint.Base{
 								Name:        "pd-endpoint",
 								Description: "desc",
-								Status:      influxdb.TaskStatusInactive,
+								Status:      taskmodel.TaskStatusInactive,
 							},
 							URL:   "http://example.com",
 							Token: influxdb.SecretField{Key: "tokne"},
@@ -3312,7 +3313,7 @@ func TestService(t *testing.T) {
 							Base: endpoint.Base{
 								Name:        "pd-endpoint",
 								Description: "desc",
-								Status:      influxdb.TaskStatusInactive,
+								Status:      taskmodel.TaskStatusInactive,
 							},
 							AuthMethod: "basic",
 							Method:     "POST",
@@ -3327,7 +3328,7 @@ func TestService(t *testing.T) {
 							Base: endpoint.Base{
 								Name:        "pd-endpoint",
 								Description: "desc",
-								Status:      influxdb.TaskStatusInactive,
+								Status:      taskmodel.TaskStatusInactive,
 							},
 							AuthMethod: "bearer",
 							Method:     "GET",
@@ -3341,7 +3342,7 @@ func TestService(t *testing.T) {
 							Base: endpoint.Base{
 								Name:        "pd-endpoint",
 								Description: "desc",
-								Status:      influxdb.TaskStatusInactive,
+								Status:      taskmodel.TaskStatusInactive,
 							},
 							AuthMethod: "none",
 							Method:     "GET",
@@ -3404,7 +3405,7 @@ func TestService(t *testing.T) {
 						ID:          newTestIDPtr(1),
 						Name:        "pd endpoint",
 						Description: "desc",
-						Status:      influxdb.TaskStatusActive,
+						Status:      taskmodel.TaskStatusActive,
 					},
 					ClientURL:  "http://example.com",
 					RoutingKey: influxdb.SecretField{Key: "-routing-key"},
@@ -3414,7 +3415,7 @@ func TestService(t *testing.T) {
 						ID:          newTestIDPtr(2),
 						Name:        "pd-endpoint",
 						Description: "desc pd",
-						Status:      influxdb.TaskStatusActive,
+						Status:      taskmodel.TaskStatusActive,
 					},
 					ClientURL:  "http://example.com",
 					RoutingKey: influxdb.SecretField{Key: "-routing-key"},
@@ -3424,7 +3425,7 @@ func TestService(t *testing.T) {
 						ID:          newTestIDPtr(3),
 						Name:        "slack endpoint",
 						Description: "desc slack",
-						Status:      influxdb.TaskStatusInactive,
+						Status:      taskmodel.TaskStatusInactive,
 					},
 					URL:   "http://example.com",
 					Token: influxdb.SecretField{Key: "tokne"},
@@ -3559,7 +3560,7 @@ func TestService(t *testing.T) {
 									ID:          newTestIDPtr(13),
 									Name:        "endpoint_0",
 									Description: "desc",
-									Status:      influxdb.TaskStatusActive,
+									Status:      taskmodel.TaskStatusActive,
 								},
 								ClientURL:  "http://example.com",
 								RoutingKey: influxdb.SecretField{Key: "-routing-key"},
@@ -3576,7 +3577,7 @@ func TestService(t *testing.T) {
 									ID:          newTestIDPtr(13),
 									Name:        "endpoint_0",
 									Description: "desc",
-									Status:      influxdb.TaskStatusInactive,
+									Status:      taskmodel.TaskStatusInactive,
 								},
 								URL:   "http://example.com",
 								Token: influxdb.SecretField{Key: "tokne"},
@@ -3594,7 +3595,7 @@ func TestService(t *testing.T) {
 									ID:          newTestIDPtr(13),
 									Name:        "endpoint_0",
 									Description: "desc",
-									Status:      influxdb.TaskStatusInactive,
+									Status:      taskmodel.TaskStatusInactive,
 								},
 								AuthMethod: "none",
 								Method:     "GET",
@@ -3705,7 +3706,7 @@ func TestService(t *testing.T) {
 								ID:          &id,
 								Name:        "endpoint_0",
 								Description: "desc",
-								Status:      influxdb.TaskStatusInactive,
+								Status:      taskmodel.TaskStatusInactive,
 							},
 							AuthMethod: "none",
 							Method:     "GET",
@@ -3950,27 +3951,27 @@ func TestService(t *testing.T) {
 					tests := []struct {
 						name    string
 						newName string
-						task    influxdb.Task
+						task    taskmodel.Task
 					}{
 						{
 							name:    "every offset is set",
 							newName: "new name",
-							task: influxdb.Task{
+							task: taskmodel.Task{
 								ID:     1,
 								Name:   "name_9000",
 								Every:  time.Minute.String(),
 								Offset: 10 * time.Second,
-								Type:   influxdb.TaskSystemType,
+								Type:   taskmodel.TaskSystemType,
 								Flux:   `option task = { name: "larry" } from(bucket: "rucket") |> yield()`,
 							},
 						},
 						{
 							name: "cron is set",
-							task: influxdb.Task{
+							task: taskmodel.Task{
 								ID:   1,
 								Name: "name_0",
 								Cron: "2 * * * *",
-								Type: influxdb.TaskSystemType,
+								Type: taskmodel.TaskSystemType,
 								Flux: `option task = { name: "larry" } from(bucket: "rucket") |> yield()`,
 							},
 						},
@@ -3979,14 +3980,14 @@ func TestService(t *testing.T) {
 					for _, tt := range tests {
 						fn := func(t *testing.T) {
 							taskSVC := mock.NewTaskService()
-							taskSVC.FindTaskByIDFn = func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
+							taskSVC.FindTaskByIDFn = func(ctx context.Context, id platform.ID) (*taskmodel.Task, error) {
 								if id != tt.task.ID {
 									return nil, errors.New("wrong id provided: " + id.String())
 								}
 								return &tt.task, nil
 							}
-							taskSVC.FindTasksFn = func(ctx context.Context, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
-								return []*influxdb.Task{&tt.task}, 1, nil
+							taskSVC.FindTasksFn = func(ctx context.Context, filter taskmodel.TaskFilter) ([]*taskmodel.Task, int, error) {
+								return []*taskmodel.Task{&tt.task}, 1, nil
 							}
 
 							svc := newTestService(WithTaskSVC(taskSVC))
@@ -4026,13 +4027,13 @@ func TestService(t *testing.T) {
 
 				t.Run("handles multiple tasks of same name", func(t *testing.T) {
 					taskSVC := mock.NewTaskService()
-					taskSVC.FindTaskByIDFn = func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
-						return &influxdb.Task{
+					taskSVC.FindTaskByIDFn = func(ctx context.Context, id platform.ID) (*taskmodel.Task, error) {
+						return &taskmodel.Task{
 							ID:          id,
-							Type:        influxdb.TaskSystemType,
+							Type:        taskmodel.TaskSystemType,
 							Name:        "same name",
 							Description: "desc",
-							Status:      influxdb.TaskStatusActive,
+							Status:      taskmodel.TaskStatusActive,
 							Flux:        `from(bucket: "foo")`,
 							Every:       "5m0s",
 						}, nil
@@ -4071,14 +4072,14 @@ func TestService(t *testing.T) {
 			})
 
 			t.Run("tasks by name", func(t *testing.T) {
-				knownTasks := []*influxdb.Task{
+				knownTasks := []*taskmodel.Task{
 					{
 						ID:          1,
 						Name:        "task",
 						Description: "task 1",
 						Every:       time.Minute.String(),
 						Offset:      10 * time.Second,
-						Type:        influxdb.TaskSystemType,
+						Type:        taskmodel.TaskSystemType,
 						Flux:        `option task = { name: "larry" } from(bucket: "rucket") |> yield()`,
 					},
 					{
@@ -4086,7 +4087,7 @@ func TestService(t *testing.T) {
 						Name:        "taskCopy",
 						Description: "task 2",
 						Cron:        "2 * * * *",
-						Type:        influxdb.TaskSystemType,
+						Type:        taskmodel.TaskSystemType,
 						Flux:        `option task = { name: "curly" } from(bucket: "rucket") |> yield()`,
 					},
 					{
@@ -4094,7 +4095,7 @@ func TestService(t *testing.T) {
 						Name:        "taskCopy",
 						Description: "task 3",
 						Cron:        "2 3 4 5 *",
-						Type:        influxdb.TaskSystemType,
+						Type:        taskmodel.TaskSystemType,
 						Flux:        `option task = { name: "moe" } from(bucket: "rucket") |> yield()`,
 					},
 				}
@@ -4103,17 +4104,17 @@ func TestService(t *testing.T) {
 					name     string
 					findName string
 					findID   platform.ID
-					expected []*influxdb.Task
+					expected []*taskmodel.Task
 				}{
 					{
 						name:     "find task with unique name",
 						findName: "task",
-						expected: []*influxdb.Task{knownTasks[0]},
+						expected: []*taskmodel.Task{knownTasks[0]},
 					},
 					{
 						name:     "find multiple tasks with shared name",
 						findName: "taskCopy",
-						expected: []*influxdb.Task{knownTasks[1], knownTasks[2]},
+						expected: []*taskmodel.Task{knownTasks[1], knownTasks[2]},
 					},
 					{
 						name:     "find no tasks",
@@ -4123,20 +4124,20 @@ func TestService(t *testing.T) {
 					{
 						name:     "find task by id",
 						findID:   platform.ID(2),
-						expected: []*influxdb.Task{knownTasks[1]},
+						expected: []*taskmodel.Task{knownTasks[1]},
 					},
 					{
 						name:     "find by id, set new name",
 						findID:   platform.ID(2),
 						findName: "renamedTask",
-						expected: []*influxdb.Task{knownTasks[1]},
+						expected: []*taskmodel.Task{knownTasks[1]},
 					},
 				}
 
 				for _, tt := range tests {
 					fn := func(t *testing.T) {
 						taskSVC := mock.NewTaskService()
-						taskSVC.FindTaskByIDFn = func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
+						taskSVC.FindTaskByIDFn = func(ctx context.Context, id platform.ID) (*taskmodel.Task, error) {
 							for i := range knownTasks {
 								if knownTasks[i].ID == id {
 									return knownTasks[i], nil
@@ -4145,8 +4146,8 @@ func TestService(t *testing.T) {
 
 							return nil, errors.New("wrong id provided: " + id.String())
 						}
-						taskSVC.FindTasksFn = func(ctx context.Context, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
-							tasks := []*influxdb.Task{}
+						taskSVC.FindTasksFn = func(ctx context.Context, filter taskmodel.TaskFilter) ([]*taskmodel.Task, int, error) {
+							tasks := []*taskmodel.Task{}
 							for i := range knownTasks {
 								if knownTasks[i].Name == *filter.Name {
 									tasks = append(tasks, knownTasks[i])
@@ -4850,27 +4851,27 @@ func TestService(t *testing.T) {
 			}
 
 			taskSVC := mock.NewTaskService()
-			taskSVC.FindTasksFn = func(ctx context.Context, f influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
+			taskSVC.FindTasksFn = func(ctx context.Context, f taskmodel.TaskFilter) ([]*taskmodel.Task, int, error) {
 				if f.After != nil {
 					return nil, 0, nil
 				}
-				return []*influxdb.Task{
-					{ID: 31, Type: influxdb.TaskSystemType},
-					{ID: expectedCheck.TaskID, Type: influxdb.TaskSystemType}, // this one should be ignored in the return
-					{ID: expectedRule.TaskID, Type: influxdb.TaskSystemType},  // this one should be ignored in the return as well
+				return []*taskmodel.Task{
+					{ID: 31, Type: taskmodel.TaskSystemType},
+					{ID: expectedCheck.TaskID, Type: taskmodel.TaskSystemType}, // this one should be ignored in the return
+					{ID: expectedRule.TaskID, Type: taskmodel.TaskSystemType},  // this one should be ignored in the return as well
 					{ID: 99}, // this one should be skipped since it is not a system task
 				}, 3, nil
 			}
-			taskSVC.FindTaskByIDFn = func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
+			taskSVC.FindTaskByIDFn = func(ctx context.Context, id platform.ID) (*taskmodel.Task, error) {
 				if id != 31 {
 					return nil, errors.New("wrong id: " + id.String())
 				}
-				return &influxdb.Task{
+				return &taskmodel.Task{
 					ID:     id,
 					Name:   "task_0",
 					Every:  time.Minute.String(),
 					Offset: 10 * time.Second,
-					Type:   influxdb.TaskSystemType,
+					Type:   taskmodel.TaskSystemType,
 					Flux:   `option task = { name: "larry" } from(bucket: "rucket") |> yield()`,
 				}, nil
 			}

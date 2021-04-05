@@ -2,6 +2,7 @@ package authorizer
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 
@@ -129,7 +130,7 @@ func AuthorizeFindSources(ctx context.Context, rs []*influxdb.Source) ([]*influx
 }
 
 // AuthorizeFindTasks takes the given items and returns only the ones that the user is authorized to read.
-func AuthorizeFindTasks(ctx context.Context, rs []*influxdb.Task) ([]*influxdb.Task, int, error) {
+func AuthorizeFindTasks(ctx context.Context, rs []*taskmodel.Task) ([]*taskmodel.Task, int, error) {
 	// This filters without allocating
 	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
 	rrs := rs[:0]

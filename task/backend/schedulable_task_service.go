@@ -3,11 +3,11 @@ package backend
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"time"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 )
 
@@ -15,7 +15,7 @@ var _ scheduler.SchedulableService = (*SchedulableTaskService)(nil)
 
 // UpdateTaskService provides an API to update the LatestScheduled time of a task
 type UpdateTaskService interface {
-	UpdateTask(ctx context.Context, id platform.ID, upd influxdb.TaskUpdate) (*influxdb.Task, error)
+	UpdateTask(ctx context.Context, id platform.ID, upd taskmodel.TaskUpdate) (*taskmodel.Task, error)
 }
 
 // SchedulableTaskService implements the SchedulableService interface
@@ -30,7 +30,7 @@ func NewSchedulableTaskService(ts UpdateTaskService) SchedulableTaskService {
 
 // UpdateLastScheduled uses the task service to store the latest time a task was scheduled to run
 func (s SchedulableTaskService) UpdateLastScheduled(ctx context.Context, id scheduler.ID, t time.Time) error {
-	_, err := s.UpdateTask(ctx, platform.ID(id), influxdb.TaskUpdate{
+	_, err := s.UpdateTask(ctx, platform.ID(id), taskmodel.TaskUpdate{
 		LatestScheduled: &t,
 	})
 

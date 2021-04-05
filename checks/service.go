@@ -3,6 +3,7 @@ package checks
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
@@ -26,7 +27,7 @@ type Service struct {
 	log *zap.Logger
 
 	orgs  influxdb.OrganizationService
-	tasks influxdb.TaskService
+	tasks taskmodel.TaskService
 
 	timeGenerator influxdb.TimeGenerator
 	idGenerator   platform.IDGenerator
@@ -35,7 +36,7 @@ type Service struct {
 }
 
 // NewService constructs and configures a new checks.Service
-func NewService(logger *zap.Logger, store kv.Store, orgs influxdb.OrganizationService, tasks influxdb.TaskService) *Service {
+func NewService(logger *zap.Logger, store kv.Store, orgs influxdb.OrganizationService, tasks taskmodel.TaskService) *Service {
 	return &Service{
 		kv:    store,
 		log:   logger,
@@ -330,7 +331,7 @@ func (s *Service) CreateCheck(ctx context.Context, c influxdb.CheckCreate, userI
 
 	// update task to be in matching state to check
 	if influxdb.Status(t.Status) != c.Status {
-		_, err = s.tasks.UpdateTask(ctx, t.ID, influxdb.TaskUpdate{
+		_, err = s.tasks.UpdateTask(ctx, t.ID, taskmodel.TaskUpdate{
 			Status: strPtr(string(c.Status)),
 		})
 	}
@@ -338,13 +339,13 @@ func (s *Service) CreateCheck(ctx context.Context, c influxdb.CheckCreate, userI
 	return err
 }
 
-func (s *Service) createCheckTask(ctx context.Context, c influxdb.CheckCreate) (*influxdb.Task, error) {
+func (s *Service) createCheckTask(ctx context.Context, c influxdb.CheckCreate) (*taskmodel.Task, error) {
 	script, err := c.GenerateFlux(fluxlang.DefaultService)
 	if err != nil {
 		return nil, err
 	}
 
-	tc := influxdb.TaskCreate{
+	tc := taskmodel.TaskCreate{
 		Type:           c.Type(),
 		Flux:           script,
 		OwnerID:        c.GetOwnerID(),
@@ -440,7 +441,7 @@ func (s *Service) updateCheckTask(ctx context.Context, chk influxdb.CheckCreate)
 		return err
 	}
 
-	tu := influxdb.TaskUpdate{
+	tu := taskmodel.TaskUpdate{
 		Flux:        &flux,
 		Description: strPtr(chk.GetDescription()),
 	}
@@ -457,7 +458,7 @@ func (s *Service) updateCheckTask(ctx context.Context, chk influxdb.CheckCreate)
 }
 
 func (s *Service) patchCheckTask(ctx context.Context, taskID platform.ID, upd influxdb.CheckUpdate) error {
-	tu := influxdb.TaskUpdate{
+	tu := taskmodel.TaskUpdate{
 		Description: upd.Description,
 	}
 

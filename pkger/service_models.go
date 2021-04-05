@@ -1,6 +1,7 @@
 package pkger
 
 import (
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"reflect"
 	"sort"
 
@@ -1347,7 +1348,7 @@ type stateTask struct {
 	labelAssociations []*stateLabel
 
 	parserTask *task
-	existing   *influxdb.Task
+	existing   *taskmodel.Task
 }
 
 func (t *stateTask) ID() platform.ID {

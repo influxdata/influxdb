@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"net/url"
 	"path"
 	"regexp"
@@ -162,7 +163,7 @@ type serviceOpt struct {
 	orgSVC      influxdb.OrganizationService
 	ruleSVC     influxdb.NotificationRuleStore
 	secretSVC   influxdb.SecretService
-	taskSVC     influxdb.TaskService
+	taskSVC     taskmodel.TaskService
 	teleSVC     influxdb.TelegrafConfigStore
 	varSVC      influxdb.VariableService
 }
@@ -261,7 +262,7 @@ func WithSecretSVC(secretSVC influxdb.SecretService) ServiceSetterFn {
 }
 
 // WithTaskSVC sets the task service.
-func WithTaskSVC(taskSVC influxdb.TaskService) ServiceSetterFn {
+func WithTaskSVC(taskSVC taskmodel.TaskService) ServiceSetterFn {
 	return func(opt *serviceOpt) {
 		opt.taskSVC = taskSVC
 	}
@@ -311,7 +312,7 @@ type Service struct {
 	orgSVC      influxdb.OrganizationService
 	ruleSVC     influxdb.NotificationRuleStore
 	secretSVC   influxdb.SecretService
-	taskSVC     influxdb.TaskService
+	taskSVC     taskmodel.TaskService
 	teleSVC     influxdb.TelegrafConfigStore
 	varSVC      influxdb.VariableService
 }
@@ -822,10 +823,10 @@ func (s *Service) cloneOrgTasks(ctx context.Context, orgID platform.ID) ([]Resou
 		return nil, err
 	}
 
-	mTasks := make(map[platform.ID]*influxdb.Task)
+	mTasks := make(map[platform.ID]*taskmodel.Task)
 	for i := range tasks {
 		t := tasks[i]
-		if t.Type != influxdb.TaskSystemType {
+		if t.Type != taskmodel.TaskSystemType {
 			continue
 		}
 		mTasks[t.ID] = t
@@ -1191,7 +1192,7 @@ func (s *Service) dryRunSecrets(ctx context.Context, orgID platform.ID, template
 func (s *Service) dryRunTasks(ctx context.Context, orgID platform.ID, tasks map[string]*stateTask) {
 	for _, stateTask := range tasks {
 		stateTask.orgID = orgID
-		var existing *influxdb.Task
+		var existing *taskmodel.Task
 		if stateTask.ID() != 0 {
 			existing, _ = s.taskSVC.FindTaskByID(ctx, stateTask.ID())
 		}
@@ -2530,7 +2531,7 @@ func (s *Service) applyTasks(ctx context.Context, tasks []*stateTask) applier {
 	}
 }
 
-func (s *Service) applyTask(ctx context.Context, userID platform.ID, t *stateTask) (influxdb.Task, error) {
+func (s *Service) applyTask(ctx context.Context, userID platform.ID, t *stateTask) (taskmodel.Task, error) {
 	if isRestrictedTask(t.existing) {
 		return *t.existing, nil
 	}
@@ -2538,9 +2539,9 @@ func (s *Service) applyTask(ctx context.Context, userID platform.ID, t *stateTas
 	case IsRemoval(t.stateStatus):
 		if err := s.taskSVC.DeleteTask(ctx, t.ID()); err != nil {
 			if errors2.ErrorCode(err) == errors2.ENotFound {
-				return influxdb.Task{}, nil
+				return taskmodel.Task{}, nil
 			}
-			return influxdb.Task{}, applyFailErr("delete", t.stateIdentity(), err)
+			return taskmodel.Task{}, applyFailErr("delete", t.stateIdentity(), err)
 		}
 		return *t.existing, nil
 	case IsExisting(t.stateStatus) && t.existing != nil:
@@ -2560,19 +2561,19 @@ func (s *Service) applyTask(ctx context.Context, userID platform.ID, t *stateTas
 			}
 		}
 
-		updatedTask, err := s.taskSVC.UpdateTask(ctx, t.ID(), influxdb.TaskUpdate{
+		updatedTask, err := s.taskSVC.UpdateTask(ctx, t.ID(), taskmodel.TaskUpdate{
 			Flux:        &newFlux,
 			Status:      &newStatus,
 			Description: &t.parserTask.description,
 			Options:     opt,
 		})
 		if err != nil {
-			return influxdb.Task{}, applyFailErr("update", t.stateIdentity(), err)
+			return taskmodel.Task{}, applyFailErr("update", t.stateIdentity(), err)
 		}
 		return *updatedTask, nil
 	default:
-		newTask, err := s.taskSVC.CreateTask(ctx, influxdb.TaskCreate{
-			Type:           influxdb.TaskSystemType,
+		newTask, err := s.taskSVC.CreateTask(ctx, taskmodel.TaskCreate{
+			Type:           taskmodel.TaskSystemType,
 			Flux:           t.parserTask.flux(),
 			OwnerID:        userID,
 			Description:    t.parserTask.description,
@@ -2580,7 +2581,7 @@ func (s *Service) applyTask(ctx context.Context, userID platform.ID, t *stateTas
 			OrganizationID: t.orgID,
 		})
 		if err != nil {
-			return influxdb.Task{}, applyFailErr("create", t.stateIdentity(), err)
+			return taskmodel.Task{}, applyFailErr("create", t.stateIdentity(), err)
 		}
 		return *newTask, nil
 	}
@@ -2595,7 +2596,7 @@ func (s *Service) rollbackTasks(ctx context.Context, tasks []*stateTask) error {
 		var err error
 		switch t.stateStatus {
 		case StateStatusRemove:
-			newTask, err := s.taskSVC.CreateTask(ctx, influxdb.TaskCreate{
+			newTask, err := s.taskSVC.CreateTask(ctx, taskmodel.TaskCreate{
 				Type:           t.existing.Type,
 				Flux:           t.existing.Flux,
 				OwnerID:        t.existing.OwnerID,
@@ -2623,7 +2624,7 @@ func (s *Service) rollbackTasks(ctx context.Context, tasks []*stateTask) error {
 				}
 			}
 
-			_, err = s.taskSVC.UpdateTask(ctx, t.ID(), influxdb.TaskUpdate{
+			_, err = s.taskSVC.UpdateTask(ctx, t.ID(), taskmodel.TaskUpdate{
 				Flux:        &t.existing.Flux,
 				Status:      &t.existing.Status,
 				Description: &t.existing.Description,
@@ -3412,15 +3413,15 @@ func (s *Service) getNotificationRules(ctx context.Context, orgID platform.ID) (
 
 }
 
-func (s *Service) getAllTasks(ctx context.Context, orgID platform.ID) ([]*influxdb.Task, error) {
+func (s *Service) getAllTasks(ctx context.Context, orgID platform.ID) ([]*taskmodel.Task, error) {
 	var (
-		out     []*influxdb.Task
+		out     []*taskmodel.Task
 		afterID *platform.ID
 	)
 	for {
-		f := influxdb.TaskFilter{
+		f := taskmodel.TaskFilter{
 			OrganizationID: &orgID,
-			Limit:          influxdb.TaskMaxPageSize,
+			Limit:          taskmodel.TaskMaxPageSize,
 		}
 		if afterID != nil {
 			f.After = afterID
@@ -3688,8 +3689,8 @@ func validURLs(urls []string) error {
 	return nil
 }
 
-func isRestrictedTask(t *influxdb.Task) bool {
-	return t != nil && t.Type != influxdb.TaskSystemType
+func isRestrictedTask(t *taskmodel.Task) bool {
+	return t != nil && t.Type != taskmodel.TaskSystemType
 }
 
 func isSystemBucket(b *influxdb.Bucket) bool {

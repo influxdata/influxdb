@@ -3,6 +3,7 @@ package resource
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
@@ -32,7 +33,7 @@ type Resolver struct {
 		FindSourceByID(context.Context, platform.ID) (*influxdb.Source, error)
 	}
 	TaskFinder interface {
-		FindTaskByID(context.Context, platform.ID) (*influxdb.Task, error)
+		FindTaskByID(context.Context, platform.ID) (*taskmodel.Task, error)
 	}
 	TelegrafConfigFinder interface {
 		FindTelegrafConfigByID(context.Context, platform.ID) (*influxdb.TelegrafConfig, error)

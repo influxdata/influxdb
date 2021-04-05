@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"io/ioutil"
 	"os"
 	"testing"
@@ -28,7 +29,7 @@ func TestInmemNotificationRuleStore(t *testing.T) {
 	NotificationRuleStore(initInmemNotificationRuleStore, t)
 }
 
-func initInmemNotificationRuleStore(f NotificationRuleFields, t *testing.T) (influxdb.NotificationRuleStore, influxdb.TaskService, func()) {
+func initInmemNotificationRuleStore(f NotificationRuleFields, t *testing.T) (influxdb.NotificationRuleStore, taskmodel.TaskService, func()) {
 	store := inmem.NewKVStore()
 	if err := all.Up(context.Background(), zaptest.NewLogger(t), store); err != nil {
 		t.Fatal(err)
@@ -40,7 +41,7 @@ func initInmemNotificationRuleStore(f NotificationRuleFields, t *testing.T) (inf
 	}
 }
 
-func initBoltNotificationRuleStore(f NotificationRuleFields, t *testing.T) (influxdb.NotificationRuleStore, influxdb.TaskService, func()) {
+func initBoltNotificationRuleStore(f NotificationRuleFields, t *testing.T) (influxdb.NotificationRuleStore, taskmodel.TaskService, func()) {
 	store, closeBolt, err := newTestBoltStore(t)
 	if err != nil {
 		t.Fatal(err)
@@ -57,7 +58,7 @@ func TestBoltNotificationRuleStore(t *testing.T) {
 	NotificationRuleStore(initBoltNotificationRuleStore, t)
 }
 
-func initNotificationRuleStore(s kv.Store, f NotificationRuleFields, t *testing.T) (influxdb.NotificationRuleStore, influxdb.TaskService, func()) {
+func initNotificationRuleStore(s kv.Store, f NotificationRuleFields, t *testing.T) (influxdb.NotificationRuleStore, taskmodel.TaskService, func()) {
 	logger := zaptest.NewLogger(t)
 
 	var (

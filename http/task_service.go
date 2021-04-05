@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"net/http"
 	"net/url"
 	"path"
@@ -31,7 +32,7 @@ type TaskBackend struct {
 	log *zap.Logger
 
 	AlgoWProxy                 FeatureProxyHandler
-	TaskService                influxdb.TaskService
+	TaskService                taskmodel.TaskService
 	AuthorizationService       influxdb.AuthorizationService
 	OrganizationService        influxdb.OrganizationService
 	UserResourceMappingService influxdb.UserResourceMappingService
@@ -62,7 +63,7 @@ type TaskHandler struct {
 	errors2.HTTPErrorHandler
 	log *zap.Logger
 
-	TaskService                influxdb.TaskService
+	TaskService                taskmodel.TaskService
 	AuthorizationService       influxdb.AuthorizationService
 	OrganizationService        influxdb.OrganizationService
 	UserResourceMappingService influxdb.UserResourceMappingService
@@ -185,7 +186,7 @@ type taskResponse struct {
 }
 
 // NewFrontEndTask converts a internal task type to a task that we want to display to users
-func NewFrontEndTask(t influxdb.Task) Task {
+func NewFrontEndTask(t taskmodel.Task) Task {
 	latestCompleted := ""
 	if !t.LatestCompleted.IsZero() {
 		latestCompleted = t.LatestCompleted.Format(time.RFC3339)
@@ -224,7 +225,7 @@ func NewFrontEndTask(t influxdb.Task) Task {
 	}
 }
 
-func convertTask(t Task) *influxdb.Task {
+func convertTask(t Task) *taskmodel.Task {
 	var (
 		latestCompleted time.Time
 		createdAt       time.Time
@@ -251,7 +252,7 @@ func convertTask(t Task) *influxdb.Task {
 		}
 	}
 
-	return &influxdb.Task{
+	return &taskmodel.Task{
 		ID:              t.ID,
 		OrganizationID:  t.OrganizationID,
 		Organization:    t.Organization,
@@ -308,7 +309,7 @@ func customParseDuration(d time.Duration) string {
 	return str
 }
 
-func newTaskResponse(t influxdb.Task, labels []*influxdb.Label) taskResponse {
+func newTaskResponse(t taskmodel.Task, labels []*influxdb.Label) taskResponse {
 	response := taskResponse{
 		Links: map[string]string{
 			"self":    fmt.Sprintf("/api/v2/tasks/%s", t.ID),
@@ -329,7 +330,7 @@ func newTaskResponse(t influxdb.Task, labels []*influxdb.Label) taskResponse {
 	return response
 }
 
-func newTasksPagingLinks(basePath string, ts []*influxdb.Task, f influxdb.TaskFilter) *influxdb.PagingLinks {
+func newTasksPagingLinks(basePath string, ts []*taskmodel.Task, f taskmodel.TaskFilter) *influxdb.PagingLinks {
 	var self, next string
 	u := url.URL{
 		Path: basePath,
@@ -366,7 +367,7 @@ type tasksResponse struct {
 	Tasks []taskResponse        `json:"tasks"`
 }
 
-func newTasksResponse(ctx context.Context, ts []*influxdb.Task, f influxdb.TaskFilter, labelService influxdb.LabelService) tasksResponse {
+func newTasksResponse(ctx context.Context, ts []*taskmodel.Task, f taskmodel.TaskFilter, labelService influxdb.LabelService) tasksResponse {
 	rs := tasksResponse{
 		Links: newTasksPagingLinks(prefixTasks, ts, f),
 		Tasks: make([]taskResponse, len(ts)),
@@ -388,17 +389,17 @@ type runResponse struct {
 // it uses a pointer to a time.Time instead of a time.Time so that we can pass a nil
 // value for empty time values
 type httpRun struct {
-	ID           platform.ID    `json:"id,omitempty"`
-	TaskID       platform.ID    `json:"taskID"`
-	Status       string         `json:"status"`
-	ScheduledFor *time.Time     `json:"scheduledFor"`
-	StartedAt    *time.Time     `json:"startedAt,omitempty"`
-	FinishedAt   *time.Time     `json:"finishedAt,omitempty"`
-	RequestedAt  *time.Time     `json:"requestedAt,omitempty"`
-	Log          []influxdb.Log `json:"log,omitempty"`
+	ID           platform.ID     `json:"id,omitempty"`
+	TaskID       platform.ID     `json:"taskID"`
+	Status       string          `json:"status"`
+	ScheduledFor *time.Time      `json:"scheduledFor"`
+	StartedAt    *time.Time      `json:"startedAt,omitempty"`
+	FinishedAt   *time.Time      `json:"finishedAt,omitempty"`
+	RequestedAt  *time.Time      `json:"requestedAt,omitempty"`
+	Log          []taskmodel.Log `json:"log,omitempty"`
 }
 
-func newRunResponse(r influxdb.Run) runResponse {
+func newRunResponse(r taskmodel.Run) runResponse {
 	run := httpRun{
 		ID:           r.ID,
 		TaskID:       r.TaskID,
@@ -428,8 +429,8 @@ func newRunResponse(r influxdb.Run) runResponse {
 	}
 }
 
-func convertRun(r httpRun) *influxdb.Run {
-	run := &influxdb.Run{
+func convertRun(r httpRun) *taskmodel.Run {
+	run := &taskmodel.Run{
 		ID:     r.ID,
 		TaskID: r.TaskID,
 		Status: r.Status,
@@ -460,7 +461,7 @@ type runsResponse struct {
 	Runs  []*runResponse    `json:"runs"`
 }
 
-func newRunsResponse(rs []*influxdb.Run, taskID platform.ID) runsResponse {
+func newRunsResponse(rs []*taskmodel.Run, taskID platform.ID) runsResponse {
 	r := runsResponse{
 		Links: map[string]string{
 			"self": fmt.Sprintf("/api/v2/tasks/%s/runs", taskID),
@@ -502,7 +503,7 @@ func (h *TaskHandler) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 }
 
 type getTasksRequest struct {
-	filter influxdb.TaskFilter
+	filter taskmodel.TaskFilter
 }
 
 func decodeGetTasksRequest(ctx context.Context, r *http.Request, orgs influxdb.OrganizationService) (*getTasksRequest, error) {
@@ -554,15 +555,15 @@ func decodeGetTasksRequest(ctx context.Context, r *http.Request, orgs influxdb.O
 		if err != nil {
 			return nil, err
 		}
-		if lim < 1 || lim > influxdb.TaskMaxPageSize {
+		if lim < 1 || lim > taskmodel.TaskMaxPageSize {
 			return nil, &errors2.Error{
 				Code: errors2.EUnprocessableEntity,
-				Msg:  fmt.Sprintf("limit must be between 1 and %d", influxdb.TaskMaxPageSize),
+				Msg:  fmt.Sprintf("limit must be between 1 and %d", taskmodel.TaskMaxPageSize),
 			}
 		}
 		req.filter.Limit = lim
 	} else {
-		req.filter.Limit = influxdb.TaskDefaultPageSize
+		req.filter.Limit = taskmodel.TaskDefaultPageSize
 	}
 
 	if status := qp.Get("status"); status == "active" {
@@ -572,7 +573,7 @@ func decodeGetTasksRequest(ctx context.Context, r *http.Request, orgs influxdb.O
 	}
 
 	// the task api can only create or lookup system tasks.
-	req.filter.Type = &influxdb.TaskSystemType
+	req.filter.Type = &taskmodel.TaskSystemType
 
 	if name := qp.Get("name"); name != "" {
 		req.filter.Name = &name
@@ -643,11 +644,11 @@ func (h *TaskHandler) handlePostTask(w http.ResponseWriter, r *http.Request) {
 }
 
 type postTaskRequest struct {
-	TaskCreate influxdb.TaskCreate
+	TaskCreate taskmodel.TaskCreate
 }
 
 func decodePostTaskRequest(ctx context.Context, r *http.Request) (*postTaskRequest, error) {
-	var tc influxdb.TaskCreate
+	var tc taskmodel.TaskCreate
 	if err := json.NewDecoder(r.Body).Decode(&tc); err != nil {
 		return nil, err
 	}
@@ -659,7 +660,7 @@ func decodePostTaskRequest(ctx context.Context, r *http.Request) (*postTaskReque
 	}
 	tc.OwnerID = auth.GetUserID()
 	// when creating a task we set the type so we can filter later.
-	tc.Type = influxdb.TaskSystemType
+	tc.Type = taskmodel.TaskSystemType
 
 	if err := tc.Validate(); err != nil {
 		return nil, err
@@ -754,7 +755,7 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 			Err: err,
 			Msg: "failed to update task",
 		}
-		if err.Err == influxdb.ErrTaskNotFound {
+		if err.Err == taskmodel.ErrTaskNotFound {
 			err.Code = errors2.ENotFound
 		}
 		h.HandleHTTPError(ctx, err, w)
@@ -778,7 +779,7 @@ func (h *TaskHandler) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 }
 
 type updateTaskRequest struct {
-	Update influxdb.TaskUpdate
+	Update taskmodel.TaskUpdate
 	TaskID platform.ID
 }
 
@@ -797,7 +798,7 @@ func decodeUpdateTaskRequest(ctx context.Context, r *http.Request) (*updateTaskR
 		return nil, err
 	}
 
-	var upd influxdb.TaskUpdate
+	var upd taskmodel.TaskUpdate
 	if err := json.NewDecoder(r.Body).Decode(&upd); err != nil {
 		return nil, err
 	}
@@ -830,7 +831,7 @@ func (h *TaskHandler) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 			Err: err,
 			Msg: "failed to delete task",
 		}
-		if err.Err == influxdb.ErrTaskNotFound {
+		if err.Err == taskmodel.ErrTaskNotFound {
 			err.Code = errors2.ENotFound
 		}
 		h.HandleHTTPError(ctx, err, w)
@@ -907,7 +908,7 @@ func (h *TaskHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 			Err: err,
 			Msg: "failed to find task logs",
 		}
-		if err.Err == influxdb.ErrTaskNotFound || err.Err == influxdb.ErrNoRunsFound {
+		if err.Err == taskmodel.ErrTaskNotFound || err.Err == taskmodel.ErrNoRunsFound {
 			err.Code = errors2.ENotFound
 		}
 		h.HandleHTTPError(ctx, err, w)
@@ -921,11 +922,11 @@ func (h *TaskHandler) handleGetLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 type getLogsRequest struct {
-	filter influxdb.LogFilter
+	filter taskmodel.LogFilter
 }
 
 type getLogsResponse struct {
-	Events []*influxdb.Log `json:"events"`
+	Events []*taskmodel.Log `json:"events"`
 }
 
 func decodeGetLogsRequest(ctx context.Context, r *http.Request) (*getLogsRequest, error) {
@@ -999,7 +1000,7 @@ func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 			Err: err,
 			Msg: "failed to find runs",
 		}
-		if err.Err == influxdb.ErrTaskNotFound || err.Err == influxdb.ErrNoRunsFound {
+		if err.Err == taskmodel.ErrTaskNotFound || err.Err == taskmodel.ErrNoRunsFound {
 			err.Code = errors2.ENotFound
 		}
 		h.HandleHTTPError(ctx, err, w)
@@ -1013,7 +1014,7 @@ func (h *TaskHandler) handleGetRuns(w http.ResponseWriter, r *http.Request) {
 }
 
 type getRunsRequest struct {
-	filter influxdb.RunFilter
+	filter taskmodel.RunFilter
 }
 
 func decodeGetRunsRequest(ctx context.Context, r *http.Request) (*getRunsRequest, error) {
@@ -1049,8 +1050,8 @@ func decodeGetRunsRequest(ctx context.Context, r *http.Request) (*getRunsRequest
 			return nil, err
 		}
 
-		if i < 1 || i > influxdb.TaskMaxPageSize {
-			return nil, influxdb.ErrOutOfBoundsLimit
+		if i < 1 || i > taskmodel.TaskMaxPageSize {
+			return nil, taskmodel.ErrOutOfBoundsLimit
 		}
 		req.filter.Limit = i
 	}
@@ -1103,7 +1104,7 @@ func (h *TaskHandler) handleForceRun(w http.ResponseWriter, r *http.Request) {
 			Err: err,
 			Msg: "failed to force run",
 		}
-		if err.Err == influxdb.ErrTaskNotFound {
+		if err.Err == taskmodel.ErrTaskNotFound {
 			err.Code = errors2.ENotFound
 		}
 		h.HandleHTTPError(ctx, err, w)
@@ -1205,7 +1206,7 @@ func (h *TaskHandler) handleGetRun(w http.ResponseWriter, r *http.Request) {
 			Err: err,
 			Msg: "failed to find run",
 		}
-		if err.Err == influxdb.ErrTaskNotFound || err.Err == influxdb.ErrRunNotFound {
+		if err.Err == taskmodel.ErrTaskNotFound || err.Err == taskmodel.ErrRunNotFound {
 			err.Code = errors2.ENotFound
 		}
 		h.HandleHTTPError(ctx, err, w)
@@ -1311,7 +1312,7 @@ func (h *TaskHandler) handleCancelRun(w http.ResponseWriter, r *http.Request) {
 			Err: err,
 			Msg: "failed to cancel run",
 		}
-		if err.Err == influxdb.ErrTaskNotFound || err.Err == influxdb.ErrRunNotFound {
+		if err.Err == taskmodel.ErrTaskNotFound || err.Err == taskmodel.ErrRunNotFound {
 			err.Code = errors2.ENotFound
 		}
 		h.HandleHTTPError(ctx, err, w)
@@ -1362,7 +1363,7 @@ func (h *TaskHandler) handleRetryRun(w http.ResponseWriter, r *http.Request) {
 			Err: err,
 			Msg: "failed to retry run",
 		}
-		if err.Err == influxdb.ErrTaskNotFound || err.Err == influxdb.ErrRunNotFound {
+		if err.Err == taskmodel.ErrTaskNotFound || err.Err == taskmodel.ErrRunNotFound {
 			err.Code = errors2.ENotFound
 		}
 		h.HandleHTTPError(ctx, err, w)
@@ -1409,7 +1410,7 @@ func decodeRetryRunRequest(ctx context.Context, r *http.Request) (*retryRunReque
 	}, nil
 }
 
-func (h *TaskHandler) populateTaskCreateOrg(ctx context.Context, tc *influxdb.TaskCreate) error {
+func (h *TaskHandler) populateTaskCreateOrg(ctx context.Context, tc *taskmodel.TaskCreate) error {
 	if tc.OrganizationID.Valid() && tc.Organization != "" {
 		return nil
 	}
@@ -1466,7 +1467,7 @@ type TaskService struct {
 }
 
 // FindTaskByID returns a single task
-func (t TaskService) FindTaskByID(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
+func (t TaskService) FindTaskByID(ctx context.Context, id platform.ID) (*taskmodel.Task, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -1481,7 +1482,7 @@ func (t TaskService) FindTaskByID(ctx context.Context, id platform.ID) (*influxd
 
 // FindTasks returns a list of tasks that match a filter (limit 100) and the total count
 // of matching tasks.
-func (t TaskService) FindTasks(ctx context.Context, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
+func (t TaskService) FindTasks(ctx context.Context, filter taskmodel.TaskFilter) ([]*taskmodel.Task, int, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -1522,7 +1523,7 @@ func (t TaskService) FindTasks(ctx context.Context, filter influxdb.TaskFilter) 
 		return nil, 0, err
 	}
 
-	tasks := make([]*influxdb.Task, len(tr.Tasks))
+	tasks := make([]*taskmodel.Task, len(tr.Tasks))
 	for i := range tr.Tasks {
 		tasks[i] = convertTask(tr.Tasks[i].Task)
 	}
@@ -1530,7 +1531,7 @@ func (t TaskService) FindTasks(ctx context.Context, filter influxdb.TaskFilter) 
 }
 
 // CreateTask creates a new task.
-func (t TaskService) CreateTask(ctx context.Context, tc influxdb.TaskCreate) (*influxdb.Task, error) {
+func (t TaskService) CreateTask(ctx context.Context, tc taskmodel.TaskCreate) (*taskmodel.Task, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 	var tr taskResponse
@@ -1547,7 +1548,7 @@ func (t TaskService) CreateTask(ctx context.Context, tc influxdb.TaskCreate) (*i
 }
 
 // UpdateTask updates a single task with changeset.
-func (t TaskService) UpdateTask(ctx context.Context, id platform.ID, upd influxdb.TaskUpdate) (*influxdb.Task, error) {
+func (t TaskService) UpdateTask(ctx context.Context, id platform.ID, upd taskmodel.TaskUpdate) (*taskmodel.Task, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -1573,7 +1574,7 @@ func (t TaskService) DeleteTask(ctx context.Context, id platform.ID) error {
 }
 
 // FindLogs returns logs for a run.
-func (t TaskService) FindLogs(ctx context.Context, filter influxdb.LogFilter) ([]*influxdb.Log, int, error) {
+func (t TaskService) FindLogs(ctx context.Context, filter taskmodel.LogFilter) ([]*taskmodel.Log, int, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -1602,7 +1603,7 @@ func (t TaskService) FindLogs(ctx context.Context, filter influxdb.LogFilter) ([
 }
 
 // FindRuns returns a list of runs that match a filter and the total count of returned runs.
-func (t TaskService) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([]*influxdb.Run, int, error) {
+func (t TaskService) FindRuns(ctx context.Context, filter taskmodel.RunFilter) ([]*taskmodel.Run, int, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -1616,8 +1617,8 @@ func (t TaskService) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([
 		params = append(params, [2]string{"after", filter.After.String()})
 	}
 
-	if filter.Limit < 0 || filter.Limit > influxdb.TaskMaxPageSize {
-		return nil, 0, influxdb.ErrOutOfBoundsLimit
+	if filter.Limit < 0 || filter.Limit > taskmodel.TaskMaxPageSize {
+		return nil, 0, taskmodel.ErrOutOfBoundsLimit
 	}
 
 	params = append(params, [2]string{"limit", strconv.Itoa(filter.Limit)})
@@ -1632,7 +1633,7 @@ func (t TaskService) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([
 		return nil, 0, err
 	}
 
-	runs := make([]*influxdb.Run, len(rs.Runs))
+	runs := make([]*taskmodel.Run, len(rs.Runs))
 	for i := range rs.Runs {
 		runs[i] = convertRun(rs.Runs[i].httpRun)
 	}
@@ -1641,7 +1642,7 @@ func (t TaskService) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([
 }
 
 // FindRunByID returns a single run of a specific task.
-func (t TaskService) FindRunByID(ctx context.Context, taskID, runID platform.ID) (*influxdb.Run, error) {
+func (t TaskService) FindRunByID(ctx context.Context, taskID, runID platform.ID) (*taskmodel.Run, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -1656,7 +1657,7 @@ func (t TaskService) FindRunByID(ctx context.Context, taskID, runID platform.ID)
 			// ErrRunNotFound is expected as part of the FindRunByID contract,
 			// so return that actual error instead of a different error that looks like it.
 			// TODO cleanup backend error implementation
-			return nil, influxdb.ErrRunNotFound
+			return nil, taskmodel.ErrRunNotFound
 		}
 
 		return nil, err
@@ -1666,7 +1667,7 @@ func (t TaskService) FindRunByID(ctx context.Context, taskID, runID platform.ID)
 }
 
 // RetryRun creates and returns a new run (which is a retry of another run).
-func (t TaskService) RetryRun(ctx context.Context, taskID, runID platform.ID) (*influxdb.Run, error) {
+func (t TaskService) RetryRun(ctx context.Context, taskID, runID platform.ID) (*taskmodel.Run, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -1681,10 +1682,10 @@ func (t TaskService) RetryRun(ctx context.Context, taskID, runID platform.ID) (*
 			// ErrRunNotFound is expected as part of the RetryRun contract,
 			// so return that actual error instead of a different error that looks like it.
 			// TODO cleanup backend task error implementation
-			return nil, influxdb.ErrRunNotFound
+			return nil, taskmodel.ErrRunNotFound
 		}
 		// RequestStillQueuedError is also part of the contract.
-		if e := influxdb.ParseRequestStillQueuedError(err.Error()); e != nil {
+		if e := taskmodel.ParseRequestStillQueuedError(err.Error()); e != nil {
 			return nil, *e
 		}
 
@@ -1695,7 +1696,7 @@ func (t TaskService) RetryRun(ctx context.Context, taskID, runID platform.ID) (*
 }
 
 // ForceRun starts a run manually right now.
-func (t TaskService) ForceRun(ctx context.Context, taskID platform.ID, scheduledFor int64) (*influxdb.Run, error) {
+func (t TaskService) ForceRun(ctx context.Context, taskID platform.ID, scheduledFor int64) (*taskmodel.Run, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -1714,11 +1715,11 @@ func (t TaskService) ForceRun(ctx context.Context, taskID platform.ID, scheduled
 		if errors2.ErrorCode(err) == errors2.ENotFound {
 			// ErrRunNotFound is expected as part of the RetryRun contract,
 			// so return that actual error instead of a different error that looks like it.
-			return nil, influxdb.ErrRunNotFound
+			return nil, taskmodel.ErrRunNotFound
 		}
 
 		// RequestStillQueuedError is also part of the contract.
-		if e := influxdb.ParseRequestStillQueuedError(err.Error()); e != nil {
+		if e := taskmodel.ParseRequestStillQueuedError(err.Error()); e != nil {
 			return nil, *e
 		}
 

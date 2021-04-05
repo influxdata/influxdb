@@ -1,4 +1,4 @@
-package influxdb
+package taskmodel
 
 import (
 	"context"

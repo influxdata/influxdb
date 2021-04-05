@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"io"
 	"net"
 	nethttp "net/http"
@@ -445,7 +446,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	m.reg.MustRegister(m.queryController.PrometheusCollectors()...)
 
 	var storageQueryService = readservice.NewProxyQueryService(m.queryController)
-	var taskSvc platform.TaskService
+	var taskSvc taskmodel.TaskService
 	{
 		// create the task stack
 		combinedTaskService := taskbackend.NewAnalyticalStorage(
@@ -1137,7 +1138,7 @@ func (m *Launcher) SecretService() platform.SecretService {
 }
 
 // TaskService returns the internal task service.
-func (m *Launcher) TaskService() platform.TaskService {
+func (m *Launcher) TaskService() taskmodel.TaskService {
 	return m.apibackend.TaskService
 }
 

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"net/http"
 	"path"
 	"time"
@@ -39,7 +40,7 @@ type NotificationRuleBackend struct {
 	LabelService                influxdb.LabelService
 	UserService                 influxdb.UserService
 	OrganizationService         influxdb.OrganizationService
-	TaskService                 influxdb.TaskService
+	TaskService                 taskmodel.TaskService
 }
 
 // NewNotificationRuleBackend returns a new instance of NotificationRuleBackend.
@@ -71,7 +72,7 @@ type NotificationRuleHandler struct {
 	LabelService                influxdb.LabelService
 	UserService                 influxdb.UserService
 	OrganizationService         influxdb.OrganizationService
-	TaskService                 influxdb.TaskService
+	TaskService                 taskmodel.TaskService
 }
 
 const (

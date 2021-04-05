@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"io/ioutil"
 	"net/http"
 	"path"
@@ -28,7 +29,7 @@ type CheckBackend struct {
 	log *zap.Logger
 
 	AlgoWProxy                 FeatureProxyHandler
-	TaskService                influxdb.TaskService
+	TaskService                taskmodel.TaskService
 	CheckService               influxdb.CheckService
 	UserResourceMappingService influxdb.UserResourceMappingService
 	LabelService               influxdb.LabelService
@@ -59,7 +60,7 @@ type CheckHandler struct {
 	errors.HTTPErrorHandler
 	log *zap.Logger
 
-	TaskService                influxdb.TaskService
+	TaskService                taskmodel.TaskService
 	CheckService               influxdb.CheckService
 	UserResourceMappingService influxdb.UserResourceMappingService
 	LabelService               influxdb.LabelService

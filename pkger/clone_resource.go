@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"regexp"
 	"sort"
 	"strings"
@@ -90,7 +91,7 @@ type resourceExporter struct {
 	labelSVC    influxdb.LabelService
 	endpointSVC influxdb.NotificationEndpointService
 	ruleSVC     influxdb.NotificationRuleStore
-	taskSVC     influxdb.TaskService
+	taskSVC     taskmodel.TaskService
 	teleSVC     influxdb.TelegrafConfigStore
 	varSVC      influxdb.VariableService
 
@@ -401,7 +402,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 			}
 			mapResource(t.OrganizationID, t.ID, KindTask, TaskToObject(r.Name, *t))
 		case len(r.Name) > 0:
-			tasks, n, err := ex.taskSVC.FindTasks(ctx, influxdb.TaskFilter{Name: &r.Name})
+			tasks, n, err := ex.taskSVC.FindTasks(ctx, taskmodel.TaskFilter{Name: &r.Name})
 			if err != nil {
 				return err
 			}
@@ -625,7 +626,7 @@ func CheckToObject(name string, ch influxdb.Check) Object {
 	o := newObject(KindCheck, name)
 	assignNonZeroStrings(o.Spec, map[string]string{
 		fieldDescription: ch.GetDescription(),
-		fieldStatus:      influxdb.TaskStatusActive,
+		fieldStatus:      taskmodel.TaskStatusActive,
 	})
 
 	assignBase := func(base icheck.Base) {
@@ -1333,7 +1334,7 @@ func NotificationRuleToObject(name, endpointPkgName string, iRule influxdb.Notif
 var taskFluxRegex = regexp.MustCompile(`option task = {(.|\n)*?}`)
 
 // TaskToObject converts an influxdb.Task into a pkger.Object.
-func TaskToObject(name string, t influxdb.Task) Object {
+func TaskToObject(name string, t taskmodel.Task) Object {
 	if name == "" {
 		name = t.Name
 	}

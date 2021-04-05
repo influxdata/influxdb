@@ -2,6 +2,7 @@ package checks
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2"
@@ -31,7 +32,7 @@ func TestCheckService(t *testing.T) {
 	CheckService(initCheckService, t)
 }
 
-func initCheckService(f CheckFields, t *testing.T) (influxdb.CheckService, influxdb.TaskService, string, func()) {
+func initCheckService(f CheckFields, t *testing.T) (influxdb.CheckService, taskmodel.TaskService, string, func()) {
 	store, closeKVStore := NewKVTestStore(t)
 	logger := zaptest.NewLogger(t)
 

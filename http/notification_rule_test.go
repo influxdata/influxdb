@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"testing"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
@@ -25,8 +26,8 @@ func NewMockNotificationRuleBackend(t *testing.T) *NotificationRuleBackend {
 		UserService:                mock.NewUserService(),
 		OrganizationService:        mock.NewOrganizationService(),
 		TaskService: &mock.TaskService{
-			FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
-				return &influxdb.Task{Status: "active"}, nil
+			FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*taskmodel.Task, error) {
+				return &taskmodel.Task{Status: "active"}, nil
 			},
 		},
 	}

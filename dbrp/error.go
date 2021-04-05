@@ -2,10 +2,9 @@ package dbrp
 
 import (
 	"fmt"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
-	"github.com/influxdata/influxdb/v2"
 )
 
 var (
@@ -39,7 +38,7 @@ func ErrOrgNotFound(org string) error {
 	return &errors.Error{
 		Code: errors.ENotFound,
 		Msg:  fmt.Sprintf("invalid org %q", org),
-		Err:  influxdb.ErrOrgNotFound,
+		Err:  taskmodel.ErrOrgNotFound,
 	}
 }
 

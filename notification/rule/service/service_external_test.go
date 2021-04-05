@@ -3,6 +3,7 @@ package service
 import (
 	"bytes"
 	"context"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"reflect"
 	"sort"
 	"testing"
@@ -45,7 +46,7 @@ type NotificationRuleFields struct {
 	TimeGenerator     influxdb.TimeGenerator
 	NotificationRules []influxdb.NotificationRule
 	Orgs              []*influxdb.Organization
-	Tasks             []influxdb.TaskCreate
+	Tasks             []taskmodel.TaskCreate
 	Endpoints         []influxdb.NotificationEndpoint
 }
 
@@ -66,14 +67,14 @@ var taskCmpOptions = cmp.Options{
 	}),
 	// skip comparing permissions
 	cmpopts.IgnoreFields(
-		influxdb.Task{},
+		taskmodel.Task{},
 		"LatestCompleted",
 		"LatestScheduled",
 		"CreatedAt",
 		"UpdatedAt",
 	),
-	cmp.Transformer("Sort", func(in []*influxdb.Task) []*influxdb.Task {
-		out := append([]*influxdb.Task{}, in...) // Copy input to avoid mutating it
+	cmp.Transformer("Sort", func(in []*taskmodel.Task) []*taskmodel.Task {
+		out := append([]*taskmodel.Task{}, in...) // Copy input to avoid mutating it
 		sort.Slice(out, func(i, j int) bool {
 			return out[i].ID > out[j].ID
 		})
@@ -81,7 +82,7 @@ var taskCmpOptions = cmp.Options{
 	}),
 }
 
-type notificationRuleFactory func(NotificationRuleFields, *testing.T) (influxdb.NotificationRuleStore, influxdb.TaskService, func())
+type notificationRuleFactory func(NotificationRuleFields, *testing.T) (influxdb.NotificationRuleStore, taskmodel.TaskService, func())
 
 // NotificationRuleStore tests all the service functions.
 func NotificationRuleStore(
@@ -135,7 +136,7 @@ func CreateNotificationRule(
 	type wants struct {
 		err              error
 		notificationRule influxdb.NotificationRule
-		task             *influxdb.Task
+		task             *taskmodel.Task
 	}
 
 	tests := []struct {
@@ -287,7 +288,7 @@ func CreateNotificationRule(
 					},
 					MessageTemplate: "msg1",
 				},
-				task: &influxdb.Task{
+				task: &taskmodel.Task{
 					ID:             MustIDBase16("020f755c3c082001"),
 					Type:           "slack",
 					OrganizationID: MustIDBase16("020f755c3c082003"),
@@ -453,7 +454,7 @@ func CreateNotificationRule(
 			if tt.wants.task == nil || !tt.wants.task.ID.Valid() {
 				// if not tasks or a task with an invalid ID is provided (0) then assume
 				// no tasks should be persisted
-				_, n, err := tasks.FindTasks(ctx, influxdb.TaskFilter{})
+				_, n, err := tasks.FindTasks(ctx, taskmodel.TaskFilter{})
 				if err != nil {
 					t.Fatal(err)
 				}
@@ -1323,7 +1324,7 @@ func UpdateNotificationRule(
 			fields: NotificationRuleFields{
 				TimeGenerator: fakeGenerator,
 				IDGenerator:   mock.NewIDGenerator(twoID, t),
-				Tasks: []influxdb.TaskCreate{
+				Tasks: []taskmodel.TaskCreate{
 					{
 						OwnerID:        MustIDBase16(sixID),
 						OrganizationID: MustIDBase16(fourID),
@@ -1558,7 +1559,7 @@ func PatchNotificationRule(
 			fields: NotificationRuleFields{
 				TimeGenerator: fakeGenerator,
 				IDGenerator:   mock.NewIDGenerator(twoID, t),
-				Tasks: []influxdb.TaskCreate{
+				Tasks: []taskmodel.TaskCreate{
 					{
 						OwnerID:        MustIDBase16(sixID),
 						OrganizationID: MustIDBase16(fourID),
@@ -1683,7 +1684,7 @@ func PatchNotificationRule(
 			fields: NotificationRuleFields{
 				TimeGenerator: fakeGenerator,
 				IDGenerator:   mock.NewIDGenerator(twoID, t),
-				Tasks: []influxdb.TaskCreate{
+				Tasks: []taskmodel.TaskCreate{
 					{
 						OwnerID:        MustIDBase16(sixID),
 						OrganizationID: MustIDBase16(fourID),
@@ -1933,7 +1934,7 @@ func DeleteNotificationRule(
 			name: "none existing config",
 			fields: NotificationRuleFields{
 				IDGenerator: mock.NewIDGenerator(twoID, t),
-				Tasks: []influxdb.TaskCreate{
+				Tasks: []taskmodel.TaskCreate{
 					{
 						OwnerID:        MustIDBase16(sixID),
 						OrganizationID: MustIDBase16(fourID),
@@ -2038,7 +2039,7 @@ func DeleteNotificationRule(
 		{
 			name: "regular delete",
 			fields: NotificationRuleFields{
-				Tasks: []influxdb.TaskCreate{
+				Tasks: []taskmodel.TaskCreate{
 					{
 						OwnerID:        MustIDBase16(sixID),
 						OrganizationID: MustIDBase16(fourID),

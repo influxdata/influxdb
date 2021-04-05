@@ -3,6 +3,7 @@ package middleware
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"time"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
@@ -15,12 +16,12 @@ import (
 type CoordinatingNotificationRuleStore struct {
 	influxdb.NotificationRuleStore
 	coordinator Coordinator
-	taskService influxdb.TaskService
+	taskService taskmodel.TaskService
 	Now         func() time.Time
 }
 
 // NewNotificationRuleStore constructs a new coordinating notification service
-func NewNotificationRuleStore(ns influxdb.NotificationRuleStore, ts influxdb.TaskService, coordinator Coordinator) *CoordinatingNotificationRuleStore {
+func NewNotificationRuleStore(ns influxdb.NotificationRuleStore, ts taskmodel.TaskService, coordinator Coordinator) *CoordinatingNotificationRuleStore {
 	c := &CoordinatingNotificationRuleStore{
 		NotificationRuleStore: ns,
 		taskService:           ts,
@@ -79,7 +80,7 @@ func (ns *CoordinatingNotificationRuleStore) UpdateNotificationRule(ctx context.
 	}
 	// if the update is to activate and the previous task was inactive we should add a "latest completed" update
 	// this allows us to see not run the task for inactive time
-	if fromTask.Status == string(influxdb.TaskInactive) && toTask.Status == string(influxdb.TaskActive) {
+	if fromTask.Status == string(taskmodel.TaskInactive) && toTask.Status == string(taskmodel.TaskActive) {
 		toTask.LatestCompleted = ns.Now()
 	}
 
@@ -110,7 +111,7 @@ func (ns *CoordinatingNotificationRuleStore) PatchNotificationRule(ctx context.C
 
 	// if the update is to activate and the previous task was inactive we should add a "latest completed" update
 	// this allows us to see not run the task for inactive time
-	if fromTask.Status == string(influxdb.TaskInactive) && toTask.Status == string(influxdb.TaskActive) {
+	if fromTask.Status == string(taskmodel.TaskInactive) && toTask.Status == string(taskmodel.TaskActive) {
 		toTask.LatestCompleted = ns.Now()
 	}
 

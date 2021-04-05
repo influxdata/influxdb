@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"testing"
 	"time"
 
@@ -80,13 +81,13 @@ func TestNotificationRuleUpdateFromInactive(t *testing.T) {
 		return c, nil
 	}
 
-	mocks.taskSvc.FindTaskByIDFn = func(_ context.Context, id platform.ID) (*influxdb.Task, error) {
+	mocks.taskSvc.FindTaskByIDFn = func(_ context.Context, id platform.ID) (*taskmodel.Task, error) {
 		if id == 1 {
-			return &influxdb.Task{ID: id, Status: string(influxdb.TaskInactive)}, nil
+			return &taskmodel.Task{ID: id, Status: string(taskmodel.TaskInactive)}, nil
 		} else if id == 10 {
-			return &influxdb.Task{ID: id, Status: string(influxdb.TaskActive)}, nil
+			return &taskmodel.Task{ID: id, Status: string(taskmodel.TaskActive)}, nil
 		}
-		return &influxdb.Task{ID: id}, nil
+		return &taskmodel.Task{ID: id}, nil
 	}
 
 	deadman := &rule.HTTP{}

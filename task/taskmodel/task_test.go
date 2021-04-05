@@ -1,18 +1,18 @@
-package influxdb_test
+package taskmodel_test
 
 import (
 	"encoding/json"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	platform "github.com/influxdata/influxdb/v2"
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/task/options"
 )
 
 func TestUpdateValidate(t *testing.T) {
-	tu := &platform.TaskUpdate{}
+	tu := &taskmodel.TaskUpdate{}
 	// this is to make sure that string durations are properly marshaled into durations
 	if err := json.Unmarshal([]byte(`{"every":"3d2h", "offset":"1h"}`), tu); err != nil {
 		t.Fatal(err)
@@ -30,7 +30,7 @@ func TestUpdateValidate(t *testing.T) {
 }
 
 func TestOptionsMarshal(t *testing.T) {
-	tu := &platform.TaskUpdate{}
+	tu := &taskmodel.TaskUpdate{}
 	// this is to make sure that string durations are properly marshaled into durations
 	if err := json.Unmarshal([]byte(`{"every":"10s", "offset":"1h"}`), tu); err != nil {
 		t.Fatal(err)
@@ -42,7 +42,7 @@ func TestOptionsMarshal(t *testing.T) {
 		t.Fatalf("option.every not properly unmarshaled, expected 1h got %s", tu.Options.Offset)
 	}
 
-	tu = &platform.TaskUpdate{}
+	tu = &taskmodel.TaskUpdate{}
 	// this is to make sure that string durations are properly marshaled into durations
 	if err := json.Unmarshal([]byte(`{"flux":"option task = {\n\tname: \"task #99\",\n\tcron: \"* * * * *\",\n\toffset: 5s,\n\tconcurrency: 100,\n}\nfrom(bucket:\"b\") |\u003e toHTTP(url:\"http://example.com\")"}`), tu); err != nil {
 		t.Fatal(err)
@@ -54,7 +54,7 @@ func TestOptionsMarshal(t *testing.T) {
 }
 
 func TestOptionsEditWithAST(t *testing.T) {
-	tu := &platform.TaskUpdate{}
+	tu := &taskmodel.TaskUpdate{}
 	tu.Options.Every = *(options.MustParseDuration("10s"))
 	if err := tu.UpdateFlux(fluxlang.DefaultService, `option task = {every: 20s, name: "foo"} from(bucket:"x") |> range(start:-1h)`); err != nil {
 		t.Fatal(err)
@@ -84,7 +84,7 @@ from(bucket: "x")
 		}
 	})
 	t.Run("add new option", func(t *testing.T) {
-		tu := &platform.TaskUpdate{}
+		tu := &taskmodel.TaskUpdate{}
 		tu.Options.Offset = options.MustParseDuration("30s")
 		if err := tu.UpdateFlux(fluxlang.DefaultService, `option task = {every: 20s, name: "foo"} from(bucket:"x") |> range(start:-1h)`); err != nil {
 			t.Fatal(err)
@@ -98,7 +98,7 @@ from(bucket: "x")
 		}
 	})
 	t.Run("switching from every to cron", func(t *testing.T) {
-		tu := &platform.TaskUpdate{}
+		tu := &taskmodel.TaskUpdate{}
 		tu.Options.Cron = "* * * * *"
 		if err := tu.UpdateFlux(fluxlang.DefaultService, `option task = {every: 20s, name: "foo"} from(bucket:"x") |> range(start:-1h)`); err != nil {
 			t.Fatal(err)
@@ -115,7 +115,7 @@ from(bucket: "x")
 		}
 	})
 	t.Run("switching from cron to every", func(t *testing.T) {
-		tu := &platform.TaskUpdate{}
+		tu := &taskmodel.TaskUpdate{}
 		tu.Options.Every = *(options.MustParseDuration("10s"))
 		if err := tu.UpdateFlux(fluxlang.DefaultService, `option task = {cron: "* * * * *", name: "foo"} from(bucket:"x") |> range(start:-1h)`); err != nil {
 			t.Fatal(err)
@@ -132,7 +132,7 @@ from(bucket: "x")
 		}
 	})
 	t.Run("delete deletable option", func(t *testing.T) {
-		tu := &platform.TaskUpdate{}
+		tu := &taskmodel.TaskUpdate{}
 		tu.Options.Offset = &options.Duration{}
 		expscript := `option task = {cron: "* * * * *", name: "foo"}
 
@@ -159,10 +159,10 @@ from(bucket: "x")
 }
 
 func TestParseRequestStillQueuedError(t *testing.T) {
-	e := platform.RequestStillQueuedError{Start: 1000, End: 2000}
+	e := taskmodel.RequestStillQueuedError{Start: 1000, End: 2000}
 	validMsg := e.Error()
 
-	if err := platform.ParseRequestStillQueuedError(validMsg); err == nil || *err != e {
+	if err := taskmodel.ParseRequestStillQueuedError(validMsg); err == nil || *err != e {
 		t.Fatalf("%q should have parsed to %v, but got %v", validMsg, e, err)
 	}
 }

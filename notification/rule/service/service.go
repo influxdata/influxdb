@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
@@ -39,7 +40,7 @@ type RuleService struct {
 	log *zap.Logger
 
 	kv        kv.Store
-	tasks     influxdb.TaskService
+	tasks     taskmodel.TaskService
 	orgs      influxdb.OrganizationService
 	endpoints influxdb.NotificationEndpointService
 
@@ -48,7 +49,7 @@ type RuleService struct {
 }
 
 // New constructs and configures a notification rule service
-func New(logger *zap.Logger, store kv.Store, tasks influxdb.TaskService, orgs influxdb.OrganizationService, endpoints influxdb.NotificationEndpointService) (*RuleService, error) {
+func New(logger *zap.Logger, store kv.Store, tasks taskmodel.TaskService, orgs influxdb.OrganizationService, endpoints influxdb.NotificationEndpointService) (*RuleService, error) {
 	s := &RuleService{
 		log:           logger,
 		kv:            store,
@@ -138,7 +139,7 @@ func (s *RuleService) CreateNotificationRule(ctx context.Context, nr influxdb.No
 	}
 
 	// set task to notification rule create status
-	_, err = s.tasks.UpdateTask(ctx, t.ID, influxdb.TaskUpdate{Status: pointer.String(string(nr.Status))})
+	_, err = s.tasks.UpdateTask(ctx, t.ID, taskmodel.TaskUpdate{Status: pointer.String(string(nr.Status))})
 	return err
 }
 
@@ -154,7 +155,7 @@ func (s *RuleService) createNotificationRule(ctx context.Context, tx kv.Tx, nr i
 	return s.putNotificationRule(ctx, tx, nr.NotificationRule)
 }
 
-func (s *RuleService) createNotificationTask(ctx context.Context, r influxdb.NotificationRuleCreate) (*influxdb.Task, error) {
+func (s *RuleService) createNotificationTask(ctx context.Context, r influxdb.NotificationRuleCreate) (*taskmodel.Task, error) {
 	ep, err := s.endpoints.FindNotificationEndpointByID(ctx, r.GetEndpointID())
 	if err != nil {
 		return nil, err
@@ -165,7 +166,7 @@ func (s *RuleService) createNotificationTask(ctx context.Context, r influxdb.Not
 		return nil, err
 	}
 
-	tc := influxdb.TaskCreate{
+	tc := taskmodel.TaskCreate{
 		Type:           r.Type(),
 		Flux:           script,
 		OwnerID:        r.GetOwnerID(),
@@ -218,7 +219,7 @@ func (s *RuleService) UpdateNotificationRule(ctx context.Context, id platform.ID
 	return nr.NotificationRule, err
 }
 
-func (s *RuleService) updateNotificationTask(ctx context.Context, r influxdb.NotificationRule, status *string) (*influxdb.Task, error) {
+func (s *RuleService) updateNotificationTask(ctx context.Context, r influxdb.NotificationRule, status *string) (*taskmodel.Task, error) {
 	ep, err := s.endpoints.FindNotificationEndpointByID(ctx, r.GetEndpointID())
 	if err != nil {
 		return nil, err
@@ -229,7 +230,7 @@ func (s *RuleService) updateNotificationTask(ctx context.Context, r influxdb.Not
 		return nil, err
 	}
 
-	tu := influxdb.TaskUpdate{
+	tu := taskmodel.TaskUpdate{
 		Flux:        &script,
 		Description: pointer.String(r.GetDescription()),
 		Status:      status,
