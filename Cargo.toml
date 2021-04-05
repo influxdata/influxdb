@@ -28,7 +28,7 @@ members = [
     "read_buffer",
     "server",
     "test_helpers",
-    "tracing_deps",
+    "observability_deps",
     "wal",
 ]
 
@@ -57,7 +57,7 @@ panic_logging = { path = "panic_logging" }
 query = { path = "query" }
 read_buffer = { path = "read_buffer" }
 server = { path = "server" }
-tracing_deps = { path = "tracing_deps" }
+observability_deps = { path = "observability_deps" }
 wal = { path = "wal" }
 
 # Crates.io dependencies, in alphabetical order
@@ -72,6 +72,7 @@ flate2 = "1.0"
 futures = "0.3.1"
 http = "0.2.0"
 hyper = "0.14"
+parking_lot = "0.11.1"
 # used by arrow/datafusion anyway
 prettytable-rs = "0.8"
 prost = "0.7"

@@ -10,9 +10,9 @@
 use std::str::FromStr;
 
 use dotenv::dotenv;
+use observability_deps::tracing::{debug, warn};
 use structopt::StructOpt;
 use tokio::runtime::Runtime;
-use tracing_deps::tracing::{debug, warn};
 
 use commands::logging::LoggingLevel;
 use ingest::parquet::writer::CompressionLevel;
@@ -23,6 +23,7 @@ mod commands {
     mod input;
     pub mod logging;
     pub mod meta;
+    pub mod metrics;
     pub mod operations;
     pub mod run;
     pub mod server;

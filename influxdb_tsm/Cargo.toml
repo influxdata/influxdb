@@ -8,7 +8,7 @@ edition = "2018"
 integer-encoding = "1.0.7"
 snafu = "0.6.2"
 snap = "1.0.0"
-tracing_deps = { path = "../tracing_deps" }
+observability_deps = { path = "../observability_deps" }
 
 [dev-dependencies] # In alphabetical order
 flate2 = "1.0"

@@ -75,9 +75,9 @@ use std::sync::{
 use async_trait::async_trait;
 use bytes::BytesMut;
 use futures::stream::TryStreamExt;
+use observability_deps::tracing::{error, info, warn};
 use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
-use tracing_deps::tracing::{error, info, warn};
 
 use data_types::{
     database_rules::{DatabaseRules, WriterId},

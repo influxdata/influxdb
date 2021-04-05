@@ -20,6 +20,7 @@ use influxdb_tsm::{
 use internal_types::schema::{
     builder::InfluxSchemaBuilder, InfluxFieldType, Schema, TIME_COLUMN_NAME,
 };
+use observability_deps::tracing::debug;
 use packers::{
     ByteArray, Error as TableError, IOxTableWriter, IOxTableWriterSource, Packer, Packers,
 };
@@ -28,7 +29,6 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     io::{Read, Seek},
 };
-use tracing_deps::tracing::debug;
 
 pub mod parquet;
 

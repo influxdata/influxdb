@@ -18,8 +18,8 @@ use internal_types::{
     schema::{InfluxColumnType, Schema, TIME_COLUMN_NAME},
     selection::Selection,
 };
+use observability_deps::tracing::debug;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
-use tracing_deps::tracing::debug;
 
 use crate::{
     exec::{field::FieldColumns, make_schema_pivot, stringset::StringSet},

@@ -4,6 +4,7 @@ use ingest::{
     ConversionSettings, Error as IngestError, LineProtocolConverter, TSMFileConverter,
 };
 use internal_types::schema::Schema;
+use observability_deps::tracing::{debug, info, warn};
 use packers::{Error as TableError, IOxTableWriter, IOxTableWriterSource};
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::{
@@ -13,7 +14,6 @@ use std::{
     io::{BufReader, Read},
     path::{Path, PathBuf},
 };
-use tracing_deps::tracing::{debug, info, warn};
 
 use crate::commands::input::{FileType, InputReader};
 

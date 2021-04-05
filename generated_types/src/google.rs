@@ -12,6 +12,7 @@ pub mod longrunning {
 }
 
 use self::protobuf::Any;
+use observability_deps::tracing::error;
 use prost::{
     bytes::{Bytes, BytesMut},
     Message,
@@ -19,7 +20,6 @@ use prost::{
 use std::convert::{TryFrom, TryInto};
 use std::iter::FromIterator;
 use tonic::Status;
-use tracing_deps::tracing::error;
 
 // A newtype struct to provide conversion into tonic::Status
 struct EncodeError(prost::EncodeError);

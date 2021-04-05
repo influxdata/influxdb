@@ -20,6 +20,7 @@ use generated_types::{
     ReadWindowAggregateRequest, StringValuesResponse, TagKeysRequest, TagValuesRequest,
     TimestampRange,
 };
+use observability_deps::tracing::{error, info};
 use query::{
     exec::fieldlist::FieldList,
     exec::seriesset::{Error as SeriesSetError, SeriesSetItem},
@@ -32,7 +33,6 @@ use std::{collections::HashMap, sync::Arc};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::Status;
-use tracing_deps::tracing::{error, info};
 
 #[derive(Debug, Snafu)]
 pub enum Error {

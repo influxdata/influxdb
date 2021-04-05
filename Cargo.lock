@@ -757,12 +757,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "dashmap"
+version = "4.0.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e77a43b28d0668df09411cb0bc9a8c2adc40f9a048afe863e05fd43251e8e39c"
+dependencies = [
+ "cfg-if 1.0.0",
+ "num_cpus",
+]
+
+[[package]]
 name = "data_types"
 version = "0.1.0"
 dependencies = [
  "chrono",
  "generated_types",
  "influxdb_line_protocol",
+ "observability_deps",
  "percent-encoding",
  "prost",
  "regex",
@@ -771,7 +782,6 @@ dependencies = [
  "snafu",
  "test_helpers",
  "tonic",
- "tracing_deps",
 ]
 
 [[package]]
@@ -1142,6 +1152,7 @@ dependencies = [
  "flatbuffers",
  "futures",
  "google_types",
+ "observability_deps",
  "prost",
  "prost-build",
  "prost-types",
@@ -1149,7 +1160,6 @@ dependencies = [
  "serde_json",
  "tonic",
  "tonic-build",
- "tracing_deps",
 ]
 
 [[package]]
@@ -1451,6 +1461,7 @@ dependencies = [
  "mem_qe",
  "mutable_buffer",
  "object_store",
+ "observability_deps",
  "once_cell",
  "packers",
  "panic_logging",
@@ -1477,7 +1488,6 @@ dependencies = [
  "tokio-util",
  "tonic",
  "tonic-health",
- "tracing_deps",
  "wal",
 ]
 
@@ -1505,10 +1515,10 @@ version = "0.1.0"
 dependencies = [
  "influxdb2_client",
  "nom",
+ "observability_deps",
  "smallvec",
  "snafu",
  "test_helpers",
- "tracing_deps",
 ]
 
 [[package]]
@@ -1518,11 +1528,11 @@ dependencies = [
  "flate2",
  "hex",
  "integer-encoding",
+ "observability_deps",
  "rand 0.8.3",
  "snafu",
  "snap",
  "test_helpers",
- "tracing_deps",
 ]
 
 [[package]]
@@ -1534,11 +1544,11 @@ dependencies = [
  "influxdb_line_protocol",
  "influxdb_tsm",
  "internal_types",
+ "observability_deps",
  "packers",
  "parking_lot",
  "snafu",
  "test_helpers",
- "tracing_deps",
 ]
 
 [[package]]
@@ -1568,9 +1578,9 @@ dependencies = [
  "flatbuffers",
  "generated_types",
  "influxdb_line_protocol",
+ "observability_deps",
  "ouroboros",
  "snafu",
- "tracing_deps",
 ]
 
 [[package]]
@@ -1710,10 +1720,10 @@ dependencies = [
 name = "logfmt"
 version = "0.1.0"
 dependencies = [
+ "observability_deps",
  "once_cell",
  "parking_lot",
  "regex",
- "tracing_deps",
 ]
 
 [[package]]
@@ -1767,9 +1777,9 @@ dependencies = [
  "croaring",
  "crossbeam",
  "human_format",
+ "observability_deps",
  "packers",
  "snafu",
- "tracing_deps",
 ]
 
 [[package]]
@@ -1861,11 +1871,11 @@ dependencies = [
  "generated_types",
  "influxdb_line_protocol",
  "internal_types",
+ "observability_deps",
  "snafu",
  "string-interner",
  "test_helpers",
  "tokio",
- "tracing_deps",
 ]
 
 [[package]]
@@ -2061,6 +2071,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "observability_deps"
+version = "0.1.0"
+dependencies = [
+ "env_logger",
+ "opentelemetry",
+ "opentelemetry-jaeger",
+ "opentelemetry-prometheus",
+ "prometheus",
+ "tracing",
+ "tracing-futures",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2121,6 +2146,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "514d24875c140ed269eecc2d1b56d7b71b573716922a763c317fb1b1b4b58f15"
 dependencies = [
  "async-trait",
+ "dashmap",
+ "fnv",
  "futures",
  "js-sys",
  "lazy_static",
@@ -2144,6 +2171,17 @@ dependencies = [
  "thiserror",
  "thrift",
  "tokio",
+]
+
+[[package]]
+name = "opentelemetry-prometheus"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c5407eac459699e03e83f55a557920c612d09f202b58f44212b5cdc4e8a7666e"
+dependencies = [
+ "opentelemetry",
+ "prometheus",
+ "protobuf",
 ]
 
 [[package]]
@@ -2205,17 +2243,17 @@ dependencies = [
  "human_format",
  "influxdb_tsm",
  "internal_types",
+ "observability_deps",
  "rand 0.8.3",
  "snafu",
  "test_helpers",
- "tracing_deps",
 ]
 
 [[package]]
 name = "panic_logging"
 version = "0.1.0"
 dependencies = [
- "tracing_deps",
+ "observability_deps",
 ]
 
 [[package]]
@@ -2510,6 +2548,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "prometheus"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c8425533e7122f0c3cc7a37e6244b16ad3a2cc32ae7ac6276e2a75da0d9c200d"
+dependencies = [
+ "cfg-if 1.0.0",
+ "fnv",
+ "lazy_static",
+ "parking_lot",
+ "protobuf",
+ "regex",
+ "thiserror",
+]
+
+[[package]]
 name = "prost"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2561,6 +2614,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "protobuf"
+version = "2.22.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1b7f4a129bb3754c25a4e04032a90173c68f85168f77118ac4cb4936e7f06f92"
+
+[[package]]
 name = "query"
 version = "0.1.0"
 dependencies = [
@@ -2572,13 +2631,13 @@ dependencies = [
  "futures",
  "influxdb_line_protocol",
  "internal_types",
+ "observability_deps",
  "parking_lot",
  "snafu",
  "sqlparser",
  "test_helpers",
  "tokio",
  "tokio-stream",
- "tracing_deps",
 ]
 
 [[package]]
@@ -3194,6 +3253,7 @@ dependencies = [
  "internal_types",
  "mutable_buffer",
  "object_store",
+ "observability_deps",
  "parking_lot",
  "parquet_file",
  "pin-project 1.0.6",
@@ -3206,7 +3266,6 @@ dependencies = [
  "test_helpers",
  "tokio",
  "tokio-util",
- "tracing_deps",
  "uuid",
 ]
 
@@ -3512,9 +3571,9 @@ name = "test_helpers"
 version = "0.1.0"
 dependencies = [
  "dotenv",
+ "observability_deps",
  "parking_lot",
  "tempfile",
- "tracing_deps",
 ]
 
 [[package]]
@@ -3916,19 +3975,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tracing_deps"
-version = "0.1.0"
-dependencies = [
- "env_logger",
- "opentelemetry",
- "opentelemetry-jaeger",
- "tracing",
- "tracing-futures",
- "tracing-opentelemetry",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "treeline"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4046,6 +4092,7 @@ dependencies = [
  "crc32fast",
  "futures",
  "itertools 0.9.0",
+ "observability_deps",
  "once_cell",
  "regex",
  "serde",
@@ -4054,7 +4101,6 @@ dependencies = [
  "snap",
  "test_helpers",
  "tokio",
- "tracing_deps",
 ]
 
 [[package]]

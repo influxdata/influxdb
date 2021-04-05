@@ -1,8 +1,8 @@
 use super::{Tracker, TrackerId, TrackerRegistration, TrackerRegistry};
 use hashbrown::hash_map::Entry;
 use hashbrown::HashMap;
+use observability_deps::tracing::info;
 use std::hash::Hash;
-use tracing_deps::tracing::info;
 
 /// A wrapper around a TrackerRegistry that automatically retains a history
 #[derive(Debug)]

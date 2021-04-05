@@ -2,9 +2,9 @@ use std::fmt::Debug;
 use std::sync::Arc;
 
 use bytes::BytesMut;
+use observability_deps::tracing::debug;
 use prost::Message;
 use tonic::Response;
-use tracing_deps::tracing::debug;
 
 use data_types::job::Job;
 use generated_types::google::FieldViolationExt;

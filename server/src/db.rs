@@ -8,9 +8,9 @@ use std::sync::{
 };
 
 use async_trait::async_trait;
+use observability_deps::tracing::{debug, info};
 use parking_lot::{Mutex, RwLock};
 use snafu::{OptionExt, ResultExt, Snafu};
-use tracing_deps::tracing::{debug, info};
 
 use arrow_deps::{
     datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider},

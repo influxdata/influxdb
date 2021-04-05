@@ -1,5 +1,6 @@
 use crate::commands::{
     logging::LoggingLevel,
+    metrics,
     run::{Config, ObjectStore as ObjStoreOpt},
 };
 use futures::{future::FusedFuture, pin_mut, FutureExt};
@@ -7,11 +8,11 @@ use hyper::server::conn::AddrIncoming;
 use object_store::{
     self, aws::AmazonS3, azure::MicrosoftAzure, gcp::GoogleCloudStorage, ObjectStore,
 };
+use observability_deps::tracing::{self, error, info, warn, Instrument};
 use panic_logging::SendPanicsToTracing;
 use server::{ConnectionManagerImpl as ConnectionManager, Server as AppServer};
 use snafu::{ResultExt, Snafu};
 use std::{convert::TryFrom, fs, net::SocketAddr, path::PathBuf, sync::Arc};
-use tracing_deps::tracing::{self, error, info, warn, Instrument};
 
 mod http;
 mod rpc;
@@ -101,6 +102,7 @@ pub async fn main(logging_level: LoggingLevel, config: Config) -> Result<()> {
     let logging_level = logging_level.combine(LoggingLevel::new(config.verbose_count));
 
     let _drop_handle = logging_level.setup_logging(&config);
+    metrics::init_metrics(&config);
 
     // Install custom panic handler and forget about it.
     //

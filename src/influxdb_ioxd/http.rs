@@ -11,6 +11,7 @@
 //! database names and may remove this quasi /v2 API.
 
 // Influx crates
+use super::super::commands::metrics;
 use arrow_deps::datafusion::physical_plan::collect;
 use data_types::{
     http::WalMetadataQuery,
@@ -28,10 +29,10 @@ use bytes::{Bytes, BytesMut};
 use futures::{self, StreamExt};
 use http::header::{CONTENT_ENCODING, CONTENT_TYPE};
 use hyper::{Body, Method, Request, Response, StatusCode};
+use observability_deps::tracing::{self, debug, error, info};
 use routerify::{prelude::*, Middleware, RequestInfo, Router, RouterError, RouterService};
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
-use tracing_deps::tracing::{self, debug, error, info};
 
 use data_types::http::WalMetadataResponse;
 use hyper::server::conn::AddrIncoming;
@@ -316,6 +317,7 @@ where
         })) // this endpoint is for API backward compatibility with InfluxDB 2.x
         .post("/api/v2/write", write::<M>)
         .get("/health", health)
+        .get("/metrics", handle_metrics)
         .get("/iox/api/v1/databases/:name/query", query::<M>)
         .get("/iox/api/v1/databases/:name/wal/meta", get_wal_meta::<M>)
         .get("/api/v1/partitions", list_partitions::<M>)
@@ -411,7 +413,7 @@ async fn parse_body(req: hyper::Request<Body>) -> Result<Bytes, ApplicationError
     }
 }
 
-#[tracing_deps::instrument(level = "debug")]
+#[observability_deps::instrument(level = "debug")]
 async fn write<M>(req: Request<Body>) -> Result<Response<Body>, ApplicationError>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
@@ -590,6 +592,11 @@ async fn get_wal_meta<M: ConnectionManager + Send + Sync + Debug + 'static>(
 async fn health(_: Request<Body>) -> Result<Response<Body>, ApplicationError> {
     let response_body = "OK";
     Ok(Response::new(Body::from(response_body.to_string())))
+}
+
+#[tracing::instrument(level = "debug")]
+async fn handle_metrics(_: Request<Body>) -> Result<Response<Body>, ApplicationError> {
+    Ok(Response::new(Body::from(metrics::metrics_as_text())))
 }
 
 #[derive(Deserialize, Debug)]
