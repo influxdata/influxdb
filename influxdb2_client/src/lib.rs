@@ -230,11 +230,8 @@ mod tests {
     use futures::stream;
     use mockito::mock;
 
-    type Error = Box<dyn std::error::Error>;
-    type Result<T = (), E = Error> = std::result::Result<T, E>;
-
     #[tokio::test]
-    async fn writing_points() -> Result {
+    async fn writing_points() {
         let org = "some-org";
         let bucket = "some-bucket";
         let token = "some-token";
@@ -258,12 +255,14 @@ cpu,host=server01,region=us-west usage=0.87
             DataPoint::builder("cpu")
                 .tag("host", "server01")
                 .field("usage", 0.5)
-                .build()?,
+                .build()
+                .unwrap(),
             DataPoint::builder("cpu")
                 .tag("host", "server01")
                 .tag("region", "us-west")
                 .field("usage", 0.87)
-                .build()?,
+                .build()
+                .unwrap(),
         ];
 
         // If the requests made are incorrect, Mockito returns status 501 and `write`
@@ -274,11 +273,10 @@ cpu,host=server01,region=us-west usage=0.87
         let _result = client.write(org, bucket, stream::iter(points)).await;
 
         mock_server.assert();
-        Ok(())
     }
 
     #[tokio::test]
-    async fn create_bucket() -> Result {
+    async fn create_bucket() {
         let org_id = "0000111100001111";
         let bucket = "some-bucket";
         let token = "some-token";
@@ -299,7 +297,6 @@ cpu,host=server01,region=us-west usage=0.87
         let _result = client.create_bucket(org_id, bucket).await;
 
         mock_server.assert();
-        Ok(())
     }
 }
 

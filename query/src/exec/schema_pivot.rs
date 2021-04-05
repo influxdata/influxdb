@@ -301,7 +301,7 @@ mod tests {
     };
 
     #[tokio::test]
-    async fn schema_pivot_exec_all_null() -> Result<()> {
+    async fn schema_pivot_exec_all_null() {
         let case = SchemaTestCase {
             input_batches: &[TestBatch {
                 a: &[None, None],
@@ -315,12 +315,10 @@ mod tests {
             "TestCase: {:?}",
             case
         );
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn schema_pivot_exec_both_non_null() -> Result<()> {
+    async fn schema_pivot_exec_both_non_null() {
         let case = SchemaTestCase {
             input_batches: &[TestBatch {
                 a: &[Some(1), None],
@@ -334,12 +332,10 @@ mod tests {
             "TestCase: {:?}",
             case
         );
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn schema_pivot_exec_one_non_null() -> Result<()> {
+    async fn schema_pivot_exec_one_non_null() {
         let case = SchemaTestCase {
             input_batches: &[TestBatch {
                 a: &[Some(1), None],
@@ -353,12 +349,10 @@ mod tests {
             "TestCase: {:?}",
             case
         );
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn schema_pivot_exec_both_non_null_two_record_batches() -> Result<()> {
+    async fn schema_pivot_exec_both_non_null_two_record_batches() {
         let case = SchemaTestCase {
             input_batches: &[
                 TestBatch {
@@ -378,12 +372,10 @@ mod tests {
             "TestCase: {:?}",
             case
         );
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn schema_pivot_exec_one_non_null_in_second_record_batch() -> Result<()> {
+    async fn schema_pivot_exec_one_non_null_in_second_record_batch() {
         let case = SchemaTestCase {
             input_batches: &[
                 TestBatch {
@@ -403,12 +395,10 @@ mod tests {
             "TestCase: {:?}",
             case
         );
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn schema_pivot_exec_bad_partition() -> Result<()> {
+    async fn schema_pivot_exec_bad_partition() {
         // ensure passing in a bad partition generates a reasonable error
 
         let pivot = make_schema_pivot(SchemaTestCase::input_schema(), vec![]);
@@ -427,8 +417,6 @@ mod tests {
             expected_error,
             actual_error
         );
-
-        Ok(())
     }
 
     /// Return a StringSet extracted from the record batch

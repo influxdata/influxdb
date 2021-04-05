@@ -304,18 +304,18 @@ mod tests {
     }
 
     #[test]
-    fn test_socketaddr() -> Result<(), clap::Error> {
-        let c = Config::from_iter_safe(
-            to_vec(&["server", "--api-bind", "127.0.0.1:1234"]).into_iter(),
-        )?;
+    fn test_socketaddr() {
+        let c =
+            Config::from_iter_safe(to_vec(&["server", "--api-bind", "127.0.0.1:1234"]).into_iter())
+                .unwrap();
         assert_eq!(
             c.http_bind_address,
             SocketAddr::from(([127, 0, 0, 1], 1234))
         );
 
-        let c = Config::from_iter_safe(
-            to_vec(&["server", "--api-bind", "localhost:1234"]).into_iter(),
-        )?;
+        let c =
+            Config::from_iter_safe(to_vec(&["server", "--api-bind", "localhost:1234"]).into_iter())
+                .unwrap();
         // depending on where the test runs, localhost will either resolve to a ipv4 or
         // an ipv6 addr.
         match c.http_bind_address {
@@ -336,7 +336,5 @@ mod tests {
             .expect_err("must fail"),
             clap::ErrorKind::ValueValidation
         );
-
-        Ok(())
     }
 }

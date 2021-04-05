@@ -1068,9 +1068,6 @@ mod test {
     use smallvec::smallvec;
     use test_helpers::approximately_equal;
 
-    type Error = Box<dyn std::error::Error>;
-    type Result<T = (), E = Error> = std::result::Result<T, E>;
-
     impl FieldValue<'_> {
         fn unwrap_i64(&self) -> i64 {
             match self {
@@ -1109,7 +1106,7 @@ mod test {
     }
 
     #[test]
-    fn escaped_str_basic() -> Result {
+    fn escaped_str_basic() {
         // Demonstrate how strings without any escapes are handled.
         let es = EscapedStr::from("Foo");
         assert_eq!(es, "Foo");
@@ -1120,14 +1117,13 @@ mod test {
         assert!(es.ends_with('o'));
         assert!(es.ends_with("oo"));
         assert!(es.ends_with("Foo"));
-        Ok(())
     }
 
     #[test]
-    fn escaped_str_multi() -> Result {
+    fn escaped_str_multi() {
         // Get an EscapedStr that has multiple parts by parsing a
         // measurement name with a non-whitespace escape character
-        let (remaining, es) = measurement("Foo\\aBar")?;
+        let (remaining, es) = measurement("Foo\\aBar").unwrap();
         assert!(remaining.is_empty());
         assert_eq!(es, EscapedStr::from_slices(&["Foo", "\\", "a", "Bar"]));
         assert!(es.is_escaped());
@@ -1145,12 +1141,10 @@ mod test {
         assert!(es != "Fo");
         assert!(es != "F");
         assert!(es != "");
-
-        Ok(())
     }
 
     #[test]
-    fn test_trim_leading() -> Result {
+    fn test_trim_leading() {
         assert_eq!(trim_leading(&String::from("")), "");
         assert_eq!(trim_leading(&String::from("  a b c ")), "a b c ");
         assert_eq!(trim_leading(&String::from("  a ")), "a ");
@@ -1164,12 +1158,10 @@ mod test {
             trim_leading(&String::from("#comment\n #comment2\n#comment\na")),
             "a"
         );
-
-        Ok(())
     }
 
     #[test]
-    fn test_split_lines() -> Result {
+    fn test_split_lines() {
         assert_eq!(split_lines("").collect::<Vec<_>>(), vec![""]);
         assert_eq!(split_lines("foo").collect::<Vec<_>>(), vec!["foo"]);
         assert_eq!(
@@ -1205,15 +1197,13 @@ mod test {
             split_lines("meas tag=val field=1,field=\\\"\nval\"\nnext").collect::<Vec<_>>(),
             vec!["meas tag=val field=1,field=\\\"", "val\"", "next"]
         );
-        Ok(())
     }
 
     #[test]
-    fn escaped_str_multi_to_string() -> Result {
-        let (_, es) = measurement("Foo\\aBar")?;
+    fn escaped_str_multi_to_string() {
+        let (_, es) = measurement("Foo\\aBar").unwrap();
         // test the From<> implementation
         assert_eq!(es, "Foo\\aBar");
-        Ok(())
     }
 
     fn parse(s: &str) -> Result<Vec<ParsedLine<'_>>, super::Error> {
@@ -1221,53 +1211,46 @@ mod test {
     }
 
     #[test]
-    fn parse_empty() -> Result {
+    fn parse_empty() {
         let input = "";
         let vals = parse(input);
         assert_eq!(vals.unwrap().len(), 0);
-        Ok(())
     }
 
     #[test]
-    fn parse_no_fields() -> Result {
+    fn parse_no_fields() {
         let input = "foo 1234";
         let vals = parse(input);
 
         assert!(matches!(vals, Err(super::Error::FieldSetMissing)));
-
-        Ok(())
     }
 
     #[test]
-    fn parse_single_field_integer() -> Result {
+    fn parse_single_field_integer() {
         let input = "foo asdf=23i 1234";
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
 
         assert_eq!(vals[0].series.measurement, "foo");
         assert_eq!(vals[0].timestamp, Some(1234));
         assert_eq!(vals[0].field_set[0].0, "asdf");
         assert_eq!(vals[0].field_set[0].1.unwrap_i64(), 23);
-
-        Ok(())
     }
 
     #[test]
-    fn parse_single_field_unteger() -> Result {
+    fn parse_single_field_unteger() {
         let input = "foo asdf=23u 1234";
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
 
         assert_eq!(vals[0].series.measurement, "foo");
         assert_eq!(vals[0].timestamp, Some(1234));
         assert_eq!(vals[0].field_set[0].0, "asdf");
         assert_eq!(vals[0].field_set[0].1.unwrap_u64(), 23);
-
-        Ok(())
     }
 
     #[test]
-    fn parse_single_field_float_no_decimal() -> Result {
+    fn parse_single_field_float_no_decimal() {
         let input = "foo asdf=44 546";
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
 
         assert_eq!(vals[0].series.measurement, "foo");
         assert_eq!(vals[0].timestamp, Some(546));
@@ -1276,14 +1259,12 @@ mod test {
             vals[0].field_set[0].1.unwrap_f64(),
             44.0
         ));
-
-        Ok(())
     }
 
     #[test]
-    fn parse_single_field_float_with_decimal() -> Result {
+    fn parse_single_field_float_with_decimal() {
         let input = "foo asdf=3.74 123";
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
 
         assert_eq!(vals[0].series.measurement, "foo");
         assert_eq!(vals[0].timestamp, Some(123));
@@ -1292,38 +1273,32 @@ mod test {
             vals[0].field_set[0].1.unwrap_f64(),
             3.74
         ));
-
-        Ok(())
     }
 
     #[test]
-    fn parse_single_field_string() -> Result {
+    fn parse_single_field_string() {
         let input = r#"foo asdf="the string value" 1234"#;
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
 
         assert_eq!(vals[0].series.measurement, "foo");
         assert_eq!(vals[0].timestamp, Some(1234));
         assert_eq!(vals[0].field_set[0].0, "asdf");
         assert_eq!(&vals[0].field_set[0].1.unwrap_string(), "the string value");
-
-        Ok(())
     }
 
     #[test]
-    fn parse_single_field_bool() -> Result {
+    fn parse_single_field_bool() {
         let input = r#"foo asdf=true 1234"#;
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
 
         assert_eq!(vals[0].series.measurement, "foo");
         assert_eq!(vals[0].timestamp, Some(1234));
         assert_eq!(vals[0].field_set[0].0, "asdf");
         assert_eq!(vals[0].field_set[0].1.unwrap_bool(), true);
-
-        Ok(())
     }
 
     #[test]
-    fn parse_string_values() -> Result {
+    fn parse_string_values() {
         let test_data = vec![
             (r#"foo asdf="""#, ""),
             (r#"foo asdf="str val""#, "str val"),
@@ -1343,7 +1318,7 @@ mod test {
         ];
 
         for (input, expected_parsed_string_value) in test_data {
-            let vals = parse(input)?;
+            let vals = parse(input).unwrap();
             assert_eq!(vals[0].series.tag_set, None);
             assert_eq!(vals[0].field_set.len(), 1);
             assert_eq!(vals[0].field_set[0].0, "asdf");
@@ -1352,12 +1327,10 @@ mod test {
                 expected_parsed_string_value
             );
         }
-
-        Ok(())
     }
 
     #[test]
-    fn parse_bool_values() -> Result {
+    fn parse_bool_values() {
         let test_data = vec![
             (r#"foo asdf=t"#, true),
             (r#"foo asdf=T"#, true),
@@ -1372,7 +1345,7 @@ mod test {
         ];
 
         for (input, expected_parsed_bool_value) in test_data {
-            let vals = parse(input)?;
+            let vals = parse(input).unwrap();
             assert_eq!(vals[0].series.tag_set, None);
             assert_eq!(vals[0].field_set.len(), 1);
             assert_eq!(vals[0].field_set[0].0, "asdf");
@@ -1381,14 +1354,12 @@ mod test {
                 expected_parsed_bool_value
             );
         }
-
-        Ok(())
     }
 
     #[test]
-    fn parse_two_fields_integer() -> Result {
+    fn parse_two_fields_integer() {
         let input = "foo asdf=23i,bar=5i 1234";
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
 
         assert_eq!(vals[0].series.measurement, "foo");
         assert_eq!(vals[0].timestamp, Some(1234));
@@ -1398,14 +1369,12 @@ mod test {
 
         assert_eq!(vals[0].field_set[1].0, "bar");
         assert_eq!(vals[0].field_set[1].1.unwrap_i64(), 5);
-
-        Ok(())
     }
 
     #[test]
-    fn parse_two_fields_unteger() -> Result {
+    fn parse_two_fields_unteger() {
         let input = "foo asdf=23u,bar=5u 1234";
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
 
         assert_eq!(vals[0].series.measurement, "foo");
         assert_eq!(vals[0].timestamp, Some(1234));
@@ -1415,14 +1384,12 @@ mod test {
 
         assert_eq!(vals[0].field_set[1].0, "bar");
         assert_eq!(vals[0].field_set[1].1.unwrap_u64(), 5);
-
-        Ok(())
     }
 
     #[test]
-    fn parse_two_fields_float() -> Result {
+    fn parse_two_fields_float() {
         let input = "foo asdf=23.1,bar=5 1234";
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
 
         assert_eq!(vals[0].series.measurement, "foo");
         assert_eq!(vals[0].timestamp, Some(1234));
@@ -1438,14 +1405,12 @@ mod test {
             vals[0].field_set[1].1.unwrap_f64(),
             5.0
         ));
-
-        Ok(())
     }
 
     #[test]
-    fn parse_mixed_field_types() -> Result {
+    fn parse_mixed_field_types() {
         let input = r#"foo asdf=23.1,bar=-5i,qux=9u,baz="the string",frab=false 1234"#;
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
 
         assert_eq!(vals[0].series.measurement, "foo");
         assert_eq!(vals[0].timestamp, Some(1234));
@@ -1467,23 +1432,19 @@ mod test {
 
         assert_eq!(vals[0].field_set[4].0, "frab");
         assert_eq!(vals[0].field_set[4].1.unwrap_bool(), false);
-
-        Ok(())
     }
 
     #[test]
-    fn parse_negative_integer() -> Result {
+    fn parse_negative_integer() {
         let input = "m0 field=-1i 99";
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
 
         assert_eq!(vals.len(), 1);
         assert_eq!(vals[0].field_set[0].1.unwrap_i64(), -1);
-
-        Ok(())
     }
 
     #[test]
-    fn parse_negative_uinteger() -> Result {
+    fn parse_negative_uinteger() {
         let input = "m0 field=-1u 99";
         let parsed = parse(input);
 
@@ -1492,39 +1453,37 @@ mod test {
             "Wrong error: {:?}",
             parsed,
         );
-
-        Ok(())
     }
 
     #[test]
-    fn parse_scientific_float() -> Result {
+    fn parse_scientific_float() {
         // Positive tests
         let input = "m0 field=-1.234456e+06 1615869152385000000";
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
         assert_eq!(vals.len(), 1);
 
         let input = "m0 field=-1.234456E+3 1615869152385000000";
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
         assert_eq!(vals.len(), 1);
 
         let input = "m0 field=1.234456e+02 1615869152385000000";
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
         assert_eq!(vals.len(), 1);
 
         let input = "m0 field=1.234456E+16 1615869152385000000";
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
         assert_eq!(vals.len(), 1);
 
         let input = "m0 field=1.234456E-16";
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
         assert_eq!(vals.len(), 1);
 
         let input = "m0 field=1.234456e-03";
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
         assert_eq!(vals.len(), 1);
 
         let input = "m0 field=1.234456e-0";
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
         assert_eq!(vals.len(), 1);
 
         /////////////////////
@@ -1603,26 +1562,22 @@ mod test {
             "Wrong error: {:?}",
             parsed,
         );
-
-        Ok(())
     }
 
     #[test]
-    fn parse_negative_float() -> Result {
+    fn parse_negative_float() {
         let input = "m0 field2=-1 99";
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
 
         assert_eq!(vals.len(), 1);
         assert!(approximately_equal(
             vals[0].field_set[0].1.unwrap_f64(),
             -1.0
         ));
-
-        Ok(())
     }
 
     #[test]
-    fn parse_out_of_range_integer() -> Result {
+    fn parse_out_of_range_integer() {
         let input = "m0 field=99999999999999999999999999999999i 99";
         let parsed = parse(input);
 
@@ -1631,12 +1586,10 @@ mod test {
             "Wrong error: {:?}",
             parsed,
         );
-
-        Ok(())
     }
 
     #[test]
-    fn parse_out_of_range_uinteger() -> Result {
+    fn parse_out_of_range_uinteger() {
         let input = "m0 field=99999999999999999999999999999999u 99";
         let parsed = parse(input);
 
@@ -1645,12 +1598,10 @@ mod test {
             "Wrong error: {:?}",
             parsed,
         );
-
-        Ok(())
     }
 
     #[test]
-    fn parse_out_of_range_float() -> Result {
+    fn parse_out_of_range_float() {
         let input = format!("m0 field={val}.{val} 99", val = "9".repeat(200));
         let parsed = parse(&input);
 
@@ -1659,14 +1610,12 @@ mod test {
             "Wrong error: {:?}",
             parsed,
         );
-
-        Ok(())
     }
 
     #[test]
-    fn parse_tag_set_included_in_series() -> Result {
+    fn parse_tag_set_included_in_series() {
         let input = "foo,tag1=1,tag2=2 value=1 123";
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
 
         assert_eq!(vals[0].series.measurement, "foo");
 
@@ -1677,25 +1626,21 @@ mod test {
         assert_eq!(vals[0].series.tag_set.as_ref().unwrap()[1].1, "2");
 
         assert_eq!(vals[0].field_set[0].0, "value");
-
-        Ok(())
     }
 
     #[test]
-    fn parse_tag_set_unsorted() -> Result {
+    fn parse_tag_set_unsorted() {
         let input = "foo,tag2=2,tag1=1";
-        let (remaining, series) = series(input)?;
+        let (remaining, series) = series(input).unwrap();
 
         assert!(remaining.is_empty());
-        assert_eq!(series.generate_base()?, "foo,tag1=1,tag2=2");
-
-        Ok(())
+        assert_eq!(series.generate_base().unwrap(), "foo,tag1=1,tag2=2");
     }
 
     #[test]
-    fn parse_tag_set_duplicate_tags() -> Result {
+    fn parse_tag_set_duplicate_tags() {
         let input = "foo,tag=1,tag=2";
-        let (remaining, series) = series(input)?;
+        let (remaining, series) = series(input).unwrap();
 
         assert!(remaining.is_empty());
         let err = series
@@ -1706,15 +1651,13 @@ mod test {
             err.to_string(),
             r#"Must not contain duplicate tags, but "tag" was repeated"#
         );
-
-        Ok(())
     }
 
     #[test]
-    fn parse_multiple_lines_become_multiple_points() -> Result {
+    fn parse_multiple_lines_become_multiple_points() {
         let input = r#"foo value1=1i 123
 foo value2=2i 123"#;
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
 
         assert_eq!(vals[0].series.measurement, "foo");
         assert_eq!(vals[0].timestamp, Some(123));
@@ -1725,15 +1668,13 @@ foo value2=2i 123"#;
         assert_eq!(vals[1].timestamp, Some(123));
         assert_eq!(vals[1].field_set[0].0, "value2");
         assert_eq!(vals[1].field_set[0].1.unwrap_i64(), 2);
-
-        Ok(())
     }
 
     #[test]
-    fn parse_multiple_measurements_become_multiple_points() -> Result {
+    fn parse_multiple_measurements_become_multiple_points() {
         let input = r#"foo value1=1i 123
 bar value2=2i 123"#;
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
 
         assert_eq!(vals[0].series.measurement, "foo");
         assert_eq!(vals[0].timestamp, Some(123));
@@ -1744,41 +1685,35 @@ bar value2=2i 123"#;
         assert_eq!(vals[1].timestamp, Some(123));
         assert_eq!(vals[1].field_set[0].0, "value2");
         assert_eq!(vals[1].field_set[0].1.unwrap_i64(), 2);
-
-        Ok(())
     }
 
     #[test]
-    fn parse_trailing_whitespace_is_fine() -> Result {
+    fn parse_trailing_whitespace_is_fine() {
         let input = r#"foo,tag=val value1=1i 123
 
 "#;
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
         assert_eq!(vals.len(), 1);
 
         assert_eq!(vals[0].series.measurement, "foo");
         assert_eq!(vals[0].timestamp, Some(123));
         assert_eq!(vals[0].field_set[0].0, "value1");
         assert_eq!(vals[0].field_set[0].1.unwrap_i64(), 1);
-
-        Ok(())
     }
 
     #[test]
-    fn parse_negative_timestamp() -> Result {
+    fn parse_negative_timestamp() {
         let input = r#"foo value1=1i -123"#;
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
 
         assert_eq!(vals[0].series.measurement, "foo");
         assert_eq!(vals[0].timestamp, Some(-123));
         assert_eq!(vals[0].field_set[0].0, "value1");
         assert_eq!(vals[0].field_set[0].1.unwrap_i64(), 1);
-
-        Ok(())
     }
 
     #[test]
-    fn parse_out_of_range_timestamp() -> Result {
+    fn parse_out_of_range_timestamp() {
         let input = "m0 field=1i 99999999999999999999999999999999";
         let parsed = parse(input);
 
@@ -1787,46 +1722,38 @@ bar value2=2i 123"#;
             "Wrong error: {:?}",
             parsed,
         );
-
-        Ok(())
     }
 
     #[test]
-    fn parse_blank_lines_are_ignored() -> Result {
+    fn parse_blank_lines_are_ignored() {
         let input = "\n\n\n";
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
 
         assert!(vals.is_empty());
-
-        Ok(())
     }
 
     #[test]
-    fn parse_commented_lines_are_ignored() -> Result {
+    fn parse_commented_lines_are_ignored() {
         let input = "# comment";
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
 
         assert!(vals.is_empty());
-
-        Ok(())
     }
 
     #[test]
-    fn parse_multiple_whitespace_between_elements_is_allowed() -> Result {
+    fn parse_multiple_whitespace_between_elements_is_allowed() {
         let input = "  measurement  a=1i  123  ";
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
 
         assert_eq!(vals[0].series.measurement, "measurement");
         assert_eq!(vals[0].timestamp, Some(123));
         assert_eq!(vals[0].field_set[0].0, "a");
         assert_eq!(vals[0].field_set[0].1.unwrap_i64(), 1);
-
-        Ok(())
     }
 
     macro_rules! assert_fully_parsed {
         ($parse_result:expr, $output:expr $(,)?) => {{
-            let (remaining, parsed) = $parse_result?;
+            let (remaining, parsed) = $parse_result.unwrap();
 
             assert!(
                 remaining.is_empty(),
@@ -1834,246 +1761,232 @@ bar value2=2i 123"#;
                 remaining,
             );
             assert_eq!(parsed, $output, "Did not parse the expected output");
-
-            Ok(())
         }};
     }
 
     #[test]
-    fn measurement_allows_escaping_comma() -> Result {
-        assert_fully_parsed!(measurement(r#"wea\,ther"#), r#"wea,ther"#)
+    fn measurement_allows_escaping_comma() {
+        assert_fully_parsed!(measurement(r#"wea\,ther"#), r#"wea,ther"#);
     }
 
     #[test]
-    fn measurement_allows_escaping_space() -> Result {
-        assert_fully_parsed!(measurement(r#"wea\ ther"#), r#"wea ther"#)
+    fn measurement_allows_escaping_space() {
+        assert_fully_parsed!(measurement(r#"wea\ ther"#), r#"wea ther"#);
     }
 
     #[test]
-    fn measurement_allows_escaping_backslash() -> Result {
-        assert_fully_parsed!(measurement(r#"\\wea\\ther"#), r#"\wea\ther"#)
+    fn measurement_allows_escaping_backslash() {
+        assert_fully_parsed!(measurement(r#"\\wea\\ther"#), r#"\wea\ther"#);
     }
 
     #[test]
-    fn measurement_allows_backslash_with_unknown_escape() -> Result {
-        assert_fully_parsed!(measurement(r#"\wea\ther"#), r#"\wea\ther"#)
+    fn measurement_allows_backslash_with_unknown_escape() {
+        assert_fully_parsed!(measurement(r#"\wea\ther"#), r#"\wea\ther"#);
     }
 
     #[test]
-    fn measurement_allows_literal_newline_as_unknown_escape() -> Result {
+    fn measurement_allows_literal_newline_as_unknown_escape() {
         assert_fully_parsed!(
             measurement(
                 r#"weat\
 her"#
             ),
             "weat\\\nher",
-        )
+        );
     }
 
     #[test]
-    fn measurement_disallows_literal_newline() -> Result {
+    fn measurement_disallows_literal_newline() {
         let (remaining, parsed) = measurement(
             r#"weat
 her"#,
-        )?;
+        )
+        .unwrap();
         assert_eq!(parsed, "weat");
         assert_eq!(remaining, "\nher");
-
-        Ok(())
     }
 
     #[test]
-    fn measurement_disallows_ending_in_backslash() -> Result {
+    fn measurement_disallows_ending_in_backslash() {
         let parsed = measurement(r#"weather\"#);
         assert!(matches!(
             parsed,
             Err(nom::Err::Failure(super::Error::EndsWithBackslash))
         ));
-
-        Ok(())
     }
 
     #[test]
-    fn tag_key_allows_escaping_comma() -> Result {
-        assert_fully_parsed!(tag_key(r#"wea\,ther"#), r#"wea,ther"#)
+    fn tag_key_allows_escaping_comma() {
+        assert_fully_parsed!(tag_key(r#"wea\,ther"#), r#"wea,ther"#);
     }
 
     #[test]
-    fn tag_key_allows_escaping_equal() -> Result {
-        assert_fully_parsed!(tag_key(r#"wea\=ther"#), r#"wea=ther"#)
+    fn tag_key_allows_escaping_equal() {
+        assert_fully_parsed!(tag_key(r#"wea\=ther"#), r#"wea=ther"#);
     }
 
     #[test]
-    fn tag_key_allows_escaping_space() -> Result {
-        assert_fully_parsed!(tag_key(r#"wea\ ther"#), r#"wea ther"#)
+    fn tag_key_allows_escaping_space() {
+        assert_fully_parsed!(tag_key(r#"wea\ ther"#), r#"wea ther"#);
     }
 
     #[test]
-    fn tag_key_allows_escaping_backslash() -> Result {
-        assert_fully_parsed!(tag_key(r#"\\wea\\ther"#), r#"\wea\ther"#)
+    fn tag_key_allows_escaping_backslash() {
+        assert_fully_parsed!(tag_key(r#"\\wea\\ther"#), r#"\wea\ther"#);
     }
 
     #[test]
-    fn tag_key_allows_backslash_with_unknown_escape() -> Result {
-        assert_fully_parsed!(tag_key(r#"\wea\ther"#), r#"\wea\ther"#)
+    fn tag_key_allows_backslash_with_unknown_escape() {
+        assert_fully_parsed!(tag_key(r#"\wea\ther"#), r#"\wea\ther"#);
     }
 
     #[test]
-    fn tag_key_allows_literal_newline_as_unknown_escape() -> Result {
+    fn tag_key_allows_literal_newline_as_unknown_escape() {
         assert_fully_parsed!(
             tag_key(
                 r#"weat\
 her"#
             ),
             "weat\\\nher",
-        )
+        );
     }
 
     #[test]
-    fn tag_key_disallows_literal_newline() -> Result {
+    fn tag_key_disallows_literal_newline() {
         let (remaining, parsed) = tag_key(
             r#"weat
 her"#,
-        )?;
+        )
+        .unwrap();
         assert_eq!(parsed, "weat");
         assert_eq!(remaining, "\nher");
-
-        Ok(())
     }
 
     #[test]
-    fn tag_key_disallows_ending_in_backslash() -> Result {
+    fn tag_key_disallows_ending_in_backslash() {
         let parsed = tag_key(r#"weather\"#);
         assert!(matches!(
             parsed,
             Err(nom::Err::Failure(super::Error::EndsWithBackslash))
         ));
-
-        Ok(())
     }
 
     #[test]
-    fn tag_value_allows_escaping_comma() -> Result {
-        assert_fully_parsed!(tag_value(r#"wea\,ther"#), r#"wea,ther"#)
+    fn tag_value_allows_escaping_comma() {
+        assert_fully_parsed!(tag_value(r#"wea\,ther"#), r#"wea,ther"#);
     }
 
     #[test]
-    fn tag_value_allows_escaping_equal() -> Result {
-        assert_fully_parsed!(tag_value(r#"wea\=ther"#), r#"wea=ther"#)
+    fn tag_value_allows_escaping_equal() {
+        assert_fully_parsed!(tag_value(r#"wea\=ther"#), r#"wea=ther"#);
     }
 
     #[test]
-    fn tag_value_allows_escaping_space() -> Result {
-        assert_fully_parsed!(tag_value(r#"wea\ ther"#), r#"wea ther"#)
+    fn tag_value_allows_escaping_space() {
+        assert_fully_parsed!(tag_value(r#"wea\ ther"#), r#"wea ther"#);
     }
 
     #[test]
-    fn tag_value_allows_escaping_backslash() -> Result {
-        assert_fully_parsed!(tag_value(r#"\\wea\\ther"#), r#"\wea\ther"#)
+    fn tag_value_allows_escaping_backslash() {
+        assert_fully_parsed!(tag_value(r#"\\wea\\ther"#), r#"\wea\ther"#);
     }
 
     #[test]
-    fn tag_value_allows_backslash_with_unknown_escape() -> Result {
-        assert_fully_parsed!(tag_value(r#"\wea\ther"#), r#"\wea\ther"#)
+    fn tag_value_allows_backslash_with_unknown_escape() {
+        assert_fully_parsed!(tag_value(r#"\wea\ther"#), r#"\wea\ther"#);
     }
 
     #[test]
-    fn tag_value_allows_literal_newline_as_unknown_escape() -> Result {
+    fn tag_value_allows_literal_newline_as_unknown_escape() {
         assert_fully_parsed!(
             tag_value(
                 r#"weat\
 her"#
             ),
             "weat\\\nher",
-        )
+        );
     }
 
     #[test]
-    fn tag_value_disallows_literal_newline() -> Result {
+    fn tag_value_disallows_literal_newline() {
         let (remaining, parsed) = tag_value(
             r#"weat
 her"#,
-        )?;
+        )
+        .unwrap();
         assert_eq!(parsed, "weat");
         assert_eq!(remaining, "\nher");
-
-        Ok(())
     }
 
     #[test]
-    fn tag_value_disallows_ending_in_backslash() -> Result {
+    fn tag_value_disallows_ending_in_backslash() {
         let parsed = tag_value(r#"weather\"#);
         assert!(matches!(
             parsed,
             Err(nom::Err::Failure(super::Error::EndsWithBackslash))
         ));
-
-        Ok(())
     }
 
     #[test]
-    fn field_key_allows_escaping_comma() -> Result {
-        assert_fully_parsed!(field_key(r#"wea\,ther"#), r#"wea,ther"#)
+    fn field_key_allows_escaping_comma() {
+        assert_fully_parsed!(field_key(r#"wea\,ther"#), r#"wea,ther"#);
     }
 
     #[test]
-    fn field_key_allows_escaping_equal() -> Result {
-        assert_fully_parsed!(field_key(r#"wea\=ther"#), r#"wea=ther"#)
+    fn field_key_allows_escaping_equal() {
+        assert_fully_parsed!(field_key(r#"wea\=ther"#), r#"wea=ther"#);
     }
 
     #[test]
-    fn field_key_allows_escaping_space() -> Result {
-        assert_fully_parsed!(field_key(r#"wea\ ther"#), r#"wea ther"#)
+    fn field_key_allows_escaping_space() {
+        assert_fully_parsed!(field_key(r#"wea\ ther"#), r#"wea ther"#);
     }
 
     #[test]
-    fn field_key_allows_escaping_backslash() -> Result {
-        assert_fully_parsed!(field_key(r#"\\wea\\ther"#), r#"\wea\ther"#)
+    fn field_key_allows_escaping_backslash() {
+        assert_fully_parsed!(field_key(r#"\\wea\\ther"#), r#"\wea\ther"#);
     }
 
     #[test]
-    fn field_key_allows_backslash_with_unknown_escape() -> Result {
-        assert_fully_parsed!(field_key(r#"\wea\ther"#), r#"\wea\ther"#)
+    fn field_key_allows_backslash_with_unknown_escape() {
+        assert_fully_parsed!(field_key(r#"\wea\ther"#), r#"\wea\ther"#);
     }
 
     #[test]
-    fn field_key_allows_literal_newline_as_unknown_escape() -> Result {
+    fn field_key_allows_literal_newline_as_unknown_escape() {
         assert_fully_parsed!(
             field_key(
                 r#"weat\
 her"#
             ),
             "weat\\\nher",
-        )
+        );
     }
 
     #[test]
-    fn field_key_disallows_literal_newline() -> Result {
+    fn field_key_disallows_literal_newline() {
         let (remaining, parsed) = field_key(
             r#"weat
 her"#,
-        )?;
+        )
+        .unwrap();
         assert_eq!(parsed, "weat");
         assert_eq!(remaining, "\nher");
-
-        Ok(())
     }
 
     #[test]
-    fn field_key_disallows_ending_in_backslash() -> Result {
+    fn field_key_disallows_ending_in_backslash() {
         let parsed = field_key(r#"weather\"#);
         assert!(matches!(
             parsed,
             Err(nom::Err::Failure(super::Error::EndsWithBackslash))
         ));
-
-        Ok(())
     }
 
     #[test]
-    fn parse_no_time() -> Result {
+    fn parse_no_time() {
         let input = "foo,tag0=value1 asdf=23.1,bar=5i";
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
 
         assert_eq!(vals[0].series.measurement, "foo");
         assert_eq!(vals[0].series.tag_set.as_ref().unwrap()[0].0, "tag0");
@@ -2089,12 +2002,10 @@ her"#,
 
         assert_eq!(vals[0].field_set[1].0, "bar");
         assert_eq!(vals[0].field_set[1].1.unwrap_i64(), 5);
-
-        Ok(())
     }
 
     #[test]
-    fn parse_advance_after_error() -> Result {
+    fn parse_advance_after_error() {
         // Note that the first line has an error (23.1.22 is not a number)
         // but there is valid data afterwrds,
         let input = "foo,tag0=value1 asdf=23.1.22,jkl=4\n\
@@ -2128,12 +2039,10 @@ her"#,
             parsed_line.field_set[1].1.unwrap_f64(),
             5.
         ));
-
-        Ok(())
     }
 
     #[test]
-    fn field_value_display() -> Result {
+    fn field_value_display() {
         assert_eq!(FieldValue::I64(-42).to_string(), "-42i");
         assert_eq!(FieldValue::U64(42).to_string(), "42u");
         assert_eq!(FieldValue::F64(42.11).to_string(), "42.11");
@@ -2143,22 +2052,20 @@ her"#,
         );
         assert_eq!(FieldValue::Boolean(true).to_string(), "true");
         assert_eq!(FieldValue::Boolean(false).to_string(), "false");
-        Ok(())
     }
 
     #[test]
-    fn series_display_no_tags() -> Result {
+    fn series_display_no_tags() {
         let series = Series {
             raw_input: "foo",
             measurement: EscapedStr::from("m"),
             tag_set: None,
         };
         assert_eq!(series.to_string(), "m");
-        Ok(())
     }
 
     #[test]
-    fn series_display_one_tag() -> Result {
+    fn series_display_one_tag() {
         let series = Series {
             raw_input: "foo",
             measurement: EscapedStr::from("m"),
@@ -2168,11 +2075,10 @@ her"#,
             )]),
         };
         assert_eq!(series.to_string(), "m,tag1=val1");
-        Ok(())
     }
 
     #[test]
-    fn series_display_two_tags() -> Result {
+    fn series_display_two_tags() {
         let series = Series {
             raw_input: "foo",
             measurement: EscapedStr::from("m"),
@@ -2182,11 +2088,10 @@ her"#,
             ]),
         };
         assert_eq!(series.to_string(), "m,tag1=val1,tag2=val2");
-        Ok(())
     }
 
     #[test]
-    fn parsed_line_display_one_field_no_timestamp() -> Result {
+    fn parsed_line_display_one_field_no_timestamp() {
         let series = Series {
             raw_input: "foo",
             measurement: EscapedStr::from("m"),
@@ -2204,11 +2109,10 @@ her"#,
         };
 
         assert_eq!(parsed_line.to_string(), "m,tag1=val1 field1=42.1");
-        Ok(())
     }
 
     #[test]
-    fn parsed_line_display_one_field_timestamp() -> Result {
+    fn parsed_line_display_one_field_timestamp() {
         let series = Series {
             raw_input: "foo",
             measurement: EscapedStr::from("m"),
@@ -2226,11 +2130,10 @@ her"#,
         };
 
         assert_eq!(parsed_line.to_string(), "m,tag1=val1 field1=42.1 33");
-        Ok(())
     }
 
     #[test]
-    fn parsed_line_display_two_fields_timestamp() -> Result {
+    fn parsed_line_display_two_fields_timestamp() {
         let series = Series {
             raw_input: "foo",
             measurement: EscapedStr::from("m"),
@@ -2254,11 +2157,10 @@ her"#,
             parsed_line.to_string(),
             "m,tag1=val1 field1=42.1,field2=false 33"
         );
-        Ok(())
     }
 
     #[test]
-    fn parsed_line_display_escaped() -> Result {
+    fn parsed_line_display_escaped() {
         let series = Series {
             raw_input: "foo",
             measurement: EscapedStr::from("m,and m"),
@@ -2282,42 +2184,37 @@ her"#,
             parsed_line.to_string(),
             r#"m\,and\ m,tag\ \,1=val\ \,1 field\ \,1=Foo\"Bar 33"#
         );
-        Ok(())
     }
 
     #[test]
-    fn field_value_returned() -> Result {
+    fn field_value_returned() {
         let input = r#"foo asdf=true 1234"#;
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
 
         assert!(vals[0].field_value("asdf").unwrap().unwrap_bool());
-        Ok(())
     }
 
     #[test]
-    fn field_value_missing() -> Result {
+    fn field_value_missing() {
         let input = r#"foo asdf=true 1234"#;
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
 
         assert_eq!(vals[0].field_value("jkl"), None);
-        Ok(())
     }
 
     #[test]
-    fn tag_value_returned() -> Result {
+    fn tag_value_returned() {
         let input = r#"foo,test=stuff asdf=true 1234"#;
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
 
         assert_eq!(*vals[0].tag_value("test").unwrap(), "stuff");
-        Ok(())
     }
 
     #[test]
-    fn tag_value_missing() -> Result {
+    fn tag_value_missing() {
         let input = r#"foo,test=stuff asdf=true 1234"#;
-        let vals = parse(input)?;
+        let vals = parse(input).unwrap();
 
         assert_eq!(vals[0].tag_value("asdf"), None);
-        Ok(())
     }
 }

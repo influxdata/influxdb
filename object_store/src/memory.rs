@@ -176,9 +176,6 @@ impl InMemory {
 mod tests {
     use super::*;
 
-    type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
-    type Result<T, E = TestError> = std::result::Result<T, E>;
-
     use crate::{
         tests::{list_with_delimiter, put_get_delete_list},
         Error as ObjectStoreError, ObjectStore, ObjectStoreApi, ObjectStorePath,
@@ -186,18 +183,15 @@ mod tests {
     use futures::stream;
 
     #[tokio::test]
-    async fn in_memory_test() -> Result<()> {
+    async fn in_memory_test() {
         let integration = ObjectStore::new_in_memory(InMemory::new());
 
-        put_get_delete_list(&integration).await?;
-
+        put_get_delete_list(&integration).await.unwrap();
         list_with_delimiter(&integration).await.unwrap();
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn length_mismatch_is_an_error() -> Result<()> {
+    async fn length_mismatch_is_an_error() {
         let integration = ObjectStore::new_in_memory(InMemory::new());
 
         let bytes = stream::once(async { Ok(Bytes::from("hello world")) });
@@ -214,12 +208,10 @@ mod tests {
                 }
             }
         ));
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn unknown_length() -> Result<()> {
+    async fn unknown_length() {
         let integration = ObjectStore::new_in_memory(InMemory::new());
 
         let data = Bytes::from("arbitrary data");
@@ -233,16 +225,17 @@ mod tests {
                 futures::stream::once(async move { stream_data }),
                 None,
             )
-            .await?;
+            .await
+            .unwrap();
 
         let read_data = integration
             .get(&location)
-            .await?
+            .await
+            .unwrap()
             .map_ok(|b| bytes::BytesMut::from(&b[..]))
             .try_concat()
-            .await?;
+            .await
+            .unwrap();
         assert_eq!(&*read_data, data);
-
-        Ok(())
     }
 }

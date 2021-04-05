@@ -280,9 +280,6 @@ mod tests {
     use crate::ObjectStore;
     use std::env;
 
-    type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
-    type Result<T, E = Error> = std::result::Result<T, E>;
-
     #[derive(Debug)]
     struct AzureConfig {
         storage_account: String,
@@ -324,7 +321,7 @@ mod tests {
                            {} to run",
                     unset_var_names
                 );
-                return Ok(());
+                return;
             } else {
                 AzureConfig {
                     storage_account: env::var("AZURE_STORAGE_ACCOUNT")
@@ -339,7 +336,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn azure_blob_test() -> Result<()> {
+    async fn azure_blob_test() {
         let config = maybe_skip_integration!();
         let integration = ObjectStore::new_microsoft_azure(MicrosoftAzure::new(
             config.storage_account,
@@ -347,9 +344,7 @@ mod tests {
             config.bucket,
         ));
 
-        put_get_delete_list(&integration).await?;
-        list_with_delimiter(&integration).await?;
-
-        Ok(())
+        put_get_delete_list(&integration).await.unwrap();
+        list_with_delimiter(&integration).await.unwrap();
     }
 }

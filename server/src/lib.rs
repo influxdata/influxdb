@@ -651,11 +651,8 @@ mod tests {
 
     use super::*;
 
-    type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
-    type Result<T = (), E = TestError> = std::result::Result<T, E>;
-
     #[tokio::test]
-    async fn server_api_calls_return_error_with_no_id_set() -> Result {
+    async fn server_api_calls_return_error_with_no_id_set() {
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server = Server::new(manager, store);
@@ -667,8 +664,6 @@ mod tests {
         let lines = parsed_lines("cpu foo=1 10");
         let resp = server.write_lines("foo", &lines).await.unwrap_err();
         assert!(matches!(resp, Error::IdNotSet));
-
-        Ok(())
     }
 
     #[tokio::test]
@@ -733,7 +728,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn duplicate_database_name_rejected() -> Result {
+    async fn duplicate_database_name_rejected() {
         // Covers #643
 
         let manager = TestConnectionManager::new();
@@ -758,12 +753,10 @@ mod tests {
         if !matches!(got, Error::DatabaseAlreadyExists {..}) {
             panic!("expected already exists error");
         }
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn db_names_sorted() -> Result {
+    async fn db_names_sorted() {
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server = Server::new(manager, store);
@@ -781,19 +774,20 @@ mod tests {
 
         let db_names_sorted = server.db_names_sorted();
         assert_eq!(names, db_names_sorted);
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn writes_local() -> Result {
+    async fn writes_local() {
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server = Server::new(manager, store);
         server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+
+        let name = DatabaseName::new("foo".to_string()).unwrap();
         server
-            .create_database(DatabaseRules::new(DatabaseName::new("foo").unwrap()))
-            .await?;
+            .create_database(DatabaseRules::new(name))
+            .await
+            .unwrap();
 
         let line = "cpu bar=1 10";
         let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
@@ -818,12 +812,10 @@ mod tests {
             "+-----+------+",
         ];
         assert_table_eq!(expected, &batches);
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn close_chunk() -> Result {
+    async fn close_chunk() {
         test_helpers::maybe_start_logging();
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
@@ -837,7 +829,8 @@ mod tests {
         let db_name = DatabaseName::new("foo").unwrap();
         server
             .create_database(DatabaseRules::new(db_name.clone()))
-            .await?;
+            .await
+            .unwrap();
 
         let line = "cpu bar=1 10";
         let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
@@ -882,8 +875,6 @@ mod tests {
         // ensure that we don't leave the server instance hanging around
         cancel_token.cancel();
         let _ = background_handle.await;
-
-        Ok(())
     }
 
     #[tokio::test]
@@ -940,7 +931,7 @@ partition_key:
     }
 
     #[tokio::test]
-    async fn background_task_cleans_jobs() -> Result {
+    async fn background_task_cleans_jobs() {
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server = Arc::new(Server::new(manager, store));
@@ -959,8 +950,6 @@ partition_key:
         // ensure that we don't leave the server instance hanging around
         cancel_token.cancel();
         let _ = background_handle.await;
-
-        Ok(())
     }
 
     #[derive(Snafu, Debug, Clone)]

@@ -1439,7 +1439,7 @@ mod tests {
     }
 
     #[test]
-    fn measurement_writer_buffering() -> Result<(), Error> {
+    fn measurement_writer_buffering() {
         let log = Arc::new(Mutex::new(WriterLog::new()));
         let table_writer = Box::new(NoOpWriter::new(Arc::clone(&log), String::from("cpu")));
 
@@ -1465,20 +1465,26 @@ mod tests {
         assert_eq!(get_events(&log).len(), 0);
 
         // buffer size is 2 we don't expect any writes until three rows are pushed
-        writer.buffer_line(parsed_lines.next().expect("parse success"))?;
+        writer
+            .buffer_line(parsed_lines.next().expect("parse success"))
+            .unwrap();
         assert_eq!(get_events(&log).len(), 0);
-        writer.buffer_line(parsed_lines.next().expect("parse success"))?;
+        writer
+            .buffer_line(parsed_lines.next().expect("parse success"))
+            .unwrap();
         assert_eq!(get_events(&log).len(), 0);
 
         // this should cause a flush and write
-        writer.buffer_line(parsed_lines.next().expect("parse success"))?;
+        writer
+            .buffer_line(parsed_lines.next().expect("parse success"))
+            .unwrap();
         assert_eq!(
             get_events(&log),
             vec!["[cpu] Wrote batch of 2 cols, 2 rows"]
         );
 
         // finalize should write out the last line
-        writer.finalize()?;
+        writer.finalize().unwrap();
         assert_eq!(
             get_events(&log),
             vec![
@@ -1487,8 +1493,6 @@ mod tests {
                 "[cpu] Closed",
             ]
         );
-
-        Ok(())
     }
 
     // ----- Tests for pack_data -----
@@ -1521,8 +1525,11 @@ mod tests {
     }
 
     #[test]
-    fn pack_data_schema() -> Result<(), Error> {
-        let schema = parse_data_into_sampler()?.deduce_schema_from_sample()?;
+    fn pack_data_schema() {
+        let schema = parse_data_into_sampler()
+            .unwrap()
+            .deduce_schema_from_sample()
+            .unwrap();
 
         // Then the correct schema is extracted
         println!("Converted to {:#?}", schema);
@@ -1553,14 +1560,12 @@ mod tests {
             "bool_field"
         );
         assert_column_eq!(schema, 5, InfluxColumnType::Timestamp, "time");
-
-        Ok(())
     }
 
     #[test]
-    fn pack_data_value() -> Result<(), Error> {
-        let mut sampler = parse_data_into_sampler()?;
-        let schema = sampler.deduce_schema_from_sample()?;
+    fn pack_data_value() {
+        let mut sampler = parse_data_into_sampler().unwrap();
+        let schema = sampler.deduce_schema_from_sample().unwrap();
 
         let packers = pack_lines(&schema, &sampler.schema_sample);
 
@@ -1667,8 +1672,6 @@ mod tests {
         assert_eq!(timestamp_packer.get(6).unwrap(), &1_590_488_773_254_480_000);
         assert!(timestamp_packer.is_null(7));
         assert_eq!(timestamp_packer.get(8).unwrap(), &1_590_488_773_254_490_000);
-
-        Ok(())
     }
 
     // ----- Tests for LineProtocolConverter -----
@@ -1692,7 +1695,7 @@ mod tests {
     }
 
     #[test]
-    fn conversion_with_multiple_measurements() -> Result<(), Error> {
+    fn conversion_with_multiple_measurements() {
         // These lines have interleaved measurements to force the
         // state machine in LineProtocolConverter::convert through all
         // the branches
@@ -1737,14 +1740,12 @@ mod tests {
                 "[h2o_temperature] Closed",
             ]
         );
-
-        Ok(())
     }
 
     // ----- Tests for TSM Data -----
 
     #[test]
-    fn process_measurement_table() -> Result<(), Box<dyn std::error::Error>> {
+    fn process_measurement_table() {
         // Input data - in line protocol format
         //
         // cpu,region=east temp=1.2 0
@@ -1782,63 +1783,71 @@ mod tests {
 
         let mut table = MeasurementTable::new("cpu".to_string(), 0);
         // cpu region=east temp=<all the block data for this key>
-        table.add_series_data(
-            vec![("region".to_string(), "east".to_string())],
-            "temp".to_string(),
-            Block {
-                min_time: 0,
-                max_time: 0,
-                offset: 0,
-                size: 0,
-                typ: BlockType::Float,
-                reader_idx: 0,
-            },
-        )?;
+        table
+            .add_series_data(
+                vec![("region".to_string(), "east".to_string())],
+                "temp".to_string(),
+                Block {
+                    min_time: 0,
+                    max_time: 0,
+                    offset: 0,
+                    size: 0,
+                    typ: BlockType::Float,
+                    reader_idx: 0,
+                },
+            )
+            .unwrap();
 
         // cpu region=east voltage=<all the block data for this key>
-        table.add_series_data(
-            vec![("region".to_string(), "east".to_string())],
-            "voltage".to_string(),
-            Block {
-                min_time: 1,
-                max_time: 0,
-                offset: 0,
-                size: 0,
-                typ: BlockType::Float,
-                reader_idx: 0,
-            },
-        )?;
+        table
+            .add_series_data(
+                vec![("region".to_string(), "east".to_string())],
+                "voltage".to_string(),
+                Block {
+                    min_time: 1,
+                    max_time: 0,
+                    offset: 0,
+                    size: 0,
+                    typ: BlockType::Float,
+                    reader_idx: 0,
+                },
+            )
+            .unwrap();
 
         // cpu region=west,server=a temp=<all the block data for this key>
-        table.add_series_data(
-            vec![
-                ("region".to_string(), "west".to_string()),
-                ("server".to_string(), "a".to_string()),
-            ],
-            "temp".to_string(),
-            Block {
-                min_time: 2,
-                max_time: 0,
-                offset: 0,
-                size: 0,
-                typ: BlockType::Float,
-                reader_idx: 0,
-            },
-        )?;
+        table
+            .add_series_data(
+                vec![
+                    ("region".to_string(), "west".to_string()),
+                    ("server".to_string(), "a".to_string()),
+                ],
+                "temp".to_string(),
+                Block {
+                    min_time: 2,
+                    max_time: 0,
+                    offset: 0,
+                    size: 0,
+                    typ: BlockType::Float,
+                    reader_idx: 0,
+                },
+            )
+            .unwrap();
 
         // cpu az=b watts=<all the block data for this key>
-        table.add_series_data(
-            vec![("az".to_string(), "b".to_string())],
-            "watts".to_string(),
-            Block {
-                min_time: 3,
-                max_time: 0,
-                offset: 0,
-                size: 0,
-                typ: BlockType::Unsigned,
-                reader_idx: 0,
-            },
-        )?;
+        table
+            .add_series_data(
+                vec![("az".to_string(), "b".to_string())],
+                "watts".to_string(),
+                Block {
+                    min_time: 3,
+                    max_time: 0,
+                    offset: 0,
+                    size: 0,
+                    typ: BlockType::Unsigned,
+                    reader_idx: 0,
+                },
+            )
+            .unwrap();
 
         let mut block_map = BTreeMap::new();
         block_map.insert(
@@ -1875,7 +1884,8 @@ mod tests {
         );
 
         let decoder = MockBlockDecoder::new(block_map);
-        let (schema, packers) = TSMFileConverter::process_measurement_table(decoder, &mut table)?;
+        let (schema, packers) =
+            TSMFileConverter::process_measurement_table(decoder, &mut table).unwrap();
 
         assert_column_eq!(schema, 0, InfluxColumnType::Tag, "az");
         assert_column_eq!(schema, 1, InfluxColumnType::Tag, "region");
@@ -2005,8 +2015,6 @@ mod tests {
                 Some(4000),
             ]))
         );
-
-        Ok(())
     }
 
     fn empty_block() -> Block {
@@ -2021,33 +2029,39 @@ mod tests {
     }
 
     #[test]
-    fn merge_input_tables() -> Result<(), Box<dyn std::error::Error>> {
+    fn merge_input_tables() {
         let mut inputs = vec![];
         let mut table = MeasurementTable::new("cpu".to_string(), 0);
-        table.add_series_data(
-            vec![("region".to_string(), "east".to_string())],
-            "temp".to_string(),
-            empty_block(),
-        )?;
+        table
+            .add_series_data(
+                vec![("region".to_string(), "east".to_string())],
+                "temp".to_string(),
+                empty_block(),
+            )
+            .unwrap();
         inputs.push(Some(table.clone()));
 
         table = MeasurementTable::new("cpu".to_string(), 1);
-        table.add_series_data(
-            vec![("server".to_string(), "a".to_string())],
-            "temp".to_string(),
-            empty_block(),
-        )?;
+        table
+            .add_series_data(
+                vec![("server".to_string(), "a".to_string())],
+                "temp".to_string(),
+                empty_block(),
+            )
+            .unwrap();
         inputs.push(Some(table.clone()));
 
         table = MeasurementTable::new("disk".to_string(), 2);
-        table.add_series_data(
-            vec![("region".to_string(), "west".to_string())],
-            "temp".to_string(),
-            empty_block(),
-        )?;
+        table
+            .add_series_data(
+                vec![("region".to_string(), "west".to_string())],
+                "temp".to_string(),
+                empty_block(),
+            )
+            .unwrap();
         inputs.push(Some(table));
 
-        let mut res = TSMFileConverter::merge_input_tables(inputs)?;
+        let mut res = TSMFileConverter::merge_input_tables(inputs).unwrap();
         let mut merged = res.0.unwrap();
         inputs = res.1;
         assert_eq!(merged.name, "cpu".to_string());
@@ -2055,15 +2069,14 @@ mod tests {
         assert_eq!(inputs[0], None);
         assert_eq!(inputs[1], None);
 
-        res = TSMFileConverter::merge_input_tables(inputs)?;
+        res = TSMFileConverter::merge_input_tables(inputs).unwrap();
         merged = res.0.unwrap();
         assert_eq!(merged.name, "disk".to_string());
         assert_eq!(res.1, vec![None, None, None]);
-        Ok(())
     }
 
     #[test]
-    fn conversion_tsm_file_single() -> Result<(), Error> {
+    fn conversion_tsm_file_single() {
         let file = File::open("../tests/fixtures/merge-tsm/merge_a.tsm.gz");
         let mut decoder = GzDecoder::new(file.unwrap());
         let mut buf = Vec::new();
@@ -2099,12 +2112,10 @@ mod tests {
                 "[disk] Closed"
             ],
         );
-
-        Ok(())
     }
 
     #[test]
-    fn conversion_tsm_files_none_overlapping() -> Result<(), Error> {
+    fn conversion_tsm_files_none_overlapping() {
         let mut index_streams = Vec::new();
         let mut block_streams = Vec::new();
 
@@ -2154,7 +2165,5 @@ mod tests {
                 "[disk] Closed"
             ],
         );
-
-        Ok(())
     }
 }
