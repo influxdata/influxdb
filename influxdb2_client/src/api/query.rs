@@ -59,19 +59,14 @@ impl Client {
     }
 
     /// Query
-    pub async fn query(
-        &self,
-        org: &str,
-        org_id: &str,
-        query: Option<Query>,
-    ) -> Result<String, RequestError> {
+    pub async fn query(&self, org: &str, query: Option<Query>) -> Result<String, RequestError> {
         let req_url = format!("{}/api/v2/query", self.url);
 
         let response = self
             .request(Method::POST, &req_url)
             .header("Accepting-Encoding", "identity")
             .header("Content-Type", "application/json")
-            .query(&[("org", &org), ("orgID", &org_id)])
+            .query(&[("org", &org)])
             .body(serde_json::to_string(&query.unwrap_or_default()).context(Serializing)?)
             .send()
             .await
@@ -191,14 +186,12 @@ mod tests {
     async fn query() {
         let token = "some-token";
         let org = "some-org";
-        let org_id = "some-org_id";
         let query: Option<Query> = Some(Query::new("some-influx-query-string".to_string()));
         let mock_server = mock("POST", "/api/v2/query")
             .match_header("Authorization", format!("Token {}", token).as_str())
             .match_header("Accepting-Encoding", "identity")
             .match_header("Content-Type", "application/json")
             .match_query(Matcher::UrlEncoded("org".into(), org.into()))
-            .match_query(Matcher::UrlEncoded("orgID".into(), org_id.into()))
             .match_body(
                 serde_json::to_string(&query.clone().unwrap_or_default())
                     .unwrap()
@@ -208,7 +201,7 @@ mod tests {
 
         let client = Client::new(&mockito::server_url(), token);
 
-        let _result = client.query(org, org_id, query).await;
+        let _result = client.query(org, query).await;
 
         mock_server.assert();
     }
@@ -217,7 +210,6 @@ mod tests {
     async fn query_opt() {
         let token = "some-token";
         let org = "some-org";
-        let org_id = "some-org_id";
         let query: Option<Query> = None;
 
         let mock_server = mock("POST", "/api/v2/query")
@@ -225,7 +217,6 @@ mod tests {
             .match_header("Accepting-Encoding", "identity")
             .match_header("Content-Type", "application/json")
             .match_query(Matcher::UrlEncoded("org".into(), org.into()))
-            .match_query(Matcher::UrlEncoded("orgID".into(), org_id.into()))
             .match_body(
                 serde_json::to_string(&query.unwrap_or_default())
                     .unwrap()
@@ -235,7 +226,7 @@ mod tests {
 
         let client = Client::new(&mockito::server_url(), token);
 
-        let _result = client.query(org, org_id, None).await;
+        let _result = client.query(org, None).await;
 
         mock_server.assert();
     }

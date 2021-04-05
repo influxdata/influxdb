@@ -11,11 +11,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     client.query_suggestions_name("some-name").await?;
 
     client
-        .query(
-            "some-org",
-            "some-orgID",
-            Some(Query::new("some-query".to_string())),
-        )
+        .query("some-org", Some(Query::new("some-query".to_string())))
         .await?;
 
     client
