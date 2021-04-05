@@ -99,6 +99,29 @@ jobs:
           command: cargo test --workspace
       - cache_save
 
+  # Integration tests for the influxdb2_client crate against InfluxDB 2.0 OSS.
+  test_influxdb2_client:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    environment:
+        # Disable full debug symbol generation to speed up CI build
+        # "1" means line tables only, which is useful for panic tracebacks.
+        RUSTFLAGS: "-C debuginfo=1"
+    steps:
+      - checkout
+      - run:
+          name: Install InfluxDB 2.0 OSS
+          command: |
+              curl -o influxdb2.tar.gz https://dl.influxdata.com/influxdb/releases/influxdb2-2.0.4-linux-amd64.tar.gz
+              tar xvzf influxdb2.tar.gz
+              sudo cp influxdb2-2.0.4-linux-amd64/{influx,influxd} /usr/local/bin/
+      - rust_nightly
+      - cache_restore
+      - run:
+          name: Cargo test
+          command: TEST_INTEGRATION=1 cargo test -p influxdb2_client
+      - cache_save
+
   # Build a dev binary.
   #
   # Compiles a binary with the default ("dev") cargo profile from the iox source
@@ -209,6 +232,7 @@ workflows:
       - lint
       - protobuf-lint
       - test
+      - test_influxdb2_client
       - build
 
   # Internal pipeline for perf builds.
