@@ -71,7 +71,8 @@ func (s *Store) WindowAggregate(ctx context.Context, req *datatypes.ReadWindowAg
 		return nil, err
 	}
 
-	shardIDs, err := s.findShardIDs(database, rp, false, start, end)
+	ascending := reads.IsAscendingWindowAggregate(req)
+	shardIDs, err := s.findShardIDs(database, rp, !ascending, start, end)
 	if err != nil {
 		return nil, err
 	}
