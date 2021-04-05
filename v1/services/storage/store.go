@@ -71,6 +71,9 @@ func (s *Store) WindowAggregate(ctx context.Context, req *datatypes.ReadWindowAg
 		return nil, err
 	}
 
+	// Due to some optimizations around how flux's `last()` function interacts with the
+	// storage engine, we need to detect if the read request requires a descending
+	// cursor or not
 	ascending := reads.IsAscendingWindowAggregate(req)
 	shardIDs, err := s.findShardIDs(database, rp, !ascending, start, end)
 	if err != nil {

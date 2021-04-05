@@ -23,11 +23,18 @@ type windowAggregateResultSet struct {
 	err          error
 }
 
+// IsAscendingWindowAggregate checks two things: If if the request passed in
+// is using the `Last` aggregate type, and if it has a window. If both
+// conditions are met, it returns false, otherwise, it returns true.
 func IsAscendingWindowAggregate(req *datatypes.ReadWindowAggregateRequest) bool {
 	if len(req.Aggregate) != 1 {
 		return false
 	}
 
+	// The following is an optimization where in the case of a single window,
+	// the selector `last` is implemented as a descending array cursor followed
+	// by a limit array cursor that selects only the first point, i.e the point
+	// with the largest timestamp, from the descending array cursor.
 	if req.Aggregate[0].Type == datatypes.AggregateTypeLast {
 		if req.Window == nil {
 			if req.WindowEvery == 0 || req.WindowEvery == math.MaxInt64 {
