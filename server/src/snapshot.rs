@@ -1,20 +1,13 @@
 //! This module contains code for snapshotting a database chunk to Parquet
 //! files in object storage.
-use arrow_deps::{
-    arrow::datatypes::SchemaRef,
-    datafusion::physical_plan::SendableRecordBatchStream,
-    parquet::{self, arrow::ArrowWriter},
-};
 use data_types::partition_metadata::{PartitionSummary, TableSummary};
 use internal_types::selection::Selection;
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
-use parquet_file::chunk::MemWriter;
 use query::{predicate::EMPTY_PREDICATE, PartitionChunk};
 
 use std::sync::Arc;
 
 use bytes::Bytes;
-use futures::StreamExt;
 use observability_deps::tracing::{error, info};
 use parking_lot::Mutex;
 use snafu::{ResultExt, Snafu};
@@ -28,11 +21,6 @@ pub enum Error {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
-    #[snafu(display("Error reading stream while creating snapshot: {}", source))]
-    ReadingStream {
-        source: arrow_deps::arrow::error::ArrowError,
-    },
-
     #[snafu(display("Table position out of bounds: {}", position))]
     TablePositionOutOfBounds { position: usize },
 
@@ -40,18 +28,8 @@ pub enum Error {
     JsonGenerationError { source: serde_json::Error },
 
     #[snafu(display("Error opening Parquet Writer: {}", source))]
-    OpeningParquetWriter {
-        source: parquet::errors::ParquetError,
-    },
-
-    #[snafu(display("Error writing Parquet to memory: {}", source))]
-    WritingParquetToMemory {
-        source: parquet::errors::ParquetError,
-    },
-
-    #[snafu(display("Error closing Parquet Writer: {}", source))]
-    ClosingParquetWriter {
-        source: parquet::errors::ParquetError,
+    ParquetStreamToByte {
+        source: parquet_file::storage::Error,
     },
 
     #[snafu(display("Error writing to object store: {}", source))]
@@ -171,7 +149,9 @@ where
             let mut location = self.data_path.clone();
             let file_name = format!("{}.parquet", table_name);
             location.set_file_name(&file_name);
-            let data = Self::parquet_stream_to_bytes(stream, schema).await?;
+            let data = parquet_file::storage::Storage::parquet_stream_to_bytes(stream, schema)
+                .await
+                .context(ParquetStreamToByte)?;
             self.write_to_object_store(data, &location).await?;
             self.mark_table_finished(pos);
 
@@ -206,31 +186,6 @@ where
 
         Ok(())
     }
-
-    /// Convert the record batches in stream to bytes in a parquet file stream
-    /// in memory
-    ///
-    /// TODO: connect the streams to avoid buffering into Vec<u8>
-    async fn parquet_stream_to_bytes(
-        mut stream: SendableRecordBatchStream,
-        schema: SchemaRef,
-    ) -> Result<Vec<u8>> {
-        let mem_writer = MemWriter::default();
-        {
-            let mut writer = ArrowWriter::try_new(mem_writer.clone(), schema, None)
-                .context(OpeningParquetWriter)?;
-            while let Some(batch) = stream.next().await {
-                let batch = batch.context(ReadingStream)?;
-                writer.write(&batch).context(WritingParquetToMemory)?;
-            }
-            writer.close().context(ClosingParquetWriter)?;
-        } // drop the reference to the MemWriter that the SerializedFileWriter has
-
-        Ok(mem_writer
-            .into_inner()
-            .expect("Nothing else should have a reference here"))
-    }
-
     async fn write_to_object_store(
         &self,
         data: Vec<u8>,

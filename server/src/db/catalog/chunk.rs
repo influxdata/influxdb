@@ -31,7 +31,6 @@ pub enum ChunkState {
     Moving(Arc<MBChunk>),
 
     /// Chunk has been completely loaded in the read buffer
-    /// Still need both MB and RD for moving the MB to Object Store
     Moved(Arc<ReadBufferDb>), // todo use read buffer chunk instead of ReadBufferDb
 
     // Chunk is actively writing to object store

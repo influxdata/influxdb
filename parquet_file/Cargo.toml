@@ -7,6 +7,7 @@ edition = "2018"
 [dependencies] # In alphabetical order
 arrow_deps = { path = "../arrow_deps" }
 bytes = "1.0"
+data_types = { path = "../data_types" }
 futures = "0.3.7"
 object_store = {path = "../object_store"}
 parking_lot = "0.11.1"

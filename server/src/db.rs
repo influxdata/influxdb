@@ -12,9 +12,9 @@ use observability_deps::tracing::{debug, info};
 use parking_lot::{Mutex, RwLock};
 use snafu::{OptionExt, ResultExt, Snafu};
 
-use arrow_deps::{
-    datafusion::catalog::{catalog::CatalogProvider, schema::SchemaProvider},
-    parquet::{self, arrow::arrow_writer::ArrowWriter},
+use arrow_deps::datafusion::{
+    catalog::{catalog::CatalogProvider, schema::SchemaProvider},
+    physical_plan::SendableRecordBatchStream,
 };
 
 use catalog::{chunk::ChunkState, Catalog};
@@ -23,7 +23,8 @@ use data_types::{
     chunk::ChunkSummary, database_rules::DatabaseRules, partition_metadata::PartitionSummary,
 };
 use internal_types::{data::ReplicatedWrite, selection::Selection};
-use parquet_file::chunk::{Chunk, MemWriter};
+use object_store::{memory::InMemory, ObjectStore};
+use parquet_file::{chunk::Chunk, storage::Storage};
 use query::{Database, DEFAULT_SCHEMA};
 use read_buffer::Database as ReadBufferDb;
 
@@ -106,21 +107,31 @@ pub enum Error {
         source: catalog::Error,
     },
 
-    #[snafu(display("Error opening Parquet Writer: {}", source))]
-    OpeningParquetWriter {
-        source: parquet::errors::ParquetError,
+    #[snafu(display("Read Buffer Error in chunk {}: {}", chunk_id, source))]
+    ReadBufferChunk {
+        source: read_buffer::Error,
+        chunk_id: u32,
     },
 
-    #[snafu(display("Error writing Parquet to memory: {}", source))]
-    WritingParquetToMemory {
-        source: parquet::errors::ParquetError,
+    #[snafu(display("Error writing to object store: {}", source))]
+    WritingToObjectStore {
+        source: parquet_file::storage::Error,
     },
 
-    #[snafu(display("Error closing Parquet Writer: {}", source))]
-    ClosingParquetWriter {
-        source: parquet::errors::ParquetError,
-    },
+    // #[snafu(display("Error opening Parquet Writer: {}", source))]
+    // OpeningParquetWriter {
+    //     source: parquet::errors::ParquetError,
+    // },
 
+    // #[snafu(display("Error writing Parquet to memory: {}", source))]
+    // WritingParquetToMemory {
+    //     source: parquet::errors::ParquetError,
+    // },
+
+    // #[snafu(display("Error closing Parquet Writer: {}", source))]
+    // ClosingParquetWriter {
+    //     source: parquet::errors::ParquetError,
+    // },
     #[snafu(display("Unknown Mutable Buffer Chunk {}", chunk_id))]
     UnknownMutableBufferChunk { chunk_id: u32 },
 
@@ -415,14 +426,11 @@ impl Db {
         Ok(DBChunk::snapshot(&chunk))
     }
 
-    pub fn load_chunk_to_object_store(
+    pub async fn load_chunk_to_object_store(
         &self,
         partition_key: &str,
         chunk_id: u32,
     ) -> Result<Arc<DBChunk>> {
-        // TODO: the below was done for MB --> Parquet. Need to rewrite to RB
-        // --> Parquet
-
         // Get the chunk from the catalog
         let chunk = {
             let partition =
@@ -442,93 +450,85 @@ impl Db {
 
         // update the catalog to say we are processing this chunk and
         // then drop the lock while we do the work
-        // TODO: this read_buffer in the near future will be rb_chunk
-        //let read_buffer = {
-        let mb_chunk = {
+        // TODO: for now this read_buffer. In the near future, after Edd refactors Read
+        // Buffer to work with Catalog, this will be a rb_chunk instead
+        let read_buffer = {
             let mut chunk = chunk.write();
 
-            // chunk.set_writing_to_object_store().context(LoadingChunkToParquet {
-            //     partition_key,
-            //     chunk_id,
-            // })?
-            chunk.set_moving().context(LoadingChunkToParquet {
-                partition_key,
-                chunk_id,
-            })?
+            chunk
+                .set_writing_to_object_store()
+                .context(LoadingChunkToParquet {
+                    partition_key,
+                    chunk_id,
+                })?
         };
 
         debug!(%partition_key, %chunk_id, "chunk marked WRITING , loading tables into object store");
 
         //Get all tables in this chunk
-        let mut batches = Vec::new();
-        let table_stats = mb_chunk.table_summaries(); // read_buffer.table_summaries(partition_key, &[chunk_id]);
+        let table_stats = read_buffer.table_summaries(partition_key, &[chunk_id]);
 
         // Create a parquet chunk for this chunk
-        let _chunk = Chunk::new(partition_key.to_string(), chunk_id);
-
-        // TODO: This code will be removed when the read_buffer become rb_chunk
-        // let partition_data = read_buffer.data.write().unwrap();
-        // let partition = partition_data
-        //     .partitions
-        //     .get_mut(partition_key).expect("Read buffer partition not found");
-
-        // let chunk_data = partition.data.write().unwrap();
-        // let rb_chunk = chunk_data.chunks.get_mut(&chunk_id).expect("Read buffer chunk
-        // not found");
+        let mut parquet_chunk = Chunk::new(partition_key.to_string(), chunk_id);
+        // Create a storage to save data of this chunk
+        // Todo: this must be gotten from server or somewhere
+        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let storage = Storage::new(store, 100, "db_name".to_string()); // todo: replace with actual writer_id & db_name
 
         for stats in table_stats {
             debug!(%partition_key, %chunk_id, table=%stats.name, "loading table to object store");
-            mb_chunk
-                .table_to_arrow(&mut batches, &stats.name, Selection::All)
-                // It is probably reasonable to recover from this error
-                // (reset the chunk state to Open) but until that is
-                // implemented (and tested) just panic
-                .expect("Loading chunk to object store");
 
-            if batches.is_empty() {
-                continue;
-            }
+            let predicate = read_buffer::Predicate::default();
 
-            // For now batches.len() is always 1 when reach here but in the future if is it
-            // >1, we need to verify whether schema of all RecordBatch of the
-            // same table of this chunk has the same schema
-            let schema = batches[0].schema();
+            // Get RecordrdBatchStream of data from the read buffer chunk
+            // TODO: When we have the rb_chunk, the following code will be replaced with one
+            // line let stream = rb_chunk.read_filter()
+            let read_results = read_buffer
+                .read_filter(
+                    partition_key,
+                    stats.name.as_str(),
+                    &[chunk_id],
+                    predicate,
+                    Selection::All,
+                )
+                .context(ReadBufferChunk { chunk_id })?;
+            let schema = read_results
+                .schema()
+                .context(ReadBufferChunk { chunk_id })?
+                .into();
+            let stream: SendableRecordBatchStream =
+                Box::pin(streams::ReadFilterResultsStream::new(read_results, schema));
 
-            // memory for the parquet content of this table
-            let cursor = MemWriter::default();
-            let mut writer =
-                ArrowWriter::try_new(cursor.clone(), schema, None).context(OpeningParquetWriter)?;
+            // Write this table data into the object store
+            let path = storage
+                .write_to_object_store(
+                    partition_key.to_string(),
+                    chunk_id,
+                    stats.name.to_string(),
+                    stream,
+                )
+                .await
+                .context(WritingToObjectStore)?;
 
-            for batch in batches.drain(..) {
-                writer.write(&batch).context(WritingParquetToMemory)?;
-            }
-            writer.close().context(ClosingParquetWriter)?;
-
-            // TODO: put this function under a tokio
-            // Put the file to object store
-            // chunk.write_to_object_store(self.db_name(), stats.name,
-            // cursor);
+            // Now add the saved info into the parquet_chunk
+            parquet_chunk.add_table(stats, path);
         }
-
-        // TOOD: add the chunk into a member of this Db (which maybe Catalog or
-        // so) Need to talk with Andrew and Raphael about this
 
         // Relock the chunk again (nothing else should have been able
         // to modify the chunk state while we were moving it
         let mut chunk = chunk.write();
         // update the catalog to say we are done processing
+        let parquet_chunk = Arc::clone(&Arc::new(parquet_chunk));
         chunk
-            // TODO: set to the corresponding state
-            .set_moved(Arc::clone(&self.read_buffer))
-            .context(LoadingChunk {
+            .set_written_to_object_store(parquet_chunk)
+            .context(LoadingChunkToParquet {
                 partition_key,
                 chunk_id,
             })?;
 
-        // TODO: mark down the right state
         debug!(%partition_key, %chunk_id, "chunk marked MOVED. Persisting to object store complete");
 
-        Ok(DBChunk::snapshot(&chunk)) // TODO: need to return ParquetFile here
+        Ok(DBChunk::snapshot(&chunk))
     }
 
     /// Spawns a task to perform load_chunk_to_read_buffer
