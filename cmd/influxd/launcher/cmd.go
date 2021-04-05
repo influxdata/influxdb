@@ -205,11 +205,11 @@ func newOpts(viper *viper.Viper) *InfluxdOpts {
 
 		NoTasks: false,
 
-		ConcurrencyQuota:                10,
+		ConcurrencyQuota:                0,
 		InitialMemoryBytesQuotaPerQuery: 0,
 		MemoryBytesQuotaPerQuery:        MaxInt,
 		MaxMemoryBytes:                  0,
-		QueueSize:                       10,
+		QueueSize:                       0,
 
 		Testing:                 false,
 		TestingAlwaysAllowSetup: false,
@@ -405,7 +405,7 @@ func (o *InfluxdOpts) bindCliOpts() []cli.Opt {
 			DestP:   &o.ConcurrencyQuota,
 			Flag:    "query-concurrency",
 			Default: o.ConcurrencyQuota,
-			Desc:    "the number of queries that are allowed to execute concurrently",
+			Desc:    "the number of queries that are allowed to execute concurrently. Set to 0 to allow an unlimited number of concurrent queries",
 		},
 		{
 			DestP:   &o.InitialMemoryBytesQuotaPerQuery,
@@ -423,13 +423,13 @@ func (o *InfluxdOpts) bindCliOpts() []cli.Opt {
 			DestP:   &o.MaxMemoryBytes,
 			Flag:    "query-max-memory-bytes",
 			Default: o.MaxMemoryBytes,
-			Desc:    "the maximum amount of memory used for queries. If this is unset, then this number is query-concurrency * query-memory-bytes",
+			Desc:    "the maximum amount of memory used for queries. Can only be set when query-concurrency is limited. If this is unset, then this number is query-concurrency * query-memory-bytes",
 		},
 		{
 			DestP:   &o.QueueSize,
 			Flag:    "query-queue-size",
 			Default: o.QueueSize,
-			Desc:    "the number of queries that are allowed to be awaiting execution before new queries are rejected",
+			Desc:    "the number of queries that are allowed to be awaiting execution before new queries are rejected. Must be > 0 if query-concurrency is not unlimited",
 		},
 		{
 			DestP: &o.FeatureFlags,
