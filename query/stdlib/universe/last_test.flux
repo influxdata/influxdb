@@ -6,7 +6,7 @@ import "testing/expect"
 import "planner"
 import "csv"
 
-testcase last_bug{
+testcase last_bug {
     expect.planner(rules: ["PushDownBareAggregateRule": 1])
 
     input = "
