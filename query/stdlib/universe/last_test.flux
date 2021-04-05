@@ -1,12 +1,11 @@
 package universe_test
 
-
 import "testing"
 import "testing/expect"
 import "planner"
 import "csv"
 
-testcase last_bug {
+testcase last_multi_shard {
     expect.planner(rules: ["PushDownBareAggregateRule": 1])
 
     input = "
