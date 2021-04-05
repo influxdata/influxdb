@@ -16,17 +16,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
-
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	influxdbmock "github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/task/backend"
 	"github.com/influxdata/influxdb/v2/task/options"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

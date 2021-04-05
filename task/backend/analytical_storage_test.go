@@ -2,13 +2,10 @@ package backend_test
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"io/ioutil"
 	"os"
 	"testing"
 	"time"
-
-	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/golang/mock/gomock"
 	"github.com/influxdata/flux"
@@ -17,6 +14,7 @@ import (
 	icontext "github.com/influxdata/influxdb/v2/context"
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -28,6 +26,7 @@ import (
 	storageflux "github.com/influxdata/influxdb/v2/storage/flux"
 	"github.com/influxdata/influxdb/v2/task/backend"
 	"github.com/influxdata/influxdb/v2/task/servicetest"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	storage2 "github.com/influxdata/influxdb/v2/v1/services/storage"

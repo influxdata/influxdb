@@ -4,11 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
-
 	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/influxdb/v2/task/backend"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
 
 var _ taskmodel.TaskService = (*TaskService)(nil)

@@ -5,9 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
-
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
 
 // Coordinator is a type which is used to react to

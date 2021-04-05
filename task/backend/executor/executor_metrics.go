@@ -3,11 +3,9 @@ package executor
 import (
 	"time"
 
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
-
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

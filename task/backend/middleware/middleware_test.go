@@ -3,13 +3,12 @@ package middleware_test
 import (
 	"context"
 	"errors"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"sync"
 	"testing"
 	"time"
 
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	pmock "github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/task/backend"
@@ -17,6 +16,7 @@ import (
 	"github.com/influxdata/influxdb/v2/task/backend/middleware"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
 	"github.com/influxdata/influxdb/v2/task/mock"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"go.uber.org/zap/zaptest"
 )
 

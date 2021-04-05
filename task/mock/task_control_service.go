@@ -7,12 +7,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
-
 	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/influxdb/v2/snowflake"
 	"github.com/influxdata/influxdb/v2/task/backend"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
 
 var idgen = snowflake.NewDefaultIDGenerator()

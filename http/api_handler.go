@@ -4,8 +4,6 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
-
 	"github.com/go-chi/chi"
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
@@ -22,6 +20,7 @@ import (
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/storage"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )

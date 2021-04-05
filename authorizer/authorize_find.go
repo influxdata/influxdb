@@ -3,11 +3,9 @@ package authorizer
 import (
 	"context"
 
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
-
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
 
 // AuthorizeFindDBRPs takes the given items and returns only the ones that the user is authorized to access.

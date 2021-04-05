@@ -14,10 +14,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
-
-	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/dependencies/testing"
 	platform "github.com/influxdata/influxdb/v2"
@@ -38,6 +34,7 @@ import (
 	"github.com/influxdata/influxdb/v2/kit/feature"
 	overrideflagger "github.com/influxdata/influxdb/v2/kit/feature/override"
 	"github.com/influxdata/influxdb/v2/kit/metric"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
@@ -66,11 +63,16 @@ import (
 	"github.com/influxdata/influxdb/v2/task/backend/executor"
 	"github.com/influxdata/influxdb/v2/task/backend/middleware"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	telegrafservice "github.com/influxdata/influxdb/v2/telegraf/service"
 	"github.com/influxdata/influxdb/v2/telemetry"
 	"github.com/influxdata/influxdb/v2/tenant"
-	_ "github.com/influxdata/influxdb/v2/tsdb/engine/tsm1" // needed for tsm1
-	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"  // needed for tsi1
+
+	// needed for tsm1
+	_ "github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
+
+	// needed for tsi1
+	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	authv1 "github.com/influxdata/influxdb/v2/v1/authorization"
 	iqlcoordinator "github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"

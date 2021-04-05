@@ -2,13 +2,13 @@ package taskmodel_test
 
 import (
 	"encoding/json"
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/task/options"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
 
 func TestUpdateValidate(t *testing.T) {

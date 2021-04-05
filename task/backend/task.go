@@ -4,9 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
-
 	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
 
 // TaskControlService is a low-level controller interface, intended to be passed to

@@ -3,14 +3,14 @@ package middleware_test
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"testing"
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/notification/rule"
 	"github.com/influxdata/influxdb/v2/task/backend/middleware"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
 
 func newNotificationRuleSvcStack() (mockedSvc, *middleware.CoordinatingNotificationRuleStore) {
