@@ -18,6 +18,17 @@ the endpoint has been removed. Use the `/metrics` endpoint to collect system sta
 The `transpile` command has been retired. Users can send InfluxQL directly to the server via the `/api/v2/query`
 or `/query` HTTP endpoints.
 
+#### Default query concurrency changed
+
+The default setting for the max number of concurrent Flux queries has been changed from 10 to unlimited. Set the
+`query-concurrency` config parameter to > 0 when running `influxd` to re-limit the maximum running query count,
+and the `query-queue-size` config parameter to > 0 to set the max number of queries that can be queued before the
+server starts rejecting requests.
+
+#### Prefix for query-controller metrics changed
+
+The prefix used for Prometheus metrics from the query controller has changed from `query_control_` to `qc_`.
+
 ### Features
 
 1. [20860](https://github.com/influxdata/influxdb/pull/20860): Add `--pprof-disabled` option to `influxd` to disable exposing profiling information over HTTP.
@@ -37,7 +48,8 @@ or `/query` HTTP endpoints.
 1. [21049](https://github.com/influxdata/influxdb/pull/21049): Write to standard out when `--output-path -` is passed to `influxd inspect export-lp`.
 1. [21050](https://github.com/influxdata/influxdb/pull/21050): Add `-p, --profilers` flag to `influx query` command.
 1. [21119](https://github.com/influxdata/influxdb/pull/21119): Upgrade Flux to v0.111.0.
-1. [21126](https://github.com/influxdata/influxdb/pull/21090): Update UI to match InfluxDB Cloud.
+1. [21126](https://github.com/influxdata/influxdb/pull/21126): Update UI to match InfluxDB Cloud.
+1. [21144](https://github.com/influxdata/influxdb/pull/21144): Allow for disabling concurrency-limits in Flux controller.
 
 ### Bug Fixes
 
@@ -59,6 +71,7 @@ or `/query` HTTP endpoints.
 1. [21031](https://github.com/influxdata/influxdb/pull/21031): Fix parse error in UI for tag filters containing regex meta characters.
 1. [20836](https://github.com/influxdata/influxdb/pull/20836): Fix data race in TSM engine when inspecting tombstone stats.
 1. [21048](https://github.com/influxdata/influxdb/pull/21048): Prevent concurrent access panic when gathering bolt metrics.
+1. [21144](https://github.com/influxdata/influxdb/pull/21144): Fix race condition in Flux controller shutdown.
 
 ## v2.0.4 [2021-02-08]
 ----------------------

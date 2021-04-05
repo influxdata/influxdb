@@ -215,10 +215,9 @@ func newAnalyticalBackend(t *testing.T, orgSvc influxdb.OrganizationService, buc
 		ConcurrencyQuota:         concurrencyQuota,
 		MemoryBytesQuotaPerQuery: int64(memoryBytesQuotaPerQuery),
 		QueueSize:                queueSize,
-		Logger:                   logger.With(zap.String("service", "storage-reads")),
 	}
 
-	queryController, err := control.New(cc)
+	queryController, err := control.New(cc, logger.With(zap.String("service", "storage-reads")))
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -121,7 +121,7 @@ func getMemoryUnused(t *testing.T, reg *prom.Registry) int64 {
 		t.Fatal(err)
 	}
 	for _, m := range ms {
-		if m.GetName() == "query_control_memory_unused_bytes" {
+		if m.GetName() == "qc_memory_unused_bytes" {
 			return int64(*m.GetMetric()[0].Gauge.Value)
 		}
 	}
@@ -252,6 +252,7 @@ func TestLauncher_QueryMemoryLimits(t *testing.T) {
 			name: "ok - initial memory bytes, memory bytes, and max memory set",
 			setOpts: func(o *launcher.InfluxdOpts) {
 				o.ConcurrencyQuota = 1
+				o.QueueSize = 1
 				o.InitialMemoryBytesQuotaPerQuery = 100
 				o.MaxMemoryBytes = 1048576 // 1MB
 			},
@@ -263,6 +264,7 @@ func TestLauncher_QueryMemoryLimits(t *testing.T) {
 			name: "error - memory bytes and max memory set",
 			setOpts: func(o *launcher.InfluxdOpts) {
 				o.ConcurrencyQuota = 1
+				o.QueueSize = 1
 				o.MemoryBytesQuotaPerQuery = 1
 				o.MaxMemoryBytes = 100
 			},
@@ -274,6 +276,7 @@ func TestLauncher_QueryMemoryLimits(t *testing.T) {
 			name: "error - initial memory bytes and max memory set",
 			setOpts: func(o *launcher.InfluxdOpts) {
 				o.ConcurrencyQuota = 1
+				o.QueueSize = 1
 				o.InitialMemoryBytesQuotaPerQuery = 1
 				o.MaxMemoryBytes = 100
 			},
@@ -285,6 +288,7 @@ func TestLauncher_QueryMemoryLimits(t *testing.T) {
 			name: "error - initial memory bytes, memory bytes, and max memory set",
 			setOpts: func(o *launcher.InfluxdOpts) {
 				o.ConcurrencyQuota = 1
+				o.QueueSize = 1
 				o.InitialMemoryBytesQuotaPerQuery = 1
 				o.MemoryBytesQuotaPerQuery = 50
 				o.MaxMemoryBytes = 100
