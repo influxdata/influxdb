@@ -2,8 +2,9 @@ package http
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"net/http"
+
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 
 	"github.com/go-chi/chi"
 	"github.com/influxdata/httprouter"

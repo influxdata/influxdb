@@ -3,10 +3,11 @@ package mock
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"sort"
 	"sync"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 

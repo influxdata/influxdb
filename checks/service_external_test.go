@@ -3,11 +3,12 @@ package checks
 import (
 	"bytes"
 	"context"
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"sort"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"

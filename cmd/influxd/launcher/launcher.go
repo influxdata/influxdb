@@ -5,7 +5,6 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"io"
 	"net"
 	nethttp "net/http"
@@ -14,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 
 	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 

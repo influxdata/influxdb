@@ -3,8 +3,9 @@ package middleware
 import (
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 )

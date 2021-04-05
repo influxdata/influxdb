@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"io/ioutil"
 	"net/http"
 	"path"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"

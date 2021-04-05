@@ -2,8 +2,9 @@ package executor
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"sort"
+
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/task/options"

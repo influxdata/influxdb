@@ -1,9 +1,10 @@
 package pkger
 
 import (
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"reflect"
 	"sort"
+
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 

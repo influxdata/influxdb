@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"io/ioutil"
 	nethttp "net/http"
 	"os"
@@ -13,6 +12,8 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"net/url"
 	"path/filepath"
 	"sort"
@@ -13,6 +12,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 

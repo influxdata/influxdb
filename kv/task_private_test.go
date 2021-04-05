@@ -1,8 +1,9 @@
 package kv
 
 import (
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"testing"
+
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 

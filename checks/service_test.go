@@ -2,8 +2,9 @@ package checks
 
 import (
 	"context"
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"testing"
+
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 
 	"github.com/influxdata/influxdb/v2"
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"

@@ -2,6 +2,7 @@ package coordinator
 
 import (
 	"context"
+
 	"github.com/influxdata/influxdb/v2/task/taskmodel"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"

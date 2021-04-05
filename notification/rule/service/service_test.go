@@ -3,10 +3,11 @@ package service
 import (
 	"context"
 	"errors"
-	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"io/ioutil"
 	"os"
 	"testing"
+
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 
