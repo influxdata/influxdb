@@ -48,8 +48,8 @@ The prefix used for Prometheus metrics from the query controller has changed fro
 1. [21049](https://github.com/influxdata/influxdb/pull/21049): Write to standard out when `--output-path -` is passed to `influxd inspect export-lp`.
 1. [21050](https://github.com/influxdata/influxdb/pull/21050): Add `-p, --profilers` flag to `influx query` command.
 1. [21119](https://github.com/influxdata/influxdb/pull/21119): Upgrade Flux to v0.111.0.
-1. [21126](https://github.com/influxdata/influxdb/pull/21090): Update UI to match InfluxDB Cloud.
-1. [21127](https://github.com/influxdata/influxdb/pull/21127): Allow for disabling concurrency-limits in Flux controller.
+1. [21126](https://github.com/influxdata/influxdb/pull/21126): Update UI to match InfluxDB Cloud.
+1. [21144](https://github.com/influxdata/influxdb/pull/21144): Allow for disabling concurrency-limits in Flux controller.
 
 ### Bug Fixes
 
@@ -71,7 +71,7 @@ The prefix used for Prometheus metrics from the query controller has changed fro
 1. [21031](https://github.com/influxdata/influxdb/pull/21031): Fix parse error in UI for tag filters containing regex meta characters.
 1. [20836](https://github.com/influxdata/influxdb/pull/20836): Fix data race in TSM engine when inspecting tombstone stats.
 1. [21048](https://github.com/influxdata/influxdb/pull/21048): Prevent concurrent access panic when gathering bolt metrics.
-1. [21127](https://github.com/influxdata/influxdb/pull/21127): Fix race condition in Flux controller shutdown.
+1. [21144](https://github.com/influxdata/influxdb/pull/21144): Fix race condition in Flux controller shutdown.
 
 ## v2.0.4 [2021-02-08]
 ----------------------
