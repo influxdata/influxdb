@@ -169,7 +169,7 @@ impl Table {
     //
     // N.B the table read lock is only held as long as it takes to determine
     // with meta data whether each row group may satisfy the predicate.
-    pub fn filter_row_groups(&self, predicate: &Predicate) -> (Arc<MetaData>, Vec<Arc<RowGroup>>) {
+    fn filter_row_groups(&self, predicate: &Predicate) -> (Arc<MetaData>, Vec<Arc<RowGroup>>) {
         let table_data = self.table_data.read().unwrap();
         let mut row_groups = Vec::with_capacity(table_data.data.len());
 
@@ -450,8 +450,8 @@ impl Table {
 }
 
 // TODO(edd): reduce owned strings here by, e.g., using references as keys.
-#[derive(Debug, Clone)]
-pub struct MetaData {
+#[derive(Clone)]
+struct MetaData {
     // The total size of the table in bytes.
     size: u64,
 

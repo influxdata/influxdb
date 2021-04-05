@@ -5,14 +5,14 @@ pub(crate) mod chunk;
 pub(crate) mod column;
 pub(crate) mod row_group;
 mod schema;
-pub mod table;
+pub(crate) mod table;
 pub(crate) mod value;
 
 use std::{
     collections::{btree_map::Entry, BTreeMap, BTreeSet},
     convert::TryInto,
     fmt,
-    sync::{Arc, RwLock},
+    sync::RwLock,
 };
 
 use arrow_deps::arrow::record_batch::RecordBatch;
@@ -29,7 +29,7 @@ pub use schema::*;
 
 use chunk::Chunk;
 use row_group::{ColumnName, RowGroup};
-use table::{MetaData, Table};
+use table::Table;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -177,21 +177,6 @@ impl Database {
             .get(partition_key)
             .map(|partition| partition.table_summaries(chunk_ids))
             .unwrap_or_default()
-    }
-
-    pub fn read_row_groups(
-        &self,
-        partition_key: &str,
-        chunk_id: u32,
-        table_name: &str,
-    ) -> (Arc<MetaData>, Vec<Arc<RowGroup>>) {
-        self.data
-            .read()
-            .unwrap()
-            .partitions
-            .get(partition_key)
-            .map(|partition| partition.read_row_groups(chunk_id, table_name))
-            .unwrap()
     }
 
     /// Lists all chunk ids in the given partition key. Returns empty
@@ -754,19 +739,6 @@ impl Partition {
             .get(&chunk_id)
             .map(|chunk| chunk.size())
             .unwrap_or(0) // treat unknown chunks as zero size
-    }
-
-    pub fn read_row_groups(
-        &self,
-        chunk_id: u32,
-        table_name: &str,
-    ) -> (Arc<MetaData>, Vec<Arc<RowGroup>>) {
-        let chunk_data = self.data.read().unwrap();
-        chunk_data
-            .chunks
-            .get(&chunk_id)
-            .map(|chunk| chunk.read_row_groups(table_name))
-            .unwrap()
     }
 }
 
