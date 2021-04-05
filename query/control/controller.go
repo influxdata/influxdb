@@ -109,7 +109,6 @@ type Config struct {
 	// this to follow suit.
 	QueueSize int32
 
-	Logger *zap.Logger
 	// MetricLabelKeys is a list of labels to add to the metrics produced by the controller.
 	// The value for a given key will be read off the context.
 	// The context value must be a string or an implementation of the Stringer interface.
@@ -133,10 +132,23 @@ func (c *Config) complete() (Config, error) {
 }
 
 func (c *Config) validate(isComplete bool) error {
-	if c.ConcurrencyQuota <= 0 {
-		return errors.New("ConcurrencyQuota must be positive")
+	if c.ConcurrencyQuota < 0 {
+		return errors.New("ConcurrencyQuota must not be negative")
+	} else if c.ConcurrencyQuota == 0 {
+		if c.QueueSize != 0 {
+			return errors.New("QueueSize must be unlimited when ConcurrencyQuota is unlimited")
+		}
+		if c.MaxMemoryBytes != 0 {
+			// This is because we have to account for the per-query reserved memory and remove it from
+			// the max total memory. If there is not a maximum number of queries this is not possible.
+			return errors.New("Cannot limit max memory when ConcurrencyQuota is unlimited")
+		}
+	} else {
+		if c.QueueSize <= 0 {
+			return errors.New("QueueSize must be positive when ConcurrencyQuota is limited")
+		}
 	}
-	if c.MemoryBytesQuotaPerQuery <= 0 {
+	if c.MemoryBytesQuotaPerQuery < 0 || (isComplete && c.MemoryBytesQuotaPerQuery == 0) {
 		return errors.New("MemoryBytesQuotaPerQuery must be positive")
 	}
 	if c.InitialMemoryBytesQuotaPerQuery < 0 || (isComplete && c.InitialMemoryBytesQuotaPerQuery == 0) {
@@ -150,9 +162,6 @@ func (c *Config) validate(isComplete bool) error {
 			return fmt.Errorf("MaxMemoryBytes must be greater than or equal to the ConcurrencyQuota * InitialMemoryBytesQuotaPerQuery: %d < %d (%d * %d)", c.MaxMemoryBytes, minMemory, c.ConcurrencyQuota, c.InitialMemoryBytesQuotaPerQuery)
 		}
 	}
-	if c.QueueSize <= 0 {
-		return errors.New("QueueSize must be positive")
-	}
 	return nil
 }
 
@@ -163,13 +172,12 @@ func (c *Config) Validate() error {
 
 type QueryID uint64
 
-func New(config Config) (*Controller, error) {
+func New(config Config, logger *zap.Logger) (*Controller, error) {
 	c, err := config.complete()
 	if err != nil {
 		return nil, errors.Wrap(err, "invalid controller config")
 	}
-	c.MetricLabelKeys = append(c.MetricLabelKeys, orgLabel)
-	logger := c.Logger
+	metricLabelKeys := append(c.MetricLabelKeys, orgLabel)
 	if logger == nil {
 		logger = zap.NewNop()
 	}
@@ -189,25 +197,31 @@ func New(config Config) (*Controller, error) {
 	} else {
 		mm.unlimited = true
 	}
+	queryQueue := make(chan *Query, c.QueueSize)
+	if c.ConcurrencyQuota == 0 {
+		queryQueue = nil
+	}
 	ctrl := &Controller{
 		config:       c,
 		queries:      make(map[QueryID]*Query),
-		queryQueue:   make(chan *Query, c.QueueSize),
+		queryQueue:   queryQueue,
 		done:         make(chan struct{}),
 		abort:        make(chan struct{}),
 		memory:       mm,
 		log:          logger,
-		metrics:      newControllerMetrics(c.MetricLabelKeys),
-		labelKeys:    c.MetricLabelKeys,
+		metrics:      newControllerMetrics(metricLabelKeys),
+		labelKeys:    metricLabelKeys,
 		dependencies: c.ExecutorDependencies,
 	}
-	quota := int(c.ConcurrencyQuota)
-	ctrl.wg.Add(quota)
-	for i := 0; i < quota; i++ {
-		go func() {
-			defer ctrl.wg.Done()
-			ctrl.processQueryQueue()
-		}()
+	if c.ConcurrencyQuota != 0 {
+		quota := int(c.ConcurrencyQuota)
+		ctrl.wg.Add(quota)
+		for i := 0; i < quota; i++ {
+			go func() {
+				defer ctrl.wg.Done()
+				ctrl.processQueryQueue()
+			}()
+		}
 	}
 	return ctrl, nil
 }
@@ -385,12 +399,32 @@ func (c *Controller) enqueueQuery(q *Query) error {
 		}
 	}
 
-	select {
-	case c.queryQueue <- q:
-	default:
-		return &flux.Error{
-			Code: codes.ResourceExhausted,
-			Msg:  "queue length exceeded",
+	if c.queryQueue == nil {
+		// unlimited queries case
+		c.queriesMu.RLock()
+		defer c.queriesMu.RUnlock()
+		if c.shutdown {
+			return &flux.Error{
+				Code: codes.Internal,
+				Msg:  "controller is shutting down, query not runnable",
+			}
+		}
+		// we can't start shutting down until unlock, so it is safe to add to the waitgroup
+		c.wg.Add(1)
+
+		// unlimited queries, so start a goroutine for every query
+		go func() {
+			defer c.wg.Done()
+			c.executeQuery(q)
+		}()
+	} else {
+		select {
+		case c.queryQueue <- q:
+		default:
+			return &flux.Error{
+				Code: codes.ResourceExhausted,
+				Msg:  "queue length exceeded",
+			}
 		}
 	}
 
@@ -487,15 +521,24 @@ func (c *Controller) Queries() []*Query {
 // This will return once the Controller's run loop has been exited and all
 // queries have been finished or until the Context has been canceled.
 func (c *Controller) Shutdown(ctx context.Context) error {
+	// Wait for query processing goroutines to finish.
+	defer c.wg.Wait()
+
 	// Mark that the controller is shutdown so it does not
 	// accept new queries.
-	c.queriesMu.Lock()
-	c.shutdown = true
-	if len(c.queries) == 0 {
-		c.queriesMu.Unlock()
-		return nil
-	}
-	c.queriesMu.Unlock()
+	func() {
+		c.queriesMu.Lock()
+		defer c.queriesMu.Unlock()
+		if !c.shutdown {
+			c.shutdown = true
+			if len(c.queries) == 0 {
+				// We hold the lock. No other queries can be spawned.
+				// No other queries are waiting to be finished, so we have to
+				// close the done channel here instead of in finish(*Query)
+				close(c.done)
+			}
+		}
+	}()
 
 	// Cancel all of the currently active queries.
 	c.queriesMu.RLock()
