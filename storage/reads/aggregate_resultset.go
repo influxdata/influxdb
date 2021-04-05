@@ -23,6 +23,23 @@ type windowAggregateResultSet struct {
 	err          error
 }
 
+func IsAscendingWindowAggregate(req *datatypes.ReadWindowAggregateRequest) bool {
+	if len(req.Aggregate) != 1 {
+		return false
+	}
+
+	if req.Aggregate[0].Type == datatypes.AggregateTypeLast {
+		if req.Window == nil {
+			if req.WindowEvery == 0 || req.WindowEvery == math.MaxInt64 {
+				return false
+			}
+		} else if (req.Window.Every.Nsecs == 0 && req.Window.Every.Months == 0) || req.Window.Every.Nsecs == math.MaxInt64 {
+			return false
+		}
+	}
+	return true
+}
+
 func NewWindowAggregateResultSet(ctx context.Context, req *datatypes.ReadWindowAggregateRequest, cursor SeriesCursor) (ResultSet, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
@@ -36,23 +53,7 @@ func NewWindowAggregateResultSet(ctx context.Context, req *datatypes.ReadWindowA
 		return nil, errors.Errorf(errors.InternalError, "attempt to create a windowAggregateResultSet with %v aggregate functions", nAggs)
 	}
 
-	ascending := true
-
-	// The following is an optimization where in the case of a single window,
-	// the selector `last` is implemented as a descending array cursor followed
-	// by a limit array cursor that selects only the first point, i.e the point
-	// with the largest timestamp, from the descending array cursor.
-	//
-	if req.Aggregate[0].Type == datatypes.AggregateTypeLast {
-		if req.Window == nil {
-			if req.WindowEvery == 0 || req.WindowEvery == math.MaxInt64 {
-				ascending = false
-			}
-		} else if (req.Window.Every.Nsecs == 0 && req.Window.Every.Months == 0) || req.Window.Every.Nsecs == math.MaxInt64 {
-			ascending = false
-		}
-	}
-
+	ascending := IsAscendingWindowAggregate(req)
 	results := &windowAggregateResultSet{
 		ctx:          ctx,
 		req:          req,
