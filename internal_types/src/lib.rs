@@ -7,7 +7,7 @@
 )]
 
 pub mod data;
-pub mod once;
 pub mod entry;
+pub mod once;
 pub mod schema;
 pub mod selection;

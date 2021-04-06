@@ -58,7 +58,9 @@ table Delete {
 // A collection of rows in a table in column oriented representation
 table TableWriteBatch {
   name: string;
-  // every column must have the same number of bytes in its null_mask
+  // every column must have the same number of bytes in its null_mask. They also must
+  // have the same number of rows n such that for each column c:
+  // c.values().len() + count_ones(null_mask) = n
   columns: [Column];
 }
 
