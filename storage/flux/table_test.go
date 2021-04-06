@@ -141,6 +141,12 @@ func NewStorageReader(tb testing.TB, setupFn SetupFunc) *StorageReader {
 		close()
 		tb.Fatalf("failed to close TSDB store: %s", err)
 	}
+	tsdbStore = tsdb.NewStore(rootDir)
+	if err := tsdbStore.Open(); err != nil {
+		close()
+		tb.Fatalf("failed to reopen TSDB store: %s", err)
+	}
+	closers = append(closers, tsdbStore)
 	if err := tsdbStore.Open(); err != nil {
 		close()
 		tb.Fatalf("failed to reopen TSDB store: %s", err)
