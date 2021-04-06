@@ -67,10 +67,7 @@
     clippy::clone_on_ref_ptr
 )]
 
-use std::sync::{
-    atomic::{AtomicU32, Ordering},
-    Arc,
-};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::BytesMut;
@@ -85,7 +82,10 @@ use data_types::{
     {DatabaseName, DatabaseNameError},
 };
 use influxdb_line_protocol::ParsedLine;
-use internal_types::data::{lines_to_replicated_write, ReplicatedWrite};
+use internal_types::{
+    data::{lines_to_replicated_write, ReplicatedWrite},
+    once::OnceNonZeroU32,
+};
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use query::{exec::Executor, Database, DatabaseStore};
 use tracker::task::{
@@ -134,7 +134,7 @@ pub enum Error {
     #[snafu(display("error replicating to remote: {}", source))]
     ErrorReplicating { source: DatabaseError },
     #[snafu(display("id already set"))]
-    IdAlreadySet { id: u32 },
+    IdAlreadySet { id: NonZeroU32 },
     #[snafu(display("unable to use server until id is set"))]
     IdNotSet,
     #[snafu(display("error serializing configuration {}", source))]
@@ -186,7 +186,7 @@ const STORE_ERROR_PAUSE_SECONDS: u64 = 100;
 /// of these structs, which keeps track of all replication and query rules.
 #[derive(Debug)]
 pub struct Server<M: ConnectionManager> {
-    id: AtomicU32,
+    id: OnceNonZeroU32,
     config: Arc<Config>,
     connection_manager: Arc<M>,
     pub store: Arc<ObjectStore>,
@@ -199,7 +199,7 @@ impl<M: ConnectionManager> Server<M> {
         let jobs = Arc::new(JobRegistry::new());
 
         Self {
-            id: AtomicU32::new(0),
+            id: Default::default(),
             config: Arc::new(Config::new(Arc::clone(&jobs))),
             store,
             connection_manager: Arc::new(connection_manager),
@@ -213,15 +213,12 @@ impl<M: ConnectionManager> Server<M> {
     ///
     /// A valid server ID Must be non-zero.
     pub fn set_id(&self, id: NonZeroU32) -> Result<()> {
-        self.id
-            .compare_exchange(0, id.get(), Ordering::Relaxed, Ordering::Relaxed)
-            .map_err(|id| Error::IdAlreadySet { id })?;
-        Ok(())
+        self.id.set(id).map_err(|id| Error::IdAlreadySet { id })
     }
 
     /// Returns the current server ID, or an error if not yet set.
     pub fn require_id(&self) -> Result<NonZeroU32> {
-        NonZeroU32::new(self.id.load(Ordering::Relaxed)).context(IdNotSet)
+        self.id.get().context(IdNotSet)
     }
 
     /// Tells the server the set of rules for a database.
