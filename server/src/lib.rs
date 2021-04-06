@@ -100,6 +100,7 @@ use crate::{
     },
     db::Db,
 };
+use std::num::NonZeroU32;
 
 pub mod buffer;
 mod config;
@@ -110,9 +111,6 @@ pub mod snapshot;
 mod query_tests;
 
 type DatabaseError = Box<dyn std::error::Error + Send + Sync + 'static>;
-
-/// A server ID of 0 is reserved and indicates no ID has been configured.
-const SERVER_ID_NOT_SET: u32 = 0;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -135,6 +133,8 @@ pub enum Error {
     },
     #[snafu(display("error replicating to remote: {}", source))]
     ErrorReplicating { source: DatabaseError },
+    #[snafu(display("id already set"))]
+    IdAlreadySet { id: u32 },
     #[snafu(display("unable to use server until id is set"))]
     IdNotSet,
     #[snafu(display("error serializing configuration {}", source))]
@@ -199,7 +199,7 @@ impl<M: ConnectionManager> Server<M> {
         let jobs = Arc::new(JobRegistry::new());
 
         Self {
-            id: AtomicU32::new(SERVER_ID_NOT_SET),
+            id: AtomicU32::new(0),
             config: Arc::new(Config::new(Arc::clone(&jobs))),
             store,
             connection_manager: Arc::new(connection_manager),
@@ -212,16 +212,16 @@ impl<M: ConnectionManager> Server<M> {
     /// path in object storage.
     ///
     /// A valid server ID Must be non-zero.
-    pub fn set_id(&self, id: u32) {
-        self.id.store(id, Ordering::Release)
+    pub fn set_id(&self, id: NonZeroU32) -> Result<()> {
+        self.id
+            .compare_exchange(0, id.get(), Ordering::Relaxed, Ordering::Relaxed)
+            .map_err(|id| Error::IdAlreadySet { id })?;
+        Ok(())
     }
 
     /// Returns the current server ID, or an error if not yet set.
-    pub fn require_id(&self) -> Result<u32> {
-        match self.id.load(Ordering::Acquire) {
-            SERVER_ID_NOT_SET => Err(Error::IdNotSet),
-            v => Ok(v),
-        }
+    pub fn require_id(&self) -> Result<NonZeroU32> {
+        NonZeroU32::new(self.id.load(Ordering::Relaxed)).context(IdNotSet)
     }
 
     /// Tells the server the set of rules for a database.
@@ -328,7 +328,7 @@ impl<M: ConnectionManager> Server<M> {
     /// on the configuration of the `db`. This is step #1 from the crate
     /// level documentation.
     pub async fn write_lines(&self, db_name: &str, lines: &[ParsedLine<'_>]) -> Result<()> {
-        let id = self.require_id()?;
+        let id = self.require_id()?.get();
 
         let db_name = DatabaseName::new(db_name).context(InvalidDatabaseName)?;
         let db = self
@@ -378,7 +378,7 @@ impl<M: ConnectionManager> Server<M> {
 
             if let Some(segment) = segment {
                 if persist {
-                    let writer_id = self.require_id()?;
+                    let writer_id = self.require_id()?.get();
                     let store = Arc::clone(&self.store);
 
                     let (_, tracker) = self.jobs.register(Job::PersistSegment {
@@ -679,7 +679,7 @@ mod tests {
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server = Server::new(manager, Arc::clone(&store));
-        server.set_id(1);
+        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
 
         let name = DatabaseName::new("bananas").unwrap();
 
@@ -728,7 +728,7 @@ mod tests {
 
         let manager = TestConnectionManager::new();
         let server2 = Server::new(manager, store);
-        server2.set_id(1);
+        server2.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         server2.load_database_configs().await.unwrap();
 
         let _ = server2.db(&db2).unwrap();
@@ -742,7 +742,7 @@ mod tests {
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server = Server::new(manager, store);
-        server.set_id(1);
+        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
 
         let name = DatabaseName::new("bananas").unwrap();
 
@@ -770,7 +770,7 @@ mod tests {
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server = Server::new(manager, store);
-        server.set_id(1);
+        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
 
         let names = vec!["bar", "baz"];
 
@@ -793,7 +793,7 @@ mod tests {
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server = Server::new(manager, store);
-        server.set_id(1);
+        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         server
             .create_database(DatabaseRules::new(DatabaseName::new("foo").unwrap()))
             .await?;
@@ -835,7 +835,7 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let background_handle = spawn_worker(Arc::clone(&server), cancel_token.clone());
 
-        server.set_id(1);
+        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
 
         let db_name = DatabaseName::new("foo").unwrap();
         server
@@ -895,7 +895,7 @@ mod tests {
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
 
         let server = Server::new(manager, Arc::clone(&store));
-        server.set_id(1);
+        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         let db_name = DatabaseName::new("my_db").unwrap();
         let rules = DatabaseRules {
             name: db_name.clone(),

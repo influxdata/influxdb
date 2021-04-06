@@ -15,6 +15,7 @@ struct ManagementService<M: ConnectionManager> {
 }
 
 use super::error::{default_db_error_handler, default_server_error_handler};
+use std::num::NonZeroU32;
 
 #[tonic::async_trait]
 impl<M> management_service_server::ManagementService for ManagementService<M>
@@ -26,7 +27,7 @@ where
         _: Request<GetWriterIdRequest>,
     ) -> Result<Response<GetWriterIdResponse>, Status> {
         match self.server.require_id().ok() {
-            Some(id) => Ok(Response::new(GetWriterIdResponse { id })),
+            Some(id) => Ok(Response::new(GetWriterIdResponse { id: id.get() })),
             None => return Err(NotFound::default().into()),
         }
     }
@@ -35,8 +36,20 @@ where
         &self,
         request: Request<UpdateWriterIdRequest>,
     ) -> Result<Response<UpdateWriterIdResponse>, Status> {
-        self.server.set_id(request.get_ref().id);
-        Ok(Response::new(UpdateWriterIdResponse {}))
+        let id =
+            NonZeroU32::new(request.get_ref().id).ok_or_else(|| FieldViolation::required("id"))?;
+
+        match self.server.set_id(id) {
+            Ok(_) => Ok(Response::new(UpdateWriterIdResponse {})),
+            Err(Error::IdAlreadySet { id }) => {
+                return Err(FieldViolation {
+                    field: "id".to_string(),
+                    description: format!("id already set to {}", id),
+                }
+                .into())
+            }
+            Err(e) => Err(default_server_error_handler(e)),
+        }
     }
 
     async fn list_databases(

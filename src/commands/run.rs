@@ -3,6 +3,7 @@
 use crate::commands::logging::LoggingLevel;
 use crate::influxdb_ioxd;
 use clap::arg_enum;
+use std::num::NonZeroU32;
 use std::{net::SocketAddr, net::ToSocketAddrs, path::PathBuf};
 use structopt::StructOpt;
 use thiserror::Error;
@@ -81,7 +82,7 @@ pub struct Config {
     /// connected or semi-connected IOx servers. Must be a number that can be
     /// represented by a 32-bit unsigned integer.
     #[structopt(long = "--writer-id", env = "INFLUXDB_IOX_ID")]
-    pub writer_id: Option<u32>,
+    pub writer_id: Option<NonZeroU32>,
 
     /// The address on which IOx will serve HTTP API requests.
     #[structopt(

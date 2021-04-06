@@ -131,7 +131,7 @@ pub async fn main(logging_level: LoggingLevel, config: Config) -> Result<()> {
     // if this ID isn't set the server won't be usable until this is set via an API
     // call
     if let Some(id) = config.writer_id {
-        app_server.set_id(id);
+        app_server.set_id(id).expect("writer id already set");
         if let Err(e) = app_server.load_database_configs().await {
             error!(
                 "unable to load database configurations from object storage: {}",

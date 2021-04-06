@@ -727,6 +727,7 @@ mod tests {
     use object_store::{memory::InMemory, ObjectStore};
     use serde::de::DeserializeOwned;
     use server::{db::Db, ConnectionManagerImpl};
+    use std::num::NonZeroU32;
 
     type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
     type Result<T, E = Error> = std::result::Result<T, E>;
@@ -753,7 +754,7 @@ mod tests {
             ConnectionManagerImpl {},
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
-        test_storage.set_id(1);
+        test_storage.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         test_storage
             .create_database(DatabaseRules::new(
                 DatabaseName::new("MyOrg_MyBucket").unwrap(),
@@ -806,7 +807,7 @@ mod tests {
             ConnectionManagerImpl {},
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
-        test_storage.set_id(1);
+        test_storage.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         test_storage
             .create_database(DatabaseRules::new(
                 DatabaseName::new("MyOrg_MyBucket").unwrap(),
@@ -947,7 +948,7 @@ mod tests {
             ConnectionManagerImpl {},
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
-        test_storage.set_id(1);
+        test_storage.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         test_storage
             .create_database(DatabaseRules::new(
                 DatabaseName::new("MyOrg_MyBucket").unwrap(),
@@ -999,7 +1000,7 @@ mod tests {
             ConnectionManagerImpl {},
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
-        test_storage.set_id(1);
+        test_storage.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         test_storage
             .create_database(DatabaseRules::new(
                 DatabaseName::new("MyOrg_MyBucket").unwrap(),
@@ -1035,7 +1036,7 @@ mod tests {
             ConnectionManagerImpl {},
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
-        server.set_id(1);
+        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         let server_url = test_server(Arc::clone(&server));
 
         let database_name = "foo_bar";
