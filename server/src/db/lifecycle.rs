@@ -2,7 +2,7 @@ use std::convert::TryInto;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
-use observability_deps::tracing::{error, info};
+use observability_deps::tracing::{info, warn};
 use parking_lot::{RwLock, RwLockUpgradableReadGuard};
 
 use data_types::{database_rules::LifecycleRules, error::ErrorLogger, job::Job};
@@ -18,13 +18,17 @@ use data_types::database_rules::SortOrder;
 /// Handles the lifecycle of chunks within a Db
 pub struct LifecycleManager {
     db: Arc<Db>,
+    db_name: String,
     move_task: Option<Tracker<Job>>,
 }
 
 impl LifecycleManager {
     pub fn new(db: Arc<Db>) -> Self {
+        let db_name = db.rules.read().name.clone().into();
+
         Self {
             db,
+            db_name,
             move_task: None,
         }
     }
@@ -47,6 +51,9 @@ trait ChunkMover {
     fn chunk_size(chunk: &Chunk) -> usize {
         chunk.size()
     }
+
+    /// Return the name of the database
+    fn db_name(&self) -> &str;
 
     /// Returns the lifecycle policy
     fn rules(&self) -> LifecycleRules;
@@ -136,7 +143,8 @@ trait ChunkMover {
                         }
                     }
                     None => {
-                        error!("failed to find chunk to evict");
+                        warn!(db_name=self.db_name(), soft_limit, buffer_size,
+                              "soft limited exceeded, but no chunks found that can be evicted. Check lifecycle rules");
                         break;
                     }
                 }
@@ -175,6 +183,10 @@ impl ChunkMover for LifecycleManager {
             .db
             .drop_chunk(&partition_key, chunk_id)
             .log_if_error("dropping chunk to free up memory");
+    }
+
+    fn db_name(&self) -> &str {
+        &self.db_name
     }
 }
 
@@ -297,6 +309,10 @@ mod tests {
 
         fn drop_chunk(&mut self, _: String, chunk_id: u32) {
             self.events.push(MoverEvents::Drop(chunk_id))
+        }
+
+        fn db_name(&self) -> &str {
+            "my_awesome_db"
         }
     }
 
