@@ -755,7 +755,9 @@ mod tests {
         ));
         test_storage.set_id(1);
         test_storage
-            .create_database("MyOrg_MyBucket", DatabaseRules::new())
+            .create_database(DatabaseRules::new(
+                DatabaseName::new("MyOrg_MyBucket").unwrap(),
+            ))
             .await
             .unwrap();
         let server_url = test_server(Arc::clone(&test_storage));
@@ -806,7 +808,9 @@ mod tests {
         ));
         test_storage.set_id(1);
         test_storage
-            .create_database("MyOrg_MyBucket", DatabaseRules::new())
+            .create_database(DatabaseRules::new(
+                DatabaseName::new("MyOrg_MyBucket").unwrap(),
+            ))
             .await
             .unwrap();
         let server_url = test_server(Arc::clone(&test_storage));
@@ -945,7 +949,9 @@ mod tests {
         ));
         test_storage.set_id(1);
         test_storage
-            .create_database("MyOrg_MyBucket", DatabaseRules::new())
+            .create_database(DatabaseRules::new(
+                DatabaseName::new("MyOrg_MyBucket").unwrap(),
+            ))
             .await
             .unwrap();
         let server_url = test_server(Arc::clone(&test_storage));
@@ -995,7 +1001,9 @@ mod tests {
         ));
         test_storage.set_id(1);
         test_storage
-            .create_database("MyOrg_MyBucket", DatabaseRules::new())
+            .create_database(DatabaseRules::new(
+                DatabaseName::new("MyOrg_MyBucket").unwrap(),
+            ))
             .await
             .unwrap();
         let server_url = test_server(Arc::clone(&test_storage));
@@ -1032,7 +1040,8 @@ mod tests {
 
         let database_name = "foo_bar";
         let rules = DatabaseRules {
-            name: database_name.to_owned(),
+            name: DatabaseName::new(database_name).unwrap(),
+            partition_template: Default::default(),
             wal_buffer_config: Some(WalBufferConfig {
                 buffer_size: 500,
                 segment_size: 10,
@@ -1040,10 +1049,11 @@ mod tests {
                 store_segments: true,
                 close_segment_after: None,
             }),
-            ..Default::default()
+            lifecycle_rules: Default::default(),
+            shard_config: None,
         };
 
-        server.create_database(database_name, rules).await.unwrap();
+        server.create_database(rules).await.unwrap();
 
         let base_url = format!(
             "{}/iox/api/v1/databases/{}/wal/meta",

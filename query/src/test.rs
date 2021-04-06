@@ -18,7 +18,7 @@ use crate::{
     Database, DatabaseStore, PartitionChunk, Predicate,
 };
 
-use data_types::database_rules::{DatabaseRules, PartitionTemplate, TemplatePart};
+use data_types::database_rules::{PartitionTemplate, TemplatePart};
 use influxdb_line_protocol::{parse_lines, ParsedLine};
 use internal_types::{
     data::{lines_to_replicated_write, ReplicatedWrite},
@@ -530,12 +530,12 @@ impl TestLPWriter {
             parts: vec![TemplatePart::TimeFormat("%Y-%m-%dT%H".to_string())],
         };
 
-        let rules = DatabaseRules {
-            partition_template,
-            ..Default::default()
-        };
-
-        let write = lines_to_replicated_write(self.writer_id, self.sequence_number, &lines, &rules);
+        let write = lines_to_replicated_write(
+            self.writer_id,
+            self.sequence_number,
+            &lines,
+            &partition_template,
+        );
         self.sequence_number += 1;
         database
             .store_replicated_write(&write)

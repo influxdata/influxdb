@@ -79,10 +79,7 @@ where
             .and_then(TryInto::try_into)
             .map_err(|e| e.scope("rules"))?;
 
-        let name =
-            DatabaseName::new(rules.name.clone()).expect("protobuf mapping didn't validate name");
-
-        match self.server.create_database(name, rules).await {
+        match self.server.create_database(rules).await {
             Ok(_) => Ok(Response::new(CreateDatabaseResponse {})),
             Err(Error::DatabaseAlreadyExists { db_name }) => {
                 return Err(AlreadyExists {

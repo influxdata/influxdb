@@ -276,6 +276,7 @@ mod tests {
 
     use super::*;
     use data_types::database_rules::DatabaseRules;
+    use data_types::DatabaseName;
     use futures::TryStreamExt;
     use mutable_buffer::chunk::Chunk as ChunkWB;
     use object_store::memory::InMemory;
@@ -389,7 +390,7 @@ mem,host=A,region=west used=45 1
     /// Create a Database with a local store
     pub fn make_db() -> Db {
         Db::new(
-            DatabaseRules::new(),
+            DatabaseRules::new(DatabaseName::new("placeholder").unwrap()),
             ReadBufferDb::new(),
             None, // wal buffer
             Arc::new(JobRegistry::new()),

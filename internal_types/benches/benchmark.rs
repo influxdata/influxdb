@@ -1,6 +1,6 @@
 use criterion::measurement::WallTime;
 use criterion::{criterion_group, criterion_main, Bencher, BenchmarkId, Criterion, Throughput};
-use data_types::database_rules::{DatabaseRules, PartitionTemplate, TemplatePart};
+use data_types::database_rules::{PartitionTemplate, TemplatePart};
 use generated_types::wal as wb;
 use influxdb_line_protocol::{parse_lines, ParsedLine};
 use internal_types::data::{lines_to_replicated_write as lines_to_rw, ReplicatedWrite};
@@ -92,12 +92,12 @@ fn bytes_into_struct(c: &mut Criterion) {
 fn run_group(
     group_name: &str,
     c: &mut Criterion,
-    bench: impl Fn(&[ParsedLine], &DatabaseRules, &Config, &mut Bencher<WallTime>),
+    bench: impl Fn(&[ParsedLine], &PartitionTemplate, &Config, &mut Bencher<WallTime>),
 ) {
     let mut group = c.benchmark_group(group_name);
     group.sample_size(50);
     group.measurement_time(Duration::from_secs(10));
-    let rules = rules_with_time_partition();
+    let template = partition_time();
 
     for partition_count in [1, 100].iter() {
         let config = Config {
@@ -113,7 +113,7 @@ fn run_group(
         let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
 
         group.bench_with_input(id, &config, |b, config| {
-            bench(&lines, &rules, &config, b);
+            bench(&lines, &template, &config, b);
         });
     }
 
@@ -131,7 +131,7 @@ fn run_group(
         let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
 
         group.bench_with_input(id, &config, |b, config| {
-            bench(&lines, &rules, &config, b);
+            bench(&lines, &template, &config, b);
         });
     }
 
@@ -149,7 +149,7 @@ fn run_group(
         let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
 
         group.bench_with_input(id, &config, |b, config| {
-            bench(&lines, &rules, &config, b);
+            bench(&lines, &template, &config, b);
         });
     }
 
@@ -375,14 +375,9 @@ fn create_lp(config: &Config) -> String {
     s
 }
 
-fn rules_with_time_partition() -> DatabaseRules {
-    let partition_template = PartitionTemplate {
+fn partition_time() -> PartitionTemplate {
+    PartitionTemplate {
         parts: vec![TemplatePart::TimeFormat("%Y-%m-%d %H:%M:%S".to_string())],
-    };
-
-    DatabaseRules {
-        partition_template,
-        ..Default::default()
     }
 }
 

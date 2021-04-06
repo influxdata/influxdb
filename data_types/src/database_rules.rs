@@ -37,11 +37,10 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// DatabaseRules contains the rules for replicating data, sending data to
 /// subscribers, and querying data for a single database.
-#[derive(Debug, Default, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct DatabaseRules {
-    /// The unencoded name of the database. This gets put in by the create
-    /// database call, so an empty default is fine.
-    pub name: String, // TODO: Use DatabaseName here
+    /// The name of the database
+    pub name: DatabaseName<'static>,
 
     /// Template that generates a partition key for each row inserted into the
     /// db
@@ -73,8 +72,14 @@ impl DatabaseRules {
         self.partition_template.partition_key(line, default_time)
     }
 
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(name: DatabaseName<'static>) -> Self {
+        Self {
+            name,
+            partition_template: Default::default(),
+            wal_buffer_config: None,
+            lifecycle_rules: Default::default(),
+            shard_config: None,
+        }
     }
 
     pub fn db_name(&self) -> &str {
@@ -112,7 +117,7 @@ impl Partitioner for DatabaseRules {
 impl From<DatabaseRules> for management::DatabaseRules {
     fn from(rules: DatabaseRules) -> Self {
         Self {
-            name: rules.name,
+            name: rules.name.into(),
             partition_template: Some(rules.partition_template.into()),
             wal_buffer_config: rules.wal_buffer_config.map(Into::into),
             lifecycle_rules: Some(rules.lifecycle_rules.into()),
@@ -125,7 +130,7 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
     type Error = FieldViolation;
 
     fn try_from(proto: management::DatabaseRules) -> Result<Self, Self::Error> {
-        DatabaseName::new(&proto.name).field("name")?;
+        let name = DatabaseName::new(proto.name.clone()).field("name")?;
 
         let wal_buffer_config = proto.wal_buffer_config.optional("wal_buffer_config")?;
 
@@ -145,7 +150,7 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
             .unwrap_or_default();
 
         Ok(Self {
-            name: proto.name,
+            name,
             partition_template,
             wal_buffer_config,
             lifecycle_rules,
@@ -589,12 +594,8 @@ pub struct PartitionTemplate {
     pub parts: Vec<TemplatePart>,
 }
 
-impl PartitionTemplate {
-    pub fn partition_key(
-        &self,
-        line: &ParsedLine<'_>,
-        default_time: &DateTime<Utc>,
-    ) -> Result<String> {
+impl Partitioner for PartitionTemplate {
+    fn partition_key(&self, line: &ParsedLine<'_>, default_time: &DateTime<Utc>) -> Result<String> {
         let parts: Vec<_> = self
             .parts
             .iter()
@@ -1136,7 +1137,7 @@ mod tests {
         let rules: DatabaseRules = protobuf.clone().try_into().unwrap();
         let back: management::DatabaseRules = rules.clone().into();
 
-        assert_eq!(rules.name, protobuf.name);
+        assert_eq!(rules.name.as_str(), protobuf.name.as_str());
         assert_eq!(protobuf.name, back.name);
 
         assert_eq!(rules.partition_template.parts.len(), 0);

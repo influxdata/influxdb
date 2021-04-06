@@ -1,6 +1,7 @@
 use data_types::{
     chunk::{ChunkStorage, ChunkSummary},
     database_rules::DatabaseRules,
+    DatabaseName,
 };
 use query::Database;
 
@@ -10,7 +11,7 @@ use std::sync::Arc;
 /// Used for testing: create a Database with a local store
 pub fn make_db() -> Db {
     Db::new(
-        DatabaseRules::new(),
+        DatabaseRules::new(DatabaseName::new("placeholder").unwrap()),
         read_buffer::Database::new(),
         None, // wal buffer
         Arc::new(JobRegistry::new()),

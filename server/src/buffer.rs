@@ -581,7 +581,7 @@ fn database_object_store_path(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types::database_rules::DatabaseRules;
+    use data_types::database_rules::PartitionTemplate;
     use influxdb_line_protocol::parse_lines;
     use internal_types::data::lines_to_replicated_write;
     use object_store::memory::InMemory;
@@ -959,12 +959,12 @@ mod tests {
         lp: &str,
     ) -> Arc<ReplicatedWrite> {
         let lines: Vec<_> = parse_lines(lp).map(|l| l.unwrap()).collect();
-        let rules = DatabaseRules::new();
+        let partitioner = PartitionTemplate::default();
         Arc::new(lines_to_replicated_write(
             writer_id,
             sequence_number,
             &lines,
-            &rules,
+            &partitioner,
         ))
     }
 }

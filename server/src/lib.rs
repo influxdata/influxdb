@@ -225,22 +225,12 @@ impl<M: ConnectionManager> Server<M> {
     }
 
     /// Tells the server the set of rules for a database.
-    pub async fn create_database(
-        &self,
-        db_name: impl Into<String>,
-        mut rules: DatabaseRules,
-    ) -> Result<()> {
+    pub async fn create_database(&self, rules: DatabaseRules) -> Result<()> {
         // Return an error if this server hasn't yet been setup with an id
         self.require_id()?;
+        let db_reservation = self.config.create_db(rules)?;
 
-        let name = db_name.into();
-        let db_name = DatabaseName::new(name.clone()).context(InvalidDatabaseName)?;
-        rules.name = name;
-
-        let db_reservation = self.config.create_db(db_name, rules)?;
-
-        let rules = db_reservation.db.rules.read().clone();
-        self.persist_database_rules(&db_reservation.name, rules)
+        self.persist_database_rules(db_reservation.rules().clone())
             .await?;
 
         db_reservation.commit();
@@ -248,16 +238,13 @@ impl<M: ConnectionManager> Server<M> {
         Ok(())
     }
 
-    pub async fn persist_database_rules<'a>(
-        &self,
-        db_name: &DatabaseName<'static>,
-        rules: DatabaseRules,
-    ) -> Result<()> {
+    pub async fn persist_database_rules<'a>(&self, rules: DatabaseRules) -> Result<()> {
+        let location = object_store_path_for_database_config(&self.root_path()?, &rules.name);
+
         let mut data = BytesMut::new();
         rules.encode(&mut data).context(ErrorSerializing)?;
 
         let len = data.len();
-        let location = object_store_path_for_database_config(&self.root_path()?, db_name);
 
         let stream_data = std::io::Result::Ok(data.freeze());
         self.store
@@ -322,12 +309,9 @@ impl<M: ConnectionManager> Server<M> {
                         Err(e) => {
                             error!("error parsing database config {:?} from store: {}", path, e)
                         }
-                        Ok(rules) => match DatabaseName::new(rules.name.clone()) {
-                            Err(e) => error!("error parsing name {} from rules: {}", rules.name, e),
-                            Ok(name) => match config.create_db(name, rules) {
-                                Err(e) => error!("error adding database to config: {}", e),
-                                Ok(handle) => handle.commit(),
-                            },
+                        Ok(rules) => match config.create_db(rules) {
+                            Err(e) => error!("error adding database to config: {}", e),
+                            Ok(handle) => handle.commit(),
                         },
                     }
                 })
@@ -556,7 +540,8 @@ where
         let db = match self.db(&db_name) {
             Some(db) => db,
             None => {
-                self.create_database(name, DatabaseRules::new()).await?;
+                self.create_database(DatabaseRules::new(db_name.clone()))
+                    .await?;
                 self.db(&db_name).expect("db not inserted")
             }
         };
@@ -678,8 +663,8 @@ mod tests {
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server = Server::new(manager, store);
 
-        let rules = DatabaseRules::new();
-        let resp = server.create_database("foo", rules).await.unwrap_err();
+        let rules = DatabaseRules::new(DatabaseName::new("foo").unwrap());
+        let resp = server.create_database(rules).await.unwrap_err();
         assert!(matches!(resp, Error::IdNotSet));
 
         let lines = parsed_lines("cpu foo=1 10");
@@ -696,24 +681,26 @@ mod tests {
         let server = Server::new(manager, Arc::clone(&store));
         server.set_id(1);
 
-        let name = "bananas";
+        let name = DatabaseName::new("bananas").unwrap();
 
         let rules = DatabaseRules {
+            name: name.clone(),
             partition_template: PartitionTemplate {
                 parts: vec![TemplatePart::TimeFormat("YYYY-MM".to_string())],
             },
-            name: name.to_string(),
-            ..Default::default()
+            wal_buffer_config: None,
+            lifecycle_rules: Default::default(),
+            shard_config: None,
         };
 
         // Create a database
         server
-            .create_database(name, rules.clone())
+            .create_database(rules.clone())
             .await
             .expect("failed to create database");
 
         let mut rules_path = server.store.new_path();
-        rules_path.push_all_dirs(&["1", name]);
+        rules_path.push_all_dirs(&["1", name.as_str()]);
         rules_path.set_file_name("rules.pb");
 
         let read_data = server
@@ -731,9 +718,9 @@ mod tests {
 
         assert_eq!(rules, read_rules);
 
-        let db2 = "db_awesome";
+        let db2 = DatabaseName::new("db_awesome").unwrap();
         server
-            .create_database(db2, DatabaseRules::new())
+            .create_database(DatabaseRules::new(db2.clone()))
             .await
             .expect("failed to create 2nd db");
 
@@ -744,8 +731,8 @@ mod tests {
         server2.set_id(1);
         server2.load_database_configs().await.unwrap();
 
-        let _ = server2.db(&DatabaseName::new(db2).unwrap()).unwrap();
-        let _ = server2.db(&DatabaseName::new(name).unwrap()).unwrap();
+        let _ = server2.db(&db2).unwrap();
+        let _ = server2.db(&name).unwrap();
     }
 
     #[tokio::test]
@@ -757,17 +744,17 @@ mod tests {
         let server = Server::new(manager, store);
         server.set_id(1);
 
-        let name = "bananas";
+        let name = DatabaseName::new("bananas").unwrap();
 
         // Create a database
         server
-            .create_database(name, DatabaseRules::new())
+            .create_database(DatabaseRules::new(name.clone()))
             .await
             .expect("failed to create database");
 
         // Then try and create another with the same name
         let got = server
-            .create_database(name, DatabaseRules::new())
+            .create_database(DatabaseRules::new(name.clone()))
             .await
             .unwrap_err();
 
@@ -788,8 +775,9 @@ mod tests {
         let names = vec!["bar", "baz"];
 
         for name in &names {
+            let name = DatabaseName::new(name.to_string()).unwrap();
             server
-                .create_database(*name, DatabaseRules::new())
+                .create_database(DatabaseRules::new(name))
                 .await
                 .expect("failed to create database");
         }
@@ -801,38 +789,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn database_name_validation() -> Result {
-        let manager = TestConnectionManager::new();
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let server = Server::new(manager, store);
-        server.set_id(1);
-
-        let reject = vec![
-            "bananas\t",
-            "bananas\"are\u{0099}\"great",
-            "bananas\nfoster",
-        ];
-
-        for name in reject {
-            let got = server
-                .create_database(name, DatabaseRules::new())
-                .await
-                .unwrap_err();
-            if !matches!(got, Error::InvalidDatabaseName { .. }) {
-                panic!("expected invalid name error");
-            }
-        }
-
-        Ok(())
-    }
-
-    #[tokio::test]
     async fn writes_local() -> Result {
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server = Server::new(manager, store);
         server.set_id(1);
-        server.create_database("foo", DatabaseRules::new()).await?;
+        server
+            .create_database(DatabaseRules::new(DatabaseName::new("foo").unwrap()))
+            .await?;
 
         let line = "cpu bar=1 10";
         let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
@@ -875,7 +839,7 @@ mod tests {
 
         let db_name = DatabaseName::new("foo").unwrap();
         server
-            .create_database(db_name.as_str(), DatabaseRules::new())
+            .create_database(DatabaseRules::new(db_name.clone()))
             .await?;
 
         let line = "cpu bar=1 10";
@@ -932,8 +896,10 @@ mod tests {
 
         let server = Server::new(manager, Arc::clone(&store));
         server.set_id(1);
-        let db_name = "my_db";
+        let db_name = DatabaseName::new("my_db").unwrap();
         let rules = DatabaseRules {
+            name: db_name.clone(),
+            partition_template: Default::default(),
             wal_buffer_config: Some(WalBufferConfig {
                 buffer_size: 500,
                 segment_size: 10,
@@ -941,12 +907,13 @@ mod tests {
                 store_segments: true,
                 close_segment_after: None,
             }),
-            ..Default::default()
+            lifecycle_rules: Default::default(),
+            shard_config: None,
         };
-        server.create_database(db_name, rules).await.unwrap();
+        server.create_database(rules).await.unwrap();
 
         let lines = parsed_lines("disk,host=a used=10.1 12");
-        server.write_lines(db_name, &lines).await.unwrap();
+        server.write_lines(db_name.as_str(), &lines).await.unwrap();
 
         // write lines should have caused a segment rollover and persist, wait
         tokio::task::yield_now().await;

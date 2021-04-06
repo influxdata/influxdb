@@ -42,33 +42,18 @@ impl Config {
         }
     }
 
-    pub(crate) fn create_db(
-        &self,
-        name: DatabaseName<'static>,
-        rules: DatabaseRules,
-    ) -> Result<CreateDatabaseHandle<'_>> {
+    pub(crate) fn create_db(&self, rules: DatabaseRules) -> Result<CreateDatabaseHandle<'_>> {
         let mut state = self.state.write().expect("mutex poisoned");
-        if state.reservations.contains(&name) || state.databases.contains_key(&name) {
+        if state.reservations.contains(&rules.name) || state.databases.contains_key(&rules.name) {
             return Err(Error::DatabaseAlreadyExists {
-                db_name: name.to_string(),
+                db_name: rules.name.to_string(),
             });
         }
 
-        let read_buffer = ReadBufferDb::new();
-
-        let wal_buffer = rules.wal_buffer_config.as_ref().map(Into::into);
-        let db = Arc::new(Db::new(
-            rules,
-            read_buffer,
-            wal_buffer,
-            Arc::clone(&self.jobs),
-        ));
-
-        state.reservations.insert(name.clone());
+        state.reservations.insert(rules.name.clone());
         Ok(CreateDatabaseHandle {
-            db,
+            rules: Some(rules),
             config: &self,
-            name,
         })
     }
 
@@ -97,17 +82,26 @@ impl Config {
         state.remotes.remove(&id)
     }
 
-    fn commit(&self, name: &DatabaseName<'static>, db: Arc<Db>) {
+    fn commit(&self, rules: DatabaseRules) {
         let mut state = self.state.write().expect("mutex poisoned");
         let name = state
             .reservations
-            .take(name)
+            .take(&rules.name)
             .expect("reservation doesn't exist");
 
         if self.shutdown.is_cancelled() {
             error!("server is shutting down");
             return;
         }
+
+        let read_buffer = ReadBufferDb::new();
+        let wal_buffer = rules.wal_buffer_config.as_ref().map(Into::into);
+        let db = Arc::new(Db::new(
+            rules,
+            read_buffer,
+            wal_buffer,
+            Arc::clone(&self.jobs),
+        ));
 
         let shutdown = self.shutdown.child_token();
         let shutdown_captured = shutdown.clone();
@@ -220,20 +214,27 @@ impl Drop for DatabaseState {
 /// persisted.
 #[derive(Debug)]
 pub(crate) struct CreateDatabaseHandle<'a> {
-    pub db: Arc<Db>,
-    pub name: DatabaseName<'static>,
+    /// Partial moves aren't supported on structures that implement Drop
+    /// so use Option to allow taking DatabaseRules out in `commit`
+    rules: Option<DatabaseRules>,
     config: &'a Config,
 }
 
 impl<'a> CreateDatabaseHandle<'a> {
-    pub(crate) fn commit(self) {
-        self.config.commit(&self.name, Arc::clone(&self.db))
+    pub(crate) fn commit(mut self) {
+        self.config.commit(self.rules.take().unwrap())
+    }
+
+    pub(crate) fn rules(&self) -> &DatabaseRules {
+        self.rules.as_ref().unwrap()
     }
 }
 
 impl<'a> Drop for CreateDatabaseHandle<'a> {
     fn drop(&mut self) {
-        self.config.rollback(&self.name);
+        if let Some(rules) = self.rules.take() {
+            self.config.rollback(&rules.name)
+        }
     }
 }
 
@@ -247,15 +248,15 @@ mod test {
     async fn create_db() {
         let name = DatabaseName::new("foo").unwrap();
         let config = Config::new(Arc::new(JobRegistry::new()));
-        let rules = DatabaseRules::new();
+        let rules = DatabaseRules::new(name.clone());
 
         {
-            let _db_reservation = config.create_db(name.clone(), rules.clone()).unwrap();
-            let err = config.create_db(name.clone(), rules.clone()).unwrap_err();
+            let _db_reservation = config.create_db(rules.clone()).unwrap();
+            let err = config.create_db(rules.clone()).unwrap_err();
             assert!(matches!(err, Error::DatabaseAlreadyExists{ .. }));
         }
 
-        let db_reservation = config.create_db(name.clone(), rules).unwrap();
+        let db_reservation = config.create_db(rules).unwrap();
         db_reservation.commit();
         assert!(config.db(&name).is_some());
         assert_eq!(config.db_names_sorted(), vec![name.clone()]);
@@ -277,9 +278,9 @@ mod test {
     async fn test_db_drop() {
         let name = DatabaseName::new("foo").unwrap();
         let config = Config::new(Arc::new(JobRegistry::new()));
-        let rules = DatabaseRules::new();
+        let rules = DatabaseRules::new(name.clone());
 
-        let db_reservation = config.create_db(name.clone(), rules).unwrap();
+        let db_reservation = config.create_db(rules).unwrap();
         db_reservation.commit();
 
         let token = config

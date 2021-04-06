@@ -536,7 +536,7 @@ impl Db {
     ) -> Tracker<Job> {
         let name = self.rules.read().name.clone();
         let (tracker, registration) = self.jobs.register(Job::CloseChunk {
-            db_name: name.clone(),
+            db_name: name.to_string(),
             partition_key: partition_key.clone(),
             chunk_id,
         });
@@ -730,7 +730,7 @@ mod tests {
     use chrono::Utc;
     use data_types::{
         chunk::ChunkStorage,
-        database_rules::{LifecycleRules, Order, Sort, SortOrder},
+        database_rules::{Order, Sort, SortOrder},
         partition_metadata::{ColumnSummary, StatValues, Statistics, TableSummary},
     };
     use query::{
@@ -747,15 +747,7 @@ mod tests {
     async fn write_no_mutable_buffer() {
         // Validate that writes are rejected if there is no mutable buffer
         let db = make_db();
-        let rules = DatabaseRules {
-            lifecycle_rules: LifecycleRules {
-                immutable: true,
-                ..Default::default()
-            },
-            ..DatabaseRules::new()
-        };
-        let rules = RwLock::new(rules);
-        let db = Db { rules, ..db };
+        db.rules.write().lifecycle_rules.immutable = true;
 
         let mut writer = TestLPWriter::default();
         let res = writer.write_lp_string(&db, "cpu bar=1 10");
