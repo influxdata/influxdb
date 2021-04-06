@@ -7,7 +7,9 @@ import (
 	"math"
 	"math/rand"
 	"os"
+	"path/filepath"
 	"sort"
+	"strconv"
 	"sync"
 	"testing"
 	"time"
@@ -96,32 +98,28 @@ func NewStorageReader(tb testing.TB, setupFn SetupFunc) *StorageReader {
 		tb.Fatal("shard data range exceeded the shard group range; please use a range for data that is within the same year")
 	}
 
-	// Create a TSDB for the reader to access.
-	tsdbStore := tsdb.NewStore(rootDir)
-	if err := tsdbStore.Open(); err != nil {
+	// Open the series file and prepare the directory for the shard writer.
+	dbPath := filepath.Join(rootDir, dbName)
+	if err := os.MkdirAll(dbPath, 0700); err != nil {
 		close()
-		tb.Fatalf("failed to open TSDB store: %s", err)
+		tb.Fatalf("failed to create data directory: %s", err)
 	}
-	closers = append(closers, tsdbStore)
 
-	// Write data into the shard.
-	if err := tsdbStore.CreateShard(dbName, rpName, sgi.Shards[0].ID, true); err != nil {
+	sfile := tsdb.NewSeriesFile(filepath.Join(dbPath, tsdb.SeriesFileDirectory))
+	if err := sfile.Open(); err != nil {
 		close()
-		tb.Fatalf("failed to create shard: %s", err)
+		tb.Fatalf("failed to open series file: %s", err)
 	}
-	shard := tsdbStore.Shard(sgi.Shards[0].ID)
-	sfile, err := shard.SeriesFile()
-	if err != nil {
-		close()
-		tb.Fatalf("failed to get series file: %s", err)
-	}
+	// Ensure the series file is closed in case of failure.
+	defer sfile.Close()
 	sfile.DisableCompactions()
-	shardPath := shard.Path()
-	if err := os.MkdirAll(shardPath,0700); err != nil {
+
+	// Write the shard data.
+	shardPath := filepath.Join(dbPath, rpName, strconv.FormatUint(sgi.Shards[0].ID, 10))
+	if err := os.MkdirAll(shardPath, 0700); err != nil {
 		close()
 		tb.Fatalf("failed to create shard directory: %s", err)
 	}
-
 	if err := writeShard(sfile, sg, sgi.Shards[0].ID, shardPath); err != nil {
 		close()
 		tb.Fatalf("failed to write shard: %s", err)
@@ -136,21 +134,19 @@ func NewStorageReader(tb testing.TB, setupFn SetupFunc) *StorageReader {
 		}
 	}
 
-	// Reset the TSDB store.
-	if err := tsdbStore.Close(); err != nil {
+	// Close the series file as it will be opened by the storage engine.
+	if err := sfile.Close(); err != nil {
 		close()
-		tb.Fatalf("failed to close TSDB store: %s", err)
+		tb.Fatalf("failed to close series file: %s", err)
 	}
-	tsdbStore = tsdb.NewStore(rootDir)
+
+	// Now load the TSDB store.
+	tsdbStore := tsdb.NewStore(rootDir)
 	if err := tsdbStore.Open(); err != nil {
 		close()
-		tb.Fatalf("failed to reopen TSDB store: %s", err)
+		tb.Fatalf("failed to open TSDB store: %s", err)
 	}
 	closers = append(closers, tsdbStore)
-	if err := tsdbStore.Open(); err != nil {
-		close()
-		tb.Fatalf("failed to reopen TSDB store: %s", err)
-	}
 
 	store := storage.NewStore(tsdbStore, metaClient)
 	reader := storageflux.NewReader(store)
