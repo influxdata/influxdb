@@ -80,7 +80,7 @@ struct Create {
 
     /// A chunk of data within a partition is guaranteed to remain mutable
     /// for at least this number of seconds
-    #[structopt(long, default_value = "1800")] // 30 minutes
+    #[structopt(long, default_value = "0")] // 0 minutes
     mutable_minimum_age_seconds: u32,
 
     /// Once a chunk of data within a partition reaches this number of bytes
