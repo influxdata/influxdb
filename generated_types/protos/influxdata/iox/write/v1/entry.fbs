@@ -58,7 +58,9 @@ table Delete {
 // A collection of rows in a table in column oriented representation
 table TableWriteBatch {
   name: string;
-  // every column must have the same number of values in its null bitmask
+  // every column must have the same number of bytes in its null_mask. They also must
+  // have the same number of rows n such that for each column c:
+  // c.values().len() + count_ones(null_mask) = n
   columns: [Column];
 }
 
@@ -87,6 +89,8 @@ table Column {
   // array that index is located in. Here's what it might look like:
   //    position:   0      8  9                 24
   //         bit:   00100011  00111000   00000001
+  // An on bit (1) indicates that the value at that position is null. If there are
+  // no null values in the column, the null_mask is omitted from the flatbuffers.
   null_mask: [ubyte];
 }
 
