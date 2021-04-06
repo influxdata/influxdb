@@ -35,7 +35,27 @@ input = "
 ,,0,2017-02-16T20:30:31.713576368Z,2021-02-16T20:30:31.713576368Z,2021-01-26T08:00:00Z,-1099,bank,pge_bill,35632393IN
 "
 
-testcase last_multi_shard {
+testcase bare_count {
+    expect.planner(rules: ["PushDownBareAggregateRule": 1])
+
+    want = csv.from(
+        csv: "
+#datatype,string,long,long
+#group,false,false,false
+#default,_result,,
+,result,table,_value
+,,0,23
+",
+    )
+    result = testing.loadStorage(csv: input)
+        |> range(start: -3y)
+        |> count()
+        |> keep(columns: ["_value"])
+
+        testing.diff(want: want, got: result)
+}
+
+testcase bare_last {
     expect.planner(rules: ["PushDownBareAggregateRule": 1])
 
     want = csv.from(
@@ -49,34 +69,8 @@ testcase last_multi_shard {
     )
     result = testing.loadStorage(csv: input)
         |> range(start: -3y)
-        |> filter(fn: (r) => r._measurement == "pge_bill" and r._field == "bank")
         |> last()
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])
-
-    testing.diff(want: want, got: result)
-}
-
-testcase last_window {
-    expect.planner(rules: ["PushDownWindowAggregateRule": 1])
-
-    want = csv.from(
-        csv: "
-#group,false,false,false,false,true,true
-#datatype,string,long,dateTime:RFC3339,double,string,string
-#default,_result,,,,,
-,result,table,_time,_value,_field,_measurement
-,,0,2021-01-26T08:00:00Z,-1099,bank,pge_bill
-,,0,2020-12-23T08:00:00Z,233.000,bank,pge_bill
-,,0,2019-12-24T08:00:00Z,1851.000,bank,pge_bill
-",
-    )
-    result = testing.loadStorage(csv: input)
-        |> range(start: -3y)
-        |> filter(fn: (r) => r._measurement == "pge_bill" and r._field == "bank")
-        |> window(every: 1y)
-        |> last()
-        |> keep(columns: ["_time", "_value", "_field", "_measurement"])
-        |> sort()
 
     testing.diff(want: want, got: result)
 }
