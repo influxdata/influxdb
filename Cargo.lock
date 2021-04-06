@@ -111,7 +111,7 @@ checksum = "23b62fc65de8e4e7f52534fb52b0f3ed04746ae267519eef2a83941e8085068b"
 [[package]]
 name = "arrow"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=090f11cf9583a72a967956d383e5d452db17bd96#090f11cf9583a72a967956d383e5d452db17bd96"
+source = "git+https://github.com/apache/arrow.git?rev=3e825a718c1ae25ca3e3a7ba397c096af0e1c0a5#3e825a718c1ae25ca3e3a7ba397c096af0e1c0a5"
 dependencies = [
  "cfg_aliases",
  "chrono",
@@ -134,7 +134,7 @@ dependencies = [
 [[package]]
 name = "arrow-flight"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=090f11cf9583a72a967956d383e5d452db17bd96#090f11cf9583a72a967956d383e5d452db17bd96"
+source = "git+https://github.com/apache/arrow.git?rev=3e825a718c1ae25ca3e3a7ba397c096af0e1c0a5#3e825a718c1ae25ca3e3a7ba397c096af0e1c0a5"
 dependencies = [
  "arrow",
  "bytes",
@@ -787,7 +787,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=090f11cf9583a72a967956d383e5d452db17bd96#090f11cf9583a72a967956d383e5d452db17bd96"
+source = "git+https://github.com/apache/arrow.git?rev=3e825a718c1ae25ca3e3a7ba397c096af0e1c0a5#3e825a718c1ae25ca3e3a7ba397c096af0e1c0a5"
 dependencies = [
  "ahash 0.7.2",
  "arrow",
@@ -1701,9 +1701,9 @@ checksum = "c7d73b3f436185384286bd8098d17ec07c9a7d2388a6599f824d8502b529702a"
 
 [[package]]
 name = "lock_api"
-version = "0.4.2"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd96ffd135b2fd7b973ac026d28085defbe8983df057ced3eb4f2130b0831312"
+checksum = "5a3c91c24eae6777794bb1997ad98bbb87daf92890acab859f7eaa4320333176"
 dependencies = [
  "scopeguard",
 ]
@@ -2285,7 +2285,7 @@ dependencies = [
 [[package]]
 name = "parquet"
 version = "4.0.0-SNAPSHOT"
-source = "git+https://github.com/apache/arrow.git?rev=090f11cf9583a72a967956d383e5d452db17bd96#090f11cf9583a72a967956d383e5d452db17bd96"
+source = "git+https://github.com/apache/arrow.git?rev=3e825a718c1ae25ca3e3a7ba397c096af0e1c0a5#3e825a718c1ae25ca3e3a7ba397c096af0e1c0a5"
 dependencies = [
  "arrow",
  "base64 0.12.3",
@@ -3696,9 +3696,9 @@ dependencies = [
 
 [[package]]
 name = "tinyvec"
-version = "1.1.1"
+version = "1.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "317cca572a0e89c3ce0ca1f1bdc9369547fe318a683418e42ac8f59d14701023"
+checksum = "5b5220f05bb7de7f3f53c7c065e1199b3172696fe2db9f9c4d8ad9b4ee74c342"
 dependencies = [
  "tinyvec_macros",
 ]
@@ -4238,9 +4238,9 @@ dependencies = [
 
 [[package]]
 name = "webpki-roots"
-version = "0.21.0"
+version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "82015b7e0b8bad8185994674a13a93306bea76cf5a16c5a181382fd3a5ec2376"
+checksum = "aabe153544e473b775453675851ecc86863d2a81d786d741f6b76778f2a48940"
 dependencies = [
  "webpki",
 ]
@@ -4318,18 +4318,18 @@ checksum = "81a974bcdd357f0dca4d41677db03436324d45a4c9ed2d0b873a5a360ce41c36"
 
 [[package]]
 name = "zstd"
-version = "0.6.1+zstd.1.4.9"
+version = "0.7.0+zstd.1.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5de55e77f798f205d8561b8fe2ef57abfb6e0ff2abe7fd3c089e119cdb5631a3"
+checksum = "9428752481d8372e15b1bf779ea518a179ad6c771cca2d2c60e4fbff3cc2cd52"
 dependencies = [
  "zstd-safe",
 ]
 
 [[package]]
 name = "zstd-safe"
-version = "3.0.1+zstd.1.4.9"
+version = "3.1.0+zstd.1.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1387cabcd938127b30ce78c4bf00b30387dddf704e3f0881dbc4ff62b5566f8c"
+checksum = "5aa1926623ad7fe406e090555387daf73db555b948134b4d73eac5eb08fb666d"
 dependencies = [
  "libc",
  "zstd-sys",
@@ -4337,9 +4337,9 @@ dependencies = [
 
 [[package]]
 name = "zstd-sys"
-version = "1.4.20+zstd.1.4.9"
+version = "1.5.0+zstd.1.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ebd5b733d7cf2d9447e2c3e76a5589b4f5e5ae065c22a2bc0b023cbc331b6c8e"
+checksum = "4e6c094340240369025fc6b731b054ee2a834328fa584310ac96aa4baebdc465"
 dependencies = [
  "cc",
  "libc",

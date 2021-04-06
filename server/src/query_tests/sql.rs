@@ -244,6 +244,29 @@ async fn sql_select_from_information_schema_columns() {
 }
 
 #[tokio::test]
+async fn sql_show_columns() {
+    // validate we have access to SHOW SCHEMA for listing columns
+    // names
+    let expected = vec![
+        "+---------------+--------------+------------+-------------+-----------+-------------+",
+        "| table_catalog | table_schema | table_name | column_name | data_type | is_nullable |",
+        "+---------------+--------------+------------+-------------+-----------+-------------+",
+        "| public        | iox          | h2o        | city        | Utf8      | YES         |",
+        "| public        | iox          | h2o        | moisture    | Float64   | YES         |",
+        "| public        | iox          | h2o        | other_temp  | Float64   | YES         |",
+        "| public        | iox          | h2o        | state       | Utf8      | YES         |",
+        "| public        | iox          | h2o        | temp        | Float64   | YES         |",
+        "| public        | iox          | h2o        | time        | Int64     | NO          |",
+        "+---------------+--------------+------------+-------------+-----------+-------------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsManyFields {},
+        "SHOW COLUMNS FROM h2o",
+        &expected
+    );
+}
+
+#[tokio::test]
 async fn sql_select_from_system_tables() {
     // system tables reflect the state of chunks, so don't run them
     // with different chunk configurations.
