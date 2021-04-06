@@ -1086,13 +1086,11 @@ pub mod influxdata {
                         if let Some(x) = args.name {
                             builder.add_name(x);
                         }
-                        builder.add_bits_in_last_null_byte(args.bits_in_last_null_byte);
                         builder.finish()
                     }
 
                     pub const VT_NAME: flatbuffers::VOffsetT = 4;
                     pub const VT_COLUMNS: flatbuffers::VOffsetT = 6;
-                    pub const VT_BITS_IN_LAST_NULL_BYTE: flatbuffers::VOffsetT = 8;
 
                     #[inline]
                     pub fn name(&self) -> Option<&'a str> {
@@ -1109,12 +1107,6 @@ pub mod influxdata {
                         self._tab.get::<flatbuffers::ForwardsUOffset<
                             flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Column>>,
                         >>(TableWriteBatch::VT_COLUMNS, None)
-                    }
-                    #[inline]
-                    pub fn bits_in_last_null_byte(&self) -> u8 {
-                        self._tab
-                            .get::<u8>(TableWriteBatch::VT_BITS_IN_LAST_NULL_BYTE, Some(0))
-                            .unwrap()
                     }
                 }
 
@@ -1134,11 +1126,6 @@ pub mod influxdata {
                             .visit_field::<flatbuffers::ForwardsUOffset<
                                 flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<Column>>,
                             >>(&"columns", Self::VT_COLUMNS, false)?
-                            .visit_field::<u8>(
-                                &"bits_in_last_null_byte",
-                                Self::VT_BITS_IN_LAST_NULL_BYTE,
-                                false,
-                            )?
                             .finish();
                         Ok(())
                     }
@@ -1150,7 +1137,6 @@ pub mod influxdata {
                             flatbuffers::Vector<'a, flatbuffers::ForwardsUOffset<Column<'a>>>,
                         >,
                     >,
-                    pub bits_in_last_null_byte: u8,
                 }
                 impl<'a> Default for TableWriteBatchArgs<'a> {
                     #[inline]
@@ -1158,7 +1144,6 @@ pub mod influxdata {
                         TableWriteBatchArgs {
                             name: None,
                             columns: None,
-                            bits_in_last_null_byte: 0,
                         }
                     }
                 }
@@ -1187,14 +1172,6 @@ pub mod influxdata {
                         );
                     }
                     #[inline]
-                    pub fn add_bits_in_last_null_byte(&mut self, bits_in_last_null_byte: u8) {
-                        self.fbb_.push_slot::<u8>(
-                            TableWriteBatch::VT_BITS_IN_LAST_NULL_BYTE,
-                            bits_in_last_null_byte,
-                            0,
-                        );
-                    }
-                    #[inline]
                     pub fn new(
                         _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
                     ) -> TableWriteBatchBuilder<'a, 'b> {
@@ -1216,7 +1193,6 @@ pub mod influxdata {
                         let mut ds = f.debug_struct("TableWriteBatch");
                         ds.field("name", &self.name());
                         ds.field("columns", &self.columns());
-                        ds.field("bits_in_last_null_byte", &self.bits_in_last_null_byte());
                         ds.finish()
                     }
                 }

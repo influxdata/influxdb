@@ -22,14 +22,32 @@ pub enum Error {
     #[snafu(display("Error getting shard id {}", source))]
     GeneratingShardId { source: DataError },
 
-    #[snafu(display("column type mismatch"))]
-    ColumnTypeMismatch,
+    #[snafu(display(
+        "table {} has column {} {} with new data on line {}",
+        table,
+        column,
+        source,
+        line_number
+    ))]
+    TableColumnTypeMismatch {
+        table: String,
+        column: String,
+        line_number: usize,
+        source: ColumnError,
+    },
+}
 
-    #[snafu(display("table {} has column {} with two different types", table, column))]
-    TableColumnTypeMismatch { table: String, column: String },
+#[derive(Debug, Snafu)]
+pub enum ColumnError {
+    #[snafu(display("type mismatch: expected {} but got {}", expected_type, new_type))]
+    ColumnTypeMismatch {
+        new_type: String,
+        expected_type: String,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+type ColumnResult<T, E = ColumnError> = std::result::Result<T, E>;
 
 /// Converts parsed line protocol into a collection of ShardedEntry with the
 /// underlying flatbuffers bytes generated.
@@ -60,11 +78,10 @@ pub fn lines_to_sharded_entries(
 
     let default_time = Utc::now();
 
-    let mut sharded_entries = Vec::with_capacity(sharded_lines.len());
-    for (shard_id, partitions) in sharded_lines.into_iter() {
-        let entry = build_sharded_entry(shard_id, partitions, &default_time)?;
-        sharded_entries.push(entry);
-    }
+    let sharded_entries = sharded_lines
+        .into_iter()
+        .map(|(shard_id, partitions)| build_sharded_entry(shard_id, partitions, &default_time))
+        .collect::<Result<Vec<_>>>()?;
 
     Ok(sharded_entries)
 }
@@ -76,11 +93,12 @@ fn build_sharded_entry(
 ) -> Result<ShardedEntry> {
     let mut fbb = flatbuffers::FlatBufferBuilder::new_with_capacity(1024);
 
-    let mut partition_writes = Vec::with_capacity(partitions.len());
-    for (partition_key, tables) in partitions.into_iter() {
-        let write = build_partition_write(&mut fbb, partition_key, tables, default_time)?;
-        partition_writes.push(write);
-    }
+    let partition_writes = partitions
+        .into_iter()
+        .map(|(partition_key, tables)| {
+            build_partition_write(&mut fbb, partition_key, tables, default_time)
+        })
+        .collect::<Result<Vec<_>>>()?;
     let partition_writes = fbb.create_vector(&partition_writes);
 
     let write_operations = entry_fb::WriteOperations::create(
@@ -114,11 +132,10 @@ fn build_partition_write<'a>(
 ) -> Result<flatbuffers::WIPOffset<entry_fb::PartitionWrite<'a>>> {
     let partition_key = fbb.create_string(&partition_key);
 
-    let mut table_batches = Vec::with_capacity(tables.len());
-    for (table_name, lines) in tables.into_iter() {
-        let batch = build_table_write_batch(fbb, table_name, lines, default_time)?;
-        table_batches.push(batch);
-    }
+    let table_batches = tables
+        .into_iter()
+        .map(|(table_name, lines)| build_table_write_batch(fbb, table_name, lines, default_time))
+        .collect::<Result<Vec<_>>>()?;
     let table_batches = fbb.create_vector(&table_batches);
 
     Ok(entry_fb::PartitionWrite::create(
@@ -147,13 +164,13 @@ fn build_table_write_batch<'a>(
                     .entry(key)
                     .or_insert_with(ColumnBuilder::new_tag_column);
                 builder.null_to_row(row_number);
-                if builder.push_tag(value.as_str()).is_err() {
-                    return TableColumnTypeMismatch {
+                builder
+                    .push_tag(value.as_str())
+                    .context(TableColumnTypeMismatch {
                         table: table_name,
                         column: key,
-                    }
-                    .fail();
-                }
+                        line_number: i,
+                    })?;
             }
         }
 
@@ -166,65 +183,57 @@ fn build_table_write_batch<'a>(
                         .entry(key)
                         .or_insert_with(ColumnBuilder::new_bool_column);
                     builder.null_to_row(row_number);
-                    if builder.push_bool(*b).is_err() {
-                        return TableColumnTypeMismatch {
-                            table: table_name,
-                            column: key,
-                        }
-                        .fail();
-                    }
+                    builder.push_bool(*b).context(TableColumnTypeMismatch {
+                        table: table_name,
+                        column: key,
+                        line_number: i,
+                    })?;
                 }
                 FieldValue::U64(v) => {
                     let builder = columns
                         .entry(key)
                         .or_insert_with(ColumnBuilder::new_u64_column);
                     builder.null_to_row(row_number);
-                    if builder.push_u64(*v).is_err() {
-                        return TableColumnTypeMismatch {
-                            table: table_name,
-                            column: key,
-                        }
-                        .fail();
-                    }
+                    builder.push_u64(*v).context(TableColumnTypeMismatch {
+                        table: table_name,
+                        column: key,
+                        line_number: i,
+                    })?;
                 }
                 FieldValue::F64(v) => {
                     let builder = columns
                         .entry(key)
                         .or_insert_with(ColumnBuilder::new_f64_column);
                     builder.null_to_row(row_number);
-                    if builder.push_f64(*v).is_err() {
-                        return TableColumnTypeMismatch {
-                            table: table_name,
-                            column: key,
-                        }
-                        .fail();
-                    }
+                    builder.push_f64(*v).context(TableColumnTypeMismatch {
+                        table: table_name,
+                        column: key,
+                        line_number: i,
+                    })?;
                 }
                 FieldValue::I64(v) => {
                     let builder = columns
                         .entry(key)
                         .or_insert_with(ColumnBuilder::new_i64_column);
                     builder.null_to_row(row_number);
-                    if builder.push_i64(*v).is_err() {
-                        return TableColumnTypeMismatch {
-                            table: table_name,
-                            column: key,
-                        }
-                        .fail();
-                    }
+                    builder.push_i64(*v).context(TableColumnTypeMismatch {
+                        table: table_name,
+                        column: key,
+                        line_number: i,
+                    })?;
                 }
                 FieldValue::String(v) => {
                     let builder = columns
                         .entry(key)
                         .or_insert_with(ColumnBuilder::new_string_column);
                     builder.null_to_row(row_number);
-                    if builder.push_string(v.as_str()).is_err() {
-                        return TableColumnTypeMismatch {
+                    builder
+                        .push_string(v.as_str())
+                        .context(TableColumnTypeMismatch {
                             table: table_name,
                             column: key,
-                        }
-                        .fail();
-                    }
+                            line_number: i,
+                        })?;
                 }
             }
         }
@@ -232,19 +241,16 @@ fn build_table_write_batch<'a>(
         let builder = columns
             .entry(TIME_COLUMN_NAME)
             .or_insert_with(ColumnBuilder::new_time_column);
-        if builder
+        builder
             .push_time(
                 line.timestamp
                     .unwrap_or_else(|| default_time.timestamp_nanos()),
             )
-            .is_err()
-        {
-            return TableColumnTypeMismatch {
+            .context(TableColumnTypeMismatch {
                 table: table_name,
                 column: TIME_COLUMN_NAME,
-            }
-            .fail();
-        }
+                line_number: i,
+            })?;
 
         for b in columns.values_mut() {
             b.null_to_row(row_number + 1);
@@ -264,7 +270,6 @@ fn build_table_write_batch<'a>(
         &entry_fb::TableWriteBatchArgs {
             name: Some(table_name),
             columns: Some(columns),
-            bits_in_last_null_byte: bits_in_last_byte(lines.len()),
         },
     ))
 }
@@ -367,37 +372,34 @@ impl<'a> TableBatch<'a> {
     pub fn row_count(&self) -> usize {
         if let Some(cols) = self.fb.columns() {
             if let Some(c) = cols.iter().next() {
-                match c.null_mask() {
-                    Some(m) => {
-                        let rows = m.len() * 8;
-                        let bits = self.fb.bits_in_last_null_byte() as usize;
+                let null_count = match c.null_mask() {
+                    Some(m) => m.iter().map(|b| b.count_ones() as usize).sum(),
+                    None => 0,
+                };
 
-                        return rows + bits - 8;
+                let value_count = match c.values_type() {
+                    entry_fb::ColumnValues::BoolValues => {
+                        c.values_as_bool_values().unwrap().values().unwrap().len()
                     }
-                    None => {
-                        return match c.values_type() {
-                            entry_fb::ColumnValues::BoolValues => {
-                                c.values_as_bool_values().unwrap().values().unwrap().len()
-                            }
-                            entry_fb::ColumnValues::U64Values => {
-                                c.values_as_u64values().unwrap().values().unwrap().len()
-                            }
-                            entry_fb::ColumnValues::F64Values => {
-                                c.values_as_f64values().unwrap().values().unwrap().len()
-                            }
-                            entry_fb::ColumnValues::I64Values => {
-                                c.values_as_i64values().unwrap().values().unwrap().len()
-                            }
-                            entry_fb::ColumnValues::StringValues => {
-                                c.values_as_string_values().unwrap().values().unwrap().len()
-                            }
-                            entry_fb::ColumnValues::BytesValues => {
-                                c.values_as_bytes_values().unwrap().values().unwrap().len()
-                            }
-                            _ => panic!("invalid column flatbuffers"),
-                        }
+                    entry_fb::ColumnValues::U64Values => {
+                        c.values_as_u64values().unwrap().values().unwrap().len()
                     }
-                }
+                    entry_fb::ColumnValues::F64Values => {
+                        c.values_as_f64values().unwrap().values().unwrap().len()
+                    }
+                    entry_fb::ColumnValues::I64Values => {
+                        c.values_as_i64values().unwrap().values().unwrap().len()
+                    }
+                    entry_fb::ColumnValues::StringValues => {
+                        c.values_as_string_values().unwrap().values().unwrap().len()
+                    }
+                    entry_fb::ColumnValues::BytesValues => {
+                        c.values_as_bytes_values().unwrap().values().unwrap().len()
+                    }
+                    _ => panic!("invalid column flatbuffers"),
+                };
+
+                return value_count + null_count;
             }
         }
 
@@ -703,11 +705,12 @@ impl std::fmt::Debug for NullMaskBuilder {
 fn is_null_value(row: usize, mask: &Option<&[u8]>) -> bool {
     match mask {
         Some(mask) => {
-            let position = bits_in_last_byte(row);
-
+            let mut position = (row % BITS_IN_BYTE) as u8;
             let mut byte = row / BITS_IN_BYTE;
-            if position == BITS_IN_BYTE as u8 {
+
+            if position == 0 {
                 byte -= 1;
+                position = BITS_IN_BYTE as u8;
             }
 
             if byte >= mask.len() {
@@ -717,15 +720,6 @@ fn is_null_value(row: usize, mask: &Option<&[u8]>) -> bool {
             mask[byte] & (LEFT_MOST_BIT_TRUE >> (position - 1)) > 0
         }
         None => false,
-    }
-}
-
-fn bits_in_last_byte(row_count: usize) -> u8 {
-    let position = (row_count % BITS_IN_BYTE) as u8;
-    if position == 0 {
-        BITS_IN_BYTE as u8
-    } else {
-        position
     }
 }
 
@@ -795,85 +789,127 @@ impl<'a> ColumnBuilder<'a> {
         }
     }
 
-    fn push_tag(&mut self, value: &'a str) -> Result<()> {
+    fn push_tag(&mut self, value: &'a str) -> ColumnResult<()> {
         match &mut self.values {
             ColumnRaw::Tag(values) => {
                 self.nulls.push(false);
                 values.push(value)
             }
-            _ => return ColumnTypeMismatch.fail(),
+            _ => {
+                return ColumnTypeMismatch {
+                    new_type: "tag",
+                    expected_type: self.type_description(),
+                }
+                .fail()
+            }
         }
 
         Ok(())
     }
 
-    fn push_string(&mut self, value: &'a str) -> Result<()> {
+    fn push_string(&mut self, value: &'a str) -> ColumnResult<()> {
         match &mut self.values {
             ColumnRaw::String(values) => {
                 self.nulls.push(false);
                 values.push(value)
             }
-            _ => return ColumnTypeMismatch.fail(),
+            _ => {
+                return ColumnTypeMismatch {
+                    new_type: "string",
+                    expected_type: self.type_description(),
+                }
+                .fail()
+            }
         }
 
         Ok(())
     }
 
-    fn push_time(&mut self, value: i64) -> Result<()> {
+    fn push_time(&mut self, value: i64) -> ColumnResult<()> {
         match &mut self.values {
             ColumnRaw::Time(times) => {
                 times.push(value);
                 self.nulls.push(false);
             }
-            _ => return ColumnTypeMismatch.fail(),
+            _ => {
+                return ColumnTypeMismatch {
+                    new_type: "time",
+                    expected_type: self.type_description(),
+                }
+                .fail()
+            }
         }
 
         Ok(())
     }
 
-    fn push_bool(&mut self, value: bool) -> Result<()> {
+    fn push_bool(&mut self, value: bool) -> ColumnResult<()> {
         match &mut self.values {
             ColumnRaw::Bool(values) => {
                 values.push(value);
                 self.nulls.push(false);
             }
-            _ => return ColumnTypeMismatch.fail(),
+            _ => {
+                return ColumnTypeMismatch {
+                    new_type: "bool",
+                    expected_type: self.type_description(),
+                }
+                .fail()
+            }
         }
 
         Ok(())
     }
 
-    fn push_u64(&mut self, value: u64) -> Result<()> {
+    fn push_u64(&mut self, value: u64) -> ColumnResult<()> {
         match &mut self.values {
             ColumnRaw::U64(values) => {
                 values.push(value);
                 self.nulls.push(false);
             }
-            _ => return ColumnTypeMismatch.fail(),
+            _ => {
+                return ColumnTypeMismatch {
+                    new_type: "u64",
+                    expected_type: self.type_description(),
+                }
+                .fail()
+            }
         }
 
         Ok(())
     }
 
-    fn push_f64(&mut self, value: f64) -> Result<()> {
+    fn push_f64(&mut self, value: f64) -> ColumnResult<()> {
         match &mut self.values {
             ColumnRaw::F64(values) => {
                 values.push(value);
                 self.nulls.push(false);
             }
-            _ => return ColumnTypeMismatch.fail(),
+            _ => {
+                return ColumnTypeMismatch {
+                    new_type: "f64",
+                    expected_type: self.type_description(),
+                }
+                .fail()
+            }
         }
 
         Ok(())
     }
 
-    fn push_i64(&mut self, value: i64) -> Result<()> {
+    fn push_i64(&mut self, value: i64) -> ColumnResult<()> {
         match &mut self.values {
             ColumnRaw::I64(values) => {
                 values.push(value);
                 self.nulls.push(false);
             }
-            _ => return ColumnTypeMismatch.fail(),
+            _ => {
+                return ColumnTypeMismatch {
+                    new_type: "i64",
+                    expected_type: self.type_description(),
+                }
+                .fail()
+            }
         }
 
         Ok(())
@@ -1017,6 +1053,18 @@ impl<'a> ColumnBuilder<'a> {
                 null_mask,
             },
         )
+    }
+
+    fn type_description(&self) -> &str {
+        match self.values {
+            ColumnRaw::String(_) => "string",
+            ColumnRaw::I64(_) => "i64",
+            ColumnRaw::F64(_) => "f64",
+            ColumnRaw::U64(_) => "u64",
+            ColumnRaw::Time(_) => "time",
+            ColumnRaw::Tag(_) => "tag",
+            ColumnRaw::Bool(_) => "bool",
+        }
     }
 }
 
@@ -1495,7 +1543,7 @@ mod tests {
         assert!(sharded_entries.is_err());
     }
 
-    fn sharder(count: u8) -> TestSharder {
+    fn sharder(count: u16) -> TestSharder {
         TestSharder {
             count,
             n: std::cell::RefCell::new(0),
@@ -1504,12 +1552,12 @@ mod tests {
 
     // For each line passed to shard returns a shard id from [0, count) in order
     struct TestSharder {
-        count: u8,
-        n: std::cell::RefCell<u8>,
+        count: u16,
+        n: std::cell::RefCell<u16>,
     }
 
     impl Sharder for TestSharder {
-        fn shard(&self, _line: &ParsedLine<'_>) -> Result<u8, DataError> {
+        fn shard(&self, _line: &ParsedLine<'_>) -> Result<u16, DataError> {
             let n = *self.n.borrow();
             self.n.replace(n + 1);
             Ok(n % self.count)

@@ -60,9 +60,6 @@ table TableWriteBatch {
   name: string;
   // every column must have the same number of bytes in its null_mask
   columns: [Column];
-  // specifies how many bits of the last byte of the null mask are valid. Thus the
-  // number of rows will be: (null_mask.len() - 1) * 8 + bits_in_last_null_byte
-  bits_in_last_null_byte: uint8;
 }
 
 enum LogicalColumnType : byte { IOx, Tag, Field, Time }
