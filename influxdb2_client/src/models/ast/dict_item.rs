@@ -9,10 +9,10 @@ pub struct DictItem {
     #[serde(rename = "type", skip_serializing_if = "Option::is_none")]
     pub r#type: Option<String>,
     /// Key
-    #[serde(rename = "key", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub key: Option<crate::models::ast::Expression>,
     /// Value
-    #[serde(rename = "val", skip_serializing_if = "Option::is_none")]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub val: Option<crate::models::ast::Expression>,
 }
 

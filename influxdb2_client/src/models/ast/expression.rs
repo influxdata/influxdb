@@ -32,8 +32,8 @@ pub struct Expression {
     /// Function arguments
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub arguments: Vec<crate::models::ast::Expression>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     /// Test Expr
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub test: Option<Box<crate::models::ast::Expression>>,
     /// Alternate Expr
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -62,8 +62,8 @@ pub struct Expression {
     /// Argument
     #[serde(skip_serializing_if = "Option::is_none")]
     pub argument: Option<Box<crate::models::ast::Expression>>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     /// Call Expr
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub call: Option<crate::models::ast::CallExpression>,
     /// Expression Value
     #[serde(skip_serializing_if = "Option::is_none")]

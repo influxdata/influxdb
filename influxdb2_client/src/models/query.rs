@@ -19,7 +19,7 @@ pub struct Query {
     /// Dialect
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dialect: Option<crate::models::ast::Dialect>,
-    /// Specifies the time that should be reported as \"now\" in the query.
+    /// Specifies the time that should be reported as "now" in the query.
     /// Default is the server's now time.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub now: Option<String>,
