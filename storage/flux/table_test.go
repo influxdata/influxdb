@@ -24,9 +24,9 @@ import (
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/plan"
 	"github.com/influxdata/flux/values"
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/inmem"
 	"github.com/influxdata/influxdb/v2/internal/shard"
-	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/models"
 	datagen "github.com/influxdata/influxdb/v2/pkg/data/gen"
@@ -40,11 +40,11 @@ import (
 	storagev1 "github.com/influxdata/influxdb/v2/v1/services/storage"
 )
 
-type SetupFunc func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange)
+type SetupFunc func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange)
 
 type StorageReader struct {
-	Org    platform.ID
-	Bucket platform.ID
+	Org    influxdb.ID
+	Bucket influxdb.ID
 	Bounds execute.Bounds
 	Close  func()
 	query.StorageReader
@@ -200,7 +200,7 @@ func (r *StorageReader) ReadWindowAggregate(ctx context.Context, spec query.Read
 }
 
 func TestStorageReader_ReadFilter(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		spec := Spec(org, bucket,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 10*time.Second, []float64{1.0, 2.0, 3.0}),
@@ -277,7 +277,7 @@ func TestStorageReader_ReadFilter(t *testing.T) {
 }
 
 func TestStorageReader_Table(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		spec := Spec(org, bucket,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 10*time.Second, []float64{1.0, 2.0, 3.0}),
@@ -322,7 +322,7 @@ func TestStorageReader_Table(t *testing.T) {
 }
 
 func TestStorageReader_ReadWindowAggregate(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		spec := Spec(org, bucket,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 10*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
@@ -476,7 +476,7 @@ func TestStorageReader_ReadWindowAggregate(t *testing.T) {
 }
 
 func TestStorageReader_ReadWindowAggregate_ByStopTime(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		spec := Spec(org, bucket,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 10*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
@@ -574,7 +574,7 @@ func TestStorageReader_ReadWindowAggregate_ByStopTime(t *testing.T) {
 }
 
 func TestStorageReader_ReadWindowAggregate_ByStartTime(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		spec := Spec(org, bucket,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 10*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
@@ -674,7 +674,7 @@ func TestStorageReader_ReadWindowAggregate_ByStartTime(t *testing.T) {
 }
 
 func TestStorageReader_ReadWindowAggregate_CreateEmpty(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		spec := Spec(org, bucket,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 15*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
@@ -858,7 +858,7 @@ func TestStorageReader_ReadWindowAggregate_CreateEmpty(t *testing.T) {
 }
 
 func TestStorageReader_ReadWindowAggregate_CreateEmptyByStopTime(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		spec := Spec(org, bucket,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 15*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
@@ -959,7 +959,7 @@ func TestStorageReader_ReadWindowAggregate_CreateEmptyByStopTime(t *testing.T) {
 }
 
 func TestStorageReader_ReadWindowAggregate_CreateEmptyByStartTime(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		spec := Spec(org, bucket,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 15*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
@@ -1060,7 +1060,7 @@ func TestStorageReader_ReadWindowAggregate_CreateEmptyByStartTime(t *testing.T) 
 }
 
 func TestStorageReader_ReadWindowAggregate_TruncatedBounds(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		spec := Spec(org, bucket,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 5*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
@@ -1195,7 +1195,7 @@ func TestStorageReader_ReadWindowAggregate_TruncatedBounds(t *testing.T) {
 }
 
 func TestStorageReader_ReadWindowAggregate_TruncatedBoundsCreateEmpty(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		spec := Spec(org, bucket,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 15*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
@@ -1331,7 +1331,7 @@ func TestStorageReader_ReadWindowAggregate_TruncatedBoundsCreateEmpty(t *testing
 }
 
 func TestStorageReader_ReadWindowAggregate_Mean(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -1534,7 +1534,7 @@ func TestStorageReader_ReadWindowAggregate_Mean(t *testing.T) {
 }
 
 func TestStorageReader_ReadWindowFirst(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -1645,7 +1645,7 @@ func TestStorageReader_ReadWindowFirst(t *testing.T) {
 }
 
 func TestStorageReader_WindowFirstOffset(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -1758,7 +1758,7 @@ func TestStorageReader_WindowFirstOffset(t *testing.T) {
 }
 
 func TestStorageReader_WindowSumOffset(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -1870,7 +1870,7 @@ func TestStorageReader_WindowSumOffset(t *testing.T) {
 }
 
 func TestStorageReader_ReadWindowFirstCreateEmpty(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -2010,7 +2010,7 @@ func TestStorageReader_ReadWindowFirstCreateEmpty(t *testing.T) {
 }
 
 func TestStorageReader_WindowFirstOffsetCreateEmpty(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -2154,7 +2154,7 @@ func TestStorageReader_WindowFirstOffsetCreateEmpty(t *testing.T) {
 }
 
 func TestStorageReader_WindowSumOffsetCreateEmpty(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -2298,7 +2298,7 @@ func TestStorageReader_WindowSumOffsetCreateEmpty(t *testing.T) {
 }
 
 func TestStorageReader_ReadWindowFirstTimeColumn(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -2403,7 +2403,7 @@ func TestStorageReader_ReadWindowFirstTimeColumn(t *testing.T) {
 }
 
 func TestStorageReader_WindowFirstOffsetTimeColumn(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -2509,7 +2509,7 @@ func TestStorageReader_WindowFirstOffsetTimeColumn(t *testing.T) {
 }
 
 func TestStorageReader_WindowSumOffsetTimeColumn(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -2619,7 +2619,7 @@ func TestStorageReader_WindowSumOffsetTimeColumn(t *testing.T) {
 }
 
 func TestStorageReader_EmptyTableNoEmptyWindows(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -2756,7 +2756,7 @@ func getStorageEqPred(lhsTagKey, rhsTagValue string) *storageproto.Predicate {
 }
 
 func TestStorageReader_ReadGroup(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		spec := Spec(org, bucket,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 10*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
@@ -2888,7 +2888,7 @@ func TestStorageReader_ReadGroup(t *testing.T) {
 // operation must track and return the correct set of tags.
 func TestStorageReader_ReadGroupSelectTags(t *testing.T) {
 	t.Skip("fixme")
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		spec := Spec(org, bucket,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 10*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
@@ -2973,7 +2973,7 @@ func TestStorageReader_ReadGroupSelectTags(t *testing.T) {
 }
 
 func TestStorageReader_ReadWindowAggregateMonths(t *testing.T) {
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		spec := Spec(org, bucket,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 24*time.Hour, []float64{1.0, 2.0, 3.0, 4.0}),
@@ -3118,7 +3118,7 @@ func TestStorageReader_ReadWindowAggregateMonths(t *testing.T) {
 // until it is read by the other goroutine.
 func TestStorageReader_Backoff(t *testing.T) {
 	t.Skip("memory allocations are not tracked properly")
-	reader := NewStorageReader(t, func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	reader := NewStorageReader(t, func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		spec := Spec(org, bucket,
 			MeasurementSpec("m0",
 				FloatArrayValuesSequence("f0", 10*time.Second, []float64{1.0, 2.0, 3.0, 4.0}),
@@ -3232,7 +3232,7 @@ func TestStorageReader_Backoff(t *testing.T) {
 }
 
 func BenchmarkReadFilter(b *testing.B) {
-	setupFn := func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	setupFn := func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -3337,7 +3337,7 @@ func BenchmarkReadFilter(b *testing.B) {
 }
 
 func BenchmarkReadGroup(b *testing.B) {
-	setupFn := func(org, bucket platform.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
+	setupFn := func(org, bucket influxdb.ID) (datagen.SeriesGenerator, datagen.TimeRange) {
 		tagsSpec := &datagen.TagsSpec{
 			Tags: []*datagen.TagValuesSpec{
 				{
@@ -3475,7 +3475,7 @@ func mustParseTime(s string) time.Time {
 	return ts
 }
 
-func Spec(org, bucket platform.ID, measurements ...datagen.MeasurementSpec) *datagen.Spec {
+func Spec(org, bucket influxdb.ID, measurements ...datagen.MeasurementSpec) *datagen.Spec {
 	return &datagen.Spec{
 		Measurements: measurements,
 	}
