@@ -1488,6 +1488,7 @@ dependencies = [
  "tokio-util",
  "tonic",
  "tonic-health",
+ "tracker",
  "wal",
 ]
 
@@ -3248,7 +3249,6 @@ dependencies = [
  "flatbuffers",
  "futures",
  "generated_types",
- "hashbrown 0.9.1",
  "influxdb_line_protocol",
  "internal_types",
  "mutable_buffer",
@@ -3256,7 +3256,6 @@ dependencies = [
  "observability_deps",
  "parking_lot",
  "parquet_file",
- "pin-project 1.0.6",
  "query",
  "read_buffer",
  "serde",
@@ -3266,6 +3265,7 @@ dependencies = [
  "test_helpers",
  "tokio",
  "tokio-util",
+ "tracker",
  "uuid",
 ]
 
@@ -3972,6 +3972,18 @@ dependencies = [
  "tracing-core",
  "tracing-log",
  "tracing-serde",
+]
+
+[[package]]
+name = "tracker"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "hashbrown 0.9.1",
+ "observability_deps",
+ "pin-project 1.0.6",
+ "tokio",
+ "tokio-util",
 ]
 
 [[package]]

@@ -88,6 +88,9 @@ use influxdb_line_protocol::ParsedLine;
 use internal_types::data::{lines_to_replicated_write, ReplicatedWrite};
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use query::{exec::Executor, Database, DatabaseStore};
+use tracker::task::{
+    TrackedFutureExt, Tracker, TrackerId, TrackerRegistration, TrackerRegistryWithHistory,
+};
 
 use futures::{pin_mut, FutureExt};
 
@@ -96,16 +99,12 @@ use crate::{
         object_store_path_for_database_config, Config, GRPCConnectionString, DB_RULES_FILE_NAME,
     },
     db::Db,
-    tracker::{
-        TrackedFutureExt, Tracker, TrackerId, TrackerRegistration, TrackerRegistryWithHistory,
-    },
 };
 
 pub mod buffer;
 mod config;
 pub mod db;
 pub mod snapshot;
-pub mod tracker;
 
 #[cfg(test)]
 mod query_tests;

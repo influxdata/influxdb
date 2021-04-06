@@ -7,7 +7,7 @@ use parking_lot::{RwLock, RwLockUpgradableReadGuard};
 
 use data_types::{database_rules::LifecycleRules, error::ErrorLogger, job::Job};
 
-use crate::tracker::Tracker;
+use tracker::task::Tracker;
 
 use super::{
     catalog::chunk::{Chunk, ChunkState},

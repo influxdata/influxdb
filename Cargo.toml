@@ -28,6 +28,7 @@ members = [
     "read_buffer",
     "server",
     "test_helpers",
+    "tracker",
     "observability_deps",
     "wal",
 ]
@@ -57,6 +58,7 @@ panic_logging = { path = "panic_logging" }
 query = { path = "query" }
 read_buffer = { path = "read_buffer" }
 server = { path = "server" }
+tracker = { path = "tracker" }
 observability_deps = { path = "observability_deps" }
 wal = { path = "wal" }
 

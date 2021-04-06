@@ -18,10 +18,9 @@ use generated_types::{
     influxdata::iox::management::v1 as management,
     protobuf_type_url,
 };
-use server::{
-    tracker::{Tracker, TrackerId, TrackerStatus},
-    ConnectionManager, Server,
-};
+use tracker::task::{Tracker, TrackerId, TrackerStatus};
+
+use server::{ConnectionManager, Server};
 use std::convert::TryInto;
 
 /// Implementation of the write service

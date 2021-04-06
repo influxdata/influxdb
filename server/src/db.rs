@@ -27,12 +27,9 @@ use object_store::{memory::InMemory, ObjectStore};
 use parquet_file::{chunk::Chunk, storage::Storage};
 use query::{Database, DEFAULT_SCHEMA};
 use read_buffer::Database as ReadBufferDb;
+use tracker::task::{TrackedFutureExt, Tracker};
 
-use super::{
-    buffer::Buffer,
-    tracker::{TrackedFutureExt, Tracker},
-    JobRegistry,
-};
+use super::{buffer::Buffer, JobRegistry};
 use data_types::job::Job;
 
 use lifecycle::LifecycleManager;
