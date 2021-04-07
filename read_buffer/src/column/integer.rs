@@ -25,7 +25,7 @@ pub enum IntegerEncoding {
 
 impl IntegerEncoding {
     /// The total size in bytes of the store columnar data.
-    pub fn size(&self) -> u64 {
+    pub fn size(&self) -> usize {
         match self {
             Self::I64I64(enc) => enc.size(),
             Self::I64I32(enc) => enc.size(),
