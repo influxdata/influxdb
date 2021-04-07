@@ -130,10 +130,10 @@ impl Table {
     }
 
     /// The total size of the table in bytes.
-    pub fn size(&self) -> u64 {
+    pub fn size(&self) -> usize {
         let base_size = std::mem::size_of::<Self>() + self.name.len();
         // meta.size accounts for all the row group data.
-        base_size as u64 + self.table_data.read().unwrap().meta.size()
+        base_size + self.table_data.read().unwrap().meta.size()
     }
 
     // Returns the total number of row groups in this table.
@@ -463,7 +463,7 @@ impl Table {
 #[derive(Clone)]
 pub struct MetaData {
     // The total size of the table in bytes.
-    size: u64,
+    size: usize,
 
     // The total number of rows in the table.
     rows: u64,
@@ -497,7 +497,7 @@ impl MetaData {
 
     /// Returns the estimated size in bytes of the `MetaData` struct and all of
     /// the row group data associated with a `Table`.
-    pub fn size(&self) -> u64 {
+    pub fn size(&self) -> usize {
         let base_size = std::mem::size_of::<Self>();
         let columns_meta_size = self
             .columns
@@ -506,7 +506,7 @@ impl MetaData {
             .sum::<usize>();
 
         let column_names_size = self.column_names.iter().map(|c| c.len()).sum::<usize>();
-        (base_size + columns_meta_size + column_names_size) as u64 + self.size
+        (base_size + columns_meta_size + column_names_size) + self.size
     }
 
     /// Create a new `MetaData` by consuming `this` and incorporating `other`.
