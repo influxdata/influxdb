@@ -9,7 +9,7 @@ import (
 	"github.com/influxdata/influxdb/storage/reads/datatypes"
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxql"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 )
 
 const (
@@ -38,6 +38,18 @@ type indexSeriesCursor struct {
 }
 
 func newIndexSeriesCursor(ctx context.Context, predicate *datatypes.Predicate, shards []*tsdb.Shard) (*indexSeriesCursor, error) {
+	var expr influxql.Expr
+	if root := predicate.GetRoot(); root != nil {
+		var err error
+		if expr, err = reads.NodeToExpr(root, measurementRemap); err != nil {
+			return nil, err
+		}
+	}
+
+	return newIndexSeriesCursorInfluxQLPred(ctx, expr, shards)
+}
+
+func newIndexSeriesCursorInfluxQLPred(ctx context.Context, predicate influxql.Expr, shards []*tsdb.Shard) (*indexSeriesCursor, error) {
 	queries, err := tsdb.CreateCursorIterators(ctx, shards)
 	if err != nil {
 		return nil, err
@@ -61,10 +73,8 @@ func newIndexSeriesCursor(ctx context.Context, predicate *datatypes.Predicate, s
 	}
 	p := &indexSeriesCursor{row: reads.SeriesRow{Query: queries}}
 
-	if root := predicate.GetRoot(); root != nil {
-		if p.cond, err = reads.NodeToExpr(root, measurementRemap); err != nil {
-			return nil, err
-		}
+	if predicate != nil {
+		p.cond = predicate
 
 		p.hasFieldExpr, p.hasValueExpr = HasFieldKeyOrValue(p.cond)
 		if !(p.hasFieldExpr || p.hasValueExpr) {

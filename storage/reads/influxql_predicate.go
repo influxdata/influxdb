@@ -267,8 +267,12 @@ func (v *hasRefs) Visit(node influxql.Node) influxql.Visitor {
 	return v
 }
 
-func HasFieldValueKey(expr influxql.Expr) bool {
-	refs := hasRefs{refs: []string{fieldRef}, found: make([]bool, 1)}
+func ExprHasKey(expr influxql.Expr, key string) bool {
+	refs := hasRefs{refs: []string{key}, found: make([]bool, 1)}
 	influxql.Walk(&refs, expr)
 	return refs.found[0]
+}
+
+func HasFieldValueKey(expr influxql.Expr) bool {
+	return ExprHasKey(expr, fieldRef)
 }
