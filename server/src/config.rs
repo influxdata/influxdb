@@ -8,7 +8,6 @@ use data_types::{
     DatabaseName,
 };
 use object_store::path::ObjectStorePath;
-use read_buffer::Database as ReadBufferDb;
 
 /// This module contains code for managing the configuration of the server.
 use crate::{db::Db, Error, JobRegistry, Result};

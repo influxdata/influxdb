@@ -272,7 +272,6 @@ mod tests {
         db::{DBChunk, Db},
         JobRegistry,
     };
-    use read_buffer::Database as ReadBufferDb;
 
     use super::*;
     use data_types::database_rules::DatabaseRules;

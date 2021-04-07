@@ -386,7 +386,7 @@ impl Db {
         let table_stats = mb_chunk.table_summaries();
 
         // create a new read buffer chunk.
-        let mut rb_chunk = ReadBufferChunk::new(chunk_id);
+        let rb_chunk = ReadBufferChunk::new(chunk_id);
 
         // load tables into the new chunk one by one.
         for stats in table_stats {

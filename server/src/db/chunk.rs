@@ -77,7 +77,6 @@ impl DBChunk {
     /// Create a DBChunk snapshot of the catalog chunk
     pub fn snapshot(chunk: &super::catalog::chunk::Chunk) -> Arc<Self> {
         let partition_key = Arc::new(chunk.key().to_string());
-        let chunk_id = chunk.id();
 
         use super::catalog::chunk::ChunkState;
 
@@ -239,10 +238,7 @@ impl PartitionChunk for DBChunk {
                     }
                 }
             }
-            Self::ReadBuffer {
-                chunk,
-                partition_key,
-            } => {
+            Self::ReadBuffer { chunk, .. } => {
                 // If not supported, ReadBuffer can't answer with
                 // metadata only
                 let rb_predicate = match to_read_buffer_predicate(&predicate) {
@@ -292,7 +288,6 @@ impl PartitionChunk for DBChunk {
                 // back
                 let needs_sort = matches!(selection, Selection::All);
 
-                let predicate = read_buffer::Predicate::default();
                 // Get the expected output schema for the read_filter operation
                 let mut schema = chunk
                     .read_filter_table_schema(table_name, selection)
@@ -421,10 +416,7 @@ impl PartitionChunk for DBChunk {
                     .column_names(table_name, &chunk_predicate, columns)
                     .context(MutableBufferChunk)
             }
-            Self::ReadBuffer {
-                chunk,
-                partition_key,
-            } => {
+            Self::ReadBuffer { chunk, .. } => {
                 let rb_predicate = match to_read_buffer_predicate(&predicate) {
                     Ok(rb_predicate) => rb_predicate,
                     Err(e) => {
