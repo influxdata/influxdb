@@ -20,6 +20,7 @@ use data_types::{
 };
 use influxdb_iox_client::format::QueryOutputFormat;
 use influxdb_line_protocol::parse_lines;
+use metrics::IOXD_METRICS;
 use object_store::ObjectStoreApi;
 use query::{frontend::sql::SQLQueryPlanner, Database, DatabaseStore};
 use server::{ConnectionManager, Server as AppServer};
@@ -29,7 +30,10 @@ use bytes::{Bytes, BytesMut};
 use futures::{self, StreamExt};
 use http::header::{CONTENT_ENCODING, CONTENT_TYPE};
 use hyper::{Body, Method, Request, Response, StatusCode};
-use observability_deps::tracing::{self, debug, error, info};
+use observability_deps::{
+    opentelemetry::KeyValue,
+    tracing::{self, debug, error, info},
+};
 use routerify::{prelude::*, Middleware, RequestInfo, Router, RouterError, RouterService};
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
@@ -437,18 +441,20 @@ where
         .collect::<Result<Vec<_>, influxdb_line_protocol::Error>>()
         .context(ParsingLineProtocol)?;
 
-    debug!(
-        "Inserting {} lines into database {} (org {} bucket {})",
-        lines.len(),
-        db_name,
-        write_info.org,
-        write_info.bucket
-    );
+    debug!(num_lines=lines.len(), %db_name, org=%write_info.org, bucket=%write_info.bucket, "inserting lines into database");
 
-    server
-        .write_lines(&db_name, &lines)
-        .await
-        .map_err(|e| match e {
+    let metric_kv = [
+        KeyValue::new("db_name", db_name.to_string()),
+        KeyValue::new("org", write_info.org.to_string()),
+        KeyValue::new("bucket", write_info.bucket.to_string()),
+    ];
+
+    server.write_lines(&db_name, &lines).await.map_err(|e| {
+        IOXD_METRICS
+            .lp_lines_errors
+            .add(lines.len() as u64, &metric_kv);
+
+        match e {
             server::Error::DatabaseNotFound { .. } => ApplicationError::DatabaseNotFound {
                 name: db_name.to_string(),
             },
@@ -457,7 +463,16 @@ where
                 bucket_name: write_info.bucket.clone(),
                 source: Box::new(e),
             },
-        })?;
+        }
+    })?;
+
+    IOXD_METRICS
+        .lp_lines_success
+        .add(lines.len() as u64, &metric_kv);
+    IOXD_METRICS
+        .lp_bytes_success
+        .add(body.len() as u64, &metric_kv);
+
     Ok(Response::builder()
         .status(StatusCode::NO_CONTENT)
         .body(Body::empty())
@@ -728,6 +743,7 @@ mod tests {
     use serde::de::DeserializeOwned;
     use server::{db::Db, ConnectionManagerImpl};
     use std::num::NonZeroU32;
+    use test_helpers::assert_contains;
 
     #[tokio::test]
     async fn test_health() {
@@ -791,6 +807,65 @@ mod tests {
             "+----------------+--------------+-------+-----------------+------------+",
         ];
         assert_table_eq!(expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn test_write_metrics() {
+        metrics::init_metrics_for_test();
+        let test_storage = Arc::new(AppServer::new(
+            ConnectionManagerImpl {},
+            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
+        ));
+        test_storage.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+        test_storage
+            .create_database(DatabaseRules::new(
+                DatabaseName::new("MetricsOrg_MetricsBucket").unwrap(),
+            ))
+            .await
+            .unwrap();
+        let server_url = test_server(Arc::clone(&test_storage));
+
+        let client = Client::new();
+
+        let lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=65.2,bottom_degrees=50.4 1568756160";
+
+        // send good data
+        let org_name = "MetricsOrg";
+        let bucket_name = "MetricsBucket";
+        client
+            .post(&format!(
+                "{}/api/v2/write?bucket={}&org={}",
+                server_url, bucket_name, org_name
+            ))
+            .body(lp_data)
+            .send()
+            .await
+            .expect("sent data");
+
+        // Generate an error
+        client
+            .post(&format!(
+                "{}/api/v2/write?bucket=NotMyBucket&org=NotMyOrg",
+                server_url,
+            ))
+            .body(lp_data)
+            .send()
+            .await
+            .unwrap();
+
+        let metrics_string = String::from_utf8(metrics::metrics_as_text()).unwrap();
+        assert_contains!(
+            &metrics_string,
+            r#"ingest_lp_lines_success{bucket="MetricsBucket",db_name="MetricsOrg_MetricsBucket",org="MetricsOrg"} 1"#
+        );
+        assert_contains!(
+            &metrics_string,
+            r#"ingest_lp_lines_errors{bucket="NotMyBucket",db_name="NotMyOrg_NotMyBucket",org="NotMyOrg"} 1"#
+        );
+        assert_contains!(
+            &metrics_string,
+            r#"lp_bytes_success{bucket="MetricsBucket",db_name="MetricsOrg_MetricsBucket",org="MetricsOrg"} 98"#
+        );
     }
 
     /// Sets up a test database with some data for testing the query endpoint

@@ -74,6 +74,7 @@ flate2 = "1.0"
 futures = "0.3.1"
 http = "0.2.0"
 hyper = "0.14"
+once_cell = { version = "1.4.0", features = ["parking_lot"] }
 parking_lot = "0.11.1"
 # used by arrow/datafusion anyway
 prettytable-rs = "0.8"
@@ -97,7 +98,6 @@ tonic-health = "0.3.0"
 influxdb2_client = { path = "influxdb2_client" }
 influxdb_iox_client = { path = "influxdb_iox_client", features = ["flight"] }
 test_helpers = { path = "test_helpers" }
-once_cell = { version = "1.4.0", features = ["parking_lot"] }
 parking_lot = "0.11.1"
 
 # Crates.io dependencies, in alphabetical order
