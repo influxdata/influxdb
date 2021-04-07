@@ -708,8 +708,7 @@ func (rule PushDownWindowAggregateRule) Pattern() plan.Pattern {
 }
 
 func canPushWindowedAggregate(ctx context.Context, fnNode plan.Node) bool {
-	// Check the aggregate function spec. Require the operation on _value
-	// and check the feature flag associated with the aggregate function.
+	// Check the aggregate function spec. Require the operation on _value.
 	switch fnNode.Kind() {
 	case universe.MinKind:
 		minSpec := fnNode.ProcedureSpec().(*universe.MinProcedureSpec)
@@ -871,7 +870,7 @@ func (p PushDownBareAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (p
 	return plan.CreateUniquePhysicalNode(ctx, "ReadWindowAggregate", &ReadWindowAggregatePhysSpec{
 		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
 		Aggregates:        []plan.ProcedureKind{fnNode.Kind()},
-		WindowEvery:       flux.ConvertDuration(math.MaxInt64 * time.Nanosecond),
+		WindowEvery:       flux.ConvertDuration(math.MaxInt64 * time.Duration(1)),
 	}), true, nil
 }
 
