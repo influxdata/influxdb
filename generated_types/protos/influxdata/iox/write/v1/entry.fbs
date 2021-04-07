@@ -156,4 +156,5 @@ table SequencedEntry {
   clock_value: uint64;
   writer_id: uint32;
   entry: Entry;
+  entry_bytes: [ubyte];
 }

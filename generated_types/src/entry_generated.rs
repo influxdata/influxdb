@@ -2498,6 +2498,9 @@ pub mod influxdata {
                     ) -> flatbuffers::WIPOffset<SequencedEntry<'bldr>> {
                         let mut builder = SequencedEntryBuilder::new(_fbb);
                         builder.add_clock_value(args.clock_value);
+                        if let Some(x) = args.entry_bytes {
+                            builder.add_entry_bytes(x);
+                        }
                         if let Some(x) = args.entry {
                             builder.add_entry(x);
                         }
@@ -2508,6 +2511,7 @@ pub mod influxdata {
                     pub const VT_CLOCK_VALUE: flatbuffers::VOffsetT = 4;
                     pub const VT_WRITER_ID: flatbuffers::VOffsetT = 6;
                     pub const VT_ENTRY: flatbuffers::VOffsetT = 8;
+                    pub const VT_ENTRY_BYTES: flatbuffers::VOffsetT = 10;
 
                     #[inline]
                     pub fn clock_value(&self) -> u64 {
@@ -2528,6 +2532,15 @@ pub mod influxdata {
                             None,
                         )
                     }
+                    #[inline]
+                    pub fn entry_bytes(&self) -> Option<&'a [u8]> {
+                        self._tab
+                            .get::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'a, u8>>>(
+                                SequencedEntry::VT_ENTRY_BYTES,
+                                None,
+                            )
+                            .map(|v| v.safe_slice())
+                    }
                 }
 
                 impl flatbuffers::Verifiable for SequencedEntry<'_> {
@@ -2538,14 +2551,11 @@ pub mod influxdata {
                     ) -> Result<(), flatbuffers::InvalidFlatbuffer> {
                         use self::flatbuffers::Verifiable;
                         v.visit_table(pos)?
-                            .visit_field::<u64>(&"clock_value", Self::VT_CLOCK_VALUE, false)?
-                            .visit_field::<u32>(&"writer_id", Self::VT_WRITER_ID, false)?
-                            .visit_field::<flatbuffers::ForwardsUOffset<Entry>>(
-                                &"entry",
-                                Self::VT_ENTRY,
-                                false,
-                            )?
-                            .finish();
+     .visit_field::<u64>(&"clock_value", Self::VT_CLOCK_VALUE, false)?
+     .visit_field::<u32>(&"writer_id", Self::VT_WRITER_ID, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<Entry>>(&"entry", Self::VT_ENTRY, false)?
+     .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, u8>>>(&"entry_bytes", Self::VT_ENTRY_BYTES, false)?
+     .finish();
                         Ok(())
                     }
                 }
@@ -2553,6 +2563,7 @@ pub mod influxdata {
                     pub clock_value: u64,
                     pub writer_id: u32,
                     pub entry: Option<flatbuffers::WIPOffset<Entry<'a>>>,
+                    pub entry_bytes: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, u8>>>,
                 }
                 impl<'a> Default for SequencedEntryArgs<'a> {
                     #[inline]
@@ -2561,6 +2572,7 @@ pub mod influxdata {
                             clock_value: 0,
                             writer_id: 0,
                             entry: None,
+                            entry_bytes: None,
                         }
                     }
                 }
@@ -2587,6 +2599,16 @@ pub mod influxdata {
                         );
                     }
                     #[inline]
+                    pub fn add_entry_bytes(
+                        &mut self,
+                        entry_bytes: flatbuffers::WIPOffset<flatbuffers::Vector<'b, u8>>,
+                    ) {
+                        self.fbb_.push_slot_always::<flatbuffers::WIPOffset<_>>(
+                            SequencedEntry::VT_ENTRY_BYTES,
+                            entry_bytes,
+                        );
+                    }
+                    #[inline]
                     pub fn new(
                         _fbb: &'b mut flatbuffers::FlatBufferBuilder<'a>,
                     ) -> SequencedEntryBuilder<'a, 'b> {
@@ -2609,6 +2631,7 @@ pub mod influxdata {
                         ds.field("clock_value", &self.clock_value());
                         ds.field("writer_id", &self.writer_id());
                         ds.field("entry", &self.entry());
+                        ds.field("entry_bytes", &self.entry_bytes());
                         ds.finish()
                     }
                 }
