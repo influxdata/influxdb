@@ -137,14 +137,14 @@ impl RowGroup {
     }
 
     /// The total estimated size in bytes of the row group
-    pub fn size(&self) -> u64 {
+    pub fn size(&self) -> usize {
         let base_size = std::mem::size_of::<Self>()
             + self
                 .all_columns_by_name
                 .keys()
                 .map(|key| key.len() + std::mem::size_of::<usize>())
                 .sum::<usize>();
-        base_size as u64 + self.meta.size()
+        base_size + self.meta.size()
     }
 
     /// The number of rows in the `RowGroup` (all columns have the same number
@@ -1377,7 +1377,7 @@ pub enum ColumnType {
 
 impl ColumnType {
     // The total size in bytes of the column
-    pub fn size(&self) -> u64 {
+    pub fn size(&self) -> usize {
         match &self {
             Self::Tag(c) => c.size(),
             Self::Field(c) => c.size(),
@@ -1420,7 +1420,7 @@ impl PartialEq for ColumnMeta {
 #[derive(Default, Debug)]
 pub struct MetaData {
     // The total size in bytes of all column data in the `RowGroup`.
-    pub columns_size: u64,
+    pub columns_size: usize,
 
     // The total number of rows in the `RowGroup`.
     pub rows: u32,
@@ -1445,7 +1445,7 @@ pub struct MetaData {
 impl MetaData {
     /// Returns the estimated size in bytes of the meta data and all column data
     /// associated with a `RowGroup`.
-    pub fn size(&self) -> u64 {
+    pub fn size(&self) -> usize {
         let base_size = std::mem::size_of::<Self>();
 
         (base_size
@@ -1454,7 +1454,7 @@ impl MetaData {
                 .columns
                 .iter()
                 .map(|(k, v)| k.len() + v.size())
-                .sum::<usize>()) as u64
+                .sum::<usize>())
             + self.columns_size
     }
 
@@ -1499,7 +1499,7 @@ impl MetaData {
     pub fn add_column(
         &mut self,
         name: &str,
-        column_size: u64,
+        column_size: usize,
         col_type: schema::ColumnType,
         logical_data_type: LogicalDataType,
         range: (OwnedValue, OwnedValue),
