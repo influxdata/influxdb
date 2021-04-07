@@ -35,6 +35,29 @@ input = "
 ,,0,2017-02-16T20:30:31.713576368Z,2021-02-16T20:30:31.713576368Z,2021-01-26T08:00:00Z,-1099,bank,pge_bill,35632393IN
 "
 
+testcase windowed_count {
+    expect.planner(rules: ["PushDownWindowAggregateRule": 1])
+
+    want = csv.from(
+        csv: "
+#datatype,string,long,dateTime:RFC3339,long
+#group,false,false,true,false
+#default,_result,,,
+,result,table,_start,_value
+,,0,2019-01-01T00:00:00Z,10
+,,1,2020-01-01T00:00:00Z,12
+,,2,2021-01-01T00:00:00Z,1
+",
+    )
+    result = testing.loadStorage(csv: input)
+        |> range(start: -3y)
+        |> window(every: 1y)
+        |> count()
+        |> keep(columns: ["_start", "_value"])
+
+    testing.diff(want: want, got: result)
+}
+
 testcase windowed_last {
     expect.planner(rules: ["PushDownWindowAggregateRule": 1])
 
