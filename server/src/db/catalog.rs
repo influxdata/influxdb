@@ -231,6 +231,7 @@ impl SchemaProvider for Catalog {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tracker::MemRegistry;
 
     #[test]
     fn partition_get() {
@@ -269,12 +270,13 @@ mod tests {
 
     #[test]
     fn chunk_create() {
+        let registry = MemRegistry::new();
         let catalog = Catalog::new();
         let p1 = catalog.get_or_create_partition("p1");
 
         let mut p1 = p1.write();
-        p1.create_open_chunk();
-        p1.create_open_chunk();
+        p1.create_open_chunk(&registry);
+        p1.create_open_chunk(&registry);
 
         let c1_0 = p1.chunk(0).unwrap();
         assert_eq!(c1_0.read().key(), "p1");
@@ -290,20 +292,21 @@ mod tests {
 
     #[test]
     fn chunk_list() {
+        let registry = MemRegistry::new();
         let catalog = Catalog::new();
 
         let p1 = catalog.get_or_create_partition("p1");
         {
             let mut p1 = p1.write();
 
-            p1.create_open_chunk();
-            p1.create_open_chunk();
+            p1.create_open_chunk(&registry);
+            p1.create_open_chunk(&registry);
         }
 
         let p2 = catalog.get_or_create_partition("p2");
         {
             let mut p2 = p2.write();
-            p2.create_open_chunk();
+            p2.create_open_chunk(&registry);
         }
 
         assert_eq!(
@@ -355,19 +358,20 @@ mod tests {
 
     #[test]
     fn chunk_drop() {
+        let registry = MemRegistry::new();
         let catalog = Catalog::new();
 
         let p1 = catalog.get_or_create_partition("p1");
         {
             let mut p1 = p1.write();
-            p1.create_open_chunk();
-            p1.create_open_chunk();
+            p1.create_open_chunk(&registry);
+            p1.create_open_chunk(&registry);
         }
 
         let p2 = catalog.get_or_create_partition("p2");
         {
             let mut p2 = p2.write();
-            p2.create_open_chunk();
+            p2.create_open_chunk(&registry);
         }
 
         assert_eq!(chunk_strings(&catalog).len(), 3);
@@ -399,14 +403,15 @@ mod tests {
 
     #[test]
     fn chunk_recreate_dropped() {
+        let registry = MemRegistry::new();
         let catalog = Catalog::new();
 
         let p1 = catalog.get_or_create_partition("p1");
 
         {
             let mut p1 = p1.write();
-            p1.create_open_chunk();
-            p1.create_open_chunk();
+            p1.create_open_chunk(&registry);
+            p1.create_open_chunk(&registry);
         }
         assert_eq!(chunk_strings(&catalog).len(), 2);
 
@@ -419,7 +424,7 @@ mod tests {
         // should be ok to recreate (thought maybe not a great idea)
         {
             let mut p1 = p1.write();
-            p1.create_open_chunk();
+            p1.create_open_chunk(&registry);
         }
         assert_eq!(chunk_strings(&catalog).len(), 2);
     }

@@ -88,8 +88,8 @@ use observability_deps::tracing::warn;
 use tokio_util::sync::CancellationToken;
 
 pub use future::{TrackedFuture, TrackedFutureExt};
-pub use history::TrackerRegistryWithHistory;
-pub use registry::{TrackerId, TrackerRegistry};
+pub use history::TaskRegistryWithHistory;
+pub use registry::{TaskId, TaskRegistry};
 
 mod future;
 mod history;
@@ -110,9 +110,9 @@ struct TrackerState {
     watch: tokio::sync::watch::Receiver<bool>,
 }
 
-/// The status of the tracker
+/// The status of the tracked task
 #[derive(Debug, Clone)]
-pub enum TrackerStatus {
+pub enum TaskStatus {
     /// More futures can be registered
     Creating,
 
@@ -147,13 +147,13 @@ pub enum TrackerStatus {
 
 /// A Tracker can be used to monitor/cancel/wait for a set of associated futures
 #[derive(Debug)]
-pub struct Tracker<T> {
-    id: TrackerId,
+pub struct TaskTracker<T> {
+    id: TaskId,
     state: Arc<TrackerState>,
     metadata: Arc<T>,
 }
 
-impl<T> Clone for Tracker<T> {
+impl<T> Clone for TaskTracker<T> {
     fn clone(&self) -> Self {
         Self {
             id: self.id,
@@ -163,9 +163,9 @@ impl<T> Clone for Tracker<T> {
     }
 }
 
-impl<T> Tracker<T> {
+impl<T> TaskTracker<T> {
     /// Returns the ID of the Tracker - these are unique per TrackerRegistry
-    pub fn id(&self) -> TrackerId {
+    pub fn id(&self) -> TaskId {
         self.id
     }
 
@@ -187,11 +187,11 @@ impl<T> Tracker<T> {
     /// Returns true if all futures associated with this tracker have
     /// been dropped and no more can be created
     pub fn is_complete(&self) -> bool {
-        matches!(self.get_status(), TrackerStatus::Complete{..})
+        matches!(self.get_status(), TaskStatus::Complete{..})
     }
 
     /// Gets the status of the tracker
-    pub fn get_status(&self) -> TrackerStatus {
+    pub fn get_status(&self) -> TaskStatus {
         // The atomic decrement in TrackerRegistration::drop has release semantics
         // acquire here ensures that if a thread observes the tracker to have
         // no pending_registrations it cannot subsequently observe pending_futures
@@ -205,13 +205,13 @@ impl<T> Tracker<T> {
         let pending_futures = self.state.pending_futures.load(Ordering::Acquire);
 
         match (pending_registrations == 0, pending_futures == 0) {
-            (false, _) => TrackerStatus::Creating,
-            (true, false) => TrackerStatus::Running {
+            (false, _) => TaskStatus::Creating,
+            (true, false) => TaskStatus::Running {
                 total_count: self.state.created_futures.load(Ordering::Relaxed),
                 pending_count: self.state.pending_futures.load(Ordering::Relaxed),
                 cpu_nanos: self.state.cpu_nanos.load(Ordering::Relaxed),
             },
-            (true, true) => TrackerStatus::Complete {
+            (true, true) => TaskStatus::Complete {
                 total_count: self.state.created_futures.load(Ordering::Relaxed),
                 cpu_nanos: self.state.cpu_nanos.load(Ordering::Relaxed),
                 wall_nanos: self.state.wall_nanos.load(Ordering::Relaxed),
@@ -248,11 +248,11 @@ impl<T> Tracker<T> {
 /// TrackedFutures are registered with a Tracker that has already signalled
 /// completion
 #[derive(Debug)]
-pub struct TrackerRegistration {
+pub struct TaskRegistration {
     state: Arc<TrackerState>,
 }
 
-impl Clone for TrackerRegistration {
+impl Clone for TaskRegistration {
     fn clone(&self) -> Self {
         self.state
             .pending_registrations
@@ -264,7 +264,7 @@ impl Clone for TrackerRegistration {
     }
 }
 
-impl TrackerRegistration {
+impl TaskRegistration {
     fn new(watch: tokio::sync::watch::Receiver<bool>) -> Self {
         let state = Arc::new(TrackerState {
             start_instant: Instant::now(),
@@ -281,7 +281,7 @@ impl TrackerRegistration {
     }
 }
 
-impl Drop for TrackerRegistration {
+impl Drop for TaskRegistration {
     fn drop(&mut self) {
         // This synchronizes with the Acquire load in Tracker::get_status
         let previous = self
@@ -305,7 +305,7 @@ mod tests {
     #[tokio::test]
     async fn test_lifecycle() {
         let (sender, receive) = oneshot::channel();
-        let mut registry = TrackerRegistry::new();
+        let mut registry = TaskRegistry::new();
         let (_, registration) = registry.register(());
 
         let task = tokio::spawn(receive.track(registration));
@@ -322,7 +322,7 @@ mod tests {
     async fn test_interleaved() {
         let (sender1, receive1) = oneshot::channel();
         let (sender2, receive2) = oneshot::channel();
-        let mut registry = TrackerRegistry::new();
+        let mut registry = TaskRegistry::new();
         let (_, registration1) = registry.register(1);
         let (_, registration2) = registry.register(2);
 
@@ -347,7 +347,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_drop() {
-        let mut registry = TrackerRegistry::new();
+        let mut registry = TaskRegistry::new();
         let (_, registration) = registry.register(());
 
         {
@@ -363,7 +363,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_drop_multiple() {
-        let mut registry = TrackerRegistry::new();
+        let mut registry = TaskRegistry::new();
         let (_, registration) = registry.register(());
 
         {
@@ -382,7 +382,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_terminate() {
-        let mut registry = TrackerRegistry::new();
+        let mut registry = TaskRegistry::new();
         let (_, registration) = registry.register(());
 
         let task = tokio::spawn(futures::future::pending::<()>().track(registration));
@@ -399,7 +399,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_terminate_early() {
-        let mut registry = TrackerRegistry::new();
+        let mut registry = TaskRegistry::new();
         let (tracker, registration) = registry.register(());
         tracker.cancel();
 
@@ -412,7 +412,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_terminate_multiple() {
-        let mut registry = TrackerRegistry::new();
+        let mut registry = TaskRegistry::new();
         let (_, registration) = registry.register(());
 
         let task1 = tokio::spawn(futures::future::pending::<()>().track(registration.clone()));
@@ -433,7 +433,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_reclaim() {
-        let mut registry = TrackerRegistry::new();
+        let mut registry = TaskRegistry::new();
 
         let (_, registration1) = registry.register(1);
         let (_, registration2) = registry.register(2);
@@ -489,7 +489,7 @@ mod tests {
         assert!(result3.is_ok());
 
         assert!(
-            matches!(tracked[0].get_status(), TrackerStatus::Running { pending_count: 1, total_count: 2, ..})
+            matches!(tracked[0].get_status(), TaskStatus::Running { pending_count: 1, total_count: 2, ..})
         );
 
         // Trigger termination of task5
@@ -511,7 +511,7 @@ mod tests {
 
         let result4 = task4.await.unwrap();
         assert!(result4.is_err());
-        assert!(matches!(running[0].get_status(), TrackerStatus::Complete { total_count: 2, ..}));
+        assert!(matches!(running[0].get_status(), TaskStatus::Complete { total_count: 2, ..}));
 
         let reclaimed = sorted(registry.reclaim().collect());
 
@@ -524,7 +524,7 @@ mod tests {
     // to prevent stalling the tokio executor
     #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
     async fn test_timing() {
-        let mut registry = TrackerRegistry::new();
+        let mut registry = TaskRegistry::new();
         let (tracker1, registration1) = registry.register(1);
         let (tracker2, registration2) = registry.register(2);
         let (tracker3, registration3) = registry.register(3);
@@ -564,11 +564,11 @@ mod tests {
             );
         };
 
-        let assert_complete = |status: TrackerStatus,
+        let assert_complete = |status: TaskStatus,
                                expected_cpu: std::time::Duration,
                                expected_wal: std::time::Duration| {
             match status {
-                TrackerStatus::Complete {
+                TaskStatus::Complete {
                     cpu_nanos,
                     wall_nanos,
                     ..
@@ -599,7 +599,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_register_race() {
-        let mut registry = TrackerRegistry::new();
+        let mut registry = TaskRegistry::new();
         let (_, registration) = registry.register(());
 
         let task1 = tokio::spawn(futures::future::ready(()).track(registration.clone()));
@@ -607,7 +607,7 @@ mod tests {
 
         let tracked = registry.tracked();
         assert_eq!(tracked.len(), 1);
-        assert!(matches!(&tracked[0].get_status(), TrackerStatus::Creating));
+        assert!(matches!(&tracked[0].get_status(), TaskStatus::Creating));
 
         // Should only consider tasks complete once cannot register more Futures
         let reclaimed: Vec<_> = registry.reclaim().collect();
@@ -620,12 +620,12 @@ mod tests {
         assert_eq!(reclaimed.len(), 1);
     }
 
-    fn sorted(mut input: Vec<Tracker<i32>>) -> Vec<Tracker<i32>> {
+    fn sorted(mut input: Vec<TaskTracker<i32>>) -> Vec<TaskTracker<i32>> {
         input.sort_unstable_by_key(|x| *x.metadata());
         input
     }
 
-    fn get_metadata(input: &[Tracker<i32>]) -> Vec<i32> {
+    fn get_metadata(input: &[TaskTracker<i32>]) -> Vec<i32> {
         let mut ret: Vec<_> = input.iter().map(|x| *x.metadata()).collect();
         ret.sort_unstable();
         ret

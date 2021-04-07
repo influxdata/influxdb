@@ -596,10 +596,12 @@ mod tests {
     use internal_types::data::split_lines_into_write_entry_partitions;
 
     use super::*;
+    use tracker::MemRegistry;
 
     #[test]
     fn test_has_columns() {
-        let mut chunk = Chunk::new(42);
+        let registry = Arc::new(MemRegistry::new());
+        let mut chunk = Chunk::new(42, registry.as_ref());
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
@@ -641,7 +643,8 @@ mod tests {
 
     #[test]
     fn table_size() {
-        let mut chunk = Chunk::new(42);
+        let registry = Arc::new(MemRegistry::new());
+        let mut chunk = Chunk::new(42, registry.as_ref());
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
@@ -664,7 +667,8 @@ mod tests {
 
     #[test]
     fn test_matches_table_name_predicate() {
-        let mut chunk = Chunk::new(42);
+        let registry = Arc::new(MemRegistry::new());
+        let mut chunk = Chunk::new(42, registry.as_ref());
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("h2o"));
 
@@ -694,7 +698,8 @@ mod tests {
 
     #[test]
     fn test_matches_column_name_predicate() {
-        let mut chunk = Chunk::new(42);
+        let registry = Arc::new(MemRegistry::new());
+        let mut chunk = Chunk::new(42, registry.as_ref());
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("h2o"));
 
@@ -740,7 +745,8 @@ mod tests {
 
     #[test]
     fn test_to_arrow_schema_all() {
-        let mut chunk = Chunk::new(42);
+        let registry = Arc::new(MemRegistry::new());
+        let mut chunk = Chunk::new(42, registry.as_ref());
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
@@ -773,7 +779,8 @@ mod tests {
 
     #[test]
     fn test_to_arrow_schema_subset() {
-        let mut chunk = Chunk::new(42);
+        let registry = Arc::new(MemRegistry::new());
+        let mut chunk = Chunk::new(42, registry.as_ref());
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 

@@ -1,15 +1,15 @@
-use super::{Tracker, TrackerRegistration};
+use super::{TaskRegistration, TaskTracker};
 use hashbrown::HashMap;
 use observability_deps::tracing::debug;
 use std::str::FromStr;
 use std::sync::Arc;
 
-/// Every future registered with a `TrackerRegistry` is assigned a unique
-/// `TrackerId`
+/// Every future registered with a `TaskRegistry` is assigned a unique
+/// `TaskId`
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct TrackerId(pub(super) usize);
+pub struct TaskId(pub(super) usize);
 
-impl FromStr for TrackerId {
+impl FromStr for TaskId {
     type Err = std::num::ParseIntError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -17,7 +17,7 @@ impl FromStr for TrackerId {
     }
 }
 
-impl ToString for TrackerId {
+impl ToString for TaskId {
     fn to_string(&self) -> String {
         self.0.to_string()
     }
@@ -25,8 +25,8 @@ impl ToString for TrackerId {
 
 /// Internal data stored by TrackerRegistry
 #[derive(Debug)]
-struct TrackerSlot<T> {
-    tracker: Tracker<T>,
+struct TaskSlot<T> {
+    tracker: TaskTracker<T>,
     watch: tokio::sync::watch::Sender<bool>,
 }
 
@@ -35,42 +35,42 @@ struct TrackerSlot<T> {
 ///
 /// Additionally can trigger graceful cancellation of registered futures
 #[derive(Debug)]
-pub struct TrackerRegistry<T> {
+pub struct TaskRegistry<T> {
     next_id: usize,
-    trackers: HashMap<TrackerId, TrackerSlot<T>>,
+    tasks: HashMap<TaskId, TaskSlot<T>>,
 }
 
-impl<T> Default for TrackerRegistry<T> {
+impl<T> Default for TaskRegistry<T> {
     fn default() -> Self {
         Self {
             next_id: 0,
-            trackers: Default::default(),
+            tasks: Default::default(),
         }
     }
 }
 
-impl<T> TrackerRegistry<T> {
+impl<T> TaskRegistry<T> {
     pub fn new() -> Self {
         Default::default()
     }
 
     /// Register a new tracker in the registry
-    pub fn register(&mut self, metadata: T) -> (Tracker<T>, TrackerRegistration) {
-        let id = TrackerId(self.next_id);
+    pub fn register(&mut self, metadata: T) -> (TaskTracker<T>, TaskRegistration) {
+        let id = TaskId(self.next_id);
         self.next_id += 1;
 
         let (sender, receiver) = tokio::sync::watch::channel(false);
-        let registration = TrackerRegistration::new(receiver);
+        let registration = TaskRegistration::new(receiver);
 
-        let tracker = Tracker {
+        let tracker = TaskTracker {
             id,
             metadata: Arc::new(metadata),
             state: Arc::clone(&registration.state),
         };
 
-        self.trackers.insert(
+        self.tasks.insert(
             id,
-            TrackerSlot {
+            TaskSlot {
                 tracker: tracker.clone(),
                 watch: sender,
             },
@@ -81,8 +81,8 @@ impl<T> TrackerRegistry<T> {
 
     /// Removes completed tasks from the registry and returns an iterator of
     /// those removed
-    pub fn reclaim(&mut self) -> impl Iterator<Item = Tracker<T>> + '_ {
-        self.trackers
+    pub fn reclaim(&mut self) -> impl Iterator<Item = TaskTracker<T>> + '_ {
+        self.tasks
             .drain_filter(|_, v| v.tracker.is_complete())
             .map(|(_, v)| {
                 if let Err(error) = v.watch.send(true) {
@@ -93,26 +93,23 @@ impl<T> TrackerRegistry<T> {
             })
     }
 
-    pub fn get(&self, id: TrackerId) -> Option<Tracker<T>> {
-        self.trackers.get(&id).map(|x| x.tracker.clone())
+    pub fn get(&self, id: TaskId) -> Option<TaskTracker<T>> {
+        self.tasks.get(&id).map(|x| x.tracker.clone())
     }
 
     /// Returns the number of tracked tasks
     pub fn tracked_len(&self) -> usize {
-        self.trackers.len()
+        self.tasks.len()
     }
 
     /// Returns a list of trackers, including those that are no longer running
-    pub fn tracked(&self) -> Vec<Tracker<T>> {
-        self.trackers
-            .iter()
-            .map(|(_, v)| v.tracker.clone())
-            .collect()
+    pub fn tracked(&self) -> Vec<TaskTracker<T>> {
+        self.tasks.iter().map(|(_, v)| v.tracker.clone()).collect()
     }
 
     /// Returns a list of active trackers
-    pub fn running(&self) -> Vec<Tracker<T>> {
-        self.trackers
+    pub fn running(&self) -> Vec<TaskTracker<T>> {
+        self.tasks
             .iter()
             .filter_map(|(_, v)| {
                 if !v.tracker.is_complete() {

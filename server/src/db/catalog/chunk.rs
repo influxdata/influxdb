@@ -11,6 +11,7 @@ use read_buffer::Database as ReadBufferDb;
 use crate::db::DBChunk;
 
 use super::{InternalChunkState, Result};
+use tracker::MemRegistry;
 
 /// The state a Chunk is in and what its underlying backing storage is
 #[derive(Debug)]
@@ -109,8 +110,12 @@ impl Chunk {
     }
 
     /// Creates a new open chunk
-    pub(crate) fn new_open(partition_key: impl Into<String>, id: u32) -> Self {
-        let state = ChunkState::Open(mutable_buffer::chunk::Chunk::new(id));
+    pub(crate) fn new_open(
+        partition_key: impl Into<String>,
+        id: u32,
+        memory_registry: &MemRegistry,
+    ) -> Self {
+        let state = ChunkState::Open(mutable_buffer::chunk::Chunk::new(id, memory_registry));
         Self::new(partition_key, id, state)
     }
 

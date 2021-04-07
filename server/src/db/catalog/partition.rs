@@ -11,6 +11,7 @@ use data_types::chunk::ChunkSummary;
 use data_types::partition_metadata::PartitionSummary;
 use parking_lot::RwLock;
 use snafu::OptionExt;
+use tracker::MemRegistry;
 
 /// IOx Catalog Partition
 ///
@@ -76,11 +77,15 @@ impl Partition {
     }
 
     /// Create a new Chunk in the open state
-    pub fn create_open_chunk(&mut self) -> Arc<RwLock<Chunk>> {
+    pub fn create_open_chunk(&mut self, memory_registry: &MemRegistry) -> Arc<RwLock<Chunk>> {
         let chunk_id = self.next_chunk_id;
         self.next_chunk_id += 1;
 
-        let chunk = Arc::new(RwLock::new(Chunk::new_open(&self.key, chunk_id)));
+        let chunk = Arc::new(RwLock::new(Chunk::new_open(
+            &self.key,
+            chunk_id,
+            memory_registry,
+        )));
 
         if self.chunks.insert(chunk_id, Arc::clone(&chunk)).is_some() {
             // A fundamental invariant has been violated - abort
