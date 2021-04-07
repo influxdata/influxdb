@@ -752,9 +752,11 @@ mod tests {
         ));
         test_storage.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         test_storage
-            .create_database(DatabaseRules::new(
-                DatabaseName::new("MyOrg_MyBucket").unwrap(),
-            ))
+            .create_database(
+                DatabaseRules::new(DatabaseName::new("MyOrg_MyBucket").unwrap()),
+                test_storage.require_id().unwrap(),
+                Arc::clone(&test_storage.store),
+            )
             .await
             .unwrap();
         let server_url = test_server(Arc::clone(&test_storage));
@@ -803,9 +805,11 @@ mod tests {
         ));
         test_storage.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         test_storage
-            .create_database(DatabaseRules::new(
-                DatabaseName::new("MyOrg_MyBucket").unwrap(),
-            ))
+            .create_database(
+                DatabaseRules::new(DatabaseName::new("MyOrg_MyBucket").unwrap()),
+                test_storage.require_id().unwrap(),
+                Arc::clone(&test_storage.store),
+            )
             .await
             .unwrap();
         let server_url = test_server(Arc::clone(&test_storage));
@@ -938,9 +942,11 @@ mod tests {
         ));
         test_storage.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         test_storage
-            .create_database(DatabaseRules::new(
-                DatabaseName::new("MyOrg_MyBucket").unwrap(),
-            ))
+            .create_database(
+                DatabaseRules::new(DatabaseName::new("MyOrg_MyBucket").unwrap()),
+                test_storage.require_id().unwrap(),
+                Arc::clone(&test_storage.store),
+            )
             .await
             .unwrap();
         let server_url = test_server(Arc::clone(&test_storage));
@@ -988,9 +994,11 @@ mod tests {
         ));
         test_storage.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         test_storage
-            .create_database(DatabaseRules::new(
-                DatabaseName::new("MyOrg_MyBucket").unwrap(),
-            ))
+            .create_database(
+                DatabaseRules::new(DatabaseName::new("MyOrg_MyBucket").unwrap()),
+                test_storage.require_id().unwrap(),
+                Arc::clone(&test_storage.store),
+            )
             .await
             .unwrap();
         let server_url = test_server(Arc::clone(&test_storage));
@@ -1040,7 +1048,14 @@ mod tests {
             shard_config: None,
         };
 
-        server.create_database(rules).await.unwrap();
+        server
+            .create_database(
+                rules,
+                server.require_id().unwrap(),
+                Arc::clone(&server.store),
+            )
+            .await
+            .unwrap();
 
         let base_url = format!(
             "{}/iox/api/v1/databases/{}/wal/meta",

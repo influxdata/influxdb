@@ -3,15 +3,18 @@ use data_types::{
     database_rules::DatabaseRules,
     DatabaseName,
 };
+use object_store::ObjectStore;
 use query::Database;
 
 use crate::{db::Db, JobRegistry};
-use std::sync::Arc;
+use std::{num::NonZeroU32, sync::Arc};
 
 /// Used for testing: create a Database with a local store
-pub fn make_db() -> Db {
+pub fn make_db(server_id: NonZeroU32, object_store: Arc<ObjectStore>) -> Db {
     Db::new(
         DatabaseRules::new(DatabaseName::new("placeholder").unwrap()),
+        server_id,
+        object_store,
         read_buffer::Database::new(),
         None, // wal buffer
         Arc::new(JobRegistry::new()),

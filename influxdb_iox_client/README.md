@@ -13,13 +13,15 @@ a database named `telemetry`:
 fn main() {
     use data_types::database_rules::DatabaseRules;
     use influxdb_iox_client::ClientBuilder;
+    let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+    let server_id = NonZeroU32::new(1).unwrap();
 
     let client = ClientBuilder::default()
         .build("http://127.0.0.1:8080")
         .expect("client should be valid");
 
     client
-        .create_database("telemetry", &DatabaseRules::default())
+        .create_database("telemetry", &DatabaseRules::default(), server_id, store)
         .await
         .expect("failed to create database");
 }

@@ -1504,6 +1504,7 @@ dependencies = [
  "generated_types",
  "http",
  "hyper",
+ "object_store",
  "prost",
  "rand 0.8.3",
  "serde",

@@ -3,6 +3,7 @@ use crate::query_tests::{scenarios::*, utils::make_db};
 
 use arrow_deps::{arrow::util::pretty::pretty_format_batches, datafusion::prelude::*};
 use async_trait::async_trait;
+use object_store::{memory::InMemory, ObjectStore};
 use query::{
     exec::Executor,
     frontend::influxrpc::InfluxRPCPlanner,
@@ -10,6 +11,7 @@ use query::{
     predicate::{Predicate, PredicateBuilder},
     test::TestLPWriter,
 };
+use std::{num::NonZeroU32, sync::Arc};
 
 /// runs read_window_aggregate(predicate) and compares it to the expected
 /// output
@@ -160,9 +162,11 @@ impl DBSetup for MeasurementForWindowAggregateMonths {
         ];
         // partition keys are: ["2020-03-02T00", "2020-03-01T00", "2020-04-01T00",
         // "2020-04-02T00"]
-
-        let db = make_db();
         let mut writer = TestLPWriter::default();
+        let writer_id: NonZeroU32 = NonZeroU32::new(1).unwrap();
+        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let db = make_db(writer_id, Arc::clone(&store));
+
         let data = lp_lines.join("\n");
         writer.write_lp_string(&db, &data).unwrap();
         let scenario1 = DBScenario {
@@ -170,8 +174,9 @@ impl DBSetup for MeasurementForWindowAggregateMonths {
             db,
         };
 
-        let db = make_db();
         let mut writer = TestLPWriter::default();
+        let writer_id: NonZeroU32 = NonZeroU32::new(1).unwrap();
+        let db = make_db(writer_id, Arc::clone(&store));
         let data = lp_lines.join("\n");
         writer.write_lp_string(&db, &data).unwrap();
         db.rollover_partition("2020-03-01T00").await.unwrap();
@@ -183,8 +188,9 @@ impl DBSetup for MeasurementForWindowAggregateMonths {
             db,
         };
 
-        let db = make_db();
         let mut writer = TestLPWriter::default();
+        let writer_id: NonZeroU32 = NonZeroU32::new(1).unwrap();
+        let db = make_db(writer_id, Arc::clone(&store));
         let data = lp_lines.join("\n");
         writer.write_lp_string(&db, &data).unwrap();
         rollover_and_load(&db, "2020-03-01T00").await;

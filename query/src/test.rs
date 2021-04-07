@@ -514,7 +514,7 @@ impl DatabaseStore for TestDatabaseStore {
 /// (handles creating sequence numbers and writer ids
 #[derive(Debug, Default)]
 pub struct TestLPWriter {
-    writer_id: u32,
+    pub writer_id: u32,
     sequence_number: u64,
 }
 

@@ -1,12 +1,13 @@
-use std::num::NonZeroU32;
-
 use thiserror::Error;
 
 use self::generated_types::{management_service_client::ManagementServiceClient, *};
 
 use crate::connection::Connection;
 use ::generated_types::google::longrunning::Operation;
+//use object_store::ObjectStore;
+
 use std::convert::TryInto;
+use std::num::NonZeroU32;
 
 /// Re-export generated_types
 pub mod generated_types {
@@ -257,8 +258,11 @@ impl Client {
     pub async fn create_database(
         &mut self,
         rules: DatabaseRules,
+        /* server_id: NonZeroU32,
+         * object_store: ObjectStore, */
     ) -> Result<(), CreateDatabaseError> {
         self.inner
+            //.create_database(CreateDatabaseRequest { rules: Some(rules) }, server_id, object_store)
             .create_database(CreateDatabaseRequest { rules: Some(rules) })
             .await
             .map_err(|status| match status.code() {

@@ -11,6 +11,7 @@ use bytes::Bytes;
 use observability_deps::tracing::{error, info};
 use parking_lot::Mutex;
 use snafu::{ResultExt, Snafu};
+//use std::num::NonZeroU32;
 use tokio::sync::oneshot;
 use uuid::Uuid;
 
@@ -292,11 +293,13 @@ cpu,host=B,region=east user=10.0,system=74.1 1
 mem,host=A,region=west used=45 1
         "#;
 
-        let db = make_db();
         let mut writer = TestLPWriter::default();
+        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let writer_id = std::num::NonZeroU32::new(1).unwrap();
+        let db = make_db(writer_id, Arc::clone(&store));
+
         writer.write_lp_string(&db, &lp).unwrap();
 
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let (tx, rx) = tokio::sync::oneshot::channel();
         let mut metadata_path = store.new_path();
         metadata_path.push_dir("meta");
@@ -390,9 +393,11 @@ mem,host=A,region=west used=45 1
     }
 
     /// Create a Database with a local store
-    pub fn make_db() -> Db {
+    pub fn make_db(server_id: std::num::NonZeroU32, object_store: Arc<ObjectStore>) -> Db {
         Db::new(
             DatabaseRules::new(DatabaseName::new("placeholder").unwrap()),
+            server_id,
+            object_store,
             ReadBufferDb::new(),
             None, // wal buffer
             Arc::new(JobRegistry::new()),
