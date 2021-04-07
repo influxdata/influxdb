@@ -36,6 +36,46 @@ func Test_normalizePath(t *testing.T) {
 			path:     path.Join("/api/v2/organizations", influxdb.ID(2).String(), "users", influxdb.ID(3).String()),
 			expected: "/api/v2/organizations/:id/users/:id",
 		},
+		{
+			name:     "5",
+			path:     "/838442d56d.svg",
+			expected: "/" + fileSlug + ".svg",
+		},
+		{
+			name:     "6",
+			path:     "/838442d56d.svg/extra",
+			expected: "/838442d56d.svg/extra",
+		},
+		{
+			name:     "7",
+			path:     "/api/v2/restore/shards/1001",
+			expected: path.Join("/api/v2/restore/shards/", shardSlug),
+		},
+		{
+			name:     "8",
+			path:     "/api/v2/restore/shards/1001/extra",
+			expected: path.Join("/api/v2/restore/shards/", shardSlug, "extra"),
+		},
+		{
+			name:     "9",
+			path:     "/api/v2/backup/shards/1005",
+			expected: path.Join("/api/v2/backup/shards/", shardSlug),
+		},
+		{
+			name:     "10",
+			path:     "/api/v2/backup/shards/1005/extra",
+			expected: path.Join("/api/v2/backup/shards/", shardSlug, "extra"),
+		},
+		{
+			name:     "11",
+			path:     "/api/v2/backup/99/file/000000000007376-000000001.tsm",
+			expected: path.Join("/api/v2/backup", backupSlug, "file", fileSlug+".tsm"),
+		},
+		{
+			name:     "12",
+			path:     "/api/v2/backup/99/file/000000000007376-000000001.tsm/extra",
+			expected: path.Join("/api/v2/backup", backupSlug, "file", fileSlug+".tsm", "extra"),
+		},
 	}
 
 	for _, tt := range tests {
