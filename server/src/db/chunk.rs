@@ -349,10 +349,7 @@ impl PartitionChunk for DBChunk {
                     table_name,
                 )))
             }
-            Self::ReadBuffer {
-                chunk,
-                partition_key,
-            } => {
+            Self::ReadBuffer { chunk, .. } => {
                 // Error converting to a rb_predicate needs to fail
                 let rb_predicate =
                     to_read_buffer_predicate(&predicate).context(PredicateConversion)?;
@@ -363,14 +360,16 @@ impl PartitionChunk for DBChunk {
                         chunk_id: chunk.id(),
                     })?;
 
-                let schema = read_results
-                    .schema()
+                let schema = chunk
+                    .read_filter_table_schema(table_name, selection)
                     .context(ReadBufferChunkError {
                         chunk_id: chunk.id(),
-                    })?
-                    .into();
+                    })?;
 
-                Ok(Box::pin(ReadFilterResultsStream::new(read_results, schema)))
+                Ok(Box::pin(ReadFilterResultsStream::new(
+                    read_results,
+                    schema.into(),
+                )))
             }
             Self::ParquetFile { .. } => {
                 unimplemented!("parquet file not implemented for scan_data")
@@ -434,13 +433,13 @@ impl PartitionChunk for DBChunk {
                     }
                 };
 
-                let names = chunk
-                    .column_names(table_name, rb_predicate, columns, BTreeSet::new())
-                    .context(ReadBufferChunkError {
-                        chunk_id: chunk.id(),
-                    })?;
-
-                Ok(names)
+                Ok(Some(
+                    chunk
+                        .column_names(table_name, rb_predicate, columns, BTreeSet::new())
+                        .context(ReadBufferChunkError {
+                            chunk_id: chunk.id(),
+                        })?,
+                ))
             }
             Self::ParquetFile { .. } => {
                 unimplemented!("parquet file not implemented for column_names")

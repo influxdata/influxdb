@@ -393,7 +393,6 @@ mem,host=A,region=west used=45 1
     pub fn make_db() -> Db {
         Db::new(
             DatabaseRules::new(DatabaseName::new("placeholder").unwrap()),
-            ReadBufferDb::new(),
             None, // wal buffer
             Arc::new(JobRegistry::new()),
         )

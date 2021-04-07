@@ -12,7 +12,6 @@ use std::sync::Arc;
 pub fn make_db() -> Db {
     Db::new(
         DatabaseRules::new(DatabaseName::new("placeholder").unwrap()),
-        read_buffer::Database::new(),
         None, // wal buffer
         Arc::new(JobRegistry::new()),
     )

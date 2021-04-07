@@ -94,14 +94,8 @@ impl Config {
             return;
         }
 
-        let read_buffer = ReadBufferDb::new();
         let wal_buffer = rules.wal_buffer_config.as_ref().map(Into::into);
-        let db = Arc::new(Db::new(
-            rules,
-            read_buffer,
-            wal_buffer,
-            Arc::clone(&self.jobs),
-        ));
+        let db = Arc::new(Db::new(rules, wal_buffer, Arc::clone(&self.jobs)));
 
         let shutdown = self.shutdown.child_token();
         let shutdown_captured = shutdown.clone();
