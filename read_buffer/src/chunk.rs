@@ -367,6 +367,11 @@ impl Chunk {
         .context(TableSchemaError)
     }
 
+    /// A helper method for retrieving all table names for the `Chunk`.
+    pub fn all_table_names(&self, skip_table_names: &BTreeSet<String>) -> BTreeSet<String> {
+        self.table_names(&Predicate::default(), skip_table_names)
+    }
+
     /// Returns the distinct set of table names that contain data satisfying the
     /// provided predicate.
     ///
@@ -483,6 +488,12 @@ impl Chunk {
             }
             .fail(),
         }
+    }
+}
+
+impl std::fmt::Debug for Chunk {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Chunk: id: {:?}, rows: {:?}", self.id(), self.rows())
     }
 }
 

@@ -473,7 +473,7 @@ mod tests {
             ..Default::default()
         };
 
-        let rb = Arc::new(read_buffer::Database::new());
+        let rb = Arc::new(read_buffer::chunk::Chunk::new(22));
 
         let chunks = vec![new_chunk(0, Some(0), Some(0))];
 

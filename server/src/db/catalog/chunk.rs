@@ -6,7 +6,7 @@ use data_types::{chunk::ChunkSummary, partition_metadata::TableSummary};
 use mutable_buffer::chunk::Chunk as MBChunk;
 use parquet_file::chunk::Chunk as ParquetChunk;
 use query::PartitionChunk;
-use read_buffer::Database as ReadBufferDb;
+use read_buffer::chunk::Chunk as ReadBufferChunk;
 
 use crate::db::DBChunk;
 
@@ -32,13 +32,13 @@ pub enum ChunkState {
     Moving(Arc<MBChunk>),
 
     /// Chunk has been completely loaded in the read buffer
-    Moved(Arc<ReadBufferDb>), // todo use read buffer chunk instead of ReadBufferDb
+    Moved(Arc<ReadBufferChunk>),
 
     // Chunk is actively writing to object store
-    WritingToObjectStore(Arc<ReadBufferDb>), // todo use read buffer chunk instead of ReadBufferD
+    WritingToObjectStore(Arc<ReadBufferChunk>),
 
     // Chunk has been completely written into object store
-    WrittenToObjectStore(Arc<ReadBufferDb>, Arc<ParquetChunk>),
+    WrittenToObjectStore(Arc<ReadBufferChunk>, Arc<ParquetChunk>),
 }
 
 impl ChunkState {
@@ -184,15 +184,9 @@ impl Chunk {
             ChunkState::Invalid => false,
             ChunkState::Open(chunk) | ChunkState::Closing(chunk) => chunk.has_table(table_name),
             ChunkState::Moving(chunk) => chunk.has_table(table_name),
-            ChunkState::Moved(db) => {
-                db.has_table(self.partition_key.as_str(), table_name, &[self.id])
-            }
-            ChunkState::WritingToObjectStore(db) => {
-                db.has_table(self.partition_key.as_str(), table_name, &[self.id])
-            }
-            ChunkState::WrittenToObjectStore(db, _) => {
-                db.has_table(self.partition_key.as_str(), table_name, &[self.id])
-            }
+            ChunkState::Moved(chunk) => chunk.has_table(table_name),
+            ChunkState::WritingToObjectStore(chunk) => chunk.has_table(table_name),
+            ChunkState::WrittenToObjectStore(chunk, _) => chunk.has_table(table_name),
         }
     }
 
@@ -202,14 +196,32 @@ impl Chunk {
             ChunkState::Invalid => {}
             ChunkState::Open(chunk) | ChunkState::Closing(chunk) => chunk.all_table_names(names),
             ChunkState::Moving(chunk) => chunk.all_table_names(names),
-            ChunkState::Moved(db) => {
-                db.all_table_names(self.partition_key.as_str(), &[self.id], names)
+            ChunkState::Moved(chunk) => {
+                // TODO - the RB API returns a new set each time, so maybe this
+                // method should be updated to do the same across the mutable
+                // buffer.
+                let rb_names = chunk.all_table_names(names);
+                for name in rb_names {
+                    names.insert(name);
+                }
             }
-            ChunkState::WritingToObjectStore(db) => {
-                db.all_table_names(self.partition_key.as_str(), &[self.id], names)
+            ChunkState::WritingToObjectStore(chunk) => {
+                // TODO - the RB API returns a new set each time, so maybe this
+                // method should be updated to do the same across the mutable
+                // buffer.
+                let rb_names = chunk.all_table_names(names);
+                for name in rb_names {
+                    names.insert(name);
+                }
             }
-            ChunkState::WrittenToObjectStore(db, _) => {
-                db.all_table_names(self.partition_key.as_str(), &[self.id], names)
+            ChunkState::WrittenToObjectStore(chunk, _) => {
+                // TODO - the RB API returns a new set each time, so maybe this
+                // method should be updated to do the same across the mutable
+                // buffer.
+                let rb_names = chunk.all_table_names(names);
+                for name in rb_names {
+                    names.insert(name);
+                }
             }
         }
     }
@@ -221,16 +233,10 @@ impl Chunk {
             ChunkState::Invalid => 0,
             ChunkState::Open(chunk) | ChunkState::Closing(chunk) => chunk.size(),
             ChunkState::Moving(chunk) => chunk.size(),
-            ChunkState::Moved(db) => db
-                .chunks_size(self.partition_key.as_str(), &[self.id])
-                .unwrap_or(0) as usize,
-            ChunkState::WritingToObjectStore(db) => db
-                .chunks_size(self.partition_key.as_str(), &[self.id])
-                .unwrap_or(0) as usize,
-            ChunkState::WrittenToObjectStore(db, parquet_chunk) => {
-                parquet_chunk.size()
-                    + db.chunks_size(self.partition_key.as_str(), &[self.id])
-                        .unwrap_or(0) as usize
+            ChunkState::Moved(chunk) => chunk.size() as usize,
+            ChunkState::WritingToObjectStore(chunk) => chunk.size() as usize,
+            ChunkState::WrittenToObjectStore(chunk, parquet_chunk) => {
+                parquet_chunk.size() + chunk.size() as usize
             }
         }
     }
@@ -288,13 +294,13 @@ impl Chunk {
     /// Set the chunk in the Moved state, setting the underlying
     /// storage handle to db, and discarding the underlying mutable buffer
     /// storage.
-    pub fn set_moved(&mut self, db: Arc<ReadBufferDb>) -> Result<()> {
+    pub fn set_moved(&mut self, chunk: Arc<ReadBufferChunk>) -> Result<()> {
         let mut s = ChunkState::Invalid;
         std::mem::swap(&mut s, &mut self.state);
 
         match s {
             ChunkState::Moving(_) => {
-                self.state = ChunkState::Moved(db);
+                self.state = ChunkState::Moved(chunk);
                 Ok(())
             }
             state => {
@@ -305,7 +311,7 @@ impl Chunk {
     }
 
     /// Set the chunk to the MovingToObjectStore state
-    pub fn set_writing_to_object_store(&mut self) -> Result<Arc<ReadBufferDb>> {
+    pub fn set_writing_to_object_store(&mut self) -> Result<Arc<ReadBufferChunk>> {
         let mut s = ChunkState::Invalid;
         std::mem::swap(&mut s, &mut self.state);
 
