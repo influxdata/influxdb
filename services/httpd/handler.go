@@ -41,7 +41,6 @@ import (
 	"github.com/influxdata/influxdb/tsdb"
 	"github.com/influxdata/influxdb/uuid"
 	"github.com/influxdata/influxql"
-	prom "github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/prometheus/prompb"
 	"go.uber.org/zap"
@@ -134,7 +133,6 @@ type Handler struct {
 	// Flux services
 	Controller       Controller
 	CompilerMappings flux.CompilerMappings
-	registered       bool
 
 	Config           *Config
 	Logger           *zap.Logger
@@ -332,11 +330,6 @@ func (h *Handler) Open() {
 	if h.Config.AuthEnabled && h.Config.SharedSecret == "" {
 		h.Logger.Info("Auth is enabled but shared-secret is blank. BearerAuthentication is disabled.")
 	}
-
-	if h.Config.FluxEnabled {
-		h.registered = true
-		prom.MustRegister(h.Controller.PrometheusCollectors()...)
-	}
 }
 
 func (h *Handler) Close() {
@@ -348,13 +341,6 @@ func (h *Handler) Close() {
 		h.accessLog.Close()
 		h.accessLog = nil
 		h.accessLogFilters = nil
-	}
-
-	if h.registered {
-		for _, col := range h.Controller.PrometheusCollectors() {
-			prom.Unregister(col)
-		}
-		h.registered = false
 	}
 }
 
