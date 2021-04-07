@@ -30,6 +30,7 @@ func init() {
 		PushDownWindowAggregateRule{},
 		PushDownWindowAggregateByTimeRule{},
 		PushDownBareAggregateRule{},
+		GroupWindowAggregateTransposeRule{},
 	)
 	plan.RegisterLogicalRules(
 		universe.MergeFiltersRule{},
@@ -294,20 +295,6 @@ func (rule PushDownReadTagKeysRule) Rewrite(ctx context.Context, pn plan.Node) (
 	return plan.CreatePhysicalNode("ReadTagKeys", &ReadTagKeysPhysSpec{
 		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
 	}), true, nil
-}
-
-func hasFieldExpr(expr semantic.Expression) bool {
-	hasField := false
-	v := semantic.CreateVisitor(func(node semantic.Node) {
-		switch n := node.(type) {
-		case *semantic.MemberExpression:
-			if n.Property == "_field" {
-				hasField = true
-			}
-		}
-	})
-	semantic.Walk(v, expr)
-	return hasField
 }
 
 // PushDownReadTagValuesRule matches 'ReadRange |> keep(columns: [tag]) |> group() |> distinct(column: tag)'.
@@ -872,6 +859,104 @@ func (p PushDownBareAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (p
 		Aggregates:        []plan.ProcedureKind{fnNode.Kind()},
 		WindowEvery:       flux.ConvertDuration(math.MaxInt64 * time.Duration(1)),
 	}), true, nil
+}
+
+// GroupWindowAggregateTransposeRule will match the given pattern.
+// ReadGroupPhys |> window |> { min, max, count, sum }
+//
+// This pattern will use the PushDownWindowAggregateRule to determine
+// if the ReadWindowAggregatePhys operation is available before it will
+// rewrite the above. This rewrites the above to:
+//
+// ReadWindowAggregatePhys |> group(columns: ["_start", "_stop", ...]) |> { min, max, sum }
+//
+// The count aggregate uses sum to merge the results.
+type GroupWindowAggregateTransposeRule struct{}
+
+func (p GroupWindowAggregateTransposeRule) Name() string {
+	return "GroupWindowAggregateTransposeRule"
+}
+
+var windowMergeablePushAggs = []plan.ProcedureKind{
+	universe.MinKind,
+	universe.MaxKind,
+	universe.CountKind,
+	universe.SumKind,
+}
+
+func (p GroupWindowAggregateTransposeRule) Pattern() plan.Pattern {
+	return plan.OneOf(windowMergeablePushAggs,
+		plan.Pat(universe.WindowKind, plan.Pat(ReadGroupPhysKind)))
+}
+
+func (p GroupWindowAggregateTransposeRule) Rewrite(ctx context.Context, pn plan.Node) (plan.Node, bool, error) {
+	fnNode := pn
+	if !canPushWindowedAggregate(ctx, fnNode) {
+		return pn, false, nil
+	}
+
+	windowNode := fnNode.Predecessors()[0]
+	windowSpec := windowNode.ProcedureSpec().(*universe.WindowProcedureSpec)
+
+	if !isPushableWindow(windowSpec) {
+		return pn, false, nil
+	}
+
+	fromNode := windowNode.Predecessors()[0]
+	fromSpec := fromNode.ProcedureSpec().(*ReadGroupPhysSpec)
+
+	// This only works with GroupModeBy. It is the case
+	// that ReadGroup, which we depend on as a predecessor,
+	// only works with GroupModeBy so it should be impossible
+	// to fail this condition, but we add this here for extra
+	// protection.
+	if fromSpec.GroupMode != flux.GroupModeBy {
+		return pn, false, nil
+	}
+
+	// Perform the rewrite by replacing each of the nodes.
+	newFromNode := plan.CreateUniquePhysicalNode(ctx, "ReadWindowAggregate", &ReadWindowAggregatePhysSpec{
+		ReadRangePhysSpec: *fromSpec.ReadRangePhysSpec.Copy().(*ReadRangePhysSpec),
+		Aggregates:        []plan.ProcedureKind{fnNode.Kind()},
+		WindowEvery:       windowSpec.Window.Every,
+		Offset:            windowSpec.Window.Offset,
+		CreateEmpty:       windowSpec.CreateEmpty,
+	})
+
+	// Replace the window node with a group node first.
+	groupKeys := make([]string, len(fromSpec.GroupKeys), len(fromSpec.GroupKeys)+2)
+	copy(groupKeys, fromSpec.GroupKeys)
+	if !execute.ContainsStr(groupKeys, execute.DefaultStartColLabel) {
+		groupKeys = append(groupKeys, execute.DefaultStartColLabel)
+	}
+	if !execute.ContainsStr(groupKeys, execute.DefaultStopColLabel) {
+		groupKeys = append(groupKeys, execute.DefaultStopColLabel)
+	}
+	newGroupNode := plan.CreateUniquePhysicalNode(ctx, "group", &universe.GroupProcedureSpec{
+		GroupMode: flux.GroupModeBy,
+		GroupKeys: groupKeys,
+	})
+	newFromNode.AddSuccessors(newGroupNode)
+	newGroupNode.AddPredecessors(newFromNode)
+
+	// Attach the existing function node to the new group node.
+	fnNode.ClearPredecessors()
+	newGroupNode.AddSuccessors(fnNode)
+	fnNode.AddPredecessors(newGroupNode)
+
+	// Replace the spec for the function if needed.
+	switch spec := fnNode.ProcedureSpec().(type) {
+	case *universe.CountProcedureSpec:
+		newFnNode := plan.CreateUniquePhysicalNode(ctx, "sum", &universe.SumProcedureSpec{
+			AggregateConfig: spec.AggregateConfig,
+		})
+		plan.ReplaceNode(fnNode, newFnNode)
+		fnNode = newFnNode
+	default:
+		// No replacement required. The procedure is idempotent so
+		// we can use it over and over again and get the same result.
+	}
+	return fnNode, true, nil
 }
 
 func asSchemaMutationProcedureSpec(spec plan.ProcedureSpec) *universe.SchemaMutationProcedureSpec {
