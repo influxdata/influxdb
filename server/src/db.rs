@@ -1204,7 +1204,7 @@ mod tests {
                 to_arc("1970-01-01T00"),
                 0,
                 ChunkStorage::ReadBuffer,
-                1221,
+                1269,
             ),
             ChunkSummary::new_without_timestamps(
                 to_arc("1970-01-01T00"),
