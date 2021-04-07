@@ -10,7 +10,7 @@ use arrow_deps::{
 };
 use internal_types::selection::Selection;
 use mutable_buffer::chunk::Chunk as MBChunk;
-use read_buffer::TableReadFilterResults as ReadFilterResults;
+use read_buffer::ReadFilterResults;
 
 use std::{
     sync::Arc,

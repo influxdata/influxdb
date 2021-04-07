@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{collections::BTreeSet, sync::Arc};
 
 use criterion::{criterion_group, criterion_main, BatchSize, Criterion};
 
@@ -7,22 +7,21 @@ use arrow_deps::arrow::{
     record_batch::RecordBatch,
 };
 use internal_types::schema::builder::SchemaBuilder;
-use read_buffer::{BinaryExpr, Database, Predicate};
+use read_buffer::{BinaryExpr, Chunk, Predicate};
 
 const BASE_TIME: i64 = 1351700038292387000_i64;
 const ONE_MS: i64 = 1_000_000;
 
 fn table_names(c: &mut Criterion) {
     let rb = generate_row_group(500_000);
-    let db = Database::new();
-    db.upsert_partition("hour_1", 0, "table_a", rb.clone());
+    let chunk = Chunk::new(0);
+    chunk.upsert_table("table_a", rb);
 
     // no predicate - return all the tables
     benchmark_table_names(
         c,
         "database_table_names_all_tables",
-        &db,
-        &[0],
+        &chunk,
         Predicate::default(),
         1,
     );
@@ -31,8 +30,7 @@ fn table_names(c: &mut Criterion) {
     benchmark_table_names(
         c,
         "database_table_names_meta_pred_no_match",
-        &db,
-        &[0],
+        &chunk,
         Predicate::new(vec![BinaryExpr::from(("env", "=", "zoo"))]),
         0,
     );
@@ -41,8 +39,7 @@ fn table_names(c: &mut Criterion) {
     benchmark_table_names(
         c,
         "database_table_names_single_pred_match",
-        &db,
-        &[0],
+        &chunk,
         Predicate::new(vec![BinaryExpr::from(("env", "=", "prod"))]),
         1,
     );
@@ -51,27 +48,7 @@ fn table_names(c: &mut Criterion) {
     benchmark_table_names(
         c,
         "database_table_names_multi_pred_match",
-        &db,
-        &[0],
-        Predicate::new(vec![
-            BinaryExpr::from(("env", "=", "prod")),
-            BinaryExpr::from(("time", ">=", BASE_TIME)),
-            BinaryExpr::from(("time", "<", BASE_TIME + (ONE_MS * 10000))),
-        ]),
-        1,
-    );
-
-    // Add the table into ten more chunks. Show that performance is not impacted.
-    for chunk_id in 1..=10 {
-        db.upsert_partition("hour_1", chunk_id, "table_a", rb.clone());
-    }
-
-    // predicate - multi predicate match on all chunks
-    benchmark_table_names(
-        c,
-        "database_table_names_multi_pred_match_multi_tables",
-        &db,
-        &(0..=10).into_iter().collect::<Vec<_>>(),
+        &chunk,
         Predicate::new(vec![
             BinaryExpr::from(("env", "=", "prod")),
             BinaryExpr::from(("time", ">=", BASE_TIME)),
@@ -84,8 +61,7 @@ fn table_names(c: &mut Criterion) {
 fn benchmark_table_names(
     c: &mut Criterion,
     bench_name: &str,
-    database: &Database,
-    chunk_ids: &[u32],
+    chunk: &Chunk,
     predicate: Predicate,
     expected_rows: usize,
 ) {
@@ -93,9 +69,7 @@ fn benchmark_table_names(
         b.iter_batched(
             || predicate.clone(), // don't want to time predicate cloning
             |predicate: Predicate| {
-                let tables = database
-                    .table_names("hour_1", chunk_ids, predicate)
-                    .unwrap();
+                let tables = chunk.table_names(&predicate, &BTreeSet::new());
                 assert_eq!(tables.len(), expected_rows);
             },
             BatchSize::SmallInput,
