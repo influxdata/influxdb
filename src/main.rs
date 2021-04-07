@@ -17,6 +17,8 @@ use tokio::runtime::Runtime;
 use commands::logging::LoggingLevel;
 use ingest::parquet::writer::CompressionLevel;
 
+use tikv_jemallocator::Jemalloc;
+
 mod commands {
     pub mod convert;
     pub mod database;
@@ -33,6 +35,9 @@ mod commands {
 }
 
 pub mod influxdb_ioxd;
+
+#[global_allocator]
+static GLOBAL: Jemalloc = Jemalloc;
 
 enum ReturnCode {
     Failure = 1,
