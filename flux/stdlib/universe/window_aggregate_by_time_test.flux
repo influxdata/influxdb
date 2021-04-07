@@ -5,6 +5,8 @@ import "testing/expect"
 import "planner"
 import "csv"
 
+option now = () => (2030-01-01T00:00:00Z)
+
 input = "
 #group,false,false,true,true,false,false,true,true,true
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string
@@ -50,7 +52,7 @@ testcase windowed_by_time_count {
 ",
     )
     result = testing.loadStorage(csv: input)
-        |> range(start: -3y)
+        |> range(start: -100y)
         |> aggregateWindow(every: 1y, fn: count, timeSrc: "_start", createEmpty: false)
         |> keep(columns: ["_time", "_value"])
 
@@ -72,7 +74,7 @@ testcase windowed_by_time_sum {
 ",
     )
     result = testing.loadStorage(csv: input)
-        |> range(start: -3y)
+        |> range(start: -100y)
         |> aggregateWindow(every: 1y, fn: sum, timeSrc: "_start", createEmpty: false)
         |> keep(columns: ["_time", "_value"])
 
@@ -94,7 +96,7 @@ testcase windowed_by_time_mean {
 ",
     )
     result = testing.loadStorage(csv: input)
-        |> range(start: -3y)
+        |> range(start: -100y)
         |> aggregateWindow(every: 1y, fn: mean, timeSrc: "_start", createEmpty: false)
         |> keep(columns: ["_time", "_value"])
 
@@ -116,7 +118,7 @@ testcase windowed_by_time_min {
 ",
     )
     result = testing.loadStorage(csv: input)
-        |> range(start: -3y)
+        |> range(start: -100y)
         |> aggregateWindow(every: 1y, fn: min, timeSrc: "_start", createEmpty: false)
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])
         |> sort(columns: ["_time"])
@@ -139,7 +141,7 @@ testcase windowed_by_time_max {
 ",
     )
     result = testing.loadStorage(csv: input)
-        |> range(start: -3y)
+        |> range(start: -100y)
         |> aggregateWindow(every: 1y, fn: max, timeSrc: "_start", createEmpty: false)
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])
         |> sort(columns: ["_time"])
@@ -162,7 +164,7 @@ testcase windowed_by_time_first {
 ",
     )
     result = testing.loadStorage(csv: input)
-        |> range(start: -3y)
+        |> range(start: -100y)
         |> aggregateWindow(every: 1y, fn: first, timeSrc: "_start", createEmpty: false)
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])
         |> sort(columns: ["_time"])
@@ -185,7 +187,7 @@ testcase windowed_by_time_last {
 ",
     )
     result = testing.loadStorage(csv: input)
-        |> range(start: -3y)
+        |> range(start: -100y)
         |> aggregateWindow(every: 1y, fn: last, timeSrc: "_start", createEmpty: false)
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])
         |> sort(columns: ["_time"])

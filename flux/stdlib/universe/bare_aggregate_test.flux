@@ -5,6 +5,8 @@ import "testing/expect"
 import "planner"
 import "csv"
 
+option now = () => (2030-01-01T00:00:00Z)
+
 input = "
 #group,false,false,true,true,false,false,true,true,true
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string
@@ -48,7 +50,7 @@ testcase bare_count {
 ",
     )
     result = testing.loadStorage(csv: input)
-        |> range(start: -3y)
+        |> range(start: -100y)
         |> count()
         |> keep(columns: ["_value"])
 
@@ -68,7 +70,7 @@ testcase bare_sum {
 ",
     )
     result = testing.loadStorage(csv: input)
-        |> range(start: -3y)
+        |> range(start: -100y)
         |> sum()
         |> keep(columns: ["_value"])
 
@@ -88,7 +90,7 @@ testcase bare_mean {
 ",
     )
     result = testing.loadStorage(csv: input)
-        |> range(start: -3y)
+        |> range(start: -100y)
         |> mean()
         |> keep(columns: ["_value"])
 
@@ -108,7 +110,7 @@ testcase bare_min {
 ",
     )
     result = testing.loadStorage(csv: input)
-        |> range(start: -3y)
+        |> range(start: -100y)
         |> min()
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])
 
@@ -128,7 +130,7 @@ testcase bare_max {
 ",
     )
     result = testing.loadStorage(csv: input)
-        |> range(start: -3y)
+        |> range(start: -100y)
         |> max()
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])
 
@@ -148,7 +150,7 @@ testcase bare_first {
 ",
     )
     result = testing.loadStorage(csv: input)
-        |> range(start: -3y)
+        |> range(start: -100y)
         |> first()
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])
 
@@ -168,7 +170,7 @@ testcase bare_last {
 ",
     )
     result = testing.loadStorage(csv: input)
-        |> range(start: -3y)
+        |> range(start: -100y)
         |> last()
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])
 

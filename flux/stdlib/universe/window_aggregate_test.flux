@@ -5,6 +5,8 @@ import "testing/expect"
 import "planner"
 import "csv"
 
+option now = () => (2030-01-01T00:00:00Z)
+
 input = "
 #group,false,false,true,true,false,false,true,true,true
 #datatype,string,long,dateTime:RFC3339,dateTime:RFC3339,dateTime:RFC3339,double,string,string,string
@@ -50,7 +52,7 @@ testcase windowed_count {
 ",
     )
     result = testing.loadStorage(csv: input)
-        |> range(start: -3y)
+        |> range(start: -100y)
         |> window(every: 1y)
         |> count()
         |> keep(columns: ["_start", "_value"])
@@ -73,7 +75,7 @@ testcase windowed_sum {
 ",
     )
     result = testing.loadStorage(csv: input)
-        |> range(start: -3y)
+        |> range(start: -100y)
         |> window(every: 1y)
         |> sum()
         |> keep(columns: ["_start", "_value"])
@@ -96,7 +98,7 @@ testcase windowed_mean {
 ",
     )
     result = testing.loadStorage(csv: input)
-        |> range(start: -3y)
+        |> range(start: -100y)
         |> window(every: 1y)
         |> mean()
         |> keep(columns: ["_start", "_value"])
@@ -119,7 +121,7 @@ testcase windowed_min {
 ",
     )
     result = testing.loadStorage(csv: input)
-        |> range(start: -3y)
+        |> range(start: -100y)
         |> window(every: 1y)
         |> min()
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])
@@ -143,7 +145,7 @@ testcase windowed_max {
 ",
     )
     result = testing.loadStorage(csv: input)
-        |> range(start: -3y)
+        |> range(start: -100y)
         |> window(every: 1y)
         |> max()
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])
@@ -167,7 +169,7 @@ testcase windowed_first {
 ",
     )
     result = testing.loadStorage(csv: input)
-        |> range(start: -3y)
+        |> range(start: -100y)
         |> window(every: 1y)
         |> first()
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])
@@ -191,7 +193,7 @@ testcase windowed_last {
 ",
     )
     result = testing.loadStorage(csv: input)
-        |> range(start: -3y)
+        |> range(start: -100y)
         |> window(every: 1y)
         |> last()
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])
