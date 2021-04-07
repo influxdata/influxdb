@@ -10,7 +10,6 @@ import (
 	"github.com/influxdata/flux/memory"
 	"github.com/influxdata/flux/metadata"
 	"github.com/influxdata/flux/plan"
-	"github.com/influxdata/influxdb/kit/tracing"
 	"github.com/influxdata/influxdb/tsdb/cursors"
 )
 
@@ -274,9 +273,6 @@ func (s *readWindowAggregateSource) run(ctx context.Context) error {
 }
 
 func createReadWindowAggregateSource(s plan.ProcedureSpec, id execute.DatasetID, a execute.Administration) (execute.Source, error) {
-	span, ctx := tracing.StartSpanFromContext(a.Context())
-	defer span.Finish()
-
 	spec := s.(*ReadWindowAggregatePhysSpec)
 
 	bounds := a.StreamContext().Bounds()
@@ -289,7 +285,7 @@ func createReadWindowAggregateSource(s plan.ProcedureSpec, id execute.DatasetID,
 
 	deps := GetStorageDependencies(a.Context())
 
-	db, rp, err := spec.LookupDatabase(ctx, deps, a)
+	db, rp, err := spec.LookupDatabase(a.Context(), deps, a)
 	if err != nil {
 		return nil, err
 	}
