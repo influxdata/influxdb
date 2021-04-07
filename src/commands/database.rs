@@ -196,7 +196,7 @@ pub async fn command(url: String, config: Config) -> Result<()> {
         Command::List(_) => {
             let mut client = management::Client::new(connection);
             let databases = client.list_databases().await?;
-            println!("{}", databases.join(", "))
+            println!("{}", databases.join("\n"))
         }
         Command::Get(get) => {
             let mut client = management::Client::new(connection);
