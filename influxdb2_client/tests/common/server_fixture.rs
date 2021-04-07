@@ -54,8 +54,7 @@ pub struct ServerFixture {
 impl ServerFixture {
     /// Create a new server fixture and wait for it to be ready. This
     /// is called "create" rather than new because it is async and
-    /// waits. The shared database is configured with a writer id and
-    /// can be used immediately
+    /// waits. The shared database can be used immediately.
     ///
     /// This is currently implemented as a singleton so all tests *must*
     /// use a new database and not interfere with the existing database.
