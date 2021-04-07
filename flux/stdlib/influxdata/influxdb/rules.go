@@ -271,6 +271,7 @@ func (rule PushDownReadTagKeysRule) Rewrite(ctx context.Context, pn plan.Node) (
 		ReadRangePhysSpec: *fromSpec.Copy().(*ReadRangePhysSpec),
 	}), true, nil
 }
+
 // PushDownReadTagValuesRule matches 'ReadRange |> keep(columns: [tag]) |> group() |> distinct(column: tag)'.
 // The 'from()' must have already been merged with 'range' and, optionally,
 // may have been merged with 'filter'.
