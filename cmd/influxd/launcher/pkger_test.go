@@ -12,16 +12,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
-
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/check"
 	"github.com/influxdata/influxdb/v2/notification/endpoint"
 	"github.com/influxdata/influxdb/v2/notification/rule"
 	"github.com/influxdata/influxdb/v2/pkger"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -220,7 +220,7 @@ func TestLauncher_Pkger(t *testing.T) {
 	}
 
 	newTaskObject := func(pkgName, name, description string) pkger.Object {
-		obj := pkger.TaskToObject("", influxdb.Task{
+		obj := pkger.TaskToObject("", taskmodel.Task{
 			Name:        name,
 			Description: description,
 			Flux:        "buckets()",
@@ -2359,7 +2359,7 @@ func TestLauncher_Pkger(t *testing.T) {
 		require.NoError(t, err)
 		assert.Empty(t, rules)
 
-		tasks, _, err := l.TaskServiceKV(t).FindTasks(ctx, influxdb.TaskFilter{
+		tasks, _, err := l.TaskServiceKV(t).FindTasks(ctx, taskmodel.TaskFilter{
 			OrganizationID: &l.Org.ID,
 		})
 		require.NoError(t, err)
@@ -2948,7 +2948,7 @@ spec:
 		assert.NotZero(t, endpoints[0].NotificationEndpoint.GetID())
 		assert.Equal(t, "no auth endpoint", endpoints[0].NotificationEndpoint.GetName())
 		assert.Equal(t, "http none auth desc", endpoints[0].NotificationEndpoint.GetDescription())
-		assert.Equal(t, influxdb.TaskStatusInactive, string(endpoints[0].NotificationEndpoint.GetStatus()))
+		assert.Equal(t, taskmodel.TaskStatusInactive, string(endpoints[0].NotificationEndpoint.GetStatus()))
 		hasLabelAssociations(t, endpoints[0].LabelAssociations, 1, "label-1")
 
 		require.Len(t, sum1.NotificationRules, 1)
@@ -3080,7 +3080,7 @@ spec:
 				require.Len(t, endpoints, 1)
 				assert.Equal(t, "no auth endpoint", endpoints[0].NotificationEndpoint.GetName())
 				assert.Equal(t, "http none auth desc", endpoints[0].NotificationEndpoint.GetDescription())
-				assert.Equal(t, influxdb.TaskStatusInactive, string(endpoints[0].NotificationEndpoint.GetStatus()))
+				assert.Equal(t, taskmodel.TaskStatusInactive, string(endpoints[0].NotificationEndpoint.GetStatus()))
 				hasLabelAssociations(t, endpoints[0].LabelAssociations, 1, "label-1")
 
 				require.Len(t, sum.NotificationRules, 1)
@@ -4944,23 +4944,23 @@ func (r resourceChecker) mustDeleteRule(t *testing.T, id platform.ID) {
 	require.NoError(t, r.tl.NotificationRuleService(t).DeleteNotificationRule(ctx, id))
 }
 
-func (r resourceChecker) getTask(t *testing.T, getOpt getResourceOptFn) (influxdb.Task, error) {
+func (r resourceChecker) getTask(t *testing.T, getOpt getResourceOptFn) (taskmodel.Task, error) {
 	t.Helper()
 
 	taskSVC := r.tl.TaskService(t)
 
 	var (
-		task *influxdb.Task
+		task *taskmodel.Task
 		err  error
 	)
 	switch opt := getOpt(); {
 	case opt.name != "":
-		tasks, _, err := taskSVC.FindTasks(ctx, influxdb.TaskFilter{
+		tasks, _, err := taskSVC.FindTasks(ctx, taskmodel.TaskFilter{
 			Name:           &opt.name,
 			OrganizationID: &r.tl.Org.ID,
 		})
 		if err != nil {
-			return influxdb.Task{}, err
+			return taskmodel.Task{}, err
 		}
 		for _, tt := range tasks {
 			if tt.Name == opt.name {
@@ -4974,13 +4974,13 @@ func (r resourceChecker) getTask(t *testing.T, getOpt getResourceOptFn) (influxd
 		require.Fail(t, "did not provide a valid get option")
 	}
 	if task == nil {
-		return influxdb.Task{}, errors.New("did not find expected task by name")
+		return taskmodel.Task{}, errors.New("did not find expected task by name")
 	}
 
 	return *task, err
 }
 
-func (r resourceChecker) mustGetTask(t *testing.T, getOpt getResourceOptFn) influxdb.Task {
+func (r resourceChecker) mustGetTask(t *testing.T, getOpt getResourceOptFn) taskmodel.Task {
 	t.Helper()
 
 	task, err := r.getTask(t, getOpt)

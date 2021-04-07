@@ -6,11 +6,10 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
-
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/task/backend/executor"
 	"github.com/influxdata/influxdb/v2/task/backend/middleware"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"go.uber.org/zap"
 )
 
@@ -39,7 +38,7 @@ type CoordinatorOption func(*Coordinator)
 
 // SchedulableTask is a wrapper around the Task struct, giving it methods to make it compatible with the Scheduler
 type SchedulableTask struct {
-	*influxdb.Task
+	*taskmodel.Task
 	sch scheduler.Schedule
 	lsc time.Time
 }
@@ -70,7 +69,7 @@ func WithLimitOpt(i int) CoordinatorOption {
 }
 
 // NewSchedulableTask transforms an influxdb task to a schedulable task type
-func NewSchedulableTask(task *influxdb.Task) (SchedulableTask, error) {
+func NewSchedulableTask(task *taskmodel.Task) (SchedulableTask, error) {
 
 	if task.Cron == "" && task.Every == "" {
 		return SchedulableTask{}, errors.New("invalid cron or every")
@@ -108,7 +107,7 @@ func NewCoordinator(log *zap.Logger, scheduler scheduler.Scheduler, executor Exe
 }
 
 // TaskCreated asks the Scheduler to schedule the newly created task
-func (c *Coordinator) TaskCreated(ctx context.Context, task *influxdb.Task) error {
+func (c *Coordinator) TaskCreated(ctx context.Context, task *taskmodel.Task) error {
 	t, err := NewSchedulableTask(task)
 
 	if err != nil {
@@ -124,7 +123,7 @@ func (c *Coordinator) TaskCreated(ctx context.Context, task *influxdb.Task) erro
 }
 
 // TaskUpdated releases the task if it is being disabled, and schedules it otherwise
-func (c *Coordinator) TaskUpdated(ctx context.Context, from, to *influxdb.Task) error {
+func (c *Coordinator) TaskUpdated(ctx context.Context, from, to *taskmodel.Task) error {
 	sid := scheduler.ID(to.ID)
 	t, err := NewSchedulableTask(to)
 	if err != nil {
@@ -132,8 +131,8 @@ func (c *Coordinator) TaskUpdated(ctx context.Context, from, to *influxdb.Task) 
 	}
 
 	// if disabling the task, release it before schedule update
-	if to.Status != from.Status && to.Status == string(influxdb.TaskInactive) {
-		if err := c.sch.Release(sid); err != nil && err != influxdb.ErrTaskNotClaimed {
+	if to.Status != from.Status && to.Status == string(taskmodel.TaskInactive) {
+		if err := c.sch.Release(sid); err != nil && err != taskmodel.ErrTaskNotClaimed {
 			return err
 		}
 	} else {
@@ -148,7 +147,7 @@ func (c *Coordinator) TaskUpdated(ctx context.Context, from, to *influxdb.Task) 
 //TaskDeleted asks the Scheduler to release the deleted task
 func (c *Coordinator) TaskDeleted(ctx context.Context, id platform.ID) error {
 	tid := scheduler.ID(id)
-	if err := c.sch.Release(tid); err != nil && err != influxdb.ErrTaskNotClaimed {
+	if err := c.sch.Release(tid); err != nil && err != taskmodel.ErrTaskNotClaimed {
 		return err
 	}
 
@@ -163,10 +162,10 @@ func (c *Coordinator) RunCancelled(ctx context.Context, runID platform.ID) error
 }
 
 // RunRetried speaks directly to the executor to re-try a task run immediately
-func (c *Coordinator) RunRetried(ctx context.Context, task *influxdb.Task, run *influxdb.Run) error {
+func (c *Coordinator) RunRetried(ctx context.Context, task *taskmodel.Task, run *taskmodel.Run) error {
 	promise, err := c.ex.ManualRun(ctx, task.ID, run.ID)
 	if err != nil {
-		return influxdb.ErrRunExecutionError(err)
+		return taskmodel.ErrRunExecutionError(err)
 	}
 
 	<-promise.Done()
@@ -178,10 +177,10 @@ func (c *Coordinator) RunRetried(ctx context.Context, task *influxdb.Task, run *
 }
 
 // RunForced speaks directly to the Executor to run a task immediately
-func (c *Coordinator) RunForced(ctx context.Context, task *influxdb.Task, run *influxdb.Run) error {
+func (c *Coordinator) RunForced(ctx context.Context, task *taskmodel.Task, run *taskmodel.Run) error {
 	promise, err := c.ex.ManualRun(ctx, task.ID, run.ID)
 	if err != nil {
-		return influxdb.ErrRunExecutionError(err)
+		return taskmodel.ErrRunExecutionError(err)
 	}
 
 	<-promise.Done()

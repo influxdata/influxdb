@@ -3,9 +3,9 @@ package authorizer
 import (
 	"context"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
 
 var _ influxdb.CheckService = (*CheckService)(nil)
@@ -16,7 +16,7 @@ type CheckService struct {
 	s influxdb.CheckService
 	influxdb.UserResourceMappingService
 	influxdb.OrganizationService
-	influxdb.TaskService
+	taskmodel.TaskService
 }
 
 // NewCheckService constructs an instance of an authorizing check service.

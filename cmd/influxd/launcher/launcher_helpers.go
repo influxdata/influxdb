@@ -28,6 +28,7 @@ import (
 	"github.com/influxdata/influxdb/v2/pkger"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/restore"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/influxdata/influxdb/v2/tenant"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
@@ -448,7 +449,7 @@ func (tl *TestLauncher) PkgerService(tb testing.TB) pkger.SVC {
 	return &pkger.HTTPRemoteService{Client: tl.HTTPClient(tb)}
 }
 
-func (tl *TestLauncher) TaskServiceKV(tb testing.TB) influxdb.TaskService {
+func (tl *TestLauncher) TaskServiceKV(tb testing.TB) taskmodel.TaskService {
 	return tl.kvService
 }
 
@@ -467,7 +468,7 @@ func (tl *TestLauncher) AuthorizationService(tb testing.TB) *http.AuthorizationS
 	return &http.AuthorizationService{Client: tl.HTTPClient(tb)}
 }
 
-func (tl *TestLauncher) TaskService(tb testing.TB) influxdb.TaskService {
+func (tl *TestLauncher) TaskService(tb testing.TB) taskmodel.TaskService {
 	tb.Helper()
 	return &http.TaskService{Client: tl.HTTPClient(tb)}
 }

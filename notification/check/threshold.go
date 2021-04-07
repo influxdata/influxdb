@@ -5,13 +5,13 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/flux"
 	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 )
 
 var _ influxdb.Check = (*Threshold)(nil)
@@ -28,7 +28,7 @@ func (t Threshold) Type() string {
 }
 
 // Valid returns error if something is invalid.
-func (t Threshold) Valid(lang influxdb.FluxLanguageService) error {
+func (t Threshold) Valid(lang fluxlang.FluxLanguageService) error {
 	if err := t.Base.Valid(lang); err != nil {
 		return err
 	}
@@ -106,7 +106,7 @@ func multiError(errs []error) error {
 // GenerateFlux returns a flux script for the threshold provided. If there
 // are any errors in the flux that the user provided the function will return
 // an error for each error found when the script is parsed.
-func (t Threshold) GenerateFlux(lang influxdb.FluxLanguageService) (string, error) {
+func (t Threshold) GenerateFlux(lang fluxlang.FluxLanguageService) (string, error) {
 	p, err := t.GenerateFluxAST(lang)
 	if err != nil {
 		return "", err
@@ -118,7 +118,7 @@ func (t Threshold) GenerateFlux(lang influxdb.FluxLanguageService) (string, erro
 // GenerateFluxAST returns a flux AST for the threshold provided. If there
 // are any errors in the flux that the user provided the function will return
 // an error for each error found when the script is parsed.
-func (t Threshold) GenerateFluxAST(lang influxdb.FluxLanguageService) (*ast.Package, error) {
+func (t Threshold) GenerateFluxAST(lang fluxlang.FluxLanguageService) (*ast.Package, error) {
 	p, err := query.Parse(lang, t.Query.Text)
 	if p == nil {
 		return nil, err

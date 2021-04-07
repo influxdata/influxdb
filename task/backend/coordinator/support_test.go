@@ -4,10 +4,9 @@ import (
 	"context"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
-
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/task/backend/executor"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
 
 var _ Executor = (*executorE)(nil)
@@ -45,7 +44,7 @@ type (
 
 type (
 	promise struct {
-		run *influxdb.Run
+		run *taskmodel.Run
 
 		done chan struct{}
 		err  error

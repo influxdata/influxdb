@@ -3,15 +3,15 @@ package kv
 import (
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
 
 func Test_newTaskMatchFN(t *testing.T) {
-	ct := func(typ string, name string) *influxdb.Task {
-		return &influxdb.Task{
+	ct := func(typ string, name string) *taskmodel.Task {
+		return &taskmodel.Task{
 			Type:           typ,
 			OrganizationID: 1,
 			Name:           name,
@@ -27,7 +27,7 @@ func Test_newTaskMatchFN(t *testing.T) {
 	newMatch := func(orgID platform.ID, typ string, name string) taskMatchFn {
 		var (
 			org *influxdb.Organization
-			fil influxdb.TaskFilter
+			fil taskmodel.TaskFilter
 		)
 
 		if orgID != NoOrg {
@@ -47,7 +47,7 @@ func Test_newTaskMatchFN(t *testing.T) {
 
 	type test struct {
 		name string
-		task *influxdb.Task
+		task *taskmodel.Task
 		fn   taskMatchFn
 		exp  bool
 	}
@@ -61,13 +61,13 @@ func Test_newTaskMatchFN(t *testing.T) {
 			[]test{
 				{
 					name: "equal",
-					task: ct(influxdb.TaskSystemType, "Foo"),
+					task: ct(taskmodel.TaskSystemType, "Foo"),
 					fn:   newMatch(1, NoTyp, NoNam),
 					exp:  true,
 				},
 				{
 					name: "not org",
-					task: ct(influxdb.TaskSystemType, "Foo"),
+					task: ct(taskmodel.TaskSystemType, "Foo"),
 					fn:   newMatch(2, NoTyp, NoNam),
 					exp:  false,
 				},
@@ -79,13 +79,13 @@ func Test_newTaskMatchFN(t *testing.T) {
 				{
 					name: "empty with system type",
 					task: ct("", "Foo"),
-					fn:   newMatch(NoOrg, influxdb.TaskSystemType, NoNam),
+					fn:   newMatch(NoOrg, taskmodel.TaskSystemType, NoNam),
 					exp:  true,
 				},
 				{
 					name: "system with system type",
-					task: ct(influxdb.TaskSystemType, "Foo"),
-					fn:   newMatch(NoOrg, influxdb.TaskSystemType, NoNam),
+					task: ct(taskmodel.TaskSystemType, "Foo"),
+					fn:   newMatch(NoOrg, taskmodel.TaskSystemType, NoNam),
 					exp:  true,
 				},
 				{
@@ -96,7 +96,7 @@ func Test_newTaskMatchFN(t *testing.T) {
 				},
 				{
 					name: "not type",
-					task: ct(influxdb.TaskSystemType, "Foo"),
+					task: ct(taskmodel.TaskSystemType, "Foo"),
 					fn:   newMatch(NoOrg, "other type", NoNam),
 					exp:  false,
 				},
@@ -107,13 +107,13 @@ func Test_newTaskMatchFN(t *testing.T) {
 			[]test{
 				{
 					name: "equal",
-					task: ct(influxdb.TaskSystemType, "Foo"),
+					task: ct(taskmodel.TaskSystemType, "Foo"),
 					fn:   newMatch(NoOrg, NoTyp, "Foo"),
 					exp:  true,
 				},
 				{
 					name: "not name",
-					task: ct(influxdb.TaskSystemType, "Foo"),
+					task: ct(taskmodel.TaskSystemType, "Foo"),
 					fn:   newMatch(NoOrg, NoTyp, "Bar"),
 					exp:  false,
 				},
@@ -124,26 +124,26 @@ func Test_newTaskMatchFN(t *testing.T) {
 			[]test{
 				{
 					name: "equal",
-					task: ct(influxdb.TaskSystemType, "Foo"),
-					fn:   newMatch(1, influxdb.TaskSystemType, NoNam),
+					task: ct(taskmodel.TaskSystemType, "Foo"),
+					fn:   newMatch(1, taskmodel.TaskSystemType, NoNam),
 					exp:  true,
 				},
 				{
 					name: "not type",
-					task: ct(influxdb.TaskSystemType, "Foo"),
+					task: ct(taskmodel.TaskSystemType, "Foo"),
 					fn:   newMatch(1, "wrong type", NoNam),
 					exp:  false,
 				},
 				{
 					name: "not org",
-					task: ct(influxdb.TaskSystemType, "Foo"),
-					fn:   newMatch(2, influxdb.TaskSystemType, NoNam),
+					task: ct(taskmodel.TaskSystemType, "Foo"),
+					fn:   newMatch(2, taskmodel.TaskSystemType, NoNam),
 					exp:  false,
 				},
 				{
 					name: "not org and type",
 					task: ct("check", "Foo"),
-					fn:   newMatch(2, influxdb.TaskSystemType, NoNam),
+					fn:   newMatch(2, taskmodel.TaskSystemType, NoNam),
 					exp:  false,
 				},
 			},
@@ -153,13 +153,13 @@ func Test_newTaskMatchFN(t *testing.T) {
 			[]test{
 				{
 					name: "equal",
-					task: ct(influxdb.TaskSystemType, "Foo"),
+					task: ct(taskmodel.TaskSystemType, "Foo"),
 					fn:   newMatch(1, NoTyp, "Foo"),
 					exp:  true,
 				},
 				{
 					name: "not org",
-					task: ct(influxdb.TaskSystemType, "Foo"),
+					task: ct(taskmodel.TaskSystemType, "Foo"),
 					fn:   newMatch(2, NoTyp, "Foo"),
 					exp:  false,
 				},
@@ -208,7 +208,7 @@ func Test_newTaskMatchFN(t *testing.T) {
 	}
 
 	t.Run("match returns nil for no filter", func(t *testing.T) {
-		fn := newTaskMatchFn(influxdb.TaskFilter{}, nil)
+		fn := newTaskMatchFn(taskmodel.TaskFilter{}, nil)
 		if fn != nil {
 			t.Error("expected nil")
 		}

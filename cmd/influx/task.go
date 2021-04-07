@@ -5,17 +5,17 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/http"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/spf13/cobra"
 )
 
-type taskSVCsFn func() (influxdb.TaskService, influxdb.OrganizationService, error)
+type taskSVCsFn func() (taskmodel.TaskService, influxdb.OrganizationService, error)
 
-func newTaskSVCs() (influxdb.TaskService, influxdb.OrganizationService, error) {
+func newTaskSVCs() (taskmodel.TaskService, influxdb.OrganizationService, error) {
 	httpClient, err := newHTTPClient()
 	if err != nil {
 		return nil, nil, err
@@ -116,7 +116,7 @@ func (b *cmdTaskBuilder) taskCreateF(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("error parsing flux script: %s", err)
 	}
 
-	tc := influxdb.TaskCreate{
+	tc := taskmodel.TaskCreate{
 		Flux:         flux,
 		Organization: b.org.name,
 	}
@@ -152,7 +152,7 @@ func (b *cmdTaskBuilder) taskFindCmd() *cobra.Command {
 	registerPrintOptions(b.opts.viper, cmd, &b.taskPrintFlags.hideHeaders, &b.taskPrintFlags.json)
 	cmd.Flags().StringVarP(&b.taskID, "id", "i", "", "task ID")
 	cmd.Flags().StringVarP(&b.taskFindFlags.user, "user-id", "n", "", "task owner ID")
-	cmd.Flags().IntVarP(&b.taskFindFlags.limit, "limit", "", influxdb.TaskDefaultPageSize, "the number of tasks to find")
+	cmd.Flags().IntVarP(&b.taskFindFlags.limit, "limit", "", taskmodel.TaskDefaultPageSize, "the number of tasks to find")
 	cmd.Flags().BoolVar(&b.taskFindFlags.headers, "headers", true, "To print the table headers; defaults true")
 
 	return cmd
@@ -169,7 +169,7 @@ func (b *cmdTaskBuilder) taskFindF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	filter := influxdb.TaskFilter{}
+	filter := taskmodel.TaskFilter{}
 	if b.taskFindFlags.user != "" {
 		id, err := platform.IDFromString(b.taskFindFlags.user)
 		if err != nil {
@@ -189,12 +189,12 @@ func (b *cmdTaskBuilder) taskFindF(cmd *cobra.Command, args []string) error {
 		filter.OrganizationID = id
 	}
 
-	if b.taskFindFlags.limit < 1 || b.taskFindFlags.limit > influxdb.TaskMaxPageSize {
-		return fmt.Errorf("limit must be between 1 and %d", influxdb.TaskMaxPageSize)
+	if b.taskFindFlags.limit < 1 || b.taskFindFlags.limit > taskmodel.TaskMaxPageSize {
+		return fmt.Errorf("limit must be between 1 and %d", taskmodel.TaskMaxPageSize)
 	}
 	filter.Limit = b.taskFindFlags.limit
 
-	var tasks []*influxdb.Task
+	var tasks []*taskmodel.Task
 
 	if b.taskID != "" {
 		id, err := platform.IDFromString(b.taskID)
@@ -262,7 +262,7 @@ func (b *cmdTaskBuilder) taskRetryFailedF(*cobra.Command, []string) error {
 		return err
 	}
 
-	var failedRuns []*influxdb.Run
+	var failedRuns []*taskmodel.Run
 	if b.taskID == "" {
 		failedRuns, err = b.getFailedRunsForOrg(b.taskRerunFailedFlags.taskLimit, b.taskRerunFailedFlags.runLimit)
 	} else {
@@ -295,13 +295,13 @@ func (b *cmdTaskBuilder) taskRetryFailedF(*cobra.Command, []string) error {
 	return nil
 }
 
-func (b *cmdTaskBuilder) getFailedRunsForTaskID(limit int) ([]*influxdb.Run, error) {
+func (b *cmdTaskBuilder) getFailedRunsForTaskID(limit int) ([]*taskmodel.Run, error) {
 	// use RunFilter to search for failed runs
 	tskSvc, _, err := b.svcFn()
 	if err != nil {
 		return nil, err
 	}
-	runFilter := influxdb.RunFilter{Limit: limit}
+	runFilter := taskmodel.RunFilter{Limit: limit}
 	id, err := platform.IDFromString(b.taskID)
 	if err != nil {
 		return nil, err
@@ -313,7 +313,7 @@ func (b *cmdTaskBuilder) getFailedRunsForTaskID(limit int) ([]*influxdb.Run, err
 	if err != nil {
 		return nil, err
 	}
-	var allFailedRuns []*influxdb.Run
+	var allFailedRuns []*taskmodel.Run
 	for _, run := range allRuns {
 		if run.Status == "failed" {
 			allFailedRuns = append(allFailedRuns, run)
@@ -323,10 +323,10 @@ func (b *cmdTaskBuilder) getFailedRunsForTaskID(limit int) ([]*influxdb.Run, err
 
 }
 
-func (b *cmdTaskBuilder) getFailedRunsForOrg(taskLimit int, runLimit int) ([]*influxdb.Run, error) {
+func (b *cmdTaskBuilder) getFailedRunsForOrg(taskLimit int, runLimit int) ([]*taskmodel.Run, error) {
 	// use TaskFilter to get all Tasks in org then search for failed runs in each task
-	taskFilter := influxdb.TaskFilter{Limit: taskLimit}
-	runFilter := influxdb.RunFilter{Limit: runLimit}
+	taskFilter := taskmodel.TaskFilter{Limit: taskLimit}
+	runFilter := taskmodel.RunFilter{Limit: runLimit}
 	runFilter.BeforeTime = b.taskRerunFailedFlags.before
 	runFilter.AfterTime = b.taskRerunFailedFlags.after
 	tskSvc, _, err := b.svcFn()
@@ -350,11 +350,11 @@ func (b *cmdTaskBuilder) getFailedRunsForOrg(taskLimit int, runLimit int) ([]*in
 		return nil, err
 	}
 
-	var allFailedRuns []*influxdb.Run
+	var allFailedRuns []*taskmodel.Run
 	for _, t := range allTasks {
 		runFilter.Task = t.ID
 		runsPerTask, _, err := tskSvc.FindRuns(context.Background(), runFilter)
-		var failedRunsPerTask []*influxdb.Run
+		var failedRunsPerTask []*taskmodel.Run
 		for _, r := range runsPerTask {
 			if r.Status == "failed" {
 				failedRunsPerTask = append(failedRunsPerTask, r)
@@ -399,7 +399,7 @@ func (b *cmdTaskBuilder) taskUpdateF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	var update influxdb.TaskUpdate
+	var update taskmodel.TaskUpdate
 	if b.taskUpdateFlags.status != "" {
 		update.Status = &b.taskUpdateFlags.status
 	}
@@ -460,8 +460,8 @@ func (b *cmdTaskBuilder) taskDeleteF(cmd *cobra.Command, args []string) error {
 }
 
 type taskPrintOpts struct {
-	task  *influxdb.Task
-	tasks []*influxdb.Task
+	task  *taskmodel.Task
+	tasks []*taskmodel.Task
 }
 
 func (b *cmdTaskBuilder) printTasks(printOpts taskPrintOpts) error {
@@ -537,7 +537,7 @@ func (b *cmdTaskBuilder) taskLogFindF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	var filter influxdb.LogFilter
+	var filter taskmodel.LogFilter
 	id, err := platform.IDFromString(b.taskID)
 	if err != nil {
 		return err
@@ -621,7 +621,7 @@ func (b *cmdTaskBuilder) taskRunFindF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	filter := influxdb.RunFilter{
+	filter := taskmodel.RunFilter{
 		Limit:      b.taskRunFindFlags.limit,
 		AfterTime:  b.taskRunFindFlags.afterTime,
 		BeforeTime: b.taskRunFindFlags.beforeTime,
@@ -632,7 +632,7 @@ func (b *cmdTaskBuilder) taskRunFindF(cmd *cobra.Command, args []string) error {
 	}
 	filter.Task = *taskID
 
-	var runs []*influxdb.Run
+	var runs []*taskmodel.Run
 	if b.runID != "" {
 		id, err := platform.IDFromString(b.runID)
 		if err != nil {
@@ -653,7 +653,7 @@ func (b *cmdTaskBuilder) taskRunFindF(cmd *cobra.Command, args []string) error {
 	if b.taskPrintFlags.json {
 		if runs == nil {
 			// guarantee we never return a null value from CLI
-			runs = make([]*influxdb.Run, 0)
+			runs = make([]*taskmodel.Run, 0)
 		}
 		return b.opts.writeJSON(runs)
 	}

@@ -11,19 +11,19 @@ import (
 	"path"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/flux/parser"
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	pcontext "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/check"
 	"github.com/influxdata/influxdb/v2/pkg/testttp"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	influxTesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
@@ -284,8 +284,8 @@ func TestService_handleGetChecks(t *testing.T) {
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.LabelService = tt.fields.LabelService
 			checkBackend.TaskService = &mock.TaskService{
-				FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
-					return &influxdb.Task{Status: "active"}, nil
+				FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*taskmodel.Task, error) {
+					return &taskmodel.Task{Status: "active"}, nil
 				},
 			}
 			h := NewCheckHandler(zaptest.NewLogger(t), checkBackend)
@@ -426,8 +426,8 @@ func TestService_handleGetCheckQuery(t *testing.T) {
 			checkBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.TaskService = &mock.TaskService{
-				FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
-					return &influxdb.Task{}, nil
+				FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*taskmodel.Task, error) {
+					return &taskmodel.Task{}, nil
 				},
 			}
 
@@ -567,8 +567,8 @@ func TestService_handleGetCheck(t *testing.T) {
 			checkBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.TaskService = &mock.TaskService{
-				FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
-					return &influxdb.Task{Status: "active"}, nil
+				FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*taskmodel.Task, error) {
+					return &taskmodel.Task{Status: "active"}, nil
 				},
 			}
 			h := NewCheckHandler(zaptest.NewLogger(t), checkBackend)
@@ -734,8 +734,8 @@ func TestService_handlePostCheck(t *testing.T) {
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.OrganizationService = tt.fields.OrganizationService
 			checkBackend.TaskService = &mock.TaskService{
-				FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
-					return &influxdb.Task{Status: "active"}, nil
+				FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*taskmodel.Task, error) {
+					return &taskmodel.Task{Status: "active"}, nil
 				},
 			}
 			h := NewCheckHandler(zaptest.NewLogger(t), checkBackend)
@@ -837,8 +837,8 @@ func TestService_handleDeleteCheck(t *testing.T) {
 			checkBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.TaskService = &mock.TaskService{
-				FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
-					return &influxdb.Task{}, nil
+				FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*taskmodel.Task, error) {
+					return &taskmodel.Task{}, nil
 				},
 			}
 			h := NewCheckHandler(zaptest.NewLogger(t), checkBackend)
@@ -1003,8 +1003,8 @@ func TestService_handlePatchCheck(t *testing.T) {
 			checkBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.TaskService = &mock.TaskService{
-				FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
-					return &influxdb.Task{Status: "active"}, nil
+				FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*taskmodel.Task, error) {
+					return &taskmodel.Task{Status: "active"}, nil
 				},
 			}
 			h := NewCheckHandler(zaptest.NewLogger(t), checkBackend)
@@ -1197,8 +1197,8 @@ func TestService_handleUpdateCheck(t *testing.T) {
 			checkBackend.HTTPErrorHandler = kithttp.ErrorHandler(0)
 			checkBackend.CheckService = tt.fields.CheckService
 			checkBackend.TaskService = &mock.TaskService{
-				FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
-					return &influxdb.Task{Status: "active"}, nil
+				FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*taskmodel.Task, error) {
+					return &taskmodel.Task{Status: "active"}, nil
 				},
 			}
 			h := NewCheckHandler(zaptest.NewLogger(t), checkBackend)
@@ -1308,8 +1308,8 @@ func TestService_handlePostCheckMember(t *testing.T) {
 			checkBackend := NewMockCheckBackend(t)
 			checkBackend.UserService = tt.fields.UserService
 			checkBackend.TaskService = &mock.TaskService{
-				FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
-					return &influxdb.Task{}, nil
+				FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*taskmodel.Task, error) {
+					return &taskmodel.Task{}, nil
 				},
 			}
 			h := NewCheckHandler(zaptest.NewLogger(t), checkBackend)

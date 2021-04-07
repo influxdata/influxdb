@@ -4,13 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/flux"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 )
 
 // Base will embed inside a check.
@@ -39,7 +39,7 @@ type Base struct {
 }
 
 // Valid returns err if the check is invalid.
-func (b Base) Valid(lang influxdb.FluxLanguageService) error {
+func (b Base) Valid(lang fluxlang.FluxLanguageService) error {
 	if !b.ID.Valid() {
 		return &errors.Error{
 			Code: errors.EInvalid,

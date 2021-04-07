@@ -9,15 +9,16 @@ import (
 	"path"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	pctx "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/notification/check"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"go.uber.org/zap"
 )
 
@@ -28,13 +29,13 @@ type CheckBackend struct {
 	log *zap.Logger
 
 	AlgoWProxy                 FeatureProxyHandler
-	TaskService                influxdb.TaskService
+	TaskService                taskmodel.TaskService
 	CheckService               influxdb.CheckService
 	UserResourceMappingService influxdb.UserResourceMappingService
 	LabelService               influxdb.LabelService
 	UserService                influxdb.UserService
 	OrganizationService        influxdb.OrganizationService
-	FluxLanguageService        influxdb.FluxLanguageService
+	FluxLanguageService        fluxlang.FluxLanguageService
 }
 
 // NewCheckBackend returns a new instance of CheckBackend.
@@ -59,13 +60,13 @@ type CheckHandler struct {
 	errors.HTTPErrorHandler
 	log *zap.Logger
 
-	TaskService                influxdb.TaskService
+	TaskService                taskmodel.TaskService
 	CheckService               influxdb.CheckService
 	UserResourceMappingService influxdb.UserResourceMappingService
 	LabelService               influxdb.LabelService
 	UserService                influxdb.UserService
 	OrganizationService        influxdb.OrganizationService
-	FluxLanguageService        influxdb.FluxLanguageService
+	FluxLanguageService        fluxlang.FluxLanguageService
 }
 
 const (
@@ -441,7 +442,7 @@ func decodePostCheckRequest(r *http.Request) (postCheckRequest, error) {
 	}, nil
 }
 
-func decodePutCheckRequest(ctx context.Context, lang influxdb.FluxLanguageService, r *http.Request) (influxdb.CheckCreate, error) {
+func decodePutCheckRequest(ctx context.Context, lang fluxlang.FluxLanguageService, r *http.Request) (influxdb.CheckCreate, error) {
 	params := httprouter.ParamsFromContext(ctx)
 	id := params.ByName("id")
 	if id == "" {
