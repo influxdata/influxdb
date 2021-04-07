@@ -263,9 +263,6 @@ impl File {
 mod tests {
     use super::*;
 
-    type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
-    type Result<T, E = TestError> = std::result::Result<T, E>;
-
     use crate::{
         tests::{list_with_delimiter, put_get_delete_list},
         Error as ObjectStoreError, ObjectStore, ObjectStoreApi, ObjectStorePath,
@@ -274,19 +271,17 @@ mod tests {
     use tempfile::TempDir;
 
     #[tokio::test]
-    async fn file_test() -> Result<()> {
-        let root = TempDir::new()?;
+    async fn file_test() {
+        let root = TempDir::new().unwrap();
         let integration = ObjectStore::new_file(File::new(root.path()));
 
-        put_get_delete_list(&integration).await?;
-        list_with_delimiter(&integration).await?;
-
-        Ok(())
+        put_get_delete_list(&integration).await.unwrap();
+        list_with_delimiter(&integration).await.unwrap();
     }
 
     #[tokio::test]
-    async fn length_mismatch_is_an_error() -> Result<()> {
-        let root = TempDir::new()?;
+    async fn length_mismatch_is_an_error() {
+        let root = TempDir::new().unwrap();
         let integration = ObjectStore::new_file(File::new(root.path()));
 
         let bytes = stream::once(async { Ok(Bytes::from("hello world")) });
@@ -303,13 +298,11 @@ mod tests {
                 }
             }
         ));
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn creates_dir_if_not_present() -> Result<()> {
-        let root = TempDir::new()?;
+    async fn creates_dir_if_not_present() {
+        let root = TempDir::new().unwrap();
         let integration = ObjectStore::new_file(File::new(root.path()));
 
         let data = Bytes::from("arbitrary data");
@@ -323,22 +316,23 @@ mod tests {
                 futures::stream::once(async move { stream_data }),
                 Some(data.len()),
             )
-            .await?;
+            .await
+            .unwrap();
 
         let read_data = integration
             .get(&location)
-            .await?
+            .await
+            .unwrap()
             .map_ok(|b| bytes::BytesMut::from(&b[..]))
             .try_concat()
-            .await?;
+            .await
+            .unwrap();
         assert_eq!(&*read_data, data);
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn unknown_length() -> Result<()> {
-        let root = TempDir::new()?;
+    async fn unknown_length() {
+        let root = TempDir::new().unwrap();
         let integration = ObjectStore::new_file(File::new(root.path()));
 
         let data = Bytes::from("arbitrary data");
@@ -352,16 +346,17 @@ mod tests {
                 futures::stream::once(async move { stream_data }),
                 None,
             )
-            .await?;
+            .await
+            .unwrap();
 
         let read_data = integration
             .get(&location)
-            .await?
+            .await
+            .unwrap()
             .map_ok(|b| bytes::BytesMut::from(&b[..]))
             .try_concat()
-            .await?;
+            .await
+            .unwrap();
         assert_eq!(&*read_data, data);
-
-        Ok(())
     }
 }

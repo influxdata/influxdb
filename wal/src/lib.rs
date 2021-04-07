@@ -686,47 +686,42 @@ impl WritePayload {
 mod tests {
     use super::*;
 
-    type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
-    type Result<T = (), E = TestError> = std::result::Result<T, E>;
-
     #[test]
-    fn sequence_numbers_are_persisted() -> Result {
-        let dir = test_helpers::tmp_dir()?;
+    fn sequence_numbers_are_persisted() {
+        let dir = test_helpers::tmp_dir().unwrap();
         let builder = WalBuilder::new(dir.as_ref());
         let mut wal;
 
         // Create one in-memory WAL and sync it
         {
-            wal = builder.clone().wal()?;
+            wal = builder.clone().wal().unwrap();
 
             let data = Vec::from("somedata");
-            let data = WritePayload::new(data)?;
-            let seq = wal.append(data)?;
+            let data = WritePayload::new(data).unwrap();
+            let seq = wal.append(data).unwrap();
             assert_eq!(0, seq);
-            wal.sync_all()?;
+            wal.sync_all().unwrap();
         }
 
         // Pretend the process restarts
         {
-            wal = builder.wal()?;
+            wal = builder.wal().unwrap();
 
             assert_eq!(1, wal.sequence_number);
         }
-
-        Ok(())
     }
 
     #[test]
-    fn sequence_numbers_increase_by_number_of_pending_entries() -> Result {
-        let dir = test_helpers::tmp_dir()?;
+    fn sequence_numbers_increase_by_number_of_pending_entries() {
+        let dir = test_helpers::tmp_dir().unwrap();
         let builder = WalBuilder::new(dir.as_ref());
-        let mut wal = builder.wal()?;
+        let mut wal = builder.wal().unwrap();
 
         // Write 1 entry then sync
         let data = Vec::from("some");
-        let data = WritePayload::new(data)?;
-        let seq = wal.append(data)?;
-        wal.sync_all()?;
+        let data = WritePayload::new(data).unwrap();
+        let seq = wal.append(data).unwrap();
+        wal.sync_all().unwrap();
         assert_eq!(0, seq);
 
         // Sequence number should increase by 1
@@ -734,19 +729,17 @@ mod tests {
 
         // Write 2 entries then sync
         let data = Vec::from("other");
-        let data = WritePayload::new(data)?;
-        let seq = wal.append(data)?;
+        let data = WritePayload::new(data).unwrap();
+        let seq = wal.append(data).unwrap();
         assert_eq!(1, seq);
 
         let data = Vec::from("again");
-        let data = WritePayload::new(data)?;
-        let seq = wal.append(data)?;
+        let data = WritePayload::new(data).unwrap();
+        let seq = wal.append(data).unwrap();
         assert_eq!(2, seq);
-        wal.sync_all()?;
+        wal.sync_all().unwrap();
 
         // Sequence number should increase by 2
         assert_eq!(3, wal.sequence_number);
-
-        Ok(())
     }
 }

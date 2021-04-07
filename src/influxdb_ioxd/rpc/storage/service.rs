@@ -1091,7 +1091,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_storage_rpc_capabilities() -> Result<(), tonic::Status> {
+    async fn test_storage_rpc_capabilities() {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
@@ -1106,10 +1106,8 @@ mod tests {
 
         assert_eq!(
             expected_capabilities,
-            fixture.storage_client.capabilities().await?
+            fixture.storage_client.capabilities().await.unwrap()
         );
-
-        Ok(())
     }
 
     #[tokio::test]
@@ -1196,7 +1194,7 @@ mod tests {
     /// the right parameters are passed into the Database interface
     /// and that the returned values are sent back via gRPC.
     #[tokio::test]
-    async fn test_storage_rpc_tag_keys() -> Result<(), tonic::Status> {
+    async fn test_storage_rpc_tag_keys() {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
@@ -1229,7 +1227,7 @@ mod tests {
             predicate: make_state_ma_predicate(),
         };
 
-        let actual_tag_keys = fixture.storage_client.tag_keys(request).await?;
+        let actual_tag_keys = fixture.storage_client.tag_keys(request).await.unwrap();
         let expected_tag_keys = vec!["_f(0xff)", "_m(0x00)", "k1", "k2", "k3", "k4"];
 
         assert_eq!(actual_tag_keys, expected_tag_keys,);
@@ -1256,11 +1254,10 @@ mod tests {
             "\nActual: {:?}\nExpected: {:?}",
             actual_predicate, expected_predicate
         );
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_storage_rpc_tag_keys_error() -> Result<(), tonic::Status> {
+    async fn test_storage_rpc_tag_keys_error() {
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
@@ -1293,15 +1290,13 @@ mod tests {
 
         let response = fixture.storage_client.tag_keys(request).await;
         assert_contains!(response.unwrap_err().to_string(), "Sugar we are going down");
-
-        Ok(())
     }
 
     /// test the plumbing of the RPC layer for measurement_tag_keys--
     /// specifically that the right parameters are passed into the Database
     /// interface and that the returned values are sent back via gRPC.
     #[tokio::test]
-    async fn test_storage_rpc_measurement_tag_keys() -> Result<(), tonic::Status> {
+    async fn test_storage_rpc_measurement_tag_keys() {
         test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
@@ -1340,7 +1335,11 @@ mod tests {
             predicate: make_state_ma_predicate(),
         };
 
-        let actual_tag_keys = fixture.storage_client.measurement_tag_keys(request).await?;
+        let actual_tag_keys = fixture
+            .storage_client
+            .measurement_tag_keys(request)
+            .await
+            .unwrap();
         let expected_tag_keys = vec!["_f(0xff)", "_m(0x00)", "k1", "k2", "k3", "k4"];
 
         assert_eq!(
@@ -1371,11 +1370,10 @@ mod tests {
             "\nActual: {:?}\nExpected: {:?}",
             actual_predicate, expected_predicate
         );
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_storage_rpc_measurement_tag_keys_error() -> Result<(), tonic::Status> {
+    async fn test_storage_rpc_measurement_tag_keys_error() {
         test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
@@ -1412,8 +1410,6 @@ mod tests {
 
         let response = fixture.storage_client.measurement_tag_keys(request).await;
         assert_contains!(response.unwrap_err().to_string(), "This is an error");
-
-        Ok(())
     }
 
     /// test the plumbing of the RPC layer for tag_keys -- specifically that
@@ -1710,7 +1706,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_log_on_panic() -> Result<(), tonic::Status> {
+    async fn test_log_on_panic() {
         // Send a message to a route that causes a panic and ensure:
         // 1. We don't use up all executors 2. The panic message
         // message ends up in the log system
@@ -1759,10 +1755,8 @@ mod tests {
         }
 
         // Ensure there are still threads to answer actual client queries
-        let caps = fixture.storage_client.capabilities().await?;
+        let caps = fixture.storage_client.capabilities().await.unwrap();
         assert!(!caps.is_empty(), "Caps: {:?}", caps);
-
-        Ok(())
     }
 
     #[tokio::test]

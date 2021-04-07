@@ -117,11 +117,8 @@ mod tests {
     use super::*;
     use mockito::mock;
 
-    type Error = Box<dyn std::error::Error>;
-    type Result<T = (), E = Error> = std::result::Result<T, E>;
-
     #[tokio::test]
-    async fn is_onboarding_allowed() -> Result {
+    async fn is_onboarding_allowed() {
         let token = "some-token";
 
         let mock_server = mock("GET", "/api/v2/setup")
@@ -133,11 +130,10 @@ mod tests {
         let _result = client.is_onboarding_allowed().await;
 
         mock_server.assert();
-        Ok(())
     }
 
     #[tokio::test]
-    async fn onboarding() -> Result {
+    async fn onboarding() {
         let token = "some-token";
         let username = "some-user";
         let org = "some-org";
@@ -169,11 +165,10 @@ mod tests {
             .await;
 
         mock_server.assert();
-        Ok(())
     }
 
     #[tokio::test]
-    async fn post_setup_user() -> Result {
+    async fn post_setup_user() {
         let token = "some-token";
         let username = "some-user";
         let org = "some-org";
@@ -205,11 +200,10 @@ mod tests {
             .await;
 
         mock_server.assert();
-        Ok(())
     }
 
     #[tokio::test]
-    async fn onboarding_opt() -> Result {
+    async fn onboarding_opt() {
         let token = "some-token";
         let username = "some-user";
         let org = "some-org";
@@ -233,11 +227,10 @@ mod tests {
             .await;
 
         mock_server.assert();
-        Ok(())
     }
 
     #[tokio::test]
-    async fn post_setup_user_opt() -> Result {
+    async fn post_setup_user_opt() {
         let token = "some-token";
         let username = "some-user";
         let org = "some-org";
@@ -261,6 +254,5 @@ mod tests {
             .await;
 
         mock_server.assert();
-        Ok(())
     }
 }

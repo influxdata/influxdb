@@ -33,11 +33,8 @@ mod tests {
     use super::*;
     use mockito::mock;
 
-    type Error = Box<dyn std::error::Error>;
-    type Result<T = (), E = Error> = std::result::Result<T, E>;
-
     #[tokio::test]
-    async fn ready() -> Result {
+    async fn ready() {
         let token = "some-token";
 
         let mock_server = mock("GET", "/ready")
@@ -49,7 +46,5 @@ mod tests {
         let _result = client.ready().await;
 
         mock_server.assert();
-
-        Ok(())
     }
 }

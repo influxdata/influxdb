@@ -747,33 +747,37 @@ mod tests {
     }
 
     #[test]
-    fn conflicting_field_types() -> Result<(), TSMError> {
+    fn conflicting_field_types() {
         let mut table = MeasurementTable::new("cpu".to_string(), 0);
-        table.add_series_data(
-            vec![("region".to_string(), "west".to_string())],
-            "value".to_string(),
-            Block {
-                max_time: 0,
-                min_time: 0,
-                offset: 0,
-                size: 0,
-                typ: BlockType::Float,
-                reader_idx: 0,
-            },
-        )?;
+        table
+            .add_series_data(
+                vec![("region".to_string(), "west".to_string())],
+                "value".to_string(),
+                Block {
+                    max_time: 0,
+                    min_time: 0,
+                    offset: 0,
+                    size: 0,
+                    typ: BlockType::Float,
+                    reader_idx: 0,
+                },
+            )
+            .unwrap();
 
-        table.add_series_data(
-            vec![],
-            "value".to_string(),
-            Block {
-                max_time: 0,
-                min_time: 0,
-                offset: 0,
-                size: 0,
-                typ: BlockType::Integer,
-                reader_idx: 0,
-            },
-        )?;
+        table
+            .add_series_data(
+                vec![],
+                "value".to_string(),
+                Block {
+                    max_time: 0,
+                    min_time: 0,
+                    offset: 0,
+                    size: 0,
+                    typ: BlockType::Integer,
+                    reader_idx: 0,
+                },
+            )
+            .unwrap();
 
         // The block type for the value field should be Float because the
         // conflicting integer field should be ignored.
@@ -781,50 +785,55 @@ mod tests {
             *table.field_columns().get("value").unwrap(),
             BlockType::Float,
         );
-        Ok(())
     }
 
     #[test]
-    fn merge_measurement_table() -> Result<(), TSMError> {
+    fn merge_measurement_table() {
         let mut table1 = MeasurementTable::new("cpu".to_string(), 0);
-        table1.add_series_data(
-            vec![("region".to_string(), "west".to_string())],
-            "value".to_string(),
-            Block {
-                min_time: 101,
-                max_time: 150,
-                offset: 0,
-                size: 0,
-                typ: BlockType::Float,
-                reader_idx: 0,
-            },
-        )?;
+        table1
+            .add_series_data(
+                vec![("region".to_string(), "west".to_string())],
+                "value".to_string(),
+                Block {
+                    min_time: 101,
+                    max_time: 150,
+                    offset: 0,
+                    size: 0,
+                    typ: BlockType::Float,
+                    reader_idx: 0,
+                },
+            )
+            .unwrap();
 
         let mut table2 = MeasurementTable::new("cpu".to_string(), 1);
-        table2.add_series_data(
-            vec![("region".to_string(), "west".to_string())],
-            "value".to_string(),
-            Block {
-                min_time: 0,
-                max_time: 100,
-                offset: 0,
-                size: 0,
-                typ: BlockType::Float,
-                reader_idx: 0,
-            },
-        )?;
-        table2.add_series_data(
-            vec![("server".to_string(), "a".to_string())],
-            "temp".to_string(),
-            Block {
-                min_time: 0,
-                max_time: 50,
-                offset: 0,
-                size: 0,
-                typ: BlockType::Str,
-                reader_idx: 0,
-            },
-        )?;
+        table2
+            .add_series_data(
+                vec![("region".to_string(), "west".to_string())],
+                "value".to_string(),
+                Block {
+                    min_time: 0,
+                    max_time: 100,
+                    offset: 0,
+                    size: 0,
+                    typ: BlockType::Float,
+                    reader_idx: 0,
+                },
+            )
+            .unwrap();
+        table2
+            .add_series_data(
+                vec![("server".to_string(), "a".to_string())],
+                "temp".to_string(),
+                Block {
+                    min_time: 0,
+                    max_time: 50,
+                    offset: 0,
+                    size: 0,
+                    typ: BlockType::Str,
+                    reader_idx: 0,
+                },
+            )
+            .unwrap();
 
         table1.merge(&mut table2).unwrap();
         assert_eq!(table1.name, "cpu");
@@ -882,8 +891,6 @@ mod tests {
             field_blocks_temp,
         );
         assert_eq!(table1.tag_set_fields_blocks, exp_tag_set_field_blocks);
-
-        Ok(())
     }
 
     #[test]

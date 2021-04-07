@@ -402,7 +402,7 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn test_convert_empty() -> Result<()> {
+    async fn test_convert_empty() {
         let schema = Arc::new(Schema::new(vec![]));
         let empty_iterator = Box::pin(SizedRecordBatchStream::new(schema, vec![]));
 
@@ -412,12 +412,10 @@ mod tests {
 
         let results = convert(table_name, &tag_columns, &field_columns, empty_iterator).await;
         assert_eq!(results.len(), 0);
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_convert_single_series_no_tags() -> Result<()> {
+    async fn test_convert_single_series_no_tags() {
         // single series
         let schema = Arc::new(Schema::new(vec![
             Field::new("tag_a", DataType::Utf8, true),
@@ -467,11 +465,10 @@ mod tests {
             .collect::<Vec<String>>();
 
         assert_eq!(expected_data, actual_data);
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_convert_single_series_no_tags_nulls() -> Result<()> {
+    async fn test_convert_single_series_no_tags_nulls() {
         // single series
         let schema = Arc::new(Schema::new(vec![
             Field::new("tag_a", DataType::Utf8, true),
@@ -522,11 +519,10 @@ mod tests {
             .collect::<Vec<String>>();
 
         assert_eq!(expected_data, actual_data);
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_convert_single_series_one_tag() -> Result<()> {
+    async fn test_convert_single_series_one_tag() {
         // single series
         let schema = Arc::new(Schema::new(vec![
             Field::new("tag_a", DataType::Utf8, true),
@@ -558,12 +554,10 @@ mod tests {
         );
         assert_eq!(series_set.start_row, 0);
         assert_eq!(series_set.num_rows, 2);
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_convert_one_tag_multi_series() -> Result<()> {
+    async fn test_convert_one_tag_multi_series() {
         let schema = Arc::new(Schema::new(vec![
             Field::new("tag_a", DataType::Utf8, true),
             Field::new("tag_b", DataType::Utf8, true),
@@ -608,13 +602,11 @@ mod tests {
         );
         assert_eq!(series_set2.start_row, 3);
         assert_eq!(series_set2.num_rows, 2);
-
-        Ok(())
     }
 
     // two tag columns, three series
     #[tokio::test]
-    async fn test_convert_two_tag_multi_series() -> Result<()> {
+    async fn test_convert_two_tag_multi_series() {
         let schema = Arc::new(Schema::new(vec![
             Field::new("tag_a", DataType::Utf8, true),
             Field::new("tag_b", DataType::Utf8, true),
@@ -667,12 +659,10 @@ mod tests {
         );
         assert_eq!(series_set3.start_row, 3);
         assert_eq!(series_set3.num_rows, 2);
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_convert_groups() -> Result<()> {
+    async fn test_convert_groups() {
         let schema = Arc::new(Schema::new(vec![
             Field::new("tag_a", DataType::Utf8, true),
             Field::new("tag_b", DataType::Utf8, true),
@@ -742,13 +732,11 @@ mod tests {
         );
         assert_eq!(series_set3.start_row, 2);
         assert_eq!(series_set3.num_rows, 1);
-
-        Ok(())
     }
 
     // test with no group tags specified
     #[tokio::test]
-    async fn test_convert_groups_no_tags() -> Result<()> {
+    async fn test_convert_groups_no_tags() {
         let schema = Arc::new(Schema::new(vec![
             Field::new("tag_a", DataType::Utf8, true),
             Field::new("tag_b", DataType::Utf8, true),
@@ -795,8 +783,6 @@ mod tests {
         );
         assert_eq!(series_set2.start_row, 1);
         assert_eq!(series_set2.num_rows, 1);
-
-        Ok(())
     }
 
     fn extract_group(item: &SeriesSetItem) -> &GroupDescription {
