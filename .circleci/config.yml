@@ -20,6 +20,7 @@
 #   - cargo fmt
 #   - clippy (with warnings denied)
 #   - lint protobufs
+#   - check if generated flatbuffers code is up to date
 
 version: 2.1
 
@@ -156,6 +157,17 @@ jobs:
           name: buf lint
           command: buf lint
 
+  # Check that the generated flatbuffers code is up-to-date with the changes in this PR.
+  check-flatbuffers:
+    docker:
+      - image: quay.io/influxdb/rust:ci
+    resource_class: xlarge # use of a smaller executor tends crashes on link
+    steps:
+      - checkout
+      - run:
+          name: Check Flatbuffers
+          command: ./generated_types/check-flatbuffers.sh << pipeline.git.base_revision >> <<pipeline.git.revision>>
+
   # Compile a cargo "release" profile binary for branches that end in `/perf`
   #
   # Uses the latest ci_image (influxdb/rust below) to build a release binary and
@@ -234,6 +246,7 @@ workflows:
       - test
       - test_influxdb2_client
       - build
+      - check-flatbuffers
 
   # Internal pipeline for perf builds.
   #
