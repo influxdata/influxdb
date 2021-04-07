@@ -1423,10 +1423,13 @@ dependencies = [
  "bytes",
  "futures",
  "mockito",
+ "once_cell",
+ "parking_lot",
  "reqwest",
  "serde",
  "serde_json",
  "snafu",
+ "test_helpers",
  "tokio",
 ]
 
