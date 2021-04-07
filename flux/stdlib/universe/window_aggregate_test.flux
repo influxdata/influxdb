@@ -58,6 +58,124 @@ testcase windowed_count {
     testing.diff(want: want, got: result)
 }
 
+testcase windowed_sum {
+    expect.planner(rules: ["PushDownWindowAggregateRule": 1])
+
+    want = csv.from(
+        csv: "
+#datatype,string,long,dateTime:RFC3339,double
+#group,false,false,true,false
+#default,_result,,,
+,result,table,_start,_value
+,,0,2019-01-01T00:00:00Z,13265.00
+,,1,2020-01-01T00:00:00Z,11772.00
+,,2,2021-01-01T00:00:00Z,-1099.00
+",
+    )
+    result = testing.loadStorage(csv: input)
+        |> range(start: -3y)
+        |> window(every: 1y)
+        |> sum()
+        |> keep(columns: ["_start", "_value"])
+
+    testing.diff(want: want, got: result)
+}
+
+testcase windowed_mean {
+    expect.planner(rules: ["PushDownWindowAggregateRule": 1])
+
+    want = csv.from(
+        csv: "
+#datatype,string,long,dateTime:RFC3339,double
+#group,false,false,true,false
+#default,_result,,,
+,result,table,_start,_value
+,,0,2019-01-01T00:00:00Z,1326.50
+,,1,2020-01-01T00:00:00Z,981.00
+,,2,2021-01-01T00:00:00Z,-1099.00
+",
+    )
+    result = testing.loadStorage(csv: input)
+        |> range(start: -3y)
+        |> window(every: 1y)
+        |> mean()
+        |> keep(columns: ["_start", "_value"])
+
+    testing.diff(want: want, got: result)
+}
+
+testcase windowed_min {
+    expect.planner(rules: ["PushDownWindowAggregateRule": 1])
+
+    want = csv.from(
+        csv: "
+#group,false,false,false,false,true,true
+#datatype,string,long,dateTime:RFC3339,double,string,string
+#default,_result,,,,,
+,result,table,_time,_value,_field,_measurement
+,,0,2019-04-11T07:00:00Z,0,bank,pge_bill
+,,0,2020-03-25T07:00:00Z,0,bank,pge_bill
+,,0,2021-01-26T08:00:00Z,-1099,bank,pge_bill
+",
+    )
+    result = testing.loadStorage(csv: input)
+        |> range(start: -3y)
+        |> window(every: 1y)
+        |> min()
+        |> keep(columns: ["_time", "_value", "_field", "_measurement"])
+        |> sort(columns: ["_time"])
+
+    testing.diff(want: want, got: result)
+}
+
+testcase windowed_max {
+    expect.planner(rules: ["PushDownWindowAggregateRule": 1])
+
+    want = csv.from(
+        csv: "
+#group,false,false,false,false,true,true
+#datatype,string,long,dateTime:RFC3339,double,string,string
+#default,_result,,,,,
+,result,table,_time,_value,_field,_measurement
+,,0,2019-11-21T08:00:00Z,2187,bank,pge_bill
+,,0,2020-07-23T07:00:00Z,1453,bank,pge_bill
+,,0,2021-01-26T08:00:00Z,-1099,bank,pge_bill
+",
+    )
+    result = testing.loadStorage(csv: input)
+        |> range(start: -3y)
+        |> window(every: 1y)
+        |> max()
+        |> keep(columns: ["_time", "_value", "_field", "_measurement"])
+        |> sort(columns: ["_time"])
+
+    testing.diff(want: want, got: result)
+}
+
+testcase windowed_first {
+    expect.planner(rules: ["PushDownWindowAggregateRule": 1])
+
+    want = csv.from(
+        csv: "
+#group,false,false,false,false,true,true
+#datatype,string,long,dateTime:RFC3339,double,string,string
+#default,_result,,,,,
+,result,table,_time,_value,_field,_measurement
+,,0,2019-04-11T07:00:00Z,0,bank,pge_bill
+,,0,2020-01-24T08:00:00Z,1391,bank,pge_bill
+,,0,2021-01-26T08:00:00Z,-1099,bank,pge_bill
+",
+    )
+    result = testing.loadStorage(csv: input)
+        |> range(start: -3y)
+        |> window(every: 1y)
+        |> first()
+        |> keep(columns: ["_time", "_value", "_field", "_measurement"])
+        |> sort(columns: ["_time"])
+
+    testing.diff(want: want, got: result)
+}
+
 testcase windowed_last {
     expect.planner(rules: ["PushDownWindowAggregateRule": 1])
 
@@ -67,9 +185,9 @@ testcase windowed_last {
 #datatype,string,long,dateTime:RFC3339,double,string,string
 #default,_result,,,,,
 ,result,table,_time,_value,_field,_measurement
-,,0,2021-01-26T08:00:00Z,-1099,bank,pge_bill
-,,0,2020-12-23T08:00:00Z,233.000,bank,pge_bill
 ,,0,2019-12-24T08:00:00Z,1851.000,bank,pge_bill
+,,0,2020-12-23T08:00:00Z,233.000,bank,pge_bill
+,,0,2021-01-26T08:00:00Z,-1099,bank,pge_bill
 ",
     )
     result = testing.loadStorage(csv: input)
@@ -77,7 +195,7 @@ testcase windowed_last {
         |> window(every: 1y)
         |> last()
         |> keep(columns: ["_time", "_value", "_field", "_measurement"])
-        |> sort()
+        |> sort(columns: ["_time"])
 
     testing.diff(want: want, got: result)
 }
