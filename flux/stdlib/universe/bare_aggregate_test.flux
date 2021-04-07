@@ -52,7 +52,107 @@ testcase bare_count {
         |> count()
         |> keep(columns: ["_value"])
 
-        testing.diff(want: want, got: result)
+    testing.diff(want: want, got: result)
+}
+
+testcase bare_sum {
+    expect.planner(rules: ["PushDownBareAggregateRule": 1])
+
+    want = csv.from(
+        csv: "
+#datatype,string,long,double
+#group,false,false,false
+#default,_result,,
+,result,table,_value
+,,0,23938.0
+",
+    )
+    result = testing.loadStorage(csv: input)
+        |> range(start: -3y)
+        |> sum()
+        |> keep(columns: ["_value"])
+
+    testing.diff(want: want, got: result)
+}
+
+testcase bare_mean {
+    expect.planner(rules: ["PushDownBareAggregateRule": 1])
+
+    want = csv.from(
+        csv: "
+#datatype,string,long,double
+#group,false,false,false
+#default,_result,,
+,result,table,_value
+,,0,1040.782608696
+",
+    )
+    result = testing.loadStorage(csv: input)
+        |> range(start: -3y)
+        |> mean()
+        |> keep(columns: ["_value"])
+
+    testing.diff(want: want, got: result)
+}
+
+testcase bare_min {
+    expect.planner(rules: ["PushDownBareAggregateRule": 1])
+
+    want = csv.from(
+        csv: "
+#group,false,false,false,false,true,true
+#datatype,string,long,dateTime:RFC3339,double,string,string
+#default,_result,,,,,
+,result,table,_time,_value,_field,_measurement
+,,0,2021-01-26T08:00:00Z,-1099,bank,pge_bill
+",
+    )
+    result = testing.loadStorage(csv: input)
+        |> range(start: -3y)
+        |> min()
+        |> keep(columns: ["_time", "_value", "_field", "_measurement"])
+
+    testing.diff(want: want, got: result)
+}
+
+testcase bare_max {
+    expect.planner(rules: ["PushDownBareAggregateRule": 1])
+
+    want = csv.from(
+        csv: "
+#group,false,false,false,false,true,true
+#datatype,string,long,dateTime:RFC3339,double,string,string
+#default,_result,,,,,
+,result,table,_time,_value,_field,_measurement
+,,0,2019-11-21T08:00:00Z,2187,bank,pge_bill
+",
+    )
+    result = testing.loadStorage(csv: input)
+        |> range(start: -3y)
+        |> max()
+        |> keep(columns: ["_time", "_value", "_field", "_measurement"])
+
+    testing.diff(want: want, got: result)
+}
+
+testcase bare_first {
+    expect.planner(rules: ["PushDownBareAggregateRule": 1])
+
+    want = csv.from(
+        csv: "
+#group,false,false,false,false,true,true
+#datatype,string,long,dateTime:RFC3339,double,string,string
+#default,_result,,,,,
+,result,table,_time,_value,_field,_measurement
+,,0,2019-04-11T07:00:00Z,0,bank,pge_bill
+",
+    )
+    result = testing.loadStorage(csv: input)
+        |> range(start: -3y)
+        |> first()
+        |> keep(columns: ["_time", "_value", "_field", "_measurement"])
+
+    testing.diff(want: want, got: result)
 }
 
 testcase bare_last {
