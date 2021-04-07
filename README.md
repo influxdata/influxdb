@@ -24,7 +24,9 @@ For more details on the motivation behind the selection of [Apache Arrow, Flight
 
 This project is very early and in active development. It isn't yet ready for testing, which is why we're not producing builds or documentation yet. If you're interested in following along with the project, drop into our community Slack channel #influxdb_iox. You can find [links to join here](https://community.influxdata.com/).
 
-We're also hosting monthly tech talks and community office hours on the project on the 2nd Wednesday of the month at 8:30 AM Pacific Time. The first [InfluxDB IOx Tech Talk is on December 9th and you can find details here](https://www.influxdata.com/community-showcase/influxdb-tech-talks/).
+We're also hosting monthly tech talks and community office hours on the project on the 2nd Wednesday of the month at 8:30 AM Pacific Time.
+* [Signup for upcoming IOx tech talks](https://www.influxdata.com/community-showcase/influxdb-tech-talks)
+* [Watch past IOx tech talks](https://www.youtube.com/playlist?list=PLYt2jfZorkDp-PKBS05kf2Yx2NrRyPAAz)
 
 ## Quick Start
 
