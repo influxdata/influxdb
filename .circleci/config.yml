@@ -99,26 +99,6 @@ jobs:
                   --aws-region us-east-1
                 from: 'oss-packages'
                 to: 's3://dl.influxdata.com/influxdb/releases'
-  changelog:
-    docker:
-      - image: jsternberg/changelog:latest
-    steps:
-      - checkout
-      - run:
-          name: changelog-magic
-          command: |
-            set -ex
-            if [ -n << pipeline.git.base_revision >> ]; then
-              sh "git changelog << pipeline.git.base_revision >>"
-            else
-              sh "git changelog"
-            fi
-
-            if ! git diff --quiet; then
-              git config remote.origin.pushurl git@github.com:influxdata/influxdb.git
-              git commit -am 'Update changelog'
-              git push origin HEAD:${CIRCLE_BRANCH}
-            fi
   oss_release_candidate:
     machine:
       enabled: true
@@ -167,10 +147,6 @@ workflows:
   on_push:
     jobs:
       - export_vars
-      - changelog:
-          filters:
-            branches:
-              only: /^1(.\d+)*$/
       - test:
           requires:
             - export_vars
@@ -189,10 +165,6 @@ workflows:
                 - "1.8"
     jobs:
       - export_vars
-      - changelog:
-          filters:
-            branches:
-              only: /^1(.\d+)*$/
       - test:
           requires:
             - export_vars
