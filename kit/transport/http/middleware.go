@@ -112,9 +112,8 @@ func UserAgent(r *http.Request) string {
 
 // Constants used for normalizing paths
 const (
-	fileSlug   = ":file_name"
-	shardSlug  = ":shard_id"
-	backupSlug = ":backup_id"
+	fileSlug  = ":file_name"
+	shardSlug = ":shard_id"
 )
 
 func normalizePath(p string) string {
@@ -178,9 +177,8 @@ func normalizeAssetFile(f string) string {
 // Paths not matching any of the patterns will be returned unchanged.
 func normalizeBackupAndRestore(pth string) string {
 	patterns := map[string]string{
-		`restore/shards/\d+`:    path.Join("restore/shards", shardSlug),
-		`backup/shards/\d+`:     path.Join("backup/shards", shardSlug),
-		`backup/\d+/file/.+?\.`: path.Join("backup", backupSlug, "file", fileSlug+"."),
+		`restore/shards/\d+`: path.Join("restore/shards", shardSlug),
+		`backup/shards/\d+`:  path.Join("backup/shards", shardSlug),
 	}
 
 	for p, s := range patterns {
