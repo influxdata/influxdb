@@ -1,15 +1,15 @@
 #![deny(rust_2018_idioms)]
 #![warn(clippy::clone_on_ref_ptr, clippy::use_self)]
 #![allow(dead_code, clippy::too_many_arguments)]
-pub mod chunk;
-pub(crate) mod column;
-pub(crate) mod row_group;
+mod chunk;
+mod column;
+mod row_group;
 mod schema;
-pub(crate) mod table;
-pub(crate) mod value;
+mod table;
+mod value;
 
 // Identifiers that are exported as part of the public API.
-pub use chunk::Chunk;
+pub use chunk::{Chunk, Error};
 pub use row_group::{BinaryExpr, Predicate};
 pub use schema::*;
 pub use table::ReadFilterResults;

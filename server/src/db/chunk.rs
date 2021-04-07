@@ -5,7 +5,7 @@ use mutable_buffer::chunk::Chunk as MBChunk;
 use observability_deps::tracing::debug;
 use parquet_file::chunk::Chunk as ParquetChunk;
 use query::{exec::stringset::StringSet, predicate::Predicate, PartitionChunk};
-use read_buffer::chunk::Chunk as ReadBufferChunk;
+use read_buffer::Chunk as ReadBufferChunk;
 use snafu::{ResultExt, Snafu};
 
 use std::{collections::BTreeSet, sync::Arc};
@@ -24,7 +24,7 @@ pub enum Error {
 
     #[snafu(display("Read Buffer Error in chunk {}: {}", chunk_id, source))]
     ReadBufferChunkError {
-        source: read_buffer::chunk::Error,
+        source: read_buffer::Error,
         chunk_id: u32,
     },
 

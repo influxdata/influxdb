@@ -26,7 +26,7 @@ use internal_types::{data::ReplicatedWrite, selection::Selection};
 use object_store::{memory::InMemory, ObjectStore};
 use parquet_file::{chunk::Chunk, storage::Storage};
 use query::{Database, DEFAULT_SCHEMA};
-use read_buffer::chunk::Chunk as ReadBufferChunk;
+use read_buffer::Chunk as ReadBufferChunk;
 use tracker::{MemRegistry, TaskTracker, TrackedFutureExt};
 
 use super::{buffer::Buffer, JobRegistry};
@@ -106,7 +106,7 @@ pub enum Error {
 
     #[snafu(display("Read Buffer Error in chunk {}: {}", chunk_id, source))]
     ReadBufferChunkError {
-        source: read_buffer::chunk::Error,
+        source: read_buffer::Error,
         chunk_id: u32,
     },
 

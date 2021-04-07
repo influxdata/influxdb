@@ -6,7 +6,7 @@ use data_types::{chunk::ChunkSummary, partition_metadata::TableSummary};
 use mutable_buffer::chunk::Chunk as MBChunk;
 use parquet_file::chunk::Chunk as ParquetChunk;
 use query::PartitionChunk;
-use read_buffer::chunk::Chunk as ReadBufferChunk;
+use read_buffer::Chunk as ReadBufferChunk;
 
 use crate::db::DBChunk;
 
