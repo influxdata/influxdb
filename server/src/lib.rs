@@ -88,9 +88,7 @@ use internal_types::{
 };
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use query::{exec::Executor, Database, DatabaseStore};
-use tracker::task::{
-    TrackedFutureExt, Tracker, TrackerId, TrackerRegistration, TrackerRegistryWithHistory,
-};
+use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, TrackedFutureExt};
 
 use futures::{pin_mut, FutureExt};
 
@@ -158,13 +156,13 @@ const JOB_HISTORY_SIZE: usize = 1000;
 /// The global job registry
 #[derive(Debug)]
 pub struct JobRegistry {
-    inner: Mutex<TrackerRegistryWithHistory<Job>>,
+    inner: Mutex<TaskRegistryWithHistory<Job>>,
 }
 
 impl Default for JobRegistry {
     fn default() -> Self {
         Self {
-            inner: Mutex::new(TrackerRegistryWithHistory::new(JOB_HISTORY_SIZE)),
+            inner: Mutex::new(TaskRegistryWithHistory::new(JOB_HISTORY_SIZE)),
         }
     }
 }
@@ -174,7 +172,7 @@ impl JobRegistry {
         Default::default()
     }
 
-    pub fn register(&self, job: Job) -> (Tracker<Job>, TrackerRegistration) {
+    pub fn register(&self, job: Job) -> (TaskTracker<Job>, TaskRegistration) {
         self.inner.lock().register(job)
     }
 }
@@ -413,7 +411,7 @@ impl<M: ConnectionManager> Server<M> {
         self.config.delete_remote(id)
     }
 
-    pub fn spawn_dummy_job(&self, nanos: Vec<u64>) -> Tracker<Job> {
+    pub fn spawn_dummy_job(&self, nanos: Vec<u64>) -> TaskTracker<Job> {
         let (tracker, registration) = self.jobs.register(Job::Dummy {
             nanos: nanos.clone(),
         });
@@ -435,7 +433,7 @@ impl<M: ConnectionManager> Server<M> {
         db_name: DatabaseName<'_>,
         partition_key: impl Into<String>,
         chunk_id: u32,
-    ) -> Result<Tracker<Job>> {
+    ) -> Result<TaskTracker<Job>> {
         let db_name = db_name.to_string();
         let name = DatabaseName::new(&db_name).context(InvalidDatabaseName)?;
 
@@ -450,12 +448,12 @@ impl<M: ConnectionManager> Server<M> {
     }
 
     /// Returns a list of all jobs tracked by this server
-    pub fn tracked_jobs(&self) -> Vec<Tracker<Job>> {
+    pub fn tracked_jobs(&self) -> Vec<TaskTracker<Job>> {
         self.jobs.inner.lock().tracked()
     }
 
     /// Returns a specific job tracked by this server
-    pub fn get_job(&self, id: TrackerId) -> Option<Tracker<Job>> {
+    pub fn get_job(&self, id: TaskId) -> Option<TaskTracker<Job>> {
         self.jobs.inner.lock().get(id)
     }
 

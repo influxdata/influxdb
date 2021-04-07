@@ -281,6 +281,7 @@ mod tests {
     use mutable_buffer::chunk::Chunk as ChunkWB;
     use object_store::memory::InMemory;
     use query::{test::TestLPWriter, Database};
+    use tracker::MemRegistry;
 
     #[tokio::test]
     async fn snapshot() {
@@ -350,9 +351,10 @@ mem,host=A,region=west used=45 1
             },
         ];
 
+        let registry = MemRegistry::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let chunk = Arc::new(DBChunk::MutableBuffer {
-            chunk: Arc::new(ChunkWB::new(11)),
+            chunk: Arc::new(ChunkWB::new(11, &registry)),
             partition_key: Arc::new("key".to_string()),
             open: false,
         });

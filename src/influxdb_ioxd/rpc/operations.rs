@@ -18,7 +18,7 @@ use generated_types::{
     influxdata::iox::management::v1 as management,
     protobuf_type_url,
 };
-use tracker::task::{Tracker, TrackerId, TrackerStatus};
+use tracker::{TaskId, TaskStatus, TaskTracker};
 
 use server::{ConnectionManager, Server};
 use std::convert::TryInto;
@@ -28,13 +28,13 @@ struct OperationsService<M: ConnectionManager> {
     server: Arc<Server<M>>,
 }
 
-pub fn encode_tracker(tracker: Tracker<Job>) -> Result<Operation, tonic::Status> {
+pub fn encode_tracker(tracker: TaskTracker<Job>) -> Result<Operation, tonic::Status> {
     let id = tracker.id();
     let is_cancelled = tracker.is_cancelled();
     let status = tracker.get_status();
 
     let (operation_metadata, is_complete) = match status {
-        TrackerStatus::Creating => {
+        TaskStatus::Creating => {
             let metadata = management::OperationMetadata {
                 job: Some(tracker.metadata().clone().into()),
                 ..Default::default()
@@ -42,7 +42,7 @@ pub fn encode_tracker(tracker: Tracker<Job>) -> Result<Operation, tonic::Status>
 
             (metadata, false)
         }
-        TrackerStatus::Running {
+        TaskStatus::Running {
             total_count,
             pending_count,
             cpu_nanos,
@@ -57,7 +57,7 @@ pub fn encode_tracker(tracker: Tracker<Job>) -> Result<Operation, tonic::Status>
 
             (metadata, false)
         }
-        TrackerStatus::Complete {
+        TaskStatus::Complete {
             total_count,
             cpu_nanos,
             wall_nanos,
@@ -108,11 +108,11 @@ pub fn encode_tracker(tracker: Tracker<Job>) -> Result<Operation, tonic::Status>
     })
 }
 
-fn get_tracker<M>(server: &Server<M>, tracker: String) -> Result<Tracker<Job>, tonic::Status>
+fn get_tracker<M>(server: &Server<M>, tracker: String) -> Result<TaskTracker<Job>, tonic::Status>
 where
     M: ConnectionManager,
 {
-    let tracker_id = tracker.parse::<TrackerId>().map_err(|e| FieldViolation {
+    let tracker_id = tracker.parse::<TaskId>().map_err(|e| FieldViolation {
         field: "name".to_string(),
         description: e.to_string(),
     })?;

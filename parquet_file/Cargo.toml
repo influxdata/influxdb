@@ -12,3 +12,4 @@ futures = "0.3.7"
 object_store = {path = "../object_store"}
 parking_lot = "0.11.1"
 snafu = "0.6"
+tracker = { path = "../tracker" }

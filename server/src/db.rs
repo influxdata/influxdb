@@ -27,7 +27,7 @@ use object_store::{memory::InMemory, ObjectStore};
 use parquet_file::{chunk::Chunk, storage::Storage};
 use query::{Database, DEFAULT_SCHEMA};
 use read_buffer::Database as ReadBufferDb;
-use tracker::task::{TrackedFutureExt, Tracker};
+use tracker::{MemRegistry, TaskTracker, TrackedFutureExt};
 
 use super::{buffer::Buffer, JobRegistry};
 use data_types::job::Job;
@@ -220,12 +220,27 @@ pub struct Db {
     /// A handle to the global jobs registry for long running tasks
     jobs: Arc<JobRegistry>,
 
+    /// Memory registries used for tracking memory usage by this Db
+    memory_registries: MemoryRegistries,
+
     /// The system schema provider
     system_tables: Arc<SystemSchemaProvider>,
 
+    /// Used to allocated sequence numbers for writes
     sequence: AtomicU64,
 
+    /// Number of iterations of the worker loop for this Db
     worker_iterations: AtomicUsize,
+}
+
+#[derive(Debug, Default)]
+struct MemoryRegistries {
+    mutable_buffer: Arc<MemRegistry>,
+
+    // TODO: Wire into read buffer
+    read_buffer: Arc<MemRegistry>,
+
+    parquet: Arc<MemRegistry>,
 }
 
 impl Db {
@@ -247,6 +262,7 @@ impl Db {
             wal_buffer,
             jobs,
             system_tables,
+            memory_registries: Default::default(),
             sequence: AtomicU64::new(STARTING_SEQUENCE),
             worker_iterations: AtomicUsize::new(0),
         }
@@ -271,7 +287,7 @@ impl Db {
             .context(RollingOverPartition { partition_key })?;
 
         // make a new chunk to track the newly created chunk in this partition
-        partition.create_open_chunk();
+        partition.create_open_chunk(self.memory_registries.mutable_buffer.as_ref());
 
         return Ok(DBChunk::snapshot(&chunk));
     }
@@ -466,7 +482,11 @@ impl Db {
         let table_stats = read_buffer.table_summaries(partition_key, &[chunk_id]);
 
         // Create a parquet chunk for this chunk
-        let mut parquet_chunk = Chunk::new(partition_key.to_string(), chunk_id);
+        let mut parquet_chunk = Chunk::new(
+            partition_key.to_string(),
+            chunk_id,
+            self.memory_registries.parquet.as_ref(),
+        );
         // Create a storage to save data of this chunk
         // Todo: this must be gotten from server or somewhere
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
@@ -533,7 +553,7 @@ impl Db {
         self: &Arc<Self>,
         partition_key: String,
         chunk_id: u32,
-    ) -> Tracker<Job> {
+    ) -> TaskTracker<Job> {
         let name = self.rules.read().name.clone();
         let (tracker, registration) = self.jobs.register(Job::CloseChunk {
             db_name: name.to_string(),
@@ -664,9 +684,9 @@ impl Database for Db {
                 let mut partition = partition.write();
                 partition.update_last_write_at();
 
-                let chunk = partition
-                    .open_chunk()
-                    .unwrap_or_else(|| partition.create_open_chunk());
+                let chunk = partition.open_chunk().unwrap_or_else(|| {
+                    partition.create_open_chunk(self.memory_registries.mutable_buffer.as_ref())
+                });
 
                 let mut chunk = chunk.write();
                 chunk.record_write();
@@ -1104,6 +1124,15 @@ mod tests {
             107,
         )];
 
+        let size: usize = db
+            .chunk_summaries()
+            .unwrap()
+            .into_iter()
+            .map(|x| x.estimated_bytes)
+            .sum();
+
+        assert_eq!(db.memory_registries.mutable_buffer.bytes(), size);
+
         assert_eq!(
             expected, chunk_summaries,
             "expected:\n{:#?}\n\nactual:{:#?}\n\n",
@@ -1225,6 +1254,10 @@ mod tests {
                 135,
             ),
         ];
+
+        assert_eq!(db.memory_registries.mutable_buffer.bytes(), 101 + 133 + 135);
+        // TODO: Instrument read buffer
+        //assert_eq!(db.memory_registries.read_buffer.bytes(), 1269);
 
         assert_eq!(
             expected, chunk_summaries,

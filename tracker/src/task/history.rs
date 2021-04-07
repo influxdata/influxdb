@@ -1,31 +1,31 @@
-use super::{Tracker, TrackerId, TrackerRegistration, TrackerRegistry};
+use super::{TaskId, TaskRegistration, TaskRegistry, TaskTracker};
 use hashbrown::hash_map::Entry;
 use hashbrown::HashMap;
 use observability_deps::tracing::info;
 use std::hash::Hash;
 
-/// A wrapper around a TrackerRegistry that automatically retains a history
+/// A wrapper around a TaskRegistry that automatically retains a history
 #[derive(Debug)]
-pub struct TrackerRegistryWithHistory<T> {
-    registry: TrackerRegistry<T>,
-    history: SizeLimitedHashMap<TrackerId, Tracker<T>>,
+pub struct TaskRegistryWithHistory<T> {
+    registry: TaskRegistry<T>,
+    history: SizeLimitedHashMap<TaskId, TaskTracker<T>>,
 }
 
-impl<T: std::fmt::Debug> TrackerRegistryWithHistory<T> {
+impl<T: std::fmt::Debug> TaskRegistryWithHistory<T> {
     pub fn new(capacity: usize) -> Self {
         Self {
             history: SizeLimitedHashMap::new(capacity),
-            registry: TrackerRegistry::new(),
+            registry: TaskRegistry::new(),
         }
     }
 
     /// Register a new tracker in the registry
-    pub fn register(&mut self, metadata: T) -> (Tracker<T>, TrackerRegistration) {
+    pub fn register(&mut self, metadata: T) -> (TaskTracker<T>, TaskRegistration) {
         self.registry.register(metadata)
     }
 
     /// Get the tracker associated with a given id
-    pub fn get(&self, id: TrackerId) -> Option<Tracker<T>> {
+    pub fn get(&self, id: TaskId) -> Option<TaskTracker<T>> {
         match self.history.get(&id) {
             Some(x) => Some(x.clone()),
             None => self.registry.get(id),
@@ -37,14 +37,14 @@ impl<T: std::fmt::Debug> TrackerRegistryWithHistory<T> {
     }
 
     /// Returns a list of trackers, including those that are no longer running
-    pub fn tracked(&self) -> Vec<Tracker<T>> {
+    pub fn tracked(&self) -> Vec<TaskTracker<T>> {
         let mut tracked = self.registry.tracked();
         tracked.extend(self.history.values().cloned());
         tracked
     }
 
     /// Returns a list of active trackers
-    pub fn running(&self) -> Vec<Tracker<T>> {
+    pub fn running(&self) -> Vec<TaskTracker<T>> {
         self.registry.running()
     }
 
@@ -165,14 +165,14 @@ mod tests {
     }
 
     #[test]
-    fn test_tracker_archive() {
-        let compare = |expected_ids: &[TrackerId], archive: &TrackerRegistryWithHistory<i32>| {
+    fn test_registry_archive() {
+        let compare = |expected_ids: &[TaskId], archive: &TaskRegistryWithHistory<i32>| {
             let mut collected: Vec<_> = archive.history.values().map(|x| x.id()).collect();
             collected.sort();
             assert_eq!(&collected, expected_ids);
         };
 
-        let mut archive = TrackerRegistryWithHistory::new(4);
+        let mut archive = TaskRegistryWithHistory::new(4);
 
         for i in 0..=3 {
             archive.register(i);
@@ -180,25 +180,16 @@ mod tests {
 
         archive.reclaim();
 
-        compare(
-            &[TrackerId(0), TrackerId(1), TrackerId(2), TrackerId(3)],
-            &archive,
-        );
+        compare(&[TaskId(0), TaskId(1), TaskId(2), TaskId(3)], &archive);
 
         for i in 4..=7 {
             archive.register(i);
         }
 
-        compare(
-            &[TrackerId(0), TrackerId(1), TrackerId(2), TrackerId(3)],
-            &archive,
-        );
+        compare(&[TaskId(0), TaskId(1), TaskId(2), TaskId(3)], &archive);
 
         archive.reclaim();
 
-        compare(
-            &[TrackerId(4), TrackerId(5), TrackerId(6), TrackerId(7)],
-            &archive,
-        );
+        compare(&[TaskId(4), TaskId(5), TaskId(6), TaskId(7)], &archive);
     }
 }

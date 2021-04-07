@@ -15,6 +15,7 @@ use crate::{
     table::Table,
 };
 use snafu::{OptionExt, ResultExt, Snafu};
+use tracker::{MemRegistry, MemTracker};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -105,7 +106,7 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Chunk {
     /// The id for this chunk
     pub id: u32,
@@ -118,15 +119,36 @@ pub struct Chunk {
 
     /// map of the dictionary ID for the table name to the table
     pub tables: HashMap<u32, Table>,
+
+    /// keep track of memory used by chunk
+    tracker: MemTracker,
+}
+
+impl Clone for Chunk {
+    fn clone(&self) -> Self {
+        // TODO: The performance of this is not great - (#635)
+        let mut ret = Self {
+            id: self.id,
+            dictionary: self.dictionary.clone(),
+            tables: self.tables.clone(),
+            tracker: self.tracker.clone_empty(),
+        };
+
+        ret.tracker.set_bytes(ret.size());
+        ret
+    }
 }
 
 impl Chunk {
-    pub fn new(id: u32) -> Self {
-        Self {
+    pub fn new(id: u32, memory_registry: &MemRegistry) -> Self {
+        let mut chunk = Self {
             id,
             dictionary: Dictionary::new(),
             tables: HashMap::new(),
-        }
+            tracker: memory_registry.register(),
+        };
+        chunk.tracker.set_bytes(chunk.size());
+        chunk
     }
 
     pub fn write_entry(&mut self, entry: &wb::WriteBufferEntry<'_>) -> Result<()> {
@@ -135,6 +157,8 @@ impl Chunk {
                 self.write_table_batch(&batch)?;
             }
         }
+
+        self.tracker.set_bytes(self.size());
 
         Ok(())
     }

@@ -7,7 +7,7 @@ use parking_lot::{RwLock, RwLockUpgradableReadGuard};
 
 use data_types::{database_rules::LifecycleRules, error::ErrorLogger, job::Job};
 
-use tracker::task::Tracker;
+use tracker::TaskTracker;
 
 use super::{
     catalog::chunk::{Chunk, ChunkState},
@@ -19,7 +19,7 @@ use data_types::database_rules::SortOrder;
 pub struct LifecycleManager {
     db: Arc<Db>,
     db_name: String,
-    move_task: Option<Tracker<Job>>,
+    move_task: Option<TaskTracker<Job>>,
 }
 
 impl LifecycleManager {
@@ -232,6 +232,7 @@ fn can_move(rules: &LifecycleRules, chunk: &Chunk, now: DateTime<Utc>) -> bool {
 mod tests {
     use super::*;
     use std::num::{NonZeroU32, NonZeroUsize};
+    use tracker::MemRegistry;
 
     fn from_secs(secs: i64) -> DateTime<Utc> {
         DateTime::from_utc(chrono::NaiveDateTime::from_timestamp(secs, 0), Utc)
@@ -242,7 +243,7 @@ mod tests {
         time_of_first_write: Option<i64>,
         time_of_last_write: Option<i64>,
     ) -> Chunk {
-        let mut chunk = Chunk::new_open("", id);
+        let mut chunk = Chunk::new_open("", id, &MemRegistry::new());
         chunk.set_timestamps(
             time_of_first_write.map(from_secs),
             time_of_last_write.map(from_secs),

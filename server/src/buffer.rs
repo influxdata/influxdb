@@ -23,7 +23,7 @@ use data_types::wal::{SegmentPersistence, SegmentSummary, WriterSummary};
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::Mutex;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
-use tracker::task::{TrackedFutureExt, TrackerRegistration};
+use tracker::{TaskRegistration, TrackedFutureExt};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -378,7 +378,7 @@ impl Segment {
     /// the given object store location.
     pub fn persist_bytes_in_background(
         &self,
-        tracker: TrackerRegistration,
+        tracker: TaskRegistration,
         writer_id: u32,
         db_name: &DatabaseName<'_>,
         store: Arc<ObjectStore>,
