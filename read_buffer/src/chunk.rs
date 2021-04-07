@@ -115,16 +115,16 @@ impl Chunk {
 
     /// The total estimated size in bytes of this `Chunk` and all contained
     /// data.
-    pub fn size(&self) -> u64 {
+    pub fn size(&self) -> usize {
         let base_size = std::mem::size_of::<Self>();
 
         let table_data = self.chunk_data.read().unwrap();
-        base_size as u64
+        base_size
             + table_data
                 .data
                 .iter()
-                .map(|(k, table)| k.len() as u64 + table.size())
-                .sum::<u64>()
+                .map(|(k, table)| k.len() + table.size() as usize)
+                .sum::<usize>()
     }
 
     /// The total number of rows in all row groups in all tables in this chunk.
