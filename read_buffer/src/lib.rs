@@ -211,16 +211,16 @@ impl Database {
     }
 
     /// Returns the total estimated size in bytes of the database.
-    pub fn size(&self) -> u64 {
+    pub fn size(&self) -> usize {
         let base_size = std::mem::size_of::<Self>();
 
         let partition_data = self.data.read().unwrap();
-        base_size as u64
+        base_size
             + partition_data
                 .partitions
                 .iter()
-                .map(|(name, partition)| name.len() as u64 + partition.size())
-                .sum::<u64>()
+                .map(|(name, partition)| name.len() + partition.size() as usize)
+                .sum::<usize>()
     }
 
     pub fn rows(&self) -> u64 {
@@ -723,16 +723,18 @@ impl Partition {
 
     /// The total estimated size in bytes of the `Partition` and all contained
     /// data.
-    pub fn size(&self) -> u64 {
+    ///
+    /// TODO(edd): to be deprecated
+    pub fn size(&self) -> usize {
         let base_size = std::mem::size_of::<Self>() + self.key.len();
 
         let chunk_data = self.data.read().unwrap();
-        base_size as u64
+        (base_size as u64
             + chunk_data
                 .chunks
                 .values()
-                .map(|chunk| std::mem::size_of::<u32>() as u64 + chunk.size())
-                .sum::<u64>()
+                .map(|chunk| std::mem::size_of::<u32>() as u64 + chunk.size() as u64)
+                .sum::<u64>()) as usize
     }
 
     /// The total estimated size in bytes of the specified chunk id
@@ -741,7 +743,7 @@ impl Partition {
         chunk_data
             .chunks
             .get(&chunk_id)
-            .map(|chunk| chunk.size())
+            .map(|chunk| chunk.size() as u64)
             .unwrap_or(0) // treat unknown chunks as zero size
     }
 }
