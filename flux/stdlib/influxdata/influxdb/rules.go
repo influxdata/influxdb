@@ -743,7 +743,8 @@ func (PushDownWindowAggregateRule) Rewrite(ctx context.Context, pn plan.Node) (p
 	}), true, nil
 }
 
-// PushDownWindowAggregateWithTimeRule will match the given pattern.
+// PushDownWindowAggregateWithTimeRule will match the given pattern,
+// matching the definition of the `aggregateMin` function in Flux.
 // ReadWindowAggregatePhys |> duplicate |> window(every: inf)
 //
 // If this pattern matches and the arguments to duplicate are
