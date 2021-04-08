@@ -27,8 +27,7 @@ impl Table {
         self.table_summary.has_table(table_name)
     }
 
-    /// Return the approximate memory size of the chunk, in bytes including the
-    /// dictionary, tables, and their rows.
+    /// Return the approximate memory size of the table
     pub fn size(&self) -> usize {
         mem::size_of::<Self>()
             + self.table_summary.size()

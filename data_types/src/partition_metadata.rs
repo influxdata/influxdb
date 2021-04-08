@@ -70,8 +70,13 @@ impl TableSummary {
     }
 
     pub fn size(&self) -> usize {
+        // Total size of all ColumnSummaries that belong to this table which include
+        // column names and their stats
         let size: usize = self.columns.iter().map(|c| c.size()).sum();
-        size + self.name.len() + mem::size_of::<Self>()
+        size
+            + self.name.len() // Add size of the table name
+            + mem::size_of::<Self>() // Add size of this struct that points to
+                                     // table and ColumnSummary
     }
     pub fn has_table(&self, table_name: &str) -> bool {
         self.name.eq(table_name)

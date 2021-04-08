@@ -4,7 +4,6 @@ use self::generated_types::{management_service_client::ManagementServiceClient, 
 
 use crate::connection::Connection;
 use ::generated_types::google::longrunning::Operation;
-//use object_store::ObjectStore;
 
 use std::convert::TryInto;
 use std::num::NonZeroU32;

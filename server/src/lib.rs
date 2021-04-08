@@ -281,13 +281,14 @@ impl<M: ConnectionManager> Server<M> {
             .await
             .context(StoreError)?;
 
+        let server_id = self.require_id()?;
+
         let handles: Vec<_> = list_result
             .common_prefixes
             .into_iter()
             .map(|mut path| {
                 let store = Arc::clone(&self.store);
                 let config = Arc::clone(&self.config);
-                let server_id = self.require_id().unwrap(); //todo: return error instead
 
                 path.set_file_name(DB_RULES_FILE_NAME);
 
