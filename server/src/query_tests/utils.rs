@@ -18,7 +18,6 @@ pub fn make_db() -> Db {
         DatabaseRules::new(DatabaseName::new("placeholder").unwrap()),
         server_id,
         object_store,
-        read_buffer::Database::new(),
         None, // wal buffer
         Arc::new(JobRegistry::new()),
     )

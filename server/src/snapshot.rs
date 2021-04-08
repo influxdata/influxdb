@@ -272,7 +272,6 @@ mod tests {
         db::{DBChunk, Db},
         JobRegistry,
     };
-    use read_buffer::Database as ReadBufferDb;
 
     use super::*;
     use data_types::database_rules::DatabaseRules;
@@ -398,7 +397,6 @@ mem,host=A,region=west used=45 1
             DatabaseRules::new(DatabaseName::new("placeholder").unwrap()),
             server_id,
             object_store,
-            ReadBufferDb::new(),
             None, // wal buffer
             Arc::new(JobRegistry::new()),
         )

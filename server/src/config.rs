@@ -9,7 +9,6 @@ use data_types::{
     DatabaseName,
 };
 use object_store::{path::ObjectStorePath, ObjectStore};
-use read_buffer::Database as ReadBufferDb;
 
 /// This module contains code for managing the configuration of the server.
 use crate::{db::Db, Error, JobRegistry, Result};
@@ -95,13 +94,11 @@ impl Config {
             return;
         }
 
-        let read_buffer = ReadBufferDb::new();
         let wal_buffer = rules.wal_buffer_config.as_ref().map(Into::into);
         let db = Arc::new(Db::new(
             rules,
             server_id,
             object_store,
-            read_buffer,
             wal_buffer,
             Arc::clone(&self.jobs),
         ));

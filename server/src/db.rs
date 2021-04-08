@@ -13,7 +13,7 @@ use std::{
 use async_trait::async_trait;
 use observability_deps::tracing::{debug, info};
 use parking_lot::{Mutex, RwLock};
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
 use arrow_deps::datafusion::{
     catalog::{catalog::CatalogProvider, schema::SchemaProvider},
@@ -29,7 +29,7 @@ use internal_types::{data::ReplicatedWrite, selection::Selection};
 use object_store::ObjectStore;
 use parquet_file::{chunk::Chunk, storage::Storage};
 use query::{Database, DEFAULT_SCHEMA};
-use read_buffer::Database as ReadBufferDb;
+use read_buffer::Chunk as ReadBufferChunk;
 use tracker::{MemRegistry, TaskTracker, TrackedFutureExt};
 
 use super::{buffer::Buffer, JobRegistry};
@@ -108,7 +108,7 @@ pub enum Error {
     },
 
     #[snafu(display("Read Buffer Error in chunk {}: {}", chunk_id, source))]
-    ReadBufferChunk {
+    ReadBufferChunkError {
         source: read_buffer::Error,
         chunk_id: u32,
     },
@@ -198,12 +198,16 @@ pub struct Db {
 
     pub store: Arc<ObjectStore>,
 
-    /// The metadata catalog
+    /// The catalog holds chunks of data under partitions for the database.
+    /// The underlying chunks may be backed by different execution engines
+    /// depending on their stage in the data lifecycle. Currently there are
+    /// three backing engines for Chunks:
+    ///
+    ///  - The Mutable Buffer where chunks are mutable but also queryable;
+    ///  - The Read Buffer where chunks are immutable and stored in an optimised
+    ///    compressed form for small footprint and fast query execution; and
+    ///  - The Parquet Buffer where chunks are backed by Parquet file data.
     catalog: Arc<Catalog>,
-
-    /// The read buffer holds chunk data in an in-memory optimized
-    /// format.
-    read_buffer: Arc<ReadBufferDb>,
 
     /// The wal buffer holds replicated writes in an append in-memory
     /// buffer. This buffer is used for sending data to subscribers
@@ -241,7 +245,6 @@ impl Db {
         rules: DatabaseRules,
         server_id: NonZeroU32,
         object_store: Arc<ObjectStore>,
-        read_buffer: ReadBufferDb,
         wal_buffer: Option<Buffer>,
         jobs: Arc<JobRegistry>,
     ) -> Self {
@@ -249,7 +252,6 @@ impl Db {
         let server_id = server_id;
         let store = Arc::clone(&object_store);
         let wal_buffer = wal_buffer.map(Mutex::new);
-        let read_buffer = Arc::new(read_buffer);
         let catalog = Arc::new(Catalog::new());
         let system_tables = Arc::new(SystemSchemaProvider::new(Arc::clone(&catalog)));
         Self {
@@ -257,7 +259,6 @@ impl Db {
             server_id,
             store,
             catalog,
-            read_buffer,
             wal_buffer,
             jobs,
             system_tables,
@@ -307,9 +308,6 @@ impl Db {
         // with it while we drop the chunk
         let mut partition = partition.write();
 
-        // We can remove the need to drop the read buffer chunk once
-        // we inline its ownership into Catalog::Chunk
-        let mut drop_rb = false;
         let chunk_state;
 
         {
@@ -325,36 +323,22 @@ impl Db {
             // migration logic cleanup afterwards so that users
             // weren't prevented from dropping chunks due to
             // background tasks
-            match chunk.state() {
-                ChunkState::Moving(_) => {
-                    return DropMovingChunk {
-                        partition_key,
-                        chunk_id,
-                        chunk_state,
-                    }
-                    .fail()
+            ensure!(
+                !matches!(chunk.state(), ChunkState::Moving(_)),
+                DropMovingChunk {
+                    partition_key,
+                    chunk_id,
+                    chunk_state,
                 }
-                ChunkState::Moved(_) => {
-                    drop_rb = true;
-                }
-                _ => {}
-            }
+            );
         };
 
-        debug!(%partition_key, %chunk_id, %chunk_state, drop_rb, "dropping chunk");
+        debug!(%partition_key, %chunk_id, %chunk_state, "dropping chunk");
 
         partition.drop_chunk(chunk_id).context(DroppingChunk {
             partition_key,
             chunk_id,
-        })?;
-
-        if drop_rb {
-            self.read_buffer
-                .drop_chunk(partition_key, chunk_id)
-                .expect("Dropping read buffer chunk");
-        }
-
-        Ok(())
+        })
     }
 
     /// Copies a chunk in the Closing state into the ReadBuffer from
@@ -404,6 +388,10 @@ impl Db {
         let mut batches = Vec::new();
         let table_stats = mb_chunk.table_summaries();
 
+        // create a new read buffer chunk.
+        let rb_chunk = ReadBufferChunk::new(chunk_id);
+
+        // load tables into the new chunk one by one.
         for stats in table_stats {
             debug!(%partition_key, %chunk_id, table=%stats.name, "loading table to read buffer");
             mb_chunk
@@ -414,11 +402,7 @@ impl Db {
                 .expect("Loading chunk to mutable buffer");
 
             for batch in batches.drain(..) {
-                // As implemented now, taking this write lock will wait
-                // until all reads to the read buffer to complete and
-                // then will block all reads while the insert is occuring
-                self.read_buffer
-                    .upsert_partition(partition_key, mb_chunk.id(), &stats.name, batch)
+                rb_chunk.upsert_table(&stats.name, batch)
             }
         }
 
@@ -426,12 +410,10 @@ impl Db {
         // to modify the chunk state while we were moving it
         let mut chunk = chunk.write();
         // update the catalog to say we are done processing
-        chunk
-            .set_moved(Arc::clone(&self.read_buffer))
-            .context(LoadingChunk {
-                partition_key,
-                chunk_id,
-            })?;
+        chunk.set_moved(Arc::new(rb_chunk)).context(LoadingChunk {
+            partition_key,
+            chunk_id,
+        })?;
 
         debug!(%partition_key, %chunk_id, "chunk marked MOVED. loading complete");
 
@@ -462,9 +444,7 @@ impl Db {
 
         // update the catalog to say we are processing this chunk and
         // then drop the lock while we do the work
-        // TODO: for now this read_buffer. In the near future, after Edd refactors Read
-        // Buffer to work with Catalog, this will be a rb_chunk instead
-        let read_buffer = {
+        let rb_chunk = {
             let mut chunk = chunk.write();
 
             chunk
@@ -477,8 +457,8 @@ impl Db {
 
         debug!(%partition_key, %chunk_id, "chunk marked WRITING , loading tables into object store");
 
-        //Get all tables in this chunk
-        let table_stats = read_buffer.table_summaries(partition_key, &[chunk_id]);
+        // Get all tables in this chunk
+        let table_stats = rb_chunk.table_summaries();
 
         // Create a parquet chunk for this chunk
         let mut parquet_chunk = Chunk::new(
@@ -501,18 +481,12 @@ impl Db {
             // Get RecordBatchStream of data from the read buffer chunk
             // TODO: When we have the rb_chunk, the following code will be replaced with one
             // line let stream = rb_chunk.read_filter()
-            let read_results = read_buffer
-                .read_filter(
-                    partition_key,
-                    stats.name.as_str(),
-                    &[chunk_id],
-                    predicate,
-                    Selection::All,
-                )
-                .context(ReadBufferChunk { chunk_id })?;
-            let schema = read_results
-                .schema()
-                .context(ReadBufferChunk { chunk_id })?
+            let read_results = rb_chunk
+                .read_filter(stats.name.as_str(), predicate, Selection::All)
+                .context(ReadBufferChunkError { chunk_id })?;
+            let schema = rb_chunk
+                .read_filter_table_schema(stats.name.as_str(), Selection::All)
+                .context(ReadBufferChunkError { chunk_id })?
                 .into();
             let stream: SendableRecordBatchStream =
                 Box::pin(streams::ReadFilterResultsStream::new(read_results, schema));
