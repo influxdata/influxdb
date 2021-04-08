@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"path"
+	"regexp"
 	"strings"
 	"time"
 
@@ -109,7 +110,17 @@ func UserAgent(r *http.Request) string {
 	return ua.Parse(header).Name
 }
 
+// Constants used for normalizing paths
+const (
+	fileSlug  = ":file_name"
+	shardSlug = ":shard_id"
+)
+
 func normalizePath(p string) string {
+	// Normalize any paths used during backup or restore processes
+	p = normalizeBackupAndRestore(p)
+
+	// Go through each part of the path and normalize IDs and UI assets
 	var parts []string
 	for head, tail := shiftPath(p); ; head, tail = shiftPath(tail) {
 		piece := head
@@ -119,7 +130,10 @@ func normalizePath(p string) string {
 			}
 		}
 		parts = append(parts, piece)
+
 		if tail == "/" {
+			// Normalize UI asset file names. The UI asset file is the last part of the path.
+			parts[len(parts)-1] = normalizeAssetFile(parts[len(parts)-1])
 			break
 		}
 	}
@@ -133,6 +147,46 @@ func shiftPath(p string) (head, tail string) {
 		return p[1:], "/"
 	}
 	return p[1:i], p[i:]
+}
+
+// Normalize the file name for a UI asset
+// For example: 838442d56d.svg will return as :file_id.svg
+// Files names that do not have one of the listed extensions will be returned unchanged
+func normalizeAssetFile(f string) string {
+	exts := []string{
+		".js",
+		".svg",
+		".woff2",
+		".wasm",
+		".map",
+		".LICENSE",
+	}
+
+	for _, ext := range exts {
+		if strings.HasSuffix(f, ext) {
+			return fileSlug + ext
+		}
+	}
+
+	return f
+}
+
+// Normalize paths used during the backup and restore process.
+// Paths not matching any of the patterns will be returned unchanged.
+func normalizeBackupAndRestore(pth string) string {
+	patterns := map[string]string{
+		`restore/shards/\d+`: path.Join("restore/shards", shardSlug),
+		`backup/shards/\d+`:  path.Join("backup/shards", shardSlug),
+	}
+
+	for p, s := range patterns {
+		re := regexp.MustCompile(p)
+		if re.MatchString(pth) {
+			return re.ReplaceAllString(pth, s)
+		}
+	}
+
+	return pth
 }
 
 type OrgContext string
