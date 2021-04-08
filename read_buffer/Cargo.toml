@@ -21,6 +21,7 @@ itertools = "0.9.0"
 packers = { path = "../packers" }
 permutation = "0.2.5"
 snafu = "0.6"
+tracker = { path = "../tracker" }
 
 [dev-dependencies] # In alphabetical order
 criterion = "0.3.3"
