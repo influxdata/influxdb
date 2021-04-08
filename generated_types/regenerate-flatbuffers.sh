@@ -38,15 +38,11 @@ echo "run: bazel build :flatc ..."
 bazel build :flatc
 popd
 
-WAL_FBS="$DIR/protos/wal.fbs"
-WAL_RS_DIR="$DIR/src"
-
-$FLATC --rust -o $WAL_RS_DIR $WAL_FBS
-
-ENTRY_FBS="$DIR/protos/influxdata/iox/write/v1/entry.fbs"
-ENTRY_RS_DIR="$DIR/src"
-
-$FLATC --rust -o $ENTRY_RS_DIR $ENTRY_FBS
+RUST_DIR="$DIR/src"
+while read -r FBS_FILE; do
+    echo "Compiling ${FBS_file}"
+    $FLATC --rust -o $RUST_DIR $FBS_FILE
+done < <(git ls-files $DIR/*.fbs)
 
 cargo fmt
 popd
