@@ -300,7 +300,7 @@ var typeAheadVariableDropdown = MakeBoolFlag(
 	"Type Ahead Dropdowns for Variables",
 	"typeAheadVariableDropdown",
 	"Monitoring Team",
-	true,
+	false,
 	Temporary,
 	true,
 )
