@@ -112,7 +112,7 @@ impl TableData {
 
 impl Chunk {
     /// Initialises a new `Chunk` with the associated chunk ID.
-    pub(crate) fn new(id: u32) -> Self {
+    pub fn new(id: u32) -> Self {
         Self {
             id,
             chunk_data: RwLock::new(TableData::default()),
