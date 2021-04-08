@@ -3,6 +3,7 @@ package influxdb
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 
 	"github.com/influxdata/flux"
@@ -15,10 +16,11 @@ import (
 )
 
 const (
-	ReadRangePhysKind     = "ReadRangePhysKind"
-	ReadGroupPhysKind     = "ReadGroupPhysKind"
-	ReadTagKeysPhysKind   = "ReadTagKeysPhysKind"
-	ReadTagValuesPhysKind = "ReadTagValuesPhysKind"
+	ReadRangePhysKind           = "ReadRangePhysKind"
+	ReadGroupPhysKind           = "ReadGroupPhysKind"
+	ReadWindowAggregatePhysKind = "ReadWindowAggregatePhysKind"
+	ReadTagKeysPhysKind         = "ReadTagKeysPhysKind"
+	ReadTagValuesPhysKind       = "ReadTagValuesPhysKind"
 )
 
 type ReadGroupPhysSpec struct {
@@ -119,6 +121,38 @@ func (s *ReadRangePhysSpec) TimeBounds(predecessorBounds *plan.Bounds) *plan.Bou
 		Start: values.ConvertTime(s.Bounds.Start.Time(s.Bounds.Now)),
 		Stop:  values.ConvertTime(s.Bounds.Stop.Time(s.Bounds.Now)),
 	}
+}
+
+type ReadWindowAggregatePhysSpec struct {
+	plan.DefaultCost
+	ReadRangePhysSpec
+
+	WindowEvery flux.Duration
+	Offset      flux.Duration
+	Aggregates  []plan.ProcedureKind
+	CreateEmpty bool
+	TimeColumn  string
+}
+
+func (s *ReadWindowAggregatePhysSpec) PlanDetails() string {
+	return fmt.Sprintf("every = %v, aggregates = %v, createEmpty = %v, timeColumn = \"%s\"", s.WindowEvery, s.Aggregates, s.CreateEmpty, s.TimeColumn)
+}
+
+func (s *ReadWindowAggregatePhysSpec) Kind() plan.ProcedureKind {
+	return ReadWindowAggregatePhysKind
+}
+
+func (s *ReadWindowAggregatePhysSpec) Copy() plan.ProcedureSpec {
+	ns := new(ReadWindowAggregatePhysSpec)
+
+	ns.ReadRangePhysSpec = *s.ReadRangePhysSpec.Copy().(*ReadRangePhysSpec)
+	ns.WindowEvery = s.WindowEvery
+	ns.Offset = s.Offset
+	ns.Aggregates = s.Aggregates
+	ns.CreateEmpty = s.CreateEmpty
+	ns.TimeColumn = s.TimeColumn
+
+	return ns
 }
 
 type ReadTagKeysPhysSpec struct {

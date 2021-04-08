@@ -16,6 +16,7 @@ v1.9.0 [unreleased]
 -	[#21074](https://github.com/influxdata/influxdb/pull/21074): feat: upgrade to flux 0.111.0
 -	[#21100](https://github.com/influxdata/influxdb/pull/21100): feat: add memory and concurrency limits in flux controller
 -	[#21108](https://github.com/influxdata/influxdb/pull/21108): feat: make flux controller limits configurable
+-	[#21168](https://github.com/influxdata/influxdb/pull/21168): feat: implement rewrite rules for window and bare aggregates
 
 ### Bugfixes
 
@@ -42,6 +43,7 @@ v1.9.0 [unreleased]
 -	[#17685](https://github.com/influxdata/influxdb/pull/17685): fix(tsm1): Fix temp directory search bug
 -	[#17495](https://github.com/influxdata/influxdb/pull/17495): fix(snapshotter): properly read payload
 -	[#21139](https://github.com/influxdata/influxdb/pull/21139): fix(tsdb): exclude stop time from array cursors
+-	[#21168](https://github.com/influxdata/influxdb/pull/21168): fix(storage): Detect need for descending cursor in WindowAggregate
 
 v1.8.5 [unreleased]
 -------------------
