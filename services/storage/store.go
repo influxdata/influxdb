@@ -229,13 +229,13 @@ func (s *Store) WindowAggregate(ctx context.Context, req *datatypes.ReadWindowAg
 	return reads.NewWindowAggregateResultSet(ctx, req, cur)
 }
 
-type metaqueryAttributes struct {
+type MetaqueryAttributes struct {
 	db, rp     string
 	start, end int64
 	pred       influxql.Expr
 }
 
-func (s *Store) tagKeysWithFieldPredicate(ctx context.Context, mqAttrs *metaqueryAttributes, shardIDs []uint64) (cursors.StringIterator, error) {
+func (s *Store) tagKeysWithFieldPredicate(ctx context.Context, mqAttrs *MetaqueryAttributes, shardIDs []uint64) (cursors.StringIterator, error) {
 	var cur reads.SeriesCursor
 	if ic, err := newIndexSeriesCursorInfluxQLPred(ctx, mqAttrs.pred, s.TSDBStore.Shards(shardIDs)); err != nil {
 		return nil, err
@@ -303,7 +303,7 @@ func (s *Store) TagKeys(ctx context.Context, req *datatypes.TagKeysRequest) (cur
 			return nil, errors.New("field values unsupported")
 		}
 		if found := reads.ExprHasKey(expr, fieldKey); found {
-			mqAttrs := &metaqueryAttributes{
+			mqAttrs := &MetaqueryAttributes{
 				db:    db,
 				rp:    rp,
 				start: start,
@@ -376,7 +376,7 @@ func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 		}
 	}
 
-	mqAttrs := &metaqueryAttributes{
+	mqAttrs := &MetaqueryAttributes{
 		db:    db,
 		rp:    rp,
 		start: start,
@@ -401,7 +401,7 @@ func (s *Store) TagValues(ctx context.Context, req *datatypes.TagValuesRequest) 
 	return s.tagValues(ctx, mqAttrs, tagKey)
 }
 
-func (s *Store) tagValues(ctx context.Context, mqAttrs *metaqueryAttributes, tagKey string) (cursors.StringIterator, error) {
+func (s *Store) tagValues(ctx context.Context, mqAttrs *MetaqueryAttributes, tagKey string) (cursors.StringIterator, error) {
 	// If there are any references to _field, we need to use the slow path
 	// since we cannot rely on the index alone.
 	if mqAttrs.pred != nil {
@@ -462,7 +462,7 @@ func (s *Store) tagValues(ctx context.Context, mqAttrs *metaqueryAttributes, tag
 	return cursors.NewStringSliceIterator(names), nil
 }
 
-func (s *Store) MeasurementNames(ctx context.Context, mqAttrs *metaqueryAttributes) (cursors.StringIterator, error) {
+func (s *Store) MeasurementNames(ctx context.Context, mqAttrs *MetaqueryAttributes) (cursors.StringIterator, error) {
 	if mqAttrs.pred != nil {
 		if hasFieldKey := reads.ExprHasKey(mqAttrs.pred, fieldKey); hasFieldKey {
 			// If there is a predicate on _field, we cannot use the index
@@ -496,7 +496,7 @@ func (s *Store) GetSource(db, rp string) proto.Message {
 	return &ReadSource{Database: db, RetentionPolicy: rp}
 }
 
-func (s *Store) measurementFields(ctx context.Context, mqAttrs *metaqueryAttributes) (cursors.StringIterator, error) {
+func (s *Store) measurementFields(ctx context.Context, mqAttrs *MetaqueryAttributes) (cursors.StringIterator, error) {
 	if mqAttrs.pred != nil {
 		if hasFieldKey := reads.ExprHasKey(mqAttrs.pred, fieldKey); hasFieldKey {
 			return s.tagValuesSlow(ctx, mqAttrs, fieldKey)
@@ -577,7 +577,7 @@ func cursorHasData(c cursors.Cursor) bool {
 // stored in the shard. Because fields are not themselves indexed, we have no way
 // of correlating fields to tag values, so we sometimes need to consult tsm to
 // provide an accurate answer.
-func (s *Store) tagValuesSlow(ctx context.Context, mqAttrs *metaqueryAttributes, tagKey string) (cursors.StringIterator, error) {
+func (s *Store) tagValuesSlow(ctx context.Context, mqAttrs *MetaqueryAttributes, tagKey string) (cursors.StringIterator, error) {
 	shardIDs, err := s.findShardIDs(mqAttrs.db, mqAttrs.rp, false, mqAttrs.start, mqAttrs.end)
 	if err != nil {
 		return nil, err
