@@ -192,7 +192,6 @@ pub struct Server<M: ConnectionManager> {
     jobs: Arc<JobRegistry>,
 }
 
-//impl<M: ConnectionManager + std::marker::Send + Sync> Server<M> {
 impl<M: ConnectionManager> Server<M> {
     pub fn new(connection_manager: M, store: Arc<ObjectStore>) -> Self {
         let jobs = Arc::new(JobRegistry::new());

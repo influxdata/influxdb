@@ -924,9 +924,10 @@ mod tests {
     #[tokio::test]
     async fn write_updates_last_write_at() {
         let db = make_db();
-        let mut writer = TestLPWriter::default();
         let before_create = Utc::now();
+
         let partition_key = "1970-01-01T00";
+        let mut writer = TestLPWriter::default();
         writer.write_lp_string(&db, "cpu bar=1 10").unwrap();
         let after_write = Utc::now();
 
@@ -952,6 +953,8 @@ mod tests {
     async fn test_chunk_timestamps() {
         let start = Utc::now();
         let db = make_db();
+
+        // Given data loaded into two chunks
         let mut writer = TestLPWriter::default();
         writer.write_lp_string(&db, "cpu bar=1 10").unwrap();
         let after_data_load = Utc::now();
@@ -983,10 +986,10 @@ mod tests {
     #[tokio::test]
     async fn test_chunk_closing() {
         let db = make_db();
-        let mut writer = TestLPWriter::default();
         db.rules.write().lifecycle_rules.mutable_size_threshold =
             Some(NonZeroUsize::new(2).unwrap());
 
+        let mut writer = TestLPWriter::default();
         writer.write_lp_string(&db, "cpu bar=1 10").unwrap();
         writer.write_lp_string(&db, "cpu bar=1 20").unwrap();
 
@@ -1043,8 +1046,8 @@ mod tests {
     async fn chunk_id_listing() {
         // Test that chunk id listing is hooked up
         let db = make_db();
-        let mut writer = TestLPWriter::default();
         let partition_key = "1970-01-01T00";
+        let mut writer = TestLPWriter::default();
         writer.write_lp_string(&db, "cpu bar=1 10").unwrap();
         writer.write_lp_string(&db, "cpu bar=1 20").unwrap();
 
@@ -1096,6 +1099,7 @@ mod tests {
         // Test that chunk id listing is hooked up
         let db = make_db();
         let mut writer = TestLPWriter::default();
+
         writer.write_lp_string(&db, "cpu bar=1 1").unwrap();
         db.rollover_partition("1970-01-01T00").await.unwrap();
 
@@ -1192,6 +1196,7 @@ mod tests {
         // Test that chunk id listing is hooked up
         let db = make_db();
         let mut writer = TestLPWriter::default();
+
         // get three chunks: one open, one closed in mb and one close in rb
         writer.write_lp_string(&db, "cpu bar=1 1").unwrap();
         db.rollover_partition("1970-01-01T00").await.unwrap();
@@ -1265,6 +1270,7 @@ mod tests {
         // Test that chunk id listing is hooked up
         let db = make_db();
         let mut writer = TestLPWriter::default();
+
         writer.write_lp_string(&db, "cpu bar=1 1").unwrap();
         let chunk_id = db.rollover_partition("1970-01-01T00").await.unwrap().id();
         writer.write_lp_string(&db, "cpu bar=2,baz=3.0 2").unwrap();

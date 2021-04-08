@@ -26,8 +26,8 @@ pub struct NoData {}
 #[async_trait]
 impl DBSetup for NoData {
     async fn make(&self) -> Vec<DBScenario> {
-        let db = make_db();
         let partition_key = "1970-01-01T00";
+        let db = make_db();
         let scenario1 = DBScenario {
             scenario_name: "New, Empty Database".into(),
             db,
@@ -46,8 +46,8 @@ impl DBSetup for NoData {
         // a scenario where the database has had data loaded and then deleted
 
         let db = make_db();
-        let mut writer = TestLPWriter::default();
         let data = "cpu,region=west user=23.2 100";
+        let mut writer = TestLPWriter::default();
         writer.write_lp_string(&db, data).unwrap();
         // move data out of open chunk
         assert_eq!(db.rollover_partition(partition_key).await.unwrap().id(), 0);
@@ -175,6 +175,7 @@ impl DBSetup for TwoMeasurementsManyFieldsOneChunk {
     async fn make(&self) -> Vec<DBScenario> {
         let db = make_db();
         let mut writer = TestLPWriter::default();
+
         let lp_lines = vec![
             "h2o,state=MA,city=Boston temp=70.4 50",
             "h2o,state=MA,city=Boston other_temp=70.4 250",

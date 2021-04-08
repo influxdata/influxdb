@@ -160,6 +160,7 @@ impl DBSetup for MeasurementForWindowAggregateMonths {
         ];
         // partition keys are: ["2020-03-02T00", "2020-03-01T00", "2020-04-01T00",
         // "2020-04-02T00"]
+
         let db = make_db();
         let mut writer = TestLPWriter::default();
         let data = lp_lines.join("\n");
