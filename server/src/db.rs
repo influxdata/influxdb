@@ -234,7 +234,6 @@ pub struct Db {
 struct MemoryRegistries {
     mutable_buffer: Arc<MemRegistry>,
 
-    // TODO: Wire into read buffer
     read_buffer: Arc<MemRegistry>,
 
     parquet: Arc<MemRegistry>,
@@ -388,8 +387,9 @@ impl Db {
         let mut batches = Vec::new();
         let table_stats = mb_chunk.table_summaries();
 
-        // create a new read buffer chunk.
-        let rb_chunk = ReadBufferChunk::new(chunk_id);
+        // create a new read buffer chunk with memory tracking
+        let rb_chunk =
+            ReadBufferChunk::new_with_memory_tracker(chunk_id, &self.memory_registries.read_buffer);
 
         // load tables into the new chunk one by one.
         for stats in table_stats {
@@ -1206,7 +1206,7 @@ mod tests {
                 to_arc("1970-01-01T00"),
                 0,
                 ChunkStorage::ReadBuffer,
-                1269,
+                1285,
             ),
             ChunkSummary::new_without_timestamps(
                 to_arc("1970-01-01T00"),
@@ -1229,8 +1229,7 @@ mod tests {
         ];
 
         assert_eq!(db.memory_registries.mutable_buffer.bytes(), 101 + 133 + 135);
-        // TODO: Instrument read buffer
-        //assert_eq!(db.memory_registries.read_buffer.bytes(), 1269);
+        assert_eq!(db.memory_registries.read_buffer.bytes(), 1285);
 
         assert_eq!(
             expected, chunk_summaries,
