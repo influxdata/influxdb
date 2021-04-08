@@ -2501,17 +2501,13 @@ pub mod influxdata {
                         if let Some(x) = args.entry_bytes {
                             builder.add_entry_bytes(x);
                         }
-                        if let Some(x) = args.entry {
-                            builder.add_entry(x);
-                        }
                         builder.add_writer_id(args.writer_id);
                         builder.finish()
                     }
 
                     pub const VT_CLOCK_VALUE: flatbuffers::VOffsetT = 4;
                     pub const VT_WRITER_ID: flatbuffers::VOffsetT = 6;
-                    pub const VT_ENTRY: flatbuffers::VOffsetT = 8;
-                    pub const VT_ENTRY_BYTES: flatbuffers::VOffsetT = 10;
+                    pub const VT_ENTRY_BYTES: flatbuffers::VOffsetT = 8;
 
                     #[inline]
                     pub fn clock_value(&self) -> u64 {
@@ -2524,13 +2520,6 @@ pub mod influxdata {
                         self._tab
                             .get::<u32>(SequencedEntry::VT_WRITER_ID, Some(0))
                             .unwrap()
-                    }
-                    #[inline]
-                    pub fn entry(&self) -> Option<Entry<'a>> {
-                        self._tab.get::<flatbuffers::ForwardsUOffset<Entry>>(
-                            SequencedEntry::VT_ENTRY,
-                            None,
-                        )
                     }
                     #[inline]
                     pub fn entry_bytes(&self) -> Option<&'a [u8]> {
@@ -2553,7 +2542,6 @@ pub mod influxdata {
                         v.visit_table(pos)?
      .visit_field::<u64>(&"clock_value", Self::VT_CLOCK_VALUE, false)?
      .visit_field::<u32>(&"writer_id", Self::VT_WRITER_ID, false)?
-     .visit_field::<flatbuffers::ForwardsUOffset<Entry>>(&"entry", Self::VT_ENTRY, false)?
      .visit_field::<flatbuffers::ForwardsUOffset<flatbuffers::Vector<'_, u8>>>(&"entry_bytes", Self::VT_ENTRY_BYTES, false)?
      .finish();
                         Ok(())
@@ -2562,7 +2550,6 @@ pub mod influxdata {
                 pub struct SequencedEntryArgs<'a> {
                     pub clock_value: u64,
                     pub writer_id: u32,
-                    pub entry: Option<flatbuffers::WIPOffset<Entry<'a>>>,
                     pub entry_bytes: Option<flatbuffers::WIPOffset<flatbuffers::Vector<'a, u8>>>,
                 }
                 impl<'a> Default for SequencedEntryArgs<'a> {
@@ -2571,7 +2558,6 @@ pub mod influxdata {
                         SequencedEntryArgs {
                             clock_value: 0,
                             writer_id: 0,
-                            entry: None,
                             entry_bytes: None,
                         }
                     }
@@ -2590,13 +2576,6 @@ pub mod influxdata {
                     pub fn add_writer_id(&mut self, writer_id: u32) {
                         self.fbb_
                             .push_slot::<u32>(SequencedEntry::VT_WRITER_ID, writer_id, 0);
-                    }
-                    #[inline]
-                    pub fn add_entry(&mut self, entry: flatbuffers::WIPOffset<Entry<'b>>) {
-                        self.fbb_.push_slot_always::<flatbuffers::WIPOffset<Entry>>(
-                            SequencedEntry::VT_ENTRY,
-                            entry,
-                        );
                     }
                     #[inline]
                     pub fn add_entry_bytes(
@@ -2630,7 +2609,6 @@ pub mod influxdata {
                         let mut ds = f.debug_struct("SequencedEntry");
                         ds.field("clock_value", &self.clock_value());
                         ds.field("writer_id", &self.writer_id());
-                        ds.field("entry", &self.entry());
                         ds.field("entry_bytes", &self.entry_bytes());
                         ds.finish()
                     }

@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use criterion::{criterion_group, criterion_main, Criterion};
 use data_types::database_rules::{Error as DataError, Partitioner, Sharder};
 use influxdb_line_protocol::ParsedLine;
-use internal_types::entry::{lines_to_sharded_entries, SequencedEntry, SequencedEntryRaw};
+use internal_types::entry::{lines_to_sharded_entries, SequencedEntry};
 
 static LINES: &str = include_str!("../../tests/fixtures/lineproto/prometheus.lp");
 
@@ -28,17 +28,9 @@ fn sequenced_entry(c: &mut Criterion) {
         554
     );
 
-    group.bench_function("new_from_entry", |b| {
-        b.iter(|| {
-            let sequenced_entry = SequencedEntry::new_from_entry(23, 2, entry).unwrap();
-            assert_eq!(sequenced_entry.clock_value(), 23);
-            assert_eq!(sequenced_entry.writer_id(), 2);
-        })
-    });
-
     group.bench_function("new_from_entry_bytes", |b| {
         b.iter(|| {
-            let sequenced_entry = SequencedEntryRaw::new_from_entry_bytes(23, 2, data).unwrap();
+            let sequenced_entry = SequencedEntry::new_from_entry_bytes(23, 2, data).unwrap();
             assert_eq!(sequenced_entry.clock_value(), 23);
             assert_eq!(sequenced_entry.writer_id(), 2);
         })
