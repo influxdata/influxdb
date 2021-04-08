@@ -9,13 +9,9 @@ pushd $DIR
 
 echo "Checking for changes to fbs files between ${BEFORE_SHA} and ${AFTER_SHA}..."
 
-WAL_FBS="$DIR/protos/wal.fbs"
-ENTRY_FBS="$DIR/protos/influxdata/iox/write/v1/entry.fbs"
+FBS_CHANGES=$(git rev-list "${BEFORE_SHA}".."${AFTER_SHA}" "**/*.fbs" | wc -l)
 
-WAL_CHANGES=$(git rev-list "${BEFORE_SHA}".."${AFTER_SHA}" "${WAL_FBS}" | wc -l)
-ENTRY_CHANGES=$(git rev-list "${BEFORE_SHA}".."${AFTER_SHA}" "${ENTRY_FBS}" | wc -l)
-
-if [[ $WAL_CHANGES -gt 0 || $ENTRY_CHANGES -gt 0 ]]; then
+if [[ $FBS_CHANGES -gt 0 ]]; then
   echo "Changes to fbs files detected, regenerating flatbuffers code..."
 
   # Will move this to docker if it works
