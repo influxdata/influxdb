@@ -100,16 +100,23 @@ func (t *testExecutor) run(pkg *ast.Package, index string, logOut io.Writer) err
 
 	// During the first execution, we are performing the writes
 	// that are in the testcase. We do not care about errors.
-	_ = t.executeWithOptions(bucketOpt, t.writeOptAST, pkg, s.URL())
+	_ = t.executeWithOptions(bucketOpt, t.writeOptAST, pkg, s.URL(), logOut, false)
 
 	// Execute the read pass.
-	return t.executeWithOptions(bucketOpt, t.readOptAST, pkg, s.URL())
+	return t.executeWithOptions(bucketOpt, t.readOptAST, pkg, s.URL(), logOut, true)
 }
 
 // executeWithOptions runs a Flux query against a running server via the HTTP API.
 // Flux queries executed by this method are expected to return no output on success. If the API call returns any data,
 // it is formatted as a table and returned wrapped in an error.
-func (t *testExecutor) executeWithOptions(bucketOpt *ast.OptionStatement, optionsAST *ast.File, pkg *ast.Package, serverUrl string) error {
+func (t *testExecutor) executeWithOptions(
+	bucketOpt *ast.OptionStatement,
+	optionsAST *ast.File,
+	pkg *ast.Package,
+	serverUrl string,
+	logOut io.Writer,
+	checkOutput bool,
+) error {
 	options := optionsAST.Copy().(*ast.File)
 	options.Body = append([]ast.Statement{bucketOpt}, options.Body...)
 
@@ -158,21 +165,31 @@ func (t *testExecutor) executeWithOptions(bucketOpt *ast.OptionStatement, option
 	}
 	defer r.Release()
 
-	for r.More() {
-		v := r.Next()
-
-		if err := v.Tables().Do(func(tbl flux.Table) error {
-			// The data returned here is the result of `testing.diff`, so any result means that
-			// a comparison of two tables showed inequality. Capture that inequality as part of the error.
-			// XXX: rockstar (08 Dec 2020) - This could use some ergonomic work, as the diff testOutput
-			// is not exactly "human readable."
-			return fmt.Errorf("%s", table.Stringify(tbl))
-		}); err != nil {
-			return err
+	wasDiff := false
+	if checkOutput {
+		for r.More() {
+			wasDiff = true
+			v := r.Next()
+			if err := v.Tables().Do(func(tbl flux.Table) error {
+				// The data returned here is the result of `testing.diff`, so any result means that
+				// a comparison of two tables showed inequality. Capture that inequality as part of the error.
+				// XXX: rockstar (08 Dec 2020) - This could use some ergonomic work, as the diff testOutput
+				// is not exactly "human readable."
+				_, _ = fmt.Fprintln(logOut, table.Stringify(tbl))
+				return nil
+			}); err != nil {
+				return err
+			}
 		}
 	}
 	r.Release()
-	return r.Err()
+	if err := r.Err(); err != nil {
+		return err
+	}
+	if wasDiff {
+		return errors.New("test failed - diff table in output")
+	}
+	return nil
 }
 
 // This options definition puts to() in the path of the CSV input. The tests
