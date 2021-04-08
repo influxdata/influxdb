@@ -9,8 +9,8 @@ use crate::{Error as WalError, SequenceNumber, WalBuilder, WritePayload};
 use futures::{channel::mpsc, SinkExt, StreamExt};
 use snafu::{ResultExt, Snafu};
 
+use observability_deps::tracing::{error, info};
 use serde::{Deserialize, Serialize};
-use tracing::{error, info};
 
 use std::path::PathBuf;
 

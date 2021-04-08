@@ -1,7 +1,7 @@
 //! Common error utilities
 use std::fmt::Debug;
 
-use tracing::error;
+use observability_deps::tracing::error;
 
 /// Add ability for Results to log error messages via `error!` logs.
 /// This is useful when using async tasks that may not have a natural

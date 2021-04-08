@@ -64,10 +64,7 @@ use futures::{Stream, StreamExt};
 use reqwest::{Body, Method};
 use serde::Serialize;
 use snafu::{ResultExt, Snafu};
-use std::{
-    fmt,
-    io::{self, Write},
-};
+use std::io::{self, Write};
 
 pub mod data_point;
 pub use data_point::{DataPoint, FieldValue, WriteDataPoint};
@@ -106,7 +103,7 @@ pub enum RequestError {
 pub struct Client {
     /// The base URL this client sends requests to
     pub url: String,
-    auth_header: String,
+    auth_header: Option<String>,
     reqwest: reqwest::Client,
 }
 
@@ -120,19 +117,30 @@ impl Client {
     /// ```
     /// let client = influxdb2_client::Client::new("http://localhost:8888", "my-token");
     /// ```
-    pub fn new(url: impl Into<String>, auth_token: impl fmt::Display) -> Self {
+    pub fn new(url: impl Into<String>, auth_token: impl Into<String>) -> Self {
+        let token = auth_token.into();
+        let auth_header = if token.is_empty() {
+            None
+        } else {
+            Some(format!("Token {}", token))
+        };
+
         Self {
             url: url.into(),
-            auth_header: format!("Token {}", auth_token),
+            auth_header,
             reqwest: reqwest::Client::new(),
         }
     }
 
     /// Consolidate common request building code
     fn request(&self, method: Method, url: &str) -> reqwest::RequestBuilder {
-        self.reqwest
-            .request(method, url)
-            .header("Authorization", &self.auth_header)
+        let mut req = self.reqwest.request(method, url);
+
+        if let Some(auth) = &self.auth_header {
+            req = req.header("Authorization", auth);
+        }
+
+        req
     }
 
     /// Write line protocol data to the specified organization and bucket.
@@ -230,11 +238,8 @@ mod tests {
     use futures::stream;
     use mockito::mock;
 
-    type Error = Box<dyn std::error::Error>;
-    type Result<T = (), E = Error> = std::result::Result<T, E>;
-
     #[tokio::test]
-    async fn writing_points() -> Result {
+    async fn writing_points() {
         let org = "some-org";
         let bucket = "some-bucket";
         let token = "some-token";
@@ -258,12 +263,14 @@ cpu,host=server01,region=us-west usage=0.87
             DataPoint::builder("cpu")
                 .tag("host", "server01")
                 .field("usage", 0.5)
-                .build()?,
+                .build()
+                .unwrap(),
             DataPoint::builder("cpu")
                 .tag("host", "server01")
                 .tag("region", "us-west")
                 .field("usage", 0.87)
-                .build()?,
+                .build()
+                .unwrap(),
         ];
 
         // If the requests made are incorrect, Mockito returns status 501 and `write`
@@ -274,11 +281,10 @@ cpu,host=server01,region=us-west usage=0.87
         let _result = client.write(org, bucket, stream::iter(points)).await;
 
         mock_server.assert();
-        Ok(())
     }
 
     #[tokio::test]
-    async fn create_bucket() -> Result {
+    async fn create_bucket() {
         let org_id = "0000111100001111";
         let bucket = "some-bucket";
         let token = "some-token";
@@ -299,7 +305,6 @@ cpu,host=server01,region=us-west usage=0.87
         let _result = client.create_bucket(org_id, bucket).await;
 
         mock_server.assert();
-        Ok(())
     }
 }
 

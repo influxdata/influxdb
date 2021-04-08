@@ -2,12 +2,13 @@ use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 use data_types::chunk::{ChunkStorage, ChunkSummary};
 use internal_types::{schema::Schema, selection::Selection};
 use mutable_buffer::chunk::Chunk as MBChunk;
+use observability_deps::tracing::debug;
+use parquet_file::chunk::Chunk as ParquetChunk;
 use query::{exec::stringset::StringSet, predicate::Predicate, PartitionChunk};
-use read_buffer::Database as ReadBufferDb;
+use read_buffer::Chunk as ReadBufferChunk;
 use snafu::{ResultExt, Snafu};
-use tracing::debug;
 
-use std::sync::Arc;
+use std::{collections::BTreeSet, sync::Arc};
 
 use super::{
     pred::{to_mutable_buffer_predicate, to_read_buffer_predicate},
@@ -22,7 +23,7 @@ pub enum Error {
     },
 
     #[snafu(display("Read Buffer Error in chunk {}: {}", chunk_id, source))]
-    ReadBufferChunk {
+    ReadBufferChunkError {
         source: read_buffer::Error,
         chunk_id: u32,
     },
@@ -64,24 +65,26 @@ pub enum DBChunk {
         open: bool,
     },
     ReadBuffer {
-        db: Arc<ReadBufferDb>,
+        chunk: Arc<ReadBufferChunk>,
         partition_key: Arc<String>,
-        chunk_id: u32,
     },
-    ParquetFile, // TODO add appropriate type here
+    ParquetFile {
+        chunk: Arc<ParquetChunk>,
+    },
 }
 
 impl DBChunk {
     /// Create a DBChunk snapshot of the catalog chunk
     pub fn snapshot(chunk: &super::catalog::chunk::Chunk) -> Arc<Self> {
         let partition_key = Arc::new(chunk.key().to_string());
-        let chunk_id = chunk.id();
+
+        use super::catalog::chunk::ChunkState;
 
         let db_chunk = match chunk.state() {
-            super::catalog::chunk::ChunkState::None => {
+            ChunkState::Invalid => {
                 panic!("Invalid internal state");
             }
-            super::catalog::chunk::ChunkState::Open(chunk) => {
+            ChunkState::Open(chunk) => {
                 // TODO the performance if cloning the chunk is terrible
                 // Proper performance is tracked in
                 // https://github.com/influxdata/influxdb_iox/issues/635
@@ -92,7 +95,7 @@ impl DBChunk {
                     open: true,
                 }
             }
-            super::catalog::chunk::ChunkState::Closing(chunk) => {
+            ChunkState::Closing(chunk) => {
                 // TODO the performance if cloning the chunk is terrible
                 // Proper performance is tracked in
                 // https://github.com/influxdata/influxdb_iox/issues/635
@@ -103,8 +106,7 @@ impl DBChunk {
                     open: false,
                 }
             }
-            super::catalog::chunk::ChunkState::Closed(chunk)
-            | super::catalog::chunk::ChunkState::Moving(chunk) => {
+            ChunkState::Moving(chunk) => {
                 let chunk = Arc::clone(chunk);
                 Self::MutableBuffer {
                     chunk,
@@ -112,18 +114,25 @@ impl DBChunk {
                     open: false,
                 }
             }
-            super::catalog::chunk::ChunkState::Moved(db) => {
-                let db = Arc::clone(db);
-                Self::ReadBuffer {
-                    db,
-                    partition_key,
-                    chunk_id,
-                }
+            ChunkState::Moved(chunk) => Self::ReadBuffer {
+                chunk: Arc::clone(chunk),
+                partition_key,
+            },
+            ChunkState::WritingToObjectStore(chunk) => Self::ReadBuffer {
+                chunk: Arc::clone(chunk),
+                partition_key,
+            },
+            ChunkState::WrittenToObjectStore(_, chunk) => {
+                let chunk = Arc::clone(chunk);
+                Self::ParquetFile { chunk }
             }
         };
         Arc::new(db_chunk)
     }
 
+    /// Return a partially filled `ChunkSummary` that includes storage
+    /// details. Information such as timestamps are provided by the
+    /// the catalog
     pub fn summary(&self) -> ChunkSummary {
         match self {
             Self::MutableBuffer {
@@ -136,30 +145,27 @@ impl DBChunk {
                 } else {
                     ChunkStorage::ClosedMutableBuffer
                 };
-                ChunkSummary {
-                    partition_key: Arc::clone(partition_key),
-                    id: chunk.id(),
+                ChunkSummary::new_without_timestamps(
+                    Arc::clone(partition_key),
+                    chunk.id(),
                     storage,
-                    estimated_bytes: chunk.size(),
-                }
+                    chunk.size(),
+                )
             }
             Self::ReadBuffer {
-                db,
+                chunk,
                 partition_key,
-                chunk_id,
             } => {
-                let estimated_bytes = db
-                    .chunks_size(partition_key.as_ref(), &[*chunk_id])
-                    .unwrap_or(0) as usize;
+                let estimated_bytes = chunk.size() as usize;
 
-                ChunkSummary {
-                    partition_key: Arc::clone(&partition_key),
-                    id: *chunk_id,
-                    storage: ChunkStorage::ReadBuffer,
+                ChunkSummary::new_without_timestamps(
+                    Arc::clone(&partition_key),
+                    chunk.id(),
+                    ChunkStorage::ReadBuffer,
                     estimated_bytes,
-                }
+                )
             }
-            Self::ParquetFile => {
+            Self::ParquetFile { .. } => {
                 unimplemented!("parquet file summary not implemented")
             }
         }
@@ -172,32 +178,30 @@ impl PartitionChunk for DBChunk {
     fn id(&self) -> u32 {
         match self {
             Self::MutableBuffer { chunk, .. } => chunk.id(),
-            Self::ReadBuffer { chunk_id, .. } => *chunk_id,
-            Self::ParquetFile => unimplemented!("parquet file not implemented"),
+            Self::ReadBuffer { chunk, .. } => chunk.id(),
+            Self::ParquetFile { .. } => unimplemented!("parquet file not implemented"),
         }
     }
 
-    fn table_stats(
-        &self,
-    ) -> Result<Vec<data_types::partition_metadata::TableSummary>, Self::Error> {
+    fn table_summaries(&self) -> Vec<data_types::partition_metadata::TableSummary> {
         match self {
-            Self::MutableBuffer { chunk, .. } => chunk.table_stats().context(MutableBufferChunk),
-            Self::ReadBuffer { .. } => unimplemented!("read buffer not implemented"),
-            Self::ParquetFile => unimplemented!("parquet file not implemented"),
+            Self::MutableBuffer { chunk, .. } => chunk.table_summaries(),
+            Self::ReadBuffer { chunk, .. } => chunk.table_summaries(),
+            Self::ParquetFile { .. } => unimplemented!("parquet file not implemented"),
         }
     }
 
     fn all_table_names(&self, known_tables: &mut StringSet) {
         match self {
             Self::MutableBuffer { chunk, .. } => chunk.all_table_names(known_tables),
-            Self::ReadBuffer {
-                db,
-                partition_key,
-                chunk_id,
-            } => db.all_table_names(partition_key, &[*chunk_id], known_tables),
-            Self::ParquetFile => {
-                unimplemented!("parquet files")
+            Self::ReadBuffer { chunk, .. } => {
+                // TODO - align APIs so they behave in the same way...
+                let rb_names = chunk.all_table_names(known_tables);
+                for name in rb_names {
+                    known_tables.insert(name);
+                }
             }
+            Self::ParquetFile { .. } => unimplemented!("parquet file not implemented"),
         }
     }
 
@@ -234,13 +238,7 @@ impl PartitionChunk for DBChunk {
                     }
                 }
             }
-            Self::ReadBuffer {
-                db,
-                partition_key,
-                chunk_id,
-            } => {
-                let chunk_id = *chunk_id;
-
+            Self::ReadBuffer { chunk, .. } => {
                 // If not supported, ReadBuffer can't answer with
                 // metadata only
                 let rb_predicate = match to_read_buffer_predicate(&predicate) {
@@ -251,13 +249,9 @@ impl PartitionChunk for DBChunk {
                     }
                 };
 
-                let names = db
-                    .table_names(partition_key, &[chunk_id], rb_predicate)
-                    .context(ReadBufferChunk { chunk_id })?;
-
-                Some(names)
+                Some(chunk.table_names(&rb_predicate, &BTreeSet::new()))
             }
-            Self::ParquetFile => {
+            Self::ParquetFile { .. } => {
                 unimplemented!("parquet file not implemented")
             }
         };
@@ -286,13 +280,7 @@ impl PartitionChunk for DBChunk {
             Self::MutableBuffer { chunk, .. } => chunk
                 .table_schema(table_name, selection)
                 .context(MutableBufferChunk),
-            Self::ReadBuffer {
-                db,
-                partition_key,
-                chunk_id,
-            } => {
-                let chunk_id = *chunk_id;
-
+            Self::ReadBuffer { chunk, .. } => {
                 // TODO: Andrew -- I think technically this reordering
                 // should be happening inside the read buffer, but
                 // we'll see when we get to read_filter as the same
@@ -300,15 +288,12 @@ impl PartitionChunk for DBChunk {
                 // back
                 let needs_sort = matches!(selection, Selection::All);
 
-                // For now, since read_filter is evaluated lazily,
-                // "run" a query with no predicates simply to get back the
-                // schema
-                let predicate = read_buffer::Predicate::default();
-                let mut schema = db
-                    .read_filter(partition_key, table_name, &[chunk_id], predicate, selection)
-                    .context(ReadBufferChunk { chunk_id })?
-                    .schema()
-                    .context(ReadBufferChunk { chunk_id })?;
+                // Get the expected output schema for the read_filter operation
+                let mut schema = chunk
+                    .read_filter_table_schema(table_name, selection)
+                    .context(ReadBufferChunkError {
+                        chunk_id: chunk.id(),
+                    })?;
 
                 // Ensure the order of the output columns is as
                 // specified
@@ -318,7 +303,7 @@ impl PartitionChunk for DBChunk {
 
                 Ok(schema)
             }
-            Self::ParquetFile => {
+            Self::ParquetFile { .. } => {
                 unimplemented!("parquet file not implemented for table schema")
             }
         }
@@ -327,15 +312,8 @@ impl PartitionChunk for DBChunk {
     fn has_table(&self, table_name: &str) -> bool {
         match self {
             Self::MutableBuffer { chunk, .. } => chunk.has_table(table_name),
-            Self::ReadBuffer {
-                db,
-                partition_key,
-                chunk_id,
-            } => {
-                let chunk_id = *chunk_id;
-                db.has_table(partition_key, table_name, &[chunk_id])
-            }
-            Self::ParquetFile => {
+            Self::ReadBuffer { chunk, .. } => chunk.has_table(table_name),
+            Self::ParquetFile { .. } => {
                 unimplemented!("parquet file not implemented for has_table")
             }
         }
@@ -366,36 +344,29 @@ impl PartitionChunk for DBChunk {
                     table_name,
                 )))
             }
-            Self::ReadBuffer {
-                db,
-                partition_key,
-                chunk_id,
-            } => {
-                let chunk_id = *chunk_id;
+            Self::ReadBuffer { chunk, .. } => {
                 // Error converting to a rb_predicate needs to fail
                 let rb_predicate =
                     to_read_buffer_predicate(&predicate).context(PredicateConversion)?;
 
-                let chunk_ids = &[chunk_id];
+                let read_results = chunk
+                    .read_filter(table_name, rb_predicate, selection)
+                    .context(ReadBufferChunkError {
+                        chunk_id: chunk.id(),
+                    })?;
 
-                let read_results = db
-                    .read_filter(
-                        partition_key,
-                        table_name,
-                        chunk_ids,
-                        rb_predicate,
-                        selection,
-                    )
-                    .context(ReadBufferChunk { chunk_id })?;
+                let schema = chunk
+                    .read_filter_table_schema(table_name, selection)
+                    .context(ReadBufferChunkError {
+                        chunk_id: chunk.id(),
+                    })?;
 
-                let schema = read_results
-                    .schema()
-                    .context(ReadBufferChunk { chunk_id })?
-                    .into();
-
-                Ok(Box::pin(ReadFilterResultsStream::new(read_results, schema)))
+                Ok(Box::pin(ReadFilterResultsStream::new(
+                    read_results,
+                    schema.into(),
+                )))
             }
-            Self::ParquetFile => {
+            Self::ParquetFile { .. } => {
                 unimplemented!("parquet file not implemented for scan_data")
             }
         }
@@ -418,7 +389,7 @@ impl PartitionChunk for DBChunk {
                 // TODO: ask Edd how he wants this wired up in the read buffer
                 Ok(true)
             }
-            Self::ParquetFile => {
+            Self::ParquetFile { .. } => {
                 // TODO proper filtering for parquet files
                 Ok(true)
             }
@@ -445,12 +416,7 @@ impl PartitionChunk for DBChunk {
                     .column_names(table_name, &chunk_predicate, columns)
                     .context(MutableBufferChunk)
             }
-            Self::ReadBuffer {
-                db,
-                partition_key,
-                chunk_id,
-            } => {
-                let chunk_id = *chunk_id;
+            Self::ReadBuffer { chunk, .. } => {
                 let rb_predicate = match to_read_buffer_predicate(&predicate) {
                     Ok(rb_predicate) => rb_predicate,
                     Err(e) => {
@@ -459,15 +425,15 @@ impl PartitionChunk for DBChunk {
                     }
                 };
 
-                let chunk_ids = &[chunk_id];
-
-                let names = db
-                    .column_names(partition_key, table_name, chunk_ids, rb_predicate, columns)
-                    .context(ReadBufferChunk { chunk_id })?;
-
-                Ok(names)
+                Ok(Some(
+                    chunk
+                        .column_names(table_name, rb_predicate, columns, BTreeSet::new())
+                        .context(ReadBufferChunkError {
+                            chunk_id: chunk.id(),
+                        })?,
+                ))
             }
-            Self::ParquetFile => {
+            Self::ParquetFile { .. } => {
                 unimplemented!("parquet file not implemented for column_names")
             }
         }
@@ -507,7 +473,7 @@ impl PartitionChunk for DBChunk {
                 // https://github.com/influxdata/influxdb_iox/issues/857
                 Ok(None)
             }
-            Self::ParquetFile => {
+            Self::ParquetFile { .. } => {
                 unimplemented!("parquet file not implemented for column_values")
             }
         }

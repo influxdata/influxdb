@@ -9,7 +9,7 @@ use super::scenario::{create_readable_database, rand_name};
 
 #[tokio::test]
 async fn test_writer_id() {
-    let server_fixture = ServerFixture::create_shared().await;
+    let server_fixture = ServerFixture::create_single_use().await;
     let addr = server_fixture.grpc_base();
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -31,6 +31,17 @@ async fn test_writer_id() {
         .assert()
         .success()
         .stdout(predicate::str::contains("32"));
+
+    Command::cargo_bin("influxdb_iox")
+        .unwrap()
+        .arg("writer")
+        .arg("set")
+        .arg("42")
+        .arg("--host")
+        .arg(addr)
+        .assert()
+        .failure()
+        .stderr(predicate::str::contains("id already set to 32"));
 }
 
 #[tokio::test]
@@ -175,14 +186,15 @@ async fn test_get_chunks() {
 
     load_lp(addr, &db_name, lp_data);
 
-    let expected = r#"[
-  {
-    "partition_key": "cpu",
-    "id": 0,
-    "storage": "OpenMutableBuffer",
-    "estimated_bytes": 145
-  }
-]"#;
+    let predicate = predicate::str::contains(r#""partition_key": "cpu","#)
+        .and(predicate::str::contains(r#""id": 0,"#))
+        .and(predicate::str::contains(
+            r#""storage": "OpenMutableBuffer","#,
+        ))
+        .and(predicate::str::contains(r#""estimated_bytes": 145"#))
+        // Check for a non empty timestamp such as
+        // "time_of_first_write": "2021-03-30T17:11:10.723866Z",
+        .and(predicate::str::contains(r#""time_of_first_write": "20"#));
 
     Command::cargo_bin("influxdb_iox")
         .unwrap()
@@ -194,7 +206,7 @@ async fn test_get_chunks() {
         .arg(addr)
         .assert()
         .success()
-        .stdout(predicate::str::contains(expected));
+        .stdout(predicate);
 }
 
 #[tokio::test]

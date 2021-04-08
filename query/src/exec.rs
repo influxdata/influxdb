@@ -323,33 +323,30 @@ mod tests {
     use super::*;
 
     #[tokio::test]
-    async fn executor_known_string_set_plan_ok() -> Result<()> {
+    async fn executor_known_string_set_plan_ok() {
         let expected_strings = to_set(&["Foo", "Bar"]);
         let plan = StringSetPlan::Known(Arc::clone(&expected_strings));
 
         let executor = Executor::default();
-        let result_strings = executor.to_string_set(plan).await?;
+        let result_strings = executor.to_string_set(plan).await.unwrap();
         assert_eq!(result_strings, expected_strings);
-        Ok(())
     }
 
     #[tokio::test]
-    async fn executor_datafusion_string_set_single_plan_no_batches() -> Result<()> {
+    async fn executor_datafusion_string_set_single_plan_no_batches() {
         // Test with a single plan that produces no batches
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Utf8, true)]));
         let scan = make_plan(schema, vec![]);
         let plan: StringSetPlan = vec![scan].into();
 
         let executor = Executor::new();
-        let results = executor.to_string_set(plan).await?;
+        let results = executor.to_string_set(plan).await.unwrap();
 
         assert_eq!(results, StringSetRef::new(StringSet::new()));
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn executor_datafusion_string_set_single_plan_one_batch() -> Result<()> {
+    async fn executor_datafusion_string_set_single_plan_one_batch() {
         // Test with a single plan that produces one record batch
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Utf8, true)]));
         let data = to_string_array(&["foo", "bar", "baz", "foo"]);
@@ -359,15 +356,13 @@ mod tests {
         let plan: StringSetPlan = vec![scan].into();
 
         let executor = Executor::new();
-        let results = executor.to_string_set(plan).await?;
+        let results = executor.to_string_set(plan).await.unwrap();
 
         assert_eq!(results, to_set(&["foo", "bar", "baz"]));
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn executor_datafusion_string_set_single_plan_two_batch() -> Result<()> {
+    async fn executor_datafusion_string_set_single_plan_two_batch() {
         // Test with a single plan that produces multiple record batches
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Utf8, true)]));
         let data1 = to_string_array(&["foo", "bar"]);
@@ -380,15 +375,13 @@ mod tests {
         let plan: StringSetPlan = vec![scan].into();
 
         let executor = Executor::new();
-        let results = executor.to_string_set(plan).await?;
+        let results = executor.to_string_set(plan).await.unwrap();
 
         assert_eq!(results, to_set(&["foo", "bar", "baz"]));
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn executor_datafusion_string_set_multi_plan() -> Result<()> {
+    async fn executor_datafusion_string_set_multi_plan() {
         // Test with multiple datafusion logical plans
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Utf8, true)]));
 
@@ -405,15 +398,13 @@ mod tests {
         let plan: StringSetPlan = vec![scan1, scan2].into();
 
         let executor = Executor::new();
-        let results = executor.to_string_set(plan).await?;
+        let results = executor.to_string_set(plan).await.unwrap();
 
         assert_eq!(results, to_set(&["foo", "bar", "baz"]));
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn executor_datafusion_string_set_nulls() -> Result<()> {
+    async fn executor_datafusion_string_set_nulls() {
         // Ensure that nulls in the output set are handled reasonably
         // (error, rather than silently ignored)
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Utf8, true)]));
@@ -440,12 +431,10 @@ mod tests {
             expected_error,
             actual_error,
         );
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn executor_datafusion_string_set_bad_schema() -> Result<()> {
+    async fn executor_datafusion_string_set_bad_schema() {
         // Ensure that an incorect schema (an int) gives a reasonable error
         let schema = Arc::new(Schema::new(vec![Field::new("a", DataType::Int64, true)]));
         let data = Arc::new(Int64Array::from(vec![1]));
@@ -469,12 +458,10 @@ mod tests {
             expected_error,
             actual_error
         );
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn make_schema_pivot_is_planned() -> Result<()> {
+    async fn make_schema_pivot_is_planned() {
         // Test that all the planning logic is wired up and that we
         // can make a plan using a SchemaPivot node
         let schema = Arc::new(Schema::new(vec![
@@ -498,8 +485,6 @@ mod tests {
         let results = executor.to_string_set(plan).await.expect("Executed plan");
 
         assert_eq!(results, to_set(&["f1", "f2"]));
-
-        Ok(())
     }
 
     /// return a set for testing

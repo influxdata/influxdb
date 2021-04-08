@@ -264,9 +264,6 @@ mod test {
     use bytes::Bytes;
     use std::env;
 
-    type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
-    type Result<T, E = TestError> = std::result::Result<T, E>;
-
     const NON_EXISTENT_NAME: &str = "nonexistentname";
 
     #[derive(Debug)]
@@ -305,7 +302,7 @@ mod test {
                                {} to run",
                     unset_var_names
                 );
-                return Ok(());
+                return;
             } else {
                 GoogleCloudConfig {
                     bucket: env::var("INFLUXDB_IOX_BUCKET")
@@ -318,20 +315,19 @@ mod test {
     }
 
     #[tokio::test]
-    async fn gcs_test() -> Result<()> {
+    async fn gcs_test() {
         let config = maybe_skip_integration!();
         let integration = ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(
             config.service_account,
             config.bucket,
         ));
 
-        put_get_delete_list(&integration).await?;
-        list_with_delimiter(&integration).await?;
-        Ok(())
+        put_get_delete_list(&integration).await.unwrap();
+        list_with_delimiter(&integration).await.unwrap();
     }
 
     #[tokio::test]
-    async fn gcs_test_get_nonexistent_location() -> Result<()> {
+    async fn gcs_test_get_nonexistent_location() {
         let config = maybe_skip_integration!();
         let integration = ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(
             config.service_account,
@@ -360,12 +356,10 @@ mod test {
         } else {
             panic!("unexpected error type: {:?}", err)
         }
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn gcs_test_get_nonexistent_bucket() -> Result<()> {
+    async fn gcs_test_get_nonexistent_bucket() {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
         let integration = ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(
@@ -389,12 +383,10 @@ mod test {
         } else {
             panic!("unexpected error type: {:?}", err);
         }
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn gcs_test_delete_nonexistent_location() -> Result<()> {
+    async fn gcs_test_delete_nonexistent_location() {
         let config = maybe_skip_integration!();
         let integration = ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(
             config.service_account,
@@ -421,12 +413,10 @@ mod test {
         } else {
             panic!("unexpected error type: {:?}", err)
         }
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn gcs_test_delete_nonexistent_bucket() -> Result<()> {
+    async fn gcs_test_delete_nonexistent_bucket() {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
         let integration = ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(
@@ -454,12 +444,10 @@ mod test {
         } else {
             panic!("unexpected error type: {:?}", err)
         }
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn gcs_test_put_nonexistent_bucket() -> Result<()> {
+    async fn gcs_test_put_nonexistent_bucket() {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
         let integration = ObjectStore::new_google_cloud_storage(GoogleCloudStorage::new(
@@ -497,7 +485,5 @@ mod test {
         } else {
             panic!("unexpected error type: {:?}", err);
         }
-
-        Ok(())
     }
 }

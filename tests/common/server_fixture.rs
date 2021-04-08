@@ -360,17 +360,6 @@ impl TestServer {
             }
         }
 
-        // Set the writer id, if requested; otherwise default to the default writer id:
-        // 1.
-        let id = match initial_config {
-            InitialConfig::SetWriterId => {
-                NonZeroU32::new(42).expect("42 is non zero, among its other properties")
-            }
-            InitialConfig::None => {
-                NonZeroU32::new(1).expect("1 is non zero; the first one to be so, moreover")
-            }
-        };
-
         let channel = self.grpc_channel().await.expect("gRPC should be running");
         let mut management_client = influxdb_iox_client::management::Client::new(channel);
 
@@ -381,11 +370,20 @@ impl TestServer {
             panic!("Server already has an ID ({}); possibly a stray/orphan server from another test run.", id);
         }
 
-        management_client
-            .update_writer_id(id)
-            .await
-            .expect("set ID failed");
-        println!("Set writer_id to {:?}", id);
+        // Set the writer id, if requested
+        match initial_config {
+            InitialConfig::SetWriterId => {
+                let id = NonZeroU32::new(42).expect("42 is non zero, among its other properties");
+
+                management_client
+                    .update_writer_id(id)
+                    .await
+                    .expect("set ID failed");
+
+                println!("Set writer_id to {:?}", id);
+            }
+            InitialConfig::None => {}
+        };
     }
 
     /// Create a connection channel for the gRPR endpoing

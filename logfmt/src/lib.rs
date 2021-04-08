@@ -1,11 +1,14 @@
-use std::borrow::Cow;
-use std::{io::Write, time::SystemTime};
-use tracing::{
+use observability_deps::tracing::{
+    self,
     field::{Field, Visit},
     subscriber::Interest,
     Id, Level, Subscriber,
 };
-use tracing_subscriber::{self, fmt::MakeWriter, layer::Context, registry::LookupSpan, Layer};
+use observability_deps::tracing_subscriber::{
+    fmt::MakeWriter, layer::Context, registry::LookupSpan, Layer,
+};
+use std::borrow::Cow;
+use std::{io::Write, time::SystemTime};
 
 /// Implements a `tracing_subscriber::Layer` which generates
 /// [logfmt] formatted log entries, suitable for log ingestion
@@ -30,7 +33,7 @@ impl<W: MakeWriter> LogFmtLayer<W> {
     /// For example:
     /// ```
     ///  use logfmt::LogFmtLayer;
-    ///  use tracing_subscriber::{EnvFilter, prelude::*};
+    ///  use observability_deps::tracing_subscriber::{EnvFilter, prelude::*, self};
     ///
     ///  // setup debug logging level
     ///  std::env::set_var("RUST_LOG", "debug");

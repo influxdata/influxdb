@@ -339,32 +339,27 @@ impl Column {
 mod tests {
     use super::*;
 
-    type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
-    type Result<T = (), E = TestError> = std::result::Result<T, E>;
-
     #[test]
-    fn test_has_i64_range() -> Result {
+    fn test_has_i64_range() {
         let mut stats = StatValues::new(1);
         stats.update(2);
         let col = Column::I64(vec![Some(1), None, Some(2)], stats.clone());
-        assert!(!col.has_i64_range(-1, 0)?);
-        assert!(!col.has_i64_range(0, 1)?);
-        assert!(col.has_i64_range(1, 2)?);
-        assert!(col.has_i64_range(2, 3)?);
-        assert!(!col.has_i64_range(3, 4)?);
+        assert!(!col.has_i64_range(-1, 0).unwrap());
+        assert!(!col.has_i64_range(0, 1).unwrap());
+        assert!(col.has_i64_range(1, 2).unwrap());
+        assert!(col.has_i64_range(2, 3).unwrap());
+        assert!(!col.has_i64_range(3, 4).unwrap());
 
         let col = Column::I64(vec![Some(2), None, Some(1)], stats);
-        assert!(!col.has_i64_range(-1, 0)?);
-        assert!(!col.has_i64_range(0, 1)?);
-        assert!(col.has_i64_range(1, 2)?);
-        assert!(col.has_i64_range(2, 3)?);
-        assert!(!col.has_i64_range(3, 4)?);
-
-        Ok(())
+        assert!(!col.has_i64_range(-1, 0).unwrap());
+        assert!(!col.has_i64_range(0, 1).unwrap());
+        assert!(col.has_i64_range(1, 2).unwrap());
+        assert!(col.has_i64_range(2, 3).unwrap());
+        assert!(!col.has_i64_range(3, 4).unwrap());
     }
 
     #[test]
-    fn test_has_i64_range_does_not_panic() -> Result {
+    fn test_has_i64_range_does_not_panic() {
         // providing the wrong column type should get an internal error, not a panic
         let col = Column::F64(vec![Some(1.2)], StatValues::new(1.2));
         let res = col.has_i64_range(-1, 0);
@@ -377,11 +372,10 @@ mod tests {
             expected,
             res_string
         );
-        Ok(())
     }
 
     #[test]
-    fn test_has_non_null_i64_range_() -> Result {
+    fn test_has_non_null_i64_range_() {
         let none_col: Vec<Option<u32>> = vec![None, None, None];
         let some_col: Vec<Option<u32>> = vec![Some(0), Some(0), Some(0)];
 
@@ -389,19 +383,17 @@ mod tests {
         stats.update(2);
         let col = Column::I64(vec![Some(1), None, Some(2)], stats);
 
-        assert!(!col.has_non_null_i64_range(&some_col, -1, 0)?);
-        assert!(!col.has_non_null_i64_range(&some_col, 0, 1)?);
-        assert!(col.has_non_null_i64_range(&some_col, 1, 2)?);
-        assert!(col.has_non_null_i64_range(&some_col, 2, 3)?);
-        assert!(!col.has_non_null_i64_range(&some_col, 3, 4)?);
+        assert!(!col.has_non_null_i64_range(&some_col, -1, 0).unwrap());
+        assert!(!col.has_non_null_i64_range(&some_col, 0, 1).unwrap());
+        assert!(col.has_non_null_i64_range(&some_col, 1, 2).unwrap());
+        assert!(col.has_non_null_i64_range(&some_col, 2, 3).unwrap());
+        assert!(!col.has_non_null_i64_range(&some_col, 3, 4).unwrap());
 
-        assert!(!col.has_non_null_i64_range(&none_col, -1, 0)?);
-        assert!(!col.has_non_null_i64_range(&none_col, 0, 1)?);
-        assert!(!col.has_non_null_i64_range(&none_col, 1, 2)?);
-        assert!(!col.has_non_null_i64_range(&none_col, 2, 3)?);
-        assert!(!col.has_non_null_i64_range(&none_col, 3, 4)?);
-
-        Ok(())
+        assert!(!col.has_non_null_i64_range(&none_col, -1, 0).unwrap());
+        assert!(!col.has_non_null_i64_range(&none_col, 0, 1).unwrap());
+        assert!(!col.has_non_null_i64_range(&none_col, 1, 2).unwrap());
+        assert!(!col.has_non_null_i64_range(&none_col, 2, 3).unwrap());
+        assert!(!col.has_non_null_i64_range(&none_col, 3, 4).unwrap());
     }
 
     #[test]

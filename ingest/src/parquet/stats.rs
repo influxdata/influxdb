@@ -3,13 +3,13 @@ use arrow_deps::parquet::{
     basic::{Compression, Encoding},
     file::reader::{FileReader, SerializedFileReader},
 };
+use observability_deps::tracing::debug;
 use packers::{
     stats::{ColumnStatsBuilder, FileStats, FileStatsBuilder},
     Name,
 };
 use snafu::ResultExt;
 use std::{collections::BTreeMap, convert::TryInto};
-use tracing::debug;
 
 use super::{
     error::{ParquetLibraryError, Result},

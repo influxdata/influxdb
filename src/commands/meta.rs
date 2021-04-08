@@ -1,11 +1,11 @@
 use influxdb_tsm::{reader::IndexEntry, reader::TSMIndexReader, InfluxID, TSMError};
 use ingest::parquet::metadata::print_parquet_metadata;
+use observability_deps::tracing::{debug, info};
 use snafu::{ResultExt, Snafu};
 use std::{
     collections::{BTreeMap, BTreeSet},
     convert::TryInto,
 };
-use tracing::{debug, info};
 
 use crate::commands::input::{FileType, InputReader};
 

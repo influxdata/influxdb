@@ -4,15 +4,11 @@ use generated_types::{
     google::protobuf::{Duration, Empty},
     influxdata::iox::management::v1::*,
 };
-use influxdb_iox_client::management::CreateDatabaseError;
+use influxdb_iox_client::{management::CreateDatabaseError, operations};
 use test_helpers::assert_contains;
 
-use super::{
-    operations_api::get_operation_metadata,
-    scenario::{
-        create_readable_database, create_two_partition_database, create_unreadable_database,
-        rand_name,
-    },
+use super::scenario::{
+    create_readable_database, create_two_partition_database, create_unreadable_database, rand_name,
 };
 use crate::common::server_fixture::ServerFixture;
 
@@ -239,18 +235,35 @@ async fn test_chunk_get() {
     // ensure the output order is consistent
     chunks.sort_by(|c1, c2| c1.partition_key.cmp(&c2.partition_key));
 
+    // make sure there were timestamps prior to normalization
+    assert!(
+        chunks[0].time_of_first_write.is_some()
+            && chunks[0].time_of_last_write.is_some()
+            && chunks[0].time_closing.is_none(), // chunk is not yet closed
+        "actual:{:#?}",
+        chunks[0]
+    );
+
+    let chunks = normalize_chunks(chunks);
+
     let expected: Vec<Chunk> = vec![
         Chunk {
             partition_key: "cpu".into(),
             id: 0,
             storage: ChunkStorage::OpenMutableBuffer as i32,
             estimated_bytes: 145,
+            time_of_first_write: None,
+            time_of_last_write: None,
+            time_closing: None,
         },
         Chunk {
             partition_key: "disk".into(),
             id: 0,
             storage: ChunkStorage::OpenMutableBuffer as i32,
             estimated_bytes: 107,
+            time_of_first_write: None,
+            time_of_last_write: None,
+            time_closing: None,
         },
     ];
     assert_eq!(
@@ -407,11 +420,16 @@ async fn test_list_partition_chunks() {
         .await
         .expect("getting partition chunks");
 
+    let chunks = normalize_chunks(chunks);
+
     let expected: Vec<Chunk> = vec![Chunk {
         partition_key: "cpu".into(),
         id: 0,
         storage: ChunkStorage::OpenMutableBuffer as i32,
         estimated_bytes: 145,
+        time_of_first_write: None,
+        time_of_last_write: None,
+        time_closing: None,
     }];
 
     assert_eq!(
@@ -559,7 +577,9 @@ async fn test_close_partition_chunk() {
     println!("Operation response is {:?}", operation);
     let operation_id = operation.name.parse().expect("not an integer");
 
-    let meta = get_operation_metadata(operation.metadata);
+    let meta = operations::ClientOperation::try_new(operation)
+        .unwrap()
+        .metadata();
 
     // ensure we got a legit job description back
     if let Some(Job::CloseChunk(close_chunk)) = meta.job {
@@ -599,4 +619,76 @@ async fn test_close_partition_chunk_error() {
         .expect_err("expected error");
 
     assert_contains!(err.to_string(), "Database not found");
+}
+
+#[tokio::test]
+async fn test_chunk_lifecycle() {
+    use influxdb_iox_client::management::generated_types::ChunkStorage;
+
+    let fixture = ServerFixture::create_shared().await;
+    let mut management_client = fixture.management_client();
+    let mut write_client = fixture.write_client();
+
+    let db_name = rand_name();
+    management_client
+        .create_database(DatabaseRules {
+            name: db_name.clone(),
+            lifecycle_rules: Some(LifecycleRules {
+                mutable_linger_seconds: 1,
+                ..Default::default()
+            }),
+            ..Default::default()
+        })
+        .await
+        .unwrap();
+
+    let lp_lines = vec!["cpu,region=west user=23.2 100"];
+
+    write_client
+        .write(&db_name, lp_lines.join("\n"))
+        .await
+        .expect("write succeded");
+
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(chunks[0].storage, ChunkStorage::OpenMutableBuffer as i32);
+
+    tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+
+    let chunks = management_client
+        .list_chunks(&db_name)
+        .await
+        .expect("listing chunks");
+
+    assert_eq!(chunks.len(), 1);
+    assert_eq!(chunks[0].storage, ChunkStorage::ReadBuffer as i32);
+}
+
+/// Normalizes a set of Chunks for comparison by removing timestamps
+fn normalize_chunks(chunks: Vec<Chunk>) -> Vec<Chunk> {
+    chunks
+        .into_iter()
+        .map(|summary| {
+            let Chunk {
+                partition_key,
+                id,
+                storage,
+                estimated_bytes,
+                ..
+            } = summary;
+            Chunk {
+                partition_key,
+                id,
+                storage,
+                estimated_bytes,
+                time_of_first_write: None,
+                time_of_last_write: None,
+                time_closing: None,
+            }
+        })
+        .collect::<Vec<_>>()
 }

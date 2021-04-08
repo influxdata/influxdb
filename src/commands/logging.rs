@@ -1,6 +1,9 @@
 //! Logging initization and setup
 
-use tracing_subscriber::{prelude::*, EnvFilter};
+use observability_deps::{
+    env_logger, opentelemetry_jaeger, tracing_opentelemetry,
+    tracing_subscriber::{self, prelude::*, EnvFilter},
+};
 
 use super::run::{Config, LogFormat};
 

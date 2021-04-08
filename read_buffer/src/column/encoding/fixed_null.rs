@@ -68,8 +68,8 @@ where
 
     /// Returns an estimation of the total size in bytes used by this column
     /// encoding.
-    pub fn size(&self) -> u64 {
-        (std::mem::size_of::<PrimitiveArray<T>>() + self.arr.get_array_memory_size()) as u64
+    pub fn size(&self) -> usize {
+        std::mem::size_of::<PrimitiveArray<T>>() + self.arr.get_array_memory_size()
     }
 
     //

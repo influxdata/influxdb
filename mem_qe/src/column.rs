@@ -5,7 +5,7 @@ use arrow_deps::arrow;
 
 use super::encoding;
 
-use tracing::debug;
+use observability_deps::tracing::debug;
 
 #[derive(Debug)]
 pub enum Set<'a> {

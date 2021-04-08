@@ -1,15 +1,15 @@
-/// Client for the gRPC health checking API
+/// Client for health checking API
 pub mod health;
 
-/// Client for the management API
+/// Client for management API
 pub mod management;
 
-/// Client for the write API
+/// Client for write API
 pub mod write;
 
-/// Client for the operations API
+/// Client for long running operations API
 pub mod operations;
 
 #[cfg(feature = "flight")]
-/// Client for the flight API
+/// Client for query API (based on Arrow flight)
 pub mod flight;

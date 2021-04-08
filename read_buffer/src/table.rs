@@ -7,6 +7,7 @@ use std::{
 };
 
 use arrow_deps::arrow::record_batch::RecordBatch;
+use data_types::partition_metadata::TableSummary;
 use internal_types::selection::Selection;
 use snafu::{ensure, Snafu};
 
@@ -129,10 +130,10 @@ impl Table {
     }
 
     /// The total size of the table in bytes.
-    pub fn size(&self) -> u64 {
+    pub fn size(&self) -> usize {
         let base_size = std::mem::size_of::<Self>() + self.name.len();
         // meta.size accounts for all the row group data.
-        base_size as u64 + self.table_data.read().unwrap().meta.size()
+        base_size + self.table_data.read().unwrap().meta.size()
     }
 
     // Returns the total number of row groups in this table.
@@ -145,6 +146,11 @@ impl Table {
         self.table_data.read().unwrap().meta.rows
     }
 
+    /// Return a summary of all columns in this table
+    pub fn table_summary(&self) -> TableSummary {
+        self.table_data.read().unwrap().meta.to_summary(&self.name)
+    }
+
     /// The time range of all row groups within this table.
     pub fn time_range(&self) -> Option<(i64, i64)> {
         self.table_data.read().unwrap().meta.time_range
@@ -152,8 +158,18 @@ impl Table {
 
     // Helper function used in tests.
     // Returns an immutable reference to the table's current meta data.
-    fn meta(&self) -> Arc<MetaData> {
+    pub fn meta(&self) -> Arc<MetaData> {
         Arc::clone(&self.table_data.read().unwrap().meta)
+    }
+
+    /// Determines if one of more row groups in the `Table` could possibly
+    /// contain one or more rows that satisfy the provided predicate.
+    pub fn could_pass_predicate(&self, predicate: &Predicate) -> bool {
+        let table_data = self.table_data.read().unwrap();
+
+        table_data.data.iter().any(|row_group| {
+            row_group.could_satisfy_conjunctive_binary_expressions(predicate.iter())
+        })
     }
 
     // Identify set of row groups that might satisfy the predicate.
@@ -445,9 +461,9 @@ impl Table {
 
 // TODO(edd): reduce owned strings here by, e.g., using references as keys.
 #[derive(Clone)]
-struct MetaData {
+pub struct MetaData {
     // The total size of the table in bytes.
-    size: u64,
+    size: usize,
 
     // The total number of rows in the table.
     rows: u64,
@@ -457,6 +473,7 @@ struct MetaData {
     // columns including their schema and range.
     columns: BTreeMap<String, row_group::ColumnMeta>,
 
+    // The names of the columns for this table in the order they appear.
     column_names: Vec<String>,
 
     // The total time range of this table spanning all of the row groups within
@@ -473,14 +490,14 @@ impl MetaData {
             size: rg.size(),
             rows: rg.rows() as u64,
             columns: rg.metadata().columns.clone(),
-            column_names: rg.metadata().columns.keys().cloned().collect(),
+            column_names: rg.metadata().column_names.clone(),
             time_range: Some(rg.metadata().time_range),
         }
     }
 
     /// Returns the estimated size in bytes of the `MetaData` struct and all of
     /// the row group data associated with a `Table`.
-    pub fn size(&self) -> u64 {
+    pub fn size(&self) -> usize {
         let base_size = std::mem::size_of::<Self>();
         let columns_meta_size = self
             .columns
@@ -489,7 +506,7 @@ impl MetaData {
             .sum::<usize>();
 
         let column_names_size = self.column_names.iter().map(|c| c.len()).sum::<usize>();
-        (base_size + columns_meta_size + column_names_size) as u64 + self.size
+        (base_size + columns_meta_size + column_names_size) + self.size
     }
 
     /// Create a new `MetaData` by consuming `this` and incorporating `other`.
@@ -537,10 +554,10 @@ impl MetaData {
         this
     }
 
-    // Extract schema information for a set of columns. If a column name does
-    // not exist within the `Table` schema it is ignored and not present within
-    // the resulting schema information.
-    fn schema_for_column_names(
+    /// Extract schema information for a set of columns. If a column name does
+    /// not exist within the `Table` schema it is ignored and not present within
+    /// the resulting schema information.
+    pub fn schema_for_column_names(
         &self,
         names: &[ColumnName<'_>],
     ) -> Vec<(ColumnType, LogicalDataType)> {
@@ -553,12 +570,15 @@ impl MetaData {
             .collect::<Vec<_>>()
     }
 
-    // As `schema_for_column_names` but for all columns in the table.
-    fn schema_for_all_columns(&self) -> Vec<(ColumnType, LogicalDataType)> {
-        self.columns
-            .iter()
-            .map(|(_, schema)| (schema.typ.clone(), schema.logical_data_type))
-            .collect::<Vec<_>>()
+    /// As `schema_for_column_names` but for all columns in the table. Schema
+    /// information is returned in the same order as columns in the table.
+    pub fn schema_for_all_columns(&self) -> Vec<(ColumnType, LogicalDataType)> {
+        let mut column_schema = vec![];
+        for column_name in &self.column_names {
+            let schema = self.columns.get(column_name).unwrap();
+            column_schema.push((schema.typ.clone(), schema.logical_data_type));
+        }
+        column_schema
     }
 
     // As `schema_for_column_names` but also embeds the provided aggregate type.
@@ -589,6 +609,74 @@ impl MetaData {
 
     pub fn all_column_names(&self) -> Vec<&str> {
         self.column_names.iter().map(|name| name.as_str()).collect()
+    }
+
+    pub fn to_summary(&self, table_name: impl Into<String>) -> TableSummary {
+        use crate::value::{OwnedValue, Scalar};
+        use data_types::partition_metadata::{ColumnSummary, StatValues, Statistics};
+        let columns = self
+            .columns
+            .iter()
+            .map(|(name, column_meta)| {
+                let count = self.rows;
+
+                let stats = match &column_meta.range {
+                    (OwnedValue::String(min), OwnedValue::String(max)) => {
+                        Statistics::String(StatValues {
+                            min: min.to_string(),
+                            max: max.to_string(),
+                            count,
+                        })
+                    }
+                    (OwnedValue::Boolean(min), OwnedValue::Boolean(max)) => {
+                        Statistics::Bool(StatValues {
+                            min: *min,
+                            max: *max,
+                            count,
+                        })
+                    }
+                    (OwnedValue::Scalar(min), OwnedValue::Scalar(max)) => match (min, max) {
+                        (Scalar::I64(min), Scalar::I64(max)) => Statistics::I64(StatValues {
+                            min: *min,
+                            max: *max,
+                            count,
+                        }),
+                        (Scalar::U64(min), Scalar::U64(max)) => Statistics::U64(StatValues {
+                            min: *min,
+                            max: *max,
+                            count,
+                        }),
+                        (Scalar::F64(min), Scalar::F64(max)) => Statistics::F64(StatValues {
+                            min: *min,
+                            max: *max,
+                            count,
+                        }),
+                        _ => panic!(
+                            "unsupported type scalar stats in read buffer: {:?}, {:?}",
+                            min, max
+                        ),
+                    },
+                    _ => panic!(
+                        "unsupported type of stats in read buffer: {:?}",
+                        column_meta.range
+                    ),
+                };
+
+                ColumnSummary {
+                    name: name.to_string(),
+                    stats,
+                }
+            })
+            .collect();
+
+        TableSummary {
+            name: table_name.into(),
+            columns,
+        }
+    }
+
+    pub fn has_column(&self, name: &str) -> bool {
+        self.columns.contains_key(name)
     }
 }
 
@@ -626,6 +714,10 @@ pub struct ReadFilterResults {
 impl ReadFilterResults {
     pub fn is_empty(&self) -> bool {
         self.row_groups.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.row_groups.len()
     }
 
     /// Returns the schema associated with table result and therefore all of the
@@ -830,15 +922,15 @@ mod test {
 
     #[test]
     fn meta_data_update_with() {
-        let mut columns = BTreeMap::new();
-        columns.insert(
+        let mut columns = vec![];
+        columns.push((
             "time".to_string(),
             ColumnType::create_time(&[100, 200, 300]),
-        );
-        columns.insert(
+        ));
+        columns.push((
             "region".to_string(),
             ColumnType::create_tag(&["west", "west", "north"]),
-        );
+        ));
         let rg = RowGroup::new(3, columns);
 
         let mut meta = MetaData::new(&rg);
@@ -854,12 +946,12 @@ mod test {
             )
         );
 
-        let mut columns = BTreeMap::new();
-        columns.insert("time".to_string(), ColumnType::create_time(&[10, 400]));
-        columns.insert(
+        let mut columns = vec![];
+        columns.push(("time".to_string(), ColumnType::create_time(&[10, 400])));
+        columns.push((
             "region".to_string(),
             ColumnType::create_tag(&["east", "south"]),
-        );
+        ));
         let rg = RowGroup::new(2, columns);
 
         meta = MetaData::update_with(meta, &rg);
@@ -877,9 +969,9 @@ mod test {
 
     #[test]
     fn add_remove_row_groups() {
-        let mut columns = BTreeMap::new();
+        let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[0_i64, 2, 3][..]));
-        columns.insert("time".to_string(), tc);
+        columns.push(("time".to_string(), tc));
 
         let rg = RowGroup::new(3, columns);
         let mut table = Table::new("cpu".to_owned(), rg);
@@ -887,9 +979,9 @@ mod test {
         assert_eq!(table.rows(), 3);
 
         // add another row group
-        let mut columns = BTreeMap::new();
+        let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5][..]));
-        columns.insert("time".to_string(), tc);
+        columns.push(("time".to_string(), tc));
         let rg = RowGroup::new(5, columns);
         table.add_row_group(rg);
 
@@ -922,19 +1014,93 @@ mod test {
     }
 
     #[test]
+    fn could_pass_predicate() {
+        let mut columns = vec![];
+        let tc = ColumnType::Time(Column::from(&[10_i64, 20, 30][..]));
+        columns.push(("time".to_string(), tc));
+        let rc = ColumnType::Tag(Column::from(&["south", "north", "east"][..]));
+        columns.push(("region".to_string(), rc));
+        let fc = ColumnType::Field(Column::from(&[1000_u64, 1002, 1200][..]));
+        columns.push(("count".to_string(), fc));
+        let row_group = RowGroup::new(3, columns);
+
+        let mut table = Table::new("cpu".to_owned(), row_group);
+
+        // add another row group
+        let mut columns = vec![];
+        let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
+        columns.push(("time".to_string(), tc));
+        let rc = ColumnType::Tag(Column::from(
+            &["west", "west", "east", "west", "south", "north"][..],
+        ));
+        columns.push(("region".to_string(), rc));
+        let fc = ColumnType::Field(Column::from(&[100_u64, 101, 200, 203, 203, 10][..]));
+        columns.push(("count".to_string(), fc));
+        let rg = RowGroup::new(6, columns);
+        table.add_row_group(rg);
+
+        // everything could match empty predicate
+        let predicate = Predicate::default();
+        assert!(table.could_pass_predicate(&predicate));
+
+        // matches first row group
+        let predicate = Predicate::new(vec![BinaryExpr::from(("time", ">=", 7_i64))]);
+        assert!(table.could_pass_predicate(&predicate));
+
+        // matches first row group different column
+        let predicate = Predicate::new(vec![BinaryExpr::from(("region", "=", "east"))]);
+        assert!(table.could_pass_predicate(&predicate));
+
+        // matches multiple columns
+        let predicate = Predicate::new(vec![
+            BinaryExpr::from(("region", "=", "east")),
+            BinaryExpr::from(("count", "=", 1200_u64)),
+        ]);
+        assert!(table.could_pass_predicate(&predicate));
+
+        // Columns matches predicate but on different rows (although no row
+        // exists that satisfies the predicate).
+        let predicate = Predicate::new(vec![
+            BinaryExpr::from(("region", "=", "east")),
+            BinaryExpr::from(("count", "=", 1002_u64)),
+        ]);
+        assert!(table.could_pass_predicate(&predicate));
+
+        // matches second row group
+        let predicate = Predicate::new(vec![BinaryExpr::from(("region", ">=", "west"))]);
+        assert!(table.could_pass_predicate(&predicate));
+
+        // doesn't match either row group no column
+        let predicate = Predicate::new(vec![BinaryExpr::from(("temp", ">=", 0_u64))]);
+        assert!(!table.could_pass_predicate(&predicate));
+
+        // doesn't match either row group column exists but no matching value
+        let predicate = Predicate::new(vec![BinaryExpr::from(("time", ">=", 10192929_i64))]);
+        assert!(!table.could_pass_predicate(&predicate));
+
+        // doesn't match either row group; one column could satisfy predicate but
+        // other can't.
+        let predicate = Predicate::new(vec![
+            BinaryExpr::from(("region", "=", "east")),
+            BinaryExpr::from(("count", "<=", 0_u64)),
+        ]);
+        assert!(!table.could_pass_predicate(&predicate));
+    }
+
+    #[test]
     fn select() {
         // Build first row group.
-        let mut columns = BTreeMap::new();
+        let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3, 4, 5, 6][..]));
-        columns.insert("time".to_string(), tc);
+        columns.push(("time".to_string(), tc));
 
         let rc = ColumnType::Tag(Column::from(
             &["west", "west", "east", "west", "south", "north"][..],
         ));
-        columns.insert("region".to_string(), rc);
+        columns.push(("region".to_string(), rc));
 
         let fc = ColumnType::Field(Column::from(&[100_u64, 101, 200, 203, 203, 10][..]));
-        columns.insert("count".to_string(), fc);
+        columns.push(("count".to_string(), fc));
 
         let rg = RowGroup::new(6, columns);
 
@@ -957,13 +1123,13 @@ mod test {
         );
 
         // Build another row group.
-        let mut columns = BTreeMap::new();
+        let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[10_i64, 20, 30][..]));
-        columns.insert("time".to_string(), tc);
+        columns.push(("time".to_string(), tc));
         let rc = ColumnType::Tag(Column::from(&["south", "north", "east"][..]));
-        columns.insert("region".to_string(), rc);
+        columns.push(("region".to_string(), rc));
         let fc = ColumnType::Field(Column::from(&[1000_u64, 1002, 1200][..]));
-        columns.insert("count".to_string(), fc);
+        columns.push(("count".to_string(), fc));
         let row_group = RowGroup::new(3, columns);
         table.add_row_group(row_group);
 
@@ -1052,25 +1218,25 @@ mod test {
     #[test]
     fn read_aggregate_no_groups() {
         // Build first row group.
-        let mut columns = BTreeMap::new();
-        columns.insert(
+        let mut columns = vec![];
+        columns.push((
             "time".to_string(),
             ColumnType::create_time(&[100, 200, 300]),
-        );
-        columns.insert(
+        ));
+        columns.push((
             "region".to_string(),
             ColumnType::create_tag(&["west", "west", "east"]),
-        );
+        ));
         let rg = RowGroup::new(3, columns);
         let mut table = Table::new("cpu", rg);
 
         // Build another row group.
-        let mut columns = BTreeMap::new();
-        columns.insert("time".to_string(), ColumnType::create_time(&[2, 3]));
-        columns.insert(
+        let mut columns = vec![];
+        columns.push(("time".to_string(), ColumnType::create_time(&[2, 3])));
+        columns.push((
             "region".to_string(),
             ColumnType::create_tag(&["north", "north"]),
-        );
+        ));
         let rg = RowGroup::new(2, columns);
         table.add_row_group(rg);
 
@@ -1198,23 +1364,23 @@ west,host-b,100
     #[test]
     fn column_names() {
         // Build a row group.
-        let mut columns = BTreeMap::new();
+        let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[1_i64, 2, 3][..]));
-        columns.insert("time".to_string(), tc);
+        columns.push(("time".to_string(), tc));
 
         let rc = ColumnType::Tag(Column::from(&["west", "south", "north"][..]));
-        columns.insert("region".to_string(), rc);
+        columns.push(("region".to_string(), rc));
 
         let rg = RowGroup::new(3, columns);
         let mut table = Table::new("cpu".to_owned(), rg);
 
         // add another row group
-        let mut columns = BTreeMap::new();
+        let mut columns = vec![];
         let tc = ColumnType::Time(Column::from(&[200_i64, 300, 400][..]));
-        columns.insert("time".to_string(), tc);
+        columns.push(("time".to_string(), tc));
 
         let rc = ColumnType::Tag(Column::from(vec![Some("north"), None, None].as_slice()));
-        columns.insert("region".to_string(), rc);
+        columns.push(("region".to_string(), rc));
 
         let rg = RowGroup::new(3, columns);
         table.add_row_group(rg);

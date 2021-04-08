@@ -76,7 +76,7 @@ impl RLE {
     }
 
     /// A reasonable estimation of the on-heap size this encoding takes up.
-    pub fn size(&self) -> u64 {
+    pub fn size(&self) -> usize {
         // the total size of all decoded values in the column.
         let decoded_keys_size = self.entry_index.keys().map(|k| k.len()).sum::<usize>();
 
@@ -103,7 +103,7 @@ impl RLE {
         let run_lengths_size = size_of::<Vec<(u32, u32)>>() + // container size
             (size_of::<(u32, u32)>() * self.run_lengths.len()); // each run-length size
 
-        (entry_index_size + index_entry_size + index_row_ids_size + run_lengths_size + 1 + 4) as u64
+        entry_index_size + index_entry_size + index_row_ids_size + run_lengths_size + 1 + 4
     }
 
     /// The number of distinct logical values in this column encoding.

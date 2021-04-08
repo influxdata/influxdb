@@ -335,64 +335,60 @@ mod tests {
     use super::*;
     use std::str;
 
-    type Error = Box<dyn std::error::Error>;
-    type Result<T = (), E = Error> = std::result::Result<T, E>;
-
-    fn assert_utf8_strings_eq(left: &[u8], right: &[u8]) -> Result {
+    fn assert_utf8_strings_eq(left: &[u8], right: &[u8]) {
         assert_eq!(
             left,
             right,
             "\n\nleft string value:  `{}`,\nright string value: `{}`",
-            str::from_utf8(left)?,
-            str::from_utf8(right)?
+            str::from_utf8(left).unwrap(),
+            str::from_utf8(right).unwrap(),
         );
-        Ok(())
     }
 
     #[test]
-    fn point_builder_allows_setting_tags_and_fields() -> Result {
+    fn point_builder_allows_setting_tags_and_fields() {
         let point = DataPoint::builder("swap")
             .tag("host", "server01")
             .tag("name", "disk0")
             .field("in", 3_i64)
             .field("out", 4_i64)
             .timestamp(1)
-            .build()?;
+            .build()
+            .unwrap();
 
         assert_utf8_strings_eq(
-            &point.data_point_to_vec()?,
+            &point.data_point_to_vec().unwrap(),
             b"swap,host=server01,name=disk0 in=3i,out=4i 1\n".as_ref(),
-        )?;
-
-        Ok(())
+        );
     }
 
     #[test]
-    fn no_tags_or_timestamp() -> Result {
+    fn no_tags_or_timestamp() {
         let point = DataPoint::builder("m0")
             .field("f0", 1.0)
             .field("f1", 2_i64)
-            .build()?;
+            .build()
+            .unwrap();
 
-        assert_utf8_strings_eq(&point.data_point_to_vec()?, b"m0 f0=1,f1=2i\n".as_ref())?;
-
-        Ok(())
+        assert_utf8_strings_eq(
+            &point.data_point_to_vec().unwrap(),
+            b"m0 f0=1,f1=2i\n".as_ref(),
+        );
     }
 
     #[test]
-    fn no_timestamp() -> Result {
+    fn no_timestamp() {
         let point = DataPoint::builder("m0")
             .tag("t0", "v0")
             .tag("t1", "v1")
             .field("f1", 2_i64)
-            .build()?;
+            .build()
+            .unwrap();
 
         assert_utf8_strings_eq(
-            &point.data_point_to_vec()?,
+            &point.data_point_to_vec().unwrap(),
             b"m0,t0=v0,t1=v1 f1=2i\n".as_ref(),
-        )?;
-
-        Ok(())
+        );
     }
 
     #[test]
@@ -405,80 +401,72 @@ mod tests {
     const ALL_THE_DELIMITERS: &str = r#"alpha,beta=delta gamma"epsilon"#;
 
     #[test]
-    fn special_characters_are_escaped_in_measurements() -> Result {
+    fn special_characters_are_escaped_in_measurements() {
         assert_utf8_strings_eq(
-            &ALL_THE_DELIMITERS.measurement_to_vec()?,
+            &ALL_THE_DELIMITERS.measurement_to_vec().unwrap(),
             br#"alpha\,beta=delta\ gamma"epsilon"#.as_ref(),
-        )?;
-        Ok(())
+        );
     }
 
     #[test]
-    fn special_characters_are_escaped_in_tag_keys() -> Result {
+    fn special_characters_are_escaped_in_tag_keys() {
         assert_utf8_strings_eq(
-            &ALL_THE_DELIMITERS.tag_key_to_vec()?,
+            &ALL_THE_DELIMITERS.tag_key_to_vec().unwrap(),
             br#"alpha\,beta\=delta\ gamma"epsilon"#.as_ref(),
-        )?;
-        Ok(())
+        );
     }
 
     #[test]
-    fn special_characters_are_escaped_in_tag_values() -> Result {
+    fn special_characters_are_escaped_in_tag_values() {
         assert_utf8_strings_eq(
-            &ALL_THE_DELIMITERS.tag_value_to_vec()?,
+            &ALL_THE_DELIMITERS.tag_value_to_vec().unwrap(),
             br#"alpha\,beta\=delta\ gamma"epsilon"#.as_ref(),
-        )?;
-        Ok(())
+        );
     }
 
     #[test]
-    fn special_characters_are_escaped_in_field_keys() -> Result {
+    fn special_characters_are_escaped_in_field_keys() {
         assert_utf8_strings_eq(
-            &ALL_THE_DELIMITERS.field_key_to_vec()?,
+            &ALL_THE_DELIMITERS.field_key_to_vec().unwrap(),
             br#"alpha\,beta\=delta\ gamma"epsilon"#.as_ref(),
-        )?;
-        Ok(())
+        );
     }
 
     #[test]
-    fn special_characters_are_escaped_in_field_values_of_strings() -> Result {
+    fn special_characters_are_escaped_in_field_values_of_strings() {
         assert_utf8_strings_eq(
-            &FieldValue::from(ALL_THE_DELIMITERS).field_value_to_vec()?,
+            &FieldValue::from(ALL_THE_DELIMITERS)
+                .field_value_to_vec()
+                .unwrap(),
             br#""alpha,beta=delta gamma\"epsilon""#.as_ref(),
-        )?;
-        Ok(())
+        );
     }
 
     #[test]
-    fn field_value_of_bool() -> Result {
+    fn field_value_of_bool() {
         let e = FieldValue::from(true);
-        assert_utf8_strings_eq(&e.field_value_to_vec()?, b"t")?;
+        assert_utf8_strings_eq(&e.field_value_to_vec().unwrap(), b"t");
 
         let e = FieldValue::from(false);
-        assert_utf8_strings_eq(&e.field_value_to_vec()?, b"f")?;
-
-        Ok(())
+        assert_utf8_strings_eq(&e.field_value_to_vec().unwrap(), b"f");
     }
 
     #[test]
-    fn field_value_of_float() -> Result {
+    fn field_value_of_float() {
         let e = FieldValue::from(42_f64);
-        assert_utf8_strings_eq(&e.field_value_to_vec()?, b"42")?;
-        Ok(())
+        assert_utf8_strings_eq(&e.field_value_to_vec().unwrap(), b"42");
     }
 
     #[test]
-    fn field_value_of_integer() -> Result {
+    fn field_value_of_integer() {
         let e = FieldValue::from(42_i64);
-        assert_utf8_strings_eq(&e.field_value_to_vec()?, b"42i")?;
-        Ok(())
+        assert_utf8_strings_eq(&e.field_value_to_vec().unwrap(), b"42i");
     }
 
     #[test]
-    fn field_value_of_string() -> Result {
+    fn field_value_of_string() {
         let e = FieldValue::from("hello");
-        assert_utf8_strings_eq(&e.field_value_to_vec()?, br#""hello""#)?;
-        Ok(())
+        assert_utf8_strings_eq(&e.field_value_to_vec().unwrap(), br#""hello""#);
     }
 
     // Clears up the boilerplate of writing to a vector from the tests

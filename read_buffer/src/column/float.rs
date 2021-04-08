@@ -11,7 +11,7 @@ pub enum FloatEncoding {
 
 impl FloatEncoding {
     /// The total size in bytes of the store columnar data.
-    pub fn size(&self) -> u64 {
+    pub fn size(&self) -> usize {
         match self {
             Self::Fixed64(enc) => enc.size(),
             Self::FixedNull64(enc) => enc.size(),

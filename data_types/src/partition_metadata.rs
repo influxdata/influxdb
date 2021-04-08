@@ -2,6 +2,7 @@
 //! including schema, summary statistics, and file locations in storage.
 
 use std::fmt::{Debug, Display};
+use std::mem;
 
 use serde::{Deserialize, Serialize};
 
@@ -68,6 +69,19 @@ impl TableSummary {
         }
     }
 
+    pub fn size(&self) -> usize {
+        // Total size of all ColumnSummaries that belong to this table which include
+        // column names and their stats
+        let size: usize = self.columns.iter().map(|c| c.size()).sum();
+        size
+            + self.name.len() // Add size of the table name
+            + mem::size_of::<Self>() // Add size of this struct that points to
+                                     // table and ColumnSummary
+    }
+    pub fn has_table(&self, table_name: &str) -> bool {
+        self.name.eq(table_name)
+    }
+
     /// Updates the table summary with combined stats from the other. Counts are
     /// treated as non-overlapping so they're just added together. If the
     /// type of a column differs between the two tables, no update is done
@@ -102,8 +116,13 @@ pub struct ColumnSummary {
 
 impl ColumnSummary {
     /// Returns the total number of rows in this column
-    pub fn count(&self) -> u32 {
+    pub fn count(&self) -> u64 {
         self.stats.count()
+    }
+
+    /// Return size in bytes of this Column
+    pub fn size(&self) -> usize {
+        mem::size_of::<Self>() + self.name.len() + mem::size_of_val(&self.stats)
     }
 
     // Updates statistics from other if the same type, otherwise a noop
@@ -174,7 +193,7 @@ pub struct Column {
 
 impl Column {
     /// Returns the total number of rows in this column
-    pub fn count(&self) -> u32 {
+    pub fn count(&self) -> u64 {
         self.stats.count()
     }
 }
@@ -191,7 +210,7 @@ pub enum Statistics {
 
 impl Statistics {
     /// Returns the total number of rows in this column
-    pub fn count(&self) -> u32 {
+    pub fn count(&self) -> u64 {
         match self {
             Self::I64(s) => s.count,
             Self::U64(s) => s.count,
@@ -208,7 +227,7 @@ pub struct StatValues<T: PartialEq + PartialOrd + Debug + Display + Clone> {
     pub min: T,
     pub max: T,
     /// number of non-nil values in this column
-    pub count: u32,
+    pub count: u64,
 }
 
 impl<T> StatValues<T>

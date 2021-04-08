@@ -3,6 +3,7 @@
 use crate::commands::logging::LoggingLevel;
 use crate::influxdb_ioxd;
 use clap::arg_enum;
+use std::num::NonZeroU32;
 use std::{net::SocketAddr, net::ToSocketAddrs, path::PathBuf};
 use structopt::StructOpt;
 use thiserror::Error;
@@ -81,7 +82,7 @@ pub struct Config {
     /// connected or semi-connected IOx servers. Must be a number that can be
     /// represented by a 32-bit unsigned integer.
     #[structopt(long = "--writer-id", env = "INFLUXDB_IOX_ID")]
-    pub writer_id: Option<u32>,
+    pub writer_id: Option<NonZeroU32>,
 
     /// The address on which IOx will serve HTTP API requests.
     #[structopt(
@@ -303,18 +304,18 @@ mod tests {
     }
 
     #[test]
-    fn test_socketaddr() -> Result<(), clap::Error> {
-        let c = Config::from_iter_safe(
-            to_vec(&["server", "--api-bind", "127.0.0.1:1234"]).into_iter(),
-        )?;
+    fn test_socketaddr() {
+        let c =
+            Config::from_iter_safe(to_vec(&["server", "--api-bind", "127.0.0.1:1234"]).into_iter())
+                .unwrap();
         assert_eq!(
             c.http_bind_address,
             SocketAddr::from(([127, 0, 0, 1], 1234))
         );
 
-        let c = Config::from_iter_safe(
-            to_vec(&["server", "--api-bind", "localhost:1234"]).into_iter(),
-        )?;
+        let c =
+            Config::from_iter_safe(to_vec(&["server", "--api-bind", "localhost:1234"]).into_iter())
+                .unwrap();
         // depending on where the test runs, localhost will either resolve to a ipv4 or
         // an ipv6 addr.
         match c.http_bind_address {
@@ -335,7 +336,5 @@ mod tests {
             .expect_err("must fail"),
             clap::ErrorKind::ValueValidation
         );
-
-        Ok(())
     }
 }

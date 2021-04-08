@@ -1,17 +1,17 @@
 //! The catalog representation of a Partition
 
-use std::{
-    collections::{btree_map::Entry, BTreeMap},
-    sync::Arc,
-};
+use std::{collections::BTreeMap, sync::Arc};
 
 use super::{
     chunk::{Chunk, ChunkState},
-    ChunkAlreadyExists, Result, UnknownChunk,
+    Result, UnknownChunk,
 };
 use chrono::{DateTime, Utc};
+use data_types::chunk::ChunkSummary;
+use data_types::partition_metadata::PartitionSummary;
 use parking_lot::RwLock;
 use snafu::OptionExt;
+use tracker::MemRegistry;
 
 /// IOx Catalog Partition
 ///
@@ -76,24 +76,23 @@ impl Partition {
         self.last_write_at
     }
 
-    /// Create a new Chunk
-    pub fn create_chunk(&mut self) -> Result<Arc<RwLock<Chunk>>> {
+    /// Create a new Chunk in the open state
+    pub fn create_open_chunk(&mut self, memory_registry: &MemRegistry) -> Arc<RwLock<Chunk>> {
         let chunk_id = self.next_chunk_id;
         self.next_chunk_id += 1;
-        let entry = self.chunks.entry(chunk_id);
-        match entry {
-            Entry::Vacant(entry) => {
-                let chunk = Chunk::new(&self.key, chunk_id);
-                let chunk = Arc::new(RwLock::new(chunk));
-                entry.insert(Arc::clone(&chunk));
-                Ok(chunk)
-            }
-            Entry::Occupied(_) => ChunkAlreadyExists {
-                partition_key: self.key(),
-                chunk_id,
-            }
-            .fail(),
+
+        let chunk = Arc::new(RwLock::new(Chunk::new_open(
+            &self.key,
+            chunk_id,
+            memory_registry,
+        )));
+
+        if self.chunks.insert(chunk_id, Arc::clone(&chunk)).is_some() {
+            // A fundamental invariant has been violated - abort
+            panic!("chunk already existed with id {}", chunk_id)
         }
+
+        chunk
     }
 
     /// Drop the specified chunk
@@ -134,5 +133,23 @@ impl Partition {
     /// Return a iterator over chunks in this partition
     pub fn chunks(&self) -> impl Iterator<Item = &Arc<RwLock<Chunk>>> {
         self.chunks.values()
+    }
+
+    /// Return a PartitionSummary for this partition
+    pub fn summary(&self) -> PartitionSummary {
+        let table_summaries = self
+            .chunks()
+            .flat_map(|chunk| {
+                let chunk = chunk.read();
+                chunk.table_summaries()
+            })
+            .collect();
+
+        PartitionSummary::from_table_summaries(&self.key, table_summaries)
+    }
+
+    /// Return chunk summaries for all chunks in this partition
+    pub fn chunk_summaries(&self) -> impl Iterator<Item = ChunkSummary> + '_ {
+        self.chunks.values().map(|x| x.read().summary())
     }
 }

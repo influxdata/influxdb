@@ -67,17 +67,14 @@
     clippy::clone_on_ref_ptr
 )]
 
-use std::sync::{
-    atomic::{AtomicU32, Ordering},
-    Arc,
-};
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use bytes::BytesMut;
 use futures::stream::TryStreamExt;
+use observability_deps::tracing::{error, info, warn};
 use parking_lot::Mutex;
 use snafu::{OptionExt, ResultExt, Snafu};
-use tracing::{debug, error, info, warn};
 
 use data_types::{
     database_rules::{DatabaseRules, WriterId},
@@ -85,9 +82,13 @@ use data_types::{
     {DatabaseName, DatabaseNameError},
 };
 use influxdb_line_protocol::ParsedLine;
-use internal_types::data::{lines_to_replicated_write, ReplicatedWrite};
+use internal_types::{
+    data::{lines_to_replicated_write, ReplicatedWrite},
+    once::OnceNonZeroU32,
+};
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
 use query::{exec::Executor, Database, DatabaseStore};
+use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, TrackedFutureExt};
 
 use futures::{pin_mut, FutureExt};
 
@@ -96,24 +97,18 @@ use crate::{
         object_store_path_for_database_config, Config, GRPCConnectionString, DB_RULES_FILE_NAME,
     },
     db::Db,
-    tracker::{
-        TrackedFutureExt, Tracker, TrackerId, TrackerRegistration, TrackerRegistryWithHistory,
-    },
 };
+use std::num::NonZeroU32;
 
 pub mod buffer;
 mod config;
 pub mod db;
 pub mod snapshot;
-pub mod tracker;
 
 #[cfg(test)]
 mod query_tests;
 
 type DatabaseError = Box<dyn std::error::Error + Send + Sync + 'static>;
-
-/// A server ID of 0 is reserved and indicates no ID has been configured.
-const SERVER_ID_NOT_SET: u32 = 0;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -136,6 +131,8 @@ pub enum Error {
     },
     #[snafu(display("error replicating to remote: {}", source))]
     ErrorReplicating { source: DatabaseError },
+    #[snafu(display("id already set"))]
+    IdAlreadySet { id: NonZeroU32 },
     #[snafu(display("unable to use server until id is set"))]
     IdNotSet,
     #[snafu(display("error serializing configuration {}", source))]
@@ -159,13 +156,13 @@ const JOB_HISTORY_SIZE: usize = 1000;
 /// The global job registry
 #[derive(Debug)]
 pub struct JobRegistry {
-    inner: Mutex<TrackerRegistryWithHistory<Job>>,
+    inner: Mutex<TaskRegistryWithHistory<Job>>,
 }
 
 impl Default for JobRegistry {
     fn default() -> Self {
         Self {
-            inner: Mutex::new(TrackerRegistryWithHistory::new(JOB_HISTORY_SIZE)),
+            inner: Mutex::new(TaskRegistryWithHistory::new(JOB_HISTORY_SIZE)),
         }
     }
 }
@@ -175,7 +172,7 @@ impl JobRegistry {
         Default::default()
     }
 
-    pub fn register(&self, job: Job) -> (Tracker<Job>, TrackerRegistration) {
+    pub fn register(&self, job: Job) -> (TaskTracker<Job>, TaskRegistration) {
         self.inner.lock().register(job)
     }
 }
@@ -187,7 +184,7 @@ const STORE_ERROR_PAUSE_SECONDS: u64 = 100;
 /// of these structs, which keeps track of all replication and query rules.
 #[derive(Debug)]
 pub struct Server<M: ConnectionManager> {
-    id: AtomicU32,
+    id: OnceNonZeroU32,
     config: Arc<Config>,
     connection_manager: Arc<M>,
     pub store: Arc<ObjectStore>,
@@ -200,7 +197,7 @@ impl<M: ConnectionManager> Server<M> {
         let jobs = Arc::new(JobRegistry::new());
 
         Self {
-            id: AtomicU32::new(SERVER_ID_NOT_SET),
+            id: Default::default(),
             config: Arc::new(Config::new(Arc::clone(&jobs))),
             store,
             connection_manager: Arc::new(connection_manager),
@@ -213,45 +210,41 @@ impl<M: ConnectionManager> Server<M> {
     /// path in object storage.
     ///
     /// A valid server ID Must be non-zero.
-    pub fn set_id(&self, id: u32) {
-        self.id.store(id, Ordering::Release)
+    pub fn set_id(&self, id: NonZeroU32) -> Result<()> {
+        self.id.set(id).map_err(|id| Error::IdAlreadySet { id })
     }
 
     /// Returns the current server ID, or an error if not yet set.
-    pub fn require_id(&self) -> Result<u32> {
-        match self.id.load(Ordering::Acquire) {
-            SERVER_ID_NOT_SET => Err(Error::IdNotSet),
-            v => Ok(v),
-        }
+    pub fn require_id(&self) -> Result<NonZeroU32> {
+        self.id.get().context(IdNotSet)
     }
 
-    /// Tells the server the set of rules for a database. Currently, this is not
-    /// persisted and is for in-memory processing rules only.
+    /// Tells the server the set of rules for a database.
     pub async fn create_database(
         &self,
-        db_name: impl Into<String>,
-        mut rules: DatabaseRules,
+        rules: DatabaseRules,
+        server_id: NonZeroU32,
+        object_store: Arc<ObjectStore>,
     ) -> Result<()> {
         // Return an error if this server hasn't yet been setup with an id
         self.require_id()?;
+        let db_reservation = self.config.create_db(rules)?;
 
-        let name = db_name.into();
-        let db_name = DatabaseName::new(name.clone()).context(InvalidDatabaseName)?;
-        rules.name = name;
+        self.persist_database_rules(db_reservation.rules().clone())
+            .await?;
 
-        let db_reservation = self.config.create_db(db_name, rules)?;
+        db_reservation.commit(server_id, object_store);
+
+        Ok(())
+    }
+
+    pub async fn persist_database_rules<'a>(&self, rules: DatabaseRules) -> Result<()> {
+        let location = object_store_path_for_database_config(&self.root_path()?, &rules.name);
 
         let mut data = BytesMut::new();
-        db_reservation
-            .db
-            .rules
-            .clone()
-            .encode(&mut data)
-            .context(ErrorSerializing)?;
+        rules.encode(&mut data).context(ErrorSerializing)?;
 
         let len = data.len();
-        let location =
-            object_store_path_for_database_config(&self.root_path()?, &db_reservation.name);
 
         let stream_data = std::io::Result::Ok(data.freeze());
         self.store
@@ -262,9 +255,6 @@ impl<M: ConnectionManager> Server<M> {
             )
             .await
             .context(StoreError)?;
-
-        db_reservation.commit();
-
         Ok(())
     }
 
@@ -289,6 +279,8 @@ impl<M: ConnectionManager> Server<M> {
             .list_with_delimiter(&self.root_path()?)
             .await
             .context(StoreError)?;
+
+        let server_id = self.require_id()?;
 
         let handles: Vec<_> = list_result
             .common_prefixes
@@ -319,12 +311,9 @@ impl<M: ConnectionManager> Server<M> {
                         Err(e) => {
                             error!("error parsing database config {:?} from store: {}", path, e)
                         }
-                        Ok(rules) => match DatabaseName::new(rules.name.clone()) {
-                            Err(e) => error!("error parsing name {} from rules: {}", rules.name, e),
-                            Ok(name) => match config.create_db(name, rules) {
-                                Err(e) => error!("error adding database to config: {}", e),
-                                Ok(handle) => handle.commit(),
-                            },
+                        Ok(rules) => match config.create_db(rules) {
+                            Err(e) => error!("error adding database to config: {}", e),
+                            Ok(handle) => handle.commit(server_id, store),
                         },
                     }
                 })
@@ -341,7 +330,7 @@ impl<M: ConnectionManager> Server<M> {
     /// on the configuration of the `db`. This is step #1 from the crate
     /// level documentation.
     pub async fn write_lines(&self, db_name: &str, lines: &[ParsedLine<'_>]) -> Result<()> {
-        let id = self.require_id()?;
+        let id = self.require_id()?.get();
 
         let db_name = DatabaseName::new(db_name).context(InvalidDatabaseName)?;
         let db = self
@@ -350,7 +339,7 @@ impl<M: ConnectionManager> Server<M> {
             .context(DatabaseNotFound { db_name: &*db_name })?;
 
         let sequence = db.next_sequence();
-        let write = lines_to_replicated_write(id, sequence, lines, &db.rules);
+        let write = lines_to_replicated_write(id, sequence, lines, &*db.rules.read());
 
         self.handle_replicated_write(&db_name, &db, write).await?;
 
@@ -363,10 +352,13 @@ impl<M: ConnectionManager> Server<M> {
         db: &Db,
         write: ReplicatedWrite,
     ) -> Result<()> {
-        if db.writeable() {
-            db.store_replicated_write(&write)
-                .map_err(|e| Box::new(e) as DatabaseError)
-                .context(UnknownDatabaseError {})?;
+        match db.store_replicated_write(&write) {
+            Err(db::Error::DatabaseNotWriteable {}) | Ok(_) => {}
+            Err(e) => {
+                return Err(Error::UnknownDatabaseError {
+                    source: Box::new(e),
+                })
+            }
         }
 
         let write = Arc::new(write);
@@ -388,7 +380,7 @@ impl<M: ConnectionManager> Server<M> {
 
             if let Some(segment) = segment {
                 if persist {
-                    let writer_id = self.require_id()?;
+                    let writer_id = self.require_id()?.get();
                     let store = Arc::clone(&self.store);
 
                     let (_, tracker) = self.jobs.register(Job::PersistSegment {
@@ -411,7 +403,7 @@ impl<M: ConnectionManager> Server<M> {
     }
 
     pub fn db_rules(&self, name: &DatabaseName<'_>) -> Option<DatabaseRules> {
-        self.config.db(name).map(|d| d.rules.clone())
+        self.config.db(name).map(|d| d.rules.read().clone())
     }
 
     pub fn remotes_sorted(&self) -> Vec<(WriterId, String)> {
@@ -426,7 +418,7 @@ impl<M: ConnectionManager> Server<M> {
         self.config.delete_remote(id)
     }
 
-    pub fn spawn_dummy_job(&self, nanos: Vec<u64>) -> Tracker<Job> {
+    pub fn spawn_dummy_job(&self, nanos: Vec<u64>) -> TaskTracker<Job> {
         let (tracker, registration) = self.jobs.register(Job::Dummy {
             nanos: nanos.clone(),
         });
@@ -448,7 +440,7 @@ impl<M: ConnectionManager> Server<M> {
         db_name: DatabaseName<'_>,
         partition_key: impl Into<String>,
         chunk_id: u32,
-    ) -> Result<Tracker<Job>> {
+    ) -> Result<TaskTracker<Job>> {
         let db_name = db_name.to_string();
         let name = DatabaseName::new(&db_name).context(InvalidDatabaseName)?;
 
@@ -459,37 +451,16 @@ impl<M: ConnectionManager> Server<M> {
             .db(&name)
             .context(DatabaseNotFound { db_name: &db_name })?;
 
-        let (tracker, registration) = self.jobs.register(Job::CloseChunk {
-            db_name: db_name.clone(),
-            partition_key: partition_key.clone(),
-            chunk_id,
-        });
-
-        let task = async move {
-            debug!(%db_name, %partition_key, %chunk_id, "background task loading chunk to read buffer");
-            let result = db.load_chunk_to_read_buffer(&partition_key, chunk_id).await;
-            if let Err(e) = result {
-                info!(?e, %db_name, %partition_key, %chunk_id, "background task error loading read buffer chunk");
-                return Err(e);
-            }
-
-            debug!(%db_name, %partition_key, %chunk_id, "background task completed closing chunk");
-
-            Ok(())
-        };
-
-        tokio::spawn(task.track(registration));
-
-        Ok(tracker)
+        Ok(db.load_chunk_to_read_buffer_in_background(partition_key, chunk_id))
     }
 
     /// Returns a list of all jobs tracked by this server
-    pub fn tracked_jobs(&self) -> Vec<Tracker<Job>> {
+    pub fn tracked_jobs(&self) -> Vec<TaskTracker<Job>> {
         self.jobs.inner.lock().tracked()
     }
 
     /// Returns a specific job tracked by this server
-    pub fn get_job(&self, id: TrackerId) -> Option<Tracker<Job>> {
+    pub fn get_job(&self, id: TaskId) -> Option<TaskTracker<Job>> {
         self.jobs.inner.lock().get(id)
     }
 
@@ -571,7 +542,12 @@ where
         let db = match self.db(&db_name) {
             Some(db) => db,
             None => {
-                self.create_database(name, DatabaseRules::new()).await?;
+                self.create_database(
+                    DatabaseRules::new(db_name.clone()),
+                    self.require_id()?,
+                    Arc::clone(&self.store),
+                )
+                .await?;
                 self.db(&db_name).expect("db not inserted")
             }
         };
@@ -684,24 +660,18 @@ mod tests {
 
     use super::*;
 
-    type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
-    type Result<T = (), E = TestError> = std::result::Result<T, E>;
-
     #[tokio::test]
-    async fn server_api_calls_return_error_with_no_id_set() -> Result {
+    async fn server_api_calls_return_error_with_no_id_set() {
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server = Server::new(manager, store);
 
-        let rules = DatabaseRules::new();
-        let resp = server.create_database("foo", rules).await.unwrap_err();
+        let resp = server.require_id().unwrap_err();
         assert!(matches!(resp, Error::IdNotSet));
 
         let lines = parsed_lines("cpu foo=1 10");
         let resp = server.write_lines("foo", &lines).await.unwrap_err();
         assert!(matches!(resp, Error::IdNotSet));
-
-        Ok(())
     }
 
     #[tokio::test]
@@ -709,26 +679,32 @@ mod tests {
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server = Server::new(manager, Arc::clone(&store));
-        server.set_id(1);
+        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
 
-        let name = "bananas";
+        let name = DatabaseName::new("bananas").unwrap();
 
         let rules = DatabaseRules {
+            name: name.clone(),
             partition_template: PartitionTemplate {
                 parts: vec![TemplatePart::TimeFormat("YYYY-MM".to_string())],
             },
-            name: name.to_string(),
-            ..Default::default()
+            wal_buffer_config: None,
+            lifecycle_rules: Default::default(),
+            shard_config: None,
         };
 
         // Create a database
         server
-            .create_database(name, rules.clone())
+            .create_database(
+                rules.clone(),
+                server.require_id().unwrap(),
+                Arc::clone(&server.store),
+            )
             .await
             .expect("failed to create database");
 
         let mut rules_path = server.store.new_path();
-        rules_path.push_all_dirs(&["1", name]);
+        rules_path.push_all_dirs(&["1", name.as_str()]);
         rules_path.set_file_name("rules.pb");
 
         let read_data = server
@@ -746,9 +722,13 @@ mod tests {
 
         assert_eq!(rules, read_rules);
 
-        let db2 = "db_awesome";
+        let db2 = DatabaseName::new("db_awesome").unwrap();
         server
-            .create_database(db2, DatabaseRules::new())
+            .create_database(
+                DatabaseRules::new(db2.clone()),
+                server.require_id().unwrap(),
+                Arc::clone(&server.store),
+            )
             .await
             .expect("failed to create 2nd db");
 
@@ -756,98 +736,90 @@ mod tests {
 
         let manager = TestConnectionManager::new();
         let server2 = Server::new(manager, store);
-        server2.set_id(1);
+        server2.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         server2.load_database_configs().await.unwrap();
 
-        let _ = server2.db(&DatabaseName::new(db2).unwrap()).unwrap();
-        let _ = server2.db(&DatabaseName::new(name).unwrap()).unwrap();
+        let _ = server2.db(&db2).unwrap();
+        let _ = server2.db(&name).unwrap();
     }
 
     #[tokio::test]
-    async fn duplicate_database_name_rejected() -> Result {
+    async fn duplicate_database_name_rejected() {
         // Covers #643
 
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server = Server::new(manager, store);
-        server.set_id(1);
+        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
 
-        let name = "bananas";
+        let name = DatabaseName::new("bananas").unwrap();
 
         // Create a database
         server
-            .create_database(name, DatabaseRules::new())
+            .create_database(
+                DatabaseRules::new(name.clone()),
+                server.require_id().unwrap(),
+                Arc::clone(&server.store),
+            )
             .await
             .expect("failed to create database");
 
         // Then try and create another with the same name
         let got = server
-            .create_database(name, DatabaseRules::new())
+            .create_database(
+                DatabaseRules::new(name.clone()),
+                server.require_id().unwrap(),
+                Arc::clone(&server.store),
+            )
             .await
             .unwrap_err();
 
         if !matches!(got, Error::DatabaseAlreadyExists {..}) {
             panic!("expected already exists error");
         }
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn db_names_sorted() -> Result {
+    async fn db_names_sorted() {
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server = Server::new(manager, store);
-        server.set_id(1);
+        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
 
         let names = vec!["bar", "baz"];
 
         for name in &names {
+            let name = DatabaseName::new(name.to_string()).unwrap();
             server
-                .create_database(*name, DatabaseRules::new())
+                .create_database(
+                    DatabaseRules::new(name),
+                    server.require_id().unwrap(),
+                    Arc::clone(&server.store),
+                )
                 .await
                 .expect("failed to create database");
         }
 
         let db_names_sorted = server.db_names_sorted();
         assert_eq!(names, db_names_sorted);
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn database_name_validation() -> Result {
+    async fn writes_local() {
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server = Server::new(manager, store);
-        server.set_id(1);
+        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
 
-        let reject = vec![
-            "bananas\t",
-            "bananas\"are\u{0099}\"great",
-            "bananas\nfoster",
-        ];
-
-        for name in reject {
-            let got = server
-                .create_database(name, DatabaseRules::new())
-                .await
-                .unwrap_err();
-            if !matches!(got, Error::InvalidDatabaseName { .. }) {
-                panic!("expected invalid name error");
-            }
-        }
-
-        Ok(())
-    }
-
-    #[tokio::test]
-    async fn writes_local() -> Result {
-        let manager = TestConnectionManager::new();
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let server = Server::new(manager, store);
-        server.set_id(1);
-        server.create_database("foo", DatabaseRules::new()).await?;
+        let name = DatabaseName::new("foo".to_string()).unwrap();
+        server
+            .create_database(
+                DatabaseRules::new(name),
+                server.require_id().unwrap(),
+                Arc::clone(&server.store),
+            )
+            .await
+            .unwrap();
 
         let line = "cpu bar=1 10";
         let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
@@ -872,12 +844,10 @@ mod tests {
             "+-----+------+",
         ];
         assert_table_eq!(expected, &batches);
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn close_chunk() -> Result {
+    async fn close_chunk() {
         test_helpers::maybe_start_logging();
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
@@ -886,12 +856,17 @@ mod tests {
         let cancel_token = CancellationToken::new();
         let background_handle = spawn_worker(Arc::clone(&server), cancel_token.clone());
 
-        server.set_id(1);
+        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
 
         let db_name = DatabaseName::new("foo").unwrap();
         server
-            .create_database(db_name.as_str(), DatabaseRules::new())
-            .await?;
+            .create_database(
+                DatabaseRules::new(db_name.clone()),
+                server.require_id().unwrap(),
+                Arc::clone(&server.store),
+            )
+            .await
+            .unwrap();
 
         let line = "cpu bar=1 10";
         let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
@@ -936,8 +911,6 @@ mod tests {
         // ensure that we don't leave the server instance hanging around
         cancel_token.cancel();
         let _ = background_handle.await;
-
-        Ok(())
     }
 
     #[tokio::test]
@@ -946,9 +919,11 @@ mod tests {
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
 
         let server = Server::new(manager, Arc::clone(&store));
-        server.set_id(1);
-        let db_name = "my_db";
+        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+        let db_name = DatabaseName::new("my_db").unwrap();
         let rules = DatabaseRules {
+            name: db_name.clone(),
+            partition_template: Default::default(),
             wal_buffer_config: Some(WalBufferConfig {
                 buffer_size: 500,
                 segment_size: 10,
@@ -956,12 +931,20 @@ mod tests {
                 store_segments: true,
                 close_segment_after: None,
             }),
-            ..Default::default()
+            lifecycle_rules: Default::default(),
+            shard_config: None,
         };
-        server.create_database(db_name, rules).await.unwrap();
+        server
+            .create_database(
+                rules,
+                server.require_id().unwrap(),
+                Arc::clone(&server.store),
+            )
+            .await
+            .unwrap();
 
         let lines = parsed_lines("disk,host=a used=10.1 12");
-        server.write_lines(db_name, &lines).await.unwrap();
+        server.write_lines(db_name.as_str(), &lines).await.unwrap();
 
         // write lines should have caused a segment rollover and persist, wait
         tokio::task::yield_now().await;
@@ -991,7 +974,7 @@ partition_key:
     }
 
     #[tokio::test]
-    async fn background_task_cleans_jobs() -> Result {
+    async fn background_task_cleans_jobs() {
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server = Arc::new(Server::new(manager, store));
@@ -1010,8 +993,6 @@ partition_key:
         // ensure that we don't leave the server instance hanging around
         cancel_token.cancel();
         let _ = background_handle.await;
-
-        Ok(())
     }
 
     #[derive(Snafu, Debug, Clone)]

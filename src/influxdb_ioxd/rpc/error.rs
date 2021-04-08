@@ -1,5 +1,5 @@
 use generated_types::google::{FieldViolation, InternalError, NotFound, PreconditionViolation};
-use tracing::error;
+use observability_deps::tracing::error;
 
 /// map common `server::Error` errors  to the appropriate tonic Status
 pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
@@ -60,12 +60,6 @@ pub fn default_catalog_error_handler(error: server::db::catalog::Error) -> tonic
 pub fn default_db_error_handler(error: server::db::Error) -> tonic::Status {
     use server::db::Error;
     match error {
-        Error::DatabaseNotReadable {} => PreconditionViolation {
-            category: "database".to_string(),
-            subject: "influxdata.com/iox".to_string(),
-            description: "Cannot read from database: no mutable buffer configured".to_string(),
-        }
-        .into(),
         Error::DatabaseNotWriteable {} => PreconditionViolation {
             category: "database".to_string(),
             subject: "influxdata.com/iox".to_string(),

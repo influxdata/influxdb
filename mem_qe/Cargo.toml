@@ -9,11 +9,10 @@ arrow_deps = { path = "../arrow_deps" }
 chrono = "0.4"
 croaring = "0.4.5"
 crossbeam = "0.8"
-env_logger = "0.8.3"
 human_format = "1.0.3"
 packers = { path = "../packers" }
 snafu = "0.6.8"
-tracing = "0.1"
+observability_deps = { path = "../observability_deps" }
 
 [dev-dependencies] # In alphabetical order
 criterion = "0.3"

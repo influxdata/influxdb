@@ -50,44 +50,40 @@ impl Column {
     //
 
     /// The estimated size in bytes of the column.
-    pub fn size(&self) -> u64 {
+    pub fn size(&self) -> usize {
         // Since `MetaData` is generic each value in the range can have a
         // different size, so just do the calculations here where we know each
         // `T`.
         match &self {
             Self::String(meta, data) => {
                 let mut meta_size =
-                    (size_of::<Option<(String, String)>>() + size_of::<ColumnProperties>()) as u64;
+                    size_of::<Option<(String, String)>>() + size_of::<ColumnProperties>();
                 if let Some((min, max)) = &meta.range {
-                    meta_size += (min.len() + max.len()) as u64;
+                    meta_size += min.len() + max.len();
                 };
                 meta_size + data.size()
             }
             Self::Float(_, data) => {
-                let meta_size =
-                    (size_of::<Option<(f64, f64)>>() + size_of::<ColumnProperties>()) as u64;
+                let meta_size = size_of::<Option<(f64, f64)>>() + size_of::<ColumnProperties>();
                 meta_size + data.size()
             }
             Self::Integer(_, data) => {
-                let meta_size =
-                    (size_of::<Option<(i64, i64)>>() + size_of::<ColumnProperties>()) as u64;
+                let meta_size = size_of::<Option<(i64, i64)>>() + size_of::<ColumnProperties>();
                 meta_size + data.size()
             }
             Self::Unsigned(_, data) => {
-                let meta_size =
-                    (size_of::<Option<(u64, u64)>>() + size_of::<ColumnProperties>()) as u64;
+                let meta_size = size_of::<Option<(u64, u64)>>() + size_of::<ColumnProperties>();
                 meta_size + data.size()
             }
             Self::Bool(_, data) => {
-                let meta_size =
-                    (size_of::<Option<(bool, bool)>>() + size_of::<ColumnProperties>()) as u64;
+                let meta_size = size_of::<Option<(bool, bool)>>() + size_of::<ColumnProperties>();
                 meta_size + data.size()
             }
             Self::ByteArray(meta, data) => {
-                let mut meta_size = (size_of::<Option<(Vec<u8>, Vec<u8>)>>()
-                    + size_of::<ColumnProperties>()) as u64;
+                let mut meta_size =
+                    size_of::<Option<(Vec<u8>, Vec<u8>)>>() + size_of::<ColumnProperties>();
                 if let Some((min, max)) = &meta.range {
-                    meta_size += (min.len() + max.len()) as u64;
+                    meta_size += min.len() + max.len();
                 };
 
                 meta_size + data.size()
