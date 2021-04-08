@@ -5,6 +5,8 @@ use data_types::partition_metadata::TableSummary;
 use object_store::path::Path;
 use tracker::{MemRegistry, MemTracker};
 
+use std::mem;
+
 #[derive(Debug)]
 pub struct Chunk {
     /// Partition this chunk belongs to
@@ -32,27 +34,32 @@ impl Chunk {
         chunk
     }
 
+    /// Add a chunk's table and its summary
     pub fn add_table(&mut self, table_summary: TableSummary, file_location: Path) {
         self.tables.push(Table::new(table_summary, file_location));
     }
 
+    /// Return true if this chunk includes the given table
     pub fn has_table(&self, table_name: &str) -> bool {
-        // TODO: check if this table exists in the chunk
-        if table_name.is_empty() {
-            return false;
-        }
-        true
+        self.tables.iter().any(|t| t.has_table(table_name))
     }
 
+    // Return all tables of this chunk
     pub fn all_table_names(&self, names: &mut BTreeSet<String>) {
-        // TODO
-        names.insert("todo".to_string());
+        let mut tables = self
+            .tables
+            .iter()
+            .map(|t| t.name())
+            .collect::<BTreeSet<String>>();
+
+        names.append(&mut tables);
     }
 
     /// Return the approximate memory size of the chunk, in bytes including the
     /// dictionary, tables, and their rows.
     pub fn size(&self) -> usize {
-        // TODO
-        0
+        let size: usize = self.tables.iter().map(|t| t.size()).sum();
+
+        size + self.partition_key.len() + mem::size_of::<u32>() + mem::size_of::<Self>()
     }
 }

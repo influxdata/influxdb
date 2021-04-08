@@ -1,5 +1,6 @@
 use std::{
     collections::{BTreeMap, BTreeSet},
+    num::NonZeroU32,
     sync::{Arc, RwLock},
 };
 
@@ -7,7 +8,7 @@ use data_types::{
     database_rules::{DatabaseRules, WriterId},
     DatabaseName,
 };
-use object_store::path::ObjectStorePath;
+use object_store::{path::ObjectStorePath, ObjectStore};
 
 /// This module contains code for managing the configuration of the server.
 use crate::{db::Db, Error, JobRegistry, Result};
@@ -81,7 +82,7 @@ impl Config {
         state.remotes.remove(&id)
     }
 
-    fn commit(&self, rules: DatabaseRules) {
+    fn commit(&self, rules: DatabaseRules, server_id: NonZeroU32, object_store: Arc<ObjectStore>) {
         let mut state = self.state.write().expect("mutex poisoned");
         let name = state
             .reservations
@@ -94,7 +95,13 @@ impl Config {
         }
 
         let wal_buffer = rules.wal_buffer_config.as_ref().map(Into::into);
-        let db = Arc::new(Db::new(rules, wal_buffer, Arc::clone(&self.jobs)));
+        let db = Arc::new(Db::new(
+            rules,
+            server_id,
+            object_store,
+            wal_buffer,
+            Arc::clone(&self.jobs),
+        ));
 
         let shutdown = self.shutdown.child_token();
         let shutdown_captured = shutdown.clone();
@@ -214,8 +221,9 @@ pub(crate) struct CreateDatabaseHandle<'a> {
 }
 
 impl<'a> CreateDatabaseHandle<'a> {
-    pub(crate) fn commit(mut self) {
-        self.config.commit(self.rules.take().unwrap())
+    pub(crate) fn commit(mut self, server_id: NonZeroU32, object_store: Arc<ObjectStore>) {
+        self.config
+            .commit(self.rules.take().unwrap(), server_id, object_store)
     }
 
     pub(crate) fn rules(&self) -> &DatabaseRules {
@@ -250,7 +258,9 @@ mod test {
         }
 
         let db_reservation = config.create_db(rules).unwrap();
-        db_reservation.commit();
+        let server_id = NonZeroU32::new(1).unwrap();
+        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        db_reservation.commit(server_id, store);
         assert!(config.db(&name).is_some());
         assert_eq!(config.db_names_sorted(), vec![name.clone()]);
 
@@ -274,7 +284,9 @@ mod test {
         let rules = DatabaseRules::new(name.clone());
 
         let db_reservation = config.create_db(rules).unwrap();
-        db_reservation.commit();
+        let server_id = NonZeroU32::new(1).unwrap();
+        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        db_reservation.commit(server_id, store);
 
         let token = config
             .state

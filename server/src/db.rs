@@ -2,9 +2,12 @@
 //! instances of the mutable buffer, read buffer, and object store
 
 use std::any::Any;
-use std::sync::{
-    atomic::{AtomicU64, AtomicUsize, Ordering},
-    Arc,
+use std::{
+    num::NonZeroU32,
+    sync::{
+        atomic::{AtomicU64, AtomicUsize, Ordering},
+        Arc,
+    },
 };
 
 use async_trait::async_trait;
@@ -23,7 +26,7 @@ use data_types::{
     chunk::ChunkSummary, database_rules::DatabaseRules, partition_metadata::PartitionSummary,
 };
 use internal_types::{data::ReplicatedWrite, selection::Selection};
-use object_store::{memory::InMemory, ObjectStore};
+use object_store::ObjectStore;
 use parquet_file::{chunk::Chunk, storage::Storage};
 use query::{Database, DEFAULT_SCHEMA};
 use read_buffer::Chunk as ReadBufferChunk;
@@ -115,20 +118,6 @@ pub enum Error {
         source: parquet_file::storage::Error,
     },
 
-    // #[snafu(display("Error opening Parquet Writer: {}", source))]
-    // OpeningParquetWriter {
-    //     source: parquet::errors::ParquetError,
-    // },
-
-    // #[snafu(display("Error writing Parquet to memory: {}", source))]
-    // WritingParquetToMemory {
-    //     source: parquet::errors::ParquetError,
-    // },
-
-    // #[snafu(display("Error closing Parquet Writer: {}", source))]
-    // ClosingParquetWriter {
-    //     source: parquet::errors::ParquetError,
-    // },
     #[snafu(display("Unknown Mutable Buffer Chunk {}", chunk_id))]
     UnknownMutableBufferChunk { chunk_id: u32 },
 
@@ -205,6 +194,10 @@ const STARTING_SEQUENCE: u64 = 1;
 pub struct Db {
     pub rules: RwLock<DatabaseRules>,
 
+    pub server_id: NonZeroU32, // this is also the Query Server ID
+
+    pub store: Arc<ObjectStore>,
+
     /// The catalog holds chunks of data under partitions for the database.
     /// The underlying chunks may be backed by different execution engines
     /// depending on their stage in the data lifecycle. Currently there are
@@ -248,13 +241,23 @@ struct MemoryRegistries {
 }
 
 impl Db {
-    pub fn new(rules: DatabaseRules, wal_buffer: Option<Buffer>, jobs: Arc<JobRegistry>) -> Self {
+    pub fn new(
+        rules: DatabaseRules,
+        server_id: NonZeroU32,
+        object_store: Arc<ObjectStore>,
+        wal_buffer: Option<Buffer>,
+        jobs: Arc<JobRegistry>,
+    ) -> Self {
         let rules = RwLock::new(rules);
+        let server_id = server_id;
+        let store = Arc::clone(&object_store);
         let wal_buffer = wal_buffer.map(Mutex::new);
         let catalog = Arc::new(Catalog::new());
         let system_tables = Arc::new(SystemSchemaProvider::new(Arc::clone(&catalog)));
         Self {
             rules,
+            server_id,
+            store,
             catalog,
             wal_buffer,
             jobs,
@@ -464,16 +467,18 @@ impl Db {
             self.memory_registries.parquet.as_ref(),
         );
         // Create a storage to save data of this chunk
-        // Todo: this must be gotten from server or somewhere
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let storage = Storage::new(store, 100, "db_name".to_string()); // todo: replace with actual writer_id & db_name
+        let storage = Storage::new(
+            Arc::clone(&self.store),
+            self.server_id,
+            self.rules.read().name.to_string(),
+        );
 
         for stats in table_stats {
             debug!(%partition_key, %chunk_id, table=%stats.name, "loading table to object store");
 
             let predicate = read_buffer::Predicate::default();
 
-            // Get RecordrdBatchStream of data from the read buffer chunk
+            // Get RecordBatchStream of data from the read buffer chunk
             // TODO: When we have the rb_chunk, the following code will be replaced with one
             // line let stream = rb_chunk.read_filter()
             let read_results = rb_chunk
@@ -737,9 +742,8 @@ mod tests {
     async fn write_no_mutable_buffer() {
         // Validate that writes are rejected if there is no mutable buffer
         let db = make_db();
-        db.rules.write().lifecycle_rules.immutable = true;
-
         let mut writer = TestLPWriter::default();
+        db.rules.write().lifecycle_rules.immutable = true;
         let res = writer.write_lp_string(&db, "cpu bar=1 10");
         assert_contains!(
             res.unwrap_err().to_string(),
@@ -769,6 +773,7 @@ mod tests {
     async fn write_with_rollover() {
         let db = Arc::new(make_db());
         let mut writer = TestLPWriter::default();
+        //writer.write_lp_string(db.as_ref(), "cpu bar=1 10").unwrap();
         writer.write_lp_string(db.as_ref(), "cpu bar=1 10").unwrap();
         assert_eq!(vec!["1970-01-01T00"], db.partition_keys().unwrap());
 
@@ -810,7 +815,6 @@ mod tests {
     async fn write_with_missing_tags_are_null() {
         let db = Arc::new(make_db());
         let mut writer = TestLPWriter::default();
-
         // Note the `region` tag is introduced in the second line, so
         // the values in prior rows for the region column are
         // null. Likewise the `core` tag is introduced in the third
@@ -1114,7 +1118,6 @@ mod tests {
     async fn partition_chunk_summaries_timestamp() {
         let db = make_db();
         let mut writer = TestLPWriter::default();
-
         let start = Utc::now();
         writer.write_lp_string(&db, "cpu bar=1 1").unwrap();
         let after_first_write = Utc::now();

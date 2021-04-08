@@ -92,7 +92,17 @@ where
             .and_then(TryInto::try_into)
             .map_err(|e| e.scope("rules"))?;
 
-        match self.server.create_database(rules).await {
+        let server_id = match self.server.require_id().ok() {
+            Some(id) => id,
+            None => return Err(NotFound::default().into()),
+        };
+        let object_store = Arc::clone(&self.server.store);
+
+        match self
+            .server
+            .create_database(rules, server_id, object_store)
+            .await
+        {
             Ok(_) => Ok(Response::new(CreateDatabaseResponse {})),
             Err(Error::DatabaseAlreadyExists { db_name }) => {
                 return Err(AlreadyExists {

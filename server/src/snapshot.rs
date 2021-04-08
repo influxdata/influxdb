@@ -390,8 +390,13 @@ mem,host=A,region=west used=45 1
 
     /// Create a Database with a local store
     pub fn make_db() -> Db {
+        let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let server_id = std::num::NonZeroU32::new(1).unwrap();
+
         Db::new(
             DatabaseRules::new(DatabaseName::new("placeholder").unwrap()),
+            server_id,
+            object_store,
             None, // wal buffer
             Arc::new(JobRegistry::new()),
         )

@@ -44,6 +44,7 @@ impl DBSetup for NoData {
         };
 
         // a scenario where the database has had data loaded and then deleted
+
         let db = make_db();
         let data = "cpu,region=west user=23.2 100";
         let mut writer = TestLPWriter::default();
