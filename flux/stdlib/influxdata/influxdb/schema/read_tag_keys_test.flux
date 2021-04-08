@@ -39,7 +39,7 @@ testcase read_tag_keys {
 #datatype,string,long,dateTime:RFC3339,string,string,string,string,double
 #group,false,false,false,true,true,true,true,false
 #default,_result,,,,,,,
-,result,table,_time,_measurement,host,region,_field,_value
+,result,table,_time,_measurement,region,host,_field,_value
 ,,3,2018-05-22T19:53:26Z,system,us-east,host.local,load1,10
 ,,3,2018-05-22T19:53:36Z,system,us-east,host.local,load1,11
 ,,3,2018-05-22T19:53:46Z,system,us-east,host.local,load1,18
@@ -107,16 +107,16 @@ testcase read_tag_keys_with_predicate {
 ,,3,2020-10-21T20:48:40Z,3578,inodes_used,disk,disk2s1,hfs,euterpe.local,ro,/Volumes/IntelliJ IDEA CE
 ,,3,2020-10-21T20:48:50Z,3578,inodes_used,disk,disk2s1,hfs,euterpe.local,ro,/Volumes/IntelliJ IDEA CE
 
-#group,false,false,false,false,true,true,true,true
-#datatype,string,long,dateTime:RFC3339,double,string,string,string,string
-#default,_result,,,,,,,
-,result,table,_time,_value,_field,_measurement,cpu,host
-,,4,2020-10-21T20:48:30Z,69.30000000167638,usage_idle,cpu,cpu0,euterpe.local
-,,4,2020-10-21T20:48:40Z,67.36736736724372,usage_idle,cpu,cpu0,euterpe.local
-,,4,2020-10-21T20:48:50Z,69.23076923005354,usage_idle,cpu,cpu0,euterpe.local
-,,5,2020-10-21T20:48:30Z,96.10000000102445,usage_idle,cpu,cpu1,euterpe.local
-,,5,2020-10-21T20:48:40Z,95.70000000055181,usage_idle,cpu,cpu1,euterpe.local
-,,5,2020-10-21T20:48:50Z,95.89999999860534,usage_idle,cpu,cpu1,euterpe.local
+#group,false,false,false,false,true,true,true,true,true
+#datatype,string,long,dateTime:RFC3339,double,string,string,string,string,string
+#default,_result,,,,,,,,
+,result,table,_time,_value,_field,_measurement,cpu,host,arch
+,,4,2020-10-21T20:48:30Z,69.30000000167638,usage_idle,cpu,cpu0,euterpe.local,amd64
+,,4,2020-10-21T20:48:40Z,67.36736736724372,usage_idle,cpu,cpu0,euterpe.local,amd64
+,,4,2020-10-21T20:48:50Z,69.23076923005354,usage_idle,cpu,cpu0,euterpe.local,amd64
+,,5,2020-10-21T20:48:30Z,96.10000000102445,usage_idle,cpu,cpu1,euterpe.local,amd64
+,,5,2020-10-21T20:48:40Z,95.70000000055181,usage_idle,cpu,cpu1,euterpe.local,amd64
+,,5,2020-10-21T20:48:50Z,95.89999999860534,usage_idle,cpu,cpu1,euterpe.local,amd64
 
 #group,false,false,true,true,false,false,true,true,true
 #datatype,string,long,string,string,dateTime:RFC3339,double,string,string,string
