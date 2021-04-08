@@ -26,6 +26,10 @@ if [[ $FBS_CHANGES -gt 0 ]]; then
   echo "Checking for uncommitted changes..."
 
   if ! git diff-index --quiet HEAD --; then
+    echo "git diff-index HEAD found:"
+    git diff-index HEAD --
+    echo "git diff found:"
+    git diff HEAD
     echo "************************************************************"
     echo "* Found uncommitted changes to generated flatbuffers code! *"
     echo "* Please run \`generated_types/regenerate-flatbuffers.sh\`   *"
