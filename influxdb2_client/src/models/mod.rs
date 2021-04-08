@@ -2,6 +2,8 @@
 //!
 //! Roughly follows the OpenAPI specification
 
+pub mod ast;
+
 pub mod user;
 pub use self::user::{User, UserLinks, Users, UsersLinks};
 pub mod organization;
@@ -22,3 +24,10 @@ pub mod resource;
 pub use self::resource::Resource;
 pub mod retention_rule;
 pub use self::retention_rule::RetentionRule;
+pub mod query;
+pub use self::query::{
+    AnalyzeQueryResponse, AnalyzeQueryResponseErrors, AstResponse, FluxSuggestion, FluxSuggestions,
+    LanguageRequest, Query,
+};
+pub mod file;
+pub use self::file::File;

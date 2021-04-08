@@ -1437,6 +1437,7 @@ dependencies = [
  "snafu",
  "test_helpers",
  "tokio",
+ "url",
 ]
 
 [[package]]
