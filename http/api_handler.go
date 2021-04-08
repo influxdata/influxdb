@@ -4,9 +4,6 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/go-chi/chi"
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
@@ -16,10 +13,14 @@ import (
 	"github.com/influxdata/influxdb/v2/http/metric"
 	"github.com/influxdata/influxdb/v2/influxql"
 	"github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/prom"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/storage"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
@@ -85,8 +86,8 @@ type APIBackend struct {
 	InfluxQLService                 query.ProxyQueryService
 	InfluxqldService                influxql.ProxyQueryService
 	FluxService                     query.ProxyQueryService
-	FluxLanguageService             influxdb.FluxLanguageService
-	TaskService                     influxdb.TaskService
+	FluxLanguageService             fluxlang.FluxLanguageService
+	TaskService                     taskmodel.TaskService
 	CheckService                    influxdb.CheckService
 	TelegrafService                 influxdb.TelegrafConfigStore
 	ScraperTargetStoreService       influxdb.ScraperTargetStoreService

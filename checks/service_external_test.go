@@ -8,16 +8,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/check"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -160,14 +160,14 @@ var taskCmpOptions = cmp.Options{
 	}),
 	// skip comparing permissions
 	cmpopts.IgnoreFields(
-		influxdb.Task{},
+		taskmodel.Task{},
 		"LatestCompleted",
 		"LatestScheduled",
 		"CreatedAt",
 		"UpdatedAt",
 	),
-	cmp.Transformer("Sort", func(in []*influxdb.Task) []*influxdb.Task {
-		out := append([]*influxdb.Task{}, in...) // Copy input to avoid mutating it
+	cmp.Transformer("Sort", func(in []*taskmodel.Task) []*taskmodel.Task {
+		out := append([]*taskmodel.Task{}, in...) // Copy input to avoid mutating it
 		sort.Slice(out, func(i, j int) bool {
 			return out[i].ID > out[j].ID
 		})
@@ -179,13 +179,13 @@ var taskCmpOptions = cmp.Options{
 type CheckFields struct {
 	IDGenerator   platform.IDGenerator
 	TimeGenerator influxdb.TimeGenerator
-	TaskService   influxdb.TaskService
+	TaskService   taskmodel.TaskService
 	Checks        []influxdb.Check
 	Organizations []*influxdb.Organization
-	Tasks         []influxdb.TaskCreate
+	Tasks         []taskmodel.TaskCreate
 }
 
-type checkServiceFactory func(CheckFields, *testing.T) (influxdb.CheckService, influxdb.TaskService, string, func())
+type checkServiceFactory func(CheckFields, *testing.T) (influxdb.CheckService, taskmodel.TaskService, string, func())
 
 type checkServiceF func(
 	init checkServiceFactory,
@@ -249,7 +249,7 @@ func CreateCheck(
 	type wants struct {
 		err    *errors.Error
 		checks []influxdb.Check
-		tasks  []*influxdb.Task
+		tasks  []*taskmodel.Task
 	}
 
 	tests := []struct {
@@ -308,7 +308,7 @@ func CreateCheck(
 				},
 			},
 			wants: wants{
-				tasks: []*influxdb.Task{
+				tasks: []*taskmodel.Task{
 					{
 						ID:             MustIDBase16("020f755c3c082000"),
 						Name:           "name1",
@@ -437,7 +437,7 @@ func CreateCheck(
 					deadman1,
 					threshold1,
 				},
-				tasks: []*influxdb.Task{
+				tasks: []*taskmodel.Task{
 					{
 						ID:             MustIDBase16("020f755c3c082001"),
 						Name:           "name2",
@@ -574,7 +574,7 @@ func CreateCheck(
 				},
 			},
 			wants: wants{
-				tasks: []*influxdb.Task{
+				tasks: []*taskmodel.Task{
 					{
 						ID:             MustIDBase16("020f755c3c082001"),
 						Name:           "name1",
@@ -701,7 +701,7 @@ func CreateCheck(
 				t.Errorf("checks are different -got/+want\ndiff %s", diff)
 			}
 
-			foundTasks, _, err := tasks.FindTasks(ctx, influxdb.TaskFilter{})
+			foundTasks, _, err := tasks.FindTasks(ctx, taskmodel.TaskFilter{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1060,7 +1060,7 @@ func DeleteCheck(
 						ID:   MustIDBase16(orgOneID),
 					},
 				},
-				Tasks: []influxdb.TaskCreate{
+				Tasks: []taskmodel.TaskCreate{
 					{
 						Flux: `option task = { every: 10s, name: "foo" }
 data = from(bucket: "telegraf") |> range(start: -1m)`,
@@ -1093,7 +1093,7 @@ data = from(bucket: "telegraf") |> range(start: -1m)`,
 						ID:   MustIDBase16(orgOneID),
 					},
 				},
-				Tasks: []influxdb.TaskCreate{
+				Tasks: []taskmodel.TaskCreate{
 					{
 						Flux: `option task = { every: 10s, name: "foo" }
 		data = from(bucket: "telegraf") |> range(start: -1m)`,
@@ -1293,7 +1293,7 @@ func UpdateCheck(
 						ID:   MustIDBase16(orgOneID),
 					},
 				},
-				Tasks: []influxdb.TaskCreate{
+				Tasks: []taskmodel.TaskCreate{
 					{
 						Flux: `option task = { every: 10s, name: "foo" }
 data = from(bucket: "telegraf") |> range(start: -1m)`,
@@ -1551,7 +1551,7 @@ func PatchCheck(
 			fields: CheckFields{
 				IDGenerator:   mock.NewIDGenerator("0000000000000001", t),
 				TimeGenerator: mock.TimeGenerator{FakeValue: time.Date(2007, 5, 4, 1, 2, 3, 0, time.UTC)},
-				Tasks: []influxdb.TaskCreate{
+				Tasks: []taskmodel.TaskCreate{
 					{
 						Flux: `option task = { every: 10s, name: "foo" }
 data = from(bucket: "telegraf") |> range(start: -1m)`,

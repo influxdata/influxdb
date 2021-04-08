@@ -13,12 +13,12 @@ import (
 	"testing"
 	"time"
 
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/influxdb/v2"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/notification"
 	icheck "github.com/influxdata/influxdb/v2/notification/check"
 	"github.com/influxdata/influxdb/v2/notification/endpoint"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -2709,7 +2709,7 @@ spec:
 							Base: endpoint.Base{
 								Name:        "basic endpoint name",
 								Description: "http basic auth desc",
-								Status:      influxdb.TaskStatusInactive,
+								Status:      taskmodel.TaskStatusInactive,
 							},
 							URL:        "https://www.example.com/endpoint/basicauth",
 							AuthMethod: "basic",
@@ -2727,7 +2727,7 @@ spec:
 							Base: endpoint.Base{
 								Name:        "http-bearer-auth-notification-endpoint",
 								Description: "http bearer auth desc",
-								Status:      influxdb.TaskStatusActive,
+								Status:      taskmodel.TaskStatusActive,
 							},
 							URL:        "https://www.example.com/endpoint/bearerauth",
 							AuthMethod: "bearer",
@@ -2744,7 +2744,7 @@ spec:
 							Base: endpoint.Base{
 								Name:        "http-none-auth-notification-endpoint",
 								Description: "http none auth desc",
-								Status:      influxdb.TaskStatusActive,
+								Status:      taskmodel.TaskStatusActive,
 							},
 							URL:        "https://www.example.com/endpoint/noneauth",
 							AuthMethod: "none",
@@ -2760,7 +2760,7 @@ spec:
 							Base: endpoint.Base{
 								Name:        "pager duty name",
 								Description: "pager duty desc",
-								Status:      influxdb.TaskStatusActive,
+								Status:      taskmodel.TaskStatusActive,
 							},
 							ClientURL:  "http://localhost:8080/orgs/7167eb6719fa34e5/alert-history",
 							RoutingKey: influxdb.SecretField{Value: strPtr("secret routing-key")},
@@ -2775,7 +2775,7 @@ spec:
 							Base: endpoint.Base{
 								Name:        "slack name",
 								Description: "slack desc",
-								Status:      influxdb.TaskStatusActive,
+								Status:      taskmodel.TaskStatusActive,
 							},
 							URL:   "https://hooks.slack.com/services/bip/piddy/boppidy",
 							Token: influxdb.SecretField{Value: strPtr("tokenval")},
@@ -4245,7 +4245,7 @@ spec:
 			expected := &endpoint.PagerDuty{
 				Base: endpoint.Base{
 					Name:   "pager-duty-notification-endpoint",
-					Status: influxdb.TaskStatusActive,
+					Status: taskmodel.TaskStatusActive,
 				},
 				ClientURL:  "http://localhost:8080/orgs/7167eb6719fa34e5/alert-history",
 				RoutingKey: influxdb.SecretField{Key: "-routing-key", Value: strPtr("not empty")},

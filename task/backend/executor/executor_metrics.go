@@ -5,8 +5,7 @@ import (
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -137,7 +136,7 @@ func (em *ExecutorMetrics) PrometheusCollectors() []prometheus.Collector {
 }
 
 // StartRun store the delta time between when a run is due to start and actually starting.
-func (em *ExecutorMetrics) StartRun(task *influxdb.Task, queueDelta time.Duration, runLatency time.Duration) {
+func (em *ExecutorMetrics) StartRun(task *taskmodel.Task, queueDelta time.Duration, runLatency time.Duration) {
 	em.queueDelta.WithLabelValues(task.Type, "all").Observe(queueDelta.Seconds())
 	em.queueDelta.WithLabelValues("", task.ID.String()).Observe(queueDelta.Seconds())
 
@@ -146,7 +145,7 @@ func (em *ExecutorMetrics) StartRun(task *influxdb.Task, queueDelta time.Duratio
 }
 
 // FinishRun adjusts the metrics to indicate a run is no longer in progress for the given task ID.
-func (em *ExecutorMetrics) FinishRun(task *influxdb.Task, status influxdb.RunStatus, runDuration time.Duration) {
+func (em *ExecutorMetrics) FinishRun(task *taskmodel.Task, status taskmodel.RunStatus, runDuration time.Duration) {
 	em.totalRunsComplete.WithLabelValues(task.Type, status.String()).Inc()
 
 	em.runDuration.WithLabelValues(task.Type, "all").Observe(runDuration.Seconds())

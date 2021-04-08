@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/rule"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	influxTesting "github.com/influxdata/influxdb/v2/testing"
 	"go.uber.org/zap/zaptest"
 )
@@ -25,8 +25,8 @@ func NewMockNotificationRuleBackend(t *testing.T) *NotificationRuleBackend {
 		UserService:                mock.NewUserService(),
 		OrganizationService:        mock.NewOrganizationService(),
 		TaskService: &mock.TaskService{
-			FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Task, error) {
-				return &influxdb.Task{Status: "active"}, nil
+			FindTaskByIDFn: func(ctx context.Context, id platform.ID) (*taskmodel.Task, error) {
+				return &taskmodel.Task{Status: "active"}, nil
 			},
 		},
 	}

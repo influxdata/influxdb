@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
 
 // CoordinatingCheckService acts as a CheckService decorator that handles coordinating the api request
@@ -15,12 +15,12 @@ import (
 type CoordinatingCheckService struct {
 	influxdb.CheckService
 	coordinator Coordinator
-	taskService influxdb.TaskService
+	taskService taskmodel.TaskService
 	Now         func() time.Time
 }
 
 // NewCheckService constructs a new coordinating check service
-func NewCheckService(cs influxdb.CheckService, ts influxdb.TaskService, coordinator Coordinator) *CoordinatingCheckService {
+func NewCheckService(cs influxdb.CheckService, ts taskmodel.TaskService, coordinator Coordinator) *CoordinatingCheckService {
 	c := &CoordinatingCheckService{
 		CheckService: cs,
 		taskService:  ts,
@@ -80,7 +80,7 @@ func (cs *CoordinatingCheckService) UpdateCheck(ctx context.Context, id platform
 
 	// if the update is to activate and the previous task was inactive we should add a "latest completed" update
 	// this allows us to see not run the task for inactive time
-	if fromTask.Status == string(influxdb.TaskInactive) && toTask.Status == string(influxdb.TaskActive) {
+	if fromTask.Status == string(taskmodel.TaskInactive) && toTask.Status == string(taskmodel.TaskActive) {
 		toTask.LatestCompleted = cs.Now()
 	}
 
@@ -111,7 +111,7 @@ func (cs *CoordinatingCheckService) PatchCheck(ctx context.Context, id platform.
 
 	// if the update is to activate and the previous task was inactive we should add a "latest completed" update
 	// this allows us to see not run the task for inactive time
-	if fromTask.Status == string(influxdb.TaskInactive) && toTask.Status == string(influxdb.TaskActive) {
+	if fromTask.Status == string(taskmodel.TaskInactive) && toTask.Status == string(taskmodel.TaskActive) {
 		toTask.LatestCompleted = cs.Now()
 	}
 

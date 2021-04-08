@@ -6,9 +6,8 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2/kit/platform"
-
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
 
 var (
@@ -16,8 +15,8 @@ var (
 	mockTimeNow = time.Now()
 )
 
-func (m MockTaskService) UpdateTask(_ context.Context, id platform.ID, _ influxdb.TaskUpdate) (*influxdb.Task, error) {
-	return &influxdb.Task{ID: id, UpdatedAt: mockTimeNow}, nil
+func (m MockTaskService) UpdateTask(_ context.Context, id platform.ID, _ taskmodel.TaskUpdate) (*taskmodel.Task, error) {
+	return &taskmodel.Task{ID: id, UpdatedAt: mockTimeNow}, nil
 }
 
 type MockTaskService struct{}
@@ -26,7 +25,7 @@ func Test_Schedulable_Task_Service(t *testing.T) {
 
 	for _, test := range []struct {
 		name string
-		task *influxdb.Task
+		task *taskmodel.Task
 	}{
 		{
 			name: "Create New Schedulable Task Service",

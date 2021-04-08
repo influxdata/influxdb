@@ -9,14 +9,14 @@ import (
 	"path"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	"github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
 	pctx "github.com/influxdata/influxdb/v2/context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/notification/rule"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"go.uber.org/zap"
 )
 
@@ -39,7 +39,7 @@ type NotificationRuleBackend struct {
 	LabelService                influxdb.LabelService
 	UserService                 influxdb.UserService
 	OrganizationService         influxdb.OrganizationService
-	TaskService                 influxdb.TaskService
+	TaskService                 taskmodel.TaskService
 }
 
 // NewNotificationRuleBackend returns a new instance of NotificationRuleBackend.
@@ -71,7 +71,7 @@ type NotificationRuleHandler struct {
 	LabelService                influxdb.LabelService
 	UserService                 influxdb.UserService
 	OrganizationService         influxdb.OrganizationService
-	TaskService                 influxdb.TaskService
+	TaskService                 taskmodel.TaskService
 }
 
 const (

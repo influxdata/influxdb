@@ -12,9 +12,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/NYTimes/gziphandler"
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
@@ -26,10 +23,13 @@ import (
 	"github.com/influxdata/influxdb/v2/http/metric"
 	"github.com/influxdata/influxdb/v2/kit/check"
 	"github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/query/influxql"
 	"github.com/pkg/errors"
 	prom "github.com/prometheus/client_golang/prometheus"
@@ -51,7 +51,7 @@ type FluxBackend struct {
 	AlgoWProxy          FeatureProxyHandler
 	OrganizationService influxdb.OrganizationService
 	ProxyQueryService   query.ProxyQueryService
-	FluxLanguageService influxdb.FluxLanguageService
+	FluxLanguageService fluxlang.FluxLanguageService
 	Flagger             feature.Flagger
 }
 
@@ -86,7 +86,7 @@ type FluxHandler struct {
 	Now                 func() time.Time
 	OrganizationService influxdb.OrganizationService
 	ProxyQueryService   query.ProxyQueryService
-	FluxLanguageService influxdb.FluxLanguageService
+	FluxLanguageService fluxlang.FluxLanguageService
 
 	EventRecorder metric.EventRecorder
 

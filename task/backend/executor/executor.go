@@ -7,8 +7,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/lang"
@@ -16,10 +14,12 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/query"
 	"github.com/influxdata/influxdb/v2/task/backend"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"go.uber.org/zap"
 )
 
@@ -45,7 +45,7 @@ type Promise interface {
 
 // MultiLimit allows us to create a single limit func that applies more then one limit.
 func MultiLimit(limits ...LimitFunc) LimitFunc {
-	return func(task *influxdb.Task, run *influxdb.Run) error {
+	return func(task *taskmodel.Task, run *taskmodel.Run) error {
 		for _, lf := range limits {
 			if err := lf(task, run); err != nil {
 				return err
@@ -56,7 +56,7 @@ func MultiLimit(limits ...LimitFunc) LimitFunc {
 }
 
 // LimitFunc is a function the executor will use to
-type LimitFunc func(*influxdb.Task, *influxdb.Run) error
+type LimitFunc func(*taskmodel.Task, *taskmodel.Run) error
 
 type executorConfig struct {
 	maxWorkers             int
@@ -127,7 +127,7 @@ func WithFlagger(flagger feature.Flagger) executorOption {
 }
 
 // NewExecutor creates a new task executor
-func NewExecutor(log *zap.Logger, qs query.QueryService, us PermissionService, ts influxdb.TaskService, tcs backend.TaskControlService, opts ...executorOption) (*Executor, *ExecutorMetrics) {
+func NewExecutor(log *zap.Logger, qs query.QueryService, us PermissionService, ts taskmodel.TaskService, tcs backend.TaskControlService, opts ...executorOption) (*Executor, *ExecutorMetrics) {
 	cfg := &executorConfig{
 		maxWorkers:             defaultMaxWorkers,
 		systemBuildCompiler:    NewASTCompiler,
@@ -147,7 +147,7 @@ func NewExecutor(log *zap.Logger, qs query.QueryService, us PermissionService, t
 		currentPromises:        sync.Map{},
 		promiseQueue:           make(chan *promise, maxPromises),
 		workerLimit:            make(chan struct{}, cfg.maxWorkers),
-		limitFunc:              func(*influxdb.Task, *influxdb.Run) error { return nil }, // noop
+		limitFunc:              func(*taskmodel.Task, *taskmodel.Run) error { return nil }, // noop
 		systemBuildCompiler:    cfg.systemBuildCompiler,
 		nonSystemBuildCompiler: cfg.nonSystemBuildCompiler,
 		flagger:                cfg.flagger,
@@ -166,7 +166,7 @@ func NewExecutor(log *zap.Logger, qs query.QueryService, us PermissionService, t
 // Executor it a task specific executor that works with the new scheduler system.
 type Executor struct {
 	log *zap.Logger
-	ts  influxdb.TaskService
+	ts  taskmodel.TaskService
 	tcs backend.TaskControlService
 
 	qs query.QueryService
@@ -251,7 +251,7 @@ func (e *Executor) ResumeCurrentRun(ctx context.Context, id platform.ID, runID p
 			return p, err
 		}
 	}
-	return nil, influxdb.ErrRunNotFound
+	return nil, taskmodel.ErrRunNotFound
 }
 
 func (e *Executor) createRun(ctx context.Context, id platform.ID, scheduledFor time.Time, runAt time.Time) (*promise, error) {
@@ -264,7 +264,7 @@ func (e *Executor) createRun(ctx context.Context, id platform.ID, scheduledFor t
 		if err := e.tcs.AddRunLog(ctx, id, r.ID, time.Now().UTC(), fmt.Sprintf("Failed to enqueue run: %s", err.Error())); err != nil {
 			e.log.Error("failed to fail create run: AddRunLog:", zap.Error(err))
 		}
-		if err := e.tcs.UpdateRunState(ctx, id, r.ID, time.Now().UTC(), influxdb.RunFail); err != nil {
+		if err := e.tcs.UpdateRunState(ctx, id, r.ID, time.Now().UTC(), taskmodel.RunFail); err != nil {
 			e.log.Error("failed to fail create run: UpdateRunState:", zap.Error(err))
 		}
 		if _, err := e.tcs.FinishRun(ctx, id, r.ID); err != nil {
@@ -313,7 +313,7 @@ func (e *Executor) Cancel(ctx context.Context, runID platform.ID) error {
 	return nil
 }
 
-func (e *Executor) createPromise(ctx context.Context, run *influxdb.Run) (*promise, error) {
+func (e *Executor) createPromise(ctx context.Context, run *taskmodel.Run) (*promise, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -411,8 +411,8 @@ func (w *worker) work() {
 			// If done the promise was canceled
 			case <-prom.ctx.Done():
 				w.e.tcs.AddRunLog(prom.ctx, prom.task.ID, prom.run.ID, time.Now().UTC(), "Run canceled")
-				w.e.tcs.UpdateRunState(prom.ctx, prom.task.ID, prom.run.ID, time.Now().UTC(), influxdb.RunCanceled)
-				prom.err = influxdb.ErrRunCanceled
+				w.e.tcs.UpdateRunState(prom.ctx, prom.task.ID, prom.run.ID, time.Now().UTC(), taskmodel.RunCanceled)
+				prom.err = taskmodel.ErrRunCanceled
 				close(prom.done)
 				return
 			case <-time.After(time.Second):
@@ -438,14 +438,14 @@ func (w *worker) start(p *promise) {
 	// add to run log
 	w.e.tcs.AddRunLog(p.ctx, p.task.ID, p.run.ID, time.Now().UTC(), fmt.Sprintf("Started task from script: %q", p.task.Flux))
 	// update run status
-	w.e.tcs.UpdateRunState(ctx, p.task.ID, p.run.ID, time.Now().UTC(), influxdb.RunStarted)
+	w.e.tcs.UpdateRunState(ctx, p.task.ID, p.run.ID, time.Now().UTC(), taskmodel.RunStarted)
 
 	// add to metrics
 	w.e.metrics.StartRun(p.task, time.Since(p.createdAt), time.Since(p.run.RunAt))
 	p.startedAt = time.Now()
 }
 
-func (w *worker) finish(p *promise, rs influxdb.RunStatus, err error) {
+func (w *worker) finish(p *promise, rs taskmodel.RunStatus, err error) {
 	span, ctx := tracing.StartSpanFromContext(p.ctx)
 	defer span.Finish()
 
@@ -496,7 +496,7 @@ func (w *worker) executeQuery(p *promise) {
 	ctx = icontext.SetAuthorizer(ctx, p.auth)
 
 	buildCompiler := w.systemBuildCompiler
-	if p.task.Type != influxdb.TaskSystemType {
+	if p.task.Type != taskmodel.TaskSystemType {
 		buildCompiler = w.nonSystemBuildCompiler
 	}
 	compiler, err := buildCompiler(ctx, p.task.Flux, CompilerBuilderTimestamps{
@@ -504,7 +504,7 @@ func (w *worker) executeQuery(p *promise) {
 		LatestSuccess: p.task.LatestSuccess,
 	})
 	if err != nil {
-		w.finish(p, influxdb.RunFail, influxdb.ErrFluxParseError(err))
+		w.finish(p, taskmodel.RunFail, taskmodel.ErrFluxParseError(err))
 		return
 	}
 
@@ -517,7 +517,7 @@ func (w *worker) executeQuery(p *promise) {
 	it, err := w.e.qs.Query(ctx, req)
 	if err != nil {
 		// Assume the error should not be part of the runResult.
-		w.finish(p, influxdb.RunFail, influxdb.ErrQueryError(err))
+		w.finish(p, taskmodel.RunFail, taskmodel.ErrQueryError(err))
 		return
 	}
 
@@ -540,16 +540,16 @@ func (w *worker) executeQuery(p *promise) {
 	}
 
 	if runErr != nil {
-		w.finish(p, influxdb.RunFail, influxdb.ErrRunExecutionError(runErr))
+		w.finish(p, taskmodel.RunFail, taskmodel.ErrRunExecutionError(runErr))
 		return
 	}
 
 	if it.Err() != nil {
-		w.finish(p, influxdb.RunFail, influxdb.ErrResultIteratorError(it.Err()))
+		w.finish(p, taskmodel.RunFail, taskmodel.ErrResultIteratorError(it.Err()))
 		return
 	}
 
-	w.finish(p, influxdb.RunSuccess, nil)
+	w.finish(p, taskmodel.RunSuccess, nil)
 }
 
 // RunsActive returns the current number of workers, which is equivalent to
@@ -570,8 +570,8 @@ func (e *Executor) PromiseQueueUsage() float64 {
 
 // promise represents a promise the executor makes to finish a run's execution asynchronously.
 type promise struct {
-	run  *influxdb.Run
-	task *influxdb.Task
+	run  *taskmodel.Run
+	task *taskmodel.Task
 	auth *influxdb.Authorization
 
 	done chan struct{}

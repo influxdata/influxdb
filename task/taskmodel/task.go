@@ -1,4 +1,4 @@
-package influxdb
+package taskmodel
 
 import (
 	"context"
@@ -8,11 +8,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/kit/platform"
-	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
-
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/flux/ast/edit"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/task/options"
 )
 
@@ -276,7 +276,7 @@ func (t *TaskUpdate) Validate() error {
 
 // safeParseSource calls the Flux parser.ParseSource function
 // and is guaranteed not to panic.
-func safeParseSource(parser FluxLanguageService, f string) (pkg *ast.Package, err error) {
+func safeParseSource(parser fluxlang.FluxLanguageService, f string) (pkg *ast.Package, err error) {
 	if parser == nil {
 		return nil, &errors2.Error{
 			Code: errors2.EInternal,
@@ -298,11 +298,11 @@ func safeParseSource(parser FluxLanguageService, f string) (pkg *ast.Package, er
 // UpdateFlux updates the TaskUpdate to go from updating options to updating a
 // flux string, that now has those updated options in it. It zeros the options
 // in the TaskUpdate.
-func (t *TaskUpdate) UpdateFlux(parser FluxLanguageService, oldFlux string) error {
+func (t *TaskUpdate) UpdateFlux(parser fluxlang.FluxLanguageService, oldFlux string) error {
 	return t.updateFlux(parser, oldFlux)
 }
 
-func (t *TaskUpdate) updateFlux(parser FluxLanguageService, oldFlux string) error {
+func (t *TaskUpdate) updateFlux(parser fluxlang.FluxLanguageService, oldFlux string) error {
 	if t.Flux != nil && *t.Flux != "" {
 		oldFlux = *t.Flux
 	}
