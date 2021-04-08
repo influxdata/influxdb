@@ -3,7 +3,7 @@
 # The commit where the Rust `flatbuffers` crate version was changed to the version in `Cargo.lock`
 # Update this, rerun this script, and check in the changes in the generated code when the
 # `flatbuffers` crate version is updated.
-FB_COMMIT="86401e078d0746d2381735415f8c2dfe849f3f52"
+FB_COMMIT="261cf3b20473abdf95fc34da0827e4986f065c39"
 
 # Change to the generated_types crate directory, where this script is located
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
