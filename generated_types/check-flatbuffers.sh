@@ -17,9 +17,7 @@ chmod +x bazel-4.0.0-installer-linux-x86_64.sh
 
 echo "Checking for uncommitted changes..."
 
-if ! git diff-index --quiet HEAD --; then
-  echo "git diff-index HEAD found:"
-  git diff-index HEAD --
+if ! git diff --quiet HEAD --; then
   echo "git diff found:"
   git diff HEAD
   echo "************************************************************"
