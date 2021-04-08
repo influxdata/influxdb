@@ -1,12 +1,12 @@
-use std::num::NonZeroU32;
-
 use thiserror::Error;
 
 use self::generated_types::{management_service_client::ManagementServiceClient, *};
 
 use crate::connection::Connection;
 use ::generated_types::google::longrunning::Operation;
+
 use std::convert::TryInto;
+use std::num::NonZeroU32;
 
 /// Re-export generated_types
 pub mod generated_types {

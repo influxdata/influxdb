@@ -3,6 +3,8 @@
 // that.... So punting on that for now
 
 use logfmt::LogFmtLayer;
+use observability_deps::tracing::{debug, error, info, span, trace, warn, Level};
+use observability_deps::tracing_subscriber::{self, fmt::MakeWriter, prelude::*};
 use once_cell::sync::Lazy;
 use parking_lot::Mutex;
 use regex::Regex;
@@ -11,8 +13,6 @@ use std::{
     fmt,
     io::{self, Cursor},
 };
-use tracing::{debug, error, info, span, trace, warn, Level};
-use tracing_subscriber::{fmt::MakeWriter, prelude::*};
 
 /// Compares the captured messages with the expected messages,
 /// normalizing for time and location

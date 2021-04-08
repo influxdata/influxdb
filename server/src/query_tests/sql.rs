@@ -4,7 +4,6 @@
 //! important SQL does not regress)
 
 use super::scenarios::*;
-use crate::db::DbCatalog;
 use arrow_deps::{
     arrow::record_batch::RecordBatch, assert_table_eq, datafusion::physical_plan::collect,
 };
@@ -29,7 +28,7 @@ macro_rules! run_sql_test_case {
             let executor = Executor::new();
 
             let physical_plan = planner
-                .query(Arc::new(DbCatalog::new(db)), &sql, &executor)
+                .query(db, &sql, &executor)
                 .await
                 .expect("built plan successfully");
 
@@ -177,6 +176,160 @@ async fn sql_select_from_school() {
     run_sql_test_case!(
         TwoMeasurementsUnsignedType {},
         "SELECT town, count from school",
+        &expected
+    );
+}
+
+#[tokio::test]
+async fn sql_select_from_information_schema_tables() {
+    // validate we have access to information schema for listing table
+    // names
+    let expected = vec![
+        "+---------------+--------------------+------------+------------+",
+        "| table_catalog | table_schema       | table_name | table_type |",
+        "+---------------+--------------------+------------+------------+",
+        "| public        | iox                | h2o        | BASE TABLE |",
+        "| public        | iox                | o2         | BASE TABLE |",
+        "| public        | system             | chunks     | BASE TABLE |",
+        "| public        | system             | columns    | BASE TABLE |",
+        "| public        | information_schema | tables     | VIEW       |",
+        "| public        | information_schema | columns    | VIEW       |",
+        "+---------------+--------------------+------------+------------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsManyFields {},
+        "SELECT * from information_schema.tables",
+        &expected
+    );
+    run_sql_test_case!(TwoMeasurementsManyFields {}, "SHOW TABLES", &expected);
+}
+
+#[tokio::test]
+async fn sql_select_from_information_schema_columns() {
+    // validate we have access to information schema for listing columns
+    // names
+    let expected = vec![
+    "+---------------+--------------+------------+---------------------+------------------+----------------+-------------+-----------------------------+--------------------------+------------------------+-------------------+-------------------------+---------------+--------------------+---------------+",
+    "| table_catalog | table_schema | table_name | column_name         | ordinal_position | column_default | is_nullable | data_type                   | character_maximum_length | character_octet_length | numeric_precision | numeric_precision_radix | numeric_scale | datetime_precision | interval_type |",
+    "+---------------+--------------+------------+---------------------+------------------+----------------+-------------+-----------------------------+--------------------------+------------------------+-------------------+-------------------------+---------------+--------------------+---------------+",
+    "| public        | iox          | h2o        | city                | 0                |                | YES         | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
+    "| public        | iox          | h2o        | moisture            | 1                |                | YES         | Float64                     |                          |                        | 24                | 2                       |               |                    |               |",
+    "| public        | iox          | h2o        | other_temp          | 2                |                | YES         | Float64                     |                          |                        | 24                | 2                       |               |                    |               |",
+    "| public        | iox          | h2o        | state               | 3                |                | YES         | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
+    "| public        | iox          | h2o        | temp                | 4                |                | YES         | Float64                     |                          |                        | 24                | 2                       |               |                    |               |",
+    "| public        | iox          | h2o        | time                | 5                |                | NO          | Int64                       |                          |                        |                   |                         |               |                    |               |",
+    "| public        | iox          | o2         | city                | 0                |                | YES         | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
+    "| public        | iox          | o2         | reading             | 1                |                | YES         | Float64                     |                          |                        | 24                | 2                       |               |                    |               |",
+    "| public        | iox          | o2         | state               | 2                |                | YES         | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
+    "| public        | iox          | o2         | temp                | 3                |                | YES         | Float64                     |                          |                        | 24                | 2                       |               |                    |               |",
+    "| public        | iox          | o2         | time                | 4                |                | NO          | Int64                       |                          |                        |                   |                         |               |                    |               |",
+    "| public        | system       | chunks     | id                  | 0                |                | NO          | UInt32                      |                          |                        | 32                | 2                       |               |                    |               |",
+    "| public        | system       | chunks     | partition_key       | 1                |                | NO          | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
+    "| public        | system       | chunks     | storage             | 2                |                | NO          | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
+    "| public        | system       | chunks     | estimated_bytes     | 3                |                | YES         | UInt64                      |                          |                        |                   |                         |               |                    |               |",
+    "| public        | system       | chunks     | time_of_first_write | 4                |                | YES         | Timestamp(Nanosecond, None) |                          |                        |                   |                         |               |                    |               |",
+    "| public        | system       | chunks     | time_of_last_write  | 5                |                | YES         | Timestamp(Nanosecond, None) |                          |                        |                   |                         |               |                    |               |",
+    "| public        | system       | chunks     | time_closing        | 6                |                | YES         | Timestamp(Nanosecond, None) |                          |                        |                   |                         |               |                    |               |",
+    "| public        | system       | columns    | partition_key       | 0                |                | NO          | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
+    "| public        | system       | columns    | table_name          | 1                |                | YES         | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
+    "| public        | system       | columns    | column_name         | 2                |                | YES         | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
+    "| public        | system       | columns    | count               | 3                |                | YES         | UInt64                      |                          |                        |                   |                         |               |                    |               |",
+    "+---------------+--------------+------------+---------------------+------------------+----------------+-------------+-----------------------------+--------------------------+------------------------+-------------------+-------------------------+---------------+--------------------+---------------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsManyFields {},
+        "SELECT * from information_schema.columns",
+        &expected
+    );
+}
+
+#[tokio::test]
+async fn sql_show_columns() {
+    // validate we have access to SHOW SCHEMA for listing columns
+    // names
+    let expected = vec![
+        "+---------------+--------------+------------+-------------+-----------+-------------+",
+        "| table_catalog | table_schema | table_name | column_name | data_type | is_nullable |",
+        "+---------------+--------------+------------+-------------+-----------+-------------+",
+        "| public        | iox          | h2o        | city        | Utf8      | YES         |",
+        "| public        | iox          | h2o        | moisture    | Float64   | YES         |",
+        "| public        | iox          | h2o        | other_temp  | Float64   | YES         |",
+        "| public        | iox          | h2o        | state       | Utf8      | YES         |",
+        "| public        | iox          | h2o        | temp        | Float64   | YES         |",
+        "| public        | iox          | h2o        | time        | Int64     | NO          |",
+        "+---------------+--------------+------------+-------------+-----------+-------------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsManyFields {},
+        "SHOW COLUMNS FROM h2o",
+        &expected
+    );
+}
+
+#[tokio::test]
+async fn sql_select_from_system_tables() {
+    // system tables reflect the state of chunks, so don't run them
+    // with different chunk configurations.
+
+    //  ensures the tables / plumbing are hooked up (so no need to
+    //  test timestamps, etc)
+
+    let expected = vec![
+        "+----+---------------+-------------------+-----------------+",
+        "| id | partition_key | storage           | estimated_bytes |",
+        "+----+---------------+-------------------+-----------------+",
+        "| 0  | 1970-01-01T00 | OpenMutableBuffer | 493             |",
+        "+----+---------------+-------------------+-----------------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsManyFieldsOneChunk {},
+        "SELECT id, partition_key, storage, estimated_bytes from system.chunks",
+        &expected
+    );
+
+    let expected = vec![
+        "+---------------+------------+-------------+-------+",
+        "| partition_key | table_name | column_name | count |",
+        "+---------------+------------+-------------+-------+",
+        "| 1970-01-01T00 | h2o        | state       | 3     |",
+        "| 1970-01-01T00 | h2o        | city        | 3     |",
+        "| 1970-01-01T00 | h2o        | temp        | 1     |",
+        "| 1970-01-01T00 | h2o        | time        | 3     |",
+        "| 1970-01-01T00 | h2o        | other_temp  | 2     |",
+        "| 1970-01-01T00 | o2         | state       | 2     |",
+        "| 1970-01-01T00 | o2         | city        | 1     |",
+        "| 1970-01-01T00 | o2         | temp        | 2     |",
+        "| 1970-01-01T00 | o2         | time        | 2     |",
+        "| 1970-01-01T00 | o2         | reading     | 1     |",
+        "+---------------+------------+-------------+-------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsManyFieldsOneChunk {},
+        "SELECT * from system.columns",
+        &expected
+    );
+}
+
+#[tokio::test]
+async fn sql_union_all() {
+    // validate name resolution works for UNION ALL queries
+    let expected = vec![
+        "+--------+",
+        "| name   |",
+        "+--------+",
+        "| MA     |",
+        "| MA     |",
+        "| CA     |",
+        "| MA     |",
+        "| Boston |",
+        "| Boston |",
+        "| Boston |",
+        "| Boston |",
+        "+--------+",
+    ];
+    run_sql_test_case!(
+        TwoMeasurementsManyFields {},
+        "select state as name from h2o UNION ALL select city as name from h2o",
         &expected
     );
 }

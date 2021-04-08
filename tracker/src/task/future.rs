@@ -6,13 +6,13 @@ use std::time::Instant;
 use futures::{future::BoxFuture, prelude::*};
 use pin_project::{pin_project, pinned_drop};
 
-use super::{TrackerRegistration, TrackerState};
+use super::{TaskRegistration, TrackerState};
 use std::sync::Arc;
 
 /// An extension trait that provides `self.track(registration)` allowing
 /// associating this future with a `TrackerRegistration`
 pub trait TrackedFutureExt: Future {
-    fn track(self, registration: TrackerRegistration) -> TrackedFuture<Self>
+    fn track(self, registration: TaskRegistration) -> TrackedFuture<Self>
     where
         Self: Sized,
     {

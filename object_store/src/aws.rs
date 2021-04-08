@@ -482,7 +482,7 @@ mod tests {
                                {} to run",
                     unset_var_names
                 );
-                return Ok(());
+                return;
             } else {
                 AwsConfig {
                     access_key_id: env::var("AWS_ACCESS_KEY_ID")
@@ -515,7 +515,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn s3_test() -> Result<()> {
+    async fn s3_test() {
         let config = maybe_skip_integration!();
         let integration = ObjectStore::new_amazon_s3(
             AmazonS3::new(
@@ -527,14 +527,12 @@ mod tests {
             .expect("Valid S3 config"),
         );
 
-        check_credentials(put_get_delete_list(&integration).await)?;
+        check_credentials(put_get_delete_list(&integration).await).unwrap();
         check_credentials(list_with_delimiter(&integration).await).unwrap();
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn s3_test_get_nonexistent_region() -> Result<()> {
+    async fn s3_test_get_nonexistent_region() {
         let mut config = maybe_skip_integration!();
         // Assumes environment variables do not provide credentials to AWS US West 1
         config.region = "us-west-1".into();
@@ -564,12 +562,10 @@ mod tests {
         } else {
             panic!("unexpected error type: {:?}", err);
         }
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn s3_test_get_nonexistent_location() -> Result<()> {
+    async fn s3_test_get_nonexistent_location() {
         let config = maybe_skip_integration!();
         let integration = ObjectStore::new_amazon_s3(
             AmazonS3::new(
@@ -605,12 +601,10 @@ mod tests {
         } else {
             panic!("unexpected error type: {:?}", err);
         }
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn s3_test_get_nonexistent_bucket() -> Result<()> {
+    async fn s3_test_get_nonexistent_bucket() {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
 
@@ -642,12 +636,10 @@ mod tests {
         } else {
             panic!("unexpected error type: {:?}", err);
         }
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn s3_test_put_nonexistent_region() -> Result<()> {
+    async fn s3_test_put_nonexistent_region() {
         let mut config = maybe_skip_integration!();
         // Assumes environment variables do not provide credentials to AWS US West 1
         config.region = "us-west-1".into();
@@ -691,12 +683,10 @@ mod tests {
         } else {
             panic!("unexpected error type: {:?}", err);
         }
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn s3_test_put_nonexistent_bucket() -> Result<()> {
+    async fn s3_test_put_nonexistent_bucket() {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
 
@@ -739,12 +729,10 @@ mod tests {
         } else {
             panic!("unexpected error type: {:?}", err);
         }
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn s3_test_delete_nonexistent_location() -> Result<()> {
+    async fn s3_test_delete_nonexistent_location() {
         let config = maybe_skip_integration!();
         let integration = ObjectStore::new_amazon_s3(
             AmazonS3::new(
@@ -762,12 +750,10 @@ mod tests {
         let result = integration.delete(&location).await;
 
         assert!(result.is_ok());
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn s3_test_delete_nonexistent_region() -> Result<()> {
+    async fn s3_test_delete_nonexistent_region() {
         let mut config = maybe_skip_integration!();
         // Assumes environment variables do not provide credentials to AWS US West 1
         config.region = "us-west-1".into();
@@ -801,12 +787,10 @@ mod tests {
         } else {
             panic!("unexpected error type: {:?}", err);
         }
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn s3_test_delete_nonexistent_bucket() -> Result<()> {
+    async fn s3_test_delete_nonexistent_bucket() {
         let mut config = maybe_skip_integration!();
         config.bucket = NON_EXISTENT_NAME.into();
 
@@ -839,7 +823,5 @@ mod tests {
         } else {
             panic!("unexpected error type: {:?}", err);
         }
-
-        Ok(())
     }
 }

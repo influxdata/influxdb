@@ -50,6 +50,9 @@ pub enum Error {
 
     #[error("Error in partition subcommand: {0}")]
     Partition(#[from] partition::Error),
+
+    #[error("JSON Serialization error: {0}")]
+    Serde(#[from] serde_json::Error),
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -77,7 +80,7 @@ struct Create {
 
     /// A chunk of data within a partition is guaranteed to remain mutable
     /// for at least this number of seconds
-    #[structopt(long, default_value = "1800")] // 30 minutes
+    #[structopt(long, default_value = "0")] // 0 minutes
     mutable_minimum_age_seconds: u32,
 
     /// Once a chunk of data within a partition reaches this number of bytes
@@ -193,13 +196,12 @@ pub async fn command(url: String, config: Config) -> Result<()> {
         Command::List(_) => {
             let mut client = management::Client::new(connection);
             let databases = client.list_databases().await?;
-            println!("{}", databases.join(", "))
+            println!("{}", databases.join("\n"))
         }
         Command::Get(get) => {
             let mut client = management::Client::new(connection);
             let database = client.get_database(get.name).await?;
-            // TOOD: Do something better than this
-            println!("{:#?}", database);
+            println!("{}", serde_json::to_string_pretty(&database)?);
         }
         Command::Write(write) => {
             let mut client = write::Client::new(connection);

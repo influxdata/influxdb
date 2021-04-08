@@ -71,8 +71,8 @@ where
     /// Returns the total size in bytes of the encoded data. Note, this method
     /// is really an "accurate" estimation. It doesn't include for example the
     /// size of the `Fixed` struct receiver.
-    pub fn size(&self) -> u64 {
-        (size_of::<Vec<T>>() + (size_of::<T>() * self.values.len())) as u64
+    pub fn size(&self) -> usize {
+        size_of::<Vec<T>>() + (size_of::<T>() * self.values.len())
     }
 
     //

@@ -30,21 +30,12 @@ Other than possibly configuring multiple object stores, configuring the tests to
 store services is the same as configuring the server to use an object store service. See the output
 of `influxdb_iox run --help` for instructions.
 
-## InfluxDB IOx Client
+## InfluxDB 2 Client
 
-The `influxdb_iox_client` crate might be used by people who are using a managed IOx server. In
-other words, they might only use the `influxdb_iox_client` crate and not the rest of the crates in
-this workspace. The tests in `influxdb_iox_client` see an IOx server in the same way as IOx servers
-see the object store services: sometimes you'll want to run the tests against an actual server, and
-sometimes you won't.
+The `influxdb2_client` crate may be used by people using InfluxDB 2.0 OSS, and should be compatible
+with both that and IOx. If you have `influxd` in your path, the integration tests for the
+`influxdb2_client` crate will run integration tests against `influxd`. If you do not have
+`influxd`, those tests will not be run and will silently pass.
 
-Like in the `object_store` crate, the `influxdb_iox_client` crate's tests use the
-`TEST_INTEGRATION` environment variable to enforce running tests that use an actual IOx server.
-Running `cargo test -p influxdb_iox_client` will silently pass tests that contact a server.
-
-Start an IOx server in one terminal and run `TEST_INTEGRATION=1
-TEST_IOX_ENDPOINT=http://127.0.0.1:8080 cargo test -p influxdb_iox_client` in another (where
-`http://127.0.0.1:8080` is the address to the IOx HTTP server) to run the client tests against the
-server. If you set `TEST_INTEGRATION` but not `TEST_IOX_ENDPOINT`, the integration tests will fail
-because of the missed configuration. If you set `TEST_IOX_ENDPOINT` but not `TEST_INTEGRATION`, the
-integration tests will be run.
+To ensure you're running the `influxdb2_client` integration tests, you can run `TEST_INTEGRATION=1
+cargo test -p influxdb2_client`, which will fail the tests if `influxd` is not available.

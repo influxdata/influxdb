@@ -59,12 +59,6 @@
 
 pub mod chunk;
 mod column;
-pub mod database;
 mod dictionary;
-mod partition;
 pub mod pred;
 mod table;
-
-// Allow restore chunks to be used outside of this crate (for
-// benchmarking)
-pub use crate::database::MutableBufferDb;

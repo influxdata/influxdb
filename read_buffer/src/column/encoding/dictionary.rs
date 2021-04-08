@@ -27,7 +27,7 @@ impl Encoding {
         }
     }
 
-    pub fn size(&self) -> u64 {
+    pub fn size(&self) -> usize {
         match &self {
             Self::RLE(enc) => enc.size(),
             Self::Plain(enc) => enc.size(),

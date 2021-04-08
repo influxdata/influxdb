@@ -1,0 +1,19 @@
+[package]
+name = "tracker"
+version = "0.1.0"
+authors = ["Raphael Taylor-Davies <r.taylordavies@googlemail.com>"]
+edition = "2018"
+description = "Utilities for tracking resource utilisation within IOx"
+
+[dependencies]
+
+futures = "0.3.7"
+hashbrown = "0.9.1"
+observability_deps = { path = "../observability_deps" }
+pin-project = "1.0"
+tokio = { version = "1.0", features = ["macros", "time"] }
+tokio-util = { version = "0.6.3" }
+
+[dev-dependencies]
+# Need the multi-threaded executor for testing
+tokio = { version = "1.0", features = ["macros", "time", "rt-multi-thread"] }

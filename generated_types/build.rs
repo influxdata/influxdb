@@ -56,6 +56,12 @@ fn generate_grpc_types(root: &Path) -> Result<()> {
     config
         .compile_well_known_types()
         .disable_comments(&[".google"])
+        // approximates jsonpb. This is still not enough to deal with the special cases like Any
+        // Tracking issue for proper jsonpb support in prost: https://github.com/danburkert/prost/issues/277
+        .type_attribute(
+            ".",
+            "#[derive(serde::Serialize,serde::Deserialize)] #[serde(rename_all = \"camelCase\")]",
+        )
         .extern_path(".google.protobuf", "::google_types::protobuf");
 
     tonic_build::configure().compile_with_config(config, &proto_files, &[root.into()])?;

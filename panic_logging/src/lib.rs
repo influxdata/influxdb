@@ -11,8 +11,8 @@
 
 use std::{fmt, panic, sync::Arc};
 
+use observability_deps::tracing::{error, warn};
 use panic::PanicInfo;
-use tracing::{error, warn};
 
 type PanicFunctionPtr = Arc<Box<dyn Fn(&PanicInfo<'_>) + Sync + Send + 'static>>;
 

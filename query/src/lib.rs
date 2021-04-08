@@ -62,8 +62,8 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// particular partition.
     fn id(&self) -> u32;
 
-    /// returns the partition metadata stats for every table in the chunk
-    fn table_stats(&self) -> Result<Vec<TableSummary>, Self::Error>;
+    /// returns summary information for every table in the chunk
+    fn table_summaries(&self) -> Vec<TableSummary>;
 
     /// Returns true if this chunk *might* have data that passes the
     /// predicate. If false is returned, this chunk can be

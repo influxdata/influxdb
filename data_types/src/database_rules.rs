@@ -13,6 +13,7 @@ use influxdb_line_protocol::ParsedLine;
 
 use crate::field_validation::{FromField, FromFieldOpt, FromFieldString, FromFieldVec};
 use crate::DatabaseName;
+use std::num::{NonZeroU32, NonZeroUsize};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -36,11 +37,10 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 /// DatabaseRules contains the rules for replicating data, sending data to
 /// subscribers, and querying data for a single database.
-#[derive(Debug, Default, Eq, PartialEq, Clone)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub struct DatabaseRules {
-    /// The unencoded name of the database. This gets put in by the create
-    /// database call, so an empty default is fine.
-    pub name: String, // TODO: Use DatabaseName here
+    /// The name of the database
+    pub name: DatabaseName<'static>,
 
     /// Template that generates a partition key for each row inserted into the
     /// db
@@ -72,8 +72,18 @@ impl DatabaseRules {
         self.partition_template.partition_key(line, default_time)
     }
 
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(name: DatabaseName<'static>) -> Self {
+        Self {
+            name,
+            partition_template: Default::default(),
+            wal_buffer_config: None,
+            lifecycle_rules: Default::default(),
+            shard_config: None,
+        }
+    }
+
+    pub fn db_name(&self) -> &str {
+        &self.name.as_str()
     }
 }
 
@@ -107,7 +117,7 @@ impl Partitioner for DatabaseRules {
 impl From<DatabaseRules> for management::DatabaseRules {
     fn from(rules: DatabaseRules) -> Self {
         Self {
-            name: rules.name,
+            name: rules.name.into(),
             partition_template: Some(rules.partition_template.into()),
             wal_buffer_config: rules.wal_buffer_config.map(Into::into),
             lifecycle_rules: Some(rules.lifecycle_rules.into()),
@@ -120,7 +130,7 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
     type Error = FieldViolation;
 
     fn try_from(proto: management::DatabaseRules) -> Result<Self, Self::Error> {
-        DatabaseName::new(&proto.name).field("name")?;
+        let name = DatabaseName::new(proto.name.clone()).field("name")?;
 
         let wal_buffer_config = proto.wal_buffer_config.optional("wal_buffer_config")?;
 
@@ -140,7 +150,7 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
             .unwrap_or_default();
 
         Ok(Self {
-            name: proto.name,
+            name,
             partition_template,
             wal_buffer_config,
             lifecycle_rules,
@@ -157,26 +167,28 @@ pub struct LifecycleRules {
     /// buffer) if the chunk is older than mutable_min_lifetime_seconds
     ///
     /// Represents the chunk transition open -> moving and closing -> moving
-    pub mutable_linger_seconds: u32,
+    pub mutable_linger_seconds: Option<NonZeroU32>,
 
     /// A chunk of data within a partition is guaranteed to remain mutable
     /// for at least this number of seconds
-    pub mutable_minimum_age_seconds: u32,
+    pub mutable_minimum_age_seconds: Option<NonZeroU32>,
 
     /// Once a chunk of data within a partition reaches this number of bytes
     /// writes outside its keyspace will be directed to a new chunk
     ///
     /// This chunk will be then compacted once it becomes cold for writes
     /// based on the mutable_linger_seconds and mutable_minimum_age_seconds
-    pub mutable_size_threshold: usize,
+    pub mutable_size_threshold: Option<NonZeroUsize>,
 
     /// Once the total amount of buffered data in memory reaches this size start
     /// dropping data from memory based on the drop_order
-    pub buffer_size_soft: usize,
+    pub buffer_size_soft: Option<NonZeroUsize>,
 
     /// Once the amount of data in memory reaches this size start
     /// rejecting writes
-    pub buffer_size_hard: usize,
+    ///
+    /// TODO: Implement this limit
+    pub buffer_size_hard: Option<NonZeroUsize>,
 
     /// Configure order to transition data
     ///
@@ -194,11 +206,26 @@ pub struct LifecycleRules {
 impl From<LifecycleRules> for management::LifecycleRules {
     fn from(config: LifecycleRules) -> Self {
         Self {
-            mutable_linger_seconds: config.mutable_linger_seconds,
-            mutable_minimum_age_seconds: config.mutable_minimum_age_seconds,
-            mutable_size_threshold: config.mutable_size_threshold as _,
-            buffer_size_soft: config.buffer_size_soft as _,
-            buffer_size_hard: config.buffer_size_hard as _,
+            mutable_linger_seconds: config
+                .mutable_linger_seconds
+                .map(Into::into)
+                .unwrap_or_default(),
+            mutable_minimum_age_seconds: config
+                .mutable_minimum_age_seconds
+                .map(Into::into)
+                .unwrap_or_default(),
+            mutable_size_threshold: config
+                .mutable_size_threshold
+                .map(|x| x.get() as u64)
+                .unwrap_or_default(),
+            buffer_size_soft: config
+                .buffer_size_soft
+                .map(|x| x.get() as u64)
+                .unwrap_or_default(),
+            buffer_size_hard: config
+                .buffer_size_hard
+                .map(|x| x.get() as u64)
+                .unwrap_or_default(),
             sort_order: Some(config.sort_order.into()),
             drop_non_persisted: config.drop_non_persisted,
             immutable: config.immutable,
@@ -211,11 +238,11 @@ impl TryFrom<management::LifecycleRules> for LifecycleRules {
 
     fn try_from(proto: management::LifecycleRules) -> Result<Self, Self::Error> {
         Ok(Self {
-            mutable_linger_seconds: proto.mutable_linger_seconds,
-            mutable_minimum_age_seconds: proto.mutable_minimum_age_seconds,
-            mutable_size_threshold: proto.mutable_size_threshold as _,
-            buffer_size_soft: proto.buffer_size_soft as _,
-            buffer_size_hard: proto.buffer_size_hard as _,
+            mutable_linger_seconds: proto.mutable_linger_seconds.try_into().ok(),
+            mutable_minimum_age_seconds: proto.mutable_minimum_age_seconds.try_into().ok(),
+            mutable_size_threshold: (proto.mutable_size_threshold as usize).try_into().ok(),
+            buffer_size_soft: (proto.buffer_size_soft as usize).try_into().ok(),
+            buffer_size_hard: (proto.buffer_size_hard as usize).try_into().ok(),
             sort_order: proto.sort_order.optional("sort_order")?.unwrap_or_default(),
             drop_non_persisted: proto.drop_non_persisted,
             immutable: proto.immutable,
@@ -348,7 +375,7 @@ pub enum Order {
 
 impl Default for Order {
     fn default() -> Self {
-        Self::Desc
+        Self::Asc
     }
 }
 
@@ -567,12 +594,8 @@ pub struct PartitionTemplate {
     pub parts: Vec<TemplatePart>,
 }
 
-impl PartitionTemplate {
-    pub fn partition_key(
-        &self,
-        line: &ParsedLine<'_>,
-        default_time: &DateTime<Utc>,
-    ) -> Result<String> {
+impl Partitioner for PartitionTemplate {
+    fn partition_key(&self, line: &ParsedLine<'_>, default_time: &DateTime<Utc>) -> Result<String> {
         let parts: Vec<_> = self
             .parts
             .iter()
@@ -716,6 +739,14 @@ impl TryFrom<management::partition_template::Part> for TemplatePart {
     fn try_from(proto: management::partition_template::Part) -> Result<Self, Self::Error> {
         proto.part.required("part")
     }
+}
+
+/// ShardId maps to a nodegroup that holds the the shard.
+pub type ShardId = u16;
+
+/// Assigns a given line to a specific shard id.
+pub trait Sharder {
+    fn shard(&self, line: &ParsedLine<'_>) -> Result<ShardId>;
 }
 
 /// ShardConfig defines rules for assigning a line/row to an individual
@@ -943,35 +974,28 @@ mod tests {
 
     use super::*;
 
-    type TestError = Box<dyn std::error::Error + Send + Sync + 'static>;
-    type Result<T = (), E = TestError> = std::result::Result<T, E>;
-
     #[test]
-    fn partition_key_with_table() -> Result {
+    fn partition_key_with_table() {
         let template = PartitionTemplate {
             parts: vec![TemplatePart::Table],
         };
 
         let line = parse_line("cpu foo=1 10");
         assert_eq!("cpu", template.partition_key(&line, &Utc::now()).unwrap());
-
-        Ok(())
     }
 
     #[test]
-    fn partition_key_with_int_field() -> Result {
+    fn partition_key_with_int_field() {
         let template = PartitionTemplate {
             parts: vec![TemplatePart::Column("foo".to_string())],
         };
 
         let line = parse_line("cpu foo=1 10");
         assert_eq!("foo_1", template.partition_key(&line, &Utc::now()).unwrap());
-
-        Ok(())
     }
 
     #[test]
-    fn partition_key_with_float_field() -> Result {
+    fn partition_key_with_float_field() {
         let template = PartitionTemplate {
             parts: vec![TemplatePart::Column("foo".to_string())],
         };
@@ -981,12 +1005,10 @@ mod tests {
             "foo_1.1",
             template.partition_key(&line, &Utc::now()).unwrap()
         );
-
-        Ok(())
     }
 
     #[test]
-    fn partition_key_with_string_field() -> Result {
+    fn partition_key_with_string_field() {
         let template = PartitionTemplate {
             parts: vec![TemplatePart::Column("foo".to_string())],
         };
@@ -996,12 +1018,10 @@ mod tests {
             "foo_asdf",
             template.partition_key(&line, &Utc::now()).unwrap()
         );
-
-        Ok(())
     }
 
     #[test]
-    fn partition_key_with_bool_field() -> Result {
+    fn partition_key_with_bool_field() {
         let template = PartitionTemplate {
             parts: vec![TemplatePart::Column("bar".to_string())],
         };
@@ -1011,12 +1031,10 @@ mod tests {
             "bar_true",
             template.partition_key(&line, &Utc::now()).unwrap()
         );
-
-        Ok(())
     }
 
     #[test]
-    fn partition_key_with_tag_column() -> Result {
+    fn partition_key_with_tag_column() {
         let template = PartitionTemplate {
             parts: vec![TemplatePart::Column("region".to_string())],
         };
@@ -1026,24 +1044,20 @@ mod tests {
             "region_west",
             template.partition_key(&line, &Utc::now()).unwrap()
         );
-
-        Ok(())
     }
 
     #[test]
-    fn partition_key_with_missing_column() -> Result {
+    fn partition_key_with_missing_column() {
         let template = PartitionTemplate {
             parts: vec![TemplatePart::Column("not_here".to_string())],
         };
 
         let line = parse_line("cpu,foo=asdf bar=true 10");
         assert_eq!("", template.partition_key(&line, &Utc::now()).unwrap());
-
-        Ok(())
     }
 
     #[test]
-    fn partition_key_with_time() -> Result {
+    fn partition_key_with_time() {
         let template = PartitionTemplate {
             parts: vec![TemplatePart::TimeFormat("%Y-%m-%d %H:%M:%S".to_string())],
         };
@@ -1053,12 +1067,10 @@ mod tests {
             "2020-10-10 13:54:57",
             template.partition_key(&line, &Utc::now()).unwrap()
         );
-
-        Ok(())
     }
 
     #[test]
-    fn partition_key_with_default_time() -> Result {
+    fn partition_key_with_default_time() {
         let format_string = "%Y-%m-%d %H:%M:%S";
         let template = PartitionTemplate {
             parts: vec![TemplatePart::TimeFormat(format_string.to_string())],
@@ -1070,12 +1082,10 @@ mod tests {
             default_time.format(format_string).to_string(),
             template.partition_key(&line, &default_time).unwrap()
         );
-
-        Ok(())
     }
 
     #[test]
-    fn partition_key_with_many_parts() -> Result {
+    fn partition_key_with_many_parts() {
         let template = PartitionTemplate {
             parts: vec![
                 TemplatePart::Table,
@@ -1092,8 +1102,6 @@ mod tests {
             "cpu-region_west-usage_system_53.1-2020-10-10 13:54:57",
             template.partition_key(&line, &Utc::now()).unwrap()
         );
-
-        Ok(())
     }
 
     fn parsed_lines(lp: &str) -> Vec<ParsedLine<'_>> {
@@ -1114,7 +1122,7 @@ mod tests {
         let rules: DatabaseRules = protobuf.clone().try_into().unwrap();
         let back: management::DatabaseRules = rules.clone().into();
 
-        assert_eq!(rules.name, protobuf.name);
+        assert_eq!(rules.name.as_str(), protobuf.name.as_str());
         assert_eq!(protobuf.name, back.name);
 
         assert_eq!(rules.partition_template.parts.len(), 0);
@@ -1281,19 +1289,25 @@ mod tests {
 
         assert_eq!(config.sort_order, SortOrder::default());
         assert_eq!(
-            config.mutable_linger_seconds,
+            config.mutable_linger_seconds.unwrap().get(),
             protobuf.mutable_linger_seconds
         );
         assert_eq!(
-            config.mutable_minimum_age_seconds,
+            config.mutable_minimum_age_seconds.unwrap().get(),
             protobuf.mutable_minimum_age_seconds
         );
         assert_eq!(
-            config.mutable_size_threshold,
+            config.mutable_size_threshold.unwrap().get(),
             protobuf.mutable_size_threshold as usize
         );
-        assert_eq!(config.buffer_size_soft, protobuf.buffer_size_soft as usize);
-        assert_eq!(config.buffer_size_hard, protobuf.buffer_size_hard as usize);
+        assert_eq!(
+            config.buffer_size_soft.unwrap().get(),
+            protobuf.buffer_size_soft as usize
+        );
+        assert_eq!(
+            config.buffer_size_hard.unwrap().get(),
+            protobuf.buffer_size_hard as usize
+        );
         assert_eq!(config.drop_non_persisted, protobuf.drop_non_persisted);
         assert_eq!(config.immutable, protobuf.immutable);
 

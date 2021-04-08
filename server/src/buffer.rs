@@ -15,15 +15,15 @@ use std::{
     sync::Arc,
 };
 
-use crate::tracker::{TrackedFutureExt, TrackerRegistration};
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use crc32fast::Hasher;
 use data_types::database_rules::WalBufferConfig;
 use data_types::wal::{SegmentPersistence, SegmentSummary, WriterSummary};
+use observability_deps::tracing::{error, info, warn};
 use parking_lot::Mutex;
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
-use tracing::{error, info, warn};
+use tracker::{TaskRegistration, TrackedFutureExt};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -378,7 +378,7 @@ impl Segment {
     /// the given object store location.
     pub fn persist_bytes_in_background(
         &self,
-        tracker: TrackerRegistration,
+        tracker: TaskRegistration,
         writer_id: u32,
         db_name: &DatabaseName<'_>,
         store: Arc<ObjectStore>,
@@ -581,7 +581,7 @@ fn database_object_store_path(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use data_types::database_rules::DatabaseRules;
+    use data_types::database_rules::PartitionTemplate;
     use influxdb_line_protocol::parse_lines;
     use internal_types::data::lines_to_replicated_write;
     use object_store::memory::InMemory;
@@ -959,12 +959,12 @@ mod tests {
         lp: &str,
     ) -> Arc<ReplicatedWrite> {
         let lines: Vec<_> = parse_lines(lp).map(|l| l.unwrap()).collect();
-        let rules = DatabaseRules::new();
+        let partitioner = PartitionTemplate::default();
         Arc::new(lines_to_replicated_write(
             writer_id,
             sequence_number,
             &lines,
-            &rules,
+            &partitioner,
         ))
     }
 }

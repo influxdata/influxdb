@@ -20,7 +20,7 @@ use arrow_deps::{
 
 use crate::exec::schema_pivot::{SchemaPivotExec, SchemaPivotNode};
 
-use tracing::debug;
+use observability_deps::tracing::debug;
 
 // Reuse DataFusion error and Result types for this module
 pub use arrow_deps::datafusion::error::{DataFusionError as Error, Result};
@@ -109,6 +109,7 @@ impl IOxExecutionContext {
         let config = ExecutionConfig::new()
             .with_batch_size(BATCH_SIZE)
             .create_default_catalog_and_schema(true)
+            .with_information_schema(true)
             .with_default_catalog_and_schema(DEFAULT_CATALOG, DEFAULT_SCHEMA)
             .with_query_planner(Arc::new(IOxQueryPlanner {}));
 

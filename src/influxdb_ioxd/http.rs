@@ -11,6 +11,7 @@
 //! database names and may remove this quasi /v2 API.
 
 // Influx crates
+use super::super::commands::metrics;
 use arrow_deps::datafusion::physical_plan::collect;
 use data_types::{
     http::WalMetadataQuery,
@@ -19,6 +20,7 @@ use data_types::{
 };
 use influxdb_iox_client::format::QueryOutputFormat;
 use influxdb_line_protocol::parse_lines;
+use metrics::IOXD_METRICS;
 use object_store::ObjectStoreApi;
 use query::{frontend::sql::SQLQueryPlanner, Database, DatabaseStore};
 use server::{ConnectionManager, Server as AppServer};
@@ -28,14 +30,16 @@ use bytes::{Bytes, BytesMut};
 use futures::{self, StreamExt};
 use http::header::{CONTENT_ENCODING, CONTENT_TYPE};
 use hyper::{Body, Method, Request, Response, StatusCode};
+use observability_deps::{
+    opentelemetry::KeyValue,
+    tracing::{self, debug, error, info},
+};
 use routerify::{prelude::*, Middleware, RequestInfo, Router, RouterError, RouterService};
 use serde::Deserialize;
 use snafu::{OptionExt, ResultExt, Snafu};
-use tracing::{debug, error, info};
 
 use data_types::http::WalMetadataResponse;
 use hyper::server::conn::AddrIncoming;
-use server::db::DbCatalog;
 use std::{
     fmt::Debug,
     str::{self, FromStr},
@@ -317,6 +321,7 @@ where
         })) // this endpoint is for API backward compatibility with InfluxDB 2.x
         .post("/api/v2/write", write::<M>)
         .get("/health", health)
+        .get("/metrics", handle_metrics)
         .get("/iox/api/v1/databases/:name/query", query::<M>)
         .get("/iox/api/v1/databases/:name/wal/meta", get_wal_meta::<M>)
         .get("/api/v1/partitions", list_partitions::<M>)
@@ -412,7 +417,7 @@ async fn parse_body(req: hyper::Request<Body>) -> Result<Bytes, ApplicationError
     }
 }
 
-#[tracing::instrument(level = "debug")]
+#[observability_deps::instrument(level = "debug")]
 async fn write<M>(req: Request<Body>) -> Result<Response<Body>, ApplicationError>
 where
     M: ConnectionManager + Send + Sync + Debug + 'static,
@@ -436,18 +441,20 @@ where
         .collect::<Result<Vec<_>, influxdb_line_protocol::Error>>()
         .context(ParsingLineProtocol)?;
 
-    debug!(
-        "Inserting {} lines into database {} (org {} bucket {})",
-        lines.len(),
-        db_name,
-        write_info.org,
-        write_info.bucket
-    );
+    debug!(num_lines=lines.len(), %db_name, org=%write_info.org, bucket=%write_info.bucket, "inserting lines into database");
 
-    server
-        .write_lines(&db_name, &lines)
-        .await
-        .map_err(|e| match e {
+    let metric_kv = [
+        KeyValue::new("db_name", db_name.to_string()),
+        KeyValue::new("org", write_info.org.to_string()),
+        KeyValue::new("bucket", write_info.bucket.to_string()),
+    ];
+
+    server.write_lines(&db_name, &lines).await.map_err(|e| {
+        IOXD_METRICS
+            .lp_lines_errors
+            .add(lines.len() as u64, &metric_kv);
+
+        match e {
             server::Error::DatabaseNotFound { .. } => ApplicationError::DatabaseNotFound {
                 name: db_name.to_string(),
             },
@@ -456,7 +463,16 @@ where
                 bucket_name: write_info.bucket.clone(),
                 source: Box::new(e),
             },
-        })?;
+        }
+    })?;
+
+    IOXD_METRICS
+        .lp_lines_success
+        .add(lines.len() as u64, &metric_kv);
+    IOXD_METRICS
+        .lp_bytes_success
+        .add(body.len() as u64, &metric_kv);
+
     Ok(Response::builder()
         .status(StatusCode::NO_CONTENT)
         .body(Body::empty())
@@ -506,7 +522,7 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
     let executor = server.executor();
 
     let physical_plan = planner
-        .query(Arc::new(DbCatalog::new(db)), &q, executor.as_ref())
+        .query(db, &q, executor.as_ref())
         .await
         .context(PlanningSQLQuery { query: &q })?;
 
@@ -591,6 +607,11 @@ async fn get_wal_meta<M: ConnectionManager + Send + Sync + Debug + 'static>(
 async fn health(_: Request<Body>) -> Result<Response<Body>, ApplicationError> {
     let response_body = "OK";
     Ok(Response::new(Body::from(response_body.to_string())))
+}
+
+#[tracing::instrument(level = "debug")]
+async fn handle_metrics(_: Request<Body>) -> Result<Response<Body>, ApplicationError> {
+    Ok(Response::new(Body::from(metrics::metrics_as_text())))
 }
 
 #[derive(Deserialize, Debug)]
@@ -721,12 +742,11 @@ mod tests {
     use object_store::{memory::InMemory, ObjectStore};
     use serde::de::DeserializeOwned;
     use server::{db::Db, ConnectionManagerImpl};
-
-    type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
-    type Result<T, E = Error> = std::result::Result<T, E>;
+    use std::num::NonZeroU32;
+    use test_helpers::assert_contains;
 
     #[tokio::test]
-    async fn test_health() -> Result<()> {
+    async fn test_health() {
         let test_storage = Arc::new(AppServer::new(
             ConnectionManagerImpl {},
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
@@ -738,18 +758,21 @@ mod tests {
 
         // Print the response so if the test fails, we have a log of what went wrong
         check_response("health", response, StatusCode::OK, "OK").await;
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_write() -> Result<()> {
+    async fn test_write() {
         let test_storage = Arc::new(AppServer::new(
             ConnectionManagerImpl {},
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
-        test_storage.set_id(1);
+        test_storage.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         test_storage
-            .create_database("MyOrg_MyBucket", DatabaseRules::new())
+            .create_database(
+                DatabaseRules::new(DatabaseName::new("MyOrg_MyBucket").unwrap()),
+                test_storage.require_id().unwrap(),
+                Arc::clone(&test_storage.store),
+            )
             .await
             .unwrap();
         let server_url = test_server(Arc::clone(&test_storage));
@@ -786,8 +809,67 @@ mod tests {
             "+----------------+--------------+-------+-----------------+------------+",
         ];
         assert_table_eq!(expected, &batches);
+    }
 
-        Ok(())
+    #[tokio::test]
+    async fn test_write_metrics() {
+        metrics::init_metrics_for_test();
+        let test_storage = Arc::new(AppServer::new(
+            ConnectionManagerImpl {},
+            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
+        ));
+        test_storage.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+        test_storage
+            .create_database(
+                DatabaseRules::new(DatabaseName::new("MetricsOrg_MetricsBucket").unwrap()),
+                test_storage.require_id().unwrap(),
+                Arc::clone(&test_storage.store),
+            )
+            .await
+            .unwrap();
+        let server_url = test_server(Arc::clone(&test_storage));
+
+        let client = Client::new();
+
+        let lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=65.2,bottom_degrees=50.4 1568756160";
+
+        // send good data
+        let org_name = "MetricsOrg";
+        let bucket_name = "MetricsBucket";
+        client
+            .post(&format!(
+                "{}/api/v2/write?bucket={}&org={}",
+                server_url, bucket_name, org_name
+            ))
+            .body(lp_data)
+            .send()
+            .await
+            .expect("sent data");
+
+        // Generate an error
+        client
+            .post(&format!(
+                "{}/api/v2/write?bucket=NotMyBucket&org=NotMyOrg",
+                server_url,
+            ))
+            .body(lp_data)
+            .send()
+            .await
+            .unwrap();
+
+        let metrics_string = String::from_utf8(metrics::metrics_as_text()).unwrap();
+        assert_contains!(
+            &metrics_string,
+            r#"ingest_lp_lines_success{bucket="MetricsBucket",db_name="MetricsOrg_MetricsBucket",org="MetricsOrg"} 1"#
+        );
+        assert_contains!(
+            &metrics_string,
+            r#"ingest_lp_lines_errors{bucket="NotMyBucket",db_name="NotMyOrg_NotMyBucket",org="NotMyOrg"} 1"#
+        );
+        assert_contains!(
+            &metrics_string,
+            r#"lp_bytes_success{bucket="MetricsBucket",db_name="MetricsOrg_MetricsBucket",org="MetricsOrg"} 98"#
+        );
     }
 
     /// Sets up a test database with some data for testing the query endpoint
@@ -798,9 +880,13 @@ mod tests {
             ConnectionManagerImpl {},
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
-        test_storage.set_id(1);
+        test_storage.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         test_storage
-            .create_database("MyOrg_MyBucket", DatabaseRules::new())
+            .create_database(
+                DatabaseRules::new(DatabaseName::new("MyOrg_MyBucket").unwrap()),
+                test_storage.require_id().unwrap(),
+                Arc::clone(&test_storage.store),
+            )
             .await
             .unwrap();
         let server_url = test_server(Arc::clone(&test_storage));
@@ -826,7 +912,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_query_pretty() -> Result<()> {
+    async fn test_query_pretty() {
         let (client, server_url) = setup_test_data().await;
 
         // send query data
@@ -858,12 +944,10 @@ mod tests {
         assert_eq!(get_content_type(&response), "text/plain");
 
         check_response("query", response, StatusCode::OK, res).await;
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_query_csv() -> Result<()> {
+    async fn test_query_csv() {
         let (client, server_url) = setup_test_data().await;
 
         // send query data
@@ -880,12 +964,10 @@ mod tests {
         let res = "bottom_degrees,location,state,surface_degrees,time\n\
                    50.4,santa_monica,CA,65.2,1568756160\n";
         check_response("query", response, StatusCode::OK, res).await;
-
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_query_json() -> Result<()> {
+    async fn test_query_json() {
         let (client, server_url) = setup_test_data().await;
 
         // send a second line of data to demontrate how that works
@@ -919,8 +1001,6 @@ mod tests {
         // Note two json records: one record on each line
         let res = r#"[{"bottom_degrees":50.4,"location":"santa_monica","state":"CA","surface_degrees":65.2,"time":1568756160},{"location":"Boston","state":"MA","surface_degrees":50.2,"time":1568756160}]"#;
         check_response("query", response, StatusCode::OK, res).await;
-
-        Ok(())
     }
 
     fn gzip_str(s: &str) -> Vec<u8> {
@@ -932,14 +1012,18 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_gzip_write() -> Result<()> {
+    async fn test_gzip_write() {
         let test_storage = Arc::new(AppServer::new(
             ConnectionManagerImpl {},
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
-        test_storage.set_id(1);
+        test_storage.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         test_storage
-            .create_database("MyOrg_MyBucket", DatabaseRules::new())
+            .create_database(
+                DatabaseRules::new(DatabaseName::new("MyOrg_MyBucket").unwrap()),
+                test_storage.require_id().unwrap(),
+                Arc::clone(&test_storage.store),
+            )
             .await
             .unwrap();
         let server_url = test_server(Arc::clone(&test_storage));
@@ -977,8 +1061,6 @@ mod tests {
             "+----------------+--------------+-------+-----------------+------------+",
         ];
         assert_table_eq!(expected, &batches);
-
-        Ok(())
     }
 
     #[tokio::test]
@@ -987,9 +1069,13 @@ mod tests {
             ConnectionManagerImpl {},
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
-        test_storage.set_id(1);
+        test_storage.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         test_storage
-            .create_database("MyOrg_MyBucket", DatabaseRules::new())
+            .create_database(
+                DatabaseRules::new(DatabaseName::new("MyOrg_MyBucket").unwrap()),
+                test_storage.require_id().unwrap(),
+                Arc::clone(&test_storage.store),
+            )
             .await
             .unwrap();
         let server_url = test_server(Arc::clone(&test_storage));
@@ -1021,12 +1107,13 @@ mod tests {
             ConnectionManagerImpl {},
             Arc::new(ObjectStore::new_in_memory(InMemory::new())),
         ));
-        server.set_id(1);
+        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         let server_url = test_server(Arc::clone(&server));
 
         let database_name = "foo_bar";
         let rules = DatabaseRules {
-            name: database_name.to_owned(),
+            name: DatabaseName::new(database_name).unwrap(),
+            partition_template: Default::default(),
             wal_buffer_config: Some(WalBufferConfig {
                 buffer_size: 500,
                 segment_size: 10,
@@ -1034,10 +1121,18 @@ mod tests {
                 store_segments: true,
                 close_segment_after: None,
             }),
-            ..Default::default()
+            lifecycle_rules: Default::default(),
+            shard_config: None,
         };
 
-        server.create_database(database_name, rules).await.unwrap();
+        server
+            .create_database(
+                rules,
+                server.require_id().unwrap(),
+                Arc::clone(&server.store),
+            )
+            .await
+            .unwrap();
 
         let base_url = format!(
             "{}/iox/api/v1/databases/{}/wal/meta",
@@ -1195,10 +1290,7 @@ mod tests {
     async fn run_query(db: Arc<Db>, query: &str) -> Vec<RecordBatch> {
         let planner = SQLQueryPlanner::default();
         let executor = Executor::new();
-        let physical_plan = planner
-            .query(Arc::new(DbCatalog::new(db)), query, &executor)
-            .await
-            .unwrap();
+        let physical_plan = planner.query(db, query, &executor).await.unwrap();
 
         collect(physical_plan).await.unwrap()
     }

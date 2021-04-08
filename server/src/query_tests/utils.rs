@@ -1,17 +1,23 @@
 use data_types::{
     chunk::{ChunkStorage, ChunkSummary},
     database_rules::DatabaseRules,
+    DatabaseName,
 };
+use object_store::{memory::InMemory, ObjectStore};
 use query::Database;
 
 use crate::{db::Db, JobRegistry};
-use std::sync::Arc;
+use std::{num::NonZeroU32, sync::Arc};
 
 /// Used for testing: create a Database with a local store
 pub fn make_db() -> Db {
+    let server_id: NonZeroU32 = NonZeroU32::new(1).unwrap();
+    let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+
     Db::new(
-        DatabaseRules::new(),
-        read_buffer::Database::new(),
+        DatabaseRules::new(DatabaseName::new("placeholder").unwrap()),
+        server_id,
+        object_store,
         None, // wal buffer
         Arc::new(JobRegistry::new()),
     )

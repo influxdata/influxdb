@@ -1,13 +1,14 @@
 //! Utilities for testing tracing
 use std::{fmt, sync::Arc};
 
-use parking_lot::Mutex;
-use tracing::{
+use observability_deps::tracing::{
+    self,
     field::Field,
     span::{Attributes, Id, Record},
     subscriber::{DefaultGuard, Subscriber},
     Event,
 };
+use parking_lot::Mutex;
 
 /// This struct captures tracing `Event`s as strings, and can be used
 /// to verify that messages are making it to logs correctly

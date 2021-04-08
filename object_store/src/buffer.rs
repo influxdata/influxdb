@@ -96,7 +96,7 @@ mod tests {
             .interleave_pending()
     }
 
-    async fn check_stream<R>(buf_stream: BufferedStream<R>) -> Result<()>
+    async fn check_stream<R>(buf_stream: BufferedStream<R>)
     where
         R: AsyncRead + AsyncWrite + AsyncSeek + Unpin,
     {
@@ -106,25 +106,30 @@ mod tests {
         let content = buf_stream
             .map_ok(|b| bytes::BytesMut::from(&b[..]))
             .try_concat()
-            .await?;
+            .await
+            .unwrap();
 
         assert_eq!(content, "foobarbaz");
-        Ok(())
     }
 
     #[tokio::test]
-    async fn test_buffered_stream() -> Result<()> {
+    async fn test_buffered_stream() {
         let backing_store = std::io::Cursor::new(Vec::new()); // in-memory buffer
-        check_stream(BufferedStream::new(backing_store, test_data()).await?).await
+        check_stream(
+            BufferedStream::new(backing_store, test_data())
+                .await
+                .unwrap(),
+        )
+        .await;
     }
 
     #[tokio::test]
-    async fn test_slurp_stream_tempfile() -> Result<()> {
-        check_stream(slurp_stream_tempfile(test_data()).await?).await
+    async fn test_slurp_stream_tempfile() {
+        check_stream(slurp_stream_tempfile(test_data()).await.unwrap()).await;
     }
 
     #[tokio::test]
-    async fn test_slurp_stream_memory() -> Result<()> {
-        check_stream(slurp_stream_memory(test_data()).await?).await
+    async fn test_slurp_stream_memory() {
+        check_stream(slurp_stream_memory(test_data()).await.unwrap()).await;
     }
 }

@@ -33,23 +33,14 @@ mod tests {
     use super::*;
     use mockito::mock;
 
-    type Error = Box<dyn std::error::Error>;
-    type Result<T = (), E = Error> = std::result::Result<T, E>;
-
     #[tokio::test]
-    async fn ready() -> Result {
-        let token = "some-token";
+    async fn ready() {
+        let mock_server = mock("GET", "/ready").create();
 
-        let mock_server = mock("GET", "/ready")
-            .match_header("Authorization", format!("Token {}", token).as_str())
-            .create();
-
-        let client = Client::new(&mockito::server_url(), token);
+        let client = Client::new(&mockito::server_url(), "");
 
         let _result = client.ready().await;
 
         mock_server.assert();
-
-        Ok(())
     }
 }

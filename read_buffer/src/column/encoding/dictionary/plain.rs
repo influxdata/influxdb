@@ -60,7 +60,7 @@ impl Plain {
     }
 
     /// A reasonable estimation of the on-heap size this encoding takes up.
-    pub fn size(&self) -> u64 {
+    pub fn size(&self) -> usize {
         // the total size of all decoded values in the column.
         let decoded_keys_size = self
             .entries
@@ -75,7 +75,7 @@ impl Plain {
         let encoded_ids_size = size_of::<Vec<u32>>() + (size_of::<u32>() * self.encoded_data.len());
 
         // + 1 for contains_null field
-        (entries_size + encoded_ids_size + 1) as u64
+        entries_size + encoded_ids_size + 1
     }
 
     /// The number of distinct logical values in this column encoding.

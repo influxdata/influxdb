@@ -9,7 +9,7 @@ influxdb2_client = { path = "../influxdb2_client" }
 nom = "5.1.1"
 smallvec = "1.2.0"
 snafu = "0.6.2"
-tracing = "0.1"
+observability_deps = { path = "../observability_deps" }
 
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }

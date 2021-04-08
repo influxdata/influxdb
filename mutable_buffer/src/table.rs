@@ -542,36 +542,31 @@ impl Table {
         }
     }
 
-    pub fn stats(&self, chunk: &Chunk) -> Result<Vec<ColumnSummary>> {
-        let mut summaries = Vec::with_capacity(self.columns.len());
-
-        for (column_id, c) in &self.columns {
-            let column_name =
-                chunk
+    pub fn stats(&self, chunk: &Chunk) -> Vec<ColumnSummary> {
+        self.columns
+            .iter()
+            .map(|(column_id, c)| {
+                let column_name = chunk
                     .dictionary
                     .lookup_id(*column_id)
-                    .context(ColumnIdNotFoundInDictionary {
-                        column_id: *column_id,
-                        chunk: chunk.id,
-                    })?;
+                    .expect("column name in dictionary");
 
-            let stats = match c {
-                Column::F64(_, stats) => Statistics::F64(stats.clone()),
-                Column::I64(_, stats) => Statistics::I64(stats.clone()),
-                Column::U64(_, stats) => Statistics::U64(stats.clone()),
-                Column::Bool(_, stats) => Statistics::Bool(stats.clone()),
-                Column::String(_, stats) | Column::Tag(_, stats) => {
-                    Statistics::String(stats.clone())
+                let stats = match c {
+                    Column::F64(_, stats) => Statistics::F64(stats.clone()),
+                    Column::I64(_, stats) => Statistics::I64(stats.clone()),
+                    Column::U64(_, stats) => Statistics::U64(stats.clone()),
+                    Column::Bool(_, stats) => Statistics::Bool(stats.clone()),
+                    Column::String(_, stats) | Column::Tag(_, stats) => {
+                        Statistics::String(stats.clone())
+                    }
+                };
+
+                ColumnSummary {
+                    name: column_name.to_string(),
+                    stats,
                 }
-            };
-
-            summaries.push(ColumnSummary {
-                name: column_name.to_string(),
-                stats,
-            });
-        }
-
-        Ok(summaries)
+            })
+            .collect()
     }
 }
 
@@ -601,10 +596,12 @@ mod tests {
     use internal_types::data::split_lines_into_write_entry_partitions;
 
     use super::*;
+    use tracker::MemRegistry;
 
     #[test]
     fn test_has_columns() {
-        let mut chunk = Chunk::new(42);
+        let registry = Arc::new(MemRegistry::new());
+        let mut chunk = Chunk::new(42, registry.as_ref());
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
@@ -646,7 +643,8 @@ mod tests {
 
     #[test]
     fn table_size() {
-        let mut chunk = Chunk::new(42);
+        let registry = Arc::new(MemRegistry::new());
+        let mut chunk = Chunk::new(42, registry.as_ref());
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
@@ -669,7 +667,8 @@ mod tests {
 
     #[test]
     fn test_matches_table_name_predicate() {
-        let mut chunk = Chunk::new(42);
+        let registry = Arc::new(MemRegistry::new());
+        let mut chunk = Chunk::new(42, registry.as_ref());
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("h2o"));
 
@@ -699,7 +698,8 @@ mod tests {
 
     #[test]
     fn test_matches_column_name_predicate() {
-        let mut chunk = Chunk::new(42);
+        let registry = Arc::new(MemRegistry::new());
+        let mut chunk = Chunk::new(42, registry.as_ref());
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("h2o"));
 
@@ -745,7 +745,8 @@ mod tests {
 
     #[test]
     fn test_to_arrow_schema_all() {
-        let mut chunk = Chunk::new(42);
+        let registry = Arc::new(MemRegistry::new());
+        let mut chunk = Chunk::new(42, registry.as_ref());
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
@@ -778,7 +779,8 @@ mod tests {
 
     #[test]
     fn test_to_arrow_schema_subset() {
-        let mut chunk = Chunk::new(42);
+        let registry = Arc::new(MemRegistry::new());
+        let mut chunk = Chunk::new(42, registry.as_ref());
         let dictionary = &mut chunk.dictionary;
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
