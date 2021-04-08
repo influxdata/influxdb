@@ -35,6 +35,9 @@ pub enum Error {
         line_number: usize,
         source: ColumnError,
     },
+
+    #[snafu(display("invalid flatbuffers: field {} is required", field))]
+    FlatbufferFieldMissing { field: String },
 }
 
 #[derive(Debug, Snafu)]
@@ -296,6 +299,11 @@ impl Entry {
     /// Returns the Flatbuffers struct for the Entry
     pub fn fb(&self) -> &entry_fb::Entry<'_> {
         self.borrow_fb()
+    }
+
+    /// Returns the serialized bytes for the Entry
+    pub fn data(&self) -> &[u8] {
+        self.borrow_data()
     }
 
     pub fn partition_writes(&self) -> Option<Vec<PartitionWrite<'_>>> {
@@ -1079,6 +1087,99 @@ enum ColumnRaw<'a> {
     Bool(Vec<bool>),
 }
 
+#[self_referencing]
+#[derive(Debug)]
+pub struct SequencedEntry {
+    data: Vec<u8>,
+    #[borrows(data)]
+    #[covariant]
+    fb: entry_fb::SequencedEntry<'this>,
+    #[borrows(data)]
+    #[covariant]
+    entry: Option<entry_fb::Entry<'this>>,
+}
+
+impl SequencedEntry {
+    pub fn new_from_entry_bytes(
+        clock_value: u64,
+        writer_id: u32,
+        entry_bytes: &[u8],
+    ) -> Result<Self> {
+        // The flatbuffer contains:
+        //    1xu64 -> clock_value
+        //    1xu32 -> writer_id
+        //    0?       -> entry (unused here)
+        //    input   -> entry_bytes
+        // The buffer also needs space for the flatbuffer vtable.
+        const OVERHEAD: usize = 4 * std::mem::size_of::<u64>();
+        let mut fbb = FlatBufferBuilder::new_with_capacity(entry_bytes.len() + OVERHEAD);
+
+        let entry_bytes = fbb.create_vector_direct(entry_bytes);
+        let sequenced_entry = entry_fb::SequencedEntry::create(
+            &mut fbb,
+            &entry_fb::SequencedEntryArgs {
+                clock_value,
+                writer_id,
+                entry_bytes: Some(entry_bytes),
+            },
+        );
+
+        fbb.finish(sequenced_entry, None);
+
+        let (mut data, idx) = fbb.collapse();
+        let sequenced_entry = Self::try_from(data.split_off(idx))
+            .expect("Flatbuffer data just constructed should be valid");
+
+        Ok(sequenced_entry)
+    }
+
+    /// Returns the Flatbuffers struct for the SequencedEntry
+    pub fn fb(&self) -> &entry_fb::SequencedEntry<'_> {
+        self.borrow_fb()
+    }
+
+    pub fn partition_writes(&self) -> Option<Vec<PartitionWrite<'_>>> {
+        match self.borrow_entry().as_ref() {
+            Some(e) => match e.operation_as_write().as_ref() {
+                Some(w) => w
+                    .partition_writes()
+                    .as_ref()
+                    .map(|w| w.iter().map(|fb| PartitionWrite { fb }).collect::<Vec<_>>()),
+                None => None,
+            },
+            None => None,
+        }
+    }
+
+    pub fn clock_value(&self) -> u64 {
+        self.fb().clock_value()
+    }
+
+    pub fn writer_id(&self) -> u32 {
+        self.fb().writer_id()
+    }
+}
+
+impl TryFrom<Vec<u8>> for SequencedEntry {
+    type Error = flatbuffers::InvalidFlatbuffer;
+
+    fn try_from(data: Vec<u8>) -> Result<Self, Self::Error> {
+        SequencedEntryTryBuilder {
+            data,
+            fb_builder: |data| flatbuffers::root::<entry_fb::SequencedEntry<'_>>(data),
+            entry_builder: |data| match flatbuffers::root::<entry_fb::SequencedEntry<'_>>(data)?
+                .entry_bytes()
+            {
+                Some(entry_bytes) => Ok(Some(flatbuffers::root::<entry_fb::Entry<'_>>(
+                    &entry_bytes,
+                )?)),
+                None => Ok(None),
+            },
+        }
+        .try_build()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1541,6 +1642,88 @@ mod tests {
         let sharded_entries = lines_to_sharded_entries(&lines, &sharder(1), &partitioner(1));
 
         assert!(sharded_entries.is_err());
+    }
+
+    #[test]
+    fn sequenced_entry() {
+        let lp = vec![
+            "a,host=a val=23i 983",
+            "a,host=a,region=west val2=23.2 2343",
+            "a val=21i,bool=true,string=\"hello\" 222",
+        ]
+        .join("\n");
+        let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
+
+        let sharded_entries =
+            lines_to_sharded_entries(&lines, &sharder(1), &partitioner(1)).unwrap();
+
+        let entry_bytes = sharded_entries.first().unwrap().entry.data();
+        let sequenced_entry = SequencedEntry::new_from_entry_bytes(23, 2, entry_bytes).unwrap();
+        assert_eq!(sequenced_entry.clock_value(), 23);
+        assert_eq!(sequenced_entry.writer_id(), 2);
+
+        let partition_writes = sequenced_entry.partition_writes().unwrap();
+        let table_batches = partition_writes.first().unwrap().table_batches();
+        let batch = table_batches.first().unwrap();
+
+        let columns = batch.columns();
+
+        assert_eq!(batch.row_count(), 3);
+        assert_eq!(columns.len(), 7);
+
+        let col = columns.get(0).unwrap();
+        assert_eq!(col.name().unwrap(), "bool");
+        assert_eq!(col.logical_type(), entry_fb::LogicalColumnType::Field);
+        let values = col.values().bool_values().unwrap();
+        assert_eq!(&values, &[None, None, Some(true)]);
+
+        let col = columns.get(1).unwrap();
+        assert_eq!(col.name().unwrap(), "host");
+        assert_eq!(col.logical_type(), entry_fb::LogicalColumnType::Tag);
+        let values = match col.values() {
+            TypedValuesIterator::String(v) => v,
+            _ => panic!("wrong type"),
+        };
+        let values = values.collect::<Vec<_>>();
+        assert_eq!(&values, &[Some("a"), Some("a"), None]);
+
+        let col = columns.get(2).unwrap();
+        assert_eq!(col.name().unwrap(), "region");
+        assert_eq!(col.logical_type(), entry_fb::LogicalColumnType::Tag);
+        let values = match col.values() {
+            TypedValuesIterator::String(v) => v,
+            _ => panic!("wrong type"),
+        };
+        let values = values.collect::<Vec<_>>();
+        assert_eq!(&values, &[None, Some("west"), None]);
+
+        let col = columns.get(3).unwrap();
+        assert_eq!(col.name().unwrap(), "string");
+        assert_eq!(col.logical_type(), entry_fb::LogicalColumnType::Field);
+        let values = match col.values() {
+            TypedValuesIterator::String(v) => v,
+            _ => panic!("wrong type"),
+        };
+        let values = values.collect::<Vec<_>>();
+        assert_eq!(&values, &[None, None, Some("hello")]);
+
+        let col = columns.get(4).unwrap();
+        assert_eq!(col.name().unwrap(), TIME_COLUMN_NAME);
+        assert_eq!(col.logical_type(), entry_fb::LogicalColumnType::Time);
+        let values = col.values().i64_values().unwrap();
+        assert_eq!(&values, &[Some(983), Some(2343), Some(222)]);
+
+        let col = columns.get(5).unwrap();
+        assert_eq!(col.name().unwrap(), "val");
+        assert_eq!(col.logical_type(), entry_fb::LogicalColumnType::Field);
+        let values = col.values().i64_values().unwrap();
+        assert_eq!(&values, &[Some(23), None, Some(21)]);
+
+        let col = columns.get(6).unwrap();
+        assert_eq!(col.name().unwrap(), "val2");
+        assert_eq!(col.logical_type(), entry_fb::LogicalColumnType::Field);
+        let values = col.values().f64_values().unwrap();
+        assert_eq!(&values, &[None, Some(23.2), None]);
     }
 
     fn sharder(count: u16) -> TestSharder {
