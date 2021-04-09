@@ -6,6 +6,7 @@ use crate::{
 };
 use async_trait::async_trait;
 use bytes::Bytes;
+use cloud_storage::Client;
 use futures::{stream::BoxStream, Stream, StreamExt, TryStreamExt};
 use snafu::{ensure, futures::TryStreamExt as _, ResultExt, Snafu};
 use std::{convert::TryFrom, env, io};
@@ -72,6 +73,7 @@ pub enum Error {
 /// Configuration for connecting to [Google Cloud Storage](https://cloud.google.com/storage/).
 #[derive(Debug)]
 pub struct GoogleCloudStorage {
+    client: Client,
     bucket_name: String,
 }
 
@@ -109,17 +111,19 @@ impl ObjectStoreApi for GoogleCloudStorage {
         let location_copy = location.clone();
         let bucket_name = self.bucket_name.clone();
 
-        cloud_storage::Object::create(
-            &bucket_name,
-            temporary_non_streaming,
-            &location_copy,
-            "application/octet-stream",
-        )
-        .await
-        .context(UnableToPutData {
-            bucket: &self.bucket_name,
-            location,
-        })?;
+        self.client
+            .object()
+            .create(
+                &bucket_name,
+                temporary_non_streaming,
+                &location_copy,
+                "application/octet-stream",
+            )
+            .await
+            .context(UnableToPutData {
+                bucket: &self.bucket_name,
+                location,
+            })?;
 
         Ok(())
     }
@@ -129,7 +133,10 @@ impl ObjectStoreApi for GoogleCloudStorage {
         let location_copy = location.clone();
         let bucket_name = self.bucket_name.clone();
 
-        let bytes = cloud_storage::Object::download(&bucket_name, &location_copy)
+        let bytes = self
+            .client
+            .object()
+            .download(&bucket_name, &location_copy)
             .await
             .context(UnableToGetData {
                 bucket: &self.bucket_name,
@@ -144,7 +151,9 @@ impl ObjectStoreApi for GoogleCloudStorage {
         let location_copy = location.clone();
         let bucket_name = self.bucket_name.clone();
 
-        cloud_storage::Object::delete(&bucket_name, &location_copy)
+        self.client
+            .object()
+            .delete(&bucket_name, &location_copy)
             .await
             .context(UnableToDeleteData {
                 bucket: &self.bucket_name,
@@ -163,7 +172,10 @@ impl ObjectStoreApi for GoogleCloudStorage {
             prefix: converted_prefix,
             ..Default::default()
         };
-        let object_lists = cloud_storage::Object::list(&self.bucket_name, list_request)
+        let object_lists = self
+            .client
+            .object()
+            .list(&self.bucket_name, list_request)
             .await
             .context(UnableToListData {
                 bucket: &self.bucket_name,
@@ -192,7 +204,9 @@ impl ObjectStoreApi for GoogleCloudStorage {
         };
 
         let mut object_lists = Box::pin(
-            cloud_storage::Object::list(&self.bucket_name, list_request)
+            self.client
+                .object()
+                .list(&self.bucket_name, list_request)
                 .await
                 .context(UnableToListData {
                     bucket: &self.bucket_name,
@@ -248,6 +262,7 @@ impl GoogleCloudStorage {
         // that we can optionally accept command line arguments instead.
         env::set_var("SERVICE_ACCOUNT", service_account_path);
         Self {
+            client: Default::default(),
             bucket_name: bucket_name.into(),
         }
     }
