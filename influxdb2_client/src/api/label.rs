@@ -138,13 +138,10 @@ mod tests {
     use super::*;
     use mockito::mock;
 
-    type Error = Box<dyn std::error::Error>;
-    type Result<T = (), E = Error> = std::result::Result<T, E>;
-
     const BASE_PATH: &str = "/api/v2/labels";
 
     #[tokio::test]
-    async fn labels() -> Result {
+    async fn labels() {
         let token = "some-token";
 
         let mock_server = mock("GET", format!("{}?orgID=", BASE_PATH).as_str())
@@ -156,11 +153,10 @@ mod tests {
         let _result = client.labels().await;
 
         mock_server.assert();
-        Ok(())
     }
 
     #[tokio::test]
-    async fn labels_by_org() -> Result {
+    async fn labels_by_org() {
         let token = "some-token";
         let org_id = "some-org_id";
 
@@ -173,11 +169,10 @@ mod tests {
         let _result = client.labels_by_org(org_id).await;
 
         mock_server.assert();
-        Ok(())
     }
 
     #[tokio::test]
-    async fn find_label() -> Result {
+    async fn find_label() {
         let token = "some-token";
         let label_id = "some-id";
 
@@ -190,11 +185,10 @@ mod tests {
         let _result = client.find_label(label_id).await;
 
         mock_server.assert();
-        Ok(())
     }
 
     #[tokio::test]
-    async fn create_label() -> Result {
+    async fn create_label() {
         let token = "some-token";
         let org_id = "some-org";
         let name = "some-user";
@@ -217,11 +211,10 @@ mod tests {
         let _result = client.create_label(org_id, name, Some(properties)).await;
 
         mock_server.assert();
-        Ok(())
     }
 
     #[tokio::test]
-    async fn create_label_opt() -> Result {
+    async fn create_label_opt() {
         let token = "some-token";
         let org_id = "some-org_id";
         let name = "some-user";
@@ -236,11 +229,10 @@ mod tests {
         let _result = client.create_label(org_id, name, None).await;
 
         mock_server.assert();
-        Ok(())
     }
 
     #[tokio::test]
-    async fn update_label() -> Result {
+    async fn update_label() {
         let token = "some-token";
         let name = "some-user";
         let label_id = "some-label_id";
@@ -265,11 +257,10 @@ mod tests {
             .await;
 
         mock_server.assert();
-        Ok(())
     }
 
     #[tokio::test]
-    async fn update_label_opt() -> Result {
+    async fn update_label_opt() {
         let token = "some-token";
         let label_id = "some-label_id";
 
@@ -283,11 +274,10 @@ mod tests {
         let _result = client.update_label(None, None, label_id).await;
 
         mock_server.assert();
-        Ok(())
     }
 
     #[tokio::test]
-    async fn delete_label() -> Result {
+    async fn delete_label() {
         let token = "some-token";
         let label_id = "some-label_id";
 
@@ -300,6 +290,5 @@ mod tests {
         let _result = client.delete_label(label_id).await;
 
         mock_server.assert();
-        Ok(())
     }
 }
