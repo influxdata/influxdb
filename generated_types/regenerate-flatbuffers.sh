@@ -21,7 +21,8 @@
 FB_COMMIT="86401e078d0746d2381735415f8c2dfe849f3f52"
 # - Run this script to regenerate the corresponding Rust code.
 # - Run `cargo test` to make sure everything works as you would expect.
-# - Check in the changes to the generated code along with your changes to the `*.fbs` files.
+# - Check in the changes to the generated code along with your changes to the `Cargo.lock` file and
+#   this script.
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 pushd $DIR
