@@ -1,5 +1,4 @@
 use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
-use data_types::chunk::{ChunkStorage, ChunkSummary};
 use internal_types::{schema::Schema, selection::Selection};
 use mutable_buffer::chunk::Chunk as MBChunk;
 use observability_deps::tracing::debug;
@@ -129,47 +128,6 @@ impl DBChunk {
         };
         Arc::new(db_chunk)
     }
-
-    /// Return a partially filled `ChunkSummary` that includes storage
-    /// details. Information such as timestamps are provided by the
-    /// the catalog
-    pub fn summary(&self) -> ChunkSummary {
-        match self {
-            Self::MutableBuffer {
-                chunk,
-                partition_key,
-                open,
-            } => {
-                let storage = if *open {
-                    ChunkStorage::OpenMutableBuffer
-                } else {
-                    ChunkStorage::ClosedMutableBuffer
-                };
-                ChunkSummary::new_without_timestamps(
-                    Arc::clone(partition_key),
-                    chunk.id(),
-                    storage,
-                    chunk.size(),
-                )
-            }
-            Self::ReadBuffer {
-                chunk,
-                partition_key,
-            } => {
-                let estimated_bytes = chunk.size() as usize;
-
-                ChunkSummary::new_without_timestamps(
-                    Arc::clone(&partition_key),
-                    chunk.id(),
-                    ChunkStorage::ReadBuffer,
-                    estimated_bytes,
-                )
-            }
-            Self::ParquetFile { .. } => {
-                unimplemented!("parquet file summary not implemented")
-            }
-        }
-    }
 }
 
 impl PartitionChunk for DBChunk {
@@ -179,14 +137,6 @@ impl PartitionChunk for DBChunk {
         match self {
             Self::MutableBuffer { chunk, .. } => chunk.id(),
             Self::ReadBuffer { chunk, .. } => chunk.id(),
-            Self::ParquetFile { .. } => unimplemented!("parquet file not implemented"),
-        }
-    }
-
-    fn table_summaries(&self) -> Vec<data_types::partition_metadata::TableSummary> {
-        match self {
-            Self::MutableBuffer { chunk, .. } => chunk.table_summaries(),
-            Self::ReadBuffer { chunk, .. } => chunk.table_summaries(),
             Self::ParquetFile { .. } => unimplemented!("parquet file not implemented"),
         }
     }
