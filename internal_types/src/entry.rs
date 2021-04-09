@@ -1180,10 +1180,81 @@ impl TryFrom<Vec<u8>> for SequencedEntry {
     }
 }
 
+pub mod test_helpers {
+    use super::*;
+    use influxdb_line_protocol::parse_lines;
+
+    /// Converts the line protocol to a vec of ShardedEntry with a single shard
+    /// and a single partition
+    pub fn lp_to_entry(lp: &str) -> Entry {
+        let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
+
+        lines_to_sharded_entries(&lines, &sharder(1), &partitioner(1))
+            .unwrap()
+            .pop()
+            .unwrap()
+            .entry
+    }
+
+    /// Returns a test sharder that will assign shard ids from [0, count)
+    /// incrementing for each line.
+    pub fn sharder(count: u16) -> TestSharder {
+        TestSharder {
+            count,
+            n: std::cell::RefCell::new(0),
+        }
+    }
+
+    // For each line passed to shard returns a shard id from [0, count) in order
+    #[derive(Debug)]
+    pub struct TestSharder {
+        count: u16,
+        n: std::cell::RefCell<u16>,
+    }
+
+    impl Sharder for TestSharder {
+        fn shard(&self, _line: &ParsedLine<'_>) -> Result<u16, DataError> {
+            let n = *self.n.borrow();
+            self.n.replace(n + 1);
+            Ok(n % self.count)
+        }
+    }
+
+    /// Returns a test partitioner that will assign partition keys in the form
+    /// key_# where # is replaced by a number [0, count) incrementing for
+    /// each line.
+    pub fn partitioner(count: u8) -> TestPartitioner {
+        TestPartitioner {
+            count,
+            n: std::cell::RefCell::new(0),
+        }
+    }
+
+    // For each line passed to partition_key returns a key with a number from
+    // [0, count)
+    #[derive(Debug)]
+    pub struct TestPartitioner {
+        count: u8,
+        n: std::cell::RefCell<u8>,
+    }
+
+    impl Partitioner for TestPartitioner {
+        fn partition_key(
+            &self,
+            _line: &ParsedLine<'_>,
+            _default_time: &DateTime<Utc>,
+        ) -> data_types::database_rules::Result<String> {
+            let n = *self.n.borrow();
+            self.n.replace(n + 1);
+            Ok(format!("key_{}", n % self.count))
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use super::test_helpers::*;
     use super::*;
-
     use influxdb_line_protocol::parse_lines;
 
     #[test]
@@ -1724,52 +1795,5 @@ mod tests {
         assert_eq!(col.logical_type(), entry_fb::LogicalColumnType::Field);
         let values = col.values().f64_values().unwrap();
         assert_eq!(&values, &[None, Some(23.2), None]);
-    }
-
-    fn sharder(count: u16) -> TestSharder {
-        TestSharder {
-            count,
-            n: std::cell::RefCell::new(0),
-        }
-    }
-
-    // For each line passed to shard returns a shard id from [0, count) in order
-    struct TestSharder {
-        count: u16,
-        n: std::cell::RefCell<u16>,
-    }
-
-    impl Sharder for TestSharder {
-        fn shard(&self, _line: &ParsedLine<'_>) -> Result<u16, DataError> {
-            let n = *self.n.borrow();
-            self.n.replace(n + 1);
-            Ok(n % self.count)
-        }
-    }
-
-    fn partitioner(count: u8) -> TestPartitioner {
-        TestPartitioner {
-            count,
-            n: std::cell::RefCell::new(0),
-        }
-    }
-
-    // For each line passed to partition_key returns a key with a number from [0,
-    // count)
-    struct TestPartitioner {
-        count: u8,
-        n: std::cell::RefCell<u8>,
-    }
-
-    impl Partitioner for TestPartitioner {
-        fn partition_key(
-            &self,
-            _line: &ParsedLine<'_>,
-            _default_time: &DateTime<Utc>,
-        ) -> data_types::database_rules::Result<String> {
-            let n = *self.n.borrow();
-            self.n.replace(n + 1);
-            Ok(format!("key_{}", n % self.count))
-        }
     }
 }
