@@ -1,0 +1,59 @@
+#!/bin/bash
+
+#set -eu -o pipefail
+
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
+
+usage() {
+  echo "$0 <host> <db_name>"
+  exit 1
+}
+
+grpcurl() {
+  "${SCRIPT_DIR}"/grpcurl "$@"
+}
+
+
+main() {
+  local host
+  host="${1:-}"
+  shift
+
+  if [ -z "${host}" ]; then
+    usage
+  fi
+
+  local db_name
+  db_name="${1:-}"
+  shift
+
+  if [ -z "${db_name}" ]; then
+    usage
+  fi
+
+  local tmp
+
+  cleanup() {
+    rm -rf "${tmp}"
+  }
+  trap cleanup EXIT
+
+  tmp="$(mktemp)"
+
+  local req
+  read -r -d '' req <<EOF
+    {"name": "${db_name}"}
+EOF
+
+  grpcurl -plaintext -d "${req}" "${host}" \
+    influxdata.iox.management.v1.ManagementService.GetDatabase \
+    > "${tmp}"
+
+  "${EDITOR:-vim}" "${tmp}"
+
+  grpcurl -plaintext -d @ "${host}" \
+    influxdata.iox.management.v1.ManagementService.UpdateDatabase \
+    < "${tmp}"
+
+}
+main "$@"
