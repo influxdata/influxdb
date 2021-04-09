@@ -122,22 +122,32 @@ func newBucket(pb *influxdb.Bucket) *bucket {
 		return nil
 	}
 
-	rule := retentionRule{
-		Type:                      "expire",
-		EverySeconds:              int64(pb.RetentionPeriod.Round(time.Second) / time.Second),
-		ShardGroupDurationSeconds: int64(pb.ShardGroupDuration.Round(time.Second) / time.Second),
-	}
-
-	return &bucket{
+	bkt := bucket{
 		ID:                  pb.ID,
 		OrgID:               pb.OrgID,
 		Type:                pb.Type.String(),
 		Name:                pb.Name,
 		Description:         pb.Description,
 		RetentionPolicyName: pb.RetentionPolicyName,
-		RetentionRules:      []retentionRule{rule},
+		RetentionRules:      []retentionRule{},
 		CRUDLog:             pb.CRUDLog,
 	}
+
+	// Only append a retention rule if the user wants to explicitly set
+	// a parameter on the rule.
+	//
+	// This is for backwards-compatibility with older versions of the API,
+	// which didn't support setting shard-group durations and used an empty
+	// array of rules to represent infinite retention.
+	if pb.RetentionPeriod > 0 || pb.ShardGroupDuration > 0 {
+		bkt.RetentionRules = append(bkt.RetentionRules, retentionRule{
+			Type:                      "expire",
+			EverySeconds:              int64(pb.RetentionPeriod.Round(time.Second) / time.Second),
+			ShardGroupDurationSeconds: int64(pb.ShardGroupDuration.Round(time.Second) / time.Second),
+		})
+	}
+
+	return &bkt
 }
 
 type retentionRuleUpdate struct {
