@@ -2,6 +2,9 @@
 
 #set -eu -o pipefail
 
+# This is a simple shell script that uses the grpc API to edit the database rules on a remote
+# IOx server. It fetches the rules, spawns your default text editor, waits until your editor quits,
+# and then calls the update API with the results of your local edit.
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 usage() {
