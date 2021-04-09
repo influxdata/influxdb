@@ -232,13 +232,12 @@ pub fn snapshot_chunk<T>(
     store: Arc<ObjectStore>,
     partition_key: &str,
     chunk: Arc<T>,
+    table_stats: Vec<TableSummary>,
     notify: Option<oneshot::Sender<()>>,
 ) -> Result<Arc<Snapshot<T>>>
 where
     T: Send + Sync + 'static + PartitionChunk,
 {
-    let table_stats = chunk.table_summaries();
-
     let snapshot = Snapshot::new(
         partition_key.to_string(),
         metadata_path,
@@ -304,6 +303,7 @@ mem,host=A,region=west used=45 1
         data_path.push_dir("data");
 
         let chunk = Arc::clone(&db.chunks("1970-01-01T00")[0]);
+        let table_summaries = db.table_summaries("1970-01-01T00", chunk.id());
 
         let snapshot = snapshot_chunk(
             metadata_path.clone(),
@@ -311,6 +311,7 @@ mem,host=A,region=west used=45 1
             Arc::clone(&store),
             "testaroo",
             chunk,
+            table_summaries,
             Some(tx),
         )
         .unwrap();

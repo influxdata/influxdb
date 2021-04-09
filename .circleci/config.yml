@@ -166,7 +166,7 @@ jobs:
       - checkout
       - run:
           name: Check Flatbuffers
-          command: ./generated_types/check-flatbuffers.sh << pipeline.git.base_revision >> <<pipeline.git.revision>>
+          command: ./generated_types/check-flatbuffers.sh
 
   # Compile a cargo "release" profile binary for branches that end in `/perf`
   #

@@ -22,7 +22,7 @@ use influxdb_iox_client::format::QueryOutputFormat;
 use influxdb_line_protocol::parse_lines;
 use metrics::IOXD_METRICS;
 use object_store::ObjectStoreApi;
-use query::{frontend::sql::SQLQueryPlanner, Database, DatabaseStore};
+use query::{frontend::sql::SQLQueryPlanner, Database, DatabaseStore, PartitionChunk};
 use server::{ConnectionManager, Server as AppServer};
 
 // External crates
@@ -694,12 +694,14 @@ async fn snapshot_partition<M: ConnectionManager + Send + Sync + Debug + 'static
 
     let partition_key = &snapshot.partition;
     let chunk = db.rollover_partition(partition_key).await.unwrap();
+    let table_stats = db.table_summaries(partition_key, chunk.id());
     let snapshot = server::snapshot::snapshot_chunk(
         metadata_path,
         data_path,
         store,
         partition_key,
         chunk,
+        table_stats,
         None,
     )
     .unwrap();

@@ -5,6 +5,3 @@ When updating the version of the [flatbuffers](https://crates.io/crates/flatbuff
 To update the generated code, edit `generated_types/regenerate-flatbuffers.sh` and set the `FB_COMMIT` variable at the top of the file to the commit SHA of the same commit in the [flatbuffers repository](https://github.com/google/flatbuffers) where the `flatbuffers` Rust crate version was updated. This ensures we'll be [using the same version of `flatc` that the crate was tested with](https://github.com/google/flatbuffers/issues/6199#issuecomment-714562121).
 
 Then run the `generated_types/regenerate-flatbuffers.sh` script and check in any changes. Check the whole project builds.
-
-`generated_types/regenerate-flatbuffers.sh` will build `flatc` from source if it cannot be found.
-In order to do that your system will require `bazel`; you can likely install this with your favourite package manager.

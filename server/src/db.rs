@@ -35,6 +35,7 @@ use tracker::{MemRegistry, TaskTracker, TrackedFutureExt};
 use super::{buffer::Buffer, JobRegistry};
 use data_types::job::Job;
 
+use data_types::partition_metadata::TableSummary;
 use lifecycle::LifecycleManager;
 use system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA};
 
@@ -562,7 +563,7 @@ impl Db {
         self.sequence.fetch_add(1, Ordering::SeqCst)
     }
 
-    /// Return Summary information for all chunks in the specified
+    /// Return chunk summary information for all chunks in the specified
     /// partition across all storage systems
     pub fn partition_chunk_summaries(&self, partition_key: &str) -> Vec<ChunkSummary> {
         self.catalog
@@ -582,6 +583,19 @@ impl Db {
                 tables: vec![],
             })
     }
+
+    /// Return table summary information for the given chunk in the specified
+    /// partition
+    pub fn table_summaries(&self, partition_key: &str, chunk_id: u32) -> Vec<TableSummary> {
+        if let Some(partition) = self.catalog.partition(partition_key) {
+            let partition = partition.read();
+            if let Ok(chunk) = partition.chunk(chunk_id) {
+                return chunk.read().table_summaries();
+            }
+        }
+        Default::default()
+    }
+
     /// Returns the number of iterations of the background worker loop
     pub fn worker_iterations(&self) -> usize {
         self.worker_iterations.load(Ordering::Relaxed)

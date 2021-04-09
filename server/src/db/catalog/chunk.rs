@@ -2,13 +2,13 @@ use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
-use data_types::{chunk::ChunkSummary, partition_metadata::TableSummary};
+use data_types::{
+    chunk::{ChunkStorage, ChunkSummary},
+    partition_metadata::TableSummary,
+};
 use mutable_buffer::chunk::Chunk as MBChunk;
 use parquet_file::chunk::Chunk as ParquetChunk;
-use query::PartitionChunk;
 use read_buffer::Chunk as ReadBufferChunk;
-
-use crate::db::DBChunk;
 
 use super::{InternalChunkState, Result};
 use tracker::MemRegistry;
@@ -165,17 +165,37 @@ impl Chunk {
 
     /// Return ChunkSummary metadata for this chunk
     pub fn summary(&self) -> ChunkSummary {
+        let (estimated_bytes, storage) = match &self.state {
+            ChunkState::Invalid => panic!("invalid chunk state"),
+            ChunkState::Open(chunk) => (chunk.size(), ChunkStorage::OpenMutableBuffer),
+            ChunkState::Closing(chunk) => (chunk.size(), ChunkStorage::ClosedMutableBuffer),
+            ChunkState::Moving(chunk) => (chunk.size(), ChunkStorage::ClosedMutableBuffer),
+            ChunkState::Moved(chunk) => (chunk.size(), ChunkStorage::ReadBuffer),
+            ChunkState::WritingToObjectStore(chunk) => (chunk.size(), ChunkStorage::ObjectStore),
+            ChunkState::WrittenToObjectStore(chunk, _) => (chunk.size(), ChunkStorage::ObjectStore),
+        };
+
         ChunkSummary {
+            partition_key: Arc::clone(&self.partition_key),
+            id: self.id,
+            storage,
+            estimated_bytes,
             time_of_first_write: self.time_of_first_write,
             time_of_last_write: self.time_of_last_write,
             time_closing: self.time_closing,
-            ..DBChunk::snapshot(self).summary()
         }
     }
 
     /// Return TableSummary metadata for each table in this chunk
-    pub fn table_summaries(&self) -> impl Iterator<Item = TableSummary> {
-        DBChunk::snapshot(self).table_summaries().into_iter()
+    pub fn table_summaries(&self) -> Vec<TableSummary> {
+        match &self.state {
+            ChunkState::Invalid => panic!("invalid chunk state"),
+            ChunkState::Open(chunk) | ChunkState::Closing(chunk) => chunk.table_summaries(),
+            ChunkState::Moving(chunk) => chunk.table_summaries(),
+            ChunkState::Moved(chunk) => chunk.table_summaries(),
+            ChunkState::WritingToObjectStore(chunk) => chunk.table_summaries(),
+            ChunkState::WrittenToObjectStore(chunk, _) => chunk.table_summaries(),
+        }
     }
 
     /// Returns true if this chunk contains a table with the provided name
