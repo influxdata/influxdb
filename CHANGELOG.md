@@ -51,6 +51,7 @@ The prefix used for Prometheus metrics from the query controller has changed fro
 1. [21126](https://github.com/influxdata/influxdb/pull/21126): Update UI to match InfluxDB Cloud.
 1. [21144](https://github.com/influxdata/influxdb/pull/21144): Allow for disabling concurrency-limits in Flux controller.
 1. [21166](https://github.com/influxdata/influxdb/pull/21166): Replace unique resource IDs (UI assets, backup shards) with slugs to reduce cardinality of telemetry data.
+1. [21181](https://github.com/influxdata/influxdb/pull/21181): Enabled several UI features: Band & mosaic plot types, axis tick mark configuration, CSV file uploader, editable telegraf configurations, legend orientation options, and dashboard single cell refresh.
 
 ### Bug Fixes
 

@@ -132,7 +132,7 @@ var bandPlotType = MakeBoolFlag(
 	"Band Plot Type",
 	"bandPlotType",
 	"Monitoring Team",
-	false,
+	true,
 	Temporary,
 	true,
 )
@@ -146,7 +146,7 @@ var mosaicGraphType = MakeBoolFlag(
 	"Mosaic Graph Type",
 	"mosaicGraphType",
 	"Monitoring Team",
-	false,
+	true,
 	Temporary,
 	true,
 )
@@ -212,6 +212,104 @@ func TimeFilterFlags() BoolFlag {
 	return timeFilterFlags
 }
 
+var axisTicksGenerator = MakeBoolFlag(
+	"Axis Tick Generator",
+	"axisTicksGenerator",
+	"Monitoring Team",
+	true,
+	Temporary,
+	true,
+)
+
+// AxisTickGenerator - Allows for controlling how many axis ticks there are on a graph
+func AxisTickGenerator() BoolFlag {
+	return axisTicksGenerator
+}
+
+var csvUploader = MakeBoolFlag(
+	"UI CSV Uploader",
+	"csvUploader",
+	"Monitoring Team",
+	true,
+	Temporary,
+	true,
+)
+
+// UiCsvUploader - Adds the ability to upload data from a CSV file to a bucket
+func UiCsvUploader() BoolFlag {
+	return csvUploader
+}
+
+var editTelegrafs = MakeBoolFlag(
+	"Editable Telegraf Configurations",
+	"editTelegrafs",
+	"Monitoring Team",
+	true,
+	Temporary,
+	true,
+)
+
+// EditableTelegrafConfigurations - Edit telegraf configurations from the UI
+func EditableTelegrafConfigurations() BoolFlag {
+	return editTelegrafs
+}
+
+var legendOrientation = MakeBoolFlag(
+	"Legend Orientation in the UI",
+	"legendOrientation",
+	"Monitoring Team",
+	true,
+	Temporary,
+	true,
+)
+
+// LegendOrientationInTheUi - Change the appearance of the legend
+func LegendOrientationInTheUi() BoolFlag {
+	return legendOrientation
+}
+
+var cursorAtEOF = MakeBoolFlag(
+	"Default Monaco Selection to EOF",
+	"cursorAtEOF",
+	"Monitoring Team",
+	false,
+	Temporary,
+	true,
+)
+
+// DefaultMonacoSelectionToEof - Positions the cursor at the end of the line(s) when using the monaco editor
+func DefaultMonacoSelectionToEof() BoolFlag {
+	return cursorAtEOF
+}
+
+var refreshSingleCell = MakeBoolFlag(
+	"Refresh Single Cell",
+	"refreshSingleCell",
+	"Monitoring Team",
+	true,
+	Temporary,
+	true,
+)
+
+// RefreshSingleCell - Refresh a single cell on the dashboard rather than the entire dashboard
+func RefreshSingleCell() BoolFlag {
+	return refreshSingleCell
+}
+
+var typeAheadVariableDropdown = MakeBoolFlag(
+	"Type Ahead Dropdowns for Variables",
+	"typeAheadVariableDropdown",
+	"Monitoring Team",
+	false,
+	Temporary,
+	true,
+)
+
+// TypeAheadDropdownsForVariables - Enables type ahead dropdowns for variables
+func TypeAheadDropdownsForVariables() BoolFlag {
+	return typeAheadVariableDropdown
+}
+
 var all = []Flag{
 	appMetrics,
 	backendExample,
@@ -228,6 +326,13 @@ var all = []Flag{
 	injectLatestSuccessTime,
 	enforceOrgDashboardLimits,
 	timeFilterFlags,
+	axisTicksGenerator,
+	csvUploader,
+	editTelegrafs,
+	legendOrientation,
+	cursorAtEOF,
+	refreshSingleCell,
+	typeAheadVariableDropdown,
 }
 
 var byKey = map[string]Flag{
@@ -246,4 +351,11 @@ var byKey = map[string]Flag{
 	"injectLatestSuccessTime":       injectLatestSuccessTime,
 	"enforceOrgDashboardLimits":     enforceOrgDashboardLimits,
 	"timeFilterFlags":               timeFilterFlags,
+	"axisTicksGenerator":            axisTicksGenerator,
+	"csvUploader":                   csvUploader,
+	"editTelegrafs":                 editTelegrafs,
+	"legendOrientation":             legendOrientation,
+	"cursorAtEOF":                   cursorAtEOF,
+	"refreshSingleCell":             refreshSingleCell,
+	"typeAheadVariableDropdown":     typeAheadVariableDropdown,
 }
