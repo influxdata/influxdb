@@ -26,7 +26,7 @@ where
 
 /// An extension trait that adds the methods `optional` and `required` to any
 /// Option containing a type implementing `TryInto<U, Error = FieldViolation>`
-pub(crate) trait FromFieldOpt<T> {
+pub trait FromFieldOpt<T> {
     /// Try to convert inner type, if any, using TryInto calling
     /// `FieldViolation::scope` on any error encountered
     ///

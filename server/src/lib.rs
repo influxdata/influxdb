@@ -192,6 +192,18 @@ pub struct Server<M: ConnectionManager> {
     jobs: Arc<JobRegistry>,
 }
 
+#[derive(Debug)]
+pub enum UpdateError<E> {
+    Update(Error),
+    Closure(E),
+}
+
+impl<E> From<Error> for UpdateError<E> {
+    fn from(e: Error) -> Self {
+        Self::Update(e)
+    }
+}
+
 impl<M: ConnectionManager> Server<M> {
     pub fn new(connection_manager: M, store: Arc<ObjectStore>) -> Self {
         let jobs = Arc::new(JobRegistry::new());
@@ -404,6 +416,26 @@ impl<M: ConnectionManager> Server<M> {
 
     pub fn db_rules(&self, name: &DatabaseName<'_>) -> Option<DatabaseRules> {
         self.config.db(name).map(|d| d.rules.read().clone())
+    }
+
+    // Update database rules and save on success.
+    pub async fn update_db_rules<F, E>(
+        &self,
+        db_name: &DatabaseName<'static>,
+        update: F,
+    ) -> std::result::Result<DatabaseRules, UpdateError<E>>
+    where
+        F: FnOnce(DatabaseRules) -> Result<DatabaseRules, E>,
+    {
+        let rules = self
+            .config
+            .update_db_rules(db_name, update)
+            .map_err(|e| match e {
+                crate::config::UpdateError::Closure(e) => UpdateError::Closure(e),
+                crate::config::UpdateError::Update(e) => UpdateError::Update(e),
+            })?;
+        self.persist_database_rules(rules.clone()).await?;
+        Ok(rules)
     }
 
     pub fn remotes_sorted(&self) -> Vec<(WriterId, String)> {

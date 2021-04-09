@@ -1,7 +1,9 @@
 syntax = "proto3";
 package influxdata.iox.management.v1;
 
+
 import "google/longrunning/operations.proto";
+import "google/protobuf/field_mask.proto";
 import "influxdata/iox/management/v1/database_rules.proto";
 import "influxdata/iox/management/v1/chunk.proto";
 import "influxdata/iox/management/v1/partition.proto";
@@ -16,6 +18,11 @@ service ManagementService {
   rpc GetDatabase(GetDatabaseRequest) returns (GetDatabaseResponse);
 
   rpc CreateDatabase(CreateDatabaseRequest) returns (CreateDatabaseResponse);
+
+  // Update a database.
+  //
+  // Roughly follows the https://google.aip.dev/134 pattern, except we wrap the response
+  rpc UpdateDatabase(UpdateDatabaseRequest) returns (UpdateDatabaseResponse);
 
   // List chunks available on this database
   rpc ListChunks(ListChunksRequest) returns (ListChunksResponse);
@@ -52,7 +59,6 @@ service ManagementService {
 
   // Close a chunk and move it to the read buffer
   rpc ClosePartitionChunk(ClosePartitionChunkRequest) returns (ClosePartitionChunkResponse);
-
 }
 
 message GetWriterIdRequest {}
@@ -86,6 +92,16 @@ message CreateDatabaseRequest {
 }
 
 message CreateDatabaseResponse {}
+
+// Update a database.
+message UpdateDatabaseRequest {
+  // The rule's `name` field is used to identify the database rules to be updated.
+  DatabaseRules rules = 1;
+}
+
+message UpdateDatabaseResponse {
+  DatabaseRules rules = 1;
+}
 
 message ListChunksRequest {
   // the name of the database

@@ -23,4 +23,4 @@ pub mod timestamp;
 pub mod wal;
 
 mod database_name;
-pub(crate) mod field_validation;
+pub mod field_validation;
