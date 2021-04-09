@@ -479,8 +479,6 @@ impl Db {
             let predicate = read_buffer::Predicate::default();
 
             // Get RecordBatchStream of data from the read buffer chunk
-            // TODO: When we have the rb_chunk, the following code will be replaced with one
-            // line let stream = rb_chunk.read_filter()
             let read_results = rb_chunk
                 .read_filter(stats.name.as_str(), predicate, Selection::All)
                 .context(ReadBufferChunkError { chunk_id })?;
@@ -719,8 +717,11 @@ impl CatalogProvider for Db {
 
 #[cfg(test)]
 mod tests {
+    use crate::query_tests::utils::{make_database, make_db};
     use arrow_deps::{
-        arrow::record_batch::RecordBatch, assert_table_eq, datafusion::physical_plan::collect,
+        arrow::record_batch::RecordBatch,
+        assert_table_eq,
+        datafusion::{self, execution::context, physical_plan::collect},
     };
     use chrono::Utc;
     use data_types::{
@@ -728,15 +729,24 @@ mod tests {
         database_rules::{Order, Sort, SortOrder},
         partition_metadata::{ColumnSummary, StatValues, Statistics, TableSummary},
     };
+    use object_store::{
+        disk::File, path::ObjectStorePath, path::Path, ObjectStore, ObjectStoreApi,
+    };
     use query::{
         exec::Executor, frontend::sql::SQLQueryPlanner, test::TestLPWriter, PartitionChunk,
     };
     use test_helpers::assert_contains;
 
-    use crate::query_tests::utils::make_db;
-
     use super::*;
+    use futures::stream;
+    use futures::{StreamExt, TryStreamExt};
+    use std::iter::Iterator;
     use std::num::NonZeroUsize;
+    use std::str;
+    use tempfile::TempDir;
+
+    type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
+    type Result<T, E = Error> = std::result::Result<T, E>;
 
     #[tokio::test]
     async fn write_no_mutable_buffer() {
@@ -893,6 +903,120 @@ mod tests {
         // query after all data dropped!"); let expected = vec![] as
         // Vec<&str>; let batches = run_query(&db, "select * from
         // cpu").await; assert_table_eq!(expected, &batches);
+    }
+
+    async fn flatten_list_stream(
+        storage: Arc<ObjectStore>,
+        prefix: Option<&Path>,
+    ) -> Result<Vec<Path>> {
+        storage
+            .list(prefix)
+            .await?
+            .map_ok(|v| stream::iter(v).map(Ok))
+            .try_flatten()
+            .try_collect()
+            .await
+    }
+
+    async fn datafusion_plan_and_collect(
+        ctx: &mut context::ExecutionContext,
+        sql: &str,
+    ) -> Result<Vec<RecordBatch>, datafusion::error::DataFusionError> {
+        let logical_plan = ctx.create_logical_plan(sql).expect("Create logical plan");
+        let logical_plan = ctx.optimize(&logical_plan).expect("Optimize Logical Plan");
+        let physical_plan = ctx
+            .create_physical_plan(&logical_plan)
+            .expect("Create Physical Plan");
+        collect(physical_plan).await
+    }
+
+    #[tokio::test]
+    async fn write_to_parquet_file() {
+        // Test that data can be written into parquet files
+
+        // Create an object store with a specified location in a local disk
+        let root = TempDir::new().unwrap();
+        let object_store = Arc::new(ObjectStore::new_file(File::new(root.path())));
+
+        // Create a DB given a server id, an object store and a db name
+        let server_id: NonZeroU32 = NonZeroU32::new(10).unwrap();
+        let db_name = "parquet_test_db";
+        let db = Arc::new(make_database(server_id, Arc::clone(&object_store), db_name));
+
+        // Write some line protocols in Mutable buffer of the DB
+        let mut writer = TestLPWriter::default();
+        writer.write_lp_string(db.as_ref(), "cpu bar=1 10").unwrap();
+        writer.write_lp_string(db.as_ref(), "cpu bar=2 20").unwrap();
+
+        //Now mark the MB chunk close
+        let partition_key = "1970-01-01T00";
+        let mb_chunk = db.rollover_partition("1970-01-01T00").await.unwrap();
+        // Move that MB chunk to RB chunk and drop it from MB
+        let rb_chunk = db
+            .load_chunk_to_read_buffer(partition_key, mb_chunk.id())
+            .await
+            .unwrap();
+        // Write the RB chunk to Object Store but keep it in RB
+        let pq_chunk = db
+            .load_chunk_to_object_store(partition_key, mb_chunk.id())
+            .await
+            .unwrap();
+
+        // it should be the same chunk!
+        assert_eq!(mb_chunk.id(), rb_chunk.id());
+        assert_eq!(mb_chunk.id(), pq_chunk.id());
+
+        // we should have chunks in the mutable buffer, read buffer, and object store
+        // (Note the currently open chunk is not listed)
+        assert_eq!(mutable_chunk_ids(&db, partition_key), vec![1]);
+        assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![0]);
+        assert_eq!(read_parquet_file_chunk_ids(&db, partition_key), vec![0]);
+
+        // Verify data written to the parquet file in object store
+        // First, there must be one path of object store in the catalog
+        let paths = pq_chunk.object_store_paths();
+        assert_eq!(paths.len(), 1);
+
+        // Check that the path must exist in the object store
+        let path_list = flatten_list_stream(Arc::clone(&object_store), Some(&paths[0]))
+            .await
+            .unwrap();
+        println!("path_list: {:#?}", path_list);
+        assert_eq!(path_list.len(), 1);
+        assert_eq!(path_list, paths.clone());
+
+        // Get full string path
+        // Todo: it is better if we can get this full path from a function
+        // in object_store::path::Path (will talk with mkm (aka Marko))
+        let root_path = format!("{:?}", root.path());
+        let root_path = root_path.trim_matches('"');
+        let path = format!("{}/{}", root_path, paths[0].display());
+        println!("path: {}", path);
+
+        // Create External table of this parquet file to get its content in a human
+        // readable form
+        let sql = format!(
+            "CREATE EXTERNAL TABLE parquet_table STORED AS PARQUET LOCATION '{}'",
+            path
+        );
+
+        let mut ctx = context::ExecutionContext::new();
+        let df = ctx.sql(&sql).unwrap();
+        df.collect().await.unwrap();
+
+        // Select data from that table
+        let sql = "SELECT * FROM parquet_table";
+        let content = datafusion_plan_and_collect(&mut ctx, &sql).await.unwrap();
+        println!("Content: {:?}", content);
+        let expected = vec![
+            "+-----+------+",
+            "| bar | time |",
+            "+-----+------+",
+            "| 1   | 10   |",
+            "| 2   | 20   |",
+            "+-----+------+",
+        ];
+        assert_table_eq!(expected, &content);
     }
 
     #[tokio::test]
@@ -1413,6 +1537,21 @@ mod tests {
             .into_iter()
             .filter_map(|chunk| match chunk.storage {
                 ChunkStorage::ReadBuffer => Some(chunk.id),
+                ChunkStorage::ReadBufferAndObjectStore => Some(chunk.id),
+                _ => None,
+            })
+            .collect();
+        chunk_ids.sort_unstable();
+        chunk_ids
+    }
+
+    fn read_parquet_file_chunk_ids(db: &Db, partition_key: &str) -> Vec<u32> {
+        let mut chunk_ids: Vec<u32> = db
+            .partition_chunk_summaries(partition_key)
+            .into_iter()
+            .filter_map(|chunk| match chunk.storage {
+                ChunkStorage::ReadBufferAndObjectStore => Some(chunk.id),
+                ChunkStorage::ObjectStoreOnly => Some(chunk.id),
                 _ => None,
             })
             .collect();

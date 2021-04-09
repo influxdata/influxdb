@@ -7,12 +7,12 @@ use std::mem;
 #[derive(Debug, Clone)]
 pub struct Table {
     /// Meta data of the table
-    pub table_summary: TableSummary,
+    table_summary: TableSummary,
 
     /// Path in the object store. Format:
     ///  <writer id>/<database>/data/<partition key>/<chunk
     /// id>/<tablename>.parquet
-    pub object_store_path: Path,
+    object_store_path: Path,
 }
 
 impl Table {
@@ -21,6 +21,10 @@ impl Table {
             table_summary: meta,
             object_store_path: path,
         }
+    }
+
+    pub fn table_summary(&self) -> TableSummary {
+        self.table_summary.clone()
     }
 
     pub fn has_table(&self, table_name: &str) -> bool {
@@ -37,5 +41,10 @@ impl Table {
     /// Return name of this table
     pub fn name(&self) -> String {
         self.table_summary.name.clone()
+    }
+
+    /// Return the object store path of this table
+    pub fn path(&self) -> Path {
+        self.object_store_path.clone()
     }
 }

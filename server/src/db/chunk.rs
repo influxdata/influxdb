@@ -2,6 +2,7 @@ use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 use data_types::chunk::{ChunkStorage, ChunkSummary};
 use internal_types::{schema::Schema, selection::Selection};
 use mutable_buffer::chunk::Chunk as MBChunk;
+use object_store::path::Path;
 use observability_deps::tracing::debug;
 use parquet_file::chunk::Chunk as ParquetChunk;
 use query::{exec::stringset::StringSet, predicate::Predicate, PartitionChunk};
@@ -165,9 +166,20 @@ impl DBChunk {
                     estimated_bytes,
                 )
             }
-            Self::ParquetFile { .. } => {
-                unimplemented!("parquet file summary not implemented")
-            }
+            Self::ParquetFile { chunk } => ChunkSummary::new_without_timestamps(
+                Arc::clone(&Arc::new(chunk.partition_key().to_string())),
+                chunk.id(),
+                ChunkStorage::ReadBufferAndObjectStore,
+                chunk.size(),
+            ),
+        }
+    }
+
+    /// Return object store paths
+    pub fn object_store_paths(&self) -> Vec<Path> {
+        match self {
+            Self::ParquetFile { chunk } => chunk.all_paths(),
+            _ => vec![],
         }
     }
 }
@@ -179,7 +191,7 @@ impl PartitionChunk for DBChunk {
         match self {
             Self::MutableBuffer { chunk, .. } => chunk.id(),
             Self::ReadBuffer { chunk, .. } => chunk.id(),
-            Self::ParquetFile { .. } => unimplemented!("parquet file not implemented"),
+            Self::ParquetFile { chunk, .. } => chunk.id(),
         }
     }
 
@@ -187,7 +199,7 @@ impl PartitionChunk for DBChunk {
         match self {
             Self::MutableBuffer { chunk, .. } => chunk.table_summaries(),
             Self::ReadBuffer { chunk, .. } => chunk.table_summaries(),
-            Self::ParquetFile { .. } => unimplemented!("parquet file not implemented"),
+            Self::ParquetFile { chunk } => chunk.table_summaries(),
         }
     }
 
@@ -201,7 +213,7 @@ impl PartitionChunk for DBChunk {
                     known_tables.insert(name);
                 }
             }
-            Self::ParquetFile { .. } => unimplemented!("parquet file not implemented"),
+            Self::ParquetFile { chunk, .. } => chunk.all_table_names(known_tables),
         }
     }
 
@@ -252,7 +264,7 @@ impl PartitionChunk for DBChunk {
                 Some(chunk.table_names(&rb_predicate, &BTreeSet::new()))
             }
             Self::ParquetFile { .. } => {
-                unimplemented!("parquet file not implemented")
+                unimplemented!("parquet file not implemented for scan_data")
             }
         };
 
@@ -313,9 +325,7 @@ impl PartitionChunk for DBChunk {
         match self {
             Self::MutableBuffer { chunk, .. } => chunk.has_table(table_name),
             Self::ReadBuffer { chunk, .. } => chunk.has_table(table_name),
-            Self::ParquetFile { .. } => {
-                unimplemented!("parquet file not implemented for has_table")
-            }
+            Self::ParquetFile { chunk, .. } => chunk.has_table(table_name),
         }
     }
 
