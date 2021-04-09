@@ -37,6 +37,36 @@ func Test_normalizePath(t *testing.T) {
 			path:     path.Join("/api/v2/organizations", platform.ID(2).String(), "users", platform.ID(3).String()),
 			expected: "/api/v2/organizations/:id/users/:id",
 		},
+		{
+			name:     "5",
+			path:     "/838442d56d.svg",
+			expected: "/" + fileSlug + ".svg",
+		},
+		{
+			name:     "6",
+			path:     "/838442d56d.svg/extra",
+			expected: "/838442d56d.svg/extra",
+		},
+		{
+			name:     "7",
+			path:     "/api/v2/restore/shards/1001",
+			expected: path.Join("/api/v2/restore/shards/", shardSlug),
+		},
+		{
+			name:     "8",
+			path:     "/api/v2/restore/shards/1001/extra",
+			expected: path.Join("/api/v2/restore/shards/", shardSlug, "extra"),
+		},
+		{
+			name:     "9",
+			path:     "/api/v2/backup/shards/1005",
+			expected: path.Join("/api/v2/backup/shards/", shardSlug),
+		},
+		{
+			name:     "10",
+			path:     "/api/v2/backup/shards/1005/extra",
+			expected: path.Join("/api/v2/backup/shards/", shardSlug, "extra"),
+		},
 	}
 
 	for _, tt := range tests {
