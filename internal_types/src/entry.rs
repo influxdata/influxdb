@@ -430,7 +430,7 @@ impl<'a> TableBatch<'a> {
 #[derive(Debug)]
 pub struct Column<'a> {
     fb: entry_fb::Column<'a>,
-    row_count: usize,
+    pub row_count: usize,
 }
 
 impl<'a> Column<'a> {
@@ -440,6 +440,18 @@ impl<'a> Column<'a> {
 
     pub fn logical_type(&self) -> entry_fb::LogicalColumnType {
         self.fb.logical_column_type()
+    }
+
+    pub fn is_tag(&self) -> bool {
+        self.fb.logical_column_type() == entry_fb::LogicalColumnType::Tag
+    }
+
+    pub fn is_field(&self) -> bool {
+        self.fb.logical_column_type() == entry_fb::LogicalColumnType::Field
+    }
+
+    pub fn is_time(&self) -> bool {
+        self.fb.logical_column_type() == entry_fb::LogicalColumnType::Time
     }
 
     pub fn values(&self) -> TypedValuesIterator<'a> {
@@ -564,12 +576,22 @@ impl<'a> TypedValuesIterator<'a> {
             _ => None,
         }
     }
+
+    pub fn type_description(&self) -> &str {
+        match self {
+            Self::Bool(_) => "bool",
+            Self::I64(_) => "i64",
+            Self::F64(_) => "f64",
+            Self::U64(_) => "u64",
+            Self::String(_) => "String",
+        }
+    }
 }
 
 /// Iterator over the flatbuffers BoolValues
 #[derive(Debug)]
 pub struct BoolIterator<'a> {
-    row_count: usize,
+    pub row_count: usize,
     position: usize,
     null_mask: Option<&'a [u8]>,
     values: &'a [bool],
@@ -599,7 +621,7 @@ impl<'a> Iterator for BoolIterator<'a> {
 /// Iterator over the flatbuffers I64Values, F64Values, and U64Values.
 #[derive(Debug)]
 pub struct ValIterator<'a, T: Follow<'a> + Follow<'a, Inner = T>> {
-    row_count: usize,
+    pub row_count: usize,
     position: usize,
     null_mask: Option<&'a [u8]>,
     values_iter: VectorIter<'a, T>,
@@ -625,7 +647,7 @@ impl<'a, T: Follow<'a> + Follow<'a, Inner = T>> Iterator for ValIterator<'a, T> 
 /// Iterator over the flatbuffers StringValues
 #[derive(Debug)]
 pub struct StringIterator<'a> {
-    row_count: usize,
+    pub row_count: usize,
     position: usize,
     null_mask: Option<&'a [u8]>,
     values: VectorIter<'a, ForwardsUOffset<&'a str>>,

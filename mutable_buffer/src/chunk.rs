@@ -6,7 +6,7 @@ use generated_types::wal as wb;
 use std::collections::{BTreeSet, HashMap};
 
 use data_types::partition_metadata::TableSummary;
-use internal_types::{schema::Schema, selection::Selection};
+use internal_types::{entry::TableBatch, schema::Schema, selection::Selection};
 
 use crate::{
     column::Column,
@@ -14,6 +14,8 @@ use crate::{
     pred::{ChunkPredicate, ChunkPredicateBuilder},
     table::Table,
 };
+use data_types::database_rules::WriterId;
+use internal_types::entry::ClockValue;
 use snafu::{OptionExt, ResultExt, Snafu};
 use tracker::{MemRegistry, MemTracker};
 
@@ -149,6 +151,30 @@ impl Chunk {
         };
         chunk.tracker.set_bytes(chunk.size());
         chunk
+    }
+
+    pub fn write_table_batches(
+        &mut self,
+        clock_value: ClockValue,
+        writer_id: WriterId,
+        batches: &[TableBatch<'_>],
+    ) -> Result<()> {
+        for batch in batches {
+            let table_name = batch.name();
+            let table_id = self.dictionary.lookup_value_or_insert(table_name);
+
+            let table = self
+                .tables
+                .entry(table_id)
+                .or_insert_with(|| Table::new(table_id));
+
+            let columns = batch.columns();
+            table
+                .write_columns(&mut self.dictionary, clock_value, writer_id, columns)
+                .context(TableWrite { table_name })?;
+        }
+
+        Ok(())
     }
 
     pub fn write_entry(&mut self, entry: &wb::WriteBufferEntry<'_>) -> Result<()> {
@@ -484,5 +510,132 @@ impl Chunk {
     /// Return true if this chunk has the specified table name
     pub fn has_table(&self, table_name: &str) -> bool {
         matches!(self.table(table_name), Ok(Some(_)))
+    }
+}
+
+pub mod test_helpers {
+    use super::*;
+    use internal_types::entry::test_helpers::lp_to_entry;
+
+    /// A helper that will write line protocol string to the passed in Chunk.
+    /// All data will be under a single partition with a clock value and
+    /// writer id of 0.
+    pub fn write_lp_to_chunk(lp: &str, chunk: &mut Chunk) -> Result<()> {
+        let entry = lp_to_entry(lp);
+
+        for w in entry.partition_writes().unwrap() {
+            chunk.write_table_batches(0, 0, &w.table_batches())?;
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::test_helpers::write_lp_to_chunk;
+    use super::*;
+    use arrow_deps::arrow::util::pretty::pretty_format_batches;
+
+    #[test]
+    fn writes_table_batches() {
+        let mr = MemRegistry::new();
+        let mut chunk = Chunk::new(1, &mr);
+
+        let lp = vec![
+            "cpu,host=a val=23 1",
+            "cpu,host=b val=2 1",
+            "mem,host=a val=23432i 1",
+        ]
+        .join("\n");
+
+        write_lp_to_chunk(&lp, &mut chunk).unwrap();
+
+        assert_table(
+            &chunk,
+            "cpu",
+            &[
+                "+------+------+-----+",
+                "| host | time | val |",
+                "+------+------+-----+",
+                "| a    | 1    | 23  |",
+                "| b    | 1    | 2   |",
+                "+------+------+-----+\n",
+            ],
+        );
+
+        assert_table(
+            &chunk,
+            "mem",
+            &[
+                "+------+------+-------+",
+                "| host | time | val   |",
+                "+------+------+-------+",
+                "| a    | 1    | 23432 |",
+                "+------+------+-------+\n",
+            ],
+        );
+
+        let lp = vec![
+            "cpu,host=c val=11 1",
+            "mem sval=\"hi\" 2",
+            "disk val=true 1",
+        ]
+        .join("\n");
+
+        write_lp_to_chunk(&lp, &mut chunk).unwrap();
+
+        assert_table(
+            &chunk,
+            "cpu",
+            &[
+                "+------+------+-----+",
+                "| host | time | val |",
+                "+------+------+-----+",
+                "| a    | 1    | 23  |",
+                "| b    | 1    | 2   |",
+                "| c    | 1    | 11  |",
+                "+------+------+-----+\n",
+            ],
+        );
+
+        assert_table(
+            &chunk,
+            "disk",
+            &[
+                "+------+------+",
+                "| time | val  |",
+                "+------+------+",
+                "| 1    | true |",
+                "+------+------+\n",
+            ],
+        );
+
+        assert_table(
+            &chunk,
+            "mem",
+            &[
+                "+------+------+------+-------+",
+                "| host | sval | time | val   |",
+                "+------+------+------+-------+",
+                "| a    |      | 1    | 23432 |",
+                "|      | hi   | 2    |       |",
+                "+------+------+------+-------+\n",
+            ],
+        );
+    }
+
+    fn assert_table(chunk: &Chunk, table: &str, data: &[&str]) {
+        let mut batches = vec![];
+        chunk
+            .table_to_arrow(&mut batches, table, Selection::All)
+            .unwrap();
+        let res = pretty_format_batches(&batches).unwrap();
+        let data = data.join("\n");
+        assert_eq!(
+            res, data,
+            "\n{} table results not as expected:\nEXPECTED:\n{}\nRECEIVED:\n{}",
+            table, data, res
+        );
     }
 }

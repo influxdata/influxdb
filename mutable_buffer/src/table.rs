@@ -14,6 +14,7 @@ use crate::{
 };
 use data_types::partition_metadata::{ColumnSummary, Statistics};
 use internal_types::{
+    entry,
     schema::{builder::SchemaBuilder, Schema, TIME_COLUMN_NAME},
     selection::Selection,
 };
@@ -30,6 +31,8 @@ use arrow_deps::{
         record_batch::RecordBatch,
     },
 };
+use data_types::database_rules::WriterId;
+use internal_types::entry::ClockValue;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -237,6 +240,106 @@ impl Table {
         Ok(())
     }
 
+    /// Validates the schema of the passed in columns, then adds their values to
+    /// the associated columns in the table and updates summary statistics.
+    pub fn write_columns(
+        &mut self,
+        dictionary: &mut Dictionary,
+        _clock_value: ClockValue,
+        _writer_id: WriterId,
+        columns: Vec<entry::Column<'_>>,
+    ) -> Result<()> {
+        // get the column ids and validate schema for those that already exist
+        let columns_with_inserts = columns
+            .into_iter()
+            .map(|insert_column| {
+                let column_id = dictionary.lookup_value_or_insert(insert_column.name());
+                let values = insert_column.values();
+
+                if let Some(c) = self.columns.get(&column_id) {
+                    match (&values, c) {
+                        (entry::TypedValuesIterator::Bool(_), Column::Bool(_, _)) => (),
+                        (entry::TypedValuesIterator::U64(_), Column::U64(_, _)) => (),
+                        (entry::TypedValuesIterator::F64(_), Column::F64(_, _)) => (),
+                        (entry::TypedValuesIterator::I64(_), Column::I64(_, _)) => (),
+                        (entry::TypedValuesIterator::String(_), Column::String(_, _)) => {
+                            if !insert_column.is_field() {
+                                InternalColumnTypeMismatch {
+                                    column_id,
+                                    expected_column_type: c.type_description(),
+                                    actual_column_type: values.type_description(),
+                                }
+                                .fail()?
+                            };
+                        }
+                        (entry::TypedValuesIterator::String(_), Column::Tag(_, _)) => {
+                            if !insert_column.is_tag() {
+                                InternalColumnTypeMismatch {
+                                    column_id,
+                                    expected_column_type: c.type_description(),
+                                    actual_column_type: values.type_description(),
+                                }
+                                .fail()?
+                            };
+                        }
+                        _ => InternalColumnTypeMismatch {
+                            column_id,
+                            expected_column_type: c.type_description(),
+                            actual_column_type: values.type_description(),
+                        }
+                        .fail()?,
+                    }
+                }
+
+                Ok((column_id, insert_column.logical_type(), values))
+            })
+            .collect::<Result<Vec<_>>>()?;
+
+        let row_count_before_insert = self.row_count();
+
+        for (column_id, logical_type, values) in columns_with_inserts.into_iter() {
+            match self.columns.get_mut(&column_id) {
+                Some(c) => c
+                    .push_typed_values(dictionary, logical_type, values)
+                    .with_context(|| {
+                        let column = dictionary.lookup_id(column_id).unwrap_or("unknown");
+                        ColumnError { column }
+                    })?,
+                None => {
+                    self.columns.insert(
+                        column_id,
+                        Column::new_from_typed_values(
+                            dictionary,
+                            row_count_before_insert,
+                            logical_type,
+                            values,
+                        ),
+                    );
+                }
+            }
+        }
+
+        // ensure all columns have the same number of rows as the one with the most.
+        // This adds nulls to the columns that weren't included in this write
+        let max_row_count = self
+            .columns
+            .values()
+            .fold(row_count_before_insert, |max, col| {
+                let len = col.len();
+                if max < len {
+                    len
+                } else {
+                    max
+                }
+            });
+
+        for c in self.columns.values_mut() {
+            c.push_nulls_to_len(max_row_count);
+        }
+
+        Ok(())
+    }
+
     /// Returns the column selection for all the columns in this table, orderd
     /// by table name
     fn all_columns_selection<'a>(&self, chunk: &'a Chunk) -> Result<TableColSelection<'a>> {
@@ -348,6 +451,7 @@ impl Table {
 
         for col in &selection.cols {
             let column = self.column(col.column_id)?;
+            println!("COLUMN: {:#?}", column);
 
             let array = match column {
                 Column::String(vals, _) => {
@@ -594,6 +698,7 @@ mod tests {
 
     use influxdb_line_protocol::{parse_lines, ParsedLine};
     use internal_types::data::split_lines_into_write_entry_partitions;
+    use internal_types::entry::test_helpers::lp_to_entry;
 
     use super::*;
     use tracker::MemRegistry;
@@ -799,6 +904,151 @@ mod tests {
             expected_schema, actual_schema,
             "Expected:\n{:#?}\nActual:\n{:#?}\n",
             expected_schema, actual_schema
+        );
+    }
+
+    #[test]
+    fn write_columns_validates_schema() {
+        let mut dictionary = Dictionary::new();
+        let mut table = Table::new(dictionary.lookup_value_or_insert("foo"));
+
+        let lp = "foo,t1=asdf iv=1i,uv=1u,fv=1.0,bv=true,sv=\"hi\" 1";
+        let entry = lp_to_entry(&lp);
+        table
+            .write_columns(
+                &mut dictionary,
+                0,
+                0,
+                entry
+                    .partition_writes()
+                    .unwrap()
+                    .first()
+                    .unwrap()
+                    .table_batches()
+                    .first()
+                    .unwrap()
+                    .columns(),
+            )
+            .unwrap();
+
+        let lp = "foo t1=\"string\" 1";
+        let entry = lp_to_entry(&lp);
+        let response = table
+            .write_columns(
+                &mut dictionary,
+                0,
+                0,
+                entry
+                    .partition_writes()
+                    .unwrap()
+                    .first()
+                    .unwrap()
+                    .table_batches()
+                    .first()
+                    .unwrap()
+                    .columns(),
+            )
+            .err()
+            .unwrap();
+        assert!(
+            matches!(&response, Error::InternalColumnTypeMismatch {expected_column_type, actual_column_type, ..} if expected_column_type == "tag" && actual_column_type == "String"),
+            format!("didn't match returned error: {:?}", response)
+        );
+
+        let lp = "foo iv=1u 1";
+        let entry = lp_to_entry(&lp);
+        let response = table
+            .write_columns(
+                &mut dictionary,
+                0,
+                0,
+                entry
+                    .partition_writes()
+                    .unwrap()
+                    .first()
+                    .unwrap()
+                    .table_batches()
+                    .first()
+                    .unwrap()
+                    .columns(),
+            )
+            .err()
+            .unwrap();
+        assert!(
+            matches!(&response, Error::InternalColumnTypeMismatch {expected_column_type, actual_column_type, ..} if expected_column_type == "i64" && actual_column_type == "u64"),
+            format!("didn't match returned error: {:?}", response)
+        );
+
+        let lp = "foo fv=1i 1";
+        let entry = lp_to_entry(&lp);
+        let response = table
+            .write_columns(
+                &mut dictionary,
+                0,
+                0,
+                entry
+                    .partition_writes()
+                    .unwrap()
+                    .first()
+                    .unwrap()
+                    .table_batches()
+                    .first()
+                    .unwrap()
+                    .columns(),
+            )
+            .err()
+            .unwrap();
+        assert!(
+            matches!(&response, Error::InternalColumnTypeMismatch {expected_column_type, actual_column_type, ..} if expected_column_type == "f64" && actual_column_type == "i64"),
+            format!("didn't match returned error: {:?}", response)
+        );
+
+        let lp = "foo bv=1 1";
+        let entry = lp_to_entry(&lp);
+        let response = table
+            .write_columns(
+                &mut dictionary,
+                0,
+                0,
+                entry
+                    .partition_writes()
+                    .unwrap()
+                    .first()
+                    .unwrap()
+                    .table_batches()
+                    .first()
+                    .unwrap()
+                    .columns(),
+            )
+            .err()
+            .unwrap();
+        assert!(
+            matches!(&response, Error::InternalColumnTypeMismatch {expected_column_type, actual_column_type, ..} if expected_column_type == "bool" && actual_column_type == "f64"),
+            format!("didn't match returned error: {:?}", response)
+        );
+
+        let lp = "foo sv=true 1";
+        let entry = lp_to_entry(&lp);
+        let response = table
+            .write_columns(
+                &mut dictionary,
+                0,
+                0,
+                entry
+                    .partition_writes()
+                    .unwrap()
+                    .first()
+                    .unwrap()
+                    .table_batches()
+                    .first()
+                    .unwrap()
+                    .columns(),
+            )
+            .err()
+            .unwrap();
+        assert!(
+            matches!(&response, Error::InternalColumnTypeMismatch {expected_column_type, actual_column_type, ..} if expected_column_type == "String" && actual_column_type == "bool"),
+            format!("didn't match returned error: {:?}", response)
         );
     }
 

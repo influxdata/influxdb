@@ -4,7 +4,9 @@ use snafu::Snafu;
 use crate::dictionary::Dictionary;
 use arrow_deps::arrow::datatypes::DataType as ArrowDataType;
 use data_types::partition_metadata::StatValues;
+use generated_types::entry::LogicalColumnType;
 use internal_types::data::type_description;
+use internal_types::entry::TypedValuesIterator;
 
 use std::mem;
 
@@ -41,6 +43,275 @@ pub enum Column {
 }
 
 impl Column {
+    /// Initializes a new column from typed values, the column on a table write
+    /// batach on an Entry. Will initialize the stats with the first
+    /// non-null value and update with any other non-null values included.
+    pub fn new_from_typed_values(
+        dictionary: &mut Dictionary,
+        row_count: usize,
+        logical_type: LogicalColumnType,
+        values: TypedValuesIterator<'_>,
+    ) -> Self {
+        match values {
+            TypedValuesIterator::String(vals) => match logical_type {
+                LogicalColumnType::Tag => {
+                    let mut tag_values = vec![None; row_count];
+                    let mut stats: Option<StatValues<String>> = None;
+
+                    for tag in vals {
+                        let tag_id = match tag {
+                            Some(tag) => {
+                                match stats.as_mut() {
+                                    Some(s) => StatValues::update_string(s, tag),
+                                    None => {
+                                        stats = Some(StatValues::new(tag.to_string()));
+                                    }
+                                }
+
+                                Some(dictionary.lookup_value_or_insert(tag))
+                            }
+                            None => None,
+                        };
+
+                        tag_values.push(tag_id);
+                    }
+
+                    Self::Tag(
+                        tag_values,
+                        stats.expect("can't insert tag column with no values"),
+                    )
+                }
+                LogicalColumnType::Field => {
+                    let mut values = vec![None; row_count];
+                    let mut stats: Option<StatValues<String>> = None;
+
+                    for value in vals {
+                        match value {
+                            Some(v) => {
+                                match stats.as_mut() {
+                                    Some(s) => StatValues::update_string(s, v),
+                                    None => stats = Some(StatValues::new(v.to_string())),
+                                }
+
+                                values.push(Some(v.to_string()));
+                            }
+                            None => values.push(None),
+                        }
+                    }
+
+                    Self::String(
+                        values,
+                        stats.expect("can't insert string column with no values"),
+                    )
+                }
+                _ => panic!("unsupported!"),
+            },
+            TypedValuesIterator::I64(vals) => {
+                let mut values = vec![None; row_count];
+                let mut stats: Option<StatValues<i64>> = None;
+
+                for v in vals {
+                    if let Some(val) = v {
+                        match stats.as_mut() {
+                            Some(s) => s.update(val),
+                            None => stats = Some(StatValues::new(val)),
+                        }
+                    }
+                    values.push(v);
+                }
+
+                Self::I64(
+                    values,
+                    stats.expect("can't insert i64 column with no values"),
+                )
+            }
+            TypedValuesIterator::F64(vals) => {
+                let mut values = vec![None; row_count];
+                let mut stats: Option<StatValues<f64>> = None;
+
+                for v in vals {
+                    if let Some(val) = v {
+                        match stats.as_mut() {
+                            Some(s) => s.update(val),
+                            None => stats = Some(StatValues::new(val)),
+                        }
+                    }
+                    values.push(v);
+                }
+
+                Self::F64(
+                    values,
+                    stats.expect("can't insert f64 column with no values"),
+                )
+            }
+            TypedValuesIterator::U64(vals) => {
+                let mut values = vec![None; row_count];
+                let mut stats: Option<StatValues<u64>> = None;
+
+                for v in vals {
+                    if let Some(val) = v {
+                        match stats.as_mut() {
+                            Some(s) => s.update(val),
+                            None => stats = Some(StatValues::new(val)),
+                        }
+                    }
+                    values.push(v);
+                }
+
+                Self::U64(
+                    values,
+                    stats.expect("can't insert u64 column with no values"),
+                )
+            }
+            TypedValuesIterator::Bool(vals) => {
+                let mut values = vec![None; row_count];
+                let mut stats: Option<StatValues<bool>> = None;
+
+                for v in vals {
+                    if let Some(val) = v {
+                        match stats.as_mut() {
+                            Some(s) => s.update(val),
+                            None => stats = Some(StatValues::new(val)),
+                        }
+                    }
+                    values.push(v);
+                }
+
+                Self::Bool(
+                    values,
+                    stats.expect("can't insert bool column with no values"),
+                )
+            }
+        }
+    }
+
+    /// Pushes typed values, the column from a table write batch on an Entry.
+    /// Updates statsistics for any non-null values.
+    pub fn push_typed_values(
+        &mut self,
+        dictionary: &mut Dictionary,
+        logical_type: LogicalColumnType,
+        values: TypedValuesIterator<'_>,
+    ) -> Result<()> {
+        match (self, values) {
+            (Self::Bool(col, stats), TypedValuesIterator::Bool(values)) => {
+                for val in values {
+                    if let Some(v) = val {
+                        stats.update(v)
+                    };
+                    col.push(val);
+                }
+            }
+            (Self::I64(col, stats), TypedValuesIterator::I64(values)) => {
+                for val in values {
+                    if let Some(v) = val {
+                        stats.update(v)
+                    };
+                    col.push(val);
+                }
+            }
+            (Self::F64(col, stats), TypedValuesIterator::F64(values)) => {
+                for val in values {
+                    if let Some(v) = val {
+                        stats.update(v)
+                    };
+                    col.push(val);
+                }
+            }
+            (Self::U64(col, stats), TypedValuesIterator::U64(values)) => {
+                for val in values {
+                    if let Some(v) = val {
+                        stats.update(v)
+                    };
+                    col.push(val);
+                }
+            }
+            (Self::String(col, stats), TypedValuesIterator::String(values)) => {
+                if logical_type != LogicalColumnType::Field {
+                    TypeMismatch {
+                        existing_column_type: "String",
+                        inserted_value_type: "tag",
+                    }
+                    .fail()?;
+                }
+
+                for val in values {
+                    match val {
+                        Some(v) => {
+                            StatValues::update_string(stats, v);
+                            col.push(Some(v.to_string()));
+                        }
+                        None => col.push(None),
+                    }
+                }
+            }
+            (Self::Tag(col, stats), TypedValuesIterator::String(values)) => {
+                if logical_type != LogicalColumnType::Tag {
+                    TypeMismatch {
+                        existing_column_type: "tag",
+                        inserted_value_type: "String",
+                    }
+                    .fail()?;
+                }
+
+                for val in values {
+                    match val {
+                        Some(v) => {
+                            StatValues::update_string(stats, v);
+                            let id = dictionary.lookup_value_or_insert(v);
+                            col.push(Some(id));
+                        }
+                        None => col.push(None),
+                    }
+                }
+            }
+            (existing, values) => TypeMismatch {
+                existing_column_type: existing.type_description(),
+                inserted_value_type: values.type_description(),
+            }
+            .fail()?,
+        }
+
+        Ok(())
+    }
+
+    /// Pushes None values onto the column until its len is equal to that passed
+    /// in
+    pub fn push_nulls_to_len(&mut self, len: usize) {
+        match self {
+            Self::Tag(vals, _) => {
+                while vals.len() < len {
+                    vals.push(None);
+                }
+            }
+            Self::I64(vals, _) => {
+                while vals.len() < len {
+                    vals.push(None);
+                }
+            }
+            Self::F64(vals, _) => {
+                while vals.len() < len {
+                    vals.push(None);
+                }
+            }
+            Self::U64(vals, _) => {
+                while vals.len() < len {
+                    vals.push(None);
+                }
+            }
+            Self::Bool(vals, _) => {
+                while vals.len() < len {
+                    vals.push(None);
+                }
+            }
+            Self::String(vals, _) => {
+                while vals.len() < len {
+                    vals.push(None);
+                }
+            }
+        }
+    }
+
     pub fn with_value(
         dictionary: &mut Dictionary,
         capacity: usize,
