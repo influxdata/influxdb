@@ -181,7 +181,7 @@ pub struct LifecycleRules {
     pub mutable_size_threshold: Option<NonZeroUsize>,
 
     /// Once the total amount of buffered data in memory reaches this size start
-    /// dropping data from memory based on the drop_order
+    /// dropping data from memory based on the [`sort_order`](Self::sort_order)
     pub buffer_size_soft: Option<NonZeroUsize>,
 
     /// Once the amount of data in memory reaches this size start
