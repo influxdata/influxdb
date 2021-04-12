@@ -36,7 +36,7 @@ use super::{buffer::Buffer, JobRegistry};
 use data_types::job::Job;
 
 use data_types::partition_metadata::TableSummary;
-use internal_types::entry::{self, Entry, SequencedEntry, ClockValue};
+use internal_types::entry::{self, ClockValue, Entry, SequencedEntry};
 use lifecycle::LifecycleManager;
 use system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA};
 

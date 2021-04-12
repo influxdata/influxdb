@@ -53,9 +53,10 @@ impl Column {
         match values {
             TypedValuesIterator::String(vals) => match logical_type {
                 LogicalColumnType::Tag => {
+                    let mut tag_values = vec![None; row_count];
                     let mut stats: Option<StatValues<String>> = None;
 
-                    let tag_values: Vec<_> = vals
+                    let mut added_tag_values: Vec<_> = vals
                         .map(|tag| {
                             tag.map(|tag| {
                                 match stats.as_mut() {
@@ -69,6 +70,8 @@ impl Column {
                             })
                         })
                         .collect();
+
+                    tag_values.append(&mut added_tag_values);
 
                     Self::Tag(
                         tag_values,
