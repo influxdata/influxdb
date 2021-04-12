@@ -27,6 +27,13 @@ pub enum Job {
         partition_key: String,
         chunk_id: u32,
     },
+
+    /// Write a chunk from read buffer to object store
+    WriteChunk {
+        db_name: String,
+        partition_key: String,
+        chunk_id: u32,
+    },
 }
 
 impl From<Job> for management::operation_metadata::Job {
@@ -45,6 +52,15 @@ impl From<Job> for management::operation_metadata::Job {
                 partition_key,
                 chunk_id,
             } => Self::CloseChunk(management::CloseChunk {
+                db_name,
+                partition_key,
+                chunk_id,
+            }),
+            Job::WriteChunk {
+                db_name,
+                partition_key,
+                chunk_id,
+            } => Self::WriteChunk(management::WriteChunk {
                 db_name,
                 partition_key,
                 chunk_id,
@@ -70,6 +86,15 @@ impl From<management::operation_metadata::Job> for Job {
                 partition_key,
                 chunk_id,
             }) => Self::CloseChunk {
+                db_name,
+                partition_key,
+                chunk_id,
+            },
+            Job::WriteChunk(management::WriteChunk {
+                db_name,
+                partition_key,
+                chunk_id,
+            }) => Self::WriteChunk {
                 db_name,
                 partition_key,
                 chunk_id,

@@ -19,6 +19,7 @@ message OperationMetadata {
     Dummy dummy = 5;
     PersistSegment persist_segment = 6;
     CloseChunk close_chunk = 7;
+    WriteChunk write_chunk = 8;
   }
 }
 
@@ -36,6 +37,18 @@ message PersistSegment {
 
 // Move a chunk from mutable buffer to read buffer
 message CloseChunk {
+  // name of the database
+  string db_name = 1;
+
+  // partition key
+  string partition_key = 2;
+
+  // chunk_id
+  uint32 chunk_id = 3;
+}
+
+// Write a chunk from read buffer to object store
+message WriteChunk {
   // name of the database
   string db_name = 1;
 
