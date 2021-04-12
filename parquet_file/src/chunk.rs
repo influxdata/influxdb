@@ -10,13 +10,13 @@ use std::mem;
 #[derive(Debug)]
 pub struct Chunk {
     /// Partition this chunk belongs to
-    pub partition_key: String,
+    partition_key: String,
 
     /// The id for this chunk
-    pub id: u32,
+    id: u32,
 
     /// Tables of this chunk
-    pub tables: Vec<Table>,
+    tables: Vec<Table>,
 
     /// Track memory used by this chunk
     memory_tracker: MemTracker,
@@ -32,6 +32,26 @@ impl Chunk {
         };
         chunk.memory_tracker.set_bytes(chunk.size());
         chunk
+    }
+
+    /// Return the chunk id
+    pub fn id(&self) -> u32 {
+        self.id
+    }
+
+    /// Return the chunk's partition key
+    pub fn partition_key(&self) -> &str {
+        self.partition_key.as_ref()
+    }
+
+    /// Return all paths of this chunks
+    pub fn all_paths(&self) -> Vec<Path> {
+        self.tables.iter().map(|t| t.path()).collect()
+    }
+
+    /// Returns a vec of the summary statistics of the tables in this chunk
+    pub fn table_summaries(&self) -> Vec<TableSummary> {
+        self.tables.iter().map(|t| t.table_summary()).collect()
     }
 
     /// Add a chunk's table and its summary

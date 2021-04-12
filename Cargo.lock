@@ -3277,6 +3277,7 @@ dependencies = [
  "serde_json",
  "snafu",
  "snap",
+ "tempfile",
  "test_helpers",
  "tokio",
  "tokio-util",

@@ -23,6 +23,16 @@ pub fn make_db() -> Db {
     )
 }
 
+pub fn make_database(server_id: NonZeroU32, object_store: Arc<ObjectStore>, db_name: &str) -> Db {
+    Db::new(
+        DatabaseRules::new(DatabaseName::new(db_name.to_string()).unwrap()),
+        server_id,
+        object_store,
+        None, // wal buffer
+        Arc::new(JobRegistry::new()),
+    )
+}
+
 fn chunk_summary_iter(db: &Db) -> impl Iterator<Item = ChunkSummary> + '_ {
     db.partition_keys()
         .unwrap()

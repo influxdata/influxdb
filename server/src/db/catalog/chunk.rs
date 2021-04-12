@@ -171,8 +171,12 @@ impl Chunk {
             ChunkState::Closing(chunk) => (chunk.size(), ChunkStorage::ClosedMutableBuffer),
             ChunkState::Moving(chunk) => (chunk.size(), ChunkStorage::ClosedMutableBuffer),
             ChunkState::Moved(chunk) => (chunk.size(), ChunkStorage::ReadBuffer),
-            ChunkState::WritingToObjectStore(chunk) => (chunk.size(), ChunkStorage::ObjectStore),
-            ChunkState::WrittenToObjectStore(chunk, _) => (chunk.size(), ChunkStorage::ObjectStore),
+            ChunkState::WritingToObjectStore(chunk) => {
+                (chunk.size(), ChunkStorage::ReadBufferAndObjectStore)
+            }
+            ChunkState::WrittenToObjectStore(chunk, _) => {
+                (chunk.size(), ChunkStorage::ReadBufferAndObjectStore)
+            }
         };
 
         ChunkSummary {

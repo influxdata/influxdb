@@ -36,3 +36,4 @@ uuid = { version = "0.8", features = ["serde", "v4"] }
 
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }
+tempfile = "3.1.0"

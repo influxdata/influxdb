@@ -1,6 +1,7 @@
 use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 use internal_types::{schema::Schema, selection::Selection};
 use mutable_buffer::chunk::Chunk as MBChunk;
+use object_store::path::Path;
 use observability_deps::tracing::debug;
 use parquet_file::chunk::Chunk as ParquetChunk;
 use query::{exec::stringset::StringSet, predicate::Predicate, PartitionChunk};
@@ -128,6 +129,14 @@ impl DBChunk {
         };
         Arc::new(db_chunk)
     }
+
+    /// Return object store paths
+    pub fn object_store_paths(&self) -> Vec<Path> {
+        match self {
+            Self::ParquetFile { chunk } => chunk.all_paths(),
+            _ => vec![],
+        }
+    }
 }
 
 impl PartitionChunk for DBChunk {
@@ -137,7 +146,7 @@ impl PartitionChunk for DBChunk {
         match self {
             Self::MutableBuffer { chunk, .. } => chunk.id(),
             Self::ReadBuffer { chunk, .. } => chunk.id(),
-            Self::ParquetFile { .. } => unimplemented!("parquet file not implemented"),
+            Self::ParquetFile { chunk, .. } => chunk.id(),
         }
     }
 
@@ -151,7 +160,7 @@ impl PartitionChunk for DBChunk {
                     known_tables.insert(name);
                 }
             }
-            Self::ParquetFile { .. } => unimplemented!("parquet file not implemented"),
+            Self::ParquetFile { chunk, .. } => chunk.all_table_names(known_tables),
         }
     }
 
@@ -202,7 +211,7 @@ impl PartitionChunk for DBChunk {
                 Some(chunk.table_names(&rb_predicate, &BTreeSet::new()))
             }
             Self::ParquetFile { .. } => {
-                unimplemented!("parquet file not implemented")
+                unimplemented!("parquet file not implemented for scan_data")
             }
         };
 
@@ -263,9 +272,7 @@ impl PartitionChunk for DBChunk {
         match self {
             Self::MutableBuffer { chunk, .. } => chunk.has_table(table_name),
             Self::ReadBuffer { chunk, .. } => chunk.has_table(table_name),
-            Self::ParquetFile { .. } => {
-                unimplemented!("parquet file not implemented for has_table")
-            }
+            Self::ParquetFile { chunk, .. } => chunk.has_table(table_name),
         }
     }
 
