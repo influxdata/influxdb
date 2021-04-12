@@ -273,12 +273,13 @@ mod tests {
     };
 
     use super::*;
+    use crate::db::test_helpers::write_lp;
     use data_types::database_rules::DatabaseRules;
     use data_types::DatabaseName;
     use futures::TryStreamExt;
     use mutable_buffer::chunk::Chunk as ChunkWB;
     use object_store::memory::InMemory;
-    use query::{test::TestLPWriter, Database};
+    use query::Database;
     use tracker::MemRegistry;
 
     #[tokio::test]
@@ -291,8 +292,7 @@ mem,host=A,region=west used=45 1
         "#;
 
         let db = make_db();
-        let mut writer = TestLPWriter::default();
-        writer.write_lp_string(&db, &lp).unwrap();
+        write_lp(&db, &lp);
 
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let (tx, rx) = tokio::sync::oneshot::channel();

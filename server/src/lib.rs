@@ -83,11 +83,11 @@ use data_types::{
 };
 use influxdb_line_protocol::ParsedLine;
 use internal_types::{
-    data::{lines_to_replicated_write, ReplicatedWrite},
+    entry::{self, lines_to_sharded_entries, Entry},
     once::OnceNonZeroU32,
 };
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
-use query::{exec::Executor, Database, DatabaseStore};
+use query::{exec::Executor, DatabaseStore};
 use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, TrackedFutureExt};
 
 use futures::{pin_mut, FutureExt};
@@ -98,6 +98,7 @@ use crate::{
     },
     db::Db,
 };
+use internal_types::entry::SequencedEntry;
 use std::num::NonZeroU32;
 
 pub mod buffer;
@@ -147,6 +148,8 @@ pub enum Error {
     DatabaseAlreadyExists { db_name: String },
     #[snafu(display("error appending to wal buffer: {}", source))]
     WalError { source: buffer::Error },
+    #[snafu(display("error converting line protocol to flatbuffers: {}", source))]
+    LineConversion { source: entry::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -337,12 +340,12 @@ impl<M: ConnectionManager> Server<M> {
         Ok(())
     }
 
-    /// `write_lines` takes in raw line protocol and converts it to a
-    /// `ReplicatedWrite`, which is then replicated to other servers based
-    /// on the configuration of the `db`. This is step #1 from the crate
-    /// level documentation.
+    /// `write_lines` takes in raw line protocol and converts it to a collection
+    /// of ShardedEntry which are then sent to other IOx servers based on
+    /// the ShardConfig or sent to the local database for buffering in the
+    /// WriteBuffer and/or the MutableBuffer if configured.
     pub async fn write_lines(&self, db_name: &str, lines: &[ParsedLine<'_>]) -> Result<()> {
-        let id = self.require_id()?.get();
+        self.require_id()?;
 
         let db_name = DatabaseName::new(db_name).context(InvalidDatabaseName)?;
         let db = self
@@ -350,62 +353,35 @@ impl<M: ConnectionManager> Server<M> {
             .db(&db_name)
             .context(DatabaseNotFound { db_name: &*db_name })?;
 
-        let sequence = db.next_sequence();
-        let write = lines_to_replicated_write(id, sequence, lines, &*db.rules.read());
+        let sharded_entries = lines_to_sharded_entries(lines, &*db.rules.read(), &*db.rules.read())
+            .context(LineConversion)?;
 
-        self.handle_replicated_write(&db_name, &db, write).await?;
+        for e in sharded_entries {
+            // TODO: handle sending to shards based on ShardConfig
+            self.handle_write_entry(&db, e.entry).await?;
+        }
 
         Ok(())
     }
 
-    pub async fn handle_replicated_write(
+    pub async fn handle_write_entry(&self, db: &Db, entry: Entry) -> Result<()> {
+        db.store_entry(entry)
+            .map_err(|e| Error::UnknownDatabaseError {
+                source: Box::new(e),
+            })?;
+
+        Ok(())
+    }
+
+    pub async fn handle_sequenced_entry(
         &self,
-        db_name: &DatabaseName<'_>,
         db: &Db,
-        write: ReplicatedWrite,
+        sequenced_entry: SequencedEntry,
     ) -> Result<()> {
-        match db.store_replicated_write(&write) {
-            Err(db::Error::DatabaseNotWriteable {}) | Ok(_) => {}
-            Err(e) => {
-                return Err(Error::UnknownDatabaseError {
-                    source: Box::new(e),
-                })
-            }
-        }
-
-        let write = Arc::new(write);
-
-        if let Some(wal_buffer) = &db.wal_buffer {
-            let persist;
-            let segment = {
-                let mut wal_buffer = wal_buffer.lock();
-                persist = wal_buffer.persist;
-
-                // TODO: address this issue?
-                // the mutable buffer and the wal buffer have different locking mechanisms,
-                // which means that it's possible for a mutable buffer write to
-                // succeed while a WAL buffer write fails, which would then
-                // return an error. A single lock is probably undesirable, but
-                // we need to figure out what semantics we want.
-                wal_buffer.append(Arc::clone(&write)).context(WalError)?
-            };
-
-            if let Some(segment) = segment {
-                if persist {
-                    let writer_id = self.require_id()?.get();
-                    let store = Arc::clone(&self.store);
-
-                    let (_, tracker) = self.jobs.register(Job::PersistSegment {
-                        writer_id,
-                        segment_id: segment.id,
-                    });
-
-                    segment
-                        .persist_bytes_in_background(tracker, writer_id, db_name, store)
-                        .context(WalError)?;
-                }
-            }
-        }
+        db.store_sequenced_entry(sequenced_entry)
+            .map_err(|e| Error::UnknownDatabaseError {
+                source: Box::new(e),
+            })?;
 
         Ok(())
     }
@@ -610,12 +586,17 @@ pub trait ConnectionManager {
 pub trait RemoteServer {
     type Error: std::error::Error + Send + Sync + 'static;
 
-    /// Sends a replicated write to a remote server. This is step #2 from the
-    /// diagram.
-    async fn replicate(
+    /// Sends an Entry to the remote server. An IOx server acting as a
+    /// router/sharder will call this method to send entries to remotes.
+    async fn write_entry(&self, db: &str, entry: Entry) -> Result<(), Self::Error>;
+
+    /// Sends a SequencedEntry to the remote server. An IOx server acting as a
+    /// write buffer will call this method to replicate to other write
+    /// buffer servers or to send data to downstream subscribers.
+    async fn write_sequenced_entry(
         &self,
         db: &str,
-        replicated_write: &ReplicatedWrite,
+        sequenced_entry: SequencedEntry,
     ) -> Result<(), Self::Error>;
 }
 
@@ -643,10 +624,19 @@ pub struct RemoteServerImpl {}
 impl RemoteServer for RemoteServerImpl {
     type Error = Error;
 
-    async fn replicate(
+    /// Sends an Entry to the remote server. An IOx server acting as a
+    /// router/sharder will call this method to send entries to remotes.
+    async fn write_entry(&self, _db: &str, _entry: Entry) -> Result<(), Self::Error> {
+        unimplemented!()
+    }
+
+    /// Sends a SequencedEntry to the remote server. An IOx server acting as a
+    /// write buffer will call this method to replicate to other write
+    /// buffer servers or to send data to downstream subscribers.
+    async fn write_sequenced_entry(
         &self,
         _db: &str,
-        _replicated_write: &ReplicatedWrite,
+        _sequenced_entry: SequencedEntry,
     ) -> Result<(), Self::Error> {
         unimplemented!()
     }
@@ -675,20 +665,15 @@ mod tests {
 
     use async_trait::async_trait;
     use futures::TryStreamExt;
-    use parking_lot::Mutex;
     use snafu::Snafu;
     use tokio::task::JoinHandle;
     use tokio_util::sync::CancellationToken;
 
     use arrow_deps::{assert_table_eq, datafusion::physical_plan::collect};
-    use data_types::database_rules::{
-        PartitionTemplate, TemplatePart, WalBufferConfig, WalBufferRollover,
-    };
+    use data_types::database_rules::{PartitionTemplate, TemplatePart};
     use influxdb_line_protocol::parse_lines;
     use object_store::{memory::InMemory, path::ObjectStorePath};
     use query::{frontend::sql::SQLQueryPlanner, Database};
-
-    use crate::buffer::Segment;
 
     use super::*;
 
@@ -946,66 +931,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn segment_persisted_on_rollover() {
-        let manager = TestConnectionManager::new();
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-
-        let server = Server::new(manager, Arc::clone(&store));
-        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
-        let db_name = DatabaseName::new("my_db").unwrap();
-        let rules = DatabaseRules {
-            name: db_name.clone(),
-            partition_template: Default::default(),
-            wal_buffer_config: Some(WalBufferConfig {
-                buffer_size: 500,
-                segment_size: 10,
-                buffer_rollover: WalBufferRollover::ReturnError,
-                store_segments: true,
-                close_segment_after: None,
-            }),
-            lifecycle_rules: Default::default(),
-            shard_config: None,
-        };
-        server
-            .create_database(
-                rules,
-                server.require_id().unwrap(),
-                Arc::clone(&server.store),
-            )
-            .await
-            .unwrap();
-
-        let lines = parsed_lines("disk,host=a used=10.1 12");
-        server.write_lines(db_name.as_str(), &lines).await.unwrap();
-
-        // write lines should have caused a segment rollover and persist, wait
-        tokio::task::yield_now().await;
-
-        let mut path = store.new_path();
-        path.push_all_dirs(&["1", "my_db", "wal", "000", "000"]);
-        path.set_file_name("001.segment");
-
-        let data = store
-            .get(&path)
-            .await
-            .unwrap()
-            .map_ok(|b| bytes::BytesMut::from(&b[..]))
-            .try_concat()
-            .await
-            .unwrap();
-
-        let segment = Segment::from_file_bytes(&data).unwrap();
-        assert_eq!(segment.writes.len(), 1);
-        let write = r#"
-writer:1, sequence:1, checksum:2741956553
-partition_key:
-  table:disk
-    host:a used:10.1 time:12
-"#;
-        assert_eq!(segment.writes[0].to_string(), write);
-    }
-
-    #[tokio::test]
     async fn background_task_cleans_jobs() {
         let manager = TestConnectionManager::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
@@ -1057,24 +982,22 @@ partition_key:
     }
 
     #[derive(Debug, Default)]
-    struct TestRemoteServer {
-        writes: Mutex<BTreeMap<String, Vec<ReplicatedWrite>>>,
-    }
+    struct TestRemoteServer {}
 
     #[async_trait]
     impl RemoteServer for TestRemoteServer {
         type Error = TestClusterError;
 
-        async fn replicate(
-            &self,
-            db: &str,
-            replicated_write: &ReplicatedWrite,
-        ) -> Result<(), Self::Error> {
-            let mut writes = self.writes.lock();
-            let entries = writes.entry(db.to_string()).or_insert_with(Vec::new);
-            entries.push(replicated_write.clone());
+        async fn write_entry(&self, _db: &str, _entry: Entry) -> Result<(), Self::Error> {
+            unimplemented!()
+        }
 
-            Ok(())
+        async fn write_sequenced_entry(
+            &self,
+            _db: &str,
+            _sequenced_entry: SequencedEntry,
+        ) -> Result<(), Self::Error> {
+            unimplemented!()
         }
     }
 

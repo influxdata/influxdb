@@ -10,7 +10,7 @@ use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 use async_trait::async_trait;
 use data_types::chunk::ChunkSummary;
 use exec::{stringset::StringSet, Executor};
-use internal_types::{data::ReplicatedWrite, schema::Schema, selection::Selection};
+use internal_types::{schema::Schema, selection::Selection};
 
 use std::{fmt::Debug, sync::Arc};
 
@@ -38,9 +38,6 @@ use self::predicate::Predicate;
 pub trait Database: Debug + Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
     type Chunk: PartitionChunk;
-
-    /// Stores the replicated write into the database.
-    fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error>;
 
     /// Return the partition keys for data in this DB
     fn partition_keys(&self) -> Result<Vec<String>, Self::Error>;

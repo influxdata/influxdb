@@ -1223,6 +1223,7 @@ impl TryFrom<Vec<u8>> for SequencedEntry {
 
 pub mod test_helpers {
     use super::*;
+    use chrono::TimeZone;
     use influxdb_line_protocol::parse_lines;
 
     /// Converts the line protocol to a vec of ShardedEntry with a single shard
@@ -1230,7 +1231,7 @@ pub mod test_helpers {
     pub fn lp_to_entry(lp: &str) -> Entry {
         let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
 
-        lines_to_sharded_entries(&lines, &sharder(1), &partitioner(1))
+        lines_to_sharded_entries(&lines, &sharder(1), &hour_partitioner())
             .unwrap()
             .pop()
             .unwrap()
@@ -1261,6 +1262,11 @@ pub mod test_helpers {
         }
     }
 
+    /// Returns a test partitioner that will partition data by the hour
+    pub fn hour_partitioner() -> HourPartitioner {
+        HourPartitioner {}
+    }
+
     /// Returns a test partitioner that will assign partition keys in the form
     /// key_# where # is replaced by a number `[0, count)` incrementing for
     /// each line.
@@ -1288,6 +1294,28 @@ pub mod test_helpers {
             let n = *self.n.borrow();
             self.n.replace(n + 1);
             Ok(format!("key_{}", n % self.count))
+        }
+    }
+
+    // Partitions by the hour
+    #[derive(Debug)]
+    pub struct HourPartitioner {}
+
+    impl Partitioner for HourPartitioner {
+        fn partition_key(
+            &self,
+            line: &ParsedLine<'_>,
+            default_time: &DateTime<Utc>,
+        ) -> data_types::database_rules::Result<String> {
+            const HOUR_FORMAT: &str = "%Y-%m-%dT%H";
+
+            let key = match line.timestamp {
+                Some(t) => Utc.timestamp_nanos(t).format(HOUR_FORMAT),
+                None => default_time.format(HOUR_FORMAT),
+            }
+            .to_string();
+
+            Ok(key)
         }
     }
 }

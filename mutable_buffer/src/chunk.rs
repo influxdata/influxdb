@@ -7,7 +7,6 @@ use snafu::{OptionExt, ResultExt, Snafu};
 
 use arrow_deps::{arrow::record_batch::RecordBatch, datafusion::logical_plan::Expr};
 use data_types::{database_rules::WriterId, partition_metadata::TableSummary};
-use generated_types::wal as wb;
 use internal_types::{
     entry::{ClockValue, TableBatch},
     schema::Schema,
@@ -165,41 +164,12 @@ impl Chunk {
                 .context(TableWrite { table_name })?;
         }
 
-        Ok(())
-    }
-
-    pub fn write_entry(&mut self, entry: &wb::WriteBufferEntry<'_>) -> Result<()> {
-        if let Some(table_batches) = entry.table_batches() {
-            for batch in table_batches {
-                self.write_table_batch(&batch)?;
-            }
-        }
-
         self.tracker.set_bytes(self.size());
 
         Ok(())
     }
 
-    fn write_table_batch(&mut self, batch: &wb::TableWriteBatch<'_>) -> Result<()> {
-        let table_name = batch.name().context(TableWriteWithoutName)?;
-        let table_id = self.dictionary.lookup_value_or_insert(table_name);
-
-        let table = self
-            .tables
-            .entry(table_id)
-            .or_insert_with(|| Table::new(table_id));
-
-        if let Some(rows) = batch.rows() {
-            table
-                .append_rows(&mut self.dictionary, &rows)
-                .context(TableWrite { table_name })?;
-        }
-
-        Ok(())
-    }
-
-    /// Add all tables names in this chunk to `names` if they are not already
-    /// present
+    // Add all tables names in this chunk to `names` if they are not already present
     pub fn all_table_names(&self, names: &mut BTreeSet<String>) {
         for &table_id in self.tables.keys() {
             let table_name = self.dictionary.lookup_id(table_id).unwrap();

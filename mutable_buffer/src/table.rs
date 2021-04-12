@@ -1,5 +1,3 @@
-use generated_types::wal as wb;
-
 use std::{
     cmp,
     collections::{BTreeMap, BTreeSet},
@@ -13,9 +11,12 @@ use crate::{
     dictionary::{Dictionary, Error as DictionaryError},
     pred::{ChunkIdSet, ChunkPredicate},
 };
-use data_types::partition_metadata::{ColumnSummary, Statistics};
+use data_types::{
+    database_rules::WriterId,
+    partition_metadata::{ColumnSummary, Statistics},
+};
 use internal_types::{
-    entry,
+    entry::{self, ClockValue},
     schema::{builder::SchemaBuilder, Schema, TIME_COLUMN_NAME},
     selection::Selection,
 };
@@ -32,8 +33,6 @@ use arrow_deps::{
         record_batch::RecordBatch,
     },
 };
-use data_types::database_rules::WriterId;
-use internal_types::entry::ClockValue;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -148,47 +147,6 @@ impl Table {
         }
     }
 
-    fn append_row(
-        &mut self,
-        dictionary: &mut Dictionary,
-        values: &flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<wb::Value<'_>>>,
-    ) -> Result<()> {
-        let row_count = self.row_count();
-
-        // insert new columns and validate existing ones
-        for value in values {
-            let column_name = value
-                .column()
-                .context(ColumnNameNotInRow { table: self.id })?;
-            let column_id = dictionary.lookup_value_or_insert(column_name);
-
-            let column = match self.columns.get_mut(&column_id) {
-                Some(col) => col,
-                None => {
-                    // Add the column and make all values for existing rows None
-                    self.columns.insert(
-                        column_id,
-                        Column::with_value(dictionary, row_count, value)
-                            .context(CreatingFromWal { column: column_id })?,
-                    );
-
-                    continue;
-                }
-            };
-
-            column.push(dictionary, &value).context(ColumnError {
-                column: column_name,
-            })?;
-        }
-
-        // make sure all the columns are of the same length
-        for col in self.columns.values_mut() {
-            col.push_none_if_len_equal(row_count);
-        }
-
-        Ok(())
-    }
-
     pub fn row_count(&self) -> usize {
         self.columns
             .values()
@@ -225,20 +183,6 @@ impl Table {
             }
             .fail(),
         }
-    }
-
-    pub fn append_rows(
-        &mut self,
-        dictionary: &mut Dictionary,
-        rows: &flatbuffers::Vector<'_, flatbuffers::ForwardsUOffset<wb::Row<'_>>>,
-    ) -> Result<()> {
-        for row in rows {
-            if let Some(values) = row.values() {
-                self.append_row(dictionary, &values)?;
-            }
-        }
-
-        Ok(())
     }
 
     /// Validates the schema of the passed in columns, then adds their values to
@@ -690,9 +634,6 @@ impl<'a> TableColSelection<'a> {
 
 #[cfg(test)]
 mod tests {
-
-    use influxdb_line_protocol::{parse_lines, ParsedLine};
-    use internal_types::data::split_lines_into_write_entry_partitions;
     use internal_types::entry::test_helpers::lp_to_entry;
 
     use super::*;
@@ -1056,26 +997,18 @@ mod tests {
     ///  Insert the line protocol lines in `lp_lines` into this table
     fn write_lines_to_table(table: &mut Table, dictionary: &mut Dictionary, lp_lines: Vec<&str>) {
         let lp_data = lp_lines.join("\n");
+        let entry = lp_to_entry(&lp_data);
 
-        let lines: Vec<_> = parse_lines(&lp_data).map(|l| l.unwrap()).collect();
-
-        let data = split_lines_into_write_entry_partitions(chunk_key_func, &lines);
-
-        let batch = flatbuffers::root::<wb::WriteBufferBatch<'_>>(&data).unwrap();
-        let entries = batch.entries().expect("at least one entry");
-
-        for entry in entries {
-            let table_batches = entry.table_batches().expect("there were table batches");
-            for batch in table_batches {
-                let rows = batch.rows().expect("Had rows in the batch");
-                table
-                    .append_rows(dictionary, &rows)
-                    .expect("Appended the row");
-            }
+        for batch in entry
+            .partition_writes()
+            .unwrap()
+            .first()
+            .unwrap()
+            .table_batches()
+        {
+            table
+                .write_columns(dictionary, ClockValue::new(0), 0, batch.columns())
+                .unwrap();
         }
-    }
-
-    fn chunk_key_func(_: &ParsedLine<'_>) -> String {
-        String::from("the_chunk_key")
     }
 }

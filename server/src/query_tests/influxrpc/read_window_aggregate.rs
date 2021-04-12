@@ -1,5 +1,8 @@
 //! Tests for the Influx gRPC queries
-use crate::query_tests::{scenarios::*, utils::make_db};
+use crate::{
+    db::test_helpers::write_lp,
+    query_tests::{scenarios::*, utils::make_db},
+};
 
 use arrow_deps::{arrow::util::pretty::pretty_format_batches, datafusion::prelude::*};
 use async_trait::async_trait;
@@ -8,7 +11,6 @@ use query::{
     frontend::influxrpc::InfluxRPCPlanner,
     group_by::{Aggregate, WindowDuration},
     predicate::{Predicate, PredicateBuilder},
-    test::TestLPWriter,
 };
 
 /// runs read_window_aggregate(predicate) and compares it to the expected
@@ -162,18 +164,16 @@ impl DBSetup for MeasurementForWindowAggregateMonths {
         // "2020-04-02T00"]
 
         let db = make_db();
-        let mut writer = TestLPWriter::default();
         let data = lp_lines.join("\n");
-        writer.write_lp_string(&db, &data).unwrap();
+        write_lp(&db, &data);
         let scenario1 = DBScenario {
             scenario_name: "Data in 4 partitions, open chunks of mutable buffer".into(),
             db,
         };
 
         let db = make_db();
-        let mut writer = TestLPWriter::default();
         let data = lp_lines.join("\n");
-        writer.write_lp_string(&db, &data).unwrap();
+        write_lp(&db, &data);
         db.rollover_partition("2020-03-01T00").await.unwrap();
         db.rollover_partition("2020-03-02T00").await.unwrap();
         let scenario2 = DBScenario {
@@ -184,9 +184,8 @@ impl DBSetup for MeasurementForWindowAggregateMonths {
         };
 
         let db = make_db();
-        let mut writer = TestLPWriter::default();
         let data = lp_lines.join("\n");
-        writer.write_lp_string(&db, &data).unwrap();
+        write_lp(&db, &data);
         rollover_and_load(&db, "2020-03-01T00").await;
         rollover_and_load(&db, "2020-03-02T00").await;
         rollover_and_load(&db, "2020-04-01T00").await;

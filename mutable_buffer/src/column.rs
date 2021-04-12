@@ -1,11 +1,9 @@
-use generated_types::wal as wb;
 use snafu::Snafu;
 
 use crate::dictionary::Dictionary;
 use arrow_deps::arrow::datatypes::DataType as ArrowDataType;
 use data_types::partition_metadata::StatValues;
 use generated_types::entry::LogicalColumnType;
-use internal_types::data::type_description;
 use internal_types::entry::TypedValuesIterator;
 
 use std::mem;
@@ -308,78 +306,6 @@ impl Column {
         }
     }
 
-    pub fn with_value(
-        dictionary: &mut Dictionary,
-        capacity: usize,
-        value: wb::Value<'_>,
-    ) -> Result<Self> {
-        Ok(match value.value_type() {
-            wb::ColumnValue::F64Value => {
-                let val = value
-                    .value_as_f64value()
-                    .expect("f64 value should be present")
-                    .value();
-                let mut vals = vec![None; capacity];
-                vals.push(Some(val));
-                Self::F64(vals, StatValues::new(val))
-            }
-            wb::ColumnValue::I64Value => {
-                let val = value
-                    .value_as_i64value()
-                    .expect("i64 value should be present")
-                    .value();
-                let mut vals = vec![None; capacity];
-                vals.push(Some(val));
-                Self::I64(vals, StatValues::new(val))
-            }
-            wb::ColumnValue::U64Value => {
-                let val = value
-                    .value_as_u64value()
-                    .expect("u64 value should be present")
-                    .value();
-                let mut vals = vec![None; capacity];
-                vals.push(Some(val));
-                Self::U64(vals, StatValues::new(val))
-            }
-            wb::ColumnValue::StringValue => {
-                let val = value
-                    .value_as_string_value()
-                    .expect("string value should be present")
-                    .value()
-                    .expect("string must be present");
-                let mut vals = vec![None; capacity];
-                vals.push(Some(val.to_string()));
-                Self::String(vals, StatValues::new(val.to_string()))
-            }
-            wb::ColumnValue::BoolValue => {
-                let val = value
-                    .value_as_bool_value()
-                    .expect("bool value should be present")
-                    .value();
-                let mut vals = vec![None; capacity];
-                vals.push(Some(val));
-                Self::Bool(vals, StatValues::new(val))
-            }
-            wb::ColumnValue::TagValue => {
-                let val = value
-                    .value_as_tag_value()
-                    .expect("tag value should be present")
-                    .value()
-                    .expect("tag value must have string value");
-                let mut vals = vec![None; capacity];
-                let id = dictionary.lookup_value_or_insert(val);
-                vals.push(Some(id));
-                Self::Tag(vals, StatValues::new(val.to_string()))
-            }
-            _ => {
-                return UnknownColumnType {
-                    inserted_value_type: type_description(value.value_type()),
-                }
-                .fail()
-            }
-        })
-    }
-
     pub fn len(&self) -> usize {
         match self {
             Self::F64(v, _) => v.len(),
@@ -415,76 +341,6 @@ impl Column {
             Self::String(..) => ArrowDataType::Utf8,
             Self::Bool(..) => ArrowDataType::Boolean,
             Self::Tag(..) => ArrowDataType::Utf8,
-        }
-    }
-
-    pub fn push(&mut self, dictionary: &mut Dictionary, value: &wb::Value<'_>) -> Result<()> {
-        let inserted = match self {
-            Self::Tag(vals, stats) => match value.value_as_tag_value() {
-                Some(tag) => {
-                    let tag_value = tag.value().expect("tag must have string value");
-                    let id = dictionary.lookup_value_or_insert(tag_value);
-                    vals.push(Some(id));
-                    StatValues::update_string(stats, tag_value);
-                    true
-                }
-                None => false,
-            },
-            Self::String(vals, stats) => match value.value_as_string_value() {
-                Some(str_val) => {
-                    let str_val = str_val.value().expect("string must have value");
-                    vals.push(Some(str_val.to_string()));
-                    StatValues::update_string(stats, str_val);
-                    true
-                }
-                None => false,
-            },
-            Self::Bool(vals, stats) => match value.value_as_bool_value() {
-                Some(bool_val) => {
-                    let bool_val = bool_val.value();
-                    vals.push(Some(bool_val));
-                    stats.update(bool_val);
-                    true
-                }
-                None => false,
-            },
-            Self::I64(vals, stats) => match value.value_as_i64value() {
-                Some(i64_val) => {
-                    let i64_val = i64_val.value();
-                    vals.push(Some(i64_val));
-                    stats.update(i64_val);
-                    true
-                }
-                None => false,
-            },
-            Self::U64(vals, stats) => match value.value_as_u64value() {
-                Some(u64_val) => {
-                    let u64_val = u64_val.value();
-                    vals.push(Some(u64_val));
-                    stats.update(u64_val);
-                    true
-                }
-                None => false,
-            },
-            Self::F64(vals, stats) => match value.value_as_f64value() {
-                Some(f64_val) => {
-                    let f64_val = f64_val.value();
-                    vals.push(Some(f64_val));
-                    stats.update(f64_val);
-                    true
-                }
-                None => false,
-            },
-        };
-
-        if inserted {
-            Ok(())
-        } else {
-            TypeMismatch {
-                existing_column_type: self.type_description(),
-                inserted_value_type: type_description(value.value_type()),
-            }
-            .fail()
         }
     }
 

@@ -25,7 +25,7 @@ pub(crate) use chunk::DBChunk;
 use data_types::{
     chunk::ChunkSummary, database_rules::DatabaseRules, partition_metadata::PartitionSummary,
 };
-use internal_types::{data::ReplicatedWrite, selection::Selection};
+use internal_types::selection::Selection;
 use object_store::ObjectStore;
 use parquet_file::{chunk::Chunk, storage::Storage};
 use query::{Database, DEFAULT_SCHEMA};
@@ -36,6 +36,7 @@ use super::{buffer::Buffer, JobRegistry};
 use data_types::job::Job;
 
 use data_types::partition_metadata::TableSummary;
+use internal_types::entry::{self, Entry, SequencedEntry, ClockValue};
 use lifecycle::LifecycleManager;
 use system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA};
 
@@ -131,6 +132,9 @@ pub enum Error {
         chunk_id: u32,
         source: mutable_buffer::chunk::Error,
     },
+
+    #[snafu(display("Error building sequenced entry: {}", source))]
+    SequencedEntryError { source: entry::Error },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -622,6 +626,75 @@ impl Db {
 
         info!("finished background worker");
     }
+
+    /// Stores an entry based on the configuration. The Entry will first be
+    /// converted into a Sequenced Entry with the logical clock assigned
+    /// from the database. If the write buffer is configured, the sequenced
+    /// entry is written into the buffer and replicated based on the
+    /// configured rules. If the mutable buffer is configured, the sequenced
+    /// entry is then written into the mutable buffer.
+    pub fn store_entry(&self, entry: Entry) -> Result<()> {
+        // TODO: build this based on either this or on the write buffer, if configured
+        let sequenced_entry = SequencedEntry::new_from_entry_bytes(
+            ClockValue::new(self.next_sequence()),
+            self.server_id.get(),
+            entry.data(),
+        )
+        .context(SequencedEntryError)?;
+
+        self.store_sequenced_entry(sequenced_entry)
+    }
+
+    pub fn store_sequenced_entry(&self, sequenced_entry: SequencedEntry) -> Result<()> {
+        let rules = self.rules.read();
+        let mutable_size_threshold = rules.lifecycle_rules.mutable_size_threshold;
+        if rules.lifecycle_rules.immutable {
+            return DatabaseNotWriteable {}.fail();
+        }
+        std::mem::drop(rules);
+
+        // TODO: Direct writes to closing chunks
+
+        if let Some(partitioned_writes) = sequenced_entry.partition_writes() {
+            for write in partitioned_writes {
+                let partition_key = write.key();
+                let partition = self.catalog.get_or_create_partition(partition_key);
+                let mut partition = partition.write();
+                partition.update_last_write_at();
+
+                let chunk = partition.open_chunk().unwrap_or_else(|| {
+                    partition.create_open_chunk(self.memory_registries.mutable_buffer.as_ref())
+                });
+
+                let mut chunk = chunk.write();
+                chunk.record_write();
+                let chunk_id = chunk.id();
+
+                let mb_chunk = chunk.mutable_buffer().expect("cannot mutate open chunk");
+
+                mb_chunk
+                    .write_table_batches(
+                        sequenced_entry.clock_value(),
+                        sequenced_entry.writer_id(),
+                        &write.table_batches(),
+                    )
+                    .context(WriteEntry {
+                        partition_key,
+                        chunk_id,
+                    })?;
+
+                let size = mb_chunk.size();
+
+                if let Some(threshold) = mutable_size_threshold {
+                    if size > threshold.get() {
+                        chunk.set_closing().expect("cannot close open chunk")
+                    }
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -648,54 +721,6 @@ impl Database for Db {
                 DBChunk::snapshot(&chunk)
             })
             .collect()
-    }
-
-    fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
-        let rules = self.rules.read();
-        let mutable_size_threshold = rules.lifecycle_rules.mutable_size_threshold;
-        if rules.lifecycle_rules.immutable {
-            return DatabaseNotWriteable {}.fail();
-        }
-        std::mem::drop(rules);
-
-        let entries = match write.write_buffer_batch().and_then(|batch| batch.entries()) {
-            Some(entries) => entries,
-            None => return Ok(()),
-        };
-
-        // TODO: Direct writes to closing chunks
-
-        for entry in entries.into_iter() {
-            if let Some(partition_key) = entry.partition_key() {
-                let partition = self.catalog.get_or_create_partition(partition_key);
-                let mut partition = partition.write();
-                partition.update_last_write_at();
-
-                let chunk = partition.open_chunk().unwrap_or_else(|| {
-                    partition.create_open_chunk(self.memory_registries.mutable_buffer.as_ref())
-                });
-
-                let mut chunk = chunk.write();
-                chunk.record_write();
-                let chunk_id = chunk.id();
-
-                let mb_chunk = chunk.mutable_buffer().expect("cannot mutate open chunk");
-
-                mb_chunk.write_entry(&entry).context(WriteEntry {
-                    partition_key,
-                    chunk_id,
-                })?;
-
-                let size = mb_chunk.size();
-
-                if let Some(threshold) = mutable_size_threshold {
-                    if size > threshold.get() {
-                        chunk.set_closing().expect("cannot close open chunk")
-                    }
-                }
-            }
-        }
-        Ok(())
     }
 
     fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
@@ -729,9 +754,20 @@ impl CatalogProvider for Db {
     }
 }
 
+pub mod test_helpers {
+    use super::*;
+    use internal_types::entry::test_helpers::lp_to_entry;
+
+    pub fn write_lp(db: &Db, lp: &str) {
+        let entry = lp_to_entry(lp);
+        db.store_entry(entry).unwrap();
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::query_tests::utils::{make_database, make_db};
+    use ::test_helpers::assert_contains;
     use arrow_deps::{
         arrow::record_batch::RecordBatch,
         assert_table_eq,
@@ -746,15 +782,15 @@ mod tests {
     use object_store::{
         disk::File, path::ObjectStorePath, path::Path, ObjectStore, ObjectStoreApi,
     };
-    use query::{
-        exec::Executor, frontend::sql::SQLQueryPlanner, test::TestLPWriter, PartitionChunk,
-    };
-    use test_helpers::assert_contains;
+    use query::{exec::Executor, frontend::sql::SQLQueryPlanner, PartitionChunk};
 
     use super::*;
     use futures::stream;
     use futures::{StreamExt, TryStreamExt};
     use std::iter::Iterator;
+
+    use super::test_helpers::write_lp;
+    use internal_types::entry::test_helpers::lp_to_entry;
     use std::num::NonZeroUsize;
     use std::str;
     use tempfile::TempDir;
@@ -766,9 +802,9 @@ mod tests {
     async fn write_no_mutable_buffer() {
         // Validate that writes are rejected if there is no mutable buffer
         let db = make_db();
-        let mut writer = TestLPWriter::default();
         db.rules.write().lifecycle_rules.immutable = true;
-        let res = writer.write_lp_string(&db, "cpu bar=1 10");
+        let entry = lp_to_entry("cpu bar=1 10");
+        let res = db.store_entry(entry);
         assert_contains!(
             res.unwrap_err().to_string(),
             "Cannot write to this database: no mutable buffer configured"
@@ -778,8 +814,7 @@ mod tests {
     #[tokio::test]
     async fn read_write() {
         let db = Arc::new(make_db());
-        let mut writer = TestLPWriter::default();
-        writer.write_lp_string(db.as_ref(), "cpu bar=1 10").unwrap();
+        write_lp(db.as_ref(), "cpu bar=1 10");
 
         let batches = run_query(db, "select * from cpu").await;
 
@@ -796,9 +831,7 @@ mod tests {
     #[tokio::test]
     async fn write_with_rollover() {
         let db = Arc::new(make_db());
-        let mut writer = TestLPWriter::default();
-        //writer.write_lp_string(db.as_ref(), "cpu bar=1 10").unwrap();
-        writer.write_lp_string(db.as_ref(), "cpu bar=1 10").unwrap();
+        write_lp(db.as_ref(), "cpu bar=1 10");
         assert_eq!(vec!["1970-01-01T00"], db.partition_keys().unwrap());
 
         let mb_chunk = db.rollover_partition("1970-01-01T00").await.unwrap();
@@ -815,7 +848,7 @@ mod tests {
         assert_table_eq!(expected, &batches);
 
         // add new data
-        writer.write_lp_string(db.as_ref(), "cpu bar=2 20").unwrap();
+        write_lp(db.as_ref(), "cpu bar=2 20");
         let expected = vec![
             "+-----+------+",
             "| bar | time |",
@@ -838,7 +871,6 @@ mod tests {
     #[tokio::test]
     async fn write_with_missing_tags_are_null() {
         let db = Arc::new(make_db());
-        let mut writer = TestLPWriter::default();
         // Note the `region` tag is introduced in the second line, so
         // the values in prior rows for the region column are
         // null. Likewise the `core` tag is introduced in the third
@@ -849,9 +881,7 @@ mod tests {
             "cpu,core=one user=10.0 11",
         ];
 
-        writer
-            .write_lp_string(db.as_ref(), &lines.join("\n"))
-            .unwrap();
+        write_lp(db.as_ref(), &lines.join("\n"));
         assert_eq!(vec!["1970-01-01T00"], db.partition_keys().unwrap());
 
         let mb_chunk = db.rollover_partition("1970-01-01T00").await.unwrap();
@@ -874,9 +904,8 @@ mod tests {
     async fn read_from_read_buffer() {
         // Test that data can be loaded into the ReadBuffer
         let db = Arc::new(make_db());
-        let mut writer = TestLPWriter::default();
-        writer.write_lp_string(db.as_ref(), "cpu bar=1 10").unwrap();
-        writer.write_lp_string(db.as_ref(), "cpu bar=2 20").unwrap();
+        write_lp(db.as_ref(), "cpu bar=1 10");
+        write_lp(db.as_ref(), "cpu bar=2 20");
 
         let partition_key = "1970-01-01T00";
         let mb_chunk = db.rollover_partition("1970-01-01T00").await.unwrap();
@@ -946,9 +975,8 @@ mod tests {
         let db = Arc::new(make_database(server_id, Arc::clone(&object_store), db_name));
 
         // Write some line protocols in Mutable buffer of the DB
-        let mut writer = TestLPWriter::default();
-        writer.write_lp_string(db.as_ref(), "cpu bar=1 10").unwrap();
-        writer.write_lp_string(db.as_ref(), "cpu bar=2 20").unwrap();
+        write_lp(db.as_ref(), "cpu bar=1 10");
+        write_lp(db.as_ref(), "cpu bar=2 20");
 
         //Now mark the MB chunk close
         let partition_key = "1970-01-01T00";
@@ -1034,12 +1062,9 @@ mod tests {
         let db = Arc::new(make_database(server_id, Arc::clone(&object_store), db_name));
 
         // Write some line protocols in Mutable buffer of the DB
-        let mut writer = TestLPWriter::default();
-        writer.write_lp_string(db.as_ref(), "cpu bar=1 10").unwrap();
-        writer
-            .write_lp_string(db.as_ref(), "disk ops=1 20")
-            .unwrap();
-        writer.write_lp_string(db.as_ref(), "cpu bar=2 20").unwrap();
+        write_lp(db.as_ref(), "cpu bar=1 10");
+        write_lp(db.as_ref(), "disk ops=1 20");
+        write_lp(db.as_ref(), "cpu bar=2 20");
 
         //Now mark the MB chunk close
         let partition_key = "1970-01-01T00";
@@ -1137,8 +1162,7 @@ mod tests {
         let before_create = Utc::now();
 
         let partition_key = "1970-01-01T00";
-        let mut writer = TestLPWriter::default();
-        writer.write_lp_string(&db, "cpu bar=1 10").unwrap();
+        write_lp(&db, "cpu bar=1 10");
         let after_write = Utc::now();
 
         let last_write_prev = {
@@ -1151,7 +1175,7 @@ mod tests {
             partition.last_write_at()
         };
 
-        writer.write_lp_string(&db, "cpu bar=1 20").unwrap();
+        write_lp(&db, "cpu bar=1 20");
         {
             let partition = db.catalog.valid_partition(partition_key).unwrap();
             let partition = partition.read();
@@ -1165,8 +1189,7 @@ mod tests {
         let db = make_db();
 
         // Given data loaded into two chunks
-        let mut writer = TestLPWriter::default();
-        writer.write_lp_string(&db, "cpu bar=1 10").unwrap();
+        write_lp(&db, "cpu bar=1 10");
         let after_data_load = Utc::now();
 
         // When the chunk is rolled over
@@ -1199,9 +1222,8 @@ mod tests {
         db.rules.write().lifecycle_rules.mutable_size_threshold =
             Some(NonZeroUsize::new(2).unwrap());
 
-        let mut writer = TestLPWriter::default();
-        writer.write_lp_string(&db, "cpu bar=1 10").unwrap();
-        writer.write_lp_string(&db, "cpu bar=1 20").unwrap();
+        write_lp(&db, "cpu bar=1 10");
+        write_lp(&db, "cpu bar=1 20");
 
         let partitions = db.catalog.partition_keys();
         assert_eq!(partitions.len(), 1);
@@ -1218,15 +1240,10 @@ mod tests {
     #[tokio::test]
     async fn chunks_sorted_by_times() {
         let db = make_db();
-        let mut writer = TestLPWriter::default();
-        writer.write_lp_string(&db, "cpu val=1 1").unwrap();
-        writer
-            .write_lp_string(&db, "mem val=2 400000000000001")
-            .unwrap();
-        writer.write_lp_string(&db, "cpu val=1 2").unwrap();
-        writer
-            .write_lp_string(&db, "mem val=2 400000000000002")
-            .unwrap();
+        write_lp(&db, "cpu val=1 1");
+        write_lp(&db, "mem val=2 400000000000001");
+        write_lp(&db, "cpu val=1 2");
+        write_lp(&db, "mem val=2 400000000000002");
 
         let sort_rules = SortOrder {
             order: Order::Desc,
@@ -1257,9 +1274,9 @@ mod tests {
         // Test that chunk id listing is hooked up
         let db = make_db();
         let partition_key = "1970-01-01T00";
-        let mut writer = TestLPWriter::default();
-        writer.write_lp_string(&db, "cpu bar=1 10").unwrap();
-        writer.write_lp_string(&db, "cpu bar=1 20").unwrap();
+
+        write_lp(&db, "cpu bar=1 10");
+        write_lp(&db, "cpu bar=1 20");
 
         assert_eq!(mutable_chunk_ids(&db, partition_key), vec![0]);
         assert_eq!(
@@ -1273,13 +1290,13 @@ mod tests {
 
         // add a new chunk in mutable buffer, and move chunk1 (but
         // not chunk 0) to read buffer
-        writer.write_lp_string(&db, "cpu bar=1 30").unwrap();
+        write_lp(&db, "cpu bar=1 30");
         let mb_chunk = db.rollover_partition("1970-01-01T00").await.unwrap();
         db.load_chunk_to_read_buffer(partition_key, mb_chunk.id())
             .await
             .unwrap();
 
-        writer.write_lp_string(&db, "cpu bar=1 40").unwrap();
+        write_lp(&db, "cpu bar=1 40");
 
         assert_eq!(mutable_chunk_ids(&db, partition_key), vec![0, 2]);
         assert_eq!(read_buffer_chunk_ids(&db, partition_key), vec![1]);
@@ -1308,15 +1325,12 @@ mod tests {
     async fn partition_chunk_summaries() {
         // Test that chunk id listing is hooked up
         let db = make_db();
-        let mut writer = TestLPWriter::default();
 
-        writer.write_lp_string(&db, "cpu bar=1 1").unwrap();
+        write_lp(&db, "cpu bar=1 1");
         db.rollover_partition("1970-01-01T00").await.unwrap();
 
         // write into a separate partitiion
-        writer
-            .write_lp_string(&db, "cpu bar=1,baz2,frob=3 400000000000000")
-            .unwrap();
+        write_lp(&db, "cpu bar=1,baz2,frob=3 400000000000000");
 
         print!("Partitions: {:?}", db.partition_keys().unwrap());
 
@@ -1353,11 +1367,10 @@ mod tests {
     #[tokio::test]
     async fn partition_chunk_summaries_timestamp() {
         let db = make_db();
-        let mut writer = TestLPWriter::default();
         let start = Utc::now();
-        writer.write_lp_string(&db, "cpu bar=1 1").unwrap();
+        write_lp(&db, "cpu bar=1 1");
         let after_first_write = Utc::now();
-        writer.write_lp_string(&db, "cpu bar=2 2").unwrap();
+        write_lp(&db, "cpu bar=2 2");
         db.rollover_partition("1970-01-01T00").await.unwrap();
         let after_close = Utc::now();
 
@@ -1405,17 +1418,13 @@ mod tests {
     async fn chunk_summaries() {
         // Test that chunk id listing is hooked up
         let db = make_db();
-        let mut writer = TestLPWriter::default();
 
         // get three chunks: one open, one closed in mb and one close in rb
-        writer.write_lp_string(&db, "cpu bar=1 1").unwrap();
+        write_lp(&db, "cpu bar=1 1");
         db.rollover_partition("1970-01-01T00").await.unwrap();
 
-        writer.write_lp_string(&db, "cpu bar=1,baz=2 2").unwrap();
-
-        writer
-            .write_lp_string(&db, "cpu bar=1,baz=2,frob=3 400000000000000")
-            .unwrap();
+        write_lp(&db, "cpu bar=1,baz=2 2");
+        write_lp(&db, "cpu bar=1,baz=2,frob=3 400000000000000");
 
         print!("Partitions: {:?}", db.partition_keys().unwrap());
 
@@ -1426,9 +1435,7 @@ mod tests {
         print!("Partitions2: {:?}", db.partition_keys().unwrap());
 
         db.rollover_partition("1970-01-05T15").await.unwrap();
-        writer
-            .write_lp_string(&db, "cpu bar=1,baz=3,blargh=3 400000000000000")
-            .unwrap();
+        write_lp(&db, "cpu bar=1,baz=3,blargh=3 400000000000000");
 
         fn to_arc(s: &str) -> Arc<String> {
             Arc::new(s.to_string())
@@ -1478,12 +1485,11 @@ mod tests {
     async fn partition_summaries() {
         // Test that chunk id listing is hooked up
         let db = make_db();
-        let mut writer = TestLPWriter::default();
 
-        writer.write_lp_string(&db, "cpu bar=1 1").unwrap();
+        write_lp(&db, "cpu bar=1 1");
         let chunk_id = db.rollover_partition("1970-01-01T00").await.unwrap().id();
-        writer.write_lp_string(&db, "cpu bar=2,baz=3.0 2").unwrap();
-        writer.write_lp_string(&db, "mem foo=1 1").unwrap();
+        write_lp(&db, "cpu bar=2,baz=3.0 2");
+        write_lp(&db, "mem foo=1 1");
 
         // load a chunk to the read buffer
         db.load_chunk_to_read_buffer("1970-01-01T00", chunk_id)
@@ -1491,12 +1497,8 @@ mod tests {
             .unwrap();
 
         // write into a separate partitiion
-        writer
-            .write_lp_string(&db, "cpu bar=1 400000000000000")
-            .unwrap();
-        writer
-            .write_lp_string(&db, "mem frob=3 400000000000001")
-            .unwrap();
+        write_lp(&db, "cpu bar=1 400000000000000");
+        write_lp(&db, "mem frob=3 400000000000001");
 
         print!("Partitions: {:?}", db.partition_keys().unwrap());
 

@@ -18,10 +18,7 @@ use crate::{
     Database, DatabaseStore, PartitionChunk, Predicate,
 };
 
-use data_types::database_rules::{PartitionTemplate, TemplatePart};
-use influxdb_line_protocol::{parse_lines, ParsedLine};
 use internal_types::{
-    data::{lines_to_replicated_write, ReplicatedWrite},
     schema::{
         builder::{SchemaBuilder, SchemaMerger},
         Schema,
@@ -30,10 +27,8 @@ use internal_types::{
 };
 
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
-use data_types::database_rules::Partitioner;
 use parking_lot::Mutex;
-use snafu::{OptionExt, ResultExt, Snafu};
+use snafu::{OptionExt, Snafu};
 use std::{collections::BTreeMap, sync::Arc};
 
 #[derive(Debug, Default)]
@@ -42,12 +37,6 @@ pub struct TestDatabase {
     /// Key is partition name
     /// Value is map of chunk_id to chunk
     partitions: Mutex<BTreeMap<String, BTreeMap<u32, Arc<TestChunk>>>>,
-
-    /// Lines which have been written to this database, in order
-    saved_lines: Mutex<Vec<String>>,
-
-    /// Replicated writes which have been written to this database, in order
-    replicated_writes: Mutex<Vec<ReplicatedWrite>>,
 
     /// `column_names` to return upon next request
     column_names: Arc<Mutex<Option<StringSetRef>>>,
@@ -72,33 +61,6 @@ pub type Result<T, E = TestError> = std::result::Result<T, E>;
 impl TestDatabase {
     pub fn new() -> Self {
         Self::default()
-    }
-
-    /// Get all lines written to this database
-    pub fn get_lines(&self) -> Vec<String> {
-        self.saved_lines.lock().clone()
-    }
-
-    /// Get all replicated writs to this database
-    pub fn get_writes(&self) -> Vec<ReplicatedWrite> {
-        self.replicated_writes.lock().clone()
-    }
-
-    /// Parse line protocol and add it as new lines to this
-    /// database
-    pub async fn add_lp_string(&self, lp_data: &str) {
-        let parsed_lines = parse_lines(&lp_data)
-            .collect::<Result<Vec<_>, _>>()
-            .unwrap_or_else(|_| panic!("parsing line protocol: {}", lp_data));
-
-        let mut writer = TestLPWriter::default();
-        writer.write_lines(self, &parsed_lines).unwrap();
-
-        // Writes parsed lines into this database
-        let mut saved_lines = self.saved_lines.lock();
-        for line in parsed_lines {
-            saved_lines.push(line.to_string())
-        }
     }
 
     /// Add a test chunk to the database
@@ -131,12 +93,6 @@ impl TestDatabase {
 impl Database for TestDatabase {
     type Error = TestError;
     type Chunk = TestChunk;
-
-    /// Adds the replicated write to this database
-    fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error> {
-        self.replicated_writes.lock().push(write.clone());
-        Ok(())
-    }
 
     /// Return the partition keys for data in this DB
     fn partition_keys(&self) -> Result<Vec<String>, Self::Error> {
@@ -448,15 +404,6 @@ impl TestDatabaseStore {
     pub fn new() -> Self {
         Self::default()
     }
-
-    /// Parse line protocol and add it as new lines to the `db_name` database
-    pub async fn add_lp_string(&self, db_name: &str, lp_data: &str) {
-        self.db_or_create(db_name)
-            .await
-            .expect("db_or_create suceeeds")
-            .add_lp_string(lp_data)
-            .await
-    }
 }
 
 impl Default for TestDatabaseStore {
@@ -503,93 +450,5 @@ impl DatabaseStore for TestDatabaseStore {
 
     fn executor(&self) -> Arc<Executor> {
         Arc::clone(&self.executor)
-    }
-}
-
-/// Helper for writing line protocol data directly into test databases
-/// (handles creating sequence numbers and writer ids
-#[derive(Debug, Default)]
-pub struct TestLPWriter {
-    pub writer_id: u32,
-    sequence_number: u64,
-}
-
-impl TestLPWriter {
-    // writes data in LineProtocol format into a database
-    pub fn write_lines<D: Database>(
-        &mut self,
-        database: &D,
-        lines: &[ParsedLine<'_>],
-    ) -> Result<()> {
-        // partitions data in hourly segments
-        let partition_template = PartitionTemplate {
-            parts: vec![TemplatePart::TimeFormat("%Y-%m-%dT%H".to_string())],
-        };
-
-        let write = lines_to_replicated_write(
-            self.writer_id,
-            self.sequence_number,
-            &lines,
-            &partition_template,
-        );
-        self.sequence_number += 1;
-        database
-            .store_replicated_write(&write)
-            .map_err(|e| TestError::DatabaseWrite {
-                source: Box::new(e),
-            })
-    }
-
-    /// Writes line protocol formatted data in lp_data to `database`
-    pub fn write_lp_string<D: Database>(&mut self, database: &D, lp_data: &str) -> Result<()> {
-        let lines = parse_lines(lp_data)
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| Box::new(e) as _)
-            .context(DatabaseWrite)?;
-
-        self.write_lines(database, &lines)
-    }
-
-    /// Writes line protocol formatted data to database and partition
-    pub fn write_lp_to_partition<D: Database>(
-        &mut self,
-        database: &D,
-        lp_data: &str,
-        paritition_key: impl Into<String>,
-    ) {
-        let lines = parse_lines(lp_data).collect::<Result<Vec<_>, _>>().unwrap();
-        self.write_lines_to_partition(database, paritition_key, &lines)
-    }
-
-    /// Writes lines the the given partition
-    pub fn write_lines_to_partition<D: Database>(
-        &mut self,
-        database: &D,
-        partition_key: impl Into<String>,
-        lines: &[ParsedLine<'_>],
-    ) {
-        let partitioner = TestPartitioner {
-            key: partition_key.into(),
-        };
-        let write =
-            lines_to_replicated_write(self.writer_id, self.sequence_number, &lines, &partitioner);
-        self.sequence_number += 1;
-        database.store_replicated_write(&write).unwrap();
-    }
-}
-
-// Outputs a set partition key for testing. Used for parsing line protocol into
-// ReplicatedWrite and setting an explicit partition key for all writes therein.
-struct TestPartitioner {
-    key: String,
-}
-
-impl Partitioner for TestPartitioner {
-    fn partition_key(
-        &self,
-        _line: &ParsedLine<'_>,
-        _default_time: &DateTime<Utc>,
-    ) -> data_types::database_rules::Result<String> {
-        Ok(self.key.clone())
     }
 }
