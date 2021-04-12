@@ -1,5 +1,4 @@
 use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
-use data_types::chunk::{ChunkStorage, ChunkSummary};
 use internal_types::{schema::Schema, selection::Selection};
 use mutable_buffer::chunk::Chunk as MBChunk;
 use object_store::path::Path;
@@ -131,50 +130,6 @@ impl DBChunk {
         Arc::new(db_chunk)
     }
 
-    /// Return a partially filled `ChunkSummary` that includes storage
-    /// details. Information such as timestamps are provided by the
-    /// the catalog
-    pub fn summary(&self) -> ChunkSummary {
-        match self {
-            Self::MutableBuffer {
-                chunk,
-                partition_key,
-                open,
-            } => {
-                let storage = if *open {
-                    ChunkStorage::OpenMutableBuffer
-                } else {
-                    ChunkStorage::ClosedMutableBuffer
-                };
-                ChunkSummary::new_without_timestamps(
-                    Arc::clone(partition_key),
-                    chunk.id(),
-                    storage,
-                    chunk.size(),
-                )
-            }
-            Self::ReadBuffer {
-                chunk,
-                partition_key,
-            } => {
-                let estimated_bytes = chunk.size() as usize;
-
-                ChunkSummary::new_without_timestamps(
-                    Arc::clone(&partition_key),
-                    chunk.id(),
-                    ChunkStorage::ReadBuffer,
-                    estimated_bytes,
-                )
-            }
-            Self::ParquetFile { chunk } => ChunkSummary::new_without_timestamps(
-                Arc::clone(&Arc::new(chunk.partition_key().to_string())),
-                chunk.id(),
-                ChunkStorage::ReadBufferAndObjectStore,
-                chunk.size(),
-            ),
-        }
-    }
-
     /// Return object store paths
     pub fn object_store_paths(&self) -> Vec<Path> {
         match self {
@@ -192,14 +147,6 @@ impl PartitionChunk for DBChunk {
             Self::MutableBuffer { chunk, .. } => chunk.id(),
             Self::ReadBuffer { chunk, .. } => chunk.id(),
             Self::ParquetFile { chunk, .. } => chunk.id(),
-        }
-    }
-
-    fn table_summaries(&self) -> Vec<data_types::partition_metadata::TableSummary> {
-        match self {
-            Self::MutableBuffer { chunk, .. } => chunk.table_summaries(),
-            Self::ReadBuffer { chunk, .. } => chunk.table_summaries(),
-            Self::ParquetFile { chunk } => chunk.table_summaries(),
         }
     }
 

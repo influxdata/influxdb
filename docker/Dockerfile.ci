@@ -23,11 +23,16 @@ RUN apt-get update \
   && apt-get install -y \
     git locales sudo openssh-client ca-certificates tar gzip parallel \
     unzip zip bzip2 gnupg curl make pkg-config libssl-dev \
-    jq clang lld \
+    jq clang lld g++ \
     --no-install-recommends \
   && apt-get clean autoclean \
 	&& apt-get autoremove --yes \
 	&& rm -rf /var/lib/{apt,dpkg,cache,log}
+
+# Install bazel using the binary installer to enable building of flatc in the flatbuffers check
+RUN curl -Lo bazel-4.0.0-installer-linux-x86_64.sh https://github.com/bazelbuild/bazel/releases/download/4.0.0/bazel-4.0.0-installer-linux-x86_64.sh
+RUN chmod +x bazel-4.0.0-installer-linux-x86_64.sh
+RUN ./bazel-4.0.0-installer-linux-x86_64.sh --user
 
 # Set timezone to UTC by default
 RUN ln -sf /usr/share/zoneinfo/Etc/UTC /etc/localtime

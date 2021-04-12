@@ -13,7 +13,7 @@ azure_storage = { git = "https://github.com/Azure/azure-sdk-for-rust.git", rev =
 bytes = "1.0"
 chrono = "0.4"
 # Google Cloud Storage integration
-cloud-storage = "0.8.0"
+cloud-storage = "0.9.0"
 futures = "0.3.5"
 itertools = "0.9.0"
 percent-encoding = "2.1"

@@ -8,6 +8,7 @@ use arrow_deps::arrow::record_batch::RecordBatch;
 use data_types::partition_metadata::TableSummary;
 use internal_types::{schema::builder::Error as SchemaError, schema::Schema, selection::Selection};
 use snafu::{OptionExt, ResultExt, Snafu};
+use tracker::{MemRegistry, MemTracker};
 
 use crate::row_group::RowGroup;
 use crate::row_group::{ColumnName, Predicate};
@@ -73,7 +74,6 @@ pub struct Chunk {
 }
 
 // Tie data and meta-data together so that they can be wrapped in RWLock.
-#[derive(Default)]
 pub(crate) struct TableData {
     rows: u64, // Total number of rows across all tables
 
@@ -83,6 +83,31 @@ pub(crate) struct TableData {
     // The set of tables within this chunk. Each table is identified by a
     // measurement name.
     data: BTreeMap<TableName, Table>,
+
+    /// keep track of memory used by table data in chunk
+    tracker: MemTracker,
+}
+
+impl Default for TableData {
+    fn default() -> Self {
+        Self {
+            rows: 0,
+            row_groups: 0,
+            data: BTreeMap::new(),
+            tracker: MemRegistry::new().register(),
+        }
+    }
+}
+
+impl TableData {
+    // Returns the total size of the contents of the tables stored under
+    // `TableData`.
+    fn size(&self) -> usize {
+        self.data
+            .iter()
+            .map(|(k, table)| k.len() + table.size() as usize)
+            .sum::<usize>()
+    }
 }
 
 impl Chunk {
@@ -92,6 +117,22 @@ impl Chunk {
             id,
             chunk_data: RwLock::new(TableData::default()),
         }
+    }
+
+    /// Initialises a new `Chunk` with the associated chunk ID. The returned
+    /// `Chunk` will be tracked according to the provided memory tracker
+    /// registry.
+    pub fn new_with_memory_tracker(id: u32, registry: &MemRegistry) -> Self {
+        let chunk = Self::new(id);
+
+        {
+            let mut chunk_data = chunk.chunk_data.write().unwrap();
+            chunk_data.tracker = registry.register();
+            let size = Self::base_size() + chunk_data.size();
+            chunk_data.tracker.set_bytes(size);
+        }
+
+        chunk
     }
 
     /// Initialises a new `Chunk` seeded with the provided `Table`.
@@ -104,6 +145,7 @@ impl Chunk {
                 rows: table.rows(),
                 row_groups: table.row_groups(),
                 data: vec![(table.name().to_owned(), table)].into_iter().collect(),
+                tracker: MemRegistry::new().register(),
             }),
         }
     }
@@ -113,18 +155,16 @@ impl Chunk {
         self.id
     }
 
+    // The total size taken up by an empty instance of `Chunk`.
+    fn base_size() -> usize {
+        std::mem::size_of::<Self>()
+    }
+
     /// The total estimated size in bytes of this `Chunk` and all contained
     /// data.
     pub fn size(&self) -> usize {
-        let base_size = std::mem::size_of::<Self>();
-
         let table_data = self.chunk_data.read().unwrap();
-        base_size
-            + table_data
-                .data
-                .iter()
-                .map(|(k, table)| k.len() + table.size() as usize)
-                .sum::<usize>()
+        Self::base_size() + table_data.size()
     }
 
     /// The total number of rows in all row groups in all tables in this chunk.
@@ -167,6 +207,8 @@ impl Chunk {
         row_group: RowGroup,
     ) {
         let table_name = table_name.into();
+
+        // Take write lock to modify chunk.
         let mut chunk_data = self.chunk_data.write().unwrap();
 
         // update the meta-data for this chunk with contents of row group.
@@ -183,6 +225,10 @@ impl Chunk {
                 table_entry.insert(Table::new(table_name, row_group));
             }
         };
+
+        // Get and set new size of chunk on memory tracker
+        let size = Self::base_size() + chunk_data.size();
+        chunk_data.tracker.set_bytes(size);
     }
 
     /// Add a record batch of data to to a `Table` in the chunk.
@@ -215,6 +261,10 @@ impl Chunk {
                 table_entry.insert(Table::new(table_name, row_group));
             }
         };
+
+        // Get and set new size of chunk on memory tracker
+        let size = Self::base_size() + chunk_data.size();
+        chunk_data.tracker.set_bytes(size);
     }
 
     /// Removes the table specified by `name` along with all of its contained

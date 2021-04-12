@@ -35,6 +35,7 @@ use tracker::{MemRegistry, TaskTracker, TrackedFutureExt};
 use super::{buffer::Buffer, JobRegistry};
 use data_types::job::Job;
 
+use data_types::partition_metadata::TableSummary;
 use lifecycle::LifecycleManager;
 use system_tables::{SystemSchemaProvider, SYSTEM_SCHEMA};
 
@@ -234,7 +235,6 @@ pub struct Db {
 struct MemoryRegistries {
     mutable_buffer: Arc<MemRegistry>,
 
-    // TODO: Wire into read buffer
     read_buffer: Arc<MemRegistry>,
 
     parquet: Arc<MemRegistry>,
@@ -388,8 +388,9 @@ impl Db {
         let mut batches = Vec::new();
         let table_stats = mb_chunk.table_summaries();
 
-        // create a new read buffer chunk.
-        let rb_chunk = ReadBufferChunk::new(chunk_id);
+        // create a new read buffer chunk with memory tracking
+        let rb_chunk =
+            ReadBufferChunk::new_with_memory_tracker(chunk_id, &self.memory_registries.read_buffer);
 
         // load tables into the new chunk one by one.
         for stats in table_stats {
@@ -560,7 +561,7 @@ impl Db {
         self.sequence.fetch_add(1, Ordering::SeqCst)
     }
 
-    /// Return Summary information for all chunks in the specified
+    /// Return chunk summary information for all chunks in the specified
     /// partition across all storage systems
     pub fn partition_chunk_summaries(&self, partition_key: &str) -> Vec<ChunkSummary> {
         self.catalog
@@ -580,6 +581,19 @@ impl Db {
                 tables: vec![],
             })
     }
+
+    /// Return table summary information for the given chunk in the specified
+    /// partition
+    pub fn table_summaries(&self, partition_key: &str, chunk_id: u32) -> Vec<TableSummary> {
+        if let Some(partition) = self.catalog.partition(partition_key) {
+            let partition = partition.read();
+            if let Ok(chunk) = partition.chunk(chunk_id) {
+                return chunk.read().table_summaries();
+            }
+        }
+        Default::default()
+    }
+
     /// Returns the number of iterations of the background worker loop
     pub fn worker_iterations(&self) -> usize {
         self.worker_iterations.load(Ordering::Relaxed)
@@ -1428,7 +1442,7 @@ mod tests {
                 to_arc("1970-01-01T00"),
                 0,
                 ChunkStorage::ReadBuffer,
-                1269,
+                1285,
             ),
             ChunkSummary::new_without_timestamps(
                 to_arc("1970-01-01T00"),
@@ -1451,8 +1465,7 @@ mod tests {
         ];
 
         assert_eq!(db.memory_registries.mutable_buffer.bytes(), 101 + 133 + 135);
-        // TODO: Instrument read buffer
-        //assert_eq!(db.memory_registries.read_buffer.bytes(), 1269);
+        assert_eq!(db.memory_registries.read_buffer.bytes(), 1285);
 
         assert_eq!(
             expected, chunk_summaries,

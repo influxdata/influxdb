@@ -473,7 +473,10 @@ mod tests {
             ..Default::default()
         };
 
-        let rb = Arc::new(read_buffer::Chunk::new(22));
+        let rb = Arc::new(read_buffer::Chunk::new_with_memory_tracker(
+            22,
+            &tracker::MemRegistry::new(),
+        ));
 
         let chunks = vec![new_chunk(0, Some(0), Some(0))];
 

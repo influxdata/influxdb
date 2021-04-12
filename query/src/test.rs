@@ -345,10 +345,6 @@ impl PartitionChunk for TestChunk {
         self.id
     }
 
-    fn table_summaries(&self) -> Vec<data_types::partition_metadata::TableSummary> {
-        unimplemented!("Table summaries are not implemented for test chunk")
-    }
-
     fn read_filter(
         &self,
         table_name: &str,

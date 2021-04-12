@@ -155,5 +155,9 @@ table Segment {
 table SequencedEntry {
   clock_value: uint64;
   writer_id: uint32;
-  entry: Entry;
+  // The raw bytes for an Entry flatbuffers. Because we can't build the SequencedEntry
+  // Flatbuffers from the bytes of an Entry, we do this to avoid reconstructing the
+  // whole thing. See for the examples and a little context on it:
+  // https://github.com/influxdata/influxdb_iox/pull/1149
+  entry_bytes: [ubyte];
 }

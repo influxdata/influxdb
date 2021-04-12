@@ -53,6 +53,26 @@ pub enum CreateDatabaseError {
     ServerError(tonic::Status),
 }
 
+/// Errors returned by Client::update_database
+#[derive(Debug, Error)]
+pub enum UpdateDatabaseError {
+    /// Writer ID is not set
+    #[error("Writer ID not set")]
+    NoWriterId,
+
+    /// Database not found
+    #[error("Database not found")]
+    DatabaseNotFound,
+
+    /// Server returned an invalid argument error
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    InvalidArgument(tonic::Status),
+
+    /// Client received an unexpected error from the server
+    #[error("Unexpected server error: {}: {}", .0.code(), .0.message())]
+    ServerError(tonic::Status),
+}
+
 /// Errors returned by Client::list_databases
 #[derive(Debug, Error)]
 pub enum ListDatabaseError {
@@ -269,6 +289,25 @@ impl Client {
             })?;
 
         Ok(())
+    }
+
+    /// Updates the configuration for a database.
+    pub async fn update_database(
+        &mut self,
+        rules: DatabaseRules,
+    ) -> Result<DatabaseRules, UpdateDatabaseError> {
+        let response = self
+            .inner
+            .update_database(UpdateDatabaseRequest { rules: Some(rules) })
+            .await
+            .map_err(|status| match status.code() {
+                tonic::Code::NotFound => UpdateDatabaseError::DatabaseNotFound,
+                tonic::Code::FailedPrecondition => UpdateDatabaseError::NoWriterId,
+                tonic::Code::InvalidArgument => UpdateDatabaseError::InvalidArgument(status),
+                _ => UpdateDatabaseError::ServerError(status),
+            })?;
+
+        Ok(response.into_inner().rules.unwrap())
     }
 
     /// List databases.

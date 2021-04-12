@@ -33,6 +33,17 @@ pub(crate) struct Config {
     state: RwLock<ConfigState>,
 }
 
+pub(crate) enum UpdateError<E> {
+    Update(Error),
+    Closure(E),
+}
+
+impl<E> From<Error> for UpdateError<E> {
+    fn from(e: Error) -> Self {
+        Self::Update(e)
+    }
+}
+
 impl Config {
     pub(crate) fn new(jobs: Arc<JobRegistry>) -> Self {
         Self {
@@ -65,6 +76,27 @@ impl Config {
     pub(crate) fn db_names_sorted(&self) -> Vec<DatabaseName<'static>> {
         let state = self.state.read().expect("mutex poisoned");
         state.databases.keys().cloned().collect()
+    }
+
+    pub(crate) fn update_db_rules<F, E>(
+        &self,
+        db_name: &DatabaseName<'static>,
+        update: F,
+    ) -> std::result::Result<DatabaseRules, UpdateError<E>>
+    where
+        F: FnOnce(DatabaseRules) -> std::result::Result<DatabaseRules, E>,
+    {
+        let state = self.state.read().expect("mutex poisoned");
+        let db_state = state
+            .databases
+            .get(db_name)
+            .ok_or_else(|| Error::DatabaseNotFound {
+                db_name: db_name.to_string(),
+            })?;
+
+        let mut rules = db_state.db.rules.write();
+        *rules = update(rules.clone()).map_err(UpdateError::Closure)?;
+        Ok(rules.clone())
     }
 
     pub(crate) fn remotes_sorted(&self) -> Vec<(WriterId, String)> {
