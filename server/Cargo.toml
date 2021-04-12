@@ -29,7 +29,6 @@ serde = "1.0"
 serde_json = "1.0"
 snafu = "0.6"
 snap = "1.0.0"
-tempfile = "3.1.0"
 tokio = { version = "1.0", features = ["macros", "time"] }
 tokio-util = { version = "0.6.3" }
 tracker = { path = "../tracker" }
@@ -37,3 +36,4 @@ uuid = { version = "0.8", features = ["serde", "v4"] }
 
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }
+tempfile = "3.1.0"
