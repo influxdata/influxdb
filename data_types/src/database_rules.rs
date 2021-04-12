@@ -199,6 +199,9 @@ pub struct LifecycleRules {
     /// Allow dropping data that has not been persisted to object storage
     pub drop_non_persisted: bool,
 
+    /// Persists chunks to object storage.
+    pub persist: bool,
+
     /// Do not allow writing new data to this database
     pub immutable: bool,
 }
@@ -228,6 +231,7 @@ impl From<LifecycleRules> for management::LifecycleRules {
                 .unwrap_or_default(),
             sort_order: Some(config.sort_order.into()),
             drop_non_persisted: config.drop_non_persisted,
+            persist: config.persist,
             immutable: config.immutable,
         }
     }
@@ -245,6 +249,7 @@ impl TryFrom<management::LifecycleRules> for LifecycleRules {
             buffer_size_hard: (proto.buffer_size_hard as usize).try_into().ok(),
             sort_order: proto.sort_order.optional("sort_order")?.unwrap_or_default(),
             drop_non_persisted: proto.drop_non_persisted,
+            persist: proto.persist,
             immutable: proto.immutable,
         })
     }
@@ -1288,6 +1293,7 @@ mod tests {
             buffer_size_hard: 232,
             sort_order: None,
             drop_non_persisted: true,
+            persist: true,
             immutable: true,
         };
 
