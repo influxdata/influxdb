@@ -20,6 +20,7 @@ v1.9.0 [unreleased]
 
 ### Bugfixes
 
+-	[#21192](https://github.com/influxdata/influxdb/pull/21192): fix: flux regression in buckets query
 -	[#21156](https://github.com/influxdata/influxdb/pull/21156): fix: redundant registration for prometheus collector metrics
 -	[#21052](https://github.com/influxdata/influxdb/pull/21052): fix: help text for influx_inspect
 -	[#20889](https://github.com/influxdata/influxdb/pull/20889): fix: Add back flux CLI (#20889)

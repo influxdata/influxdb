@@ -10086,6 +10086,39 @@ test _sum = () => ({input: testing.loadStorage(csv: inData), want: testing.loadM
 	}
 }
 
+func TestFluxRegressionEndToEnd(t *testing.T) {
+	config := NewConfig()
+	config.HTTPD.FluxEnabled = true
+	s := OpenServer(config)
+	defer s.Close()
+
+	s.CreateDatabase(t.Name())
+	defer s.DropDatabase(t.Name())
+	u, err := url.Parse(s.URL())
+	assert.NoError(t, err)
+	u.Path = "/api/v2/query"
+	httpClient := &http.Client{}
+
+	{
+		// buckets query
+		assert.NoError(t, err)
+		req, err := http.NewRequest("POST", u.String(), bytes.NewBuffer([]byte(`buckets()`)))
+		req.Header.Set("Content-Type", "application/vnd.flux")
+		assert.NoError(t, err)
+		resp, err := httpClient.Do(req)
+		assert.NoError(t, err)
+		defer resp.Body.Close()
+		b, err := ioutil.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		assert.Equal(t,
+			strings.ReplaceAll(`,result,table,name,id,organizationID,retentionPolicy,retentionPeriod
+,_result,0,TestFluxRegressionEndToEnd/autogen,,,autogen,0
+
+`, "\n", "\r\n"),
+			string(b))
+	}
+}
+
 var FluxEndToEndSkipList = map[string]map[string]string{
 	"universe": {
 		// TODO(adam) determine the reason for these test failures.
