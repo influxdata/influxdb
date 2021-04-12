@@ -524,7 +524,7 @@ pub mod test_helpers {
         let entry = lp_to_entry(lp);
 
         for w in entry.partition_writes().unwrap() {
-            chunk.write_table_batches(0, 0, &w.table_batches())?;
+            chunk.write_table_batches(ClockValue::new(0), 0, &w.table_batches())?;
         }
 
         Ok(())

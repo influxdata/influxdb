@@ -1,6 +1,7 @@
 use generated_types::wal as wb;
 
 use std::{
+    cmp,
     collections::{BTreeMap, BTreeSet},
     sync::Arc,
 };
@@ -302,7 +303,9 @@ impl Table {
                 Some(c) => c
                     .push_typed_values(dictionary, logical_type, values)
                     .with_context(|| {
-                        let column = dictionary.lookup_id(column_id).unwrap_or("unknown");
+                        let column = dictionary
+                            .lookup_id(column_id)
+                            .expect("column name must be present in dictionary");
                         ColumnError { column }
                     })?,
                 None => {
@@ -324,14 +327,7 @@ impl Table {
         let max_row_count = self
             .columns
             .values()
-            .fold(row_count_before_insert, |max, col| {
-                let len = col.len();
-                if max < len {
-                    len
-                } else {
-                    max
-                }
-            });
+            .fold(row_count_before_insert, |max, col| cmp::max(max, col.len()));
 
         for c in self.columns.values_mut() {
             c.push_nulls_to_len(max_row_count);
@@ -451,7 +447,6 @@ impl Table {
 
         for col in &selection.cols {
             let column = self.column(col.column_id)?;
-            println!("COLUMN: {:#?}", column);
 
             let array = match column {
                 Column::String(vals, _) => {
@@ -917,7 +912,7 @@ mod tests {
         table
             .write_columns(
                 &mut dictionary,
-                0,
+                ClockValue::new(0),
                 0,
                 entry
                     .partition_writes()
@@ -936,7 +931,7 @@ mod tests {
         let response = table
             .write_columns(
                 &mut dictionary,
-                0,
+                ClockValue::new(0),
                 0,
                 entry
                     .partition_writes()
@@ -960,7 +955,7 @@ mod tests {
         let response = table
             .write_columns(
                 &mut dictionary,
-                0,
+                ClockValue::new(0),
                 0,
                 entry
                     .partition_writes()
@@ -984,7 +979,7 @@ mod tests {
         let response = table
             .write_columns(
                 &mut dictionary,
-                0,
+                ClockValue::new(0),
                 0,
                 entry
                     .partition_writes()
@@ -1008,7 +1003,7 @@ mod tests {
         let response = table
             .write_columns(
                 &mut dictionary,
-                0,
+                ClockValue::new(0),
                 0,
                 entry
                     .partition_writes()
@@ -1032,7 +1027,7 @@ mod tests {
         let response = table
             .write_columns(
                 &mut dictionary,
-                0,
+                ClockValue::new(0),
                 0,
                 entry
                     .partition_writes()

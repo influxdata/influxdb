@@ -44,7 +44,7 @@ pub enum Column {
 
 impl Column {
     /// Initializes a new column from typed values, the column on a table write
-    /// batach on an Entry. Will initialize the stats with the first
+    /// batch on an Entry. Will initialize the stats with the first
     /// non-null value and update with any other non-null values included.
     pub fn new_from_typed_values(
         dictionary: &mut Dictionary,
@@ -55,12 +55,11 @@ impl Column {
         match values {
             TypedValuesIterator::String(vals) => match logical_type {
                 LogicalColumnType::Tag => {
-                    let mut tag_values = vec![None; row_count];
                     let mut stats: Option<StatValues<String>> = None;
 
-                    for tag in vals {
-                        let tag_id = match tag {
-                            Some(tag) => {
+                    let tag_values: Vec<_> = vals
+                        .map(|tag| {
+                            tag.map(|tag| {
                                 match stats.as_mut() {
                                     Some(s) => StatValues::update_string(s, tag),
                                     None => {
@@ -68,13 +67,10 @@ impl Column {
                                     }
                                 }
 
-                                Some(dictionary.lookup_value_or_insert(tag))
-                            }
-                            None => None,
-                        };
-
-                        tag_values.push(tag_id);
-                    }
+                                dictionary.lookup_value_or_insert(tag)
+                            })
+                        })
+                        .collect();
 
                     Self::Tag(
                         tag_values,
