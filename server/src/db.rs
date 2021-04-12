@@ -565,7 +565,8 @@ impl Db {
         Ok(DBChunk::snapshot(&chunk))
     }
 
-    /// Spawns a task to perform load_chunk_to_read_buffer
+    /// Spawns a task to perform
+    /// [`load_chunk_to_read_buffer`](Self::load_chunk_to_read_buffer)
     pub fn load_chunk_to_read_buffer_in_background(
         self: &Arc<Self>,
         partition_key: String,
