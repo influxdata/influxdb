@@ -946,7 +946,13 @@ mod tests {
             .err()
             .unwrap();
         assert!(
-            matches!(&response, Error::InternalColumnTypeMismatch {expected_column_type, actual_column_type, ..} if expected_column_type == "tag" && actual_column_type == "String"),
+            matches!(
+                &response,
+                Error::InternalColumnTypeMismatch {
+                    expected_column_type,
+                    actual_column_type,
+                    ..
+                } if expected_column_type == "tag" && actual_column_type == "String"),
             format!("didn't match returned error: {:?}", response)
         );
 

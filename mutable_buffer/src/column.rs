@@ -276,33 +276,33 @@ impl Column {
     pub fn push_nulls_to_len(&mut self, len: usize) {
         match self {
             Self::Tag(vals, _) => {
-                while vals.len() < len {
-                    vals.push(None);
+                if len > vals.len() {
+                    vals.resize(len, None);
                 }
             }
             Self::I64(vals, _) => {
-                while vals.len() < len {
-                    vals.push(None);
+                if len > vals.len() {
+                    vals.resize(len, None);
                 }
             }
             Self::F64(vals, _) => {
-                while vals.len() < len {
-                    vals.push(None);
+                if len > vals.len() {
+                    vals.resize(len, None);
                 }
             }
             Self::U64(vals, _) => {
-                while vals.len() < len {
-                    vals.push(None);
+                if len > vals.len() {
+                    vals.resize(len, None);
                 }
             }
             Self::Bool(vals, _) => {
-                while vals.len() < len {
-                    vals.push(None);
+                if len > vals.len() {
+                    vals.resize(len, None);
                 }
             }
             Self::String(vals, _) => {
-                while vals.len() < len {
-                    vals.push(None);
+                if len > vals.len() {
+                    vals.resize(len, None);
                 }
             }
         }
