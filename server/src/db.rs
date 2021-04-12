@@ -1078,26 +1078,24 @@ mod tests {
             .unwrap();
         println!("path_list: {:#?}", path_list);
         assert_eq!(path_list.len(), 2);
-        assert_eq!(path_list, paths.clone());
 
         // Check the content of each path
-
+        //
         // Root path
         let root_path = format!("{:?}", root.path());
         let root_path = root_path.trim_matches('"');
 
-        let mut i = 0;
-        while i < 2 {
+        for path in path_list {
             // Get full string path
-            let path = format!("{}/{}", root_path, paths[i].display());
-            println!("path: {}", path);
+            let path_string = format!("{}/{}", root_path, path.display());
+            println!("path: {}", path_string);
 
             // Create External table of this parquet file to get its content in a human
             // readable form
             // Note: We do not care about escaping quotes here because it is just a test
             let sql = format!(
                 "CREATE EXTERNAL TABLE parquet_table STORED AS PARQUET LOCATION '{}'",
-                path
+                path_string
             );
 
             let mut ctx = context::ExecutionContext::new();
@@ -1108,26 +1106,28 @@ mod tests {
             let sql = "SELECT * FROM parquet_table";
             let content = ctx.sql(&sql).unwrap().collect().await.unwrap();
             println!("Content: {:?}", content);
-            let mut expected = vec![
-                "+-----+------+",
-                "| bar | time |",
-                "+-----+------+",
-                "| 1   | 10   |",
-                "| 2   | 20   |",
-                "+-----+------+",
-            ];
-            if i == 1 {
-                expected = vec![
+            let expected = if path_string.contains("cpu") {
+                // file name: cpu.parquet
+                vec![
+                    "+-----+------+",
+                    "| bar | time |",
+                    "+-----+------+",
+                    "| 1   | 10   |",
+                    "| 2   | 20   |",
+                    "+-----+------+",
+                ]
+            } else {
+                // file name: disk.parquet
+                vec![
                     "+-----+------+",
                     "| ops | time |",
                     "+-----+------+",
                     "| 1   | 20   |",
                     "+-----+------+",
-                ];
-            }
+                ]
+            };
 
             assert_table_eq!(expected, &content);
-            i += 1;
         }
     }
 
