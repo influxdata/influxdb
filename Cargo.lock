@@ -599,6 +599,7 @@ dependencies = [
  "clap",
  "criterion-plot",
  "csv",
+ "futures",
  "itertools 0.10.0",
  "lazy_static",
  "num-traits",
@@ -611,6 +612,7 @@ dependencies = [
  "serde_derive",
  "serde_json",
  "tinytemplate",
+ "tokio",
  "walkdir",
 ]
 
@@ -3262,8 +3264,10 @@ dependencies = [
  "bytes",
  "chrono",
  "crc32fast",
+ "criterion",
  "data_types",
  "flatbuffers",
+ "flate2",
  "futures",
  "generated_types",
  "influxdb_line_protocol",

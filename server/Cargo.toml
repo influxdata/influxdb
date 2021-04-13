@@ -35,5 +35,12 @@ tracker = { path = "../tracker" }
 uuid = { version = "0.8", features = ["serde", "v4"] }
 
 [dev-dependencies] # In alphabetical order
-test_helpers = { path = "../test_helpers" }
+criterion = { version = "0.3.4", features = ["async_tokio"] }
+flate2 = "1.0.20"
 tempfile = "3.1.0"
+test_helpers = { path = "../test_helpers" }
+
+[[bench]]
+name = "influxrpc"
+harness = false
+
