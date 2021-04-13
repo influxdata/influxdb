@@ -1,6 +1,6 @@
 use snafu::Snafu;
 
-use crate::dictionary::Dictionary;
+use crate::dictionary::{Dictionary, DID};
 use data_types::partition_metadata::StatValues;
 use generated_types::entry::LogicalColumnType;
 use internal_types::entry::TypedValuesIterator;
@@ -36,7 +36,7 @@ pub enum Column {
     U64(Vec<Option<u64>>, StatValues<u64>),
     String(Vec<Option<String>>, StatValues<String>),
     Bool(Vec<Option<bool>>, StatValues<bool>),
-    Tag(Vec<Option<u32>>, StatValues<String>),
+    Tag(Vec<Option<DID>>, StatValues<String>),
 }
 
 impl Column {
@@ -356,7 +356,7 @@ impl Column {
                 mem::size_of::<Option<bool>>() * v.len() + mem::size_of_val(&stats)
             }
             Self::Tag(v, stats) => {
-                mem::size_of::<Option<u32>>() * v.len() + mem::size_of_val(&stats)
+                mem::size_of::<Option<DID>>() * v.len() + mem::size_of_val(&stats)
             }
             Self::String(v, stats) => {
                 let string_bytes_size = v

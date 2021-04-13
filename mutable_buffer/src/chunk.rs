@@ -15,7 +15,7 @@ use tracker::{MemRegistry, MemTracker};
 
 use crate::chunk::snapshot::ChunkSnapshot;
 use crate::{
-    dictionary::{Dictionary, Error as DictionaryError},
+    dictionary::{Dictionary, Error as DictionaryError, DID},
     table::Table,
 };
 use parking_lot::Mutex;
@@ -37,11 +37,11 @@ pub enum Error {
     },
 
     #[snafu(display("Table {} not found in chunk {}", table, chunk))]
-    TableNotFoundInChunk { table: u32, chunk: u64 },
+    TableNotFoundInChunk { table: DID, chunk: u64 },
 
     #[snafu(display("Column ID {} not found in dictionary of chunk {}", column_id, chunk))]
     ColumnIdNotFoundInDictionary {
-        column_id: u32,
+        column_id: DID,
         chunk: u64,
         source: DictionaryError,
     },
@@ -65,14 +65,14 @@ pub struct Chunk {
     /// The id for this chunk
     id: u32,
 
-    /// `dictionary` maps &str -> u32. The u32s are used in place of String or
+    /// `dictionary` maps &str -> DID. The DIDs are used in place of String or
     /// str to avoid slow string operations. The same dictionary is used for
     /// table names, tag names, tag values, and column names.
     // TODO: intern string field values too?
     dictionary: Dictionary,
 
     /// map of the dictionary ID for the table name to the table
-    tables: HashMap<u32, Table>,
+    tables: HashMap<DID, Table>,
 
     /// keep track of memory used by chunk
     tracker: MemTracker,

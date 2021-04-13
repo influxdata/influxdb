@@ -3,7 +3,7 @@ use std::{cmp, collections::BTreeMap, sync::Arc};
 use crate::{
     column,
     column::Column,
-    dictionary::{Dictionary, Error as DictionaryError},
+    dictionary::{Dictionary, Error as DictionaryError, DID},
 };
 use data_types::{
     database_rules::WriterId,
@@ -31,7 +31,7 @@ use arrow_deps::{
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Tag value ID {} not found in dictionary of chunk", value))]
-    TagValueIdNotFoundInDictionary { value: u32, source: DictionaryError },
+    TagValueIdNotFoundInDictionary { value: DID, source: DictionaryError },
 
     #[snafu(display("Column error on column {}: {}", column, source))]
     ColumnError {
@@ -46,7 +46,7 @@ pub enum Error {
         actual_column_type
     ))]
     InternalColumnTypeMismatch {
-        column_id: u32,
+        column_id: DID,
         expected_column_type: String,
         actual_column_type: String,
     },
@@ -59,7 +59,7 @@ pub enum Error {
 
     #[snafu(display("Internal: Column id '{}' not found in dictionary", column_id,))]
     ColumnIdNotFoundInDictionary {
-        column_id: u32,
+        column_id: DID,
         source: DictionaryError,
     },
 
@@ -76,22 +76,22 @@ pub enum Error {
         column_name,
         column_id
     ))]
-    InternalNoColumnInIndex { column_name: String, column_id: u32 },
+    InternalNoColumnInIndex { column_name: String, column_id: DID },
 
     #[snafu(display("Error creating column from wal for column {}: {}", column, source))]
     CreatingFromWal {
-        column: u32,
+        column: DID,
         source: crate::column::Error,
     },
 
     #[snafu(display("Error evaluating column predicate for column {}: {}", column, source))]
     ColumnPredicateEvaluation {
-        column: u32,
+        column: DID,
         source: crate::column::Error,
     },
 
     #[snafu(display("Row insert to table {} missing column name", table))]
-    ColumnNameNotInRow { table: u32 },
+    ColumnNameNotInRow { table: DID },
 
     #[snafu(display(
         "Group column '{}' not found in tag columns: {}",
@@ -107,21 +107,21 @@ pub enum Error {
     DuplicateGroupColumn { column_name: String },
 
     #[snafu(display("Column {} not found in table {}", id, table_id))]
-    ColumnIdNotFound { id: u32, table_id: u32 },
+    ColumnIdNotFound { id: DID, table_id: DID },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, Clone)]
 pub struct Table {
-    /// Name of the table as a u32 in the chunk dictionary
-    pub id: u32,
+    /// Name of the table as a DID in the chunk dictionary
+    pub id: DID,
 
     /// Map of column id from the chunk dictionary to the column
-    pub columns: BTreeMap<u32, Column>,
+    pub columns: BTreeMap<DID, Column>,
 }
 
 impl Table {
-    pub fn new(id: u32) -> Self {
+    pub fn new(id: DID) -> Self {
         Self {
             id,
             columns: BTreeMap::new(),
@@ -144,7 +144,7 @@ impl Table {
     }
 
     /// Returns a reference to the specified column
-    pub(crate) fn column(&self, column_id: u32) -> Result<&Column> {
+    pub(crate) fn column(&self, column_id: DID) -> Result<&Column> {
         self.columns.get(&column_id).context(ColumnIdNotFound {
             id: column_id,
             table_id: self.id,
@@ -468,7 +468,7 @@ impl Table {
 
 struct ColSelection<'a> {
     column_name: &'a str,
-    column_id: u32,
+    column_id: DID,
 }
 
 /// Represets a set of column_name, column_index pairs
@@ -502,15 +502,15 @@ mod tests {
         ];
 
         write_lines_to_table(&mut table, &mut dictionary, lp_lines.clone());
-        assert_eq!(128, table.size());
+        assert_eq!(112, table.size());
 
         // doesn't double because of the stats overhead
         write_lines_to_table(&mut table, &mut dictionary, lp_lines.clone());
-        assert_eq!(224, table.size());
+        assert_eq!(192, table.size());
 
         // now make sure it increased by the same amount minus stats overhead
         write_lines_to_table(&mut table, &mut dictionary, lp_lines);
-        assert_eq!(320, table.size());
+        assert_eq!(272, table.size());
     }
 
     #[test]
