@@ -1,7 +1,6 @@
 use snafu::Snafu;
 
-use crate::dictionary::Dictionary;
-use arrow_deps::arrow::datatypes::DataType as ArrowDataType;
+use crate::dictionary::{Dictionary, DID};
 use data_types::partition_metadata::StatValues;
 use generated_types::entry::LogicalColumnType;
 use internal_types::entry::TypedValuesIterator;
@@ -37,7 +36,7 @@ pub enum Column {
     U64(Vec<Option<u64>>, StatValues<u64>),
     String(Vec<Option<String>>, StatValues<String>),
     Bool(Vec<Option<bool>>, StatValues<bool>),
-    Tag(Vec<Option<u32>>, StatValues<String>),
+    Tag(Vec<Option<DID>>, StatValues<String>),
 }
 
 impl Column {
@@ -320,10 +319,6 @@ impl Column {
         }
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
     pub fn type_description(&self) -> &'static str {
         match self {
             Self::F64(_, _) => "f64",
@@ -335,104 +330,10 @@ impl Column {
         }
     }
 
-    /// Return the arrow DataType for this column
-    pub fn data_type(&self) -> ArrowDataType {
-        match self {
-            Self::F64(..) => ArrowDataType::Float64,
-            Self::I64(..) => ArrowDataType::Int64,
-            Self::U64(..) => ArrowDataType::UInt64,
-            Self::String(..) => ArrowDataType::Utf8,
-            Self::Bool(..) => ArrowDataType::Boolean,
-            Self::Tag(..) => ArrowDataType::Utf8,
-        }
-    }
-
-    // push_none_if_len_equal will add a None value to the end of the Vec of values
-    // if the length is equal to the passed in value. This is used to ensure
-    // columns are all the same length.
-    pub fn push_none_if_len_equal(&mut self, len: usize) {
-        match self {
-            Self::F64(v, _) => {
-                if v.len() == len {
-                    v.push(None);
-                }
-            }
-            Self::I64(v, _) => {
-                if v.len() == len {
-                    v.push(None);
-                }
-            }
-            Self::U64(v, _) => {
-                if v.len() == len {
-                    v.push(None);
-                }
-            }
-            Self::String(v, _) => {
-                if v.len() == len {
-                    v.push(None);
-                }
-            }
-            Self::Bool(v, _) => {
-                if v.len() == len {
-                    v.push(None);
-                }
-            }
-            Self::Tag(v, _) => {
-                if v.len() == len {
-                    v.push(None);
-                }
-            }
-        }
-    }
-
     pub fn get_i64_stats(&self) -> Option<StatValues<i64>> {
         match self {
             Self::I64(_, values) => Some(values.clone()),
             _ => None,
-        }
-    }
-
-    /// Returns true if any rows are within the range [min_value,
-    /// max_value). Inclusive of `start`, exclusive of `end`
-    pub fn has_i64_range(&self, start: i64, end: i64) -> Result<bool> {
-        match self {
-            Self::I64(_, stats) => {
-                if stats.max < start || stats.min >= end {
-                    Ok(false)
-                } else {
-                    Ok(true)
-                }
-            }
-            _ => InternalTypeMismatchForTimePredicate {}.fail(),
-        }
-    }
-
-    /// Return true of this column's type is a Tag
-    pub fn is_tag(&self) -> bool {
-        matches!(self, Self::Tag(..))
-    }
-
-    /// Returns true if there exists at least one row idx where this
-    /// self[i] is within the range [min_value, max_value). Inclusive
-    /// of `start`, exclusive of `end` and where col[i] is non null
-    pub fn has_non_null_i64_range<T>(
-        &self,
-        column: &[Option<T>],
-        start: i64,
-        end: i64,
-    ) -> Result<bool> {
-        match self {
-            Self::I64(v, _) => {
-                for (index, val) in v.iter().enumerate() {
-                    if let Some(val) = val {
-                        if start <= *val && *val < end && column[index].is_some() {
-                            return Ok(true);
-                        }
-                    }
-                }
-                Ok(false)
-            }
-            _ => InternalTypeMismatchForTimePredicate {}.fail(),
         }
     }
 
@@ -455,7 +356,7 @@ impl Column {
                 mem::size_of::<Option<bool>>() * v.len() + mem::size_of_val(&stats)
             }
             Self::Tag(v, stats) => {
-                mem::size_of::<Option<u32>>() * v.len() + mem::size_of_val(&stats)
+                mem::size_of::<Option<DID>>() * v.len() + mem::size_of_val(&stats)
             }
             Self::String(v, stats) => {
                 let string_bytes_size = v
@@ -465,91 +366,5 @@ impl Column {
                 string_bytes_size + vec_pointer_sizes + mem::size_of_val(&stats)
             }
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_has_i64_range() {
-        let mut stats = StatValues::new(1);
-        stats.update(2);
-        let col = Column::I64(vec![Some(1), None, Some(2)], stats.clone());
-        assert!(!col.has_i64_range(-1, 0).unwrap());
-        assert!(!col.has_i64_range(0, 1).unwrap());
-        assert!(col.has_i64_range(1, 2).unwrap());
-        assert!(col.has_i64_range(2, 3).unwrap());
-        assert!(!col.has_i64_range(3, 4).unwrap());
-
-        let col = Column::I64(vec![Some(2), None, Some(1)], stats);
-        assert!(!col.has_i64_range(-1, 0).unwrap());
-        assert!(!col.has_i64_range(0, 1).unwrap());
-        assert!(col.has_i64_range(1, 2).unwrap());
-        assert!(col.has_i64_range(2, 3).unwrap());
-        assert!(!col.has_i64_range(3, 4).unwrap());
-    }
-
-    #[test]
-    fn test_has_i64_range_does_not_panic() {
-        // providing the wrong column type should get an internal error, not a panic
-        let col = Column::F64(vec![Some(1.2)], StatValues::new(1.2));
-        let res = col.has_i64_range(-1, 0);
-        assert!(res.is_err());
-        let res_string = format!("{:?}", res);
-        let expected = "InternalTypeMismatchForTimePredicate";
-        assert!(
-            res_string.contains(expected),
-            "Did not find expected text '{}' in '{}'",
-            expected,
-            res_string
-        );
-    }
-
-    #[test]
-    fn test_has_non_null_i64_range_() {
-        let none_col: Vec<Option<u32>> = vec![None, None, None];
-        let some_col: Vec<Option<u32>> = vec![Some(0), Some(0), Some(0)];
-
-        let mut stats = StatValues::new(1);
-        stats.update(2);
-        let col = Column::I64(vec![Some(1), None, Some(2)], stats);
-
-        assert!(!col.has_non_null_i64_range(&some_col, -1, 0).unwrap());
-        assert!(!col.has_non_null_i64_range(&some_col, 0, 1).unwrap());
-        assert!(col.has_non_null_i64_range(&some_col, 1, 2).unwrap());
-        assert!(col.has_non_null_i64_range(&some_col, 2, 3).unwrap());
-        assert!(!col.has_non_null_i64_range(&some_col, 3, 4).unwrap());
-
-        assert!(!col.has_non_null_i64_range(&none_col, -1, 0).unwrap());
-        assert!(!col.has_non_null_i64_range(&none_col, 0, 1).unwrap());
-        assert!(!col.has_non_null_i64_range(&none_col, 1, 2).unwrap());
-        assert!(!col.has_non_null_i64_range(&none_col, 2, 3).unwrap());
-        assert!(!col.has_non_null_i64_range(&none_col, 3, 4).unwrap());
-    }
-
-    #[test]
-    fn column_size() {
-        let i64col = Column::I64(vec![Some(1), Some(1)], StatValues::new(1));
-        assert_eq!(40, i64col.size());
-
-        let f64col = Column::F64(vec![Some(1.1), Some(1.1), Some(1.1)], StatValues::new(1.1));
-        assert_eq!(56, f64col.size());
-
-        let boolcol = Column::Bool(vec![Some(true)], StatValues::new(true));
-        assert_eq!(9, boolcol.size());
-
-        let tagcol = Column::Tag(
-            vec![Some(1), Some(1), Some(1), Some(1)],
-            StatValues::new("foo".to_string()),
-        );
-        assert_eq!(40, tagcol.size());
-
-        let stringcol = Column::String(
-            vec![Some("foo".to_string()), Some("hello world".to_string())],
-            StatValues::new("foo".to_string()),
-        );
-        assert_eq!(70, stringcol.size());
     }
 }

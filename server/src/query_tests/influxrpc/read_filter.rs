@@ -50,7 +50,6 @@ macro_rules! run_read_filter_test_case {
 
             let plan = planner
                 .read_filter(&db, predicate.clone())
-                .await
                 .expect("built plan successfully");
 
             let string_results = run_series_set_plan(executor, plan).await;

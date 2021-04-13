@@ -27,7 +27,6 @@ macro_rules! run_table_names_test_case {
 
             let plan = planner
                 .table_names(&db, predicate.clone())
-                .await
                 .expect("built plan successfully");
             let names = executor
                 .to_string_set(plan)

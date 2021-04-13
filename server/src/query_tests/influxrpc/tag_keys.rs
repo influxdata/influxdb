@@ -31,7 +31,6 @@ macro_rules! run_tag_keys_test_case {
 
             let plan = planner
                 .tag_keys(&db, predicate.clone())
-                .await
                 .expect("built plan successfully");
             let names = executor
                 .to_string_set(plan)

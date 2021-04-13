@@ -55,8 +55,8 @@ impl ChunkSnapshot {
     pub fn new(chunk: &Chunk) -> Self {
         let mut records: HashMap<String, TableSnapshot> = Default::default();
         for (id, table) in &chunk.tables {
-            let schema = table.schema(chunk, Selection::All).unwrap();
-            let batch = table.to_arrow(chunk, Selection::All).unwrap();
+            let schema = table.schema(&chunk.dictionary, Selection::All).unwrap();
+            let batch = table.to_arrow(&chunk.dictionary, Selection::All).unwrap();
             let name = chunk.dictionary.lookup_id(*id).unwrap();
 
             let timestamp_range = chunk

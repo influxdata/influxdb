@@ -29,7 +29,6 @@ macro_rules! run_tag_values_test_case {
 
             let plan = planner
                 .tag_values(&db, &tag_name, predicate.clone())
-                .await
                 .expect("built plan successfully");
             let names = executor
                 .to_string_set(plan)
@@ -239,7 +238,7 @@ async fn list_tag_values_field_col() {
 
         // Test: temp is a field, not a tag
         let tag_name = "temp";
-        let plan_result = planner.tag_values(&db, &tag_name, predicate.clone()).await;
+        let plan_result = planner.tag_values(&db, &tag_name, predicate.clone());
 
         assert_eq!(
             plan_result.unwrap_err().to_string(),

@@ -60,5 +60,4 @@
 pub mod chunk;
 mod column;
 mod dictionary;
-pub mod pred;
 mod table;

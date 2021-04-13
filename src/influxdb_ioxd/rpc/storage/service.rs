@@ -714,7 +714,6 @@ where
 
     let plan = planner
         .table_names(db.as_ref(), predicate)
-        .await
         .map_err(|e| Box::new(e) as _)
         .context(ListingTables { db_name })?;
     let executor = db_store.executor();
@@ -765,7 +764,6 @@ where
 
     let tag_key_plan = planner
         .tag_keys(db.as_ref(), predicate)
-        .await
         .map_err(|e| Box::new(e) as _)
         .context(ListingColumns {
             db_name: db_name.as_str(),
@@ -825,7 +823,6 @@ where
 
     let tag_value_plan = planner
         .tag_values(db.as_ref(), tag_name, predicate)
-        .await
         .map_err(|e| Box::new(e) as _)
         .context(ListingTagValues { db_name, tag_name })?;
 
@@ -882,7 +879,6 @@ where
 
     let series_plan = planner
         .read_filter(db.as_ref(), predicate)
-        .await
         .map_err(|e| Box::new(e) as _)
         .context(PlanningFilteringSeries { db_name })?;
 
@@ -968,14 +964,10 @@ where
 
     let grouped_series_set_plan = match gby_agg {
         GroupByAndAggregate::Columns { agg, group_columns } => {
-            planner
-                .read_group(db.as_ref(), predicate, agg, &group_columns)
-                .await
+            planner.read_group(db.as_ref(), predicate, agg, &group_columns)
         }
         GroupByAndAggregate::Window { agg, every, offset } => {
-            planner
-                .read_window_aggregate(db.as_ref(), predicate, agg, every, offset)
-                .await
+            planner.read_window_aggregate(db.as_ref(), predicate, agg, every, offset)
         }
     };
     let grouped_series_set_plan = grouped_series_set_plan
@@ -1039,7 +1031,6 @@ where
 
     let field_list_plan = planner
         .field_columns(db.as_ref(), predicate)
-        .await
         .map_err(|e| Box::new(e) as _)
         .context(ListingFields { db_name })?;
 
