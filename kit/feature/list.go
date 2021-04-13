@@ -16,48 +16,6 @@ func AppMetrics() BoolFlag {
 	return appMetrics
 }
 
-var backendExample = MakeBoolFlag(
-	"Backend Example",
-	"backendExample",
-	"Gavin Cabbage",
-	false,
-	Permanent,
-	false,
-)
-
-// BackendExample - A permanent backend example boolean flag
-func BackendExample() BoolFlag {
-	return backendExample
-}
-
-var communityTemplates = MakeBoolFlag(
-	"Community Templates",
-	"communityTemplates",
-	"Bucky",
-	true,
-	Permanent,
-	true,
-)
-
-// CommunityTemplates - Replace current template uploading functionality with community driven templates
-func CommunityTemplates() BoolFlag {
-	return communityTemplates
-}
-
-var frontendExample = MakeIntFlag(
-	"Frontend Example",
-	"frontendExample",
-	"Gavin Cabbage",
-	42,
-	Temporary,
-	true,
-)
-
-// FrontendExample - A temporary frontend example integer flag
-func FrontendExample() IntFlag {
-	return frontendExample
-}
-
 var groupWindowAggregateTranspose = MakeBoolFlag(
 	"Group Window Aggregate Transpose",
 	"groupWindowAggregateTranspose",
@@ -312,9 +270,6 @@ func TypeAheadDropdownsForVariables() BoolFlag {
 
 var all = []Flag{
 	appMetrics,
-	backendExample,
-	communityTemplates,
-	frontendExample,
 	groupWindowAggregateTranspose,
 	newLabels,
 	memoryOptimizedFill,
@@ -337,9 +292,6 @@ var all = []Flag{
 
 var byKey = map[string]Flag{
 	"appMetrics":                    appMetrics,
-	"backendExample":                backendExample,
-	"communityTemplates":            communityTemplates,
-	"frontendExample":               frontendExample,
 	"groupWindowAggregateTranspose": groupWindowAggregateTranspose,
 	"newLabels":                     newLabels,
 	"memoryOptimizedFill":           memoryOptimizedFill,
