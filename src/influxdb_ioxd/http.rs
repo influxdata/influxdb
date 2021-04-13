@@ -736,11 +736,7 @@ mod tests {
     use query::exec::Executor;
     use reqwest::{Client, Response};
 
-    use data_types::{
-        database_rules::{DatabaseRules, WalBufferConfig, WalBufferRollover},
-        wal::WriterSummary,
-        DatabaseName,
-    };
+    use data_types::{database_rules::DatabaseRules, DatabaseName};
     use object_store::{memory::InMemory, ObjectStore};
     use serde::de::DeserializeOwned;
     use server::{db::Db, ConnectionManagerImpl};
@@ -1103,115 +1099,6 @@ mod tests {
         .await;
     }
 
-    #[tokio::test]
-    async fn get_wal_meta() {
-        let server = Arc::new(AppServer::new(
-            ConnectionManagerImpl {},
-            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
-        ));
-        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
-        let server_url = test_server(Arc::clone(&server));
-
-        let database_name = "foo_bar";
-        let rules = DatabaseRules {
-            name: DatabaseName::new(database_name).unwrap(),
-            partition_template: Default::default(),
-            wal_buffer_config: Some(WalBufferConfig {
-                buffer_size: 500,
-                segment_size: 10,
-                buffer_rollover: WalBufferRollover::ReturnError,
-                store_segments: true,
-                close_segment_after: None,
-            }),
-            lifecycle_rules: Default::default(),
-            shard_config: None,
-        };
-
-        server
-            .create_database(
-                rules,
-                server.require_id().unwrap(),
-                Arc::clone(&server.store),
-            )
-            .await
-            .unwrap();
-
-        let base_url = format!(
-            "{}/iox/api/v1/databases/{}/wal/meta",
-            server_url, database_name
-        );
-
-        let client = Client::new();
-
-        let r1: WalMetadataResponse = check_json_response(&client, &base_url, StatusCode::OK).await;
-
-        let lines: std::result::Result<Vec<_>, _> = influxdb_line_protocol::parse_lines(
-            "cpu,host=A,region=west usage_system=64i 1590488773254420000",
-        )
-        .collect();
-
-        server
-            .write_lines(database_name, &lines.unwrap())
-            .await
-            .unwrap();
-
-        let r2: WalMetadataResponse = check_json_response(&client, &base_url, StatusCode::OK).await;
-
-        let limit_1 = serde_urlencoded::to_string(&WalMetadataQuery {
-            limit: Some(1),
-            newer_than: None,
-            offset: None,
-        })
-        .unwrap();
-        let limit_url = format!("{}?{}", base_url, limit_1);
-
-        let r3: WalMetadataResponse =
-            check_json_response(&client, &limit_url, StatusCode::OK).await;
-
-        let limit_future = serde_urlencoded::to_string(&WalMetadataQuery {
-            limit: None,
-            offset: None,
-            newer_than: Some(chrono::Utc::now() + chrono::Duration::seconds(5)),
-        })
-        .unwrap();
-        let future_url = format!("{}?{}", base_url, limit_future);
-
-        let r4: WalMetadataResponse =
-            check_json_response(&client, &future_url, StatusCode::OK).await;
-
-        // No data written yet - expect no results
-        assert_eq!(r1.segments.len(), 1);
-        assert_eq!(r1.segments[0].size, 0);
-        assert_eq!(r1.segments[0].writers.len(), 0);
-
-        // The WAL segment size is less than the line size
-        // We therefore expect an open and a closed segment in that order
-        // With the closed segment containing the written data
-        // And the open segment containing no data
-        assert_eq!(r2.segments.len(), 2);
-        assert_eq!(r2.segments[0].size, 0);
-        assert!(r2.segments[0].created_at >= r2.segments[1].created_at);
-
-        assert!(r2.segments[1].persisted.is_none());
-        assert_eq!(r2.segments[1].size, 368);
-        assert_eq!(r2.segments[1].writers.len(), 1);
-        assert_eq!(
-            r2.segments[1].writers.values().next().unwrap(),
-            &WriterSummary {
-                start_sequence: 1,
-                end_sequence: 1,
-                missing_sequence: false
-            }
-        );
-
-        // Query limited to a single segment - expect only the most recent segment
-        assert_eq!(r3.segments.len(), 1);
-        assert_eq!(r3.segments[0], r2.segments[0]);
-
-        // Requesting segments from future - expect no results
-        assert_eq!(r4.segments.len(), 0);
-    }
-
     fn get_content_type(response: &Result<Response, reqwest::Error>) -> String {
         if let Ok(response) = response {
             response
@@ -1250,6 +1137,7 @@ mod tests {
         }
     }
 
+    #[allow(dead_code)]
     async fn check_json_response<T: DeserializeOwned + Eq + Debug>(
         client: &Client,
         url: &str,
