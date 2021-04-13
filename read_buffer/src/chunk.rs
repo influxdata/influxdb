@@ -316,6 +316,19 @@ impl Chunk {
         Ok(table.read_filter(&select_columns, &predicate))
     }
 
+    /// Returns timestamp range for specified table
+    pub fn read_time_range(&self, table_name: &str) -> Result<Option<(i64, i64)>> {
+        // read lock on chunk.
+        let chunk_data = self.chunk_data.read().unwrap();
+
+        let table = chunk_data
+            .data
+            .get(table_name)
+            .context(TableNotFound { table_name })?;
+
+        Ok(table.time_range())
+    }
+
     /// Returns an iterable collection of data in group columns and aggregate
     /// columns, optionally filtered by the provided predicate. Results are
     /// merged across all row groups within the returned table.

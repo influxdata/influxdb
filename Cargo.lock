@@ -2332,6 +2332,7 @@ dependencies = [
  "bytes",
  "data_types",
  "futures",
+ "internal_types",
  "object_store",
  "parking_lot",
  "snafu",

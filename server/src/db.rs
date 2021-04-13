@@ -3,6 +3,7 @@
 
 use std::any::Any;
 use std::{
+    convert::TryInto,
     num::NonZeroU32,
     sync::{
         atomic::{AtomicU64, AtomicUsize, Ordering},
@@ -15,15 +16,19 @@ use observability_deps::tracing::{debug, info};
 use parking_lot::{Mutex, RwLock};
 use snafu::{ensure, OptionExt, ResultExt, Snafu};
 
-use arrow_deps::datafusion::{
-    catalog::{catalog::CatalogProvider, schema::SchemaProvider},
-    physical_plan::SendableRecordBatchStream,
+use arrow_deps::{
+    arrow::datatypes::SchemaRef as ArrowSchemaRef,
+    datafusion::{
+        catalog::{catalog::CatalogProvider, schema::SchemaProvider},
+        physical_plan::SendableRecordBatchStream,
+    },
 };
 
 use catalog::{chunk::ChunkState, Catalog};
 pub(crate) use chunk::DBChunk;
 use data_types::{
     chunk::ChunkSummary, database_rules::DatabaseRules, partition_metadata::PartitionSummary,
+    timestamp::TimestampRange,
 };
 use internal_types::selection::Selection;
 use object_store::ObjectStore;
@@ -115,6 +120,18 @@ pub enum Error {
         chunk_id: u32,
     },
 
+    #[snafu(display("Read Buffer Schema Error in chunk {}: {}", chunk_id, source))]
+    ReadBufferChunkSchemaError {
+        source: read_buffer::Error,
+        chunk_id: u32,
+    },
+
+    #[snafu(display("Read Buffer Timestamp Error in chunk {}: {}", chunk_id, source))]
+    ReadBufferChunkTimestampError {
+        chunk_id: u32,
+        source: read_buffer::Error,
+    },
+
     #[snafu(display("Error writing to object store: {}", source))]
     WritingToObjectStore {
         source: parquet_file::storage::Error,
@@ -135,6 +152,11 @@ pub enum Error {
 
     #[snafu(display("Error building sequenced entry: {}", source))]
     SequencedEntryError { source: entry::Error },
+
+    #[snafu(display("Error building sequenced entry: {}", source))]
+    SchemaConversion {
+        source: internal_types::schema::Error,
+    },
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -487,12 +509,16 @@ impl Db {
             let read_results = rb_chunk
                 .read_filter(stats.name.as_str(), predicate, Selection::All)
                 .context(ReadBufferChunkError { chunk_id })?;
-            let schema = rb_chunk
+            let arrow_schema: ArrowSchemaRef = rb_chunk
                 .read_filter_table_schema(stats.name.as_str(), Selection::All)
-                .context(ReadBufferChunkError { chunk_id })?
+                .context(ReadBufferChunkSchemaError { chunk_id })?
                 .into();
-            let stream: SendableRecordBatchStream =
-                Box::pin(streams::ReadFilterResultsStream::new(read_results, schema));
+            let time_range = rb_chunk
+                .read_time_range(stats.name.as_str())
+                .context(ReadBufferChunkTimestampError { chunk_id })?;
+            let stream: SendableRecordBatchStream = Box::pin(
+                streams::ReadFilterResultsStream::new(read_results, Arc::clone(&arrow_schema)),
+            );
 
             // Write this table data into the object store
             let path = storage
@@ -506,7 +532,20 @@ impl Db {
                 .context(WritingToObjectStore)?;
 
             // Now add the saved info into the parquet_chunk
-            parquet_chunk.add_table(stats, path);
+            let schema = Arc::clone(&arrow_schema)
+                .try_into()
+                .context(SchemaConversion)?;
+            let table_time_range = match time_range {
+                None => None,
+                Some((start, end)) => {
+                    if start < end {
+                        Some(TimestampRange::new(start, end))
+                    } else {
+                        None
+                    }
+                }
+            };
+            parquet_chunk.add_table(stats, path, schema, table_time_range);
         }
 
         // Relock the chunk again (nothing else should have been able
