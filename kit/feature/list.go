@@ -16,34 +16,6 @@ func AppMetrics() BoolFlag {
 	return appMetrics
 }
 
-var backendExample = MakeBoolFlag(
-	"Backend Example",
-	"backendExample",
-	"Gavin Cabbage",
-	false,
-	Permanent,
-	false,
-)
-
-// BackendExample - A permanent backend example boolean flag
-func BackendExample() BoolFlag {
-	return backendExample
-}
-
-var frontendExample = MakeIntFlag(
-	"Frontend Example",
-	"frontendExample",
-	"Gavin Cabbage",
-	42,
-	Temporary,
-	true,
-)
-
-// FrontendExample - A temporary frontend example integer flag
-func FrontendExample() IntFlag {
-	return frontendExample
-}
-
 var groupWindowAggregateTranspose = MakeBoolFlag(
 	"Group Window Aggregate Transpose",
 	"groupWindowAggregateTranspose",
@@ -298,8 +270,6 @@ func TypeAheadDropdownsForVariables() BoolFlag {
 
 var all = []Flag{
 	appMetrics,
-	backendExample,
-	frontendExample,
 	groupWindowAggregateTranspose,
 	newLabels,
 	memoryOptimizedFill,
@@ -322,8 +292,6 @@ var all = []Flag{
 
 var byKey = map[string]Flag{
 	"appMetrics":                    appMetrics,
-	"backendExample":                backendExample,
-	"frontendExample":               frontendExample,
 	"groupWindowAggregateTranspose": groupWindowAggregateTranspose,
 	"newLabels":                     newLabels,
 	"memoryOptimizedFill":           memoryOptimizedFill,

@@ -21,20 +21,6 @@
   contact: Bucky, Monitoring Team
   lifetime: permanent
 
-- name: Backend Example
-  description: A permanent backend example boolean flag
-  key: backendExample
-  default: false
-  contact: Gavin Cabbage
-  lifetime: permanent
-
-- name: Frontend Example
-  description: A temporary frontend example integer flag
-  key: frontendExample
-  default: 42
-  contact: Gavin Cabbage
-  expose: true
-
 - name: Group Window Aggregate Transpose
   description: Enables the GroupWindowAggregateTransposeRule for all enabled window aggregates
   key: groupWindowAggregateTranspose
