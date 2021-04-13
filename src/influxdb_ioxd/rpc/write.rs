@@ -47,6 +47,23 @@ where
         let lines_written = lp_line_count as u64;
         Ok(Response::new(WriteResponse { lines_written }))
     }
+
+    async fn write_entry(
+        &self,
+        request: tonic::Request<WriteEntryRequest>,
+    ) -> Result<tonic::Response<WriteEntryResponse>, tonic::Status> {
+        let request = request.into_inner();
+        if request.entry.is_empty() {
+            return Err(FieldViolation::required("entry").into());
+        }
+
+        self.server
+            .write_entry(&request.db_name, request.entry)
+            .await
+            .map_err(default_server_error_handler)?;
+
+        Ok(Response::new(WriteEntryResponse {}))
+    }
 }
 
 /// Instantiate the write service

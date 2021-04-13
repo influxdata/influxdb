@@ -23,6 +23,11 @@ pub fn default_server_error_handler(error: server::Error) -> tonic::Status {
             description: source.to_string(),
         }
         .into(),
+        Error::DecodingEntry { source } => FieldViolation {
+            field: "entry".into(),
+            description: source.to_string(),
+        }
+        .into(),
         error => {
             error!(?error, "Unexpected error");
             InternalError {}.into()

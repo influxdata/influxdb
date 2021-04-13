@@ -67,6 +67,7 @@
     clippy::clone_on_ref_ptr
 )]
 
+use std::convert::TryInto;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -150,6 +151,10 @@ pub enum Error {
     WalError { source: buffer::Error },
     #[snafu(display("error converting line protocol to flatbuffers: {}", source))]
     LineConversion { source: entry::Error },
+    #[snafu(display("error decoding entry flatbuffers: {}", source))]
+    DecodingEntry {
+        source: flatbuffers::InvalidFlatbuffer,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -366,6 +371,19 @@ impl<M: ConnectionManager> Server<M> {
         }
 
         Ok(())
+    }
+
+    pub async fn write_entry(&self, db_name: &str, entry_bytes: Vec<u8>) -> Result<()> {
+        self.require_id()?;
+
+        let db_name = DatabaseName::new(db_name).context(InvalidDatabaseName)?;
+        let db = self
+            .config
+            .db(&db_name)
+            .context(DatabaseNotFound { db_name: &*db_name })?;
+
+        let entry = entry_bytes.try_into().context(DecodingEntry)?;
+        self.handle_write_entry(&db, entry).await
     }
 
     pub async fn handle_write_entry(&self, db: &Db, entry: Entry) -> Result<()> {
@@ -674,7 +692,7 @@ mod tests {
     use tokio_util::sync::CancellationToken;
 
     use arrow_deps::{assert_table_eq, datafusion::physical_plan::collect};
-    use data_types::database_rules::{PartitionTemplate, TemplatePart};
+    use data_types::database_rules::{PartitionTemplate, TemplatePart, NO_SHARD_CONFIG};
     use influxdb_line_protocol::parse_lines;
     use object_store::{memory::InMemory, path::ObjectStorePath};
     use query::{frontend::sql::SQLQueryPlanner, Database};
@@ -848,6 +866,55 @@ mod tests {
 
         let db_name = DatabaseName::new("foo").unwrap();
         let db = server.db(&db_name).unwrap();
+
+        let planner = SQLQueryPlanner::default();
+        let executor = server.executor();
+        let physical_plan = planner
+            .query(db, "select * from cpu", executor.as_ref())
+            .await
+            .unwrap();
+
+        let batches = collect(physical_plan).await.unwrap();
+        let expected = vec![
+            "+-----+------+",
+            "| bar | time |",
+            "+-----+------+",
+            "| 1   | 10   |",
+            "+-----+------+",
+        ];
+        assert_table_eq!(expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn write_entry_local() {
+        let manager = TestConnectionManager::new();
+        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+        let server = Server::new(manager, store);
+        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+
+        let name = DatabaseName::new("foo".to_string()).unwrap();
+        server
+            .create_database(
+                DatabaseRules::new(name),
+                server.require_id().unwrap(),
+                Arc::clone(&server.store),
+            )
+            .await
+            .unwrap();
+
+        let db_name = DatabaseName::new("foo").unwrap();
+        let db = server.db(&db_name).unwrap();
+
+        let line = "cpu bar=1 10";
+        let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
+        let sharded_entries = lines_to_sharded_entries(&lines, NO_SHARD_CONFIG, &*db.rules.read())
+            .expect("sharded entries");
+
+        let entry = &sharded_entries[0].entry;
+        server
+            .write_entry("foo", entry.data().into())
+            .await
+            .expect("write entry");
 
         let planner = SQLQueryPlanner::default();
         let executor = server.executor();
