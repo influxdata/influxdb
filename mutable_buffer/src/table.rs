@@ -1,15 +1,10 @@
-use std::{
-    cmp,
-    collections::{BTreeMap, BTreeSet},
-    sync::Arc,
-};
+use std::{cmp, collections::BTreeMap, sync::Arc};
 
 use crate::{
     chunk::Chunk,
     column,
     column::Column,
     dictionary::{Dictionary, Error as DictionaryError},
-    pred::{ChunkIdSet, ChunkPredicate},
 };
 use data_types::{
     database_rules::WriterId,
@@ -473,118 +468,6 @@ impl Table {
         RecordBatch::try_new(schema, columns).context(ArrowError {})
     }
 
-    /// returns true if any row in this table could possible match the
-    /// predicate. true does not mean any rows will *actually* match,
-    /// just that the entire table can not be ruled out.
-    ///
-    /// false means that no rows in this table could possibly match
-    pub fn could_match_predicate(&self, chunk_predicate: &ChunkPredicate) -> Result<bool> {
-        Ok(
-            self.matches_column_name_predicate(chunk_predicate.field_name_predicate.as_ref())
-                && self.matches_table_name_predicate(chunk_predicate.table_name_predicate.as_ref())
-                && self.matches_timestamp_predicate(chunk_predicate)?
-                && self.has_columns(chunk_predicate.required_columns.as_ref()),
-        )
-    }
-
-    /// Returns true if the table contains any of the field columns
-    /// requested or there are no specific fields requested.
-    fn matches_column_name_predicate(&self, column_selection: Option<&BTreeSet<u32>>) -> bool {
-        match column_selection {
-            Some(column_selection) => {
-                for column_id in column_selection {
-                    if let Some(column) = self.columns.get(column_id) {
-                        if !column.is_tag() {
-                            return true;
-                        }
-                    }
-                }
-
-                // selection only had tag columns
-                false
-            }
-            None => true, // no specific selection
-        }
-    }
-
-    fn matches_table_name_predicate(&self, table_name_predicate: Option<&BTreeSet<u32>>) -> bool {
-        match table_name_predicate {
-            Some(table_name_predicate) => table_name_predicate.contains(&self.id),
-            None => true, // no table predicate
-        }
-    }
-
-    /// returns true if there are any timestamps in this table that
-    /// fall within the timestamp range
-    fn matches_timestamp_predicate(&self, chunk_predicate: &ChunkPredicate) -> Result<bool> {
-        match &chunk_predicate.range {
-            None => Ok(true),
-            Some(range) => {
-                let time_column_id = chunk_predicate.time_column_id;
-                let time_column = self.column(time_column_id)?;
-                time_column.has_i64_range(range.start, range.end).context(
-                    ColumnPredicateEvaluation {
-                        column: time_column_id,
-                    },
-                )
-            }
-        }
-    }
-
-    /// returns true if no columns are specified, or the table has all
-    /// columns specified
-    fn has_columns(&self, columns: Option<&ChunkIdSet>) -> bool {
-        if let Some(columns) = columns {
-            match columns {
-                ChunkIdSet::AtLeastOneMissing => return false,
-                ChunkIdSet::Present(symbols) => {
-                    for symbol in symbols {
-                        if !self.columns.contains_key(symbol) {
-                            return false;
-                        }
-                    }
-                }
-            }
-        }
-        true
-    }
-
-    /// returns true if there are any rows in column that are non-null
-    /// and within the timestamp range specified by pred
-    pub(crate) fn column_matches_predicate(
-        &self,
-        column: &Column,
-        chunk_predicate: &ChunkPredicate,
-    ) -> Result<bool> {
-        match column {
-            Column::F64(v, _) => self.column_value_matches_predicate(v, chunk_predicate),
-            Column::I64(v, _) => self.column_value_matches_predicate(v, chunk_predicate),
-            Column::U64(v, _) => self.column_value_matches_predicate(v, chunk_predicate),
-            Column::String(v, _) => self.column_value_matches_predicate(v, chunk_predicate),
-            Column::Bool(v, _) => self.column_value_matches_predicate(v, chunk_predicate),
-            Column::Tag(v, _) => self.column_value_matches_predicate(v, chunk_predicate),
-        }
-    }
-
-    fn column_value_matches_predicate<T>(
-        &self,
-        column_value: &[Option<T>],
-        chunk_predicate: &ChunkPredicate,
-    ) -> Result<bool> {
-        match chunk_predicate.range {
-            None => Ok(true),
-            Some(range) => {
-                let time_column_id = chunk_predicate.time_column_id;
-                let time_column = self.column(time_column_id)?;
-                time_column
-                    .has_non_null_i64_range(column_value, range.start, range.end)
-                    .context(ColumnPredicateEvaluation {
-                        column: time_column_id,
-                    })
-            }
-        }
-    }
-
     pub fn stats(&self, chunk: &Chunk) -> Vec<ColumnSummary> {
         self.columns
             .iter()
@@ -640,49 +523,6 @@ mod tests {
     use tracker::MemRegistry;
 
     #[test]
-    fn test_has_columns() {
-        let registry = Arc::new(MemRegistry::new());
-        let mut chunk = Chunk::new(42, registry.as_ref());
-        let dictionary = &mut chunk.dictionary;
-        let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
-
-        let lp_lines = vec![
-            "h2o,state=MA,city=Boston temp=70.4 100",
-            "h2o,state=MA,city=Boston temp=72.4 250",
-        ];
-
-        write_lines_to_table(&mut table, dictionary, lp_lines);
-
-        let state_symbol = dictionary.id("state").unwrap();
-        let new_symbol = dictionary.lookup_value_or_insert("not_a_columns");
-
-        assert!(table.has_columns(None));
-
-        let pred = ChunkIdSet::AtLeastOneMissing;
-        assert!(!table.has_columns(Some(&pred)));
-
-        let set = BTreeSet::<u32>::new();
-        let pred = ChunkIdSet::Present(set);
-        assert!(table.has_columns(Some(&pred)));
-
-        let mut set = BTreeSet::new();
-        set.insert(state_symbol);
-        let pred = ChunkIdSet::Present(set);
-        assert!(table.has_columns(Some(&pred)));
-
-        let mut set = BTreeSet::new();
-        set.insert(new_symbol);
-        let pred = ChunkIdSet::Present(set);
-        assert!(!table.has_columns(Some(&pred)));
-
-        let mut set = BTreeSet::new();
-        set.insert(state_symbol);
-        set.insert(new_symbol);
-        let pred = ChunkIdSet::Present(set);
-        assert!(!table.has_columns(Some(&pred)));
-    }
-
-    #[test]
     fn table_size() {
         let registry = Arc::new(MemRegistry::new());
         let mut chunk = Chunk::new(42, registry.as_ref());
@@ -704,84 +544,6 @@ mod tests {
         // now make sure it increased by the same amount minus stats overhead
         write_lines_to_table(&mut table, dictionary, lp_lines);
         assert_eq!(320, table.size());
-    }
-
-    #[test]
-    fn test_matches_table_name_predicate() {
-        let registry = Arc::new(MemRegistry::new());
-        let mut chunk = Chunk::new(42, registry.as_ref());
-        let dictionary = &mut chunk.dictionary;
-        let mut table = Table::new(dictionary.lookup_value_or_insert("h2o"));
-
-        let lp_lines = vec![
-            "h2o,state=MA,city=Boston temp=70.4 100",
-            "h2o,state=MA,city=Boston temp=72.4 250",
-        ];
-        write_lines_to_table(&mut table, dictionary, lp_lines);
-
-        let h2o_symbol = dictionary.id("h2o").unwrap();
-
-        assert!(table.matches_table_name_predicate(None));
-
-        let set = BTreeSet::new();
-        assert!(!table.matches_table_name_predicate(Some(&set)));
-
-        let mut set = BTreeSet::new();
-        set.insert(h2o_symbol);
-        assert!(table.matches_table_name_predicate(Some(&set)));
-
-        // Some symbol that is not the same as h2o_symbol
-        assert_ne!(37377, h2o_symbol);
-        let mut set = BTreeSet::new();
-        set.insert(37377);
-        assert!(!table.matches_table_name_predicate(Some(&set)));
-    }
-
-    #[test]
-    fn test_matches_column_name_predicate() {
-        let registry = Arc::new(MemRegistry::new());
-        let mut chunk = Chunk::new(42, registry.as_ref());
-        let dictionary = &mut chunk.dictionary;
-        let mut table = Table::new(dictionary.lookup_value_or_insert("h2o"));
-
-        let lp_lines = vec![
-            "h2o,state=MA,city=Boston temp=70.4,awesomeness=1000 100",
-            "h2o,state=MA,city=Boston temp=72.4,awesomeness=2000 250",
-        ];
-        write_lines_to_table(&mut table, dictionary, lp_lines);
-
-        let state_symbol = dictionary.id("state").unwrap();
-        let temp_symbol = dictionary.id("temp").unwrap();
-        let awesomeness_symbol = dictionary.id("awesomeness").unwrap();
-
-        assert!(table.matches_column_name_predicate(None));
-
-        let set = BTreeSet::new();
-        assert!(!table.matches_column_name_predicate(Some(&set)));
-
-        // tag columns should not count
-        let mut set = BTreeSet::new();
-        set.insert(state_symbol);
-        assert!(!table.matches_column_name_predicate(Some(&set)));
-
-        let mut set = BTreeSet::new();
-        set.insert(temp_symbol);
-        assert!(table.matches_column_name_predicate(Some(&set)));
-
-        let mut set = BTreeSet::new();
-        set.insert(temp_symbol);
-        set.insert(awesomeness_symbol);
-        assert!(table.matches_column_name_predicate(Some(&set)));
-
-        let mut set = BTreeSet::new();
-        set.insert(temp_symbol);
-        set.insert(awesomeness_symbol);
-        set.insert(1337); // some other symbol, but that is ok
-        assert!(table.matches_column_name_predicate(Some(&set)));
-
-        let mut set = BTreeSet::new();
-        set.insert(1337);
-        assert!(!table.matches_column_name_predicate(Some(&set)));
     }
 
     #[test]
