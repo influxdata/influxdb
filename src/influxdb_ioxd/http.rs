@@ -32,7 +32,7 @@ use http::header::{CONTENT_ENCODING, CONTENT_TYPE};
 use hyper::{Body, Method, Request, Response, StatusCode};
 use observability_deps::{
     opentelemetry::KeyValue,
-    tracing::{self, debug, error, info},
+    tracing::{self, debug, error},
 };
 use routerify::{prelude::*, Middleware, RequestInfo, Router, RouterError, RouterService};
 use serde::Deserialize;
@@ -312,11 +312,11 @@ where
     Router::builder()
         .data(server)
         .middleware(Middleware::pre(|req| async move {
-            info!(request = ?req, "Processing request");
+            debug!(request = ?req, "Processing request");
             Ok(req)
         }))
         .middleware(Middleware::post(|res| async move {
-            info!(response = ?res, "Successfully processed request");
+            debug!(response = ?res, "Successfully processed request");
             Ok(res)
         })) // this endpoint is for API backward compatibility with InfluxDB 2.x
         .post("/api/v2/write", write::<M>)
