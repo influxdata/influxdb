@@ -9,22 +9,23 @@ use std::collections::HashMap;
 impl Client {
     /// List all Labels
     pub async fn labels(&self) -> Result<LabelsResponse, RequestError> {
-        Ok(self.get_labels("").await?)
+        Ok(self.get_labels(None).await?)
     }
 
     /// List all Labels by organization ID
     pub async fn labels_by_org(&self, org_id: &str) -> Result<LabelsResponse, RequestError> {
-        Ok(self.get_labels(org_id).await?)
+        Ok(self.get_labels(Some(org_id)).await?)
     }
 
-    async fn get_labels(&self, org_id: &str) -> Result<LabelsResponse, RequestError> {
+    async fn get_labels(&self, org_id: Option<&str>) -> Result<LabelsResponse, RequestError> {
         let labels_url = format!("{}/api/v2/labels", self.url);
-        let response = self
-            .request(Method::GET, &labels_url)
-            .query(&[("orgID", org_id)])
-            .send()
-            .await
-            .context(ReqwestProcessing)?;
+        let mut request = self.request(Method::GET, &labels_url);
+
+        if let Some(id) = org_id {
+            request = request.query(&[("orgID", id)]);
+        }
+
+        let response = request.send().await.context(ReqwestProcessing)?;
         match response.status() {
             StatusCode::OK => Ok(response
                 .json::<LabelsResponse>()
@@ -144,7 +145,7 @@ mod tests {
     async fn labels() {
         let token = "some-token";
 
-        let mock_server = mock("GET", format!("{}?orgID=", BASE_PATH).as_str())
+        let mock_server = mock("GET", BASE_PATH)
             .match_header("Authorization", format!("Token {}", token).as_str())
             .create();
 
