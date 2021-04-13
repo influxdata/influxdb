@@ -799,11 +799,13 @@ impl CatalogProvider for Db {
 
 pub mod test_helpers {
     use super::*;
-    use internal_types::entry::test_helpers::lp_to_entry;
+    use internal_types::entry::test_helpers::lp_to_entries;
 
     pub fn write_lp(db: &Db, lp: &str) {
-        let entry = lp_to_entry(lp);
-        db.store_entry(entry).unwrap();
+        let entries = lp_to_entries(lp);
+        for entry in entries {
+            db.store_entry(entry).unwrap();
+        }
     }
 }
 

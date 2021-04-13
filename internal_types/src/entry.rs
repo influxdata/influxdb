@@ -1231,8 +1231,13 @@ pub mod test_helpers {
     use chrono::TimeZone;
     use influxdb_line_protocol::parse_lines;
 
-    /// Converts the line protocol to a vec of ShardedEntry with a single shard
-    /// and a single partition
+    // An appropriate maximum size for batches of LP to be written into IOx. Using
+    // test fixtures containing more than this many lines of LP will result in them
+    // being written as multiple writes.
+    const LP_BATCH_SIZE: usize = 10000;
+
+    /// Converts the line protocol to a single `Entry` with a single shard and
+    /// a single partition.
     pub fn lp_to_entry(lp: &str) -> Entry {
         let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
 
@@ -1241,6 +1246,24 @@ pub mod test_helpers {
             .pop()
             .unwrap()
             .entry
+    }
+
+    /// Converts the line protocol to a collection of `Entry` with a single
+    /// shard and a single partition, which is useful for testing when `lp` is
+    /// large. Batches are sized according to LP_BATCH_SIZE.
+    pub fn lp_to_entries(lp: &str) -> Vec<Entry> {
+        let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
+
+        lines
+            .chunks(LP_BATCH_SIZE)
+            .map(|batch| {
+                lines_to_sharded_entries(batch, sharder(1).as_ref(), &hour_partitioner())
+                    .unwrap()
+                    .pop()
+                    .unwrap()
+                    .entry
+            })
+            .collect::<Vec<_>>()
     }
 
     /// Returns a test sharder that will assign shard ids from [0, count)
