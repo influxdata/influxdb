@@ -1,6 +1,6 @@
 use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 use internal_types::{schema::Schema, selection::Selection};
-use mutable_buffer::chunk::Chunk as MBChunk;
+use mutable_buffer::chunk::snapshot::ChunkSnapshot;
 use object_store::path::Path;
 use observability_deps::tracing::debug;
 use parquet_file::chunk::Chunk as ParquetChunk;
@@ -11,15 +11,15 @@ use snafu::{ResultExt, Snafu};
 use std::{collections::BTreeSet, sync::Arc};
 
 use super::{
-    pred::{to_mutable_buffer_predicate, to_read_buffer_predicate},
-    streams::{MutableBufferChunkStream, ReadFilterResultsStream},
+    pred::to_read_buffer_predicate,
+    streams::{MemoryStream, ReadFilterResultsStream},
 };
 
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("Mutable Buffer Chunk Error: {}", source))]
     MutableBufferChunk {
-        source: mutable_buffer::chunk::Error,
+        source: mutable_buffer::chunk::snapshot::Error,
     },
 
     #[snafu(display("Read Buffer Error in chunk {}: {}", chunk_id, source))]
@@ -59,10 +59,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug)]
 pub enum DBChunk {
     MutableBuffer {
-        chunk: Arc<MBChunk>,
-        partition_key: Arc<String>,
-        /// is this chunk open for writing?
-        open: bool,
+        chunk: Arc<ChunkSnapshot>,
     },
     ReadBuffer {
         chunk: Arc<ReadBufferChunk>,
@@ -84,36 +81,12 @@ impl DBChunk {
             ChunkState::Invalid => {
                 panic!("Invalid internal state");
             }
-            ChunkState::Open(chunk) => {
-                // TODO the performance if cloning the chunk is terrible
-                // Proper performance is tracked in
-                // https://github.com/influxdata/influxdb_iox/issues/635
-                let chunk = Arc::new(chunk.clone());
-                Self::MutableBuffer {
-                    chunk,
-                    partition_key,
-                    open: true,
-                }
-            }
-            ChunkState::Closing(chunk) => {
-                // TODO the performance if cloning the chunk is terrible
-                // Proper performance is tracked in
-                // https://github.com/influxdata/influxdb_iox/issues/635
-                let chunk = Arc::new(chunk.clone());
-                Self::MutableBuffer {
-                    chunk,
-                    partition_key,
-                    open: false,
-                }
-            }
-            ChunkState::Moving(chunk) => {
-                let chunk = Arc::clone(chunk);
-                Self::MutableBuffer {
-                    chunk,
-                    partition_key,
-                    open: false,
-                }
-            }
+            ChunkState::Open(chunk) | ChunkState::Closing(chunk) => Self::MutableBuffer {
+                chunk: chunk.snapshot(),
+            },
+            ChunkState::Moving(chunk) => Self::MutableBuffer {
+                chunk: chunk.snapshot(),
+            },
             ChunkState::Moved(chunk) => Self::ReadBuffer {
                 chunk: Arc::clone(chunk),
                 partition_key,
@@ -144,7 +117,7 @@ impl PartitionChunk for DBChunk {
 
     fn id(&self) -> u32 {
         match self {
-            Self::MutableBuffer { chunk, .. } => chunk.id(),
+            Self::MutableBuffer { chunk, .. } => chunk.chunk_id(),
             Self::ReadBuffer { chunk, .. } => chunk.id(),
             Self::ParquetFile { chunk, .. } => chunk.id(),
         }
@@ -152,7 +125,9 @@ impl PartitionChunk for DBChunk {
 
     fn all_table_names(&self, known_tables: &mut StringSet) {
         match self {
-            Self::MutableBuffer { chunk, .. } => chunk.all_table_names(known_tables),
+            Self::MutableBuffer { chunk, .. } => {
+                known_tables.extend(chunk.table_names(None).cloned())
+            }
             Self::ReadBuffer { chunk, .. } => {
                 // TODO - align APIs so they behave in the same way...
                 let rb_names = chunk.all_table_names(known_tables);
@@ -167,35 +142,15 @@ impl PartitionChunk for DBChunk {
     fn table_names(
         &self,
         predicate: &Predicate,
-        _known_tables: &StringSet,
+        _known_tables: &StringSet, // TODO: Should this be being used?
     ) -> Result<Option<StringSet>, Self::Error> {
         let names = match self {
             Self::MutableBuffer { chunk, .. } => {
-                if chunk.is_empty() {
-                    Some(StringSet::new())
-                } else {
-                    let chunk_predicate = match to_mutable_buffer_predicate(chunk, predicate) {
-                        Ok(chunk_predicate) => chunk_predicate,
-                        Err(e) => {
-                            debug!(?predicate, %e, "mutable buffer predicate not supported for table_names, falling back");
-                            return Ok(None);
-                        }
-                    };
-
-                    // we don't support arbitrary expressions in chunk predicate yet
-                    if !chunk_predicate.chunk_exprs.is_empty() {
-                        None
-                    } else {
-                        let names = chunk
-                            .table_names(&chunk_predicate)
-                            .context(MutableBufferChunk)?
-                            .into_iter()
-                            .map(|s| s.to_string())
-                            .collect::<StringSet>();
-
-                        Some(names)
-                    }
+                if predicate.has_exprs() {
+                    // TODO: Support more predicates
+                    return Ok(None);
                 }
+                chunk.table_names(predicate.range).cloned().collect()
             }
             Self::ReadBuffer { chunk, .. } => {
                 // If not supported, ReadBuffer can't answer with
@@ -208,7 +163,7 @@ impl PartitionChunk for DBChunk {
                     }
                 };
 
-                Some(chunk.table_names(&rb_predicate, &BTreeSet::new()))
+                chunk.table_names(&rb_predicate, &BTreeSet::new())
             }
             Self::ParquetFile { .. } => {
                 unimplemented!("parquet file not implemented for scan_data")
@@ -217,17 +172,12 @@ impl PartitionChunk for DBChunk {
 
         // Prune out tables that should not be
         // present (based on additional table restrictions of the Predicate)
-        //
-        // This is needed because at time of writing, the ReadBuffer's
-        // table_names implementation doesn't include any way to
-        // further restrict the tables to a known set of tables
-        let names = names.map(|names| {
+        Ok(Some(
             names
                 .into_iter()
                 .filter(|table_name| predicate.should_include_table(table_name))
-                .collect()
-        });
-        Ok(names)
+                .collect(),
+        ))
     }
 
     fn table_schema(
@@ -284,22 +234,17 @@ impl PartitionChunk for DBChunk {
     ) -> Result<SendableRecordBatchStream, Self::Error> {
         match self {
             Self::MutableBuffer { chunk, .. } => {
-                // Note MutableBuffer doesn't support predicate
-                // pushdown (other than pruning out the entire chunk
-                // via `might_pass_predicate)
                 if !predicate.is_empty() {
                     return InternalPredicateNotSupported {
                         predicate: predicate.clone(),
                     }
                     .fail();
                 }
-                let schema: Schema = self.table_schema(table_name, selection)?;
+                let batch = chunk
+                    .read_filter(table_name, selection)
+                    .context(MutableBufferChunk)?;
 
-                Ok(Box::pin(MutableBufferChunkStream::new(
-                    Arc::clone(&chunk),
-                    schema.as_arrow(),
-                    table_name,
-                )))
+                Ok(Box::pin(MemoryStream::new(batch)))
             }
             Self::ReadBuffer { chunk, .. } => {
                 // Error converting to a rb_predicate needs to fail
@@ -361,17 +306,11 @@ impl PartitionChunk for DBChunk {
     ) -> Result<Option<StringSet>, Self::Error> {
         match self {
             Self::MutableBuffer { chunk, .. } => {
-                let chunk_predicate = match to_mutable_buffer_predicate(chunk, predicate) {
-                    Ok(chunk_predicate) => chunk_predicate,
-                    Err(e) => {
-                        debug!(?predicate, %e, "mutable buffer predicate not supported for column_names, falling back");
-                        return Ok(None);
-                    }
-                };
-
-                chunk
-                    .column_names(table_name, &chunk_predicate, columns)
-                    .context(MutableBufferChunk)
+                if !predicate.is_empty() {
+                    // TODO: Support predicates
+                    return Ok(None);
+                }
+                Ok(chunk.column_names(table_name, columns))
             }
             Self::ReadBuffer { chunk, .. } => {
                 let rb_predicate = match to_read_buffer_predicate(&predicate) {
@@ -398,31 +337,15 @@ impl PartitionChunk for DBChunk {
 
     fn column_values(
         &self,
-        table_name: &str,
-        column_name: &str,
-        predicate: &Predicate,
+        _table_name: &str,
+        _column_name: &str,
+        _predicate: &Predicate,
     ) -> Result<Option<StringSet>, Self::Error> {
         match self {
-            Self::MutableBuffer { chunk, .. } => {
-                use mutable_buffer::chunk::Error::UnsupportedColumnTypeForListingValues;
-
-                let chunk_predicate = match to_mutable_buffer_predicate(chunk, predicate) {
-                    Ok(chunk_predicate) => chunk_predicate,
-                    Err(e) => {
-                        debug!(?predicate, %e, "mutable buffer predicate not supported for column_values, falling back");
-                        return Ok(None);
-                    }
-                };
-
-                let values = chunk.tag_column_values(table_name, column_name, &chunk_predicate);
-
-                // if the mutable buffer doesn't support getting
-                // values for this kind of column, report back None
-                if let Err(UnsupportedColumnTypeForListingValues { .. }) = values {
-                    Ok(None)
-                } else {
-                    values.context(MutableBufferChunk)
-                }
+            Self::MutableBuffer { .. } => {
+                // There is no advantage to manually implementing this
+                // vs just letting DataFusion do its thing
+                Ok(None)
             }
             Self::ReadBuffer { .. } => {
                 // TODO hook up read buffer API here when ready. Until

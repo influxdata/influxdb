@@ -1,23 +1,29 @@
 //! Represents a Chunk of data (a collection of tables and their data within
 //! some chunk) in the mutable store.
-use arrow_deps::{arrow::record_batch::RecordBatch, datafusion::logical_plan::Expr};
-
-use generated_types::wal as wb;
 use std::collections::{BTreeSet, HashMap};
+use std::sync::Arc;
 
-use data_types::partition_metadata::TableSummary;
-use internal_types::{entry::TableBatch, schema::Schema, selection::Selection};
+use snafu::{OptionExt, ResultExt, Snafu};
 
+use arrow_deps::{arrow::record_batch::RecordBatch, datafusion::logical_plan::Expr};
+use data_types::{database_rules::WriterId, partition_metadata::TableSummary};
+use generated_types::wal as wb;
+use internal_types::{
+    entry::{ClockValue, TableBatch},
+    schema::Schema,
+    selection::Selection,
+};
+use tracker::{MemRegistry, MemTracker};
+
+use crate::chunk::snapshot::ChunkSnapshot;
 use crate::{
     column::Column,
     dictionary::{Dictionary, Error as DictionaryError},
     pred::{ChunkPredicate, ChunkPredicateBuilder},
     table::Table,
 };
-use data_types::database_rules::WriterId;
-use internal_types::entry::ClockValue;
-use snafu::{OptionExt, ResultExt, Snafu};
-use tracker::{MemRegistry, MemTracker};
+
+pub mod snapshot;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -126,21 +132,6 @@ pub struct Chunk {
     tracker: MemTracker,
 }
 
-impl Clone for Chunk {
-    fn clone(&self) -> Self {
-        // TODO: The performance of this is not great - (#635)
-        let mut ret = Self {
-            id: self.id,
-            dictionary: self.dictionary.clone(),
-            tables: self.tables.clone(),
-            tracker: self.tracker.clone_empty(),
-        };
-
-        ret.tracker.set_bytes(ret.size());
-        ret
-    }
-}
-
 impl Chunk {
     pub fn new(id: u32, memory_registry: &MemRegistry) -> Self {
         let mut chunk = Self {
@@ -207,7 +198,8 @@ impl Chunk {
         Ok(())
     }
 
-    // Add all tables names in this chunk to `names` if they are not already present
+    /// Add all tables names in this chunk to `names` if they are not already
+    /// present
     pub fn all_table_names(&self, names: &mut BTreeSet<String>) {
         for &table_id in self.tables.keys() {
             let table_name = self.dictionary.lookup_id(table_id).unwrap();
@@ -215,6 +207,12 @@ impl Chunk {
                 names.insert(table_name.to_string());
             }
         }
+    }
+
+    /// Returns a queryable snapshot of this chunk
+    pub fn snapshot(&self) -> Arc<ChunkSnapshot> {
+        // TODO: Cache this
+        Arc::new(ChunkSnapshot::new(self))
     }
 
     /// Return all the names of the tables names in this chunk that match

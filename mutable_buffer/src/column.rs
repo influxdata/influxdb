@@ -526,6 +526,13 @@ impl Column {
         }
     }
 
+    pub fn get_i64_stats(&self) -> Option<StatValues<i64>> {
+        match self {
+            Self::I64(_, values) => Some(values.clone()),
+            _ => None,
+        }
+    }
+
     /// Returns true if any rows are within the range [min_value,
     /// max_value). Inclusive of `start`, exclusive of `end`
     pub fn has_i64_range(&self, start: i64, end: i64) -> Result<bool> {

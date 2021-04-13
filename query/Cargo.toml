@@ -19,7 +19,7 @@ async-trait = "0.1"
 chrono = "0.4"
 croaring = "0.4.5"
 data_types = { path = "../data_types" }
-futures = "0.3.7"
+futures = "0.3"
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 internal_types = { path = "../internal_types" }
 parking_lot = "0.11.1"

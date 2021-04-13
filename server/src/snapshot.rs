@@ -354,9 +354,7 @@ mem,host=A,region=west used=45 1
         let registry = MemRegistry::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let chunk = Arc::new(DBChunk::MutableBuffer {
-            chunk: Arc::new(ChunkWB::new(11, &registry)),
-            partition_key: Arc::new("key".to_string()),
-            open: false,
+            chunk: ChunkWB::new(11, &registry).snapshot(),
         });
         let mut metadata_path = store.new_path();
         metadata_path.push_dir("meta");
