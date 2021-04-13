@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HealthCheck {
-    /// Name of the infludb instance
+    /// Name of the influxdb instance
     pub name: String,
     /// Message
     #[serde(skip_serializing_if = "Option::is_none")]
