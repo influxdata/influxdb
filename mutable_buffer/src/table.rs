@@ -1,7 +1,6 @@
 use std::{cmp, collections::BTreeMap, sync::Arc};
 
 use crate::{
-    chunk::Chunk,
     column,
     column::Column,
     dictionary::{Dictionary, Error as DictionaryError},
@@ -31,12 +30,8 @@ use arrow_deps::{
 
 #[derive(Debug, Snafu)]
 pub enum Error {
-    #[snafu(display("Tag value ID {} not found in dictionary of chunk {}", value, chunk))]
-    TagValueIdNotFoundInDictionary {
-        value: u32,
-        chunk: u64,
-        source: DictionaryError,
-    },
+    #[snafu(display("Tag value ID {} not found in dictionary of chunk", value))]
+    TagValueIdNotFoundInDictionary { value: u32, source: DictionaryError },
 
     #[snafu(display("Column error on column {}: {}", column, source))]
     ColumnError {
@@ -59,21 +54,12 @@ pub enum Error {
     #[snafu(display("Internal error: unexpected aggregate request for None aggregate",))]
     InternalUnexpectedNoneAggregate {},
 
-    #[snafu(display(
-        "Column name '{}' not found in dictionary of chunk {}",
-        column_name,
-        chunk
-    ))]
-    ColumnNameNotFoundInDictionary { column_name: String, chunk: u64 },
+    #[snafu(display("Column name '{}' not found in dictionary of chunk", column_name,))]
+    ColumnNameNotFoundInDictionary { column_name: String },
 
-    #[snafu(display(
-        "Internal: Column id '{}' not found in dictionary of chunk {}",
-        column_id,
-        chunk
-    ))]
+    #[snafu(display("Internal: Column id '{}' not found in dictionary", column_id,))]
     ColumnIdNotFoundInDictionary {
         column_id: u32,
-        chunk: u64,
         source: DictionaryError,
     },
 
@@ -163,21 +149,6 @@ impl Table {
             id: column_id,
             table_id: self.id,
         })
-    }
-
-    /// Returns a reference to the specified column as a slice of
-    /// i64s. Errors if the type is not i64
-    pub fn column_i64(&self, column_id: u32) -> Result<&[Option<i64>]> {
-        let column = self.column(column_id)?;
-        match column {
-            Column::I64(vals, _) => Ok(vals),
-            _ => InternalColumnTypeMismatch {
-                column_id,
-                expected_column_type: "i64",
-                actual_column_type: column.type_description(),
-            }
-            .fail(),
-        }
     }
 
     /// Validates the schema of the passed in columns, then adds their values to
@@ -277,17 +248,20 @@ impl Table {
 
     /// Returns the column selection for all the columns in this table, orderd
     /// by table name
-    fn all_columns_selection<'a>(&self, chunk: &'a Chunk) -> Result<TableColSelection<'a>> {
+    fn all_columns_selection<'a>(
+        &self,
+        dictionary: &'a Dictionary,
+    ) -> Result<TableColSelection<'a>> {
         let cols = self
             .columns
             .iter()
             .map(|(column_id, _)| {
-                let column_name = chunk.dictionary.lookup_id(*column_id).context(
-                    ColumnIdNotFoundInDictionary {
-                        column_id: *column_id,
-                        chunk: chunk.id,
-                    },
-                )?;
+                let column_name =
+                    dictionary
+                        .lookup_id(*column_id)
+                        .context(ColumnIdNotFoundInDictionary {
+                            column_id: *column_id,
+                        })?;
                 Ok(ColSelection {
                     column_name,
                     column_id: *column_id,
@@ -304,45 +278,45 @@ impl Table {
     /// Returns a column selection for just the specified columns
     fn specific_columns_selection<'a>(
         &self,
-        chunk: &'a Chunk,
+        dictionary: &'a Dictionary,
         columns: &'a [&'a str],
     ) -> Result<TableColSelection<'a>> {
-        let cols =
-            columns
-                .iter()
-                .map(|&column_name| {
-                    let column_id = chunk.dictionary.id(column_name).context(
-                        ColumnNameNotFoundInDictionary {
-                            column_name,
-                            chunk: chunk.id,
-                        },
-                    )?;
+        let cols = columns
+            .iter()
+            .map(|&column_name| {
+                let column_id = dictionary
+                    .id(column_name)
+                    .context(ColumnNameNotFoundInDictionary { column_name })?;
 
-                    Ok(ColSelection {
-                        column_name,
-                        column_id,
-                    })
+                Ok(ColSelection {
+                    column_name,
+                    column_id,
                 })
-                .collect::<Result<_>>()?;
+            })
+            .collect::<Result<_>>()?;
 
         Ok(TableColSelection { cols })
     }
 
     /// Converts this table to an arrow record batch.
-    pub fn to_arrow(&self, chunk: &Chunk, selection: Selection<'_>) -> Result<RecordBatch> {
+    pub fn to_arrow(
+        &self,
+        dictionary: &Dictionary,
+        selection: Selection<'_>,
+    ) -> Result<RecordBatch> {
         // translate chunk selection into name/indexes:
         let selection = match selection {
-            Selection::All => self.all_columns_selection(chunk),
-            Selection::Some(cols) => self.specific_columns_selection(chunk, cols),
+            Selection::All => self.all_columns_selection(dictionary),
+            Selection::Some(cols) => self.specific_columns_selection(dictionary, cols),
         }?;
-        self.to_arrow_impl(chunk, &selection)
+        self.to_arrow_impl(dictionary, &selection)
     }
 
-    pub fn schema(&self, chunk: &Chunk, selection: Selection<'_>) -> Result<Schema> {
+    pub fn schema(&self, dictionary: &Dictionary, selection: Selection<'_>) -> Result<Schema> {
         // translate chunk selection into name/indexes:
         let selection = match selection {
-            Selection::All => self.all_columns_selection(chunk),
-            Selection::Some(cols) => self.specific_columns_selection(chunk, cols),
+            Selection::All => self.all_columns_selection(dictionary),
+            Selection::Some(cols) => self.specific_columns_selection(dictionary, cols),
         }?;
         self.schema_impl(&selection)
     }
@@ -379,7 +353,7 @@ impl Table {
     /// requested columns with index are tuples of column_name, column_index
     fn to_arrow_impl(
         &self,
-        chunk: &Chunk,
+        dictionary: &Dictionary,
         selection: &TableColSelection<'_>,
     ) -> Result<RecordBatch> {
         let mut columns = Vec::with_capacity(selection.cols.len());
@@ -408,12 +382,9 @@ impl Table {
                         match v {
                             None => builder.append_null(),
                             Some(value_id) => {
-                                let tag_value = chunk.dictionary.lookup_id(*value_id).context(
-                                    TagValueIdNotFoundInDictionary {
-                                        value: *value_id,
-                                        chunk: chunk.id,
-                                    },
-                                )?;
+                                let tag_value = dictionary
+                                    .lookup_id(*value_id)
+                                    .context(TagValueIdNotFoundInDictionary { value: *value_id })?;
                                 builder.append_value(tag_value)
                             }
                         }
@@ -468,12 +439,11 @@ impl Table {
         RecordBatch::try_new(schema, columns).context(ArrowError {})
     }
 
-    pub fn stats(&self, chunk: &Chunk) -> Vec<ColumnSummary> {
+    pub fn stats(&self, dictionary: &Dictionary) -> Vec<ColumnSummary> {
         self.columns
             .iter()
             .map(|(column_id, c)| {
-                let column_name = chunk
-                    .dictionary
+                let column_name = dictionary
                     .lookup_id(*column_id)
                     .expect("column name in dictionary");
 
@@ -520,13 +490,10 @@ mod tests {
     use internal_types::entry::test_helpers::lp_to_entry;
 
     use super::*;
-    use tracker::MemRegistry;
 
     #[test]
     fn table_size() {
-        let registry = Arc::new(MemRegistry::new());
-        let mut chunk = Chunk::new(42, registry.as_ref());
-        let dictionary = &mut chunk.dictionary;
+        let mut dictionary = Dictionary::new();
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
         let lp_lines = vec![
@@ -534,33 +501,31 @@ mod tests {
             "h2o,state=MA,city=Boston temp=72.4 250",
         ];
 
-        write_lines_to_table(&mut table, dictionary, lp_lines.clone());
+        write_lines_to_table(&mut table, &mut dictionary, lp_lines.clone());
         assert_eq!(128, table.size());
 
         // doesn't double because of the stats overhead
-        write_lines_to_table(&mut table, dictionary, lp_lines.clone());
+        write_lines_to_table(&mut table, &mut dictionary, lp_lines.clone());
         assert_eq!(224, table.size());
 
         // now make sure it increased by the same amount minus stats overhead
-        write_lines_to_table(&mut table, dictionary, lp_lines);
+        write_lines_to_table(&mut table, &mut dictionary, lp_lines);
         assert_eq!(320, table.size());
     }
 
     #[test]
     fn test_to_arrow_schema_all() {
-        let registry = Arc::new(MemRegistry::new());
-        let mut chunk = Chunk::new(42, registry.as_ref());
-        let dictionary = &mut chunk.dictionary;
+        let mut dictionary = Dictionary::new();
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
         let lp_lines = vec![
             "h2o,state=MA,city=Boston float_field=70.4,int_field=8i,uint_field=42u,bool_field=t,string_field=\"foo\" 100",
         ];
 
-        write_lines_to_table(&mut table, dictionary, lp_lines);
+        write_lines_to_table(&mut table, &mut dictionary, lp_lines);
 
         let selection = Selection::All;
-        let actual_schema = table.schema(&chunk, selection).unwrap();
+        let actual_schema = table.schema(&dictionary, selection).unwrap();
         let expected_schema = SchemaBuilder::new()
             .field("bool_field", ArrowDataType::Boolean)
             .tag("city")
@@ -582,17 +547,15 @@ mod tests {
 
     #[test]
     fn test_to_arrow_schema_subset() {
-        let registry = Arc::new(MemRegistry::new());
-        let mut chunk = Chunk::new(42, registry.as_ref());
-        let dictionary = &mut chunk.dictionary;
+        let mut dictionary = Dictionary::new();
         let mut table = Table::new(dictionary.lookup_value_or_insert("table_name"));
 
         let lp_lines = vec!["h2o,state=MA,city=Boston float_field=70.4 100"];
 
-        write_lines_to_table(&mut table, dictionary, lp_lines);
+        write_lines_to_table(&mut table, &mut dictionary, lp_lines);
 
         let selection = Selection::Some(&["float_field"]);
-        let actual_schema = table.schema(&chunk, selection).unwrap();
+        let actual_schema = table.schema(&dictionary, selection).unwrap();
         let expected_schema = SchemaBuilder::new()
             .field("float_field", ArrowDataType::Float64)
             .build()

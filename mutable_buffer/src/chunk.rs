@@ -63,16 +63,16 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug)]
 pub struct Chunk {
     /// The id for this chunk
-    pub id: u32,
+    id: u32,
 
     /// `dictionary` maps &str -> u32. The u32s are used in place of String or
     /// str to avoid slow string operations. The same dictionary is used for
     /// table names, tag names, tag values, and column names.
     // TODO: intern string field values too?
-    pub dictionary: Dictionary,
+    dictionary: Dictionary,
 
     /// map of the dictionary ID for the table name to the table
-    pub tables: HashMap<u32, Table>,
+    tables: HashMap<u32, Table>,
 
     /// keep track of memory used by chunk
     tracker: MemTracker,
@@ -173,7 +173,7 @@ impl Chunk {
         if let Some(table) = self.table(table_name)? {
             dst.push(
                 table
-                    .to_arrow(&self, selection)
+                    .to_arrow(&self.dictionary, selection)
                     .context(NamedTableError { table_name })?,
             );
         }
@@ -192,7 +192,7 @@ impl Chunk {
 
                 TableSummary {
                     name: name.to_string(),
-                    columns: table.stats(&self),
+                    columns: table.stats(&self.dictionary),
                 }
             })
             .collect()
