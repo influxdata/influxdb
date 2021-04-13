@@ -1,14 +1,11 @@
-
 use snafu::{OptionExt, ResultExt, Snafu};
 use std::collections::BTreeSet;
 
 use crate::table::Table;
-use data_types::partition_metadata::TableSummary;
+use data_types::{partition_metadata::TableSummary, timestamp::TimestampRange};
 use internal_types::{schema::Schema, selection::Selection};
 use object_store::path::Path;
 use tracker::{MemRegistry, MemTracker};
-
-
 
 use std::mem;
 
@@ -80,8 +77,15 @@ impl Chunk {
     }
 
     /// Add a chunk's table and its summary
-    pub fn add_table(&mut self, table_summary: TableSummary, file_location: Path) {
-        self.tables.push(Table::new(table_summary, file_location));
+    pub fn add_table(
+        &mut self,
+        table_summary: TableSummary,
+        file_location: Path,
+        schema: Schema,
+        range: Option<TimestampRange>,
+    ) {
+        self.tables
+            .push(Table::new(table_summary, file_location, schema, range));
     }
 
     /// Return true if this chunk includes the given table
@@ -108,8 +112,8 @@ impl Chunk {
         size + self.partition_key.len() + mem::size_of::<u32>() + mem::size_of::<Self>()
     }
 
-     /// Return Schema for the specified table / columns
-     pub fn table_schema(&self, table_name: &str, selection: Selection<'_>) -> Result<Schema> {
+    /// Return Schema for the specified table / columns
+    pub fn table_schema(&self, table_name: &str, selection: Selection<'_>) -> Result<Schema> {
         let table = self
             .tables
             .iter()
@@ -122,5 +126,18 @@ impl Chunk {
         table
             .schema(selection)
             .context(NamedTableError { table_name })
+    }
+
+    pub fn table_names(
+        &self,
+        timestamp_range: Option<TimestampRange>,
+    ) -> impl Iterator<Item = String> + '_ {
+        self.tables.iter().flat_map(move |t| {
+            if t.matches_predicate(&timestamp_range) {
+                Some(t.name())
+            } else {
+                None
+            }
+        })
     }
 }
