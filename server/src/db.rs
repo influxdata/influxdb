@@ -989,7 +989,7 @@ mod tests {
         write_lp(db.as_ref(), "cpu bar=2 20");
 
         let partition_key = "1970-01-01T00";
-        let mb_chunk = db.rollover_partition("1970-01-01T00").await.unwrap();
+        let mb_chunk = db.rollover_partition(partition_key).await.unwrap();
         let rb_chunk = db
             .load_chunk_to_read_buffer(partition_key, mb_chunk.id())
             .await
