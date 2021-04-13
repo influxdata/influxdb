@@ -35,7 +35,6 @@ macro_rules! run_field_columns_test_case {
 
             let plan = planner
                 .field_columns(&db, predicate.clone())
-                .await
                 .expect("built plan successfully");
             let fields = executor
                 .to_field_list(plan)
@@ -137,7 +136,6 @@ async fn test_field_name_plan() {
 
         let plan = planner
             .field_columns(&db, predicate.clone())
-            .await
             .expect("built plan successfully");
 
         let mut plans = plan.plans;

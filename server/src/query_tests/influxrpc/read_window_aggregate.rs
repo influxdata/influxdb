@@ -34,7 +34,6 @@ macro_rules! run_read_window_aggregate_test_case {
 
             let plans = planner
                 .read_window_aggregate(&db, predicate.clone(), agg, every.clone(), offset.clone())
-                .await
                 .expect("built plan successfully");
 
             let plans = plans.into_inner();

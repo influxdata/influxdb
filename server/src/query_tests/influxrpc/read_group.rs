@@ -30,7 +30,6 @@ macro_rules! run_read_group_test_case {
 
             let plans = planner
                 .read_group(&db, predicate.clone(), agg, &group_columns)
-                .await
                 .expect("built plan successfully");
 
             let plans = plans.into_inner();
