@@ -743,20 +743,11 @@ impl TryFrom<management::partition_template::Part> for TemplatePart {
 
 /// ShardId maps to a nodegroup that holds the the shard.
 pub type ShardId = u16;
-const DEFAULT_SHARD_ID: u16 = 0;
+pub const NO_SHARD_CONFIG: Option<&ShardConfig> = None;
 
 /// Assigns a given line to a specific shard id.
 pub trait Sharder {
     fn shard(&self, line: &ParsedLine<'_>) -> Result<ShardId>;
-}
-
-impl Sharder for DatabaseRules {
-    fn shard(&self, line: &ParsedLine<'_>) -> Result<ShardId> {
-        match &self.shard_config {
-            Some(s) => s.shard(line),
-            None => Ok(DEFAULT_SHARD_ID),
-        }
-    }
 }
 
 /// ShardConfig defines rules for assigning a line/row to an individual
@@ -787,8 +778,8 @@ pub struct ShardConfig {
 }
 
 impl Sharder for ShardConfig {
-    fn shard(&self, _line: &ParsedLine<'_>) -> Result<u16, Error> {
-        unimplemented!() // TODO: mkm to implement as part of #916
+    fn shard(&self, _line: &ParsedLine<'_>) -> Result<ShardId, Error> {
+        todo!("mkm to implement as part of #916");
     }
 }
 

@@ -56,14 +56,17 @@ type ColumnResult<T, E = ColumnError> = std::result::Result<T, E>;
 /// underlying flatbuffers bytes generated.
 pub fn lines_to_sharded_entries(
     lines: &[ParsedLine<'_>],
-    sharder: &impl Sharder,
+    sharder: Option<&impl Sharder>,
     partitioner: &impl Partitioner,
 ) -> Result<Vec<ShardedEntry>> {
     let default_time = Utc::now();
     let mut sharded_lines = BTreeMap::new();
 
     for line in lines {
-        let shard_id = sharder.shard(line).context(GeneratingShardId)?;
+        let shard_id = match &sharder {
+            Some(s) => Some(s.shard(line).context(GeneratingShardId)?),
+            None => None,
+        };
         let partition_key = partitioner
             .partition_key(line, &default_time)
             .context(GeneratingPartitionKey)?;
@@ -90,7 +93,7 @@ pub fn lines_to_sharded_entries(
 }
 
 fn build_sharded_entry(
-    shard_id: ShardId,
+    shard_id: Option<ShardId>,
     partitions: BTreeMap<String, BTreeMap<&str, Vec<&ParsedLine<'_>>>>,
     default_time: &DateTime<Utc>,
 ) -> Result<ShardedEntry> {
@@ -277,10 +280,12 @@ fn build_table_write_batch<'a>(
     ))
 }
 
-/// Holds a shard id to the associated entry
+/// Holds a shard id to the associated entry. If there is no ShardId, then
+/// everything goes to the same place. This means a single entry will be
+/// generated from a batch of line protocol.
 #[derive(Debug)]
 pub struct ShardedEntry {
-    pub shard_id: ShardId,
+    pub shard_id: Option<ShardId>,
     pub entry: Entry,
 }
 
@@ -1231,7 +1236,7 @@ pub mod test_helpers {
     pub fn lp_to_entry(lp: &str) -> Entry {
         let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
 
-        lines_to_sharded_entries(&lines, &sharder(1), &hour_partitioner())
+        lines_to_sharded_entries(&lines, sharder(1).as_ref(), &hour_partitioner())
             .unwrap()
             .pop()
             .unwrap()
@@ -1240,11 +1245,11 @@ pub mod test_helpers {
 
     /// Returns a test sharder that will assign shard ids from [0, count)
     /// incrementing for each line.
-    pub fn sharder(count: u16) -> TestSharder {
-        TestSharder {
+    pub fn sharder(count: u16) -> Option<TestSharder> {
+        Some(TestSharder {
             count,
             n: std::cell::RefCell::new(0),
-        }
+        })
     }
 
     // For each line passed to shard returns a shard id from [0, count) in order
@@ -1324,6 +1329,7 @@ pub mod test_helpers {
 mod tests {
     use super::test_helpers::*;
     use super::*;
+    use data_types::database_rules::NO_SHARD_CONFIG;
     use influxdb_line_protocol::parse_lines;
 
     #[test]
@@ -1337,11 +1343,28 @@ mod tests {
         let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
 
         let sharded_entries =
-            lines_to_sharded_entries(&lines, &sharder(2), &partitioner(1)).unwrap();
+            lines_to_sharded_entries(&lines, sharder(2).as_ref(), &partitioner(1)).unwrap();
 
         assert_eq!(sharded_entries.len(), 2);
-        assert_eq!(sharded_entries[0].shard_id, 0);
-        assert_eq!(sharded_entries[1].shard_id, 1);
+        assert_eq!(sharded_entries[0].shard_id, Some(0));
+        assert_eq!(sharded_entries[1].shard_id, Some(1));
+    }
+
+    #[test]
+    fn no_shard_config() {
+        let lp = vec![
+            "cpu,host=a,region=west user=23.1,system=66.1 123",
+            "mem,host=a,region=west used=23432 123",
+            "foo bar=true 21",
+        ]
+        .join("\n");
+        let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
+
+        let sharded_entries =
+            lines_to_sharded_entries(&lines, NO_SHARD_CONFIG, &partitioner(1)).unwrap();
+
+        assert_eq!(sharded_entries.len(), 1);
+        assert_eq!(sharded_entries[0].shard_id, None);
     }
 
     #[test]
@@ -1355,7 +1378,7 @@ mod tests {
         let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
 
         let sharded_entries =
-            lines_to_sharded_entries(&lines, &sharder(1), &partitioner(2)).unwrap();
+            lines_to_sharded_entries(&lines, sharder(1).as_ref(), &partitioner(2)).unwrap();
 
         let partition_writes = sharded_entries[0].entry.partition_writes().unwrap();
         assert_eq!(partition_writes.len(), 2);
@@ -1376,7 +1399,7 @@ mod tests {
         let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
 
         let sharded_entries =
-            lines_to_sharded_entries(&lines, &sharder(1), &partitioner(1)).unwrap();
+            lines_to_sharded_entries(&lines, sharder(1).as_ref(), &partitioner(1)).unwrap();
 
         let partition_writes = sharded_entries[0].entry.partition_writes().unwrap();
         let table_batches = partition_writes[0].table_batches();
@@ -1393,7 +1416,7 @@ mod tests {
         let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
 
         let sharded_entries =
-            lines_to_sharded_entries(&lines, &sharder(1), &partitioner(1)).unwrap();
+            lines_to_sharded_entries(&lines, sharder(1).as_ref(), &partitioner(1)).unwrap();
 
         let partition_writes = sharded_entries[0].entry.partition_writes().unwrap();
         let table_batches = partition_writes[0].table_batches();
@@ -1435,7 +1458,7 @@ mod tests {
         let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
 
         let sharded_entries =
-            lines_to_sharded_entries(&lines, &sharder(1), &partitioner(1)).unwrap();
+            lines_to_sharded_entries(&lines, sharder(1).as_ref(), &partitioner(1)).unwrap();
 
         let partition_writes = sharded_entries
             .first()
@@ -1506,7 +1529,7 @@ mod tests {
         let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
 
         let sharded_entries =
-            lines_to_sharded_entries(&lines, &sharder(1), &partitioner(1)).unwrap();
+            lines_to_sharded_entries(&lines, sharder(1).as_ref(), &partitioner(1)).unwrap();
 
         let partition_writes = sharded_entries
             .first()
@@ -1631,7 +1654,7 @@ mod tests {
         let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
 
         let sharded_entries =
-            lines_to_sharded_entries(&lines, &sharder(1), &partitioner(1)).unwrap();
+            lines_to_sharded_entries(&lines, sharder(1).as_ref(), &partitioner(1)).unwrap();
         let partition_writes = sharded_entries
             .first()
             .unwrap()
@@ -1662,7 +1685,7 @@ mod tests {
         let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
 
         let sharded_entries =
-            lines_to_sharded_entries(&lines, &sharder(1), &partitioner(1)).unwrap();
+            lines_to_sharded_entries(&lines, sharder(1).as_ref(), &partitioner(1)).unwrap();
         let partition_writes = sharded_entries
             .first()
             .unwrap()
@@ -1706,7 +1729,7 @@ mod tests {
         let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
 
         let sharded_entries =
-            lines_to_sharded_entries(&lines, &sharder(1), &partitioner(1)).unwrap();
+            lines_to_sharded_entries(&lines, sharder(1).as_ref(), &partitioner(1)).unwrap();
         let partition_writes = sharded_entries
             .first()
             .unwrap()
@@ -1745,7 +1768,7 @@ mod tests {
         let t = Utc::now().timestamp_nanos();
 
         let sharded_entries =
-            lines_to_sharded_entries(&lines, &sharder(1), &partitioner(1)).unwrap();
+            lines_to_sharded_entries(&lines, sharder(1).as_ref(), &partitioner(1)).unwrap();
 
         let partition_writes = sharded_entries
             .first()
@@ -1769,7 +1792,8 @@ mod tests {
         let lp = vec!["a val=1i 1", "a val=2.1 123"].join("\n");
         let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
 
-        let sharded_entries = lines_to_sharded_entries(&lines, &sharder(1), &partitioner(1));
+        let sharded_entries =
+            lines_to_sharded_entries(&lines, sharder(1).as_ref(), &partitioner(1));
 
         assert!(sharded_entries.is_err());
     }
@@ -1779,7 +1803,8 @@ mod tests {
         let lp = vec!["a,host=a val=1i 1", "a host=\"b\" 123"].join("\n");
         let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
 
-        let sharded_entries = lines_to_sharded_entries(&lines, &sharder(1), &partitioner(1));
+        let sharded_entries =
+            lines_to_sharded_entries(&lines, sharder(1).as_ref(), &partitioner(1));
 
         assert!(sharded_entries.is_err());
     }
@@ -1795,7 +1820,7 @@ mod tests {
         let lines: Vec<_> = parse_lines(&lp).map(|l| l.unwrap()).collect();
 
         let sharded_entries =
-            lines_to_sharded_entries(&lines, &sharder(1), &partitioner(1)).unwrap();
+            lines_to_sharded_entries(&lines, sharder(1).as_ref(), &partitioner(1)).unwrap();
 
         let entry_bytes = sharded_entries.first().unwrap().entry.data();
         let clock_value = ClockValue::new(23);

@@ -353,8 +353,12 @@ impl<M: ConnectionManager> Server<M> {
             .db(&db_name)
             .context(DatabaseNotFound { db_name: &*db_name })?;
 
-        let sharded_entries = lines_to_sharded_entries(lines, &*db.rules.read(), &*db.rules.read())
-            .context(LineConversion)?;
+        let sharded_entries = lines_to_sharded_entries(
+            lines,
+            db.rules.read().shard_config.as_ref(),
+            &*db.rules.read(),
+        )
+        .context(LineConversion)?;
 
         for e in sharded_entries {
             // TODO: handle sending to shards based on ShardConfig
