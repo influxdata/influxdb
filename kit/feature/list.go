@@ -30,20 +30,6 @@ func BackendExample() BoolFlag {
 	return backendExample
 }
 
-var communityTemplates = MakeBoolFlag(
-	"Community Templates",
-	"communityTemplates",
-	"Bucky",
-	true,
-	Permanent,
-	true,
-)
-
-// CommunityTemplates - Replace current template uploading functionality with community driven templates
-func CommunityTemplates() BoolFlag {
-	return communityTemplates
-}
-
 var frontendExample = MakeIntFlag(
 	"Frontend Example",
 	"frontendExample",
@@ -313,7 +299,6 @@ func TypeAheadDropdownsForVariables() BoolFlag {
 var all = []Flag{
 	appMetrics,
 	backendExample,
-	communityTemplates,
 	frontendExample,
 	groupWindowAggregateTranspose,
 	newLabels,
@@ -338,7 +323,6 @@ var all = []Flag{
 var byKey = map[string]Flag{
 	"appMetrics":                    appMetrics,
 	"backendExample":                backendExample,
-	"communityTemplates":            communityTemplates,
 	"frontendExample":               frontendExample,
 	"groupWindowAggregateTranspose": groupWindowAggregateTranspose,
 	"newLabels":                     newLabels,
