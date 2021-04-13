@@ -447,7 +447,7 @@ impl Db {
         Ok(DBChunk::snapshot(&chunk))
     }
 
-    pub async fn load_chunk_to_object_store(
+    pub async fn write_chunk_to_object_store(
         &self,
         partition_key: &str,
         chunk_id: u32,
@@ -601,8 +601,8 @@ impl Db {
     }
 
     /// Spawns a task to perform
-    /// [`load_chunk_to_object_store`](Self::load_chunk_to_object_store)
-    pub fn load_chunk_to_object_store_in_background(
+    /// [`write_chunk_to_object_store`](Self::write_chunk_to_object_store)
+    pub fn write_chunk_to_object_store_in_background(
         self: &Arc<Self>,
         partition_key: String,
         chunk_id: u32,
@@ -618,7 +618,7 @@ impl Db {
         let task = async move {
             debug!(%name, %partition_key, %chunk_id, "background task loading chunk to object store");
             let result = captured
-                .load_chunk_to_object_store(&partition_key, chunk_id)
+                .write_chunk_to_object_store(&partition_key, chunk_id)
                 .await;
             if let Err(e) = result {
                 info!(?e, %name, %partition_key, %chunk_id, "background task error loading object store chunk");
@@ -1069,7 +1069,7 @@ mod tests {
             .unwrap();
         // Write the RB chunk to Object Store but keep it in RB
         let pq_chunk = db
-            .load_chunk_to_object_store(partition_key, mb_chunk.id())
+            .write_chunk_to_object_store(partition_key, mb_chunk.id())
             .await
             .unwrap();
 
@@ -1157,7 +1157,7 @@ mod tests {
             .unwrap();
         // Write the RB chunk to Object Store but keep it in RB
         let pq_chunk = db
-            .load_chunk_to_object_store(partition_key, mb_chunk.id())
+            .write_chunk_to_object_store(partition_key, mb_chunk.id())
             .await
             .unwrap();
 
@@ -1754,7 +1754,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn load_chunk_to_object_store_in_background() {
+    async fn write_chunk_to_object_store_in_background() {
         // Test that data can be written to object store using a background task
         let db = Arc::new(make_db());
 
@@ -1773,7 +1773,7 @@ mod tests {
 
         // RB => OS
         let task =
-            db.load_chunk_to_object_store_in_background(partition_key.to_string(), rb_chunk.id());
+            db.write_chunk_to_object_store_in_background(partition_key.to_string(), rb_chunk.id());
         let t_start = std::time::Instant::now();
         while !task.is_complete() {
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;

@@ -209,7 +209,7 @@ impl ChunkMover for LifecycleManager {
         info!(%partition_key, %chunk_id, "write chunk to object store");
         self.write_task = Some(
             self.db
-                .load_chunk_to_object_store_in_background(partition_key, chunk_id),
+                .write_chunk_to_object_store_in_background(partition_key, chunk_id),
         )
     }
 
