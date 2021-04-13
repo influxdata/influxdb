@@ -3,6 +3,8 @@
 //! wired all the pieces together (as well as ensure any particularly
 //! important SQL does not regress)
 
+#![allow(unused_imports, dead_code, unused_macros)]
+
 use super::scenarios::*;
 use arrow_deps::{
     arrow::record_batch::RecordBatch, assert_table_eq, datafusion::physical_plan::collect,

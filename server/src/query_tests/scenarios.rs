@@ -1,5 +1,6 @@
 //! This module contains testing scenarios for Db
 
+#[allow(unused_imports, dead_code, unused_macros)]
 use query::PartitionChunk;
 
 use async_trait::async_trait;
@@ -9,6 +10,7 @@ use crate::db::{test_helpers::write_lp, Db};
 use super::utils::{count_mutable_buffer_chunks, count_read_buffer_chunks, make_db};
 
 /// Holds a database and a description of how its data was configured
+#[derive(Debug)]
 pub struct DBScenario {
     pub scenario_name: String,
     pub db: Db,
@@ -22,6 +24,7 @@ pub trait DBSetup {
 }
 
 /// No data
+#[derive(Debug)]
 pub struct NoData {}
 #[async_trait]
 impl DBSetup for NoData {
@@ -76,6 +79,7 @@ impl DBSetup for NoData {
 }
 
 /// Two measurements data in a single mutable buffer chunk
+#[derive(Debug)]
 pub struct TwoMeasurements {}
 #[async_trait]
 impl DBSetup for TwoMeasurements {
@@ -91,6 +95,7 @@ impl DBSetup for TwoMeasurements {
     }
 }
 
+#[derive(Debug)]
 pub struct TwoMeasurementsUnsignedType {}
 #[async_trait]
 impl DBSetup for TwoMeasurementsUnsignedType {
@@ -109,6 +114,7 @@ impl DBSetup for TwoMeasurementsUnsignedType {
 
 /// Single measurement that has several different chunks with
 /// different (but compatible) schema
+#[derive(Debug)]
 pub struct MultiChunkSchemaMerge {}
 #[async_trait]
 impl DBSetup for MultiChunkSchemaMerge {
@@ -128,6 +134,7 @@ impl DBSetup for MultiChunkSchemaMerge {
 }
 
 /// Two measurements data with many null values
+#[derive(Debug)]
 pub struct TwoMeasurementsManyNulls {}
 #[async_trait]
 impl DBSetup for TwoMeasurementsManyNulls {
@@ -149,6 +156,7 @@ impl DBSetup for TwoMeasurementsManyNulls {
     }
 }
 
+#[derive(Debug)]
 pub struct TwoMeasurementsManyFields {}
 #[async_trait]
 impl DBSetup for TwoMeasurementsManyFields {
@@ -168,6 +176,7 @@ impl DBSetup for TwoMeasurementsManyFields {
     }
 }
 
+#[derive(Debug)]
 pub struct TwoMeasurementsManyFieldsOneChunk {}
 #[async_trait]
 impl DBSetup for TwoMeasurementsManyFieldsOneChunk {
@@ -190,6 +199,7 @@ impl DBSetup for TwoMeasurementsManyFieldsOneChunk {
     }
 }
 
+#[derive(Debug)]
 pub struct OneMeasurementManyFields {}
 #[async_trait]
 impl DBSetup for OneMeasurementManyFields {
@@ -210,6 +220,7 @@ impl DBSetup for OneMeasurementManyFields {
 }
 
 /// This data (from end to end test)
+#[derive(Debug)]
 pub struct EndToEndTest {}
 #[async_trait]
 impl DBSetup for EndToEndTest {

@@ -9,6 +9,7 @@ use query::{
     predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE},
 };
 
+#[derive(Debug)]
 pub struct TwoMeasurementsMultiSeries {}
 #[async_trait]
 impl DBSetup for TwoMeasurementsMultiSeries {
@@ -309,6 +310,7 @@ async fn test_read_filter_data_pred_unsupported_in_scan() {
     run_read_filter_test_case!(TwoMeasurementsMultiSeries {}, predicate, expected_results);
 }
 
+#[derive(Debug)]
 pub struct MeasurementsSortableTags {}
 #[async_trait]
 impl DBSetup for MeasurementsSortableTags {

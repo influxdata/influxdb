@@ -105,10 +105,14 @@ use std::num::NonZeroU32;
 pub mod buffer;
 mod config;
 pub mod db;
+mod query_tests;
 pub mod snapshot;
 
-#[cfg(test)]
-mod query_tests;
+// This module exposes `query_tests` outside of the crate so that it may be used
+// in benchmarks. Do not import this module for non-benchmark purposes!
+pub mod benchmarks {
+    pub use crate::query_tests::*;
+}
 
 type DatabaseError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
