@@ -28,6 +28,12 @@ pub enum Error {
         chunk_id: u32,
     },
 
+    #[snafu(display("Parquet File Error in chunk {}: {}", chunk_id, source))]
+    ParquetFileChunkError {
+        source: parquet_file::chunk::Error,
+        chunk_id: u32,
+    },
+
     #[snafu(display("Internal error restricting schema: {}", source))]
     InternalSelectingSchema {
         source: internal_types::schema::Error,
@@ -212,9 +218,9 @@ impl PartitionChunk for DBChunk {
 
                 Ok(schema)
             }
-            Self::ParquetFile { .. } => {
-                unimplemented!("parquet file not implemented for table schema")
-            }
+            Self::ParquetFile { chunk, .. } => chunk
+                .table_schema(table_name, selection)
+                .context(ParquetFileChunkError{ chunk_id: chunk.id() }),
         }
     }
 
