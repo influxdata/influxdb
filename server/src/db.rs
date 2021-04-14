@@ -514,7 +514,7 @@ impl Db {
                 .context(ReadBufferChunkSchemaError { chunk_id })?
                 .into();
             let time_range = rb_chunk
-                .read_time_range(stats.name.as_str())
+                .table_time_range(stats.name.as_str())
                 .context(ReadBufferChunkTimestampError { chunk_id })?;
             let stream: SendableRecordBatchStream = Box::pin(
                 streams::ReadFilterResultsStream::new(read_results, Arc::clone(&arrow_schema)),

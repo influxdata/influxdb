@@ -13,11 +13,14 @@ use snafu::{ensure, Snafu};
 
 use crate::row_group::{self, ColumnName, Predicate, RowGroup};
 use crate::schema::{AggregateType, ColumnType, LogicalDataType, ResultSchema};
-use crate::value::Value;
+use crate::value::{OwnedValue, Scalar, Value};
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("cannot drop last row group in table; drop table"))]
     EmptyTableError {},
+
+    #[snafu(display("table does not have InfluxDB timestamp column"))]
+    NoTimestampColumnError {},
 
     #[snafu(display("unsupported column operation on {}: {}", column_name, msg))]
     UnsupportedColumnOperation { msg: String, column_name: String },
@@ -151,9 +154,38 @@ impl Table {
         self.table_data.read().unwrap().meta.to_summary(&self.name)
     }
 
-    /// The time range of all row groups within this table.
+    /// Returns the column range associated with an InfluxDB Timestamp column
+    /// or None if the table's schema does not have such a column.
     pub fn time_range(&self) -> Option<(i64, i64)> {
-        self.table_data.read().unwrap().meta.time_range
+        let table_data = self.table_data.read().unwrap();
+
+        let time_column = table_data
+            .meta
+            .columns
+            .values()
+            .filter(|cm| matches!(cm.typ, crate::schema::ColumnType::Timestamp(_)))
+            .collect::<Vec<_>>();
+
+        if time_column.is_empty() {
+            return None;
+        }
+
+        assert_eq!(time_column.len(), 1); // can only be one timestamp column.
+        let range = &time_column[0].range;
+
+        let (min, max) = match (&range.0, &range.1) {
+            (OwnedValue::Scalar(Scalar::I64(min)), OwnedValue::Scalar(Scalar::I64(max))) => {
+                (min, max)
+            }
+            (min, max) => {
+                panic!(
+                    "invalid range type for timestamp column: ({:?}, {:?})",
+                    min, max
+                );
+            }
+        };
+
+        Some((*min, *max))
     }
 
     // Helper function used in tests.
@@ -612,7 +644,6 @@ impl MetaData {
     }
 
     pub fn to_summary(&self, table_name: impl Into<String>) -> TableSummary {
-        use crate::value::{OwnedValue, Scalar};
         use data_types::partition_metadata::{ColumnSummary, StatValues, Statistics};
         let columns = self
             .columns
@@ -1434,5 +1465,21 @@ west,host-b,100
             dst.iter().cloned().collect::<Vec<_>>(),
             vec!["time".to_owned()],
         );
+    }
+
+    #[test]
+    fn time_range() {
+        // Build a row group.
+        let mut columns = vec![];
+        let tc = ColumnType::Time(Column::from(&[-29_i64, -100, 3, 2][..]));
+        columns.push((row_group::TIME_COLUMN_NAME.to_string(), tc));
+
+        let rc = ColumnType::Tag(Column::from(&["west", "south", "north", "west"][..]));
+        columns.push(("region".to_string(), rc));
+
+        let rg = RowGroup::new(4, columns);
+        let table = Table::new("cpu".to_owned(), rg);
+
+        assert_eq!(table.time_range().unwrap(), (-100, 3));
     }
 }
