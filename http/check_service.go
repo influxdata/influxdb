@@ -159,6 +159,7 @@ type checkResponse struct {
 	LatestScheduled time.Time        `json:"latestScheduled,omitempty"`
 	LastRunStatus   string           `json:"LastRunStatus,omitempty"`
 	LastRunError    string           `json:"LastRunError,omitempty"`
+	TaskID          platform.ID      `json:"taskID,omitempty"`
 }
 
 type postCheckRequest struct {
@@ -184,6 +185,7 @@ func (resp checkResponse) MarshalJSON() ([]byte, error) {
 		LatestScheduled time.Time        `json:"latestScheduled,omitempty"`
 		LastRunStatus   string           `json:"lastRunStatus,omitempty"`
 		LastRunError    string           `json:"lastRunError,omitempty"`
+		TaskID          platform.ID      `json:"taskID,omitempty"`
 	}{
 		Links:           resp.Links,
 		Labels:          resp.Labels,
@@ -192,6 +194,7 @@ func (resp checkResponse) MarshalJSON() ([]byte, error) {
 		LatestScheduled: resp.LatestScheduled,
 		LastRunStatus:   resp.LastRunStatus,
 		LastRunError:    resp.LastRunError,
+		TaskID:          resp.Check.GetTaskID(),
 	})
 	if err != nil {
 		return nil, err
@@ -212,9 +215,6 @@ func (h *CheckHandler) newCheckResponse(ctx context.Context, chk influxdb.Check,
 		return nil, err
 	}
 
-	// Ensure that we don't expose that this creates a task behind the scene
-	chk.ClearPrivateData()
-
 	res := &checkResponse{
 		Check: chk,
 		Links: checkLinks{
@@ -229,6 +229,7 @@ func (h *CheckHandler) newCheckResponse(ctx context.Context, chk influxdb.Check,
 		LatestScheduled: task.LatestScheduled,
 		LastRunStatus:   task.LastRunStatus,
 		LastRunError:    task.LastRunError,
+		TaskID:          chk.GetTaskID(),
 	}
 
 	for _, l := range labels {
