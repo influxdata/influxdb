@@ -1,3 +1,4 @@
+//! Implements the native gRPC IOx query API using Arrow Flight
 use std::{pin::Pin, sync::Arc};
 
 use futures::Stream;
@@ -19,7 +20,6 @@ use arrow_deps::{
         Action, ActionType, Criteria, Empty, FlightData, FlightDescriptor, FlightInfo,
         HandshakeRequest, HandshakeResponse, PutResult, SchemaResult, Ticket,
     },
-    datafusion::physical_plan::collect,
 };
 use data_types::{DatabaseName, DatabaseNameError};
 use query::{frontend::sql::SQLQueryPlanner, DatabaseStore};
@@ -165,7 +165,9 @@ where
             })?;
 
         // execute the query
-        let results = collect(Arc::clone(&physical_plan))
+        let results = executor
+            .new_context()
+            .collect(Arc::clone(&physical_plan))
             .await
             .map_err(|e| Box::new(e) as _)
             .context(Query {

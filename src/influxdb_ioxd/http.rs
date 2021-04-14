@@ -739,17 +739,19 @@ mod tests {
     use data_types::{database_rules::DatabaseRules, DatabaseName};
     use object_store::{memory::InMemory, ObjectStore};
     use serde::de::DeserializeOwned;
-    use server::{db::Db, ConnectionManagerImpl};
+    use server::{db::Db, ConnectionManagerImpl, ServerConfig as AppServerConfig};
     use std::num::NonZeroU32;
     use test_helpers::assert_contains;
 
+    fn config() -> AppServerConfig {
+        AppServerConfig::new(Arc::new(ObjectStore::new_in_memory(InMemory::new())))
+            .with_num_worker_threads(1)
+    }
+
     #[tokio::test]
     async fn test_health() {
-        let test_storage = Arc::new(AppServer::new(
-            ConnectionManagerImpl {},
-            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
-        ));
-        let server_url = test_server(Arc::clone(&test_storage));
+        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config()));
+        let server_url = test_server(Arc::clone(&app_server));
 
         let client = Client::new();
         let response = client.get(&format!("{}/health", server_url)).send().await;
@@ -760,20 +762,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_write() {
-        let test_storage = Arc::new(AppServer::new(
-            ConnectionManagerImpl {},
-            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
-        ));
-        test_storage.set_id(NonZeroU32::new(1).unwrap()).unwrap();
-        test_storage
+        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config()));
+        app_server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+        app_server
             .create_database(
                 DatabaseRules::new(DatabaseName::new("MyOrg_MyBucket").unwrap()),
-                test_storage.require_id().unwrap(),
-                Arc::clone(&test_storage.store),
+                app_server.require_id().unwrap(),
+                Arc::clone(&app_server.store),
             )
             .await
             .unwrap();
-        let server_url = test_server(Arc::clone(&test_storage));
+        let server_url = test_server(Arc::clone(&app_server));
 
         let client = Client::new();
 
@@ -794,7 +793,7 @@ mod tests {
         check_response("write", response, StatusCode::NO_CONTENT, "").await;
 
         // Check that the data got into the right bucket
-        let test_db = test_storage
+        let test_db = app_server
             .db(&DatabaseName::new("MyOrg_MyBucket").unwrap())
             .expect("Database exists");
 
@@ -812,20 +811,17 @@ mod tests {
     #[tokio::test]
     async fn test_write_metrics() {
         metrics::init_metrics_for_test();
-        let test_storage = Arc::new(AppServer::new(
-            ConnectionManagerImpl {},
-            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
-        ));
-        test_storage.set_id(NonZeroU32::new(1).unwrap()).unwrap();
-        test_storage
+        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config()));
+        app_server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+        app_server
             .create_database(
                 DatabaseRules::new(DatabaseName::new("MetricsOrg_MetricsBucket").unwrap()),
-                test_storage.require_id().unwrap(),
-                Arc::clone(&test_storage.store),
+                app_server.require_id().unwrap(),
+                Arc::clone(&app_server.store),
             )
             .await
             .unwrap();
-        let server_url = test_server(Arc::clone(&test_storage));
+        let server_url = test_server(Arc::clone(&app_server));
 
         let client = Client::new();
 
@@ -874,20 +870,17 @@ mod tests {
     /// returns a client for communicting with the server, and the server
     /// endpoint
     async fn setup_test_data() -> (Client, String) {
-        let test_storage: Arc<AppServer<ConnectionManagerImpl>> = Arc::new(AppServer::new(
-            ConnectionManagerImpl {},
-            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
-        ));
-        test_storage.set_id(NonZeroU32::new(1).unwrap()).unwrap();
-        test_storage
+        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config()));
+        app_server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+        app_server
             .create_database(
                 DatabaseRules::new(DatabaseName::new("MyOrg_MyBucket").unwrap()),
-                test_storage.require_id().unwrap(),
-                Arc::clone(&test_storage.store),
+                app_server.require_id().unwrap(),
+                Arc::clone(&app_server.store),
             )
             .await
             .unwrap();
-        let server_url = test_server(Arc::clone(&test_storage));
+        let server_url = test_server(Arc::clone(&app_server));
 
         let client = Client::new();
 
@@ -1011,20 +1004,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_gzip_write() {
-        let test_storage = Arc::new(AppServer::new(
-            ConnectionManagerImpl {},
-            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
-        ));
-        test_storage.set_id(NonZeroU32::new(1).unwrap()).unwrap();
-        test_storage
+        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config()));
+        app_server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+        app_server
             .create_database(
                 DatabaseRules::new(DatabaseName::new("MyOrg_MyBucket").unwrap()),
-                test_storage.require_id().unwrap(),
-                Arc::clone(&test_storage.store),
+                app_server.require_id().unwrap(),
+                Arc::clone(&app_server.store),
             )
             .await
             .unwrap();
-        let server_url = test_server(Arc::clone(&test_storage));
+        let server_url = test_server(Arc::clone(&app_server));
 
         let client = Client::new();
         let lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=65.2,bottom_degrees=50.4 1568756160";
@@ -1045,7 +1035,7 @@ mod tests {
         check_response("gzip_write", response, StatusCode::NO_CONTENT, "").await;
 
         // Check that the data got into the right bucket
-        let test_db = test_storage
+        let test_db = app_server
             .db(&DatabaseName::new("MyOrg_MyBucket").unwrap())
             .expect("Database exists");
 
@@ -1063,20 +1053,17 @@ mod tests {
 
     #[tokio::test]
     async fn write_to_invalid_database() {
-        let test_storage = Arc::new(AppServer::new(
-            ConnectionManagerImpl {},
-            Arc::new(ObjectStore::new_in_memory(InMemory::new())),
-        ));
-        test_storage.set_id(NonZeroU32::new(1).unwrap()).unwrap();
-        test_storage
+        let app_server = Arc::new(AppServer::new(ConnectionManagerImpl {}, config()));
+        app_server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+        app_server
             .create_database(
                 DatabaseRules::new(DatabaseName::new("MyOrg_MyBucket").unwrap()),
-                test_storage.require_id().unwrap(),
-                Arc::clone(&test_storage.store),
+                app_server.require_id().unwrap(),
+                Arc::clone(&app_server.store),
             )
             .await
             .unwrap();
-        let server_url = test_server(Arc::clone(&test_storage));
+        let server_url = test_server(Arc::clone(&app_server));
 
         let client = Client::new();
 
@@ -1179,7 +1166,7 @@ mod tests {
     /// Run the specified SQL query and return formatted results as a string
     async fn run_query(db: Arc<Db>, query: &str) -> Vec<RecordBatch> {
         let planner = SQLQueryPlanner::default();
-        let executor = Executor::new();
+        let executor = Executor::new(1);
         let physical_plan = planner.query(db, query, &executor).await.unwrap();
 
         collect(physical_plan).await.unwrap()

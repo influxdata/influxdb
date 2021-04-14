@@ -29,5 +29,9 @@ tokio = { version = "1.0", features = ["macros"] }
 tokio-stream = "0.1.2"
 observability_deps = { path = "../observability_deps" }
 
+# use libc on unix like platforms to set worker priority in DedicatedExecutor
+[target."cfg(unix)".dependencies.libc]
+version = "0.2"
+
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }

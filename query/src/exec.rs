@@ -8,6 +8,7 @@ pub mod fieldlist;
 mod schema_pivot;
 pub mod seriesset;
 pub mod stringset;
+mod task;
 pub use context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
 
 use std::sync::Arc;
@@ -33,6 +34,8 @@ use crate::plan::{
     seriesset::{SeriesSetPlan, SeriesSetPlans},
     stringset::StringSetPlan,
 };
+
+use self::task::DedicatedExecutor;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -89,16 +92,24 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Handles executing plans, and marshalling the results into rust
+/// Handles executing DataFusion plans, and marshalling the results into rust
 /// native structures.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Executor {
     counters: Arc<ExecutionCounters>,
+    exec: DedicatedExecutor,
 }
 
 impl Executor {
-    pub fn new() -> Self {
-        Self::default()
+    /// Creates a new executor with a single dedicated thread pool with
+    /// num_threads
+    pub fn new(num_threads: usize) -> Self {
+        let exec = DedicatedExecutor::new("IOx Executor Thread", num_threads);
+
+        Self {
+            exec,
+            counters: Arc::new(ExecutionCounters::default()),
+        }
     }
 
     /// Executes this plan and returns the resulting set of strings
@@ -212,10 +223,8 @@ impl Executor {
         let handles = plans
             .into_iter()
             .map(|plan| {
-                let counters = Arc::clone(&self.counters);
-
+                let ctx = self.new_context();
                 tokio::task::spawn(async move {
-                    let ctx = IOxExecutionContext::new(counters);
                     let physical_plan = ctx
                         .prepare_plan(&plan)
                         .await
@@ -252,7 +261,7 @@ impl Executor {
 
     /// Create a new execution context, suitable for executing a new query
     pub fn new_context(&self) -> IOxExecutionContext {
-        IOxExecutionContext::new(Arc::clone(&self.counters))
+        IOxExecutionContext::new(self.exec.clone(), Arc::clone(&self.counters))
     }
 
     /// plans and runs the plans in parallel and collects the results
@@ -327,7 +336,7 @@ mod tests {
         let expected_strings = to_set(&["Foo", "Bar"]);
         let plan = StringSetPlan::Known(Arc::clone(&expected_strings));
 
-        let executor = Executor::default();
+        let executor = Executor::new(1);
         let result_strings = executor.to_string_set(plan).await.unwrap();
         assert_eq!(result_strings, expected_strings);
     }
@@ -339,7 +348,7 @@ mod tests {
         let scan = make_plan(schema, vec![]);
         let plan: StringSetPlan = vec![scan].into();
 
-        let executor = Executor::new();
+        let executor = Executor::new(1);
         let results = executor.to_string_set(plan).await.unwrap();
 
         assert_eq!(results, StringSetRef::new(StringSet::new()));
@@ -355,7 +364,7 @@ mod tests {
         let scan = make_plan(schema, vec![batch]);
         let plan: StringSetPlan = vec![scan].into();
 
-        let executor = Executor::new();
+        let executor = Executor::new(1);
         let results = executor.to_string_set(plan).await.unwrap();
 
         assert_eq!(results, to_set(&["foo", "bar", "baz"]));
@@ -374,7 +383,7 @@ mod tests {
         let scan = make_plan(schema, vec![batch1, batch2]);
         let plan: StringSetPlan = vec![scan].into();
 
-        let executor = Executor::new();
+        let executor = Executor::new(1);
         let results = executor.to_string_set(plan).await.unwrap();
 
         assert_eq!(results, to_set(&["foo", "bar", "baz"]));
@@ -397,7 +406,7 @@ mod tests {
 
         let plan: StringSetPlan = vec![scan1, scan2].into();
 
-        let executor = Executor::new();
+        let executor = Executor::new(1);
         let results = executor.to_string_set(plan).await.unwrap();
 
         assert_eq!(results, to_set(&["foo", "bar", "baz"]));
@@ -417,7 +426,7 @@ mod tests {
         let scan = make_plan(schema, vec![batch]);
         let plan: StringSetPlan = vec![scan].into();
 
-        let executor = Executor::new();
+        let executor = Executor::new(1);
         let results = executor.to_string_set(plan).await;
 
         let actual_error = match results {
@@ -443,7 +452,7 @@ mod tests {
         let scan = make_plan(schema, vec![batch]);
         let plan: StringSetPlan = vec![scan].into();
 
-        let executor = Executor::new();
+        let executor = Executor::new(1);
         let results = executor.to_string_set(plan).await;
 
         let actual_error = match results {
@@ -481,7 +490,7 @@ mod tests {
         let pivot = make_schema_pivot(scan);
         let plan = vec![pivot].into();
 
-        let executor = Executor::new();
+        let executor = Executor::new(1);
         let results = executor.to_string_set(plan).await.expect("Executed plan");
 
         assert_eq!(results, to_set(&["f1", "f2"]));

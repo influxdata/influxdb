@@ -23,7 +23,7 @@ macro_rules! run_table_names_test_case {
             println!("Running scenario '{}'", scenario_name);
             println!("Predicate: '{:#?}'", predicate);
             let planner = InfluxRPCPlanner::new();
-            let executor = Executor::new();
+            let executor = Executor::new(1);
 
             let plan = planner
                 .table_names(&db, predicate.clone())

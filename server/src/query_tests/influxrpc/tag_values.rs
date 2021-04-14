@@ -25,7 +25,7 @@ macro_rules! run_tag_values_test_case {
             println!("Running scenario '{}'", scenario_name);
             println!("Predicate: '{:#?}'", predicate);
             let planner = InfluxRPCPlanner::new();
-            let executor = Executor::new();
+            let executor = Executor::new(1);
 
             let plan = planner
                 .tag_values(&db, &tag_name, predicate.clone())

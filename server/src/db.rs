@@ -1703,7 +1703,7 @@ mod tests {
     // run a sql query against the database, returning the results as record batches
     async fn run_query(db: Arc<Db>, query: &str) -> Vec<RecordBatch> {
         let planner = SQLQueryPlanner::default();
-        let executor = Executor::new();
+        let executor = Executor::new(1);
 
         let physical_plan = planner.query(db, query, &executor).await.unwrap();
 

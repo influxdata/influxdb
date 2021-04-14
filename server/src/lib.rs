@@ -191,6 +191,38 @@ impl JobRegistry {
 
 const STORE_ERROR_PAUSE_SECONDS: u64 = 100;
 
+/// Used to configure a server instance
+#[derive(Debug)]
+pub struct ServerConfig {
+    // number of executor worker threads. If not specified, defaults
+    // to number of cores on the system.
+    num_worker_threads: Option<usize>,
+
+    /// The `ObjectStore` instance to use for persistence
+    object_store: Arc<ObjectStore>,
+}
+
+impl ServerConfig {
+    /// Create a new config using the specified store
+    pub fn new(object_store: Arc<ObjectStore>) -> Self {
+        Self {
+            num_worker_threads: None,
+            object_store,
+        }
+    }
+
+    /// Use `num` worker threads for running queries
+    pub fn with_num_worker_threads(mut self, num: usize) -> Self {
+        self.num_worker_threads = Some(num);
+        self
+    }
+
+    /// return a reference to the object store in this configuration
+    pub fn store(&self) -> Arc<ObjectStore> {
+        Arc::clone(&self.object_store)
+    }
+}
+
 /// `Server` is the container struct for how servers store data internally, as
 /// well as how they communicate with other servers. Each server will have one
 /// of these structs, which keeps track of all replication and query rules.
@@ -217,15 +249,21 @@ impl<E> From<Error> for UpdateError<E> {
 }
 
 impl<M: ConnectionManager> Server<M> {
-    pub fn new(connection_manager: M, store: Arc<ObjectStore>) -> Self {
+    pub fn new(connection_manager: M, config: ServerConfig) -> Self {
         let jobs = Arc::new(JobRegistry::new());
+
+        let ServerConfig {
+            num_worker_threads,
+            object_store,
+        } = config;
+        let num_worker_threads = num_worker_threads.unwrap_or_else(num_cpus::get);
 
         Self {
             id: Default::default(),
             config: Arc::new(Config::new(Arc::clone(&jobs))),
-            store,
+            store: object_store,
             connection_manager: Arc::new(connection_manager),
-            executor: Arc::new(Executor::new()),
+            executor: Arc::new(Executor::new(num_worker_threads)),
             jobs,
         }
     }
@@ -703,11 +741,15 @@ mod tests {
 
     use super::*;
 
+    fn config() -> ServerConfig {
+        ServerConfig::new(Arc::new(ObjectStore::new_in_memory(InMemory::new())))
+            .with_num_worker_threads(1)
+    }
+
     #[tokio::test]
     async fn server_api_calls_return_error_with_no_id_set() {
         let manager = TestConnectionManager::new();
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let server = Server::new(manager, store);
+        let server = Server::new(manager, config());
 
         let resp = server.require_id().unwrap_err();
         assert!(matches!(resp, Error::IdNotSet));
@@ -720,8 +762,9 @@ mod tests {
     #[tokio::test]
     async fn create_database_persists_rules() {
         let manager = TestConnectionManager::new();
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let server = Server::new(manager, Arc::clone(&store));
+        let config = config();
+        let store = config.store();
+        let server = Server::new(manager, config);
         server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
 
         let name = DatabaseName::new("bananas").unwrap();
@@ -778,7 +821,8 @@ mod tests {
         store.list_with_delimiter(&store.new_path()).await.unwrap();
 
         let manager = TestConnectionManager::new();
-        let server2 = Server::new(manager, store);
+        let config2 = ServerConfig::new(store).with_num_worker_threads(1);
+        let server2 = Server::new(manager, config2);
         server2.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         server2.load_database_configs().await.unwrap();
 
@@ -791,8 +835,7 @@ mod tests {
         // Covers #643
 
         let manager = TestConnectionManager::new();
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let server = Server::new(manager, store);
+        let server = Server::new(manager, config());
         server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
 
         let name = DatabaseName::new("bananas").unwrap();
@@ -825,8 +868,7 @@ mod tests {
     #[tokio::test]
     async fn db_names_sorted() {
         let manager = TestConnectionManager::new();
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let server = Server::new(manager, store);
+        let server = Server::new(manager, config());
         server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
 
         let names = vec!["bar", "baz"];
@@ -850,8 +892,7 @@ mod tests {
     #[tokio::test]
     async fn writes_local() {
         let manager = TestConnectionManager::new();
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let server = Server::new(manager, store);
+        let server = Server::new(manager, config());
         server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
 
         let name = DatabaseName::new("foo".to_string()).unwrap();
@@ -892,8 +933,7 @@ mod tests {
     #[tokio::test]
     async fn write_entry_local() {
         let manager = TestConnectionManager::new();
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let server = Server::new(manager, store);
+        let server = Server::new(manager, config());
         server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
 
         let name = DatabaseName::new("foo".to_string()).unwrap();
@@ -942,8 +982,7 @@ mod tests {
     async fn close_chunk() {
         test_helpers::maybe_start_logging();
         let manager = TestConnectionManager::new();
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let server = Arc::new(Server::new(manager, store));
+        let server = Arc::new(Server::new(manager, config()));
 
         let cancel_token = CancellationToken::new();
         let background_handle = spawn_worker(Arc::clone(&server), cancel_token.clone());
@@ -1008,8 +1047,7 @@ mod tests {
     #[tokio::test]
     async fn background_task_cleans_jobs() {
         let manager = TestConnectionManager::new();
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let server = Arc::new(Server::new(manager, store));
+        let server = Arc::new(Server::new(manager, config()));
 
         let cancel_token = CancellationToken::new();
         let background_handle = spawn_worker(Arc::clone(&server), cancel_token.clone());

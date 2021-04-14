@@ -56,7 +56,7 @@ pub fn benchmark_tag_values(c: &mut Criterion) {
 // predicate.
 fn execute_benchmark_group(c: &mut Criterion, scenarios: &[DBScenario]) {
     let planner = InfluxRPCPlanner::new();
-    let executor = Executor::new();
+    let executor = Executor::new(1); // single thread to execute queries
 
     let predicates = vec![
         (PredicateBuilder::default().build(), "no_pred"),

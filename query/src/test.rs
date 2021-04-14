@@ -410,7 +410,7 @@ impl Default for TestDatabaseStore {
     fn default() -> Self {
         Self {
             databases: Mutex::new(BTreeMap::new()),
-            executor: Arc::new(Executor::new()),
+            executor: Arc::new(Executor::new(1)),
         }
     }
 }

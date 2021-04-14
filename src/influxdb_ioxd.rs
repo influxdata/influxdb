@@ -10,7 +10,10 @@ use object_store::{
 };
 use observability_deps::tracing::{self, error, info, warn, Instrument};
 use panic_logging::SendPanicsToTracing;
-use server::{ConnectionManagerImpl as ConnectionManager, Server as AppServer};
+use server::{
+    ConnectionManagerImpl as ConnectionManager, Server as AppServer,
+    ServerConfig as AppServerConfig,
+};
 use snafu::{ResultExt, Snafu};
 use std::{convert::TryFrom, fs, net::SocketAddr, path::PathBuf, sync::Arc};
 
@@ -124,9 +127,20 @@ pub async fn main(logging_level: LoggingLevel, config: Config) -> Result<()> {
 
     let object_store = ObjectStore::try_from(&config)?;
     let object_storage = Arc::new(object_store);
+    let server_config = AppServerConfig::new(object_storage);
+
+    let server_config = if let Some(n) = config.num_worker_threads {
+        info!(
+            num_worker_threads = n,
+            "Using specified number of worker threads"
+        );
+        server_config.with_num_worker_threads(n)
+    } else {
+        server_config
+    };
 
     let connection_manager = ConnectionManager {};
-    let app_server = Arc::new(AppServer::new(connection_manager, object_storage));
+    let app_server = Arc::new(AppServer::new(connection_manager, server_config));
 
     // if this ID isn't set the server won't be usable until this is set via an API
     // call
