@@ -3,6 +3,8 @@ package tenant
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorizer"
 	icontext "github.com/influxdata/influxdb/v2/context"
@@ -26,7 +28,7 @@ func NewAuthedOrgService(s influxdb.OrganizationService) *AuthedOrgService {
 }
 
 // FindOrganizationByID checks to see if the authorizer on context has read access to the id provided.
-func (s *AuthedOrgService) FindOrganizationByID(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
+func (s *AuthedOrgService) FindOrganizationByID(ctx context.Context, id platform.ID) (*influxdb.Organization, error) {
 	if _, _, err := authorizer.AuthorizeReadOrg(ctx, id); err != nil {
 		return nil, err
 	}
@@ -75,7 +77,7 @@ func (s *AuthedOrgService) CreateOrganization(ctx context.Context, o *influxdb.O
 }
 
 // UpdateOrganization checks to see if the authorizer on context has write access to the organization provided.
-func (s *AuthedOrgService) UpdateOrganization(ctx context.Context, id influxdb.ID, upd influxdb.OrganizationUpdate) (*influxdb.Organization, error) {
+func (s *AuthedOrgService) UpdateOrganization(ctx context.Context, id platform.ID, upd influxdb.OrganizationUpdate) (*influxdb.Organization, error) {
 	if _, _, err := authorizer.AuthorizeWriteOrg(ctx, id); err != nil {
 		return nil, err
 	}
@@ -83,7 +85,7 @@ func (s *AuthedOrgService) UpdateOrganization(ctx context.Context, id influxdb.I
 }
 
 // DeleteOrganization checks to see if the authorizer on context has write access to the organization provided.
-func (s *AuthedOrgService) DeleteOrganization(ctx context.Context, id influxdb.ID) error {
+func (s *AuthedOrgService) DeleteOrganization(ctx context.Context, id platform.ID) error {
 	if _, _, err := authorizer.AuthorizeWriteOrg(ctx, id); err != nil {
 		return err
 	}

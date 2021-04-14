@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 
-	influxdb "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 )
 
 type InitialMigration struct{}
@@ -80,7 +80,7 @@ func (m InitialMigration) Down(ctx context.Context, store SchemaStore) error {
 	return nil
 }
 
-func putAsJson(tx Tx, bucket []byte, id influxdb.ID, value interface{}) error {
+func putAsJson(tx Tx, bucket []byte, id platform.ID, value interface{}) error {
 	data, err := json.Marshal(value)
 	if err != nil {
 		return err

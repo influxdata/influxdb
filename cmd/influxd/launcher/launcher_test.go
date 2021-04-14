@@ -18,11 +18,9 @@ import (
 var ctx = context.Background()
 
 func TestLauncher_Setup(t *testing.T) {
-	l := launcher.NewTestLauncher(nil)
-	if err := l.Run(ctx); err != nil {
-		t.Fatal(err)
-	}
-	defer l.Shutdown(ctx)
+	l := launcher.NewTestLauncher()
+	l.RunOrFail(t, ctx)
+	defer l.ShutdownOrFail(t, ctx)
 
 	client, err := http.NewHTTPClient(l.URL(), "", false)
 	if err != nil {
@@ -51,8 +49,7 @@ func TestLauncher_Setup(t *testing.T) {
 // This is to mimic chronograf using cookies as sessions
 // rather than authorizations
 func TestLauncher_SetupWithUsers(t *testing.T) {
-	l := launcher.RunTestLauncherOrFail(t, ctx, nil)
-	l.SetupOrFail(t)
+	l := launcher.RunAndSetupNewLauncherOrFail(ctx, t)
 	defer l.ShutdownOrFail(t, ctx)
 
 	r, err := nethttp.NewRequest("POST", l.URL()+"/api/v2/signin", nil)

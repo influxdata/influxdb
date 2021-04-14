@@ -5,6 +5,9 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 const (
@@ -29,7 +32,7 @@ type PagingLinks struct {
 type FindOptions struct {
 	Limit      int
 	Offset     int
-	After      *ID
+	After      *platform.ID
 	SortBy     string
 	Descending bool
 }
@@ -56,8 +59,8 @@ func DecodeFindOptions(r *http.Request) (*FindOptions, error) {
 	if offset := qp.Get("offset"); offset != "" {
 		o, err := strconv.Atoi(offset)
 		if err != nil {
-			return nil, &Error{
-				Code: EInvalid,
+			return nil, &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "offset is invalid",
 			}
 		}
@@ -66,10 +69,10 @@ func DecodeFindOptions(r *http.Request) (*FindOptions, error) {
 	}
 
 	if after := qp.Get("after"); after != "" {
-		id, err := IDFromString(after)
+		id, err := platform.IDFromString(after)
 		if err != nil {
-			return nil, &Error{
-				Code: EInvalid,
+			return nil, &errors.Error{
+				Code: errors.EInvalid,
 				Err:  fmt.Errorf("decoding after: %w", err),
 			}
 		}
@@ -80,15 +83,15 @@ func DecodeFindOptions(r *http.Request) (*FindOptions, error) {
 	if limit := qp.Get("limit"); limit != "" {
 		l, err := strconv.Atoi(limit)
 		if err != nil {
-			return nil, &Error{
-				Code: EInvalid,
+			return nil, &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "limit is invalid",
 			}
 		}
 
 		if l < 1 || l > MaxPageSize {
-			return nil, &Error{
-				Code: EInvalid,
+			return nil, &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  fmt.Sprintf("limit must be between 1 and %d", MaxPageSize),
 			}
 		}
@@ -105,8 +108,8 @@ func DecodeFindOptions(r *http.Request) (*FindOptions, error) {
 	if descending := qp.Get("descending"); descending != "" {
 		desc, err := strconv.ParseBool(descending)
 		if err != nil {
-			return nil, &Error{
-				Code: EInvalid,
+			return nil, &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "descending is invalid",
 			}
 		}

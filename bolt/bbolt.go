@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"time"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/rand"
 	"github.com/influxdata/influxdb/v2/snowflake"
@@ -22,9 +24,11 @@ type Client struct {
 	db   *bolt.DB
 	log  *zap.Logger
 
-	IDGenerator    platform.IDGenerator
+	IDGenerator    platform2.IDGenerator
 	TokenGenerator platform.TokenGenerator
 	platform.TimeGenerator
+
+	pluginsCollector *pluginMetricsCollector
 }
 
 // NewClient returns an instance of a Client.
@@ -34,6 +38,8 @@ func NewClient(log *zap.Logger) *Client {
 		IDGenerator:    snowflake.NewIDGenerator(),
 		TokenGenerator: rand.NewTokenGenerator(64),
 		TimeGenerator:  platform.RealTimeGenerator{},
+		// Refresh telegraf plugin metrics every hour.
+		pluginsCollector: NewPluginMetricsCollector(time.Minute * 59),
 	}
 }
 
@@ -56,13 +62,24 @@ func (c *Client) Open(ctx context.Context) error {
 	// Open database file.
 	db, err := bolt.Open(c.Path, 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
-		return fmt.Errorf("unable to open boltdb; is there a chronograf already running?  %v", err)
+		// Hack to give a slightly nicer error message for a known failure mode when bolt calls
+		// mmap on a file system that doesn't support the MAP_SHARED option.
+		//
+		// See: https://github.com/boltdb/bolt/issues/272
+		// See: https://stackoverflow.com/a/18421071
+		if err.Error() == "invalid argument" {
+			return fmt.Errorf("unable to open boltdb: mmap of %q may not support the MAP_SHARED option", c.Path)
+		}
+
+		return fmt.Errorf("unable to open boltdb: %w", err)
 	}
 	c.db = db
 
 	if err := c.initialize(ctx); err != nil {
 		return err
 	}
+
+	c.pluginsCollector.Open(c.db)
 
 	c.log.Info("Resources opened", zap.String("path", c.Path))
 	return nil
@@ -103,6 +120,7 @@ func (c *Client) initialize(ctx context.Context) error {
 
 // Close the connection to the bolt database
 func (c *Client) Close() error {
+	c.pluginsCollector.Close()
 	if c.db != nil {
 		return c.db.Close()
 	}

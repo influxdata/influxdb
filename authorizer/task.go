@@ -5,7 +5,10 @@ import (
 	"fmt"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"go.uber.org/zap"
 )
 
@@ -20,25 +23,25 @@ func (ae *authError) AuthzError() error {
 }
 
 var (
-	ErrInactiveTask = &influxdb.Error{
-		Code: influxdb.EInvalid,
+	ErrInactiveTask = &errors.Error{
+		Code: errors.EInvalid,
 		Msg:  "inactive task",
 	}
 
-	ErrFailedPermission = &influxdb.Error{
-		Code: influxdb.EInvalid,
+	ErrFailedPermission = &errors.Error{
+		Code: errors.EInvalid,
 		Msg:  "unauthorized",
 	}
 )
 
 type taskServiceValidator struct {
-	influxdb.TaskService
+	taskmodel.TaskService
 	log *zap.Logger
 }
 
 // TaskService wraps ts and checks appropriate permissions before calling requested methods on ts.
 // Authorization failures are logged to the logger.
-func NewTaskService(log *zap.Logger, ts influxdb.TaskService) influxdb.TaskService {
+func NewTaskService(log *zap.Logger, ts taskmodel.TaskService) taskmodel.TaskService {
 	return &taskServiceValidator{
 		TaskService: ts,
 		log:         log,
@@ -46,7 +49,7 @@ func NewTaskService(log *zap.Logger, ts influxdb.TaskService) influxdb.TaskServi
 }
 
 func (ts *taskServiceValidator) processPermissionError(a influxdb.Authorizer, p influxdb.Permission, err error, loggerFields ...zap.Field) error {
-	if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+	if errors.ErrorCode(err) == errors.EUnauthorized {
 		ts.log.With(loggerFields...).Info("Authorization failed",
 			zap.String("user_id", a.GetUserID().String()),
 			zap.String("auth_kind", a.Kind()),
@@ -58,7 +61,7 @@ func (ts *taskServiceValidator) processPermissionError(a influxdb.Authorizer, p 
 	return err
 }
 
-func (ts *taskServiceValidator) FindTaskByID(ctx context.Context, id influxdb.ID) (*influxdb.Task, error) {
+func (ts *taskServiceValidator) FindTaskByID(ctx context.Context, id platform.ID) (*taskmodel.Task, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -76,7 +79,7 @@ func (ts *taskServiceValidator) FindTaskByID(ctx context.Context, id influxdb.ID
 	return task, nil
 }
 
-func (ts *taskServiceValidator) FindTasks(ctx context.Context, filter influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
+func (ts *taskServiceValidator) FindTasks(ctx context.Context, filter taskmodel.TaskFilter) ([]*taskmodel.Task, int, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 	// Get the tasks in the organization, without authentication.
@@ -87,12 +90,12 @@ func (ts *taskServiceValidator) FindTasks(ctx context.Context, filter influxdb.T
 	return AuthorizeFindTasks(ctx, unauthenticatedTasks)
 }
 
-func (ts *taskServiceValidator) CreateTask(ctx context.Context, t influxdb.TaskCreate) (*influxdb.Task, error) {
+func (ts *taskServiceValidator) CreateTask(ctx context.Context, t taskmodel.TaskCreate) (*taskmodel.Task, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	if !t.OwnerID.Valid() {
-		return nil, influxdb.ErrInvalidOwnerID
+		return nil, taskmodel.ErrInvalidOwnerID
 	}
 
 	a, p, err := AuthorizeCreate(ctx, influxdb.TasksResourceType, t.OrganizationID)
@@ -103,7 +106,7 @@ func (ts *taskServiceValidator) CreateTask(ctx context.Context, t influxdb.TaskC
 	return ts.TaskService.CreateTask(ctx, t)
 }
 
-func (ts *taskServiceValidator) UpdateTask(ctx context.Context, id influxdb.ID, upd influxdb.TaskUpdate) (*influxdb.Task, error) {
+func (ts *taskServiceValidator) UpdateTask(ctx context.Context, id platform.ID, upd taskmodel.TaskUpdate) (*taskmodel.Task, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -121,7 +124,7 @@ func (ts *taskServiceValidator) UpdateTask(ctx context.Context, id influxdb.ID, 
 	return ts.TaskService.UpdateTask(ctx, id, upd)
 }
 
-func (ts *taskServiceValidator) DeleteTask(ctx context.Context, id influxdb.ID) error {
+func (ts *taskServiceValidator) DeleteTask(ctx context.Context, id platform.ID) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -139,7 +142,7 @@ func (ts *taskServiceValidator) DeleteTask(ctx context.Context, id influxdb.ID) 
 	return ts.TaskService.DeleteTask(ctx, id)
 }
 
-func (ts *taskServiceValidator) FindLogs(ctx context.Context, filter influxdb.LogFilter) ([]*influxdb.Log, int, error) {
+func (ts *taskServiceValidator) FindLogs(ctx context.Context, filter taskmodel.LogFilter) ([]*taskmodel.Log, int, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -152,7 +155,7 @@ func (ts *taskServiceValidator) FindLogs(ctx context.Context, filter influxdb.Lo
 	return ts.TaskService.FindLogs(ctx, filter)
 }
 
-func (ts *taskServiceValidator) FindRuns(ctx context.Context, filter influxdb.RunFilter) ([]*influxdb.Run, int, error) {
+func (ts *taskServiceValidator) FindRuns(ctx context.Context, filter taskmodel.RunFilter) ([]*taskmodel.Run, int, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -171,7 +174,7 @@ func (ts *taskServiceValidator) FindRuns(ctx context.Context, filter influxdb.Ru
 	return ts.TaskService.FindRuns(ctx, filter)
 }
 
-func (ts *taskServiceValidator) FindRunByID(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
+func (ts *taskServiceValidator) FindRunByID(ctx context.Context, taskID, runID platform.ID) (*taskmodel.Run, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -189,7 +192,7 @@ func (ts *taskServiceValidator) FindRunByID(ctx context.Context, taskID, runID i
 	return ts.TaskService.FindRunByID(ctx, taskID, runID)
 }
 
-func (ts *taskServiceValidator) CancelRun(ctx context.Context, taskID, runID influxdb.ID) error {
+func (ts *taskServiceValidator) CancelRun(ctx context.Context, taskID, runID platform.ID) error {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -207,7 +210,7 @@ func (ts *taskServiceValidator) CancelRun(ctx context.Context, taskID, runID inf
 	return ts.TaskService.CancelRun(ctx, taskID, runID)
 }
 
-func (ts *taskServiceValidator) RetryRun(ctx context.Context, taskID, runID influxdb.ID) (*influxdb.Run, error) {
+func (ts *taskServiceValidator) RetryRun(ctx context.Context, taskID, runID platform.ID) (*taskmodel.Run, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -217,7 +220,7 @@ func (ts *taskServiceValidator) RetryRun(ctx context.Context, taskID, runID infl
 		return nil, err
 	}
 
-	if task.Status != string(influxdb.TaskActive) {
+	if task.Status != string(taskmodel.TaskActive) {
 		return nil, ErrInactiveTask
 	}
 
@@ -229,7 +232,7 @@ func (ts *taskServiceValidator) RetryRun(ctx context.Context, taskID, runID infl
 	return ts.TaskService.RetryRun(ctx, taskID, runID)
 }
 
-func (ts *taskServiceValidator) ForceRun(ctx context.Context, taskID influxdb.ID, scheduledFor int64) (*influxdb.Run, error) {
+func (ts *taskServiceValidator) ForceRun(ctx context.Context, taskID platform.ID, scheduledFor int64) (*taskmodel.Run, error) {
 	span, ctx := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -239,7 +242,7 @@ func (ts *taskServiceValidator) ForceRun(ctx context.Context, taskID influxdb.ID
 		return nil, err
 	}
 
-	if task.Status != string(influxdb.TaskActive) {
+	if task.Status != string(taskmodel.TaskActive) {
 		return nil, ErrInactiveTask
 	}
 

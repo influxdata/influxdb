@@ -7,13 +7,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/task/backend/executor"
 	"github.com/influxdata/influxdb/v2/task/backend/scheduler"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
 
 type promise struct {
-	run        *influxdb.Run
+	run        *taskmodel.Run
 	hangingFor time.Duration
 
 	done chan struct{}
@@ -24,7 +25,7 @@ type promise struct {
 }
 
 // ID is the id of the run that was created
-func (p *promise) ID() influxdb.ID {
+func (p *promise) ID() platform.ID {
 	return p.run.ID
 }
 
@@ -52,7 +53,7 @@ func (p *promise) Error() error {
 	return p.err
 }
 
-func (e *Executor) createPromise(ctx context.Context, run *influxdb.Run) (*promise, error) {
+func (e *Executor) createPromise(ctx context.Context, run *taskmodel.Run) (*promise, error) {
 	ctx, cancel := context.WithCancel(ctx)
 	p := &promise{
 		run:        run,
@@ -101,8 +102,8 @@ func (e *Executor) Execute(ctx context.Context, id scheduler.ID, scheduledAt tim
 	return nil
 }
 
-func (e *Executor) ManualRun(ctx context.Context, id influxdb.ID, runID influxdb.ID) (executor.Promise, error) {
-	run := &influxdb.Run{ID: runID, TaskID: id, StartedAt: time.Now().UTC()}
+func (e *Executor) ManualRun(ctx context.Context, id platform.ID, runID platform.ID) (executor.Promise, error) {
+	run := &taskmodel.Run{ID: runID, TaskID: id, StartedAt: time.Now().UTC()}
 	p, err := e.createPromise(ctx, run)
 	return p, err
 }
@@ -111,7 +112,7 @@ func (e *Executor) Wait() {
 	e.wg.Wait()
 }
 
-func (e *Executor) Cancel(context.Context, influxdb.ID) error {
+func (e *Executor) Cancel(context.Context, platform.ID) error {
 	return nil
 }
 

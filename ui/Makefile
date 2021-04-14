@@ -12,8 +12,8 @@ e2e: node_modules
 	yarn generate
 	yarn test:e2e
 
-build: node_modules $(UISOURCES)
-	yarn build
+build:
+	./fetch_ui_assets.sh
 
 lint: node_modules $(UISOURCES)
 	yarn generate

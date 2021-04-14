@@ -58,10 +58,6 @@ We really like to receive feature requests as it helps us prioritize our work.
 Please be clear about your requirements and goals, help us to understand what you would like to see added to InfluxD with examples and the reasons why it is important to you.
 If you find your feature request already exists as a Github issue please indicate your support for that feature by using the "thumbs up" reaction.
 
-## Contributing to the source code
-
-You should read our [coding guide](https://github.com/influxdata/influxdb/blob/master/DEVELOPMENT.md), to understand better how to write code for InfluxDB.
-
 ## Submitting a pull request
 To submit a pull request you should fork the InfluxDB repository, and make your change on a feature branch of your fork.
 Then generate a pull request from your branch against *master* of the InfluxDB repository.
@@ -119,10 +115,10 @@ Currently the project only depends on `git` and `bzr`.
 
 You need a recent stable version of Rust. We recommend using [rustup](https://rustup.rs/) to install Rust.
 
-You also need `protobuf`, `yarn`, and `make` installed.
+You also need `clang`, `make`, `pkg-config`, `protobuf`, and `yarn` installed.
 
-- OSX: `brew install protobuf yarn make`
-- Linux (Arch): `pacman -S protobuf yarn make`
+- OSX: `brew install make pkg-config protobuf yarn`
+- Linux (Arch): `pacman -S clang make pkgconf protobuf yarn`
 - Linux (Ubuntu, RHEL): See below
 
 #### Ubuntu-specific instructions:
@@ -134,7 +130,7 @@ sudo apt remove yarn cmdtest
 wget -qO- https://dl.yarnpkg.com/debian/pubkey.gpg | sudo apt-key add -
 sudo apt-add-repository "deb https://dl.yarnpkg.com/debian/ stable main"
 
-sudo apt install protobuf-compiler libprotobuf-dev yarn make
+sudo apt install make clang pkg-config protobuf-compiler libprotobuf-dev yarn
 ```
 
 #### Redhat-specific instructions
@@ -177,14 +173,7 @@ $ ./env go build ./cmd/influxd
 
 Another method is to configure the `pkg-config` utility. Follow the instructions [here](https://github.com/influxdata/flux#getting-started) to install and configure `pkg-config` and then the normal go commands will work.
 
-The first step is to install the `pkg-config` command.
-
-```bash
-# On Debian/Ubuntu
-$ sudo apt-get install -y clang pkg-config
-# On Mac OS X with Homebrew
-$ brew install pkg-config
-```
+You should have already installed the pkg-config commands when doing the regular 'make' build.
 
 Install the `pkg-config` wrapper utility of the same name to a different path that is earlier in the PATH.
 

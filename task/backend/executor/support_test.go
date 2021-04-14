@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/execute"
 	"github.com/influxdata/flux/lang"
@@ -15,8 +17,8 @@ import (
 	"github.com/influxdata/flux/runtime"
 	"github.com/influxdata/flux/values"
 	"github.com/influxdata/influxdb/v2"
-	"github.com/influxdata/influxdb/v2/query"
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
+	"github.com/influxdata/influxdb/v2/query"
 )
 
 type fakeQueryService struct {
@@ -131,7 +133,7 @@ func (s *fakeQueryService) FailNextQuery(forced error) {
 func (s *fakeQueryService) WaitForQueryLive(t *testing.T, script string) {
 	t.Helper()
 
-	const attempts = 10
+	const attempts = 100
 	ast := makeAST(script)
 	astUTC := makeAST(script)
 	astUTC.Now = ast.Now.UTC()
@@ -139,7 +141,7 @@ func (s *fakeQueryService) WaitForQueryLive(t *testing.T, script string) {
 	specUTC := makeASTString(astUTC)
 	for i := 0; i < attempts; i++ {
 		if i != 0 {
-			time.Sleep(5 * time.Millisecond)
+			time.Sleep(10 * time.Millisecond)
 		}
 
 		s.mu.Lock()
@@ -250,7 +252,7 @@ func (ts tables) Do(f func(flux.Table) error) error {
 func (ts tables) Statistics() flux.Statistics { return flux.Statistics{} }
 
 type testCreds struct {
-	OrgID, UserID influxdb.ID
+	OrgID, UserID platform.ID
 	Auth          *influxdb.Authorization
 }
 

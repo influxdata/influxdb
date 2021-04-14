@@ -3,6 +3,7 @@ package authorization_test
 import (
 	"context"
 	"fmt"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"reflect"
 	"testing"
 
@@ -18,10 +19,10 @@ func TestAuth(t *testing.T) {
 	setup := func(t *testing.T, store *authorization.Store, tx kv.Tx) {
 		for i := 1; i <= 10; i++ {
 			err := store.CreateAuthorization(context.Background(), tx, &influxdb.Authorization{
-				ID:     influxdb.ID(i),
+				ID:     platform.ID(i),
 				Token:  fmt.Sprintf("randomtoken%d", i),
-				OrgID:  influxdb.ID(i),
-				UserID: influxdb.ID(i),
+				OrgID:  platform.ID(i),
+				UserID: platform.ID(i),
 				Status: influxdb.Active,
 			})
 
@@ -53,10 +54,10 @@ func TestAuth(t *testing.T) {
 				expected := []*influxdb.Authorization{}
 				for i := 1; i <= 10; i++ {
 					expected = append(expected, &influxdb.Authorization{
-						ID:     influxdb.ID(i),
+						ID:     platform.ID(i),
 						Token:  fmt.Sprintf("randomtoken%d", i),
-						OrgID:  influxdb.ID(i),
-						UserID: influxdb.ID(i),
+						OrgID:  platform.ID(i),
+						UserID: platform.ID(i),
 						Status: "active",
 					})
 				}
@@ -66,10 +67,10 @@ func TestAuth(t *testing.T) {
 
 				// should not be able to create two authorizations with identical tokens
 				err = store.CreateAuthorization(context.Background(), tx, &influxdb.Authorization{
-					ID:     influxdb.ID(1),
+					ID:     platform.ID(1),
 					Token:  fmt.Sprintf("randomtoken%d", 1),
-					OrgID:  influxdb.ID(1),
-					UserID: influxdb.ID(1),
+					OrgID:  platform.ID(1),
+					UserID: platform.ID(1),
 				})
 				if err == nil {
 					t.Fatalf("expected to be unable to create authorizations with identical tokens")
@@ -82,14 +83,14 @@ func TestAuth(t *testing.T) {
 			results: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
 				for i := 1; i <= 10; i++ {
 					expectedAuth := &influxdb.Authorization{
-						ID:     influxdb.ID(i),
+						ID:     platform.ID(i),
 						Token:  fmt.Sprintf("randomtoken%d", i),
-						OrgID:  influxdb.ID(i),
-						UserID: influxdb.ID(i),
+						OrgID:  platform.ID(i),
+						UserID: platform.ID(i),
 						Status: influxdb.Active,
 					}
 
-					authByID, err := store.GetAuthorizationByID(context.Background(), tx, influxdb.ID(i))
+					authByID, err := store.GetAuthorizationByID(context.Background(), tx, platform.ID(i))
 					if err != nil {
 						t.Fatalf("Unexpectedly could not acquire Authorization by ID [Error]: %v", err)
 					}
@@ -115,14 +116,14 @@ func TestAuth(t *testing.T) {
 			setup: setup,
 			update: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
 				for i := 1; i <= 10; i++ {
-					auth, err := store.GetAuthorizationByID(context.Background(), tx, influxdb.ID(i))
+					auth, err := store.GetAuthorizationByID(context.Background(), tx, platform.ID(i))
 					if err != nil {
 						t.Fatalf("Could not get authorization [Error]: %v", err)
 					}
 
 					auth.Status = influxdb.Inactive
 
-					_, err = store.UpdateAuthorization(context.Background(), tx, influxdb.ID(i), auth)
+					_, err = store.UpdateAuthorization(context.Background(), tx, platform.ID(i), auth)
 					if err != nil {
 						t.Fatalf("Could not get updated authorization [Error]: %v", err)
 					}
@@ -131,16 +132,16 @@ func TestAuth(t *testing.T) {
 			results: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
 
 				for i := 1; i <= 10; i++ {
-					auth, err := store.GetAuthorizationByID(context.Background(), tx, influxdb.ID(i))
+					auth, err := store.GetAuthorizationByID(context.Background(), tx, platform.ID(i))
 					if err != nil {
 						t.Fatalf("Could not get authorization [Error]: %v", err)
 					}
 
 					expectedAuth := &influxdb.Authorization{
-						ID:     influxdb.ID(i),
+						ID:     platform.ID(i),
 						Token:  fmt.Sprintf("randomtoken%d", i),
-						OrgID:  influxdb.ID(i),
-						UserID: influxdb.ID(i),
+						OrgID:  platform.ID(i),
+						UserID: platform.ID(i),
 						Status: influxdb.Inactive,
 					}
 
@@ -155,7 +156,7 @@ func TestAuth(t *testing.T) {
 			setup: setup,
 			update: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
 				for i := 1; i <= 10; i++ {
-					err := store.DeleteAuthorization(context.Background(), tx, influxdb.ID(i))
+					err := store.DeleteAuthorization(context.Background(), tx, platform.ID(i))
 					if err != nil {
 						t.Fatalf("Could not delete authorization [Error]: %v", err)
 					}
@@ -163,7 +164,7 @@ func TestAuth(t *testing.T) {
 			},
 			results: func(t *testing.T, store *authorization.Store, tx kv.Tx) {
 				for i := 1; i <= 10; i++ {
-					_, err := store.GetAuthorizationByID(context.Background(), tx, influxdb.ID(i))
+					_, err := store.GetAuthorizationByID(context.Background(), tx, platform.ID(i))
 					if err == nil {
 						t.Fatal("Authorization was not deleted correctly")
 					}

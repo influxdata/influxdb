@@ -482,6 +482,7 @@ describe('DataExplorer', () => {
     })
 
     it('imports the appropriate packages to build a query', () => {
+      cy.getByTestID('flux-editor').should('be.visible')
       cy.getByTestID('functions-toolbar-contents--functions').should('exist')
       cy.getByTestID('flux--from--inject').click()
       cy.getByTestID('flux--range--inject').click()
@@ -508,6 +509,7 @@ describe('DataExplorer', () => {
     })
 
     it('can use the function selector to build a query', () => {
+      cy.getByTestID('flux-editor').should('be.visible')
       cy.getByTestID('functions-toolbar-contents--functions').should('exist')
 
       cy.getByTestID('flux--from--inject').click()
@@ -536,7 +538,8 @@ describe('DataExplorer', () => {
     })
 
     it('can filter aggregation functions by name from script editor mode', () => {
-      cy.getByTestID('input-field')
+      cy.getByTestID('flux-editor').should('be.visible')
+      cy.getByTestID('flux-toolbar-search--input')
         .clear() //TODO (zoe) when cypress resolves bug remove clear  https://github.com/cypress-io/cypress/issues/5480
         .type('covariance')
         .should('have.value', 'covariance')
@@ -674,9 +677,10 @@ describe('DataExplorer', () => {
             cy.getByTestID('time-machine-submit-button').click()
             cy.getByTestID('empty-graph--error').should('exist')
           })
-          cy.get('.react-monaco-editor-container')
-            .click()
+          cy.getByTestID('flux-editor')
+            .click({force: true})
             .focused()
+            .clear()
             .type('from(', {force: true, delay: 2})
           cy.getByTestID('time-machine-submit-button').click()
         })
@@ -731,7 +735,7 @@ describe('DataExplorer', () => {
         cy.getByTestID('time-machine-submit-button').click()
         cy.getByTestID('cog-cell--button').click()
         cy.getByTestID('select-group--option')
-          .contains('Custom')
+          .last()
           .click()
         cy.getByTestID('auto-domain--min')
           .type('-100')
@@ -899,8 +903,10 @@ describe('DataExplorer', () => {
             .trigger('mousedown', {force: true})
             .trigger('mousemove', {clientY: 5000})
             .trigger('mouseup')
+            .then(() => {
+              cy.get(`[title="${numLines}"]`).should('be.visible')
+            })
         })
-        cy.get(`[title="${numLines}"]`).should('be.visible')
       })
     })
   })

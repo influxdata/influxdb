@@ -17,6 +17,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/fatih/color"
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
@@ -166,7 +168,7 @@ func (b *cmdTemplateBuilder) cmdApply() *cobra.Command {
 			--filter resource=Dashboard:$DASHBOARD_TMPL_NAME
 
 	For information about finding and using InfluxDB templates, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/apply/.
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/apply/.
 
 	For more templates created by the community, see
 	https://github.com/influxdata/community-templates.
@@ -216,7 +218,7 @@ func (b *cmdTemplateBuilder) applyRunEFn(cmd *cobra.Command, args []string) erro
 		}
 	}
 
-	var stackID influxdb.ID
+	var stackID platform.ID
 	if b.stackID != "" {
 		if err := stackID.DecodeFromString(b.stackID); err != nil {
 			return err
@@ -343,7 +345,7 @@ func (b *cmdTemplateBuilder) cmdExport() *cobra.Command {
 	resource flag and then provide the IDs.
 
 	For information about exporting InfluxDB templates, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/export/
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/export/
 `
 	cmd.AddCommand(
 		b.cmdExportAll(),
@@ -407,7 +409,7 @@ func (b *cmdTemplateBuilder) exportRunEFn(cmd *cobra.Command, args []string) err
 	}
 
 	if b.stackID != "" {
-		stackID, err := influxdb.IDFromString(b.stackID)
+		stackID, err := platform.IDFromString(b.stackID)
 		if err != nil {
 			return ierror.Wrap(err, "invalid stack ID provided")
 		}
@@ -472,9 +474,9 @@ func (b *cmdTemplateBuilder) cmdExportAll() *cobra.Command {
 			--filter=labelName=Foo
 
 	For information about exporting InfluxDB templates, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/export
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/export/
 	and
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/export/all
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/export/all/
 `
 
 	cmd.Flags().StringVarP(&b.file, "file", "f", "", "output file for created template; defaults to std out if no file provided; the extension of provided file (.yml/.json) will dictate encoding")
@@ -540,9 +542,9 @@ func (b *cmdTemplateBuilder) cmdExportStack() *cobra.Command {
 		influx export stack $STACK_ID
 
 	For information about exporting InfluxDB templates, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/export
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/export/
 	and
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/export/stack/
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/export/stack/
 `
 	cmd.Args = cobra.ExactValidArgs(1)
 
@@ -558,7 +560,7 @@ func (b *cmdTemplateBuilder) exportStackRunEFn(cmd *cobra.Command, args []string
 		return err
 	}
 
-	stackID, err := influxdb.IDFromString(args[0])
+	stackID, err := platform.IDFromString(args[0])
 	if err != nil {
 		return err
 	}
@@ -638,7 +640,7 @@ func (b *cmdTemplateBuilder) cmdStacks() *cobra.Command {
 		influx stacks --stack-id=$STACK_ID --stack-name=$STACK_NAME
 
 	For information about Stacks and how they integrate with InfluxDB templates, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/stacks
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/stacks/
 `
 
 	cmd.AddCommand(
@@ -667,9 +669,9 @@ func (b *cmdTemplateBuilder) cmdStackInit() *cobra.Command {
 		influx stacks init -n $STACK_NAME -u $PATH_TO_TEMPLATE
 
 	For information about how stacks work with InfluxDB templates, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/stacks/
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/stacks/
 	and
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/stacks/init/
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/stacks/init/
 `
 
 	cmd.Flags().StringVarP(&b.name, "stack-name", "n", "", "Name given to created stack")
@@ -718,9 +720,9 @@ func (b *cmdTemplateBuilder) stackListRunEFn(cmd *cobra.Command, args []string) 
 		return err
 	}
 
-	var stackIDs []influxdb.ID
+	var stackIDs []platform.ID
 	for _, rawID := range b.stackIDs {
-		id, err := influxdb.IDFromString(rawID)
+		id, err := platform.IDFromString(rawID)
 		if err != nil {
 			return err
 		}
@@ -774,9 +776,9 @@ func (b *cmdTemplateBuilder) stackRemoveRunEFn(cmd *cobra.Command, args []string
 		return err
 	}
 
-	var stackIDs []influxdb.ID
+	var stackIDs []platform.ID
 	for _, rawID := range b.stackIDs {
-		id, err := influxdb.IDFromString(rawID)
+		id, err := platform.IDFromString(rawID)
 		if err != nil {
 			return err
 		}
@@ -820,7 +822,7 @@ func (b *cmdTemplateBuilder) stackRemoveRunEFn(cmd *cobra.Command, args []string
 			}
 		}
 
-		err := templateSVC.DeleteStack(context.Background(), struct{ OrgID, UserID, StackID influxdb.ID }{
+		err := templateSVC.DeleteStack(context.Background(), struct{ OrgID, UserID, StackID platform.ID }{
 			OrgID:   orgID,
 			UserID:  0,
 			StackID: stack.ID,
@@ -860,9 +862,9 @@ func (b *cmdTemplateBuilder) cmdStackUpdate() *cobra.Command {
 			--export-file /path/to/file.yml
 
 	For information about how stacks work with InfluxDB templates, see
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/stacks
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/stacks/
 	and
-	https://v2.docs.influxdata.com/v2.0/reference/cli/influx/stacks/update/
+	https://docs.influxdata.com/influxdb/latest/reference/cli/influx/stacks/update/
 `
 
 	cmd.Flags().StringVarP(&b.stackID, "stack-id", "i", "", "ID of stack")
@@ -883,15 +885,24 @@ func (b *cmdTemplateBuilder) stackUpdateRunEFn(cmd *cobra.Command, args []string
 		return err
 	}
 
-	stackID, err := influxdb.IDFromString(b.stackID)
+	stackID, err := platform.IDFromString(b.stackID)
 	if err != nil {
 		return ierror.Wrap(err, "required stack id is invalid")
 	}
 
+	var name, description *string
+
+	if cmd.Flags().Lookup("stack-name").Changed {
+		name = &b.name
+	}
+	if cmd.Flags().Lookup("stack-description").Changed {
+		description = &b.description
+	}
+
 	update := pkger.StackUpdate{
 		ID:           *stackID,
-		Name:         &b.name,
-		Description:  &b.description,
+		Name:         name,
+		Description:  description,
 		TemplateURLs: b.urls,
 	}
 
@@ -908,7 +919,7 @@ func (b *cmdTemplateBuilder) stackUpdateRunEFn(cmd *cobra.Command, args []string
 			return errors.New("resource type is invalid; got: " + b.exportOpts.resourceType)
 		}
 
-		id, err := influxdb.IDFromString(idRaw)
+		id, err := platform.IDFromString(idRaw)
 		if err != nil {
 			return ierror.Wrap(err, fmt.Sprintf("%s resource id %q is invalid", kind, idRaw))
 		}
@@ -1188,9 +1199,9 @@ func newResourcesToClone(kind pkger.Kind, idStrs, names []string) (pkger.ExportO
 	return pkger.ExportWithExistingResources(resources...), nil
 }
 
-func toInfluxIDs(args []string) ([]influxdb.ID, error) {
+func toInfluxIDs(args []string) ([]platform.ID, error) {
 	var (
-		ids  []influxdb.ID
+		ids  []platform.ID
 		errs []string
 	)
 	for _, arg := range args {
@@ -1199,7 +1210,7 @@ func toInfluxIDs(args []string) ([]influxdb.ID, error) {
 			continue
 		}
 
-		id, err := influxdb.IDFromString(normedArg)
+		id, err := platform.IDFromString(normedArg)
 		if err != nil {
 			errs = append(errs, "arg must provide a valid 16 length ID; got: "+arg)
 			continue
@@ -1559,7 +1570,7 @@ func (b *cmdTemplateBuilder) printTemplateDiff(diff pkger.Diff) error {
 	return nil
 }
 
-func (b *cmdTemplateBuilder) printTemplateSummary(stackID influxdb.ID, sum pkger.Summary) error {
+func (b *cmdTemplateBuilder) printTemplateSummary(stackID platform.ID, sum pkger.Summary) error {
 	if b.quiet {
 		return nil
 	}

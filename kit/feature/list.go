@@ -16,48 +16,6 @@ func AppMetrics() BoolFlag {
 	return appMetrics
 }
 
-var backendExample = MakeBoolFlag(
-	"Backend Example",
-	"backendExample",
-	"Gavin Cabbage",
-	false,
-	Permanent,
-	false,
-)
-
-// BackendExample - A permanent backend example boolean flag
-func BackendExample() BoolFlag {
-	return backendExample
-}
-
-var communityTemplates = MakeBoolFlag(
-	"Community Templates",
-	"communityTemplates",
-	"Bucky",
-	true,
-	Permanent,
-	true,
-)
-
-// CommunityTemplates - Replace current template uploading functionality with community driven templates
-func CommunityTemplates() BoolFlag {
-	return communityTemplates
-}
-
-var frontendExample = MakeIntFlag(
-	"Frontend Example",
-	"frontendExample",
-	"Gavin Cabbage",
-	42,
-	Temporary,
-	true,
-)
-
-// FrontendExample - A temporary frontend example integer flag
-func FrontendExample() IntFlag {
-	return frontendExample
-}
-
 var groupWindowAggregateTranspose = MakeBoolFlag(
 	"Group Window Aggregate Transpose",
 	"groupWindowAggregateTranspose",
@@ -128,25 +86,11 @@ func QueryTracing() BoolFlag {
 	return queryTracing
 }
 
-var simpleTaskOptionsExtraction = MakeBoolFlag(
-	"Simple Task Options Extraction",
-	"simpleTaskOptionsExtraction",
-	"Brett Buddin",
-	false,
-	Temporary,
-	false,
-)
-
-// SimpleTaskOptionsExtraction - Simplified task options extraction to avoid undefined functions when saving tasks
-func SimpleTaskOptionsExtraction() BoolFlag {
-	return simpleTaskOptionsExtraction
-}
-
 var bandPlotType = MakeBoolFlag(
 	"Band Plot Type",
 	"bandPlotType",
 	"Monitoring Team",
-	false,
+	true,
 	Temporary,
 	true,
 )
@@ -160,7 +104,7 @@ var mosaicGraphType = MakeBoolFlag(
 	"Mosaic Graph Type",
 	"mosaicGraphType",
 	"Monitoring Team",
-	false,
+	true,
 	Temporary,
 	true,
 )
@@ -226,40 +170,144 @@ func TimeFilterFlags() BoolFlag {
 	return timeFilterFlags
 }
 
+var axisTicksGenerator = MakeBoolFlag(
+	"Axis Tick Generator",
+	"axisTicksGenerator",
+	"Monitoring Team",
+	true,
+	Temporary,
+	true,
+)
+
+// AxisTickGenerator - Allows for controlling how many axis ticks there are on a graph
+func AxisTickGenerator() BoolFlag {
+	return axisTicksGenerator
+}
+
+var csvUploader = MakeBoolFlag(
+	"UI CSV Uploader",
+	"csvUploader",
+	"Monitoring Team",
+	true,
+	Temporary,
+	true,
+)
+
+// UiCsvUploader - Adds the ability to upload data from a CSV file to a bucket
+func UiCsvUploader() BoolFlag {
+	return csvUploader
+}
+
+var editTelegrafs = MakeBoolFlag(
+	"Editable Telegraf Configurations",
+	"editTelegrafs",
+	"Monitoring Team",
+	true,
+	Temporary,
+	true,
+)
+
+// EditableTelegrafConfigurations - Edit telegraf configurations from the UI
+func EditableTelegrafConfigurations() BoolFlag {
+	return editTelegrafs
+}
+
+var legendOrientation = MakeBoolFlag(
+	"Legend Orientation in the UI",
+	"legendOrientation",
+	"Monitoring Team",
+	true,
+	Temporary,
+	true,
+)
+
+// LegendOrientationInTheUi - Change the appearance of the legend
+func LegendOrientationInTheUi() BoolFlag {
+	return legendOrientation
+}
+
+var cursorAtEOF = MakeBoolFlag(
+	"Default Monaco Selection to EOF",
+	"cursorAtEOF",
+	"Monitoring Team",
+	false,
+	Temporary,
+	true,
+)
+
+// DefaultMonacoSelectionToEof - Positions the cursor at the end of the line(s) when using the monaco editor
+func DefaultMonacoSelectionToEof() BoolFlag {
+	return cursorAtEOF
+}
+
+var refreshSingleCell = MakeBoolFlag(
+	"Refresh Single Cell",
+	"refreshSingleCell",
+	"Monitoring Team",
+	true,
+	Temporary,
+	true,
+)
+
+// RefreshSingleCell - Refresh a single cell on the dashboard rather than the entire dashboard
+func RefreshSingleCell() BoolFlag {
+	return refreshSingleCell
+}
+
+var typeAheadVariableDropdown = MakeBoolFlag(
+	"Type Ahead Dropdowns for Variables",
+	"typeAheadVariableDropdown",
+	"Monitoring Team",
+	false,
+	Temporary,
+	true,
+)
+
+// TypeAheadDropdownsForVariables - Enables type ahead dropdowns for variables
+func TypeAheadDropdownsForVariables() BoolFlag {
+	return typeAheadVariableDropdown
+}
+
 var all = []Flag{
 	appMetrics,
-	backendExample,
-	communityTemplates,
-	frontendExample,
 	groupWindowAggregateTranspose,
 	newLabels,
 	memoryOptimizedFill,
 	memoryOptimizedSchemaMutation,
 	queryTracing,
-	simpleTaskOptionsExtraction,
 	bandPlotType,
 	mosaicGraphType,
 	notebooks,
 	injectLatestSuccessTime,
 	enforceOrgDashboardLimits,
 	timeFilterFlags,
+	axisTicksGenerator,
+	csvUploader,
+	editTelegrafs,
+	legendOrientation,
+	cursorAtEOF,
+	refreshSingleCell,
+	typeAheadVariableDropdown,
 }
 
 var byKey = map[string]Flag{
 	"appMetrics":                    appMetrics,
-	"backendExample":                backendExample,
-	"communityTemplates":            communityTemplates,
-	"frontendExample":               frontendExample,
 	"groupWindowAggregateTranspose": groupWindowAggregateTranspose,
 	"newLabels":                     newLabels,
 	"memoryOptimizedFill":           memoryOptimizedFill,
 	"memoryOptimizedSchemaMutation": memoryOptimizedSchemaMutation,
 	"queryTracing":                  queryTracing,
-	"simpleTaskOptionsExtraction":   simpleTaskOptionsExtraction,
 	"bandPlotType":                  bandPlotType,
 	"mosaicGraphType":               mosaicGraphType,
 	"notebooks":                     notebooks,
 	"injectLatestSuccessTime":       injectLatestSuccessTime,
 	"enforceOrgDashboardLimits":     enforceOrgDashboardLimits,
 	"timeFilterFlags":               timeFilterFlags,
+	"axisTicksGenerator":            axisTicksGenerator,
+	"csvUploader":                   csvUploader,
+	"editTelegrafs":                 editTelegrafs,
+	"legendOrientation":             legendOrientation,
+	"cursorAtEOF":                   cursorAtEOF,
+	"refreshSingleCell":             refreshSingleCell,
+	"typeAheadVariableDropdown":     typeAheadVariableDropdown,
 }

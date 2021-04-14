@@ -15,27 +15,21 @@ import (
 
 // FileSet represents a collection of files.
 type FileSet struct {
-	levels       []CompactionLevel
-	sfile        *tsdb.SeriesFile
-	files        []File
-	manifestSize int64 // Size of the manifest file in bytes.
+	sfile *tsdb.SeriesFile
+	files []File
 }
 
 // NewFileSet returns a new instance of FileSet.
-func NewFileSet(levels []CompactionLevel, sfile *tsdb.SeriesFile, files []File) (*FileSet, error) {
+func NewFileSet(sfile *tsdb.SeriesFile, files []File) *FileSet {
 	return &FileSet{
-		levels: levels,
-		sfile:  sfile,
-		files:  files,
-	}, nil
+		sfile: sfile,
+		files: files,
+	}
 }
 
 // bytes estimates the memory footprint of this FileSet, in bytes.
 func (fs *FileSet) bytes() int {
 	var b int
-	for _, level := range fs.levels {
-		b += int(unsafe.Sizeof(level))
-	}
 	// Do not count SeriesFile because it belongs to the code that constructed this FileSet.
 	for _, file := range fs.files {
 		b += file.bytes()
@@ -76,9 +70,8 @@ func (fs *FileSet) SeriesFile() *tsdb.SeriesFile { return fs.sfile }
 // Filters do not need to be rebuilt because log files have no bloom filter.
 func (fs *FileSet) PrependLogFile(f *LogFile) *FileSet {
 	return &FileSet{
-		levels: fs.levels,
-		sfile:  fs.sfile,
-		files:  append([]File{f}, fs.files...),
+		sfile: fs.sfile,
+		files: append([]File{f}, fs.files...),
 	}
 }
 
@@ -88,7 +81,7 @@ func (fs *FileSet) Size() int64 {
 	for _, f := range fs.files {
 		total += f.Size()
 	}
-	return total + int64(fs.manifestSize)
+	return total
 }
 
 // MustReplace swaps a list of files for a single file and returns a new file set.
@@ -121,8 +114,7 @@ func (fs *FileSet) MustReplace(oldFiles []File, newFile File) *FileSet {
 
 	// Build new fileset and rebuild changed filters.
 	return &FileSet{
-		levels: fs.levels,
-		files:  other,
+		files: other,
 	}
 }
 

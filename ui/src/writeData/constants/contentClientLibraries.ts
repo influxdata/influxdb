@@ -15,6 +15,7 @@ import RubyMarkdown from 'src/writeData/components/clientLibraries/Ruby.md'
 import PHPMarkdown from 'src/writeData/components/clientLibraries/PHP.md'
 import KotlinMarkdown from 'src/writeData/components/clientLibraries/Kotlin.md'
 import ScalaMarkdown from 'src/writeData/components/clientLibraries/Scala.md'
+import SwiftMarkdown from 'src/writeData/components/clientLibraries/Swift.md'
 
 // Graphics
 import arduinoLogo from 'src/writeData/graphics/arduinoLogo.svg'
@@ -27,6 +28,7 @@ import rubyLogo from 'src/writeData/graphics/rubyLogo.svg'
 import phpLogo from 'src/writeData/graphics/phpLogo.svg'
 import kotlinLogo from 'src/writeData/graphics/kotlinLogo.svg'
 import scalaLogo from 'src/writeData/graphics/scalaLogo.svg'
+import swiftLogo from 'src/writeData/graphics/swiftLogo.svg'
 
 export const WRITE_DATA_CLIENT_LIBRARIES: WriteDataItem[] = [
   {
@@ -98,6 +100,13 @@ export const WRITE_DATA_CLIENT_LIBRARIES: WriteDataItem[] = [
     url: `${CLIENT_LIBS}/scala`,
     image: scalaLogo,
     markdown: ScalaMarkdown,
+  },
+  {
+    id: 'swift',
+    name: 'Swift',
+    url: `${CLIENT_LIBS}/swift`,
+    image: swiftLogo,
+    markdown: SwiftMarkdown,
   },
 ]
 

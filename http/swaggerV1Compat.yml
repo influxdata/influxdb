@@ -115,6 +115,17 @@ paths:
         - $ref: "#/components/parameters/AuthUserV1"
         - $ref: "#/components/parameters/AuthPassV1"
         - in: header
+          name: Accept
+          schema:
+            type: string
+            description: Specifies how query results should be encoded in the response.
+            default: application/json
+            enum:
+              - application/json
+              - application/csv
+              - text/csv
+              - application/x-msgpack
+        - in: header
           name: Accept-Encoding
           description: The Accept-Encoding request HTTP header advertises which content encoding, usually a compression algorithm, the client is able to understand.
           schema:
@@ -154,17 +165,19 @@ paths:
                 type: string
                 description: Specifies the request's trace ID.
           content:
+            application/csv:
+              schema:
+                $ref: "#/components/schemas/InfluxQLCSVResponse"
             text/csv:
               schema:
-                type: string
-                example: >
-                  name,tags,time,test_field,test_tag
-                  test_measurement,,1603740794286107366,1,tag_value
-                  test_measurement,,1603740870053205649,2,tag_value
-                  test_measurement,,1603741221085428881,3,tag_value
-            text/plain:
+                $ref: "#/components/schemas/InfluxQLCSVResponse"
+            application/json:
               schema:
                 $ref: "#/components/schemas/InfluxQLResponse"
+            application/x-msgpack:
+              schema:
+                type: string
+                format: binary
         "429":
           description: Token is temporarily over quota. The Retry-After header describes when to try the read again.
           headers:
@@ -233,6 +246,14 @@ components:
                       items:
                         type: array
                         items: {}
+    InfluxQLCSVResponse:
+      type: string
+      example: >
+        name,tags,time,test_field,test_tag
+        test_measurement,,1603740794286107366,1,tag_value
+        test_measurement,,1603740870053205649,2,tag_value
+        test_measurement,,1603741221085428881,3,tag_value
+
     Error:
       properties:
         code:

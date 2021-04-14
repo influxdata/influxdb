@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
 
 // AuthorizeFindDBRPs takes the given items and returns only the ones that the user is authorized to access.
@@ -18,10 +20,10 @@ func AuthorizeFindDBRPs(ctx context.Context, rs []*influxdb.DBRPMappingV2) ([]*i
 		if err != nil {
 			_, _, err = AuthorizeWrite(ctx, influxdb.BucketsResourceType, r.BucketID, r.OrganizationID)
 		}
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
+		if err != nil && errors.ErrorCode(err) != errors.EUnauthorized {
 			return nil, 0, err
 		}
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+		if errors.ErrorCode(err) == errors.EUnauthorized {
 			continue
 		}
 		rrs = append(rrs, r)
@@ -36,17 +38,17 @@ func AuthorizeFindAuthorizations(ctx context.Context, rs []*influxdb.Authorizati
 	rrs := rs[:0]
 	for _, r := range rs {
 		_, _, err := AuthorizeRead(ctx, influxdb.AuthorizationsResourceType, r.ID, r.OrgID)
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
+		if err != nil && errors.ErrorCode(err) != errors.EUnauthorized {
 			return nil, 0, err
 		}
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+		if errors.ErrorCode(err) == errors.EUnauthorized {
 			continue
 		}
 		_, _, err = AuthorizeReadResource(ctx, influxdb.UsersResourceType, r.UserID)
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
+		if err != nil && errors.ErrorCode(err) != errors.EUnauthorized {
 			return nil, 0, err
 		}
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+		if errors.ErrorCode(err) == errors.EUnauthorized {
 			continue
 		}
 		rrs = append(rrs, r)
@@ -61,10 +63,10 @@ func AuthorizeFindBuckets(ctx context.Context, rs []*influxdb.Bucket) ([]*influx
 	rrs := rs[:0]
 	for _, r := range rs {
 		_, _, err := AuthorizeReadBucket(ctx, r.Type, r.ID, r.OrgID)
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
+		if err != nil && errors.ErrorCode(err) != errors.EUnauthorized {
 			return nil, 0, err
 		}
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+		if errors.ErrorCode(err) == errors.EUnauthorized {
 			continue
 		}
 		rrs = append(rrs, r)
@@ -79,10 +81,10 @@ func AuthorizeFindDashboards(ctx context.Context, rs []*influxdb.Dashboard) ([]*
 	rrs := rs[:0]
 	for _, r := range rs {
 		_, _, err := AuthorizeRead(ctx, influxdb.DashboardsResourceType, r.ID, r.OrganizationID)
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
+		if err != nil && errors.ErrorCode(err) != errors.EUnauthorized {
 			return nil, 0, err
 		}
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+		if errors.ErrorCode(err) == errors.EUnauthorized {
 			continue
 		}
 		rrs = append(rrs, r)
@@ -97,10 +99,10 @@ func AuthorizeFindOrganizations(ctx context.Context, rs []*influxdb.Organization
 	rrs := rs[:0]
 	for _, r := range rs {
 		_, _, err := AuthorizeReadOrg(ctx, r.ID)
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
+		if err != nil && errors.ErrorCode(err) != errors.EUnauthorized {
 			return nil, 0, err
 		}
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+		if errors.ErrorCode(err) == errors.EUnauthorized {
 			continue
 		}
 		rrs = append(rrs, r)
@@ -115,10 +117,10 @@ func AuthorizeFindSources(ctx context.Context, rs []*influxdb.Source) ([]*influx
 	rrs := rs[:0]
 	for _, r := range rs {
 		_, _, err := AuthorizeRead(ctx, influxdb.SourcesResourceType, r.ID, r.OrganizationID)
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
+		if err != nil && errors.ErrorCode(err) != errors.EUnauthorized {
 			return nil, 0, err
 		}
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+		if errors.ErrorCode(err) == errors.EUnauthorized {
 			continue
 		}
 		rrs = append(rrs, r)
@@ -127,16 +129,16 @@ func AuthorizeFindSources(ctx context.Context, rs []*influxdb.Source) ([]*influx
 }
 
 // AuthorizeFindTasks takes the given items and returns only the ones that the user is authorized to read.
-func AuthorizeFindTasks(ctx context.Context, rs []*influxdb.Task) ([]*influxdb.Task, int, error) {
+func AuthorizeFindTasks(ctx context.Context, rs []*taskmodel.Task) ([]*taskmodel.Task, int, error) {
 	// This filters without allocating
 	// https://github.com/golang/go/wiki/SliceTricks#filtering-without-allocating
 	rrs := rs[:0]
 	for _, r := range rs {
 		_, _, err := AuthorizeRead(ctx, influxdb.TasksResourceType, r.ID, r.OrganizationID)
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
+		if err != nil && errors.ErrorCode(err) != errors.EUnauthorized {
 			return nil, 0, err
 		}
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+		if errors.ErrorCode(err) == errors.EUnauthorized {
 			continue
 		}
 		rrs = append(rrs, r)
@@ -151,10 +153,10 @@ func AuthorizeFindTelegrafs(ctx context.Context, rs []*influxdb.TelegrafConfig) 
 	rrs := rs[:0]
 	for _, r := range rs {
 		_, _, err := AuthorizeRead(ctx, influxdb.TelegrafsResourceType, r.ID, r.OrgID)
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
+		if err != nil && errors.ErrorCode(err) != errors.EUnauthorized {
 			return nil, 0, err
 		}
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+		if errors.ErrorCode(err) == errors.EUnauthorized {
 			continue
 		}
 		rrs = append(rrs, r)
@@ -169,10 +171,10 @@ func AuthorizeFindUsers(ctx context.Context, rs []*influxdb.User) ([]*influxdb.U
 	rrs := rs[:0]
 	for _, r := range rs {
 		_, _, err := AuthorizeReadResource(ctx, influxdb.UsersResourceType, r.ID)
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
+		if err != nil && errors.ErrorCode(err) != errors.EUnauthorized {
 			return nil, 0, err
 		}
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+		if errors.ErrorCode(err) == errors.EUnauthorized {
 			continue
 		}
 		rrs = append(rrs, r)
@@ -187,10 +189,10 @@ func AuthorizeFindVariables(ctx context.Context, rs []*influxdb.Variable) ([]*in
 	rrs := rs[:0]
 	for _, r := range rs {
 		_, _, err := AuthorizeRead(ctx, influxdb.VariablesResourceType, r.ID, r.OrganizationID)
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
+		if err != nil && errors.ErrorCode(err) != errors.EUnauthorized {
 			return nil, 0, err
 		}
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+		if errors.ErrorCode(err) == errors.EUnauthorized {
 			continue
 		}
 		rrs = append(rrs, r)
@@ -205,10 +207,10 @@ func AuthorizeFindScrapers(ctx context.Context, rs []influxdb.ScraperTarget) ([]
 	rrs := rs[:0]
 	for _, r := range rs {
 		_, _, err := AuthorizeRead(ctx, influxdb.ScraperResourceType, r.ID, r.OrgID)
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
+		if err != nil && errors.ErrorCode(err) != errors.EUnauthorized {
 			return nil, 0, err
 		}
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+		if errors.ErrorCode(err) == errors.EUnauthorized {
 			continue
 		}
 		rrs = append(rrs, r)
@@ -223,10 +225,10 @@ func AuthorizeFindLabels(ctx context.Context, rs []*influxdb.Label) ([]*influxdb
 	rrs := rs[:0]
 	for _, r := range rs {
 		_, _, err := AuthorizeRead(ctx, influxdb.LabelsResourceType, r.ID, r.OrgID)
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
+		if err != nil && errors.ErrorCode(err) != errors.EUnauthorized {
 			return nil, 0, err
 		}
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+		if errors.ErrorCode(err) == errors.EUnauthorized {
 			continue
 		}
 		rrs = append(rrs, r)
@@ -241,10 +243,10 @@ func AuthorizeFindNotificationRules(ctx context.Context, rs []influxdb.Notificat
 	rrs := rs[:0]
 	for _, r := range rs {
 		_, _, err := AuthorizeRead(ctx, influxdb.NotificationRuleResourceType, r.GetID(), r.GetOrgID())
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
+		if err != nil && errors.ErrorCode(err) != errors.EUnauthorized {
 			return nil, 0, err
 		}
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+		if errors.ErrorCode(err) == errors.EUnauthorized {
 			continue
 		}
 		rrs = append(rrs, r)
@@ -259,10 +261,10 @@ func AuthorizeFindNotificationEndpoints(ctx context.Context, rs []influxdb.Notif
 	rrs := rs[:0]
 	for _, r := range rs {
 		_, _, err := AuthorizeRead(ctx, influxdb.NotificationEndpointResourceType, r.GetID(), r.GetOrgID())
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
+		if err != nil && errors.ErrorCode(err) != errors.EUnauthorized {
 			return nil, 0, err
 		}
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+		if errors.ErrorCode(err) == errors.EUnauthorized {
 			continue
 		}
 		rrs = append(rrs, r)
@@ -277,10 +279,10 @@ func AuthorizeFindChecks(ctx context.Context, rs []influxdb.Check) ([]influxdb.C
 	rrs := rs[:0]
 	for _, r := range rs {
 		_, _, err := AuthorizeRead(ctx, influxdb.ChecksResourceType, r.GetID(), r.GetOrgID())
-		if err != nil && influxdb.ErrorCode(err) != influxdb.EUnauthorized {
+		if err != nil && errors.ErrorCode(err) != errors.EUnauthorized {
 			return nil, 0, err
 		}
-		if influxdb.ErrorCode(err) == influxdb.EUnauthorized {
+		if errors.ErrorCode(err) == errors.EUnauthorized {
 			continue
 		}
 		rrs = append(rrs, r)

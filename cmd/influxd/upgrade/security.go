@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"sort"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/influxdata/influxql"
@@ -21,13 +23,13 @@ func upgradeUsers(
 	v1 *influxDBv1,
 	v2 *influxDBv2,
 	targetOptions *optionsV2,
-	dbBuckets map[string][]platform.ID,
+	dbBuckets map[string][]platform2.ID,
 	log *zap.Logger,
 ) (int, error) {
 	// check if there any 1.x users at all
 	v1meta := v1.meta
 	if len(v1meta.Users()) == 0 {
-		log.Info("There are no users in 1.x, nothing to upgrade.")
+		log.Info("There are no users in 1.x, nothing to upgrade")
 		return 0, nil
 	}
 
@@ -41,13 +43,14 @@ func upgradeUsers(
 	}
 
 	// upgrade users
+	log.Info("Upgrading 1.x users")
 	numUpgraded := 0
 	for _, row := range helper.sortUserInfo(v1meta.Users()) {
 		username := row.Name
 		if row.Admin {
-			log.Info("User is admin and will not be upgraded.", zap.String("username", username))
+			log.Warn("User is admin and will not be upgraded", zap.String("username", username))
 		} else if len(row.Privileges) == 0 {
-			log.Info("User has no privileges and will not be upgraded.", zap.String("username", username))
+			log.Warn("User has no privileges and will not be upgraded", zap.String("username", username))
 		} else {
 			var dbList []string
 			for database := range row.Privileges {
@@ -94,22 +97,23 @@ func upgradeUsers(
 				}
 				err := v2.authSvc.CreateAuthorization(ctx, auth)
 				if err != nil {
-					log.Error("Failed to create authorization.", zap.String("user", username), zap.Error(err))
+					log.Error("Failed to create authorization", zap.String("user", username), zap.Error(err))
 					continue
 				}
 				err = v2.authSvc.SetPasswordHash(ctx, auth.ID, row.Hash)
 				if err != nil {
-					log.Error("Failed to set user's password.", zap.String("user", username), zap.Error(err))
+					log.Error("Failed to set user's password", zap.String("user", username), zap.Error(err))
 					continue
 				}
-				log.Info("User upgraded.", zap.String("username", username))
+				log.Debug("User upgraded", zap.String("username", username))
 				numUpgraded++
 			} else {
-				log.Info("User has no privileges and will not be upgraded.", zap.String("username", username))
+				log.Warn("User has no privileges and will not be upgraded", zap.String("username", username))
 			}
 		}
 	}
 
+	log.Info("User upgrade complete", zap.Int("upgraded_count", numUpgraded))
 	return numUpgraded, nil
 }
 
@@ -126,7 +130,7 @@ func newSecurityUpgradeHelper(log *zap.Logger) *securityUpgradeHelper {
 
 	return helper
 }
-func (h *securityUpgradeHelper) checkDbBuckets(meta *meta.Client, databases map[string][]platform.ID) bool {
+func (h *securityUpgradeHelper) checkDbBuckets(meta *meta.Client, databases map[string][]platform2.ID) bool {
 	ok := true
 	for _, row := range meta.Users() {
 		for database := range row.Privileges {

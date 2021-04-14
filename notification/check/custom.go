@@ -6,21 +6,24 @@ import (
 
 	"github.com/influxdata/flux/ast"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/notification/flux"
 	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 )
 
 var _ influxdb.Check = &Custom{}
 
 // Custom is the custom check.
 type Custom struct {
-	ID          influxdb.ID             `json:"id,omitempty"`
+	ID          platform.ID             `json:"id,omitempty"`
 	Name        string                  `json:"name"`
 	Description string                  `json:"description,omitempty"`
-	OwnerID     influxdb.ID             `json:"ownerID,omitempty"`
-	OrgID       influxdb.ID             `json:"orgID,omitempty"`
+	OwnerID     platform.ID             `json:"ownerID,omitempty"`
+	OrgID       platform.ID             `json:"orgID,omitempty"`
 	Query       influxdb.DashboardQuery `json:"query"`
-	TaskID      influxdb.ID             `json:"taskID,omitempty"`
+	TaskID      platform.ID             `json:"taskID,omitempty"`
 	CreatedAt   time.Time               `json:"createdAt"`
 	UpdatedAt   time.Time               `json:"updatedAt"`
 }
@@ -61,12 +64,12 @@ type Custom struct {
 // 	|> monitor.check(data: check, messageFn:messageFn, warn:warn, crit:crit, info:info)
 
 // GenerateFlux returns the check query text directly
-func (c Custom) GenerateFlux(lang influxdb.FluxLanguageService) (string, error) {
+func (c Custom) GenerateFlux(lang fluxlang.FluxLanguageService) (string, error) {
 	return c.Query.Text, nil
 }
 
 // sanitizeFlux modifies the check query text to include correct _check_id param in check object
-func (c Custom) sanitizeFlux(lang influxdb.FluxLanguageService) (string, error) {
+func (c Custom) sanitizeFlux(lang fluxlang.FluxLanguageService) (string, error) {
 	p, err := query.Parse(lang, c.Query.Text)
 	if p == nil {
 		return "", err
@@ -103,7 +106,7 @@ func propertyHasValue(prop *ast.Property, key string, value string) bool {
 	return ok && prop.Key.Key() == key && stringLit.Value == value
 }
 
-func (c *Custom) hasRequiredTaskOptions(lang influxdb.FluxLanguageService) (err error) {
+func (c *Custom) hasRequiredTaskOptions(lang fluxlang.FluxLanguageService) (err error) {
 
 	p, err := query.Parse(lang, c.Query.Text)
 	if p == nil {
@@ -140,39 +143,39 @@ func (c *Custom) hasRequiredTaskOptions(lang influxdb.FluxLanguageService) (err 
 		}
 	})
 	if !hasOptionTask {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Custom flux missing task option statement",
 		}
 	}
 	if !hasName {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Custom flux missing name parameter from task option statement",
 		}
 	}
 	if hasName && !nameMatchesCheck {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Name parameter from task option statement must match check name",
 		}
 	}
 	if !hasEvery {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Custom flux missing every parameter from task option statement",
 		}
 	}
 	if !hasOffset {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Custom flux missing offset parameter from task option statement",
 		}
 	}
 	return nil
 }
 
-func (c *Custom) hasRequiredCheckParameters(lang influxdb.FluxLanguageService) (err error) {
+func (c *Custom) hasRequiredCheckParameters(lang fluxlang.FluxLanguageService) (err error) {
 	p, err := query.Parse(lang, c.Query.Text)
 	if p == nil {
 		return err
@@ -199,20 +202,20 @@ func (c *Custom) hasRequiredCheckParameters(lang influxdb.FluxLanguageService) (
 	})
 
 	if !hasCheckObject {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "Custom flux must have an object called 'check'",
 		}
 	}
 	if !checkNameMatches {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "_check_name parameter on check object must match check name",
 		}
 	}
 	if !checkTypeIsCustom {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "_type parameter on check object must be set to 'custom'",
 		}
 	}
@@ -220,7 +223,7 @@ func (c *Custom) hasRequiredCheckParameters(lang influxdb.FluxLanguageService) (
 }
 
 // Valid checks whether check flux is valid, returns error if invalid
-func (c *Custom) Valid(lang influxdb.FluxLanguageService) error {
+func (c *Custom) Valid(lang fluxlang.FluxLanguageService) error {
 
 	if err := c.hasRequiredCheckParameters(lang); err != nil {
 		return err
@@ -266,22 +269,22 @@ func (c *Custom) ClearPrivateData() {
 }
 
 // SetTaskID sets the taskID for a check.
-func (c *Custom) SetTaskID(id influxdb.ID) {
+func (c *Custom) SetTaskID(id platform.ID) {
 	c.TaskID = id
 }
 
 // GetTaskID retrieves the task ID for a check.
-func (c *Custom) GetTaskID() influxdb.ID {
+func (c *Custom) GetTaskID() platform.ID {
 	return c.TaskID
 }
 
 // GetOwnerID gets the ownerID associated with a Check.
-func (c *Custom) GetOwnerID() influxdb.ID {
+func (c *Custom) GetOwnerID() platform.ID {
 	return c.OwnerID
 }
 
 // SetOwnerID sets the taskID for a check.
-func (c *Custom) SetOwnerID(id influxdb.ID) {
+func (c *Custom) SetOwnerID(id platform.ID) {
 	c.OwnerID = id
 }
 
@@ -296,12 +299,12 @@ func (c *Custom) SetUpdatedAt(now time.Time) {
 }
 
 // SetID sets the primary key for a check
-func (c *Custom) SetID(id influxdb.ID) {
+func (c *Custom) SetID(id platform.ID) {
 	c.ID = id
 }
 
 // SetOrgID is SetOrgID
-func (c *Custom) SetOrgID(id influxdb.ID) {
+func (c *Custom) SetOrgID(id platform.ID) {
 	c.OrgID = id
 }
 
@@ -316,7 +319,7 @@ func (c *Custom) SetDescription(description string) {
 }
 
 // GetID is GetID
-func (c *Custom) GetID() influxdb.ID {
+func (c *Custom) GetID() platform.ID {
 	return c.ID
 }
 
@@ -326,7 +329,7 @@ func (c *Custom) GetCRUDLog() influxdb.CRUDLog {
 }
 
 // GetOrgID gets the orgID associated with the Check
-func (c *Custom) GetOrgID() influxdb.ID {
+func (c *Custom) GetOrgID() platform.ID {
 	return c.OrgID
 }
 

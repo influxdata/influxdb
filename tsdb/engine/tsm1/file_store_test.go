@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
+	"go.uber.org/zap/zaptest"
 )
 
 func TestFileStore_Read(t *testing.T) {
@@ -2739,8 +2739,8 @@ func TestFileStore_CreateSnapshot(t *testing.T) {
 		if _, err := os.Stat(p); os.IsNotExist(err) {
 			t.Fatalf("unable to find file %q", p)
 		}
-		for _, tf := range f.TombstoneFiles() {
-			p := filepath.Join(s, filepath.Base(tf.Path))
+		if ts := f.TombstoneStats(); ts.TombstoneExists {
+			p := filepath.Join(s, filepath.Base(ts.Path))
 			t.Logf("checking for existence of hard link %q", p)
 			if _, err := os.Stat(p); os.IsNotExist(err) {
 				t.Fatalf("unable to find file %q", p)
@@ -2964,9 +2964,7 @@ func BenchmarkFileStore_Stats(b *testing.B) {
 	}
 
 	fs := tsm1.NewFileStore(dir)
-	if testing.Verbose() {
-		fs.WithLogger(logger.New(os.Stderr))
-	}
+	fs.WithLogger(zaptest.NewLogger(b))
 
 	if err := fs.Open(); err != nil {
 		b.Fatalf("opening file store %v", err)

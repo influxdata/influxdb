@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"math/rand"
 
-	platform "github.com/influxdata/influxdb/v2"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+
 	bolt "go.etcd.io/bbolt"
 	"go.uber.org/zap"
 )
@@ -16,7 +17,7 @@ var (
 	errIDNotFound = errors.New("source not found")
 )
 
-var _ platform.IDGenerator = (*Client)(nil)
+var _ platform2.IDGenerator = (*Client)(nil)
 
 func (c *Client) initializeID(tx *bolt.Tx) error {
 	if _, err := tx.CreateBucketIfNotExists(idsBucket); err != nil {
@@ -38,9 +39,9 @@ func (c *Client) initializeID(tx *bolt.Tx) error {
 }
 
 // ID retrieves the unique ID for this influx instance.
-func (c *Client) ID() platform.ID {
+func (c *Client) ID() platform2.ID {
 	// if any error occurs return a random number
-	id := platform.ID(rand.Int63())
+	id := platform2.ID(rand.Int63())
 	err := c.db.View(func(tx *bolt.Tx) error {
 		val, err := c.getID(tx)
 		if err != nil {
@@ -58,23 +59,23 @@ func (c *Client) ID() platform.ID {
 	return id
 }
 
-func (c *Client) getID(tx *bolt.Tx) (platform.ID, error) {
+func (c *Client) getID(tx *bolt.Tx) (platform2.ID, error) {
 	v := tx.Bucket(idsBucket).Get(idKey)
 	if len(v) == 0 {
-		return platform.InvalidID(), errIDNotFound
+		return platform2.InvalidID(), errIDNotFound
 	}
 	return decodeID(v)
 }
 
-func decodeID(val []byte) (platform.ID, error) {
-	if len(val) < platform.IDLength {
+func decodeID(val []byte) (platform2.ID, error) {
+	if len(val) < platform2.IDLength {
 		// This should not happen.
-		return platform.InvalidID(), fmt.Errorf("provided value is too short to contain an ID. Please report this error")
+		return platform2.InvalidID(), fmt.Errorf("provided value is too short to contain an ID. Please report this error")
 	}
 
-	var id platform.ID
-	if err := id.Decode(val[:platform.IDLength]); err != nil {
-		return platform.InvalidID(), err
+	var id platform2.ID
+	if err := id.Decode(val[:platform2.IDLength]); err != nil {
+		return platform2.InvalidID(), err
 	}
 	return id, nil
 }

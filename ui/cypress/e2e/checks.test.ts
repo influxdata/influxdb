@@ -80,7 +80,7 @@ describe('Checks', () => {
       cy.getByTestID('save-cell--button').should('be.disabled')
       cy.getByTestID('checkeo--header alerting-tab').click()
       cy.getByTestID('add-threshold-condition-WARN').click()
-      cy.getByTestID('input-field')
+      cy.getByTestID('input-field-WARN')
         .clear()
         .type('0')
       cy.getByTestID('save-cell--button').click()
@@ -113,7 +113,7 @@ describe('Checks', () => {
       cy.getByTestID('check-card--name').should('have.length', 1)
       cy.getByTestID('check-card--name').click()
       // ensures that the check WARN value is set to 0
-      cy.getByTestID('input-field')
+      cy.getByTestID('input-field-WARN')
         .should('have.value', '0')
         .clear()
         .type('7')
@@ -173,7 +173,7 @@ describe('Checks', () => {
       cy.getByTestID('save-cell--button').should('be.disabled')
       cy.getByTestID('checkeo--header alerting-tab').click()
       cy.getByTestID('add-threshold-condition-CRIT').click()
-      cy.getByTestID('input-field')
+      cy.getByTestID('input-field-CRIT')
         .clear()
         .type('0')
       cy.getByTestID('add-threshold-condition-WARN').click()
@@ -211,7 +211,6 @@ describe('Checks', () => {
       cy.getByTestID('filter--input checks').should('have.focus')
 
       cy.focused()
-        .tab()
         .tab()
       cy.getByTestID('filter--input endpoints').should('have.focus')
 

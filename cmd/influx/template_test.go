@@ -15,6 +15,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/pkger"
@@ -28,7 +30,7 @@ func Test_Template_Commands(t *testing.T) {
 		return func() (pkger.SVC, influxdb.OrganizationService, error) {
 			return svc, &mock.OrganizationService{
 				FindOrganizationF: func(ctx context.Context, filter influxdb.OrganizationFilter) (*influxdb.Organization, error) {
-					return &influxdb.Organization{ID: influxdb.ID(9000), Name: "influxdata"}, nil
+					return &influxdb.Organization{ID: platform.ID(9000), Name: "influxdata"}, nil
 				},
 			}, nil
 		}
@@ -43,7 +45,7 @@ func Test_Template_Commands(t *testing.T) {
 			assert.Equal(t, "bucket1", sum.Buckets[0].Name)
 		}
 
-		expectedOrgID := influxdb.ID(9000)
+		expectedOrgID := platform.ID(9000)
 
 		tests := []struct {
 			templateFileArgs
@@ -246,15 +248,15 @@ func Test_Template_Commands(t *testing.T) {
 			tests := []struct {
 				name string
 				templateFileArgs
-				bucketIDs   []influxdb.ID
-				dashIDs     []influxdb.ID
-				endpointIDs []influxdb.ID
-				labelIDs    []influxdb.ID
-				ruleIDs     []influxdb.ID
-				taskIDs     []influxdb.ID
-				telegrafIDs []influxdb.ID
-				varIDs      []influxdb.ID
-				stackID     influxdb.ID
+				bucketIDs   []platform.ID
+				dashIDs     []platform.ID
+				endpointIDs []platform.ID
+				labelIDs    []platform.ID
+				ruleIDs     []platform.ID
+				taskIDs     []platform.ID
+				telegrafIDs []platform.ID
+				varIDs      []platform.ID
+				stackID     platform.ID
 			}{
 				{
 					templateFileArgs: templateFileArgs{
@@ -262,7 +264,7 @@ func Test_Template_Commands(t *testing.T) {
 						encoding: pkger.EncodingYAML,
 						filename: "pkg_0.yml",
 					},
-					bucketIDs: []influxdb.ID{1, 2},
+					bucketIDs: []platform.ID{1, 2},
 				},
 				{
 					templateFileArgs: templateFileArgs{
@@ -270,7 +272,7 @@ func Test_Template_Commands(t *testing.T) {
 						encoding: pkger.EncodingYAML,
 						filename: "pkg_0.yml",
 					},
-					dashIDs: []influxdb.ID{1, 2},
+					dashIDs: []platform.ID{1, 2},
 				},
 				{
 					templateFileArgs: templateFileArgs{
@@ -278,7 +280,7 @@ func Test_Template_Commands(t *testing.T) {
 						encoding: pkger.EncodingYAML,
 						filename: "pkg_0.yml",
 					},
-					endpointIDs: []influxdb.ID{1, 2},
+					endpointIDs: []platform.ID{1, 2},
 				},
 				{
 					templateFileArgs: templateFileArgs{
@@ -286,7 +288,7 @@ func Test_Template_Commands(t *testing.T) {
 						encoding: pkger.EncodingYAML,
 						filename: "pkg_0.yml",
 					},
-					labelIDs: []influxdb.ID{1, 2},
+					labelIDs: []platform.ID{1, 2},
 				},
 				{
 					templateFileArgs: templateFileArgs{
@@ -294,7 +296,7 @@ func Test_Template_Commands(t *testing.T) {
 						encoding: pkger.EncodingYAML,
 						filename: "pkg_0.yml",
 					},
-					ruleIDs: []influxdb.ID{1, 2},
+					ruleIDs: []platform.ID{1, 2},
 				},
 				{
 					templateFileArgs: templateFileArgs{
@@ -302,7 +304,7 @@ func Test_Template_Commands(t *testing.T) {
 						encoding: pkger.EncodingYAML,
 						filename: "pkg_0.yml",
 					},
-					taskIDs: []influxdb.ID{1, 2},
+					taskIDs: []platform.ID{1, 2},
 				},
 				{
 					templateFileArgs: templateFileArgs{
@@ -310,7 +312,7 @@ func Test_Template_Commands(t *testing.T) {
 						encoding: pkger.EncodingYAML,
 						filename: "pkg_0.yml",
 					},
-					telegrafIDs: []influxdb.ID{1, 2},
+					telegrafIDs: []platform.ID{1, 2},
 				},
 				{
 					templateFileArgs: templateFileArgs{
@@ -318,7 +320,7 @@ func Test_Template_Commands(t *testing.T) {
 						encoding: pkger.EncodingYAML,
 						filename: "pkg_0.yml",
 					},
-					varIDs: []influxdb.ID{1, 2},
+					varIDs: []platform.ID{1, 2},
 				},
 			}
 
@@ -368,7 +370,7 @@ func Test_Template_Commands(t *testing.T) {
 				testPkgWrites(t, cmdFn, tt.templateFileArgs, func(t *testing.T, pkg *pkger.Template) {
 					sum := pkg.Summary()
 
-					kindToName := func(k pkger.Kind, id influxdb.ID) string {
+					kindToName := func(k pkger.Kind, id platform.ID) string {
 						return strings.ToLower(k.String()) + strconv.Itoa(int(id))
 					}
 
@@ -448,7 +450,7 @@ func Test_Template_Commands(t *testing.T) {
 				name:     "stack",
 				encoding: pkger.EncodingYAML,
 				filename: "pkg_0.yml",
-				args:     []string{"export", "--stack-id=" + influxdb.ID(1).String()},
+				args:     []string{"export", "--stack-id=" + platform.ID(1).String()},
 			}
 
 			testPkgWrites(t, cmdFn, tmplFileArgs, func(t *testing.T, pkg *pkger.Template) {
@@ -509,7 +511,7 @@ func Test_Template_Commands(t *testing.T) {
 			}{
 				{
 					name: "when only org and token provided is successful",
-					args: []string{"--org-id=" + influxdb.ID(1).String()},
+					args: []string{"--org-id=" + platform.ID(1).String()},
 					expectedStack: pkger.Stack{
 						OrgID: 1,
 						Events: []pkger.StackEvent{{
@@ -520,7 +522,7 @@ func Test_Template_Commands(t *testing.T) {
 				{
 					name: "when org and name provided provided is successful",
 					args: []string{
-						"--org-id=" + influxdb.ID(1).String(),
+						"--org-id=" + platform.ID(1).String(),
 						"--stack-name=foo",
 					},
 					expectedStack: pkger.Stack{
@@ -534,7 +536,7 @@ func Test_Template_Commands(t *testing.T) {
 				{
 					name: "when all flags provided provided is successful",
 					args: []string{
-						"--org-id=" + influxdb.ID(1).String(),
+						"--org-id=" + platform.ID(1).String(),
 						"--stack-name=foo",
 						"--stack-description=desc",
 						"--template-url=http://example.com/1",
@@ -556,7 +558,7 @@ func Test_Template_Commands(t *testing.T) {
 				{
 					name: "when all shorthand flags provided provided is successful",
 					args: []string{
-						"--org-id=" + influxdb.ID(1).String(),
+						"--org-id=" + platform.ID(1).String(),
 						"-n=foo",
 						"-d=desc",
 						"-u=http://example.com/1",
@@ -595,7 +597,7 @@ func Test_Template_Commands(t *testing.T) {
 
 					rootCmd := builder.cmd(func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
 						echoSVC := &fakePkgSVC{
-							initStackFn: func(ctx context.Context, userID influxdb.ID, stCreate pkger.StackCreate) (pkger.Stack, error) {
+							initStackFn: func(ctx context.Context, userID platform.ID, stCreate pkger.StackCreate) (pkger.Stack, error) {
 								return pkger.Stack{
 									ID:    9000,
 									OrgID: stCreate.OrgID,
@@ -631,6 +633,118 @@ func Test_Template_Commands(t *testing.T) {
 						}
 						assert.Equal(t, tt.expectedStack, stack)
 					}
+				}
+
+				t.Run(tt.name, fn)
+			}
+		})
+
+		t.Run("update", func(t *testing.T) {
+			tests := []struct {
+				name          string
+				args          []string
+				expectedStack pkger.Stack
+			}{
+				{
+					name: "when stack name and decription are set",
+					args: []string{"--stack-name=updated_name", "--stack-description=updated_description"},
+					expectedStack: pkger.Stack{
+						OrgID: 1,
+						Events: []pkger.StackEvent{{
+							Name:        "updated_name",
+							Description: "updated_description",
+						}},
+					},
+				},
+				{
+					name: "when only stack name is set",
+					args: []string{"--stack-name=updated_name"},
+					expectedStack: pkger.Stack{
+						OrgID: 1,
+						Events: []pkger.StackEvent{{
+							Name:        "updated_name",
+							Description: "original_description",
+						}},
+					},
+				},
+				{
+					name: "when only stack description is set",
+					args: []string{"--stack-description=updated_description"},
+					expectedStack: pkger.Stack{
+						OrgID: 1,
+						Events: []pkger.StackEvent{{
+							Name:        "original_name",
+							Description: "updated_description",
+						}},
+					},
+				},
+				{
+					name: "when neither stack name/description is set",
+					args: []string{},
+					expectedStack: pkger.Stack{
+						OrgID: 1,
+						Events: []pkger.StackEvent{{
+							Name:        "original_name",
+							Description: "original_description",
+						}},
+					},
+				},
+			}
+
+			for _, tt := range tests {
+				fn := func(t *testing.T) {
+					defer addEnvVars(t, envVarsZeroMap)()
+
+					outBuf := new(bytes.Buffer)
+					defer func() {
+						if t.Failed() && outBuf.Len() > 0 {
+							t.Log(outBuf.String())
+						}
+					}()
+
+					builder := newInfluxCmdBuilder(
+						in(new(bytes.Buffer)),
+						out(outBuf),
+					)
+
+					initialStack := pkger.Stack{
+						ID:    9000,
+						OrgID: 1,
+						Events: []pkger.StackEvent{
+							{
+								Name:        "original_name",
+								Description: "original_description",
+							},
+						},
+					}
+					rootCmd := builder.cmd(func(f *globalFlags, opt genericCLIOpts) *cobra.Command {
+						echoSVC := &fakePkgSVC{
+							updateStackFn: func(ctx context.Context, stUpdate pkger.StackUpdate) (pkger.Stack, error) {
+								returnStack := initialStack
+								if stUpdate.Name != nil {
+									returnStack.Events[0].Name = *stUpdate.Name
+								}
+								if stUpdate.Description != nil {
+									returnStack.Events[0].Description = *stUpdate.Description
+								}
+								return returnStack, nil
+							},
+						}
+						return newCmdPkgerBuilder(fakeSVCFn(echoSVC), f, opt).cmdStacks()
+					})
+
+					baseArgs := []string{"stacks", "update", "--stack-id=" + platform.ID(1).String(), "--json"}
+
+					rootCmd.SetArgs(append(baseArgs, tt.args...))
+
+					err := rootCmd.Execute()
+					require.NoError(t, err)
+					var stack pkger.Stack
+					testDecodeJSONBody(t, outBuf, &stack)
+					if tt.expectedStack.ID == 0 {
+						tt.expectedStack.ID = 9000
+					}
+					assert.Equal(t, tt.expectedStack, stack)
 				}
 
 				t.Run(tt.name, fn)
@@ -776,42 +890,46 @@ func testPkgWritesToBuffer(newCmdFn func(w io.Writer) *cobra.Command, args templ
 }
 
 type fakePkgSVC struct {
-	initStackFn func(ctx context.Context, userID influxdb.ID, stack pkger.StackCreate) (pkger.Stack, error)
-	exportFn    func(ctx context.Context, setters ...pkger.ExportOptFn) (*pkger.Template, error)
-	dryRunFn    func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error)
-	applyFn     func(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error)
+	initStackFn   func(ctx context.Context, userID platform.ID, stack pkger.StackCreate) (pkger.Stack, error)
+	updateStackFn func(ctx context.Context, upd pkger.StackUpdate) (pkger.Stack, error)
+	exportFn      func(ctx context.Context, setters ...pkger.ExportOptFn) (*pkger.Template, error)
+	dryRunFn      func(ctx context.Context, orgID, userID platform.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error)
+	applyFn       func(ctx context.Context, orgID, userID platform.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error)
 }
 
 var _ pkger.SVC = (*fakePkgSVC)(nil)
 
-func (f *fakePkgSVC) InitStack(ctx context.Context, userID influxdb.ID, stack pkger.StackCreate) (pkger.Stack, error) {
+func (f *fakePkgSVC) InitStack(ctx context.Context, userID platform.ID, stack pkger.StackCreate) (pkger.Stack, error) {
 	if f.initStackFn != nil {
 		return f.initStackFn(ctx, userID, stack)
 	}
 	panic("not implemented")
 }
 
-func (f *fakePkgSVC) ListStacks(ctx context.Context, orgID influxdb.ID, filter pkger.ListFilter) ([]pkger.Stack, error) {
+func (f *fakePkgSVC) ListStacks(ctx context.Context, orgID platform.ID, filter pkger.ListFilter) ([]pkger.Stack, error) {
 	panic("not implemented")
 }
 
-func (f *fakePkgSVC) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (pkger.Stack, error) {
+func (f *fakePkgSVC) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID platform.ID }) (pkger.Stack, error) {
 	panic("not implemeted")
 }
 
-func (f *fakePkgSVC) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {
+func (f *fakePkgSVC) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID platform.ID }) error {
 	panic("not implemented")
 }
 
-func (f *fakePkgSVC) ExportStack(ctx context.Context, orgID, stackID influxdb.ID) (*pkger.Template, error) {
+func (f *fakePkgSVC) ExportStack(ctx context.Context, orgID, stackID platform.ID) (*pkger.Template, error) {
 	panic("not implemented")
 }
 
-func (f *fakePkgSVC) ReadStack(ctx context.Context, id influxdb.ID) (pkger.Stack, error) {
+func (f *fakePkgSVC) ReadStack(ctx context.Context, id platform.ID) (pkger.Stack, error) {
 	panic("not implemented")
 }
 
 func (f *fakePkgSVC) UpdateStack(ctx context.Context, upd pkger.StackUpdate) (pkger.Stack, error) {
+	if f.updateStackFn != nil {
+		return f.updateStackFn(ctx, upd)
+	}
 	panic("not implemented")
 }
 
@@ -822,14 +940,14 @@ func (f *fakePkgSVC) Export(ctx context.Context, setters ...pkger.ExportOptFn) (
 	panic("not implemented")
 }
 
-func (f *fakePkgSVC) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
+func (f *fakePkgSVC) DryRun(ctx context.Context, orgID, userID platform.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 	if f.dryRunFn != nil {
 		return f.dryRunFn(ctx, orgID, userID, opts...)
 	}
 	panic("not implemented")
 }
 
-func (f *fakePkgSVC) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
+func (f *fakePkgSVC) Apply(ctx context.Context, orgID, userID platform.ID, opts ...pkger.ApplyOptFn) (pkger.ImpactSummary, error) {
 	if f.applyFn != nil {
 		return f.applyFn(ctx, orgID, userID, opts...)
 	}
@@ -852,7 +970,7 @@ func newTempFile(t *testing.T, dir string) *os.File {
 	return f
 }
 
-func idsStr(ids ...influxdb.ID) string {
+func idsStr(ids ...platform.ID) string {
 	var idStrs []string
 	for _, id := range ids {
 		idStrs = append(idStrs, id.String())

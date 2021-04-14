@@ -3,21 +3,24 @@ package influxdb
 import (
 	"context"
 	"fmt"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 // Organization is an organization. 🎉
 type Organization struct {
-	ID          ID     `json:"id,omitempty"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
+	ID          platform.ID `json:"id,omitempty"`
+	Name        string      `json:"name"`
+	Description string      `json:"description"`
 	CRUDLog
 }
 
 // errors of org
 var (
 	// ErrOrgNameisEmpty is error when org name is empty
-	ErrOrgNameisEmpty = &Error{
-		Code: EInvalid,
+	ErrOrgNameisEmpty = &errors.Error{
+		Code: errors.EInvalid,
 		Msg:  "org name is empty",
 	}
 )
@@ -36,7 +39,7 @@ const (
 // OrganizationService represents a service for managing organization data.
 type OrganizationService interface {
 	// Returns a single organization by ID.
-	FindOrganizationByID(ctx context.Context, id ID) (*Organization, error)
+	FindOrganizationByID(ctx context.Context, id platform.ID) (*Organization, error)
 
 	// Returns the first organization that matches filter.
 	FindOrganization(ctx context.Context, filter OrganizationFilter) (*Organization, error)
@@ -50,10 +53,10 @@ type OrganizationService interface {
 
 	// Updates a single organization with changeset.
 	// Returns the new organization state after update.
-	UpdateOrganization(ctx context.Context, id ID, upd OrganizationUpdate) (*Organization, error)
+	UpdateOrganization(ctx context.Context, id platform.ID, upd OrganizationUpdate) (*Organization, error)
 
 	// Removes a organization by ID.
-	DeleteOrganization(ctx context.Context, id ID) error
+	DeleteOrganization(ctx context.Context, id platform.ID) error
 }
 
 // OrganizationUpdate represents updates to a organization.
@@ -64,21 +67,21 @@ type OrganizationUpdate struct {
 }
 
 // ErrInvalidOrgFilter is the error indicate org filter is empty
-var ErrInvalidOrgFilter = &Error{
-	Code: EInvalid,
+var ErrInvalidOrgFilter = &errors.Error{
+	Code: errors.EInvalid,
 	Msg:  "Please provide either orgID or org",
 }
 
 // OrganizationFilter represents a set of filter that restrict the returned results.
 type OrganizationFilter struct {
 	Name   *string
-	ID     *ID
-	UserID *ID
+	ID     *platform.ID
+	UserID *platform.ID
 }
 
-func ErrInternalOrgServiceError(op string, err error) *Error {
-	return &Error{
-		Code: EInternal,
+func ErrInternalOrgServiceError(op string, err error) *errors.Error {
+	return &errors.Error{
+		Code: errors.EInternal,
 		Msg:  fmt.Sprintf("unexpected error in organizations; Err: %v", err),
 		Op:   op,
 		Err:  err,

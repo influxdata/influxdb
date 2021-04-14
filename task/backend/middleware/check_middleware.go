@@ -6,6 +6,8 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
 
 // CoordinatingCheckService acts as a CheckService decorator that handles coordinating the api request
@@ -13,12 +15,12 @@ import (
 type CoordinatingCheckService struct {
 	influxdb.CheckService
 	coordinator Coordinator
-	taskService influxdb.TaskService
+	taskService taskmodel.TaskService
 	Now         func() time.Time
 }
 
 // NewCheckService constructs a new coordinating check service
-func NewCheckService(cs influxdb.CheckService, ts influxdb.TaskService, coordinator Coordinator) *CoordinatingCheckService {
+func NewCheckService(cs influxdb.CheckService, ts taskmodel.TaskService, coordinator Coordinator) *CoordinatingCheckService {
 	c := &CoordinatingCheckService{
 		CheckService: cs,
 		taskService:  ts,
@@ -32,7 +34,7 @@ func NewCheckService(cs influxdb.CheckService, ts influxdb.TaskService, coordina
 }
 
 // CreateCheck Creates a check and Publishes the change it can be scheduled.
-func (cs *CoordinatingCheckService) CreateCheck(ctx context.Context, c influxdb.CheckCreate, userID influxdb.ID) error {
+func (cs *CoordinatingCheckService) CreateCheck(ctx context.Context, c influxdb.CheckCreate, userID platform.ID) error {
 
 	if err := cs.CheckService.CreateCheck(ctx, c, userID); err != nil {
 		return err
@@ -55,7 +57,7 @@ func (cs *CoordinatingCheckService) CreateCheck(ctx context.Context, c influxdb.
 }
 
 // UpdateCheck Updates a check and publishes the change so the task owner can act on the update
-func (cs *CoordinatingCheckService) UpdateCheck(ctx context.Context, id influxdb.ID, c influxdb.CheckCreate) (influxdb.Check, error) {
+func (cs *CoordinatingCheckService) UpdateCheck(ctx context.Context, id platform.ID, c influxdb.CheckCreate) (influxdb.Check, error) {
 	from, err := cs.CheckService.FindCheckByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -78,7 +80,7 @@ func (cs *CoordinatingCheckService) UpdateCheck(ctx context.Context, id influxdb
 
 	// if the update is to activate and the previous task was inactive we should add a "latest completed" update
 	// this allows us to see not run the task for inactive time
-	if fromTask.Status == string(influxdb.TaskInactive) && toTask.Status == string(influxdb.TaskActive) {
+	if fromTask.Status == string(taskmodel.TaskInactive) && toTask.Status == string(taskmodel.TaskActive) {
 		toTask.LatestCompleted = cs.Now()
 	}
 
@@ -86,7 +88,7 @@ func (cs *CoordinatingCheckService) UpdateCheck(ctx context.Context, id influxdb
 }
 
 // PatchCheck Updates a check and publishes the change so the task owner can act on the update
-func (cs *CoordinatingCheckService) PatchCheck(ctx context.Context, id influxdb.ID, upd influxdb.CheckUpdate) (influxdb.Check, error) {
+func (cs *CoordinatingCheckService) PatchCheck(ctx context.Context, id platform.ID, upd influxdb.CheckUpdate) (influxdb.Check, error) {
 	from, err := cs.CheckService.FindCheckByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -109,7 +111,7 @@ func (cs *CoordinatingCheckService) PatchCheck(ctx context.Context, id influxdb.
 
 	// if the update is to activate and the previous task was inactive we should add a "latest completed" update
 	// this allows us to see not run the task for inactive time
-	if fromTask.Status == string(influxdb.TaskInactive) && toTask.Status == string(influxdb.TaskActive) {
+	if fromTask.Status == string(taskmodel.TaskInactive) && toTask.Status == string(taskmodel.TaskActive) {
 		toTask.LatestCompleted = cs.Now()
 	}
 
@@ -118,7 +120,7 @@ func (cs *CoordinatingCheckService) PatchCheck(ctx context.Context, id influxdb.
 }
 
 // DeleteCheck delete the check and publishes the change, to allow the task owner to find out about this change faster.
-func (cs *CoordinatingCheckService) DeleteCheck(ctx context.Context, id influxdb.ID) error {
+func (cs *CoordinatingCheckService) DeleteCheck(ctx context.Context, id platform.ID) error {
 	check, err := cs.CheckService.FindCheckByID(ctx, id)
 	if err != nil {
 		return err

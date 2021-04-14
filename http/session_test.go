@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 	"go.uber.org/zap/zaptest"
@@ -53,16 +55,16 @@ func TestSessionHandler_handleSignin(t *testing.T) {
 				SessionService: &mock.SessionService{
 					CreateSessionFn: func(context.Context, string) (*platform.Session, error) {
 						return &platform.Session{
-							ID:        platform.ID(0),
+							ID:        platform2.ID(0),
 							Key:       "abc123xyz",
 							CreatedAt: time.Date(2018, 9, 26, 0, 0, 0, 0, time.UTC),
 							ExpiresAt: time.Date(2030, 9, 26, 0, 0, 0, 0, time.UTC),
-							UserID:    platform.ID(1),
+							UserID:    platform2.ID(1),
 						}, nil
 					},
 				},
 				PasswordsService: &mock.PasswordsService{
-					ComparePasswordFn: func(context.Context, platform.ID, string) error {
+					ComparePasswordFn: func(context.Context, platform2.ID, string) error {
 						return nil
 					},
 				},

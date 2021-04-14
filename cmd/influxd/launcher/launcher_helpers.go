@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"io"
 	"io/ioutil"
 	nethttp "net/http"
 	"os"
@@ -17,6 +16,7 @@ import (
 	"github.com/influxdata/flux"
 	"github.com/influxdata/flux/lang"
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/backup"
 	"github.com/influxdata/influxdb/v2/bolt"
 	influxdbcontext "github.com/influxdata/influxdb/v2/context"
 	dashboardTransport "github.com/influxdata/influxdb/v2/dashboards/transport"
@@ -27,11 +27,15 @@ import (
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 	"github.com/influxdata/influxdb/v2/pkger"
 	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/restore"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/influxdata/influxdb/v2/tenant"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"github.com/spf13/viper"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest"
 )
 
 // TestLauncher is a test wrapper for launcher.Launcher.
@@ -49,26 +53,30 @@ type TestLauncher struct {
 
 	httpClient *httpc.Client
 
-	// Standard in/out/err buffers.
-	Stdin  bytes.Buffer
-	Stdout bytes.Buffer
-	Stderr bytes.Buffer
-
 	// Flag to act as standard server: disk store, no-e2e testing flag
 	realServer bool
 }
 
+// RunAndSetupNewLauncherOrFail shorcuts the most common pattern used in testing,
+// building a new TestLauncher, running it, and setting it up with an initial user.
+func RunAndSetupNewLauncherOrFail(ctx context.Context, tb testing.TB, setters ...OptSetter) *TestLauncher {
+	tb.Helper()
+
+	l := NewTestLauncher()
+	l.RunOrFail(tb, ctx, setters...)
+	defer func() {
+		// If setup fails, shut down the launcher.
+		if tb.Failed() {
+			l.Shutdown(ctx)
+		}
+	}()
+	l.SetupOrFail(tb)
+	return l
+}
+
 // NewTestLauncher returns a new instance of TestLauncher.
-func NewTestLauncher(flagger feature.Flagger) *TestLauncher {
+func NewTestLauncher() *TestLauncher {
 	l := &TestLauncher{Launcher: NewLauncher()}
-	l.Launcher.Stdin = &l.Stdin
-	l.Launcher.Stdout = &l.Stdout
-	l.Launcher.Stderr = &l.Stderr
-	l.Launcher.flagger = flagger
-	if testing.Verbose() {
-		l.Launcher.Stdout = io.MultiWriter(l.Launcher.Stdout, os.Stdout)
-		l.Launcher.Stderr = io.MultiWriter(l.Launcher.Stderr, os.Stderr)
-	}
 
 	path, err := ioutil.TempDir("", "")
 	if err != nil {
@@ -79,33 +87,37 @@ func NewTestLauncher(flagger feature.Flagger) *TestLauncher {
 }
 
 // NewTestLauncherServer returns a new instance of TestLauncher configured as real server (disk store, no e2e flag).
-func NewTestLauncherServer(flagger feature.Flagger) *TestLauncher {
-	l := NewTestLauncher(flagger)
+func NewTestLauncherServer() *TestLauncher {
+	l := NewTestLauncher()
 	l.realServer = true
 	return l
 }
 
-// RunTestLauncherOrFail initializes and starts the server.
-func RunTestLauncherOrFail(tb testing.TB, ctx context.Context, flagger feature.Flagger, setters ...OptSetter) *TestLauncher {
-	tb.Helper()
-	l := NewTestLauncher(flagger)
-
-	if err := l.Run(ctx, setters...); err != nil {
-		tb.Fatal(err)
+// URL returns the URL to connect to the HTTP server.
+func (tl *TestLauncher) URL() string {
+	transport := "http"
+	if tl.Launcher.tlsEnabled {
+		transport = "https"
 	}
-	return l
-}
-
-// SetLogger sets the logger for the underlying program.
-func (tl *TestLauncher) SetLogger(logger *zap.Logger) {
-	tl.Launcher.log = logger
+	return fmt.Sprintf("%s://127.0.0.1:%d", transport, tl.Launcher.httpPort)
 }
 
 type OptSetter = func(o *InfluxdOpts)
 
+func (tl *TestLauncher) SetFlagger(flagger feature.Flagger) {
+	tl.Launcher.flagger = flagger
+}
+
+// Run executes the program, failing the test if the launcher fails to start.
+func (tl *TestLauncher) RunOrFail(tb testing.TB, ctx context.Context, setters ...OptSetter) {
+	if err := tl.Run(tb, ctx, setters...); err != nil {
+		tb.Fatal(err)
+	}
+}
+
 // Run executes the program with additional arguments to set paths and ports.
 // Passed arguments will overwrite/add to the default ones.
-func (tl *TestLauncher) Run(ctx context.Context, setters ...OptSetter) error {
+func (tl *TestLauncher) Run(tb zaptest.TestingT, ctx context.Context, setters ...OptSetter) error {
 	opts := newOpts(viper.New())
 	if !tl.realServer {
 		opts.StoreType = "memory"
@@ -122,14 +134,16 @@ func (tl *TestLauncher) Run(ctx context.Context, setters ...OptSetter) error {
 		setter(opts)
 	}
 
+	// Set up top-level logger to write into the test-case.
+	tl.Launcher.log = zaptest.NewLogger(tb, zaptest.Level(opts.LogLevel)).With(zap.String("test_name", tb.Name()))
 	return tl.Launcher.run(ctx, opts)
 }
 
 // Shutdown stops the program and cleans up temporary paths.
 func (tl *TestLauncher) Shutdown(ctx context.Context) error {
-	tl.Cancel()
-	tl.Launcher.Shutdown(ctx)
-	return os.RemoveAll(tl.Path)
+	defer os.RemoveAll(tl.Path)
+	tl.cancel()
+	return tl.Launcher.Shutdown(ctx)
 }
 
 // ShutdownOrFail stops the program and cleans up temporary paths. Fail on error.
@@ -336,6 +350,30 @@ func (tl *TestLauncher) QueryFlux(tb testing.TB, org *influxdb.Organization, tok
 	return string(b[:len(b)-1])
 }
 
+func (tl *TestLauncher) BackupOrFail(tb testing.TB, ctx context.Context, req backup.Request) {
+	tb.Helper()
+	require.NoError(tb, tl.Backup(tb, ctx, req))
+}
+
+func (tl *TestLauncher) Backup(tb testing.TB, ctx context.Context, req backup.Request) error {
+	tb.Helper()
+	return backup.RunBackup(ctx, req, tl.BackupService(tb), tl.log)
+}
+
+func (tl *TestLauncher) RestoreOrFail(tb testing.TB, ctx context.Context, req restore.Request) {
+	tb.Helper()
+	require.NoError(tb, tl.Restore(tb, ctx, req))
+}
+
+func (tl *TestLauncher) Restore(tb testing.TB, ctx context.Context, req restore.Request) error {
+	tb.Helper()
+	return restore.RunRestore(ctx, req, restore.Services{
+		RestoreService: tl.RestoreService(tb),
+		BucketService:  tl.BucketService(tb),
+		OrgService:     tl.OrgService(tb),
+	}, tl.log)
+}
+
 // MustNewHTTPRequest returns a new nethttp.Request with base URL and auth attached. Fail on error.
 func (tl *TestLauncher) MustNewHTTPRequest(method, rawurl, body string) *nethttp.Request {
 	req, err := nethttp.NewRequest(method, tl.URL()+rawurl, strings.NewReader(body))
@@ -411,7 +449,7 @@ func (tl *TestLauncher) PkgerService(tb testing.TB) pkger.SVC {
 	return &pkger.HTTPRemoteService{Client: tl.HTTPClient(tb)}
 }
 
-func (tl *TestLauncher) TaskServiceKV(tb testing.TB) influxdb.TaskService {
+func (tl *TestLauncher) TaskServiceKV(tb testing.TB) taskmodel.TaskService {
 	return tl.kvService
 }
 
@@ -426,11 +464,23 @@ func (tl *TestLauncher) VariableService(tb testing.TB) *http.VariableService {
 }
 
 func (tl *TestLauncher) AuthorizationService(tb testing.TB) *http.AuthorizationService {
+	tb.Helper()
 	return &http.AuthorizationService{Client: tl.HTTPClient(tb)}
 }
 
-func (tl *TestLauncher) TaskService(tb testing.TB) influxdb.TaskService {
+func (tl *TestLauncher) TaskService(tb testing.TB) taskmodel.TaskService {
+	tb.Helper()
 	return &http.TaskService{Client: tl.HTTPClient(tb)}
+}
+
+func (tl *TestLauncher) BackupService(tb testing.TB) influxdb.BackupService {
+	tb.Helper()
+	return &http.BackupService{Addr: tl.URL(), Token: tl.Auth.Token}
+}
+
+func (tl *TestLauncher) RestoreService(tb testing.TB) influxdb.RestoreService {
+	tb.Helper()
+	return &http.RestoreService{Addr: tl.URL(), Token: tl.Auth.Token}
 }
 
 func (tl *TestLauncher) HTTPClient(tb testing.TB) *httpc.Client {

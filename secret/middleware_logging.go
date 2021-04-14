@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap"
 )
@@ -25,7 +27,7 @@ func NewLogger(log *zap.Logger, s influxdb.SecretService) *Logger {
 }
 
 // LoadSecret retrieves the secret value v found at key k for organization orgID.
-func (l *Logger) LoadSecret(ctx context.Context, orgID influxdb.ID, key string) (str string, err error) {
+func (l *Logger) LoadSecret(ctx context.Context, orgID platform.ID, key string) (str string, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -39,7 +41,7 @@ func (l *Logger) LoadSecret(ctx context.Context, orgID influxdb.ID, key string) 
 }
 
 // GetSecretKeys retrieves all secret keys that are stored for the organization orgID.
-func (l *Logger) GetSecretKeys(ctx context.Context, orgID influxdb.ID) (strs []string, err error) {
+func (l *Logger) GetSecretKeys(ctx context.Context, orgID platform.ID) (strs []string, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -53,7 +55,7 @@ func (l *Logger) GetSecretKeys(ctx context.Context, orgID influxdb.ID) (strs []s
 }
 
 // PutSecret stores the secret pair (k,v) for the organization orgID.
-func (l *Logger) PutSecret(ctx context.Context, orgID influxdb.ID, key string, val string) (err error) {
+func (l *Logger) PutSecret(ctx context.Context, orgID platform.ID, key string, val string) (err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -67,7 +69,7 @@ func (l *Logger) PutSecret(ctx context.Context, orgID influxdb.ID, key string, v
 }
 
 // PutSecrets puts all provided secrets and overwrites any previous values.
-func (l *Logger) PutSecrets(ctx context.Context, orgID influxdb.ID, m map[string]string) (err error) {
+func (l *Logger) PutSecrets(ctx context.Context, orgID platform.ID, m map[string]string) (err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -81,7 +83,7 @@ func (l *Logger) PutSecrets(ctx context.Context, orgID influxdb.ID, m map[string
 }
 
 // PatchSecrets patches all provided secrets and updates any previous values.
-func (l *Logger) PatchSecrets(ctx context.Context, orgID influxdb.ID, m map[string]string) (err error) {
+func (l *Logger) PatchSecrets(ctx context.Context, orgID platform.ID, m map[string]string) (err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -95,7 +97,7 @@ func (l *Logger) PatchSecrets(ctx context.Context, orgID influxdb.ID, m map[stri
 }
 
 // DeleteSecret removes a single secret from the secret store.
-func (l *Logger) DeleteSecret(ctx context.Context, orgID influxdb.ID, keys ...string) (err error) {
+func (l *Logger) DeleteSecret(ctx context.Context, orgID platform.ID, keys ...string) (err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {

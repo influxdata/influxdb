@@ -2,6 +2,7 @@ package influxql_test
 
 import (
 	"context"
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
 	"strings"
 	"testing"
 
@@ -23,7 +24,7 @@ func init() {
 		OrganizationID:  platformtesting.MustIDBase16("aaaaaaaaaaaaaaaa"),
 		BucketID:        platformtesting.MustIDBase16("bbbbbbbbbbbbbbbb"),
 	}
-	dbrpMappingSvc.FindByIDFn = func(ctx context.Context, orgID, id platform.ID) (*platform.DBRPMappingV2, error) {
+	dbrpMappingSvc.FindByIDFn = func(ctx context.Context, orgID, id platform2.ID) (*platform.DBRPMappingV2, error) {
 		return &mapping, nil
 	}
 	dbrpMappingSvc.FindManyFn = func(ctx context.Context, filter platform.DBRPMappingFilterV2, opt ...platform.FindOptions) ([]*platform.DBRPMappingV2, int, error) {

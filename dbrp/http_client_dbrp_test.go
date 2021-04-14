@@ -2,6 +2,7 @@ package dbrp_test
 
 import (
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"net/http/httptest"
 	"testing"
 
@@ -20,7 +21,7 @@ func setup(t *testing.T) (*dbrp.Client, func()) {
 			dbrp.ID = 1
 			return nil
 		},
-		FindByIDFn: func(ctx context.Context, orgID, id influxdb.ID) (*influxdb.DBRPMappingV2, error) {
+		FindByIDFn: func(ctx context.Context, orgID, id platform.ID) (*influxdb.DBRPMappingV2, error) {
 			return &influxdb.DBRPMappingV2{
 				ID:              id,
 				Database:        "db",
@@ -77,7 +78,7 @@ func TestClient(t *testing.T) {
 		if _, err := client.FindByID(context.Background(), 1, 1); err != nil {
 			t.Error(err)
 		}
-		oid := influxdb.ID(1)
+		oid := platform.ID(1)
 		if _, _, err := client.FindMany(context.Background(), influxdb.DBRPMappingFilterV2{OrgID: &oid}); err != nil {
 			t.Error(err)
 		}

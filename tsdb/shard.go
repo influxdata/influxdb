@@ -315,8 +315,14 @@ func (s *Shard) Open() error {
 		if err != nil {
 			return err
 		}
-
 		idx.WithLogger(s.baseLogger)
+
+		// Check if the index needs to be rebuilt before Open() initializes
+		// its file system layout.
+		var shouldReindex bool
+		if _, err := os.Stat(ipath); os.IsNotExist(err) {
+			shouldReindex = true
+		}
 
 		// Open index.
 		if err := idx.Open(); err != nil {
@@ -340,8 +346,12 @@ func (s *Shard) Open() error {
 		if err := e.Open(); err != nil {
 			return err
 		}
+		if shouldReindex {
+			if err := e.Reindex(); err != nil {
+				return err
+			}
+		}
 
-		// Load metadata index for the inmem index only.
 		if err := e.LoadMetadataIndex(s.id, s.index); err != nil {
 			return err
 		}
@@ -704,8 +714,6 @@ func (s *Shard) createFieldsAndMeasurements(fieldsToCreate []*FieldCreate) error
 		if err := mf.CreateFieldIfNotExists([]byte(f.Field.Name), f.Field.Type); err != nil {
 			return err
 		}
-
-		s.index.SetFieldName(f.Measurement, f.Field.Name)
 	}
 
 	if len(fieldsToCreate) > 0 {
@@ -1125,12 +1133,12 @@ func (s *Shard) Import(r io.Reader, basePath string) error {
 
 // CreateSnapshot will return a path to a temp directory
 // containing hard links to the underlying shard files.
-func (s *Shard) CreateSnapshot() (string, error) {
+func (s *Shard) CreateSnapshot(skipCacheOk bool) (string, error) {
 	engine, err := s.Engine()
 	if err != nil {
 		return "", err
 	}
-	return engine.CreateSnapshot()
+	return engine.CreateSnapshot(skipCacheOk)
 }
 
 // ForEachMeasurementName iterates over each measurement in the shard.

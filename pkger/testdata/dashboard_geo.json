@@ -1,0 +1,69 @@
+[
+  {
+    "apiVersion": "influxdata.com/v2alpha1",
+    "kind": "Dashboard",
+    "metadata": {
+      "name": "dash-geo"
+    },
+    "spec": {
+      "charts": [
+        {
+          "geoLayers": [
+            {
+              "layerType": "circleMap",
+              "blur": 1,
+              "colorDimension": {
+                "name": "color"
+              },
+              "intensityDimension": {
+                "name": "intensity"
+              },
+              "intensityField": "count",
+              "radius": 5,
+              "radiusDimension": {
+                "name": "radius",
+                "prefix": "$",
+                "suffix": "%"
+              },
+              "radiusField": "radius",
+              "speed": 1,
+              "trackWidth": 4,
+              "viewColors": [
+                {
+                  "name": "c1",
+                  "type": "min",
+                  "hex": "#8F8AF4",
+                  "value": 0
+                },
+                {
+                  "name": "c2",
+                  "type": "max",
+                  "hex": "#8F8AF4",
+                  "value": 1606322562
+                }
+              ]
+            }
+          ],
+          "height": 4,
+          "kind": "Geo",
+          "lat": 10,
+          "lon": -4,
+          "name": "view name",
+          "note": "a note",
+          "noteOnEmpty": true,
+          "queries": [
+            {
+              "query": "from(v.bucket) |\u003e count()"
+            }
+          ],
+          "width": 3,
+          "xPos": 1,
+          "yPos": 2,
+          "zoom": 4
+        }
+      ],
+      "description": "desc",
+      "name": "new name"
+    }
+  }
+]

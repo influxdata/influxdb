@@ -1,7 +1,6 @@
 package retention_test
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"reflect"
@@ -10,37 +9,39 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2/internal"
-	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/toml"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
 	"github.com/influxdata/influxdb/v2/v1/services/retention"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func TestService_OpenDisabled(t *testing.T) {
 	// Opening a disabled service should be a no-op.
 	c := retention.NewConfig()
 	c.Enabled = false
-	s := NewService(c)
+	s := NewService(t, c)
 
 	if err := s.Open(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 
-	if s.LogBuf.String() != "" {
-		t.Fatalf("service logged %q, didn't expect any logging", s.LogBuf.String())
+	if s.LogBuf.Len() > 0 {
+		t.Fatalf("service logged %q, didn't expect any logging", s.LogBuf.All())
 	}
 }
 
 func TestService_OpenClose(t *testing.T) {
 	// Opening a disabled service should be a no-op.
-	s := NewService(retention.NewConfig())
+	s := NewService(t, retention.NewConfig())
 
 	ctx := context.Background()
 	if err := s.Open(ctx); err != nil {
 		t.Fatal(err)
 	}
 
-	if s.LogBuf.String() == "" {
+	if s.LogBuf.Len() == 0 {
 		t.Fatal("service didn't log anything on open")
 	}
 
@@ -117,7 +118,7 @@ func TestService_CheckShards(t *testing.T) {
 
 	config := retention.NewConfig()
 	config.CheckInterval = toml.Duration(10 * time.Millisecond)
-	s := NewService(config)
+	s := NewService(t, config)
 	s.MetaClient.DatabasesFn = func() []meta.DatabaseInfo {
 		return data
 	}
@@ -233,7 +234,7 @@ func TestService_8819_repro(t *testing.T) {
 func testService_8819_repro(t *testing.T) (*Service, chan error, chan struct{}) {
 	c := retention.NewConfig()
 	c.CheckInterval = toml.Duration(time.Millisecond)
-	s := NewService(c)
+	s := NewService(t, c)
 	errC := make(chan error, 1) // Buffer Important to prevent deadlock.
 	done := make(chan struct{})
 
@@ -379,19 +380,24 @@ type Service struct {
 	MetaClient *internal.MetaClientMock
 	TSDBStore  *internal.TSDBStoreMock
 
-	LogBuf bytes.Buffer
+	LogBuf *observer.ObservedLogs
 	*retention.Service
 }
 
-func NewService(c retention.Config) *Service {
+func NewService(tb testing.TB, c retention.Config) *Service {
+	tb.Helper()
+
 	s := &Service{
 		MetaClient: &internal.MetaClientMock{},
 		TSDBStore:  &internal.TSDBStoreMock{},
 		Service:    retention.NewService(c),
 	}
 
-	l := logger.New(&s.LogBuf)
-	s.WithLogger(l)
+	logcore, logbuf := observer.New(zapcore.InfoLevel)
+	log := zap.New(logcore)
+
+	s.LogBuf = logbuf
+	s.WithLogger(log)
 
 	s.Service.MetaClient = s.MetaClient
 	s.Service.TSDBStore = s.TSDBStore

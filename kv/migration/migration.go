@@ -7,7 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	influxdb "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2/kv"
 	"go.uber.org/zap"
 )
@@ -46,7 +47,7 @@ func (s MigrationState) String() string {
 
 // Migration is a record of a particular migration.
 type Migration struct {
-	ID         influxdb.ID    `json:"id"`
+	ID         platform.ID    `json:"id"`
 	Name       string         `json:"name"`
 	State      MigrationState `json:"-"`
 	StartedAt  *time.Time     `json:"started_at"`
@@ -101,7 +102,7 @@ func (m *Migrator) AddMigrations(ms ...Spec) {
 
 // List returns a list of migrations and their states within the provided store.
 func (m *Migrator) List(ctx context.Context) (migrations []Migration, _ error) {
-	if err := m.walk(ctx, m.store, func(id influxdb.ID, m Migration) {
+	if err := m.walk(ctx, m.store, func(id platform.ID, m Migration) {
 		migrations = append(migrations, m)
 	}); err != nil {
 		return nil, err
@@ -110,7 +111,7 @@ func (m *Migrator) List(ctx context.Context) (migrations []Migration, _ error) {
 	migrationsLen := len(migrations)
 	for idx, spec := range m.Specs[migrationsLen:] {
 		migration := Migration{
-			ID:   influxdb.ID(migrationsLen + idx + 1),
+			ID:   platform.ID(migrationsLen + idx + 1),
 			Name: spec.MigrationName(),
 		}
 
@@ -139,7 +140,7 @@ func (m *Migrator) Up(ctx context.Context) error {
 	}
 
 	var lastMigration int
-	if err := m.walk(ctx, m.store, func(id influxdb.ID, mig Migration) {
+	if err := m.walk(ctx, m.store, func(id platform.ID, mig Migration) {
 		// we're interested in the last up migration
 		if mig.State == UpMigrationState {
 			lastMigration = int(id)
@@ -148,10 +149,15 @@ func (m *Migrator) Up(ctx context.Context) error {
 		return wrapErr(err)
 	}
 
+	migrationsToDo := len(m.Specs[lastMigration:])
+	if migrationsToDo > 0 {
+		m.logger.Info("Bringing up metadata migrations", zap.Int("migration_count", migrationsToDo))
+	}
+
 	for idx, spec := range m.Specs[lastMigration:] {
 		startedAt := m.now()
 		migration := Migration{
-			ID:        influxdb.ID(lastMigration + idx + 1),
+			ID:        platform.ID(lastMigration + idx + 1),
 			Name:      spec.MigrationName(),
 			StartedAt: &startedAt,
 		}
@@ -203,7 +209,7 @@ func (m *Migrator) Down(ctx context.Context) (err error) {
 		Migration
 	}
 
-	if err := m.walk(ctx, m.store, func(id influxdb.ID, mig Migration) {
+	if err := m.walk(ctx, m.store, func(id platform.ID, mig Migration) {
 		migrations = append(
 			migrations,
 			struct {
@@ -218,7 +224,12 @@ func (m *Migrator) Down(ctx context.Context) (err error) {
 		return wrapErr(err)
 	}
 
-	for i := len(migrations) - 1; i >= 0; i-- {
+	migrationsToDo := len(migrations)
+	if migrationsToDo > 0 {
+		m.logger.Info("Tearing down metadata migrations", zap.Int("migration_count", migrationsToDo))
+	}
+
+	for i := migrationsToDo - 1; i >= 0; i-- {
 		migration := migrations[i]
 
 		m.logMigrationEvent(DownMigrationState, migration.Migration, "started")
@@ -238,10 +249,15 @@ func (m *Migrator) Down(ctx context.Context) (err error) {
 }
 
 func (m *Migrator) logMigrationEvent(state MigrationState, mig Migration, event string) {
-	m.logger.Info(fmt.Sprintf("Migration %q %s (%s)", mig.Name, event, state))
+	m.logger.Debug(
+		"Executing metadata migration",
+		zap.String("migration_name", mig.Name),
+		zap.String("target_state", state.String()),
+		zap.String("migration_event", event),
+	)
 }
 
-func (m *Migrator) walk(ctx context.Context, store kv.Store, fn func(id influxdb.ID, m Migration)) error {
+func (m *Migrator) walk(ctx context.Context, store kv.Store, fn func(id platform.ID, m Migration)) error {
 	if err := store.View(ctx, func(tx kv.Tx) error {
 		bkt, err := tx.Bucket(migrationBucket)
 		if err != nil {
@@ -254,7 +270,7 @@ func (m *Migrator) walk(ctx context.Context, store kv.Store, fn func(id influxdb
 		}
 
 		return kv.WalkCursor(ctx, cursor, func(k, v []byte) (bool, error) {
-			var id influxdb.ID
+			var id platform.ID
 			if err := id.Decode(k); err != nil {
 				return false, fmt.Errorf("decoding migration id: %w", err)
 			}

@@ -1,6 +1,7 @@
 package rule_test
 
 import (
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"testing"
 
 	"github.com/andreyvit/diff"
@@ -268,8 +269,8 @@ func TestTelegram_Valid(t *testing.T) {
 					TagRules: []notification.TagRule{},
 				},
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "Telegram MessageTemplate is invalid",
 			},
 		},
@@ -292,8 +293,8 @@ func TestTelegram_Valid(t *testing.T) {
 					TagRules: []notification.TagRule{},
 				},
 			},
-			err: &influxdb.Error{
-				Code: influxdb.EInvalid,
+			err: &errors.Error{
+				Code: errors.EInvalid,
 				Msg:  "Notification Rule EndpointID is invalid",
 			},
 		},

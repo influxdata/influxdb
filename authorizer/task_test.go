@@ -12,9 +12,11 @@ import (
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
 	"github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/inmem"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/kv/migration/all"
 	"github.com/influxdata/influxdb/v2/mock"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/pkg/errors"
 	"go.uber.org/zap/zaptest"
@@ -26,11 +28,11 @@ func TestOnboardingValidation(t *testing.T) {
 	ts := authorizer.NewTaskService(zaptest.NewLogger(t), mockTaskService(3, 2, 1))
 
 	r, err := onboard.OnboardInitialUser(context.Background(), &influxdb.OnboardingRequest{
-		User:            "Setec Astronomy",
-		Password:        "too many secrets",
-		Org:             "thing",
-		Bucket:          "holder",
-		RetentionPeriod: 1,
+		User:                   "Setec Astronomy",
+		Password:               "too many secrets",
+		Org:                    "thing",
+		Bucket:                 "holder",
+		RetentionPeriodSeconds: 1,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -38,7 +40,7 @@ func TestOnboardingValidation(t *testing.T) {
 
 	ctx := pctx.SetAuthorizer(context.Background(), r.Auth)
 
-	_, err = ts.CreateTask(ctx, influxdb.TaskCreate{
+	_, err = ts.CreateTask(ctx, taskmodel.TaskCreate{
 		OrganizationID: r.Org.ID,
 		OwnerID:        r.Auth.GetUserID(),
 		Flux: `option task = {
@@ -52,12 +54,12 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 	}
 }
 
-func mockTaskService(orgID, taskID, runID influxdb.ID) influxdb.TaskService {
-	task := influxdb.Task{
+func mockTaskService(orgID, taskID, runID platform.ID) taskmodel.TaskService {
+	task := taskmodel.Task{
 		ID:             taskID,
 		OrganizationID: orgID,
 		Name:           "cows",
-		Status:         string(influxdb.TaskActive),
+		Status:         string(taskmodel.TaskActive),
 		Flux: `option task = {
  name: "my_task",
  every: 1s,
@@ -66,51 +68,51 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 		Every: "1s",
 	}
 
-	log := influxdb.Log{Message: "howdy partner"}
+	log := taskmodel.Log{Message: "howdy partner"}
 
-	run := influxdb.Run{
+	run := taskmodel.Run{
 		ID:           runID,
 		TaskID:       taskID,
 		Status:       "completed",
 		ScheduledFor: time.Now().UTC(),
 		StartedAt:    time.Now().UTC().Add(time.Second * 3),
 		FinishedAt:   time.Now().UTC().Add(time.Second * 10),
-		Log:          []influxdb.Log{log},
+		Log:          []taskmodel.Log{log},
 	}
 
 	return &mock.TaskService{
-		FindTaskByIDFn: func(context.Context, influxdb.ID) (*influxdb.Task, error) {
+		FindTaskByIDFn: func(context.Context, platform.ID) (*taskmodel.Task, error) {
 			return &task, nil
 		},
-		FindTasksFn: func(context.Context, influxdb.TaskFilter) ([]*influxdb.Task, int, error) {
-			return []*influxdb.Task{&task}, 1, nil
+		FindTasksFn: func(context.Context, taskmodel.TaskFilter) ([]*taskmodel.Task, int, error) {
+			return []*taskmodel.Task{&task}, 1, nil
 		},
-		CreateTaskFn: func(_ context.Context, tc influxdb.TaskCreate) (*influxdb.Task, error) {
+		CreateTaskFn: func(_ context.Context, tc taskmodel.TaskCreate) (*taskmodel.Task, error) {
 			taskCopy := task
 			return &taskCopy, nil
 		},
-		UpdateTaskFn: func(context.Context, influxdb.ID, influxdb.TaskUpdate) (*influxdb.Task, error) {
+		UpdateTaskFn: func(context.Context, platform.ID, taskmodel.TaskUpdate) (*taskmodel.Task, error) {
 			return &task, nil
 		},
-		DeleteTaskFn: func(context.Context, influxdb.ID) error {
+		DeleteTaskFn: func(context.Context, platform.ID) error {
 			return nil
 		},
-		FindLogsFn: func(context.Context, influxdb.LogFilter) ([]*influxdb.Log, int, error) {
-			return []*influxdb.Log{&log}, 1, nil
+		FindLogsFn: func(context.Context, taskmodel.LogFilter) ([]*taskmodel.Log, int, error) {
+			return []*taskmodel.Log{&log}, 1, nil
 		},
-		FindRunsFn: func(context.Context, influxdb.RunFilter) ([]*influxdb.Run, int, error) {
-			return []*influxdb.Run{&run}, 1, nil
+		FindRunsFn: func(context.Context, taskmodel.RunFilter) ([]*taskmodel.Run, int, error) {
+			return []*taskmodel.Run{&run}, 1, nil
 		},
-		FindRunByIDFn: func(context.Context, influxdb.ID, influxdb.ID) (*influxdb.Run, error) {
+		FindRunByIDFn: func(context.Context, platform.ID, platform.ID) (*taskmodel.Run, error) {
 			return &run, nil
 		},
-		CancelRunFn: func(context.Context, influxdb.ID, influxdb.ID) error {
+		CancelRunFn: func(context.Context, platform.ID, platform.ID) error {
 			return nil
 		},
-		RetryRunFn: func(context.Context, influxdb.ID, influxdb.ID) (*influxdb.Run, error) {
+		RetryRunFn: func(context.Context, platform.ID, platform.ID) (*taskmodel.Run, error) {
 			return &run, nil
 		},
-		ForceRunFn: func(context.Context, influxdb.ID, int64) (*influxdb.Run, error) {
+		ForceRunFn: func(context.Context, platform.ID, int64) (*taskmodel.Run, error) {
 			return &run, nil
 		},
 	}
@@ -118,19 +120,19 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 
 func TestValidations(t *testing.T) {
 	var (
-		taskID   = influxdb.ID(0x7456)
-		runID    = influxdb.ID(0x402)
+		taskID   = platform.ID(0x7456)
+		runID    = platform.ID(0x402)
 		otherOrg = &influxdb.Organization{Name: "other_org"}
 	)
 
 	svc, onboard := setup(t)
 
 	r, err := onboard.OnboardInitialUser(context.Background(), &influxdb.OnboardingRequest{
-		User:            "Setec Astronomy",
-		Password:        "too many secrets",
-		Org:             "thing",
-		Bucket:          "holder",
-		RetentionPeriod: 1,
+		User:                   "Setec Astronomy",
+		Password:               "too many secrets",
+		Org:                    "thing",
+		Bucket:                 "holder",
+		RetentionPeriodSeconds: 1,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -195,13 +197,13 @@ func TestValidations(t *testing.T) {
 
 	tests := []struct {
 		name  string
-		check func(context.Context, influxdb.TaskService) error
+		check func(context.Context, taskmodel.TaskService) error
 		auth  *influxdb.Authorization
 	}{
 		{
 			name: "create failure",
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
-				_, err := svc.CreateTask(ctx, influxdb.TaskCreate{
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
+				_, err := svc.CreateTask(ctx, taskmodel.TaskCreate{
 					OrganizationID: r.Org.ID,
 					Flux: `option task = {
  name: "my_task",
@@ -219,8 +221,8 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 		{
 			name: "create success",
 			auth: r.Auth,
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
-				_, err := svc.CreateTask(ctx, influxdb.TaskCreate{
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
+				_, err := svc.CreateTask(ctx, taskmodel.TaskCreate{
 					OrganizationID: r.Org.ID,
 					OwnerID:        r.Auth.GetUserID(),
 					Flux: `option task = {
@@ -235,7 +237,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 		{
 			name: "FindTaskByID missing auth",
 			auth: &influxdb.Authorization{Permissions: []influxdb.Permission{}},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
 				_, err := svc.FindTaskByID(ctx, taskID)
 				if err == nil {
 					return errors.New("returned without error without permission")
@@ -246,7 +248,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 		{
 			name: "FindTaskByID with org auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgReadAllTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
 				_, err := svc.FindTaskByID(ctx, taskID)
 				return err
 			},
@@ -254,7 +256,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 		{
 			name: "FindTaskByID with task auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgReadTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
 				_, err := svc.FindTaskByID(ctx, taskID)
 				return err
 			},
@@ -262,8 +264,8 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 		{
 			name: "FindTasks with bad auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: wrongOrgReadAllTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
-				ts, _, err := svc.FindTasks(ctx, influxdb.TaskFilter{
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
+				ts, _, err := svc.FindTasks(ctx, taskmodel.TaskFilter{
 					OrganizationID: &orgID,
 				})
 				if err == nil && len(ts) > 0 {
@@ -275,8 +277,8 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 		{
 			name: "FindTasks with org auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgReadAllTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
-				_, _, err := svc.FindTasks(ctx, influxdb.TaskFilter{
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
+				_, _, err := svc.FindTasks(ctx, taskmodel.TaskFilter{
 					OrganizationID: &orgID,
 				})
 				return err
@@ -285,8 +287,8 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 		{
 			name: "FindTasks with task auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgReadTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
-				_, _, err := svc.FindTasks(ctx, influxdb.TaskFilter{
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
+				_, _, err := svc.FindTasks(ctx, taskmodel.TaskFilter{
 					OrganizationID: &orgID,
 				})
 				return err
@@ -295,21 +297,21 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`,
 		{
 			name: "FindTasks without org filter",
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgReadAllTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
-				_, _, err := svc.FindTasks(ctx, influxdb.TaskFilter{})
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
+				_, _, err := svc.FindTasks(ctx, taskmodel.TaskFilter{})
 				return err
 			},
 		},
 		{
 			name: "UpdateTask with readonly auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgReadAllTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
 				flux := `option task = {
  name: "my_task",
  every: 1s,
 }
 from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
-				_, err := svc.UpdateTask(ctx, taskID, influxdb.TaskUpdate{
+				_, err := svc.UpdateTask(ctx, taskID, taskmodel.TaskUpdate{
 					Flux: &flux,
 				})
 				if err == nil {
@@ -321,13 +323,13 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "UpdateTask with org auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgWriteAllTaskBucketPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
 				flux := `option task = {
 		 name: "my_task",
 		 every: 1s,
 		}
 		from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
-				_, err := svc.UpdateTask(ctx, taskID, influxdb.TaskUpdate{
+				_, err := svc.UpdateTask(ctx, taskID, taskmodel.TaskUpdate{
 					Flux: &flux,
 				})
 				return err
@@ -336,13 +338,13 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "UpdateTask with task auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgWriteTaskBucketPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
 				flux := `option task = {
  name: "my_task",
  every: 1s,
 }
 from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
-				_, err := svc.UpdateTask(ctx, taskID, influxdb.TaskUpdate{
+				_, err := svc.UpdateTask(ctx, taskID, taskmodel.TaskUpdate{
 					Flux: &flux,
 				})
 				return err
@@ -351,7 +353,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "DeleteTask missing auth",
 			auth: &influxdb.Authorization{Permissions: []influxdb.Permission{}},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
 				err := svc.DeleteTask(ctx, taskID)
 				if err == nil {
 					return errors.New("returned without error without permission")
@@ -362,7 +364,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "DeleteTask readonly auth",
 			auth: &influxdb.Authorization{Permissions: orgReadAllTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
 				err := svc.DeleteTask(ctx, taskID)
 				if err == nil {
 					return errors.New("returned without error without permission")
@@ -373,7 +375,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "DeleteTask with org auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgWriteAllTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
 				err := svc.DeleteTask(ctx, taskID)
 				return err
 			},
@@ -381,7 +383,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "DeleteTask with task auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgWriteTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
 				err := svc.DeleteTask(ctx, taskID)
 				return err
 			},
@@ -389,8 +391,8 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "FindLogs with bad auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: wrongOrgReadAllTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
-				_, _, err := svc.FindLogs(ctx, influxdb.LogFilter{
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
+				_, _, err := svc.FindLogs(ctx, taskmodel.LogFilter{
 					Task: taskID,
 				})
 				if err == nil {
@@ -402,8 +404,8 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "FindLogs with org auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgReadAllTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
-				_, _, err := svc.FindLogs(ctx, influxdb.LogFilter{
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
+				_, _, err := svc.FindLogs(ctx, taskmodel.LogFilter{
 					Task: taskID,
 				})
 				return err
@@ -412,8 +414,8 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "FindLogs with task auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgReadTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
-				_, _, err := svc.FindLogs(ctx, influxdb.LogFilter{
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
+				_, _, err := svc.FindLogs(ctx, taskmodel.LogFilter{
 					Task: taskID,
 				})
 				return err
@@ -422,8 +424,8 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "FindRuns with bad auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: wrongOrgReadAllTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
-				_, _, err := svc.FindRuns(ctx, influxdb.RunFilter{
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
+				_, _, err := svc.FindRuns(ctx, taskmodel.RunFilter{
 					Task: taskID,
 				})
 				if err == nil {
@@ -435,8 +437,8 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "FindRuns with org auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgReadAllTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
-				_, _, err := svc.FindRuns(ctx, influxdb.RunFilter{
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
+				_, _, err := svc.FindRuns(ctx, taskmodel.RunFilter{
 					Task: taskID,
 				})
 				return err
@@ -445,8 +447,8 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "FindRuns with task auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgReadTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
-				_, _, err := svc.FindRuns(ctx, influxdb.RunFilter{
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
+				_, _, err := svc.FindRuns(ctx, taskmodel.RunFilter{
 					Task: taskID,
 				})
 				return err
@@ -455,7 +457,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "FindRunByID missing auth",
 			auth: &influxdb.Authorization{Permissions: []influxdb.Permission{}},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
 				_, err := svc.FindRunByID(ctx, taskID, 10)
 				if err == nil {
 					return errors.New("returned without error without permission")
@@ -466,7 +468,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "FindRunByID with org auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgReadAllTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
 				_, err := svc.FindRunByID(ctx, taskID, 10)
 				return err
 			},
@@ -474,7 +476,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "FindRunByID with task auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgReadTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
 				_, err := svc.FindRunByID(ctx, taskID, 10)
 				return err
 			},
@@ -482,7 +484,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "CancelRun with bad auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: wrongOrgReadAllTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
 				err := svc.CancelRun(ctx, taskID, 10)
 				if err == nil {
 					return errors.New("returned no error with a invalid auth")
@@ -493,7 +495,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "CancelRun with org auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgWriteAllTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
 				err := svc.CancelRun(ctx, taskID, 10)
 				return err
 			},
@@ -501,7 +503,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "CancelRun with task auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgWriteTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
 				err := svc.CancelRun(ctx, taskID, 10)
 				return err
 			},
@@ -509,7 +511,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "RetryRun with bad auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: wrongOrgReadAllTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
 				_, err := svc.RetryRun(ctx, taskID, 10)
 				if err == nil {
 					return errors.New("returned no error with a invalid auth")
@@ -520,7 +522,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "RetryRun with org auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgWriteAllTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
 				_, err := svc.RetryRun(ctx, taskID, 10)
 				return err
 			},
@@ -528,7 +530,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "RetryRun with task auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgWriteTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
 				_, err := svc.RetryRun(ctx, taskID, 10)
 				return err
 			},
@@ -536,7 +538,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "ForceRun with bad auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: wrongOrgReadAllTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
 				_, err := svc.ForceRun(ctx, taskID, 10000)
 				if err == nil {
 					return errors.New("returned no error with a invalid auth")
@@ -547,7 +549,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "ForceRun with org auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgWriteAllTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
 				_, err := svc.ForceRun(ctx, taskID, 10000)
 				return err
 			},
@@ -555,7 +557,7 @@ from(bucket:"holder") |> range(start:-5m) |> to(bucket:"holder", org:"thing")`
 		{
 			name: "ForceRun with task auth",
 			auth: &influxdb.Authorization{Status: "active", Permissions: orgWriteTaskPermissions},
-			check: func(ctx context.Context, svc influxdb.TaskService) error {
+			check: func(ctx context.Context, svc taskmodel.TaskService) error {
 				_, err := svc.ForceRun(ctx, taskID, 10000)
 				return err
 			},

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
 	cinternal "github.com/influxdata/influxdb/v2/cmd/internal"
@@ -16,12 +18,12 @@ import (
 )
 
 type v1Token struct {
-	ID          influxdb.ID `json:"id"`
+	ID          platform.ID `json:"id"`
 	Description string      `json:"description"`
 	Token       string      `json:"token"`
 	Status      string      `json:"status"`
 	UserName    string      `json:"userName"`
-	UserID      influxdb.ID `json:"userID"`
+	UserID      platform.ID `json:"userID"`
 	Permissions []string    `json:"permissions"`
 }
 
@@ -142,7 +144,7 @@ func makeV1AuthorizationCreateE(opt genericCLIOpts) func(*cobra.Command, []strin
 		var permissions []influxdb.Permission
 		for _, bp := range bucketPerms {
 			for _, p := range bp.perms {
-				var id influxdb.ID
+				var id platform.ID
 				if err := id.DecodeFromString(p); err != nil {
 					return fmt.Errorf("invalid bucket ID '%s': %w (did you pass a bucket name instead of an ID?)", p, err)
 				}
@@ -251,7 +253,7 @@ func v1AuthorizationFindF(cmd *cobra.Command, _ []string) error {
 		filter.User = &v1AuthorizationFindFlags.user
 	}
 	if v1AuthorizationFindFlags.userID != "" {
-		uID, err := influxdb.IDFromString(v1AuthorizationFindFlags.userID)
+		uID, err := platform.IDFromString(v1AuthorizationFindFlags.userID)
 		if err != nil {
 			return fmt.Errorf("invalid user ID '%s': %w (did you pass a username instead of an ID?)", v1AuthorizationFindFlags.userID, err)
 		}
@@ -261,7 +263,7 @@ func v1AuthorizationFindF(cmd *cobra.Command, _ []string) error {
 		filter.Org = &v1AuthorizationFindFlags.org.name
 	}
 	if v1AuthorizationFindFlags.org.id != "" {
-		oID, err := influxdb.IDFromString(v1AuthorizationFindFlags.org.id)
+		oID, err := platform.IDFromString(v1AuthorizationFindFlags.org.id)
 		if err != nil {
 			return fmt.Errorf("invalid org ID '%s': %w (did you pass an org name instead of an ID?)", v1AuthorizationFindFlags.org.id, err)
 		}
@@ -548,7 +550,7 @@ func v1FindOneAuthorization(s *authorization.Client, filter influxdb.Authorizati
 }
 
 type v1AuthLookupFlags struct {
-	id       influxdb.ID
+	id       platform.ID
 	username string
 	required bool // required when set to true determines whether validate expects either id or username to be set
 }

@@ -3,6 +3,8 @@ package label
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/metric"
 	"github.com/prometheus/client_golang/prometheus"
@@ -31,7 +33,7 @@ func (m *LabelMetrics) CreateLabel(ctx context.Context, l *influxdb.Label) (err 
 	return rec(err)
 }
 
-func (m *LabelMetrics) FindLabelByID(ctx context.Context, id influxdb.ID) (label *influxdb.Label, err error) {
+func (m *LabelMetrics) FindLabelByID(ctx context.Context, id platform.ID) (label *influxdb.Label, err error) {
 	rec := m.rec.Record("find_label_by_id")
 	l, err := m.labelService.FindLabelByID(ctx, id)
 	return l, rec(err)
@@ -49,13 +51,13 @@ func (m *LabelMetrics) FindResourceLabels(ctx context.Context, filter influxdb.L
 	return l, rec(err)
 }
 
-func (m *LabelMetrics) UpdateLabel(ctx context.Context, id influxdb.ID, upd influxdb.LabelUpdate) (lbl *influxdb.Label, err error) {
+func (m *LabelMetrics) UpdateLabel(ctx context.Context, id platform.ID, upd influxdb.LabelUpdate) (lbl *influxdb.Label, err error) {
 	rec := m.rec.Record("update_label")
 	l, err := m.labelService.UpdateLabel(ctx, id, upd)
 	return l, rec(err)
 }
 
-func (m *LabelMetrics) DeleteLabel(ctx context.Context, id influxdb.ID) (err error) {
+func (m *LabelMetrics) DeleteLabel(ctx context.Context, id platform.ID) (err error) {
 	rec := m.rec.Record("delete_label")
 	err = m.labelService.DeleteLabel(ctx, id)
 	return rec(err)

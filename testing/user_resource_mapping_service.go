@@ -7,6 +7,8 @@ import (
 	"sort"
 	"testing"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb/v2"
 )
@@ -212,8 +214,8 @@ func DeleteUserResourceMapping(
 	t *testing.T,
 ) {
 	type args struct {
-		resourceID platform.ID
-		userID     platform.ID
+		resourceID platform2.ID
+		userID     platform2.ID
 	}
 	type wants struct {
 		err      error

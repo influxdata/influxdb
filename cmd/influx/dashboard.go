@@ -3,6 +3,9 @@ package main
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
 	"github.com/influxdata/influxdb/v2/dashboards/transport"
@@ -65,15 +68,15 @@ func (b *cmdDashboardBuilder) listRunE(cmd *cobra.Command, args []string) error 
 
 	orgID, _ := b.org.getID(orgSVC)
 	if orgID == 0 && len(b.ids) == 0 {
-		return &influxdb.Error{
-			Code: influxdb.EUnprocessableEntity,
+		return &errors.Error{
+			Code: errors.EUnprocessableEntity,
 			Msg:  "at least one of org, org-id, or id must be provided",
 		}
 	}
 
-	var ids []*influxdb.ID
+	var ids []*platform.ID
 	for _, rawID := range b.ids {
-		id, err := influxdb.IDFromString(rawID)
+		id, err := platform.IDFromString(rawID)
 		if err != nil {
 			return err
 		}
@@ -93,7 +96,7 @@ func (b *cmdDashboardBuilder) listRunE(cmd *cobra.Command, args []string) error 
 			Limit:  limit,
 			Offset: offset,
 		})
-		if err != nil && influxdb.ErrorCode(err) != influxdb.ENotFound {
+		if err != nil && errors.ErrorCode(err) != errors.ENotFound {
 			return err
 		}
 		out = append(out, dashboards...)

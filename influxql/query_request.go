@@ -3,6 +3,9 @@ package influxql
 import (
 	"encoding/json"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
@@ -10,6 +13,7 @@ type EncodingFormat int
 
 func (f *EncodingFormat) UnmarshalJSON(bytes []byte) error {
 	var s string
+
 	if err := json.Unmarshal(bytes, &s); err != nil {
 		return err
 	}
@@ -24,23 +28,21 @@ func (f EncodingFormat) MarshalJSON() ([]byte, error) {
 
 const (
 	EncodingFormatJSON EncodingFormat = iota
-	EncodingFormatCSV
+	EncodingFormatTextCSV
+	EncodingFormatAppCSV
 	EncodingFormatMessagePack
-	EncodingFormatTable
 )
 
 // Returns closed encoding format from the specified mime type.
 // The default is JSON if no exact match is found.
 func EncodingFormatFromMimeType(s string) EncodingFormat {
 	switch s {
-	case "application/csv", "text/csv":
-		return EncodingFormatCSV
-	case "text/plain":
-		return EncodingFormatTable
+	case "application/csv":
+		return EncodingFormatAppCSV
+	case "text/csv":
+		return EncodingFormatTextCSV
 	case "application/x-msgpack":
 		return EncodingFormatMessagePack
-	case "application/json":
-		fallthrough
 	default:
 		return EncodingFormatJSON
 	}
@@ -48,14 +50,12 @@ func EncodingFormatFromMimeType(s string) EncodingFormat {
 
 func (f EncodingFormat) ContentType() string {
 	switch f {
-	case EncodingFormatCSV:
+	case EncodingFormatAppCSV:
+		return "application/csv"
+	case EncodingFormatTextCSV:
 		return "text/csv"
-	case EncodingFormatTable:
-		return "text/plain"
 	case EncodingFormatMessagePack:
 		return "application/x-msgpack"
-	case EncodingFormatJSON:
-		fallthrough
 	default:
 		return "application/json"
 	}
@@ -63,7 +63,7 @@ func (f EncodingFormat) ContentType() string {
 
 type QueryRequest struct {
 	Authorization  *influxdb.Authorization `json:"authorization,omitempty"`
-	OrganizationID influxdb.ID             `json:"organization_id"`
+	OrganizationID platform.ID             `json:"organization_id"`
 	DB             string                  `json:"db"`
 	RP             string                  `json:"rp"`
 	Epoch          string                  `json:"epoch"`
@@ -79,9 +79,9 @@ type QueryRequest struct {
 // The HTTP query requests represented the body expected by the QueryHandler
 func (r *QueryRequest) Valid() error {
 	if !r.OrganizationID.Valid() {
-		return &influxdb.Error{
+		return &errors.Error{
 			Msg:  "organization_id is not valid",
-			Code: influxdb.EInvalid,
+			Code: errors.EInvalid,
 		}
 	}
 	return r.Authorization.Valid()

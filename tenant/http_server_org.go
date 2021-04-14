@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/influxdata/influxdb/v2"
@@ -123,7 +125,7 @@ func (h *OrgHandler) handlePostOrg(w http.ResponseWriter, r *http.Request) {
 
 // handleGetOrg is the HTTP handler for the GET /api/v2/orgs/:id route.
 func (h *OrgHandler) handleGetOrg(w http.ResponseWriter, r *http.Request) {
-	id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
+	id, err := platform.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -155,14 +157,14 @@ func (h *OrgHandler) handleGetOrgs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if id := qp.Get("orgID"); id != "" {
-		i, err := influxdb.IDFromString(id)
+		i, err := platform.IDFromString(id)
 		if err == nil {
 			filter.ID = i
 		}
 	}
 
 	if id := qp.Get("userID"); id != "" {
-		i, err := influxdb.IDFromString(id)
+		i, err := platform.IDFromString(id)
 		if err == nil {
 			filter.UserID = i
 		}
@@ -180,7 +182,7 @@ func (h *OrgHandler) handleGetOrgs(w http.ResponseWriter, r *http.Request) {
 
 // handlePatchOrg is the HTTP handler for the PATH /api/v2/orgs route.
 func (h *OrgHandler) handlePatchOrg(w http.ResponseWriter, r *http.Request) {
-	id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
+	id, err := platform.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -204,7 +206,7 @@ func (h *OrgHandler) handlePatchOrg(w http.ResponseWriter, r *http.Request) {
 
 // handleDeleteOrganization is the HTTP handler for the DELETE /api/v2/orgs/:id route.
 func (h *OrgHandler) handleDeleteOrg(w http.ResponseWriter, r *http.Request) {
-	id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
+	id, err := platform.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -220,7 +222,7 @@ func (h *OrgHandler) handleDeleteOrg(w http.ResponseWriter, r *http.Request) {
 	h.api.Respond(w, r, http.StatusNoContent, nil)
 }
 
-func (h *OrgHandler) lookupOrgByID(ctx context.Context, id influxdb.ID) (influxdb.ID, error) {
+func (h *OrgHandler) lookupOrgByID(ctx context.Context, id platform.ID) (platform.ID, error) {
 	_, err := h.orgSvc.FindOrganizationByID(ctx, id)
 	if err != nil {
 		return 0, err

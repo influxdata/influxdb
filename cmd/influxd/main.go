@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	_ "net/http/pprof"
 	"os"
 	"time"
 
@@ -30,18 +29,35 @@ func main() {
 
 	influxdb.SetBuildInfo(version, commit, date)
 
+	ctx := context.Background()
 	v := viper.New()
-	rootCmd := launcher.NewInfluxdCommand(context.Background(), v)
+
+	rootCmd, err := launcher.NewInfluxdCommand(ctx, v)
+	if err != nil {
+		handleErr(err.Error())
+	}
 	// upgrade binds options to env variables, so it must be added after rootCmd is initialized
-	rootCmd.AddCommand(upgrade.NewCommand(v))
-	rootCmd.AddCommand(inspect.NewCommand())
+	upgradeCmd, err := upgrade.NewCommand(ctx, v)
+	if err != nil {
+		handleErr(err.Error())
+	}
+	rootCmd.AddCommand(upgradeCmd)
+	inspectCmd, err := inspect.NewCommand(v)
+	if err != nil {
+		handleErr(err.Error())
+	}
+	rootCmd.AddCommand(inspectCmd)
 	rootCmd.AddCommand(versionCmd())
 
 	rootCmd.SilenceUsage = true
 	if err := rootCmd.Execute(); err != nil {
-		rootCmd.PrintErrf("See '%s -h' for help\n", rootCmd.CommandPath())
-		os.Exit(1)
+		handleErr(fmt.Sprintf("See '%s -h' for help", rootCmd.CommandPath()))
 	}
+}
+
+func handleErr(err string) {
+	_, _ = fmt.Fprintln(os.Stderr, err)
+	os.Exit(1)
 }
 
 func versionCmd() *cobra.Command {

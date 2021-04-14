@@ -7,7 +7,7 @@ package mock
 import (
 	context "context"
 	gomock "github.com/golang/mock/gomock"
-	influxdb "github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	reflect "reflect"
 )
 
@@ -35,7 +35,7 @@ func (m *MockPasswordsService) EXPECT() *MockPasswordsServiceMockRecorder {
 }
 
 // CompareAndSetPassword mocks base method
-func (m *MockPasswordsService) CompareAndSetPassword(arg0 context.Context, arg1 influxdb.ID, arg2, arg3 string) error {
+func (m *MockPasswordsService) CompareAndSetPassword(arg0 context.Context, arg1 platform.ID, arg2, arg3 string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "CompareAndSetPassword", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].(error)
@@ -49,7 +49,7 @@ func (mr *MockPasswordsServiceMockRecorder) CompareAndSetPassword(arg0, arg1, ar
 }
 
 // ComparePassword mocks base method
-func (m *MockPasswordsService) ComparePassword(arg0 context.Context, arg1 influxdb.ID, arg2 string) error {
+func (m *MockPasswordsService) ComparePassword(arg0 context.Context, arg1 platform.ID, arg2 string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "ComparePassword", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)
@@ -63,7 +63,7 @@ func (mr *MockPasswordsServiceMockRecorder) ComparePassword(arg0, arg1, arg2 int
 }
 
 // SetPassword mocks base method
-func (m *MockPasswordsService) SetPassword(arg0 context.Context, arg1 influxdb.ID, arg2 string) error {
+func (m *MockPasswordsService) SetPassword(arg0 context.Context, arg1 platform.ID, arg2 string) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SetPassword", arg0, arg1, arg2)
 	ret0, _ := ret[0].(error)

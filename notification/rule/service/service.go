@@ -6,10 +6,13 @@ import (
 	"fmt"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/notification/rule"
 	"github.com/influxdata/influxdb/v2/pkg/pointer"
 	"github.com/influxdata/influxdb/v2/snowflake"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"go.uber.org/zap"
 )
 
@@ -17,15 +20,15 @@ var (
 	notificationRuleBucket = []byte("notificationRulev1")
 
 	// ErrNotificationRuleNotFound is used when the notification rule is not found.
-	ErrNotificationRuleNotFound = &influxdb.Error{
+	ErrNotificationRuleNotFound = &errors.Error{
 		Msg:  "notification rule not found",
-		Code: influxdb.ENotFound,
+		Code: errors.ENotFound,
 	}
 
 	// ErrInvalidNotificationRuleID is used when the service was provided
 	// an invalid ID format.
-	ErrInvalidNotificationRuleID = &influxdb.Error{
-		Code: influxdb.EInvalid,
+	ErrInvalidNotificationRuleID = &errors.Error{
+		Code: errors.EInvalid,
 		Msg:  "provided notification rule ID has invalid format",
 	}
 )
@@ -36,16 +39,16 @@ type RuleService struct {
 	log *zap.Logger
 
 	kv        kv.Store
-	tasks     influxdb.TaskService
+	tasks     taskmodel.TaskService
 	orgs      influxdb.OrganizationService
 	endpoints influxdb.NotificationEndpointService
 
-	idGenerator   influxdb.IDGenerator
+	idGenerator   platform.IDGenerator
 	timeGenerator influxdb.TimeGenerator
 }
 
 // New constructs and configures a notification rule service
-func New(logger *zap.Logger, store kv.Store, tasks influxdb.TaskService, orgs influxdb.OrganizationService, endpoints influxdb.NotificationEndpointService) (*RuleService, error) {
+func New(logger *zap.Logger, store kv.Store, tasks taskmodel.TaskService, orgs influxdb.OrganizationService, endpoints influxdb.NotificationEndpointService) (*RuleService, error) {
 	s := &RuleService{
 		log:           logger,
 		kv:            store,
@@ -77,9 +80,9 @@ func (s *RuleService) initializeNotificationRule(ctx context.Context, tx kv.Tx) 
 
 // UnavailableNotificationRuleStoreError is used if we aren't able to interact with the
 // store, it means the store is not available at the moment (e.g. network).
-func UnavailableNotificationRuleStoreError(err error) *influxdb.Error {
-	return &influxdb.Error{
-		Code: influxdb.EInternal,
+func UnavailableNotificationRuleStoreError(err error) *errors.Error {
+	return &errors.Error{
+		Code: errors.EInternal,
 		Msg:  fmt.Sprintf("Unable to connect to notification rule store service. Please try again; Err: %v", err),
 		Op:   "kv/notificationRule",
 	}
@@ -87,9 +90,9 @@ func UnavailableNotificationRuleStoreError(err error) *influxdb.Error {
 
 // InternalNotificationRuleStoreError is used when the error comes from an
 // internal system.
-func InternalNotificationRuleStoreError(err error) *influxdb.Error {
-	return &influxdb.Error{
-		Code: influxdb.EInternal,
+func InternalNotificationRuleStoreError(err error) *errors.Error {
+	return &errors.Error{
+		Code: errors.EInternal,
 		Msg:  fmt.Sprintf("Unknown internal notificationRule data error; Err: %v", err),
 		Op:   "kv/notificationRule",
 	}
@@ -104,7 +107,7 @@ func (s *RuleService) notificationRuleBucket(tx kv.Tx) (kv.Bucket, error) {
 }
 
 // CreateNotificationRule creates a new notification rule and sets b.ID with the new identifier.
-func (s *RuleService) CreateNotificationRule(ctx context.Context, nr influxdb.NotificationRuleCreate, userID influxdb.ID) error {
+func (s *RuleService) CreateNotificationRule(ctx context.Context, nr influxdb.NotificationRuleCreate, userID platform.ID) error {
 	// set notification rule ID
 	id := s.idGenerator.ID()
 	nr.SetID(id)
@@ -135,11 +138,11 @@ func (s *RuleService) CreateNotificationRule(ctx context.Context, nr influxdb.No
 	}
 
 	// set task to notification rule create status
-	_, err = s.tasks.UpdateTask(ctx, t.ID, influxdb.TaskUpdate{Status: pointer.String(string(nr.Status))})
+	_, err = s.tasks.UpdateTask(ctx, t.ID, taskmodel.TaskUpdate{Status: pointer.String(string(nr.Status))})
 	return err
 }
 
-func (s *RuleService) createNotificationRule(ctx context.Context, tx kv.Tx, nr influxdb.NotificationRuleCreate, userID influxdb.ID) error {
+func (s *RuleService) createNotificationRule(ctx context.Context, tx kv.Tx, nr influxdb.NotificationRuleCreate, userID platform.ID) error {
 	if err := nr.Valid(); err != nil {
 		return err
 	}
@@ -151,7 +154,7 @@ func (s *RuleService) createNotificationRule(ctx context.Context, tx kv.Tx, nr i
 	return s.putNotificationRule(ctx, tx, nr.NotificationRule)
 }
 
-func (s *RuleService) createNotificationTask(ctx context.Context, r influxdb.NotificationRuleCreate) (*influxdb.Task, error) {
+func (s *RuleService) createNotificationTask(ctx context.Context, r influxdb.NotificationRuleCreate) (*taskmodel.Task, error) {
 	ep, err := s.endpoints.FindNotificationEndpointByID(ctx, r.GetEndpointID())
 	if err != nil {
 		return nil, err
@@ -162,7 +165,7 @@ func (s *RuleService) createNotificationTask(ctx context.Context, r influxdb.Not
 		return nil, err
 	}
 
-	tc := influxdb.TaskCreate{
+	tc := taskmodel.TaskCreate{
 		Type:           r.Type(),
 		Flux:           script,
 		OwnerID:        r.GetOwnerID(),
@@ -181,7 +184,7 @@ func (s *RuleService) createNotificationTask(ctx context.Context, r influxdb.Not
 
 // UpdateNotificationRule updates a single notification rule.
 // Returns the new notification rule after update.
-func (s *RuleService) UpdateNotificationRule(ctx context.Context, id influxdb.ID, nr influxdb.NotificationRuleCreate, userID influxdb.ID) (influxdb.NotificationRule, error) {
+func (s *RuleService) UpdateNotificationRule(ctx context.Context, id platform.ID, nr influxdb.NotificationRuleCreate, userID platform.ID) (influxdb.NotificationRule, error) {
 	rule, err := s.FindNotificationRuleByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -215,7 +218,7 @@ func (s *RuleService) UpdateNotificationRule(ctx context.Context, id influxdb.ID
 	return nr.NotificationRule, err
 }
 
-func (s *RuleService) updateNotificationTask(ctx context.Context, r influxdb.NotificationRule, status *string) (*influxdb.Task, error) {
+func (s *RuleService) updateNotificationTask(ctx context.Context, r influxdb.NotificationRule, status *string) (*taskmodel.Task, error) {
 	ep, err := s.endpoints.FindNotificationEndpointByID(ctx, r.GetEndpointID())
 	if err != nil {
 		return nil, err
@@ -226,7 +229,7 @@ func (s *RuleService) updateNotificationTask(ctx context.Context, r influxdb.Not
 		return nil, err
 	}
 
-	tu := influxdb.TaskUpdate{
+	tu := taskmodel.TaskUpdate{
 		Flux:        &script,
 		Description: pointer.String(r.GetDescription()),
 		Status:      status,
@@ -242,7 +245,7 @@ func (s *RuleService) updateNotificationTask(ctx context.Context, r influxdb.Not
 
 // PatchNotificationRule updates a single  notification rule with changeset.
 // Returns the new notification rule state after update.
-func (s *RuleService) PatchNotificationRule(ctx context.Context, id influxdb.ID, upd influxdb.NotificationRuleUpdate) (influxdb.NotificationRule, error) {
+func (s *RuleService) PatchNotificationRule(ctx context.Context, id platform.ID, upd influxdb.NotificationRuleUpdate) (influxdb.NotificationRule, error) {
 	nr, err := s.FindNotificationRuleByID(ctx, id)
 	if err != nil {
 		return nil, err
@@ -314,7 +317,7 @@ func (s *RuleService) putNotificationRule(ctx context.Context, tx kv.Tx, nr infl
 }
 
 // FindNotificationRuleByID returns a single notification rule by ID.
-func (s *RuleService) FindNotificationRuleByID(ctx context.Context, id influxdb.ID) (influxdb.NotificationRule, error) {
+func (s *RuleService) FindNotificationRuleByID(ctx context.Context, id platform.ID) (influxdb.NotificationRule, error) {
 	var (
 		nr  influxdb.NotificationRule
 		err error
@@ -328,7 +331,7 @@ func (s *RuleService) FindNotificationRuleByID(ctx context.Context, id influxdb.
 	return nr, err
 }
 
-func (s *RuleService) findNotificationRuleByID(ctx context.Context, tx kv.Tx, id influxdb.ID) (influxdb.NotificationRule, error) {
+func (s *RuleService) findNotificationRuleByID(ctx context.Context, tx kv.Tx, id platform.ID) (influxdb.NotificationRule, error) {
 	encID, err := id.Encode()
 	if err != nil {
 		return nil, ErrInvalidNotificationRuleID
@@ -455,7 +458,7 @@ func filterNotificationRulesFn(filter influxdb.NotificationRuleFilter) func(nr i
 }
 
 // DeleteNotificationRule removes a notification rule by ID.
-func (s *RuleService) DeleteNotificationRule(ctx context.Context, id influxdb.ID) error {
+func (s *RuleService) DeleteNotificationRule(ctx context.Context, id platform.ID) error {
 	r, err := s.FindNotificationRuleByID(ctx, id)
 	if err != nil {
 		return err

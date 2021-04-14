@@ -8,13 +8,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/influxql/query"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/models"
 	"github.com/influxdata/influxdb/v2/tsdb"
 	_ "github.com/influxdata/influxdb/v2/tsdb/engine"
-	_ "github.com/influxdata/influxdb/v2/tsdb/index/inmem"
 	_ "github.com/influxdata/influxdb/v2/tsdb/index/tsi1"
 	"github.com/influxdata/influxdb/v2/v1/coordinator"
 	"github.com/influxdata/influxdb/v2/v1/services/meta"
@@ -138,13 +140,11 @@ func NewEngine(path string, c Config, options ...Option) *Engine {
 
 // WithLogger sets the logger on the Store. It must be called before Open.
 func (e *Engine) WithLogger(log *zap.Logger) {
-	fields := []zap.Field{}
-	fields = append(fields, zap.String("service", "storage-engine"))
-	e.logger = log.With(fields...)
+	e.logger = log.With(zap.String("service", "storage-engine"))
 
-	e.tsdbStore.Logger = e.logger
+	e.tsdbStore.WithLogger(e.logger)
 	if pw, ok := e.pointsWriter.(*coordinator.PointsWriter); ok {
-		pw.Logger = e.logger
+		pw.WithLogger(e.logger)
 	}
 
 	if e.retentionService != nil {
@@ -245,7 +245,7 @@ func (e *Engine) Close() error {
 // Rosalie was here lockdown 2020
 //
 // Appropriate errors are returned in those cases.
-func (e *Engine) WritePoints(ctx context.Context, orgID influxdb.ID, bucketID influxdb.ID, points []models.Point) error {
+func (e *Engine) WritePoints(ctx context.Context, orgID platform.ID, bucketID platform.ID, points []models.Point) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -266,8 +266,9 @@ func (e *Engine) CreateBucket(ctx context.Context, b *influxdb.Bucket) (err erro
 	defer span.Finish()
 
 	spec := meta.RetentionPolicySpec{
-		Name:     meta.DefaultRetentionPolicyName,
-		Duration: &b.RetentionPeriod,
+		Name:               meta.DefaultRetentionPolicyName,
+		Duration:           &b.RetentionPeriod,
+		ShardGroupDuration: b.ShardGroupDuration,
 	}
 
 	if _, err = e.metaClient.CreateDatabaseWithRetentionPolicy(b.ID.String(), &spec); err != nil {
@@ -277,23 +278,27 @@ func (e *Engine) CreateBucket(ctx context.Context, b *influxdb.Bucket) (err erro
 	return nil
 }
 
-func (e *Engine) UpdateBucketRetentionPeriod(ctx context.Context, bucketID influxdb.ID, d time.Duration) error {
+func (e *Engine) UpdateBucketRetentionPolicy(ctx context.Context, bucketID platform.ID, upd *influxdb.BucketUpdate) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
-	// A value of zero ensures the ShardGroupDuration is adjusted to an appropriate value based on the specified
-	//   duration
-	zero := time.Duration(0)
 	rpu := meta.RetentionPolicyUpdate{
-		Duration:           &d,
-		ShardGroupDuration: &zero,
+		Duration:           upd.RetentionPeriod,
+		ShardGroupDuration: upd.ShardGroupDuration,
 	}
 
-	return e.metaClient.UpdateRetentionPolicy(bucketID.String(), meta.DefaultRetentionPolicyName, &rpu, true)
+	err := e.metaClient.UpdateRetentionPolicy(bucketID.String(), meta.DefaultRetentionPolicyName, &rpu, true)
+	if err == meta.ErrIncompatibleDurations {
+		err = &errors2.Error{
+			Code: errors2.EUnprocessableEntity,
+			Msg:  "shard-group duration must also be updated to be smaller than new retention duration",
+		}
+	}
+	return err
 }
 
 // DeleteBucket deletes an entire bucket from the storage engine.
-func (e *Engine) DeleteBucket(ctx context.Context, orgID, bucketID influxdb.ID) error {
+func (e *Engine) DeleteBucket(ctx context.Context, orgID, bucketID platform.ID) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 	return e.tsdbStore.DeleteDatabase(bucketID.String())
@@ -301,7 +306,7 @@ func (e *Engine) DeleteBucket(ctx context.Context, orgID, bucketID influxdb.ID) 
 
 // DeleteBucketRangePredicate deletes data within a bucket from the storage engine. Any data
 // deleted must be in [min, max], and the key must match the predicate if provided.
-func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID influxdb.ID, min, max int64, pred influxdb.Predicate) error {
+func (e *Engine) DeleteBucketRangePredicate(ctx context.Context, orgID, bucketID platform.ID, min, max int64, pred influxdb.Predicate) error {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -380,7 +385,7 @@ func (e *Engine) RestoreKVStore(ctx context.Context, r io.Reader) error {
 	return nil
 }
 
-func (e *Engine) RestoreBucket(ctx context.Context, id influxdb.ID, buf []byte) (map[uint64]uint64, error) {
+func (e *Engine) RestoreBucket(ctx context.Context, id platform.ID, buf []byte) (map[uint64]uint64, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
@@ -458,7 +463,7 @@ func (e *Engine) RestoreShard(ctx context.Context, shardID uint64, r io.Reader) 
 }
 
 // SeriesCardinality returns the number of series in the engine.
-func (e *Engine) SeriesCardinality(orgID, bucketID influxdb.ID) int64 {
+func (e *Engine) SeriesCardinality(orgID, bucketID platform.ID) int64 {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	if e.closing == nil {

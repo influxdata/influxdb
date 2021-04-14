@@ -3,6 +3,7 @@ package v1tests
 import (
 	"context"
 	"encoding/json"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"io/ioutil"
 	"net/http"
 	"net/url"
@@ -11,20 +12,22 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/tests"
 	"github.com/influxdata/influxdb/v2/tests/pipeline"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zapcore"
-	"go.uber.org/zap/zaptest"
 )
 
-func OpenServer(t *testing.T, extra ...tests.PipelineOption) *tests.DefaultPipeline {
+func OpenServer(t *testing.T, extra ...launcher.OptSetter) *tests.DefaultPipeline {
 	t.Helper()
 
-	defaults := []tests.PipelineOption{
-		tests.WithLogger(zaptest.NewLogger(t, zaptest.Level(zapcore.ErrorLevel))),
+	defaults := []launcher.OptSetter{
+		func(o *launcher.InfluxdOpts) {
+			o.LogLevel = zapcore.ErrorLevel
+		},
 	}
 
 	p := tests.NewDefaultPipeline(t, append(defaults, extra...)...)
@@ -72,6 +75,7 @@ func (q *Query) Execute(ctx context.Context, t *testing.T, db string, c *tests.C
 		QueryParams(params...).
 		Header("Accept", "application/json").
 		RespFn(func(resp *http.Response) error {
+			require.Equal(t, "application/json", resp.Header.Get("Content-Type"))
 			b, err := ioutil.ReadAll(resp.Body)
 			q.got = strings.TrimSpace(string(b))
 			return err
@@ -88,8 +92,8 @@ type Write struct {
 type Writes []*Write
 
 type Test struct {
-	orgID            influxdb.ID
-	bucketID         influxdb.ID
+	orgID            platform.ID
+	bucketID         platform.ID
 	db               string
 	rp               string
 	writes           Writes
@@ -187,7 +191,7 @@ func (qt *Test) init(ctx context.Context, t *testing.T, p *tests.DefaultPipeline
 func (qt *Test) writeTestData(ctx context.Context, t *testing.T, c *tests.Client) {
 	t.Helper()
 	for _, w := range qt.writes {
-		err := c.Write(ctx, qt.orgID, qt.bucketID, strings.NewReader(w.data))
+		err := c.WriteTo(ctx, influxdb.BucketFilter{ID: &qt.bucketID, OrganizationID: &qt.orgID}, strings.NewReader(w.data))
 		require.NoError(t, err)
 	}
 }

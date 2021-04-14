@@ -13,9 +13,26 @@
 
 # SUBDIRS are directories that have their own Makefile.
 # It is required that all SUBDIRS have the `all` and `clean` targets.
-SUBDIRS := http ui chronograf query storage
-GO_TAGS=
-GO_ARGS=-tags '$(GO_TAGS)'
+SUBDIRS := http ui chronograf storage
+
+export GOPATH=$(shell go env GOPATH)
+export GOOS=$(shell go env GOOS)
+export GOARCH=$(shell go env GOARCH)
+
+ifneq (,$(filter $(GOARCH),amd64 s390x))
+	# Including the assets tag requires the UI to be built for compilation to succeed.
+	# Don't force it for running tests.
+	GO_TEST_TAGS :=
+	GO_BUILD_TAGS := assets
+else
+	# noasm needed to avoid a panic in Flux for non-amd64, non-s390x.
+	GO_TEST_TAGS := noasm
+	GO_BUILD_TAGS := assets,noasm
+endif
+
+GO_TEST_ARGS := -tags '$(GO_TEST_TAGS)'
+GO_BUILD_ARGS := -tags '$(GO_BUILD_TAGS)'
+
 ifeq ($(OS), Windows_NT)
 	VERSION := $(shell git describe --exact-match --tags 2>nil)
 else
@@ -28,18 +45,21 @@ ifdef VERSION
 	LDFLAGS += -X main.version=$(VERSION)
 endif
 
+# Allow for `go test` to be swapped out by other tooling, i.e. `gotestsum`
+GO_TEST_CMD=go test
+# Allow for a subset of tests to be specified.
+GO_TEST_PATHS=./...
 
 # Test vars can be used by all recursive Makefiles
 export PKG_CONFIG:=$(PWD)/scripts/pkg-config.sh
-export GOOS=$(shell go env GOOS)
-export GO_BUILD=env GO111MODULE=on go build $(GO_ARGS) -ldflags "$(LDFLAGS)"
-export GO_BUILD_SM=env GO111MODULE=on go build $(GO_ARGS) -ldflags "-s -w $(LDFLAGS)"
-export GO_INSTALL=env GO111MODULE=on go install $(GO_ARGS) -ldflags "$(LDFLAGS)"
-export GO_TEST=env GOTRACEBACK=all GO111MODULE=on go test $(GO_ARGS)
+export GO_BUILD=env GO111MODULE=on go build $(GO_BUILD_ARGS) -ldflags "$(LDFLAGS)"
+export GO_BUILD_SM=env GO111MODULE=on go build $(GO_BUILD_ARGS) -ldflags "-s -w $(LDFLAGS)"
+export GO_INSTALL=env GO111MODULE=on go install $(GO_BUILD_ARGS) -ldflags "$(LDFLAGS)"
+export GO_TEST=env GOTRACEBACK=all GO111MODULE=on $(GO_TEST_CMD) $(GO_TEST_ARGS)
 # Do not add GO111MODULE=on to the call to go generate so it doesn't pollute the environment.
-export GO_GENERATE=go generate $(GO_ARGS)
-export GO_VET=env GO111MODULE=on go vet $(GO_ARGS)
-export GO_RUN=env GO111MODULE=on go run $(GO_ARGS)
+export GO_GENERATE=go generate $(GO_BUILD_ARGS)
+export GO_VET=env GO111MODULE=on go vet $(GO_TEST_ARGS)
+export GO_RUN=env GO111MODULE=on go run $(GO_BUILD_ARGS)
 export PATH := $(PWD)/bin/$(GOOS):$(PATH)
 
 
@@ -60,18 +80,6 @@ CMDS := \
 	bin/$(GOOS)/influx \
 	bin/$(GOOS)/influxd
 
-# Default target to build all go commands.
-#
-# This target sets up the dependencies to correctly build all go commands.
-# Other targets must depend on this target to correctly builds CMDS.
-ifeq ($(GOARCH), arm64)
-    all: GO_ARGS=-tags 'assets noasm $(GO_TAGS)'
-    bin/$(GOOS)/influx: GO_ARGS=-tags 'noasm $(GO_TAGS)'
-else
-    all: GO_ARGS=-tags 'assets $(GO_TAGS)'
-    bin/$(GOOS)/influx:	GO_ARGS=-tags '$(GO_TAGS)'
-
-endif
 all: $(SUBDIRS) generate $(CMDS)
 
 # Target to build subdirs.
@@ -82,7 +90,7 @@ $(SUBDIRS):
 #
 # Define targets for commands
 #
-$(CMDS): $(SOURCES)
+bin/$(GOOS)/influxd: $(SOURCES)
 	$(GO_BUILD) -o $@ ./cmd/$(shell basename "$@")
 
 bin/$(GOOS)/influx: $(SOURCES)
@@ -120,7 +128,7 @@ ui_client:
 #
 
 fmt: $(SOURCES_NO_VENDOR)
-	gofmt -w -s $^
+	./etc/fmt.sh
 
 checkfmt:
 	./etc/checkfmt.sh
@@ -135,29 +143,34 @@ checktidy:
 checkgenerate:
 	./etc/checkgenerate.sh
 
-checkcommit:
-	# ./etc/circle-detect-committed-binaries.sh
-
 generate: $(SUBDIRS)
 
 test-js: node_modules
 	make -C ui test
 
-# Download tsdb testdata before running unit tests
 test-go:
-	$(GO_TEST) ./...
+	$(GO_TEST) $(GO_TEST_PATHS)
 
-test-promql-e2e:
-	cd query/promql/internal/promqltests; go test ./...
+test-flux:
+	@./etc/test-flux.sh
+
+test-tls:
+	@./etc/test-tls.sh
+
+test-influxql-integration:
+	$(GO_TEST) -mod=readonly ./influxql/_v1tests
+
+test-influxql-validation:
+	$(GO_TEST) -mod=readonly ./influxql/_v1validation
 
 test-integration: GO_TAGS=integration
 test-integration:
-	$(GO_TEST) -count=1 ./...
+	$(GO_TEST) -count=1 $(GO_TEST_PATHS)
 
 test: test-go test-js
 
 test-go-race:
-	$(GO_TEST) -v -race -count=1 ./...
+	$(GO_TEST) -v -race -count=1 $(GO_TEST_PATHS)
 
 vet:
 	$(GO_VET) -v ./...
@@ -167,24 +180,8 @@ bench:
 
 build: all
 
-goreleaser:
-	curl -sfL -o goreleaser-install https://install.goreleaser.com/github.com/goreleaser/goreleaser.sh
-	sh goreleaser-install v0.142.0
+pkg-config:
 	go build -o $(GOPATH)/bin/pkg-config github.com/influxdata/pkg-config
-	install xcc.sh $(GOPATH)/bin/xcc
-
-# Parallelism for goreleaser must be set to 1 so it doesn't
-# attempt to invoke pkg-config, which invokes cargo,
-# for multiple targets at the same time.
-dist: goreleaser
-	./bin/goreleaser -p 1 --skip-validate --rm-dist --config=.goreleaser-nightly.yml
-
-nightly: goreleaser
-	./bin/goreleaser -p 1 --skip-validate --rm-dist --config=.goreleaser-nightly.yml
-
-release: goreleaser
-	git checkout -- go.sum # avoid dirty git repository caused by go install
-	./bin/goreleaser release -p 1 --rm-dist
 
 clean:
 	@for d in $(SUBDIRS); do $(MAKE) -C $$d clean; done
@@ -211,12 +208,6 @@ run: chronogiraffe
 run-e2e: chronogiraffe
 	./bin/$(GOOS)/influxd --assets-path=ui/build --e2e-testing --store=memory
 
-# assume this is running from circleci
-protoc:
-	curl -s -L https://github.com/protocolbuffers/protobuf/releases/download/v3.6.1/protoc-3.6.1-linux-x86_64.zip > /tmp/protoc.zip
-	unzip -o -d /go /tmp/protoc.zip
-	chmod +x /go/bin/protoc
-
 # generate feature flags
 flags:
 	$(GO_GENERATE) ./kit/feature
@@ -237,4 +228,4 @@ dshell: dshell-image
 	@docker container run --rm -p 8086:8086 -p 8080:8080 -u $(shell id -u) -it -v $(shell pwd):/code -w /code influxdb:dshell 
 
 # .PHONY targets represent actions that do not create an actual file.
-.PHONY: all $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e influxd libflux flags dshell dclean docker-image-flux docker-image-influx goreleaser
+.PHONY: all $(SUBDIRS) run fmt checkfmt tidy checktidy checkgenerate test test-go test-js test-go-race test-tls bench clean node_modules vet nightly chronogiraffe dist ping protoc e2e run-e2e influxd libflux flags dshell dclean docker-image-flux docker-image-influx pkg-config

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"go.uber.org/zap"
 )
@@ -35,7 +37,7 @@ func (l *LabelLogger) CreateLabel(ctx context.Context, label *influxdb.Label) (e
 	return l.labelService.CreateLabel(ctx, label)
 }
 
-func (l *LabelLogger) FindLabelByID(ctx context.Context, id influxdb.ID) (label *influxdb.Label, err error) {
+func (l *LabelLogger) FindLabelByID(ctx context.Context, id platform.ID) (label *influxdb.Label, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -74,7 +76,7 @@ func (l *LabelLogger) FindResourceLabels(ctx context.Context, filter influxdb.La
 	return l.labelService.FindResourceLabels(ctx, filter)
 }
 
-func (l *LabelLogger) UpdateLabel(ctx context.Context, id influxdb.ID, upd influxdb.LabelUpdate) (lbl *influxdb.Label, err error) {
+func (l *LabelLogger) UpdateLabel(ctx context.Context, id platform.ID, upd influxdb.LabelUpdate) (lbl *influxdb.Label, err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {
@@ -87,7 +89,7 @@ func (l *LabelLogger) UpdateLabel(ctx context.Context, id influxdb.ID, upd influ
 	return l.labelService.UpdateLabel(ctx, id, upd)
 }
 
-func (l *LabelLogger) DeleteLabel(ctx context.Context, id influxdb.ID) (err error) {
+func (l *LabelLogger) DeleteLabel(ctx context.Context, id platform.ID) (err error) {
 	defer func(start time.Time) {
 		dur := zap.Duration("took", time.Since(start))
 		if err != nil {

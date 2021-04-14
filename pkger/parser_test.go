@@ -14,9 +14,11 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/notification"
 	icheck "github.com/influxdata/influxdb/v2/notification/check"
 	"github.com/influxdata/influxdb/v2/notification/endpoint"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1286,6 +1288,7 @@ spec:
 						props, ok := actualChart.Properties.(influxdb.MosaicViewProperties)
 						require.True(t, ok)
 						assert.Equal(t, "mosaic note", props.Note)
+						assert.Equal(t, "y", props.HoverDimension)
 						assert.True(t, props.ShowNoteWhenEmpty)
 
 						require.Len(t, props.Queries, 1)
@@ -1294,6 +1297,8 @@ spec:
 						assert.Equal(t, expectedQuery, q.Text)
 						assert.Equal(t, "advanced", q.EditMode)
 
+						assert.Equal(t, ",", props.YLabelColumnSeparator)
+						assert.Equal(t, []string{"foo"}, props.YLabelColumns)
 						assert.Equal(t, []string{"_value", "foo"}, props.YSeriesColumns)
 						assert.Equal(t, []float64{0, 10}, props.XDomain)
 						assert.Equal(t, []float64{0, 100}, props.YDomain)
@@ -2704,7 +2709,7 @@ spec:
 							Base: endpoint.Base{
 								Name:        "basic endpoint name",
 								Description: "http basic auth desc",
-								Status:      influxdb.TaskStatusInactive,
+								Status:      taskmodel.TaskStatusInactive,
 							},
 							URL:        "https://www.example.com/endpoint/basicauth",
 							AuthMethod: "basic",
@@ -2722,7 +2727,7 @@ spec:
 							Base: endpoint.Base{
 								Name:        "http-bearer-auth-notification-endpoint",
 								Description: "http bearer auth desc",
-								Status:      influxdb.TaskStatusActive,
+								Status:      taskmodel.TaskStatusActive,
 							},
 							URL:        "https://www.example.com/endpoint/bearerauth",
 							AuthMethod: "bearer",
@@ -2739,7 +2744,7 @@ spec:
 							Base: endpoint.Base{
 								Name:        "http-none-auth-notification-endpoint",
 								Description: "http none auth desc",
-								Status:      influxdb.TaskStatusActive,
+								Status:      taskmodel.TaskStatusActive,
 							},
 							URL:        "https://www.example.com/endpoint/noneauth",
 							AuthMethod: "none",
@@ -2755,7 +2760,7 @@ spec:
 							Base: endpoint.Base{
 								Name:        "pager duty name",
 								Description: "pager duty desc",
-								Status:      influxdb.TaskStatusActive,
+								Status:      taskmodel.TaskStatusActive,
 							},
 							ClientURL:  "http://localhost:8080/orgs/7167eb6719fa34e5/alert-history",
 							RoutingKey: influxdb.SecretField{Value: strPtr("secret routing-key")},
@@ -2770,7 +2775,7 @@ spec:
 							Base: endpoint.Base{
 								Name:        "slack name",
 								Description: "slack desc",
-								Status:      influxdb.TaskStatusActive,
+								Status:      taskmodel.TaskStatusActive,
 							},
 							URL:   "https://hooks.slack.com/services/bip/piddy/boppidy",
 							Token: influxdb.SecretField{Value: strPtr("tokenval")},
@@ -4240,7 +4245,7 @@ spec:
 			expected := &endpoint.PagerDuty{
 				Base: endpoint.Base{
 					Name:   "pager-duty-notification-endpoint",
-					Status: influxdb.TaskStatusActive,
+					Status: taskmodel.TaskStatusActive,
 				},
 				ClientURL:  "http://localhost:8080/orgs/7167eb6719fa34e5/alert-history",
 				RoutingKey: influxdb.SecretField{Key: "-routing-key", Value: strPtr("not empty")},
@@ -4558,17 +4563,17 @@ func Test_IsParseError(t *testing.T) {
 		},
 		{
 			name: "wrapped by influxdb error",
-			err: &influxdb.Error{
+			err: &errors2.Error{
 				Err: &parseErr{},
 			},
 			expected: true,
 		},
 		{
 			name: "deeply nested in influxdb error",
-			err: &influxdb.Error{
-				Err: &influxdb.Error{
-					Err: &influxdb.Error{
-						Err: &influxdb.Error{
+			err: &errors2.Error{
+				Err: &errors2.Error{
+					Err: &errors2.Error{
+						Err: &errors2.Error{
 							Err: &parseErr{},
 						},
 					},
@@ -4578,7 +4583,7 @@ func Test_IsParseError(t *testing.T) {
 		},
 		{
 			name: "influxdb error without nested parse err",
-			err: &influxdb.Error{
+			err: &errors2.Error{
 				Err: errors.New("nope"),
 			},
 			expected: false,

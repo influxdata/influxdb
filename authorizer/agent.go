@@ -3,6 +3,9 @@ package authorizer
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
@@ -11,7 +14,7 @@ import (
 type AuthAgent struct{}
 
 // OrgPermissions identifies if a user has access to the org by the specified action.
-func (a *AuthAgent) OrgPermissions(ctx context.Context, orgID influxdb.ID, action influxdb.Action, rest ...influxdb.Action) error {
+func (a *AuthAgent) OrgPermissions(ctx context.Context, orgID platform.ID, action influxdb.Action, rest ...influxdb.Action) error {
 	for _, action := range append(rest, action) {
 		var err error
 		switch action {
@@ -20,7 +23,7 @@ func (a *AuthAgent) OrgPermissions(ctx context.Context, orgID influxdb.ID, actio
 		case influxdb.WriteAction:
 			_, _, err = AuthorizeWriteOrg(ctx, orgID)
 		default:
-			err = &influxdb.Error{Code: influxdb.EInvalid, Msg: "invalid action provided: " + string(action)}
+			err = &errors.Error{Code: errors.EInvalid, Msg: "invalid action provided: " + string(action)}
 		}
 		if err != nil {
 			return err
@@ -29,13 +32,13 @@ func (a *AuthAgent) OrgPermissions(ctx context.Context, orgID influxdb.ID, actio
 	return nil
 }
 
-func (a *AuthAgent) IsWritable(ctx context.Context, orgID influxdb.ID, resType influxdb.ResourceType) error {
+func (a *AuthAgent) IsWritable(ctx context.Context, orgID platform.ID, resType influxdb.ResourceType) error {
 	_, _, resTypeErr := AuthorizeOrgWriteResource(ctx, resType, orgID)
 	_, _, orgErr := AuthorizeWriteOrg(ctx, orgID)
 
 	if resTypeErr != nil && orgErr != nil {
-		return &influxdb.Error{
-			Code: influxdb.EUnauthorized,
+		return &errors.Error{
+			Code: errors.EUnauthorized,
 			Msg:  "not authorized to create " + string(resType),
 		}
 	}

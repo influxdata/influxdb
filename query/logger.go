@@ -3,6 +3,8 @@ package query
 import (
 	"time"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/flux"
 	platform "github.com/influxdata/influxdb/v2"
 )
@@ -17,7 +19,7 @@ type Log struct {
 	// Time is the time the query was completed
 	Time time.Time
 	// OrganizationID is the ID of the organization that requested the query
-	OrganizationID platform.ID
+	OrganizationID platform2.ID
 	// TraceID is the ID of the trace related to this query
 	TraceID string
 	// Sampled specifies whether the trace for TraceID was chosen for permanent storage

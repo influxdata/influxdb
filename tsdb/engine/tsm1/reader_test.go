@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"sort"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func fatal(t *testing.T, msg string, err error) {
@@ -68,11 +70,11 @@ func TestTSMReader_MMAP_ReadAll(t *testing.T) {
 	}
 
 	var data = map[string][]Value{
-		"float":  []Value{NewValue(1, 1.0)},
-		"int":    []Value{NewValue(1, int64(1))},
-		"uint":   []Value{NewValue(1, ^uint64(0))},
-		"bool":   []Value{NewValue(1, true)},
-		"string": []Value{NewValue(1, "foo")},
+		"float":  {NewValue(1, 1.0)},
+		"int":    {NewValue(1, int64(1))},
+		"uint":   {NewValue(1, ^uint64(0))},
+		"bool":   {NewValue(1, true)},
+		"string": {NewValue(1, "foo")},
 	}
 
 	keys := make([]string, 0, len(data))
@@ -142,15 +144,15 @@ func TestTSMReader_MMAP_Read(t *testing.T) {
 	}
 
 	var data = map[string][]Value{
-		"float": []Value{
+		"float": {
 			NewValue(1, 1.0)},
-		"int": []Value{
+		"int": {
 			NewValue(1, int64(1))},
-		"uint": []Value{
+		"uint": {
 			NewValue(1, ^uint64(0))},
-		"bool": []Value{
+		"bool": {
 			NewValue(1, true)},
-		"string": []Value{
+		"string": {
 			NewValue(1, "foo")},
 	}
 
@@ -221,15 +223,15 @@ func TestTSMReader_MMAP_Keys(t *testing.T) {
 	}
 
 	var data = map[string][]Value{
-		"float": []Value{
+		"float": {
 			NewValue(1, 1.0)},
-		"int": []Value{
+		"int": {
 			NewValue(1, int64(1))},
-		"uint": []Value{
+		"uint": {
 			NewValue(1, ^uint64(0))},
-		"bool": []Value{
+		"bool": {
 			NewValue(1, true)},
-		"string": []Value{
+		"string": {
 			NewValue(1, "foo")},
 	}
 
@@ -465,9 +467,7 @@ func TestTSMReader_MMAP_TombstoneOutsideTimeRange(t *testing.T) {
 		t.Fatalf("HasTombstones mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := len(r.TombstoneFiles()), 0; got != exp {
-		t.Fatalf("TombstoneFiles len mismatch: got %v, exp %v", got, exp)
-	}
+	require.False(t, r.TombstoneStats().TombstoneExists)
 }
 
 func TestTSMReader_MMAP_TombstoneOutsideKeyRange(t *testing.T) {
@@ -529,10 +529,7 @@ func TestTSMReader_MMAP_TombstoneOutsideKeyRange(t *testing.T) {
 		t.Fatalf("HasTombstones mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := len(r.TombstoneFiles()), 0; got != exp {
-		t.Fatalf("TombstoneFiles len mismatch: got %v, exp %v", got, exp)
-
-	}
+	require.False(t, r.TombstoneStats().TombstoneExists)
 }
 
 func TestTSMReader_MMAP_TombstoneOverlapKeyRange(t *testing.T) {
@@ -598,9 +595,7 @@ func TestTSMReader_MMAP_TombstoneOverlapKeyRange(t *testing.T) {
 		t.Fatalf("HasTombstones mismatch: got %v, exp %v", got, exp)
 	}
 
-	if got, exp := len(r.TombstoneFiles()), 1; got != exp {
-		t.Fatalf("TombstoneFiles len mismatch: got %v, exp %v", got, exp)
-	}
+	require.True(t, r.TombstoneStats().TombstoneExists)
 }
 
 func TestTSMReader_MMAP_TombstoneFullRange(t *testing.T) {
@@ -1395,11 +1390,11 @@ func TestBlockIterator_Sorted(t *testing.T) {
 	}
 
 	values := map[string][]Value{
-		"mem":    []Value{NewValue(0, int64(1))},
-		"cycles": []Value{NewValue(0, ^uint64(0))},
-		"cpu":    []Value{NewValue(1, float64(2))},
-		"disk":   []Value{NewValue(1, true)},
-		"load":   []Value{NewValue(1, "string")},
+		"mem":    {NewValue(0, int64(1))},
+		"cycles": {NewValue(0, ^uint64(0))},
+		"cpu":    {NewValue(1, float64(2))},
+		"disk":   {NewValue(1, true)},
+		"load":   {NewValue(1, "string")},
 	}
 
 	keys := make([]string, 0, len(values))
@@ -1560,15 +1555,15 @@ func TestTSMReader_File_ReadAll(t *testing.T) {
 	}
 
 	var data = map[string][]Value{
-		"float": []Value{
+		"float": {
 			NewValue(1, 1.0)},
-		"int": []Value{
+		"int": {
 			NewValue(1, int64(1))},
-		"uint": []Value{
+		"uint": {
 			NewValue(1, ^uint64(0))},
-		"bool": []Value{
+		"bool": {
 			NewValue(1, true)},
-		"string": []Value{
+		"string": {
 			NewValue(1, "foo")},
 	}
 
@@ -1708,15 +1703,15 @@ func TestTSMReader_File_Read(t *testing.T) {
 	}
 
 	var data = map[string][]Value{
-		"float": []Value{
+		"float": {
 			NewValue(1, 1.0)},
-		"int": []Value{
+		"int": {
 			NewValue(1, int64(1))},
-		"uint": []Value{
+		"uint": {
 			NewValue(1, ^uint64(0))},
-		"bool": []Value{
+		"bool": {
 			NewValue(1, true)},
-		"string": []Value{
+		"string": {
 			NewValue(1, "foo")},
 	}
 
@@ -1787,15 +1782,15 @@ func TestTSMReader_References(t *testing.T) {
 	}
 
 	var data = map[string][]Value{
-		"float": []Value{
+		"float": {
 			NewValue(1, 1.0)},
-		"int": []Value{
+		"int": {
 			NewValue(1, int64(1))},
-		"uint": []Value{
+		"uint": {
 			NewValue(1, ^uint64(0))},
-		"bool": []Value{
+		"bool": {
 			NewValue(1, true)},
-		"string": []Value{
+		"string": {
 			NewValue(1, "foo")},
 	}
 

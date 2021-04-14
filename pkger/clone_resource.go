@@ -10,12 +10,14 @@ import (
 
 	"github.com/influxdata/influxdb/v2"
 	ierrors "github.com/influxdata/influxdb/v2/kit/errors"
+	"github.com/influxdata/influxdb/v2/kit/platform"
 	"github.com/influxdata/influxdb/v2/notification"
 	icheck "github.com/influxdata/influxdb/v2/notification/check"
 	"github.com/influxdata/influxdb/v2/notification/endpoint"
 	"github.com/influxdata/influxdb/v2/notification/rule"
 	"github.com/influxdata/influxdb/v2/pkger/internal/wordplay"
 	"github.com/influxdata/influxdb/v2/snowflake"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 )
 
 var idGenerator = snowflake.NewDefaultIDGenerator()
@@ -27,7 +29,7 @@ type NameGenerator func() string
 // ResourceToClone is a resource that will be cloned.
 type ResourceToClone struct {
 	Kind Kind        `json:"kind"`
-	ID   influxdb.ID `json:"id,omitempty"`
+	ID   platform.ID `json:"id,omitempty"`
 	Name string      `json:"name"`
 	// note(jsteenb2): For time being we'll allow this internally, but not externally. A lot of
 	// issues to account for when exposing this to the outside world. Not something I'm keen
@@ -40,7 +42,7 @@ func (r ResourceToClone) OK() error {
 	if err := r.Kind.OK(); err != nil {
 		return err
 	}
-	if r.ID == influxdb.ID(0) && len(r.Name) == 0 {
+	if r.ID == platform.ID(0) && len(r.Name) == 0 {
 		return errors.New("must provide an ID or name")
 	}
 	return nil
@@ -64,13 +66,13 @@ var kindPriorities = map[Kind]int{
 }
 
 type exportKey struct {
-	orgID influxdb.ID
-	id    influxdb.ID
+	orgID platform.ID
+	id    platform.ID
 	name  string
 	kind  Kind
 }
 
-func newExportKey(orgID, id influxdb.ID, k Kind, name string) exportKey {
+func newExportKey(orgID, id platform.ID, k Kind, name string) exportKey {
 	return exportKey{
 		orgID: orgID,
 		id:    id,
@@ -88,7 +90,7 @@ type resourceExporter struct {
 	labelSVC    influxdb.LabelService
 	endpointSVC influxdb.NotificationEndpointService
 	ruleSVC     influxdb.NotificationRuleStore
-	taskSVC     influxdb.TaskService
+	taskSVC     taskmodel.TaskService
 	teleSVC     influxdb.TelegrafConfigStore
 	varSVC      influxdb.VariableService
 
@@ -116,7 +118,7 @@ func newResourceExporter(svc *Service) *resourceExporter {
 }
 
 func (ex *resourceExporter) Export(ctx context.Context, resourcesToClone []ResourceToClone, labelNames ...string) error {
-	mLabelIDsToMetaName := make(map[influxdb.ID]string)
+	mLabelIDsToMetaName := make(map[platform.ID]string)
 	for _, r := range resourcesToClone {
 		if !r.Kind.is(KindLabel) || r.MetaName == "" {
 			continue
@@ -174,7 +176,7 @@ func (ex *resourceExporter) StackResources() []StackResource {
 // we only need an id when we have resources that are not unique by name via the
 // metastore. resoureces that are unique by name will be provided a default stamp
 // making looksup unique since each resource will be unique by name.
-const uniqByNameResID = influxdb.ID(0)
+const uniqByNameResID = platform.ID(0)
 
 type cloneAssociationsFn func(context.Context, ResourceToClone) (associations []ObjectAssociation, skipResource bool, err error)
 
@@ -193,7 +195,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		return nil
 	}
 
-	mapResource := func(orgID, uniqResID influxdb.ID, k Kind, object Object) {
+	mapResource := func(orgID, uniqResID platform.ID, k Kind, object Object) {
 		// overwrite the default metadata.name field with export generated one here
 		metaName := r.MetaName
 		if r.MetaName == "" {
@@ -220,7 +222,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 	switch {
 	case r.Kind.is(KindBucket):
 		filter := influxdb.BucketFilter{}
-		if r.ID != influxdb.ID(0) {
+		if r.ID != platform.ID(0) {
 			filter.ID = &r.ID
 		}
 		if len(r.Name) > 0 {
@@ -240,7 +242,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		}
 	case r.Kind.is(KindCheck), r.Kind.is(KindCheckDeadman), r.Kind.is(KindCheckThreshold):
 		filter := influxdb.CheckFilter{}
-		if r.ID != influxdb.ID(0) {
+		if r.ID != platform.ID(0) {
 			filter.ID = &r.ID
 		}
 		if len(r.Name) > 0 {
@@ -262,9 +264,9 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 			hasID  bool
 			filter = influxdb.DashboardFilter{}
 		)
-		if r.ID != influxdb.ID(0) {
+		if r.ID != platform.ID(0) {
 			hasID = true
-			filter.IDs = []*influxdb.ID{&r.ID}
+			filter.IDs = []*platform.ID{&r.ID}
 		}
 
 		dashes, _, err := ex.dashSVC.FindDashboards(ctx, filter, influxdb.DefaultDashboardFindOptions)
@@ -295,7 +297,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		}
 	case r.Kind.is(KindLabel):
 		switch {
-		case r.ID != influxdb.ID(0):
+		case r.ID != platform.ID(0):
 			l, err := ex.labelSVC.FindLabelByID(ctx, r.ID)
 			if err != nil {
 				return err
@@ -319,7 +321,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		var endpoints []influxdb.NotificationEndpoint
 
 		switch {
-		case r.ID != influxdb.ID(0):
+		case r.ID != platform.ID(0):
 			notifEndpoint, err := ex.endpointSVC.FindNotificationEndpointByID(ctx, r.ID)
 			if err != nil {
 				return err
@@ -350,7 +352,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		var rules []influxdb.NotificationRule
 
 		switch {
-		case r.ID != influxdb.ID(0):
+		case r.ID != platform.ID(0):
 			r, err := ex.ruleSVC.FindNotificationRuleByID(ctx, r.ID)
 			if err != nil {
 				return err
@@ -392,14 +394,14 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		}
 	case r.Kind.is(KindTask):
 		switch {
-		case r.ID != influxdb.ID(0):
+		case r.ID != platform.ID(0):
 			t, err := ex.taskSVC.FindTaskByID(ctx, r.ID)
 			if err != nil {
 				return err
 			}
 			mapResource(t.OrganizationID, t.ID, KindTask, TaskToObject(r.Name, *t))
 		case len(r.Name) > 0:
-			tasks, n, err := ex.taskSVC.FindTasks(ctx, influxdb.TaskFilter{Name: &r.Name})
+			tasks, n, err := ex.taskSVC.FindTasks(ctx, taskmodel.TaskFilter{Name: &r.Name})
 			if err != nil {
 				return err
 			}
@@ -413,7 +415,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		}
 	case r.Kind.is(KindTelegraf):
 		switch {
-		case r.ID != influxdb.ID(0):
+		case r.ID != platform.ID(0):
 			t, err := ex.teleSVC.FindTelegrafConfigByID(ctx, r.ID)
 			if err != nil {
 				return err
@@ -441,7 +443,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 		}
 	case r.Kind.is(KindVariable):
 		switch {
-		case r.ID != influxdb.ID(0):
+		case r.ID != platform.ID(0):
 			v, err := ex.varSVC.FindVariableByID(ctx, r.ID)
 			if err != nil {
 				return err
@@ -473,7 +475,7 @@ func (ex *resourceExporter) resourceCloneToKind(ctx context.Context, r ResourceT
 	return nil
 }
 
-func (ex *resourceExporter) resourceCloneAssociationsGen(ctx context.Context, labelIDsToMetaName map[influxdb.ID]string, labelNames ...string) (cloneAssociationsFn, error) {
+func (ex *resourceExporter) resourceCloneAssociationsGen(ctx context.Context, labelIDsToMetaName map[platform.ID]string, labelNames ...string) (cloneAssociationsFn, error) {
 	mLabelNames := make(map[string]bool)
 	for _, labelName := range labelNames {
 		mLabelNames[labelName] = true
@@ -494,7 +496,7 @@ func (ex *resourceExporter) resourceCloneAssociationsGen(ctx context.Context, la
 			return nil, shouldSkip, nil
 		}
 
-		if len(r.Name) > 0 && r.ID == influxdb.ID(0) {
+		if len(r.Name) > 0 && r.ID == platform.ID(0) {
 			return nil, false, nil
 		}
 
@@ -562,7 +564,7 @@ func (ex *resourceExporter) uniqName() string {
 	return uniqMetaName(ex.nameGen, idGenerator, ex.mPkgNames)
 }
 
-func uniqMetaName(nameGen NameGenerator, idGen influxdb.IDGenerator, existingNames map[string]bool) string {
+func uniqMetaName(nameGen NameGenerator, idGen platform.IDGenerator, existingNames map[string]bool) string {
 	uuid := strings.ToLower(idGen.ID().String())
 	name := uuid
 	for i := 1; i < 250; i++ {
@@ -577,7 +579,7 @@ func uniqMetaName(nameGen NameGenerator, idGen influxdb.IDGenerator, existingNam
 func uniqResourcesToClone(resources []ResourceToClone) []ResourceToClone {
 	type key struct {
 		kind Kind
-		id   influxdb.ID
+		id   platform.ID
 	}
 	m := make(map[key]ResourceToClone)
 
@@ -623,7 +625,7 @@ func CheckToObject(name string, ch influxdb.Check) Object {
 	o := newObject(KindCheck, name)
 	assignNonZeroStrings(o.Spec, map[string]string{
 		fieldDescription: ch.GetDescription(),
-		fieldStatus:      influxdb.TaskStatusActive,
+		fieldStatus:      taskmodel.TaskStatusActive,
 	})
 
 	assignBase := func(base icheck.Base) {
@@ -749,6 +751,18 @@ func convertCellView(cell influxdb.Cell) chart {
 		setNoteFixes(p.Note, p.ShowNoteWhenEmpty, p.Prefix, p.Suffix)
 		ch.TickPrefix = p.TickPrefix
 		ch.TickSuffix = p.TickSuffix
+	case influxdb.GeoViewProperties:
+		ch.Kind = chartKindGeo
+		ch.Queries = convertQueries(p.Queries)
+		ch.Zoom = p.Zoom
+		ch.Center = center{Lat: p.Center.Lat, Lon: p.Center.Lon}
+		ch.MapStyle = p.MapStyle
+		ch.AllowPanAndZoom = p.AllowPanAndZoom
+		ch.DetectCoordinateFields = p.DetectCoordinateFields
+		ch.Colors = convertColors(p.ViewColor)
+		ch.GeoLayers = convertGeoLayers(p.GeoLayers)
+		ch.Note = p.Note
+		ch.NoteOnEmpty = p.ShowNoteWhenEmpty
 	case influxdb.HeatmapViewProperties:
 		ch.Kind = chartKindHeatMap
 		ch.Queries = convertQueries(p.Queries)
@@ -820,11 +834,14 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.Kind = chartKindMosaic
 		ch.Queries = convertQueries(p.Queries)
 		ch.Colors = stringsToColors(p.ViewColors)
+		ch.HoverDimension = p.HoverDimension
 		ch.XCol = p.XColumn
 		ch.GenerateXAxisTicks = p.GenerateXAxisTicks
 		ch.XTotalTicks = p.XTotalTicks
 		ch.XTickStart = p.XTickStart
 		ch.XTickStep = p.XTickStep
+		ch.YLabelColumnSeparator = p.YLabelColumnSeparator
+		ch.YLabelColumns = p.YLabelColumns
 		ch.YSeriesColumns = p.YSeriesColumns
 		ch.Axes = []axis{
 			{Label: p.XAxisLabel, Prefix: p.XPrefix, Suffix: p.XSuffix, Name: "x", Domain: p.XDomain},
@@ -950,6 +967,9 @@ func convertChartToResource(ch chart) Resource {
 	if len(ch.Axes) > 0 {
 		r[fieldChartAxes] = ch.Axes
 	}
+	if len(ch.YLabelColumns) > 0 {
+		r[fieldChartYLabelColumns] = ch.YLabelColumns
+	}
 	if len(ch.YSeriesColumns) > 0 {
 		r[fieldChartYSeriesColumns] = ch.YSeriesColumns
 	}
@@ -980,6 +1000,43 @@ func convertChartToResource(ch chart) Resource {
 
 	if len(ch.GenerateYAxisTicks) > 0 {
 		r[fieldChartGenerateYAxisTicks] = ch.GenerateYAxisTicks
+	}
+	if len(ch.GeoLayers) > 0 {
+		geoLayers := make([]Resource, 0, len(ch.GeoLayers))
+		for _, l := range ch.GeoLayers {
+			lRes := make(Resource)
+			geoLayers = append(geoLayers, lRes)
+			assignNonZeroStrings(lRes, map[string]string{
+				fieldChartGeoLayerType:           l.Type,
+				fieldChartGeoLayerRadiusField:    l.RadiusField,
+				fieldChartGeoLayerIntensityField: l.IntensityField,
+				fieldChartGeoLayerColorField:     l.ColorField,
+			})
+			assignNonZeroInts(lRes, map[string]int{
+				fieldChartGeoLayerRadius:     int(l.Radius),
+				fieldChartGeoLayerBlur:       int(l.Blur),
+				fieldChartGeoLayerSpeed:      int(l.Speed),
+				fieldChartGeoLayerTrackWidth: int(l.TrackWidth),
+			})
+			assignNonZeroBools(lRes, map[string]bool{
+				fieldChartGeoLayerRandomColors:      l.RandomColors,
+				fieldChartGeoLayerIsClustered:       l.IsClustered,
+				fieldChartGeoLayerInterpolateColors: l.InterpolateColors,
+			})
+			if len(l.ViewColors) > 0 {
+				lRes[fieldChartGeoLayerViewColors] = l.ViewColors
+			}
+			if l.RadiusDimension != nil {
+				lRes[fieldChartGeoLayerRadiusDimension] = l.RadiusDimension
+			}
+			if l.ColorDimension != nil {
+				lRes[fieldChartGeoLayerColorDimension] = l.ColorDimension
+			}
+			if l.IntensityDimension != nil {
+				lRes[fieldChartGeoLayerIntensityDimension] = l.IntensityDimension
+			}
+		}
+		r[fieldChartGeoLayers] = geoLayers
 	}
 
 	if zero := new(tableOptions); ch.TableOptions != *zero {
@@ -1012,23 +1069,27 @@ func convertChartToResource(ch chart) Resource {
 	}
 
 	assignNonZeroBools(r, map[string]bool{
-		fieldChartNoteOnEmpty:        ch.NoteOnEmpty,
-		fieldChartShade:              ch.Shade,
-		fieldChartLegendColorizeRows: ch.LegendColorizeRows,
+		fieldChartNoteOnEmpty:               ch.NoteOnEmpty,
+		fieldChartShade:                     ch.Shade,
+		fieldChartLegendColorizeRows:        ch.LegendColorizeRows,
+		fieldChartGeoAllowPanAndZoom:        ch.AllowPanAndZoom,
+		fieldChartGeoDetectCoordinateFields: ch.DetectCoordinateFields,
 	})
 
 	assignNonZeroStrings(r, map[string]string{
-		fieldChartNote:           ch.Note,
-		fieldPrefix:              ch.Prefix,
-		fieldSuffix:              ch.Suffix,
-		fieldChartGeom:           ch.Geom,
-		fieldChartXCol:           ch.XCol,
-		fieldChartYCol:           ch.YCol,
-		fieldChartPosition:       ch.Position,
-		fieldChartTickPrefix:     ch.TickPrefix,
-		fieldChartTickSuffix:     ch.TickSuffix,
-		fieldChartTimeFormat:     ch.TimeFormat,
-		fieldChartHoverDimension: ch.HoverDimension,
+		fieldChartNote:                  ch.Note,
+		fieldPrefix:                     ch.Prefix,
+		fieldSuffix:                     ch.Suffix,
+		fieldChartGeom:                  ch.Geom,
+		fieldChartXCol:                  ch.XCol,
+		fieldChartYCol:                  ch.YCol,
+		fieldChartPosition:              ch.Position,
+		fieldChartTickPrefix:            ch.TickPrefix,
+		fieldChartTickSuffix:            ch.TickSuffix,
+		fieldChartTimeFormat:            ch.TimeFormat,
+		fieldChartHoverDimension:        ch.HoverDimension,
+		fieldChartYLabelColumnSeparator: ch.YLabelColumnSeparator,
+		fieldChartGeoMapStyle:           ch.MapStyle,
 	})
 
 	assignNonZeroInts(r, map[string]int{
@@ -1047,22 +1108,29 @@ func convertChartToResource(ch chart) Resource {
 		fieldChartXTickStep:     ch.XTickStep,
 		fieldChartYTickStart:    ch.YTickStart,
 		fieldChartYTickStep:     ch.YTickStep,
+		fieldChartGeoCenterLon:  ch.Center.Lon,
+		fieldChartGeoCenterLat:  ch.Center.Lat,
+		fieldChartGeoZoom:       ch.Zoom,
 	})
 
 	return r
 }
 
+func convertAxis(name string, a influxdb.Axis) *axis {
+	return &axis{
+		Base:   a.Base,
+		Label:  a.Label,
+		Name:   name,
+		Prefix: a.Prefix,
+		Scale:  a.Scale,
+		Suffix: a.Suffix,
+	}
+}
+
 func convertAxes(iAxes map[string]influxdb.Axis) axes {
 	out := make(axes, 0, len(iAxes))
 	for name, a := range iAxes {
-		out = append(out, axis{
-			Base:   a.Base,
-			Label:  a.Label,
-			Name:   name,
-			Prefix: a.Prefix,
-			Scale:  a.Scale,
-			Suffix: a.Suffix,
-		})
+		out = append(out, *convertAxis(name, a))
 	}
 	return out
 }
@@ -1085,6 +1153,30 @@ func convertQueries(iQueries []influxdb.DashboardQuery) queries {
 	out := make(queries, 0, len(iQueries))
 	for _, iq := range iQueries {
 		out = append(out, query{Query: strings.TrimSpace(iq.Text)})
+	}
+	return out
+}
+
+func convertGeoLayers(iLayers []influxdb.GeoLayer) geoLayers {
+	out := make(geoLayers, 0, len(iLayers))
+	for _, ic := range iLayers {
+		out = append(out, &geoLayer{
+			Type:               ic.Type,
+			RadiusField:        ic.RadiusField,
+			ColorField:         ic.ColorField,
+			IntensityField:     ic.IntensityField,
+			ViewColors:         convertColors(ic.ViewColors),
+			Radius:             ic.Radius,
+			Blur:               ic.Blur,
+			RadiusDimension:    convertAxis("radius", ic.RadiusDimension),
+			ColorDimension:     convertAxis("color", ic.ColorDimension),
+			IntensityDimension: convertAxis("intensity", ic.IntensityDimension),
+			InterpolateColors:  ic.InterpolateColors,
+			TrackWidth:         ic.TrackWidth,
+			Speed:              ic.Speed,
+			RandomColors:       ic.RandomColors,
+			IsClustered:        ic.IsClustered,
+		})
 	}
 	return out
 }
@@ -1241,7 +1333,7 @@ func NotificationRuleToObject(name, endpointPkgName string, iRule influxdb.Notif
 var taskFluxRegex = regexp.MustCompile(`option task = {(.|\n)*?}`)
 
 // TaskToObject converts an influxdb.Task into a pkger.Object.
-func TaskToObject(name string, t influxdb.Task) Object {
+func TaskToObject(name string, t taskmodel.Task) Object {
 	if name == "" {
 		name = t.Name
 	}

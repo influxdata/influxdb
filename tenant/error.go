@@ -4,51 +4,51 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 var (
 	// ErrNameisEmpty is when a name is empty
-	ErrNameisEmpty = &influxdb.Error{
-		Code: influxdb.EInvalid,
+	ErrNameisEmpty = &errors.Error{
+		Code: errors.EInvalid,
 		Msg:  "name is empty",
 	}
 
 	// ErrIDNotUnique is used when attempting to create an org or bucket that already
 	// exists.
-	ErrIDNotUnique = &influxdb.Error{
-		Code: influxdb.EConflict,
+	ErrIDNotUnique = &errors.Error{
+		Code: errors.EConflict,
 		Msg:  "ID already exists",
 	}
 
 	// ErrFailureGeneratingID occurs ony when the random number generator
 	// cannot generate an ID in MaxIDGenerationN times.
-	ErrFailureGeneratingID = &influxdb.Error{
-		Code: influxdb.EInternal,
+	ErrFailureGeneratingID = &errors.Error{
+		Code: errors.EInternal,
 		Msg:  "unable to generate valid id",
 	}
 
 	// ErrOnboardingNotAllowed occurs when request to onboard comes in and we are not allowing this request
-	ErrOnboardingNotAllowed = &influxdb.Error{
-		Code: influxdb.EConflict,
+	ErrOnboardingNotAllowed = &errors.Error{
+		Code: errors.EConflict,
 		Msg:  "onboarding has already been completed",
 	}
 
-	ErrOnboardInvalid = &influxdb.Error{
-		Code: influxdb.EEmptyValue,
+	ErrOnboardInvalid = &errors.Error{
+		Code: errors.EEmptyValue,
 		Msg:  "onboard failed, missing value",
 	}
 
-	ErrNotFound = &influxdb.Error{
-		Code: influxdb.ENotFound,
+	ErrNotFound = &errors.Error{
+		Code: errors.ENotFound,
 		Msg:  "not found",
 	}
 )
 
 // ErrInternalServiceError is used when the error comes from an internal system.
-func ErrInternalServiceError(err error) *influxdb.Error {
-	return &influxdb.Error{
-		Code: influxdb.EInternal,
+func ErrInternalServiceError(err error) *errors.Error {
+	return &errors.Error{
+		Code: errors.EInternal,
 		Err:  err,
 	}
 }

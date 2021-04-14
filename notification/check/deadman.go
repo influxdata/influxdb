@@ -10,6 +10,7 @@ import (
 	"github.com/influxdata/influxdb/v2/notification"
 	"github.com/influxdata/influxdb/v2/notification/flux"
 	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 )
 
 var _ influxdb.Check = (*Deadman)(nil)
@@ -31,7 +32,7 @@ func (c Deadman) Type() string {
 }
 
 // GenerateFlux returns a flux script for the Deadman provided.
-func (c Deadman) GenerateFlux(lang influxdb.FluxLanguageService) (string, error) {
+func (c Deadman) GenerateFlux(lang fluxlang.FluxLanguageService) (string, error) {
 	p, err := c.GenerateFluxAST(lang)
 	if err != nil {
 		return "", err
@@ -43,7 +44,7 @@ func (c Deadman) GenerateFlux(lang influxdb.FluxLanguageService) (string, error)
 // GenerateFluxAST returns a flux AST for the deadman provided. If there
 // are any errors in the flux that the user provided the function will return
 // an error for each error found when the script is parsed.
-func (c Deadman) GenerateFluxAST(lang influxdb.FluxLanguageService) (*ast.Package, error) {
+func (c Deadman) GenerateFluxAST(lang fluxlang.FluxLanguageService) (*ast.Package, error) {
 	p, err := query.Parse(lang, c.Query.Text)
 	if p == nil {
 		return nil, err

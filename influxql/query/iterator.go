@@ -9,8 +9,9 @@ import (
 	"regexp"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/gogo/protobuf/proto"
-	"github.com/influxdata/influxdb/v2"
 	internal "github.com/influxdata/influxdb/v2/influxql/query/internal"
 	"github.com/influxdata/influxql"
 )
@@ -541,7 +542,7 @@ type IteratorCreator interface {
 // IteratorOptions is an object passed to CreateIterator to specify creation options.
 type IteratorOptions struct {
 	// OrgID is the organization for which this query is being executed.
-	OrgID influxdb.ID
+	OrgID platform.ID
 
 	// Expression to iterate for.
 	// This can be VarRef or a Call.
@@ -799,6 +800,8 @@ func (opt IteratorOptions) Window(t int64) (start, end int64) {
 		start = t - dt
 	}
 
+	start += int64(opt.Interval.Offset)
+
 	// Look for the start offset again because the first time may have been
 	// after the offset switch. Now that we are at midnight in UTC, we can
 	// lookup the zone offset again to get the real starting offset.
@@ -810,7 +813,6 @@ func (opt IteratorOptions) Window(t int64) (start, end int64) {
 			start += o
 		}
 	}
-	start += int64(opt.Interval.Offset)
 
 	// Find the end time.
 	if dt := int64(opt.Interval.Duration) - dt; influxql.MaxTime-dt <= t {

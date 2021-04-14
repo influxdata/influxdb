@@ -3,6 +3,9 @@ package influxdb
 import (
 	"context"
 	"time"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 )
 
 // ErrSessionNotFound is the error messages for a missing sessions.
@@ -34,19 +37,19 @@ const SessionAuthorizationKind = "session"
 // Session is a user session.
 type Session struct {
 	// ID is only required for auditing purposes.
-	ID          ID           `json:"id"`
+	ID          platform.ID  `json:"id"`
 	Key         string       `json:"key"`
 	CreatedAt   time.Time    `json:"createdAt"`
 	ExpiresAt   time.Time    `json:"expiresAt"`
-	UserID      ID           `json:"userID,omitempty"`
+	UserID      platform.ID  `json:"userID,omitempty"`
 	Permissions []Permission `json:"permissions,omitempty"`
 }
 
 // Expired returns an error if the session is expired.
 func (s *Session) Expired() error {
 	if time.Now().After(s.ExpiresAt) {
-		return &Error{
-			Code: EForbidden,
+		return &errors.Error{
+			Code: errors.EForbidden,
 			Msg:  ErrSessionExpired,
 		}
 	}
@@ -57,8 +60,8 @@ func (s *Session) Expired() error {
 // PermissionSet returns the set of permissions associated with the session.
 func (s *Session) PermissionSet() (PermissionSet, error) {
 	if err := s.Expired(); err != nil {
-		return nil, &Error{
-			Code: EUnauthorized,
+		return nil, &errors.Error{
+			Code: errors.EUnauthorized,
 			Err:  err,
 		}
 	}
@@ -70,16 +73,16 @@ func (s *Session) PermissionSet() (PermissionSet, error) {
 func (s *Session) Kind() string { return SessionAuthorizationKind }
 
 // Identifier returns the sessions ID and is used for auditing.
-func (s *Session) Identifier() ID { return s.ID }
+func (s *Session) Identifier() platform.ID { return s.ID }
 
 // GetUserID returns the user id.
-func (s *Session) GetUserID() ID {
+func (s *Session) GetUserID() platform.ID {
 	return s.UserID
 }
 
 // EphemeralAuth generates an Authorization that is not stored
 // but at the user's max privs.
-func (s *Session) EphemeralAuth(orgID ID) *Authorization {
+func (s *Session) EphemeralAuth(orgID platform.ID) *Authorization {
 	return &Authorization{
 		ID:          s.ID,
 		OrgID:       orgID,

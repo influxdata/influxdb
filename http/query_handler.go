@@ -23,10 +23,13 @@ import (
 	"github.com/influxdata/influxdb/v2/http/metric"
 	"github.com/influxdata/influxdb/v2/kit/check"
 	"github.com/influxdata/influxdb/v2/kit/feature"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	errors2 "github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/query"
+	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/query/influxql"
 	"github.com/pkg/errors"
 	prom "github.com/prometheus/client_golang/prometheus"
@@ -41,14 +44,14 @@ const (
 // FluxBackend is all services and associated parameters required to construct
 // the FluxHandler.
 type FluxBackend struct {
-	influxdb.HTTPErrorHandler
+	errors2.HTTPErrorHandler
 	log                *zap.Logger
 	QueryEventRecorder metric.EventRecorder
 
 	AlgoWProxy          FeatureProxyHandler
 	OrganizationService influxdb.OrganizationService
 	ProxyQueryService   query.ProxyQueryService
-	FluxLanguageService influxdb.FluxLanguageService
+	FluxLanguageService fluxlang.FluxLanguageService
 	Flagger             feature.Flagger
 }
 
@@ -77,13 +80,13 @@ type HTTPDialect interface {
 // FluxHandler implements handling flux queries.
 type FluxHandler struct {
 	*httprouter.Router
-	influxdb.HTTPErrorHandler
+	errors2.HTTPErrorHandler
 	log *zap.Logger
 
 	Now                 func() time.Time
 	OrganizationService influxdb.OrganizationService
 	ProxyQueryService   query.ProxyQueryService
-	FluxLanguageService influxdb.FluxLanguageService
+	FluxLanguageService fluxlang.FluxLanguageService
 
 	EventRecorder metric.EventRecorder
 
@@ -133,7 +136,7 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 
 	// TODO(desa): I really don't like how we're recording the usage metrics here
 	// Ideally this will be moved when we solve https://github.com/influxdata/influxdb/issues/13403
-	var orgID influxdb.ID
+	var orgID platform.ID
 	var requestBytes int
 	sw := kithttp.NewStatusResponseWriter(w)
 	w = sw
@@ -149,8 +152,8 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 
 	a, err := pcontext.GetAuthorizer(ctx)
 	if err != nil {
-		err := &influxdb.Error{
-			Code: influxdb.EUnauthorized,
+		err := &errors2.Error{
+			Code: errors2.EUnauthorized,
 			Msg:  "authorization is invalid or missing in the query request",
 			Op:   op,
 			Err:  err,
@@ -161,8 +164,8 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 
 	req, n, err := decodeProxyQueryRequest(ctx, r, a, h.OrganizationService)
 	if err != nil && err != influxdb.ErrAuthorizerNotSupported {
-		err := &influxdb.Error{
-			Code: influxdb.EInvalid,
+		err := &errors2.Error{
+			Code: errors2.EInvalid,
 			Msg:  "failed to decode request body",
 			Op:   op,
 			Err:  err,
@@ -182,8 +185,8 @@ func (h *FluxHandler) handleQuery(w http.ResponseWriter, r *http.Request) {
 
 	hd, ok := req.Dialect.(HTTPDialect)
 	if !ok {
-		err := &influxdb.Error{
-			Code: influxdb.EInvalid,
+		err := &errors2.Error{
+			Code: errors2.EInvalid,
 			Msg:  fmt.Sprintf("unsupported dialect over HTTP: %T", req.Dialect),
 			Op:   op,
 		}
@@ -225,8 +228,8 @@ func (h *FluxHandler) postFluxAST(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&request)
 	if err != nil {
-		h.HandleHTTPError(ctx, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		h.HandleHTTPError(ctx, &errors2.Error{
+			Code: errors2.EInvalid,
 			Msg:  "invalid json",
 			Err:  err,
 		}, w)
@@ -235,8 +238,8 @@ func (h *FluxHandler) postFluxAST(w http.ResponseWriter, r *http.Request) {
 
 	pkg, err := query.Parse(h.FluxLanguageService, request.Query)
 	if err != nil {
-		h.HandleHTTPError(ctx, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		h.HandleHTTPError(ctx, &errors2.Error{
+			Code: errors2.EInvalid,
 			Msg:  "invalid AST",
 			Err:  err,
 		}, w)
@@ -262,8 +265,8 @@ func (h *FluxHandler) postQueryAnalyze(w http.ResponseWriter, r *http.Request) {
 
 	var req QueryRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		h.HandleHTTPError(ctx, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		h.HandleHTTPError(ctx, &errors2.Error{
+			Code: errors2.EInvalid,
 			Msg:  "invalid json",
 			Err:  err,
 		}, w)

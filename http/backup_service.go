@@ -9,9 +9,10 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/httprouter"
 	"github.com/influxdata/influxdb/v2"
-	// "github.com/influxdata/influxdb/v2/bolt"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"go.uber.org/zap"
 )
@@ -19,7 +20,7 @@ import (
 // BackupBackend is all services and associated parameters required to construct the BackupHandler.
 type BackupBackend struct {
 	Logger *zap.Logger
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 
 	BackupService influxdb.BackupService
 }
@@ -37,7 +38,7 @@ func NewBackupBackend(b *APIBackend) *BackupBackend {
 // BackupHandler is http handler for backup service.
 type BackupHandler struct {
 	*httprouter.Router
-	influxdb.HTTPErrorHandler
+	errors.HTTPErrorHandler
 	Logger *zap.Logger
 
 	BackupService influxdb.BackupService

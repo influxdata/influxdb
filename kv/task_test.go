@@ -12,13 +12,13 @@ import (
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
 	icontext "github.com/influxdata/influxdb/v2/context"
-	"github.com/influxdata/influxdb/v2/kit/feature"
-	"github.com/influxdata/influxdb/v2/kv"
-	"github.com/influxdata/influxdb/v2/mock"
 	_ "github.com/influxdata/influxdb/v2/fluxinit/static"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kv"
 	"github.com/influxdata/influxdb/v2/query/fluxlang"
 	"github.com/influxdata/influxdb/v2/task/options"
 	"github.com/influxdata/influxdb/v2/task/servicetest"
+	"github.com/influxdata/influxdb/v2/task/taskmodel"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -151,11 +151,11 @@ func TestRetrieveTaskWithBadAuth(t *testing.T) {
 
 	ctx = icontext.SetAuthorizer(ctx, &ts.Auth)
 
-	task, err := ts.Service.CreateTask(ctx, influxdb.TaskCreate{
+	task, err := ts.Service.CreateTask(ctx, taskmodel.TaskCreate{
 		Flux:           `option task = {name: "a task",every: 1h} from(bucket:"test") |> range(start:-1h)`,
 		OrganizationID: ts.Org.ID,
 		OwnerID:        ts.User.ID,
-		Status:         string(influxdb.TaskActive),
+		Status:         string(taskmodel.TaskActive),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -171,7 +171,7 @@ func TestRetrieveTaskWithBadAuth(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		task.OwnerID = influxdb.ID(1)
+		task.OwnerID = platform.ID(1)
 		tbyte, err := json.Marshal(task)
 		if err != nil {
 			return err
@@ -197,7 +197,7 @@ func TestRetrieveTaskWithBadAuth(t *testing.T) {
 		t.Fatal("miss matching taskID's")
 	}
 
-	tasks, _, err := ts.Service.FindTasks(context.Background(), influxdb.TaskFilter{})
+	tasks, _, err := ts.Service.FindTasks(context.Background(), taskmodel.TaskFilter{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -206,8 +206,8 @@ func TestRetrieveTaskWithBadAuth(t *testing.T) {
 	}
 
 	// test status filter
-	active := string(influxdb.TaskActive)
-	tasksWithActiveFilter, _, err := ts.Service.FindTasks(context.Background(), influxdb.TaskFilter{Status: &active})
+	active := string(taskmodel.TaskActive)
+	tasksWithActiveFilter, _, err := ts.Service.FindTasks(context.Background(), taskmodel.TaskFilter{Status: &active})
 	if err != nil {
 		t.Fatal("could not find tasks")
 	}
@@ -228,20 +228,20 @@ func TestService_UpdateTask_InactiveToActive(t *testing.T) {
 
 	ctx = icontext.SetAuthorizer(ctx, &ts.Auth)
 
-	originalTask, err := ts.Service.CreateTask(ctx, influxdb.TaskCreate{
+	originalTask, err := ts.Service.CreateTask(ctx, taskmodel.TaskCreate{
 		Flux:           `option task = {name: "a task",every: 1h} from(bucket:"test") |> range(start:-1h)`,
 		OrganizationID: ts.Org.ID,
 		OwnerID:        ts.User.ID,
-		Status:         string(influxdb.TaskActive),
+		Status:         string(taskmodel.TaskActive),
 	})
 	if err != nil {
 		t.Fatal("CreateTask", err)
 	}
 
-	v := influxdb.TaskStatusInactive
+	v := taskmodel.TaskStatusInactive
 	c.Add(1 * time.Second)
 	exp := c.Now()
-	updatedTask, err := ts.Service.UpdateTask(ctx, originalTask.ID, influxdb.TaskUpdate{Status: &v, LatestCompleted: &exp, LatestScheduled: &exp})
+	updatedTask, err := ts.Service.UpdateTask(ctx, originalTask.ID, taskmodel.TaskUpdate{Status: &v, LatestCompleted: &exp, LatestScheduled: &exp})
 	if err != nil {
 		t.Fatal("UpdateTask", err)
 	}
@@ -255,8 +255,8 @@ func TestService_UpdateTask_InactiveToActive(t *testing.T) {
 
 	c.Add(10 * time.Second)
 	exp = c.Now()
-	v = influxdb.TaskStatusActive
-	updatedTask, err = ts.Service.UpdateTask(ctx, originalTask.ID, influxdb.TaskUpdate{Status: &v})
+	v = taskmodel.TaskStatusActive
+	updatedTask, err = ts.Service.UpdateTask(ctx, originalTask.ID, taskmodel.TaskUpdate{Status: &v})
 	if err != nil {
 		t.Fatal("UpdateTask", err)
 	}
@@ -316,7 +316,7 @@ func TestTaskRunCancellation(t *testing.T) {
 
 	ctx = icontext.SetAuthorizer(ctx, &authz)
 
-	task, err := service.CreateTask(ctx, influxdb.TaskCreate{
+	task, err := service.CreateTask(ctx, taskmodel.TaskCreate{
 		Flux:           `option task = {name: "a task",cron: "0 * * * *", offset: 20s} from(bucket:"test") |> range(start:-1h)`,
 		OrganizationID: o.ID,
 		OwnerID:        u.ID,
@@ -339,7 +339,7 @@ func TestTaskRunCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if canceled.Status != influxdb.RunCanceled.String() {
+	if canceled.Status != taskmodel.RunCanceled.String() {
 		t.Fatalf("expected task run to be cancelled")
 	}
 }
@@ -356,11 +356,11 @@ func TestService_UpdateTask_RecordLatestSuccessAndFailure(t *testing.T) {
 
 	ctx = icontext.SetAuthorizer(ctx, &ts.Auth)
 
-	originalTask, err := ts.Service.CreateTask(ctx, influxdb.TaskCreate{
+	originalTask, err := ts.Service.CreateTask(ctx, taskmodel.TaskCreate{
 		Flux:           `option task = {name: "a task",every: 1h} from(bucket:"test") |> range(start:-1h)`,
 		OrganizationID: ts.Org.ID,
 		OwnerID:        ts.User.ID,
-		Status:         string(influxdb.TaskActive),
+		Status:         string(taskmodel.TaskActive),
 	})
 	if err != nil {
 		t.Fatal("CreateTask", err)
@@ -368,7 +368,7 @@ func TestService_UpdateTask_RecordLatestSuccessAndFailure(t *testing.T) {
 
 	c.Add(1 * time.Second)
 	exp := c.Now()
-	updatedTask, err := ts.Service.UpdateTask(ctx, originalTask.ID, influxdb.TaskUpdate{
+	updatedTask, err := ts.Service.UpdateTask(ctx, originalTask.ID, taskmodel.TaskUpdate{
 		LatestCompleted: &exp,
 		LatestScheduled: &exp,
 
@@ -396,7 +396,7 @@ func TestService_UpdateTask_RecordLatestSuccessAndFailure(t *testing.T) {
 
 	c.Add(5 * time.Second)
 	exp = c.Now()
-	updatedTask, err = ts.Service.UpdateTask(ctx, originalTask.ID, influxdb.TaskUpdate{
+	updatedTask, err = ts.Service.UpdateTask(ctx, originalTask.ID, taskmodel.TaskUpdate{
 		LatestCompleted: &exp,
 		LatestScheduled: &exp,
 
@@ -481,15 +481,35 @@ func TestExtractTaskOptions(t *testing.T) {
 			`,
 			errMsg: "multiple task options defined",
 		},
+		{
+			name: "with script calling tableFind",
+			flux: `
+			import "http"
+			import "json"
+			option task = {name: "Slack Metrics to #Community", cron: "0 9 * * 5"}
+			all_slack_messages = from(bucket: "metrics")
+				|> range(start: -7d, stop: now())
+				|> filter(fn: (r) =>
+					(r._measurement == "slack_channel_message"))
+			total_messages = all_slack_messages
+				|> group()
+				|> count()
+				|> tableFind(fn: (key) => true)
+			all_slack_messages |> yield()
+			`,
+			expected: taskOptions{
+				name:        "Slack Metrics to #Community",
+				cron:        "0 9 * * 5",
+				concurrency: 1,
+				retry:       1,
+			},
+		},
 	}
 
 	for _, tc := range tcs {
 		t.Run(tc.name, func(t *testing.T) {
-			flagger := mock.NewFlagger(map[feature.Flag]interface{}{
-				feature.SimpleTaskOptionsExtraction(): true,
-			})
-			ctx, _ := feature.Annotate(context.Background(), flagger)
-			opts, err := kv.ExtractTaskOptions(ctx, fluxlang.DefaultService, tc.flux)
+
+			opts, err := options.FromScriptAST(fluxlang.DefaultService, tc.flux)
 			if tc.errMsg != "" {
 				require.Error(t, err)
 				assert.Equal(t, tc.errMsg, err.Error())

@@ -3,15 +3,20 @@ package tenant
 import (
 	"context"
 	"fmt"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
 	"github.com/influxdata/influxdb/v2/kv"
+	"go.uber.org/zap"
 )
 
 type OnboardService struct {
 	service     *Service
 	authSvc     influxdb.AuthorizationService
 	alwaysAllow bool
+	log         *zap.Logger
 }
 
 type OnboardServiceOptionFn func(*OnboardService)
@@ -25,10 +30,17 @@ func WithAlwaysAllowInitialUser() OnboardServiceOptionFn {
 	}
 }
 
+func WithOnboardingLogger(logger *zap.Logger) OnboardServiceOptionFn {
+	return func(s *OnboardService) {
+		s.log = logger
+	}
+}
+
 func NewOnboardService(svc *Service, as influxdb.AuthorizationService, opts ...OnboardServiceOptionFn) influxdb.OnboardingService {
 	s := &OnboardService{
 		service: svc,
 		authSvc: as,
+		log:     zap.NewNop(),
 	}
 
 	for _, opt := range opts {
@@ -68,18 +80,18 @@ func (s *OnboardService) OnboardInitialUser(ctx context.Context, req *influxdb.O
 		return nil, ErrOnboardingNotAllowed
 	}
 
-	return s.onboardUser(ctx, req, func(influxdb.ID, influxdb.ID) []influxdb.Permission { return influxdb.OperPermissions() })
+	return s.onboardUser(ctx, req, func(platform.ID, platform.ID) []influxdb.Permission { return influxdb.OperPermissions() })
 }
 
 // OnboardUser allows us to onboard a new user if is onboarding is allowed
 func (s *OnboardService) OnboardUser(ctx context.Context, req *influxdb.OnboardingRequest) (*influxdb.OnboardingResults, error) {
-	return s.onboardUser(ctx, req, func(orgID, userID influxdb.ID) []influxdb.Permission {
+	return s.onboardUser(ctx, req, func(orgID, userID platform.ID) []influxdb.Permission {
 		return append(influxdb.OwnerPermissions(orgID), influxdb.MePermissions(userID)...)
 	})
 }
 
 // onboardUser allows us to onboard new users.
-func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.OnboardingRequest, permFn func(orgID, userID influxdb.ID) []influxdb.Permission) (*influxdb.OnboardingResults, error) {
+func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.OnboardingRequest, permFn func(orgID, userID platform.ID) []influxdb.Permission) (*influxdb.OnboardingResults, error) {
 	if req == nil || req.User == "" || req.Org == "" || req.Bucket == "" {
 		return nil, ErrOnboardInvalid
 	}
@@ -98,7 +110,18 @@ func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.Onboardi
 
 	// create users password
 	if req.Password != "" {
-		s.service.SetPassword(ctx, user.ID, req.Password)
+		if err := s.service.SetPassword(ctx, user.ID, req.Password); err != nil {
+			// Try to clean up.
+			if cleanupErr := s.service.DeleteUser(ctx, user.ID); cleanupErr != nil {
+				s.log.Error(
+					"couldn't clean up user after failing to set password",
+					zap.String("user", user.Name),
+					zap.String("user_id", user.ID.String()),
+					zap.Error(cleanupErr),
+				)
+			}
+			return nil, err
+		}
 	}
 
 	// set the new user in the context
@@ -120,7 +143,7 @@ func (s *OnboardService) onboardUser(ctx context.Context, req *influxdb.Onboardi
 		OrgID:           org.ID,
 		Name:            req.Bucket,
 		Type:            influxdb.BucketTypeUser,
-		RetentionPeriod: req.RetentionPeriod,
+		RetentionPeriod: req.RetentionPeriod(),
 	}
 
 	if err := s.service.CreateBucket(ctx, ub); err != nil {

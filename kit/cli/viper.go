@@ -7,7 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
+	"github.com/spf13/cast"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -29,16 +31,6 @@ type Opt struct {
 	Desc    string
 }
 
-// NewOpt creates a new command line option.
-func NewOpt(destP interface{}, flag string, dflt interface{}, desc string) Opt {
-	return Opt{
-		DestP:   destP,
-		Flag:    flag,
-		Default: dflt,
-		Desc:    desc,
-	}
-}
-
 // Program parses CLI options
 type Program struct {
 	// Run is invoked by cobra on execute.
@@ -55,7 +47,7 @@ type Program struct {
 // to all environment variables.
 //
 // This is to simplify the viper/cobra boilerplate.
-func NewCommand(v *viper.Viper, p *Program) *cobra.Command {
+func NewCommand(v *viper.Viper, p *Program) (*cobra.Command, error) {
 	cmd := &cobra.Command{
 		Use:  p.Name,
 		Args: cobra.NoArgs,
@@ -69,36 +61,36 @@ func NewCommand(v *viper.Viper, p *Program) *cobra.Command {
 	// This normalizes "-" to an underscore in env names.
 	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_"))
 
-	if configPath := v.GetString("CONFIG_PATH"); configPath != "" {
-		switch path.Ext(configPath) {
-		case ".json", ".toml", ".yaml", "yml":
-			v.SetConfigFile(configPath)
-		case "":
-			v.AddConfigPath(configPath)
-		}
-	} else {
-		// defaults to looking in same directory as program running for
-		// a file with base `config` and extensions .json|.toml|.yaml|.yml
-		v.SetConfigName("config")
-		v.AddConfigPath(".")
-	}
-
 	// done before we bind flags to viper keys.
 	// order of precedence (1 highest -> 3 lowest):
 	//	1. flags
 	//  2. env vars
 	//	3. config file
 	if err := initializeConfig(v); err != nil {
-		panic("invalid config file caused panic: " + err.Error())
+		return nil, fmt.Errorf("failed to load config file: %w", err)
 	}
-	BindOptions(v, cmd, p.Opts)
+	if err := BindOptions(v, cmd, p.Opts); err != nil {
+		return nil, fmt.Errorf("failed to bind config options: %w", err)
+	}
 
-	return cmd
+	return cmd, nil
 }
 
 func initializeConfig(v *viper.Viper) error {
-	err := v.ReadInConfig()
-	if err != nil && !os.IsNotExist(err) {
+	configPath := v.GetString("CONFIG_PATH")
+	if configPath == "" {
+		// Default to looking in the working directory of the running process.
+		configPath = "."
+	}
+
+	switch strings.ToLower(path.Ext(configPath)) {
+	case ".json", ".toml", ".yaml", ".yml":
+		v.SetConfigFile(configPath)
+	default:
+		v.AddConfigPath(configPath)
+	}
+
+	if err := v.ReadInConfig(); err != nil && !os.IsNotExist(err) {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return err
 		}
@@ -108,22 +100,13 @@ func initializeConfig(v *viper.Viper) error {
 
 // BindOptions adds opts to the specified command and automatically
 // registers those options with viper.
-func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
+func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) error {
 	for _, o := range opts {
 		flagset := cmd.Flags()
 		if o.Persistent {
 			flagset = cmd.PersistentFlags()
 		}
-
-		if o.Required {
-			cmd.MarkFlagRequired(o.Flag)
-		}
-
-		envVar := o.Flag
-		if o.EnvVar != "" {
-			envVar = o.EnvVar
-		}
-
+		envVal := lookupEnv(v, &o)
 		hasShort := o.Short != 0
 
 		switch destP := o.DestP.(type) {
@@ -137,8 +120,15 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 			} else {
 				flagset.StringVar(destP, o.Flag, d, o.Desc)
 			}
-			mustBindPFlag(v, o.Flag, flagset)
-			*destP = v.GetString(envVar)
+			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
+				return fmt.Errorf("failed to bind flag %q: %w", o.Flag, err)
+			}
+			if envVal != nil {
+				if s, err := cast.ToStringE(envVal); err == nil {
+					*destP = s
+				}
+			}
+
 		case *int:
 			var d int
 			if o.Default != nil {
@@ -149,8 +139,15 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 			} else {
 				flagset.IntVar(destP, o.Flag, d, o.Desc)
 			}
-			mustBindPFlag(v, o.Flag, flagset)
-			*destP = v.GetInt(envVar)
+			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
+				return fmt.Errorf("failed to bind flag %q: %w", o.Flag, err)
+			}
+			if envVal != nil {
+				if i, err := cast.ToIntE(envVal); err == nil {
+					*destP = i
+				}
+			}
+
 		case *int32:
 			var d int32
 			if o.Default != nil {
@@ -176,8 +173,15 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 			} else {
 				flagset.Int32Var(destP, o.Flag, d, o.Desc)
 			}
-			mustBindPFlag(v, o.Flag, flagset)
-			*destP = v.GetInt32(envVar)
+			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
+				return fmt.Errorf("failed to bind flag %q: %w", o.Flag, err)
+			}
+			if envVal != nil {
+				if i, err := cast.ToInt32E(envVal); err == nil {
+					*destP = i
+				}
+			}
+
 		case *int64:
 			var d int64
 			if o.Default != nil {
@@ -201,8 +205,15 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 			} else {
 				flagset.Int64Var(destP, o.Flag, d, o.Desc)
 			}
-			mustBindPFlag(v, o.Flag, flagset)
-			*destP = v.GetInt64(envVar)
+			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
+				return fmt.Errorf("failed to bind flag %q: %w", o.Flag, err)
+			}
+			if envVal != nil {
+				if i, err := cast.ToInt64E(envVal); err == nil {
+					*destP = i
+				}
+			}
+
 		case *bool:
 			var d bool
 			if o.Default != nil {
@@ -213,8 +224,15 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 			} else {
 				flagset.BoolVar(destP, o.Flag, d, o.Desc)
 			}
-			mustBindPFlag(v, o.Flag, flagset)
-			*destP = v.GetBool(envVar)
+			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
+				return fmt.Errorf("failed to bind flag %q: %w", o.Flag, err)
+			}
+			if envVal != nil {
+				if b, err := cast.ToBoolE(envVal); err == nil {
+					*destP = b
+				}
+			}
+
 		case *time.Duration:
 			var d time.Duration
 			if o.Default != nil {
@@ -225,8 +243,15 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 			} else {
 				flagset.DurationVar(destP, o.Flag, d, o.Desc)
 			}
-			mustBindPFlag(v, o.Flag, flagset)
-			*destP = v.GetDuration(envVar)
+			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
+				return fmt.Errorf("failed to bind flag %q: %w", o.Flag, err)
+			}
+			if envVal != nil {
+				if d, err := cast.ToDurationE(envVal); err == nil {
+					*destP = d
+				}
+			}
+
 		case *[]string:
 			var d []string
 			if o.Default != nil {
@@ -237,8 +262,15 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 			} else {
 				flagset.StringSliceVar(destP, o.Flag, d, o.Desc)
 			}
-			mustBindPFlag(v, o.Flag, flagset)
-			*destP = v.GetStringSlice(envVar)
+			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
+				return fmt.Errorf("failed to bind flag %q: %w", o.Flag, err)
+			}
+			if envVal != nil {
+				if ss, err := cast.ToStringSliceE(envVal); err == nil {
+					*destP = ss
+				}
+			}
+
 		case *map[string]string:
 			var d map[string]string
 			if o.Default != nil {
@@ -249,8 +281,15 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 			} else {
 				flagset.StringToStringVar(destP, o.Flag, d, o.Desc)
 			}
-			mustBindPFlag(v, o.Flag, flagset)
-			*destP = v.GetStringMapString(envVar)
+			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
+				return fmt.Errorf("failed to bind flag %q: %w", o.Flag, err)
+			}
+			if envVal != nil {
+				if sms, err := cast.ToStringMapStringE(envVal); err == nil {
+					*destP = sms
+				}
+			}
+
 		case pflag.Value:
 			if hasShort {
 				flagset.VarP(destP, o.Flag, string(o.Short), o.Desc)
@@ -258,23 +297,33 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 				flagset.Var(destP, o.Flag, o.Desc)
 			}
 			if o.Default != nil {
-				destP.Set(o.Default.(string))
+				_ = destP.Set(o.Default.(string))
 			}
-			mustBindPFlag(v, o.Flag, flagset)
-			destP.Set(v.GetString(envVar))
-		case *influxdb.ID:
-			var d influxdb.ID
+			if err := v.BindPFlag(o.Flag, flagset.Lookup(o.Flag)); err != nil {
+				return fmt.Errorf("failed to bind flag %q: %w", o.Flag, err)
+			}
+			if envVal != nil {
+				if s, err := cast.ToStringE(envVal); err == nil {
+					_ = destP.Set(s)
+				}
+			}
+
+		case *platform.ID:
+			var d platform.ID
 			if o.Default != nil {
-				d = o.Default.(influxdb.ID)
+				d = o.Default.(platform.ID)
 			}
 			if hasShort {
 				IDVarP(flagset, destP, o.Flag, string(o.Short), d, o.Desc)
 			} else {
 				IDVar(flagset, destP, o.Flag, d, o.Desc)
 			}
-			if s := v.GetString(envVar); s != "" {
-				_ = (*destP).DecodeFromString(v.GetString(envVar))
+			if envVal != nil {
+				if s, err := cast.ToStringE(envVal); err == nil {
+					_ = (*destP).DecodeFromString(s)
+				}
 			}
+
 		case *zapcore.Level:
 			var l zapcore.Level
 			if o.Default != nil {
@@ -285,25 +334,44 @@ func BindOptions(v *viper.Viper, cmd *cobra.Command, opts []Opt) {
 			} else {
 				LevelVar(flagset, destP, o.Flag, l, o.Desc)
 			}
-			if s := v.GetString(envVar); s != "" {
-				_ = (*destP).Set(v.GetString(envVar))
+			if envVal != nil {
+				if s, err := cast.ToStringE(envVal); err == nil {
+					_ = (*destP).Set(s)
+				}
 			}
+
 		default:
-			// if you get a panic here, sorry about that!
+			// if you get this error, sorry about that!
 			// anyway, go ahead and make a PR and add another type.
-			panic(fmt.Errorf("unknown destination type %t", o.DestP))
+			return fmt.Errorf("unknown destination type %t", o.DestP)
 		}
 
-		// so weirdness with the flagset her, the flag must be set before marking it
-		// hidden. This is in contrast to the MarkRequired, which can be set before...
+		// N.B. these "Mark" calls must run after the block above,
+		// otherwise cobra will return a "no such flag" error.
+
+		// Cobra will complain if a flag marked as required isn't present on the CLI.
+		// To support setting required args via config and env variables, we only enforce
+		// the required check if we didn't find a value in the viper instance.
+		if o.Required && envVal == nil {
+			if err := cmd.MarkFlagRequired(o.Flag); err != nil {
+				return fmt.Errorf("failed to mark flag %q as required: %w", o.Flag, err)
+			}
+		}
 		if o.Hidden {
-			flagset.MarkHidden(o.Flag)
+			if err := flagset.MarkHidden(o.Flag); err != nil {
+				return fmt.Errorf("failed to mark flag %q as hidden: %w", o.Flag, err)
+			}
 		}
 	}
+
+	return nil
 }
 
-func mustBindPFlag(v *viper.Viper, key string, flagset *pflag.FlagSet) {
-	if err := v.BindPFlag(key, flagset.Lookup(key)); err != nil {
-		panic(err)
+// lookupEnv returns the value for a CLI option found in the environment, if any.
+func lookupEnv(v *viper.Viper, o *Opt) interface{} {
+	envVar := o.Flag
+	if o.EnvVar != "" {
+		envVar = o.EnvVar
 	}
+	return v.Get(envVar)
 }

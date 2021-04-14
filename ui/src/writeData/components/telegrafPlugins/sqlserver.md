@@ -48,26 +48,64 @@ GO
   ##   See https://github.com/denisenkom/go-mssqldb for detailed connection
   ##   parameters, in particular, tls connections can be created like so:
   ##   "encrypt=true;certificate=<cert>;hostNameInCertificate=<SqlServer host fqdn>"
-  # servers = [
-  #  "Server=192.168.1.10;Port=1433;User Id=<user>;Password=<pw>;app name=telegraf;log=1;",
-  # ]
+  servers = [
+    "Server=192.168.1.10;Port=1433;User Id=<user>;Password=<pw>;app name=telegraf;log=1;",
+  ]
 
-  ## This enables a specific set of queries depending on the database type. If specified, it replaces azuredb = true/false and query_version = 2
-  ## In the config file, the sql server plugin section should be repeated  each with a set of servers for a specific database_type.
-  ## Possible values for database_type are  
-  ## "AzureSQLDB" 
-  ## "SQLServer"
-  ## "AzureSQLManagedInstance"
+  ## "database_type" enables a specific set of queries depending on the database type. If specified, it replaces azuredb = true/false and query_version = 2
+  ## In the config file, the sql server plugin section should be repeated each with a set of servers for a specific database_type.
+  ## Possible values for database_type are - "AzureSQLDB" or "AzureSQLManagedInstance" or "SQLServer"
+
+  ## Queries enabled by default for database_type = "AzureSQLDB" are - 
+  ## AzureSQLDBResourceStats, AzureSQLDBResourceGovernance, AzureSQLDBWaitStats, AzureSQLDBDatabaseIO, AzureSQLDBServerProperties, 
+  ## AzureSQLDBOsWaitstats, AzureSQLDBMemoryClerks, AzureSQLDBPerformanceCounters, AzureSQLDBRequests, AzureSQLDBSchedulers
+
   # database_type = "AzureSQLDB"
 
+  ## A list of queries to include. If not specified, all the above listed queries are used.
+  # include_query = []
+
+  ## A list of queries to explicitly ignore.
+  # exclude_query = []
+
+  ## Queries enabled by default for database_type = "AzureSQLManagedInstance" are - 
+  ## AzureSQLMIResourceStats, AzureSQLMIResourceGovernance, AzureSQLMIDatabaseIO, AzureSQLMIServerProperties, AzureSQLMIOsWaitstats, 
+  ## AzureSQLMIMemoryClerks, AzureSQLMIPerformanceCounters, AzureSQLMIRequests, AzureSQLMISchedulers
+
+  # database_type = "AzureSQLManagedInstance"
+
+  # include_query = []
+
+  # exclude_query = []
+
+  ## Queries enabled by default for database_type = "SQLServer" are - 
+  ## SQLServerPerformanceCounters, SQLServerWaitStatsCategorized, SQLServerDatabaseIO, SQLServerProperties, SQLServerMemoryClerks, 
+  ## SQLServerSchedulers, SQLServerRequests, SQLServerVolumeSpace, SQLServerCpu
+
+  database_type = "SQLServer"
+
+  include_query = []
+
+  ## SQLServerAvailabilityReplicaStates and SQLServerDatabaseReplicaStates are optional queries and hence excluded here as default
+  exclude_query = ["SQLServerAvailabilityReplicaStates", "SQLServerDatabaseReplicaStates"]
+
+  ## Following are old config settings, you may use them only if you are using the earlier flavor of queries, however it is recommended to use 
+  ## the new mechanism of identifying the database_type there by use it's corresponding queries
+
   ## Optional parameter, setting this to 2 will use a new version
-  ## of the collection queries that break compatibility with the original dashboards.
-  ## Version 2 - is compatible from SQL Server 2008 Sp3 and later versions and also for SQL Azure DB
-  ## Version 2 is in the process of being deprecated, please consider using database_type.
+  ## of the collection queries that break compatibility with the original
+  ## dashboards.
+  ## Version 2 - is compatible from SQL Server 2012 and later versions and also for SQL Azure DB
   # query_version = 2
 
   ## If you are using AzureDB, setting this to true will gather resource utilization metrics
   # azuredb = false
+
+  ## Toggling this to true will emit an additional metric called "sqlserver_telegraf_health". 
+  ## This metric tracks the count of attempted queries and successful queries for each SQL instance specified in "servers". 
+  ## The purpose of this metric is to assist with identifying and diagnosing any connectivity or query issues. 
+  ## This setting/metric is optional and is disabled by default.
+  # health_metric = false
 
   ## Possible queries accross different versions of the collectors
   ## Queries enabled by default for specific Database Type
@@ -105,6 +143,9 @@ GO
    ## - SQLServerRequests
    ## - SQLServerVolumeSpace
    ## - SQLServerCpu
+   ## and following as optional (if mentioned in the include_query list)
+   ## - SQLServerAvailabilityReplicaStates
+   ## - SQLServerDatabaseReplicaStates
 
   ## Version 2 by default collects the following queries
   ## Version 2 is being deprecated, please consider using database_type.
@@ -131,13 +172,6 @@ GO
   ## - VolumeSpace
   ## - PerformanceMetrics
 
-
-
-  ## A list of queries to include. If not specified, all the above listed queries are used.
-  # include_query = []
-
-  ## A list of queries to explicitly ignore.
-  exclude_query = [ 'Schedulers' , 'SqlRequests' ]
 
 
 
@@ -240,6 +274,8 @@ These are metrics for Azure SQL Managed instance, are very similar to version 2 
   blocking sessions.
 - SQLServerVolumeSpace - uses `sys.dm_os_volume_stats` to get total, used and occupied space on every disk that contains a data or log file. (Note that even if enabled it won't get any data from Azure SQL Database or SQL Managed Instance). It is pointless to run this with high frequency (ie: every 10s), but it won't cause any problem.
 - SQLServerCpu - uses the buffer ring (`sys.dm_os_ring_buffers`) to get CPU data, the table is updated once per minute. (Note that even if enabled it won't get any data from Azure SQL Database or SQL Managed Instance).
+- SQLServerAvailabilityReplicaStates: Collects availability replica state information from `sys.dm_hadr_availability_replica_states` for a High Availability / Disaster Recovery (HADR) setup
+- SQLServerDatabaseReplicaStates: Collects database replica state information from `sys.dm_hadr_database_replica_states` for a High Availability / Disaster Recovery (HADR) setup
 
 
 #### Output Measures
@@ -292,5 +328,21 @@ The following Performance counter metrics can be used directly, with no delta ca
 Version 2 queries have the following tags:
 - `sql_instance`: Physical host and instance name (hostname:instance)
 - `database_name`:  For Azure SQLDB, database_name denotes the name of the Azure SQL Database as server name is a logical construct.
+
+#### Health Metric
+All collection versions (version 1, version 2, and database_type) support an optional plugin health metric called `sqlserver_telegraf_health`. This metric tracks if connections to SQL Server are succeeding or failing. Users can leverage this metric to detect if their SQL Server monitoring is not working as intended.
+
+In the configuration file, toggling `health_metric` to `true` will enable collection of this metric. By default, this value is set to `false` and the metric is not collected. The health metric emits one record for each connection specified by `servers` in the configuration file.
+
+The health metric emits the following tags:
+- `sql_instance` - Name of the server specified in the connection string. This value is emitted as-is in the connection string. If the server could not be parsed from the connection string, a constant placeholder value is emitted
+- `database_name` -  Name of the database or (initial catalog) specified in the connection string. This value is emitted as-is in the connection string. If the database could not be parsed from the connection string, a constant placeholder value is emitted
+
+The health metric emits the following fields:
+- `attempted_queries` - Number of queries that were attempted for this connection
+- `successful_queries` - Number of queries that completed successfully for this connection
+- `database_type` - Type of database as specified by `database_type`. If `database_type` is empty, the `QueryVersion` and `AzureDB` fields are concatenated instead
+
+If `attempted_queries` and `successful_queries` are not equal for a given connection, some metrics were not successfully gathered for that connection. If `successful_queries` is 0, no metrics were successfully gathered.
 
 [cardinality]: /docs/FAQ.md#user-content-q-how-can-i-manage-series-cardinality

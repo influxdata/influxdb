@@ -4,6 +4,8 @@ import (
 	"context"
 	"path"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 )
@@ -49,7 +51,7 @@ func (s *UserResourceMappingClient) FindUserResourceMappings(ctx context.Context
 }
 
 // DeleteUserResourceMapping will delete user resource mapping based in criteria.
-func (s *UserResourceMappingClient) DeleteUserResourceMapping(ctx context.Context, resourceID influxdb.ID, userID influxdb.ID) error {
+func (s *UserResourceMappingClient) DeleteUserResourceMapping(ctx context.Context, resourceID platform.ID, userID platform.ID) error {
 	urlPath := resourceIDUserPath(influxdb.OrgsResourceType, resourceID, influxdb.Member, userID)
 	return s.Client.
 		Delete(urlPath).
@@ -111,17 +113,17 @@ func (s *SpecificURMSvc) CreateUserResourceMapping(ctx context.Context, m *influ
 }
 
 // DeleteUserResourceMapping will delete user resource mapping based in criteria.
-func (s *SpecificURMSvc) DeleteUserResourceMapping(ctx context.Context, resourceID influxdb.ID, userID influxdb.ID) error {
+func (s *SpecificURMSvc) DeleteUserResourceMapping(ctx context.Context, resourceID platform.ID, userID platform.ID) error {
 	urlPath := resourceIDUserPath(s.rt, resourceID, s.ut, userID)
 	return s.Client.
 		Delete(urlPath).
 		Do(ctx)
 }
 
-func resourceIDPath(resourceType influxdb.ResourceType, resourceID influxdb.ID, p string) string {
+func resourceIDPath(resourceType influxdb.ResourceType, resourceID platform.ID, p string) string {
 	return path.Join("/api/v2/", string(resourceType), resourceID.String(), p)
 }
 
-func resourceIDUserPath(resourceType influxdb.ResourceType, resourceID influxdb.ID, userType influxdb.UserType, userID influxdb.ID) string {
+func resourceIDUserPath(resourceType influxdb.ResourceType, resourceID platform.ID, userType influxdb.UserType, userID platform.ID) string {
 	return path.Join("/api/v2/", string(resourceType), resourceID.String(), string(userType)+"s", userID.String())
 }

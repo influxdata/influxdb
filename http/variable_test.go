@@ -12,6 +12,9 @@ import (
 	"testing"
 	"time"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb/v2"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
@@ -62,7 +65,7 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 						return []*platform.Variable{
 							{
 								ID:             itesting.MustIDBase16("6162207574726f71"),
-								OrganizationID: platform.ID(1),
+								OrganizationID: platform2.ID(1),
 								Name:           "variable-a",
 								Selected:       []string{"b"},
 								Arguments: &platform.VariableArguments{
@@ -76,7 +79,7 @@ func TestVariableService_handleGetVariables(t *testing.T) {
 							},
 							{
 								ID:             itesting.MustIDBase16("61726920617a696f"),
-								OrganizationID: platform.ID(1),
+								OrganizationID: platform2.ID(1),
 								Name:           "variable-b",
 								Selected:       []string{"c"},
 								Arguments: &platform.VariableArguments{
@@ -363,10 +366,10 @@ func TestVariableService_handleGetVariable(t *testing.T) {
 			},
 			fields: fields{
 				&mock.VariableService{
-					FindVariableByIDF: func(ctx context.Context, id platform.ID) (*platform.Variable, error) {
+					FindVariableByIDF: func(ctx context.Context, id platform2.ID) (*platform.Variable, error) {
 						return &platform.Variable{
 							ID:             itesting.MustIDBase16("75650d0a636f6d70"),
-							OrganizationID: platform.ID(1),
+							OrganizationID: platform2.ID(1),
 							Name:           "variable-a",
 							Selected:       []string{"b"},
 							Arguments: &platform.VariableArguments{
@@ -394,9 +397,9 @@ func TestVariableService_handleGetVariable(t *testing.T) {
 			},
 			fields: fields{
 				&mock.VariableService{
-					FindVariableByIDF: func(ctx context.Context, id platform.ID) (*platform.Variable, error) {
-						return nil, &platform.Error{
-							Code: platform.ENotFound,
+					FindVariableByIDF: func(ctx context.Context, id platform2.ID) (*platform.Variable, error) {
+						return nil, &errors.Error{
+							Code: errors.ENotFound,
 							Msg:  fmt.Sprintf("variable with ID %v not found", id),
 						}
 					},
@@ -415,7 +418,7 @@ func TestVariableService_handleGetVariable(t *testing.T) {
 			},
 			fields: fields{
 				&mock.VariableService{
-					FindVariableByIDF: func(ctx context.Context, id platform.ID) (*platform.Variable, error) {
+					FindVariableByIDF: func(ctx context.Context, id platform2.ID) (*platform.Variable, error) {
 						return nil, nil
 					},
 				},
@@ -493,7 +496,7 @@ func TestVariableService_handlePostVariable(t *testing.T) {
 				&mock.VariableService{
 					CreateVariableF: func(ctx context.Context, m *platform.Variable) error {
 						m.ID = itesting.MustIDBase16("75650d0a636f6d70")
-						m.OrganizationID = platform.ID(1)
+						m.OrganizationID = platform2.ID(1)
 						m.UpdatedAt = faketime
 						m.CreatedAt = faketime
 						return nil
@@ -624,7 +627,7 @@ func TestVariableService_handlePutVariable(t *testing.T) {
 				&mock.VariableService{
 					ReplaceVariableF: func(ctx context.Context, m *platform.Variable) error {
 						m.ID = itesting.MustIDBase16("75650d0a636f6d70")
-						m.OrganizationID = platform.ID(1)
+						m.OrganizationID = platform2.ID(1)
 						m.UpdatedAt = faketime
 						m.CreatedAt = faketime
 						return nil
@@ -725,10 +728,10 @@ func TestVariableService_handlePatchVariable(t *testing.T) {
 			name: "update a variable name",
 			fields: fields{
 				&mock.VariableService{
-					UpdateVariableF: func(ctx context.Context, id platform.ID, u *platform.VariableUpdate) (*platform.Variable, error) {
+					UpdateVariableF: func(ctx context.Context, id platform2.ID, u *platform.VariableUpdate) (*platform.Variable, error) {
 						return &platform.Variable{
 							ID:             itesting.MustIDBase16("75650d0a636f6d70"),
-							OrganizationID: platform.ID(2),
+							OrganizationID: platform2.ID(2),
 							Name:           "new-name",
 							Arguments: &platform.VariableArguments{
 								Type:   "constant",
@@ -831,7 +834,7 @@ func TestVariableService_handleDeleteVariable(t *testing.T) {
 			name: "delete a variable",
 			fields: fields{
 				&mock.VariableService{
-					DeleteVariableF: func(ctx context.Context, id platform.ID) error {
+					DeleteVariableF: func(ctx context.Context, id platform2.ID) error {
 						return nil
 					},
 				},
@@ -847,9 +850,9 @@ func TestVariableService_handleDeleteVariable(t *testing.T) {
 			name: "delete a non-existent variable",
 			fields: fields{
 				&mock.VariableService{
-					DeleteVariableF: func(ctx context.Context, id platform.ID) error {
-						return &platform.Error{
-							Code: platform.ENotFound,
+					DeleteVariableF: func(ctx context.Context, id platform2.ID) error {
+						return &errors.Error{
+							Code: errors.ENotFound,
 							Msg:  fmt.Sprintf("variable with ID %v not found", id),
 						}
 					},
@@ -899,7 +902,7 @@ func TestService_handlePostVariableLabel(t *testing.T) {
 	}
 	type args struct {
 		labelMapping *platform.LabelMapping
-		variableID   platform.ID
+		variableID   platform2.ID
 	}
 	type wants struct {
 		statusCode  int
@@ -917,7 +920,7 @@ func TestService_handlePostVariableLabel(t *testing.T) {
 			name: "add label to variable",
 			fields: fields{
 				LabelService: &mock.LabelService{
-					FindLabelByIDFn: func(ctx context.Context, id platform.ID) (*platform.Label, error) {
+					FindLabelByIDFn: func(ctx context.Context, id platform2.ID) (*platform.Label, error) {
 						return &platform.Label{
 							ID:   1,
 							Name: "label",

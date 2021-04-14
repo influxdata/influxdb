@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/internal"
 	"github.com/influxdata/influxdb/v2/tenant"
@@ -23,13 +25,14 @@ type cmdBucketBuilder struct {
 
 	svcFn bucketSVCsFn
 
-	id          string
-	hideHeaders bool
-	json        bool
-	name        string
-	description string
-	org         organization
-	retention   string
+	id                 string
+	hideHeaders        bool
+	json               bool
+	name               string
+	description        string
+	org                organization
+	retention          string
+	shardGroupDuration string
 }
 
 func newCmdBucketBuilder(svcsFn bucketSVCsFn, f *globalFlags, opts genericCLIOpts) *cmdBucketBuilder {
@@ -73,6 +76,8 @@ func (b *cmdBucketBuilder) cmdCreate() *cobra.Command {
 
 	cmd.Flags().StringVarP(&b.description, "description", "d", "", "Description of bucket that will be created")
 	cmd.Flags().StringVarP(&b.retention, "retention", "r", "", "Duration bucket will retain data. 0 is infinite. Default is 0.")
+	cmd.Flags().StringVarP(&b.shardGroupDuration, "shard-group-duration", "", "",
+		"Shard group duration used internally by the storage engine. Not supported by InfluxDB Cloud.")
 	b.org.register(b.viper, cmd, false)
 	b.registerPrintFlags(cmd)
 
@@ -94,10 +99,16 @@ func (b *cmdBucketBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 		return err
 	}
 
+	shardGroupDuration, err := internal.RawDurationToTimeDuration(b.shardGroupDuration)
+	if err != nil {
+		return err
+	}
+
 	bkt := &influxdb.Bucket{
-		Name:            b.name,
-		Description:     b.description,
-		RetentionPeriod: dur,
+		Name:               b.name,
+		Description:        b.description,
+		RetentionPeriod:    dur,
+		ShardGroupDuration: shardGroupDuration,
 	}
 	bkt.OrgID, err = b.org.getID(orgSVC)
 	if err != nil {
@@ -129,7 +140,7 @@ func (b *cmdBucketBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) er
 		return err
 	}
 
-	var id influxdb.ID
+	var id platform.ID
 	var filter influxdb.BucketFilter
 	if b.id == "" && b.name != "" {
 		if err = b.org.validOrgFlags(&flags); err != nil {
@@ -137,7 +148,7 @@ func (b *cmdBucketBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) er
 		}
 		filter.Name = &b.name
 		if b.org.id != "" {
-			if filter.OrganizationID, err = influxdb.IDFromString(b.org.id); err != nil {
+			if filter.OrganizationID, err = platform.IDFromString(b.org.id); err != nil {
 				return err
 			}
 		} else if b.org.name != "" {
@@ -204,14 +215,14 @@ func (b *cmdBucketBuilder) cmdListRunEFn(cmd *cobra.Command, args []string) erro
 		filter.Name = &b.name
 	}
 	if b.id != "" {
-		id, err := influxdb.IDFromString(b.id)
+		id, err := platform.IDFromString(b.id)
 		if err != nil {
 			return fmt.Errorf("failed to decode bucket id %q: %v", b.id, err)
 		}
 		filter.ID = id
 	}
 	if b.org.id != "" {
-		orgID, err := influxdb.IDFromString(b.org.id)
+		orgID, err := platform.IDFromString(b.org.id)
 		if err != nil {
 			return fmt.Errorf("failed to decode org id %q: %v", b.org.id, err)
 		}
@@ -241,16 +252,18 @@ func (b *cmdBucketBuilder) cmdUpdate() *cobra.Command {
 			Flag:   "name",
 			Short:  'n',
 			EnvVar: "BUCKET_NAME",
-			Desc:   "New bucket name",
+			Desc:   "New name to set on the bucket",
 		},
 	}
 	opts.mustRegister(b.viper, cmd)
 
 	b.registerPrintFlags(cmd)
 	cmd.Flags().StringVarP(&b.id, "id", "i", "", "The bucket ID (required)")
-	cmd.Flags().StringVarP(&b.description, "description", "d", "", "Description of bucket that will be created")
+	cmd.Flags().StringVarP(&b.description, "description", "d", "", "New description to set on the bucket")
 	cmd.MarkFlagRequired("id")
-	cmd.Flags().StringVarP(&b.retention, "retention", "r", "", "Duration bucket will retain data. 0 is infinite. Default is 0.")
+	cmd.Flags().StringVarP(&b.retention, "retention", "r", "", "New retention duration to set on the bucket. 0 is infinite.")
+	cmd.Flags().StringVarP(&b.shardGroupDuration, "shard-group-duration", "", "",
+		"New shard group duration to set on the bucket. 0 will tell the server to pick a value. Not supported by InfluxDB Cloud.")
 
 	return cmd
 }
@@ -261,7 +274,7 @@ func (b *cmdBucketBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) er
 		return err
 	}
 
-	var id influxdb.ID
+	var id platform.ID
 	if err := id.DecodeFromString(b.id); err != nil {
 		return fmt.Errorf("failed to decode bucket id %q: %v", b.id, err)
 	}
@@ -274,12 +287,20 @@ func (b *cmdBucketBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) er
 		update.Description = &b.description
 	}
 
-	dur, err := internal.RawDurationToTimeDuration(b.retention)
-	if err != nil {
-		return err
-	}
-	if dur != 0 {
+	if b.retention != "" {
+		dur, err := internal.RawDurationToTimeDuration(b.retention)
+		if err != nil {
+			return err
+		}
 		update.RetentionPeriod = &dur
+	}
+
+	if b.shardGroupDuration != "" {
+		sgDur, err := internal.RawDurationToTimeDuration(b.shardGroupDuration)
+		if err != nil {
+			return err
+		}
+		update.ShardGroupDuration = &sgDur
 	}
 
 	bkt, err := bktSVC.UpdateBucket(context.Background(), id, update)
@@ -320,7 +341,7 @@ func (b *cmdBucketBuilder) printBuckets(printOpt bucketPrintOpt) error {
 
 	w.HideHeaders(b.hideHeaders)
 
-	headers := []string{"ID", "Name", "Retention", "Organization ID"}
+	headers := []string{"ID", "Name", "Retention", "Shard group duration", "Organization ID"}
 	if printOpt.deleted {
 		headers = append(headers, "Deleted")
 	}
@@ -331,11 +352,23 @@ func (b *cmdBucketBuilder) printBuckets(printOpt bucketPrintOpt) error {
 	}
 
 	for _, bkt := range printOpt.buckets {
+		rp := bkt.RetentionPeriod.String()
+		if bkt.RetentionPeriod == influxdb.InfiniteRetention {
+			rp = "infinite"
+		}
+		sgDur := bkt.ShardGroupDuration.String()
+		// ShardGroupDuration will be zero if listing buckets from InfluxDB Cloud.
+		// Show something more useful here in that case.
+		if bkt.ShardGroupDuration == 0 {
+			sgDur = "n/a"
+		}
+
 		m := map[string]interface{}{
-			"ID":              bkt.ID.String(),
-			"Name":            bkt.Name,
-			"Retention":       bkt.RetentionPeriod,
-			"Organization ID": bkt.OrgID.String(),
+			"ID":                   bkt.ID.String(),
+			"Name":                 bkt.Name,
+			"Retention":            rp,
+			"Shard group duration": sgDur,
+			"Organization ID":      bkt.OrgID.String(),
 		}
 		if printOpt.deleted {
 			m["Deleted"] = true

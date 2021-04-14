@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
+	"github.com/stretchr/testify/require"
 )
 
 func TestTombstoner_Add(t *testing.T) {
@@ -21,10 +22,8 @@ func TestTombstoner_Add(t *testing.T) {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
 	}
 
-	stats := ts.TombstoneFiles()
-	if got, exp := len(stats), 0; got != exp {
-		t.Fatalf("stat length mismatch: got %v, exp %v", got, exp)
-	}
+	stats := ts.TombstoneStats()
+	require.False(t, stats.TombstoneExists)
 
 	ts.Add([][]byte{[]byte("foo")})
 
@@ -33,22 +32,11 @@ func TestTombstoner_Add(t *testing.T) {
 	}
 
 	entries = mustReadAll(ts)
-	stats = ts.TombstoneFiles()
-	if got, exp := len(stats), 1; got != exp {
-		t.Fatalf("stat length mismatch: got %v, exp %v", got, exp)
-	}
-
-	if stats[0].Size == 0 {
-		t.Fatalf("got size %v, exp > 0", stats[0].Size)
-	}
-
-	if stats[0].LastModified == 0 {
-		t.Fatalf("got lastModified %v, exp > 0", stats[0].LastModified)
-	}
-
-	if stats[0].Path == "" {
-		t.Fatalf("got path %v, exp != ''", stats[0].Path)
-	}
+	stats = ts.TombstoneStats()
+	require.True(t, stats.TombstoneExists)
+	require.NotZero(t, stats.Size)
+	require.NotZero(t, stats.LastModified)
+	require.NotEmpty(t, stats.Path)
 
 	if got, exp := len(entries), 1; got != exp {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
@@ -82,10 +70,8 @@ func TestTombstoner_Add_LargeKey(t *testing.T) {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
 	}
 
-	stats := ts.TombstoneFiles()
-	if got, exp := len(stats), 0; got != exp {
-		t.Fatalf("stat length mismatch: got %v, exp %v", got, exp)
-	}
+	stats := ts.TombstoneStats()
+	require.False(t, stats.TombstoneExists)
 
 	key := bytes.Repeat([]byte{'a'}, 4096)
 	ts.Add([][]byte{key})
@@ -95,22 +81,11 @@ func TestTombstoner_Add_LargeKey(t *testing.T) {
 	}
 
 	entries = mustReadAll(ts)
-	stats = ts.TombstoneFiles()
-	if got, exp := len(stats), 1; got != exp {
-		t.Fatalf("stat length mismatch: got %v, exp %v", got, exp)
-	}
-
-	if stats[0].Size == 0 {
-		t.Fatalf("got size %v, exp > 0", stats[0].Size)
-	}
-
-	if stats[0].LastModified == 0 {
-		t.Fatalf("got lastModified %v, exp > 0", stats[0].LastModified)
-	}
-
-	if stats[0].Path == "" {
-		t.Fatalf("got path %v, exp != ''", stats[0].Path)
-	}
+	stats = ts.TombstoneStats()
+	require.True(t, stats.TombstoneExists)
+	require.NotZero(t, stats.Size)
+	require.NotZero(t, stats.LastModified)
+	require.NotEmpty(t, stats.Path)
 
 	if got, exp := len(entries), 1; got != exp {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
@@ -144,10 +119,8 @@ func TestTombstoner_Add_Multiple(t *testing.T) {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
 	}
 
-	stats := ts.TombstoneFiles()
-	if got, exp := len(stats), 0; got != exp {
-		t.Fatalf("stat length mismatch: got %v, exp %v", got, exp)
-	}
+	stats := ts.TombstoneStats()
+	require.False(t, stats.TombstoneExists)
 
 	ts.Add([][]byte{[]byte("foo")})
 
@@ -162,22 +135,11 @@ func TestTombstoner_Add_Multiple(t *testing.T) {
 	}
 
 	entries = mustReadAll(ts)
-	stats = ts.TombstoneFiles()
-	if got, exp := len(stats), 1; got != exp {
-		t.Fatalf("stat length mismatch: got %v, exp %v", got, exp)
-	}
-
-	if stats[0].Size == 0 {
-		t.Fatalf("got size %v, exp > 0", stats[0].Size)
-	}
-
-	if stats[0].LastModified == 0 {
-		t.Fatalf("got lastModified %v, exp > 0", stats[0].LastModified)
-	}
-
-	if stats[0].Path == "" {
-		t.Fatalf("got path %v, exp != ''", stats[0].Path)
-	}
+	stats = ts.TombstoneStats()
+	require.True(t, stats.TombstoneExists)
+	require.NotZero(t, stats.Size)
+	require.NotZero(t, stats.LastModified)
+	require.NotEmpty(t, stats.Path)
 
 	if got, exp := len(entries), 2; got != exp {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
@@ -233,11 +195,8 @@ func TestTombstoner_Add_Empty(t *testing.T) {
 		t.Fatalf("length mismatch: got %v, exp %v", got, exp)
 	}
 
-	stats := ts.TombstoneFiles()
-	if got, exp := len(stats), 0; got != exp {
-		t.Fatalf("stat length mismatch: got %v, exp %v", got, exp)
-	}
-
+	stats := ts.TombstoneStats()
+	require.False(t, stats.TombstoneExists)
 }
 
 func TestTombstoner_Delete(t *testing.T) {
@@ -268,10 +227,8 @@ func TestTombstoner_Delete(t *testing.T) {
 		fatal(t, "delete tombstone", err)
 	}
 
-	stats := ts.TombstoneFiles()
-	if got, exp := len(stats), 0; got != exp {
-		t.Fatalf("stat length mismatch: got %v, exp %v", got, exp)
-	}
+	stats := ts.TombstoneStats()
+	require.False(t, stats.TombstoneExists)
 
 	ts = tsm1.NewTombstoner(f.Name(), nil)
 	entries = mustReadAll(ts)

@@ -88,10 +88,15 @@ func BenchmarkFluxEndToEnd(b *testing.B) {
 }
 
 func runEndToEnd(t *testing.T, pkgs []*ast.Package) {
+	l := launcher.NewTestLauncher()
+
 	flagger := newFlagger(itesting.FluxEndToEndFeatureFlags)
-	l := launcher.RunTestLauncherOrFail(t, ctx, flagger)
-	l.SetupOrFail(t)
+	l.SetFlagger(flagger)
+
+	l.RunOrFail(t, ctx)
 	defer l.ShutdownOrFail(t, ctx)
+	l.SetupOrFail(t)
+
 	for _, pkg := range pkgs {
 		test := func(t *testing.T, f func(t *testing.T)) {
 			t.Run(pkg.Path, f)
@@ -258,6 +263,10 @@ func executeWithOptions(t testing.TB, l *launcher.TestLauncher, bucketOpt *ast.O
 
 	// Use testing.inspect call to get all of diff, want, and got
 	inspectCalls := stdlib.TestingInspectCalls(pkg)
+	if len(inspectCalls.Body) == 0 {
+		t.Skip("no tests found")
+		return nil
+	}
 	pkg.Files = append(pkg.Files, inspectCalls)
 
 	bs, err := json.Marshal(pkg)

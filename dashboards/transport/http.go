@@ -7,6 +7,9 @@ import (
 	"net/http"
 	"path"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/influxdata/influxdb/v2"
@@ -112,8 +115,8 @@ type dashboardLinks struct {
 }
 
 type dashboardResponse struct {
-	ID             influxdb.ID             `json:"id,omitempty"`
-	OrganizationID influxdb.ID             `json:"orgID,omitempty"`
+	ID             platform.ID             `json:"id,omitempty"`
+	OrganizationID platform.ID             `json:"orgID,omitempty"`
 	Name           string                  `json:"name"`
 	Description    string                  `json:"description"`
 	Meta           influxdb.DashboardMeta  `json:"meta"`
@@ -204,7 +207,7 @@ func (c dashboardCellResponse) toinfluxdb() *influxdb.Cell {
 	return &c.Cell
 }
 
-func newDashboardCellResponse(dashboardID influxdb.ID, c *influxdb.Cell) dashboardCellResponse {
+func newDashboardCellResponse(dashboardID platform.ID, c *influxdb.Cell) dashboardCellResponse {
 	resp := dashboardCellResponse{
 		Cell: *c,
 		Links: map[string]string{
@@ -225,7 +228,7 @@ type dashboardCellsResponse struct {
 	Links map[string]string       `json:"links"`
 }
 
-func newDashboardCellsResponse(dashboardID influxdb.ID, cs []*influxdb.Cell) dashboardCellsResponse {
+func newDashboardCellsResponse(dashboardID platform.ID, cs []*influxdb.Cell) dashboardCellsResponse {
 	res := dashboardCellsResponse{
 		Cells: []dashboardCellResponse{},
 		Links: map[string]string{
@@ -266,7 +269,7 @@ func (r dashboardCellViewResponse) MarshalJSON() ([]byte, error) {
 	})
 }
 
-func newDashboardCellViewResponse(dashID, cellID influxdb.ID, v *influxdb.View) dashboardCellViewResponse {
+func newDashboardCellViewResponse(dashID, cellID platform.ID, v *influxdb.View) dashboardCellViewResponse {
 	return dashboardCellViewResponse{
 		Links: viewLinks{
 			Self: fmt.Sprintf("/api/v2/dashboards/%s/cells/%s", dashID, cellID),
@@ -322,7 +325,7 @@ func decodeGetDashboardsRequest(ctx context.Context, r *http.Request) (*getDashb
 	}
 	req.opts = *opts
 
-	initialID := influxdb.InvalidID()
+	initialID := platform.InvalidID()
 	if ids, ok := qp["id"]; ok {
 		for _, id := range ids {
 			i := initialID
@@ -337,7 +340,7 @@ func decodeGetDashboardsRequest(ctx context.Context, r *http.Request) (*getDashb
 			return nil, err
 		}
 	} else if orgID := qp.Get("orgID"); orgID != "" {
-		id := influxdb.InvalidID()
+		id := platform.InvalidID()
 		if err := id.DecodeFromString(orgID); err != nil {
 			return nil, err
 		}
@@ -439,19 +442,19 @@ func (h *DashboardHandler) handleGetDashboard(w http.ResponseWriter, r *http.Req
 }
 
 type getDashboardRequest struct {
-	DashboardID influxdb.ID
+	DashboardID platform.ID
 }
 
 func decodeGetDashboardRequest(ctx context.Context, r *http.Request) (*getDashboardRequest, error) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i influxdb.ID
+	var i platform.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -481,19 +484,19 @@ func (h *DashboardHandler) handleDeleteDashboard(w http.ResponseWriter, r *http.
 }
 
 type deleteDashboardRequest struct {
-	DashboardID influxdb.ID
+	DashboardID platform.ID
 }
 
 func decodeDeleteDashboardRequest(ctx context.Context, r *http.Request) (*deleteDashboardRequest, error) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
-	var i influxdb.ID
+	var i platform.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -529,7 +532,7 @@ func (h *DashboardHandler) handlePatchDashboard(w http.ResponseWriter, r *http.R
 }
 
 type patchDashboardRequest struct {
-	DashboardID influxdb.ID
+	DashboardID platform.ID
 	Upd         influxdb.DashboardUpdate
 }
 
@@ -537,8 +540,8 @@ func decodePatchDashboardRequest(ctx context.Context, r *http.Request) (*patchDa
 	req := &patchDashboardRequest{}
 	upd := influxdb.DashboardUpdate{}
 	if err := json.NewDecoder(r.Body).Decode(&upd); err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}
@@ -546,12 +549,12 @@ func decodePatchDashboardRequest(ctx context.Context, r *http.Request) (*patchDa
 
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
-	var i influxdb.ID
+	var i platform.ID
 	if err := i.DecodeFromString(id); err != nil {
 		return nil, err
 	}
@@ -559,8 +562,8 @@ func decodePatchDashboardRequest(ctx context.Context, r *http.Request) (*patchDa
 	req.DashboardID = i
 
 	if err := req.Valid(); err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}
@@ -571,8 +574,8 @@ func decodePatchDashboardRequest(ctx context.Context, r *http.Request) (*patchDa
 // Valid validates that the dashboard ID is non zero valued and update has expected values set.
 func (r *patchDashboardRequest) Valid() error {
 	if !r.DashboardID.Valid() {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "missing dashboard ID",
 		}
 	}
@@ -584,9 +587,9 @@ func (r *patchDashboardRequest) Valid() error {
 }
 
 type postDashboardCellRequest struct {
-	dashboardID influxdb.ID
+	dashboardID platform.ID
 	*influxdb.CellProperty
-	UsingView *influxdb.ID `json:"usingView"`
+	UsingView *platform.ID `json:"usingView"`
 	Name      *string      `json:"name"`
 }
 
@@ -594,15 +597,15 @@ func decodePostDashboardCellRequest(ctx context.Context, r *http.Request) (*post
 	req := &postDashboardCellRequest{}
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(req); err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "bad request json body",
 			Err:  err,
 		}
@@ -640,8 +643,8 @@ func (h *DashboardHandler) handlePostDashboardCell(w http.ResponseWriter, r *htt
 			opts.View.Name = *req.Name
 		}
 	} else if req.CellProperty == nil {
-		h.api.Err(w, r, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		h.api.Err(w, r, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "req body is empty",
 		})
 		return
@@ -662,7 +665,7 @@ func (h *DashboardHandler) handlePostDashboardCell(w http.ResponseWriter, r *htt
 }
 
 type putDashboardCellRequest struct {
-	dashboardID influxdb.ID
+	dashboardID platform.ID
 	cells       []*influxdb.Cell
 }
 
@@ -671,8 +674,8 @@ func decodePutDashboardCellRequest(ctx context.Context, r *http.Request) (*putDa
 
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
@@ -708,8 +711,8 @@ func (h *DashboardHandler) handlePutDashboardCells(w http.ResponseWriter, r *htt
 }
 
 type deleteDashboardCellRequest struct {
-	dashboardID influxdb.ID
-	cellID      influxdb.ID
+	dashboardID platform.ID
+	cellID      platform.ID
 }
 
 func decodeDeleteDashboardCellRequest(ctx context.Context, r *http.Request) (*deleteDashboardCellRequest, error) {
@@ -717,8 +720,8 @@ func decodeDeleteDashboardCellRequest(ctx context.Context, r *http.Request) (*de
 
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
@@ -728,8 +731,8 @@ func decodeDeleteDashboardCellRequest(ctx context.Context, r *http.Request) (*de
 
 	cellID := chi.URLParam(r, "cellID")
 	if cellID == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing cellID",
 		}
 	}
@@ -741,8 +744,8 @@ func decodeDeleteDashboardCellRequest(ctx context.Context, r *http.Request) (*de
 }
 
 type getDashboardCellViewRequest struct {
-	dashboardID influxdb.ID
-	cellID      influxdb.ID
+	dashboardID platform.ID
+	cellID      platform.ID
 }
 
 func decodeGetDashboardCellViewRequest(ctx context.Context, r *http.Request) (*getDashboardCellViewRequest, error) {
@@ -750,7 +753,7 @@ func decodeGetDashboardCellViewRequest(ctx context.Context, r *http.Request) (*g
 
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		return nil, influxdb.NewError(influxdb.WithErrorMsg("url missing id"), influxdb.WithErrorCode(influxdb.EInvalid))
+		return nil, errors.NewError(errors.WithErrorMsg("url missing id"), errors.WithErrorCode(errors.EInvalid))
 	}
 	if err := req.dashboardID.DecodeFromString(id); err != nil {
 		return nil, err
@@ -758,7 +761,7 @@ func decodeGetDashboardCellViewRequest(ctx context.Context, r *http.Request) (*g
 
 	cellID := chi.URLParam(r, "cellID")
 	if cellID == "" {
-		return nil, influxdb.NewError(influxdb.WithErrorMsg("url missing cellID"), influxdb.WithErrorCode(influxdb.EInvalid))
+		return nil, errors.NewError(errors.WithErrorMsg("url missing cellID"), errors.WithErrorCode(errors.EInvalid))
 	}
 	if err := req.cellID.DecodeFromString(cellID); err != nil {
 		return nil, err
@@ -787,8 +790,8 @@ func (h *DashboardHandler) handleGetDashboardCellView(w http.ResponseWriter, r *
 }
 
 type patchDashboardCellViewRequest struct {
-	dashboardID influxdb.ID
-	cellID      influxdb.ID
+	dashboardID platform.ID
+	cellID      platform.ID
 	upd         influxdb.ViewUpdate
 }
 
@@ -797,7 +800,7 @@ func decodePatchDashboardCellViewRequest(ctx context.Context, r *http.Request) (
 
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		return nil, influxdb.NewError(influxdb.WithErrorMsg("url missing id"), influxdb.WithErrorCode(influxdb.EInvalid))
+		return nil, errors.NewError(errors.WithErrorMsg("url missing id"), errors.WithErrorCode(errors.EInvalid))
 	}
 	if err := req.dashboardID.DecodeFromString(id); err != nil {
 		return nil, err
@@ -805,7 +808,7 @@ func decodePatchDashboardCellViewRequest(ctx context.Context, r *http.Request) (
 
 	cellID := chi.URLParam(r, "cellID")
 	if cellID == "" {
-		return nil, influxdb.NewError(influxdb.WithErrorMsg("url missing cellID"), influxdb.WithErrorCode(influxdb.EInvalid))
+		return nil, errors.NewError(errors.WithErrorMsg("url missing cellID"), errors.WithErrorCode(errors.EInvalid))
 	}
 	if err := req.cellID.DecodeFromString(cellID); err != nil {
 		return nil, err
@@ -854,8 +857,8 @@ func (h *DashboardHandler) handleDeleteDashboardCell(w http.ResponseWriter, r *h
 }
 
 type patchDashboardCellRequest struct {
-	dashboardID influxdb.ID
-	cellID      influxdb.ID
+	dashboardID platform.ID
+	cellID      platform.ID
 	upd         influxdb.CellUpdate
 }
 
@@ -864,8 +867,8 @@ func decodePatchDashboardCellRequest(ctx context.Context, r *http.Request) (*pat
 
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "url missing id",
 		}
 	}
@@ -875,8 +878,8 @@ func decodePatchDashboardCellRequest(ctx context.Context, r *http.Request) (*pat
 
 	cellID := chi.URLParam(r, "cellID")
 	if cellID == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "cannot provide empty cell id",
 		}
 	}
@@ -885,8 +888,8 @@ func decodePatchDashboardCellRequest(ctx context.Context, r *http.Request) (*pat
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req.upd); err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}
@@ -917,7 +920,7 @@ func (h *DashboardHandler) handlePatchDashboardCell(w http.ResponseWriter, r *ht
 	h.api.Respond(w, r, http.StatusOK, newDashboardCellResponse(req.dashboardID, cell))
 }
 
-func (h *DashboardHandler) lookupOrgByDashboardID(ctx context.Context, id influxdb.ID) (influxdb.ID, error) {
+func (h *DashboardHandler) lookupOrgByDashboardID(ctx context.Context, id platform.ID) (platform.ID, error) {
 	d, err := h.dashboardService.FindDashboardByID(ctx, id)
 	if err != nil {
 		return 0, err
@@ -931,7 +934,7 @@ type DashboardService struct {
 }
 
 // FindDashboardByID returns a single dashboard by ID.
-func (s *DashboardService) FindDashboardByID(ctx context.Context, id influxdb.ID) (*influxdb.Dashboard, error) {
+func (s *DashboardService) FindDashboardByID(ctx context.Context, id platform.ID) (*influxdb.Dashboard, error) {
 	var dr dashboardResponse
 	err := s.Client.
 		Get(prefixDashboards, id.String()).
@@ -982,7 +985,7 @@ func (s *DashboardService) CreateDashboard(ctx context.Context, d *influxdb.Dash
 
 // UpdateDashboard updates a single dashboard with changeset.
 // Returns the new dashboard state after update.
-func (s *DashboardService) UpdateDashboard(ctx context.Context, id influxdb.ID, upd influxdb.DashboardUpdate) (*influxdb.Dashboard, error) {
+func (s *DashboardService) UpdateDashboard(ctx context.Context, id platform.ID, upd influxdb.DashboardUpdate) (*influxdb.Dashboard, error) {
 	var d influxdb.Dashboard
 	err := s.Client.
 		PatchJSON(upd, prefixDashboards, id.String()).
@@ -1001,14 +1004,14 @@ func (s *DashboardService) UpdateDashboard(ctx context.Context, id influxdb.ID, 
 }
 
 // DeleteDashboard removes a dashboard by ID.
-func (s *DashboardService) DeleteDashboard(ctx context.Context, id influxdb.ID) error {
+func (s *DashboardService) DeleteDashboard(ctx context.Context, id platform.ID) error {
 	return s.Client.
 		Delete(dashboardIDPath(id)).
 		Do(ctx)
 }
 
 // AddDashboardCell adds a cell to a dashboard.
-func (s *DashboardService) AddDashboardCell(ctx context.Context, id influxdb.ID, c *influxdb.Cell, opts influxdb.AddDashboardCellOptions) error {
+func (s *DashboardService) AddDashboardCell(ctx context.Context, id platform.ID, c *influxdb.Cell, opts influxdb.AddDashboardCellOptions) error {
 	return s.Client.
 		PostJSON(c, cellPath(id)).
 		DecodeJSON(c).
@@ -1016,16 +1019,16 @@ func (s *DashboardService) AddDashboardCell(ctx context.Context, id influxdb.ID,
 }
 
 // RemoveDashboardCell removes a dashboard.
-func (s *DashboardService) RemoveDashboardCell(ctx context.Context, dashboardID, cellID influxdb.ID) error {
+func (s *DashboardService) RemoveDashboardCell(ctx context.Context, dashboardID, cellID platform.ID) error {
 	return s.Client.
 		Delete(dashboardCellIDPath(dashboardID, cellID)).
 		Do(ctx)
 }
 
 // UpdateDashboardCell replaces the dashboard cell with the provided ID.
-func (s *DashboardService) UpdateDashboardCell(ctx context.Context, dashboardID, cellID influxdb.ID, upd influxdb.CellUpdate) (*influxdb.Cell, error) {
+func (s *DashboardService) UpdateDashboardCell(ctx context.Context, dashboardID, cellID platform.ID, upd influxdb.CellUpdate) (*influxdb.Cell, error) {
 	if err := upd.Valid(); err != nil {
-		return nil, &influxdb.Error{
+		return nil, &errors.Error{
 			Err: err,
 		}
 	}
@@ -1043,7 +1046,7 @@ func (s *DashboardService) UpdateDashboardCell(ctx context.Context, dashboardID,
 }
 
 // GetDashboardCellView retrieves the view for a dashboard cell.
-func (s *DashboardService) GetDashboardCellView(ctx context.Context, dashboardID, cellID influxdb.ID) (*influxdb.View, error) {
+func (s *DashboardService) GetDashboardCellView(ctx context.Context, dashboardID, cellID platform.ID) (*influxdb.View, error) {
 	var dcv dashboardCellViewResponse
 	err := s.Client.
 		Get(cellViewPath(dashboardID, cellID)).
@@ -1057,7 +1060,7 @@ func (s *DashboardService) GetDashboardCellView(ctx context.Context, dashboardID
 }
 
 // UpdateDashboardCellView updates the view for a dashboard cell.
-func (s *DashboardService) UpdateDashboardCellView(ctx context.Context, dashboardID, cellID influxdb.ID, upd influxdb.ViewUpdate) (*influxdb.View, error) {
+func (s *DashboardService) UpdateDashboardCellView(ctx context.Context, dashboardID, cellID platform.ID, upd influxdb.ViewUpdate) (*influxdb.View, error) {
 	var dcv dashboardCellViewResponse
 	err := s.Client.
 		PatchJSON(upd, cellViewPath(dashboardID, cellID)).
@@ -1070,7 +1073,7 @@ func (s *DashboardService) UpdateDashboardCellView(ctx context.Context, dashboar
 }
 
 // ReplaceDashboardCells replaces all cells in a dashboard
-func (s *DashboardService) ReplaceDashboardCells(ctx context.Context, id influxdb.ID, cs []*influxdb.Cell) error {
+func (s *DashboardService) ReplaceDashboardCells(ctx context.Context, id platform.ID, cs []*influxdb.Cell) error {
 	return s.Client.
 		PutJSON(cs, cellPath(id)).
 		// TODO: previous implementation did not do anything with the response except validate it is valid json.
@@ -1079,18 +1082,18 @@ func (s *DashboardService) ReplaceDashboardCells(ctx context.Context, id influxd
 		Do(ctx)
 }
 
-func dashboardIDPath(id influxdb.ID) string {
+func dashboardIDPath(id platform.ID) string {
 	return path.Join(prefixDashboards, id.String())
 }
 
-func cellPath(id influxdb.ID) string {
+func cellPath(id platform.ID) string {
 	return path.Join(dashboardIDPath(id), "cells")
 }
 
-func cellViewPath(dashboardID, cellID influxdb.ID) string {
+func cellViewPath(dashboardID, cellID platform.ID) string {
 	return path.Join(dashboardCellIDPath(dashboardID, cellID), "view")
 }
 
-func dashboardCellIDPath(id influxdb.ID, cellID influxdb.ID) string {
+func dashboardCellIDPath(id platform.ID, cellID platform.ID) string {
 	return path.Join(cellPath(id), cellID.String())
 }

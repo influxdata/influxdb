@@ -164,7 +164,7 @@ func TestMetaClient_Users(t *testing.T) {
 					{
 						Name: "admin",
 						Permissions: map[string][]string{
-							"": []string{
+							"": {
 								"ViewAdmin", "ViewChronograf",
 							},
 						},
@@ -195,7 +195,7 @@ func TestMetaClient_Users(t *testing.T) {
 					{
 						Name: "admin",
 						Permissions: map[string][]string{
-							"": []string{
+							"": {
 								"ViewAdmin", "ViewChronograf",
 							},
 						},
@@ -297,7 +297,7 @@ func TestMetaClient_User(t *testing.T) {
 			want: &User{
 				Name: "admin",
 				Permissions: map[string][]string{
-					"": []string{
+					"": {
 						"ViewAdmin", "ViewChronograf",
 					},
 				},
@@ -723,7 +723,7 @@ func TestMetaClient_Roles(t *testing.T) {
 					{
 						Name: "admin",
 						Permissions: map[string][]string{
-							"": []string{
+							"": {
 								"ViewAdmin", "ViewChronograf",
 							},
 						},
@@ -755,7 +755,7 @@ func TestMetaClient_Roles(t *testing.T) {
 					{
 						Name: "admin",
 						Permissions: map[string][]string{
-							"": []string{
+							"": {
 								"ViewAdmin", "ViewChronograf",
 							},
 						},
@@ -818,7 +818,7 @@ func TestMetaClient_Role(t *testing.T) {
 			want: &Role{
 				Name: "admin",
 				Permissions: map[string][]string{
-					"": []string{
+					"": {
 						"ViewAdmin", "ViewChronograf",
 					},
 				},
@@ -897,12 +897,12 @@ func TestMetaClient_UserRoles(t *testing.T) {
 				name: nil,
 			},
 			want: map[string]Roles{
-				"marty": Roles{
+				"marty": {
 					Roles: []Role{
 						{
 							Name: "timetravelers",
 							Permissions: map[string][]string{
-								"": []string{
+								"": {
 									"ViewAdmin", "ViewChronograf",
 								},
 							},
@@ -911,7 +911,7 @@ func TestMetaClient_UserRoles(t *testing.T) {
 						{
 							Name: "mcfly",
 							Permissions: map[string][]string{
-								"": []string{
+								"": {
 									"ViewAdmin", "ViewChronograf",
 								},
 							},
@@ -919,12 +919,12 @@ func TestMetaClient_UserRoles(t *testing.T) {
 						},
 					},
 				},
-				"docbrown": Roles{
+				"docbrown": {
 					Roles: []Role{
 						{
 							Name: "timetravelers",
 							Permissions: map[string][]string{
-								"": []string{
+								"": {
 									"ViewAdmin", "ViewChronograf",
 								},
 							},
@@ -932,12 +932,12 @@ func TestMetaClient_UserRoles(t *testing.T) {
 						},
 					},
 				},
-				"george": Roles{
+				"george": {
 					Roles: []Role{
 						{
 							Name: "mcfly",
 							Permissions: map[string][]string{
-								"": []string{
+								"": {
 									"ViewAdmin", "ViewChronograf",
 								},
 							},

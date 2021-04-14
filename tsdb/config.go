@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/influxdata/influxdb/v2/toml"
-	"github.com/influxdata/influxdb/v2/v1/monitor/diagnostics"
 )
 
 const (
@@ -51,10 +50,6 @@ const (
 	// DefaultMaxPointsPerBlock is the maximum number of points in an encoded
 	// block in a TSM file
 	DefaultMaxPointsPerBlock = 1000
-
-	// DefaultMaxSeriesPerDatabase is the maximum number of series a node can hold per database.
-	// This limit only applies to the "inmem" index.
-	DefaultMaxSeriesPerDatabase = 1000000
 
 	// DefaultMaxValuesPerTag is the maximum number of values a tag can have within a measurement.
 	DefaultMaxValuesPerTag = 100000
@@ -106,16 +101,6 @@ type Config struct {
 
 	// Limits
 
-	// MaxSeriesPerDatabase is the maximum number of series a node can hold per database.
-	// When this limit is exceeded, writes return a 'max series per database exceeded' error.
-	// A value of 0 disables the limit. This limit only applies when using the "inmem" index.
-	MaxSeriesPerDatabase int `toml:"max-series-per-database"`
-
-	// MaxValuesPerTag is the maximum number of tag values a single tag key can have within
-	// a measurement.  When the limit is exceeded, writes return an error.
-	// A value of 0 disables the limit.
-	MaxValuesPerTag int `toml:"max-values-per-tag"`
-
 	// MaxConcurrentCompactions is the maximum number of concurrent level and full compactions
 	// that can be running at one time across all shards.  Compactions scheduled to run when the
 	// limit is reached are blocked until a running compaction completes.  Snapshot compactions are
@@ -164,8 +149,6 @@ func NewConfig() Config {
 		CompactThroughput:              toml.Size(DefaultCompactThroughput),
 		CompactThroughputBurst:         toml.Size(DefaultCompactThroughputBurst),
 
-		MaxSeriesPerDatabase:     DefaultMaxSeriesPerDatabase,
-		MaxValuesPerTag:          DefaultMaxValuesPerTag,
 		MaxConcurrentCompactions: DefaultMaxConcurrentCompactions,
 
 		MaxIndexLogFileSize:  toml.Size(DefaultMaxIndexLogFileSize),
@@ -221,23 +204,4 @@ func (c *Config) Validate() error {
 	}
 
 	return nil
-}
-
-// Diagnostics returns a diagnostics representation of a subset of the Config.
-func (c Config) Diagnostics() (*diagnostics.Diagnostics, error) {
-	return diagnostics.RowFromMap(map[string]interface{}{
-		"dir":                                    c.Dir,
-		"wal-dir":                                c.WALDir,
-		"wal-fsync-delay":                        c.WALFsyncDelay,
-		"cache-max-memory-size":                  c.CacheMaxMemorySize,
-		"cache-snapshot-memory-size":             c.CacheSnapshotMemorySize,
-		"cache-snapshot-write-cold-duration":     c.CacheSnapshotWriteColdDuration,
-		"compact-full-write-cold-duration":       c.CompactFullWriteColdDuration,
-		"max-series-per-database":                c.MaxSeriesPerDatabase,
-		"max-values-per-tag":                     c.MaxValuesPerTag,
-		"max-concurrent-compactions":             c.MaxConcurrentCompactions,
-		"max-index-log-file-size":                c.MaxIndexLogFileSize,
-		"series-id-set-cache-size":               c.SeriesIDSetCacheSize,
-		"series-file-max-concurrent-compactions": c.SeriesFileMaxConcurrentSnapshotCompactions,
-	}), nil
 }

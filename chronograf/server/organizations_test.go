@@ -167,11 +167,11 @@ func TestService_Organizations(t *testing.T) {
 				OrganizationsStore: &mocks.OrganizationsStore{
 					AllF: func(ctx context.Context) ([]chronograf.Organization, error) {
 						return []chronograf.Organization{
-							chronograf.Organization{
+							{
 								ID:   "1337",
 								Name: "The Good Place",
 							},
-							chronograf.Organization{
+							{
 								ID:   "100",
 								Name: "The Bad Place",
 							},

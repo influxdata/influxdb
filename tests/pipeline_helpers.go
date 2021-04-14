@@ -4,11 +4,11 @@ import (
 	"context"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/influxd/launcher"
-	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
-	"go.uber.org/zap/zaptest"
 )
 
 // A Pipeline is responsible for configuring launcher.TestLauncher
@@ -17,71 +17,52 @@ import (
 type Pipeline struct {
 	Launcher *launcher.TestLauncher
 
-	DefaultOrgID    influxdb.ID
-	DefaultBucketID influxdb.ID
-	DefaultUserID   influxdb.ID
-}
-
-// pipelineConfig tracks the pre-configuration for a pipeline.
-type pipelineConfig struct {
-	logger *zap.Logger
+	DefaultOrgID    platform.ID
+	DefaultBucketID platform.ID
+	DefaultUserID   platform.ID
 }
 
 // NewDefaultPipeline creates a Pipeline with default
 // values.
 //
 // It is retained for compatibility with cloud tests.
-func NewDefaultPipeline(t *testing.T, opts ...PipelineOption) *DefaultPipeline {
-	opts = append(WithDefaults(), opts...)
+func NewDefaultPipeline(t *testing.T, opts ...launcher.OptSetter) *DefaultPipeline {
+	setDefaultLogLevel := func(o *launcher.InfluxdOpts) {
+		// This is left here mainly for retro compatibility
+		if VeryVerbose {
+			o.LogLevel = zap.DebugLevel
+		} else {
+			o.LogLevel = zap.InfoLevel
+		}
+
+	}
+	// Set the default log level as the FIRST option here so users can override
+	// it with passed-in setters.
+	opts = append([]launcher.OptSetter{setDefaultLogLevel}, opts...)
 	return &DefaultPipeline{Pipeline: NewPipeline(t, opts...)}
 }
 
 // NewPipeline returns a pipeline with the given options applied to the configuration as appropriate.
 //
 // A single user, org, bucket and token are created.
-func NewPipeline(tb testing.TB, opts ...PipelineOption) *Pipeline {
+func NewPipeline(tb testing.TB, opts ...launcher.OptSetter) *Pipeline {
 	tb.Helper()
 
-	var conf pipelineConfig
-	for _, o := range opts {
-		o.applyConfig(&conf)
-	}
-
-	logger := conf.logger
-	if logger == nil {
-		// This is left here mainly for retro compatibility
-		var logLevel zaptest.LoggerOption
-		if VeryVerbose {
-			logLevel = zaptest.Level(zap.DebugLevel)
-		} else {
-			logLevel = zaptest.Level(zap.InfoLevel)
-		}
-
-		logger = zaptest.NewLogger(tb, logLevel).With(zap.String("test_name", tb.Name()))
-	}
-
-	tl := launcher.NewTestLauncher(nil)
-	tl.SetLogger(logger)
-
+	tl := launcher.NewTestLauncher()
 	p := &Pipeline{
 		Launcher: tl,
 	}
 
-	err := tl.Run(context.Background(), func(o *launcher.InfluxdOpts) {
-		for _, opt := range opts {
-			opt.applyOptSetter(o)
-		}
-	})
-	require.NoError(tb, err)
+	tl.RunOrFail(tb, context.Background(), opts...)
 
 	// setup default operator
 	res := p.Launcher.OnBoardOrFail(tb, &influxdb.OnboardingRequest{
-		User:            DefaultUsername,
-		Password:        DefaultPassword,
-		Org:             DefaultOrgName,
-		Bucket:          DefaultBucketName,
-		RetentionPeriod: 0, // infinite retention period
-		Token:           OperToken,
+		User:                   DefaultUsername,
+		Password:               DefaultPassword,
+		Org:                    DefaultOrgName,
+		Bucket:                 DefaultBucketName,
+		RetentionPeriodSeconds: influxdb.InfiniteRetention,
+		Token:                  OperToken,
 	})
 
 	p.DefaultOrgID = res.Org.ID
@@ -123,7 +104,7 @@ func (p *Pipeline) MustNewAdminClient() *Client {
 }
 
 // MustNewClient returns a client that will direct requests to Launcher.
-func (p *Pipeline) MustNewClient(org, bucket influxdb.ID, token string) *Client {
+func (p *Pipeline) MustNewClient(org, bucket platform.ID, token string) *Client {
 	config := ClientConfig{
 		UserID:             p.DefaultUserID,
 		OrgID:              org,
@@ -139,7 +120,7 @@ func (p *Pipeline) MustNewClient(org, bucket influxdb.ID, token string) *Client 
 }
 
 // NewBrowserClient returns a client with a cookie session that will direct requests to Launcher.
-func (p *Pipeline) NewBrowserClient(org, bucket influxdb.ID, session *influxdb.Session) (*Client, error) {
+func (p *Pipeline) NewBrowserClient(org, bucket platform.ID, session *influxdb.Session) (*Client, error) {
 	config := ClientConfig{
 		UserID:             p.DefaultUserID,
 		OrgID:              org,
@@ -154,7 +135,7 @@ func (p *Pipeline) NewBrowserClient(org, bucket influxdb.ID, session *influxdb.S
 // The generated browser points to the given org and bucket.
 //
 // The user and session are inserted directly into the backing store.
-func (p *Pipeline) BrowserFor(org, bucket influxdb.ID, username string) (*Client, influxdb.ID, error) {
+func (p *Pipeline) BrowserFor(org, bucket platform.ID, username string) (*Client, platform.ID, error) {
 	ctx := context.Background()
 	user := &influxdb.User{
 		Name: username,

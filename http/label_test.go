@@ -10,6 +10,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/httprouter"
 	platform "github.com/influxdata/influxdb/v2"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
@@ -159,7 +162,7 @@ func TestService_handleGetLabel(t *testing.T) {
 			name: "get a label by id",
 			fields: fields{
 				&mock.LabelService{
-					FindLabelByIDFn: func(ctx context.Context, id platform.ID) (*platform.Label, error) {
+					FindLabelByIDFn: func(ctx context.Context, id platform2.ID) (*platform.Label, error) {
 						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return &platform.Label{
 								ID:   platformtesting.MustIDBase16("020f755c3c082000"),
@@ -200,9 +203,9 @@ func TestService_handleGetLabel(t *testing.T) {
 			name: "not found",
 			fields: fields{
 				&mock.LabelService{
-					FindLabelByIDFn: func(ctx context.Context, id platform.ID) (*platform.Label, error) {
-						return nil, &platform.Error{
-							Code: platform.ENotFound,
+					FindLabelByIDFn: func(ctx context.Context, id platform2.ID) (*platform.Label, error) {
+						return nil, &errors.Error{
+							Code: errors.ENotFound,
 							Msg:  platform.ErrLabelNotFound,
 						}
 					},
@@ -366,7 +369,7 @@ func TestService_handleDeleteLabel(t *testing.T) {
 			name: "remove a label by id",
 			fields: fields{
 				&mock.LabelService{
-					DeleteLabelFn: func(ctx context.Context, id platform.ID) error {
+					DeleteLabelFn: func(ctx context.Context, id platform2.ID) error {
 						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							return nil
 						}
@@ -386,9 +389,9 @@ func TestService_handleDeleteLabel(t *testing.T) {
 			name: "label not found",
 			fields: fields{
 				&mock.LabelService{
-					DeleteLabelFn: func(ctx context.Context, id platform.ID) error {
-						return &platform.Error{
-							Code: platform.ENotFound,
+					DeleteLabelFn: func(ctx context.Context, id platform2.ID) error {
+						return &errors.Error{
+							Code: errors.ENotFound,
 							Msg:  platform.ErrLabelNotFound,
 						}
 					},
@@ -468,7 +471,7 @@ func TestService_handlePatchLabel(t *testing.T) {
 			name: "update label properties",
 			fields: fields{
 				&mock.LabelService{
-					UpdateLabelFn: func(ctx context.Context, id platform.ID, upd platform.LabelUpdate) (*platform.Label, error) {
+					UpdateLabelFn: func(ctx context.Context, id platform2.ID, upd platform.LabelUpdate) (*platform.Label, error) {
 						if id == platformtesting.MustIDBase16("020f755c3c082000") {
 							l := &platform.Label{
 								ID:   platformtesting.MustIDBase16("020f755c3c082000"),
@@ -522,9 +525,9 @@ func TestService_handlePatchLabel(t *testing.T) {
 			name: "label not found",
 			fields: fields{
 				&mock.LabelService{
-					UpdateLabelFn: func(ctx context.Context, id platform.ID, upd platform.LabelUpdate) (*platform.Label, error) {
-						return nil, &platform.Error{
-							Code: platform.ENotFound,
+					UpdateLabelFn: func(ctx context.Context, id platform2.ID, upd platform.LabelUpdate) (*platform.Label, error) {
+						return nil, &errors.Error{
+							Code: errors.ENotFound,
 							Msg:  platform.ErrLabelNotFound,
 						}
 					},

@@ -3,6 +3,8 @@ package authorizer
 import (
 	"context"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	icontext "github.com/influxdata/influxdb/v2/context"
 )
@@ -23,7 +25,7 @@ func NewOrgService(s influxdb.OrganizationService) *OrgService {
 }
 
 // FindOrganizationByID checks to see if the authorizer on context has read access to the id provided.
-func (s *OrgService) FindOrganizationByID(ctx context.Context, id influxdb.ID) (*influxdb.Organization, error) {
+func (s *OrgService) FindOrganizationByID(ctx context.Context, id platform.ID) (*influxdb.Organization, error) {
 	if _, _, err := AuthorizeReadOrg(ctx, id); err != nil {
 		return nil, err
 	}
@@ -74,7 +76,7 @@ func (s *OrgService) CreateOrganization(ctx context.Context, o *influxdb.Organiz
 }
 
 // UpdateOrganization checks to see if the authorizer on context has write access to the organization provided.
-func (s *OrgService) UpdateOrganization(ctx context.Context, id influxdb.ID, upd influxdb.OrganizationUpdate) (*influxdb.Organization, error) {
+func (s *OrgService) UpdateOrganization(ctx context.Context, id platform.ID, upd influxdb.OrganizationUpdate) (*influxdb.Organization, error) {
 	if _, _, err := AuthorizeWriteOrg(ctx, id); err != nil {
 		return nil, err
 	}
@@ -82,7 +84,7 @@ func (s *OrgService) UpdateOrganization(ctx context.Context, id influxdb.ID, upd
 }
 
 // DeleteOrganization checks to see if the authorizer on context has write access to the organization provided.
-func (s *OrgService) DeleteOrganization(ctx context.Context, id influxdb.ID) error {
+func (s *OrgService) DeleteOrganization(ctx context.Context, id platform.ID) error {
 	if _, _, err := AuthorizeWriteOrg(ctx, id); err != nil {
 		return err
 	}

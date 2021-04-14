@@ -7,6 +7,8 @@ package resource
 import (
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 )
 
@@ -21,13 +23,13 @@ type Change struct {
 	// Type of change.
 	Type ChangeType
 	// ResourceID of the changed resource.
-	ResourceID influxdb.ID
+	ResourceID platform.ID
 	// ResourceType that was changed.
 	ResourceType influxdb.ResourceType
 	// OrganizationID of the organization owning the changed resource.
-	OrganizationID influxdb.ID
+	OrganizationID platform.ID
 	// UserID of the user changing the resource.
-	UserID influxdb.ID
+	UserID platform.ID
 	// ResourceBody after the change.
 	ResourceBody []byte
 	// Time when the resource was changed.

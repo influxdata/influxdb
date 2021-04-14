@@ -6,6 +6,9 @@ import (
 	"fmt"
 	"regexp"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/BurntSushi/toml"
 	"github.com/influxdata/influxdb/v2/telegraf/plugins"
 	"github.com/influxdata/influxdb/v2/telegraf/plugins/inputs"
@@ -33,33 +36,33 @@ var (
 // TelegrafConfigStore represents a service for managing telegraf config data.
 type TelegrafConfigStore interface {
 	// FindTelegrafConfigByID returns a single telegraf config by ID.
-	FindTelegrafConfigByID(ctx context.Context, id ID) (*TelegrafConfig, error)
+	FindTelegrafConfigByID(ctx context.Context, id platform.ID) (*TelegrafConfig, error)
 
 	// FindTelegrafConfigs returns a list of telegraf configs that match filter and the total count of matching telegraf configs.
 	// Additional options provide pagination & sorting.
 	FindTelegrafConfigs(ctx context.Context, filter TelegrafConfigFilter, opt ...FindOptions) ([]*TelegrafConfig, int, error)
 
 	// CreateTelegrafConfig creates a new telegraf config and sets b.ID with the new identifier.
-	CreateTelegrafConfig(ctx context.Context, tc *TelegrafConfig, userID ID) error
+	CreateTelegrafConfig(ctx context.Context, tc *TelegrafConfig, userID platform.ID) error
 
 	// UpdateTelegrafConfig updates a single telegraf config.
 	// Returns the new telegraf config after update.
-	UpdateTelegrafConfig(ctx context.Context, id ID, tc *TelegrafConfig, userID ID) (*TelegrafConfig, error)
+	UpdateTelegrafConfig(ctx context.Context, id platform.ID, tc *TelegrafConfig, userID platform.ID) (*TelegrafConfig, error)
 
 	// DeleteTelegrafConfig removes a telegraf config by ID.
-	DeleteTelegrafConfig(ctx context.Context, id ID) error
+	DeleteTelegrafConfig(ctx context.Context, id platform.ID) error
 }
 
 // TelegrafConfigFilter represents a set of filter that restrict the returned telegraf configs.
 type TelegrafConfigFilter struct {
-	OrgID        *ID
+	OrgID        *platform.ID
 	Organization *string
 }
 
 // TelegrafConfig stores telegraf config for one telegraf instance.
 type TelegrafConfig struct {
-	ID          ID                     `json:"id,omitempty"`          // ID of this config object.
-	OrgID       ID                     `json:"orgID,omitempty"`       // OrgID is the id of the owning organization.
+	ID          platform.ID            `json:"id,omitempty"`          // ID of this config object.
+	OrgID       platform.ID            `json:"orgID,omitempty"`       // OrgID is the id of the owning organization.
 	Name        string                 `json:"name,omitempty"`        // Name of this config object.
 	Description string                 `json:"description,omitempty"` // Decription of this config object.
 	Config      string                 `json:"config,omitempty"`      // ConfigTOML contains the raw toml config.
@@ -147,8 +150,8 @@ type buckets []string
 func (t *buckets) UnmarshalTOML(data interface{}) error {
 	dataOk, ok := data.(map[string]interface{})
 	if !ok {
-		return &Error{
-			Code: EEmptyValue,
+		return &errors.Error{
+			Code: errors.EEmptyValue,
 			Msg:  "no config to get buckets",
 		}
 	}
@@ -159,8 +162,8 @@ func (t *buckets) UnmarshalTOML(data interface{}) error {
 		}
 		plugins, ok := ps.(map[string]interface{})
 		if !ok {
-			return &Error{
-				Code: EEmptyValue,
+			return &errors.Error{
+				Code: errors.EEmptyValue,
 				Msg:  "no plugins in config to get buckets",
 			}
 		}
@@ -170,8 +173,8 @@ func (t *buckets) UnmarshalTOML(data interface{}) error {
 			}
 			config, ok := configDataArray.([]map[string]interface{})
 			if !ok {
-				return &Error{
-					Code: EEmptyValue,
+				return &errors.Error{
+					Code: errors.EEmptyValue,
 					Msg:  "influxdb_v2 output has no config",
 				}
 			}
@@ -222,16 +225,16 @@ func decodePluginRaw(tcd *telegrafConfigDecode) ([]string, string, error) {
 		case "output":
 			tpFn, ok = availableOutputPlugins[pr.Name]
 		default:
-			return nil, "", &Error{
-				Code: EInvalid,
+			return nil, "", &errors.Error{
+				Code: errors.EInvalid,
 				Op:   op,
 				Msg:  fmt.Sprintf(ErrUnsupportTelegrafPluginType, pr.Type),
 			}
 		}
 
 		if !ok {
-			return nil, "", &Error{
-				Code: EInvalid,
+			return nil, "", &errors.Error{
+				Code: errors.EInvalid,
 				Op:   op,
 				Msg:  fmt.Sprintf(ErrUnsupportTelegrafPluginName, pr.Name, pr.Type),
 			}
@@ -245,8 +248,8 @@ func decodePluginRaw(tcd *telegrafConfigDecode) ([]string, string, error) {
 		}
 
 		if err := json.Unmarshal(pr.Config, config); err != nil {
-			return nil, "", &Error{
-				Code: EInvalid,
+			return nil, "", &errors.Error{
+				Code: errors.EInvalid,
 				Err:  err,
 				Op:   op,
 			}
@@ -266,9 +269,9 @@ func decodePluginRaw(tcd *telegrafConfigDecode) ([]string, string, error) {
 
 // telegrafConfigDecode is the helper struct for json decoding. legacy.
 type telegrafConfigDecode struct {
-	ID             *ID                    `json:"id,omitempty"`
-	OrganizationID *ID                    `json:"organizationID,omitempty"`
-	OrgID          *ID                    `json:"orgID,omitempty"`
+	ID             *platform.ID           `json:"id,omitempty"`
+	OrganizationID *platform.ID           `json:"organizationID,omitempty"`
+	OrgID          *platform.ID           `json:"orgID,omitempty"`
 	Name           string                 `json:"name,omitempty"`
 	Description    string                 `json:"description,omitempty"`
 	Config         string                 `json:"config,omitempty"`

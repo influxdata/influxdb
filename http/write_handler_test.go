@@ -11,45 +11,114 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/http/metric"
 	httpmock "github.com/influxdata/influxdb/v2/http/mock"
 	kithttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/mock"
 	influxtesting "github.com/influxdata/influxdb/v2/testing"
+	"github.com/influxdata/influxdb/v2/tsdb"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap/zaptest"
 )
 
-func TestWriteService_Write(t *testing.T) {
+func TestWriteService_WriteTo(t *testing.T) {
 	type args struct {
-		org    influxdb.ID
-		bucket influxdb.ID
-		r      io.Reader
+		org      string
+		orgId    platform.ID
+		bucket   string
+		bucketId platform.ID
+		r        io.Reader
 	}
+
+	orgId := platform.ID(1)
+	org := "org"
+	bucketId := platform.ID(2)
+	bucket := "bucket"
+
 	tests := []struct {
-		name    string
-		args    args
-		status  int
-		want    string
-		wantErr bool
+		name        string
+		args        args
+		status      int
+		want        string
+		wantFilters influxdb.BucketFilter
+		wantErr     bool
 	}{
 		{
+			name: "write with org and bucket IDs",
 			args: args{
-				org:    1,
-				bucket: 2,
+				orgId:    orgId,
+				bucketId: bucketId,
+				r:        strings.NewReader("m,t1=v1 f1=2"),
+			},
+			status: http.StatusNoContent,
+			want:   "m,t1=v1 f1=2",
+			wantFilters: influxdb.BucketFilter{
+				ID:             &bucketId,
+				OrganizationID: &orgId,
+			},
+		},
+		{
+			name: "write with org ID and bucket name",
+			args: args{
+				orgId:  orgId,
+				bucket: bucket,
 				r:      strings.NewReader("m,t1=v1 f1=2"),
 			},
 			status: http.StatusNoContent,
 			want:   "m,t1=v1 f1=2",
+			wantFilters: influxdb.BucketFilter{
+				Name:           &bucket,
+				OrganizationID: &orgId,
+			},
+		},
+		{
+			name: "write with org name and bucket ID",
+			args: args{
+				org:      org,
+				bucketId: bucketId,
+				r:        strings.NewReader("m,t1=v1 f1=2"),
+			},
+			status: http.StatusNoContent,
+			want:   "m,t1=v1 f1=2",
+			wantFilters: influxdb.BucketFilter{
+				ID:  &bucketId,
+				Org: &org,
+			},
+		},
+		{
+			name: "write with org and bucket names",
+			args: args{
+				org:    org,
+				bucket: bucket,
+				r:      strings.NewReader("m,t1=v1 f1=2"),
+			},
+			status: http.StatusNoContent,
+			want:   "m,t1=v1 f1=2",
+			wantFilters: influxdb.BucketFilter{
+				Name: &bucket,
+				Org:  &org,
+			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			var org, bucket *influxdb.ID
+			var org, bucket *string
+			var orgId, bucketId *platform.ID
 			var lp []byte
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				org, _ = influxdb.IDFromString(r.URL.Query().Get("org"))
-				bucket, _ = influxdb.IDFromString(r.URL.Query().Get("bucket"))
+				orgStr := r.URL.Query().Get("org")
+				bucketStr := r.URL.Query().Get("bucket")
+				var err error
+				if orgId, err = platform.IDFromString(orgStr); err != nil {
+					org = &orgStr
+				}
+				if bucketId, err = platform.IDFromString(bucketStr); err != nil {
+					bucket = &bucketStr
+				}
 				defer r.Body.Close()
 				in, _ := gzip.NewReader(r.Body)
 				defer in.Close()
@@ -59,20 +128,17 @@ func TestWriteService_Write(t *testing.T) {
 			s := &WriteService{
 				Addr: ts.URL,
 			}
-			if err := s.Write(context.Background(), tt.args.org, tt.args.bucket, tt.args.r); (err != nil) != tt.wantErr {
-				t.Errorf("WriteService.Write() error = %v, wantErr %v", err, tt.wantErr)
-			}
-			if got, want := *org, tt.args.org; got != want {
-				t.Errorf("WriteService.Write() org = %v, want %v", got, want)
-			}
-
-			if got, want := *bucket, tt.args.bucket; got != want {
-				t.Errorf("WriteService.Write() bucket = %v, want %v", got, want)
-			}
-
-			if got, want := string(lp), tt.want; got != want {
-				t.Errorf("WriteService.Write() = %v, want %v", got, want)
-			}
+			err := s.WriteTo(
+				context.Background(),
+				influxdb.BucketFilter{ID: &tt.args.bucketId, Name: &tt.args.bucket, OrganizationID: &tt.args.orgId, Org: &tt.args.org},
+				tt.args.r,
+			)
+			require.Equalf(t, err != nil, tt.wantErr, "error didn't match expectations: %v", err)
+			require.Equal(t, tt.wantFilters.OrganizationID, orgId)
+			require.Equal(t, tt.wantFilters.Org, org)
+			require.Equal(t, tt.wantFilters.ID, bucketId)
+			require.Equal(t, tt.wantFilters.Name, bucket)
+			require.Equal(t, tt.want, string(lp))
 		})
 	}
 }
@@ -125,6 +191,24 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 			},
 		},
 		{
+			name: "partial write error is unprocessable",
+			request: request{
+				org:    "043e0780ee2b1000",
+				bucket: "04504b356e23b000",
+				body:   "m1,t1=v1 f1=1",
+				auth:   bucketWritePermission("043e0780ee2b1000", "04504b356e23b000"),
+			},
+			state: state{
+				org:      testOrg("043e0780ee2b1000"),
+				bucket:   testBucket("043e0780ee2b1000", "04504b356e23b000"),
+				writeErr: tsdb.PartialWriteError{Reason: "bad points", Dropped: 1},
+			},
+			wants: wants{
+				code: 422,
+				body: `{"code":"unprocessable entity","message":"failure writing points to database: partial write: bad points dropped=1"}`,
+			},
+		},
+		{
 			name: "points writer error is an internal error",
 			request: request{
 				org:    "043e0780ee2b1000",
@@ -167,7 +251,7 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 				auth:   bucketWritePermission("043e0780ee2b1000", "04504b356e23b000"),
 			},
 			state: state{
-				orgErr: &influxdb.Error{Code: influxdb.ENotFound, Msg: "not found"},
+				orgErr: &errors.Error{Code: errors.ENotFound, Msg: "not found"},
 			},
 			wants: wants{
 				code: 404,
@@ -201,7 +285,7 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 			},
 			state: state{
 				org:       testOrg("043e0780ee2b1000"),
-				bucketErr: &influxdb.Error{Code: influxdb.ENotFound, Msg: "not found"},
+				bucketErr: &errors.Error{Code: errors.ENotFound, Msg: "not found"},
 			},
 			wants: wants{
 				code: 404,
@@ -217,7 +301,7 @@ func TestWriteHandler_handleWrite(t *testing.T) {
 			},
 			state: state{
 				org:       testOrg("043e0780ee2b1000"),
-				bucketErr: &influxdb.Error{Code: influxdb.EInternal, Msg: "internal error"},
+				bucketErr: &errors.Error{Code: errors.EInternal, Msg: "internal error"},
 			},
 			wants: wants{
 				code: 500,

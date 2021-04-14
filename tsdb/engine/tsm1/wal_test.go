@@ -3,13 +3,16 @@ package tsm1_test
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/golang/snappy"
 	"github.com/influxdata/influxdb/v2/pkg/slices"
 	"github.com/influxdata/influxdb/v2/tsdb/engine/tsm1"
+	"github.com/stretchr/testify/require"
 )
 
 func TestWALWriter_WriteMulti_Single(t *testing.T) {
@@ -649,6 +652,142 @@ func TestWALSegmentReader_Corrupt(t *testing.T) {
 	for r.Next() {
 		r.Read()
 	}
+}
+
+func TestWALRollSegment(t *testing.T) {
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	w := tsm1.NewWAL(dir)
+	if err := w.Open(); err != nil {
+		t.Fatalf("error opening WAL: %v", err)
+	}
+	const segSize = 1024
+	w.SegmentSize = segSize
+
+	values := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": []tsm1.Value{tsm1.NewValue(1, 1.0)},
+		"cpu,host=B#!~#value": []tsm1.Value{tsm1.NewValue(1, 1.0)},
+		"cpu,host=C#!~#value": []tsm1.Value{tsm1.NewValue(1, 1.0)},
+	}
+	if _, err := w.WriteMulti(values); err != nil {
+		fatal(t, "write points", err)
+	}
+
+	files, err := ioutil.ReadDir(w.Path())
+	if err != nil {
+		fatal(t, "ReadDir", err)
+	}
+	if len(files) != 1 {
+		t.Fatalf("unexpected segments size %d", len(files))
+	}
+
+	encodeSize := files[0].Size()
+
+	for i := 0; i < 100; i++ {
+		if _, err := w.WriteMulti(values); err != nil {
+			fatal(t, "write points", err)
+		}
+	}
+	files, err = ioutil.ReadDir(w.Path())
+	if err != nil {
+		fatal(t, "ReadDir", err)
+	}
+	for _, f := range files {
+		if f.Size() > int64(segSize)+encodeSize {
+			t.Fatalf("unexpected segment size %d", f.Size())
+		}
+	}
+	if err := w.Close(); err != nil {
+		t.Fatalf("error closing wal: %v", err)
+	}
+}
+
+func TestWAL_DiskSize(t *testing.T) {
+	test := func(w *tsm1.WAL, oldZero, curZero bool) {
+		// get disk size by reading file
+		files, err := ioutil.ReadDir(w.Path())
+		require.NoError(t, err)
+
+		sort.Slice(files, func(i, j int) bool {
+			return files[i].Name() < files[j].Name()
+		})
+
+		var old, cur int64
+		if len(files) > 0 {
+			cur = files[len(files)-1].Size()
+			for i := 0; i < len(files)-1; i++ {
+				old += files[i].Size()
+			}
+		}
+
+		// test zero size condition
+		require.False(t, oldZero && old > 0)
+		require.False(t, !oldZero && old == 0)
+		require.False(t, curZero && cur > 0)
+		require.False(t, !curZero && cur == 0)
+
+		// test method DiskSizeBytes
+		require.Equal(t, old+cur, w.DiskSizeBytes(), "total disk size")
+
+		// test Statistics
+		ss := w.Statistics(nil)
+		require.Equal(t, 1, len(ss))
+
+		m := ss[0].Values
+		require.NotNil(t, m)
+
+		require.Equal(t, m["oldSegmentsDiskBytes"].(int64), old, "old disk size")
+		require.Equal(t, m["currentSegmentDiskBytes"].(int64), cur, "current dist size")
+	}
+
+	dir := MustTempDir()
+	defer os.RemoveAll(dir)
+
+	w := tsm1.NewWAL(dir)
+
+	const segSize = 1024
+	w.SegmentSize = segSize
+
+	// open
+	require.NoError(t, w.Open())
+
+	test(w, true, true)
+
+	// write some values, the total size of these values does not exceed segSize(1024),
+	// so rollSegment will not be triggered
+	values := map[string][]tsm1.Value{
+		"cpu,host=A#!~#value": {tsm1.NewValue(1, 1.0)},
+		"cpu,host=B#!~#value": {tsm1.NewValue(1, 1.0)},
+		"cpu,host=C#!~#value": {tsm1.NewValue(1, 1.0)},
+	}
+
+	_, err := w.WriteMulti(values)
+	require.NoError(t, err)
+
+	test(w, true, false)
+
+	// write some values, the total size of these values exceeds segSize(1024),
+	// so rollSegment will be triggered
+	for i := 0; i < 100; i++ {
+		_, err := w.WriteMulti(values)
+		require.NoError(t, err)
+	}
+
+	test(w, false, false)
+
+	// reopen
+	require.NoError(t, w.Close())
+	require.NoError(t, w.Open())
+
+	test(w, false, false)
+
+	// remove
+	closedSegments, err := w.ClosedSegments()
+	require.NoError(t, err)
+	require.NoError(t, w.Remove(closedSegments))
+
+	test(w, true, false)
 }
 
 func TestWriteWALSegment_UnmarshalBinary_WriteWALCorrupt(t *testing.T) {

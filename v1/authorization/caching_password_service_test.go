@@ -5,8 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/golang/mock/gomock"
-	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/stretchr/testify/assert"
@@ -14,8 +15,8 @@ import (
 
 func TestCachingPasswordsService(t *testing.T) {
 	const (
-		user1 = influxdb.ID(1)
-		user2 = influxdb.ID(2)
+		user1 = platform.ID(1)
+		user2 = platform.ID(2)
 	)
 
 	makeUser := func(salt, pass string) authUser {

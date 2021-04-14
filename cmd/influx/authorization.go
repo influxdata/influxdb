@@ -4,6 +4,8 @@ import (
 	"context"
 	"io"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/authorization"
 	"github.com/influxdata/influxdb/v2/cmd/influx/internal"
@@ -11,13 +13,13 @@ import (
 )
 
 type token struct {
-	ID          platform.ID `json:"id"`
-	Description string      `json:"description"`
-	Token       string      `json:"token"`
-	Status      string      `json:"status"`
-	UserName    string      `json:"userName"`
-	UserID      platform.ID `json:"userID"`
-	Permissions []string    `json:"permissions"`
+	ID          platform2.ID `json:"id"`
+	Description string       `json:"description"`
+	Token       string       `json:"token"`
+	Status      string       `json:"status"`
+	UserName    string       `json:"userName"`
+	UserID      platform2.ID `json:"userID"`
+	Permissions []string     `json:"permissions"`
 }
 
 func cmdAuth(f *globalFlags, opt genericCLIOpts) *cobra.Command {
@@ -163,7 +165,7 @@ func authorizationCreateF(cmd *cobra.Command, args []string) error {
 	var permissions []platform.Permission
 	for _, bp := range bucketPerms {
 		for _, p := range bp.perms {
-			var id platform.ID
+			var id platform2.ID
 			if err := id.DecodeFromString(p); err != nil {
 				return err
 			}
@@ -340,7 +342,7 @@ func authorizationFindF(cmd *cobra.Command, args []string) error {
 
 	var filter platform.AuthorizationFilter
 	if authCRUDFlags.id != "" {
-		fID, err := platform.IDFromString(authCRUDFlags.id)
+		fID, err := platform2.IDFromString(authCRUDFlags.id)
 		if err != nil {
 			return err
 		}
@@ -350,7 +352,7 @@ func authorizationFindF(cmd *cobra.Command, args []string) error {
 		filter.User = &authorizationFindFlags.user
 	}
 	if authorizationFindFlags.userID != "" {
-		uID, err := platform.IDFromString(authorizationFindFlags.userID)
+		uID, err := platform2.IDFromString(authorizationFindFlags.userID)
 		if err != nil {
 			return err
 		}
@@ -360,7 +362,7 @@ func authorizationFindF(cmd *cobra.Command, args []string) error {
 		filter.Org = &authorizationFindFlags.org.name
 	}
 	if authorizationFindFlags.org.id != "" {
-		oID, err := platform.IDFromString(authorizationFindFlags.org.id)
+		oID, err := platform2.IDFromString(authorizationFindFlags.org.id)
 		if err != nil {
 			return err
 		}
@@ -428,7 +430,7 @@ func authorizationDeleteF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	id, err := platform.IDFromString(authCRUDFlags.id)
+	id, err := platform2.IDFromString(authCRUDFlags.id)
 	if err != nil {
 		return err
 	}
@@ -495,7 +497,7 @@ func authorizationActiveF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	var id platform.ID
+	var id platform2.ID
 	if err := id.DecodeFromString(authCRUDFlags.id); err != nil {
 		return err
 	}
@@ -563,7 +565,7 @@ func authorizationInactiveF(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	var id platform.ID
+	var id platform2.ID
 	if err := id.DecodeFromString(authCRUDFlags.id); err != nil {
 		return err
 	}

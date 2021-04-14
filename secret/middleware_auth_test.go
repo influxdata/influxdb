@@ -3,6 +3,8 @@ package secret_test
 import (
 	"bytes"
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -25,7 +27,7 @@ func TestSecretService_LoadSecret(t *testing.T) {
 	}
 	type args struct {
 		permission influxdb.Permission
-		org        influxdb.ID
+		org        platform.ID
 		key        string
 	}
 	type wants struct {
@@ -42,12 +44,12 @@ func TestSecretService_LoadSecret(t *testing.T) {
 			name: "authorized to access secret within org",
 			fields: fields{
 				SecretService: &mock.SecretService{
-					LoadSecretFn: func(ctx context.Context, orgID influxdb.ID, k string) (string, error) {
+					LoadSecretFn: func(ctx context.Context, orgID platform.ID, k string) (string, error) {
 						if k == "key" {
 							return "val", nil
 						}
-						return "", &influxdb.Error{
-							Code: influxdb.ENotFound,
+						return "", &errors.Error{
+							Code: errors.ENotFound,
 							Msg:  influxdb.ErrSecretNotFound,
 						}
 					},
@@ -62,7 +64,7 @@ func TestSecretService_LoadSecret(t *testing.T) {
 					},
 				},
 				key: "key",
-				org: influxdb.ID(10),
+				org: platform.ID(10),
 			},
 			wants: wants{
 				err: nil,
@@ -72,12 +74,12 @@ func TestSecretService_LoadSecret(t *testing.T) {
 			name: "cannot access not existing secret",
 			fields: fields{
 				SecretService: &mock.SecretService{
-					LoadSecretFn: func(ctx context.Context, orgID influxdb.ID, k string) (string, error) {
+					LoadSecretFn: func(ctx context.Context, orgID platform.ID, k string) (string, error) {
 						if k == "key" {
 							return "val", nil
 						}
-						return "", &influxdb.Error{
-							Code: influxdb.ENotFound,
+						return "", &errors.Error{
+							Code: errors.ENotFound,
 							Msg:  influxdb.ErrSecretNotFound,
 						}
 					},
@@ -92,11 +94,11 @@ func TestSecretService_LoadSecret(t *testing.T) {
 					},
 				},
 				key: "not existing",
-				org: influxdb.ID(10),
+				org: platform.ID(10),
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Msg:  influxdb.ErrSecretNotFound,
 				},
 			},
@@ -105,12 +107,12 @@ func TestSecretService_LoadSecret(t *testing.T) {
 			name: "unauthorized to access secret within org",
 			fields: fields{
 				SecretService: &mock.SecretService{
-					LoadSecretFn: func(ctx context.Context, orgID influxdb.ID, k string) (string, error) {
+					LoadSecretFn: func(ctx context.Context, orgID platform.ID, k string) (string, error) {
 						if k == "key" {
 							return "val", nil
 						}
-						return "", &influxdb.Error{
-							Code: influxdb.ENotFound,
+						return "", &errors.Error{
+							Code: errors.ENotFound,
 							Msg:  influxdb.ErrSecretNotFound,
 						}
 					},
@@ -124,13 +126,13 @@ func TestSecretService_LoadSecret(t *testing.T) {
 						ID:   influxdbtesting.IDPtr(10),
 					},
 				},
-				org: influxdb.ID(2),
+				org: platform.ID(2),
 				key: "key",
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "read:orgs/0000000000000002/secrets is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -155,7 +157,7 @@ func TestSecretService_GetSecretKeys(t *testing.T) {
 	}
 	type args struct {
 		permission influxdb.Permission
-		org        influxdb.ID
+		org        platform.ID
 	}
 	type wants struct {
 		err     error
@@ -172,7 +174,7 @@ func TestSecretService_GetSecretKeys(t *testing.T) {
 			name: "authorized to see all secrets within an org",
 			fields: fields{
 				SecretService: &mock.SecretService{
-					GetSecretKeysFn: func(ctx context.Context, orgID influxdb.ID) ([]string, error) {
+					GetSecretKeysFn: func(ctx context.Context, orgID platform.ID) ([]string, error) {
 						return []string{
 							"0000000000000001secret1",
 							"0000000000000001secret2",
@@ -189,7 +191,7 @@ func TestSecretService_GetSecretKeys(t *testing.T) {
 						OrgID: influxdbtesting.IDPtr(1),
 					},
 				},
-				org: influxdb.ID(1),
+				org: platform.ID(1),
 			},
 			wants: wants{
 				secrets: []string{
@@ -203,7 +205,7 @@ func TestSecretService_GetSecretKeys(t *testing.T) {
 			name: "unauthorized to see all secrets within an org",
 			fields: fields{
 				SecretService: &mock.SecretService{
-					GetSecretKeysFn: func(ctx context.Context, orgID influxdb.ID) ([]string, error) {
+					GetSecretKeysFn: func(ctx context.Context, orgID platform.ID) ([]string, error) {
 						return []string{
 							"0000000000000002secret1",
 							"0000000000000002secret2",
@@ -220,11 +222,11 @@ func TestSecretService_GetSecretKeys(t *testing.T) {
 						OrgID: influxdbtesting.IDPtr(1),
 					},
 				},
-				org: influxdb.ID(2),
+				org: platform.ID(2),
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.EUnauthorized,
+				err: &errors.Error{
+					Code: errors.EUnauthorized,
 					Msg:  "read:orgs/0000000000000002/secrets is unauthorized",
 				},
 				secrets: []string{},
@@ -234,9 +236,9 @@ func TestSecretService_GetSecretKeys(t *testing.T) {
 			name: "errors when there are not secret into an org",
 			fields: fields{
 				SecretService: &mock.SecretService{
-					GetSecretKeysFn: func(ctx context.Context, orgID influxdb.ID) ([]string, error) {
-						return []string(nil), &influxdb.Error{
-							Code: influxdb.ENotFound,
+					GetSecretKeysFn: func(ctx context.Context, orgID platform.ID) ([]string, error) {
+						return []string(nil), &errors.Error{
+							Code: errors.ENotFound,
 							Msg:  "organization has no secret keys",
 						}
 					},
@@ -250,11 +252,11 @@ func TestSecretService_GetSecretKeys(t *testing.T) {
 						OrgID: influxdbtesting.IDPtr(10),
 					},
 				},
-				org: influxdb.ID(10),
+				org: platform.ID(10),
 			},
 			wants: wants{
-				err: &influxdb.Error{
-					Code: influxdb.ENotFound,
+				err: &errors.Error{
+					Code: errors.ENotFound,
 					Msg:  "organization has no secret keys",
 				},
 				secrets: []string{},
@@ -284,7 +286,7 @@ func TestSecretService_PatchSecrets(t *testing.T) {
 		SecretService influxdb.SecretService
 	}
 	type args struct {
-		org         influxdb.ID
+		org         platform.ID
 		permissions []influxdb.Permission
 	}
 	type wants struct {
@@ -301,13 +303,13 @@ func TestSecretService_PatchSecrets(t *testing.T) {
 			name: "authorized to patch secrets",
 			fields: fields{
 				SecretService: &mock.SecretService{
-					PatchSecretsFn: func(ctx context.Context, orgID influxdb.ID, m map[string]string) error {
+					PatchSecretsFn: func(ctx context.Context, orgID platform.ID, m map[string]string) error {
 						return nil
 					},
 				},
 			},
 			args: args{
-				org: influxdb.ID(1),
+				org: platform.ID(1),
 				permissions: []influxdb.Permission{
 					{
 						Action: influxdb.WriteAction,
@@ -326,13 +328,13 @@ func TestSecretService_PatchSecrets(t *testing.T) {
 			name: "unauthorized to update secret",
 			fields: fields{
 				SecretService: &mock.SecretService{
-					PatchSecretsFn: func(ctx context.Context, orgID influxdb.ID, m map[string]string) error {
+					PatchSecretsFn: func(ctx context.Context, orgID platform.ID, m map[string]string) error {
 						return nil
 					},
 				},
 			},
 			args: args{
-				org: influxdb.ID(1),
+				org: platform.ID(1),
 				permissions: []influxdb.Permission{
 					{
 						Action: influxdb.ReadAction,
@@ -344,9 +346,9 @@ func TestSecretService_PatchSecrets(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/0000000000000001/secrets is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -371,7 +373,7 @@ func TestSecretService_DeleteSecret(t *testing.T) {
 		SecretService influxdb.SecretService
 	}
 	type args struct {
-		org         influxdb.ID
+		org         platform.ID
 		permissions []influxdb.Permission
 	}
 	type wants struct {
@@ -388,13 +390,13 @@ func TestSecretService_DeleteSecret(t *testing.T) {
 			name: "authorized to delete secret",
 			fields: fields{
 				SecretService: &mock.SecretService{
-					DeleteSecretFn: func(ctx context.Context, orgID influxdb.ID, keys ...string) error {
+					DeleteSecretFn: func(ctx context.Context, orgID platform.ID, keys ...string) error {
 						return nil
 					},
 				},
 			},
 			args: args{
-				org: influxdb.ID(1),
+				org: platform.ID(1),
 				permissions: []influxdb.Permission{
 					{
 						Action: influxdb.WriteAction,
@@ -413,7 +415,7 @@ func TestSecretService_DeleteSecret(t *testing.T) {
 			name: "unauthorized to delete secret",
 			fields: fields{
 				SecretService: &mock.SecretService{
-					DeleteSecretFn: func(ctx context.Context, orgID influxdb.ID, keys ...string) error {
+					DeleteSecretFn: func(ctx context.Context, orgID platform.ID, keys ...string) error {
 						return nil
 					},
 				},
@@ -431,9 +433,9 @@ func TestSecretService_DeleteSecret(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/secrets is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -458,7 +460,7 @@ func TestSecretService_PutSecret(t *testing.T) {
 	}
 	type args struct {
 		permission influxdb.Permission
-		orgID      influxdb.ID
+		orgID      platform.ID
 	}
 	type wants struct {
 		err error
@@ -474,13 +476,13 @@ func TestSecretService_PutSecret(t *testing.T) {
 			name: "authorized to put a secret",
 			fields: fields{
 				SecretService: &mock.SecretService{
-					PutSecretFn: func(ctx context.Context, orgID influxdb.ID, key string, val string) error {
+					PutSecretFn: func(ctx context.Context, orgID platform.ID, key string, val string) error {
 						return nil
 					},
 				},
 			},
 			args: args{
-				orgID: influxdb.ID(10),
+				orgID: platform.ID(10),
 				permission: influxdb.Permission{
 					Action: influxdb.WriteAction,
 					Resource: influxdb.Resource{
@@ -497,7 +499,7 @@ func TestSecretService_PutSecret(t *testing.T) {
 			name: "unauthorized to put a secret",
 			fields: fields{
 				SecretService: &mock.SecretService{
-					PutSecretFn: func(ctx context.Context, orgID influxdb.ID, key string, val string) error {
+					PutSecretFn: func(ctx context.Context, orgID platform.ID, key string, val string) error {
 						return nil
 					},
 				},
@@ -513,9 +515,9 @@ func TestSecretService_PutSecret(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/secrets is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -540,7 +542,7 @@ func TestSecretService_PutSecrets(t *testing.T) {
 	}
 	type args struct {
 		permissions []influxdb.Permission
-		orgID       influxdb.ID
+		orgID       platform.ID
 	}
 	type wants struct {
 		err error
@@ -556,13 +558,13 @@ func TestSecretService_PutSecrets(t *testing.T) {
 			name: "authorized to put secrets",
 			fields: fields{
 				SecretService: &mock.SecretService{
-					PutSecretsFn: func(ctx context.Context, orgID influxdb.ID, m map[string]string) error {
+					PutSecretsFn: func(ctx context.Context, orgID platform.ID, m map[string]string) error {
 						return nil
 					},
 				},
 			},
 			args: args{
-				orgID: influxdb.ID(10),
+				orgID: platform.ID(10),
 				permissions: []influxdb.Permission{
 					{
 						Action: influxdb.WriteAction,
@@ -588,13 +590,13 @@ func TestSecretService_PutSecrets(t *testing.T) {
 			name: "unauthorized to put secrets",
 			fields: fields{
 				SecretService: &mock.SecretService{
-					PutSecretsFn: func(ctx context.Context, orgID influxdb.ID, m map[string]string) error {
+					PutSecretsFn: func(ctx context.Context, orgID platform.ID, m map[string]string) error {
 						return nil
 					},
 				},
 			},
 			args: args{
-				orgID: influxdb.ID(2),
+				orgID: platform.ID(2),
 				permissions: []influxdb.Permission{
 					{
 						Action: influxdb.WriteAction,
@@ -613,9 +615,9 @@ func TestSecretService_PutSecrets(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/0000000000000002/secrets is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -623,10 +625,10 @@ func TestSecretService_PutSecrets(t *testing.T) {
 			name: "unauthorized to put secrets without read access to their org",
 			fields: fields{
 				SecretService: &mock.SecretService{
-					PutSecretFn: func(ctx context.Context, orgID influxdb.ID, key string, val string) error {
+					PutSecretFn: func(ctx context.Context, orgID platform.ID, key string, val string) error {
 						return nil
 					},
-					PutSecretsFn: func(ctx context.Context, orgID influxdb.ID, m map[string]string) error {
+					PutSecretsFn: func(ctx context.Context, orgID platform.ID, m map[string]string) error {
 						return nil
 					},
 				},
@@ -644,9 +646,9 @@ func TestSecretService_PutSecrets(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "read:orgs/000000000000000a/secrets is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -654,10 +656,10 @@ func TestSecretService_PutSecrets(t *testing.T) {
 			name: "unauthorized to put secrets without write access to their org",
 			fields: fields{
 				SecretService: &mock.SecretService{
-					PutSecretFn: func(ctx context.Context, orgID influxdb.ID, key string, val string) error {
+					PutSecretFn: func(ctx context.Context, orgID platform.ID, key string, val string) error {
 						return nil
 					},
-					PutSecretsFn: func(ctx context.Context, orgID influxdb.ID, m map[string]string) error {
+					PutSecretsFn: func(ctx context.Context, orgID platform.ID, m map[string]string) error {
 						return nil
 					},
 				},
@@ -675,9 +677,9 @@ func TestSecretService_PutSecrets(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/secrets is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},

@@ -6,6 +6,9 @@ import (
 	"sort"
 	"testing"
 
+	platform2 "github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/google/go-cmp/cmp"
 	platform "github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
@@ -34,7 +37,7 @@ var sourceCmpOptions = cmp.Options{
 
 // SourceFields will include the IDGenerator, and sources
 type SourceFields struct {
-	IDGenerator platform.IDGenerator
+	IDGenerator platform2.IDGenerator
 	Sources     []*platform.Source
 }
 
@@ -113,7 +116,7 @@ func FindSourceByID(
 	t *testing.T,
 ) {
 	type args struct {
-		id platform.ID
+		id platform2.ID
 	}
 	type wants struct {
 		err    error
@@ -267,7 +270,7 @@ func DeleteSource(
 	t *testing.T,
 ) {
 	type args struct {
-		id platform.ID
+		id platform2.ID
 	}
 	type wants struct {
 		err     error
@@ -317,8 +320,8 @@ func DeleteSource(
 				id: MustIDBase16(defaultSourceID),
 			},
 			wants: wants{
-				err: &platform.Error{
-					Code: platform.EForbidden,
+				err: &errors.Error{
+					Code: errors.EForbidden,
 					Op:   platform.OpDeleteSource,
 					Msg:  "cannot delete autogen source",
 				},

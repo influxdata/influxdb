@@ -57,6 +57,9 @@ native Go by the Telegraf process, eliminating the need to execute the system
   ## option of the ping command.
   # interface = ""
 
+  ## Percentiles to calculate. This only works with the native method.
+  # percentiles = [50, 95, 99]
+
   ## Specify the ping executable binary.
   # binary = "ping"
 
@@ -124,12 +127,10 @@ setting capabilities.
 
 [man 7 capabilities]: http://man7.org/linux/man-pages/man7/capabilities.7.html
 
-When Telegraf cannot listen on a privileged ICMP socket it will attempt to use
-ICMP echo sockets.  If you wish to use this method you must ensure Telegraf's
-group, usually `telegraf`, is allowed to use ICMP echo sockets:
+On Linux the default behaviour is to restrict creation of ping sockets for everybody. Execute the below command to enable creation of ping sockets for all possible user groups. The integers provided to ping_group_range defines the range of user groups that are permited to create ping sockets, were 2147483647 (the max of a signed int 2^31) is the max group identifier (GID).
 
 ```sh
-$ sysctl -w net.ipv4.ping_group_range="GROUP_ID_LOW   GROUP_ID_HIGH"
+$ sudo sysctl -w net.ipv4.ping_group_range="0 2147483647"
 ```
 
 Reference [`man 7 icmp`][man 7 icmp] for more information about ICMP echo
@@ -147,10 +148,11 @@ sockets and the `ping_group_range` setting.
     - packets_received (integer)
     - percent_packet_loss (float)
     - ttl (integer, Not available on Windows)
-    - average_response_ms (integer)
-    - minimum_response_ms (integer)
-    - maximum_response_ms (integer)
-    - standard_deviation_ms (integer, Available on Windows only with native ping)
+    - average_response_ms (float)
+    - minimum_response_ms (float)
+    - maximum_response_ms (float)
+    - standard_deviation_ms (float, Available on Windows only with method = "native")
+    - percentile\<N\>_ms (float, Where `<N>` is the percentile specified in `percentiles`. Available with method = "native" only)
     - errors (float, Windows only)
     - reply_received (integer, Windows with method = "exec" only)
     - percent_reply_loss (float, Windows with method = "exec" only)

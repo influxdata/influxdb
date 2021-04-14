@@ -6,6 +6,9 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/go-chi/chi"
 	"github.com/go-chi/chi/middleware"
 	"github.com/influxdata/influxdb/v2"
@@ -70,8 +73,8 @@ func (h *BucketHandler) Prefix() string {
 
 // bucket is used for serialization/deserialization with duration string syntax.
 type bucket struct {
-	ID                  influxdb.ID     `json:"id,omitempty"`
-	OrgID               influxdb.ID     `json:"orgID,omitempty"`
+	ID                  platform.ID     `json:"id,omitempty"`
+	OrgID               platform.ID     `json:"orgID,omitempty"`
 	Type                string          `json:"type"`
 	Description         string          `json:"description,omitempty"`
 	Name                string          `json:"name"`
@@ -82,38 +85,23 @@ type bucket struct {
 
 // retentionRule is the retention rule action for a bucket.
 type retentionRule struct {
-	Type         string `json:"type"`
-	EverySeconds int64  `json:"everySeconds"`
+	Type                      string `json:"type"`
+	EverySeconds              int64  `json:"everySeconds"`
+	ShardGroupDurationSeconds int64  `json:"shardGroupDurationSeconds"`
 }
 
-func (rr *retentionRule) RetentionPeriod() (time.Duration, error) {
-	t := time.Duration(rr.EverySeconds) * time.Second
-	if t < time.Second {
-		return t, &influxdb.Error{
-			Code: influxdb.EUnprocessableEntity,
-			Msg:  "expiration seconds must be greater than or equal to one second",
-		}
-	}
-
-	return t, nil
-}
-
-func (b *bucket) toInfluxDB() (*influxdb.Bucket, error) {
+func (b *bucket) toInfluxDB() *influxdb.Bucket {
 	if b == nil {
-		return nil, nil
+		return nil
 	}
 
-	var d time.Duration // zero value implies infinite retention policy
+	var rpDuration time.Duration // zero value implies infinite retention policy
+	var sgDuration time.Duration // zero value implies the server should pick a value
 
 	// Only support a single retention period for the moment
 	if len(b.RetentionRules) > 0 {
-		d = time.Duration(b.RetentionRules[0].EverySeconds) * time.Second
-		if d < time.Second {
-			return nil, &influxdb.Error{
-				Code: influxdb.EUnprocessableEntity,
-				Msg:  "expiration seconds must be greater than or equal to one second",
-			}
-		}
+		rpDuration = time.Duration(b.RetentionRules[0].EverySeconds) * time.Second
+		sgDuration = time.Duration(b.RetentionRules[0].ShardGroupDurationSeconds) * time.Second
 	}
 
 	return &influxdb.Bucket{
@@ -123,9 +111,10 @@ func (b *bucket) toInfluxDB() (*influxdb.Bucket, error) {
 		Description:         b.Description,
 		Name:                b.Name,
 		RetentionPolicyName: b.RetentionPolicyName,
-		RetentionPeriod:     d,
+		RetentionPeriod:     rpDuration,
+		ShardGroupDuration:  sgDuration,
 		CRUDLog:             b.CRUDLog,
-	}, nil
+	}
 }
 
 func newBucket(pb *influxdb.Bucket) *bucket {
@@ -133,41 +122,71 @@ func newBucket(pb *influxdb.Bucket) *bucket {
 		return nil
 	}
 
-	rules := []retentionRule{}
-	rp := int64(pb.RetentionPeriod.Round(time.Second) / time.Second)
-	if rp > 0 {
-		rules = append(rules, retentionRule{
-			Type:         "expire",
-			EverySeconds: rp,
-		})
-	}
-
-	return &bucket{
+	bkt := bucket{
 		ID:                  pb.ID,
 		OrgID:               pb.OrgID,
 		Type:                pb.Type.String(),
 		Name:                pb.Name,
 		Description:         pb.Description,
 		RetentionPolicyName: pb.RetentionPolicyName,
-		RetentionRules:      rules,
+		RetentionRules:      []retentionRule{},
 		CRUDLog:             pb.CRUDLog,
 	}
+
+	// Only append a retention rule if the user wants to explicitly set
+	// a parameter on the rule.
+	//
+	// This is for backwards-compatibility with older versions of the API,
+	// which didn't support setting shard-group durations and used an empty
+	// array of rules to represent infinite retention.
+	if pb.RetentionPeriod > 0 || pb.ShardGroupDuration > 0 {
+		bkt.RetentionRules = append(bkt.RetentionRules, retentionRule{
+			Type:                      "expire",
+			EverySeconds:              int64(pb.RetentionPeriod.Round(time.Second) / time.Second),
+			ShardGroupDurationSeconds: int64(pb.ShardGroupDuration.Round(time.Second) / time.Second),
+		})
+	}
+
+	return &bkt
+}
+
+type retentionRuleUpdate struct {
+	Type                      string `json:"type"`
+	EverySeconds              *int64 `json:"everySeconds"`
+	ShardGroupDurationSeconds *int64 `json:"shardGroupDurationSeconds"`
 }
 
 // bucketUpdate is used for serialization/deserialization with retention rules.
 type bucketUpdate struct {
-	Name           *string         `json:"name,omitempty"`
-	Description    *string         `json:"description,omitempty"`
-	RetentionRules []retentionRule `json:"retentionRules,omitempty"`
+	Name           *string               `json:"name,omitempty"`
+	Description    *string               `json:"description,omitempty"`
+	RetentionRules []retentionRuleUpdate `json:"retentionRules,omitempty"`
 }
 
 func (b *bucketUpdate) OK() error {
-	if len(b.RetentionRules) > 0 {
-		_, err := b.RetentionRules[0].RetentionPeriod()
-		if err != nil {
-			return err
+	if len(b.RetentionRules) > 1 {
+		return &errors.Error{
+			Code: errors.EUnprocessableEntity,
+			Msg:  "buckets cannot have more than one retention rule at this time",
 		}
 	}
+
+	if len(b.RetentionRules) > 0 {
+		rule := b.RetentionRules[0]
+		if rule.EverySeconds != nil && *rule.EverySeconds < 0 {
+			return &errors.Error{
+				Code: errors.EUnprocessableEntity,
+				Msg:  "expiration seconds cannot be negative",
+			}
+		}
+		if rule.ShardGroupDurationSeconds != nil && *rule.ShardGroupDurationSeconds < 0 {
+			return &errors.Error{
+				Code: errors.EUnprocessableEntity,
+				Msg:  "shard-group duration seconds cannot be negative",
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -176,17 +195,25 @@ func (b *bucketUpdate) toInfluxDB() *influxdb.BucketUpdate {
 		return nil
 	}
 
-	// For now, only use a single retention rule.
-	var d time.Duration
-	if len(b.RetentionRules) > 0 {
-		d, _ = b.RetentionRules[0].RetentionPeriod()
+	upd := influxdb.BucketUpdate{
+		Name:        b.Name,
+		Description: b.Description,
 	}
 
-	return &influxdb.BucketUpdate{
-		Name:            b.Name,
-		Description:     b.Description,
-		RetentionPeriod: &d,
+	// For now, only use a single retention rule.
+	if len(b.RetentionRules) > 0 {
+		rule := b.RetentionRules[0]
+		if rule.EverySeconds != nil {
+			rp := time.Duration(*rule.EverySeconds) * time.Second
+			upd.RetentionPeriod = &rp
+		}
+		if rule.ShardGroupDurationSeconds != nil {
+			sgd := time.Duration(*rule.ShardGroupDurationSeconds) * time.Second
+			upd.ShardGroupDuration = &sgd
+		}
 	}
+
+	return &upd
 }
 
 func newBucketUpdate(pb *influxdb.BucketUpdate) *bucketUpdate {
@@ -197,16 +224,25 @@ func newBucketUpdate(pb *influxdb.BucketUpdate) *bucketUpdate {
 	up := &bucketUpdate{
 		Name:           pb.Name,
 		Description:    pb.Description,
-		RetentionRules: []retentionRule{},
+		RetentionRules: []retentionRuleUpdate{},
 	}
 
-	if pb.RetentionPeriod != nil {
-		d := int64((*pb.RetentionPeriod).Round(time.Second) / time.Second)
-		up.RetentionRules = append(up.RetentionRules, retentionRule{
-			Type:         "expire",
-			EverySeconds: d,
-		})
+	if pb.RetentionPeriod == nil && pb.ShardGroupDuration == nil {
+		return up
 	}
+
+	rule := retentionRuleUpdate{Type: "expire"}
+
+	if pb.RetentionPeriod != nil {
+		rp := int64((*pb.RetentionPeriod).Round(time.Second) / time.Second)
+		rule.EverySeconds = &rp
+	}
+	if pb.ShardGroupDuration != nil {
+		sgd := int64((*pb.ShardGroupDuration).Round(time.Second) / time.Second)
+		rule.ShardGroupDurationSeconds = &sgd
+	}
+
+	up.RetentionRules = append(up.RetentionRules, rule)
 	return up
 }
 
@@ -280,7 +316,7 @@ func (h *BucketHandler) handlePostBucket(w http.ResponseWriter, r *http.Request)
 }
 
 type postBucketRequest struct {
-	OrgID               influxdb.ID     `json:"orgID,omitempty"`
+	OrgID               platform.ID     `json:"orgID,omitempty"`
 	Name                string          `json:"name"`
 	Description         string          `json:"description"`
 	RetentionPolicyName string          `json:"rp,omitempty"` // This to support v1 sources
@@ -289,18 +325,32 @@ type postBucketRequest struct {
 
 func (b *postBucketRequest) OK() error {
 	if !b.OrgID.Valid() {
-		return &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return &errors.Error{
+			Code: errors.EInvalid,
 			Msg:  "organization id must be provided",
 		}
 	}
 
-	// Only support a single retention period for the moment
+	if len(b.RetentionRules) > 1 {
+		return &errors.Error{
+			Code: errors.EUnprocessableEntity,
+			Msg:  "buckets cannot have more than one retention rule at this time",
+		}
+	}
+
 	if len(b.RetentionRules) > 0 {
-		if _, err := b.RetentionRules[0].RetentionPeriod(); err != nil {
-			return &influxdb.Error{
-				Code: influxdb.EUnprocessableEntity,
-				Msg:  err.Error(),
+		rule := b.RetentionRules[0]
+
+		if rule.EverySeconds < 0 {
+			return &errors.Error{
+				Code: errors.EUnprocessableEntity,
+				Msg:  "expiration seconds cannot be negative",
+			}
+		}
+		if rule.ShardGroupDurationSeconds < 0 {
+			return &errors.Error{
+				Code: errors.EUnprocessableEntity,
+				Msg:  "shard-group duration seconds cannot be negative",
 			}
 		}
 	}
@@ -310,9 +360,12 @@ func (b *postBucketRequest) OK() error {
 
 func (b postBucketRequest) toInfluxDB() *influxdb.Bucket {
 	// Only support a single retention period for the moment
-	var dur time.Duration
+	var rpDur time.Duration
+	var sgDur time.Duration
 	if len(b.RetentionRules) > 0 {
-		dur, _ = b.RetentionRules[0].RetentionPeriod()
+		rule := b.RetentionRules[0]
+		rpDur = time.Duration(rule.EverySeconds) * time.Second
+		sgDur = time.Duration(rule.ShardGroupDurationSeconds) * time.Second
 	}
 
 	return &influxdb.Bucket{
@@ -321,7 +374,8 @@ func (b postBucketRequest) toInfluxDB() *influxdb.Bucket {
 		Name:                b.Name,
 		Type:                influxdb.BucketTypeUser,
 		RetentionPolicyName: b.RetentionPolicyName,
-		RetentionPeriod:     dur,
+		RetentionPeriod:     rpDur,
+		ShardGroupDuration:  sgDur,
 	}
 }
 
@@ -329,7 +383,7 @@ func (b postBucketRequest) toInfluxDB() *influxdb.Bucket {
 func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
+	id, err := platform.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -352,7 +406,7 @@ func (h *BucketHandler) handleGetBucket(w http.ResponseWriter, r *http.Request) 
 
 // handleDeleteBucket is the HTTP handler for the DELETE /api/v2/buckets/:id route.
 func (h *BucketHandler) handleDeleteBucket(w http.ResponseWriter, r *http.Request) {
-	id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
+	id, err := platform.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -403,7 +457,7 @@ func decodeGetBucketsRequest(r *http.Request) (*getBucketsRequest, error) {
 	req.opts = *opts
 
 	if orgID := qp.Get("orgID"); orgID != "" {
-		id, err := influxdb.IDFromString(orgID)
+		id, err := platform.IDFromString(orgID)
 		if err != nil {
 			return nil, err
 		}
@@ -419,7 +473,7 @@ func decodeGetBucketsRequest(r *http.Request) (*getBucketsRequest, error) {
 	}
 
 	if bucketID := qp.Get("id"); bucketID != "" {
-		id, err := influxdb.IDFromString(bucketID)
+		id, err := platform.IDFromString(bucketID)
 		if err != nil {
 			return nil, err
 		}
@@ -431,7 +485,7 @@ func decodeGetBucketsRequest(r *http.Request) (*getBucketsRequest, error) {
 
 // handlePatchBucket is the HTTP handler for the PATCH /api/v2/buckets route.
 func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request) {
-	id, err := influxdb.IDFromString(chi.URLParam(r, "id"))
+	id, err := platform.IDFromString(chi.URLParam(r, "id"))
 	if err != nil {
 		h.api.Err(w, r, err)
 		return
@@ -463,7 +517,7 @@ func (h *BucketHandler) handlePatchBucket(w http.ResponseWriter, r *http.Request
 	h.api.Respond(w, r, http.StatusOK, NewBucketResponse(b))
 }
 
-func (h *BucketHandler) lookupOrgByBucketID(ctx context.Context, id influxdb.ID) (influxdb.ID, error) {
+func (h *BucketHandler) lookupOrgByBucketID(ctx context.Context, id platform.ID) (platform.ID, error) {
 	b, err := h.bucketSvc.FindBucketByID(ctx, id)
 	if err != nil {
 		return 0, err

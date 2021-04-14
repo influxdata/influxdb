@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"path"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kit/tracing"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
@@ -19,13 +22,13 @@ type BucketClientService struct {
 }
 
 // FindBucketByName returns a single bucket by name
-func (s *BucketClientService) FindBucketByName(ctx context.Context, orgID influxdb.ID, name string) (*influxdb.Bucket, error) {
+func (s *BucketClientService) FindBucketByName(ctx context.Context, orgID platform.ID, name string) (*influxdb.Bucket, error) {
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
 
 	if name == "" {
-		return nil, &influxdb.Error{
-			Code: influxdb.EUnprocessableEntity,
+		return nil, &errors.Error{
+			Code: errors.EUnprocessableEntity,
 			Op:   s.OpPrefix + influxdb.OpFindBuckets,
 			Msg:  "bucket name is required",
 		}
@@ -39,8 +42,8 @@ func (s *BucketClientService) FindBucketByName(ctx context.Context, orgID influx
 		return nil, err
 	}
 	if n == 0 || len(bkts) == 0 {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return nil, &errors.Error{
+			Code: errors.ENotFound,
 			Op:   s.OpPrefix + influxdb.OpFindBucket,
 			Msg:  fmt.Sprintf("bucket %q not found", name),
 		}
@@ -50,7 +53,7 @@ func (s *BucketClientService) FindBucketByName(ctx context.Context, orgID influx
 }
 
 // FindBucketByID returns a single bucket by ID.
-func (s *BucketClientService) FindBucketByID(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+func (s *BucketClientService) FindBucketByID(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
 	// TODO(@jsteenb2): are tracing
 	span, _ := tracing.StartSpanFromContext(ctx)
 	defer span.Finish()
@@ -63,7 +66,7 @@ func (s *BucketClientService) FindBucketByID(ctx context.Context, id influxdb.ID
 	if err != nil {
 		return nil, err
 	}
-	return br.toInfluxDB()
+	return br.toInfluxDB(), nil
 }
 
 // FindBucket returns the first bucket that matches filter.
@@ -77,14 +80,14 @@ func (s *BucketClientService) FindBucket(ctx context.Context, filter influxdb.Bu
 	}
 
 	if n == 0 && filter.Name != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return nil, &errors.Error{
+			Code: errors.ENotFound,
 			Op:   s.OpPrefix + influxdb.OpFindBucket,
 			Msg:  fmt.Sprintf("bucket %q not found", *filter.Name),
 		}
 	} else if n == 0 {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return nil, &errors.Error{
+			Code: errors.ENotFound,
 			Op:   s.OpPrefix + influxdb.OpFindBucket,
 			Msg:  "bucket not found",
 		}
@@ -124,11 +127,7 @@ func (s *BucketClientService) FindBuckets(ctx context.Context, filter influxdb.B
 	}
 	buckets := make([]*influxdb.Bucket, 0, len(bs.Buckets))
 	for _, b := range bs.Buckets {
-		pb, err := b.bucket.toInfluxDB()
-		if err != nil {
-			return nil, 0, err
-		}
-
+		pb := b.bucket.toInfluxDB()
 		buckets = append(buckets, pb)
 	}
 
@@ -149,17 +148,14 @@ func (s *BucketClientService) CreateBucket(ctx context.Context, b *influxdb.Buck
 		return err
 	}
 
-	pb, err := br.toInfluxDB()
-	if err != nil {
-		return err
-	}
+	pb := br.toInfluxDB()
 	*b = *pb
 	return nil
 }
 
 // UpdateBucket updates a single bucket with changeset.
 // Returns the new bucket state after update.
-func (s *BucketClientService) UpdateBucket(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
+func (s *BucketClientService) UpdateBucket(ctx context.Context, id platform.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
 	var br bucketResponse
 	err := s.Client.
 		PatchJSON(newBucketUpdate(&upd), path.Join(prefixBuckets, id.String())).
@@ -168,11 +164,11 @@ func (s *BucketClientService) UpdateBucket(ctx context.Context, id influxdb.ID, 
 	if err != nil {
 		return nil, err
 	}
-	return br.toInfluxDB()
+	return br.toInfluxDB(), nil
 }
 
 // DeleteBucket removes a bucket by ID.
-func (s *BucketClientService) DeleteBucket(ctx context.Context, id influxdb.ID) error {
+func (s *BucketClientService) DeleteBucket(ctx context.Context, id platform.ID) error {
 	return s.Client.
 		Delete(path.Join(prefixBuckets, id.String())).
 		Do(ctx)

@@ -1,7 +1,6 @@
 // Libraries
 import React, {PureComponent} from 'react'
 import _ from 'lodash'
-import {timeFormatter} from '@influxdata/giraffe'
 import classnames from 'classnames'
 
 // Components
@@ -11,6 +10,7 @@ import {ColumnSizer, SizedColumnProps, AutoSizer} from 'react-virtualized'
 import {MultiGrid, PropsMultiGrid} from 'src/shared/components/MultiGrid'
 
 // Utils
+import {getFormatter} from 'src/shared/utils/vis'
 import {withHoverTime, InjectedHoverProps} from 'src/dashboards/utils/hoverTime'
 import {
   findHoverTimeIndex,
@@ -351,9 +351,9 @@ class TableGraphTable extends PureComponent<Props, State> {
       properties: {timeFormat},
     } = this.props
 
-    return timeFormatter({
+    return getFormatter('time', {
       timeZone: timeZone === 'Local' ? undefined : timeZone,
-      format: resolveTimeFormat(timeFormat),
+      timeFormat: resolveTimeFormat(timeFormat),
     })
   }
 

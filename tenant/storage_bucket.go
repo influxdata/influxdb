@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/kv"
 )
@@ -13,23 +16,23 @@ var (
 	bucketIndex  = []byte("bucketindexv1")
 )
 
-func bucketIndexKey(o influxdb.ID, name string) ([]byte, error) {
+func bucketIndexKey(o platform.ID, name string) ([]byte, error) {
 	orgID, err := o.Encode()
 
 	if err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}
-	k := make([]byte, influxdb.IDLength+len(name))
+	k := make([]byte, platform.IDLength+len(name))
 	copy(k, orgID)
-	copy(k[influxdb.IDLength:], name)
+	copy(k[platform.IDLength:], name)
 	return k, nil
 }
 
 // uniqueBucketName ensures this bucket is unique for this organization
-func (s *Store) uniqueBucketName(ctx context.Context, tx kv.Tx, oid influxdb.ID, uname string) error {
+func (s *Store) uniqueBucketName(ctx context.Context, tx kv.Tx, oid platform.ID, uname string) error {
 	key, err := bucketIndexKey(oid, uname)
 	if err != nil {
 		return err
@@ -76,7 +79,7 @@ func marshalBucket(u *influxdb.Bucket) ([]byte, error) {
 	return v, nil
 }
 
-func (s *Store) GetBucket(ctx context.Context, tx kv.Tx, id influxdb.ID) (*influxdb.Bucket, error) {
+func (s *Store) GetBucket(ctx context.Context, tx kv.Tx, id platform.ID) (*influxdb.Bucket, error) {
 	encodedID, err := id.Encode()
 	if err != nil {
 		return nil, InvalidOrgIDError(err)
@@ -99,11 +102,11 @@ func (s *Store) GetBucket(ctx context.Context, tx kv.Tx, id influxdb.ID) (*influ
 	return unmarshalBucket(v)
 }
 
-func (s *Store) GetBucketByName(ctx context.Context, tx kv.Tx, orgID influxdb.ID, n string) (*influxdb.Bucket, error) {
+func (s *Store) GetBucketByName(ctx context.Context, tx kv.Tx, orgID platform.ID, n string) (*influxdb.Bucket, error) {
 	key, err := bucketIndexKey(orgID, n)
 	if err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}
@@ -124,9 +127,9 @@ func (s *Store) GetBucketByName(ctx context.Context, tx kv.Tx, orgID influxdb.ID
 		return nil, err
 	}
 
-	var id influxdb.ID
+	var id platform.ID
 	if err := id.Decode(buf); err != nil {
-		return nil, &influxdb.Error{
+		return nil, &errors.Error{
 			Err: err,
 		}
 	}
@@ -135,7 +138,7 @@ func (s *Store) GetBucketByName(ctx context.Context, tx kv.Tx, orgID influxdb.ID
 
 type BucketFilter struct {
 	Name           *string
-	OrganizationID *influxdb.ID
+	OrganizationID *platform.ID
 }
 
 func (s *Store) ListBuckets(ctx context.Context, tx kv.Tx, filter BucketFilter, opt ...influxdb.FindOptions) ([]*influxdb.Bucket, error) {
@@ -210,12 +213,12 @@ func (s *Store) ListBuckets(ctx context.Context, tx kv.Tx, filter BucketFilter, 
 	return bs, cursor.Err()
 }
 
-func (s *Store) listBucketsByOrg(ctx context.Context, tx kv.Tx, orgID influxdb.ID, o influxdb.FindOptions) ([]*influxdb.Bucket, error) {
+func (s *Store) listBucketsByOrg(ctx context.Context, tx kv.Tx, orgID platform.ID, o influxdb.FindOptions) ([]*influxdb.Bucket, error) {
 	// get the prefix key (org id with an empty name)
 	key, err := bucketIndexKey(orgID, "")
 	if err != nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.EInvalid,
+		return nil, &errors.Error{
+			Code: errors.EInvalid,
 			Err:  err,
 		}
 	}
@@ -243,9 +246,9 @@ func (s *Store) listBucketsByOrg(ctx context.Context, tx kv.Tx, orgID influxdb.I
 			return nil, err
 		}
 
-		var id influxdb.ID
+		var id platform.ID
 		if err := id.Decode(v); err != nil {
-			return nil, &influxdb.Error{
+			return nil, &errors.Error{
 				Err: err,
 			}
 		}
@@ -313,7 +316,7 @@ func (s *Store) CreateBucket(ctx context.Context, tx kv.Tx, bucket *influxdb.Buc
 	return nil
 }
 
-func (s *Store) UpdateBucket(ctx context.Context, tx kv.Tx, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
+func (s *Store) UpdateBucket(ctx context.Context, tx kv.Tx, id platform.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
 	encodedID, err := id.Encode()
 	if err != nil {
 		return nil, err
@@ -371,6 +374,9 @@ func (s *Store) UpdateBucket(ctx context.Context, tx kv.Tx, id influxdb.ID, upd 
 	if upd.RetentionPeriod != nil {
 		bucket.RetentionPeriod = *upd.RetentionPeriod
 	}
+	if upd.ShardGroupDuration != nil {
+		bucket.ShardGroupDuration = *upd.ShardGroupDuration
+	}
 
 	v, err := marshalBucket(bucket)
 	if err != nil {
@@ -388,7 +394,7 @@ func (s *Store) UpdateBucket(ctx context.Context, tx kv.Tx, id influxdb.ID, upd 
 	return bucket, nil
 }
 
-func (s *Store) DeleteBucket(ctx context.Context, tx kv.Tx, id influxdb.ID) error {
+func (s *Store) DeleteBucket(ctx context.Context, tx kv.Tx, id platform.ID) error {
 	bucket, err := s.GetBucket(ctx, tx, id)
 	if err != nil {
 		return err

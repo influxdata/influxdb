@@ -3,6 +3,8 @@ package authorizer_test
 import (
 	"bytes"
 	"context"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
 	"sort"
 	"testing"
 
@@ -91,9 +93,9 @@ func TestSourceService_DefaultSource(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "read:orgs/000000000000000a/sources/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -118,7 +120,7 @@ func TestSourceService_FindSourceByID(t *testing.T) {
 	}
 	type args struct {
 		permission influxdb.Permission
-		id         influxdb.ID
+		id         platform.ID
 	}
 	type wants struct {
 		err error
@@ -134,7 +136,7 @@ func TestSourceService_FindSourceByID(t *testing.T) {
 			name: "authorized to access id",
 			fields: fields{
 				SourceService: &mock.SourceService{
-					FindSourceByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Source, error) {
+					FindSourceByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Source, error) {
 						return &influxdb.Source{
 							ID:             id,
 							OrganizationID: 10,
@@ -160,7 +162,7 @@ func TestSourceService_FindSourceByID(t *testing.T) {
 			name: "unauthorized to access id",
 			fields: fields{
 				SourceService: &mock.SourceService{
-					FindSourceByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Source, error) {
+					FindSourceByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Source, error) {
 						return &influxdb.Source{
 							ID:             id,
 							OrganizationID: 10,
@@ -179,9 +181,9 @@ func TestSourceService_FindSourceByID(t *testing.T) {
 				id: 1,
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "read:orgs/000000000000000a/sources/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -333,7 +335,7 @@ func TestSourceService_UpdateSource(t *testing.T) {
 		SourceService influxdb.SourceService
 	}
 	type args struct {
-		id          influxdb.ID
+		id          platform.ID
 		permissions []influxdb.Permission
 	}
 	type wants struct {
@@ -350,13 +352,13 @@ func TestSourceService_UpdateSource(t *testing.T) {
 			name: "authorized to update source",
 			fields: fields{
 				SourceService: &mock.SourceService{
-					FindSourceByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Source, error) {
+					FindSourceByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Source, error) {
 						return &influxdb.Source{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
 					},
-					UpdateSourceFn: func(ctx context.Context, id influxdb.ID, upd influxdb.SourceUpdate) (*influxdb.Source, error) {
+					UpdateSourceFn: func(ctx context.Context, id platform.ID, upd influxdb.SourceUpdate) (*influxdb.Source, error) {
 						return &influxdb.Source{
 							ID:             1,
 							OrganizationID: 10,
@@ -391,13 +393,13 @@ func TestSourceService_UpdateSource(t *testing.T) {
 			name: "unauthorized to update source",
 			fields: fields{
 				SourceService: &mock.SourceService{
-					FindSourceByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Source, error) {
+					FindSourceByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Source, error) {
 						return &influxdb.Source{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
 					},
-					UpdateSourceFn: func(ctx context.Context, id influxdb.ID, upd influxdb.SourceUpdate) (*influxdb.Source, error) {
+					UpdateSourceFn: func(ctx context.Context, id platform.ID, upd influxdb.SourceUpdate) (*influxdb.Source, error) {
 						return &influxdb.Source{
 							ID:             1,
 							OrganizationID: 10,
@@ -418,9 +420,9 @@ func TestSourceService_UpdateSource(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/sources/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -444,7 +446,7 @@ func TestSourceService_DeleteSource(t *testing.T) {
 		SourceService influxdb.SourceService
 	}
 	type args struct {
-		id          influxdb.ID
+		id          platform.ID
 		permissions []influxdb.Permission
 	}
 	type wants struct {
@@ -461,13 +463,13 @@ func TestSourceService_DeleteSource(t *testing.T) {
 			name: "authorized to delete source",
 			fields: fields{
 				SourceService: &mock.SourceService{
-					FindSourceByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Source, error) {
+					FindSourceByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Source, error) {
 						return &influxdb.Source{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
 					},
-					DeleteSourceFn: func(ctx context.Context, id influxdb.ID) error {
+					DeleteSourceFn: func(ctx context.Context, id platform.ID) error {
 						return nil
 					},
 				},
@@ -499,13 +501,13 @@ func TestSourceService_DeleteSource(t *testing.T) {
 			name: "unauthorized to delete source",
 			fields: fields{
 				SourceService: &mock.SourceService{
-					FindSourceByIDFn: func(ctx context.Context, id influxdb.ID) (*influxdb.Source, error) {
+					FindSourceByIDFn: func(ctx context.Context, id platform.ID) (*influxdb.Source, error) {
 						return &influxdb.Source{
 							ID:             1,
 							OrganizationID: 10,
 						}, nil
 					},
-					DeleteSourceFn: func(ctx context.Context, id influxdb.ID) error {
+					DeleteSourceFn: func(ctx context.Context, id platform.ID) error {
 						return nil
 					},
 				},
@@ -523,9 +525,9 @@ func TestSourceService_DeleteSource(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/sources/0000000000000001 is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},
@@ -550,7 +552,7 @@ func TestSourceService_CreateSource(t *testing.T) {
 	}
 	type args struct {
 		permission influxdb.Permission
-		orgID      influxdb.ID
+		orgID      platform.ID
 	}
 	type wants struct {
 		err error
@@ -605,9 +607,9 @@ func TestSourceService_CreateSource(t *testing.T) {
 				},
 			},
 			wants: wants{
-				err: &influxdb.Error{
+				err: &errors.Error{
 					Msg:  "write:orgs/000000000000000a/sources is unauthorized",
-					Code: influxdb.EUnauthorized,
+					Code: errors.EUnauthorized,
 				},
 			},
 		},

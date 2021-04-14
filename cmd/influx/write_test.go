@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -16,7 +17,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/influxdata/influxdb/v2/pkg/csv2lp"
+	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 )
@@ -55,19 +57,25 @@ func readLines(reader io.Reader) []string {
 	return retVal
 }
 
-func createTempFile(suffix string, contents []byte) string {
+func createTempFile(t *testing.T, suffix string, contents []byte, compress bool) string {
+	t.Helper()
+
 	file, err := ioutil.TempFile("", "influx_writeTest*."+suffix)
-	file.Close() // Close immediately, since we need only a file name
-	if err != nil {
-		log.Fatal(err)
-		return "unknown.file"
-	}
+	require.NoError(t, err)
+	defer file.Close()
+
 	fileName := file.Name()
 	tempFiles = append(tempFiles, fileName)
-	err = ioutil.WriteFile(fileName, contents, os.ModePerm)
-	if err != nil {
-		log.Fatal(err)
+
+	var writer io.Writer = file
+	if compress {
+		gzipWriter := gzip.NewWriter(writer)
+		defer gzipWriter.Close()
+		writer = gzipWriter
 	}
+
+	_, err = writer.Write(contents)
+	require.NoError(t, err)
 	return fileName
 }
 
@@ -75,7 +83,7 @@ func createTempFile(suffix string, contents []byte) string {
 func Test_writeFlags_dump(t *testing.T) {
 	restoreLogging, log := overrideLogging()
 	defer restoreLogging()
-	flags := writeFlagsType{}
+	flags := writeFlagsBuilder{}
 	flags.dump([]string{})
 	// no dump without --debug
 	require.Empty(t, log.String())
@@ -91,9 +99,27 @@ func Test_writeFlags_dump(t *testing.T) {
 // are combined and transformed to provide a reader of protocol lines
 func Test_writeFlags_createLineReader(t *testing.T) {
 	defer removeTempFiles()
-	fileContents := "_measurement,b,c,d\nf1,f2,f3,f4"
-	csvFile1 := createTempFile("csv", []byte(fileContents))
-	stdInContents := "i,j,_measurement,k\nstdin1,stdin2,stdin3,stdin4"
+
+	gzipStdin := func(uncompressed string) io.Reader {
+		contents := &bytes.Buffer{}
+		writer := gzip.NewWriter(contents)
+		_, err := writer.Write([]byte(uncompressed))
+		require.NoError(t, err)
+		require.NoError(t, writer.Close())
+		return contents
+	}
+
+	lpContents := "f1 b=f2,c=f3,d=f4"
+	lpFile := createTempFile(t, "txt", []byte(lpContents), false)
+	gzipLpFile := createTempFile(t, "txt.gz", []byte(lpContents), true)
+	gzipLpFileNoExt := createTempFile(t, "lp", []byte(lpContents), true)
+	stdInLpContents := "stdin3 i=stdin1,j=stdin2,k=stdin4"
+
+	csvContents := "_measurement,b,c,d\nf1,f2,f3,f4"
+	csvFile := createTempFile(t, "csv", []byte(csvContents), false)
+	gzipCsvFile := createTempFile(t, "csv.gz", []byte(csvContents), true)
+	gzipCsvFileNoExt := createTempFile(t, "csv", []byte(csvContents), true)
+	stdInCsvContents := "i,j,_measurement,k\nstdin1,stdin2,stdin3,stdin4"
 
 	// use a test HTTP server to provide CSV data
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
@@ -102,9 +128,20 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		if contentType := query.Get("Content-Type"); contentType != "" {
 			rw.Header().Set("Content-Type", contentType)
 		}
+		if encoding := query.Get("encoding"); encoding != "" {
+			rw.Header().Set("Content-Encoding", encoding)
+		}
+		compress := query.Get("compress") != ""
 		rw.WriteHeader(http.StatusOK)
 		if data := query.Get("data"); data != "" {
-			rw.Write([]byte(data))
+			var writer io.Writer = rw
+			if compress {
+				gzw := gzip.NewWriter(writer)
+				defer gzw.Close()
+				writer = gzw
+			}
+			_, err := writer.Write([]byte(data))
+			require.NoError(t, err)
 		}
 	}))
 	defer server.Close()
@@ -112,30 +149,197 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 	var tests = []struct {
 		name string
 		// input
-		flags     writeFlagsType
+		flags     writeFlagsBuilder
 		stdIn     io.Reader
 		arguments []string
 		// output
 		firstLineCorrection int // 0 unless shifted by prepended headers or skipped rows
 		lines               []string
-		// lpData indicates the the data are line protocol data
-		lpData bool
 	}{
 		{
+			name: "read data from LP file",
+			flags: writeFlagsBuilder{
+				Files: []string{lpFile},
+			},
+			firstLineCorrection: 0,
+			lines: []string{
+				lpContents,
+			},
+		},
+		{
+			name: "read data from LP file using non-UTF encoding",
+			flags: writeFlagsBuilder{
+				Files:    []string{lpFile},
+				Encoding: "ISO_8859-1",
+			},
+			firstLineCorrection: 0,
+			lines: []string{
+				lpContents,
+			},
+		},
+		{
+			name: "read compressed LP data from file",
+			flags: writeFlagsBuilder{
+				Files:       []string{gzipLpFileNoExt},
+				Compression: inputCompressionGzip,
+			},
+			firstLineCorrection: 0,
+			lines: []string{
+				lpContents,
+			},
+		},
+		{
+			name: "read compressed data from LP file using non-UTF encoding",
+			flags: writeFlagsBuilder{
+				Files:       []string{gzipLpFileNoExt},
+				Compression: inputCompressionGzip,
+				Encoding:    "ISO_8859-1",
+			},
+			firstLineCorrection: 0,
+			lines: []string{
+				lpContents,
+			},
+		},
+		{
+			name: "read compressed LP data from file ending in .gz",
+			flags: writeFlagsBuilder{
+				Files: []string{gzipLpFile},
+			},
+			firstLineCorrection: 0,
+			lines: []string{
+				lpContents,
+			},
+		},
+		{
+			name: "read compressed and uncompressed LP data from file in the same call",
+			flags: writeFlagsBuilder{
+				Files: []string{gzipLpFile, lpFile},
+			},
+			firstLineCorrection: 0,
+			lines: []string{
+				lpContents,
+				lpContents,
+			},
+		},
+		{
+			name:  "read LP data from stdin",
+			flags: writeFlagsBuilder{},
+			stdIn: strings.NewReader(stdInLpContents),
+			lines: []string{
+				stdInLpContents,
+			},
+		},
+		{
+			name: "read compressed LP data from stdin",
+			flags: writeFlagsBuilder{
+				Compression: inputCompressionGzip,
+			},
+			stdIn: gzipStdin(stdInLpContents),
+			lines: []string{
+				stdInLpContents,
+			},
+		},
+		{
+			name:      "read LP data from stdin using '-' argument",
+			flags:     writeFlagsBuilder{},
+			stdIn:     strings.NewReader(stdInLpContents),
+			arguments: []string{"-"},
+			lines: []string{
+				stdInLpContents,
+			},
+		},
+		{
+			name: "read compressed LP data from stdin using '-' argument",
+			flags: writeFlagsBuilder{
+				Compression: inputCompressionGzip,
+			},
+			stdIn:     gzipStdin(stdInLpContents),
+			arguments: []string{"-"},
+			lines: []string{
+				stdInLpContents,
+			},
+		},
+		{
+			name:      "read LP data from 1st argument",
+			flags:     writeFlagsBuilder{},
+			arguments: []string{stdInLpContents},
+			lines: []string{
+				stdInLpContents,
+			},
+		},
+		{
+			name: "read LP data from URL",
+			flags: writeFlagsBuilder{
+				URLs: []string{fmt.Sprintf("%s/a?data=%s", server.URL, url.QueryEscape(lpContents))},
+			},
+			lines: []string{
+				lpContents,
+			},
+		},
+		{
+			name: "read compressed LP data from URL",
+			flags: writeFlagsBuilder{
+				URLs:        []string{fmt.Sprintf("%s/a?data=%s&compress=true", server.URL, url.QueryEscape(lpContents))},
+				Compression: inputCompressionGzip,
+			},
+			lines: []string{
+				lpContents,
+			},
+		},
+		{
+			name: "read compressed LP data from URL ending in .gz",
+			flags: writeFlagsBuilder{
+				URLs: []string{fmt.Sprintf("%s/a.gz?data=%s&compress=true", server.URL, url.QueryEscape(lpContents))},
+			},
+			lines: []string{
+				lpContents,
+			},
+		},
+		{
+			name: "read compressed LP data from URL with gzip encoding",
+			flags: writeFlagsBuilder{
+				URLs: []string{fmt.Sprintf("%s/a?data=%s&compress=true&encoding=gzip", server.URL, url.QueryEscape(lpContents))},
+			},
+			lines: []string{
+				lpContents,
+			},
+		},
+		{
 			name: "read data from CSV file + transform to line protocol",
-			flags: writeFlagsType{
-				Files: []string{csvFile1},
+			flags: writeFlagsBuilder{
+				Files: []string{csvFile},
 			},
 			firstLineCorrection: 0, // no changes
 			lines: []string{
-				"f1 b=f2,c=f3,d=f4",
+				lpContents,
+			},
+		},
+		{
+			name: "read compressed CSV data from file + transform to line protocol",
+			flags: writeFlagsBuilder{
+				Files:       []string{gzipCsvFileNoExt},
+				Compression: inputCompressionGzip,
+			},
+			firstLineCorrection: 0,
+			lines: []string{
+				lpContents,
+			},
+		},
+		{
+			name: "read compressed CSV data from file ending in .csv.gz + transform to line protocol",
+			flags: writeFlagsBuilder{
+				Files: []string{gzipCsvFile},
+			},
+			firstLineCorrection: 0,
+			lines: []string{
+				lpContents,
 			},
 		},
 		{
 			name: "read CSV data from --header and --file + transform to line protocol",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				Headers: []string{"x,_measurement,y,z"},
-				Files:   []string{csvFile1},
+				Files:   []string{csvFile},
 			},
 			firstLineCorrection: -1, // shifted back by header line
 			lines: []string{
@@ -145,11 +349,11 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		},
 		{
 			name: "read CSV data from --header and @file argument with 1st row in file skipped + transform to line protocol",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				Headers:    []string{"x,_measurement,y,z"},
 				SkipHeader: 1,
 			},
-			arguments:           []string{"@" + csvFile1},
+			arguments:           []string{"@" + csvFile},
 			firstLineCorrection: 0, // shifted (-1) back by header line, forward (+1) by skipHeader
 			lines: []string{
 				"f2 x=f1,y=f3,z=f4",
@@ -157,11 +361,11 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		},
 		{
 			name: "read CSV data from --header and @file argument with 1st row in file skipped + transform to line protocol",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				Headers:    []string{"x,_measurement,y,z"},
 				SkipHeader: 1,
 			},
-			arguments:           []string{"@" + csvFile1},
+			arguments:           []string{"@" + csvFile},
 			firstLineCorrection: 0, // shifted (-1) back by header line, forward (+1) by skipHeader
 			lines: []string{
 				"f2 x=f1,y=f3,z=f4",
@@ -169,48 +373,99 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 		},
 		{
 			name: "read CSV data from stdin + transform to line protocol",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				Format: inputFormatCsv,
 			},
-			stdIn: strings.NewReader(stdInContents),
+			stdIn: strings.NewReader(stdInCsvContents),
 			lines: []string{
-				"stdin3 i=stdin1,j=stdin2,k=stdin4",
+				stdInLpContents,
+			},
+		},
+		{
+			name: "read compressed CSV data from stdin + transform to line protocol",
+			flags: writeFlagsBuilder{
+				Format:      inputFormatCsv,
+				Compression: inputCompressionGzip,
+			},
+			stdIn: gzipStdin(stdInCsvContents),
+			lines: []string{
+				stdInLpContents,
 			},
 		},
 		{
 			name: "read CSV data from stdin using '-' argument + transform to line protocol",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				Format: inputFormatCsv,
 			},
-			stdIn:     strings.NewReader(stdInContents),
+			stdIn:     strings.NewReader(stdInCsvContents),
 			arguments: []string{"-"},
 			lines: []string{
-				"stdin3 i=stdin1,j=stdin2,k=stdin4",
+				stdInLpContents,
+			},
+		},
+		{
+			name: "read compressed CSV data from stdin using '-' argument + transform to line protocol",
+			flags: writeFlagsBuilder{
+				Format:      inputFormatCsv,
+				Compression: inputCompressionGzip,
+			},
+			stdIn:     gzipStdin(stdInCsvContents),
+			arguments: []string{"-"},
+			lines: []string{
+				stdInLpContents,
 			},
 		},
 		{
 			name: "read CSV data from 1st argument + transform to line protocol",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				Format: inputFormatCsv,
 			},
-			arguments: []string{stdInContents},
+			arguments: []string{stdInCsvContents},
 			lines: []string{
-				"stdin3 i=stdin1,j=stdin2,k=stdin4",
+				stdInLpContents,
 			},
 		},
 		{
 			name: "read data from .csv URL + transform to line protocol",
-			flags: writeFlagsType{
-				URLs: []string{(server.URL + "/a.csv?data=" + url.QueryEscape(fileContents))},
+			flags: writeFlagsBuilder{
+				URLs: []string{fmt.Sprintf("%s/a.csv?data=%s", server.URL, url.QueryEscape(csvContents))},
 			},
 			lines: []string{
-				"f1 b=f2,c=f3,d=f4",
+				lpContents,
+			},
+		},
+		{
+			name: "read compressed CSV data from URL + transform to line protocol",
+			flags: writeFlagsBuilder{
+				URLs:        []string{fmt.Sprintf("%s/a.csv?data=%s&compress=true", server.URL, url.QueryEscape(csvContents))},
+				Compression: inputCompressionGzip,
+			},
+			lines: []string{
+				lpContents,
+			},
+		},
+		{
+			name: "read compressed CSV data from URL ending in .csv.gz + transform to line protocol",
+			flags: writeFlagsBuilder{
+				URLs: []string{fmt.Sprintf("%s/a.csv.gz?data=%s&compress=true", server.URL, url.QueryEscape(csvContents))},
+			},
+			lines: []string{
+				lpContents,
+			},
+		},
+		{
+			name: "read compressed CSV data from URL with gzip encoding + transform to line protocol",
+			flags: writeFlagsBuilder{
+				URLs: []string{fmt.Sprintf("%s/a.csv?data=%s&compress=true&encoding=gzip", server.URL, url.QueryEscape(csvContents))},
+			},
+			lines: []string{
+				lpContents,
 			},
 		},
 		{
 			name: "read data from .csv URL + change header line + transform to line protocol",
-			flags: writeFlagsType{
-				URLs:       []string{(server.URL + "/a.csv?data=" + url.QueryEscape(fileContents))},
+			flags: writeFlagsBuilder{
+				URLs:       []string{fmt.Sprintf("%s/a.csv?data=%s", server.URL, url.QueryEscape(csvContents))},
 				Headers:    []string{"k,j,_measurement,i"},
 				SkipHeader: 1,
 			},
@@ -219,30 +474,31 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			},
 		},
 		{
-			name: "read data from having text/csv URL resource + transform to line protocol",
-			flags: writeFlagsType{
-				URLs: []string{(server.URL + "/a?Content-Type=text/csv&data=" + url.QueryEscape(fileContents))},
+			name: "read data from URL with text/csv Content-Type + transform to line protocol",
+			flags: writeFlagsBuilder{
+				URLs: []string{fmt.Sprintf("%s/a?Content-Type=text/csv&data=%s", server.URL, url.QueryEscape(csvContents))},
 			},
 			lines: []string{
-				"f1 b=f2,c=f3,d=f4",
+				lpContents,
 			},
 		},
 		{
-			name: "read line protocol data from URL",
-			flags: writeFlagsType{
-				URLs: []string{(server.URL + "/a?data=" + url.QueryEscape(fileContents))},
+			name: "read compressed data from URL with text/csv Content-Type and gzip Content-Encoding + transform to line protocol",
+			flags: writeFlagsBuilder{
+				URLs: []string{fmt.Sprintf("%s/a?Content-Type=text/csv&data=%s&compress=true&encoding=gzip", server.URL, url.QueryEscape(csvContents))},
 			},
-			lines:  strings.Split(fileContents, "\n"),
-			lpData: true,
+			lines: []string{
+				lpContents,
+			},
 		},
 		{
 			name: "read data from CSV file + transform to line protocol + throttle read to 1MB/min",
-			flags: writeFlagsType{
-				Files:     []string{csvFile1},
+			flags: writeFlagsBuilder{
+				Files:     []string{csvFile},
 				RateLimit: "1MBs",
 			},
 			lines: []string{
-				"f1 b=f2,c=f3,d=f4",
+				lpContents,
 			},
 		},
 	}
@@ -255,11 +511,6 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 			defer closer.Close()
 			require.Nil(t, err)
 			require.NotNil(t, reader)
-			if !test.lpData && len(test.flags.RateLimit) == 0 {
-				csvToLineReader, ok := reader.(*csv2lp.CsvToLineReader)
-				require.True(t, ok)
-				require.Equal(t, csvToLineReader.LineNumber, test.firstLineCorrection)
-			}
 			lines := readLines(reader)
 			require.Equal(t, test.lines, lines)
 		})
@@ -269,7 +520,7 @@ func Test_writeFlags_createLineReader(t *testing.T) {
 // Test_writeFlags_createLineReader_errors tests input validation
 func Test_writeFlags_createLineReader_errors(t *testing.T) {
 	defer removeTempFiles()
-	csvFile1 := createTempFile("csv", []byte("_measurement,b,c,d\nf1,f2,f3,f4"))
+	csvFile1 := createTempFile(t, "csv", []byte("_measurement,b,c,d\nf1,f2,f3,f4"), false)
 	// use a test HTTP server to server errors
 	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
 		rw.WriteHeader(http.StatusInternalServerError)
@@ -279,48 +530,48 @@ func Test_writeFlags_createLineReader_errors(t *testing.T) {
 	var tests = []struct {
 		name string
 		// input
-		flags writeFlagsType
+		flags writeFlagsBuilder
 		// output
 		message string
 	}{
 		{
 			name: "unsupported format",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				Format: "wiki",
 			},
 			message: "unsupported",
 		},
 		{
 			name: "unsupported encoding",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				Encoding: "green",
 			},
 			message: "https://www.iana.org/assignments/character-sets/character-sets.xhtml", // hint to available values
 		},
 		{
 			name: "file not found",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				Files: []string{csvFile1 + "x"},
 			},
 			message: csvFile1,
 		},
 		{
 			name: "unsupported URL",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				URLs: []string{"wit://whatever"},
 			},
 			message: "wit://whatever",
 		},
 		{
 			name: "invalid URL",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				URLs: []string{"http://test%zy"}, // 2 hex digits after % expected
 			},
 			message: "http://test%zy",
 		},
 		{
 			name: "URL with 500 status code",
-			flags: writeFlagsType{
+			flags: writeFlagsBuilder{
 				URLs: []string{server.URL},
 			},
 			message: server.URL,
@@ -338,8 +589,7 @@ func Test_writeFlags_createLineReader_errors(t *testing.T) {
 	}
 }
 
-// Test_fluxWriteDryrunF tests dryrun functionality
-func Test_fluxWriteDryrunF(t *testing.T) {
+func Test_writeDryrunE(t *testing.T) {
 	t.Run("process and transform csv data without problems to stdout", func(t *testing.T) {
 		stdInContents := "i,j,_measurement,k\nstdin1,stdin2,stdin3,stdin4"
 		out := bytes.Buffer{}
@@ -371,42 +621,8 @@ func Test_fluxWriteDryrunF(t *testing.T) {
 	})
 }
 
-// Test_fluxWriteF tests validation and processing of input flags in fluxWriteF
-func Test_fluxWriteF(t *testing.T) {
-	var lineData []byte // stores line data that the client writes
-	// use a test HTTP server to mock response
-	server := httptest.NewServer(http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
-		// consume and remember request contents
-		var requestData io.Reader = req.Body
-		if h := req.Header["Content-Encoding"]; len(h) > 0 && strings.Contains(h[0], "gzip") {
-			gzipReader, err := gzip.NewReader(req.Body)
-			if err != nil {
-				log.Fatal("Unable to create gzip reader", err)
-				return
-			}
-			requestData = gzipReader
-		}
-		lineData, _ = ioutil.ReadAll(requestData)
-		rw.Write([]byte(`OK`))
-	}))
-	defer server.Close()
-	// setup flags to point to test server
-	prevHost := flags.host
-	prevToken := flags.token
-	defer func() {
-		flags.host = prevHost
-		flags.token = prevToken
-	}()
-	useTestServer := func() {
-		httpClient = nil
-		lineData = lineData[:0]
-		flags.token = "myToken"
-		flags.host = server.URL
-	}
-
+func Test_writeRunE(t *testing.T) {
 	t.Run("validates that --org or --org-id must be specified", func(t *testing.T) {
-		t.Skip(`this test is hard coded to global variables and one small tweak causes a lot of downstream test failures changes else, skipping for now`)
-		useTestServer()
 		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
 		command.SetArgs([]string{"--format", "csv"})
 		err := command.Execute()
@@ -414,7 +630,6 @@ func Test_fluxWriteF(t *testing.T) {
 	})
 
 	t.Run("validates that either --bucket or --bucket-id must be specified", func(t *testing.T) {
-		useTestServer()
 		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
 		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket", "my-bucket", "--bucket-id", "my-bucket"})
 		err := command.Execute()
@@ -422,25 +637,13 @@ func Test_fluxWriteF(t *testing.T) {
 	})
 
 	t.Run("validates --precision", func(t *testing.T) {
-		useTestServer()
 		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
 		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket", "my-bucket", "--precision", "pikosec"})
 		err := command.Execute()
 		require.Contains(t, fmt.Sprintf("%s", err), "precision") // invalid precision
 	})
 
-	t.Run("validates --host must be supplied", func(t *testing.T) {
-		t.Skip(`this test is hard coded to global variables and one small tweak causes a lot of downstream test failures changes else, skipping for now`)
-		useTestServer()
-		flags.host = ""
-		command := cmdWrite(&flags, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
-		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket", "my-bucket"})
-		err := command.Execute()
-		require.Contains(t, fmt.Sprintf("%s", err), "host")
-	})
-
 	t.Run("validates decoding of bucket-id", func(t *testing.T) {
-		useTestServer()
 		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
 		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket-id", "my-bucket"})
 		err := command.Execute()
@@ -448,42 +651,13 @@ func Test_fluxWriteF(t *testing.T) {
 	})
 
 	t.Run("validates decoding of org-id", func(t *testing.T) {
-		useTestServer()
 		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
 		command.SetArgs([]string{"--format", "csv", "--org-id", "my-org", "--bucket", "my-bucket"})
 		err := command.Execute()
 		require.Contains(t, fmt.Sprintf("%s", err), "org-id")
 	})
 
-	t.Run("validates error when failed to retrieve buckets", func(t *testing.T) {
-		useTestServer()
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
-		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket", "my-error-bucket"})
-		require.Nil(t, command.Execute())
-	})
-
-	// validation: no such bucket found
-	t.Run("validates no such bucket found", func(t *testing.T) {
-		useTestServer()
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
-		command.SetArgs([]string{"--format", "csv", "--org", "my-empty-org", "--bucket", "my-bucket"})
-		require.Nil(t, command.Execute())
-	})
-
-	// validation: no such bucket-id found
-	t.Run("validates no such bucket-id found", func(t *testing.T) {
-		t.Skip(`this test is hard coded to global variables and one small tweak causes a lot of downstream test failures changes else, skipping for now`)
-		useTestServer()
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
-		// note: my-empty-org parameter causes the test server to return no buckets
-		command.SetArgs([]string{"--format", "csv", "--org", "my-empty-org", "--bucket-id", "4f14589c26df8286"})
-		err := command.Execute()
-		require.Contains(t, fmt.Sprintf("%s", err), "id")
-	})
-
 	t.Run("validates unsupported line reader format", func(t *testing.T) {
-		t.Skip(`this test is hard coded to global variables and one small tweak causes a lot of downstream test failures changes else, skipping for now`)
-		useTestServer()
 		command := cmdWrite(&globalFlags{}, genericCLIOpts{w: ioutil.Discard, viper: viper.New()})
 		command.SetArgs([]string{"--format", "csvx", "--org", "my-org", "--bucket-id", "4f14589c26df8286"})
 		err := command.Execute()
@@ -491,8 +665,6 @@ func Test_fluxWriteF(t *testing.T) {
 	})
 
 	t.Run("validates error during data read", func(t *testing.T) {
-		t.Skip(`this test is hard coded to global variables and one small tweak causes a lot of downstream test failures changes else, skipping for now`)
-		useTestServer()
 		command := cmdWrite(&globalFlags{}, genericCLIOpts{
 			in:    strings.NewReader("a,b\nc,d"),
 			w:     ioutil.Discard,
@@ -502,25 +674,82 @@ func Test_fluxWriteF(t *testing.T) {
 		require.Contains(t, fmt.Sprintf("%s", err), "measurement") // no measurement found in CSV data
 	})
 
-	t.Run("read data from CSV and send lp", func(t *testing.T) {
-		t.Skip(`this test is hard coded to global variables and one small tweak causes a lot of downstream test failures changes else, skipping for now`)
+	t.Run("read and send LP", func(t *testing.T) {
+		lineData := bytes.Buffer{}
+		writeSvc := &mock.WriteService{
+			WriteToF: func(_ context.Context, _ influxdb.BucketFilter, reader io.Reader) error {
+				if _, err := lineData.ReadFrom(reader); err != nil {
+					return err
+				}
+				return nil
+			},
+		}
+		svcBuilder := func(*writeFlagsBuilder) influxdb.WriteService { return writeSvc }
+
 		// read data from CSV transformation, send them to server and validate the created protocol line
-		useTestServer()
-		command := cmdWrite(&globalFlags{}, genericCLIOpts{
+		cliOpts := genericCLIOpts{
+			in:    strings.NewReader("stdin3 i=stdin1,j=stdin2,k=stdin4"),
+			w:     ioutil.Discard,
+			viper: viper.New(),
+		}
+		command := newWriteFlagsBuilder(svcBuilder, &globalFlags{}, cliOpts).cmd()
+		command.SetArgs([]string{"--org", "my-org", "--bucket-id", "4f14589c26df8286"})
+		err := command.Execute()
+		require.NoError(t, err)
+		require.Equal(t, "stdin3 i=stdin1,j=stdin2,k=stdin4", strings.Trim(lineData.String(), "\n"))
+	})
+
+	t.Run("report server-side error", func(t *testing.T) {
+		writeSvc := &mock.WriteService{
+			WriteToF: func(_ context.Context, _ influxdb.BucketFilter, _ io.Reader) error {
+				return errors.New("i broke")
+			},
+		}
+		svcBuilder := func(*writeFlagsBuilder) influxdb.WriteService { return writeSvc }
+
+		// read data from CSV transformation, send them to server and validate the created protocol line
+		cliOpts := genericCLIOpts{
+			in:    strings.NewReader("stdin3 i=stdin1,j=stdin2,k=stdin4"),
+			w:     ioutil.Discard,
+			viper: viper.New(),
+		}
+		command := newWriteFlagsBuilder(svcBuilder, &globalFlags{}, cliOpts).cmd()
+		command.SetArgs([]string{"--org", "my-org", "--bucket-id", "4f14589c26df8286"})
+		err := command.Execute()
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "i broke")
+	})
+
+	t.Run("read data from CSV and send lp", func(t *testing.T) {
+		lineData := bytes.Buffer{}
+		writeSvc := &mock.WriteService{
+			WriteToF: func(_ context.Context, _ influxdb.BucketFilter, reader io.Reader) error {
+				if _, err := lineData.ReadFrom(reader); err != nil {
+					return err
+				}
+				return nil
+			},
+		}
+		svcBuilder := func(*writeFlagsBuilder) influxdb.WriteService { return writeSvc }
+
+		// read data from CSV transformation, send them to server and validate the created protocol line
+		cliOpts := genericCLIOpts{
 			in:    strings.NewReader("i,j,_measurement,k\nstdin1,stdin2,stdin3,stdin4"),
 			w:     ioutil.Discard,
-			viper: viper.New()})
+			viper: viper.New(),
+		}
+		command := newWriteFlagsBuilder(svcBuilder, &globalFlags{}, cliOpts).cmd()
 		command.SetArgs([]string{"--format", "csv", "--org", "my-org", "--bucket-id", "4f14589c26df8286"})
 		err := command.Execute()
-		require.Nil(t, err)
-		require.Equal(t, "stdin3 i=stdin1,j=stdin2,k=stdin4", strings.Trim(string(lineData), "\n"))
+		require.NoError(t, err)
+		require.Equal(t, "stdin3 i=stdin1,j=stdin2,k=stdin4", strings.Trim(lineData.String(), "\n"))
 	})
 }
 
 // Test_writeFlags_errorsFile tests that rejected rows are written to errors file
 func Test_writeFlags_errorsFile(t *testing.T) {
 	defer removeTempFiles()
-	errorsFile := createTempFile("errors", []byte{})
+	errorsFile := createTempFile(t, "errors", []byte{}, false)
 	stdInContents := "_measurement,a|long:strict\nm,1\nm,1.1"
 	out := bytes.Buffer{}
 	command := cmdWrite(&globalFlags{}, genericCLIOpts{in: strings.NewReader(stdInContents), w: bufio.NewWriter(&out), viper: viper.New()})

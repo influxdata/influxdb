@@ -4,7 +4,8 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2/kv"
 )
 
@@ -12,14 +13,14 @@ var Migration0013_RepairDBRPOwnerAndBucketIDs = UpOnlyMigration(
 	"repair DBRP owner and bucket IDs",
 	func(ctx context.Context, store kv.SchemaStore) error {
 		type oldStyleMapping struct {
-			ID              influxdb.ID `json:"id"`
+			ID              platform.ID `json:"id"`
 			Database        string      `json:"database"`
 			RetentionPolicy string      `json:"retention_policy"`
 			Default         bool        `json:"default"`
 
 			// These 2 fields were renamed.
-			OrganizationID influxdb.ID `json:"organization_id"`
-			BucketID       influxdb.ID `json:"bucket_id"`
+			OrganizationID platform.ID `json:"organization_id"`
+			BucketID       platform.ID `json:"bucket_id"`
 		}
 
 		// Collect DBRPs that are using the old schema.
@@ -55,14 +56,14 @@ var Migration0013_RepairDBRPOwnerAndBucketIDs = UpOnlyMigration(
 		}
 
 		type newStyleDbrpMapping struct {
-			ID              influxdb.ID `json:"id"`
+			ID              platform.ID `json:"id"`
 			Database        string      `json:"database"`
 			RetentionPolicy string      `json:"retention_policy"`
 			Default         bool        `json:"default"`
 
 			// New names for the 2 renamed fields.
-			OrganizationID influxdb.ID `json:"orgID"`
-			BucketID       influxdb.ID `json:"bucketID"`
+			OrganizationID platform.ID `json:"orgID"`
+			BucketID       platform.ID `json:"bucketID"`
 		}
 		batchSize := 100
 		writeBatch := func(batch []*oldStyleMapping) (err error) {

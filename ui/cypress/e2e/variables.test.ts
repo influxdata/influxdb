@@ -40,7 +40,7 @@ describe('Variables', () => {
     cy.getByTestID('variable-type-dropdown-constant').click()
 
     // Create a CSV variable
-    const variableName = 'a Second Variable'
+    const variableName = 'aSecondVariable'
     cy.getByInputName('name').type(variableName)
 
     cy.get('textarea').type('1,2,3,4,5,6')
@@ -113,7 +113,7 @@ describe('Variables', () => {
     cy.getByTestID('context-delete-menu')
       .first()
       .click({force: true})
-    cy.getByTestID('context-delete-variable')
+    cy.getByTestID(`context-delete-variable ${variableName}`)
       .first()
       .click({force: true})
 
@@ -123,7 +123,7 @@ describe('Variables', () => {
 
     cy.getByTestID('resource-card variable')
       .should('have.length', 1)
-      .contains('Little Variable')
+      .contains('LittleVariable')
 
     // Rename the variable
     cy.getByTestID('context-menu')
@@ -134,14 +134,14 @@ describe('Variables', () => {
 
     cy.getByTestID('danger-confirmation-button').click()
 
-    cy.getByInputName('name').type('-renamed')
+    cy.getByInputName('name').type('_renamed')
 
     cy.getByTestID('rename-variable-submit').click()
 
     cy.getByTestID('notification-success--dismiss').click()
 
-    cy.getByTestID(`variable-card--name Little Variable-renamed`).contains(
-      '-renamed'
+    cy.getByTestID(`variable-card--name LittleVariable_renamed`).contains(
+      '_renamed'
     )
 
     // Create a Map variable from scratch
@@ -152,7 +152,7 @@ describe('Variables', () => {
     cy.getByTestID('variable-type-dropdown--button').click()
     cy.getByTestID('variable-type-dropdown-map').click()
 
-    const mapVariableName = 'Map Variable'
+    const mapVariableName = 'MapVariable'
     cy.getByInputName('name').type(mapVariableName)
 
     cy.get('textarea').type(`Astrophel Chaudhary,"bDhZbuVj5RV94NcFXZPm"
@@ -178,7 +178,7 @@ describe('Variables', () => {
     cy.getByTestID('variable-type-dropdown--button').click()
     cy.getByTestID('variable-type-dropdown-map').click()
 
-    const queryVariableName = 'Query Variable'
+    const queryVariableName = 'QueryVariable'
     cy.getByInputName('name').type(queryVariableName)
 
     cy.getByTestID('variable-type-dropdown--button').click()
@@ -250,6 +250,8 @@ describe('Variables', () => {
     const labelName = 'label'
     cy.getByTestID('inline-labels--popover--contents').type(labelName)
     cy.getByTestID('inline-labels--create-new').click()
+    // Wait for animation to complete
+    cy.wait(500)
     cy.getByTestID('create-label-form--submit').click()
 
     cy.getByTestID('overlay--children').should('not.exist')
@@ -264,8 +266,8 @@ describe('Variables', () => {
     cy.getByTestID('variable-type-dropdown-constant').click()
 
     // Create a CSV variable
-    const variableName = 'a Second Variable'
-    const defaultVar = 'Little Variable'
+    const variableName = 'aSecondVariable'
+    const defaultVar = 'LittleVariable'
     cy.getByInputName('name').type(variableName)
 
     cy.get('textarea').type('1,2,3,4,5,6')

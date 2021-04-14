@@ -77,6 +77,7 @@ func TestCompile_Success(t *testing.T) {
 		`SELECT max(value) FROM cpu WHERE time >= now() - 1m GROUP BY time(10s, '2000-01-01T00:00:05Z')`,
 		`SELECT max(value) FROM cpu WHERE time >= now() - 1m GROUP BY time(10s, now())`,
 		`SELECT max(mean) FROM (SELECT mean(value) FROM cpu GROUP BY host)`,
+		`SELECT top(mean, 10), host FROM (SELECT mean(value) FROM cpu WHERE id =~ /^(server-1|server-2|server-3)$/ GROUP BY host)`,
 		`SELECT max(derivative) FROM (SELECT derivative(mean(value)) FROM cpu) WHERE time >= now() - 1m GROUP BY time(10s)`,
 		`SELECT max(value) FROM (SELECT value + total FROM cpu) WHERE time >= now() - 1m GROUP BY time(10s)`,
 		`SELECT value FROM cpu WHERE time >= '2000-01-01T00:00:00Z' AND time <= '2000-01-01T01:00:00Z'`,

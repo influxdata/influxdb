@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/influxdata/influxdb/v2"
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	ihttp "github.com/influxdata/influxdb/v2/http"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
 )
@@ -17,7 +19,7 @@ type HTTPRemoteService struct {
 
 var _ SVC = (*HTTPRemoteService)(nil)
 
-func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, stack StackCreate) (Stack, error) {
+func (s *HTTPRemoteService) InitStack(ctx context.Context, userID platform.ID, stack StackCreate) (Stack, error) {
 	reqBody := ReqCreateStack{
 		OrgID:       stack.OrgID.String(),
 		Name:        stack.Name,
@@ -37,7 +39,7 @@ func (s *HTTPRemoteService) InitStack(ctx context.Context, userID influxdb.ID, s
 	return convertRespStackToStack(respBody)
 }
 
-func (s *HTTPRemoteService) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) (Stack, error) {
+func (s *HTTPRemoteService) UninstallStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID platform.ID }) (Stack, error) {
 	var respBody RespStack
 	err := s.Client.
 		Post(httpc.BodyEmpty, RoutePrefixStacks, identifiers.StackID.String(), "/uninstall").
@@ -51,14 +53,14 @@ func (s *HTTPRemoteService) UninstallStack(ctx context.Context, identifiers stru
 	return convertRespStackToStack(respBody)
 }
 
-func (s *HTTPRemoteService) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID influxdb.ID }) error {
+func (s *HTTPRemoteService) DeleteStack(ctx context.Context, identifiers struct{ OrgID, UserID, StackID platform.ID }) error {
 	return s.Client.
 		Delete(RoutePrefixStacks, identifiers.StackID.String()).
 		QueryParams([2]string{"orgID", identifiers.OrgID.String()}).
 		Do(ctx)
 }
 
-func (s *HTTPRemoteService) ListStacks(ctx context.Context, orgID influxdb.ID, f ListFilter) ([]Stack, error) {
+func (s *HTTPRemoteService) ListStacks(ctx context.Context, orgID platform.ID, f ListFilter) ([]Stack, error) {
 	queryParams := [][2]string{{"orgID", orgID.String()}}
 	for _, name := range f.Names {
 		queryParams = append(queryParams, [2]string{"name", name})
@@ -88,7 +90,7 @@ func (s *HTTPRemoteService) ListStacks(ctx context.Context, orgID influxdb.ID, f
 	return out, nil
 }
 
-func (s *HTTPRemoteService) ReadStack(ctx context.Context, id influxdb.ID) (Stack, error) {
+func (s *HTTPRemoteService) ReadStack(ctx context.Context, id platform.ID) (Stack, error) {
 	var respBody RespStack
 	err := s.Client.
 		Get(RoutePrefixStacks, id.String()).
@@ -175,18 +177,18 @@ func (s *HTTPRemoteService) Export(ctx context.Context, opts ...ExportOptFn) (*T
 // DryRun provides a dry run of the template application. The template will be marked verified
 // for later calls to Apply. This func will be run on an Apply if it has not been run
 // already.
-func (s *HTTPRemoteService) DryRun(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
+func (s *HTTPRemoteService) DryRun(ctx context.Context, orgID, userID platform.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	return s.apply(ctx, orgID, true, opts...)
 }
 
 // Apply will apply all the resources identified in the provided template. The entire template will be applied
 // in its entirety. If a failure happens midway then the entire template will be rolled back to the state
 // from before the template was applied.
-func (s *HTTPRemoteService) Apply(ctx context.Context, orgID, userID influxdb.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
+func (s *HTTPRemoteService) Apply(ctx context.Context, orgID, userID platform.ID, opts ...ApplyOptFn) (ImpactSummary, error) {
 	return s.apply(ctx, orgID, false, opts...)
 }
 
-func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun bool, opts ...ApplyOptFn) (ImpactSummary, error) {
+func (s *HTTPRemoteService) apply(ctx context.Context, orgID platform.ID, dryRun bool, opts ...ApplyOptFn) (ImpactSummary, error) {
 	opt := applyOptFromOptFns(opts...)
 
 	var rawTemplate ReqRawTemplate
@@ -215,7 +217,7 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun
 	for act := range opt.ResourcesToSkip {
 		b, err := json.Marshal(act)
 		if err != nil {
-			return ImpactSummary{}, influxErr(influxdb.EInvalid, err)
+			return ImpactSummary{}, influxErr(errors.EInvalid, err)
 		}
 		reqBody.RawActions = append(reqBody.RawActions, ReqRawAction{
 			Action:     string(ActionTypeSkipResource),
@@ -225,7 +227,7 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun
 	for kind := range opt.KindsToSkip {
 		b, err := json.Marshal(ActionSkipKind{Kind: kind})
 		if err != nil {
-			return ImpactSummary{}, influxErr(influxdb.EInvalid, err)
+			return ImpactSummary{}, influxErr(errors.EInvalid, err)
 		}
 		reqBody.RawActions = append(reqBody.RawActions, ReqRawAction{
 			Action:     string(ActionTypeSkipKind),
@@ -257,7 +259,7 @@ func (s *HTTPRemoteService) apply(ctx context.Context, orgID influxdb.ID, dryRun
 		Summary: resp.Summary,
 	}
 
-	if stackID, err := influxdb.IDFromString(resp.StackID); err == nil {
+	if stackID, err := platform.IDFromString(resp.StackID); err == nil {
 		impact.StackID = *stackID
 	}
 
@@ -268,13 +270,13 @@ func convertRespStackToStack(respStack RespStack) (Stack, error) {
 	newStack := Stack{
 		CreatedAt: respStack.CreatedAt,
 	}
-	id, err := influxdb.IDFromString(respStack.ID)
+	id, err := platform.IDFromString(respStack.ID)
 	if err != nil {
 		return Stack{}, err
 	}
 	newStack.ID = *id
 
-	orgID, err := influxdb.IDFromString(respStack.OrgID)
+	orgID, err := platform.IDFromString(respStack.OrgID)
 	if err != nil {
 		return Stack{}, err
 	}
@@ -333,9 +335,9 @@ func convertRespStackResources(resources []RespStackResource) ([]StackResource, 
 			sr.Associations = append(sr.Associations, StackResourceAssociation(a))
 		}
 
-		resID, err := influxdb.IDFromString(r.ID)
+		resID, err := platform.IDFromString(r.ID)
 		if err != nil {
-			return nil, influxErr(influxdb.EInternal, err)
+			return nil, influxErr(errors.EInternal, err)
 		}
 		sr.ID = *resID
 

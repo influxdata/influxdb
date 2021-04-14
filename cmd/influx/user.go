@@ -2,15 +2,19 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
+
+	"github.com/influxdata/influxdb/v2/kit/platform"
 
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/cmd/internal"
 	"github.com/influxdata/influxdb/v2/http"
+	ilogger "github.com/influxdata/influxdb/v2/logger"
 	"github.com/influxdata/influxdb/v2/tenant"
 	"github.com/spf13/cobra"
 	"github.com/tcnksm/go-input"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 type userSVCsFn func() (cmdUserDeps, error)
@@ -34,12 +38,10 @@ type cmdUserBuilder struct {
 
 	svcFn userSVCsFn
 
-	hideHeaders bool
-	id          string
-	json        bool
-	name        string
-	password    string
-	org         organization
+	id       string
+	name     string
+	password string
+	org      organization
 }
 
 func newCmdUserBuilder(svcsFn userSVCsFn, f *globalFlags, opt genericCLIOpts) *cmdUserBuilder {
@@ -87,7 +89,7 @@ func (b *cmdUserBuilder) cmdPasswordRunEFn(cmd *cobra.Command, args []string) er
 		filter.Name = &b.name
 	}
 	if b.id != "" {
-		id, err := influxdb.IDFromString(b.id)
+		id, err := platform.IDFromString(b.id)
 		if err != nil {
 			return err
 		}
@@ -128,7 +130,7 @@ func (b *cmdUserBuilder) cmdUpdateRunEFn(cmd *cobra.Command, args []string) erro
 		return err
 	}
 
-	var id influxdb.ID
+	var id platform.ID
 	if err := id.DecodeFromString(b.id); err != nil {
 		return err
 	}
@@ -174,6 +176,23 @@ func (b *cmdUserBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 		return err
 	}
 
+	if b.password != "" && len(b.password) < internal.MinPasswordLen {
+		return internal.ErrPasswordIsTooShort
+	}
+
+	conf := &ilogger.Config{
+		Level:  zapcore.WarnLevel,
+		Format: "auto",
+	}
+	if b.json {
+		conf.Format = "json"
+	}
+
+	log, err := conf.New(b.errW)
+	if err != nil {
+		return err
+	}
+
 	dep, err := b.svcFn()
 	if err != nil {
 		return err
@@ -186,36 +205,35 @@ func (b *cmdUserBuilder) cmdCreateRunEFn(*cobra.Command, []string) error {
 	if err := dep.userSVC.CreateUser(ctx, user); err != nil {
 		return err
 	}
+	if err := b.printUser(userPrintOpts{user: user}); err != nil {
+		return err
+	}
 
 	orgID, err := b.org.getID(dep.orgSvc)
+	if err == nil {
+		err = dep.urmSVC.CreateUserResourceMapping(context.Background(), &influxdb.UserResourceMapping{
+			UserID:       user.ID,
+			UserType:     influxdb.Member,
+			ResourceType: influxdb.OrgsResourceType,
+			ResourceID:   orgID,
+		})
+	}
 	if err != nil {
-		return err
+		if b.password != "" {
+			log.Warn("Hit error before attempting to set password, use `influx user password` to retry", zap.String("user", b.name))
+		}
+		return fmt.Errorf("failed setting org membership for user %q, use `influx org members add` to retry: %w", b.name, err)
 	}
 
-	pass := b.password
-	if orgID == 0 && pass == "" {
-		return b.printUser(userPrintOpts{user: user})
+	if b.password != "" {
+		if err := dep.passSVC.SetPassword(ctx, user.ID, b.password); err != nil {
+			return fmt.Errorf("failed setting password for user %q, use `influx user password` to retry", b.name)
+		}
+	} else {
+		log.Warn("Initial password not set for user, use `influx user password` to set it", zap.String("user", b.name))
 	}
 
-	if pass != "" && orgID == 0 {
-		return errors.New("an org id is required when providing a user password")
-	}
-
-	err = dep.urmSVC.CreateUserResourceMapping(context.Background(), &influxdb.UserResourceMapping{
-		UserID:       user.ID,
-		UserType:     influxdb.Member,
-		ResourceType: influxdb.OrgsResourceType,
-		ResourceID:   orgID,
-	})
-	if err != nil {
-		return err
-	}
-
-	if err := dep.passSVC.SetPassword(ctx, user.ID, pass); err != nil {
-		return err
-	}
-
-	return b.printUser(userPrintOpts{user: user})
+	return nil
 }
 
 func (b *cmdUserBuilder) cmdFind() *cobra.Command {
@@ -241,7 +259,7 @@ func (b *cmdUserBuilder) cmdFindRunEFn(*cobra.Command, []string) error {
 		filter.Name = &b.name
 	}
 	if b.id != "" {
-		id, err := influxdb.IDFromString(b.id)
+		id, err := platform.IDFromString(b.id)
 		if err != nil {
 			return err
 		}
@@ -273,7 +291,7 @@ func (b *cmdUserBuilder) cmdDeleteRunEFn(cmd *cobra.Command, args []string) erro
 		return err
 	}
 
-	var id influxdb.ID
+	var id platform.ID
 	if err := id.DecodeFromString(b.id); err != nil {
 		return err
 	}

@@ -24,25 +24,6 @@ describe('Tasks', () => {
     })
   })
 
-  it('cannot create a task with an invalid to() function', () => {
-    const taskName = 'Bad Task'
-
-    createFirstTask(taskName, ({name}) => {
-      return `import "influxdata/influxdb/v1{rightarrow}
-v1.tagValues(bucket: "${name}", tag: "_field"{rightarrow}
-from(bucket: "${name}"{rightarrow}
-  |> range(start: -2m{rightarrow}
-  |> to(org: "${name}"{rightarrow}`
-    })
-
-    cy.getByTestID('task-save-btn').click()
-
-    cy.getByTestID('notification-error').should(
-      'contain',
-      'error calling function "to" @12:8-12:26: missing required keyword argument "bucketID"'
-    )
-  })
-
   it('can create a task', () => {
     const taskName = 'Task'
     createFirstTask(taskName, ({name}) => {
@@ -403,7 +384,7 @@ function createFirstTask(
   cy.get<Bucket>('@bucket').then(bucket => {
     cy.getByTestID('flux-editor').within(() => {
       cy.get('textarea.inputarea')
-        .click()
+        .click({force: true})
         .focused()
         .type(flux(bucket), {force: true, delay: 2})
     })

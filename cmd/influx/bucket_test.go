@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/spf13/cobra"
@@ -18,7 +20,7 @@ import (
 )
 
 func TestCmdBucket(t *testing.T) {
-	orgID := influxdb.ID(9000)
+	orgID := platform.ID(9000)
 
 	fakeSVCFn := func(svc influxdb.BucketService) bucketSVCsFn {
 		return func() (influxdb.BucketService, influxdb.OrganizationService, error) {
@@ -90,6 +92,21 @@ func TestCmdBucket(t *testing.T) {
 					OrgID:           orgID,
 				},
 			},
+			{
+				name: "with explicit shard-group duration",
+				flags: []string{
+					"-r=1h",
+					"--shard-group-duration=1m",
+					"-o=org name",
+					"-n=new name",
+				},
+				expectedBucket: influxdb.Bucket{
+					Name:               "new name",
+					RetentionPeriod:    time.Hour,
+					ShardGroupDuration: time.Minute,
+					OrgID:              orgID,
+				},
+			},
 		}
 
 		cmdFn := func(expectedBkt influxdb.Bucket) func(*globalFlags, genericCLIOpts) *cobra.Command {
@@ -127,39 +144,39 @@ func TestCmdBucket(t *testing.T) {
 	t.Run("delete", func(t *testing.T) {
 		tests := []struct {
 			name       string
-			expectedID influxdb.ID
+			expectedID platform.ID
 			flags      []string
 		}{
 			{
 				name:       "with description and retention period",
-				expectedID: influxdb.ID(1),
-				flags:      []string{"--id=" + influxdb.ID(1).String()},
+				expectedID: platform.ID(1),
+				flags:      []string{"--id=" + platform.ID(1).String()},
 			},
 			{
 				name:       "shorts",
-				expectedID: influxdb.ID(1),
-				flags:      []string{"-i=" + influxdb.ID(1).String()},
+				expectedID: platform.ID(1),
+				flags:      []string{"-i=" + platform.ID(1).String()},
 			},
 			{
 				name:       "with name and org name",
-				expectedID: influxdb.ID(1),
+				expectedID: platform.ID(1),
 				flags:      []string{"--name=n1", "--org=org1"},
 			},
 			{
 				name:       "with name and org name short",
-				expectedID: influxdb.ID(1),
+				expectedID: platform.ID(1),
 				flags:      []string{"-n=n1", "-o=org1"},
 			},
 			{
 				name:       "with name and org id",
-				expectedID: influxdb.ID(1),
-				flags:      []string{"--name=n1", "--org-id=" + influxdb.ID(3).String()},
+				expectedID: platform.ID(1),
+				flags:      []string{"--name=n1", "--org-id=" + platform.ID(3).String()},
 			},
 		}
 
-		cmdFn := func(expectedID influxdb.ID) func(*globalFlags, genericCLIOpts) *cobra.Command {
+		cmdFn := func(expectedID platform.ID) func(*globalFlags, genericCLIOpts) *cobra.Command {
 			svc := mock.NewBucketService()
-			svc.FindBucketByIDFn = func(ctx context.Context, id influxdb.ID) (*influxdb.Bucket, error) {
+			svc.FindBucketByIDFn = func(ctx context.Context, id platform.ID) (*influxdb.Bucket, error) {
 				return &influxdb.Bucket{ID: id}, nil
 			}
 			svc.FindBucketFn = func(ctx context.Context, filter influxdb.BucketFilter) (*influxdb.Bucket, error) {
@@ -171,7 +188,7 @@ func TestCmdBucket(t *testing.T) {
 				}
 				return nil, nil
 			}
-			svc.DeleteBucketFn = func(ctx context.Context, id influxdb.ID) error {
+			svc.DeleteBucketFn = func(ctx context.Context, id platform.ID) error {
 				if expectedID != id {
 					return fmt.Errorf("unexpected id:\n\twant= %s\n\tgot=  %s", expectedID, id)
 				}
@@ -211,8 +228,8 @@ func TestCmdBucket(t *testing.T) {
 	t.Run("list", func(t *testing.T) {
 		type called struct {
 			name  string
-			id    influxdb.ID
-			orgID influxdb.ID
+			id    platform.ID
+			orgID platform.ID
 			org   string
 		}
 
@@ -225,15 +242,15 @@ func TestCmdBucket(t *testing.T) {
 		}{
 			{
 				name:     "org id",
-				flags:    []string{"--org-id=" + influxdb.ID(3).String()},
+				flags:    []string{"--org-id=" + platform.ID(3).String()},
 				envVars:  envVarsZeroMap,
 				expected: called{orgID: 3},
 			},
 			{
 				name: "id",
 				flags: []string{
-					"--id=" + influxdb.ID(2).String(),
-					"--org-id=" + influxdb.ID(3).String(),
+					"--id=" + platform.ID(2).String(),
+					"--org-id=" + platform.ID(3).String(),
 				},
 				envVars: envVarsZeroMap,
 				expected: called{
@@ -258,7 +275,7 @@ func TestCmdBucket(t *testing.T) {
 				flags: []string{
 					"-o=rg",
 					"-n=name1",
-					"-i=" + influxdb.ID(1).String(),
+					"-i=" + platform.ID(1).String(),
 				},
 				envVars:  envVarsZeroMap,
 				expected: called{org: "rg", name: "name1", id: 1},
@@ -269,31 +286,31 @@ func TestCmdBucket(t *testing.T) {
 					"INFLUX_ORG":         "rg",
 					"INFLUX_BUCKET_NAME": "name1",
 				},
-				flags:    []string{"-i=" + influxdb.ID(1).String()},
+				flags:    []string{"-i=" + platform.ID(1).String()},
 				expected: called{org: "rg", name: "name1", id: 1},
 			},
 			{
 				name: "env vars 2",
 				envVars: map[string]string{
 					"INFLUX_ORG":         "",
-					"INFLUX_ORG_ID":      influxdb.ID(2).String(),
+					"INFLUX_ORG_ID":      platform.ID(2).String(),
 					"INFLUX_BUCKET_NAME": "name1",
 				},
-				flags:    []string{"-i=" + influxdb.ID(1).String()},
+				flags:    []string{"-i=" + platform.ID(1).String()},
 				expected: called{orgID: 2, name: "name1", id: 1},
 			},
 			{
 				name:     "ls alias",
 				command:  "ls",
 				envVars:  envVarsZeroMap,
-				flags:    []string{"--org-id=" + influxdb.ID(3).String()},
+				flags:    []string{"--org-id=" + platform.ID(3).String()},
 				expected: called{orgID: 3},
 			},
 			{
 				name:     "find alias",
 				command:  "find",
 				envVars:  envVarsZeroMap,
-				flags:    []string{"--org-id=" + influxdb.ID(3).String()},
+				flags:    []string{"--org-id=" + platform.ID(3).String()},
 				expected: called{orgID: 3},
 			},
 		}
@@ -359,7 +376,7 @@ func TestCmdBucket(t *testing.T) {
 			{
 				name: "basic just name",
 				flags: []string{
-					"--id=" + influxdb.ID(3).String(),
+					"--id=" + platform.ID(3).String(),
 					"--name=new name",
 				},
 				expected: influxdb.BucketUpdate{
@@ -369,7 +386,7 @@ func TestCmdBucket(t *testing.T) {
 			{
 				name: "with all fields",
 				flags: []string{
-					"--id=" + influxdb.ID(3).String(),
+					"--id=" + platform.ID(3).String(),
 					"--name=new name",
 					"--description=desc",
 					"--retention=1m",
@@ -383,7 +400,7 @@ func TestCmdBucket(t *testing.T) {
 			{
 				name: "shorts",
 				flags: []string{
-					"-i=" + influxdb.ID(3).String(),
+					"-i=" + platform.ID(3).String(),
 					"-n=new name",
 					"-d=desc",
 					"-r=1m",
@@ -397,7 +414,7 @@ func TestCmdBucket(t *testing.T) {
 			{
 				name: "env var",
 				flags: []string{
-					"-i=" + influxdb.ID(3).String(),
+					"-i=" + platform.ID(3).String(),
 					"-d=desc",
 					"-r=1m",
 				},
@@ -408,13 +425,23 @@ func TestCmdBucket(t *testing.T) {
 					RetentionPeriod: durPtr(time.Minute),
 				},
 			},
+			{
+				name: "shard-group duration",
+				flags: []string{
+					"-i=" + platform.ID(3).String(),
+					"--shard-group-duration=1m",
+				},
+				expected: influxdb.BucketUpdate{
+					ShardGroupDuration: durPtr(time.Minute),
+				},
+			},
 		}
 
 		cmdFn := func(expectedUpdate influxdb.BucketUpdate) func(*globalFlags, genericCLIOpts) *cobra.Command {
 			svc := mock.NewBucketService()
-			svc.UpdateBucketFn = func(ctx context.Context, id influxdb.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
+			svc.UpdateBucketFn = func(ctx context.Context, id platform.ID, upd influxdb.BucketUpdate) (*influxdb.Bucket, error) {
 				if id != 3 {
-					return nil, fmt.Errorf("unexpecte id:\n\twant= %s\n\tgot=  %s", influxdb.ID(3), id)
+					return nil, fmt.Errorf("unexpecte id:\n\twant= %s\n\tgot=  %s", platform.ID(3), id)
 				}
 				if !reflect.DeepEqual(expectedUpdate, upd) {
 					return nil, fmt.Errorf("unexpected bucket update;\n\twant= %+v\n\tgot=  %+v", expectedUpdate, upd)

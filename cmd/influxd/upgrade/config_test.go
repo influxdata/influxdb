@@ -181,6 +181,7 @@ bind-address = "127.0.0.1:8088"
   bind-address = ":8086"
   https-certificate = "/etc/ssl/influxdb.pem"
   https-private-key = "/etc/ssl/influxdb-key.pem"
+  pprof-enabled = false
 
 [logging]
   level = "debug"
@@ -214,7 +215,7 @@ bind-address = "127.0.0.1:8088"
   wal-dir = "/var/lib/influxdb/wal"
   wal-fsync-delay = "0s"
   validate-keys = false
-  index-version = "inmem"
+  index-version = "tsi1"
   query-log-enabled = true
   cache-max-memory-size = 1073741824
   cache-snapshot-memory-size = 26214400
@@ -222,8 +223,6 @@ bind-address = "127.0.0.1:8088"
   compact-full-write-cold-duration = "4h0m0s"
   compact-throughput = 50331648
   compact-throughput-burst = 50331648
-  max-series-per-database = 1000000
-  max-values-per-tag = 100000
   max-concurrent-compactions = 0
   max-index-log-file-size = 1048576
   series-id-set-cache-size = 100
@@ -412,6 +411,7 @@ storage-shard-precreator-check-interval = "5m"
 storage-wal-fsync-delay = "100s"
 tls-cert = "/etc/ssl/influxdb.pem"
 tls-key = "/etc/ssl/influxdb-key.pem"
+pprof-disabled = true
 `
 
 var testConfigV2default = `reporting-disabled = false
@@ -440,6 +440,7 @@ storage-validate-keys = false
 storage-wal-fsync-delay = "0s"
 tls-cert = "/etc/ssl/influxdb.pem"
 tls-key = ""
+pprof-disabled = false
 `
 
 var testConfigV2obsoleteArrays = `reporting-disabled = true

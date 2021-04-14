@@ -4,6 +4,9 @@ import (
 	"context"
 	"net/http"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+	"github.com/influxdata/influxdb/v2/kit/platform/errors"
+
 	"github.com/influxdata/influxdb/v2"
 	khttp "github.com/influxdata/influxdb/v2/kit/transport/http"
 	"github.com/influxdata/influxdb/v2/pkg/httpc"
@@ -17,7 +20,7 @@ type UserClientService struct {
 }
 
 // FindMe returns user information about the owner of the token
-func (s *UserClientService) FindMe(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+func (s *UserClientService) FindMe(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 	var res UserResponse
 	err := s.Client.
 		Get(prefixMe).
@@ -30,7 +33,7 @@ func (s *UserClientService) FindMe(ctx context.Context, id influxdb.ID) (*influx
 }
 
 // FindUserByID returns a single user by ID.
-func (s *UserClientService) FindUserByID(ctx context.Context, id influxdb.ID) (*influxdb.User, error) {
+func (s *UserClientService) FindUserByID(ctx context.Context, id platform.ID) (*influxdb.User, error) {
 	var res UserResponse
 	err := s.Client.
 		Get(prefixUsers, id.String()).
@@ -45,22 +48,22 @@ func (s *UserClientService) FindUserByID(ctx context.Context, id influxdb.ID) (*
 // FindUser returns the first user that matches filter.
 func (s *UserClientService) FindUser(ctx context.Context, filter influxdb.UserFilter) (*influxdb.User, error) {
 	if filter.ID == nil && filter.Name == nil {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return nil, &errors.Error{
+			Code: errors.ENotFound,
 			Msg:  "user not found",
 		}
 	}
 	users, n, err := s.FindUsers(ctx, filter)
 	if err != nil {
-		return nil, &influxdb.Error{
+		return nil, &errors.Error{
 			Op:  s.OpPrefix + influxdb.OpFindUser,
 			Err: err,
 		}
 	}
 
 	if n == 0 {
-		return nil, &influxdb.Error{
-			Code: influxdb.ENotFound,
+		return nil, &errors.Error{
+			Code: errors.ENotFound,
 			Op:   s.OpPrefix + influxdb.OpFindUser,
 			Msg:  "no results found",
 		}
@@ -104,7 +107,7 @@ func (s *UserClientService) CreateUser(ctx context.Context, u *influxdb.User) er
 
 // UpdateUser updates a single user with changeset.
 // Returns the new user state after update.
-func (s *UserClientService) UpdateUser(ctx context.Context, id influxdb.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
+func (s *UserClientService) UpdateUser(ctx context.Context, id platform.ID, upd influxdb.UserUpdate) (*influxdb.User, error) {
 	var res UserResponse
 	err := s.Client.
 		PatchJSON(upd, prefixUsers, id.String()).
@@ -117,7 +120,7 @@ func (s *UserClientService) UpdateUser(ctx context.Context, id influxdb.ID, upd 
 }
 
 // DeleteUser removes a user by ID.
-func (s *UserClientService) DeleteUser(ctx context.Context, id influxdb.ID) error {
+func (s *UserClientService) DeleteUser(ctx context.Context, id platform.ID) error {
 	return s.Client.
 		Delete(prefixUsers, id.String()).
 		StatusFn(func(resp *http.Response) error {
@@ -127,7 +130,7 @@ func (s *UserClientService) DeleteUser(ctx context.Context, id influxdb.ID) erro
 }
 
 // FindUserByID returns a single user by ID.
-func (s *UserClientService) FindPermissionForUser(ctx context.Context, id influxdb.ID) (influxdb.PermissionSet, error) {
+func (s *UserClientService) FindPermissionForUser(ctx context.Context, id platform.ID) (influxdb.PermissionSet, error) {
 	var ps influxdb.PermissionSet
 	err := s.Client.
 		Get(prefixUsers, id.String(), "permissions").
@@ -147,7 +150,7 @@ type PasswordClientService struct {
 var _ influxdb.PasswordsService = (*PasswordClientService)(nil)
 
 // SetPassword sets the user's password.
-func (s *PasswordClientService) SetPassword(ctx context.Context, userID influxdb.ID, password string) error {
+func (s *PasswordClientService) SetPassword(ctx context.Context, userID platform.ID, password string) error {
 	return s.Client.
 		PostJSON(passwordSetRequest{
 			Password: password,
@@ -156,12 +159,12 @@ func (s *PasswordClientService) SetPassword(ctx context.Context, userID influxdb
 }
 
 // ComparePassword compares the user new password with existing. Note: is not implemented.
-func (s *PasswordClientService) ComparePassword(ctx context.Context, userID influxdb.ID, password string) error {
+func (s *PasswordClientService) ComparePassword(ctx context.Context, userID platform.ID, password string) error {
 	panic("not implemented")
 }
 
 // CompareAndSetPassword compares the old and new password and submits the new password if possible.
 // Note: is not implemented.
-func (s *PasswordClientService) CompareAndSetPassword(ctx context.Context, userID influxdb.ID, old string, new string) error {
+func (s *PasswordClientService) CompareAndSetPassword(ctx context.Context, userID platform.ID, old string, new string) error {
 	panic("not implemented")
 }

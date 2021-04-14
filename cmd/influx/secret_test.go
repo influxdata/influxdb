@@ -7,6 +7,8 @@ import (
 	"io/ioutil"
 	"testing"
 
+	"github.com/influxdata/influxdb/v2/kit/platform"
+
 	"github.com/influxdata/influxdb/v2"
 	"github.com/influxdata/influxdb/v2/mock"
 	"github.com/spf13/cobra"
@@ -16,7 +18,7 @@ import (
 )
 
 func TestCmdSecret(t *testing.T) {
-	orgID := influxdb.ID(9000)
+	orgID := platform.ID(9000)
 
 	fakeSVCFn := func(svc influxdb.SecretService, fn func(*input.UI) string) secretSVCsFn {
 		return func() (influxdb.SecretService, influxdb.OrganizationService, func(*input.UI) string, error) {
@@ -39,7 +41,7 @@ func TestCmdSecret(t *testing.T) {
 		}{
 			{
 				name:     "org id",
-				flags:    []string{"--org-id=" + influxdb.ID(3).String()},
+				flags:    []string{"--org-id=" + platform.ID(3).String()},
 				envVars:  envVarsZeroMap,
 				expected: called{"k1", "k2", "k3"},
 			},
@@ -76,7 +78,7 @@ func TestCmdSecret(t *testing.T) {
 		cmdFn := func() (func(*globalFlags, genericCLIOpts) *cobra.Command, *called) {
 			calls := new(called)
 			svc := mock.NewSecretService()
-			svc.GetSecretKeysFn = func(ctx context.Context, organizationID influxdb.ID) ([]string, error) {
+			svc.GetSecretKeysFn = func(ctx context.Context, organizationID platform.ID) ([]string, error) {
 				if !organizationID.Valid() {
 					return []string{}, nil
 				}
@@ -137,7 +139,7 @@ func TestCmdSecret(t *testing.T) {
 
 		cmdFn := func(expectedKey string) func(*globalFlags, genericCLIOpts) *cobra.Command {
 			svc := mock.NewSecretService()
-			svc.DeleteSecretFn = func(ctx context.Context, orgID influxdb.ID, ks ...string) error {
+			svc.DeleteSecretFn = func(ctx context.Context, orgID platform.ID, ks ...string) error {
 				if expectedKey != ks[0] {
 					return fmt.Errorf("unexpected id:\n\twant= %s\n\tgot=  %s", expectedKey, ks[0])
 				}
@@ -200,7 +202,7 @@ func TestCmdSecret(t *testing.T) {
 
 		cmdFn := func(expectedKey string) func(*globalFlags, genericCLIOpts) *cobra.Command {
 			svc := mock.NewSecretService()
-			svc.PatchSecretsFn = func(ctx context.Context, orgID influxdb.ID, m map[string]string) error {
+			svc.PatchSecretsFn = func(ctx context.Context, orgID platform.ID, m map[string]string) error {
 				var key string
 				for k := range m {
 					key = k
