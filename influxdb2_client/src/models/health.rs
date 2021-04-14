@@ -15,7 +15,7 @@ pub struct HealthCheck {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub checks: Vec<crate::models::HealthCheck>,
     /// Status
-    pub status: Option<Status>,
+    pub status: Status,
     /// Version
     #[serde(skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
@@ -26,9 +26,10 @@ pub struct HealthCheck {
 
 impl HealthCheck {
     /// Returns instance of HealthCheck
-    pub fn new(name: String) -> Self {
+    pub fn new(name: String, status: Status) -> Self {
         Self {
             name,
+            status,
             ..Default::default()
         }
     }
@@ -42,4 +43,10 @@ pub enum Status {
     Pass,
     /// Fail
     Fail,
+}
+
+impl Default for Status {
+    fn default() -> Self {
+        Self::Pass
+    }
 }
