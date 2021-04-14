@@ -232,7 +232,7 @@ pub struct Server<M: ConnectionManager> {
     config: Arc<Config>,
     connection_manager: Arc<M>,
     pub store: Arc<ObjectStore>,
-    executor: Arc<Executor>,
+    exec: Arc<Executor>,
     jobs: Arc<JobRegistry>,
 }
 
@@ -263,7 +263,7 @@ impl<M: ConnectionManager> Server<M> {
             config: Arc::new(Config::new(Arc::clone(&jobs))),
             store: object_store,
             connection_manager: Arc::new(connection_manager),
-            executor: Arc::new(Executor::new(num_worker_threads)),
+            exec: Arc::new(Executor::new(num_worker_threads)),
             jobs,
         }
     }
@@ -282,12 +282,7 @@ impl<M: ConnectionManager> Server<M> {
     }
 
     /// Tells the server the set of rules for a database.
-    pub async fn create_database(
-        &self,
-        rules: DatabaseRules,
-        server_id: NonZeroU32,
-        object_store: Arc<ObjectStore>,
-    ) -> Result<()> {
+    pub async fn create_database(&self, rules: DatabaseRules, server_id: NonZeroU32) -> Result<()> {
         // Return an error if this server hasn't yet been setup with an id
         self.require_id()?;
         let db_reservation = self.config.create_db(rules)?;
@@ -295,7 +290,7 @@ impl<M: ConnectionManager> Server<M> {
         self.persist_database_rules(db_reservation.rules().clone())
             .await?;
 
-        db_reservation.commit(server_id, object_store);
+        db_reservation.commit(server_id, Arc::clone(&self.store), Arc::clone(&self.exec));
 
         Ok(())
     }
@@ -350,6 +345,7 @@ impl<M: ConnectionManager> Server<M> {
             .map(|mut path| {
                 let store = Arc::clone(&self.store);
                 let config = Arc::clone(&self.config);
+                let exec = Arc::clone(&self.exec);
 
                 path.set_file_name(DB_RULES_FILE_NAME);
 
@@ -375,7 +371,7 @@ impl<M: ConnectionManager> Server<M> {
                         }
                         Ok(rules) => match config.create_db(rules) {
                             Err(e) => error!("error adding database to config: {}", e),
-                            Ok(handle) => handle.commit(server_id, store),
+                            Ok(handle) => handle.commit(server_id, store, exec),
                         },
                     }
                 })
@@ -614,12 +610,8 @@ where
         let db = match self.db(&db_name) {
             Some(db) => db,
             None => {
-                self.create_database(
-                    DatabaseRules::new(db_name.clone()),
-                    self.require_id()?,
-                    Arc::clone(&self.store),
-                )
-                .await?;
+                self.create_database(DatabaseRules::new(db_name.clone()), self.require_id()?)
+                    .await?;
                 self.db(&db_name).expect("db not inserted")
             }
         };
@@ -627,8 +619,9 @@ where
         Ok(db)
     }
 
+    /// Return a handle to the query executor
     fn executor(&self) -> Arc<Executor> {
-        Arc::clone(&self.executor)
+        Arc::clone(&self.exec)
     }
 }
 
@@ -733,7 +726,7 @@ mod tests {
     use tokio::task::JoinHandle;
     use tokio_util::sync::CancellationToken;
 
-    use arrow_deps::{assert_table_eq, datafusion::physical_plan::collect};
+    use arrow_deps::assert_table_eq;
     use data_types::database_rules::{PartitionTemplate, TemplatePart, NO_SHARD_CONFIG};
     use influxdb_line_protocol::parse_lines;
     use object_store::{memory::InMemory, path::ObjectStorePath};
@@ -781,11 +774,7 @@ mod tests {
 
         // Create a database
         server
-            .create_database(
-                rules.clone(),
-                server.require_id().unwrap(),
-                Arc::clone(&server.store),
-            )
+            .create_database(rules.clone(), server.require_id().unwrap())
             .await
             .expect("failed to create database");
 
@@ -813,7 +802,6 @@ mod tests {
             .create_database(
                 DatabaseRules::new(db2.clone()),
                 server.require_id().unwrap(),
-                Arc::clone(&server.store),
             )
             .await
             .expect("failed to create 2nd db");
@@ -845,7 +833,6 @@ mod tests {
             .create_database(
                 DatabaseRules::new(name.clone()),
                 server.require_id().unwrap(),
-                Arc::clone(&server.store),
             )
             .await
             .expect("failed to create database");
@@ -855,7 +842,6 @@ mod tests {
             .create_database(
                 DatabaseRules::new(name.clone()),
                 server.require_id().unwrap(),
-                Arc::clone(&server.store),
             )
             .await
             .unwrap_err();
@@ -876,11 +862,7 @@ mod tests {
         for name in &names {
             let name = DatabaseName::new(name.to_string()).unwrap();
             server
-                .create_database(
-                    DatabaseRules::new(name),
-                    server.require_id().unwrap(),
-                    Arc::clone(&server.store),
-                )
+                .create_database(DatabaseRules::new(name), server.require_id().unwrap())
                 .await
                 .expect("failed to create database");
         }
@@ -897,11 +879,7 @@ mod tests {
 
         let name = DatabaseName::new("foo".to_string()).unwrap();
         server
-            .create_database(
-                DatabaseRules::new(name),
-                server.require_id().unwrap(),
-                Arc::clone(&server.store),
-            )
+            .create_database(DatabaseRules::new(name), server.require_id().unwrap())
             .await
             .unwrap();
 
@@ -916,10 +894,9 @@ mod tests {
         let executor = server.executor();
         let physical_plan = planner
             .query(db, "select * from cpu", executor.as_ref())
-            .await
             .unwrap();
 
-        let batches = collect(physical_plan).await.unwrap();
+        let batches = executor.collect(physical_plan).await.unwrap();
         let expected = vec![
             "+-----+------+",
             "| bar | time |",
@@ -938,11 +915,7 @@ mod tests {
 
         let name = DatabaseName::new("foo".to_string()).unwrap();
         server
-            .create_database(
-                DatabaseRules::new(name),
-                server.require_id().unwrap(),
-                Arc::clone(&server.store),
-            )
+            .create_database(DatabaseRules::new(name), server.require_id().unwrap())
             .await
             .unwrap();
 
@@ -964,10 +937,9 @@ mod tests {
         let executor = server.executor();
         let physical_plan = planner
             .query(db, "select * from cpu", executor.as_ref())
-            .await
             .unwrap();
 
-        let batches = collect(physical_plan).await.unwrap();
+        let batches = executor.collect(physical_plan).await.unwrap();
         let expected = vec![
             "+-----+------+",
             "| bar | time |",
@@ -994,7 +966,6 @@ mod tests {
             .create_database(
                 DatabaseRules::new(db_name.clone()),
                 server.require_id().unwrap(),
-                Arc::clone(&server.store),
             )
             .await
             .unwrap();

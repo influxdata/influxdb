@@ -12,6 +12,9 @@ use observability_deps::tracing::warn;
 /// The type of thing that the dedicated executor runs
 type Task = Pin<Box<dyn Future<Output = ()> + Send>>;
 
+/// The type of error that is returned from tasks in this module
+pub type Error = tokio::sync::oneshot::error::RecvError;
+
 /// Runs futures (and any `tasks` that are `tokio::task::spawned` by
 /// them) on a separate tokio Executor
 #[derive(Clone)]

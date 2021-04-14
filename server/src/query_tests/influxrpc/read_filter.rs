@@ -4,7 +4,6 @@ use crate::query_tests::scenarios::*;
 use arrow_deps::datafusion::logical_plan::{col, lit};
 use async_trait::async_trait;
 use query::{
-    exec::Executor,
     frontend::influxrpc::InfluxRPCPlanner,
     predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE},
 };
@@ -47,13 +46,12 @@ macro_rules! run_read_filter_test_case {
             println!("Running scenario '{}'", scenario_name);
             println!("Predicate: '{:#?}'", predicate);
             let planner = InfluxRPCPlanner::new();
-            let executor = Executor::new(1);
 
             let plan = planner
                 .read_filter(&db, predicate.clone())
                 .expect("built plan successfully");
 
-            let string_results = run_series_set_plan(executor, plan).await;
+            let string_results = run_series_set_plan(db.executor(), plan).await;
 
             assert_eq!(
                 expected_results, string_results,

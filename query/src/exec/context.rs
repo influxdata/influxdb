@@ -146,13 +146,13 @@ impl IOxExecutionContext {
 
     /// Prepare a SQL statement for execution. This assumes that any
     /// tables referenced in the SQL have been registered with this context
-    pub async fn prepare_sql(&mut self, sql: &str) -> Result<Arc<dyn ExecutionPlan>> {
+    pub fn prepare_sql(&mut self, sql: &str) -> Result<Arc<dyn ExecutionPlan>> {
         let logical_plan = self.inner.sql(sql)?.to_logical_plan();
-        self.prepare_plan(&logical_plan).await
+        self.prepare_plan(&logical_plan)
     }
 
     /// Prepare (optimize + plan) a pre-created logical plan for execution
-    pub async fn prepare_plan(&self, plan: &LogicalPlan) -> Result<Arc<dyn ExecutionPlan>> {
+    pub fn prepare_plan(&self, plan: &LogicalPlan) -> Result<Arc<dyn ExecutionPlan>> {
         debug!(
             "Creating plan: Initial plan\n----\n{}\n{}\n----",
             plan.display_indent_schema(),
@@ -188,14 +188,21 @@ impl IOxExecutionContext {
         &self,
         physical_plan: Arc<dyn ExecutionPlan>,
     ) -> Result<SendableRecordBatchStream> {
-        if physical_plan.output_partitioning().partition_count() <= 1 {
-            physical_plan.execute(0).await
-        } else {
-            // merge into a single partition
-            let plan = MergeExec::new(physical_plan);
-            // MergeExec must produce a single partition
-            assert_eq!(1, plan.output_partitioning().partition_count());
-            plan.execute(0).await
-        }
+        self.exec
+            .spawn(async move {
+                if physical_plan.output_partitioning().partition_count() <= 1 {
+                    physical_plan.execute(0).await
+                } else {
+                    // merge into a single partition
+                    let plan = MergeExec::new(physical_plan);
+                    // MergeExec must produce a single partition
+                    assert_eq!(1, plan.output_partitioning().partition_count());
+                    plan.execute(0).await
+                }
+            })
+            .await
+            .map_err(|e| {
+                Error::Execution(format!("Error running IOxExecutionContext::execute: {}", e))
+            })?
     }
 }

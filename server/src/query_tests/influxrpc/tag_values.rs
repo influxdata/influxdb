@@ -1,9 +1,6 @@
 use arrow_deps::datafusion::logical_plan::{col, lit};
 use query::{
-    exec::{
-        stringset::{IntoStringSet, StringSetRef},
-        Executor,
-    },
+    exec::stringset::{IntoStringSet, StringSetRef},
     frontend::influxrpc::InfluxRPCPlanner,
     predicate::PredicateBuilder,
 };
@@ -25,12 +22,12 @@ macro_rules! run_tag_values_test_case {
             println!("Running scenario '{}'", scenario_name);
             println!("Predicate: '{:#?}'", predicate);
             let planner = InfluxRPCPlanner::new();
-            let executor = Executor::new(1);
 
             let plan = planner
                 .tag_values(&db, &tag_name, predicate.clone())
                 .expect("built plan successfully");
-            let names = executor
+            let names = db
+                .executor()
                 .to_string_set(plan)
                 .await
                 .expect("converted plan to strings successfully");

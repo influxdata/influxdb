@@ -1,9 +1,6 @@
 //! Tests for the Influx gRPC queries
 use query::{
-    exec::{
-        stringset::{IntoStringSet, StringSetRef},
-        Executor,
-    },
+    exec::stringset::{IntoStringSet, StringSetRef},
     frontend::influxrpc::InfluxRPCPlanner,
     predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE},
 };
@@ -23,12 +20,12 @@ macro_rules! run_table_names_test_case {
             println!("Running scenario '{}'", scenario_name);
             println!("Predicate: '{:#?}'", predicate);
             let planner = InfluxRPCPlanner::new();
-            let executor = Executor::new(1);
 
             let plan = planner
                 .table_names(&db, predicate.clone())
                 .expect("built plan successfully");
-            let names = executor
+            let names = db
+                .executor()
                 .to_string_set(plan)
                 .await
                 .expect("converted plan to strings successfully");

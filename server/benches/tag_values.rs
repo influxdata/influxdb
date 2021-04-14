@@ -56,7 +56,6 @@ pub fn benchmark_tag_values(c: &mut Criterion) {
 // predicate.
 fn execute_benchmark_group(c: &mut Criterion, scenarios: &[DBScenario]) {
     let planner = InfluxRPCPlanner::new();
-    let executor = Executor::new(1); // single thread to execute queries
 
     let predicates = vec![
         (PredicateBuilder::default().build(), "no_pred"),
@@ -85,10 +84,11 @@ fn execute_benchmark_group(c: &mut Criterion, scenarios: &[DBScenario]) {
                     BenchmarkId::from_parameter(format!("{}/{}", tag_key, pred_name)),
                     tag_key,
                     |b, &tag_key| {
+                        let executor = db.executor();
                         b.to_async(Runtime::new().unwrap()).iter(|| {
                             run_tag_values_query(
                                 &planner,
-                                &executor,
+                                executor.as_ref(),
                                 db,
                                 tag_key,
                                 predicate.clone(),

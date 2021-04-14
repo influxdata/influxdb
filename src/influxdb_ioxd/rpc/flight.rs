@@ -157,12 +157,12 @@ where
         let planner = SQLQueryPlanner::default();
         let executor = self.server.executor();
 
-        let physical_plan = planner
-            .query(db, &read_info.sql_query, &executor)
-            .await
-            .context(PlanningSQLQuery {
-                query: &read_info.sql_query,
-            })?;
+        let physical_plan =
+            planner
+                .query(db, &read_info.sql_query, &executor)
+                .context(PlanningSQLQuery {
+                    query: &read_info.sql_query,
+                })?;
 
         // execute the query
         let results = executor

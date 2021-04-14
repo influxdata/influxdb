@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use arrow_deps::{
     arrow::record_batch::RecordBatch,
-    datafusion::{self, logical_plan::LogicalPlan},
+    datafusion::{self, logical_plan::LogicalPlan, physical_plan::ExecutionPlan},
 };
 use counters::ExecutionCounters;
 
@@ -35,7 +35,7 @@ use crate::plan::{
     stringset::StringSetPlan,
 };
 
-use self::task::DedicatedExecutor;
+use self::task::{DedicatedExecutor, Error as ExecutorError};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -87,7 +87,7 @@ pub enum Error {
     },
 
     #[snafu(display("Joining execution task: {}", source))]
-    JoinError { source: tokio::task::JoinError },
+    JoinError { source: ExecutorError },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -159,7 +159,7 @@ impl Executor {
                 let (plan_tx, plan_rx) = mpsc::channel(1);
                 rx_channels.push(plan_rx);
 
-                tokio::task::spawn(async move {
+                self.exec.spawn(async move {
                     let SeriesSetPlan {
                         table_name,
                         plan,
@@ -172,7 +172,6 @@ impl Executor {
 
                     let physical_plan = ctx
                         .prepare_plan(&plan)
-                        .await
                         .context(DataFusionPhysicalPlanning)?;
 
                     let it = ctx
@@ -224,10 +223,9 @@ impl Executor {
             .into_iter()
             .map(|plan| {
                 let ctx = self.new_context();
-                tokio::task::spawn(async move {
+                self.exec.spawn(async move {
                     let physical_plan = ctx
                         .prepare_plan(&plan)
-                        .await
                         .context(DataFusionPhysicalPlanning)?;
 
                     // TODO: avoid this buffering
@@ -259,6 +257,15 @@ impl Executor {
         self.run_logical_plans(vec![plan]).await
     }
 
+    /// Executes the logical plan using DataFusion on a separate
+    /// thread pool and produces RecordBatches
+    pub async fn collect(&self, physical_plan: Arc<dyn ExecutionPlan>) -> Result<Vec<RecordBatch>> {
+        self.new_context()
+            .collect(physical_plan)
+            .await
+            .context(DataFusionExecution)
+    }
+
     /// Create a new execution context, suitable for executing a new query
     pub fn new_context(&self) -> IOxExecutionContext {
         IOxExecutionContext::new(self.exec.clone(), Arc::clone(&self.counters))
@@ -271,11 +278,10 @@ impl Executor {
             .into_iter()
             .map(|plan| {
                 let ctx = self.new_context();
-                // TODO run these on some executor other than the main tokio pool
-                tokio::task::spawn(async move {
+
+                self.exec.spawn(async move {
                     let physical_plan = ctx
                         .prepare_plan(&plan)
-                        .await
                         .context(DataFusionPhysicalPlanning)?;
 
                     // TODO: avoid this buffering

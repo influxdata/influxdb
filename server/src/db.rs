@@ -33,7 +33,7 @@ use data_types::{
 use internal_types::selection::Selection;
 use object_store::ObjectStore;
 use parquet_file::{chunk::Chunk, storage::Storage};
-use query::{Database, DEFAULT_SCHEMA};
+use query::{exec::Executor, Database, DEFAULT_SCHEMA};
 use read_buffer::Chunk as ReadBufferChunk;
 use tracker::{MemRegistry, TaskTracker, TrackedFutureExt};
 
@@ -223,7 +223,11 @@ pub struct Db {
 
     pub server_id: NonZeroU32, // this is also the Query Server ID
 
+    /// Interface to use for peristence
     pub store: Arc<ObjectStore>,
+
+    /// Executor for running queries
+    exec: Arc<Executor>,
 
     /// The catalog holds chunks of data under partitions for the database.
     /// The underlying chunks may be backed by different execution engines
@@ -271,6 +275,7 @@ impl Db {
         rules: DatabaseRules,
         server_id: NonZeroU32,
         object_store: Arc<ObjectStore>,
+        exec: Arc<Executor>,
         wal_buffer: Option<Buffer>,
         jobs: Arc<JobRegistry>,
     ) -> Self {
@@ -284,6 +289,7 @@ impl Db {
             rules,
             server_id,
             store,
+            exec,
             catalog,
             wal_buffer,
             jobs,
@@ -292,6 +298,11 @@ impl Db {
             sequence: AtomicU64::new(STARTING_SEQUENCE),
             worker_iterations: AtomicUsize::new(0),
         }
+    }
+
+    /// Return a handle to the executor used to run queries
+    pub fn executor(&self) -> Arc<Executor> {
+        Arc::clone(&self.exec)
     }
 
     /// Rolls over the active chunk in the database's specified
@@ -850,9 +861,8 @@ mod tests {
     use crate::query_tests::utils::{make_database, make_db};
     use ::test_helpers::assert_contains;
     use arrow_deps::{
-        arrow::record_batch::RecordBatch,
-        assert_table_eq,
-        datafusion::{execution::context, physical_plan::collect},
+        arrow::record_batch::RecordBatch, assert_batches_sorted_eq, assert_table_eq,
+        datafusion::execution::context,
     };
     use chrono::Utc;
     use data_types::{
@@ -863,7 +873,7 @@ mod tests {
     use object_store::{
         disk::File, path::ObjectStorePath, path::Path, ObjectStore, ObjectStoreApi,
     };
-    use query::{exec::Executor, frontend::sql::SQLQueryPlanner, PartitionChunk};
+    use query::{frontend::sql::SQLQueryPlanner, PartitionChunk};
 
     use super::*;
     use futures::stream;
@@ -926,7 +936,7 @@ mod tests {
             "+-----+------+",
         ];
         let batches = run_query(Arc::clone(&db), "select * from cpu").await;
-        assert_table_eq!(expected, &batches);
+        assert_batches_sorted_eq!(expected, &batches);
 
         // add new data
         write_lp(db.as_ref(), "cpu bar=2 20");
@@ -939,14 +949,14 @@ mod tests {
             "+-----+------+",
         ];
         let batches = run_query(Arc::clone(&db), "select * from cpu").await;
-        assert_table_eq!(&expected, &batches);
+        assert_batches_sorted_eq!(&expected, &batches);
 
         // And expect that we still get the same thing when data is rolled over again
         let chunk = db.rollover_partition("1970-01-01T00").await.unwrap();
         assert_eq!(chunk.id(), 1);
 
         let batches = run_query(db, "select * from cpu").await;
-        assert_table_eq!(&expected, &batches);
+        assert_batches_sorted_eq!(&expected, &batches);
     }
 
     #[tokio::test]
@@ -1703,11 +1713,11 @@ mod tests {
     // run a sql query against the database, returning the results as record batches
     async fn run_query(db: Arc<Db>, query: &str) -> Vec<RecordBatch> {
         let planner = SQLQueryPlanner::default();
-        let executor = Executor::new(1);
+        let executor = db.executor();
 
-        let physical_plan = planner.query(db, query, &executor).await.unwrap();
+        let physical_plan = planner.query(db, query, &executor).unwrap();
 
-        collect(physical_plan).await.unwrap()
+        executor.collect(physical_plan).await.unwrap()
     }
 
     fn mutable_chunk_ids(db: &Db, partition_key: &str) -> Vec<u32> {
