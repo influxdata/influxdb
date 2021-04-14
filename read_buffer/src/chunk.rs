@@ -1,13 +1,14 @@
 use std::{
     collections::{btree_map::Entry, BTreeMap, BTreeSet},
     convert::TryFrom,
-    sync::RwLock,
 };
+
+use parking_lot::RwLock;
+use snafu::{OptionExt, ResultExt, Snafu};
 
 use arrow_deps::arrow::record_batch::RecordBatch;
 use data_types::partition_metadata::TableSummary;
 use internal_types::{schema::builder::Error as SchemaError, schema::Schema, selection::Selection};
-use snafu::{OptionExt, ResultExt, Snafu};
 use tracker::{MemRegistry, MemTracker};
 
 use crate::row_group::RowGroup;
@@ -126,7 +127,7 @@ impl Chunk {
         let chunk = Self::new(id);
 
         {
-            let mut chunk_data = chunk.chunk_data.write().unwrap();
+            let mut chunk_data = chunk.chunk_data.write();
             chunk_data.tracker = registry.register();
             let size = Self::base_size() + chunk_data.size();
             chunk_data.tracker.set_bytes(size);
@@ -163,37 +164,33 @@ impl Chunk {
     /// The total estimated size in bytes of this `Chunk` and all contained
     /// data.
     pub fn size(&self) -> usize {
-        let table_data = self.chunk_data.read().unwrap();
+        let table_data = self.chunk_data.read();
         Self::base_size() + table_data.size()
     }
 
     /// The total number of rows in all row groups in all tables in this chunk.
     pub(crate) fn rows(&self) -> u64 {
-        self.chunk_data.read().unwrap().rows
+        self.chunk_data.read().rows
     }
 
     /// The total number of row groups in all tables in this chunk.
     pub(crate) fn row_groups(&self) -> usize {
-        self.chunk_data.read().unwrap().row_groups
+        self.chunk_data.read().row_groups
     }
 
     /// The total number of tables in this chunk.
     pub(crate) fn tables(&self) -> usize {
-        self.chunk_data.read().unwrap().data.len()
+        self.chunk_data.read().data.len()
     }
 
     /// Returns true if the chunk contains data for this table.
     pub fn has_table(&self, table_name: &str) -> bool {
-        self.chunk_data
-            .read()
-            .unwrap()
-            .data
-            .contains_key(table_name)
+        self.chunk_data.read().data.contains_key(table_name)
     }
 
     /// Returns true if there are no tables under this chunk.
     pub(crate) fn is_empty(&self) -> bool {
-        self.chunk_data.read().unwrap().data.len() == 0
+        self.chunk_data.read().data.len() == 0
     }
 
     /// Add a row_group to a table in the chunk, updating all Chunk meta data.
@@ -209,7 +206,7 @@ impl Chunk {
         let table_name = table_name.into();
 
         // Take write lock to modify chunk.
-        let mut chunk_data = self.chunk_data.write().unwrap();
+        let mut chunk_data = self.chunk_data.write();
 
         // update the meta-data for this chunk with contents of row group.
         chunk_data.rows += row_group.rows() as u64;
@@ -243,7 +240,7 @@ impl Chunk {
         let row_group = RowGroup::from(table_data);
         let table_name = table_name.into();
 
-        let mut chunk_data = self.chunk_data.write().unwrap();
+        let mut chunk_data = self.chunk_data.write();
 
         // update the meta-data for this chunk with contents of row group.
         chunk_data.rows += row_group.rows() as u64;
@@ -273,7 +270,7 @@ impl Chunk {
     ///
     /// Dropping a table that does not exist is effectively an no-op.
     pub(crate) fn drop_table(&mut self, name: &str) {
-        let mut chunk_data = self.chunk_data.write().unwrap();
+        let mut chunk_data = self.chunk_data.write();
 
         // Remove table and update chunk meta-data if table exists.
         if let Some(table) = chunk_data.data.remove(name) {
@@ -306,7 +303,7 @@ impl Chunk {
         select_columns: Selection<'_>,
     ) -> Result<table::ReadFilterResults, Error> {
         // read lock on chunk.
-        let chunk_data = self.chunk_data.read().unwrap();
+        let chunk_data = self.chunk_data.read();
 
         let table = chunk_data
             .data
@@ -332,7 +329,7 @@ impl Chunk {
         aggregates: &[(ColumnName<'_>, AggregateType)],
     ) -> Result<table::ReadAggregateResults> {
         // read lock on chunk.
-        let chunk_data = self.chunk_data.read().unwrap();
+        let chunk_data = self.chunk_data.read();
 
         let table = chunk_data
             .data
@@ -355,7 +352,7 @@ impl Chunk {
     /// `false`.
     pub fn could_pass_predicate(&self, table_name: &str, predicate: Predicate) -> bool {
         // read lock on chunk.
-        let chunk_data = self.chunk_data.read().unwrap();
+        let chunk_data = self.chunk_data.read();
 
         match chunk_data.data.get(table_name) {
             Some(table) => table.could_pass_predicate(&predicate),
@@ -367,7 +364,7 @@ impl Chunk {
     /// Each table will be represented exactly once.
     pub fn table_summaries(&self) -> Vec<TableSummary> {
         // read lock on chunk.
-        let chunk_data = self.chunk_data.read().unwrap();
+        let chunk_data = self.chunk_data.read();
 
         chunk_data
             .data
@@ -408,7 +405,7 @@ impl Chunk {
         columns: Selection<'_>,
     ) -> Result<Schema> {
         // read lock on chunk.
-        let chunk_data = self.chunk_data.read().unwrap();
+        let chunk_data = self.chunk_data.read();
 
         let table = chunk_data
             .data
@@ -457,7 +454,7 @@ impl Chunk {
         skip_table_names: &BTreeSet<String>,
     ) -> BTreeSet<String> {
         // read lock on chunk.
-        let chunk_data = self.chunk_data.read().unwrap();
+        let chunk_data = self.chunk_data.read();
 
         if predicate.is_empty() {
             return chunk_data
@@ -505,7 +502,7 @@ impl Chunk {
         only_columns: Selection<'_>,
         dst: BTreeSet<String>,
     ) -> Result<BTreeSet<String>> {
-        let chunk_data = self.chunk_data.read().unwrap();
+        let chunk_data = self.chunk_data.read();
 
         // TODO(edd): same potential contention as `table_names` but I'm ok
         // with this for now.
@@ -548,7 +545,7 @@ impl Chunk {
             Selection::Some(columns) => columns,
         };
 
-        let chunk_data = self.chunk_data.read().unwrap();
+        let chunk_data = self.chunk_data.read();
 
         // TODO(edd): same potential contention as `table_names` but I'm ok
         // with this for now.
@@ -719,7 +716,7 @@ mod test {
         assert!(chunk.size() > 0);
 
         {
-            let chunk_data = chunk.chunk_data.read().unwrap();
+            let chunk_data = chunk.chunk_data.read();
             let table = chunk_data.data.get("a_table").unwrap();
             assert_eq!(table.rows(), 3);
             assert_eq!(table.row_groups(), 1);
@@ -735,7 +732,7 @@ mod test {
         assert!(chunk.size() > last_chunk_size);
 
         {
-            let chunk_data = chunk.chunk_data.read().unwrap();
+            let chunk_data = chunk.chunk_data.read();
             let table = chunk_data.data.get("a_table").unwrap();
             assert_eq!(table.rows(), 6);
             assert_eq!(table.row_groups(), 2);
@@ -751,14 +748,14 @@ mod test {
         assert!(chunk.size() > last_chunk_size);
 
         {
-            let chunk_data = chunk.chunk_data.read().unwrap();
+            let chunk_data = chunk.chunk_data.read();
             let table = chunk_data.data.get("b_table").unwrap();
             assert_eq!(table.rows(), 3);
             assert_eq!(table.row_groups(), 1);
         }
 
         {
-            let chunk_data = chunk.chunk_data.read().unwrap();
+            let chunk_data = chunk.chunk_data.read();
             let table = chunk_data.data.get("a_table").unwrap();
             assert_eq!(table.rows(), 6);
             assert_eq!(table.row_groups(), 2);
