@@ -386,7 +386,7 @@ impl Chunk {
     /// `None`. An error will be returned if the table does not exist.
     pub fn table_time_range(&self, table_name: &str) -> Result<Option<(i64, i64)>> {
         // read lock on chunk.
-        let chunk_data = self.chunk_data.read().unwrap();
+        let chunk_data = self.chunk_data.read();
 
         let table = chunk_data
             .data

@@ -1540,7 +1540,7 @@ mod tests {
                 to_arc("1970-01-01T00"),
                 0,
                 ChunkStorage::ReadBuffer,
-                1285,
+                1269,
             ),
             ChunkSummary::new_without_timestamps(
                 to_arc("1970-01-01T00"),
@@ -1563,7 +1563,7 @@ mod tests {
         ];
 
         assert_eq!(db.memory_registries.mutable_buffer.bytes(), 101 + 133 + 135);
-        assert_eq!(db.memory_registries.read_buffer.bytes(), 1285);
+        assert_eq!(db.memory_registries.read_buffer.bytes(), 1269);
 
         assert_eq!(
             expected, chunk_summaries,
