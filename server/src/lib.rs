@@ -84,7 +84,7 @@ use data_types::{
 };
 use influxdb_line_protocol::ParsedLine;
 use internal_types::{
-    entry::{self, lines_to_sharded_entries, Entry},
+    entry::{self, lines_to_sharded_entries, Entry, ShardedEntry},
     once::OnceNonZeroU32,
 };
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
@@ -99,7 +99,9 @@ use crate::{
     },
     db::Db,
 };
+use data_types::database_rules::{NodeGroup, ShardId};
 use internal_types::entry::SequencedEntry;
+use std::collections::HashMap;
 use std::num::NonZeroU32;
 
 pub mod buffer;
@@ -159,6 +161,8 @@ pub enum Error {
     DecodingEntry {
         source: flatbuffers::InvalidFlatbuffer,
     },
+    #[snafu(display("shard not found: {}", shard_id))]
+    ShardNotFound { shard_id: ShardId },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -396,19 +400,70 @@ impl<M: ConnectionManager> Server<M> {
             .db(&db_name)
             .context(DatabaseNotFound { db_name: &*db_name })?;
 
-        let sharded_entries = lines_to_sharded_entries(
-            lines,
-            db.rules.read().shard_config.as_ref(),
-            &*db.rules.read(),
-        )
-        .context(LineConversion)?;
+        // Split lines into shards while holding a read lock on the sharding config.
+        // Once the lock is released we have a vector of entries, each associated with a
+        // shard id, and an Arc to the mapping between shard ids and node
+        // groups. This map is atomically replaced every time the sharding
+        // config is updated, hence it's safe to use after we release the shard config
+        // lock.
+        let (sharded_entries, shards) = {
+            let rules = db.rules.read();
+            let shard_config = &rules.shard_config;
 
-        for e in sharded_entries {
-            // TODO: handle sending to shards based on ShardConfig
-            self.handle_write_entry(&db, e.entry).await?;
-        }
+            let sharded_entries = lines_to_sharded_entries(lines, shard_config.as_ref(), &*rules)
+                .context(LineConversion)?;
+
+            let shards = shard_config
+                .as_ref()
+                .map(|cfg| Arc::clone(&cfg.shards))
+                .unwrap_or_default();
+
+            (sharded_entries, shards)
+        };
+
+        // Write to all shards in parallel; as soon as one fails return error
+        // immediately to the client and abort all other outstanding requests.
+        // This can take some time, but we're no longer holding the lock to the shard
+        // config.
+        futures_util::future::try_join_all(
+            sharded_entries
+                .into_iter()
+                .map(|e| self.write_sharded_entry(&db_name, &db, Arc::clone(&shards), e)),
+        )
+        .await?;
 
         Ok(())
+    }
+
+    async fn write_sharded_entry(
+        &self,
+        db_name: &str,
+        db: &Db,
+        shards: Arc<HashMap<u32, NodeGroup>>,
+        sharded_entry: ShardedEntry,
+    ) -> Result<()> {
+        match sharded_entry.shard_id {
+            Some(shard_id) => {
+                let node_group = shards.get(&shard_id).context(ShardNotFound { shard_id })?;
+                self.write_entry_downstream(db_name, node_group, &sharded_entry.entry)
+                    .await?
+            }
+            None => self.write_entry_local(&db, sharded_entry.entry).await?,
+        }
+        Ok(())
+    }
+
+    async fn write_entry_downstream(
+        &self,
+        db_name: &str,
+        node_group: &[WriterId],
+        _entry: &Entry,
+    ) -> Result<()> {
+        todo!(
+            "perform API call of sharded entry {} to one of the nodes {:?}",
+            db_name,
+            node_group
+        )
     }
 
     pub async fn write_entry(&self, db_name: &str, entry_bytes: Vec<u8>) -> Result<()> {
@@ -421,10 +476,10 @@ impl<M: ConnectionManager> Server<M> {
             .context(DatabaseNotFound { db_name: &*db_name })?;
 
         let entry = entry_bytes.try_into().context(DecodingEntry)?;
-        self.handle_write_entry(&db, entry).await
+        self.write_entry_local(&db, entry).await
     }
 
-    pub async fn handle_write_entry(&self, db: &Db, entry: Entry) -> Result<()> {
+    pub async fn write_entry_local(&self, db: &Db, entry: Entry) -> Result<()> {
         db.store_entry(entry)
             .map_err(|e| Error::UnknownDatabaseError {
                 source: Box::new(e),

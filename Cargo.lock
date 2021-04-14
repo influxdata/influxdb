@@ -3271,6 +3271,7 @@ dependencies = [
  "flatbuffers",
  "flate2",
  "futures",
+ "futures-util",
  "generated_types",
  "influxdb_line_protocol",
  "internal_types",

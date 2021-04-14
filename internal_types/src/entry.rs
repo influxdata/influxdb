@@ -1268,7 +1268,7 @@ pub mod test_helpers {
 
     /// Returns a test sharder that will assign shard ids from [0, count)
     /// incrementing for each line.
-    pub fn sharder(count: u16) -> Option<TestSharder> {
+    pub fn sharder(count: ShardId) -> Option<TestSharder> {
         Some(TestSharder {
             count,
             n: std::cell::RefCell::new(0),
@@ -1278,12 +1278,12 @@ pub mod test_helpers {
     // For each line passed to shard returns a shard id from [0, count) in order
     #[derive(Debug)]
     pub struct TestSharder {
-        count: u16,
-        n: std::cell::RefCell<u16>,
+        count: ShardId,
+        n: std::cell::RefCell<ShardId>,
     }
 
     impl Sharder for TestSharder {
-        fn shard(&self, _line: &ParsedLine<'_>) -> Result<u16, DataError> {
+        fn shard(&self, _line: &ParsedLine<'_>) -> Result<ShardId, DataError> {
             let n = *self.n.borrow();
             self.n.replace(n + 1);
             Ok(n % self.count)
