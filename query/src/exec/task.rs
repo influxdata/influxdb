@@ -22,12 +22,6 @@ pub struct DedicatedExecutor {
 /// Runs futures (and any `tasks` that are `tokio::task::spawned` by
 /// them) on a separate tokio Executor
 struct State {
-    /// The number of threads in this pool
-    num_threads: usize,
-
-    /// The name of the threads for this executor
-    thread_name: String,
-
     /// Channel for requests -- the dedicated executor takes requests
     /// from here and runs them.
     requests: Option<std::sync::mpsc::Sender<Task>>,
@@ -41,26 +35,8 @@ const WORKER_PRIORITY: i32 = 10;
 
 impl std::fmt::Debug for DedicatedExecutor {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let state = self.state.lock();
-
-        let mut d = f.debug_struct("DedicatedExecutor");
-
-        d.field("num_threads", &state.num_threads)
-            .field("thread_name", &state.thread_name);
-
-        if state.requests.is_some() {
-            d.field("requests", &"Some(...)")
-        } else {
-            d.field("requests", &"None")
-        };
-
-        if state.thread.is_some() {
-            d.field("thread", &"Some(...)")
-        } else {
-            d.field("thread", &"None")
-        };
-
-        d.finish()
+        // Avoid taking the mutex in debug formatting
+        write!(f, "DedicatedExecutor")
     }
 }
 
@@ -81,16 +57,15 @@ impl DedicatedExecutor {
     /// drop a runtime in a context where blocking is not allowed. This
     /// happens when a runtime is dropped from within an asynchronous
     /// context.', .../tokio-1.4.0/src/runtime/blocking/shutdown.rs:51:21
-    pub fn new(thread_name: impl Into<String>, num_threads: usize) -> Self {
-        let thread_name = thread_name.into();
-        let name_copy = thread_name.to_string();
+    pub fn new(thread_name: &str, num_threads: usize) -> Self {
+        let thread_name = thread_name.to_string();
 
         let (tx, rx) = std::sync::mpsc::channel();
 
         let thread = std::thread::spawn(move || {
             let runtime = tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
-                .thread_name(&name_copy)
+                .thread_name(&thread_name)
                 .worker_threads(num_threads)
                 .on_thread_start(move || set_current_thread_priority(WORKER_PRIORITY))
                 .build()
@@ -107,8 +82,6 @@ impl DedicatedExecutor {
         });
 
         let state = State {
-            num_threads,
-            thread_name,
             requests: Some(tx),
             thread: Some(thread),
         };
