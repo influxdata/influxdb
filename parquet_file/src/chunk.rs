@@ -128,6 +128,7 @@ impl Chunk {
             .context(NamedTableError { table_name })
     }
 
+    // Return all tables of this chunk whose timestamp overlaps with the give one
     pub fn table_names(
         &self,
         timestamp_range: Option<TimestampRange>,
@@ -139,5 +140,27 @@ impl Chunk {
                 None
             }
         })
+    }
+
+    // Return columns names of a given table that belong to the given column
+    // selection
+    pub fn column_names(
+        &self,
+        table_name: &str,
+        selection: Selection<'_>,
+    ) -> Option<BTreeSet<String>> {
+        let table = self
+            .tables
+            .iter()
+            .find(|t| t.has_table(table_name))
+            .context(NamedTableNotFoundInChunk {
+                table_name,
+                chunk_id: self.id(),
+            });
+
+        match table {
+            Ok(table) => table.column_names(selection),
+            Err(_) => None,
+        }
     }
 }

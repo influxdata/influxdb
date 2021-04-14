@@ -548,13 +548,7 @@ impl Db {
                 .context(SchemaConversion)?;
             let table_time_range = match time_range {
                 None => None,
-                Some((start, end)) => {
-                    if start < end {
-                        Some(TimestampRange::new(start, end))
-                    } else {
-                        None
-                    }
-                }
+                Some((start, end)) => Some(TimestampRange::new(start, end)),
             };
             parquet_chunk.add_table(stats, path, schema, table_time_range);
         }
