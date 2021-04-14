@@ -109,3 +109,34 @@ impl Buckets {
         Self::default()
     }
 }
+
+/// PostBucketRequest
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PostBucketRequest {
+    /// Organization ID
+    #[serde(rename = "orgID")]
+    pub org_id: String,
+    /// Bucket name
+    pub name: String,
+    /// Bucket Description
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+    /// RP
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rp: Option<String>,
+    /// Rules to expire or retain data.  No rules means data never expires.
+    #[serde(default)]
+    pub retention_rules: Vec<crate::models::RetentionRule>,
+}
+
+impl PostBucketRequest {
+    /// Returns instance of PostBucketRequest
+    pub fn new(org_id: String, name: String) -> Self {
+        Self {
+            org_id,
+            name,
+            ..Default::default()
+        }
+    }
+}
