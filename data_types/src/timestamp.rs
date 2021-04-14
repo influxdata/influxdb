@@ -12,7 +12,7 @@ pub struct TimestampRange {
 
 impl TimestampRange {
     pub fn new(start: i64, end: i64) -> Self {
-        debug_assert!(end > start);
+        debug_assert!(end >= start);
         Self { start, end }
     }
 

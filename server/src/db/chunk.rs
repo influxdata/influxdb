@@ -343,8 +343,12 @@ impl PartitionChunk for DBChunk {
                         })?,
                 ))
             }
-            Self::ParquetFile { .. } => {
-                unimplemented!("parquet file not implemented for column_names")
+            Self::ParquetFile { chunk, .. } => {
+                if !predicate.is_empty() {
+                    // TODO: Support predicates when MB supports it
+                    return Ok(None);
+                }
+                Ok(chunk.column_names(table_name, columns))
             }
         }
     }
@@ -399,7 +403,9 @@ impl PartitionChunk for DBChunk {
                 Ok(Some(values))
             }
             Self::ParquetFile { .. } => {
-                unimplemented!("parquet file not implemented for column_values")
+                // Since DataFusion can read Parquet, there is no advantage to
+                // manually implementing this vs just letting DataFusion do its thing
+                Ok(None)
             }
         }
     }

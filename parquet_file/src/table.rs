@@ -1,5 +1,5 @@
 use snafu::{ResultExt, Snafu};
-use std::mem;
+use std::{collections::BTreeSet, mem};
 
 use data_types::{partition_metadata::TableSummary, timestamp::TimestampRange};
 use internal_types::{schema::Schema, selection::Selection};
@@ -74,7 +74,7 @@ impl Table {
         self.object_store_path.clone()
     }
 
-    /// return schema of this table for specified selection columns
+    /// Return schema of this table for specified selection columns
     pub fn schema(&self, selection: Selection<'_>) -> Result<Schema> {
         Ok(match selection {
             Selection::All => self.table_schema.clone(),
@@ -85,6 +85,7 @@ impl Table {
         })
     }
 
+    // Check if 2 time ranges overlap
     pub fn matches_predicate(&self, timestamp_range: &Option<TimestampRange>) -> bool {
         match (self.timestamp_range, timestamp_range) {
             (Some(a), Some(b)) => !a.disjoint(b),
@@ -92,5 +93,23 @@ impl Table {
             // the predicate
             (_, None) => true,
         }
+    }
+
+    // Return columns names of this table that belong to the given column selection
+    pub fn column_names(&self, selection: Selection<'_>) -> Option<BTreeSet<String>> {
+        let fields = self.table_schema.inner().fields().iter();
+
+        Some(match selection {
+            Selection::Some(cols) => fields
+                .filter_map(|x| {
+                    if cols.contains(&x.name().as_str()) {
+                        Some(x.name().clone())
+                    } else {
+                        None
+                    }
+                })
+                .collect(),
+            Selection::All => fields.map(|x| x.name().clone()).collect(),
+        })
     }
 }
