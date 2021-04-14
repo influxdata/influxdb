@@ -31,7 +31,8 @@
 //!
 //! ```
 //! async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//!     use influxdb2_client::{Client, DataPoint};
+//!     use influxdb2_client::Client;
+//!     use influxdb2_client::models::DataPoint;
 //!     use futures::stream;
 //!
 //!     let org = "myorg";
@@ -65,9 +66,7 @@ use reqwest::{Body, Method};
 use serde::Serialize;
 use snafu::{ResultExt, Snafu};
 use std::io::{self, Write};
-
-pub mod data_point;
-pub use data_point::{DataPoint, FieldValue, WriteDataPoint};
+use crate::models::WriteDataPoint;
 
 /// Errors that occur while making requests to the Influx server.
 #[derive(Debug, Snafu)]
@@ -237,6 +236,7 @@ mod tests {
     use super::*;
     use futures::stream;
     use mockito::mock;
+    use crate::models::DataPoint;
 
     #[tokio::test]
     async fn writing_points() {
