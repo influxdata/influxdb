@@ -19,7 +19,7 @@ async-trait = "0.1"
 chrono = "0.4"
 croaring = "0.4.5"
 data_types = { path = "../data_types" }
-futures = "0.3.7"
+futures = "0.3"
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 internal_types = { path = "../internal_types" }
 parking_lot = "0.11.1"
@@ -28,6 +28,10 @@ sqlparser = "0.8.0"
 tokio = { version = "1.0", features = ["macros"] }
 tokio-stream = "0.1.2"
 observability_deps = { path = "../observability_deps" }
+
+# use libc on unix like platforms to set worker priority in DedicatedExecutor
+[target."cfg(unix)".dependencies.libc]
+version = "0.2"
 
 [dev-dependencies] # In alphabetical order
 test_helpers = { path = "../test_helpers" }

@@ -3,7 +3,6 @@
 
 use std::convert::TryFrom;
 
-use mutable_buffer::{chunk::Chunk, pred::ChunkPredicate};
 use query::predicate::Predicate;
 use snafu::Snafu;
 
@@ -11,15 +10,6 @@ use snafu::Snafu;
 pub enum Error {
     #[snafu(display("Error translating predicate: {}", msg))]
     ReadBufferPredicate { msg: String, pred: Predicate },
-
-    #[snafu(display("Error building predicate for mutable buffer: {}", source))]
-    MutableBufferPredicate { source: mutable_buffer::pred::Error },
-}
-
-impl From<mutable_buffer::pred::Error> for Error {
-    fn from(source: mutable_buffer::pred::Error) -> Self {
-        Self::MutableBufferPredicate { source }
-    }
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -50,25 +40,6 @@ pub fn to_read_buffer_predicate(predicate: &Predicate) -> Result<read_buffer::Pr
             pred: predicate.clone(),
         }),
     }
-}
-
-/// Converts a [`query::Predicate`] into [`ChunkPredicate`],
-/// suitable for evaluating on the MutableBuffer.
-pub fn to_mutable_buffer_predicate(
-    chunk: impl AsRef<Chunk>,
-    predicate: &Predicate,
-) -> Result<ChunkPredicate> {
-    let predicate = chunk
-        .as_ref()
-        .predicate_builder()?
-        .table_names(predicate.table_names.as_ref())?
-        .field_names(predicate.field_columns.as_ref())?
-        .range(predicate.range)?
-        // it would be nice to avoid cloning all the exprs here.
-        .exprs(predicate.exprs.clone())?
-        .build();
-
-    Ok(predicate)
 }
 
 #[cfg(test)]
@@ -196,7 +167,6 @@ pub mod test {
                 Error::ReadBufferPredicate { msg, pred: _ } => {
                     assert_eq!(msg, exp.to_owned());
                 }
-                _ => panic!("Unexpected error type"),
             }
         }
     }

@@ -67,6 +67,7 @@
     clippy::clone_on_ref_ptr
 )]
 
+use std::convert::TryInto;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -83,11 +84,11 @@ use data_types::{
 };
 use influxdb_line_protocol::ParsedLine;
 use internal_types::{
-    data::{lines_to_replicated_write, ReplicatedWrite},
+    entry::{self, lines_to_sharded_entries, Entry},
     once::OnceNonZeroU32,
 };
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
-use query::{exec::Executor, Database, DatabaseStore};
+use query::{exec::Executor, DatabaseStore};
 use tracker::{TaskId, TaskRegistration, TaskRegistryWithHistory, TaskTracker, TrackedFutureExt};
 
 use futures::{pin_mut, FutureExt};
@@ -98,15 +99,20 @@ use crate::{
     },
     db::Db,
 };
+use internal_types::entry::SequencedEntry;
 use std::num::NonZeroU32;
 
 pub mod buffer;
 mod config;
 pub mod db;
+mod query_tests;
 pub mod snapshot;
 
-#[cfg(test)]
-mod query_tests;
+// This module exposes `query_tests` outside of the crate so that it may be used
+// in benchmarks. Do not import this module for non-benchmark purposes!
+pub mod benchmarks {
+    pub use crate::query_tests::*;
+}
 
 type DatabaseError = Box<dyn std::error::Error + Send + Sync + 'static>;
 
@@ -147,6 +153,12 @@ pub enum Error {
     DatabaseAlreadyExists { db_name: String },
     #[snafu(display("error appending to wal buffer: {}", source))]
     WalError { source: buffer::Error },
+    #[snafu(display("error converting line protocol to flatbuffers: {}", source))]
+    LineConversion { source: entry::Error },
+    #[snafu(display("error decoding entry flatbuffers: {}", source))]
+    DecodingEntry {
+        source: flatbuffers::InvalidFlatbuffer,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -179,6 +191,38 @@ impl JobRegistry {
 
 const STORE_ERROR_PAUSE_SECONDS: u64 = 100;
 
+/// Used to configure a server instance
+#[derive(Debug)]
+pub struct ServerConfig {
+    // number of executor worker threads. If not specified, defaults
+    // to number of cores on the system.
+    num_worker_threads: Option<usize>,
+
+    /// The `ObjectStore` instance to use for persistence
+    object_store: Arc<ObjectStore>,
+}
+
+impl ServerConfig {
+    /// Create a new config using the specified store
+    pub fn new(object_store: Arc<ObjectStore>) -> Self {
+        Self {
+            num_worker_threads: None,
+            object_store,
+        }
+    }
+
+    /// Use `num` worker threads for running queries
+    pub fn with_num_worker_threads(mut self, num: usize) -> Self {
+        self.num_worker_threads = Some(num);
+        self
+    }
+
+    /// return a reference to the object store in this configuration
+    pub fn store(&self) -> Arc<ObjectStore> {
+        Arc::clone(&self.object_store)
+    }
+}
+
 /// `Server` is the container struct for how servers store data internally, as
 /// well as how they communicate with other servers. Each server will have one
 /// of these structs, which keeps track of all replication and query rules.
@@ -188,7 +232,7 @@ pub struct Server<M: ConnectionManager> {
     config: Arc<Config>,
     connection_manager: Arc<M>,
     pub store: Arc<ObjectStore>,
-    executor: Arc<Executor>,
+    exec: Arc<Executor>,
     jobs: Arc<JobRegistry>,
 }
 
@@ -205,15 +249,21 @@ impl<E> From<Error> for UpdateError<E> {
 }
 
 impl<M: ConnectionManager> Server<M> {
-    pub fn new(connection_manager: M, store: Arc<ObjectStore>) -> Self {
+    pub fn new(connection_manager: M, config: ServerConfig) -> Self {
         let jobs = Arc::new(JobRegistry::new());
+
+        let ServerConfig {
+            num_worker_threads,
+            object_store,
+        } = config;
+        let num_worker_threads = num_worker_threads.unwrap_or_else(num_cpus::get);
 
         Self {
             id: Default::default(),
             config: Arc::new(Config::new(Arc::clone(&jobs))),
-            store,
+            store: object_store,
             connection_manager: Arc::new(connection_manager),
-            executor: Arc::new(Executor::new()),
+            exec: Arc::new(Executor::new(num_worker_threads)),
             jobs,
         }
     }
@@ -232,12 +282,7 @@ impl<M: ConnectionManager> Server<M> {
     }
 
     /// Tells the server the set of rules for a database.
-    pub async fn create_database(
-        &self,
-        rules: DatabaseRules,
-        server_id: NonZeroU32,
-        object_store: Arc<ObjectStore>,
-    ) -> Result<()> {
+    pub async fn create_database(&self, rules: DatabaseRules, server_id: NonZeroU32) -> Result<()> {
         // Return an error if this server hasn't yet been setup with an id
         self.require_id()?;
         let db_reservation = self.config.create_db(rules)?;
@@ -245,7 +290,7 @@ impl<M: ConnectionManager> Server<M> {
         self.persist_database_rules(db_reservation.rules().clone())
             .await?;
 
-        db_reservation.commit(server_id, object_store);
+        db_reservation.commit(server_id, Arc::clone(&self.store), Arc::clone(&self.exec));
 
         Ok(())
     }
@@ -300,6 +345,7 @@ impl<M: ConnectionManager> Server<M> {
             .map(|mut path| {
                 let store = Arc::clone(&self.store);
                 let config = Arc::clone(&self.config);
+                let exec = Arc::clone(&self.exec);
 
                 path.set_file_name(DB_RULES_FILE_NAME);
 
@@ -325,7 +371,7 @@ impl<M: ConnectionManager> Server<M> {
                         }
                         Ok(rules) => match config.create_db(rules) {
                             Err(e) => error!("error adding database to config: {}", e),
-                            Ok(handle) => handle.commit(server_id, store),
+                            Ok(handle) => handle.commit(server_id, store, exec),
                         },
                     }
                 })
@@ -337,12 +383,12 @@ impl<M: ConnectionManager> Server<M> {
         Ok(())
     }
 
-    /// `write_lines` takes in raw line protocol and converts it to a
-    /// `ReplicatedWrite`, which is then replicated to other servers based
-    /// on the configuration of the `db`. This is step #1 from the crate
-    /// level documentation.
+    /// `write_lines` takes in raw line protocol and converts it to a collection
+    /// of ShardedEntry which are then sent to other IOx servers based on
+    /// the ShardConfig or sent to the local database for buffering in the
+    /// WriteBuffer and/or the MutableBuffer if configured.
     pub async fn write_lines(&self, db_name: &str, lines: &[ParsedLine<'_>]) -> Result<()> {
-        let id = self.require_id()?.get();
+        self.require_id()?;
 
         let db_name = DatabaseName::new(db_name).context(InvalidDatabaseName)?;
         let db = self
@@ -350,62 +396,52 @@ impl<M: ConnectionManager> Server<M> {
             .db(&db_name)
             .context(DatabaseNotFound { db_name: &*db_name })?;
 
-        let sequence = db.next_sequence();
-        let write = lines_to_replicated_write(id, sequence, lines, &*db.rules.read());
+        let sharded_entries = lines_to_sharded_entries(
+            lines,
+            db.rules.read().shard_config.as_ref(),
+            &*db.rules.read(),
+        )
+        .context(LineConversion)?;
 
-        self.handle_replicated_write(&db_name, &db, write).await?;
+        for e in sharded_entries {
+            // TODO: handle sending to shards based on ShardConfig
+            self.handle_write_entry(&db, e.entry).await?;
+        }
 
         Ok(())
     }
 
-    pub async fn handle_replicated_write(
+    pub async fn write_entry(&self, db_name: &str, entry_bytes: Vec<u8>) -> Result<()> {
+        self.require_id()?;
+
+        let db_name = DatabaseName::new(db_name).context(InvalidDatabaseName)?;
+        let db = self
+            .config
+            .db(&db_name)
+            .context(DatabaseNotFound { db_name: &*db_name })?;
+
+        let entry = entry_bytes.try_into().context(DecodingEntry)?;
+        self.handle_write_entry(&db, entry).await
+    }
+
+    pub async fn handle_write_entry(&self, db: &Db, entry: Entry) -> Result<()> {
+        db.store_entry(entry)
+            .map_err(|e| Error::UnknownDatabaseError {
+                source: Box::new(e),
+            })?;
+
+        Ok(())
+    }
+
+    pub async fn handle_sequenced_entry(
         &self,
-        db_name: &DatabaseName<'_>,
         db: &Db,
-        write: ReplicatedWrite,
+        sequenced_entry: SequencedEntry,
     ) -> Result<()> {
-        match db.store_replicated_write(&write) {
-            Err(db::Error::DatabaseNotWriteable {}) | Ok(_) => {}
-            Err(e) => {
-                return Err(Error::UnknownDatabaseError {
-                    source: Box::new(e),
-                })
-            }
-        }
-
-        let write = Arc::new(write);
-
-        if let Some(wal_buffer) = &db.wal_buffer {
-            let persist;
-            let segment = {
-                let mut wal_buffer = wal_buffer.lock();
-                persist = wal_buffer.persist;
-
-                // TODO: address this issue?
-                // the mutable buffer and the wal buffer have different locking mechanisms,
-                // which means that it's possible for a mutable buffer write to
-                // succeed while a WAL buffer write fails, which would then
-                // return an error. A single lock is probably undesirable, but
-                // we need to figure out what semantics we want.
-                wal_buffer.append(Arc::clone(&write)).context(WalError)?
-            };
-
-            if let Some(segment) = segment {
-                if persist {
-                    let writer_id = self.require_id()?.get();
-                    let store = Arc::clone(&self.store);
-
-                    let (_, tracker) = self.jobs.register(Job::PersistSegment {
-                        writer_id,
-                        segment_id: segment.id,
-                    });
-
-                    segment
-                        .persist_bytes_in_background(tracker, writer_id, db_name, store)
-                        .context(WalError)?;
-                }
-            }
-        }
+        db.store_sequenced_entry(sequenced_entry)
+            .map_err(|e| Error::UnknownDatabaseError {
+                source: Box::new(e),
+            })?;
 
         Ok(())
     }
@@ -574,12 +610,8 @@ where
         let db = match self.db(&db_name) {
             Some(db) => db,
             None => {
-                self.create_database(
-                    DatabaseRules::new(db_name.clone()),
-                    self.require_id()?,
-                    Arc::clone(&self.store),
-                )
-                .await?;
+                self.create_database(DatabaseRules::new(db_name.clone()), self.require_id()?)
+                    .await?;
                 self.db(&db_name).expect("db not inserted")
             }
         };
@@ -587,8 +619,9 @@ where
         Ok(db)
     }
 
+    /// Return a handle to the query executor
     fn executor(&self) -> Arc<Executor> {
-        Arc::clone(&self.executor)
+        Arc::clone(&self.exec)
     }
 }
 
@@ -610,12 +643,17 @@ pub trait ConnectionManager {
 pub trait RemoteServer {
     type Error: std::error::Error + Send + Sync + 'static;
 
-    /// Sends a replicated write to a remote server. This is step #2 from the
-    /// diagram.
-    async fn replicate(
+    /// Sends an Entry to the remote server. An IOx server acting as a
+    /// router/sharder will call this method to send entries to remotes.
+    async fn write_entry(&self, db: &str, entry: Entry) -> Result<(), Self::Error>;
+
+    /// Sends a SequencedEntry to the remote server. An IOx server acting as a
+    /// write buffer will call this method to replicate to other write
+    /// buffer servers or to send data to downstream subscribers.
+    async fn write_sequenced_entry(
         &self,
         db: &str,
-        replicated_write: &ReplicatedWrite,
+        sequenced_entry: SequencedEntry,
     ) -> Result<(), Self::Error>;
 }
 
@@ -643,10 +681,19 @@ pub struct RemoteServerImpl {}
 impl RemoteServer for RemoteServerImpl {
     type Error = Error;
 
-    async fn replicate(
+    /// Sends an Entry to the remote server. An IOx server acting as a
+    /// router/sharder will call this method to send entries to remotes.
+    async fn write_entry(&self, _db: &str, _entry: Entry) -> Result<(), Self::Error> {
+        unimplemented!()
+    }
+
+    /// Sends a SequencedEntry to the remote server. An IOx server acting as a
+    /// write buffer will call this method to replicate to other write
+    /// buffer servers or to send data to downstream subscribers.
+    async fn write_sequenced_entry(
         &self,
         _db: &str,
-        _replicated_write: &ReplicatedWrite,
+        _sequenced_entry: SequencedEntry,
     ) -> Result<(), Self::Error> {
         unimplemented!()
     }
@@ -675,28 +722,27 @@ mod tests {
 
     use async_trait::async_trait;
     use futures::TryStreamExt;
-    use parking_lot::Mutex;
     use snafu::Snafu;
     use tokio::task::JoinHandle;
     use tokio_util::sync::CancellationToken;
 
-    use arrow_deps::{assert_table_eq, datafusion::physical_plan::collect};
-    use data_types::database_rules::{
-        PartitionTemplate, TemplatePart, WalBufferConfig, WalBufferRollover,
-    };
+    use arrow_deps::assert_table_eq;
+    use data_types::database_rules::{PartitionTemplate, TemplatePart, NO_SHARD_CONFIG};
     use influxdb_line_protocol::parse_lines;
     use object_store::{memory::InMemory, path::ObjectStorePath};
     use query::{frontend::sql::SQLQueryPlanner, Database};
 
-    use crate::buffer::Segment;
-
     use super::*;
+
+    fn config() -> ServerConfig {
+        ServerConfig::new(Arc::new(ObjectStore::new_in_memory(InMemory::new())))
+            .with_num_worker_threads(1)
+    }
 
     #[tokio::test]
     async fn server_api_calls_return_error_with_no_id_set() {
         let manager = TestConnectionManager::new();
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let server = Server::new(manager, store);
+        let server = Server::new(manager, config());
 
         let resp = server.require_id().unwrap_err();
         assert!(matches!(resp, Error::IdNotSet));
@@ -709,8 +755,9 @@ mod tests {
     #[tokio::test]
     async fn create_database_persists_rules() {
         let manager = TestConnectionManager::new();
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let server = Server::new(manager, Arc::clone(&store));
+        let config = config();
+        let store = config.store();
+        let server = Server::new(manager, config);
         server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
 
         let name = DatabaseName::new("bananas").unwrap();
@@ -727,11 +774,7 @@ mod tests {
 
         // Create a database
         server
-            .create_database(
-                rules.clone(),
-                server.require_id().unwrap(),
-                Arc::clone(&server.store),
-            )
+            .create_database(rules.clone(), server.require_id().unwrap())
             .await
             .expect("failed to create database");
 
@@ -759,7 +802,6 @@ mod tests {
             .create_database(
                 DatabaseRules::new(db2.clone()),
                 server.require_id().unwrap(),
-                Arc::clone(&server.store),
             )
             .await
             .expect("failed to create 2nd db");
@@ -767,7 +809,8 @@ mod tests {
         store.list_with_delimiter(&store.new_path()).await.unwrap();
 
         let manager = TestConnectionManager::new();
-        let server2 = Server::new(manager, store);
+        let config2 = ServerConfig::new(store).with_num_worker_threads(1);
+        let server2 = Server::new(manager, config2);
         server2.set_id(NonZeroU32::new(1).unwrap()).unwrap();
         server2.load_database_configs().await.unwrap();
 
@@ -780,8 +823,7 @@ mod tests {
         // Covers #643
 
         let manager = TestConnectionManager::new();
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let server = Server::new(manager, store);
+        let server = Server::new(manager, config());
         server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
 
         let name = DatabaseName::new("bananas").unwrap();
@@ -791,7 +833,6 @@ mod tests {
             .create_database(
                 DatabaseRules::new(name.clone()),
                 server.require_id().unwrap(),
-                Arc::clone(&server.store),
             )
             .await
             .expect("failed to create database");
@@ -801,7 +842,6 @@ mod tests {
             .create_database(
                 DatabaseRules::new(name.clone()),
                 server.require_id().unwrap(),
-                Arc::clone(&server.store),
             )
             .await
             .unwrap_err();
@@ -814,8 +854,7 @@ mod tests {
     #[tokio::test]
     async fn db_names_sorted() {
         let manager = TestConnectionManager::new();
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let server = Server::new(manager, store);
+        let server = Server::new(manager, config());
         server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
 
         let names = vec!["bar", "baz"];
@@ -823,11 +862,7 @@ mod tests {
         for name in &names {
             let name = DatabaseName::new(name.to_string()).unwrap();
             server
-                .create_database(
-                    DatabaseRules::new(name),
-                    server.require_id().unwrap(),
-                    Arc::clone(&server.store),
-                )
+                .create_database(DatabaseRules::new(name), server.require_id().unwrap())
                 .await
                 .expect("failed to create database");
         }
@@ -839,17 +874,12 @@ mod tests {
     #[tokio::test]
     async fn writes_local() {
         let manager = TestConnectionManager::new();
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let server = Server::new(manager, store);
+        let server = Server::new(manager, config());
         server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
 
         let name = DatabaseName::new("foo".to_string()).unwrap();
         server
-            .create_database(
-                DatabaseRules::new(name),
-                server.require_id().unwrap(),
-                Arc::clone(&server.store),
-            )
+            .create_database(DatabaseRules::new(name), server.require_id().unwrap())
             .await
             .unwrap();
 
@@ -864,10 +894,52 @@ mod tests {
         let executor = server.executor();
         let physical_plan = planner
             .query(db, "select * from cpu", executor.as_ref())
+            .unwrap();
+
+        let batches = executor.collect(physical_plan).await.unwrap();
+        let expected = vec![
+            "+-----+------+",
+            "| bar | time |",
+            "+-----+------+",
+            "| 1   | 10   |",
+            "+-----+------+",
+        ];
+        assert_table_eq!(expected, &batches);
+    }
+
+    #[tokio::test]
+    async fn write_entry_local() {
+        let manager = TestConnectionManager::new();
+        let server = Server::new(manager, config());
+        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
+
+        let name = DatabaseName::new("foo".to_string()).unwrap();
+        server
+            .create_database(DatabaseRules::new(name), server.require_id().unwrap())
             .await
             .unwrap();
 
-        let batches = collect(physical_plan).await.unwrap();
+        let db_name = DatabaseName::new("foo").unwrap();
+        let db = server.db(&db_name).unwrap();
+
+        let line = "cpu bar=1 10";
+        let lines: Vec<_> = parse_lines(line).map(|l| l.unwrap()).collect();
+        let sharded_entries = lines_to_sharded_entries(&lines, NO_SHARD_CONFIG, &*db.rules.read())
+            .expect("sharded entries");
+
+        let entry = &sharded_entries[0].entry;
+        server
+            .write_entry("foo", entry.data().into())
+            .await
+            .expect("write entry");
+
+        let planner = SQLQueryPlanner::default();
+        let executor = server.executor();
+        let physical_plan = planner
+            .query(db, "select * from cpu", executor.as_ref())
+            .unwrap();
+
+        let batches = executor.collect(physical_plan).await.unwrap();
         let expected = vec![
             "+-----+------+",
             "| bar | time |",
@@ -882,8 +954,7 @@ mod tests {
     async fn close_chunk() {
         test_helpers::maybe_start_logging();
         let manager = TestConnectionManager::new();
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let server = Arc::new(Server::new(manager, store));
+        let server = Arc::new(Server::new(manager, config()));
 
         let cancel_token = CancellationToken::new();
         let background_handle = spawn_worker(Arc::clone(&server), cancel_token.clone());
@@ -895,7 +966,6 @@ mod tests {
             .create_database(
                 DatabaseRules::new(db_name.clone()),
                 server.require_id().unwrap(),
-                Arc::clone(&server.store),
             )
             .await
             .unwrap();
@@ -946,70 +1016,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn segment_persisted_on_rollover() {
-        let manager = TestConnectionManager::new();
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-
-        let server = Server::new(manager, Arc::clone(&store));
-        server.set_id(NonZeroU32::new(1).unwrap()).unwrap();
-        let db_name = DatabaseName::new("my_db").unwrap();
-        let rules = DatabaseRules {
-            name: db_name.clone(),
-            partition_template: Default::default(),
-            wal_buffer_config: Some(WalBufferConfig {
-                buffer_size: 500,
-                segment_size: 10,
-                buffer_rollover: WalBufferRollover::ReturnError,
-                store_segments: true,
-                close_segment_after: None,
-            }),
-            lifecycle_rules: Default::default(),
-            shard_config: None,
-        };
-        server
-            .create_database(
-                rules,
-                server.require_id().unwrap(),
-                Arc::clone(&server.store),
-            )
-            .await
-            .unwrap();
-
-        let lines = parsed_lines("disk,host=a used=10.1 12");
-        server.write_lines(db_name.as_str(), &lines).await.unwrap();
-
-        // write lines should have caused a segment rollover and persist, wait
-        tokio::task::yield_now().await;
-
-        let mut path = store.new_path();
-        path.push_all_dirs(&["1", "my_db", "wal", "000", "000"]);
-        path.set_file_name("001.segment");
-
-        let data = store
-            .get(&path)
-            .await
-            .unwrap()
-            .map_ok(|b| bytes::BytesMut::from(&b[..]))
-            .try_concat()
-            .await
-            .unwrap();
-
-        let segment = Segment::from_file_bytes(&data).unwrap();
-        assert_eq!(segment.writes.len(), 1);
-        let write = r#"
-writer:1, sequence:1, checksum:2741956553
-partition_key:
-  table:disk
-    host:a used:10.1 time:12
-"#;
-        assert_eq!(segment.writes[0].to_string(), write);
-    }
-
-    #[tokio::test]
     async fn background_task_cleans_jobs() {
         let manager = TestConnectionManager::new();
-        let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
-        let server = Arc::new(Server::new(manager, store));
+        let server = Arc::new(Server::new(manager, config()));
 
         let cancel_token = CancellationToken::new();
         let background_handle = spawn_worker(Arc::clone(&server), cancel_token.clone());
@@ -1057,24 +1066,22 @@ partition_key:
     }
 
     #[derive(Debug, Default)]
-    struct TestRemoteServer {
-        writes: Mutex<BTreeMap<String, Vec<ReplicatedWrite>>>,
-    }
+    struct TestRemoteServer {}
 
     #[async_trait]
     impl RemoteServer for TestRemoteServer {
         type Error = TestClusterError;
 
-        async fn replicate(
-            &self,
-            db: &str,
-            replicated_write: &ReplicatedWrite,
-        ) -> Result<(), Self::Error> {
-            let mut writes = self.writes.lock();
-            let entries = writes.entry(db.to_string()).or_insert_with(Vec::new);
-            entries.push(replicated_write.clone());
+        async fn write_entry(&self, _db: &str, _entry: Entry) -> Result<(), Self::Error> {
+            unimplemented!()
+        }
 
-            Ok(())
+        async fn write_sequenced_entry(
+            &self,
+            _db: &str,
+            _sequenced_entry: SequencedEntry,
+        ) -> Result<(), Self::Error> {
+            unimplemented!()
         }
     }
 

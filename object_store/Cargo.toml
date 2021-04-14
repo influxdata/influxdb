@@ -14,7 +14,7 @@ bytes = "1.0"
 chrono = "0.4"
 # Google Cloud Storage integration
 cloud-storage = "0.9.0"
-futures = "0.3.5"
+futures = "0.3"
 itertools = "0.9.0"
 percent-encoding = "2.1"
 # rusoto crates are for Amazon S3 integration

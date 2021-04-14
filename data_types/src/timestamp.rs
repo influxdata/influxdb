@@ -12,6 +12,7 @@ pub struct TimestampRange {
 
 impl TimestampRange {
     pub fn new(start: i64, end: i64) -> Self {
+        debug_assert!(end > start);
         Self { start, end }
     }
 
@@ -25,6 +26,12 @@ impl TimestampRange {
     /// Returns true if this range contains the value v
     pub fn contains_opt(&self, v: Option<i64>) -> bool {
         Some(true) == v.map(|ts| self.contains(ts))
+    }
+
+    #[inline]
+    /// Returns if this range is disjoint w.r.t the provided range
+    pub fn disjoint(&self, other: &Self) -> bool {
+        self.end <= other.start || self.start >= other.end
     }
 }
 
@@ -54,5 +61,19 @@ mod tests {
         assert!(!range.contains_opt(Some(201)));
 
         assert!(!range.contains_opt(None));
+    }
+
+    #[test]
+    fn test_disjoint() {
+        let r1 = TimestampRange::new(100, 200);
+        let r2 = TimestampRange::new(200, 300);
+        let r3 = TimestampRange::new(150, 250);
+
+        assert!(r1.disjoint(&r2));
+        assert!(r2.disjoint(&r1));
+        assert!(!r1.disjoint(&r3));
+        assert!(!r3.disjoint(&r1));
+        assert!(!r2.disjoint(&r3));
+        assert!(!r3.disjoint(&r2));
     }
 }

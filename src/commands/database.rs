@@ -105,6 +105,10 @@ struct Create {
     #[structopt(long)]
     drop_non_persisted: bool,
 
+    /// Persists chunks to object storage.
+    #[structopt(long)]
+    persist: bool,
+
     /// Do not allow writing new data to this database
     #[structopt(long)]
     immutable: bool,
@@ -173,6 +177,7 @@ pub async fn command(url: String, config: Config) -> Result<()> {
                     buffer_size_hard: command.buffer_size_hard as _,
                     sort_order: None, // Server-side default
                     drop_non_persisted: command.drop_non_persisted,
+                    persist: command.persist,
                     immutable: command.immutable,
                 }),
 

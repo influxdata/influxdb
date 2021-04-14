@@ -376,6 +376,29 @@ impl Chunk {
             .collect()
     }
 
+    /// A helper method for determining the time-range associated with the
+    /// specified table.
+    ///
+    /// A table's schema need not contain a column representing the time,
+    /// however any table that represents data using the InfluxDB model does
+    /// contain a column that represents the timestamp associated with each
+    /// row.
+    ///
+    /// `table_time_range` will return the min and max values for that column
+    /// if the table is using the InfluxDB data-model, otherwise it will return
+    /// `None`. An error will be returned if the table does not exist.
+    pub fn table_time_range(&self, table_name: &str) -> Result<Option<(i64, i64)>> {
+        // read lock on chunk.
+        let chunk_data = self.chunk_data.read().unwrap();
+
+        let table = chunk_data
+            .data
+            .get(table_name)
+            .context(TableNotFound { table_name })?;
+
+        Ok(table.time_range())
+    }
+
     /// Returns a schema object for a `read_filter` operation using the provided
     /// column selection. An error is returned if the specified columns do not
     /// exist.

@@ -20,6 +20,7 @@ pub struct LifecycleManager {
     db: Arc<Db>,
     db_name: String,
     move_task: Option<TaskTracker<Job>>,
+    write_task: Option<TaskTracker<Job>>,
 }
 
 impl LifecycleManager {
@@ -30,6 +31,7 @@ impl LifecycleManager {
             db,
             db_name,
             move_task: None,
+            write_task: None,
         }
     }
 
@@ -65,8 +67,14 @@ trait ChunkMover {
     /// Returns a boolean indicating if a move is in progress
     fn is_move_active(&self) -> bool;
 
+    /// Returns a boolean indicating if a write is in progress
+    fn is_write_active(&self) -> bool;
+
     /// Starts an operation to move a chunk to the read buffer
     fn move_to_read_buffer(&mut self, partition_key: String, chunk_id: u32);
+
+    /// Starts an operation to write a chunk to the object store
+    fn write_to_object_store(&mut self, partition_key: String, chunk_id: u32);
 
     /// Drops a chunk from the database
     fn drop_chunk(&mut self, partition_key: String, chunk_id: u32);
@@ -78,10 +86,11 @@ trait ChunkMover {
 
         let mut buffer_size = 0;
 
-        // Only want to start a new move task if there isn't one already in-flight
+        // Only want to start a new move/write task if there isn't one already in-flight
         //
         // Note: This does not take into account manually triggered tasks
         let mut move_active = self.is_move_active();
+        let mut write_active = self.is_write_active();
 
         // Iterate through the chunks to determine
         // - total memory consumption
@@ -90,33 +99,44 @@ trait ChunkMover {
         // TODO: Track size globally to avoid iterating through all chunks (#1100)
         for chunk in &chunks {
             let chunk_guard = chunk.upgradable_read();
+
             buffer_size += Self::chunk_size(&*chunk_guard);
 
-            if !move_active && can_move(&rules, &*chunk_guard, now) {
-                match chunk_guard.state() {
-                    ChunkState::Open(_) => {
-                        let mut chunk_guard = RwLockUpgradableReadGuard::upgrade(chunk_guard);
-                        chunk_guard.set_closing().expect("cannot close open chunk");
+            let would_move = !move_active && can_move(&rules, &*chunk_guard, now);
+            let would_write = !write_active && rules.persist;
 
-                        let partition_key = chunk_guard.key().to_string();
-                        let chunk_id = chunk_guard.id();
+            match chunk_guard.state() {
+                ChunkState::Open(_) if would_move => {
+                    let mut chunk_guard = RwLockUpgradableReadGuard::upgrade(chunk_guard);
+                    chunk_guard.set_closing().expect("cannot close open chunk");
 
-                        std::mem::drop(chunk_guard);
+                    let partition_key = chunk_guard.key().to_string();
+                    let chunk_id = chunk_guard.id();
 
-                        move_active = true;
-                        self.move_to_read_buffer(partition_key, chunk_id);
-                    }
-                    ChunkState::Closing(_) => {
-                        let partition_key = chunk_guard.key().to_string();
-                        let chunk_id = chunk_guard.id();
+                    std::mem::drop(chunk_guard);
 
-                        std::mem::drop(chunk_guard);
-
-                        move_active = true;
-                        self.move_to_read_buffer(partition_key, chunk_id);
-                    }
-                    _ => {}
+                    move_active = true;
+                    self.move_to_read_buffer(partition_key, chunk_id);
                 }
+                ChunkState::Closing(_) if would_move => {
+                    let partition_key = chunk_guard.key().to_string();
+                    let chunk_id = chunk_guard.id();
+
+                    std::mem::drop(chunk_guard);
+
+                    move_active = true;
+                    self.move_to_read_buffer(partition_key, chunk_id);
+                }
+                ChunkState::Moved(_) if would_write => {
+                    let partition_key = chunk_guard.key().to_string();
+                    let chunk_id = chunk_guard.id();
+
+                    std::mem::drop(chunk_guard);
+
+                    write_active = true;
+                    self.write_to_object_store(partition_key, chunk_id);
+                }
+                _ => {}
             }
 
             // TODO: Find and recover cancelled move jobs (#1099)
@@ -129,8 +149,9 @@ trait ChunkMover {
                 match chunks.next() {
                     Some(chunk) => {
                         let chunk_guard = chunk.read();
-                        if rules.drop_non_persisted
-                            || matches!(chunk_guard.state(), ChunkState::Moved(_))
+                        if (rules.drop_non_persisted
+                            && matches!(chunk_guard.state(), ChunkState::Moved(_)))
+                            || matches!(chunk_guard.state(), ChunkState::WrittenToObjectStore(_, _))
                         {
                             let partition_key = chunk_guard.key().to_string();
                             let chunk_id = chunk_guard.id();
@@ -169,11 +190,26 @@ impl ChunkMover for LifecycleManager {
             .unwrap_or(false)
     }
 
+    fn is_write_active(&self) -> bool {
+        self.write_task
+            .as_ref()
+            .map(|x| !x.is_complete())
+            .unwrap_or(false)
+    }
+
     fn move_to_read_buffer(&mut self, partition_key: String, chunk_id: u32) {
         info!(%partition_key, %chunk_id, "moving chunk to read buffer");
         self.move_task = Some(
             self.db
                 .load_chunk_to_read_buffer_in_background(partition_key, chunk_id),
+        )
+    }
+
+    fn write_to_object_store(&mut self, partition_key: String, chunk_id: u32) {
+        info!(%partition_key, %chunk_id, "write chunk to object store");
+        self.write_task = Some(
+            self.db
+                .write_chunk_to_object_store_in_background(partition_key, chunk_id),
         )
     }
 
@@ -251,9 +287,57 @@ mod tests {
         chunk
     }
 
+    /// Transitions a new ("open") chunk into the "moving" state.
+    fn transition_to_moving(mut chunk: Chunk) -> Chunk {
+        chunk.set_closing().unwrap();
+        chunk.set_moving().unwrap();
+        chunk
+    }
+
+    /// Transitions a new ("open") chunk into the "moved" state.
+    fn transition_to_moved(mut chunk: Chunk, rb: &Arc<read_buffer::Chunk>) -> Chunk {
+        chunk = transition_to_moving(chunk);
+        chunk.set_moved(Arc::clone(&rb)).unwrap();
+        chunk
+    }
+
+    /// Transitions a new ("open") chunk into the "writing to object store"
+    /// state.
+    fn transition_to_writing_to_object_store(
+        mut chunk: Chunk,
+        rb: &Arc<read_buffer::Chunk>,
+    ) -> Chunk {
+        chunk = transition_to_moved(chunk, rb);
+        chunk.set_writing_to_object_store().unwrap();
+        chunk
+    }
+
+    /// Transitions a new ("open") chunk into the "written to object store"
+    /// state.
+    fn transition_to_written_to_object_store(
+        mut chunk: Chunk,
+        rb: &Arc<read_buffer::Chunk>,
+    ) -> Chunk {
+        chunk = transition_to_writing_to_object_store(chunk, rb);
+        let parquet_chunk = new_parquet_chunk(&chunk);
+        chunk
+            .set_written_to_object_store(Arc::new(parquet_chunk))
+            .unwrap();
+        chunk
+    }
+
+    fn new_parquet_chunk(chunk: &Chunk) -> parquet_file::chunk::Chunk {
+        parquet_file::chunk::Chunk::new(
+            chunk.key().to_string(),
+            chunk.id(),
+            &tracker::MemRegistry::new(),
+        )
+    }
+
     #[derive(Debug, Eq, PartialEq)]
     enum MoverEvents {
         Move(u32),
+        Write(u32),
         Drop(u32),
     }
 
@@ -262,6 +346,7 @@ mod tests {
     struct DummyMover {
         rules: LifecycleRules,
         move_active: bool,
+        write_active: bool,
         chunks: Vec<Arc<RwLock<Chunk>>>,
         events: Vec<MoverEvents>,
     }
@@ -275,6 +360,7 @@ mod tests {
                     .map(|x| Arc::new(RwLock::new(x)))
                     .collect(),
                 move_active: false,
+                write_active: false,
                 events: vec![],
             }
         }
@@ -298,6 +384,10 @@ mod tests {
             self.move_active
         }
 
+        fn is_write_active(&self) -> bool {
+            self.write_active
+        }
+
         fn move_to_read_buffer(&mut self, _: String, chunk_id: u32) {
             let chunk = self
                 .chunks
@@ -308,7 +398,22 @@ mod tests {
             self.events.push(MoverEvents::Move(chunk_id))
         }
 
+        fn write_to_object_store(&mut self, _partition_key: String, chunk_id: u32) {
+            let chunk = self
+                .chunks
+                .iter()
+                .find(|x| x.read().id() == chunk_id)
+                .unwrap();
+            chunk.write().set_writing_to_object_store().unwrap();
+            self.events.push(MoverEvents::Write(chunk_id))
+        }
+
         fn drop_chunk(&mut self, _: String, chunk_id: u32) {
+            self.chunks = self
+                .chunks
+                .drain(..)
+                .filter(|x| x.read().id() != chunk_id)
+                .collect();
             self.events.push(MoverEvents::Drop(chunk_id))
         }
 
@@ -467,7 +572,56 @@ mod tests {
     }
 
     #[test]
-    fn test_buffer_size_soft() {
+    fn test_buffer_size_soft_drop_non_persisted() {
+        // test that chunk mover only drops moved and written chunks
+
+        // IMPORTANT: the lifecycle rules have the default `persist` flag (false) so NOT
+        // "write" events will be triggered
+        let rules = LifecycleRules {
+            buffer_size_soft: Some(NonZeroUsize::new(5).unwrap()),
+            drop_non_persisted: true,
+            ..Default::default()
+        };
+
+        let rb = Arc::new(read_buffer::Chunk::new_with_memory_tracker(
+            22,
+            &tracker::MemRegistry::new(),
+        ));
+
+        let chunks = vec![new_chunk(0, Some(0), Some(0))];
+
+        let mut mover = DummyMover::new(rules.clone(), chunks);
+
+        mover.check_for_work(from_secs(10));
+        assert_eq!(mover.events, vec![]);
+
+        let chunks = vec![
+            // two "open" chunks => they must not be dropped (yet)
+            new_chunk(0, Some(0), Some(0)),
+            new_chunk(1, Some(0), Some(0)),
+            // "moved" chunk => can be dropped because `drop_non_persistent=true`
+            transition_to_moved(new_chunk(2, Some(0), Some(0)), &rb),
+            // "writing" chunk => cannot be drop while write is in-progess
+            transition_to_writing_to_object_store(new_chunk(3, Some(0), Some(0)), &rb),
+            // "written" chunk => can be dropped
+            transition_to_written_to_object_store(new_chunk(4, Some(0), Some(0)), &rb),
+        ];
+
+        let mut mover = DummyMover::new(rules, chunks);
+
+        mover.check_for_work(from_secs(10));
+        assert_eq!(
+            mover.events,
+            vec![MoverEvents::Drop(2), MoverEvents::Drop(4)]
+        );
+    }
+
+    #[test]
+    fn test_buffer_size_soft_dont_drop_non_persisted() {
+        // test that chunk mover only drops written chunks
+
+        // IMPORTANT: the lifecycle rules have the default `persist` flag (false) so NOT
+        // "write" events will be triggered
         let rules = LifecycleRules {
             buffer_size_soft: Some(NonZeroUsize::new(5).unwrap()),
             ..Default::default()
@@ -485,21 +639,27 @@ mod tests {
         mover.check_for_work(from_secs(10));
         assert_eq!(mover.events, vec![]);
 
-        let mut chunks = vec![
+        let chunks = vec![
+            // two "open" chunks => they must not be dropped (yet)
             new_chunk(0, Some(0), Some(0)),
             new_chunk(1, Some(0), Some(0)),
-            new_chunk(2, Some(0), Some(0)),
+            // "moved" chunk => cannot be dropped because `drop_non_persistent=false`
+            transition_to_moved(new_chunk(2, Some(0), Some(0)), &rb),
+            // "writing" chunk => cannot be drop while write is in-progess
+            transition_to_writing_to_object_store(new_chunk(3, Some(0), Some(0)), &rb),
+            // "written" chunk => can be dropped
+            transition_to_written_to_object_store(new_chunk(4, Some(0), Some(0)), &rb),
         ];
-
-        chunks[2].set_closing().unwrap();
-        chunks[2].set_moving().unwrap();
-        chunks[2].set_moved(Arc::clone(&rb)).unwrap();
 
         let mut mover = DummyMover::new(rules, chunks);
 
         mover.check_for_work(from_secs(10));
-        assert_eq!(mover.events, vec![MoverEvents::Drop(2)]);
+        assert_eq!(mover.events, vec![MoverEvents::Drop(4)]);
+    }
 
+    #[test]
+    fn test_buffer_size_soft_no_op() {
+        // check that we don't drop anything if nothing is to drop
         let rules = LifecycleRules {
             buffer_size_soft: Some(NonZeroUsize::new(40).unwrap()),
             ..Default::default()
@@ -511,5 +671,34 @@ mod tests {
 
         mover.check_for_work(from_secs(10));
         assert_eq!(mover.events, vec![]);
+    }
+
+    #[test]
+    fn test_persist() {
+        let rules = LifecycleRules {
+            mutable_linger_seconds: Some(NonZeroU32::new(10).unwrap()),
+            persist: true,
+            ..Default::default()
+        };
+
+        let rb = Arc::new(read_buffer::Chunk::new_with_memory_tracker(
+            22,
+            &tracker::MemRegistry::new(),
+        ));
+
+        let chunks = vec![
+            // still moving => cannot write
+            transition_to_moving(new_chunk(0, Some(0), Some(0))),
+            // moved => write to object store
+            transition_to_moved(new_chunk(1, Some(0), Some(0)), &rb),
+            // moved, but there will be already a write in progress (previous chunk) => don't write
+            transition_to_moved(new_chunk(2, Some(0), Some(0)), &rb),
+        ];
+
+        let mut mover = DummyMover::new(rules, chunks);
+
+        mover.check_for_work(from_secs(0));
+
+        assert_eq!(mover.events, vec![MoverEvents::Write(1)]);
     }
 }

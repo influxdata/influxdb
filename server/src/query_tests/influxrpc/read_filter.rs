@@ -4,11 +4,11 @@ use crate::query_tests::scenarios::*;
 use arrow_deps::datafusion::logical_plan::{col, lit};
 use async_trait::async_trait;
 use query::{
-    exec::Executor,
     frontend::influxrpc::InfluxRPCPlanner,
     predicate::{Predicate, PredicateBuilder, EMPTY_PREDICATE},
 };
 
+#[derive(Debug)]
 pub struct TwoMeasurementsMultiSeries {}
 #[async_trait]
 impl DBSetup for TwoMeasurementsMultiSeries {
@@ -46,14 +46,12 @@ macro_rules! run_read_filter_test_case {
             println!("Running scenario '{}'", scenario_name);
             println!("Predicate: '{:#?}'", predicate);
             let planner = InfluxRPCPlanner::new();
-            let executor = Executor::new();
 
             let plan = planner
                 .read_filter(&db, predicate.clone())
-                .await
                 .expect("built plan successfully");
 
-            let string_results = run_series_set_plan(executor, plan).await;
+            let string_results = run_series_set_plan(db.executor(), plan).await;
 
             assert_eq!(
                 expected_results, string_results,
@@ -310,6 +308,7 @@ async fn test_read_filter_data_pred_unsupported_in_scan() {
     run_read_filter_test_case!(TwoMeasurementsMultiSeries {}, predicate, expected_results);
 }
 
+#[derive(Debug)]
 pub struct MeasurementsSortableTags {}
 #[async_trait]
 impl DBSetup for MeasurementsSortableTags {

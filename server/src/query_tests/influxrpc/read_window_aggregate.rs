@@ -1,14 +1,15 @@
 //! Tests for the Influx gRPC queries
-use crate::query_tests::{scenarios::*, utils::make_db};
+use crate::{
+    db::test_helpers::write_lp,
+    query_tests::{scenarios::*, utils::make_db},
+};
 
 use arrow_deps::{arrow::util::pretty::pretty_format_batches, datafusion::prelude::*};
 use async_trait::async_trait;
 use query::{
-    exec::Executor,
     frontend::influxrpc::InfluxRPCPlanner,
     group_by::{Aggregate, WindowDuration},
     predicate::{Predicate, PredicateBuilder},
-    test::TestLPWriter,
 };
 
 /// runs read_window_aggregate(predicate) and compares it to the expected
@@ -28,18 +29,17 @@ macro_rules! run_read_window_aggregate_test_case {
             println!("Running scenario '{}'", scenario_name);
             println!("Predicate: '{:#?}'", predicate);
             let planner = InfluxRPCPlanner::new();
-            let executor = Executor::new();
 
             let plans = planner
                 .read_window_aggregate(&db, predicate.clone(), agg, every.clone(), offset.clone())
-                .await
                 .expect("built plan successfully");
 
             let plans = plans.into_inner();
 
             let mut string_results = vec![];
             for plan in plans.into_iter() {
-                let batches = executor
+                let batches = db
+                    .executor()
                     .run_logical_plan(plan.plan)
                     .await
                     .expect("ok running plan");
@@ -162,18 +162,16 @@ impl DBSetup for MeasurementForWindowAggregateMonths {
         // "2020-04-02T00"]
 
         let db = make_db();
-        let mut writer = TestLPWriter::default();
         let data = lp_lines.join("\n");
-        writer.write_lp_string(&db, &data).unwrap();
+        write_lp(&db, &data);
         let scenario1 = DBScenario {
             scenario_name: "Data in 4 partitions, open chunks of mutable buffer".into(),
             db,
         };
 
         let db = make_db();
-        let mut writer = TestLPWriter::default();
         let data = lp_lines.join("\n");
-        writer.write_lp_string(&db, &data).unwrap();
+        write_lp(&db, &data);
         db.rollover_partition("2020-03-01T00").await.unwrap();
         db.rollover_partition("2020-03-02T00").await.unwrap();
         let scenario2 = DBScenario {
@@ -184,9 +182,8 @@ impl DBSetup for MeasurementForWindowAggregateMonths {
         };
 
         let db = make_db();
-        let mut writer = TestLPWriter::default();
         let data = lp_lines.join("\n");
-        writer.write_lp_string(&db, &data).unwrap();
+        write_lp(&db, &data);
         rollover_and_load(&db, "2020-03-01T00").await;
         rollover_and_load(&db, "2020-03-02T00").await;
         rollover_and_load(&db, "2020-04-01T00").await;
