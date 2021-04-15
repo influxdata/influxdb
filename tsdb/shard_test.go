@@ -1665,9 +1665,9 @@ func TestMeasurementFieldSet_ConcurrentSave(t *testing.T) {
 	}
 
 	mt := []string{"cpu", "dpu", "epu", "fpu"}
-	ft := make([][]string, len(mt), len(mt))
+	ft := make([][]string, len(mt))
 	for mi, m := range mt {
-		ft[mi] = make([]string, iterations, iterations)
+		ft[mi] = make([]string, iterations)
 		for i := 0; i < iterations; i += 1 {
 			ft[mi][i] = fmt.Sprintf("%s_%s_%d", m, "value", i)
 		}
