@@ -168,7 +168,7 @@ jobs:
       - rust_components # Regenerating flatbuffers uses rustfmt
       - run:
           name: Check Flatbuffers
-          command: ./generated_types/check-flatbuffers.sh
+          command: LOCAL=1 ./generated_types/check-flatbuffers.sh
 
   # Compile a cargo "release" profile binary for branches that end in `/perf`
   #
