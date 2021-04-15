@@ -153,3 +153,11 @@
   contact: Monitoring Team
   expose: true
   lifetime: temporary
+
+- name: Annotations UI
+  description: Management, display, and manual addition of Annotations from the UI
+  key: annotations
+  default: false
+  contact: Monitoring Team
+  lifetime: temporary
+  expose: true
