@@ -52,6 +52,7 @@ The prefix used for Prometheus metrics from the query controller has changed fro
 1. [21127](https://github.com/influxdata/influxdb/pull/21127): Allow for disabling concurrency-limits in Flux controller.
 1. [21158](https://github.com/influxdata/influxdb/pull/21158): Replace unique resource IDs (UI assets, backup shards) with slugs to reduce cardinality of telemetry data.
 1. [21235](https://github.com/influxdata/influxdb/pull/21235): HTTP server errors output logs following the standard format.
+1. [21218](https://github.com/influxdata/influxdb/pull/21218): Add the properties of a static legend for line graphs and band plots.
 
 ### Bug Fixes
 
