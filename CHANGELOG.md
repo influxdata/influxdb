@@ -17,6 +17,7 @@ v1.9.0 [unreleased]
 -	[#21100](https://github.com/influxdata/influxdb/pull/21100): feat: add memory and concurrency limits in flux controller
 -	[#21108](https://github.com/influxdata/influxdb/pull/21108): feat: make flux controller limits configurable
 -	[#21168](https://github.com/influxdata/influxdb/pull/21168): feat: implement rewrite rules for window and bare aggregates
+-	[#21229](https://github.com/influxdata/influxdb/pull/21229): feat: flux upgrade to v0.112.1
 
 ### Bugfixes
 
