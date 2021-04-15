@@ -75,7 +75,7 @@ The prefix used for Prometheus metrics from the query controller has changed fro
 1. [21048](https://github.com/influxdata/influxdb/pull/21048): Prevent concurrent access panic when gathering bolt metrics.
 1. [21144](https://github.com/influxdata/influxdb/pull/21144): Fix race condition in Flux controller shutdown.
 1. [21151](https://github.com/influxdata/influxdb/pull/21151): Use descending cursor when needed in window aggregate Flux queries.
-1. [21228](https://github.com/influxdata/influxdb/pull/21228): Reduce lock contention when adding new fields and measurements.
+1. [21230](https://github.com/influxdata/influxdb/pull/21230): Reduce lock contention when adding new fields and measurements.
 
 ## v2.0.4 [2021-02-08]
 ----------------------
