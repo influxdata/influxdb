@@ -1653,6 +1653,73 @@ func TestMeasurementFieldSet_InvalidFormat(t *testing.T) {
 	}
 }
 
+func TestMeasurementFieldSet_ConcurrentSave(t *testing.T) {
+	var iterations int
+	dir, cleanup := MustTempDir()
+	defer cleanup()
+
+	if testing.Short() {
+		iterations = 50
+	} else {
+		iterations = 200
+	}
+
+	mt := []string{"cpu", "dpu", "epu", "fpu"}
+	ft := make([][]string, len(mt))
+	for mi, m := range mt {
+		ft[mi] = make([]string, iterations)
+		for i := 0; i < iterations; i += 1 {
+			ft[mi][i] = fmt.Sprintf("%s_%s_%d", m, "value", i)
+		}
+	}
+
+	path := filepath.Join(dir, "fields.idx")
+	mfs, err := tsdb.NewMeasurementFieldSet(path)
+	if err != nil {
+		t.Fatalf("NewMeasurementFieldSet error: %v", err)
+	}
+	var wg sync.WaitGroup
+
+	wg.Add(len(ft))
+	for i, fs := range ft {
+		go testFieldMaker(t, &wg, mfs, mt[i], fs)
+	}
+	wg.Wait()
+
+	mfs2, err := tsdb.NewMeasurementFieldSet(path)
+	if err != nil {
+		t.Fatalf("NewMeasurementFieldSet error: %v", err)
+	}
+	for i, fs := range ft {
+		mf := mfs.Fields([]byte(mt[i]))
+		mf2 := mfs2.Fields([]byte(mt[i]))
+		for _, f := range fs {
+			if mf2.Field(f) == nil {
+				t.Fatalf("Created field not found on reloaded MeasurementFieldSet %s", f)
+			}
+			if mf.Field(f) == nil {
+				t.Fatalf("Created field not found in original MeasureMentFieldSet: %s", f)
+			}
+		}
+	}
+
+}
+
+func testFieldMaker(t *testing.T, wg *sync.WaitGroup, mf *tsdb.MeasurementFieldSet, measurement string, fieldNames []string) {
+	defer wg.Done()
+	fields := mf.CreateFieldsIfNotExists([]byte(measurement))
+	for _, fieldName := range fieldNames {
+		if err := fields.CreateFieldIfNotExists([]byte(fieldName), influxql.Float); err != nil {
+			t.Errorf("create field error: %v", err)
+			return
+		}
+		if err := mf.Save(); err != nil {
+			t.Errorf("save error: %v", err)
+			return
+		}
+	}
+}
+
 func BenchmarkWritePoints_NewSeries_1K(b *testing.B)   { benchmarkWritePoints(b, 38, 3, 3, 1) }
 func BenchmarkWritePoints_NewSeries_100K(b *testing.B) { benchmarkWritePoints(b, 32, 5, 5, 1) }
 func BenchmarkWritePoints_NewSeries_250K(b *testing.B) { benchmarkWritePoints(b, 80, 5, 5, 1) }
