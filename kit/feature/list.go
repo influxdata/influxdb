@@ -268,6 +268,20 @@ func TypeAheadDropdownsForVariables() BoolFlag {
 	return typeAheadVariableDropdown
 }
 
+var annotations = MakeBoolFlag(
+	"Annotations UI",
+	"annotations",
+	"Monitoring Team",
+	false,
+	Temporary,
+	true,
+)
+
+// AnnotationsUi - Management, display, and manual addition of Annotations from the UI
+func AnnotationsUi() BoolFlag {
+	return annotations
+}
+
 var all = []Flag{
 	appMetrics,
 	groupWindowAggregateTranspose,
@@ -288,6 +302,7 @@ var all = []Flag{
 	cursorAtEOF,
 	refreshSingleCell,
 	typeAheadVariableDropdown,
+	annotations,
 }
 
 var byKey = map[string]Flag{
@@ -310,4 +325,5 @@ var byKey = map[string]Flag{
 	"cursorAtEOF":                   cursorAtEOF,
 	"refreshSingleCell":             refreshSingleCell,
 	"typeAheadVariableDropdown":     typeAheadVariableDropdown,
+	"annotations":                   annotations,
 }
