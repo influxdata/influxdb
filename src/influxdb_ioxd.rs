@@ -18,6 +18,7 @@ use snafu::{ResultExt, Snafu};
 use std::{convert::TryFrom, fs, net::SocketAddr, path::PathBuf, sync::Arc};
 
 mod http;
+mod planner;
 mod rpc;
 
 #[derive(Debug, Snafu)]

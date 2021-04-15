@@ -10,6 +10,7 @@ pub mod seriesset;
 pub mod stringset;
 mod task;
 pub use context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
+use futures::Future;
 
 use std::sync::Arc;
 
@@ -86,8 +87,8 @@ pub enum Error {
         source: Box<SendError<Result<SeriesSetItem, SeriesSetError>>>,
     },
 
-    #[snafu(display("Joining execution task: {}", source))]
-    JoinError { source: ExecutorError },
+    #[snafu(display("Error joining execution task: {}", source))]
+    TaskJoinError { source: ExecutorError },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -209,7 +210,7 @@ impl Executor {
         // now, wait for all the values to resolve so we can report
         // any errors
         for join_handle in handles {
-            join_handle.await.context(JoinError)??;
+            join_handle.await.context(TaskJoinError)??;
         }
         Ok(())
     }
@@ -244,7 +245,7 @@ impl Executor {
         // collect them all up and combine them
         let mut results = Vec::new();
         for join_handle in handles {
-            let fieldlist = join_handle.await.context(JoinError)???;
+            let fieldlist = join_handle.await.context(TaskJoinError)???;
 
             results.push(fieldlist);
         }
@@ -295,10 +296,26 @@ impl Executor {
         // now, wait for all the values to resolve and collect them together
         let mut results = Vec::new();
         for join_handle in value_futures {
-            let mut plan_result = join_handle.await.context(JoinError)??;
+            let mut plan_result = join_handle.await.context(TaskJoinError)??;
             results.append(&mut plan_result);
         }
         Ok(results)
+    }
+
+    /// Runs the specified Future (and any tasks it spawns) on the
+    /// worker pool for this executor, returning the result of the
+    /// computation.
+    pub async fn run<T>(&self, task: T) -> Result<T::Output>
+    where
+        T: Future + Send + 'static,
+        T::Output: Send + 'static,
+    {
+        // run on the dedicated executor
+        self.exec
+            .spawn(task)
+            // wait on the *current* tokio executor
+            .await
+            .context(TaskJoinError)
     }
 }
 /// Create a SchemaPivot node which  an arbitrary input like

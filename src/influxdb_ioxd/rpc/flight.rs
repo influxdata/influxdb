@@ -22,9 +22,10 @@ use arrow_deps::{
     },
 };
 use data_types::{DatabaseName, DatabaseNameError};
-use query::{frontend::sql::SQLQueryPlanner, DatabaseStore};
 use server::{ConnectionManager, Server};
 use std::fmt::Debug;
+
+use super::super::planner::Planner;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -52,17 +53,16 @@ pub enum Error {
         source: Box<dyn std::error::Error + Send + Sync>,
     },
 
-    #[snafu(display("Error planning query {}: {}", query, source))]
-    PlanningSQLQuery {
-        query: String,
-        source: query::frontend::sql::Error,
-    },
-
     #[snafu(display("Invalid database name: {}", source))]
     InvalidDatabaseName { source: DatabaseNameError },
 
     #[snafu(display("Invalid RecordBatch: {}", source))]
     InvalidRecordBatch { source: ArrowError },
+
+    #[snafu(display("Error while planning query: {}", source))]
+    Planning {
+        source: super::super::planner::Error,
+    },
 }
 
 impl From<Error> for tonic::Status {
@@ -84,9 +84,9 @@ impl Error {
             Self::InvalidQuery { .. } => Status::invalid_argument(self.to_string()),
             Self::DatabaseNotFound { .. } => Status::not_found(self.to_string()),
             Self::Query { .. } => Status::internal(self.to_string()),
-            Self::PlanningSQLQuery { .. } => Status::invalid_argument(self.to_string()),
             Self::InvalidDatabaseName { .. } => Status::invalid_argument(self.to_string()),
             Self::InvalidRecordBatch { .. } => Status::internal(self.to_string()),
+            Self::Planning { .. } => Status::invalid_argument(self.to_string()),
         }
     }
 }
@@ -154,15 +154,12 @@ where
             database_name: &read_info.database_name,
         })?;
 
-        let planner = SQLQueryPlanner::default();
-        let executor = self.server.executor();
+        let executor = db.executor();
 
-        let physical_plan =
-            planner
-                .query(db, &read_info.sql_query, &executor)
-                .context(PlanningSQLQuery {
-                    query: &read_info.sql_query,
-                })?;
+        let physical_plan = Planner::new(Arc::clone(&executor))
+            .sql(db, &read_info.sql_query)
+            .await
+            .context(Planning)?;
 
         // execute the query
         let results = executor

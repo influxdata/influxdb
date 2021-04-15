@@ -513,7 +513,6 @@ impl InfluxRPCPlanner {
     /// The data is sorted on (tag_col1, tag_col2, ...) so that all
     /// rows for a particular series (groups where all tags are the
     /// same) occur together in the plan
-
     pub fn read_filter<D>(&self, database: &D, predicate: Predicate) -> Result<SeriesSetPlans>
     where
         D: Database + 'static,
@@ -917,7 +916,7 @@ impl InfluxRPCPlanner {
     ///     GroupBy(gby cols, aggs, time cols)
     ///       Filter(predicate)
     ///          Scan
-    pub fn read_group_plan<C>(
+    fn read_group_plan<C>(
         &self,
         table_name: impl Into<String>,
         predicate: &Predicate,
@@ -1007,7 +1006,7 @@ impl InfluxRPCPlanner {
     ///      GroupBy(gby: tag columns, window_function; agg: aggregate(field)
     ///        Filter(predicate)
     ///          Scan
-    pub fn read_window_aggregate_plan<C>(
+    fn read_window_aggregate_plan<C>(
         &self,
         table_name: impl Into<String>,
         predicate: &Predicate,
