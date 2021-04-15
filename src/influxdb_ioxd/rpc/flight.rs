@@ -170,9 +170,6 @@ where
             .context(Query {
                 database_name: &read_info.database_name,
             })?;
-        if results.is_empty() {
-            return Err(tonic::Status::internal("There were no results from ticket"));
-        }
 
         let options = arrow::ipc::writer::IpcWriteOptions::default();
         let schema = physical_plan.schema();
