@@ -16,6 +16,7 @@ v1.9.0 [unreleased]
 -	[#21074](https://github.com/influxdata/influxdb/pull/21074): feat: upgrade to flux 0.111.0
 -	[#21100](https://github.com/influxdata/influxdb/pull/21100): feat: add memory and concurrency limits in flux controller
 -	[#21108](https://github.com/influxdata/influxdb/pull/21108): feat: make flux controller limits configurable
+-	[#21226](https://github.com/influxdata/influxdb/pull/21226): feat: flux upgrade to v0.112.1
 
 ### Bugfixes
 
