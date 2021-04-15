@@ -8938,7 +8938,6 @@ components:
         - shape
         - axes
         - colors
-        - legend
         - note
         - showNoteWhenEmpty
         - position
@@ -8967,8 +8966,8 @@ components:
           type: boolean
         axes:
           $ref: "#/components/schemas/Axes"
-        legend:
-          $ref: "#/components/schemas/Legend"
+        staticLegend:
+          $ref: "#/components/schemas/StaticLegend"
         xColumn:
           type: string
         generateXAxisTicks:
@@ -9026,7 +9025,6 @@ components:
         - shape
         - axes
         - colors
-        - legend
         - note
         - showNoteWhenEmpty
       properties:
@@ -9054,8 +9052,8 @@ components:
           type: boolean
         axes:
           $ref: "#/components/schemas/Axes"
-        legend:
-          $ref: "#/components/schemas/Legend"
+        staticLegend:
+          $ref: "#/components/schemas/StaticLegend"
         xColumn:
           type: string
         generateXAxisTicks:
@@ -9110,7 +9108,6 @@ components:
         - shape
         - axes
         - colors
-        - legend
         - note
         - showNoteWhenEmpty
         - prefix
@@ -9142,8 +9139,8 @@ components:
           type: boolean
         axes:
           $ref: "#/components/schemas/Axes"
-        legend:
-          $ref: "#/components/schemas/Legend"
+        staticLegend:
+          $ref: "#/components/schemas/StaticLegend"
         xColumn:
           type: string
         generateXAxisTicks:
@@ -9520,7 +9517,6 @@ components:
         - tickPrefix
         - suffix
         - tickSuffix
-        - legend
         - decimalPlaces
       properties:
         type:
@@ -9551,8 +9547,6 @@ components:
           type: string
         tickSuffix:
           type: string
-        legend:
-          $ref: "#/components/schemas/Legend"
         decimalPlaces:
           $ref: "#/components/schemas/DecimalPlaces"
     HistogramViewProperties:
@@ -9630,7 +9624,6 @@ components:
           tickPrefix,
           suffix,
           tickSuffix,
-          legend,
           decimalPlaces,
         ]
       properties:
@@ -9662,8 +9655,6 @@ components:
           type: string
         tickSuffix:
           type: string
-        legend:
-          $ref: "#/components/schemas/Legend"
         decimalPlaces:
           $ref: "#/components/schemas/DecimalPlaces"
     TableViewProperties:
@@ -9955,25 +9946,25 @@ components:
           $ref: "#/components/schemas/Axis"
         "y": # Quoted to prevent YAML parser from interpreting y as shorthand for true.
           $ref: "#/components/schemas/Axis"
-    Legend:
-      description: Legend define encoding of data into a view's legend
+    StaticLegend:
+      description: The options specific to the static legend
       type: object
       properties:
-        type:
-          description: The style of the legend.
+        colorizeRows:
+          type: boolean
+        heightRatio:
+          type: number
+          format: float
+        opacity:
+          type: number
+          format: float
+        orientationThreshold:
+          type: integer
+        valueAxis:
           type: string
-          enum:
-            - static
-        orientation:
-          description: >-
-            orientation is the location of the legend with respect to the view
-            graph
-          type: string
-          enum:
-            - top
-            - bottom
-            - left
-            - right
+        widthRatio:
+          type: number
+          format: float
     DecimalPlaces:
       description: Indicates whether decimal places should be enforced, and how many digits it should show.
       type: object

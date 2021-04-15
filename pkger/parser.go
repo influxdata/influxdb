@@ -1513,12 +1513,16 @@ func (p *Template) parseChart(dashMetaName string, chartIdx int, r Resource) (*c
 		DetectCoordinateFields:     r.boolShort(fieldChartGeoDetectCoordinateFields),
 	}
 
-	if presLeg, ok := r[fieldChartLegend].(legend); ok {
-		c.Legend = presLeg
+	if presStaticLeg, ok := r[fieldChartStaticLegend].(StaticLegend); ok {
+		c.StaticLegend = presStaticLeg
 	} else {
-		if leg, ok := ifaceToResource(r[fieldChartLegend]); ok {
-			c.Legend.Type = leg.stringShort(fieldType)
-			c.Legend.Orientation = leg.stringShort(fieldLegendOrientation)
+		if staticLeg, ok := ifaceToResource(r[fieldChartStaticLegend]); ok {
+			c.StaticLegend.ColorizeRows = staticLeg.boolShort(fieldChartStaticLegendColorizeRows)
+			c.StaticLegend.HeightRatio = staticLeg.float64Short(fieldChartStaticLegendHeightRatio)
+			c.StaticLegend.Opacity = staticLeg.float64Short(fieldChartStaticLegendOpacity)
+			c.StaticLegend.OrientationThreshold = staticLeg.intShort(fieldChartStaticLegendOrientationThreshold)
+			c.StaticLegend.ValueAxis = staticLeg.stringShort(fieldChartStaticLegendValueAxis)
+			c.StaticLegend.WidthRatio = staticLeg.float64Short(fieldChartStaticLegendWidthRatio)
 		}
 	}
 

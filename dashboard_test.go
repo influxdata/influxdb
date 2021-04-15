@@ -44,7 +44,7 @@ func TestView_MarshalJSON(t *testing.T) {
     "queries": null,
     "axes": null,
     "type": "xy",
-    "legend": {},
+    "staticLegend": {},
     "geom": "",
     "colors": null,
     "note": "",

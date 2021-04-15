@@ -739,9 +739,13 @@ func convertCellView(cell influxdb.Cell) chart {
 		ch.Suffix = suffix
 	}
 
-	setLegend := func(l influxdb.Legend) {
-		ch.Legend.Orientation = l.Orientation
-		ch.Legend.Type = l.Type
+	setStaticLegend := func(sl influxdb.StaticLegend) {
+		ch.StaticLegend.ColorizeRows = sl.ColorizeRows
+		ch.StaticLegend.HeightRatio = sl.HeightRatio
+		ch.StaticLegend.Opacity = sl.Opacity
+		ch.StaticLegend.OrientationThreshold = sl.OrientationThreshold
+		ch.StaticLegend.ValueAxis = sl.ValueAxis
+		ch.StaticLegend.WidthRatio = sl.WidthRatio
 	}
 
 	props := cell.View.Properties
@@ -807,7 +811,8 @@ func convertCellView(cell influxdb.Cell) chart {
 	case influxdb.LinePlusSingleStatProperties:
 		setCommon(chartKindSingleStatPlusLine, p.ViewColors, p.DecimalPlaces, p.Queries)
 		setNoteFixes(p.Note, p.ShowNoteWhenEmpty, p.Prefix, p.Suffix)
-		setLegend(p.Legend)
+		ch.StaticLegend = StaticLegend{}
+		setStaticLegend(p.StaticLegend)
 		ch.Axes = convertAxes(p.Axes)
 		ch.Shade = p.ShadeBelow
 		ch.HoverDimension = p.HoverDimension
@@ -895,7 +900,8 @@ func convertCellView(cell influxdb.Cell) chart {
 	case influxdb.BandViewProperties:
 		setCommon(chartKindBand, p.ViewColors, influxdb.DecimalPlaces{}, p.Queries)
 		setNoteFixes(p.Note, p.ShowNoteWhenEmpty, "", "")
-		setLegend(p.Legend)
+		ch.StaticLegend = StaticLegend{}
+		setStaticLegend(p.StaticLegend)
 		ch.Axes = convertAxes(p.Axes)
 		ch.Geom = p.Geom
 		ch.HoverDimension = p.HoverDimension
@@ -918,7 +924,8 @@ func convertCellView(cell influxdb.Cell) chart {
 	case influxdb.XYViewProperties:
 		setCommon(chartKindXY, p.ViewColors, influxdb.DecimalPlaces{}, p.Queries)
 		setNoteFixes(p.Note, p.ShowNoteWhenEmpty, "", "")
-		setLegend(p.Legend)
+		ch.StaticLegend = StaticLegend{}
+		setStaticLegend(p.StaticLegend)
 		ch.Axes = convertAxes(p.Axes)
 		ch.Geom = p.Geom
 		ch.Shade = p.ShadeBelow
@@ -986,10 +993,6 @@ func convertChartToResource(ch chart) Resource {
 		r[fieldChartDecimalPlaces] = ch.DecimalPlaces
 	}
 
-	if ch.Legend.Type != "" {
-		r[fieldChartLegend] = ch.Legend
-	}
-
 	if len(ch.FillColumns) > 0 {
 		r[fieldChartFillColumns] = ch.FillColumns
 	}
@@ -1001,6 +1004,11 @@ func convertChartToResource(ch chart) Resource {
 	if len(ch.GenerateYAxisTicks) > 0 {
 		r[fieldChartGenerateYAxisTicks] = ch.GenerateYAxisTicks
 	}
+
+	if ch.StaticLegend.HeightRatio >= 0 && ch.StaticLegend.WidthRatio >= 0 {
+		r[fieldChartStaticLegend] = ch.StaticLegend
+	}
+
 	if len(ch.GeoLayers) > 0 {
 		geoLayers := make([]Resource, 0, len(ch.GeoLayers))
 		for _, l := range ch.GeoLayers {
@@ -1072,6 +1080,7 @@ func convertChartToResource(ch chart) Resource {
 		fieldChartNoteOnEmpty:               ch.NoteOnEmpty,
 		fieldChartShade:                     ch.Shade,
 		fieldChartLegendColorizeRows:        ch.LegendColorizeRows,
+		fieldChartStaticLegendColorizeRows:  ch.StaticLegend.ColorizeRows,
 		fieldChartGeoAllowPanAndZoom:        ch.AllowPanAndZoom,
 		fieldChartGeoDetectCoordinateFields: ch.DetectCoordinateFields,
 	})
@@ -1089,28 +1098,33 @@ func convertChartToResource(ch chart) Resource {
 		fieldChartTimeFormat:            ch.TimeFormat,
 		fieldChartHoverDimension:        ch.HoverDimension,
 		fieldChartYLabelColumnSeparator: ch.YLabelColumnSeparator,
+		fieldChartStaticLegendValueAxis: ch.StaticLegend.ValueAxis,
 		fieldChartGeoMapStyle:           ch.MapStyle,
 	})
 
 	assignNonZeroInts(r, map[string]int{
-		fieldChartXPos:                       ch.XPos,
-		fieldChartXTotalTicks:                ch.XTotalTicks,
-		fieldChartYPos:                       ch.YPos,
-		fieldChartYTotalTicks:                ch.YTotalTicks,
-		fieldChartBinCount:                   ch.BinCount,
-		fieldChartBinSize:                    ch.BinSize,
-		fieldChartLegendOrientationThreshold: ch.LegendOrientationThreshold,
+		fieldChartXPos:                             ch.XPos,
+		fieldChartXTotalTicks:                      ch.XTotalTicks,
+		fieldChartYPos:                             ch.YPos,
+		fieldChartYTotalTicks:                      ch.YTotalTicks,
+		fieldChartBinCount:                         ch.BinCount,
+		fieldChartBinSize:                          ch.BinSize,
+		fieldChartLegendOrientationThreshold:       ch.LegendOrientationThreshold,
+		fieldChartStaticLegendOrientationThreshold: ch.StaticLegend.OrientationThreshold,
 	})
 
 	assignNonZeroFloats(r, map[string]float64{
-		fieldChartLegendOpacity: ch.LegendOpacity,
-		fieldChartXTickStart:    ch.XTickStart,
-		fieldChartXTickStep:     ch.XTickStep,
-		fieldChartYTickStart:    ch.YTickStart,
-		fieldChartYTickStep:     ch.YTickStep,
-		fieldChartGeoCenterLon:  ch.Center.Lon,
-		fieldChartGeoCenterLat:  ch.Center.Lat,
-		fieldChartGeoZoom:       ch.Zoom,
+		fieldChartLegendOpacity:           ch.LegendOpacity,
+		fieldChartStaticLegendOpacity:     ch.StaticLegend.Opacity,
+		fieldChartStaticLegendHeightRatio: ch.StaticLegend.HeightRatio,
+		fieldChartStaticLegendWidthRatio:  ch.StaticLegend.WidthRatio,
+		fieldChartXTickStart:              ch.XTickStart,
+		fieldChartXTickStep:               ch.XTickStep,
+		fieldChartYTickStart:              ch.YTickStart,
+		fieldChartYTickStep:               ch.YTickStep,
+		fieldChartGeoCenterLon:            ch.Center.Lon,
+		fieldChartGeoCenterLat:            ch.Center.Lat,
+		fieldChartGeoZoom:                 ch.Zoom,
 	})
 
 	return r
