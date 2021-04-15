@@ -934,7 +934,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 	if !opts.ReportingDisabled {
 		m.runReporter(ctx)
 	}
-	if err := m.runHTTP(opts, httpHandler); err != nil {
+	if err := m.runHTTP(opts, httpHandler, httpLogger); err != nil {
 		return err
 	}
 
@@ -944,7 +944,7 @@ func (m *Launcher) run(ctx context.Context, opts *InfluxdOpts) (err error) {
 // runHTTP configures and launches a listener for incoming HTTP(S) requests.
 // The listener is run in a separate goroutine. If it fails to start up, it
 // will cancel the launcher.
-func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler) error {
+func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler, httpLogger *zap.Logger) error {
 	log := m.log.With(zap.String("service", "tcp-listener"))
 
 	m.httpServer = &nethttp.Server{
@@ -954,6 +954,7 @@ func (m *Launcher) runHTTP(opts *InfluxdOpts, handler nethttp.Handler) error {
 		ReadTimeout:       opts.HttpReadTimeout,
 		WriteTimeout:      opts.HttpWriteTimeout,
 		IdleTimeout:       opts.HttpIdleTimeout,
+		ErrorLog:          zap.NewStdLog(httpLogger),
 	}
 
 	ln, err := net.Listen("tcp", opts.HttpBindAddress)
