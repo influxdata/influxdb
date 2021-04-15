@@ -58,7 +58,7 @@ popd
 
 RUST_DIR="$DIR/src"
 while read -r FBS_FILE; do
-    echo "Compiling ${FBS_file}"
+    echo "Compiling ${FBS_FILE}"
     $FLATC --rust -o $RUST_DIR $FBS_FILE
 done < <(git ls-files $DIR/*.fbs)
 
