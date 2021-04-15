@@ -25,9 +25,6 @@ const (
 	ErrInvalidAxis                     = Error("Unexpected axis in cell. Valid axes are 'x', 'y', and 'y2'")
 	ErrInvalidColorType                = Error("Invalid color type. Valid color types are 'min', 'max', 'threshold', 'text', and 'background'")
 	ErrInvalidColor                    = Error("Invalid color. Accepted color format is #RRGGBB")
-	ErrInvalidLegend                   = Error("Invalid legend. Both type and orientation must be set")
-	ErrInvalidLegendType               = Error("Invalid legend type. Valid legend type is 'static'")
-	ErrInvalidLegendOrient             = Error("Invalid orientation type. Valid orientation types are 'top', 'bottom', 'right', 'left'")
 	ErrUserAlreadyExists               = Error("user already exists")
 	ErrOrganizationNotFound            = Error("organization not found")
 	ErrMappingNotFound                 = Error("mapping not found")
@@ -579,12 +576,6 @@ type CellColor struct {
 	Value string `json:"value"` // Value is the data value mapped to this color
 }
 
-// Legend represents the encoding of data into a legend
-type Legend struct {
-	Type        string `json:"type,omitempty"`
-	Orientation string `json:"orientation,omitempty"`
-}
-
 // DashboardCell holds visual and query information for a cell
 type DashboardCell struct {
 	ID            string           `json:"i"`
@@ -597,7 +588,6 @@ type DashboardCell struct {
 	Axes          map[string]Axis  `json:"axes"`
 	Type          string           `json:"type"`
 	CellColors    []CellColor      `json:"colors"`
-	Legend        Legend           `json:"legend"`
 	TableOptions  TableOptions     `json:"tableOptions,omitempty"`
 	FieldOptions  []RenamableField `json:"fieldOptions"`
 	TimeFormat    string           `json:"timeFormat"`
