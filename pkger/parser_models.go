@@ -1391,7 +1391,6 @@ type StaticLegend struct {
 }
 
 const (
-	fieldLegendOrientation = "orientation"
 	fieldChartStaticLegendColorizeRows         = "colorizeRows"
 	fieldChartStaticLegendHeightRatio          = "heightRatio"
 	fieldChartStaticLegendOpacity              = "opacity"
