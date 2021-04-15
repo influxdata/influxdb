@@ -22,5 +22,6 @@ pub mod partition_metadata;
 pub mod timestamp;
 pub mod wal;
 
+pub mod consistent_hasher;
 mod database_name;
 pub mod field_validation;
