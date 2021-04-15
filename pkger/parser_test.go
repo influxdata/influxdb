@@ -1356,6 +1356,12 @@ spec:
 						assert.Equal(t, true, props.LegendColorizeRows)
 						assert.Equal(t, 1.0, props.LegendOpacity)
 						assert.Equal(t, 5, props.LegendOrientationThreshold)
+						assert.Equal(t, true, props.StaticLegend.ColorizeRows)
+						assert.Equal(t, 0.2, props.StaticLegend.HeightRatio)
+						assert.Equal(t, 1.0, props.StaticLegend.Opacity)
+						assert.Equal(t, 5, props.StaticLegend.OrientationThreshold)
+						assert.Equal(t, "y", props.StaticLegend.ValueAxis)
+						assert.Equal(t, 1.0, props.StaticLegend.WidthRatio)
 
 						require.Len(t, props.ViewColors, 1)
 						c := props.ViewColors[0]
@@ -1866,8 +1872,6 @@ spec:
 						assert.Equal(t, "days", props.Suffix)
 						assert.Equal(t, "sumtin", props.Prefix)
 						assert.Equal(t, "overlaid", props.Position)
-						assert.Equal(t, "leg_type", props.Legend.Type)
-						assert.Equal(t, "horizontal", props.Legend.Orientation)
 						assert.Equal(t, []string{"xTotalTicks", "xTickStart", "xTickStep"}, props.GenerateXAxisTicks)
 						assert.Equal(t, 15, props.XTotalTicks)
 						assert.Equal(t, 0.0, props.XTickStart)
@@ -1879,6 +1883,12 @@ spec:
 						assert.Equal(t, true, props.LegendColorizeRows)
 						assert.Equal(t, 1.0, props.LegendOpacity)
 						assert.Equal(t, 5, props.LegendOrientationThreshold)
+						assert.Equal(t, true, props.StaticLegend.ColorizeRows)
+						assert.Equal(t, 0.2, props.StaticLegend.HeightRatio)
+						assert.Equal(t, 1.0, props.StaticLegend.Opacity)
+						assert.Equal(t, 5, props.StaticLegend.OrientationThreshold)
+						assert.Equal(t, "y", props.StaticLegend.ValueAxis)
+						assert.Equal(t, 1.0, props.StaticLegend.WidthRatio)
 
 						require.Len(t, props.Queries, 1)
 						q := props.Queries[0]
@@ -2346,6 +2356,12 @@ spec:
 						assert.Equal(t, true, props.LegendColorizeRows)
 						assert.Equal(t, 1.0, props.LegendOpacity)
 						assert.Equal(t, 5, props.LegendOrientationThreshold)
+						assert.Equal(t, true, props.StaticLegend.ColorizeRows)
+						assert.Equal(t, 0.2, props.StaticLegend.HeightRatio)
+						assert.Equal(t, 1.0, props.StaticLegend.Opacity)
+						assert.Equal(t, 5, props.StaticLegend.OrientationThreshold)
+						assert.Equal(t, "y", props.StaticLegend.ValueAxis)
+						assert.Equal(t, 1.0, props.StaticLegend.WidthRatio)
 
 						require.Len(t, props.Queries, 1)
 						q := props.Queries[0]
@@ -2423,7 +2439,7 @@ spec:
       width:  6
       height: 3
       position: stacked
-      legend:
+      staticLegend:
       queries:
         - query: >
             from(bucket: v.bucket)  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)  |> filter(fn: (r) => r._measurement == "boltdb_writes_total")  |> filter(fn: (r) => r._field == "counter")
