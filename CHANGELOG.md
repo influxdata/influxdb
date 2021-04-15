@@ -73,6 +73,7 @@ The prefix used for Prometheus metrics from the query controller has changed fro
 1. [20925](https://github.com/influxdata/influxdb/pull/20925): Fix parse error in UI for tag filters containing regex meta characters.
 1. [21042](https://github.com/influxdata/influxdb/pull/21042): Prevent concurrent access panic when gathering bolt metrics.
 1. [21127](https://github.com/influxdata/influxdb/pull/21127): Fix race condition in Flux controller shutdown.
+1. [21228](https://github.com/influxdata/influxdb/pull/21228): Reduce lock contention when adding new fields and measurements.
 
 ## v2.0.4 [2021-02-08]
 
