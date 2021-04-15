@@ -35,6 +35,12 @@ RUN curl -Lo bazel-4.0.0-installer-linux-x86_64.sh https://github.com/bazelbuild
   && ./bazel-4.0.0-installer-linux-x86_64.sh \
   && rm bazel-4.0.0-installer-linux-x86_64.sh
 
+# Install InfluxDB 2.0 OSS to enable integration tests of the influxdb2_client crate
+RUN curl -o influxdb2.tar.gz https://dl.influxdata.com/influxdb/releases/influxdb2-2.0.4-linux-amd64.tar.gz \
+  && tar xvzf influxdb2.tar.gz \
+  && sudo cp influxdb2-2.0.4-linux-amd64/influxd /usr/local/bin/ \
+  && rm -rf influxdb2-2.0.4-linux-amd64
+
 # Set timezone to UTC by default
 RUN ln -sf /usr/share/zoneinfo/Etc/UTC /etc/localtime
 # Use unicode
