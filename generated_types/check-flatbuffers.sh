@@ -6,13 +6,6 @@ pushd $DIR
 
 echo "Regenerating flatbuffers code..."
 
-# Will move this to docker if it works
-sudo apt install g++
-curl -Lo bazel-4.0.0-installer-linux-x86_64.sh https://github.com/bazelbuild/bazel/releases/download/4.0.0/bazel-4.0.0-installer-linux-x86_64.sh
-ls -lrta
-chmod +x bazel-4.0.0-installer-linux-x86_64.sh
-./bazel-4.0.0-installer-linux-x86_64.sh --user
-
 ./regenerate-flatbuffers.sh
 
 echo "Checking for uncommitted changes..."
