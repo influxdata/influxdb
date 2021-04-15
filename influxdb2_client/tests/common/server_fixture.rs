@@ -1,7 +1,7 @@
 use once_cell::sync::OnceCell;
 use std::{
     fs::File,
-    process::{Child, Command},
+    process::{Child, Command, Stdio},
     sync::{
         atomic::{AtomicUsize, Ordering::SeqCst},
         Arc, Weak,
@@ -13,17 +13,21 @@ use tokio::sync::Mutex;
 type Result<T = (), E = Box<dyn std::error::Error>> = std::result::Result<T, E>;
 
 #[macro_export]
-/// If InfluxDB 2.0 OSS is available in the PATH at `influxd`, set up the server
-/// as requested return it to the caller.
+/// If InfluxDB 2.0 OSS is available (either locally via `influxd` directly if
+/// the `LOCAL` environment variable is set, or via `docker` otherwise), set
+/// up the server as requested and return it to the caller.
 ///
-/// If `influxd` is not available, skip the calling test by returning
+/// If InfluxDB is not available, skip the calling test by returning
 /// early. Additionally if `TEST_INTEGRATION` is set, turn this early return
 /// into a panic to force a hard fail for skipped integration tests.
 macro_rules! maybe_skip_integration {
-    ($server_fixture:expr) => {
+    ($server_fixture:expr) => {{
+        let local = std::env::var("LOCAL").is_ok();
+        let command = if local { "influxd" } else { "docker" };
+
         match (
             std::process::Command::new("which")
-                .arg("influxd")
+                .arg(command)
                 .stdout(std::process::Stdio::null())
                 .status()
                 .expect("should be able to run `which`")
@@ -34,15 +38,16 @@ macro_rules! maybe_skip_integration {
             (false, true) => {
                 panic!(
                     "TEST_INTEGRATION is set which requires running integration tests, but \
-                     `influxd` is not available"
+                     `{}` is not available",
+                    command
                 )
             }
             _ => {
-                eprintln!("skipping integration test - install `influxd` to run");
+                eprintln!("skipping integration test - install `{}` to run", command);
                 return Ok(());
             }
         }
-    };
+    }};
 }
 
 /// Represents a server that has been started and is available for
@@ -72,7 +77,7 @@ impl ServerFixture {
             Some(server) => server,
             None => {
                 // if not, create one
-                let mut server = TestServer::new().expect("Could start test server");
+                let mut server = TestServer::new().expect("Starting of test server");
                 // ensure the server is ready
                 server.wait_until_ready(InitialConfig::Onboarded).await;
 
@@ -152,6 +157,8 @@ struct TestServer {
     ready: Mutex<ServerState>,
     /// Handle to the server process being controlled
     server_process: Child,
+    /// When using Docker, the ID of the detached child
+    docker_id: Option<String>,
     /// HTTP API base
     http_base: String,
     /// Admin token, if onboarding has happened
@@ -185,21 +192,65 @@ impl TestServer {
             .expect("cloning file handle for stdout");
         let stderr_log_file = log_file;
 
-        let server_process = Command::new("influxd")
-            .arg("--http-bind-address")
-            .arg(format!(":{}", http_port))
-            .arg("--bolt-path")
-            .arg(bolt_path)
-            .arg("--engine-path")
-            .arg(engine_path)
-            // redirect output to log file
-            .stdout(stdout_log_file)
-            .stderr(stderr_log_file)
-            .spawn()?;
+        let local = std::env::var("LOCAL").is_ok();
+
+        let (server_process, docker_id) = if local {
+            let cmd = Command::new("influxd")
+                .arg("--http-bind-address")
+                .arg(format!(":{}", http_port))
+                .arg("--bolt-path")
+                .arg(bolt_path)
+                .arg("--engine-path")
+                .arg(engine_path)
+                // redirect output to log file
+                .stdout(stdout_log_file)
+                .stderr(stderr_log_file)
+                .spawn()
+                .expect("starting of local server process");
+            (cmd, None)
+        } else {
+            let ci_image = "quay.io/influxdb/rust:bf4ea222";
+            let container_name = format!("influxdb2_{}", http_port);
+
+            let run_output = Command::new("docker")
+                .arg("run")
+                .arg("--name")
+                .arg(&container_name)
+                .arg("--publish")
+                .arg(format!("{}:8086", http_port))
+                .arg("--rm")
+                .arg("--pull")
+                .arg("always")
+                .arg("--detach")
+                .arg(&ci_image)
+                .arg("influxd")
+                .output()
+                .expect("starting of docker server process");
+
+            let stdout = String::from_utf8(run_output.stdout).expect("Output was not UTF-8");
+            let id = stdout
+                .trim()
+                .lines()
+                .next()
+                .expect("Must have at least one line of output")
+                .to_owned();
+
+            let cmd = Command::new("docker")
+                .arg("logs")
+                .arg(&id)
+                // redirect output to log file
+                .stdout(stdout_log_file)
+                .stderr(stderr_log_file)
+                .spawn()
+                .expect("starting of docker logs process");
+
+            (cmd, Some(id))
+        };
 
         Ok(Self {
             ready,
             server_process,
+            docker_id,
             http_base,
             admin_token: None,
         })
@@ -294,5 +345,15 @@ impl Drop for TestServer {
         self.server_process
             .kill()
             .expect("Should have been able to kill the test server");
+
+        if let Some(docker_id) = &self.docker_id {
+            Command::new("docker")
+                .arg("rm")
+                .arg("--force")
+                .arg(docker_id)
+                .stdout(Stdio::null())
+                .status()
+                .expect("killing of docker process");
+        }
     }
 }

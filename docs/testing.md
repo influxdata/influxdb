@@ -33,9 +33,14 @@ of `influxdb_iox run --help` for instructions.
 ## InfluxDB 2 Client
 
 The `influxdb2_client` crate may be used by people using InfluxDB 2.0 OSS, and should be compatible
-with both that and IOx. If you have `influxd` in your path, the integration tests for the
-`influxdb2_client` crate will run integration tests against `influxd`. If you do not have
-`influxd`, those tests will not be run and will silently pass.
+with both that and IOx. If you have `docker` in your path, the integration tests for the
+`influxdb2_client` crate will run integration tests against `influxd` running in a Docker
+container. If you do not have `docker`, by default, those tests will not be run and will silently
+pass.
+
+If you do not have and do not want to have Docker locally, but you do have `influxd` for InfluxDB
+2.0 locally, you can use that instead by running the tests with the environment variable `LOCAL=1`.
 
 To ensure you're running the `influxdb2_client` integration tests, you can run `TEST_INTEGRATION=1
-cargo test -p influxdb2_client`, which will fail the tests if `influxd` is not available.
+cargo test -p influxdb2_client`, which will fail the tests if `docker` (or `influxd`, if `LOCAL=1`
+is set) is not available.

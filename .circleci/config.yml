@@ -115,7 +115,7 @@ jobs:
       - cache_restore
       - run:
           name: Cargo test
-          command: TEST_INTEGRATION=1 cargo test -p influxdb2_client
+          command: TEST_INTEGRATION=1 LOCAL=1 cargo test -p influxdb2_client
       - cache_save
 
   # Build a dev binary.
