@@ -111,12 +111,6 @@ jobs:
         RUSTFLAGS: "-C debuginfo=1"
     steps:
       - checkout
-      - run:
-          name: Install InfluxDB 2.0 OSS
-          command: |
-              curl -o influxdb2.tar.gz https://dl.influxdata.com/influxdb/releases/influxdb2-2.0.4-linux-amd64.tar.gz
-              tar xvzf influxdb2.tar.gz
-              sudo cp influxdb2-2.0.4-linux-amd64/{influx,influxd} /usr/local/bin/
       - rust_components
       - cache_restore
       - run:
