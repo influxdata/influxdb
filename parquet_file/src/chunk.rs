@@ -2,9 +2,11 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use std::collections::BTreeSet;
 
 use crate::table::Table;
+use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 use data_types::{partition_metadata::TableSummary, timestamp::TimestampRange};
 use internal_types::{schema::Schema, selection::Selection};
 use object_store::path::Path;
+use query::predicate::Predicate;
 use tracker::{MemRegistry, MemTracker};
 
 use std::mem;
@@ -25,6 +27,17 @@ pub enum Error {
 
     #[snafu(display("Table '{}' not found in chunk {}", table_name, chunk_id))]
     NamedTableNotFoundInChunk { table_name: String, chunk_id: u64 },
+
+    #[snafu(display(
+        "Error read parquet file for table '{}', chunk {}",
+        table_name,
+        chunk_id
+    ))]
+    ReadParquet {
+        table_name: String,
+        chunk_id: u64,
+        source: crate::table::Error,
+    },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -162,5 +175,29 @@ impl Chunk {
             Ok(table) => table.column_names(selection),
             Err(_) => None,
         }
+    }
+
+    /// Return stream of data read from parquet file of the given table
+    pub fn read_filter(
+        &self,
+        table_name: &str,
+        predicate: &Predicate,
+        selection: Selection<'_>,
+    ) -> Result<SendableRecordBatchStream> {
+        let table = self
+            .tables
+            .iter()
+            .find(|t| t.has_table(table_name))
+            .context(NamedTableNotFoundInChunk {
+                table_name,
+                chunk_id: self.id(),
+            })?;
+
+        table
+            .read_filter(predicate, selection)
+            .context(ReadParquet {
+                table_name,
+                chunk_id: self.id(),
+            })
     }
 }

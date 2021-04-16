@@ -60,6 +60,14 @@ pub enum Path {
     MicrosoftAzure(CloudPath),
 }
 
+impl Path {
+    /// Temp function until we support non-local files
+    /// Return true if this file i located on the local filesystem
+    pub fn local_file(&self) -> bool {
+        matches!(self, Self::File(_))
+    }
+}
+
 impl ObjectStorePath for Path {
     fn set_file_name(&mut self, part: impl Into<String>) {
         match self {

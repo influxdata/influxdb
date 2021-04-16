@@ -2337,7 +2337,10 @@ dependencies = [
  "internal_types",
  "object_store",
  "parking_lot",
+ "query",
  "snafu",
+ "tokio",
+ "tokio-stream",
  "tracker",
 ]
 

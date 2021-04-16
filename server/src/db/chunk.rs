@@ -282,9 +282,11 @@ impl PartitionChunk for DBChunk {
                     schema.into(),
                 )))
             }
-            Self::ParquetFile { .. } => {
-                unimplemented!("parquet file not implemented for scan_data")
-            }
+            Self::ParquetFile { chunk, .. } => chunk
+                .read_filter(table_name, predicate, selection)
+                .context(ParquetFileChunkError {
+                    chunk_id: chunk.id(),
+                }),
         }
     }
 

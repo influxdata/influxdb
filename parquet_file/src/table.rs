@@ -1,9 +1,12 @@
 use snafu::{ResultExt, Snafu};
-use std::{collections::BTreeSet, mem};
+use std::{collections::BTreeSet, mem, sync::Arc};
 
+use crate::storage::{self, Storage};
+use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 use data_types::{partition_metadata::TableSummary, timestamp::TimestampRange};
 use internal_types::{schema::Schema, selection::Selection};
 use object_store::path::Path;
+use query::predicate::Predicate;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -11,6 +14,9 @@ pub enum Error {
     SelectColumns {
         source: internal_types::schema::Error,
     },
+
+    #[snafu(display("Failed to read parquet: {}", source))]
+    ReadParquet { source: storage::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -111,5 +117,21 @@ impl Table {
                 .collect(),
             Selection::All => fields.map(|x| x.name().clone()).collect(),
         })
+    }
+
+    /// Return stream of data read from parquet file for given predicate and
+    /// column selection
+    pub fn read_filter(
+        &self,
+        predicate: &Predicate,
+        selection: Selection<'_>,
+    ) -> Result<SendableRecordBatchStream> {
+        Storage::read_filter(
+            predicate,
+            selection,
+            Arc::clone(&self.table_schema.as_arrow()),
+            &self.object_store_path,
+        )
+        .context(ReadParquet)
     }
 }
