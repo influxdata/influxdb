@@ -383,9 +383,7 @@ impl Table {
                 }
                 Column::I64(vals, _) => {
                     if col.column_name == TIME_COLUMN_NAME {
-                        // TODO: there is no reason that this needs an owned copy of the Vec...
-                        // should file a ticket with arrow to add something to avoid the clone
-                        let array = TimestampNanosecondArray::from_opt_vec(vals.clone(), None);
+                        let array = TimestampNanosecondArray::from_iter(vals.iter());
                         Arc::new(array)
                     } else {
                         let array = Int64Array::from_iter(vals.iter());

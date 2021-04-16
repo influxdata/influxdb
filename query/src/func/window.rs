@@ -1,9 +1,9 @@
 mod internal;
 
 pub use internal::{Duration, Window};
-use internal_types::schema::{TIME_DATA_TIMEZONE, TIME_DATA_TYPE};
+use internal_types::schema::TIME_DATA_TYPE;
 
-use std::sync::Arc;
+use std::{iter::FromIterator, sync::Arc};
 
 use arrow_deps::{
     arrow::array::{ArrayRef, TimestampNanosecondArray},
@@ -56,17 +56,14 @@ fn window_bounds(
 
     // calculate the output times, one at a time, one element at a time
 
-    let values = time
-        .iter()
-        .map(|ts| {
-            ts.map(|ts| {
-                let bounds = window.get_earliest_bounds(ts);
-                bounds.stop
-            })
+    let values = time.iter().map(|ts| {
+        ts.map(|ts| {
+            let bounds = window.get_earliest_bounds(ts);
+            bounds.stop
         })
-        .collect::<Vec<_>>();
+    });
 
-    let array = TimestampNanosecondArray::from_opt_vec(values, TIME_DATA_TIMEZONE());
+    let array = TimestampNanosecondArray::from_iter(values);
     Ok(Arc::new(array) as ArrayRef)
 }
 
