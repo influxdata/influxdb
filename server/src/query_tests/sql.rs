@@ -188,12 +188,13 @@ async fn sql_select_from_information_schema_tables() {
         "+---------------+--------------------+------------+------------+",
         "| table_catalog | table_schema       | table_name | table_type |",
         "+---------------+--------------------+------------+------------+",
+        "| public        | information_schema | columns    | VIEW       |",
+        "| public        | information_schema | tables     | VIEW       |",
         "| public        | iox                | h2o        | BASE TABLE |",
         "| public        | iox                | o2         | BASE TABLE |",
         "| public        | system             | chunks     | BASE TABLE |",
         "| public        | system             | columns    | BASE TABLE |",
-        "| public        | information_schema | tables     | VIEW       |",
-        "| public        | information_schema | columns    | VIEW       |",
+        "| public        | system             | operations | BASE TABLE |",
         "+---------------+--------------------+------------+------------+",
     ];
     run_sql_test_case!(
@@ -209,37 +210,25 @@ async fn sql_select_from_information_schema_columns() {
     // validate we have access to information schema for listing columns
     // names
     let expected = vec![
-    "+---------------+--------------+------------+---------------------+------------------+----------------+-------------+-----------------------------+--------------------------+------------------------+-------------------+-------------------------+---------------+--------------------+---------------+",
-    "| table_catalog | table_schema | table_name | column_name         | ordinal_position | column_default | is_nullable | data_type                   | character_maximum_length | character_octet_length | numeric_precision | numeric_precision_radix | numeric_scale | datetime_precision | interval_type |",
-    "+---------------+--------------+------------+---------------------+------------------+----------------+-------------+-----------------------------+--------------------------+------------------------+-------------------+-------------------------+---------------+--------------------+---------------+",
-    "| public        | iox          | h2o        | city                | 0                |                | YES         | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
-    "| public        | iox          | h2o        | moisture            | 1                |                | YES         | Float64                     |                          |                        | 24                | 2                       |               |                    |               |",
-    "| public        | iox          | h2o        | other_temp          | 2                |                | YES         | Float64                     |                          |                        | 24                | 2                       |               |                    |               |",
-    "| public        | iox          | h2o        | state               | 3                |                | YES         | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
-    "| public        | iox          | h2o        | temp                | 4                |                | YES         | Float64                     |                          |                        | 24                | 2                       |               |                    |               |",
-    "| public        | iox          | h2o        | time                | 5                |                | NO          | Timestamp(Nanosecond, None) |                          |                        |                   |                         |               |                    |               |",
-    "| public        | iox          | o2         | city                | 0                |                | YES         | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
-    "| public        | iox          | o2         | reading             | 1                |                | YES         | Float64                     |                          |                        | 24                | 2                       |               |                    |               |",
-    "| public        | iox          | o2         | state               | 2                |                | YES         | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
-    "| public        | iox          | o2         | temp                | 3                |                | YES         | Float64                     |                          |                        | 24                | 2                       |               |                    |               |",
-    "| public        | iox          | o2         | time                | 4                |                | NO          | Timestamp(Nanosecond, None) |                          |                        |                   |                         |               |                    |               |",
-    "| public        | system       | chunks     | estimated_bytes     | 4                |                | YES         | UInt64                      |                          |                        |                   |                         |               |                    |               |",
-    "| public        | system       | chunks     | id                  | 0                |                | NO          | UInt32                      |                          |                        | 32                | 2                       |               |                    |               |",
-    "| public        | system       | chunks     | partition_key       | 1                |                | NO          | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
-    "| public        | system       | chunks     | storage             | 3                |                | NO          | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
-    "| public        | system       | chunks     | table_name          | 2                |                | NO          | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
-    "| public        | system       | chunks     | time_closing        | 7                |                | YES         | Timestamp(Nanosecond, None) |                          |                        |                   |                         |               |                    |               |",
-    "| public        | system       | chunks     | time_of_first_write | 5                |                | YES         | Timestamp(Nanosecond, None) |                          |                        |                   |                         |               |                    |               |",
-    "| public        | system       | chunks     | time_of_last_write  | 6                |                | YES         | Timestamp(Nanosecond, None) |                          |                        |                   |                         |               |                    |               |",
-    "| public        | system       | columns    | column_name         | 2                |                | YES         | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
-    "| public        | system       | columns    | count               | 3                |                | YES         | UInt64                      |                          |                        |                   |                         |               |                    |               |",
-    "| public        | system       | columns    | partition_key       | 0                |                | NO          | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
-    "| public        | system       | columns    | table_name          | 1                |                | YES         | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
-    "+---------------+--------------+------------+---------------------+------------------+----------------+-------------+-----------------------------+--------------------------+------------------------+-------------------+-------------------------+---------------+--------------------+---------------+",
+        "+---------------+--------------+------------+-------------+------------------+----------------+-------------+-----------------------------+--------------------------+------------------------+-------------------+-------------------------+---------------+--------------------+---------------+",
+        "| table_catalog | table_schema | table_name | column_name | ordinal_position | column_default | is_nullable | data_type                   | character_maximum_length | character_octet_length | numeric_precision | numeric_precision_radix | numeric_scale | datetime_precision | interval_type |",
+        "+---------------+--------------+------------+-------------+------------------+----------------+-------------+-----------------------------+--------------------------+------------------------+-------------------+-------------------------+---------------+--------------------+---------------+",
+        "| public        | iox          | h2o        | city        | 0                |                | YES         | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
+        "| public        | iox          | h2o        | moisture    | 1                |                | YES         | Float64                     |                          |                        | 24                | 2                       |               |                    |               |",
+        "| public        | iox          | h2o        | other_temp  | 2                |                | YES         | Float64                     |                          |                        | 24                | 2                       |               |                    |               |",
+        "| public        | iox          | h2o        | state       | 3                |                | YES         | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
+        "| public        | iox          | h2o        | temp        | 4                |                | YES         | Float64                     |                          |                        | 24                | 2                       |               |                    |               |",
+        "| public        | iox          | h2o        | time        | 5                |                | NO          | Timestamp(Nanosecond, None) |                          |                        |                   |                         |               |                    |               |",
+        "| public        | iox          | o2         | city        | 0                |                | YES         | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
+        "| public        | iox          | o2         | reading     | 1                |                | YES         | Float64                     |                          |                        | 24                | 2                       |               |                    |               |",
+        "| public        | iox          | o2         | state       | 2                |                | YES         | Utf8                        |                          | 2147483647             |                   |                         |               |                    |               |",
+        "| public        | iox          | o2         | temp        | 3                |                | YES         | Float64                     |                          |                        | 24                | 2                       |               |                    |               |",
+        "| public        | iox          | o2         | time        | 4                |                | NO          | Timestamp(Nanosecond, None) |                          |                        |                   |                         |               |                    |               |",
+        "+---------------+--------------+------------+-------------+------------------+----------------+-------------+-----------------------------+--------------------------+------------------------+-------------------+-------------------------+---------------+--------------------+---------------+",
     ];
     run_sql_test_case!(
         TwoMeasurementsManyFields {},
-        "SELECT * from information_schema.columns",
+        "SELECT * from information_schema.columns where table_name = 'h2o' OR table_name = 'o2'",
         &expected
     );
 }
@@ -268,7 +257,7 @@ async fn sql_show_columns() {
 }
 
 #[tokio::test]
-async fn sql_select_from_system_tables() {
+async fn sql_select_from_system_chunks() {
     // system tables reflect the state of chunks, so don't run them
     // with different chunk configurations.
 
@@ -288,6 +277,15 @@ async fn sql_select_from_system_tables() {
         "SELECT id, partition_key, table_name, storage, estimated_bytes from system.chunks",
         &expected
     );
+}
+
+#[tokio::test]
+async fn sql_select_from_system_columns() {
+    // system tables reflect the state of chunks, so don't run them
+    // with different chunk configurations.
+
+    //  ensures the tables / plumbing are hooked up (so no need to
+    //  test timestamps, etc)
 
     let expected = vec![
         "+---------------+------------+-------------+-------+",
@@ -308,6 +306,27 @@ async fn sql_select_from_system_tables() {
     run_sql_test_case!(
         TwoMeasurementsManyFieldsOneChunk {},
         "SELECT * from system.columns",
+        &expected
+    );
+}
+
+#[tokio::test]
+async fn sql_select_from_system_operations() {
+    test_helpers::maybe_start_logging();
+    let expected = vec![
+        "+----+-----------+-------------+---------------+----------+---------------------------------+",
+        "| id | took_time | db_name     | partition_key | chunk_id | description                     |",
+        "+----+-----------+-------------+---------------+----------+---------------------------------+",
+        "| 0  | true      | placeholder | 1970-01-01T00 | 0        | Loading chunk to ReadBuffer     |",
+        "| 1  | true      | placeholder | 1970-01-01T00 | 0        | Writing chunk to Object Storage |",
+        "+----+-----------+-------------+---------------+----------+---------------------------------+",
+    ];
+
+    // Check that the cpu time used reported is greater than zero as it isn't
+    // repeatable
+    run_sql_test_case!(
+        TwoMeasurementsManyFieldsLifecycle {},
+        "SELECT id, CAST(cpu_time_used AS BIGINT) > 0 as took_time, db_name, partition_key, chunk_id, description from system.operations",
         &expected
     );
 }

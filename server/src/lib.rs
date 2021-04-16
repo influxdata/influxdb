@@ -202,6 +202,12 @@ impl JobRegistry {
     pub fn register(&self, job: Job) -> (TaskTracker<Job>, TaskRegistration) {
         self.inner.lock().register(job)
     }
+
+    /// Returns a list of recent Jobs, including some that are no
+    /// longer running
+    pub fn tracked(&self) -> Vec<TaskTracker<Job>> {
+        self.inner.lock().tracked()
+    }
 }
 
 const STORE_ERROR_PAUSE_SECONDS: u64 = 100;

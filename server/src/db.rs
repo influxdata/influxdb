@@ -352,7 +352,8 @@ impl Db {
         let store = Arc::clone(&object_store);
         let write_buffer = write_buffer.map(Mutex::new);
         let catalog = Arc::new(Catalog::new());
-        let system_tables = Arc::new(SystemSchemaProvider::new(Arc::clone(&catalog)));
+        let system_tables = SystemSchemaProvider::new(Arc::clone(&catalog), Arc::clone(&jobs));
+        let system_tables = Arc::new(system_tables);
 
         let domain = metrics.register_domain("catalog");
         let db_metrics = DbMetrics {
@@ -366,7 +367,6 @@ impl Db {
                 metrics::KeyValue::new("svr_id", format!("{:?}", server_id)),
             ],
         };
-
         Self {
             rules,
             server_id,

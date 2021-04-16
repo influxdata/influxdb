@@ -1,5 +1,7 @@
 //! This module contains testing scenarios for Db
 
+use std::time::Duration;
+
 #[allow(unused_imports, dead_code, unused_macros)]
 use query::PartitionChunk;
 
@@ -188,6 +190,7 @@ impl DbSetup for TwoMeasurementsManyFields {
 }
 
 #[derive(Debug)]
+/// This has a single chunk for queries that check the state of the system
 pub struct TwoMeasurementsManyFieldsOneChunk {}
 #[async_trait]
 impl DbSetup for TwoMeasurementsManyFieldsOneChunk {
@@ -205,6 +208,55 @@ impl DbSetup for TwoMeasurementsManyFieldsOneChunk {
         write_lp(&db, &lp_lines.join("\n"));
         vec![DbScenario {
             scenario_name: "Data in open chunk of mutable buffer".into(),
+            db,
+        }]
+    }
+}
+
+#[derive(Debug)]
+/// This has a single scenario with all the life cycle operations to
+/// test queries that depend on that
+pub struct TwoMeasurementsManyFieldsLifecycle {}
+#[async_trait]
+impl DBSetup for TwoMeasurementsManyFieldsLifecycle {
+    async fn make(&self) -> Vec<DBScenario> {
+        let partition_key = "1970-01-01T00";
+
+        let db = std::sync::Arc::new(make_db());
+
+        write_lp(
+            &db,
+            &vec![
+                "h2o,state=MA,city=Boston temp=70.4 50",
+                "h2o,state=MA,city=Boston other_temp=70.4 250",
+            ]
+            .join("\n"),
+        );
+
+        // Use a background task to do the work note when I used
+        // TaskTracker::join, it ended up hanging for reasons I don't
+        // now
+        let job = db.load_chunk_to_read_buffer_in_background(partition_key.to_string(), 0);
+        assert_eq!(job.wait_for_complete(Duration::from_secs(3)).await, true);
+
+        write_lp(
+            &db,
+            &vec![
+                "h2o,state=CA,city=Boston other_temp=72.4 350",
+                "o2,state=MA,city=Boston temp=53.4,reading=51 50",
+                "o2,state=CA temp=79.0 300",
+            ]
+            .join("\n"),
+        );
+
+        let job = db.write_chunk_to_object_store_in_background(partition_key.to_string(), 0);
+        assert_eq!(job.wait_for_complete(Duration::from_secs(3)).await, true);
+
+        let db =
+            std::sync::Arc::try_unwrap(db).expect("All background handles to db should be done");
+
+        vec![DBScenario {
+            scenario_name: "Data in parquet, and MUB".into(),
             db,
         }]
     }

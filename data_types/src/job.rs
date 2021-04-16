@@ -113,6 +113,48 @@ impl From<management::operation_metadata::Job> for Job {
     }
 }
 
+impl Job {
+    /// Returns the database name assocated with this job, if any
+    pub fn db_name(&self) -> Option<&str> {
+        match self {
+            Self::Dummy { .. } => None,
+            Self::PersistSegment { .. } => None,
+            Self::CloseChunk { db_name, .. } => Some(db_name),
+            Self::WriteChunk { db_name, .. } => Some(db_name),
+        }
+    }
+
+    /// Returns the partition name assocated with this job, if any
+    pub fn partition_key(&self) -> Option<&str> {
+        match self {
+            Self::Dummy { .. } => None,
+            Self::PersistSegment { .. } => None,
+            Self::CloseChunk { partition_key, .. } => Some(partition_key),
+            Self::WriteChunk { partition_key, .. } => Some(partition_key),
+        }
+    }
+
+    /// Returns the chunk_id assocated with this job, if any
+    pub fn chunk_id(&self) -> Option<u32> {
+        match self {
+            Self::Dummy { .. } => None,
+            Self::PersistSegment { .. } => None,
+            Self::CloseChunk { chunk_id, .. } => Some(*chunk_id),
+            Self::WriteChunk { chunk_id, .. } => Some(*chunk_id),
+        }
+    }
+
+    /// Returns a human readable description assocated with this job, if any
+    pub fn description(&self) -> &str {
+        match self {
+            Self::Dummy { .. } => "Dummy Job, for testing",
+            Self::PersistSegment { .. } => "Persisting segment to Object Store",
+            Self::CloseChunk { .. } => "Loading chunk to ReadBuffer",
+            Self::WriteChunk { .. } => "Writing chunk to Object Storage",
+        }
+    }
+}
+
 /// The status of a running operation
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq)]
 pub enum OperationStatus {

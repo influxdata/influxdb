@@ -1,12 +1,16 @@
 use std::any::Any;
 use std::convert::AsRef;
+use std::iter::FromIterator;
 use std::sync::Arc;
 
 use chrono::{DateTime, Utc};
 
 use arrow_deps::{
     arrow::{
-        array::{Array, StringBuilder, TimestampNanosecondBuilder, UInt32Builder, UInt64Builder},
+        array::{
+            Array, StringArray, StringBuilder, Time64NanosecondArray, TimestampNanosecondBuilder,
+            UInt32Array, UInt32Builder, UInt64Builder,
+        },
         datatypes::{Field, Schema},
         error::Result,
         record_batch::RecordBatch,
@@ -16,24 +20,30 @@ use arrow_deps::{
         datasource::{MemTable, TableProvider},
     },
 };
-use data_types::{chunk::ChunkSummary, error::ErrorLogger, partition_metadata::PartitionSummary};
+use data_types::{
+    chunk::ChunkSummary, error::ErrorLogger, job::Job, partition_metadata::PartitionSummary,
+};
+use tracker::{TaskStatus, TaskTracker};
 
 use super::catalog::Catalog;
+use crate::JobRegistry;
 
 // The IOx system schema
 pub const SYSTEM_SCHEMA: &str = "system";
 
 const CHUNKS: &str = "chunks";
 const COLUMNS: &str = "columns";
+const OPERATIONS: &str = "operations";
 
 #[derive(Debug)]
 pub struct SystemSchemaProvider {
     catalog: Arc<Catalog>,
+    jobs: Arc<JobRegistry>,
 }
 
 impl SystemSchemaProvider {
-    pub fn new(catalog: Arc<Catalog>) -> Self {
-        Self { catalog }
+    pub fn new(catalog: Arc<Catalog>, jobs: Arc<JobRegistry>) -> Self {
+        Self { catalog, jobs }
     }
 }
 
@@ -43,7 +53,11 @@ impl SchemaProvider for SystemSchemaProvider {
     }
 
     fn table_names(&self) -> Vec<String> {
-        vec![CHUNKS.to_string(), COLUMNS.to_string()]
+        vec![
+            CHUNKS.to_string(),
+            COLUMNS.to_string(),
+            OPERATIONS.to_string(),
+        ]
     }
 
     fn table(&self, name: &str) -> Option<Arc<dyn TableProvider>> {
@@ -54,6 +68,9 @@ impl SchemaProvider for SystemSchemaProvider {
                 .ok()?,
             COLUMNS => from_partition_summaries(self.catalog.partition_summaries())
                 .log_if_error("chunks table")
+                .ok()?,
+            OPERATIONS => from_task_trackers(self.jobs.tracked())
+                .log_if_error("operations table")
                 .ok()?,
             _ => return None,
         };
@@ -185,6 +202,45 @@ fn from_partition_summaries(partitions: Vec<PartitionSummary>) -> Result<RecordB
             Arc::new(table_name),
             Arc::new(column_name),
             Arc::new(count),
+        ],
+    )
+}
+
+fn from_task_trackers(jobs: Vec<TaskTracker<Job>>) -> Result<RecordBatch> {
+    let ids = StringArray::from_iter(jobs.iter().map(|job| Some(job.id().to_string())));
+
+    let cpu_time_used =
+        Time64NanosecondArray::from_iter(jobs.iter().map(|job| match job.get_status() {
+            TaskStatus::Creating => None,
+            TaskStatus::Running { cpu_nanos, .. } => Some(cpu_nanos as i64),
+            TaskStatus::Complete { cpu_nanos, .. } => Some(cpu_nanos as i64),
+        }));
+
+    let db_names = StringArray::from_iter(jobs.iter().map(|job| job.metadata().db_name()));
+    let partition_keys =
+        StringArray::from_iter(jobs.iter().map(|job| job.metadata().partition_key()));
+    let chunk_ids = UInt32Array::from_iter(jobs.iter().map(|job| job.metadata().chunk_id()));
+    let descriptions =
+        StringArray::from_iter(jobs.iter().map(|job| Some(job.metadata().description())));
+
+    let schema = Schema::new(vec![
+        Field::new("id", ids.data_type().clone(), false),
+        Field::new("cpu_time_used", cpu_time_used.data_type().clone(), true),
+        Field::new("db_name", db_names.data_type().clone(), true),
+        Field::new("partition_key", partition_keys.data_type().clone(), true),
+        Field::new("chunk_id", chunk_ids.data_type().clone(), true),
+        Field::new("description", descriptions.data_type().clone(), true),
+    ]);
+
+    RecordBatch::try_new(
+        Arc::new(schema),
+        vec![
+            Arc::new(ids),
+            Arc::new(cpu_time_used),
+            Arc::new(db_names),
+            Arc::new(partition_keys),
+            Arc::new(chunk_ids),
+            Arc::new(descriptions),
         ],
     )
 }
