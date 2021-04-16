@@ -153,6 +153,19 @@ pub enum LogicalDataType {
     Boolean,  //
 }
 
+impl Display for LogicalDataType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Integer => write!(f, "INT"),
+            Self::Unsigned => write!(f, "UINT"),
+            Self::Float => write!(f, "FLOAT"),
+            Self::String => write!(f, "UTF8"),
+            Self::Binary => write!(f, "BIN"),
+            Self::Boolean => write!(f, "BOOL"),
+        }
+    }
+}
+
 impl From<&LogicalDataType> for arrow::datatypes::DataType {
     fn from(logical_type: &LogicalDataType) -> Self {
         match logical_type {
