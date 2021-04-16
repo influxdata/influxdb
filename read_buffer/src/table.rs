@@ -3,21 +3,26 @@ use std::{
     convert::TryInto,
     fmt::Display,
     sync::Arc,
-    sync::RwLock,
 };
+
+use parking_lot::RwLock;
+use snafu::{ensure, Snafu};
 
 use arrow_deps::arrow::record_batch::RecordBatch;
 use data_types::partition_metadata::TableSummary;
 use internal_types::selection::Selection;
-use snafu::{ensure, Snafu};
 
 use crate::row_group::{self, ColumnName, Predicate, RowGroup};
 use crate::schema::{AggregateType, ColumnType, LogicalDataType, ResultSchema};
-use crate::value::Value;
+use crate::value::{OwnedValue, Scalar, Value};
+
 #[derive(Debug, Snafu)]
 pub enum Error {
     #[snafu(display("cannot drop last row group in table; drop table"))]
     EmptyTableError {},
+
+    #[snafu(display("table does not have InfluxDB timestamp column"))]
+    NoTimestampColumnError {},
 
     #[snafu(display("unsupported column operation on {}: {}", column_name, msg))]
     UnsupportedColumnOperation { msg: String, column_name: String },
@@ -83,7 +88,7 @@ impl Table {
 
     /// Add a new row group to this table.
     pub fn add_row_group(&mut self, rg: RowGroup) {
-        let mut row_groups = self.table_data.write().unwrap();
+        let mut row_groups = self.table_data.write();
 
         // `meta` can't be modified whilst protected by an Arc so create a new one.
         row_groups.meta = Arc::new(MetaData::update_with(
@@ -103,7 +108,7 @@ impl Table {
     /// To drop the last row group from the table, the caller should instead
     /// drop the table.
     pub fn drop_row_group(&mut self, position: usize) -> Result<()> {
-        let mut row_groups = self.table_data.write().unwrap();
+        let mut row_groups = self.table_data.write();
 
         // Tables must always have at least one row group.
         ensure!(row_groups.data.len() > 1, EmptyTableError);
@@ -121,51 +126,80 @@ impl Table {
 
     /// Determines if this table contains no row groups.
     pub fn is_empty(&self) -> bool {
-        self.table_data.read().unwrap().data.is_empty()
+        self.table_data.read().data.is_empty()
     }
 
     /// The total number of row groups within this table.
     pub fn len(&self) -> usize {
-        self.table_data.read().unwrap().data.len()
+        self.table_data.read().data.len()
     }
 
     /// The total size of the table in bytes.
     pub fn size(&self) -> usize {
         let base_size = std::mem::size_of::<Self>() + self.name.len();
         // meta.size accounts for all the row group data.
-        base_size + self.table_data.read().unwrap().meta.size()
+        base_size + self.table_data.read().meta.size()
     }
 
     // Returns the total number of row groups in this table.
     pub fn row_groups(&self) -> usize {
-        self.table_data.read().unwrap().data.len()
+        self.table_data.read().data.len()
     }
 
     /// The number of rows in this table.
     pub fn rows(&self) -> u64 {
-        self.table_data.read().unwrap().meta.rows
+        self.table_data.read().meta.rows
     }
 
     /// Return a summary of all columns in this table
     pub fn table_summary(&self) -> TableSummary {
-        self.table_data.read().unwrap().meta.to_summary(&self.name)
+        self.table_data.read().meta.to_summary(&self.name)
     }
 
-    /// The time range of all row groups within this table.
+    /// Returns the column range associated with an InfluxDB Timestamp column
+    /// or None if the table's schema does not have such a column.
     pub fn time_range(&self) -> Option<(i64, i64)> {
-        self.table_data.read().unwrap().meta.time_range
+        let table_data = self.table_data.read();
+
+        let time_column = table_data
+            .meta
+            .columns
+            .values()
+            .filter(|cm| matches!(cm.typ, crate::schema::ColumnType::Timestamp(_)))
+            .collect::<Vec<_>>();
+
+        if time_column.is_empty() {
+            return None;
+        }
+
+        assert_eq!(time_column.len(), 1); // can only be one timestamp column.
+        let range = &time_column[0].range;
+
+        let (min, max) = match (&range.0, &range.1) {
+            (OwnedValue::Scalar(Scalar::I64(min)), OwnedValue::Scalar(Scalar::I64(max))) => {
+                (min, max)
+            }
+            (min, max) => {
+                panic!(
+                    "invalid range type for timestamp column: ({:?}, {:?})",
+                    min, max
+                );
+            }
+        };
+
+        Some((*min, *max))
     }
 
     // Helper function used in tests.
     // Returns an immutable reference to the table's current meta data.
     pub fn meta(&self) -> Arc<MetaData> {
-        Arc::clone(&self.table_data.read().unwrap().meta)
+        Arc::clone(&self.table_data.read().meta)
     }
 
     /// Determines if one of more row groups in the `Table` could possibly
     /// contain one or more rows that satisfy the provided predicate.
     pub fn could_pass_predicate(&self, predicate: &Predicate) -> bool {
-        let table_data = self.table_data.read().unwrap();
+        let table_data = self.table_data.read();
 
         table_data.data.iter().any(|row_group| {
             row_group.could_satisfy_conjunctive_binary_expressions(predicate.iter())
@@ -180,7 +214,7 @@ impl Table {
     // N.B the table read lock is only held as long as it takes to determine
     // with meta data whether each row group may satisfy the predicate.
     fn filter_row_groups(&self, predicate: &Predicate) -> (Arc<MetaData>, Vec<Arc<RowGroup>>) {
-        let table_data = self.table_data.read().unwrap();
+        let table_data = self.table_data.read();
         let mut row_groups = Vec::with_capacity(table_data.data.len());
 
         'rowgroup: for rg in table_data.data.iter() {
@@ -371,7 +405,7 @@ impl Table {
         columns: Selection<'_>,
         mut dst: BTreeSet<String>,
     ) -> BTreeSet<String> {
-        let table_data = self.table_data.read().unwrap();
+        let table_data = self.table_data.read();
 
         // Short circuit execution if we have already got all of this table's
         // columns in the results.
@@ -435,7 +469,7 @@ impl Table {
     pub fn satisfies_predicate(&self, predicate: &Predicate) -> bool {
         // Get a snapshot of the table data under a read lock.
         let (meta, row_groups) = {
-            let table_data = self.table_data.read().unwrap();
+            let table_data = self.table_data.read();
             (Arc::clone(&table_data.meta), table_data.data.to_vec())
         };
 
@@ -612,7 +646,6 @@ impl MetaData {
     }
 
     pub fn to_summary(&self, table_name: impl Into<String>) -> TableSummary {
-        use crate::value::{OwnedValue, Scalar};
         use data_types::partition_metadata::{ColumnSummary, StatValues, Statistics};
         let columns = self
             .columns
@@ -1434,5 +1467,21 @@ west,host-b,100
             dst.iter().cloned().collect::<Vec<_>>(),
             vec!["time".to_owned()],
         );
+    }
+
+    #[test]
+    fn time_range() {
+        // Build a row group.
+        let mut columns = vec![];
+        let tc = ColumnType::Time(Column::from(&[-29_i64, -100, 3, 2][..]));
+        columns.push((row_group::TIME_COLUMN_NAME.to_string(), tc));
+
+        let rc = ColumnType::Tag(Column::from(&["west", "south", "north", "west"][..]));
+        columns.push(("region".to_string(), rc));
+
+        let rg = RowGroup::new(4, columns);
+        let table = Table::new("cpu".to_owned(), rg);
+
+        assert_eq!(table.time_range().unwrap(), (-100, 3));
     }
 }

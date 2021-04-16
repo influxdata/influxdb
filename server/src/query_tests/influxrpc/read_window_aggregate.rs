@@ -7,7 +7,6 @@ use crate::{
 use arrow_deps::{arrow::util::pretty::pretty_format_batches, datafusion::prelude::*};
 use async_trait::async_trait;
 use query::{
-    exec::Executor,
     frontend::influxrpc::InfluxRPCPlanner,
     group_by::{Aggregate, WindowDuration},
     predicate::{Predicate, PredicateBuilder},
@@ -30,7 +29,6 @@ macro_rules! run_read_window_aggregate_test_case {
             println!("Running scenario '{}'", scenario_name);
             println!("Predicate: '{:#?}'", predicate);
             let planner = InfluxRPCPlanner::new();
-            let executor = Executor::new(1);
 
             let plans = planner
                 .read_window_aggregate(&db, predicate.clone(), agg, every.clone(), offset.clone())
@@ -40,7 +38,8 @@ macro_rules! run_read_window_aggregate_test_case {
 
             let mut string_results = vec![];
             for plan in plans.into_iter() {
-                let batches = executor
+                let batches = db
+                    .executor()
                     .run_logical_plan(plan.plan)
                     .await
                     .expect("ok running plan");

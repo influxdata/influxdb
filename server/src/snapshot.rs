@@ -279,7 +279,7 @@ mod tests {
     use futures::TryStreamExt;
     use mutable_buffer::chunk::Chunk as ChunkWB;
     use object_store::memory::InMemory;
-    use query::Database;
+    use query::{exec::Executor, Database};
     use tracker::MemRegistry;
 
     #[tokio::test]
@@ -391,11 +391,13 @@ mem,host=A,region=west used=45 1
     pub fn make_db() -> Db {
         let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server_id = std::num::NonZeroU32::new(1).unwrap();
+        let exec = Arc::new(Executor::new(1));
 
         Db::new(
             DatabaseRules::new(DatabaseName::new("placeholder").unwrap()),
             server_id,
             object_store,
+            exec,
             None, // wal buffer
             Arc::new(JobRegistry::new()),
         )

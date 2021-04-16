@@ -19,7 +19,7 @@ message ShardConfig {
   /// and your ring has 4 slots. If two tables that are very hot get
   /// assigned to the same slot you can override that by putting in a
   /// specific matcher to pull that table over to a different node.
-  MatcherToTargets specific_targets = 1;
+  MatcherToShard specific_targets = 1;
 
   /// An optional default hasher which will route to one in a collection of
   /// nodes.
@@ -29,13 +29,17 @@ message ShardConfig {
   /// targets in this route. That is, the write request will succeed
   /// regardless of this route's success.
   bool ignore_errors = 3;
+
+  /// Mapping between shard IDs and node groups. Other sharding rules use
+  /// ShardId as targets.
+  map<uint32, NodeGroup> shards = 4;
 }
 
-// Maps a matcher with specific target group. If the line/row matches
+// Maps a matcher with specific shard. If the line/row matches
 // it should be sent to the group.
-message MatcherToTargets {
+message MatcherToShard {
   Matcher matcher = 1;
-  NodeGroup target = 2;
+  uint32 shard = 2;
 }
 
 /// A matcher is used to match routing rules or subscriptions on a row-by-row
@@ -62,6 +66,6 @@ message HashRing {
   bool table_name = 1;
   // include the values of these columns in the hash key
   repeated string columns = 2;
-  // ring of node groups. Each group holds a shard
-  repeated NodeGroup node_groups = 3;
+  // ring of shards.
+  repeated uint32 shards = 3;
 }

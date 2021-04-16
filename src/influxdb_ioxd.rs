@@ -18,6 +18,7 @@ use snafu::{ResultExt, Snafu};
 use std::{convert::TryFrom, fs, net::SocketAddr, path::PathBuf, sync::Arc};
 
 mod http;
+mod planner;
 mod rpc;
 
 #[derive(Debug, Snafu)]
@@ -69,6 +70,9 @@ pub enum Error {
     // don't return `Result`.
     #[snafu(display("Amazon S3 configuration was invalid: {}", source))]
     InvalidS3Config { source: object_store::aws::Error },
+
+    #[snafu(display("cannot load database config: {}", source))]
+    LoadDatabaseConfig { source: server::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -146,12 +150,10 @@ pub async fn main(logging_level: LoggingLevel, config: Config) -> Result<()> {
     // call
     if let Some(id) = config.writer_id {
         app_server.set_id(id).expect("writer id already set");
-        if let Err(e) = app_server.load_database_configs().await {
-            error!(
-                "unable to load database configurations from object storage: {}",
-                e
-            )
-        }
+        app_server
+            .load_database_configs()
+            .await
+            .context(LoadDatabaseConfig)?;
     } else {
         warn!("server ID not set. ID must be set via the INFLUXDB_IOX_ID config or API before writing or querying data.");
     }

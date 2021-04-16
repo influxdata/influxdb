@@ -4,7 +4,7 @@ use data_types::{
     DatabaseName,
 };
 use object_store::{memory::InMemory, ObjectStore};
-use query::Database;
+use query::{exec::Executor, Database};
 
 use crate::{db::Db, JobRegistry};
 use std::{num::NonZeroU32, sync::Arc};
@@ -13,21 +13,25 @@ use std::{num::NonZeroU32, sync::Arc};
 pub fn make_db() -> Db {
     let server_id: NonZeroU32 = NonZeroU32::new(1).unwrap();
     let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
+    let exec = Arc::new(Executor::new(1));
 
     Db::new(
         DatabaseRules::new(DatabaseName::new("placeholder").unwrap()),
         server_id,
         object_store,
+        exec,
         None, // wal buffer
         Arc::new(JobRegistry::new()),
     )
 }
 
 pub fn make_database(server_id: NonZeroU32, object_store: Arc<ObjectStore>, db_name: &str) -> Db {
+    let exec = Arc::new(Executor::new(1));
     Db::new(
         DatabaseRules::new(DatabaseName::new(db_name.to_string()).unwrap()),
         server_id,
         object_store,
+        exec,
         None, // wal buffer
         Arc::new(JobRegistry::new()),
     )

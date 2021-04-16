@@ -84,7 +84,7 @@ use data_types::{
 };
 use influxdb_line_protocol::ParsedLine;
 use internal_types::{
-    entry::{self, lines_to_sharded_entries, Entry},
+    entry::{self, lines_to_sharded_entries, Entry, ShardedEntry},
     once::OnceNonZeroU32,
 };
 use object_store::{path::ObjectStorePath, ObjectStore, ObjectStoreApi};
@@ -99,7 +99,9 @@ use crate::{
     },
     db::Db,
 };
+use data_types::database_rules::{NodeGroup, ShardId};
 use internal_types::entry::SequencedEntry;
+use std::collections::HashMap;
 use std::num::NonZeroU32;
 
 pub mod buffer;
@@ -159,6 +161,8 @@ pub enum Error {
     DecodingEntry {
         source: flatbuffers::InvalidFlatbuffer,
     },
+    #[snafu(display("shard not found: {}", shard_id))]
+    ShardNotFound { shard_id: ShardId },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -232,7 +236,7 @@ pub struct Server<M: ConnectionManager> {
     config: Arc<Config>,
     connection_manager: Arc<M>,
     pub store: Arc<ObjectStore>,
-    executor: Arc<Executor>,
+    exec: Arc<Executor>,
     jobs: Arc<JobRegistry>,
 }
 
@@ -263,7 +267,7 @@ impl<M: ConnectionManager> Server<M> {
             config: Arc::new(Config::new(Arc::clone(&jobs))),
             store: object_store,
             connection_manager: Arc::new(connection_manager),
-            executor: Arc::new(Executor::new(num_worker_threads)),
+            exec: Arc::new(Executor::new(num_worker_threads)),
             jobs,
         }
     }
@@ -282,12 +286,7 @@ impl<M: ConnectionManager> Server<M> {
     }
 
     /// Tells the server the set of rules for a database.
-    pub async fn create_database(
-        &self,
-        rules: DatabaseRules,
-        server_id: NonZeroU32,
-        object_store: Arc<ObjectStore>,
-    ) -> Result<()> {
+    pub async fn create_database(&self, rules: DatabaseRules, server_id: NonZeroU32) -> Result<()> {
         // Return an error if this server hasn't yet been setup with an id
         self.require_id()?;
         let db_reservation = self.config.create_db(rules)?;
@@ -295,7 +294,7 @@ impl<M: ConnectionManager> Server<M> {
         self.persist_database_rules(db_reservation.rules().clone())
             .await?;
 
-        db_reservation.commit(server_id, object_store);
+        db_reservation.commit(server_id, Arc::clone(&self.store), Arc::clone(&self.exec));
 
         Ok(())
     }
@@ -350,6 +349,7 @@ impl<M: ConnectionManager> Server<M> {
             .map(|mut path| {
                 let store = Arc::clone(&self.store);
                 let config = Arc::clone(&self.config);
+                let exec = Arc::clone(&self.exec);
 
                 path.set_file_name(DB_RULES_FILE_NAME);
 
@@ -375,7 +375,7 @@ impl<M: ConnectionManager> Server<M> {
                         }
                         Ok(rules) => match config.create_db(rules) {
                             Err(e) => error!("error adding database to config: {}", e),
-                            Ok(handle) => handle.commit(server_id, store),
+                            Ok(handle) => handle.commit(server_id, store, exec),
                         },
                     }
                 })
@@ -400,19 +400,70 @@ impl<M: ConnectionManager> Server<M> {
             .db(&db_name)
             .context(DatabaseNotFound { db_name: &*db_name })?;
 
-        let sharded_entries = lines_to_sharded_entries(
-            lines,
-            db.rules.read().shard_config.as_ref(),
-            &*db.rules.read(),
-        )
-        .context(LineConversion)?;
+        // Split lines into shards while holding a read lock on the sharding config.
+        // Once the lock is released we have a vector of entries, each associated with a
+        // shard id, and an Arc to the mapping between shard ids and node
+        // groups. This map is atomically replaced every time the sharding
+        // config is updated, hence it's safe to use after we release the shard config
+        // lock.
+        let (sharded_entries, shards) = {
+            let rules = db.rules.read();
+            let shard_config = &rules.shard_config;
 
-        for e in sharded_entries {
-            // TODO: handle sending to shards based on ShardConfig
-            self.handle_write_entry(&db, e.entry).await?;
-        }
+            let sharded_entries = lines_to_sharded_entries(lines, shard_config.as_ref(), &*rules)
+                .context(LineConversion)?;
+
+            let shards = shard_config
+                .as_ref()
+                .map(|cfg| Arc::clone(&cfg.shards))
+                .unwrap_or_default();
+
+            (sharded_entries, shards)
+        };
+
+        // Write to all shards in parallel; as soon as one fails return error
+        // immediately to the client and abort all other outstanding requests.
+        // This can take some time, but we're no longer holding the lock to the shard
+        // config.
+        futures_util::future::try_join_all(
+            sharded_entries
+                .into_iter()
+                .map(|e| self.write_sharded_entry(&db_name, &db, Arc::clone(&shards), e)),
+        )
+        .await?;
 
         Ok(())
+    }
+
+    async fn write_sharded_entry(
+        &self,
+        db_name: &str,
+        db: &Db,
+        shards: Arc<HashMap<u32, NodeGroup>>,
+        sharded_entry: ShardedEntry,
+    ) -> Result<()> {
+        match sharded_entry.shard_id {
+            Some(shard_id) => {
+                let node_group = shards.get(&shard_id).context(ShardNotFound { shard_id })?;
+                self.write_entry_downstream(db_name, node_group, &sharded_entry.entry)
+                    .await?
+            }
+            None => self.write_entry_local(&db, sharded_entry.entry).await?,
+        }
+        Ok(())
+    }
+
+    async fn write_entry_downstream(
+        &self,
+        db_name: &str,
+        node_group: &[WriterId],
+        _entry: &Entry,
+    ) -> Result<()> {
+        todo!(
+            "perform API call of sharded entry {} to one of the nodes {:?}",
+            db_name,
+            node_group
+        )
     }
 
     pub async fn write_entry(&self, db_name: &str, entry_bytes: Vec<u8>) -> Result<()> {
@@ -425,10 +476,10 @@ impl<M: ConnectionManager> Server<M> {
             .context(DatabaseNotFound { db_name: &*db_name })?;
 
         let entry = entry_bytes.try_into().context(DecodingEntry)?;
-        self.handle_write_entry(&db, entry).await
+        self.write_entry_local(&db, entry).await
     }
 
-    pub async fn handle_write_entry(&self, db: &Db, entry: Entry) -> Result<()> {
+    pub async fn write_entry_local(&self, db: &Db, entry: Entry) -> Result<()> {
         db.store_entry(entry)
             .map_err(|e| Error::UnknownDatabaseError {
                 source: Box::new(e),
@@ -614,12 +665,8 @@ where
         let db = match self.db(&db_name) {
             Some(db) => db,
             None => {
-                self.create_database(
-                    DatabaseRules::new(db_name.clone()),
-                    self.require_id()?,
-                    Arc::clone(&self.store),
-                )
-                .await?;
+                self.create_database(DatabaseRules::new(db_name.clone()), self.require_id()?)
+                    .await?;
                 self.db(&db_name).expect("db not inserted")
             }
         };
@@ -627,8 +674,9 @@ where
         Ok(db)
     }
 
+    /// Return a handle to the query executor
     fn executor(&self) -> Arc<Executor> {
-        Arc::clone(&self.executor)
+        Arc::clone(&self.exec)
     }
 }
 
@@ -733,7 +781,7 @@ mod tests {
     use tokio::task::JoinHandle;
     use tokio_util::sync::CancellationToken;
 
-    use arrow_deps::{assert_table_eq, datafusion::physical_plan::collect};
+    use arrow_deps::assert_table_eq;
     use data_types::database_rules::{PartitionTemplate, TemplatePart, NO_SHARD_CONFIG};
     use influxdb_line_protocol::parse_lines;
     use object_store::{memory::InMemory, path::ObjectStorePath};
@@ -781,11 +829,7 @@ mod tests {
 
         // Create a database
         server
-            .create_database(
-                rules.clone(),
-                server.require_id().unwrap(),
-                Arc::clone(&server.store),
-            )
+            .create_database(rules.clone(), server.require_id().unwrap())
             .await
             .expect("failed to create database");
 
@@ -813,7 +857,6 @@ mod tests {
             .create_database(
                 DatabaseRules::new(db2.clone()),
                 server.require_id().unwrap(),
-                Arc::clone(&server.store),
             )
             .await
             .expect("failed to create 2nd db");
@@ -845,7 +888,6 @@ mod tests {
             .create_database(
                 DatabaseRules::new(name.clone()),
                 server.require_id().unwrap(),
-                Arc::clone(&server.store),
             )
             .await
             .expect("failed to create database");
@@ -855,7 +897,6 @@ mod tests {
             .create_database(
                 DatabaseRules::new(name.clone()),
                 server.require_id().unwrap(),
-                Arc::clone(&server.store),
             )
             .await
             .unwrap_err();
@@ -876,11 +917,7 @@ mod tests {
         for name in &names {
             let name = DatabaseName::new(name.to_string()).unwrap();
             server
-                .create_database(
-                    DatabaseRules::new(name),
-                    server.require_id().unwrap(),
-                    Arc::clone(&server.store),
-                )
+                .create_database(DatabaseRules::new(name), server.require_id().unwrap())
                 .await
                 .expect("failed to create database");
         }
@@ -897,11 +934,7 @@ mod tests {
 
         let name = DatabaseName::new("foo".to_string()).unwrap();
         server
-            .create_database(
-                DatabaseRules::new(name),
-                server.require_id().unwrap(),
-                Arc::clone(&server.store),
-            )
+            .create_database(DatabaseRules::new(name), server.require_id().unwrap())
             .await
             .unwrap();
 
@@ -916,10 +949,9 @@ mod tests {
         let executor = server.executor();
         let physical_plan = planner
             .query(db, "select * from cpu", executor.as_ref())
-            .await
             .unwrap();
 
-        let batches = collect(physical_plan).await.unwrap();
+        let batches = executor.collect(physical_plan).await.unwrap();
         let expected = vec![
             "+-----+------+",
             "| bar | time |",
@@ -938,11 +970,7 @@ mod tests {
 
         let name = DatabaseName::new("foo".to_string()).unwrap();
         server
-            .create_database(
-                DatabaseRules::new(name),
-                server.require_id().unwrap(),
-                Arc::clone(&server.store),
-            )
+            .create_database(DatabaseRules::new(name), server.require_id().unwrap())
             .await
             .unwrap();
 
@@ -964,10 +992,9 @@ mod tests {
         let executor = server.executor();
         let physical_plan = planner
             .query(db, "select * from cpu", executor.as_ref())
-            .await
             .unwrap();
 
-        let batches = collect(physical_plan).await.unwrap();
+        let batches = executor.collect(physical_plan).await.unwrap();
         let expected = vec![
             "+-----+------+",
             "| bar | time |",
@@ -994,7 +1021,6 @@ mod tests {
             .create_database(
                 DatabaseRules::new(db_name.clone()),
                 server.require_id().unwrap(),
-                Arc::clone(&server.store),
             )
             .await
             .unwrap();

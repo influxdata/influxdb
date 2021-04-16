@@ -17,7 +17,7 @@ pub use self::links::Links;
 pub mod permission;
 pub use self::permission::Permission;
 pub mod label;
-pub use self::label::Label;
+pub use self::label::{Label, LabelCreateRequest, LabelResponse, LabelUpdate, LabelsResponse};
 pub mod authorization;
 pub use self::authorization::{Authorization, AuthorizationAllOfLinks};
 pub mod resource;

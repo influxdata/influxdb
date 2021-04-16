@@ -51,7 +51,7 @@ pub fn dump_series_set(s: SeriesSet) -> Vec<String> {
 }
 
 /// Run a series set plan to completion and produce a Vec<String> representation
-pub async fn run_series_set_plan(executor: Executor, plans: SeriesSetPlans) -> Vec<String> {
+pub async fn run_series_set_plan(executor: Arc<Executor>, plans: SeriesSetPlans) -> Vec<String> {
     // Use a channel sufficiently large to buffer the series
     let (tx, mut rx) = mpsc::channel(100);
     executor

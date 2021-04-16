@@ -15,6 +15,7 @@ data_types = { path = "../data_types" }
 # version of the flatbuffers crate
 flatbuffers = "0.8"
 futures = "0.3"
+futures-util = { version = "0.3.1" }
 generated_types = { path = "../generated_types" }
 influxdb_line_protocol = { path = "../influxdb_line_protocol" }
 internal_types = { path = "../internal_types" }

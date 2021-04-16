@@ -13,7 +13,9 @@ use influxdb_line_protocol::ParsedLine;
 
 use crate::field_validation::{FromField, FromFieldOpt, FromFieldString, FromFieldVec};
 use crate::DatabaseName;
+use std::collections::HashMap;
 use std::num::{NonZeroU32, NonZeroUsize};
+use std::sync::Arc;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -747,7 +749,7 @@ impl TryFrom<management::partition_template::Part> for TemplatePart {
 }
 
 /// ShardId maps to a nodegroup that holds the the shard.
-pub type ShardId = u16;
+pub type ShardId = u32;
 pub const NO_SHARD_CONFIG: Option<&ShardConfig> = None;
 
 /// Assigns a given line to a specific shard id.
@@ -772,7 +774,7 @@ pub struct ShardConfig {
     /// and your ring has 4 slots. If two tables that are very hot get
     /// assigned to the same slot you can override that by putting in a
     /// specific matcher to pull that table over to a different node.
-    pub specific_targets: Option<MatcherToTargets>,
+    pub specific_targets: Option<MatcherToShard>,
     /// An optional default hasher which will route to one in a collection of
     /// nodes.
     pub hash_ring: Option<HashRing>,
@@ -780,20 +782,23 @@ pub struct ShardConfig {
     /// targets in this route. That is, the write request will succeed
     /// regardless of this route's success.
     pub ignore_errors: bool,
+    /// Mapping between shard IDs and node groups. Other sharding rules use
+    /// ShardId as targets.
+    pub shards: Arc<HashMap<ShardId, NodeGroup>>,
 }
 
 impl Sharder for ShardConfig {
     fn shard(&self, _line: &ParsedLine<'_>) -> Result<ShardId, Error> {
-        todo!("mkm to implement as part of #916");
+        todo!("mkm to implement as part of #916")
     }
 }
 
-/// Maps a matcher with specific target group. If the line/row matches
+/// Maps a matcher with specific shard. If the line/row matches
 /// it should be sent to the group.
 #[derive(Debug, Eq, PartialEq, Clone, Default)]
-pub struct MatcherToTargets {
+pub struct MatcherToShard {
     pub matcher: Matcher,
-    pub target: NodeGroup,
+    pub shard: ShardId,
 }
 
 /// A collection of IOx nodes
@@ -807,8 +812,8 @@ pub struct HashRing {
     pub table_name: bool,
     /// include the values of these columns in the hash key
     pub columns: Vec<String>,
-    /// ring of node groups. Each group holds a shard
-    pub node_groups: Vec<NodeGroup>,
+    /// ring of shard ids
+    pub shards: Vec<ShardId>,
 }
 
 /// A matcher is used to match routing rules or subscriptions on a row-by-row
@@ -837,6 +842,11 @@ impl From<ShardConfig> for management::ShardConfig {
             specific_targets: shard_config.specific_targets.map(|i| i.into()),
             hash_ring: shard_config.hash_ring.map(|i| i.into()),
             ignore_errors: shard_config.ignore_errors,
+            shards: shard_config
+                .shards
+                .iter()
+                .map(|(k, v)| (*k, from_node_group_for_management_node_group(v.clone())))
+                .collect(),
         }
     }
 }
@@ -855,6 +865,13 @@ impl TryFrom<management::ShardConfig> for ShardConfig {
                 .map(|i| i.try_into())
                 .map_or(Ok(None), |r| r.map(Some))?,
             ignore_errors: proto.ignore_errors,
+            shards: Arc::new(
+                proto
+                    .shards
+                    .into_iter()
+                    .map(|(k, v)| Ok((k, try_from_management_node_group_for_node_group(v)?)))
+                    .collect::<Result<HashMap<u32, NodeGroup>, FieldViolation>>()?,
+            ),
         })
     }
 }
@@ -868,26 +885,22 @@ fn none_if_default<T: Default + PartialEq>(v: T) -> Option<T> {
     }
 }
 
-impl From<MatcherToTargets> for management::MatcherToTargets {
-    fn from(matcher_to_targets: MatcherToTargets) -> Self {
+impl From<MatcherToShard> for management::MatcherToShard {
+    fn from(matcher_to_shard: MatcherToShard) -> Self {
         Self {
-            matcher: none_if_default(matcher_to_targets.matcher.into()),
-            target: none_if_default(from_node_group_for_management_node_group(
-                matcher_to_targets.target,
-            )),
+            matcher: none_if_default(matcher_to_shard.matcher.into()),
+            shard: matcher_to_shard.shard,
         }
     }
 }
 
-impl TryFrom<management::MatcherToTargets> for MatcherToTargets {
+impl TryFrom<management::MatcherToShard> for MatcherToShard {
     type Error = FieldViolation;
 
-    fn try_from(proto: management::MatcherToTargets) -> Result<Self, Self::Error> {
+    fn try_from(proto: management::MatcherToShard) -> Result<Self, Self::Error> {
         Ok(Self {
             matcher: proto.matcher.unwrap_or_default().try_into()?,
-            target: try_from_management_node_group_for_node_group(
-                proto.target.unwrap_or_default(),
-            )?,
+            shard: proto.shard,
         })
     }
 }
@@ -897,11 +910,7 @@ impl From<HashRing> for management::HashRing {
         Self {
             table_name: hash_ring.table_name,
             columns: hash_ring.columns,
-            node_groups: hash_ring
-                .node_groups
-                .into_iter()
-                .map(from_node_group_for_management_node_group)
-                .collect(),
+            shards: hash_ring.shards,
         }
     }
 }
@@ -913,11 +922,7 @@ impl TryFrom<management::HashRing> for HashRing {
         Ok(Self {
             table_name: proto.table_name,
             columns: proto.columns,
-            node_groups: proto
-                .node_groups
-                .into_iter()
-                .map(try_from_management_node_group_for_node_group)
-                .collect::<Result<Vec<_>, _>>()?,
+            shards: proto.shards,
         })
     }
 }
@@ -1474,54 +1479,43 @@ mod tests {
         assert_eq!(protobuf.table_name, back.table_name);
         assert!(hash_ring.columns.is_empty());
         assert_eq!(protobuf.columns, back.columns);
-        assert!(hash_ring.node_groups.is_empty());
-        assert_eq!(protobuf.node_groups, back.node_groups);
+        assert!(hash_ring.shards.is_empty());
+        assert_eq!(protobuf.shards, back.shards);
     }
 
     #[test]
     fn test_hash_ring_nodes() {
         let protobuf = management::HashRing {
-            node_groups: vec![
-                management::NodeGroup {
-                    nodes: vec![
-                        management::node_group::Node { id: 10 },
-                        management::node_group::Node { id: 11 },
-                        management::node_group::Node { id: 12 },
-                    ],
-                },
-                management::NodeGroup {
-                    nodes: vec![management::node_group::Node { id: 20 }],
-                },
-            ],
+            shards: vec![1, 2],
             ..Default::default()
         };
 
         let hash_ring: HashRing = protobuf.try_into().unwrap();
 
-        assert_eq!(hash_ring.node_groups.len(), 2);
-        assert_eq!(hash_ring.node_groups[0].len(), 3);
-        assert_eq!(hash_ring.node_groups[1].len(), 1);
+        assert_eq!(hash_ring.shards.len(), 2);
+        assert_eq!(hash_ring.shards[0], 1);
+        assert_eq!(hash_ring.shards[1], 2);
     }
 
     #[test]
-    fn test_matcher_to_targets_default() {
-        let protobuf = management::MatcherToTargets {
+    fn test_matcher_to_shard_default() {
+        let protobuf = management::MatcherToShard {
             ..Default::default()
         };
 
-        let matcher_to_targets: MatcherToTargets = protobuf.clone().try_into().unwrap();
-        let back: management::MatcherToTargets = matcher_to_targets.clone().into();
+        let matcher_to_shard: MatcherToShard = protobuf.clone().try_into().unwrap();
+        let back: management::MatcherToShard = matcher_to_shard.clone().into();
 
         assert_eq!(
-            matcher_to_targets.matcher,
+            matcher_to_shard.matcher,
             Matcher {
                 ..Default::default()
             }
         );
         assert_eq!(protobuf.matcher, back.matcher);
 
-        assert_eq!(matcher_to_targets.target, Vec::<WriterId>::new());
-        assert_eq!(protobuf.target, back.target);
+        assert_eq!(matcher_to_shard.shard, 0);
+        assert_eq!(protobuf.shard, back.shard);
     }
 
     #[test]
@@ -1541,6 +1535,9 @@ mod tests {
 
         assert_eq!(shard_config.ignore_errors, false);
         assert_eq!(protobuf.ignore_errors, back.ignore_errors);
+
+        assert!(shard_config.shards.is_empty());
+        assert_eq!(protobuf.shards, back.shards);
     }
 
     #[test]
@@ -1557,5 +1554,38 @@ mod tests {
         let back: management::DatabaseRules = rules.into();
 
         assert!(back.shard_config.is_some());
+    }
+
+    #[test]
+    fn test_shard_config_shards() {
+        let protobuf = management::ShardConfig {
+            shards: vec![
+                (
+                    1,
+                    management::NodeGroup {
+                        nodes: vec![
+                            management::node_group::Node { id: 10 },
+                            management::node_group::Node { id: 11 },
+                            management::node_group::Node { id: 12 },
+                        ],
+                    },
+                ),
+                (
+                    2,
+                    management::NodeGroup {
+                        nodes: vec![management::node_group::Node { id: 20 }],
+                    },
+                ),
+            ]
+            .into_iter()
+            .collect(),
+            ..Default::default()
+        };
+
+        let shard_config: ShardConfig = protobuf.try_into().unwrap();
+
+        assert_eq!(shard_config.shards.len(), 2);
+        assert_eq!(shard_config.shards[&1].len(), 3);
+        assert_eq!(shard_config.shards[&2].len(), 1);
     }
 }

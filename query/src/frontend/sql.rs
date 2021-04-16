@@ -84,7 +84,7 @@ impl SQLQueryPlanner {
     /// Plan a SQL query against the data in `database`, and return a
     /// DataFusion physical execution plan. The plan can then be
     /// executed using `executor` in a streaming fashion.
-    pub async fn query<D: CatalogProvider + 'static>(
+    pub fn query<D: CatalogProvider + 'static>(
         &self,
         database: Arc<D>,
         query: &str,
@@ -92,6 +92,6 @@ impl SQLQueryPlanner {
     ) -> Result<Arc<dyn ExecutionPlan>> {
         let mut ctx = executor.new_context();
         ctx.inner_mut().register_catalog(DEFAULT_CATALOG, database);
-        ctx.prepare_sql(query).await.context(Preparing)
+        ctx.prepare_sql(query).context(Preparing)
     }
 }

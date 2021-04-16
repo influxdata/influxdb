@@ -2,14 +2,17 @@
 //! implemented in terms of the `query::Database` and
 //! `query::DatabaseStore`
 
-use super::{
-    data::{
-        fieldlist_to_measurement_fields_response, series_set_item_to_read_response,
-        tag_keys_to_byte_vecs,
+use crate::influxdb_ioxd::{
+    planner::Planner,
+    rpc::storage::{
+        data::{
+            fieldlist_to_measurement_fields_response, series_set_item_to_read_response,
+            tag_keys_to_byte_vecs,
+        },
+        expr::{self, AddRPCNode, GroupByAndAggregate, Loggable, SpecialTagKeys},
+        input::GrpcInputs,
+        StorageService,
     },
-    expr::{self, AddRPCNode, GroupByAndAggregate, Loggable, SpecialTagKeys},
-    input::GrpcInputs,
-    StorageService,
 };
 use data_types::{error::ErrorLogger, names::org_and_bucket_to_database, DatabaseName};
 use generated_types::{
@@ -24,7 +27,6 @@ use observability_deps::tracing::{error, info};
 use query::{
     exec::fieldlist::FieldList,
     exec::seriesset::{Error as SeriesSetError, SeriesSetItem},
-    frontend::influxrpc::InfluxRPCPlanner,
     predicate::PredicateBuilder,
     DatabaseStore,
 };
@@ -709,14 +711,13 @@ where
     let db = db_store
         .db(&db_name)
         .context(DatabaseNotFound { db_name })?;
+    let executor = db_store.executor();
 
-    let planner = InfluxRPCPlanner::new();
-
-    let plan = planner
-        .table_names(db.as_ref(), predicate)
+    let plan = Planner::new(Arc::clone(&executor))
+        .table_names(db, predicate)
+        .await
         .map_err(|e| Box::new(e) as _)
         .context(ListingTables { db_name })?;
-    let executor = db_store.executor();
 
     let table_names = executor
         .to_string_set(plan)
@@ -760,16 +761,15 @@ where
         db_name: db_name.as_str(),
     })?;
 
-    let planner = InfluxRPCPlanner::new();
+    let executor = db_store.executor();
 
-    let tag_key_plan = planner
-        .tag_keys(db.as_ref(), predicate)
+    let tag_key_plan = Planner::new(Arc::clone(&executor))
+        .tag_keys(db, predicate)
+        .await
         .map_err(|e| Box::new(e) as _)
         .context(ListingColumns {
             db_name: db_name.as_str(),
         })?;
-
-    let executor = db_store.executor();
 
     let tag_keys = executor
         .to_string_set(tag_key_plan)
@@ -816,13 +816,11 @@ where
     let tag_name = &tag_name;
 
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
-
-    let planner = InfluxRPCPlanner::new();
-
     let executor = db_store.executor();
 
-    let tag_value_plan = planner
-        .tag_values(db.as_ref(), tag_name, predicate)
+    let tag_value_plan = Planner::new(Arc::clone(&executor))
+        .tag_values(db, tag_name, predicate)
+        .await
         .map_err(|e| Box::new(e) as _)
         .context(ListingTagValues { db_name, tag_name })?;
 
@@ -872,13 +870,11 @@ where
 
     let db_name = owned_db_name.as_str();
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
-
     let executor = db_store.executor();
 
-    let planner = InfluxRPCPlanner::new();
-
-    let series_plan = planner
-        .read_filter(db.as_ref(), predicate)
+    let series_plan = Planner::new(Arc::clone(&executor))
+        .read_filter(db, predicate)
+        .await
         .map_err(|e| Box::new(e) as _)
         .context(PlanningFilteringSeries { db_name })?;
 
@@ -959,22 +955,22 @@ where
     let db = db_store
         .db(&db_name)
         .context(DatabaseNotFound { db_name })?;
+    let executor = db_store.executor();
 
-    let planner = InfluxRPCPlanner::new();
-
+    let planner = Planner::new(Arc::clone(&executor));
     let grouped_series_set_plan = match gby_agg {
         GroupByAndAggregate::Columns { agg, group_columns } => {
-            planner.read_group(db.as_ref(), predicate, agg, &group_columns)
+            planner.read_group(db, predicate, agg, group_columns).await
         }
         GroupByAndAggregate::Window { agg, every, offset } => {
-            planner.read_window_aggregate(db.as_ref(), predicate, agg, every, offset)
+            planner
+                .read_window_aggregate(db, predicate, agg, every, offset)
+                .await
         }
     };
     let grouped_series_set_plan = grouped_series_set_plan
         .map_err(|e| Box::new(e) as _)
         .context(PlanningFilteringSeries { db_name })?;
-
-    let executor = db_store.executor();
 
     // Spawn task to convert between series sets and the gRPC results
     // and to run the actual plans (so we can return a result to the
@@ -1026,15 +1022,13 @@ where
 
     let db_name = db_name.as_str();
     let db = db_store.db(db_name).context(DatabaseNotFound { db_name })?;
+    let executor = db_store.executor();
 
-    let planner = InfluxRPCPlanner::new();
-
-    let field_list_plan = planner
-        .field_columns(db.as_ref(), predicate)
+    let field_list_plan = Planner::new(Arc::clone(&executor))
+        .field_columns(db, predicate)
+        .await
         .map_err(|e| Box::new(e) as _)
         .context(ListingFields { db_name })?;
-
-    let executor = db_store.executor();
 
     let field_list = executor
         .to_field_list(field_list_plan)

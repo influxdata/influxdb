@@ -11,8 +11,7 @@
 //! database names and may remove this quasi /v2 API.
 
 // Influx crates
-use super::super::commands::metrics;
-use arrow_deps::datafusion::physical_plan::collect;
+use super::{super::commands::metrics, planner::Planner};
 use data_types::{
     http::WalMetadataQuery,
     names::{org_and_bucket_to_database, OrgBucketMappingError},
@@ -22,7 +21,7 @@ use influxdb_iox_client::format::QueryOutputFormat;
 use influxdb_line_protocol::parse_lines;
 use metrics::IOXD_METRICS;
 use object_store::ObjectStoreApi;
-use query::{frontend::sql::SQLQueryPlanner, Database, DatabaseStore, PartitionChunk};
+use query::{Database, PartitionChunk};
 use server::{ConnectionManager, Server as AppServer};
 
 // External crates
@@ -100,12 +99,6 @@ pub enum ApplicationError {
         org: String,
         bucket_name: String,
         source: Box<dyn std::error::Error + Send + Sync>,
-    },
-
-    #[snafu(display("Error planning query {}: {}", query, source))]
-    PlanningSQLQuery {
-        query: String,
-        source: query::frontend::sql::Error,
     },
 
     #[snafu(display("Internal error reading points from database {}:  {}", db_name, source))]
@@ -212,6 +205,9 @@ pub enum ApplicationError {
         format: QueryOutputFormat,
         source: influxdb_iox_client::format::Error,
     },
+
+    #[snafu(display("Error while planning query: {}", source))]
+    Planning { source: super::planner::Error },
 }
 
 impl ApplicationError {
@@ -220,7 +216,6 @@ impl ApplicationError {
             Self::BucketByName { .. } => self.internal_error(),
             Self::BucketMappingError { .. } => self.internal_error(),
             Self::WritingPoints { .. } => self.internal_error(),
-            Self::PlanningSQLQuery { .. } => self.bad_request(),
             Self::Query { .. } => self.internal_error(),
             Self::QueryError { .. } => self.bad_request(),
             Self::BucketNotFound { .. } => self.not_found(),
@@ -245,6 +240,7 @@ impl ApplicationError {
             Self::CreatingResponse { .. } => self.internal_error(),
             Self::FormattingResult { .. } => self.internal_error(),
             Self::ParsingFormat { .. } => self.bad_request(),
+            Self::Planning { .. } => self.bad_request(),
         }
     }
 
@@ -518,17 +514,16 @@ async fn query<M: ConnectionManager + Send + Sync + Debug + 'static>(
         .db(&db_name)
         .context(DatabaseNotFound { name: &db_name_str })?;
 
-    let planner = SQLQueryPlanner::default();
-    let executor = server.executor();
-
-    let physical_plan = planner
-        .query(db, &q, executor.as_ref())
+    let executor = db.executor();
+    let physical_plan = Planner::new(Arc::clone(&executor))
+        .sql(db, &q)
         .await
-        .context(PlanningSQLQuery { query: &q })?;
+        .context(Planning)?;
 
     // TODO: stream read results out rather than rendering the
     // whole thing in mem
-    let batches = collect(physical_plan)
+    let batches = executor
+        .collect(physical_plan)
         .await
         .map_err(|e| Box::new(e) as _)
         .context(Query { db_name })?;
@@ -733,7 +728,6 @@ mod tests {
     use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 
     use arrow_deps::{arrow::record_batch::RecordBatch, assert_table_eq};
-    use query::exec::Executor;
     use reqwest::{Client, Response};
 
     use data_types::{database_rules::DatabaseRules, DatabaseName};
@@ -768,7 +762,6 @@ mod tests {
             .create_database(
                 DatabaseRules::new(DatabaseName::new("MyOrg_MyBucket").unwrap()),
                 app_server.require_id().unwrap(),
-                Arc::clone(&app_server.store),
             )
             .await
             .unwrap();
@@ -817,7 +810,6 @@ mod tests {
             .create_database(
                 DatabaseRules::new(DatabaseName::new("MetricsOrg_MetricsBucket").unwrap()),
                 app_server.require_id().unwrap(),
-                Arc::clone(&app_server.store),
             )
             .await
             .unwrap();
@@ -876,7 +868,6 @@ mod tests {
             .create_database(
                 DatabaseRules::new(DatabaseName::new("MyOrg_MyBucket").unwrap()),
                 app_server.require_id().unwrap(),
-                Arc::clone(&app_server.store),
             )
             .await
             .unwrap();
@@ -1010,7 +1001,6 @@ mod tests {
             .create_database(
                 DatabaseRules::new(DatabaseName::new("MyOrg_MyBucket").unwrap()),
                 app_server.require_id().unwrap(),
-                Arc::clone(&app_server.store),
             )
             .await
             .unwrap();
@@ -1059,7 +1049,6 @@ mod tests {
             .create_database(
                 DatabaseRules::new(DatabaseName::new("MyOrg_MyBucket").unwrap()),
                 app_server.require_id().unwrap(),
-                Arc::clone(&app_server.store),
             )
             .await
             .unwrap();
@@ -1165,10 +1154,12 @@ mod tests {
 
     /// Run the specified SQL query and return formatted results as a string
     async fn run_query(db: Arc<Db>, query: &str) -> Vec<RecordBatch> {
-        let planner = SQLQueryPlanner::default();
-        let executor = Executor::new(1);
-        let physical_plan = planner.query(db, query, &executor).await.unwrap();
+        let executor = db.executor();
+        let physical_plan = Planner::new(Arc::clone(&executor))
+            .sql(db, query)
+            .await
+            .unwrap();
 
-        collect(physical_plan).await.unwrap()
+        executor.collect(physical_plan).await.unwrap()
     }
 }

@@ -4,10 +4,7 @@ use arrow_deps::{
     datafusion::logical_plan::{col, lit},
 };
 use query::{
-    exec::{
-        fieldlist::{Field, FieldList},
-        Executor,
-    },
+    exec::fieldlist::{Field, FieldList},
     frontend::influxrpc::InfluxRPCPlanner,
     predicate::PredicateBuilder,
 };
@@ -31,7 +28,7 @@ macro_rules! run_field_columns_test_case {
             println!("Running scenario '{}'", scenario_name);
             println!("Predicate: '{:#?}'", predicate);
             let planner = InfluxRPCPlanner::new();
-            let executor = Executor::new(1);
+            let executor = db.executor();
 
             let plan = planner
                 .field_columns(&db, predicate.clone())
@@ -132,7 +129,6 @@ async fn test_field_name_plan() {
         println!("Running scenario '{}'", scenario_name);
         println!("Predicate: '{:#?}'", predicate);
         let planner = InfluxRPCPlanner::new();
-        let executor = Executor::new(1);
 
         let plan = planner
             .field_columns(&db, predicate.clone())
@@ -144,7 +140,8 @@ async fn test_field_name_plan() {
 
         // run the created plan directly, ensuring the output is as
         // expected (specifically that the column ordering is correct)
-        let results = executor
+        let results = db
+            .executor()
             .run_logical_plan(plan)
             .await
             .expect("ok running plan");

@@ -10,12 +10,13 @@ pub mod seriesset;
 pub mod stringset;
 mod task;
 pub use context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
+use futures::Future;
 
 use std::sync::Arc;
 
 use arrow_deps::{
     arrow::record_batch::RecordBatch,
-    datafusion::{self, logical_plan::LogicalPlan},
+    datafusion::{self, logical_plan::LogicalPlan, physical_plan::ExecutionPlan},
 };
 use counters::ExecutionCounters;
 
@@ -35,7 +36,7 @@ use crate::plan::{
     stringset::StringSetPlan,
 };
 
-use self::task::DedicatedExecutor;
+use self::task::{DedicatedExecutor, Error as ExecutorError};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -86,8 +87,8 @@ pub enum Error {
         source: Box<SendError<Result<SeriesSetItem, SeriesSetError>>>,
     },
 
-    #[snafu(display("Joining execution task: {}", source))]
-    JoinError { source: tokio::task::JoinError },
+    #[snafu(display("Error joining execution task: {}", source))]
+    TaskJoinError { source: ExecutorError },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -159,7 +160,7 @@ impl Executor {
                 let (plan_tx, plan_rx) = mpsc::channel(1);
                 rx_channels.push(plan_rx);
 
-                tokio::task::spawn(async move {
+                self.exec.spawn(async move {
                     let SeriesSetPlan {
                         table_name,
                         plan,
@@ -172,7 +173,6 @@ impl Executor {
 
                     let physical_plan = ctx
                         .prepare_plan(&plan)
-                        .await
                         .context(DataFusionPhysicalPlanning)?;
 
                     let it = ctx
@@ -210,7 +210,7 @@ impl Executor {
         // now, wait for all the values to resolve so we can report
         // any errors
         for join_handle in handles {
-            join_handle.await.context(JoinError)??;
+            join_handle.await.context(TaskJoinError)??;
         }
         Ok(())
     }
@@ -224,10 +224,9 @@ impl Executor {
             .into_iter()
             .map(|plan| {
                 let ctx = self.new_context();
-                tokio::task::spawn(async move {
+                self.exec.spawn(async move {
                     let physical_plan = ctx
                         .prepare_plan(&plan)
-                        .await
                         .context(DataFusionPhysicalPlanning)?;
 
                     // TODO: avoid this buffering
@@ -246,7 +245,7 @@ impl Executor {
         // collect them all up and combine them
         let mut results = Vec::new();
         for join_handle in handles {
-            let fieldlist = join_handle.await.context(JoinError)???;
+            let fieldlist = join_handle.await.context(TaskJoinError)???;
 
             results.push(fieldlist);
         }
@@ -257,6 +256,15 @@ impl Executor {
     /// Run the plan and return a record batch reader for reading the results
     pub async fn run_logical_plan(&self, plan: LogicalPlan) -> Result<Vec<RecordBatch>> {
         self.run_logical_plans(vec![plan]).await
+    }
+
+    /// Executes the logical plan using DataFusion on a separate
+    /// thread pool and produces RecordBatches
+    pub async fn collect(&self, physical_plan: Arc<dyn ExecutionPlan>) -> Result<Vec<RecordBatch>> {
+        self.new_context()
+            .collect(physical_plan)
+            .await
+            .context(DataFusionExecution)
     }
 
     /// Create a new execution context, suitable for executing a new query
@@ -271,11 +279,10 @@ impl Executor {
             .into_iter()
             .map(|plan| {
                 let ctx = self.new_context();
-                // TODO run these on some executor other than the main tokio pool
-                tokio::task::spawn(async move {
+
+                self.exec.spawn(async move {
                     let physical_plan = ctx
                         .prepare_plan(&plan)
-                        .await
                         .context(DataFusionPhysicalPlanning)?;
 
                     // TODO: avoid this buffering
@@ -289,10 +296,26 @@ impl Executor {
         // now, wait for all the values to resolve and collect them together
         let mut results = Vec::new();
         for join_handle in value_futures {
-            let mut plan_result = join_handle.await.context(JoinError)??;
+            let mut plan_result = join_handle.await.context(TaskJoinError)??;
             results.append(&mut plan_result);
         }
         Ok(results)
+    }
+
+    /// Runs the specified Future (and any tasks it spawns) on the
+    /// worker pool for this executor, returning the result of the
+    /// computation.
+    pub async fn run<T>(&self, task: T) -> Result<T::Output>
+    where
+        T: Future + Send + 'static,
+        T::Output: Send + 'static,
+    {
+        // run on the dedicated executor
+        self.exec
+            .spawn(task)
+            // wait on the *current* tokio executor
+            .await
+            .context(TaskJoinError)
     }
 }
 /// Create a SchemaPivot node which  an arbitrary input like
