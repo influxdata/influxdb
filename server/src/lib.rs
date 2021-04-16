@@ -153,8 +153,6 @@ pub enum Error {
     StoreError { source: object_store::Error },
     #[snafu(display("database already exists"))]
     DatabaseAlreadyExists { db_name: String },
-    #[snafu(display("error appending to wal buffer: {}", source))]
-    WalError { source: buffer::Error },
     #[snafu(display("error converting line protocol to flatbuffers: {}", source))]
     LineConversion { source: entry::Error },
     #[snafu(display("error decoding entry flatbuffers: {}", source))]
