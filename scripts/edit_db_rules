@@ -5,6 +5,11 @@ set -eu -o pipefail
 # This is a simple shell script that uses the grpc API to edit the database rules on a remote
 # IOx server. It fetches the rules, spawns your default text editor, waits until your editor quits,
 # and then calls the update API with the results of your local edit.
+#
+# Example:
+#
+# ./scripts/jq_edit_db_rules localhost:1234 load_test '.rules.lifecycleRules.dropNonPersisted = true'
+#
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 usage() {
@@ -24,24 +29,15 @@ cleanup() {
 trap cleanup EXIT
 
 main() {
-  local host
-  host="${1:-}"
+  if [ $# -lt 2 ]; then
+    usage
+  fi
+
+  local host="${1}"
+  local db_name="${2}"
   # grpcurl doesn't like the http:// scheme, while influxdb client requires it
   # let's be kind to users of this script
   host="${host#http://}"
-  shift
-
-  if [ -z "${host}" ]; then
-    usage
-  fi
-
-  local db_name
-  db_name="${1:-}"
-  shift
-
-  if [ -z "${db_name}" ]; then
-    usage
-  fi
 
   local tmp
   tmp="$(mktemp)"
@@ -52,13 +48,13 @@ main() {
     {"name": "${db_name}"}
 EOF
 
-  grpcurl -plaintext -d "${req}" "${host}" \
+  grpcurl -plaintext -emit-defaults -d "${req}" "${host}" \
     influxdata.iox.management.v1.ManagementService.GetDatabase \
     > "${tmp}"
 
   "${EDITOR:-vim}" "${tmp}"
 
-  grpcurl -plaintext -d @ "${host}" \
+  grpcurl -plaintext -emit-defaults -d @ "${host}" \
     influxdata.iox.management.v1.ManagementService.UpdateDatabase \
     < "${tmp}"
 
