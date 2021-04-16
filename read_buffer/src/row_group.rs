@@ -1077,6 +1077,8 @@ impl std::fmt::Display for &RowGroup {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         self.metadata().fmt(f)?;
 
+        writeln!(f, "[DATA]")?;
+
         for (name, idx) in &self.all_columns_by_name {
             writeln!(
                 f,
@@ -1435,10 +1437,18 @@ impl ColumnMeta {
 
 impl Display for &ColumnMeta {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(
+        // Can't rely on ColumnType Display impl.
+        let semantic_type = match self.typ {
+            schema::ColumnType::Tag(_) => "TAG",
+            schema::ColumnType::Field(_) => "FIELD",
+            schema::ColumnType::Timestamp(_) => "TIMESTAMP",
+            schema::ColumnType::Other(_) => "IOX",
+        };
+
+        write!(
             f,
             "sem_type: {}, log_type: {}, range: ({}, {})",
-            self.typ, self.logical_data_type, &self.range.0, &self.range.1
+            semantic_type, self.logical_data_type, &self.range.0, &self.range.1
         )
     }
 }
@@ -1479,8 +1489,9 @@ impl std::fmt::Display for &MetaData {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(
             f,
-            "[META] rows: {:?}, columns: {:?}",
-            self.rows, self.columns
+            "[META] rows: {}, columns: {}",
+            self.rows,
+            self.columns.len()
         )?;
 
         for (name, meta) in &self.columns {

@@ -9,6 +9,7 @@ use snafu::{OptionExt, ResultExt, Snafu};
 use arrow_deps::arrow::record_batch::RecordBatch;
 use data_types::partition_metadata::TableSummary;
 use internal_types::{schema::builder::Error as SchemaError, schema::Schema, selection::Selection};
+use observability_deps::tracing::info;
 use tracker::{MemRegistry, MemTracker};
 
 use crate::row_group::RowGroup;
@@ -236,9 +237,20 @@ impl Chunk {
     /// added to the `Table`. Otherwise a new `Table` with a single `RowGroup`
     /// will be created.
     pub fn upsert_table(&self, table_name: impl Into<String>, table_data: RecordBatch) {
+        // Approximate heap size of record batch.
+        let rb_size = table_data
+            .columns()
+            .iter()
+            .map(|c| c.get_buffer_memory_size())
+            .sum::<usize>();
+
         // This call is expensive. Complete it before locking.
         let row_group = RowGroup::from(table_data);
         let table_name = table_name.into();
+
+        let rg_size = row_group.size();
+        let compression = format!("{:.2}%", (rg_size as f64 / rb_size as f64) * 100.0);
+        info!(rb_size, rg_size, %compression, %row_group, "row group added");
 
         let mut chunk_data = self.chunk_data.write();
 
@@ -990,7 +1002,6 @@ mod test {
         let exp_active_values = Values::Bool(vec![Some(true)]);
 
         let first_row_group = itr.next().unwrap();
-        println!("{:?}", first_row_group);
         assert_rb_column_equals(&first_row_group, "env", &exp_env_values);
         assert_rb_column_equals(&first_row_group, "region", &exp_region_values);
         assert_rb_column_equals(&first_row_group, "counter", &exp_counter_values);
@@ -1008,7 +1019,6 @@ mod test {
         assert_rb_column_equals(&first_row_group, "time", &Values::I64(vec![100])); // first row from first record batch
 
         let second_row_group = itr.next().unwrap();
-        println!("{:?}", second_row_group);
         assert_rb_column_equals(&second_row_group, "env", &exp_env_values);
         assert_rb_column_equals(&second_row_group, "region", &exp_region_values);
         assert_rb_column_equals(&second_row_group, "counter", &exp_counter_values);
