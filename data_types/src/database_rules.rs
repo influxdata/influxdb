@@ -56,9 +56,9 @@ pub struct DatabaseRules {
     /// db
     pub partition_template: PartitionTemplate,
 
-    /// When set this will buffer WAL writes in memory based on the
+    /// When set, this will buffer writes in memory based on the
     /// configuration.
-    pub wal_buffer_config: Option<WalBufferConfig>,
+    pub write_buffer_config: Option<WriteBufferConfig>,
 
     /// Configure how data flows through the system
     pub lifecycle_rules: LifecycleRules,
@@ -86,7 +86,7 @@ impl DatabaseRules {
         Self {
             name,
             partition_template: Default::default(),
-            wal_buffer_config: None,
+            write_buffer_config: None,
             lifecycle_rules: Default::default(),
             shard_config: None,
         }
@@ -129,7 +129,7 @@ impl From<DatabaseRules> for management::DatabaseRules {
         Self {
             name: rules.name.into(),
             partition_template: Some(rules.partition_template.into()),
-            wal_buffer_config: rules.wal_buffer_config.map(Into::into),
+            write_buffer_config: rules.write_buffer_config.map(Into::into),
             lifecycle_rules: Some(rules.lifecycle_rules.into()),
             shard_config: rules.shard_config.map(Into::into),
         }
@@ -142,7 +142,7 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
     fn try_from(proto: management::DatabaseRules) -> Result<Self, Self::Error> {
         let name = DatabaseName::new(proto.name.clone()).field("name")?;
 
-        let wal_buffer_config = proto.wal_buffer_config.optional("wal_buffer_config")?;
+        let write_buffer_config = proto.write_buffer_config.optional("write_buffer_config")?;
 
         let lifecycle_rules = proto
             .lifecycle_rules
@@ -162,7 +162,7 @@ impl TryFrom<management::DatabaseRules> for DatabaseRules {
         Ok(Self {
             name,
             partition_template,
-            wal_buffer_config,
+            write_buffer_config,
             lifecycle_rules,
             shard_config,
         })
@@ -483,24 +483,24 @@ impl TryFrom<management::Aggregate> for ColumnValue {
     }
 }
 
-/// WalBufferConfig defines the configuration for buffering data from the WAL in
-/// memory. This buffer is used for asynchronous replication and to collect
+/// `WriteBufferConfig` defines the configuration for buffering data from writes
+/// in memory. This buffer is used for asynchronous replication and to collect
 /// segments before sending them to object storage.
 #[derive(Debug, Eq, PartialEq, Clone)]
-pub struct WalBufferConfig {
-    /// The size the WAL buffer should be limited to. Once the buffer gets to
-    /// this size it will drop old segments to remain below this size, but
+pub struct WriteBufferConfig {
+    /// The size the Write Buffer should be limited to. Once the buffer gets to
+    /// this size, it will drop old segments to remain below this size, but
     /// still try to hold as much in memory as possible while remaining
     /// below this threshold
     pub buffer_size: u64,
-    /// WAL segments become read-only after crossing over this size. Which means
-    /// that segments will always be >= this size. When old segments are
-    /// dropped from of memory, at least this much space will be freed from
+    /// Write Buffer segments become read-only after crossing over this size,
+    /// which means that segments will always be >= this size. When old segments
+    /// are dropped from of memory, at least this much space will be freed from
     /// the buffer.
     pub segment_size: u64,
-    /// What should happen if a write comes in that would exceed the WAL buffer
-    /// size and the oldest segment that could be dropped hasn't yet been
-    /// persisted to object storage. If the oldest segment has been
+    /// What should happen if a write comes in that would exceed the Write
+    /// Buffer size and the oldest segment that could be dropped hasn't yet
+    /// been persisted to object storage. If the oldest segment has been
     /// persisted, then it will be dropped from the buffer so that new writes
     /// can be accepted. This option is only for defining the behavior of what
     /// happens if that segment hasn't been persisted. If set to return an
@@ -518,9 +518,9 @@ pub struct WalBufferConfig {
     pub close_segment_after: Option<std::time::Duration>,
 }
 
-impl From<WalBufferConfig> for management::WalBufferConfig {
-    fn from(rollover: WalBufferConfig) -> Self {
-        let buffer_rollover: management::wal_buffer_config::Rollover =
+impl From<WriteBufferConfig> for management::WriteBufferConfig {
+    fn from(rollover: WriteBufferConfig) -> Self {
+        let buffer_rollover: management::write_buffer_config::Rollover =
             rollover.buffer_rollover.into();
 
         Self {
@@ -533,10 +533,10 @@ impl From<WalBufferConfig> for management::WalBufferConfig {
     }
 }
 
-impl TryFrom<management::WalBufferConfig> for WalBufferConfig {
+impl TryFrom<management::WriteBufferConfig> for WriteBufferConfig {
     type Error = FieldViolation;
 
-    fn try_from(proto: management::WalBufferConfig) -> Result<Self, Self::Error> {
+    fn try_from(proto: management::WriteBufferConfig) -> Result<Self, Self::Error> {
         let buffer_rollover = proto.buffer_rollover().scope("buffer_rollover")?;
         let close_segment_after = proto
             .close_segment_after
@@ -574,7 +574,7 @@ pub enum WalBufferRollover {
     ReturnError,
 }
 
-impl From<WalBufferRollover> for management::wal_buffer_config::Rollover {
+impl From<WalBufferRollover> for management::write_buffer_config::Rollover {
     fn from(rollover: WalBufferRollover) -> Self {
         match rollover {
             WalBufferRollover::DropOldSegment => Self::DropOldSegment,
@@ -584,11 +584,11 @@ impl From<WalBufferRollover> for management::wal_buffer_config::Rollover {
     }
 }
 
-impl TryFrom<management::wal_buffer_config::Rollover> for WalBufferRollover {
+impl TryFrom<management::write_buffer_config::Rollover> for WalBufferRollover {
     type Error = FieldViolation;
 
-    fn try_from(proto: management::wal_buffer_config::Rollover) -> Result<Self, Self::Error> {
-        use management::wal_buffer_config::Rollover;
+    fn try_from(proto: management::write_buffer_config::Rollover) -> Result<Self, Self::Error> {
+        use management::write_buffer_config::Rollover;
         Ok(match proto {
             Rollover::Unspecified => return Err(FieldViolation::required("")),
             Rollover::DropOldSegment => Self::DropOldSegment,
@@ -1213,7 +1213,7 @@ mod tests {
         assert_eq!(back.lifecycle_rules, Some(LifecycleRules::default().into()));
 
         // These should be none as preserved on non-protobuf DatabaseRules
-        assert!(back.wal_buffer_config.is_none());
+        assert!(back.write_buffer_config.is_none());
         assert!(back.shard_config.is_none());
     }
 
@@ -1307,10 +1307,10 @@ mod tests {
     }
 
     #[test]
-    fn test_wal_buffer_config_default() {
-        let protobuf: management::WalBufferConfig = Default::default();
+    fn test_write_buffer_config_default() {
+        let protobuf: management::WriteBufferConfig = Default::default();
 
-        let res: Result<WalBufferConfig, _> = protobuf.try_into();
+        let res: Result<WriteBufferConfig, _> = protobuf.try_into();
         let err = res.expect_err("expected failure");
 
         assert_eq!(&err.field, "buffer_rollover");
@@ -1318,25 +1318,25 @@ mod tests {
     }
 
     #[test]
-    fn test_wal_buffer_config_rollover() {
-        let protobuf = management::WalBufferConfig {
-            buffer_rollover: management::wal_buffer_config::Rollover::DropIncoming as _,
+    fn test_write_buffer_config_rollover() {
+        let protobuf = management::WriteBufferConfig {
+            buffer_rollover: management::write_buffer_config::Rollover::DropIncoming as _,
             ..Default::default()
         };
 
-        let config: WalBufferConfig = protobuf.clone().try_into().unwrap();
-        let back: management::WalBufferConfig = config.clone().into();
+        let config: WriteBufferConfig = protobuf.clone().try_into().unwrap();
+        let back: management::WriteBufferConfig = config.clone().into();
 
         assert_eq!(config.buffer_rollover, WalBufferRollover::DropIncoming);
         assert_eq!(protobuf, back);
     }
 
     #[test]
-    fn test_wal_buffer_config_negative_duration() {
+    fn test_write_buffer_config_negative_duration() {
         use generated_types::google::protobuf::Duration;
 
-        let protobuf = management::WalBufferConfig {
-            buffer_rollover: management::wal_buffer_config::Rollover::DropOldSegment as _,
+        let protobuf = management::WriteBufferConfig {
+            buffer_rollover: management::write_buffer_config::Rollover::DropOldSegment as _,
             close_segment_after: Some(Duration {
                 seconds: -1,
                 nanos: -40,
@@ -1344,7 +1344,7 @@ mod tests {
             ..Default::default()
         };
 
-        let res: Result<WalBufferConfig, _> = protobuf.try_into();
+        let res: Result<WriteBufferConfig, _> = protobuf.try_into();
         let err = res.expect_err("expected failure");
 
         assert_eq!(&err.field, "closeSegmentAfter");

@@ -826,7 +826,7 @@ mod tests {
             partition_template: PartitionTemplate {
                 parts: vec![TemplatePart::TimeFormat("YYYY-MM".to_string())],
             },
-            wal_buffer_config: None,
+            write_buffer_config: None,
             lifecycle_rules: Default::default(),
             shard_config: None,
         };

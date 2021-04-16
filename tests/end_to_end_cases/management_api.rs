@@ -172,10 +172,10 @@ async fn test_create_get_update_database() {
                 part: Some(partition_template::part::Part::Table(Empty {})),
             }],
         }),
-        wal_buffer_config: Some(WalBufferConfig {
+        write_buffer_config: Some(WriteBufferConfig {
             buffer_size: 24,
             segment_size: 2,
-            buffer_rollover: wal_buffer_config::Rollover::DropIncoming as _,
+            buffer_rollover: write_buffer_config::Rollover::DropIncoming as _,
             persist_segments: true,
             close_segment_after: Some(Duration {
                 seconds: 324,

@@ -729,7 +729,7 @@ impl Db {
         )
         .context(SequencedEntryError)?;
 
-        if self.rules.read().wal_buffer_config.is_some() {
+        if self.rules.read().write_buffer_config.is_some() {
             todo!("route to the Write Buffer. TODO: carols10cents #1157")
         }
 

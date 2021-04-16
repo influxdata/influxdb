@@ -133,13 +133,13 @@ impl Config {
             return;
         }
 
-        let wal_buffer = rules.wal_buffer_config.as_ref().map(Into::into);
+        let write_buffer = rules.write_buffer_config.as_ref().map(Into::into);
         let db = Arc::new(Db::new(
             rules,
             server_id,
             object_store,
             exec,
-            wal_buffer,
+            write_buffer,
             Arc::clone(&self.jobs),
         ));
 

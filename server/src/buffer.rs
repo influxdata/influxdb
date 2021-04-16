@@ -18,7 +18,7 @@ use std::{
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use crc32fast::Hasher;
-use data_types::database_rules::WalBufferConfig;
+use data_types::database_rules::WriteBufferConfig;
 use data_types::wal::{SegmentPersistence, SegmentSummary, WriterSummary};
 use observability_deps::tracing::{error, info, warn};
 use parking_lot::Mutex;
@@ -83,7 +83,7 @@ pub enum Error {
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// An in-memory buffer of a write ahead log. It is split up into segments,
+/// An in-memory buffer for the Write Buffer. It is split up into segments,
 /// which can be persisted to object storage.
 #[derive(Debug)]
 pub struct Buffer {
@@ -264,8 +264,8 @@ impl Buffer {
     }
 }
 
-impl From<&WalBufferConfig> for Buffer {
-    fn from(config: &WalBufferConfig) -> Self {
+impl From<&WriteBufferConfig> for Buffer {
+    fn from(config: &WriteBufferConfig) -> Self {
         Self::new(
             config.buffer_size,
             config.segment_size,
