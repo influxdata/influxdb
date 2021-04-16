@@ -970,7 +970,7 @@ where
     };
     let grouped_series_set_plan = grouped_series_set_plan
         .map_err(|e| Box::new(e) as _)
-        .context(PlanningFilteringSeries { db_name })?;
+        .context(PlanningGroupSeries { db_name })?;
 
     // Spawn task to convert between series sets and the gRPC results
     // and to run the actual plans (so we can return a result to the
@@ -1077,6 +1077,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_rpc_capabilities() {
+        test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
@@ -1097,6 +1098,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_rpc_measurement_names() {
+        test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
@@ -1180,6 +1182,7 @@ mod tests {
     /// and that the returned values are sent back via gRPC.
     #[tokio::test]
     async fn test_storage_rpc_tag_keys() {
+        test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
@@ -1243,6 +1246,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_rpc_tag_keys_error() {
+        test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
@@ -1402,6 +1406,7 @@ mod tests {
     /// and that the returned values are sent back via gRPC.
     #[tokio::test]
     async fn test_storage_rpc_tag_values() {
+        test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
@@ -1445,6 +1450,7 @@ mod tests {
     /// tag_key = _measurement means listing all measurement names
     #[tokio::test]
     async fn test_storage_rpc_tag_values_with_measurement() {
+        test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
@@ -1486,6 +1492,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_rpc_tag_values_field() {
+        test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
@@ -1532,6 +1539,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_storage_rpc_tag_values_error() {
+        test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
@@ -1746,6 +1754,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_filter() {
+        test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
@@ -1790,6 +1799,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_filter_error() {
+        test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
@@ -1827,6 +1837,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_group() {
+        test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
@@ -1876,6 +1887,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_group_error() {
+        test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
@@ -2079,6 +2091,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_read_window_aggegate_error() {
+        test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 
@@ -2179,6 +2192,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_measurement_fields_error() {
+        test_helpers::maybe_start_logging();
         // Start a test gRPC server on a randomally allocated port
         let mut fixture = Fixture::new().await.expect("Connecting to test server");
 

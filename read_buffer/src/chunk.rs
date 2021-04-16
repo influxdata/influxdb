@@ -573,7 +573,8 @@ mod test {
 
     use arrow_deps::arrow::{
         array::{
-            ArrayRef, BinaryArray, BooleanArray, Float64Array, Int64Array, StringArray, UInt64Array,
+            ArrayRef, BinaryArray, BooleanArray, Float64Array, Int64Array, StringArray,
+            TimestampNanosecondArray, UInt64Array,
         },
         datatypes::DataType::{Boolean, Float64, Int64, UInt64, Utf8},
     };
@@ -603,7 +604,10 @@ mod test {
             Arc::new(StringArray::from(vec!["west", "west", "east"])),
             Arc::new(Float64Array::from(vec![1.2, 3.3, 45.3])),
             Arc::new(BooleanArray::from(vec![true, false, true])),
-            Arc::new(Int64Array::from(vec![11111111, 222222, 3333])),
+            Arc::new(TimestampNanosecondArray::from_vec(
+                vec![11111111, 222222, 3333],
+                None,
+            )),
             Arc::new(Float64Array::from(vec![Some(11.0), None, Some(12.0)])),
         ];
 
@@ -620,8 +624,16 @@ mod test {
                 assert_eq!(&arr.iter().collect::<Vec<_>>(), exp_data);
             }
             Values::I64(exp_data) => {
-                let arr: &Int64Array = got_column.as_any().downcast_ref::<Int64Array>().unwrap();
-                assert_eq!(arr.values(), exp_data);
+                if let Some(arr) = got_column.as_any().downcast_ref::<Int64Array>() {
+                    assert_eq!(arr.values(), exp_data);
+                } else if let Some(arr) = got_column
+                    .as_any()
+                    .downcast_ref::<TimestampNanosecondArray>()
+                {
+                    assert_eq!(arr.values(), exp_data);
+                } else {
+                    panic!("Unexpected type");
+                }
             }
             Values::U64(exp_data) => {
                 let arr: &UInt64Array = got_column.as_any().downcast_ref::<UInt64Array>().unwrap();
@@ -838,7 +850,10 @@ mod test {
             Arc::new(Int64Array::from(vec![1000, -1000, 4000])),
             Arc::new(BooleanArray::from(vec![true, true, false])),
             Arc::new(StringArray::from(vec![Some("msg a"), Some("msg b"), None])),
-            Arc::new(Int64Array::from(vec![11111111, 222222, 3333])),
+            Arc::new(TimestampNanosecondArray::from_vec(
+                vec![11111111, 222222, 3333],
+                None,
+            )),
         ];
 
         // Add a record batch to a single partition
@@ -944,7 +959,10 @@ mod test {
                     Some("message b"),
                     None,
                 ])),
-                Arc::new(Int64Array::from(vec![i, 2 * i, 3 * i])),
+                Arc::new(TimestampNanosecondArray::from_vec(
+                    vec![i, 2 * i, 3 * i],
+                    None,
+                )),
             ];
 
             // Add a record batch to a single partition
@@ -1148,7 +1166,10 @@ mod test {
         let data: Vec<ArrayRef> = vec![
             Arc::new(StringArray::from(vec!["west", "west", "east"])),
             Arc::new(Float64Array::from(vec![1.2, 3.3, 45.3])),
-            Arc::new(Int64Array::from(vec![11111111, 222222, 3333])),
+            Arc::new(TimestampNanosecondArray::from_vec(
+                vec![11111111, 222222, 3333],
+                None,
+            )),
             Arc::new(Float64Array::from(vec![Some(11.0), None, Some(12.0)])),
         ];
 
@@ -1214,7 +1235,10 @@ mod test {
         let data: Vec<ArrayRef> = vec![
             Arc::new(StringArray::from(vec!["north", "south", "east"])),
             Arc::new(StringArray::from(vec![Some("prod"), None, Some("stag")])),
-            Arc::new(Int64Array::from(vec![11111111, 222222, 3333])),
+            Arc::new(TimestampNanosecondArray::from_vec(
+                vec![11111111, 222222, 3333],
+                None,
+            )),
         ];
 
         // Add the above table to a chunk and partition

@@ -5,7 +5,7 @@ use std::{collections::BTreeMap, sync::Arc};
 
 use arrow_deps::arrow::{
     self,
-    array::Int64Array,
+    array::TimestampNanosecondArray,
     datatypes::{DataType, SchemaRef},
     record_batch::RecordBatch,
 };
@@ -89,8 +89,8 @@ impl IntoFieldList for Vec<RecordBatch> {
             let time_column = batch
                 .column(time_column_index)
                 .as_any()
-                .downcast_ref::<Int64Array>()
-                .expect("Downcasting time to Int64Array");
+                .downcast_ref::<TimestampNanosecondArray>()
+                .expect("Downcasting time to TimestampNanosecondArray");
 
             for (column_index, arrow_field) in arrow_schema.fields().iter().enumerate() {
                 if column_index == time_column_index {
@@ -188,20 +188,22 @@ mod tests {
 
     use arrow::array::ArrayRef;
     use arrow_deps::arrow::{
-        array::Int64Array,
-        array::StringArray,
+        array::{Int64Array, StringArray},
         datatypes::{DataType as ArrowDataType, Field as ArrowField, Schema},
     };
+    use internal_types::schema::TIME_DATA_TYPE;
 
     #[test]
     fn test_convert_single_batch() {
         let schema = Arc::new(Schema::new(vec![
             ArrowField::new("string_field", ArrowDataType::Utf8, true),
-            ArrowField::new("time", ArrowDataType::Int64, true),
+            ArrowField::new("time", TIME_DATA_TYPE(), true),
         ]));
 
         let string_array: ArrayRef = Arc::new(StringArray::from(vec!["foo", "bar", "baz", "foo"]));
-        let timestamp_array: ArrayRef = Arc::new(Int64Array::from(vec![1000, 2000, 3000, 4000]));
+        let timestamp_array: ArrayRef = Arc::new(TimestampNanosecondArray::from_iter_values(vec![
+            1000, 2000, 3000, 4000,
+        ]));
 
         let actual = do_conversion(
             Arc::clone(&schema),
@@ -226,7 +228,9 @@ mod tests {
         // expect same even if the timestamp order is different
 
         let string_array: ArrayRef = Arc::new(StringArray::from(vec!["foo", "bar", "baz", "foo"]));
-        let timestamp_array: ArrayRef = Arc::new(Int64Array::from(vec![1000, 4000, 2000, 3000]));
+        let timestamp_array: ArrayRef = Arc::new(TimestampNanosecondArray::from_iter_values(vec![
+            1000, 4000, 2000, 3000,
+        ]));
 
         let actual = do_conversion(schema, vec![vec![string_array, timestamp_array]])
             .expect("convert correctly");
@@ -242,14 +246,16 @@ mod tests {
     fn test_convert_two_batches() {
         let schema = Arc::new(Schema::new(vec![
             ArrowField::new("string_field", ArrowDataType::Utf8, true),
-            ArrowField::new("time", ArrowDataType::Int64, true),
+            ArrowField::new("time", TIME_DATA_TYPE(), true),
         ]));
 
         let string_array1: ArrayRef = Arc::new(StringArray::from(vec!["foo", "bar"]));
-        let timestamp_array1: ArrayRef = Arc::new(Int64Array::from(vec![1000, 3000]));
+        let timestamp_array1: ArrayRef =
+            Arc::new(TimestampNanosecondArray::from_iter_values(vec![1000, 3000]));
 
         let string_array2: ArrayRef = Arc::new(StringArray::from(vec!["foo", "foo"]));
-        let timestamp_array2: ArrayRef = Arc::new(Int64Array::from(vec![1000, 4000]));
+        let timestamp_array2: ArrayRef =
+            Arc::new(TimestampNanosecondArray::from_iter_values(vec![1000, 4000]));
 
         let actual = do_conversion(
             schema,
@@ -279,12 +285,14 @@ mod tests {
     fn test_convert_all_nulls() {
         let schema = Arc::new(Schema::new(vec![
             ArrowField::new("string_field", ArrowDataType::Utf8, true),
-            ArrowField::new("time", ArrowDataType::Int64, true),
+            ArrowField::new("time", TIME_DATA_TYPE(), true),
         ]));
 
         // string array has no actual values, so should not be returned as a field
         let string_array: ArrayRef = Arc::new(StringArray::from(vec![None, None, None, None]));
-        let timestamp_array: ArrayRef = Arc::new(Int64Array::from(vec![1000, 2000, 3000, 4000]));
+        let timestamp_array: ArrayRef = Arc::new(TimestampNanosecondArray::from_iter_values(vec![
+            1000, 2000, 3000, 4000,
+        ]));
 
         let actual = do_conversion(schema, vec![vec![string_array, timestamp_array]])
             .expect("convert correctly");
@@ -304,13 +312,15 @@ mod tests {
         let schema = Arc::new(Schema::new(vec![
             ArrowField::new("string_field", ArrowDataType::Utf8, true),
             ArrowField::new("int_field", ArrowDataType::Int64, true),
-            ArrowField::new("time", ArrowDataType::Int64, true),
+            ArrowField::new("time", TIME_DATA_TYPE(), true),
         ]));
 
         let string_array: ArrayRef = Arc::new(StringArray::from(vec!["foo", "bar", "baz", "foo"]));
         let int_array: ArrayRef =
             Arc::new(Int64Array::from(vec![Some(10), Some(20), Some(30), None]));
-        let timestamp_array: ArrayRef = Arc::new(Int64Array::from(vec![1000, 2000, 3000, 4000]));
+        let timestamp_array: ArrayRef = Arc::new(TimestampNanosecondArray::from_iter_values(vec![
+            1000, 2000, 3000, 4000,
+        ]));
 
         let expected = FieldList {
             fields: vec![

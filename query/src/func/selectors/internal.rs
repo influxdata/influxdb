@@ -14,7 +14,10 @@ use arrow_deps::{
         min as array_min, min_boolean as array_min_boolean, min_string as array_min_string,
     },
     arrow::{
-        array::{Array, ArrayRef, BooleanArray, Float64Array, Int64Array, StringArray},
+        array::{
+            Array, ArrayRef, BooleanArray, Float64Array, Int64Array, StringArray,
+            TimestampNanosecondArray,
+        },
         datatypes::DataType,
     },
     datafusion::{error::Result as DataFusionResult, scalar::ScalarValue},
@@ -117,14 +120,14 @@ macro_rules! make_first_selector {
             fn datafusion_state(&self) -> DataFusionResult<Vec<ScalarValue>> {
                 Ok(vec![
                     $TO_SCALARVALUE(self.value.clone()),
-                    ScalarValue::Int64(self.time),
+                    ScalarValue::TimestampNanosecond(self.time),
                 ])
             }
 
             fn evaluate(&self, output: &SelectorOutput) -> DataFusionResult<ScalarValue> {
                 match output {
                     SelectorOutput::Value => Ok($TO_SCALARVALUE(self.value.clone())),
-                    SelectorOutput::Time => Ok(ScalarValue::Int64(self.time)),
+                    SelectorOutput::Time => Ok(ScalarValue::TimestampNanosecond(self.time)),
                 }
             }
 
@@ -141,7 +144,7 @@ macro_rules! make_first_selector {
 
                 let time_arr = time_arr
                     .as_any()
-                    .downcast_ref::<Int64Array>()
+                    .downcast_ref::<TimestampNanosecondArray>()
                     // the input type arguments should be ensured by datafusion
                     .expect("Second argument was time");
 
@@ -204,14 +207,14 @@ macro_rules! make_last_selector {
             fn datafusion_state(&self) -> DataFusionResult<Vec<ScalarValue>> {
                 Ok(vec![
                     $TO_SCALARVALUE(self.value.clone()),
-                    ScalarValue::Int64(self.time),
+                    ScalarValue::TimestampNanosecond(self.time),
                 ])
             }
 
             fn evaluate(&self, output: &SelectorOutput) -> DataFusionResult<ScalarValue> {
                 match output {
                     SelectorOutput::Value => Ok($TO_SCALARVALUE(self.value.clone())),
-                    SelectorOutput::Time => Ok(ScalarValue::Int64(self.time)),
+                    SelectorOutput::Time => Ok(ScalarValue::TimestampNanosecond(self.time)),
                 }
             }
 
@@ -228,7 +231,7 @@ macro_rules! make_last_selector {
 
                 let time_arr = time_arr
                     .as_any()
-                    .downcast_ref::<Int64Array>()
+                    .downcast_ref::<TimestampNanosecondArray>()
                     // the input type arguments should be ensured by datafusion
                     .expect("Second argument was time");
 
@@ -291,14 +294,14 @@ macro_rules! make_min_selector {
             fn datafusion_state(&self) -> DataFusionResult<Vec<ScalarValue>> {
                 Ok(vec![
                     $TO_SCALARVALUE(self.value.clone()),
-                    ScalarValue::Int64(self.time),
+                    ScalarValue::TimestampNanosecond(self.time),
                 ])
             }
 
             fn evaluate(&self, output: &SelectorOutput) -> DataFusionResult<ScalarValue> {
                 match output {
                     SelectorOutput::Value => Ok($TO_SCALARVALUE(self.value.clone())),
-                    SelectorOutput::Time => Ok(ScalarValue::Int64(self.time)),
+                    SelectorOutput::Time => Ok(ScalarValue::TimestampNanosecond(self.time)),
                 }
             }
 
@@ -315,7 +318,7 @@ macro_rules! make_min_selector {
 
                 let time_arr = time_arr
                     .as_any()
-                    .downcast_ref::<Int64Array>()
+                    .downcast_ref::<TimestampNanosecondArray>()
                     // the input type arguments should be ensured by datafusion
                     .expect("Second argument was time");
 
@@ -378,14 +381,14 @@ macro_rules! make_max_selector {
             fn datafusion_state(&self) -> DataFusionResult<Vec<ScalarValue>> {
                 Ok(vec![
                     $TO_SCALARVALUE(self.value.clone()),
-                    ScalarValue::Int64(self.time),
+                    ScalarValue::TimestampNanosecond(self.time),
                 ])
             }
 
             fn evaluate(&self, output: &SelectorOutput) -> DataFusionResult<ScalarValue> {
                 match output {
                     SelectorOutput::Value => Ok($TO_SCALARVALUE(self.value.clone())),
-                    SelectorOutput::Time => Ok(ScalarValue::Int64(self.time)),
+                    SelectorOutput::Time => Ok(ScalarValue::TimestampNanosecond(self.time)),
                 }
             }
 
@@ -402,7 +405,7 @@ macro_rules! make_max_selector {
 
                 let time_arr = time_arr
                     .as_any()
-                    .downcast_ref::<Int64Array>()
+                    .downcast_ref::<TimestampNanosecondArray>()
                     // the input type arguments should be ensured by datafusion
                     .expect("Second argument was time");
 

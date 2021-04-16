@@ -9,7 +9,10 @@ use arrow::{
     error::ArrowError,
     record_batch::RecordBatch,
 };
-use datafusion::logical_plan::{binary_expr, col, lit, Expr, Operator};
+use datafusion::{
+    logical_plan::{binary_expr, col, lit, Expr, Operator},
+    scalar::ScalarValue,
+};
 
 /// Returns a single column record batch of type Utf8 from the
 /// contents of something that can be turned into an iterator over
@@ -66,8 +69,13 @@ impl IntoExpr for Expr {
 /// Creates expression like:
 /// start <= time && time < end
 pub fn make_range_expr(start: i64, end: i64, time: impl AsRef<str>) -> Expr {
-    let ts_low = lit(start).lt_eq(col(time.as_ref()));
-    let ts_high = col(time.as_ref()).lt(lit(end));
+    // We need to cast the start and end values to timestamps
+    // the equivalent of:
+    let ts_start = ScalarValue::TimestampNanosecond(Some(start));
+    let ts_end = ScalarValue::TimestampNanosecond(Some(end));
+
+    let ts_low = lit(ts_start).lt_eq(col(time.as_ref()));
+    let ts_high = col(time.as_ref()).lt(lit(ts_end));
 
     ts_low.and(ts_high)
 }
@@ -126,7 +134,8 @@ mod tests {
         // Test that the generated predicate is correct
 
         let ts_predicate_expr = make_range_expr(101, 202, "time");
-        let expected_string = "Int64(101) LtEq #time And #time Lt Int64(202)";
+        let expected_string =
+            "TimestampNanosecond(101) LtEq #time And #time Lt TimestampNanosecond(202)";
         let actual_string = format!("{:?}", ts_predicate_expr);
 
         assert_eq!(actual_string, expected_string);

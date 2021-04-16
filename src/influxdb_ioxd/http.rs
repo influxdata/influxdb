@@ -769,7 +769,7 @@ mod tests {
 
         let client = Client::new();
 
-        let lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=65.2,bottom_degrees=50.4 1568756160";
+        let lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=65.2,bottom_degrees=50.4 1617286224000000000";
 
         // send write data
         let bucket_name = "MyBucket";
@@ -792,11 +792,11 @@ mod tests {
 
         let batches = run_query(test_db, "select * from h2o_temperature").await;
         let expected = vec![
-            "+----------------+--------------+-------+-----------------+------------+",
-            "| bottom_degrees | location     | state | surface_degrees | time       |",
-            "+----------------+--------------+-------+-----------------+------------+",
-            "| 50.4           | santa_monica | CA    | 65.2            | 1568756160 |",
-            "+----------------+--------------+-------+-----------------+------------+",
+            "+----------------+--------------+-------+-----------------+---------------------+",
+            "| bottom_degrees | location     | state | surface_degrees | time                |",
+            "+----------------+--------------+-------+-----------------+---------------------+",
+            "| 50.4           | santa_monica | CA    | 65.2            | 2021-04-01 14:10:24 |",
+            "+----------------+--------------+-------+-----------------+---------------------+",
         ];
         assert_table_eq!(expected, &batches);
     }
@@ -875,7 +875,7 @@ mod tests {
 
         let client = Client::new();
 
-        let lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=65.2,bottom_degrees=50.4 1568756160";
+        let lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=65.2,bottom_degrees=50.4 1617286224000000000";
 
         // send write data
         let bucket_name = "MyBucket";
@@ -908,11 +908,13 @@ mod tests {
 
         assert_eq!(get_content_type(&response), "text/plain");
 
-        let res = "+----------------+--------------+-------+-----------------+------------+\n\
-                   | bottom_degrees | location     | state | surface_degrees | time       |\n\
-                   +----------------+--------------+-------+-----------------+------------+\n\
-                   | 50.4           | santa_monica | CA    | 65.2            | 1568756160 |\n\
-                   +----------------+--------------+-------+-----------------+------------+\n";
+        let res =
+            "+----------------+--------------+-------+-----------------+---------------------+\n\
+| bottom_degrees | location     | state | surface_degrees | time                |\n\
++----------------+--------------+-------+-----------------+---------------------+\n\
+| 50.4           | santa_monica | CA    | 65.2            | 2021-04-01 14:10:24 |\n\
++----------------+--------------+-------+-----------------+---------------------+\n";
+
         check_response("query", response, StatusCode::OK, res).await;
 
         // same response is expected if we explicitly request 'format=pretty'
@@ -944,7 +946,7 @@ mod tests {
         assert_eq!(get_content_type(&response), "text/csv");
 
         let res = "bottom_degrees,location,state,surface_degrees,time\n\
-                   50.4,santa_monica,CA,65.2,1568756160\n";
+                   50.4,santa_monica,CA,65.2,2021-04-01T14:10:24.000000000\n";
         check_response("query", response, StatusCode::OK, res).await;
     }
 
@@ -953,7 +955,8 @@ mod tests {
         let (client, server_url) = setup_test_data().await;
 
         // send a second line of data to demontrate how that works
-        let lp_data = "h2o_temperature,location=Boston,state=MA surface_degrees=50.2 1568756160";
+        let lp_data =
+            "h2o_temperature,location=Boston,state=MA surface_degrees=50.2 1617286224000000000";
 
         // send write data
         let bucket_name = "MyBucket";
@@ -981,7 +984,7 @@ mod tests {
         assert_eq!(get_content_type(&response), "application/json");
 
         // Note two json records: one record on each line
-        let res = r#"[{"bottom_degrees":50.4,"location":"santa_monica","state":"CA","surface_degrees":65.2,"time":1568756160},{"location":"Boston","state":"MA","surface_degrees":50.2,"time":1568756160}]"#;
+        let res = r#"[{"bottom_degrees":50.4,"location":"santa_monica","state":"CA","surface_degrees":65.2,"time":"2021-04-01 14:10:24"},{"location":"Boston","state":"MA","surface_degrees":50.2,"time":"2021-04-01 14:10:24"}]"#;
         check_response("query", response, StatusCode::OK, res).await;
     }
 
@@ -1007,7 +1010,7 @@ mod tests {
         let server_url = test_server(Arc::clone(&app_server));
 
         let client = Client::new();
-        let lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=65.2,bottom_degrees=50.4 1568756160";
+        let lp_data = "h2o_temperature,location=santa_monica,state=CA surface_degrees=65.2,bottom_degrees=50.4 1617286224000000000";
 
         // send write data encoded with gzip
         let bucket_name = "MyBucket";
@@ -1032,11 +1035,11 @@ mod tests {
         let batches = run_query(test_db, "select * from h2o_temperature").await;
 
         let expected = vec![
-            "+----------------+--------------+-------+-----------------+------------+",
-            "| bottom_degrees | location     | state | surface_degrees | time       |",
-            "+----------------+--------------+-------+-----------------+------------+",
-            "| 50.4           | santa_monica | CA    | 65.2            | 1568756160 |",
-            "+----------------+--------------+-------+-----------------+------------+",
+            "+----------------+--------------+-------+-----------------+---------------------+",
+            "| bottom_degrees | location     | state | surface_degrees | time                |",
+            "+----------------+--------------+-------+-----------------+---------------------+",
+            "| 50.4           | santa_monica | CA    | 65.2            | 2021-04-01 14:10:24 |",
+            "+----------------+--------------+-------+-----------------+---------------------+",
         ];
         assert_table_eq!(expected, &batches);
     }

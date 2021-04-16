@@ -17,7 +17,11 @@ use crate::schema::{AggregateType, LogicalDataType, ResultSchema};
 use crate::value::{
     AggregateVec, EncodedValues, OwnedValue, Scalar, Value, Values, ValuesIterator,
 };
-use arrow_deps::arrow::record_batch::RecordBatch;
+use arrow_deps::arrow::{
+    array::ArrayRef,
+    datatypes::{DataType, TimeUnit},
+    record_batch::RecordBatch,
+};
 use arrow_deps::{
     arrow, datafusion::logical_plan::Expr as DfExpr,
     datafusion::scalar::ScalarValue as DFScalarValue,
@@ -1582,11 +1586,43 @@ impl TryFrom<ReadFilterResult<'_>> for RecordBatch {
             .map_err(|source| Error::SchemaError { source })?;
         let arrow_schema: arrow_deps::arrow::datatypes::SchemaRef = schema.into();
 
-        let columns = result
+        let columns: Vec<ArrayRef> = result
             .data
             .into_iter()
-            .map(arrow::array::ArrayRef::from)
-            .collect::<Vec<_>>();
+            .enumerate()
+            .map(|(i, values)| {
+                // Note: here we are special-casing columns that have been
+                // specified as being represented by `TimestampNanosecondArray`
+                // according to the Arrow schema. Currently this is done so that
+                // when they're fed into a data-fusion query engine, it will
+                // emit a friendlier representation of them.
+                if let DataType::Timestamp(TimeUnit::Nanosecond, timestamp) =
+                    arrow_schema.field(i).data_type()
+                {
+                    return match values {
+                        Values::I64(arr) => {
+                            Ok(Arc::new(arrow::array::TimestampNanosecondArray::from_vec(
+                                arr,
+                                timestamp.clone(),
+                            )) as arrow::array::ArrayRef)
+                        }
+                        Values::I64N(arr) => Ok(Arc::new(
+                            arrow::array::TimestampNanosecondArray::from_opt_vec(
+                                arr,
+                                timestamp.clone(),
+                            ),
+                        )
+                            as arrow::array::ArrayRef),
+                        t => UnsupportedOperation {
+                            msg: format!("cannot convert {:?} to TimestampNanosecondArray", t),
+                        }
+                        .fail(),
+                    };
+                }
+
+                Ok(arrow::array::ArrayRef::from(values))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
         // try_new only returns an error if the schema is invalid or the number
         // of rows on columns differ. We have full control over both so there
