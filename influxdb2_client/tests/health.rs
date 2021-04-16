@@ -9,7 +9,9 @@ async fn get_health() -> Result {
     let server_fixture = maybe_skip_integration!(ServerFixture::create_shared()).await;
     let client = server_fixture.client();
 
-    client.health().await?;
+    let res = client.health().await?;
+
+    assert!(matches!(res.status, influxdb2_client::models::Status::Pass));
 
     Ok(())
 }
