@@ -1073,6 +1073,25 @@ impl RowGroup {
     }
 }
 
+impl std::fmt::Display for &RowGroup {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.metadata().fmt(f)?;
+
+        for (name, idx) in &self.all_columns_by_name {
+            writeln!(
+                f,
+                "'{}' (pos {}): size: {} {}",
+                name,
+                idx,
+                self.size(),
+                self.columns[*idx]
+            )?;
+        }
+
+        Ok(())
+    }
+}
+
 /// Initialise a `RowGroup` from an Arrow RecordBatch.
 ///
 /// Presently this requires the RecordBatch to contain meta-data that specifies
@@ -1414,6 +1433,15 @@ impl ColumnMeta {
     }
 }
 
+impl Display for &ColumnMeta {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "sem_type: {}, log_type: {}, range: ({}, {})",
+            self.typ, self.logical_data_type, &self.range.0, &self.range.1
+        )
+    }
+}
 // column metadata is equivalent for two columns if their logical type and
 // semantic type are equivalent.
 impl PartialEq for ColumnMeta {
@@ -1445,6 +1473,21 @@ pub struct MetaData {
     // This can be used to skip the table entirely if the time range for a query
     // falls outside of this range.
     pub time_range: (i64, i64),
+}
+
+impl std::fmt::Display for &MetaData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(
+            f,
+            "[META] rows: {:?}, columns: {:?}",
+            self.rows, self.columns
+        )?;
+
+        for (name, meta) in &self.columns {
+            writeln!(f, "'{}': {}", name, meta)?;
+        }
+        Ok(())
+    }
 }
 
 impl MetaData {

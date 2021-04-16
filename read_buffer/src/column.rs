@@ -1098,6 +1098,19 @@ impl From<arrow::array::BooleanArray> for Column {
     }
 }
 
+impl std::fmt::Display for Column {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::String(_, enc) => enc.fmt(f),
+            Self::Float(_, enc) => enc.fmt(f),
+            Self::Integer(_, enc) => enc.fmt(f),
+            Self::Unsigned(_, enc) => enc.fmt(f),
+            Self::Bool(_, enc) => enc.fmt(f),
+            Self::ByteArray(_, enc) => enc.fmt(f),
+        }
+    }
+}
+
 #[derive(Debug, PartialEq)]
 enum PredicateMatch {
     None,
