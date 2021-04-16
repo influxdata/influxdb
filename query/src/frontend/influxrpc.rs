@@ -1422,6 +1422,16 @@ impl AggExprs {
 ///
 /// equivalent to `CAST agg(field) as field`
 fn make_agg_expr(agg: Aggregate, field_name: &str) -> Result<Expr> {
+    // For timestamps, use `MAX` which corresponds to the last
+    // timestamp in the group, unless `MIN` was specifically requested
+    // to be consistent with the Go implementation which takes the
+    // timestamp at the end of the window
+    let agg = if field_name == TIME_COLUMN_NAME && agg != Aggregate::Min {
+        Aggregate::Max
+    } else {
+        agg
+    };
+
     agg.to_datafusion_expr(col(field_name))
         .context(CreatingAggregates)
         .map(|agg| agg.alias(field_name))
