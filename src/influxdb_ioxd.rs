@@ -1,5 +1,4 @@
 use crate::commands::{
-    logging::LoggingLevel,
     metrics,
     run::{Config, ObjectStore as ObjStoreOpt},
 };
@@ -103,12 +102,7 @@ async fn wait_for_signal() {
 ///
 /// The logging_level passed in is the global setting (e.g. if -v or
 /// -vv was passed in before 'server')
-pub async fn main(logging_level: LoggingLevel, config: Config) -> Result<()> {
-    // Handle the case if -v/-vv is specified both before and after the server
-    // command
-    let logging_level = logging_level.combine(LoggingLevel::new(config.verbose_count));
-
-    let _drop_handle = logging_level.setup_logging(&config);
+pub async fn main(config: Config) -> Result<()> {
     metrics::init_metrics(&config);
 
     // Install custom panic handler and forget about it.

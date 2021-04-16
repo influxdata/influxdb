@@ -1,11 +1,11 @@
-use observability_deps::tracing::{
-    self,
-    field::{Field, Visit},
-    subscriber::Interest,
-    Id, Level, Subscriber,
-};
-use observability_deps::tracing_subscriber::{
-    fmt::MakeWriter, layer::Context, registry::LookupSpan, Layer,
+use observability_deps::{
+    tracing::{
+        self,
+        field::{Field, Visit},
+        subscriber::Interest,
+        Id, Level, Subscriber,
+    },
+    tracing_subscriber::{fmt::MakeWriter, layer::Context, registry::LookupSpan, Layer},
 };
 use std::borrow::Cow;
 use std::{io::Write, time::SystemTime};
@@ -64,19 +64,6 @@ where
         Interest::always()
     }
 
-    fn on_event(&self, event: &tracing::Event<'_>, ctx: Context<'_, S>) {
-        let writer = self.writer.make_writer();
-        let mut p = FieldPrinter::new(writer, event.metadata().level());
-        // record fields
-        event.record(&mut p);
-        if let Some(span) = ctx.lookup_current() {
-            p.write_span_id(&span.id())
-        }
-        // record source information
-        p.write_source_info(event);
-        p.write_timestamp();
-    }
-
     fn new_span(&self, attrs: &tracing::span::Attributes<'_>, id: &Id, ctx: Context<'_, S>) {
         let writer = self.writer.make_writer();
         let metadata = ctx.metadata(id).expect("span should have metadata");
@@ -89,6 +76,19 @@ where
 
     fn max_level_hint(&self) -> Option<tracing::metadata::LevelFilter> {
         None
+    }
+
+    fn on_event(&self, event: &tracing::Event<'_>, ctx: Context<'_, S>) {
+        let writer = self.writer.make_writer();
+        let mut p = FieldPrinter::new(writer, event.metadata().level());
+        // record fields
+        event.record(&mut p);
+        if let Some(span) = ctx.lookup_current() {
+            p.write_span_id(&span.id())
+        }
+        // record source information
+        p.write_source_info(event);
+        p.write_timestamp();
     }
 }
 
@@ -158,18 +158,6 @@ impl<W: Write> Drop for FieldPrinter<W> {
 }
 
 impl<W: Write> Visit for FieldPrinter<W> {
-    fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
-        // Note this appears to be invoked via `debug!` and `info! macros
-        let formatted_value = format!("{:?}", value);
-        write!(
-            self.writer,
-            " {}={}",
-            translate_field_name(field.name()),
-            quote_and_escape(&formatted_value)
-        )
-        .ok();
-    }
-
     fn record_i64(&mut self, field: &Field, value: i64) {
         write!(
             self.writer,
@@ -231,6 +219,18 @@ impl<W: Write> Visit for FieldPrinter<W> {
         )
         .ok();
     }
+
+    fn record_debug(&mut self, field: &Field, value: &dyn std::fmt::Debug) {
+        // Note this appears to be invoked via `debug!` and `info! macros
+        let formatted_value = format!("{:?}", value);
+        write!(
+            self.writer,
+            " {}={}",
+            translate_field_name(field.name()),
+            quote_and_escape(&formatted_value)
+        )
+        .ok();
+    }
 }
 
 /// return true if the string value already starts/ends with quotes and is
@@ -241,7 +241,7 @@ fn needs_quotes_and_escaping(value: &str) -> bool {
         return true;
     }
 
-    // ignore begining/ending quotes, if any
+    // ignore beginning/ending quotes, if any
     let pre_quoted = value.len() >= 2 && value.starts_with('"') && value.ends_with('"');
 
     let value = if pre_quoted {
