@@ -1,6 +1,6 @@
 #!/bin/bash
 
-#set -eu -o pipefail
+set -eu -o pipefail
 
 # This is a simple shell script that uses the grpc API to edit the database rules on a remote
 # IOx server. It fetches the rules, spawns your default text editor, waits until your editor quits,
@@ -16,10 +16,19 @@ grpcurl() {
   "${SCRIPT_DIR}"/grpcurl "$@"
 }
 
+declare -a tmps
+cleanup() {
+  # https://stackoverflow.com/questions/7577052/bash-empty-array-expansion-with-set-u
+  rm -rf ${tmps[@]+"${tmps[@]}"}
+}
+trap cleanup EXIT
 
 main() {
   local host
   host="${1:-}"
+  # grpcurl doesn't like the http:// scheme, while influxdb client requires it
+  # let's be kind to users of this script
+  host="${host#http://}"
   shift
 
   if [ -z "${host}" ]; then
@@ -35,16 +44,11 @@ main() {
   fi
 
   local tmp
-
-  cleanup() {
-    rm -rf "${tmp}"
-  }
-  trap cleanup EXIT
-
   tmp="$(mktemp)"
+  tmps+=("${tmp}")
 
   local req
-  read -r -d '' req <<EOF
+  read -r -d '' req <<EOF || true
     {"name": "${db_name}"}
 EOF
 
