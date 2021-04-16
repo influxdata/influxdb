@@ -1,12 +1,12 @@
 //! Write API
 
-use crate::{Client, Http, RequestError, ReqwestProcessing, Serializing};
 use crate::models::WriteDataPoint;
-use std::io::{self, Write};
-use futures::{Stream, StreamExt};
-use reqwest::Method;
-use snafu::ResultExt;
+use crate::{Client, Http, RequestError, ReqwestProcessing};
 use bytes::BufMut;
+use futures::{Stream, StreamExt};
+use reqwest::{Body, Method};
+use snafu::ResultExt;
+use std::io::{self, Write};
 
 impl Client {
     /// Write line protocol data to the specified organization and bucket.
