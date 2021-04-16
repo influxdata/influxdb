@@ -1093,13 +1093,13 @@ impl std::ops::Add for Scalar {
     }
 }
 
-impl std::fmt::Display for Scalar {
+impl std::fmt::Display for &Scalar {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Self::Null => write!(f, "NULL"),
-            Self::I64(v) => write!(f, "{}", v),
-            Self::U64(v) => write!(f, "{}", v),
-            Self::F64(v) => write!(f, "{}", v),
+            Scalar::Null => write!(f, "NULL"),
+            Scalar::I64(v) => write!(f, "{}", v),
+            Scalar::U64(v) => write!(f, "{}", v),
+            Scalar::F64(v) => write!(f, "{}", v),
         }
     }
 }
@@ -1130,6 +1130,18 @@ impl OwnedValue {
             Self::String(s) => s.len() + self_size,
             Self::ByteArray(arr) => arr.len() + self_size,
             _ => self_size,
+        }
+    }
+}
+
+impl std::fmt::Display for &OwnedValue {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            OwnedValue::Null => write!(f, "NULL"),
+            OwnedValue::String(s) => s.fmt(f),
+            OwnedValue::ByteArray(s) => write!(f, "{}", String::from_utf8_lossy(s)),
+            OwnedValue::Boolean(b) => b.fmt(f),
+            OwnedValue::Scalar(s) => s.fmt(f),
         }
     }
 }
