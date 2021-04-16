@@ -207,6 +207,7 @@ pub struct LifecycleRules {
     pub sort_order: SortOrder,
 
     /// Allow dropping data that has not been persisted to object storage
+    /// once the database size has exceeded the configured limits
     pub drop_non_persisted: bool,
 
     /// Persists chunks to object storage.
