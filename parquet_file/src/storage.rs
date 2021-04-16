@@ -301,7 +301,7 @@ impl Storage {
             if let Err(e) = Self::read_file(
                 filename,
                 projection.as_slice(),
-                &predicate_builder,
+                predicate_builder.as_ref(),
                 batch_size,
                 response_tx,
                 limit,
@@ -331,7 +331,7 @@ impl Storage {
     fn read_file(
         filename: String,
         projection: &[usize],
-        predicate_builder: &Option<RowGroupPredicateBuilder>,
+        predicate_builder: Option<&RowGroupPredicateBuilder>,
         batch_size: usize,
         response_tx: Sender<ArrowResult<RecordBatch>>,
         limit: Option<usize>,
