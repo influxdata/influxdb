@@ -3,6 +3,7 @@ use std::{
     cmp::Ordering,
     collections::{BTreeMap, BTreeSet},
     convert::{TryFrom, TryInto},
+    fmt::Display,
     sync::Arc,
 };
 
@@ -1634,15 +1635,15 @@ impl TryFrom<ReadFilterResult<'_>> for RecordBatch {
 impl std::fmt::Debug for &ReadFilterResult<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Display the header
-        std::fmt::Display::fmt(self.schema(), f)?;
+        Display::fmt(self.schema(), f)?;
         writeln!(f)?;
 
         // Display the rest of the values.
-        std::fmt::Display::fmt(&self, f)
+        Display::fmt(&self, f)
     }
 }
 
-impl std::fmt::Display for &ReadFilterResult<'_> {
+impl Display for &ReadFilterResult<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.is_empty() {
             return Ok(());
@@ -2148,16 +2149,16 @@ impl PartialEq for ReadAggregateResult<'_> {
 impl std::fmt::Debug for &ReadAggregateResult<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Display the schema
-        std::fmt::Display::fmt(&self.schema(), f)?;
+        Display::fmt(&self.schema(), f)?;
 
         // Display the rest of the values.
-        std::fmt::Display::fmt(&self, f)
+        Display::fmt(&self, f)
     }
 }
 
 /// The Display implementation emits all of the column data for the results, but
 /// omits the schema.
-impl std::fmt::Display for &ReadAggregateResult<'_> {
+impl Display for &ReadAggregateResult<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.is_empty() {
             return Ok(());
