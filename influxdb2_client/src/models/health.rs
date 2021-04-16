@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// HealthCheck
-#[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HealthCheck {
     /// Name of the influxdb instance
@@ -30,7 +30,10 @@ impl HealthCheck {
         Self {
             name,
             status,
-            ..Default::default()
+            message: None,
+            checks: Vec::new(),
+            version: None,
+            commit: None,
         }
     }
 }
@@ -43,10 +46,4 @@ pub enum Status {
     Pass,
     /// Fail
     Fail,
-}
-
-impl Default for Status {
-    fn default() -> Self {
-        Self::Pass
-    }
 }

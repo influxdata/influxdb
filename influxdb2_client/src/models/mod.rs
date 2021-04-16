@@ -32,4 +32,4 @@ pub use self::query::{
 pub mod file;
 pub use self::file::File;
 pub mod health;
-pub use self::health::HealthCheck;
+pub use self::health::{HealthCheck, Status};
