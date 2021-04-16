@@ -509,7 +509,7 @@ pub struct WriteBufferConfig {
     /// can be set so that old segments are dropped even if they haven't been
     /// persisted. This setting is also useful for cases where persistence
     /// isn't being used and this is only for in-memory buffering.
-    pub buffer_rollover: WalBufferRollover,
+    pub buffer_rollover: WriteBufferRollover,
     /// If set to true, buffer segments will be written to object storage.
     pub store_segments: bool,
     /// If set, segments will be rolled over after this period of time even
@@ -557,16 +557,16 @@ impl TryFrom<management::WriteBufferConfig> for WriteBufferConfig {
     }
 }
 
-/// WalBufferRollover defines the behavior of what should happen if a write
+/// `WriteBufferRollover` defines the behavior of what should happen if a write
 /// comes in that would cause the buffer to exceed its max size AND the oldest
 /// segment can't be dropped because it has not yet been persisted.
 #[derive(Debug, Clone, Eq, PartialEq, Copy)]
-pub enum WalBufferRollover {
+pub enum WriteBufferRollover {
     /// Drop the old segment even though it hasn't been persisted. This part of
-    /// the WAL will be lost on this server.
+    /// the Write Buffer will be lost on this server.
     DropOldSegment,
     /// Drop the incoming write and fail silently. This favors making sure that
-    /// older WAL data will be backed up.
+    /// older Write Buffer data will be backed up.
     DropIncoming,
     /// Reject the incoming write and return an error. The client may retry the
     /// request, which will succeed once the oldest segment has been
@@ -574,17 +574,17 @@ pub enum WalBufferRollover {
     ReturnError,
 }
 
-impl From<WalBufferRollover> for management::write_buffer_config::Rollover {
-    fn from(rollover: WalBufferRollover) -> Self {
+impl From<WriteBufferRollover> for management::write_buffer_config::Rollover {
+    fn from(rollover: WriteBufferRollover) -> Self {
         match rollover {
-            WalBufferRollover::DropOldSegment => Self::DropOldSegment,
-            WalBufferRollover::DropIncoming => Self::DropIncoming,
-            WalBufferRollover::ReturnError => Self::ReturnError,
+            WriteBufferRollover::DropOldSegment => Self::DropOldSegment,
+            WriteBufferRollover::DropIncoming => Self::DropIncoming,
+            WriteBufferRollover::ReturnError => Self::ReturnError,
         }
     }
 }
 
-impl TryFrom<management::write_buffer_config::Rollover> for WalBufferRollover {
+impl TryFrom<management::write_buffer_config::Rollover> for WriteBufferRollover {
     type Error = FieldViolation;
 
     fn try_from(proto: management::write_buffer_config::Rollover) -> Result<Self, Self::Error> {
@@ -1327,7 +1327,7 @@ mod tests {
         let config: WriteBufferConfig = protobuf.clone().try_into().unwrap();
         let back: management::WriteBufferConfig = config.clone().into();
 
-        assert_eq!(config.buffer_rollover, WalBufferRollover::DropIncoming);
+        assert_eq!(config.buffer_rollover, WriteBufferRollover::DropIncoming);
         assert_eq!(protobuf, back);
     }
 

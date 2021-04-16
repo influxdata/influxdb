@@ -1,7 +1,7 @@
 //! This module contains code for managing the WAL buffer
 
 use data_types::{
-    database_rules::{WalBufferRollover, WriterId},
+    database_rules::{WriteBufferRollover, WriterId},
     DatabaseName,
 };
 use generated_types::wal;
@@ -93,14 +93,14 @@ pub struct Buffer {
     pub persist: bool,
     open_segment: Segment,
     closed_segments: Vec<Arc<Segment>>,
-    rollover_behavior: WalBufferRollover,
+    rollover_behavior: WriteBufferRollover,
 }
 
 impl Buffer {
     pub fn new(
         max_size: u64,
         segment_size: u64,
-        rollover_behavior: WalBufferRollover,
+        rollover_behavior: WriteBufferRollover,
         persist: bool,
     ) -> Self {
         Self {
@@ -134,21 +134,22 @@ impl Buffer {
             }
 
             match self.rollover_behavior {
-                WalBufferRollover::DropIncoming => {
+                WriteBufferRollover::DropIncoming => {
                     warn!(
-                        "WAL is full, dropping incoming write for current segment (segment id: {:?})",
+                        "Write Buffer is full, dropping incoming write \
+                        for current segment (segment id: {:?})",
                         self.open_segment.id,
                     );
                     return Ok(None);
                 }
-                WalBufferRollover::DropOldSegment => {
+                WriteBufferRollover::DropOldSegment => {
                     let oldest_segment_id = self.remove_oldest_segment();
                     warn!(
-                        "WAL is full, dropping oldest segment (segment id: {:?})",
+                        "Write Buffer is full, dropping oldest segment (segment id: {:?})",
                         oldest_segment_id
                     );
                 }
-                WalBufferRollover::ReturnError => {
+                WriteBufferRollover::ReturnError => {
                     return UnableToDropSegment {
                         size: self.current_size,
                         segment_count: self.closed_segments.len(),
@@ -590,7 +591,7 @@ mod tests {
     fn append_increments_current_size_and_uses_existing_segment() {
         let max = 1 << 32;
         let segment = 1 << 16;
-        let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
+        let mut buf = Buffer::new(max, segment, WriteBufferRollover::ReturnError, false);
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
 
         let size = write.data().len() as u64;
@@ -609,7 +610,7 @@ mod tests {
     fn append_rolls_over_segment() {
         let max = 1 << 16;
         let segment = 1;
-        let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
+        let mut buf = Buffer::new(max, segment, WriteBufferRollover::ReturnError, false);
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
 
         let segment = buf.append(write).unwrap();
@@ -627,7 +628,7 @@ mod tests {
     fn drops_persisted_segment_when_over_size() {
         let max = 600;
         let segment = 1;
-        let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
+        let mut buf = Buffer::new(max, segment, WriteBufferRollover::ReturnError, false);
 
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
         let segment = buf.append(write).unwrap().unwrap();
@@ -662,7 +663,7 @@ mod tests {
     fn drops_old_segment_even_if_not_persisted() {
         let max = 600;
         let segment = 1;
-        let mut buf = Buffer::new(max, segment, WalBufferRollover::DropOldSegment, false);
+        let mut buf = Buffer::new(max, segment, WriteBufferRollover::DropOldSegment, false);
 
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
         let segment = buf.append(write).unwrap().unwrap();
@@ -691,7 +692,7 @@ mod tests {
     fn drops_incoming_write_if_oldest_segment_not_persisted() {
         let max = 600;
         let segment = 1;
-        let mut buf = Buffer::new(max, segment, WalBufferRollover::DropIncoming, false);
+        let mut buf = Buffer::new(max, segment, WriteBufferRollover::DropIncoming, false);
 
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
         let segment = buf.append(write).unwrap().unwrap();
@@ -719,7 +720,7 @@ mod tests {
     fn returns_error_if_oldest_segment_not_persisted() {
         let max = 600;
         let segment = 1;
-        let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
+        let mut buf = Buffer::new(max, segment, WriteBufferRollover::ReturnError, false);
 
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
         let segment = buf.append(write).unwrap().unwrap();
@@ -747,7 +748,7 @@ mod tests {
         let max = 1 << 63;
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
         let segment = (write.data().len() + 1) as u64;
-        let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
+        let mut buf = Buffer::new(max, segment, WriteBufferRollover::ReturnError, false);
 
         let segment = buf.append(write).unwrap();
         assert!(segment.is_none());
@@ -804,7 +805,7 @@ mod tests {
         let max = 1 << 63;
         let write = lp_to_replicated_write(1, 1, "cpu val=1 10");
         let segment = (write.data().len() + 1) as u64;
-        let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
+        let mut buf = Buffer::new(max, segment, WriteBufferRollover::ReturnError, false);
 
         let segment = buf.append(write).unwrap();
         assert!(segment.is_none());
@@ -851,7 +852,7 @@ mod tests {
         let max = 1 << 63;
         let write = lp_to_replicated_write(1, 3, "cpu val=1 10");
         let segment = (write.data().len() + 1) as u64;
-        let mut buf = Buffer::new(max, segment, WalBufferRollover::ReturnError, false);
+        let mut buf = Buffer::new(max, segment, WriteBufferRollover::ReturnError, false);
 
         let segment = buf.append(write).unwrap();
         assert!(segment.is_none());
