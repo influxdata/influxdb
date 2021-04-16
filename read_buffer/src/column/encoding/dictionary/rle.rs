@@ -924,7 +924,7 @@ impl std::fmt::Display for RLE {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "[RLE Dictionary] size: {:?} rows: {:?} cardinality: {}, runs: {} ",
+            "[RLE] size: {:?} rows: {:?} cardinality: {}, runs: {} ",
             self.size(),
             self.num_rows,
             self.cardinality(),

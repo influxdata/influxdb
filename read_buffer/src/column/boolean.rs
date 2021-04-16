@@ -110,6 +110,14 @@ impl BooleanEncoding {
     }
 }
 
+impl std::fmt::Display for BooleanEncoding {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::BooleanNull(enc) => enc.fmt(f),
+        }
+    }
+}
+
 /// Converts an Arrow `BooleanArray` into a `BooleanEncoding`.
 impl From<arrow::array::BooleanArray> for BooleanEncoding {
     fn from(arr: arrow::array::BooleanArray) -> Self {

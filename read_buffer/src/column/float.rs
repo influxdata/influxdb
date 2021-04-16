@@ -151,6 +151,15 @@ impl FloatEncoding {
     }
 }
 
+impl std::fmt::Display for FloatEncoding {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Fixed64(enc) => enc.fmt(f),
+            Self::FixedNull64(enc) => enc.fmt(f),
+        }
+    }
+}
+
 /// Converts a slice of `f64` values into a `FloatEncoding`.
 impl From<&[f64]> for FloatEncoding {
     fn from(arr: &[f64]) -> Self {

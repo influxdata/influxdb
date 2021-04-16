@@ -43,7 +43,7 @@ where
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "[Arrow<T>] rows: {:?}, nulls: {:?}, size: {}",
+            "[Array] rows: {:?}, nulls: {:?}, size: {}",
             self.arr.len(),
             self.arr.null_count(),
             self.size()
