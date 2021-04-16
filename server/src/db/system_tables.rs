@@ -23,7 +23,7 @@ use arrow_deps::{
 use data_types::{
     chunk::ChunkSummary, error::ErrorLogger, job::Job, partition_metadata::PartitionSummary,
 };
-use tracker::{TaskStatus, TaskTracker};
+use tracker::TaskTracker;
 
 use super::catalog::Catalog;
 use crate::JobRegistry;
@@ -208,14 +208,11 @@ fn from_partition_summaries(partitions: Vec<PartitionSummary>) -> Result<RecordB
 
 fn from_task_trackers(jobs: Vec<TaskTracker<Job>>) -> Result<RecordBatch> {
     let ids = StringArray::from_iter(jobs.iter().map(|job| Some(job.id().to_string())));
-
-    let cpu_time_used =
-        Time64NanosecondArray::from_iter(jobs.iter().map(|job| match job.get_status() {
-            TaskStatus::Creating => None,
-            TaskStatus::Running { cpu_nanos, .. } => Some(cpu_nanos as i64),
-            TaskStatus::Complete { cpu_nanos, .. } => Some(cpu_nanos as i64),
-        }));
-
+    let statuses = StringArray::from_iter(jobs.iter().map(|job| Some(job.get_status().name())));
+    let cpu_time_used = Time64NanosecondArray::from_iter(
+        jobs.iter()
+            .map(|job| job.get_status().cpu_nanos().map(|n| n as i64)),
+    );
     let db_names = StringArray::from_iter(jobs.iter().map(|job| job.metadata().db_name()));
     let partition_keys =
         StringArray::from_iter(jobs.iter().map(|job| job.metadata().partition_key()));
@@ -225,6 +222,7 @@ fn from_task_trackers(jobs: Vec<TaskTracker<Job>>) -> Result<RecordBatch> {
 
     let schema = Schema::new(vec![
         Field::new("id", ids.data_type().clone(), false),
+        Field::new("status", statuses.data_type().clone(), false),
         Field::new("cpu_time_used", cpu_time_used.data_type().clone(), true),
         Field::new("db_name", db_names.data_type().clone(), true),
         Field::new("partition_key", partition_keys.data_type().clone(), true),
@@ -236,6 +234,7 @@ fn from_task_trackers(jobs: Vec<TaskTracker<Job>>) -> Result<RecordBatch> {
         Arc::new(schema),
         vec![
             Arc::new(ids),
+            Arc::new(statuses),
             Arc::new(cpu_time_used),
             Arc::new(db_names),
             Arc::new(partition_keys),

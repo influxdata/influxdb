@@ -148,6 +148,27 @@ pub enum TaskStatus {
     },
 }
 
+impl TaskStatus {
+    /// return a human readable name for this status
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Creating => "Creating",
+            Self::Running { .. } => "Running",
+            Self::Complete { .. } => "Complete",
+        }
+    }
+
+    /// If the job has competed, returns the total amount of CPU time
+    /// spent executing futures
+    pub fn cpu_nanos(&self) -> Option<usize> {
+        match self {
+            Self::Creating => None,
+            Self::Running { cpu_nanos, .. } => Some(*cpu_nanos),
+            Self::Complete { cpu_nanos, .. } => Some(*cpu_nanos),
+        }
+    }
+}
+
 /// A Tracker can be used to monitor/cancel/wait for a set of associated futures
 #[derive(Debug)]
 pub struct TaskTracker<T> {
