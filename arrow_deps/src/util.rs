@@ -34,34 +34,34 @@ where
 }
 
 /// Traits to help creating DataFusion expressions from strings
-pub trait IntoExpr {
+pub trait AsExpr {
     /// Creates a DataFusion expr
-    fn into_expr(&self) -> Expr;
+    fn as_expr(&self) -> Expr;
 
     /// creates a DataFusion SortExpr
-    fn into_sort_expr(&self) -> Expr {
+    fn as_sort_expr(&self) -> Expr {
         Expr::Sort {
-            expr: Box::new(self.into_expr()),
+            expr: Box::new(self.as_expr()),
             asc: true, // Sort ASCENDING
             nulls_first: true,
         }
     }
 }
 
-impl IntoExpr for Arc<String> {
-    fn into_expr(&self) -> Expr {
+impl AsExpr for Arc<String> {
+    fn as_expr(&self) -> Expr {
         col(self.as_ref())
     }
 }
 
-impl IntoExpr for str {
-    fn into_expr(&self) -> Expr {
+impl AsExpr for str {
+    fn as_expr(&self) -> Expr {
         col(self)
     }
 }
 
-impl IntoExpr for Expr {
-    fn into_expr(&self) -> Expr {
+impl AsExpr for Expr {
+    fn as_expr(&self) -> Expr {
         self.clone()
     }
 }
