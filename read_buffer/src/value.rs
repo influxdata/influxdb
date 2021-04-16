@@ -1010,7 +1010,7 @@ impl Scalar {
     }
 }
 
-impl std::ops::AddAssign<&Scalar> for Scalar {
+impl std::ops::AddAssign<&Self> for Scalar {
     fn add_assign(&mut self, rhs: &Self) {
         if rhs.is_null() {
             // Adding NULL does nothing.
