@@ -62,6 +62,7 @@ pub enum Path {
 
 impl Path {
     /// Temp function until we support non-local files
+    /// Return true if this file i located on the local filesystem
     pub fn local_file(&self) -> bool {
         matches!(self, Self::File(_))
     }

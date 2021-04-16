@@ -72,7 +72,7 @@ pub enum Error {
     #[snafu(display("Non local file not supported"))]
     NonLocalFile {},
 
-    #[snafu(display("Error open file: {}", source))]
+    #[snafu(display("Error opening file: {}", source))]
     OpenFile { source: std::io::Error },
 
     #[snafu(display("Error at serialized file reader: {}", source))]
@@ -227,12 +227,8 @@ impl Storage {
         if predicate.exprs.is_empty() {
             None
         } else {
-            // TODO: not sure why we store a list of exprs. It should be an expressions of
-            // one or many AND/OR. Make it one Expr for now to be consistent
-            // with DataFusion's predicate builder.
-            // Reference:
-            // datafusion::physical_plan::parquet::RowGroupPredicateBuilder::try_new
-            let predicate = predicate.exprs[0].clone();
+            // Convert to datafusion's predicate
+            let predicate = predicate.filter_expr()?;
             Some(RowGroupPredicateBuilder::try_new(&predicate, schema).ok()?)
         }
     }
@@ -280,7 +276,7 @@ impl Storage {
         // Might need different function if this display function does not show the full
         // path
         let filename = path.display();
-        println!("Parquet filename: {}", filename);
+        // println!("Parquet filename: {}", filename); // TODO: remove after tests
 
         // Indices of columns in the schema needed to read
         let projection: Vec<usize> = Self::column_indices(selection, Arc::clone(&schema));
@@ -320,7 +316,7 @@ impl Storage {
         response_tx: &Sender<ArrowResult<RecordBatch>>,
         result: ArrowResult<RecordBatch>,
     ) -> Result<()> {
-        // Note this function is running on its own blockng tokio thread so blocking
+        // Note this function is running on its own blocking tokio thread so blocking
         // here is ok.
         response_tx
             .blocking_send(result)
@@ -343,7 +339,9 @@ impl Storage {
         if let Some(predicate_builder) = predicate_builder {
             let row_group_predicate =
                 predicate_builder.build_row_group_predicate(file_reader.metadata().row_groups());
-            file_reader.filter_row_groups(&row_group_predicate);
+            file_reader.filter_row_groups(&row_group_predicate); //filter out
+                                                                 // row group based
+                                                                 // on the predicate
         }
         let mut arrow_reader = ParquetFileArrowReader::new(Arc::new(file_reader));
         let mut batch_reader = arrow_reader
