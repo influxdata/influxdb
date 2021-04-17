@@ -511,14 +511,8 @@ impl Vector {
             //     Some(v) => Value::String(v),
             //     None => Value::Null, // Scalar::String(v[i].as_ref().unwrap()),
             // },
-            Self::NullFloat(v) => match v[i] {
-                Some(v) => Some(Scalar::Float(v)),
-                None => None,
-            },
-            Self::NullInteger(v) => match v[i] {
-                Some(v) => Some(Scalar::Integer(v)),
-                None => None,
-            },
+            Self::NullFloat(v) => v[i].map(Scalar::Float),
+            Self::NullInteger(v) => v[i].map(Scalar::Integer),
             Self::Float(v) => Some(Scalar::Float(v[i])),
             Self::Integer(v) => Some(Scalar::Integer(v[i])),
             Self::Unsigned32(v) => Some(Scalar::Unsigned32(v[i])),
@@ -1096,10 +1090,7 @@ impl Column {
     pub fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> Option<Scalar> {
         match self {
             Column::String(_) => unimplemented!("not implemented"),
-            Column::Float(c) => match c.sum_by_ids(row_ids) {
-                Some(sum) => Some(Scalar::Float(sum)),
-                None => None,
-            },
+            Column::Float(c) => c.sum_by_ids(row_ids).map(Scalar::Float),
             Column::Integer(_) => unimplemented!("not implemented"),
         }
     }

@@ -546,10 +546,7 @@ impl Db {
             let schema = Arc::clone(&arrow_schema)
                 .try_into()
                 .context(SchemaConversion)?;
-            let table_time_range = match time_range {
-                None => None,
-                Some((start, end)) => Some(TimestampRange::new(start, end)),
-            };
+            let table_time_range = time_range.map(|(start, end)| TimestampRange::new(start, end));
             parquet_chunk.add_table(stats, path, schema, table_time_range);
         }
 

@@ -597,9 +597,10 @@ impl MetaData {
     ) -> Vec<(ColumnType, LogicalDataType)> {
         names
             .iter()
-            .filter_map(|&name| match self.columns.get(name) {
-                Some(schema) => Some((schema.typ.clone(), schema.logical_data_type)),
-                None => None,
+            .filter_map(|&name| {
+                self.columns
+                    .get(name)
+                    .map(|schema| (schema.typ.clone(), schema.logical_data_type))
             })
             .collect::<Vec<_>>()
     }
