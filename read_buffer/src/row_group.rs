@@ -1060,11 +1060,9 @@ impl RowGroup {
             };
 
             let results = dst.entry(name.clone()).or_default();
-            for value in column.distinct_values(row_itr).into_iter() {
-                if let Some(v) = value {
-                    if !results.contains(v) {
-                        results.insert(v.to_owned());
-                    }
+            for v in column.distinct_values(row_itr).into_iter().flatten() {
+                if !results.contains(v) {
+                    results.insert(v.to_owned());
                 }
             }
         }

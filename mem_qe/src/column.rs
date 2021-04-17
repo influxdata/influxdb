@@ -356,11 +356,9 @@ impl Vector {
                 let mut found = false; // TODO(edd): check if this is faster than a match.
 
                 // TODO(edd): check asm to see if it's vectorising
-                for v in values[from_row_id..to_row_id].iter() {
-                    if let Some(v) = v {
-                        res += *v;
-                        found = true;
-                    }
+                for v in values[from_row_id..to_row_id].iter().flatten() {
+                    res += *v;
+                    found = true;
                 }
 
                 if found {
@@ -382,11 +380,9 @@ impl Vector {
                 let mut found = false;
 
                 // TODO(edd): check asm to see if it's vectorising
-                for v in values[from_row_id..to_row_id].iter() {
-                    if let Some(v) = v {
-                        res += *v;
-                        found = true;
-                    }
+                for v in values[from_row_id..to_row_id].iter().flatten() {
+                    res += *v;
+                    found = true;
                 }
 
                 if found {
