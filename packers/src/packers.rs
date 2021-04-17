@@ -529,11 +529,12 @@ mod test {
 
     #[test]
     fn packers_create() {
-        let mut packers: Vec<Packers> = Vec::new();
-        packers.push(Packers::Float(Packer::new()));
-        packers.push(Packers::Integer(Packer::new()));
-        packers.push(Packers::UInteger(Packer::new()));
-        packers.push(Packers::Boolean(Packer::new()));
+        let mut packers = vec![
+            Packers::Float(Packer::new()),
+            Packers::Integer(Packer::new()),
+            Packers::UInteger(Packer::new()),
+            Packers::Boolean(Packer::new()),
+        ];
 
         packers.get_mut(0).unwrap().f64_packer_mut().push(22.033);
     }
