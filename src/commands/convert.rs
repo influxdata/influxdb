@@ -217,7 +217,7 @@ pub fn convert(
             compression_level,
             output_path,
         ),
-        FileType::TSM => {
+        FileType::Tsm => {
             // TODO(edd): we can remove this when I figure out the best way to share
             // the reader between the TSM index reader and the Block decoder.
             let input_block_reader = InputReader::new(input_path).context(OpenInput)?;
