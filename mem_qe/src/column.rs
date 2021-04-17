@@ -424,24 +424,8 @@ impl Vector {
             //     }
             //     count as u64
             // }
-            Self::NullFloat(vec) => {
-                let mut count = 0;
-                for v in &vec[from_row_id..to_row_id] {
-                    if v.is_some() {
-                        count += 1;
-                    }
-                }
-                count as u64
-            }
-            Self::NullInteger(vec) => {
-                let mut count = 0;
-                for v in &vec[from_row_id..to_row_id] {
-                    if v.is_some() {
-                        count += 1;
-                    }
-                }
-                count as u64
-            }
+            Self::NullFloat(vec) => vec[from_row_id..to_row_id].iter().flatten().count() as u64,
+            Self::NullInteger(vec) => vec[from_row_id..to_row_id].iter().flatten().count() as u64,
             Self::Float(_) => {
                 (to_row_id - from_row_id) as u64 // fast - no possible NULL
                                                  // values
