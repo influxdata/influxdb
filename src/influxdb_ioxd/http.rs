@@ -570,13 +570,13 @@ async fn get_wal_meta<M: ConnectionManager + Send + Sync + Debug + 'static>(
         .db(&db_name)
         .context(DatabaseNotFound { name: &db_name_str })?;
 
-    let wal = db
-        .wal_buffer
+    let wb = db
+        .write_buffer
         .as_ref()
         .context(WalNotFound { name: &db_name_str })?;
-    let wal_buffer = wal.lock();
+    let write_buffer = wb.lock();
 
-    let segments = wal_buffer
+    let segments = write_buffer
         .segments(query.offset)
         .take(query.limit.unwrap_or(10))
         .take_while(|x| {

@@ -243,10 +243,10 @@ pub struct Db {
     ///  - The Parquet Buffer where chunks are backed by Parquet file data.
     catalog: Arc<Catalog>,
 
-    /// The wal buffer holds replicated writes in an append in-memory
+    /// The Write Buffer holds replicated writes in an append in-memory
     /// buffer. This buffer is used for sending data to subscribers
     /// and to persist segments in object storage for recovery.
-    pub wal_buffer: Option<Mutex<Buffer>>,
+    pub write_buffer: Option<Mutex<Buffer>>,
 
     /// A handle to the global jobs registry for long running tasks
     jobs: Arc<JobRegistry>,
@@ -286,13 +286,13 @@ impl Db {
         server_id: NonZeroU32,
         object_store: Arc<ObjectStore>,
         exec: Arc<Executor>,
-        wal_buffer: Option<Buffer>,
+        write_buffer: Option<Buffer>,
         jobs: Arc<JobRegistry>,
     ) -> Self {
         let rules = RwLock::new(rules);
         let server_id = server_id;
         let store = Arc::clone(&object_store);
-        let wal_buffer = wal_buffer.map(Mutex::new);
+        let write_buffer = write_buffer.map(Mutex::new);
         let catalog = Arc::new(Catalog::new());
         let system_tables = Arc::new(SystemSchemaProvider::new(Arc::clone(&catalog)));
         Self {
@@ -301,7 +301,7 @@ impl Db {
             store,
             exec,
             catalog,
-            wal_buffer,
+            write_buffer,
             jobs,
             system_tables,
             memory_registries: Default::default(),

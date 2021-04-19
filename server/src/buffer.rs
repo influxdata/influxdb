@@ -1,4 +1,4 @@
-//! This module contains code for managing the WAL buffer
+//! This module contains code for managing the Write Buffer
 
 use data_types::{
     database_rules::{WriteBufferRollover, WriterId},
