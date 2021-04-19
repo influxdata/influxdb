@@ -38,18 +38,6 @@ pub enum Error {
     },
 
     #[snafu(display(
-        "Internal error: Expected column {} to be type {} but was {}",
-        column_id,
-        expected_column_type,
-        actual_column_type
-    ))]
-    InternalColumnTypeMismatch {
-        column_id: DID,
-        expected_column_type: String,
-        actual_column_type: String,
-    },
-
-    #[snafu(display(
         "Expected column {} to be type {} but was {}",
         column,
         expected_column_type,
