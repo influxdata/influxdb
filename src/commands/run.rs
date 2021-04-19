@@ -55,16 +55,14 @@ pub struct Config {
     /// level logging.
     ///
     /// Extended syntax provided by `tracing-subscriber` includes span/field
-    /// filters. See the link above for more details.
-    ///
-    /// https://docs.rs/tracing-subscriber/0.2.17/tracing_subscriber/filter/struct.EnvFilter.html
+    /// filters. See <https://docs.rs/tracing-subscriber/0.2.17/tracing_subscriber/filter/struct.EnvFilter.html> for more details.
     #[structopt(long = "--log-filter", env = "LOG_FILTER", default_value = "warn")]
     pub log_filter: String,
 
     /// Logs: filter short-hand
     ///
     /// Convenient way to set log severity level filter.
-    /// Overrides --log-filter / LOG_FILTER.
+    /// Overrides `--log-filter`.
     ///
     /// -v   'info'
     ///
@@ -121,8 +119,8 @@ pub struct Config {
     /// Logs: destination
     ///
     /// Can be one of: stdout, stderr
-    ///
-    /// TODO(jacobmarble): consider adding file path, file rotation, syslog, ?
+    //
+    // TODO(jacobmarble): consider adding file path, file rotation, syslog, ?
     #[structopt(
         long = "--log-destination",
         env = "LOG_DESTINATION",
@@ -137,8 +135,8 @@ pub struct Config {
     ///
     /// When enabled, additional flags are considered (see flags related to OTLP
     /// and Jaeger), and log output is disabled.
-    ///
-    /// TODO(jacobmarble): allow logs and traces simultaneously
+    //
+    // TODO(jacobmarble): allow logs and traces simultaneously
     #[structopt(
         long = "--traces-exporter",
         env = "TRACES_EXPORTER",
@@ -153,16 +151,14 @@ pub struct Config {
     /// Simplest options: error, warn, info, debug, trace
     ///
     /// Levels for different modules can be specified. For example
-    /// `debug,hyper::proto::h1=info` specifies debug logging for all modules
-    /// except for the `hyper::proto::h1' module which will only display info
-    /// level logging.
+    /// `debug,hyper::proto::h1=info` specifies debug tracing for all modules
+    /// except for the `hyper::proto::h1` module which will only display info
+    /// level tracing.
     ///
     /// Extended syntax provided by `tracing-subscriber` includes span/field
-    /// filters. See the link below for more details.
+    /// filters. See <https://docs.rs/tracing-subscriber/0.2.17/tracing_subscriber/filter/struct.EnvFilter.html> for more details.
     ///
     /// No filter by default.
-    ///
-    /// https://docs.rs/tracing-subscriber/0.2.17/tracing_subscriber/filter/struct.EnvFilter.html
     #[structopt(long = "--traces-filter", env = "TRACES_FILTER")]
     pub traces_filter: Option<String>,
 
@@ -172,7 +168,7 @@ pub struct Config {
     /// always_on, always_off, traceidratio,
     /// parentbased_always_on, parentbased_always_off, parentbased_traceidratio
     ///
-    /// https://github.com/open-telemetry/opentelemetry-specification/blob/v1.1.0/specification/sdk-environment-variables.md#general-sdk-configuration
+    /// These alternatives are described in detail at <https://github.com/open-telemetry/opentelemetry-specification/blob/v1.1.0/specification/sdk-environment-variables.md#general-sdk-configuration>.
     #[structopt(
         long = "--traces-sampler",
         env = "TRACES_SAMPLER",
@@ -185,14 +181,14 @@ pub struct Config {
     ///
     /// Valid range: [0.0, 1.0].
     /// 
-    /// Only used if OTEL_TRACES_SAMPLER is set to
+    /// Only used if `--traces-sampler` is set to
     /// parentbased_traceidratio (default) or traceidratio.
     ///
     /// With sample parentbased_traceidratio, the following rules apply:
     /// - if parent is sampled, then all of its children are sampled
     /// - else sample this portion of traces (0.5 = 50%)
     ///
-    /// https://github.com/open-telemetry/opentelemetry-specification/blob/v1.1.0/specification/sdk-environment-variables.md#general-sdk-configuration
+    /// More details about this sampling argument at <https://github.com/open-telemetry/opentelemetry-specification/blob/v1.1.0/specification/sdk-environment-variables.md#general-sdk-configuration>.
     #[structopt(
         long = "--traces-sampler-arg",
         env = "TRACES_SAMPLER_ARG",
@@ -203,7 +199,7 @@ pub struct Config {
 
     /// Tracing: OTLP (eg OpenTelemetry collector) network hostname
     ///
-    /// Only used if TRACES_EXPORTER is "otlp".
+    /// Only used if `--traces-exporter` is "otlp".
     ///
     /// Protocol is gRPC. HTTP is not supported.
     #[structopt(
@@ -215,7 +211,7 @@ pub struct Config {
 
     /// Tracing: OTLP (eg OpenTelemetry collector) network port
     ///
-    /// Only used if TRACES_EXPORTER is "otlp".
+    /// Only used if `--traces-exporter` is "otlp".
     ///
     /// Protocol is gRPC. HTTP is not supported.
     #[structopt(
@@ -229,7 +225,7 @@ pub struct Config {
     ///
     /// Protocol is Thrift/Compact over UDP.
     ///
-    /// Only used if TRACES_EXPORTER is "jaeger".
+    /// Only used if `--traces-exporter` is "jaeger".
     #[structopt(
         long = "--traces-exporter-jaeger-agent-host",
         env = "TRACES_EXPORTER_JAEGER_AGENT_HOST",
@@ -241,7 +237,7 @@ pub struct Config {
     ///
     /// Protocol is Thrift/Compact over UDP.
     ///
-    /// Only used if TRACES_EXPORTER is "jaeger".
+    /// Only used if `--traces-exporter` is "jaeger".
     #[structopt(
         long = "--traces-exporter-jaeger-agent-port",
         env = "TRACES_EXPORTER_JAEGER_AGENT_PORT",
@@ -283,7 +279,7 @@ pub struct Config {
     /// The number of threads to use for the query worker pool.
     ///
     /// IOx uses `--num-threads` threads for handling API requests and
-    /// will use a dedicated thread pool woth `--num-worker-threads`
+    /// will use a dedicated thread pool with `--num-worker-threads`
     /// for running queries.
     ///
     /// If not specified, defaults to the number of cores on the system

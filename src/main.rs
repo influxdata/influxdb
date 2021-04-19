@@ -225,7 +225,7 @@ fn main() -> Result<(), std::io::Error> {
                 }
             }
             Command::Run(config) => {
-                let _tracing_guard = init_logs_and_tracing(&config);
+                let _tracing_guard = init_logs_and_tracing(log_verbose_count, &config);
                 if let Err(e) = commands::run::command(*config).await {
                     eprintln!("Server command failed: {}", e);
                     std::process::exit(ReturnCode::Failure as _)

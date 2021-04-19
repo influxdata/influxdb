@@ -27,7 +27,18 @@ pub fn init_simple_logs(log_verbose_count: u8) -> TracingGuard {
 }
 
 /// Start log or trace emitter. Panics on error.
-pub fn init_logs_and_tracing(config: &crate::commands::run::Config) -> TracingGuard {
+pub fn init_logs_and_tracing(
+    log_verbose_count: u8,
+    config: &crate::commands::run::Config,
+) -> TracingGuard {
+    // Handle the case if -v/-vv is specified both before and after the server
+    // command
+    let log_verbose_count = if log_verbose_count > config.log_verbose_count {
+        log_verbose_count
+    } else {
+        config.log_verbose_count
+    };
+
     let (traces_layer_filter, traces_layer_otel) = match construct_opentelemetry_tracer(config) {
         None => (None, None),
         Some(tracer) => {
@@ -78,7 +89,7 @@ pub fn init_logs_and_tracing(config: &crate::commands::run::Config) -> TracingGu
                         }
                     };
 
-                let log_layer_filter = match config.log_verbose_count {
+                let log_layer_filter = match log_verbose_count {
                     0 => EnvFilter::try_new(&config.log_filter).unwrap(),
                     1 => EnvFilter::try_new("info").unwrap(),
                     2 => EnvFilter::try_new("debug,hyper::proto::h1=info,h2=info").unwrap(),
@@ -200,7 +211,7 @@ impl std::str::FromStr for LogFormat {
             "json" => Ok(Self::Json),
             "logfmt" => Ok(Self::Logfmt),
             _ => Err(format!(
-                "Invalid log format '{}'. Valid options: full, pretty, json",
+                "Invalid log format '{}'. Valid options: full, pretty, json, logfmt",
                 s
             )),
         }
