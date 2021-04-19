@@ -537,11 +537,11 @@ mod tests {
 
         let files: Vec<_> = [
             "test_file",
-            "mydb/wal/000/000/000.segment",
-            "mydb/wal/000/000/001.segment",
-            "mydb/wal/000/000/002.segment",
-            "mydb/wal/001/001/000.segment",
-            "mydb/wal/foo.json",
+            "mydb/wb/000/000/000.segment",
+            "mydb/wb/000/000/001.segment",
+            "mydb/wb/000/000/002.segment",
+            "mydb/wb/001/001/000.segment",
+            "mydb/wb/foo.json",
             "mydb/data/whatevs",
         ]
         .iter()
@@ -561,7 +561,7 @@ mod tests {
         }
 
         let mut prefix = storage.new_path();
-        prefix.push_all_dirs(&["mydb", "wal"]);
+        prefix.push_all_dirs(&["mydb", "wb"]);
 
         let mut expected_000 = prefix.clone();
         expected_000.push_dir("000");
@@ -582,11 +582,11 @@ mod tests {
 
         // List with a prefix containing a partial "file name"
         let mut prefix = storage.new_path();
-        prefix.push_all_dirs(&["mydb", "wal", "000", "000"]);
+        prefix.push_all_dirs(&["mydb", "wb", "000", "000"]);
         prefix.set_file_name("001");
 
         let mut expected_location = storage.new_path();
-        expected_location.push_all_dirs(&["mydb", "wal", "000", "000"]);
+        expected_location.push_all_dirs(&["mydb", "wb", "000", "000"]);
         expected_location.set_file_name("001.segment");
 
         let result = storage.list_with_delimiter(&prefix).await.unwrap();
@@ -651,11 +651,11 @@ mod tests {
     async fn delete_fixtures(storage: &ObjectStore) {
         let files: Vec<_> = [
             "test_file",
-            "mydb/wal/000/000/000.segment",
-            "mydb/wal/000/000/001.segment",
-            "mydb/wal/000/000/002.segment",
-            "mydb/wal/001/001/000.segment",
-            "mydb/wal/foo.json",
+            "mydb/wb/000/000/000.segment",
+            "mydb/wb/000/000/001.segment",
+            "mydb/wb/000/000/002.segment",
+            "mydb/wb/001/001/000.segment",
+            "mydb/wb/foo.json",
             "mydb/data/whatevs",
         ]
         .iter()
