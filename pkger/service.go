@@ -936,7 +936,7 @@ type ImpactSummary struct {
 	Summary Summary
 }
 
-var reCommunityTemplatesValidAddr = regexp.MustCompile(`(?:https://raw.githubusercontent.com/influxdata/community-templates/master/)(?P<name>\w+)(?:/.*)`)
+var reCommunityTemplatesValidAddr = regexp.MustCompile(`(?:https://raw\.githubusercontent\.com/influxdata/community-templates/master/)(?P<name>\w+)(?:/.*)`)
 
 func (i *ImpactSummary) communityName() string {
 	if len(i.Sources) == 0 {
