@@ -91,11 +91,11 @@ fn convert_line_protocol_good_input_filename() {
 
     assert
         .success()
-        .stderr(predicate::str::contains("convert starting"))
-        .stderr(predicate::str::contains(
+        .stdout(predicate::str::contains("convert starting"))
+        .stdout(predicate::str::contains(
             "Writing output for measurement h2o_temperature",
         ))
-        .stderr(predicate::str::contains(expected_success_string));
+        .stdout(predicate::str::contains(expected_success_string));
 
     validate_parquet_file(&parquet_path);
 }
@@ -179,15 +179,15 @@ fn convert_multiple_measurements() {
 
     assert
         .success()
-        .stderr(predicate::str::contains("convert starting"))
-        .stderr(predicate::str::contains("Writing to output directory"))
-        .stderr(predicate::str::contains(
+        .stdout(predicate::str::contains("convert starting"))
+        .stdout(predicate::str::contains("Writing to output directory"))
+        .stdout(predicate::str::contains(
             "Writing output for measurement h2o_temperature",
         ))
-        .stderr(predicate::str::contains(
+        .stdout(predicate::str::contains(
             "Writing output for measurement air_temperature",
         ))
-        .stderr(predicate::str::contains(expected_success_string));
+        .stdout(predicate::str::contains(expected_success_string));
 
     // check that the two files have been written successfully
     let mut output_files: Vec<_> = fs::read_dir(parquet_output_path.path())
