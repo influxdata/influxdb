@@ -98,10 +98,7 @@ async fn wait_for_signal() {
 }
 
 /// This is the entry point for the IOx server. `config` represents
-/// command line arguments, if any
-///
-/// The logging_level passed in is the global setting (e.g. if -v or
-/// -vv was passed in before 'server')
+/// command line arguments, if any.
 pub async fn main(config: Config) -> Result<()> {
     metrics::init_metrics(&config);
 
