@@ -209,7 +209,7 @@ impl TestServer {
                 .expect("starting of local server process");
             (cmd, None)
         } else {
-            let ci_image = "quay.io/influxdb/rust:bf4ea222";
+            let ci_image = "quay.io/influxdb/rust:ci";
             let container_name = format!("influxdb2_{}", http_port);
 
             Command::new("docker")
