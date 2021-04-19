@@ -1,3 +1,4 @@
+#![allow(unused_imports, dead_code, unused_macros)]
 pub mod field_columns;
 pub mod read_filter;
 pub mod read_group;

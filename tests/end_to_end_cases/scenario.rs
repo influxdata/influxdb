@@ -1,4 +1,4 @@
-use std::time::SystemTime;
+use std::{sync::Arc, time::SystemTime};
 
 use generated_types::google::protobuf::Empty;
 use generated_types::influxdata::iox::management::v1::*;
@@ -14,6 +14,12 @@ use prost::Message;
 
 use data_types::{names::org_and_bucket_to_database, DatabaseName};
 use generated_types::{influxdata::iox::management::v1::DatabaseRules, ReadSource, TimestampRange};
+
+use arrow_deps::arrow::{
+    array::{Array, ArrayRef, Float64Array, StringArray, TimestampNanosecondArray},
+    datatypes::{Field, Schema},
+    record_batch::RecordBatch,
+};
 
 type Error = Box<dyn std::error::Error + Send + Sync + 'static>;
 type Result<T, E = Error> = std::result::Result<T, E>;
@@ -112,47 +118,47 @@ impl Scenario {
         // TODO: make a more extensible way to manage data for tests, such as in
         // external fixture files or with factories.
         let points = vec![
-            influxdb2_client::DataPoint::builder("cpu_load_short")
+            influxdb2_client::models::DataPoint::builder("cpu_load_short")
                 .tag("host", "server01")
                 .tag("region", "us-west")
                 .field("value", 0.64)
                 .timestamp(self.ns_since_epoch())
                 .build()
                 .unwrap(),
-            influxdb2_client::DataPoint::builder("cpu_load_short")
+            influxdb2_client::models::DataPoint::builder("cpu_load_short")
                 .tag("host", "server01")
                 .field("value", 27.99)
                 .timestamp(self.ns_since_epoch() + 1)
                 .build()
                 .unwrap(),
-            influxdb2_client::DataPoint::builder("cpu_load_short")
+            influxdb2_client::models::DataPoint::builder("cpu_load_short")
                 .tag("host", "server02")
                 .tag("region", "us-west")
                 .field("value", 3.89)
                 .timestamp(self.ns_since_epoch() + 2)
                 .build()
                 .unwrap(),
-            influxdb2_client::DataPoint::builder("cpu_load_short")
+            influxdb2_client::models::DataPoint::builder("cpu_load_short")
                 .tag("host", "server01")
                 .tag("region", "us-east")
                 .field("value", 1234567.891011)
                 .timestamp(self.ns_since_epoch() + 3)
                 .build()
                 .unwrap(),
-            influxdb2_client::DataPoint::builder("cpu_load_short")
+            influxdb2_client::models::DataPoint::builder("cpu_load_short")
                 .tag("host", "server01")
                 .tag("region", "us-west")
                 .field("value", 0.000003)
                 .timestamp(self.ns_since_epoch() + 4)
                 .build()
                 .unwrap(),
-            influxdb2_client::DataPoint::builder("system")
+            influxdb2_client::models::DataPoint::builder("system")
                 .tag("host", "server03")
                 .field("uptime", 1303385)
                 .timestamp(self.ns_since_epoch() + 5)
                 .build()
                 .unwrap(),
-            influxdb2_client::DataPoint::builder("swap")
+            influxdb2_client::models::DataPoint::builder("swap")
                 .tag("host", "server01")
                 .tag("name", "disk0")
                 .field("in", 3)
@@ -160,12 +166,12 @@ impl Scenario {
                 .timestamp(self.ns_since_epoch() + 6)
                 .build()
                 .unwrap(),
-            influxdb2_client::DataPoint::builder("status")
+            influxdb2_client::models::DataPoint::builder("status")
                 .field("active", true)
                 .timestamp(self.ns_since_epoch() + 7)
                 .build()
                 .unwrap(),
-            influxdb2_client::DataPoint::builder("attributes")
+            influxdb2_client::models::DataPoint::builder("attributes")
                 .field("color", "blue")
                 .timestamp(self.ns_since_epoch() + 8)
                 .build()
@@ -173,26 +179,60 @@ impl Scenario {
         ];
         self.write_data(&influxdb2, points).await.unwrap();
 
-        substitute_nanos(
-            self.ns_since_epoch(),
-            &[
-                "+----------+---------+---------------------+----------------+",
-                "| host     | region  | time                | value          |",
-                "+----------+---------+---------------------+----------------+",
-                "| server01 | us-west | ns0 | 0.64           |",
-                "| server01 |         | ns1 | 27.99          |",
-                "| server02 | us-west | ns2 | 3.89           |",
-                "| server01 | us-east | ns3 | 1234567.891011 |",
-                "| server01 | us-west | ns4 | 0.000003       |",
-                "+----------+---------+---------------------+----------------+",
+        let host_array = StringArray::from(vec![
+            Some("server01"),
+            Some("server01"),
+            Some("server02"),
+            Some("server01"),
+            Some("server01"),
+        ]);
+        let region_array = StringArray::from(vec![
+            Some("us-west"),
+            None,
+            Some("us-west"),
+            Some("us-east"),
+            Some("us-west"),
+        ]);
+        let time_array = TimestampNanosecondArray::from_vec(
+            vec![
+                self.ns_since_epoch,
+                self.ns_since_epoch + 1,
+                self.ns_since_epoch + 2,
+                self.ns_since_epoch + 3,
+                self.ns_since_epoch + 4,
             ],
-        )
+            None,
+        );
+        let value_array = Float64Array::from(vec![0.64, 27.99, 3.89, 1234567.891011, 0.000003]);
+
+        let schema = Schema::new(vec![
+            Field::new("host", host_array.data_type().clone(), true),
+            Field::new("region", region_array.data_type().clone(), true),
+            Field::new("time", time_array.data_type().clone(), true),
+            Field::new("value", value_array.data_type().clone(), true),
+        ]);
+
+        let columns: Vec<ArrayRef> = vec![
+            Arc::new(host_array),
+            Arc::new(region_array),
+            Arc::new(time_array),
+            Arc::new(value_array),
+        ];
+
+        let batch = RecordBatch::try_new(Arc::new(schema), columns).unwrap();
+
+        arrow_deps::arrow::util::pretty::pretty_format_batches(&[batch])
+            .unwrap()
+            .trim()
+            .split('\n')
+            .map(|s| s.to_string())
+            .collect()
     }
 
     async fn write_data(
         &self,
         client: &influxdb2_client::Client,
-        points: Vec<influxdb2_client::DataPoint>,
+        points: Vec<influxdb2_client::models::DataPoint>,
     ) -> Result<()> {
         client
             .write(

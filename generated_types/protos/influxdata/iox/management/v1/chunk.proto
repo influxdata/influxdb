@@ -17,8 +17,11 @@ enum ChunkStorage {
   // The chunk is in the Read Buffer (where it can not be mutated)
   CHUNK_STORAGE_READ_BUFFER = 3;
 
+  // The chunk is in the Read Buffer and Object Store
+  CHUNK_STORAGE_READ_BUFFER_AND_OBJECT_STORE = 4;
+
   // The chunk is stored in Object Storage (where it can not be mutated)
-  CHUNK_STORAGE_OBJECT_STORE = 4;
+  CHUNK_STORAGE_OBJECT_STORE_ONLY = 5;
 }
 
 // `Chunk` represents part of a partition of data in a database.

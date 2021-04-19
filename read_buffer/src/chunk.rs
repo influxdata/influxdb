@@ -1,13 +1,15 @@
 use std::{
     collections::{btree_map::Entry, BTreeMap, BTreeSet},
     convert::TryFrom,
-    sync::RwLock,
 };
+
+use parking_lot::RwLock;
+use snafu::{OptionExt, ResultExt, Snafu};
 
 use arrow_deps::arrow::record_batch::RecordBatch;
 use data_types::partition_metadata::TableSummary;
 use internal_types::{schema::builder::Error as SchemaError, schema::Schema, selection::Selection};
-use snafu::{OptionExt, ResultExt, Snafu};
+use observability_deps::tracing::info;
 use tracker::{MemRegistry, MemTracker};
 
 use crate::row_group::RowGroup;
@@ -126,7 +128,7 @@ impl Chunk {
         let chunk = Self::new(id);
 
         {
-            let mut chunk_data = chunk.chunk_data.write().unwrap();
+            let mut chunk_data = chunk.chunk_data.write();
             chunk_data.tracker = registry.register();
             let size = Self::base_size() + chunk_data.size();
             chunk_data.tracker.set_bytes(size);
@@ -163,37 +165,33 @@ impl Chunk {
     /// The total estimated size in bytes of this `Chunk` and all contained
     /// data.
     pub fn size(&self) -> usize {
-        let table_data = self.chunk_data.read().unwrap();
+        let table_data = self.chunk_data.read();
         Self::base_size() + table_data.size()
     }
 
     /// The total number of rows in all row groups in all tables in this chunk.
     pub(crate) fn rows(&self) -> u64 {
-        self.chunk_data.read().unwrap().rows
+        self.chunk_data.read().rows
     }
 
     /// The total number of row groups in all tables in this chunk.
     pub(crate) fn row_groups(&self) -> usize {
-        self.chunk_data.read().unwrap().row_groups
+        self.chunk_data.read().row_groups
     }
 
     /// The total number of tables in this chunk.
     pub(crate) fn tables(&self) -> usize {
-        self.chunk_data.read().unwrap().data.len()
+        self.chunk_data.read().data.len()
     }
 
     /// Returns true if the chunk contains data for this table.
     pub fn has_table(&self, table_name: &str) -> bool {
-        self.chunk_data
-            .read()
-            .unwrap()
-            .data
-            .contains_key(table_name)
+        self.chunk_data.read().data.contains_key(table_name)
     }
 
     /// Returns true if there are no tables under this chunk.
     pub(crate) fn is_empty(&self) -> bool {
-        self.chunk_data.read().unwrap().data.len() == 0
+        self.chunk_data.read().data.len() == 0
     }
 
     /// Add a row_group to a table in the chunk, updating all Chunk meta data.
@@ -209,7 +207,7 @@ impl Chunk {
         let table_name = table_name.into();
 
         // Take write lock to modify chunk.
-        let mut chunk_data = self.chunk_data.write().unwrap();
+        let mut chunk_data = self.chunk_data.write();
 
         // update the meta-data for this chunk with contents of row group.
         chunk_data.rows += row_group.rows() as u64;
@@ -239,11 +237,24 @@ impl Chunk {
     /// added to the `Table`. Otherwise a new `Table` with a single `RowGroup`
     /// will be created.
     pub fn upsert_table(&self, table_name: impl Into<String>, table_data: RecordBatch) {
+        // Approximate heap size of record batch.
+        let rb_size = table_data
+            .columns()
+            .iter()
+            .map(|c| c.get_buffer_memory_size())
+            .sum::<usize>();
+
         // This call is expensive. Complete it before locking.
         let row_group = RowGroup::from(table_data);
         let table_name = table_name.into();
 
-        let mut chunk_data = self.chunk_data.write().unwrap();
+        let rows = self.rows();
+        let rg_size = row_group.size();
+        let compression = format!("{:.2}%", (rg_size as f64 / rb_size as f64) * 100.0);
+        let chunk_id = self.id();
+        info!(%rows, rb_size, rg_size, %compression, ?table_name, %chunk_id, "row group added");
+
+        let mut chunk_data = self.chunk_data.write();
 
         // update the meta-data for this chunk with contents of row group.
         chunk_data.rows += row_group.rows() as u64;
@@ -273,7 +284,7 @@ impl Chunk {
     ///
     /// Dropping a table that does not exist is effectively an no-op.
     pub(crate) fn drop_table(&mut self, name: &str) {
-        let mut chunk_data = self.chunk_data.write().unwrap();
+        let mut chunk_data = self.chunk_data.write();
 
         // Remove table and update chunk meta-data if table exists.
         if let Some(table) = chunk_data.data.remove(name) {
@@ -306,7 +317,7 @@ impl Chunk {
         select_columns: Selection<'_>,
     ) -> Result<table::ReadFilterResults, Error> {
         // read lock on chunk.
-        let chunk_data = self.chunk_data.read().unwrap();
+        let chunk_data = self.chunk_data.read();
 
         let table = chunk_data
             .data
@@ -332,7 +343,7 @@ impl Chunk {
         aggregates: &[(ColumnName<'_>, AggregateType)],
     ) -> Result<table::ReadAggregateResults> {
         // read lock on chunk.
-        let chunk_data = self.chunk_data.read().unwrap();
+        let chunk_data = self.chunk_data.read();
 
         let table = chunk_data
             .data
@@ -355,7 +366,7 @@ impl Chunk {
     /// `false`.
     pub fn could_pass_predicate(&self, table_name: &str, predicate: Predicate) -> bool {
         // read lock on chunk.
-        let chunk_data = self.chunk_data.read().unwrap();
+        let chunk_data = self.chunk_data.read();
 
         match chunk_data.data.get(table_name) {
             Some(table) => table.could_pass_predicate(&predicate),
@@ -367,13 +378,36 @@ impl Chunk {
     /// Each table will be represented exactly once.
     pub fn table_summaries(&self) -> Vec<TableSummary> {
         // read lock on chunk.
-        let chunk_data = self.chunk_data.read().unwrap();
+        let chunk_data = self.chunk_data.read();
 
         chunk_data
             .data
             .values()
             .map(|table| table.table_summary())
             .collect()
+    }
+
+    /// A helper method for determining the time-range associated with the
+    /// specified table.
+    ///
+    /// A table's schema need not contain a column representing the time,
+    /// however any table that represents data using the InfluxDB model does
+    /// contain a column that represents the timestamp associated with each
+    /// row.
+    ///
+    /// `table_time_range` will return the min and max values for that column
+    /// if the table is using the InfluxDB data-model, otherwise it will return
+    /// `None`. An error will be returned if the table does not exist.
+    pub fn table_time_range(&self, table_name: &str) -> Result<Option<(i64, i64)>> {
+        // read lock on chunk.
+        let chunk_data = self.chunk_data.read();
+
+        let table = chunk_data
+            .data
+            .get(table_name)
+            .context(TableNotFound { table_name })?;
+
+        Ok(table.time_range())
     }
 
     /// Returns a schema object for a `read_filter` operation using the provided
@@ -385,7 +419,7 @@ impl Chunk {
         columns: Selection<'_>,
     ) -> Result<Schema> {
         // read lock on chunk.
-        let chunk_data = self.chunk_data.read().unwrap();
+        let chunk_data = self.chunk_data.read();
 
         let table = chunk_data
             .data
@@ -434,7 +468,7 @@ impl Chunk {
         skip_table_names: &BTreeSet<String>,
     ) -> BTreeSet<String> {
         // read lock on chunk.
-        let chunk_data = self.chunk_data.read().unwrap();
+        let chunk_data = self.chunk_data.read();
 
         if predicate.is_empty() {
             return chunk_data
@@ -482,7 +516,7 @@ impl Chunk {
         only_columns: Selection<'_>,
         dst: BTreeSet<String>,
     ) -> Result<BTreeSet<String>> {
-        let chunk_data = self.chunk_data.read().unwrap();
+        let chunk_data = self.chunk_data.read();
 
         // TODO(edd): same potential contention as `table_names` but I'm ok
         // with this for now.
@@ -525,7 +559,7 @@ impl Chunk {
             Selection::Some(columns) => columns,
         };
 
-        let chunk_data = self.chunk_data.read().unwrap();
+        let chunk_data = self.chunk_data.read();
 
         // TODO(edd): same potential contention as `table_names` but I'm ok
         // with this for now.
@@ -553,7 +587,8 @@ mod test {
 
     use arrow_deps::arrow::{
         array::{
-            ArrayRef, BinaryArray, BooleanArray, Float64Array, Int64Array, StringArray, UInt64Array,
+            ArrayRef, BinaryArray, BooleanArray, Float64Array, Int64Array, StringArray,
+            TimestampNanosecondArray, UInt64Array,
         },
         datatypes::DataType::{Boolean, Float64, Int64, UInt64, Utf8},
     };
@@ -583,7 +618,10 @@ mod test {
             Arc::new(StringArray::from(vec!["west", "west", "east"])),
             Arc::new(Float64Array::from(vec![1.2, 3.3, 45.3])),
             Arc::new(BooleanArray::from(vec![true, false, true])),
-            Arc::new(Int64Array::from(vec![11111111, 222222, 3333])),
+            Arc::new(TimestampNanosecondArray::from_vec(
+                vec![11111111, 222222, 3333],
+                None,
+            )),
             Arc::new(Float64Array::from(vec![Some(11.0), None, Some(12.0)])),
         ];
 
@@ -600,8 +638,16 @@ mod test {
                 assert_eq!(&arr.iter().collect::<Vec<_>>(), exp_data);
             }
             Values::I64(exp_data) => {
-                let arr: &Int64Array = got_column.as_any().downcast_ref::<Int64Array>().unwrap();
-                assert_eq!(arr.values(), exp_data);
+                if let Some(arr) = got_column.as_any().downcast_ref::<Int64Array>() {
+                    assert_eq!(arr.values(), exp_data);
+                } else if let Some(arr) = got_column
+                    .as_any()
+                    .downcast_ref::<TimestampNanosecondArray>()
+                {
+                    assert_eq!(arr.values(), exp_data);
+                } else {
+                    panic!("Unexpected type");
+                }
             }
             Values::U64(exp_data) => {
                 let arr: &UInt64Array = got_column.as_any().downcast_ref::<UInt64Array>().unwrap();
@@ -696,7 +742,7 @@ mod test {
         assert!(chunk.size() > 0);
 
         {
-            let chunk_data = chunk.chunk_data.read().unwrap();
+            let chunk_data = chunk.chunk_data.read();
             let table = chunk_data.data.get("a_table").unwrap();
             assert_eq!(table.rows(), 3);
             assert_eq!(table.row_groups(), 1);
@@ -712,7 +758,7 @@ mod test {
         assert!(chunk.size() > last_chunk_size);
 
         {
-            let chunk_data = chunk.chunk_data.read().unwrap();
+            let chunk_data = chunk.chunk_data.read();
             let table = chunk_data.data.get("a_table").unwrap();
             assert_eq!(table.rows(), 6);
             assert_eq!(table.row_groups(), 2);
@@ -728,14 +774,14 @@ mod test {
         assert!(chunk.size() > last_chunk_size);
 
         {
-            let chunk_data = chunk.chunk_data.read().unwrap();
+            let chunk_data = chunk.chunk_data.read();
             let table = chunk_data.data.get("b_table").unwrap();
             assert_eq!(table.rows(), 3);
             assert_eq!(table.row_groups(), 1);
         }
 
         {
-            let chunk_data = chunk.chunk_data.read().unwrap();
+            let chunk_data = chunk.chunk_data.read();
             let table = chunk_data.data.get("a_table").unwrap();
             assert_eq!(table.rows(), 6);
             assert_eq!(table.row_groups(), 2);
@@ -818,7 +864,10 @@ mod test {
             Arc::new(Int64Array::from(vec![1000, -1000, 4000])),
             Arc::new(BooleanArray::from(vec![true, true, false])),
             Arc::new(StringArray::from(vec![Some("msg a"), Some("msg b"), None])),
-            Arc::new(Int64Array::from(vec![11111111, 222222, 3333])),
+            Arc::new(TimestampNanosecondArray::from_vec(
+                vec![11111111, 222222, 3333],
+                None,
+            )),
         ];
 
         // Add a record batch to a single partition
@@ -924,7 +973,10 @@ mod test {
                     Some("message b"),
                     None,
                 ])),
-                Arc::new(Int64Array::from(vec![i, 2 * i, 3 * i])),
+                Arc::new(TimestampNanosecondArray::from_vec(
+                    vec![i, 2 * i, 3 * i],
+                    None,
+                )),
             ];
 
             // Add a record batch to a single partition
@@ -952,7 +1004,6 @@ mod test {
         let exp_active_values = Values::Bool(vec![Some(true)]);
 
         let first_row_group = itr.next().unwrap();
-        println!("{:?}", first_row_group);
         assert_rb_column_equals(&first_row_group, "env", &exp_env_values);
         assert_rb_column_equals(&first_row_group, "region", &exp_region_values);
         assert_rb_column_equals(&first_row_group, "counter", &exp_counter_values);
@@ -970,7 +1021,6 @@ mod test {
         assert_rb_column_equals(&first_row_group, "time", &Values::I64(vec![100])); // first row from first record batch
 
         let second_row_group = itr.next().unwrap();
-        println!("{:?}", second_row_group);
         assert_rb_column_equals(&second_row_group, "env", &exp_env_values);
         assert_rb_column_equals(&second_row_group, "region", &exp_region_values);
         assert_rb_column_equals(&second_row_group, "counter", &exp_counter_values);
@@ -1128,7 +1178,10 @@ mod test {
         let data: Vec<ArrayRef> = vec![
             Arc::new(StringArray::from(vec!["west", "west", "east"])),
             Arc::new(Float64Array::from(vec![1.2, 3.3, 45.3])),
-            Arc::new(Int64Array::from(vec![11111111, 222222, 3333])),
+            Arc::new(TimestampNanosecondArray::from_vec(
+                vec![11111111, 222222, 3333],
+                None,
+            )),
             Arc::new(Float64Array::from(vec![Some(11.0), None, Some(12.0)])),
         ];
 
@@ -1194,7 +1247,10 @@ mod test {
         let data: Vec<ArrayRef> = vec![
             Arc::new(StringArray::from(vec!["north", "south", "east"])),
             Arc::new(StringArray::from(vec![Some("prod"), None, Some("stag")])),
-            Arc::new(Int64Array::from(vec![11111111, 222222, 3333])),
+            Arc::new(TimestampNanosecondArray::from_vec(
+                vec![11111111, 222222, 3333],
+                None,
+            )),
         ];
 
         // Add the above table to a chunk and partition

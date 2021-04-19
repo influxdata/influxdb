@@ -6,7 +6,7 @@ As discussed on https://github.com/influxdata/influxdb_iox/pull/221 and https://
 
 1. Use only async I/O via `tokio` for socket communication. It is ok to use either blocking (e.g. `std::fs::File`) or async APIs (e.g. `tokio::fs::File`) for local File I/O.
 
-2. All CPU bound tasks should be scheduled on the separate application level `thread_pool` not with `tokio::task::spawn` nor `tokio::task::spawn_blocking` nor a new threadpool.
+2. All CPU bound tasks should be scheduled on the separate application level `thread_pool` (which can be another tokio executor but should be separate from the executor that handles I/O).
 
 We will work, over time, to migrate the rest of the codebase to use these patterns.
 
@@ -41,11 +41,11 @@ It is ok to use either blocking (e.g. `std::fs::File`) or  async APIs for local 
 
 This can not always be done (e.g. with a library such as parquet writer which is not `async`). In such cases, using `tokio::task::spawn_blocking` should be used to perform the file I/O.
 
-### All CPU heavy work should be done on the single app level worker pool, separate from the tokio runtime
+### All CPU heavy work should be done on the single app level worker pool, separate from the tokio runtime handling IO
 
-**What**: All CPU heavy work should be done on the single app level worker pool. We provide a `thread_pool` interface that interacts nicely with async tasks (e.g. that allows an async task to `await` for a CPU heavy task to complete).
+**What**: All CPU heavy work should be done on the app level worker pool. We provide a `thread_pool` interface that interacts nicely with async tasks (e.g. that allows an async task to `await` for a CPU heavy task to complete).
 
-**Rationale**: A single app level worker pool gives us a single place to control work priority, eventually, so that tasks such as compaction of large data files can have lower precedence than incoming queries. By using a different pool than the tokio runtime, with a limited number of threads, we avoid over-saturating the CPU with OS threads and thereby starving the limited number tokio I/O threads. A separate, single app level pool also limits the number of underlying OS CPU threads which are spawned, even under heavy load, keeping thread context switching overhead low.
+**Rationale**: A single app level worker pool gives us a single place to control work priority, eventually, so that tasks such as compaction of large data files can have lower precedence than incoming queries. By using a different pool than the main tokio runtime, with a limited number of threads, we avoid over-saturating the CPU with OS threads and thereby starving the limited number tokio I/O threads. A separate, single app level pool also limits the number of underlying OS CPU threads which are spawned, even under heavy load, keeping thread context switching overhead low.
 
 There will, of course, always be a judgment call to be made of where "CPU bound work" starts and "work acceptable for I/O processing"  ends. A reasonable rule of thumb is if a job will *always* be completed in less than 100ms then that is probably fine for an I/O thread). This number may be revised as we tune the system.
 

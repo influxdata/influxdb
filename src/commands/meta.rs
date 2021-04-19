@@ -19,7 +19,7 @@ pub fn dump_meta(input_filename: &str) -> Result<()> {
 
     match input_reader.file_type() {
         FileType::LineProtocol => LineProtocolNotImplemented.fail(),
-        FileType::TSM => {
+        FileType::Tsm => {
             let len = input_reader
                 .len()
                 .try_into()

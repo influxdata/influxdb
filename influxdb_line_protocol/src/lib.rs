@@ -182,11 +182,7 @@ impl<'a> ParsedLine<'a> {
         match &self.series.tag_set {
             Some(t) => {
                 let t = t.iter().find(|(k, _)| *k == tag_key);
-
-                match t {
-                    Some((_, val)) => Some(val),
-                    None => None,
-                }
+                t.map(|(_, val)| val)
             }
             None => None,
         }
@@ -195,11 +191,7 @@ impl<'a> ParsedLine<'a> {
     /// Returns the value of the passed in field, if present.
     pub fn field_value(&self, field_key: &str) -> Option<&FieldValue<'a>> {
         let f = self.field_set.iter().find(|(f, _)| *f == field_key);
-
-        match f {
-            Some((_, val)) => Some(val),
-            None => None,
-        }
+        f.map(|(_, val)| val)
     }
 }
 

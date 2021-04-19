@@ -4,10 +4,7 @@ use arrow_deps::{
     datafusion::logical_plan::{col, lit},
 };
 use query::{
-    exec::{
-        fieldlist::{Field, FieldList},
-        Executor,
-    },
+    exec::fieldlist::{Field, FieldList},
     frontend::influxrpc::InfluxRPCPlanner,
     predicate::PredicateBuilder,
 };
@@ -31,11 +28,10 @@ macro_rules! run_field_columns_test_case {
             println!("Running scenario '{}'", scenario_name);
             println!("Predicate: '{:#?}'", predicate);
             let planner = InfluxRPCPlanner::new();
-            let executor = Executor::new();
+            let executor = db.executor();
 
             let plan = planner
                 .field_columns(&db, predicate.clone())
-                .await
                 .expect("built plan successfully");
             let fields = executor
                 .to_field_list(plan)
@@ -133,11 +129,9 @@ async fn test_field_name_plan() {
         println!("Running scenario '{}'", scenario_name);
         println!("Predicate: '{:#?}'", predicate);
         let planner = InfluxRPCPlanner::new();
-        let executor = Executor::new();
 
         let plan = planner
             .field_columns(&db, predicate.clone())
-            .await
             .expect("built plan successfully");
 
         let mut plans = plan.plans;
@@ -146,19 +140,20 @@ async fn test_field_name_plan() {
 
         // run the created plan directly, ensuring the output is as
         // expected (specifically that the column ordering is correct)
-        let results = executor
+        let results = db
+            .executor()
             .run_logical_plan(plan)
             .await
             .expect("ok running plan");
 
         let expected = vec![
-            "+--------+--------+--------+--------+------+",
-            "| field1 | field2 | field3 | field4 | time |",
-            "+--------+--------+--------+--------+------+",
-            "| 70.6   |        | 2      |        | 100  |",
-            "| 70.4   | ss     |        |        | 100  |",
-            "| 70.5   | ss     |        |        | 100  |",
-            "+--------+--------+--------+--------+------+",
+            "+--------+--------+--------+--------+-------------------------------+",
+            "| field1 | field2 | field3 | field4 | time                          |",
+            "+--------+--------+--------+--------+-------------------------------+",
+            "| 70.6   |        | 2      |        | 1970-01-01 00:00:00.000000100 |",
+            "| 70.4   | ss     |        |        | 1970-01-01 00:00:00.000000100 |",
+            "| 70.5   | ss     |        |        | 1970-01-01 00:00:00.000000100 |",
+            "+--------+--------+--------+--------+-------------------------------+",
         ];
 
         assert_table_eq!(expected, &results);

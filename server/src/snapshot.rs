@@ -232,13 +232,12 @@ pub fn snapshot_chunk<T>(
     store: Arc<ObjectStore>,
     partition_key: &str,
     chunk: Arc<T>,
+    table_stats: Vec<TableSummary>,
     notify: Option<oneshot::Sender<()>>,
 ) -> Result<Arc<Snapshot<T>>>
 where
     T: Send + Sync + 'static + PartitionChunk,
 {
-    let table_stats = chunk.table_summaries();
-
     let snapshot = Snapshot::new(
         partition_key.to_string(),
         metadata_path,
@@ -274,12 +273,13 @@ mod tests {
     };
 
     use super::*;
+    use crate::db::test_helpers::write_lp;
     use data_types::database_rules::DatabaseRules;
     use data_types::DatabaseName;
     use futures::TryStreamExt;
     use mutable_buffer::chunk::Chunk as ChunkWB;
     use object_store::memory::InMemory;
-    use query::{test::TestLPWriter, Database};
+    use query::{exec::Executor, Database};
     use tracker::MemRegistry;
 
     #[tokio::test]
@@ -292,8 +292,7 @@ mem,host=A,region=west used=45 1
         "#;
 
         let db = make_db();
-        let mut writer = TestLPWriter::default();
-        writer.write_lp_string(&db, &lp).unwrap();
+        write_lp(&db, &lp);
 
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let (tx, rx) = tokio::sync::oneshot::channel();
@@ -304,6 +303,7 @@ mem,host=A,region=west used=45 1
         data_path.push_dir("data");
 
         let chunk = Arc::clone(&db.chunks("1970-01-01T00")[0]);
+        let table_summaries = db.table_summaries("1970-01-01T00", chunk.id());
 
         let snapshot = snapshot_chunk(
             metadata_path.clone(),
@@ -311,6 +311,7 @@ mem,host=A,region=west used=45 1
             Arc::clone(&store),
             "testaroo",
             chunk,
+            table_summaries,
             Some(tx),
         )
         .unwrap();
@@ -353,9 +354,7 @@ mem,host=A,region=west used=45 1
         let registry = MemRegistry::new();
         let store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let chunk = Arc::new(DBChunk::MutableBuffer {
-            chunk: Arc::new(ChunkWB::new(11, &registry)),
-            partition_key: Arc::new("key".to_string()),
-            open: false,
+            chunk: ChunkWB::new(11, &registry).snapshot(),
         });
         let mut metadata_path = store.new_path();
         metadata_path.push_dir("meta");
@@ -392,11 +391,13 @@ mem,host=A,region=west used=45 1
     pub fn make_db() -> Db {
         let object_store = Arc::new(ObjectStore::new_in_memory(InMemory::new()));
         let server_id = std::num::NonZeroU32::new(1).unwrap();
+        let exec = Arc::new(Executor::new(1));
 
         Db::new(
             DatabaseRules::new(DatabaseName::new("placeholder").unwrap()),
             server_id,
             object_store,
+            exec,
             None, // wal buffer
             Arc::new(JobRegistry::new()),
         )

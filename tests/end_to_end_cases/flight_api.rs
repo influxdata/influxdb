@@ -1,4 +1,4 @@
-use super::scenario::Scenario;
+use super::scenario::{create_readable_database, rand_name, Scenario};
 use crate::common::server_fixture::ServerFixture;
 use arrow_deps::assert_table_eq;
 
@@ -29,4 +29,23 @@ pub async fn test() {
     }
 
     assert_table_eq!(expected_read_data, &batches);
+}
+
+#[tokio::test]
+pub async fn test_no_rows() {
+    let server_fixture = ServerFixture::create_shared().await;
+
+    let db_name = rand_name();
+    create_readable_database(&db_name, server_fixture.grpc_channel()).await;
+
+    // query returns no results
+    let sql_query = "select * from system.chunks limit 0";
+
+    let mut client = server_fixture.flight_client();
+
+    let mut query_results = client.perform_query(&db_name, sql_query).await.unwrap();
+
+    // no record batches are returned
+    let batch = query_results.next().await.unwrap();
+    assert!(batch.is_none());
 }

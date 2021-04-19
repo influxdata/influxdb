@@ -1,5 +1,7 @@
 //! Tests for the table_names implementation
 
+#![allow(unused_imports, dead_code, unused_macros)]
+
 use arrow_deps::arrow::datatypes::DataType;
 use internal_types::{schema::builder::SchemaBuilder, selection::Selection};
 use query::{Database, PartitionChunk};

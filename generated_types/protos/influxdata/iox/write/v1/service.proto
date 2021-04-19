@@ -4,7 +4,12 @@ package influxdata.iox.write.v1;
 
 service WriteService {
   // write data into a specific Database
-  rpc Write(WriteRequest) returns (WriteResponse);
+  rpc Write(WriteRequest) returns (WriteResponse) {
+    option deprecated = true;
+  };
+
+  // write an entry into a Database
+  rpc WriteEntry(WriteEntryRequest) returns (WriteEntryResponse);
 }
 
 message WriteRequest {
@@ -20,4 +25,18 @@ message WriteRequest {
 message WriteResponse {
   // how many lines were parsed and written into the database
   uint64 lines_written = 1;
+}
+
+
+message WriteEntryRequest {
+  // name of database into which to write
+  string db_name = 1;
+
+  // entry, in serialized flatbuffers [Entry] format
+  //
+  // [Entry](https://github.com/influxdata/influxdb_iox/blob/main/generated_types/protos/influxdata/iox/write/v1/entry.fbs)
+  bytes entry = 2;
+}
+
+message WriteEntryResponse {
 }

@@ -149,7 +149,11 @@ message LifecycleRules {
   SortOrder sort_order = 6;
 
   // Allow dropping data that has not been persisted to object storage
+  // once the database size has exceeded the configured limits
   bool drop_non_persisted = 7;
+
+  // Persists chunks to object storage.
+  bool persist = 9;
 
   // Do not allow writing new data to this database
   bool immutable = 8;

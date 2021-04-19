@@ -12,7 +12,7 @@ use arrow_deps::{
         },
         prelude::col,
     },
-    util::IntoExpr,
+    util::AsExpr,
 };
 use internal_types::{
     schema::{InfluxColumnType, Schema, TIME_COLUMN_NAME},
@@ -195,13 +195,13 @@ impl InfluxRPCPlanner {
     /// Returns a plan that lists the names of tables in this
     /// database that have at least one row that matches the
     /// conditions listed on `predicate`
-    pub async fn table_names<D>(&self, database: &D, predicate: Predicate) -> Result<StringSetPlan>
+    pub fn table_names<D>(&self, database: &D, predicate: Predicate) -> Result<StringSetPlan>
     where
         D: Database + 'static,
     {
         let mut builder = StringSetPlanBuilder::new();
 
-        for chunk in self.filtered_chunks(database, &predicate).await? {
+        for chunk in self.filtered_chunks(database, &predicate)? {
             let new_table_names = chunk
                 .table_names(&predicate, builder.known_strings())
                 .map_err(|e| Box::new(e) as _)
@@ -227,7 +227,7 @@ impl InfluxRPCPlanner {
     /// columns (as defined in the InfluxDB Data model) names in this
     /// database that have more than zero rows which pass the
     /// conditions specified by `predicate`.
-    pub async fn tag_keys<D>(&self, database: &D, predicate: Predicate) -> Result<StringSetPlan>
+    pub fn tag_keys<D>(&self, database: &D, predicate: Predicate) -> Result<StringSetPlan>
     where
         D: Database + 'static,
     {
@@ -246,9 +246,9 @@ impl InfluxRPCPlanner {
         let mut need_full_plans = BTreeMap::new();
 
         let mut known_columns = BTreeSet::new();
-        for chunk in self.filtered_chunks(database, &predicate).await? {
+        for chunk in self.filtered_chunks(database, &predicate)? {
             // try and get the table names that have rows that match the predicate
-            let table_names = self.chunk_table_names(chunk.as_ref(), &predicate).await?;
+            let table_names = self.chunk_table_names(chunk.as_ref(), &predicate)?;
 
             for table_name in table_names {
                 debug!(
@@ -308,7 +308,7 @@ impl InfluxRPCPlanner {
             // were already known to have data (based on the contents of known_columns)
 
             for (table_name, chunks) in need_full_plans.into_iter() {
-                let plan = self.tag_keys_plan(&table_name, &predicate, chunks).await?;
+                let plan = self.tag_keys_plan(&table_name, &predicate, chunks)?;
 
                 if let Some(plan) = plan {
                     builder = builder.append(plan)
@@ -326,7 +326,7 @@ impl InfluxRPCPlanner {
     /// Returns a plan which finds the distinct, non-null tag values
     /// in the specified `tag_name` column of this database which pass
     /// the conditions specified by `predicate`.
-    pub async fn tag_values<D>(
+    pub fn tag_values<D>(
         &self,
         database: &D,
         tag_name: &str,
@@ -351,8 +351,8 @@ impl InfluxRPCPlanner {
         let mut need_full_plans = BTreeMap::new();
 
         let mut known_values = BTreeSet::new();
-        for chunk in self.filtered_chunks(database, &predicate).await? {
-            let table_names = self.chunk_table_names(chunk.as_ref(), &predicate).await?;
+        for chunk in self.filtered_chunks(database, &predicate)? {
+            let table_names = self.chunk_table_names(chunk.as_ref(), &predicate)?;
 
             for table_name in table_names {
                 debug!(
@@ -426,9 +426,7 @@ impl InfluxRPCPlanner {
         // time in `known_columns`, and some tables in chunks that we
         // need to run a plan to find what values pass the predicate.
         for (table_name, chunks) in need_full_plans.into_iter() {
-            let scan_and_filter = self
-                .scan_and_filter(&table_name, &predicate, chunks)
-                .await?;
+            let scan_and_filter = self.scan_and_filter(&table_name, &predicate, chunks)?;
 
             // if we have any data to scan, make a plan!
             if let Some(TableScanAndFilter {
@@ -471,11 +469,7 @@ impl InfluxRPCPlanner {
     /// datatypes (as defined in the data written via `write_lines`),
     /// and which have more than zero rows which pass the conditions
     /// specified by `predicate`.
-    pub async fn field_columns<D>(
-        &self,
-        database: &D,
-        predicate: Predicate,
-    ) -> Result<FieldListPlan>
+    pub fn field_columns<D>(&self, database: &D, predicate: Predicate) -> Result<FieldListPlan>
     where
         D: Database + 'static,
     {
@@ -488,15 +482,12 @@ impl InfluxRPCPlanner {
         // values and stops the plan executing once it has them
 
         // map table -> Vec<Arc<Chunk>>
-        let chunks = self.filtered_chunks(database, &predicate).await?;
-        let table_chunks = self.group_chunks_by_table(&predicate, chunks).await?;
+        let chunks = self.filtered_chunks(database, &predicate)?;
+        let table_chunks = self.group_chunks_by_table(&predicate, chunks)?;
 
         let mut field_list_plan = FieldListPlan::new();
         for (table_name, chunks) in table_chunks {
-            if let Some(plan) = self
-                .field_columns_plan(&table_name, &predicate, chunks)
-                .await?
-            {
+            if let Some(plan) = self.field_columns_plan(&table_name, &predicate, chunks)? {
                 field_list_plan = field_list_plan.append(plan);
             }
         }
@@ -522,8 +513,7 @@ impl InfluxRPCPlanner {
     /// The data is sorted on (tag_col1, tag_col2, ...) so that all
     /// rows for a particular series (groups where all tags are the
     /// same) occur together in the plan
-
-    pub async fn read_filter<D>(&self, database: &D, predicate: Predicate) -> Result<SeriesSetPlans>
+    pub fn read_filter<D>(&self, database: &D, predicate: Predicate) -> Result<SeriesSetPlans>
     where
         D: Database + 'static,
     {
@@ -531,17 +521,15 @@ impl InfluxRPCPlanner {
 
         // group tables by chunk, pruning if possible
         // key is table name, values are chunks
-        let chunks = self.filtered_chunks(database, &predicate).await?;
-        let table_chunks = self.group_chunks_by_table(&predicate, chunks).await?;
+        let chunks = self.filtered_chunks(database, &predicate)?;
+        let table_chunks = self.group_chunks_by_table(&predicate, chunks)?;
 
         // now, build up plans for each table
         let mut ss_plans = Vec::with_capacity(table_chunks.len());
         for (table_name, chunks) in table_chunks {
             let prefix_columns: Option<&[&str]> = None;
 
-            let ss_plan = self
-                .read_filter_plan(table_name, prefix_columns, &predicate, chunks)
-                .await?;
+            let ss_plan = self.read_filter_plan(table_name, prefix_columns, &predicate, chunks)?;
             // If we have to do real work, add it to the list of plans
             if let Some(ss_plan) = ss_plan {
                 ss_plans.push(ss_plan);
@@ -555,7 +543,7 @@ impl InfluxRPCPlanner {
     /// with rows grouped by an aggregate function. Note that we still
     /// group by all tags (so group within series) and the
     /// group_columns define the order of the result
-    pub async fn read_group<D>(
+    pub fn read_group<D>(
         &self,
         database: &D,
         predicate: Predicate,
@@ -568,8 +556,8 @@ impl InfluxRPCPlanner {
         debug!(predicate=?predicate, agg=?agg, "planning read_group");
 
         // group tables by chunk, pruning if possible
-        let chunks = self.filtered_chunks(database, &predicate).await?;
-        let table_chunks = self.group_chunks_by_table(&predicate, chunks).await?;
+        let chunks = self.filtered_chunks(database, &predicate)?;
+        let table_chunks = self.group_chunks_by_table(&predicate, chunks)?;
         let num_prefix_tag_group_columns = group_columns.len();
 
         // now, build up plans for each table
@@ -577,13 +565,9 @@ impl InfluxRPCPlanner {
         for (table_name, chunks) in table_chunks {
             let ss_plan = match agg {
                 Aggregate::None => {
-                    self.read_filter_plan(table_name, Some(group_columns), &predicate, chunks)
-                        .await?
+                    self.read_filter_plan(table_name, Some(group_columns), &predicate, chunks)?
                 }
-                _ => {
-                    self.read_group_plan(table_name, &predicate, agg, group_columns, chunks)
-                        .await?
-                }
+                _ => self.read_group_plan(table_name, &predicate, agg, group_columns, chunks)?,
             };
 
             // If we have to do real work, add it to the list of plans
@@ -598,7 +582,7 @@ impl InfluxRPCPlanner {
 
     /// Creates a GroupedSeriesSet plan that produces an output table with rows
     /// that are grouped by window defintions
-    pub async fn read_window_aggregate<D>(
+    pub fn read_window_aggregate<D>(
         &self,
         database: &D,
         predicate: Predicate,
@@ -612,15 +596,14 @@ impl InfluxRPCPlanner {
         debug!(predicate=?predicate, "planning read_window_aggregate");
 
         // group tables by chunk, pruning if possible
-        let chunks = self.filtered_chunks(database, &predicate).await?;
-        let table_chunks = self.group_chunks_by_table(&predicate, chunks).await?;
+        let chunks = self.filtered_chunks(database, &predicate)?;
+        let table_chunks = self.group_chunks_by_table(&predicate, chunks)?;
 
         // now, build up plans for each table
         let mut ss_plans = Vec::with_capacity(table_chunks.len());
         for (table_name, chunks) in table_chunks {
             let ss_plan = self
-                .read_window_aggregate_plan(table_name, &predicate, agg, &every, &offset, chunks)
-                .await?;
+                .read_window_aggregate_plan(table_name, &predicate, agg, &every, &offset, chunks)?;
             // If we have to do real work, add it to the list of plans
             if let Some(ss_plan) = ss_plan {
                 ss_plans.push(ss_plan);
@@ -631,7 +614,7 @@ impl InfluxRPCPlanner {
     }
 
     /// Creates a map of table_name --> Chunks that have that table
-    async fn group_chunks_by_table<C>(
+    fn group_chunks_by_table<C>(
         &self,
         predicate: &Predicate,
         chunks: Vec<Arc<C>>,
@@ -641,7 +624,7 @@ impl InfluxRPCPlanner {
     {
         let mut table_chunks = BTreeMap::new();
         for chunk in chunks {
-            let table_names = self.chunk_table_names(chunk.as_ref(), &predicate).await?;
+            let table_names = self.chunk_table_names(chunk.as_ref(), &predicate)?;
             for table_name in table_names {
                 table_chunks
                     .entry(table_name)
@@ -653,11 +636,7 @@ impl InfluxRPCPlanner {
     }
 
     /// Find all the table names in the specified chunk that pass the predicate
-    async fn chunk_table_names<C>(
-        &self,
-        chunk: &C,
-        predicate: &Predicate,
-    ) -> Result<BTreeSet<String>>
+    fn chunk_table_names<C>(&self, chunk: &C, predicate: &Predicate) -> Result<BTreeSet<String>>
     where
         C: PartitionChunk + 'static,
     {
@@ -705,7 +684,7 @@ impl InfluxRPCPlanner {
     ///    Filter(predicate)
     ///      TableScan (of chunks)
     /// ```
-    async fn tag_keys_plan<C>(
+    fn tag_keys_plan<C>(
         &self,
         table_name: &str,
         predicate: &Predicate,
@@ -714,7 +693,7 @@ impl InfluxRPCPlanner {
     where
         C: PartitionChunk + 'static,
     {
-        let scan_and_filter = self.scan_and_filter(table_name, predicate, chunks).await?;
+        let scan_and_filter = self.scan_and_filter(table_name, predicate, chunks)?;
 
         let TableScanAndFilter {
             plan_builder,
@@ -767,7 +746,7 @@ impl InfluxRPCPlanner {
     ///      Filter(predicate) [optional]
     ///        Scan
     /// ```
-    async fn field_columns_plan<C>(
+    fn field_columns_plan<C>(
         &self,
         table_name: &str,
         predicate: &Predicate,
@@ -776,7 +755,7 @@ impl InfluxRPCPlanner {
     where
         C: PartitionChunk + 'static,
     {
-        let scan_and_filter = self.scan_and_filter(table_name, predicate, chunks).await?;
+        let scan_and_filter = self.scan_and_filter(table_name, predicate, chunks)?;
         let TableScanAndFilter {
             plan_builder,
             schema,
@@ -817,7 +796,7 @@ impl InfluxRPCPlanner {
     ///      Order by (tag_columns, timestamp_column)
     ///        Filter(predicate)
     ///          Scan
-    async fn read_filter_plan<C>(
+    fn read_filter_plan<C>(
         &self,
         table_name: impl Into<String>,
         prefix_columns: Option<&[impl AsRef<str>]>,
@@ -828,7 +807,7 @@ impl InfluxRPCPlanner {
         C: PartitionChunk + 'static,
     {
         let table_name = table_name.into();
-        let scan_and_filter = self.scan_and_filter(&table_name, predicate, chunks).await?;
+        let scan_and_filter = self.scan_and_filter(&table_name, predicate, chunks)?;
 
         let TableScanAndFilter {
             plan_builder,
@@ -853,7 +832,7 @@ impl InfluxRPCPlanner {
         // Convert to SortExprs to pass to the plan builder
         let tags_and_timestamp: Vec<_> = tags_and_timestamp
             .into_iter()
-            .map(|n| n.into_sort_expr())
+            .map(|n| n.as_sort_expr())
             .collect();
 
         // Order by
@@ -866,7 +845,7 @@ impl InfluxRPCPlanner {
             .tags_iter()
             .chain(filtered_fields_iter(&schema, predicate))
             .chain(schema.time_iter())
-            .map(|field| field.name().into_expr())
+            .map(|field| field.name().as_expr())
             .collect();
 
         let plan_builder = plan_builder
@@ -937,7 +916,7 @@ impl InfluxRPCPlanner {
     ///     GroupBy(gby cols, aggs, time cols)
     ///       Filter(predicate)
     ///          Scan
-    pub async fn read_group_plan<C>(
+    fn read_group_plan<C>(
         &self,
         table_name: impl Into<String>,
         predicate: &Predicate,
@@ -949,7 +928,7 @@ impl InfluxRPCPlanner {
         C: PartitionChunk + 'static,
     {
         let table_name = table_name.into();
-        let scan_and_filter = self.scan_and_filter(&table_name, predicate, chunks).await?;
+        let scan_and_filter = self.scan_and_filter(&table_name, predicate, chunks)?;
 
         let TableScanAndFilter {
             plan_builder,
@@ -972,7 +951,7 @@ impl InfluxRPCPlanner {
         // Group by all tag columns
         let group_exprs = tag_columns
             .iter()
-            .map(|tag_name| tag_name.into_expr())
+            .map(|tag_name| tag_name.as_expr())
             .collect::<Vec<_>>();
 
         let AggExprs {
@@ -982,7 +961,7 @@ impl InfluxRPCPlanner {
 
         let sort_exprs = group_exprs
             .iter()
-            .map(|expr| expr.into_sort_expr())
+            .map(|expr| expr.as_sort_expr())
             .collect::<Vec<_>>();
 
         let plan_builder = plan_builder
@@ -1027,7 +1006,7 @@ impl InfluxRPCPlanner {
     ///      GroupBy(gby: tag columns, window_function; agg: aggregate(field)
     ///        Filter(predicate)
     ///          Scan
-    pub async fn read_window_aggregate_plan<C>(
+    fn read_window_aggregate_plan<C>(
         &self,
         table_name: impl Into<String>,
         predicate: &Predicate,
@@ -1040,7 +1019,7 @@ impl InfluxRPCPlanner {
         C: PartitionChunk + 'static,
     {
         let table_name = table_name.into();
-        let scan_and_filter = self.scan_and_filter(&table_name, predicate, chunks).await?;
+        let scan_and_filter = self.scan_and_filter(&table_name, predicate, chunks)?;
 
         let TableScanAndFilter {
             plan_builder,
@@ -1051,12 +1030,12 @@ impl InfluxRPCPlanner {
         };
 
         // Group by all tag columns and the window bounds
-        let window_bound = make_window_bound_expr(TIME_COLUMN_NAME.into_expr(), &every, &offset)
+        let window_bound = make_window_bound_expr(TIME_COLUMN_NAME.as_expr(), &every, &offset)
             .alias(TIME_COLUMN_NAME);
 
         let group_exprs = schema
             .tags_iter()
-            .map(|field| field.name().into_expr())
+            .map(|field| field.name().as_expr())
             .chain(std::iter::once(window_bound))
             .collect::<Vec<_>>();
 
@@ -1068,7 +1047,7 @@ impl InfluxRPCPlanner {
         // sort by the group by expressions as well
         let sort_exprs = group_exprs
             .iter()
-            .map(|expr| expr.into_sort_expr())
+            .map(|expr| expr.as_sort_expr())
             .collect::<Vec<_>>();
 
         let plan_builder = plan_builder
@@ -1114,7 +1093,7 @@ impl InfluxRPCPlanner {
     ///   Filter(predicate) [optional]
     ///     Scan
     /// ```
-    async fn scan_and_filter<C>(
+    fn scan_and_filter<C>(
         &self,
         table_name: &str,
         predicate: &Predicate,
@@ -1190,7 +1169,7 @@ impl InfluxRPCPlanner {
 
     /// Returns a list of chunks across all partitions which may
     /// contain data that pass the predicate
-    async fn filtered_chunks<D>(
+    fn filtered_chunks<D>(
         &self,
         database: &D,
         predicate: &Predicate,
@@ -1443,6 +1422,16 @@ impl AggExprs {
 ///
 /// equivalent to `CAST agg(field) as field`
 fn make_agg_expr(agg: Aggregate, field_name: &str) -> Result<Expr> {
+    // For timestamps, use `MAX` which corresponds to the last
+    // timestamp in the group, unless `MIN` was specifically requested
+    // to be consistent with the Go implementation which takes the
+    // timestamp at the end of the window
+    let agg = if field_name == TIME_COLUMN_NAME && agg != Aggregate::Min {
+        Aggregate::Max
+    } else {
+        agg
+    };
+
     agg.to_datafusion_expr(col(field_name))
         .context(CreatingAggregates)
         .map(|agg| agg.alias(field_name))

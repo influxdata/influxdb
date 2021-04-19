@@ -59,9 +59,6 @@ pub enum Error {
     SendingDuringGroupedConversion {
         source: Box<SendError<Result<SeriesSetItem>>>,
     },
-
-    #[snafu(display("Joining conversion execution task: {}", source))]
-    JoinError { source: tokio::task::JoinError },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;

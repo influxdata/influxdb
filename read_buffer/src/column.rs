@@ -117,38 +117,33 @@ impl Column {
     /// Returns the (min, max)  values stored in this column
     pub fn column_range(&self) -> Option<(OwnedValue, OwnedValue)> {
         match &self {
-            Self::String(meta, _) => match &meta.range {
-                Some(range) => Some((
+            Self::String(meta, _) => meta.range.as_ref().map(|range| {
+                (
                     OwnedValue::String(range.0.clone()),
                     OwnedValue::String(range.1.clone()),
-                )),
-                None => None,
-            },
-            Self::Float(meta, _) => match meta.range {
-                Some(range) => Some((
+                )
+            }),
+            Self::Float(meta, _) => meta.range.map(|range| {
+                (
                     OwnedValue::Scalar(Scalar::F64(range.0)),
                     OwnedValue::Scalar(Scalar::F64(range.1)),
-                )),
-                None => None,
-            },
-            Self::Integer(meta, _) => match meta.range {
-                Some(range) => Some((
+                )
+            }),
+            Self::Integer(meta, _) => meta.range.map(|range| {
+                (
                     OwnedValue::Scalar(Scalar::I64(range.0)),
                     OwnedValue::Scalar(Scalar::I64(range.1)),
-                )),
-                None => None,
-            },
-            Self::Unsigned(meta, _) => match meta.range {
-                Some(range) => Some((
+                )
+            }),
+            Self::Unsigned(meta, _) => meta.range.map(|range| {
+                (
                     OwnedValue::Scalar(Scalar::U64(range.0)),
                     OwnedValue::Scalar(Scalar::U64(range.1)),
-                )),
-                None => None,
-            },
-            Self::Bool(meta, _) => match meta.range {
-                Some(range) => Some((OwnedValue::Boolean(range.0), OwnedValue::Boolean(range.1))),
-                None => None,
-            },
+                )
+            }),
+            Self::Bool(meta, _) => meta
+                .range
+                .map(|range| (OwnedValue::Boolean(range.0), OwnedValue::Boolean(range.1))),
             Self::ByteArray(_, _) => todo!(),
         }
     }
@@ -1095,6 +1090,19 @@ impl From<arrow::array::BooleanArray> for Column {
             ..MetaData::default()
         };
         Self::Bool(meta, data)
+    }
+}
+
+impl std::fmt::Display for Column {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::String(_, enc) => enc.fmt(f),
+            Self::Float(_, enc) => enc.fmt(f),
+            Self::Integer(_, enc) => enc.fmt(f),
+            Self::Unsigned(_, enc) => enc.fmt(f),
+            Self::Bool(_, enc) => enc.fmt(f),
+            Self::ByteArray(_, enc) => enc.fmt(f),
+        }
     }
 }
 

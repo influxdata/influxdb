@@ -8,13 +8,15 @@ pub mod fieldlist;
 mod schema_pivot;
 pub mod seriesset;
 pub mod stringset;
+mod task;
 pub use context::{DEFAULT_CATALOG, DEFAULT_SCHEMA};
+use futures::Future;
 
 use std::sync::Arc;
 
 use arrow_deps::{
     arrow::record_batch::RecordBatch,
-    datafusion::{self, logical_plan::LogicalPlan},
+    datafusion::{self, logical_plan::LogicalPlan, physical_plan::ExecutionPlan},
 };
 use counters::ExecutionCounters;
 
@@ -33,6 +35,8 @@ use crate::plan::{
     seriesset::{SeriesSetPlan, SeriesSetPlans},
     stringset::StringSetPlan,
 };
+
+use self::task::{DedicatedExecutor, Error as ExecutorError};
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -83,22 +87,30 @@ pub enum Error {
         source: Box<SendError<Result<SeriesSetItem, SeriesSetError>>>,
     },
 
-    #[snafu(display("Joining execution task: {}", source))]
-    JoinError { source: tokio::task::JoinError },
+    #[snafu(display("Error joining execution task: {}", source))]
+    TaskJoinError { source: ExecutorError },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-/// Handles executing plans, and marshalling the results into rust
+/// Handles executing DataFusion plans, and marshalling the results into rust
 /// native structures.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Executor {
     counters: Arc<ExecutionCounters>,
+    exec: DedicatedExecutor,
 }
 
 impl Executor {
-    pub fn new() -> Self {
-        Self::default()
+    /// Creates a new executor with a single dedicated thread pool with
+    /// num_threads
+    pub fn new(num_threads: usize) -> Self {
+        let exec = DedicatedExecutor::new("IOx Executor Thread", num_threads);
+
+        Self {
+            exec,
+            counters: Arc::new(ExecutionCounters::default()),
+        }
     }
 
     /// Executes this plan and returns the resulting set of strings
@@ -148,7 +160,7 @@ impl Executor {
                 let (plan_tx, plan_rx) = mpsc::channel(1);
                 rx_channels.push(plan_rx);
 
-                tokio::task::spawn(async move {
+                self.exec.spawn(async move {
                     let SeriesSetPlan {
                         table_name,
                         plan,
@@ -161,7 +173,6 @@ impl Executor {
 
                     let physical_plan = ctx
                         .prepare_plan(&plan)
-                        .await
                         .context(DataFusionPhysicalPlanning)?;
 
                     let it = ctx
@@ -199,7 +210,7 @@ impl Executor {
         // now, wait for all the values to resolve so we can report
         // any errors
         for join_handle in handles {
-            join_handle.await.context(JoinError)??;
+            join_handle.await.context(TaskJoinError)??;
         }
         Ok(())
     }
@@ -212,13 +223,10 @@ impl Executor {
         let handles = plans
             .into_iter()
             .map(|plan| {
-                let counters = Arc::clone(&self.counters);
-
-                tokio::task::spawn(async move {
-                    let ctx = IOxExecutionContext::new(counters);
+                let ctx = self.new_context();
+                self.exec.spawn(async move {
                     let physical_plan = ctx
                         .prepare_plan(&plan)
-                        .await
                         .context(DataFusionPhysicalPlanning)?;
 
                     // TODO: avoid this buffering
@@ -237,7 +245,7 @@ impl Executor {
         // collect them all up and combine them
         let mut results = Vec::new();
         for join_handle in handles {
-            let fieldlist = join_handle.await.context(JoinError)???;
+            let fieldlist = join_handle.await.context(TaskJoinError)???;
 
             results.push(fieldlist);
         }
@@ -250,9 +258,18 @@ impl Executor {
         self.run_logical_plans(vec![plan]).await
     }
 
+    /// Executes the logical plan using DataFusion on a separate
+    /// thread pool and produces RecordBatches
+    pub async fn collect(&self, physical_plan: Arc<dyn ExecutionPlan>) -> Result<Vec<RecordBatch>> {
+        self.new_context()
+            .collect(physical_plan)
+            .await
+            .context(DataFusionExecution)
+    }
+
     /// Create a new execution context, suitable for executing a new query
     pub fn new_context(&self) -> IOxExecutionContext {
-        IOxExecutionContext::new(Arc::clone(&self.counters))
+        IOxExecutionContext::new(self.exec.clone(), Arc::clone(&self.counters))
     }
 
     /// plans and runs the plans in parallel and collects the results
@@ -262,11 +279,10 @@ impl Executor {
             .into_iter()
             .map(|plan| {
                 let ctx = self.new_context();
-                // TODO run these on some executor other than the main tokio pool
-                tokio::task::spawn(async move {
+
+                self.exec.spawn(async move {
                     let physical_plan = ctx
                         .prepare_plan(&plan)
-                        .await
                         .context(DataFusionPhysicalPlanning)?;
 
                     // TODO: avoid this buffering
@@ -280,10 +296,26 @@ impl Executor {
         // now, wait for all the values to resolve and collect them together
         let mut results = Vec::new();
         for join_handle in value_futures {
-            let mut plan_result = join_handle.await.context(JoinError)??;
+            let mut plan_result = join_handle.await.context(TaskJoinError)??;
             results.append(&mut plan_result);
         }
         Ok(results)
+    }
+
+    /// Runs the specified Future (and any tasks it spawns) on the
+    /// worker pool for this executor, returning the result of the
+    /// computation.
+    pub async fn run<T>(&self, task: T) -> Result<T::Output>
+    where
+        T: Future + Send + 'static,
+        T::Output: Send + 'static,
+    {
+        // run on the dedicated executor
+        self.exec
+            .spawn(task)
+            // wait on the *current* tokio executor
+            .await
+            .context(TaskJoinError)
     }
 }
 /// Create a SchemaPivot node which  an arbitrary input like
@@ -327,7 +359,7 @@ mod tests {
         let expected_strings = to_set(&["Foo", "Bar"]);
         let plan = StringSetPlan::Known(Arc::clone(&expected_strings));
 
-        let executor = Executor::default();
+        let executor = Executor::new(1);
         let result_strings = executor.to_string_set(plan).await.unwrap();
         assert_eq!(result_strings, expected_strings);
     }
@@ -339,7 +371,7 @@ mod tests {
         let scan = make_plan(schema, vec![]);
         let plan: StringSetPlan = vec![scan].into();
 
-        let executor = Executor::new();
+        let executor = Executor::new(1);
         let results = executor.to_string_set(plan).await.unwrap();
 
         assert_eq!(results, StringSetRef::new(StringSet::new()));
@@ -355,7 +387,7 @@ mod tests {
         let scan = make_plan(schema, vec![batch]);
         let plan: StringSetPlan = vec![scan].into();
 
-        let executor = Executor::new();
+        let executor = Executor::new(1);
         let results = executor.to_string_set(plan).await.unwrap();
 
         assert_eq!(results, to_set(&["foo", "bar", "baz"]));
@@ -374,7 +406,7 @@ mod tests {
         let scan = make_plan(schema, vec![batch1, batch2]);
         let plan: StringSetPlan = vec![scan].into();
 
-        let executor = Executor::new();
+        let executor = Executor::new(1);
         let results = executor.to_string_set(plan).await.unwrap();
 
         assert_eq!(results, to_set(&["foo", "bar", "baz"]));
@@ -397,7 +429,7 @@ mod tests {
 
         let plan: StringSetPlan = vec![scan1, scan2].into();
 
-        let executor = Executor::new();
+        let executor = Executor::new(1);
         let results = executor.to_string_set(plan).await.unwrap();
 
         assert_eq!(results, to_set(&["foo", "bar", "baz"]));
@@ -417,7 +449,7 @@ mod tests {
         let scan = make_plan(schema, vec![batch]);
         let plan: StringSetPlan = vec![scan].into();
 
-        let executor = Executor::new();
+        let executor = Executor::new(1);
         let results = executor.to_string_set(plan).await;
 
         let actual_error = match results {
@@ -443,7 +475,7 @@ mod tests {
         let scan = make_plan(schema, vec![batch]);
         let plan: StringSetPlan = vec![scan].into();
 
-        let executor = Executor::new();
+        let executor = Executor::new(1);
         let results = executor.to_string_set(plan).await;
 
         let actual_error = match results {
@@ -481,7 +513,7 @@ mod tests {
         let pivot = make_schema_pivot(scan);
         let plan = vec![pivot].into();
 
-        let executor = Executor::new();
+        let executor = Executor::new(1);
         let results = executor.to_string_set(plan).await.expect("Executed plan");
 
         assert_eq!(results, to_set(&["f1", "f2"]));

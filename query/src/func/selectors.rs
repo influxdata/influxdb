@@ -38,6 +38,7 @@ use internal::{
     I64LastSelector, I64MaxSelector, I64MinSelector, Utf8FirstSelector, Utf8LastSelector,
     Utf8MaxSelector, Utf8MinSelector,
 };
+use internal_types::schema::TIME_DATA_TYPE;
 
 /// Returns a DataFusion user defined aggregate function for computing
 /// one field of the first() selector function.
@@ -191,8 +192,8 @@ impl SelectorOutput {
     fn return_type(&self, input_type: &DataType) -> DataType {
         match self {
             Self::Value => input_type.clone(),
-            // timestamps are always i64
-            Self::Time => DataType::Int64,
+            // timestamps are always the same type
+            Self::Time => TIME_DATA_TYPE(),
         }
     }
 }
@@ -203,9 +204,9 @@ where
     SELECTOR: Selector + 'static,
 {
     let value_data_type = SELECTOR::value_data_type();
-    let input_signature = Signature::Exact(vec![value_data_type.clone(), DataType::Int64]);
+    let input_signature = Signature::Exact(vec![value_data_type.clone(), TIME_DATA_TYPE()]);
 
-    let state_type = Arc::new(vec![value_data_type.clone(), DataType::Int64]);
+    let state_type = Arc::new(vec![value_data_type.clone(), TIME_DATA_TYPE()]);
     let state_type_factory: StateTypeFunction = Arc::new(move |_| Ok(Arc::clone(&state_type)));
 
     let factory: AccumulatorFunctionImplementation =
@@ -310,10 +311,14 @@ mod test {
         arrow::array::StringArray,
         arrow::datatypes::{Field, Schema},
         arrow::record_batch::RecordBatch,
-        arrow::{array::BooleanArray, util::pretty::pretty_format_batches},
+        arrow::{
+            array::{BooleanArray, TimestampNanosecondArray},
+            util::pretty::pretty_format_batches,
+        },
         datafusion::logical_plan::Expr,
         datafusion::{datasource::MemTable, prelude::*},
     };
+    use internal_types::schema::TIME_DATA_TIMEZONE;
 
     use super::*;
 
@@ -328,7 +333,7 @@ mod test {
                     "+--------------------------------------+-------------------------------------+",
                     "| selector_first_value(f64_value,time) | selector_first_time(f64_value,time) |",
                     "+--------------------------------------+-------------------------------------+",
-                    "| 2                                    | 1000                                |",
+                    "| 2                                    | 1970-01-01 00:00:00.000001          |",
                     "+--------------------------------------+-------------------------------------+",
                     ""
                 ],
@@ -341,7 +346,7 @@ mod test {
                     "+--------------------------------------+-------------------------------------+",
                     "| selector_first_value(i64_value,time) | selector_first_time(i64_value,time) |",
                     "+--------------------------------------+-------------------------------------+",
-                    "| 20                                   | 1000                                |",
+                    "| 20                                   | 1970-01-01 00:00:00.000001          |",
                     "+--------------------------------------+-------------------------------------+",
                     "",
                 ],
@@ -354,7 +359,7 @@ mod test {
                     "+-----------------------------------------+----------------------------------------+",
                     "| selector_first_value(string_value,time) | selector_first_time(string_value,time) |",
                     "+-----------------------------------------+----------------------------------------+",
-                    "| two                                     | 1000                                   |",
+                    "| two                                     | 1970-01-01 00:00:00.000001             |",
                     "+-----------------------------------------+----------------------------------------+",
                     "",
                 ],
@@ -367,7 +372,7 @@ mod test {
                     "+---------------------------------------+--------------------------------------+",
                     "| selector_first_value(bool_value,time) | selector_first_time(bool_value,time) |",
                     "+---------------------------------------+--------------------------------------+",
-                    "| true                                  | 1000                                 |",
+                    "| true                                  | 1970-01-01 00:00:00.000001           |",
                     "+---------------------------------------+--------------------------------------+",
                     "",
                 ],
@@ -398,7 +403,7 @@ mod test {
                     "+-------------------------------------+------------------------------------+",
                     "| selector_last_value(f64_value,time) | selector_last_time(f64_value,time) |",
                     "+-------------------------------------+------------------------------------+",
-                    "| 3                                   | 6000                               |",
+                    "| 3                                   | 1970-01-01 00:00:00.000006         |",
                     "+-------------------------------------+------------------------------------+",
                     "",
                 ],
@@ -411,7 +416,7 @@ mod test {
                     "+-------------------------------------+------------------------------------+",
                     "| selector_last_value(i64_value,time) | selector_last_time(i64_value,time) |",
                     "+-------------------------------------+------------------------------------+",
-                    "| 30                                  | 6000                               |",
+                    "| 30                                  | 1970-01-01 00:00:00.000006         |",
                     "+-------------------------------------+------------------------------------+",
                     "",
                 ],
@@ -424,7 +429,7 @@ mod test {
                     "+----------------------------------------+---------------------------------------+",
                     "| selector_last_value(string_value,time) | selector_last_time(string_value,time) |",
                     "+----------------------------------------+---------------------------------------+",
-                    "| three                                  | 6000                                  |",
+                    "| three                                  | 1970-01-01 00:00:00.000006            |",
                     "+----------------------------------------+---------------------------------------+",
                     "",
                 ],
@@ -437,7 +442,7 @@ mod test {
                     "+--------------------------------------+-------------------------------------+",
                     "| selector_last_value(bool_value,time) | selector_last_time(bool_value,time) |",
                     "+--------------------------------------+-------------------------------------+",
-                    "| false                                | 6000                                |",
+                    "| false                                | 1970-01-01 00:00:00.000006          |",
                     "+--------------------------------------+-------------------------------------+",
                     "",
                 ],
@@ -468,7 +473,7 @@ mod test {
                     "+------------------------------------+-----------------------------------+",
                     "| selector_min_value(f64_value,time) | selector_min_time(f64_value,time) |",
                     "+------------------------------------+-----------------------------------+",
-                    "| 1                                  | 4000                              |",
+                    "| 1                                  | 1970-01-01 00:00:00.000004        |",
                     "+------------------------------------+-----------------------------------+",
                     "",
                 ],
@@ -481,7 +486,8 @@ mod test {
                     "+------------------------------------+-----------------------------------+",
                     "| selector_min_value(i64_value,time) | selector_min_time(i64_value,time) |",
                     "+------------------------------------+-----------------------------------+",
-                    "| 10                                 | 4000                              |",
+                    "| 10                                 | 1970-01-01 00:00:00.000004        |",
+
                     "+------------------------------------+-----------------------------------+",
                     "",
                 ],
@@ -494,7 +500,7 @@ mod test {
                     "+---------------------------------------+--------------------------------------+",
                     "| selector_min_value(string_value,time) | selector_min_time(string_value,time) |",
                     "+---------------------------------------+--------------------------------------+",
-                    "| a_one                                 | 4000                                 |",
+                    "| a_one                                 | 1970-01-01 00:00:00.000004           |",
                     "+---------------------------------------+--------------------------------------+",
                     "",
                 ],
@@ -507,7 +513,7 @@ mod test {
                     "+-------------------------------------+------------------------------------+",
                     "| selector_min_value(bool_value,time) | selector_min_time(bool_value,time) |",
                     "+-------------------------------------+------------------------------------+",
-                    "| false                               | 2000                               |",
+                    "| false                               | 1970-01-01 00:00:00.000002         |",
                     "+-------------------------------------+------------------------------------+",
                     "",
                 ],
@@ -538,7 +544,7 @@ mod test {
                     "+------------------------------------+-----------------------------------+",
                     "| selector_max_value(f64_value,time) | selector_max_time(f64_value,time) |",
                     "+------------------------------------+-----------------------------------+",
-                    "| 5                                  | 5000                              |",
+                    "| 5                                  | 1970-01-01 00:00:00.000005        |",
                     "+------------------------------------+-----------------------------------+",
                     "",
                 ],
@@ -551,7 +557,7 @@ mod test {
                     "+------------------------------------+-----------------------------------+",
                     "| selector_max_value(i64_value,time) | selector_max_time(i64_value,time) |",
                     "+------------------------------------+-----------------------------------+",
-                    "| 50                                 | 5000                              |",
+                    "| 50                                 | 1970-01-01 00:00:00.000005        |",
                     "+------------------------------------+-----------------------------------+",
                     "",
                 ],
@@ -564,7 +570,7 @@ mod test {
                     "+---------------------------------------+--------------------------------------+",
                     "| selector_max_value(string_value,time) | selector_max_time(string_value,time) |",
                     "+---------------------------------------+--------------------------------------+",
-                    "| z_five                                | 5000                                 |",
+                    "| z_five                                | 1970-01-01 00:00:00.000005           |",
                     "+---------------------------------------+--------------------------------------+",
                     "",
                 ],
@@ -577,7 +583,7 @@ mod test {
                     "+-------------------------------------+------------------------------------+",
                     "| selector_max_value(bool_value,time) | selector_max_time(bool_value,time) |",
                     "+-------------------------------------+------------------------------------+",
-                    "| true                                | 1000                               |",
+                    "| true                                | 1970-01-01 00:00:00.000001         |",
                     "+-------------------------------------+------------------------------------+",
                     "",
                 ],
@@ -599,16 +605,19 @@ mod test {
 
     /// Run a plan against the following input table as "t"
     ///
-    /// +-----------+-----------+--------------+------------+------+
-    /// | f64_value | i64_value | string_value | bool_value | time |
-    /// +-----------+-----------+--------------+------------+------+
-    /// | 2         | 20        | two          | true       | 1000 |
-    /// | 4         | 40        | four         | false      | 2000 |
-    /// |           |           |              |            | 3000 |
-    /// | 1         | 10        | a_one        | true       | 4000 |
-    /// | 5         | 50        | z_five       | false      | 5000 |
-    /// | 3         | 30        | three        | false      | 6000 |
-    /// +-----------+-----------+--------------+------------+------+
+    /// +-----------+-----------+--------------+------------+----------------------------+,
+    /// | f64_value | i64_value | string_value | bool_value | time
+    /// |,
+    /// +-----------+-----------+--------------+------------+----------------------------+,
+    /// | 2         | 20        | two          | true       | 1970-01-01
+    /// 00:00:00.000001 |, | 4         | 40        | four         | false
+    /// | 1970-01-01 00:00:00.000002 |, |           |           |
+    /// |            | 1970-01-01 00:00:00.000003 |, | 1         | 10
+    /// | a_one        | true       | 1970-01-01 00:00:00.000004 |, | 5
+    /// | 50        | z_five       | false      | 1970-01-01 00:00:00.000005 |,
+    /// | 3         | 30        | three        | false      | 1970-01-01
+    /// 00:00:00.000006 |,
+    /// +-----------+-----------+--------------+------------+----------------------------+,
     async fn run_plan(aggs: Vec<Expr>) -> Vec<String> {
         // define a schema for input
         // (value) and timestamp
@@ -617,7 +626,7 @@ mod test {
             Field::new("i64_value", DataType::Int64, false),
             Field::new("string_value", DataType::Utf8, false),
             Field::new("bool_value", DataType::Boolean, false),
-            Field::new("time", DataType::Int64, true),
+            Field::new("time", TIME_DATA_TYPE(), true),
         ]));
 
         // define data in two partitions
@@ -628,23 +637,31 @@ mod test {
                 Arc::new(Int64Array::from(vec![Some(20), Some(40), None])),
                 Arc::new(StringArray::from(vec![Some("two"), Some("four"), None])),
                 Arc::new(BooleanArray::from(vec![Some(true), Some(false), None])),
-                Arc::new(Int64Array::from(vec![1000, 2000, 3000])),
+                Arc::new(TimestampNanosecondArray::from_vec(
+                    vec![1000, 2000, 3000],
+                    TIME_DATA_TIMEZONE(),
+                )),
             ],
         )
         .unwrap();
 
         // No values in this batch
-        let batch2 = RecordBatch::try_new(
+        let batch2 = match RecordBatch::try_new(
             Arc::clone(&schema),
             vec![
                 Arc::new(Float64Array::from(vec![] as Vec<Option<f64>>)),
                 Arc::new(Int64Array::from(vec![] as Vec<Option<i64>>)),
                 Arc::new(StringArray::from(vec![] as Vec<Option<&str>>)),
                 Arc::new(BooleanArray::from(vec![] as Vec<Option<bool>>)),
-                Arc::new(Int64Array::from(vec![] as Vec<Option<i64>>)),
+                Arc::new(TimestampNanosecondArray::from_vec(
+                    vec![],
+                    TIME_DATA_TIMEZONE(),
+                )),
             ],
-        )
-        .unwrap();
+        ) {
+            Ok(a) => a,
+            _ => unreachable!(),
+        };
 
         let batch3 = RecordBatch::try_new(
             Arc::clone(&schema),
@@ -661,7 +678,10 @@ mod test {
                     Some(false),
                     Some(false),
                 ])),
-                Arc::new(Int64Array::from(vec![4000, 5000, 6000])),
+                Arc::new(TimestampNanosecondArray::from_vec(
+                    vec![4000, 5000, 6000],
+                    TIME_DATA_TIMEZONE(),
+                )),
             ],
         )
         .unwrap();

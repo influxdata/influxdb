@@ -43,17 +43,17 @@ pub enum QueryOutputFormat {
     /// Arrow pretty printer format (default)
     Pretty,
     /// Comma separated values
-    CSV,
+    Csv,
     /// Arrow JSON format
-    JSON,
+    Json,
 }
 
 impl Display for QueryOutputFormat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             QueryOutputFormat::Pretty => write!(f, "pretty"),
-            QueryOutputFormat::CSV => write!(f, "csv"),
-            QueryOutputFormat::JSON => write!(f, "json"),
+            QueryOutputFormat::Csv => write!(f, "csv"),
+            QueryOutputFormat::Json => write!(f, "json"),
         }
     }
 }
@@ -70,8 +70,8 @@ impl FromStr for QueryOutputFormat {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_ascii_lowercase().as_str() {
             "pretty" => Ok(Self::Pretty),
-            "csv" => Ok(Self::CSV),
-            "json" => Ok(Self::JSON),
+            "csv" => Ok(Self::Csv),
+            "json" => Ok(Self::Json),
             _ => Err(Error::Invalid(s.to_string())),
         }
     }
@@ -82,8 +82,8 @@ impl QueryOutputFormat {
     pub fn content_type(&self) -> &'static str {
         match self {
             Self::Pretty => "text/plain",
-            Self::CSV => "text/csv",
-            Self::JSON => "application/json",
+            Self::Csv => "text/csv",
+            Self::Json => "application/json",
         }
     }
 }
@@ -119,8 +119,8 @@ impl QueryOutputFormat {
     pub fn format(&self, batches: &[RecordBatch]) -> Result<String> {
         match self {
             Self::Pretty => batches_to_pretty(&batches),
-            Self::CSV => batches_to_csv(&batches),
-            Self::JSON => batches_to_json(&batches),
+            Self::Csv => batches_to_csv(&batches),
+            Self::Json => batches_to_json(&batches),
         }
     }
 }
@@ -175,20 +175,20 @@ mod tests {
 
         assert_eq!(
             QueryOutputFormat::from_str("csv").unwrap(),
-            QueryOutputFormat::CSV
+            QueryOutputFormat::Csv
         );
         assert_eq!(
             QueryOutputFormat::from_str("CSV").unwrap(),
-            QueryOutputFormat::CSV
+            QueryOutputFormat::Csv
         );
 
         assert_eq!(
             QueryOutputFormat::from_str("json").unwrap(),
-            QueryOutputFormat::JSON
+            QueryOutputFormat::Json
         );
         assert_eq!(
             QueryOutputFormat::from_str("JSON").unwrap(),
-            QueryOutputFormat::JSON
+            QueryOutputFormat::Json
         );
 
         assert_eq!(
@@ -205,13 +205,13 @@ mod tests {
         );
 
         assert_eq!(
-            QueryOutputFormat::from_str(&QueryOutputFormat::CSV.to_string()).unwrap(),
-            QueryOutputFormat::CSV
+            QueryOutputFormat::from_str(&QueryOutputFormat::Csv.to_string()).unwrap(),
+            QueryOutputFormat::Csv
         );
 
         assert_eq!(
-            QueryOutputFormat::from_str(&QueryOutputFormat::JSON.to_string()).unwrap(),
-            QueryOutputFormat::JSON
+            QueryOutputFormat::from_str(&QueryOutputFormat::Json.to_string()).unwrap(),
+            QueryOutputFormat::Json
         );
     }
 }

@@ -356,11 +356,9 @@ impl Vector {
                 let mut found = false; // TODO(edd): check if this is faster than a match.
 
                 // TODO(edd): check asm to see if it's vectorising
-                for v in values[from_row_id..to_row_id].iter() {
-                    if let Some(v) = v {
-                        res += *v;
-                        found = true;
-                    }
+                for v in values[from_row_id..to_row_id].iter().flatten() {
+                    res += *v;
+                    found = true;
                 }
 
                 if found {
@@ -382,11 +380,9 @@ impl Vector {
                 let mut found = false;
 
                 // TODO(edd): check asm to see if it's vectorising
-                for v in values[from_row_id..to_row_id].iter() {
-                    if let Some(v) = v {
-                        res += *v;
-                        found = true;
-                    }
+                for v in values[from_row_id..to_row_id].iter().flatten() {
+                    res += *v;
+                    found = true;
                 }
 
                 if found {
@@ -428,24 +424,8 @@ impl Vector {
             //     }
             //     count as u64
             // }
-            Self::NullFloat(vec) => {
-                let mut count = 0;
-                for v in &vec[from_row_id..to_row_id] {
-                    if v.is_some() {
-                        count += 1;
-                    }
-                }
-                count as u64
-            }
-            Self::NullInteger(vec) => {
-                let mut count = 0;
-                for v in &vec[from_row_id..to_row_id] {
-                    if v.is_some() {
-                        count += 1;
-                    }
-                }
-                count as u64
-            }
+            Self::NullFloat(vec) => vec[from_row_id..to_row_id].iter().flatten().count() as u64,
+            Self::NullInteger(vec) => vec[from_row_id..to_row_id].iter().flatten().count() as u64,
             Self::Float(_) => {
                 (to_row_id - from_row_id) as u64 // fast - no possible NULL
                                                  // values
@@ -531,14 +511,8 @@ impl Vector {
             //     Some(v) => Value::String(v),
             //     None => Value::Null, // Scalar::String(v[i].as_ref().unwrap()),
             // },
-            Self::NullFloat(v) => match v[i] {
-                Some(v) => Some(Scalar::Float(v)),
-                None => None,
-            },
-            Self::NullInteger(v) => match v[i] {
-                Some(v) => Some(Scalar::Integer(v)),
-                None => None,
-            },
+            Self::NullFloat(v) => v[i].map(Scalar::Float),
+            Self::NullInteger(v) => v[i].map(Scalar::Integer),
             Self::Float(v) => Some(Scalar::Float(v[i])),
             Self::Integer(v) => Some(Scalar::Integer(v[i])),
             Self::Unsigned32(v) => Some(Scalar::Unsigned32(v[i])),
@@ -1116,10 +1090,7 @@ impl Column {
     pub fn sum_by_ids(&self, row_ids: &mut croaring::Bitmap) -> Option<Scalar> {
         match self {
             Column::String(_) => unimplemented!("not implemented"),
-            Column::Float(c) => match c.sum_by_ids(row_ids) {
-                Some(sum) => Some(Scalar::Float(sum)),
-                None => None,
-            },
+            Column::Float(c) => c.sum_by_ids(row_ids).map(Scalar::Float),
             Column::Integer(_) => unimplemented!("not implemented"),
         }
     }

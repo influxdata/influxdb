@@ -8,9 +8,9 @@
 
 use arrow_deps::datafusion::physical_plan::SendableRecordBatchStream;
 use async_trait::async_trait;
-use data_types::{chunk::ChunkSummary, partition_metadata::TableSummary};
+use data_types::chunk::ChunkSummary;
 use exec::{stringset::StringSet, Executor};
-use internal_types::{data::ReplicatedWrite, schema::Schema, selection::Selection};
+use internal_types::{schema::Schema, selection::Selection};
 
 use std::{fmt::Debug, sync::Arc};
 
@@ -39,9 +39,6 @@ pub trait Database: Debug + Send + Sync {
     type Error: std::error::Error + Send + Sync + 'static;
     type Chunk: PartitionChunk;
 
-    /// Stores the replicated write into the database.
-    fn store_replicated_write(&self, write: &ReplicatedWrite) -> Result<(), Self::Error>;
-
     /// Return the partition keys for data in this DB
     fn partition_keys(&self) -> Result<Vec<String>, Self::Error>;
 
@@ -61,9 +58,6 @@ pub trait PartitionChunk: Debug + Send + Sync {
     /// returns the Id of this chunk. Ids are unique within a
     /// particular partition.
     fn id(&self) -> u32;
-
-    /// returns summary information for every table in the chunk
-    fn table_summaries(&self) -> Vec<TableSummary>;
 
     /// Returns true if this chunk *might* have data that passes the
     /// predicate. If false is returned, this chunk can be

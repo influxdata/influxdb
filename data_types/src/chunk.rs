@@ -21,8 +21,11 @@ pub enum ChunkStorage {
     /// The chunk is in the Read Buffer (where it can not be mutated)
     ReadBuffer,
 
+    /// The chunk is both in ReadBuffer and Object Store
+    ReadBufferAndObjectStore,
+
     /// The chunk is stored in Object Storage (where it can not be mutated)
-    ObjectStore,
+    ObjectStoreOnly,
 }
 
 impl ChunkStorage {
@@ -32,7 +35,8 @@ impl ChunkStorage {
             Self::OpenMutableBuffer => "OpenMutableBuffer",
             Self::ClosedMutableBuffer => "ClosedMutableBuffer",
             Self::ReadBuffer => "ReadBuffer",
-            Self::ObjectStore => "ObjectStore",
+            Self::ReadBufferAndObjectStore => "ReadBufferAndObjectStore",
+            Self::ObjectStoreOnly => "ObjectStoreOnly",
         }
     }
 }
@@ -134,7 +138,8 @@ impl From<ChunkStorage> for management::ChunkStorage {
             ChunkStorage::OpenMutableBuffer => Self::OpenMutableBuffer,
             ChunkStorage::ClosedMutableBuffer => Self::ClosedMutableBuffer,
             ChunkStorage::ReadBuffer => Self::ReadBuffer,
-            ChunkStorage::ObjectStore => Self::ObjectStore,
+            ChunkStorage::ReadBufferAndObjectStore => Self::ReadBufferAndObjectStore,
+            ChunkStorage::ObjectStoreOnly => Self::ObjectStoreOnly,
         }
     }
 }
@@ -204,7 +209,10 @@ impl TryFrom<management::ChunkStorage> for ChunkStorage {
             management::ChunkStorage::OpenMutableBuffer => Ok(Self::OpenMutableBuffer),
             management::ChunkStorage::ClosedMutableBuffer => Ok(Self::ClosedMutableBuffer),
             management::ChunkStorage::ReadBuffer => Ok(Self::ReadBuffer),
-            management::ChunkStorage::ObjectStore => Ok(Self::ObjectStore),
+            management::ChunkStorage::ReadBufferAndObjectStore => {
+                Ok(Self::ReadBufferAndObjectStore)
+            }
+            management::ChunkStorage::ObjectStoreOnly => Ok(Self::ObjectStoreOnly),
             management::ChunkStorage::Unspecified => Err(FieldViolation::required("")),
         }
     }
@@ -220,7 +228,7 @@ mod test {
             partition_key: "foo".to_string(),
             id: 42,
             estimated_bytes: 1234,
-            storage: management::ChunkStorage::ObjectStore.into(),
+            storage: management::ChunkStorage::ObjectStoreOnly.into(),
             time_of_first_write: None,
             time_of_last_write: None,
             time_closing: None,
@@ -231,7 +239,7 @@ mod test {
             partition_key: Arc::new("foo".to_string()),
             id: 42,
             estimated_bytes: 1234,
-            storage: ChunkStorage::ObjectStore,
+            storage: ChunkStorage::ObjectStoreOnly,
             time_of_first_write: None,
             time_of_last_write: None,
             time_closing: None,
@@ -250,7 +258,7 @@ mod test {
             partition_key: Arc::new("foo".to_string()),
             id: 42,
             estimated_bytes: 1234,
-            storage: ChunkStorage::ObjectStore,
+            storage: ChunkStorage::ObjectStoreOnly,
             time_of_first_write: None,
             time_of_last_write: None,
             time_closing: None,
@@ -262,7 +270,7 @@ mod test {
             partition_key: "foo".to_string(),
             id: 42,
             estimated_bytes: 1234,
-            storage: management::ChunkStorage::ObjectStore.into(),
+            storage: management::ChunkStorage::ObjectStoreOnly.into(),
             time_of_first_write: None,
             time_of_last_write: None,
             time_closing: None,

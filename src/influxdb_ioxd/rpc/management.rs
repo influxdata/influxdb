@@ -126,13 +126,8 @@ where
             Some(id) => id,
             None => return Err(NotFound::default().into()),
         };
-        let object_store = Arc::clone(&self.server.store);
 
-        match self
-            .server
-            .create_database(rules, server_id, object_store)
-            .await
-        {
+        match self.server.create_database(rules, server_id).await {
             Ok(_) => Ok(Response::new(CreateDatabaseResponse {})),
             Err(Error::DatabaseAlreadyExists { db_name }) => {
                 return Err(AlreadyExists {

@@ -187,7 +187,7 @@ impl<T> TaskTracker<T> {
     /// Returns true if all futures associated with this tracker have
     /// been dropped and no more can be created
     pub fn is_complete(&self) -> bool {
-        matches!(self.get_status(), TaskStatus::Complete{..})
+        matches!(self.get_status(), TaskStatus::Complete { .. })
     }
 
     /// Gets the status of the tracker
@@ -488,9 +488,14 @@ mod tests {
         let result3 = task3.await.unwrap();
         assert!(result3.is_ok());
 
-        assert!(
-            matches!(tracked[0].get_status(), TaskStatus::Running { pending_count: 1, total_count: 2, ..})
-        );
+        assert!(matches!(
+            tracked[0].get_status(),
+            TaskStatus::Running {
+                pending_count: 1,
+                total_count: 2,
+                ..
+            }
+        ));
 
         // Trigger termination of task5
         running[1].cancel();
@@ -511,7 +516,10 @@ mod tests {
 
         let result4 = task4.await.unwrap();
         assert!(result4.is_err());
-        assert!(matches!(running[0].get_status(), TaskStatus::Complete { total_count: 2, ..}));
+        assert!(matches!(
+            running[0].get_status(),
+            TaskStatus::Complete { total_count: 2, .. }
+        ));
 
         let reclaimed = sorted(registry.reclaim().collect());
 

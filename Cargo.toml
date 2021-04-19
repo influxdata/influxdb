@@ -71,7 +71,7 @@ csv = "1.1"
 dirs = "3.0.1"
 dotenv = "0.15.0"
 flate2 = "1.0"
-futures = "0.3.1"
+futures = "0.3"
 http = "0.2.0"
 hyper = "0.14"
 once_cell = { version = "1.4.0", features = ["parking_lot"] }

@@ -10,11 +10,15 @@ use object_store::{
 };
 use observability_deps::tracing::{self, error, info, warn, Instrument};
 use panic_logging::SendPanicsToTracing;
-use server::{ConnectionManagerImpl as ConnectionManager, Server as AppServer};
+use server::{
+    ConnectionManagerImpl as ConnectionManager, Server as AppServer,
+    ServerConfig as AppServerConfig,
+};
 use snafu::{ResultExt, Snafu};
 use std::{convert::TryFrom, fs, net::SocketAddr, path::PathBuf, sync::Arc};
 
 mod http;
+mod planner;
 mod rpc;
 
 #[derive(Debug, Snafu)]
@@ -66,6 +70,9 @@ pub enum Error {
     // don't return `Result`.
     #[snafu(display("Amazon S3 configuration was invalid: {}", source))]
     InvalidS3Config { source: object_store::aws::Error },
+
+    #[snafu(display("cannot load database config: {}", source))]
+    LoadDatabaseConfig { source: server::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -124,20 +131,29 @@ pub async fn main(logging_level: LoggingLevel, config: Config) -> Result<()> {
 
     let object_store = ObjectStore::try_from(&config)?;
     let object_storage = Arc::new(object_store);
+    let server_config = AppServerConfig::new(object_storage);
+
+    let server_config = if let Some(n) = config.num_worker_threads {
+        info!(
+            num_worker_threads = n,
+            "Using specified number of worker threads"
+        );
+        server_config.with_num_worker_threads(n)
+    } else {
+        server_config
+    };
 
     let connection_manager = ConnectionManager {};
-    let app_server = Arc::new(AppServer::new(connection_manager, object_storage));
+    let app_server = Arc::new(AppServer::new(connection_manager, server_config));
 
     // if this ID isn't set the server won't be usable until this is set via an API
     // call
     if let Some(id) = config.writer_id {
         app_server.set_id(id).expect("writer id already set");
-        if let Err(e) = app_server.load_database_configs().await {
-            error!(
-                "unable to load database configurations from object storage: {}",
-                e
-            )
-        }
+        app_server
+            .load_database_configs()
+            .await
+            .context(LoadDatabaseConfig)?;
     } else {
         warn!("server ID not set. ID must be set via the INFLUXDB_IOX_ID config or API before writing or querying data.");
     }

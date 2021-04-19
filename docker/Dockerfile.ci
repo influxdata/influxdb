@@ -23,11 +23,23 @@ RUN apt-get update \
   && apt-get install -y \
     git locales sudo openssh-client ca-certificates tar gzip parallel \
     unzip zip bzip2 gnupg curl make pkg-config libssl-dev \
-    jq clang lld \
+    jq clang lld g++ \
     --no-install-recommends \
   && apt-get clean autoclean \
 	&& apt-get autoremove --yes \
 	&& rm -rf /var/lib/{apt,dpkg,cache,log}
+
+# Install bazel using the binary installer to enable building of flatc in the flatbuffers check
+RUN curl -Lo bazel-4.0.0-installer-linux-x86_64.sh https://github.com/bazelbuild/bazel/releases/download/4.0.0/bazel-4.0.0-installer-linux-x86_64.sh \
+  && chmod +x bazel-4.0.0-installer-linux-x86_64.sh \
+  && ./bazel-4.0.0-installer-linux-x86_64.sh \
+  && rm bazel-4.0.0-installer-linux-x86_64.sh
+
+# Install InfluxDB 2.0 OSS to enable integration tests of the influxdb2_client crate
+RUN curl -o influxdb2.tar.gz https://dl.influxdata.com/influxdb/releases/influxdb2-2.0.4-linux-amd64.tar.gz \
+  && tar xvzf influxdb2.tar.gz \
+  && sudo cp influxdb2-2.0.4-linux-amd64/influxd /usr/local/bin/ \
+  && rm -rf influxdb2-2.0.4-linux-amd64
 
 # Set timezone to UTC by default
 RUN ln -sf /usr/share/zoneinfo/Etc/UTC /etc/localtime
@@ -35,8 +47,8 @@ RUN ln -sf /usr/share/zoneinfo/Etc/UTC /etc/localtime
 RUN locale-gen C.UTF-8 || true
 ENV LANG=C.UTF-8
 
-RUN rustup toolchain install nightly-2020-11-19
-RUN rustup component add rustfmt clippy --toolchain nightly-2020-11-19
+RUN rustup toolchain install nightly-2021-03-24
+RUN rustup component add rustfmt clippy --toolchain nightly-2021-03-24
 
 RUN groupadd -g 1500 rust \
   && useradd -u 1500 -g rust -s /bin/bash -m rust \

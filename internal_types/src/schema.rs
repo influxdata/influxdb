@@ -9,11 +9,28 @@ use std::{
 
 use arrow_deps::arrow::datatypes::{
     DataType as ArrowDataType, Field as ArrowField, Schema as ArrowSchema,
-    SchemaRef as ArrowSchemaRef,
+    SchemaRef as ArrowSchemaRef, TimeUnit,
 };
 
 /// The name of the timestamp column in the InfluxDB datamodel
 pub const TIME_COLUMN_NAME: &str = "time";
+
+/// The Timezone to use for InfluxDB timezone (should be a constant)
+#[allow(non_snake_case)]
+pub fn TIME_DATA_TIMEZONE() -> Option<String> {
+    // TODO: we should use the "UTC" timezone as that is what the
+    // InfluxDB data model timestamps are relative to. However,
+    // DataFusion doesn't currently do a great job with such
+    // timezones so punting for now
+    //Some(String::from("UTC"));
+    None
+}
+
+/// the Arrow [`DataType`] to use for InfluxDB timestamps
+#[allow(non_snake_case)]
+pub fn TIME_DATA_TYPE() -> ArrowDataType {
+    ArrowDataType::Timestamp(TimeUnit::Nanosecond, TIME_DATA_TIMEZONE())
+}
 
 pub mod builder;
 
@@ -94,11 +111,8 @@ pub enum Error {
         source: arrow_deps::arrow::error::ArrowError,
     },
 
-    #[snafu(display("Schema Selection error while selecting '{}': {}", column_name, source))]
-    SelectingColumns {
-        column_name: String,
-        source: arrow_deps::arrow::error::ArrowError,
-    },
+    #[snafu(display("Column not found '{}'", column_name))]
+    ColumnNotFound { column_name: String },
 }
 
 fn nullable_to_str(nullability: bool) -> &'static str {
@@ -470,6 +484,44 @@ impl Schema {
             }
         }
     }
+
+    /// Returns the field indexes for a given selection
+    ///
+    /// Returns an error if a corresponding column isn't found
+    pub fn select(&self, columns: &[&str]) -> Result<Vec<usize>> {
+        columns
+            .iter()
+            .map(|column_name| {
+                self.find_index_of(column_name)
+                    .ok_or_else(|| Error::ColumnNotFound {
+                        column_name: column_name.to_string(),
+                    })
+            })
+            .collect()
+    }
+
+    /// Returns the schema for a given set of column projects
+    pub fn project(&self, projection: &[usize]) -> Self {
+        let mut metadata = HashMap::with_capacity(projection.len() + 1);
+        let mut fields = Vec::with_capacity(projection.len());
+        let current_metadata = self.inner.metadata();
+        for idx in projection {
+            let (_, field) = self.field(*idx);
+            fields.push(field.clone());
+
+            if let Some(value) = current_metadata.get(field.name()) {
+                metadata.insert(field.name().clone(), value.clone());
+            }
+        }
+
+        if let Some(measurement) = current_metadata.get(MEASUREMENT_METADATA_KEY).cloned() {
+            metadata.insert(MEASUREMENT_METADATA_KEY.to_string(), measurement);
+        }
+
+        Self {
+            inner: Arc::new(ArrowSchema::new_with_metadata(fields, metadata)),
+        }
+    }
 }
 
 /// Valid types for InfluxDB data model, as defined in [the documentation]
@@ -596,7 +648,7 @@ impl From<&InfluxColumnType> for ArrowDataType {
         match t {
             InfluxColumnType::Tag => Self::Utf8,
             InfluxColumnType::Field(influxdb_field_type) => (*influxdb_field_type).into(),
-            InfluxColumnType::Timestamp => Self::Int64,
+            InfluxColumnType::Timestamp => TIME_DATA_TYPE(),
         }
     }
 }
@@ -702,7 +754,7 @@ mod test {
             ArrowField::new("float_col", ArrowDataType::Float64, false),
             ArrowField::new("str_col", ArrowDataType::Utf8, false),
             ArrowField::new("bool_col", ArrowDataType::Boolean, false),
-            ArrowField::new("time_col", ArrowDataType::Int64, false),
+            ArrowField::new("time_col", TIME_DATA_TYPE(), false),
         ];
 
         let metadata: HashMap<_, _> = vec![
@@ -1178,6 +1230,60 @@ mod test {
             expected_schema, sorted_schema,
             "\nExpected:\n{:#?}\nActual:\n{:#?}",
             expected_schema, sorted_schema
+        );
+    }
+
+    #[test]
+    fn test_select() {
+        let schema1 = SchemaBuilder::new()
+            .influx_field("the_field", String)
+            .tag("the_tag")
+            .timestamp()
+            .measurement("the_measurement")
+            .build()
+            .unwrap();
+
+        let projection = schema1.select(&[TIME_COLUMN_NAME]).unwrap();
+
+        let schema2 = schema1.project(&projection);
+        let schema3 = Schema::try_from_arrow(Arc::clone(&schema2.inner)).unwrap();
+
+        assert_eq!(schema1.measurement(), schema2.measurement());
+        assert_eq!(schema1.measurement(), schema3.measurement());
+
+        assert_eq!(schema1.len(), 3);
+        assert_eq!(schema2.len(), 1);
+        assert_eq!(schema3.len(), 1);
+
+        assert_eq!(schema1.inner.fields().len(), 3);
+        assert_eq!(schema2.inner.fields().len(), 1);
+        assert_eq!(schema3.inner.fields().len(), 1);
+
+        let get_type = |x: &Schema, field: &str| -> InfluxColumnType {
+            let idx = x.find_index_of(field).unwrap();
+            x.field(idx).0.unwrap()
+        };
+
+        assert_eq!(
+            get_type(&schema1, TIME_COLUMN_NAME),
+            InfluxColumnType::Timestamp
+        );
+        assert_eq!(
+            get_type(&schema2, TIME_COLUMN_NAME),
+            InfluxColumnType::Timestamp
+        );
+        assert_eq!(get_type(&schema1, "the_tag"), InfluxColumnType::Tag);
+        assert_eq!(
+            get_type(&schema1, "the_field"),
+            InfluxColumnType::Field(InfluxFieldType::String)
+        );
+        assert_eq!(
+            get_type(&schema2, TIME_COLUMN_NAME),
+            InfluxColumnType::Timestamp
+        );
+        assert_eq!(
+            get_type(&schema3, TIME_COLUMN_NAME),
+            InfluxColumnType::Timestamp
         );
     }
 }

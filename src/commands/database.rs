@@ -102,8 +102,13 @@ struct Create {
     buffer_size_hard: usize,
 
     /// Allow dropping data that has not been persisted to object storage
-    #[structopt(long)]
+    /// once the database size has exceeded the configured limits
+    #[structopt(long = "drop-persisted-only", parse(from_flag = std::ops::Not::not))]
     drop_non_persisted: bool,
+
+    /// Persists chunks to object storage.
+    #[structopt(long = "skip-persist", parse(from_flag = std::ops::Not::not))]
+    persist: bool,
 
     /// Do not allow writing new data to this database
     #[structopt(long)]
@@ -173,6 +178,7 @@ pub async fn command(url: String, config: Config) -> Result<()> {
                     buffer_size_hard: command.buffer_size_hard as _,
                     sort_order: None, // Server-side default
                     drop_non_persisted: command.drop_non_persisted,
+                    persist: command.persist,
                     immutable: command.immutable,
                 }),
 

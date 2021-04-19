@@ -25,7 +25,7 @@ use observability_deps::tracing::debug;
 // Reuse DataFusion error and Result types for this module
 pub use arrow_deps::datafusion::error::{DataFusionError as Error, Result};
 
-use super::counters::ExecutionCounters;
+use super::{counters::ExecutionCounters, task::DedicatedExecutor};
 
 // The default catalog name - this impacts what SQL queries use if not specified
 pub const DEFAULT_CATALOG: &str = "public";
@@ -77,15 +77,27 @@ impl ExtensionPlanner for IOxExtensionPlanner {
     }
 }
 
-/// This is an execution context for planning in IOx.
-/// It wraps a DataFusion execution context and incudes
-/// statistical counters.
+/// This is an execution context for planning in IOx.  It wraps a
+/// DataFusion execution context and incudes statistical counters and
+/// a dedicated thread pool.
 ///
-/// Eventually we envision this as also managing resources
-/// and providing visibility into what plans are running
+/// Methods on this struct should be preferred to using the raw
+/// DataFusion functions (such as `collect`) directly.
+///
+/// Eventually we envision this also managing additional resource
+/// types such as Memory and providing visibility into what plans are
+/// running
 pub struct IOxExecutionContext {
     counters: Arc<ExecutionCounters>,
     inner: ExecutionContext,
+
+    /// Dedicated executor for query execution.
+    ///
+    /// DataFusion plans are "CPU" bound and thus can consume tokio
+    /// executors threads for extended periods of time. We use a
+    /// dedicated tokio runtime to run them so that other requests
+    /// can be handled.
+    exec: DedicatedExecutor,
 }
 
 impl fmt::Debug for IOxExecutionContext {
@@ -102,7 +114,7 @@ impl IOxExecutionContext {
     ///
     /// The config is created with a default catalog and schema, but this
     /// can be overridden at a later date
-    pub fn new(counters: Arc<ExecutionCounters>) -> Self {
+    pub fn new(exec: DedicatedExecutor, counters: Arc<ExecutionCounters>) -> Self {
         const BATCH_SIZE: usize = 1000;
 
         // TBD: Should we be reusing an execution context across all executions?
@@ -115,7 +127,11 @@ impl IOxExecutionContext {
 
         let inner = ExecutionContext::with_config(config);
 
-        Self { counters, inner }
+        Self {
+            counters,
+            inner,
+            exec,
+        }
     }
 
     /// returns a reference to the inner datafusion execution context
@@ -130,13 +146,13 @@ impl IOxExecutionContext {
 
     /// Prepare a SQL statement for execution. This assumes that any
     /// tables referenced in the SQL have been registered with this context
-    pub async fn prepare_sql(&mut self, sql: &str) -> Result<Arc<dyn ExecutionPlan>> {
+    pub fn prepare_sql(&mut self, sql: &str) -> Result<Arc<dyn ExecutionPlan>> {
         let logical_plan = self.inner.sql(sql)?.to_logical_plan();
-        self.prepare_plan(&logical_plan).await
+        self.prepare_plan(&logical_plan)
     }
 
     /// Prepare (optimize + plan) a pre-created logical plan for execution
-    pub async fn prepare_plan(&self, plan: &LogicalPlan) -> Result<Arc<dyn ExecutionPlan>> {
+    pub fn prepare_plan(&self, plan: &LogicalPlan) -> Result<Arc<dyn ExecutionPlan>> {
         debug!(
             "Creating plan: Initial plan\n----\n{}\n{}\n----",
             plan.display_indent_schema(),
@@ -154,13 +170,16 @@ impl IOxExecutionContext {
         self.inner.create_physical_plan(&plan)
     }
 
-    /// Executes the logical plan using DataFusion and produces RecordBatches
+    /// Executes the logical plan using DataFusion on a separate
+    /// thread pool and produces RecordBatches
     pub async fn collect(&self, physical_plan: Arc<dyn ExecutionPlan>) -> Result<Vec<RecordBatch>> {
         self.counters.inc_plans_run();
 
         debug!("Running plan, physical:\n{:?}", physical_plan);
 
-        collect(physical_plan).await
+        self.exec.spawn(collect(physical_plan)).await.map_err(|e| {
+            Error::Execution(format!("Error running IOxExecutionContext::collect: {}", e))
+        })?
     }
 
     /// Executes the physical plan and produces a RecordBatchStream to stream
@@ -169,14 +188,21 @@ impl IOxExecutionContext {
         &self,
         physical_plan: Arc<dyn ExecutionPlan>,
     ) -> Result<SendableRecordBatchStream> {
-        if physical_plan.output_partitioning().partition_count() <= 1 {
-            physical_plan.execute(0).await
-        } else {
-            // merge into a single partition
-            let plan = MergeExec::new(physical_plan);
-            // MergeExec must produce a single partition
-            assert_eq!(1, plan.output_partitioning().partition_count());
-            plan.execute(0).await
-        }
+        self.exec
+            .spawn(async move {
+                if physical_plan.output_partitioning().partition_count() <= 1 {
+                    physical_plan.execute(0).await
+                } else {
+                    // merge into a single partition
+                    let plan = MergeExec::new(physical_plan);
+                    // MergeExec must produce a single partition
+                    assert_eq!(1, plan.output_partitioning().partition_count());
+                    plan.execute(0).await
+                }
+            })
+            .await
+            .map_err(|e| {
+                Error::Execution(format!("Error running IOxExecutionContext::execute: {}", e))
+            })?
     }
 }

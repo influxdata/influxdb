@@ -72,7 +72,7 @@ pub(crate) trait FromFieldString {
 }
 
 impl FromFieldString for String {
-    fn required(self, field: impl Into<String>) -> Result<String, FieldViolation> {
+    fn required(self, field: impl Into<Self>) -> Result<String, FieldViolation> {
         if self.is_empty() {
             return Err(FieldViolation::required(field));
         }

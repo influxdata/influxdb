@@ -2,7 +2,7 @@ use std::convert::{TryFrom, TryInto};
 
 use chrono::{DateTime, TimeZone, Utc};
 use regex::Regex;
-use snafu::Snafu;
+use snafu::{OptionExt, Snafu};
 
 use generated_types::google::protobuf::Empty;
 use generated_types::{
@@ -11,9 +11,13 @@ use generated_types::{
 };
 use influxdb_line_protocol::ParsedLine;
 
+use crate::consistent_hasher::ConsistentHasher;
 use crate::field_validation::{FromField, FromFieldOpt, FromFieldString, FromFieldVec};
 use crate::DatabaseName;
+use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::num::{NonZeroU32, NonZeroUsize};
+use std::sync::Arc;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -31,6 +35,12 @@ pub enum Error {
 
     #[snafu(context(false))]
     FieldViolation { source: FieldViolation },
+
+    #[snafu(display("No sharding rule matches line: {}", line))]
+    NoShardingRuleMatches { line: String },
+
+    #[snafu(display("No shards defined"))]
+    NoShardsDefined,
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -181,7 +191,7 @@ pub struct LifecycleRules {
     pub mutable_size_threshold: Option<NonZeroUsize>,
 
     /// Once the total amount of buffered data in memory reaches this size start
-    /// dropping data from memory based on the drop_order
+    /// dropping data from memory based on the [`sort_order`](Self::sort_order)
     pub buffer_size_soft: Option<NonZeroUsize>,
 
     /// Once the amount of data in memory reaches this size start
@@ -197,7 +207,11 @@ pub struct LifecycleRules {
     pub sort_order: SortOrder,
 
     /// Allow dropping data that has not been persisted to object storage
+    /// once the database size has exceeded the configured limits
     pub drop_non_persisted: bool,
+
+    /// Persists chunks to object storage.
+    pub persist: bool,
 
     /// Do not allow writing new data to this database
     pub immutable: bool,
@@ -228,6 +242,7 @@ impl From<LifecycleRules> for management::LifecycleRules {
                 .unwrap_or_default(),
             sort_order: Some(config.sort_order.into()),
             drop_non_persisted: config.drop_non_persisted,
+            persist: config.persist,
             immutable: config.immutable,
         }
     }
@@ -245,6 +260,7 @@ impl TryFrom<management::LifecycleRules> for LifecycleRules {
             buffer_size_hard: (proto.buffer_size_hard as usize).try_into().ok(),
             sort_order: proto.sort_order.optional("sort_order")?.unwrap_or_default(),
             drop_non_persisted: proto.drop_non_persisted,
+            persist: proto.persist,
             immutable: proto.immutable,
         })
     }
@@ -742,7 +758,8 @@ impl TryFrom<management::partition_template::Part> for TemplatePart {
 }
 
 /// ShardId maps to a nodegroup that holds the the shard.
-pub type ShardId = u16;
+pub type ShardId = u32;
+pub const NO_SHARD_CONFIG: Option<&ShardConfig> = None;
 
 /// Assigns a given line to a specific shard id.
 pub trait Sharder {
@@ -766,7 +783,7 @@ pub struct ShardConfig {
     /// and your ring has 4 slots. If two tables that are very hot get
     /// assigned to the same slot you can override that by putting in a
     /// specific matcher to pull that table over to a different node.
-    pub specific_targets: Option<MatcherToTargets>,
+    pub specific_targets: Option<MatcherToShard>,
     /// An optional default hasher which will route to one in a collection of
     /// nodes.
     pub hash_ring: Option<HashRing>,
@@ -774,14 +791,59 @@ pub struct ShardConfig {
     /// targets in this route. That is, the write request will succeed
     /// regardless of this route's success.
     pub ignore_errors: bool,
+    /// Mapping between shard IDs and node groups. Other sharding rules use
+    /// ShardId as targets.
+    pub shards: Arc<HashMap<ShardId, NodeGroup>>,
 }
 
-/// Maps a matcher with specific target group. If the line/row matches
+struct LineHasher<'a, 'b, 'c> {
+    line: &'a ParsedLine<'c>,
+    hash_ring: &'b HashRing,
+}
+
+impl<'a, 'b, 'c> Hash for LineHasher<'a, 'b, 'c> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        if self.hash_ring.table_name {
+            self.line.series.measurement.hash(state);
+        }
+        for column in &self.hash_ring.columns {
+            if let Some(tag_value) = self.line.tag_value(column) {
+                tag_value.hash(state);
+            } else if let Some(field_value) = self.line.field_value(column) {
+                field_value.to_string().hash(state);
+            }
+            state.write_u8(0); // column separator
+        }
+    }
+}
+
+impl Sharder for ShardConfig {
+    fn shard(&self, line: &ParsedLine<'_>) -> Result<ShardId, Error> {
+        if let Some(specific_targets) = &self.specific_targets {
+            if specific_targets.matcher.match_line(line) {
+                return Ok(specific_targets.shard);
+            }
+        }
+        if let Some(hash_ring) = &self.hash_ring {
+            return hash_ring
+                .shards
+                .find(LineHasher { line, hash_ring })
+                .context(NoShardsDefined);
+        }
+
+        NoShardingRuleMatches {
+            line: line.to_string(),
+        }
+        .fail()
+    }
+}
+
+/// Maps a matcher with specific shard. If the line/row matches
 /// it should be sent to the group.
 #[derive(Debug, Eq, PartialEq, Clone, Default)]
-pub struct MatcherToTargets {
+pub struct MatcherToShard {
     pub matcher: Matcher,
-    pub target: NodeGroup,
+    pub shard: ShardId,
 }
 
 /// A collection of IOx nodes
@@ -795,8 +857,8 @@ pub struct HashRing {
     pub table_name: bool,
     /// include the values of these columns in the hash key
     pub columns: Vec<String>,
-    /// ring of node groups. Each group holds a shard
-    pub node_groups: Vec<NodeGroup>,
+    /// ring of shard ids
+    pub shards: ConsistentHasher<ShardId>,
 }
 
 /// A matcher is used to match routing rules or subscriptions on a row-by-row
@@ -819,12 +881,35 @@ impl PartialEq for Matcher {
 }
 impl Eq for Matcher {}
 
+impl Matcher {
+    fn match_line(&self, line: &ParsedLine<'_>) -> bool {
+        let table_name_matches = if let Some(table_name_regex) = &self.table_name_regex {
+            table_name_regex.is_match(line.series.measurement.as_str())
+        } else {
+            false
+        };
+
+        let predicate_matches = if self.predicate.is_some() {
+            unimplemented!("predicates not implemented yet")
+        } else {
+            false
+        };
+
+        table_name_matches || predicate_matches
+    }
+}
+
 impl From<ShardConfig> for management::ShardConfig {
     fn from(shard_config: ShardConfig) -> Self {
         Self {
             specific_targets: shard_config.specific_targets.map(|i| i.into()),
             hash_ring: shard_config.hash_ring.map(|i| i.into()),
             ignore_errors: shard_config.ignore_errors,
+            shards: shard_config
+                .shards
+                .iter()
+                .map(|(k, v)| (*k, from_node_group_for_management_node_group(v.clone())))
+                .collect(),
         }
     }
 }
@@ -843,6 +928,13 @@ impl TryFrom<management::ShardConfig> for ShardConfig {
                 .map(|i| i.try_into())
                 .map_or(Ok(None), |r| r.map(Some))?,
             ignore_errors: proto.ignore_errors,
+            shards: Arc::new(
+                proto
+                    .shards
+                    .into_iter()
+                    .map(|(k, v)| Ok((k, try_from_management_node_group_for_node_group(v)?)))
+                    .collect::<Result<HashMap<u32, NodeGroup>, FieldViolation>>()?,
+            ),
         })
     }
 }
@@ -856,26 +948,22 @@ fn none_if_default<T: Default + PartialEq>(v: T) -> Option<T> {
     }
 }
 
-impl From<MatcherToTargets> for management::MatcherToTargets {
-    fn from(matcher_to_targets: MatcherToTargets) -> Self {
+impl From<MatcherToShard> for management::MatcherToShard {
+    fn from(matcher_to_shard: MatcherToShard) -> Self {
         Self {
-            matcher: none_if_default(matcher_to_targets.matcher.into()),
-            target: none_if_default(from_node_group_for_management_node_group(
-                matcher_to_targets.target,
-            )),
+            matcher: none_if_default(matcher_to_shard.matcher.into()),
+            shard: matcher_to_shard.shard,
         }
     }
 }
 
-impl TryFrom<management::MatcherToTargets> for MatcherToTargets {
+impl TryFrom<management::MatcherToShard> for MatcherToShard {
     type Error = FieldViolation;
 
-    fn try_from(proto: management::MatcherToTargets) -> Result<Self, Self::Error> {
+    fn try_from(proto: management::MatcherToShard) -> Result<Self, Self::Error> {
         Ok(Self {
             matcher: proto.matcher.unwrap_or_default().try_into()?,
-            target: try_from_management_node_group_for_node_group(
-                proto.target.unwrap_or_default(),
-            )?,
+            shard: proto.shard,
         })
     }
 }
@@ -885,11 +973,7 @@ impl From<HashRing> for management::HashRing {
         Self {
             table_name: hash_ring.table_name,
             columns: hash_ring.columns,
-            node_groups: hash_ring
-                .node_groups
-                .into_iter()
-                .map(from_node_group_for_management_node_group)
-                .collect(),
+            shards: hash_ring.shards.into(),
         }
     }
 }
@@ -901,11 +985,7 @@ impl TryFrom<management::HashRing> for HashRing {
         Ok(Self {
             table_name: proto.table_name,
             columns: proto.columns,
-            node_groups: proto
-                .node_groups
-                .into_iter()
-                .map(try_from_management_node_group_for_node_group)
-                .collect::<Result<Vec<_>, _>>()?,
+            shards: proto.shards.into(),
         })
     }
 }
@@ -1281,6 +1361,7 @@ mod tests {
             buffer_size_hard: 232,
             sort_order: None,
             drop_non_persisted: true,
+            persist: true,
             immutable: true,
         };
 
@@ -1461,54 +1542,43 @@ mod tests {
         assert_eq!(protobuf.table_name, back.table_name);
         assert!(hash_ring.columns.is_empty());
         assert_eq!(protobuf.columns, back.columns);
-        assert!(hash_ring.node_groups.is_empty());
-        assert_eq!(protobuf.node_groups, back.node_groups);
+        assert!(hash_ring.shards.is_empty());
+        assert_eq!(protobuf.shards, back.shards);
     }
 
     #[test]
     fn test_hash_ring_nodes() {
         let protobuf = management::HashRing {
-            node_groups: vec![
-                management::NodeGroup {
-                    nodes: vec![
-                        management::node_group::Node { id: 10 },
-                        management::node_group::Node { id: 11 },
-                        management::node_group::Node { id: 12 },
-                    ],
-                },
-                management::NodeGroup {
-                    nodes: vec![management::node_group::Node { id: 20 }],
-                },
-            ],
+            shards: vec![1, 2],
             ..Default::default()
         };
 
         let hash_ring: HashRing = protobuf.try_into().unwrap();
 
-        assert_eq!(hash_ring.node_groups.len(), 2);
-        assert_eq!(hash_ring.node_groups[0].len(), 3);
-        assert_eq!(hash_ring.node_groups[1].len(), 1);
+        assert_eq!(hash_ring.shards.len(), 2);
+        assert_eq!(hash_ring.shards.find(1), Some(2));
+        assert_eq!(hash_ring.shards.find(2), Some(1));
     }
 
     #[test]
-    fn test_matcher_to_targets_default() {
-        let protobuf = management::MatcherToTargets {
+    fn test_matcher_to_shard_default() {
+        let protobuf = management::MatcherToShard {
             ..Default::default()
         };
 
-        let matcher_to_targets: MatcherToTargets = protobuf.clone().try_into().unwrap();
-        let back: management::MatcherToTargets = matcher_to_targets.clone().into();
+        let matcher_to_shard: MatcherToShard = protobuf.clone().try_into().unwrap();
+        let back: management::MatcherToShard = matcher_to_shard.clone().into();
 
         assert_eq!(
-            matcher_to_targets.matcher,
+            matcher_to_shard.matcher,
             Matcher {
                 ..Default::default()
             }
         );
         assert_eq!(protobuf.matcher, back.matcher);
 
-        assert_eq!(matcher_to_targets.target, Vec::<WriterId>::new());
-        assert_eq!(protobuf.target, back.target);
+        assert_eq!(matcher_to_shard.shard, 0);
+        assert_eq!(protobuf.shard, back.shard);
     }
 
     #[test]
@@ -1528,6 +1598,9 @@ mod tests {
 
         assert_eq!(shard_config.ignore_errors, false);
         assert_eq!(protobuf.ignore_errors, back.ignore_errors);
+
+        assert!(shard_config.shards.is_empty());
+        assert_eq!(protobuf.shards, back.shards);
     }
 
     #[test]
@@ -1544,5 +1617,140 @@ mod tests {
         let back: management::DatabaseRules = rules.into();
 
         assert!(back.shard_config.is_some());
+    }
+
+    #[test]
+    fn test_shard_config_shards() {
+        let protobuf = management::ShardConfig {
+            shards: vec![
+                (
+                    1,
+                    management::NodeGroup {
+                        nodes: vec![
+                            management::node_group::Node { id: 10 },
+                            management::node_group::Node { id: 11 },
+                            management::node_group::Node { id: 12 },
+                        ],
+                    },
+                ),
+                (
+                    2,
+                    management::NodeGroup {
+                        nodes: vec![management::node_group::Node { id: 20 }],
+                    },
+                ),
+            ]
+            .into_iter()
+            .collect(),
+            ..Default::default()
+        };
+
+        let shard_config: ShardConfig = protobuf.try_into().unwrap();
+
+        assert_eq!(shard_config.shards.len(), 2);
+        assert_eq!(shard_config.shards[&1].len(), 3);
+        assert_eq!(shard_config.shards[&2].len(), 1);
+    }
+
+    #[test]
+    fn test_sharder() {
+        let protobuf = management::ShardConfig {
+            specific_targets: Some(management::MatcherToShard {
+                matcher: Some(management::Matcher {
+                    table_name_regex: "pu$".to_string(),
+                    ..Default::default()
+                }),
+                shard: 1,
+            }),
+            hash_ring: Some(management::HashRing {
+                table_name: true,
+                columns: vec!["t1", "t2", "f1", "f2"]
+                    .into_iter()
+                    .map(|i| i.to_string())
+                    .collect(),
+                // in practice we won't have that many shards
+                // but for tests it's better to have more distinct values
+                // so we don't hide bugs due to sheer luck.
+                shards: (1000..1000000).collect(),
+            }),
+            ..Default::default()
+        };
+
+        let shard_config: ShardConfig = protobuf.try_into().unwrap();
+
+        // hit the specific targets
+
+        let line = parse_line("cpu,t1=1,t2=2,t3=3 f1=1,f2=2,f3=3 10");
+        let sharded_line = shard_config.shard(&line).expect("cannot shard a line");
+        assert_eq!(sharded_line, 1);
+
+        let line = parse_line("cpu,t1=10,t2=20,t3=30 f1=10,f2=20,f3=30 10");
+        let sharded_line = shard_config.shard(&line).expect("cannot shard a line");
+        assert_eq!(sharded_line, 1);
+
+        // hit the hash ring
+
+        let line = parse_line("mem,t1=1,t2=2,t3=3 f1=1,f2=2,f3=3 10");
+        let sharded_line = shard_config.shard(&line).expect("cannot shard a line");
+        assert_eq!(sharded_line, 710570);
+
+        // change a column that is not part of the hashring columns
+        let line = parse_line("mem,t1=1,t2=2,t3=30 f1=1,f2=2,f3=3 10");
+        let sharded_line = shard_config.shard(&line).expect("cannot shard a line");
+        assert_eq!(sharded_line, 710570);
+
+        // change a column that is part of the hashring
+        let line = parse_line("mem,t1=10,t2=2,t3=3 f1=1,f2=2,f3=3 10");
+        let sharded_line = shard_config.shard(&line).expect("cannot shard a line");
+        assert_eq!(sharded_line, 342220);
+
+        // ensure columns can be optional and yet cannot be mixed up
+        let line = parse_line("mem,t1=10,t3=3 f1=1,f2=2,f3=3 10");
+        let sharded_line = shard_config.shard(&line).expect("cannot shard a line");
+        assert_eq!(sharded_line, 494892);
+        let line = parse_line("mem,t2=10,t3=3 f1=1,f2=2,f3=3 10");
+        let sharded_line = shard_config.shard(&line).expect("cannot shard a line");
+        assert_eq!(sharded_line, 32813);
+
+        // same thing for "fields" columns:
+
+        // change a column that is not part of the hashring columns
+        let line = parse_line("mem,t1=1,t2=2,t3=3 f1=1,f2=2,f3=30 10");
+        let sharded_line = shard_config.shard(&line).expect("cannot shard a line");
+        assert_eq!(sharded_line, 710570);
+
+        // change a column that is part of the hashring
+        let line = parse_line("mem,t1=10,t2=2,t3=3 f1=1,f2=2,f3=3 10");
+        let sharded_line = shard_config.shard(&line).expect("cannot shard a line");
+        assert_eq!(sharded_line, 342220);
+
+        // ensure columns can be optional and yet cannot be mixed up
+        let line = parse_line("mem,t1=1,t3=3 f1=10,f2=2,f3=3 10");
+        let sharded_line = shard_config.shard(&line).expect("cannot shard a line");
+        assert_eq!(sharded_line, 49366);
+        let line = parse_line("mem,t2=1,t3=3 f1=10,f2=2,f3=3 10");
+        let sharded_line = shard_config.shard(&line).expect("cannot shard a line");
+        assert_eq!(sharded_line, 637504);
+    }
+
+    #[test]
+    fn test_sharder_no_shards() {
+        let protobuf = management::ShardConfig {
+            hash_ring: Some(management::HashRing {
+                table_name: true,
+                columns: vec!["t1", "t2", "f1", "f2"]
+                    .into_iter()
+                    .map(|i| i.to_string())
+                    .collect(),
+                shards: vec![],
+            }),
+            ..Default::default()
+        };
+
+        let shard_config: ShardConfig = protobuf.try_into().unwrap();
+
+        let line = parse_line("cpu,t1=1,t2=2,t3=3 f1=1,f2=2,f3=3 10");
+        let err = shard_config.shard(&line).unwrap_err();
+        assert!(matches!(err, Error::NoShardsDefined));
     }
 }

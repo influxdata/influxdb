@@ -7,7 +7,7 @@ description = "Utilities for tracking resource utilisation within IOx"
 
 [dependencies]
 
-futures = "0.3.7"
+futures = "0.3"
 hashbrown = "0.9.1"
 observability_deps = { path = "../observability_deps" }
 pin-project = "1.0"
