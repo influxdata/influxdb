@@ -1060,11 +1060,9 @@ impl RowGroup {
             };
 
             let results = dst.entry(name.clone()).or_default();
-            for value in column.distinct_values(row_itr).into_iter() {
-                if let Some(v) = value {
-                    if !results.contains(v) {
-                        results.insert(v.to_owned());
-                    }
+            for v in column.distinct_values(row_itr).into_iter().flatten() {
+                if !results.contains(v) {
+                    results.insert(v.to_owned());
                 }
             }
         }
@@ -2200,7 +2198,7 @@ impl PartialEq for ReadAggregateResult<'_> {
 
 /// The Debug implementation emits both the schema and the column data for the
 /// results.
-impl std::fmt::Debug for &ReadAggregateResult<'_> {
+impl std::fmt::Debug for ReadAggregateResult<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         // Display the schema
         Display::fmt(&self.schema(), f)?;
@@ -2212,7 +2210,7 @@ impl std::fmt::Debug for &ReadAggregateResult<'_> {
 
 /// The Display implementation emits all of the column data for the results, but
 /// omits the schema.
-impl Display for &ReadAggregateResult<'_> {
+impl Display for ReadAggregateResult<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.is_empty() {
             return Ok(());

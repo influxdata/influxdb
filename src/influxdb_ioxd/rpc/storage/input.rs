@@ -17,25 +17,23 @@ pub trait GrpcInputs {
     fn read_source_field(&self) -> Option<&Any>;
 
     fn read_source_raw(&self) -> Result<&Any, Status> {
-        Ok(self
-            .read_source_field()
-            .ok_or_else(|| Status::invalid_argument("missing read_source"))?)
+        self.read_source_field()
+            .ok_or_else(|| Status::invalid_argument("missing read_source"))
     }
 
     fn read_source(&self) -> Result<ReadSource, Status> {
         let raw = self.read_source_raw()?;
         let val = &raw.value[..];
-        Ok(prost::Message::decode(val).map_err(|_| {
+        prost::Message::decode(val).map_err(|_| {
             Status::invalid_argument("value could not be parsed as a ReadSource message")
-        })?)
+        })
     }
 
     fn org_id(&self) -> Result<ID, Status> {
-        Ok(self
-            .read_source()?
+        self.read_source()?
             .org_id
             .try_into()
-            .map_err(|_| Status::invalid_argument("org_id did not fit in a u64"))?)
+            .map_err(|_| Status::invalid_argument("org_id did not fit in a u64"))
     }
 
     fn bucket_name(&self) -> Result<String, Status> {

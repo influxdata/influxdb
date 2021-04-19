@@ -311,10 +311,8 @@ impl From<&[Option<&str>]> for StringEncoding {
         // build a sorted dictionary.
         let mut dictionary = BTreeSet::new();
 
-        for v in arr {
-            if let Some(x) = v {
-                dictionary.insert(x.to_string());
-            }
+        for x in arr.iter().flatten() {
+            dictionary.insert(x.to_string());
         }
 
         let mut data: Encoding = if dictionary.len() > TEMP_CARDINALITY_DICTIONARY_ENCODING_LIMIT {

@@ -51,7 +51,7 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Debug, Clone, Copy)]
 pub enum FileType {
     LineProtocol,
-    TSM,
+    Tsm,
     Parquet,
 }
 
@@ -213,7 +213,7 @@ impl InputReader {
 
         match ext {
             Some("tsm") => Ok(Self::FileInputType(FileInputReader::new(
-                FileType::TSM,
+                FileType::Tsm,
                 input_name,
             )?)),
             Some("lp") => Ok(Self::FileInputType(FileInputReader::new(
@@ -241,7 +241,7 @@ impl InputReader {
 
                 match stem_ext {
                     Some("tsm") => Ok(Self::MemoryInputType(MemoryInputReader::new(
-                        FileType::TSM,
+                        FileType::Tsm,
                         path,
                         buffer()?,
                     ))),

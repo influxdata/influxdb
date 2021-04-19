@@ -35,19 +35,19 @@ trait LtVal<T> {
     fn lt_val(&self, v: &T) -> bool;
 }
 
-impl LtVal<f64> for f64 {
+impl LtVal<Self> for f64 {
     fn lt_val(&self, v: &Self) -> bool {
         self < v
     }
 }
 
-impl LtVal<i64> for i64 {
+impl LtVal<Self> for i64 {
     fn lt_val(&self, v: &Self) -> bool {
         self < v
     }
 }
 
-impl LtVal<bool> for bool {
+impl LtVal<Self> for bool {
     fn lt_val(&self, v: &Self) -> bool {
         self < v
     }
@@ -71,19 +71,19 @@ trait ToState<T> {
     fn to_state(&self) -> T;
 }
 
-impl ToState<f64> for f64 {
+impl ToState<Self> for f64 {
     fn to_state(&self) -> Self {
         *self
     }
 }
 
-impl ToState<i64> for i64 {
+impl ToState<Self> for i64 {
     fn to_state(&self) -> Self {
         *self
     }
 }
 
-impl ToState<bool> for bool {
+impl ToState<Self> for bool {
     fn to_state(&self) -> Self {
         *self
     }

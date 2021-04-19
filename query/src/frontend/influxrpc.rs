@@ -12,7 +12,7 @@ use arrow_deps::{
         },
         prelude::col,
     },
-    util::IntoExpr,
+    util::AsExpr,
 };
 use internal_types::{
     schema::{InfluxColumnType, Schema, TIME_COLUMN_NAME},
@@ -832,7 +832,7 @@ impl InfluxRPCPlanner {
         // Convert to SortExprs to pass to the plan builder
         let tags_and_timestamp: Vec<_> = tags_and_timestamp
             .into_iter()
-            .map(|n| n.into_sort_expr())
+            .map(|n| n.as_sort_expr())
             .collect();
 
         // Order by
@@ -845,7 +845,7 @@ impl InfluxRPCPlanner {
             .tags_iter()
             .chain(filtered_fields_iter(&schema, predicate))
             .chain(schema.time_iter())
-            .map(|field| field.name().into_expr())
+            .map(|field| field.name().as_expr())
             .collect();
 
         let plan_builder = plan_builder
@@ -951,7 +951,7 @@ impl InfluxRPCPlanner {
         // Group by all tag columns
         let group_exprs = tag_columns
             .iter()
-            .map(|tag_name| tag_name.into_expr())
+            .map(|tag_name| tag_name.as_expr())
             .collect::<Vec<_>>();
 
         let AggExprs {
@@ -961,7 +961,7 @@ impl InfluxRPCPlanner {
 
         let sort_exprs = group_exprs
             .iter()
-            .map(|expr| expr.into_sort_expr())
+            .map(|expr| expr.as_sort_expr())
             .collect::<Vec<_>>();
 
         let plan_builder = plan_builder
@@ -1030,12 +1030,12 @@ impl InfluxRPCPlanner {
         };
 
         // Group by all tag columns and the window bounds
-        let window_bound = make_window_bound_expr(TIME_COLUMN_NAME.into_expr(), &every, &offset)
+        let window_bound = make_window_bound_expr(TIME_COLUMN_NAME.as_expr(), &every, &offset)
             .alias(TIME_COLUMN_NAME);
 
         let group_exprs = schema
             .tags_iter()
-            .map(|field| field.name().into_expr())
+            .map(|field| field.name().as_expr())
             .chain(std::iter::once(window_bound))
             .collect::<Vec<_>>();
 
@@ -1047,7 +1047,7 @@ impl InfluxRPCPlanner {
         // sort by the group by expressions as well
         let sort_exprs = group_exprs
             .iter()
-            .map(|expr| expr.into_sort_expr())
+            .map(|expr| expr.as_sort_expr())
             .collect::<Vec<_>>();
 
         let plan_builder = plan_builder

@@ -14,6 +14,7 @@ use crate::column::{cmp, RowIDs};
 /// The encoded id for a NULL value.
 pub const NULL_ID: u32 = 0;
 
+#[allow(clippy::upper_case_acronyms)] // this looks weird as `Rle`
 pub enum Encoding {
     RLE(RLE),
     Plain(Plain),

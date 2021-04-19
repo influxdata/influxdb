@@ -50,7 +50,7 @@ use tokio_util::sync::CancellationToken;
 ///
 /// Expressing this as a enum prevents reuse of discriminants, and as they're
 /// effectively consts this uses UPPER_SNAKE_CASE.
-#[allow(non_camel_case_types)]
+#[allow(non_camel_case_types, clippy::upper_case_acronyms)]
 #[derive(Debug, PartialEq)]
 pub enum ApiErrorCode {
     /// An unknown/unhandled error

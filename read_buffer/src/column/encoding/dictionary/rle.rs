@@ -12,6 +12,7 @@ use crate::column::{cmp, RowIDs};
 
 // `RLE` is a run-length encoding for dictionary columns, where all dictionary
 // entries are utf-8 valid strings.
+#[allow(clippy::upper_case_acronyms)] // this looks weird as `Rle`
 pub struct RLE {
     // TODO(edd): revisit choice of storing owned string versus references.
 

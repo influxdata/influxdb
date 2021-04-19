@@ -229,18 +229,18 @@ fn convert_tags(
     field_name: &str,
     tags: &[(Arc<String>, Arc<String>)],
 ) -> Vec<Tag> {
-    let mut converted_tags = Vec::new();
-
     // Special case "measurement" name which is modeled as a tag of
     // "_measurement" and "field" which is modeled as a tag of "_field"
-    converted_tags.push(Tag {
-        key: b"_field".to_vec(),
-        value: field_name.bytes().collect(),
-    });
-    converted_tags.push(Tag {
-        key: b"_measurement".to_vec(),
-        value: table_name.bytes().collect(),
-    });
+    let mut converted_tags = vec![
+        Tag {
+            key: b"_field".to_vec(),
+            value: field_name.bytes().collect(),
+        },
+        Tag {
+            key: b"_measurement".to_vec(),
+            value: table_name.bytes().collect(),
+        },
+    ];
 
     // convert the rest of the tags
     converted_tags.extend(tags.iter().map(|(k, v)| {

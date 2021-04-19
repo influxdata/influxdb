@@ -128,9 +128,9 @@ impl IOxExecutionContext {
         let inner = ExecutionContext::with_config(config);
 
         Self {
-            exec,
             counters,
             inner,
+            exec,
         }
     }
 

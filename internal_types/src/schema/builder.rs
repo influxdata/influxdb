@@ -237,8 +237,8 @@ impl InfluxSchemaBuilder {
         if let Some(old_measurement) = &self.measurement {
             if old_measurement != &new_measurement {
                 return MultipleMeasurementNames {
-                    new_measurement,
                     old_measurement,
+                    new_measurement,
                 }
                 .fail();
             }

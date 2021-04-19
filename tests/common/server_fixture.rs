@@ -262,9 +262,9 @@ impl TestServer {
 
         Ok(Self {
             ready,
-            dir,
-            addrs,
             server_process,
+            addrs,
+            dir,
         })
     }
 

@@ -75,8 +75,8 @@ impl ChunkSnapshot {
             records.insert(
                 name.to_string(),
                 TableSnapshot {
-                    batch,
                     schema,
+                    batch,
                     timestamp_range,
                 },
             );
