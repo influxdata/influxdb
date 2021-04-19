@@ -588,7 +588,8 @@ mod tests {
                     actual_column_type,
                     ..
                 } if expected_column_type == "tag" && actual_column_type == "String"),
-            format!("didn't match returned error: {:?}", response)
+            "didn't match returned error: {:?}",
+            response
         );
 
         let lp = "foo iv=1u 1";
@@ -612,7 +613,8 @@ mod tests {
             .unwrap();
         assert!(
             matches!(&response, Error::InternalColumnTypeMismatch {expected_column_type, actual_column_type, ..} if expected_column_type == "i64" && actual_column_type == "u64"),
-            format!("didn't match returned error: {:?}", response)
+            "didn't match returned error: {:?}",
+            response
         );
 
         let lp = "foo fv=1i 1";
@@ -636,7 +638,8 @@ mod tests {
             .unwrap();
         assert!(
             matches!(&response, Error::InternalColumnTypeMismatch {expected_column_type, actual_column_type, ..} if expected_column_type == "f64" && actual_column_type == "i64"),
-            format!("didn't match returned error: {:?}", response)
+            "didn't match returned error: {:?}",
+            response
         );
 
         let lp = "foo bv=1 1";
@@ -660,7 +663,8 @@ mod tests {
             .unwrap();
         assert!(
             matches!(&response, Error::InternalColumnTypeMismatch {expected_column_type, actual_column_type, ..} if expected_column_type == "bool" && actual_column_type == "f64"),
-            format!("didn't match returned error: {:?}", response)
+            "didn't match returned error: {:?}",
+            response
         );
 
         let lp = "foo sv=true 1";
@@ -684,7 +688,8 @@ mod tests {
             .unwrap();
         assert!(
             matches!(&response, Error::InternalColumnTypeMismatch {expected_column_type, actual_column_type, ..} if expected_column_type == "String" && actual_column_type == "bool"),
-            format!("didn't match returned error: {:?}", response)
+            "didn't match returned error: {:?}",
+            response
         );
     }
 
