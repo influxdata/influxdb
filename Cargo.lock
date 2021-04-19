@@ -2093,8 +2093,7 @@ dependencies = [
 name = "observability_deps"
 version = "0.1.0"
 dependencies = [
- "env_logger",
- "opentelemetry 0.13.0",
+ "opentelemetry",
  "opentelemetry-jaeger",
  "opentelemetry-otlp",
  "opentelemetry-prometheus",
@@ -2160,20 +2159,6 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry"
-version = "0.12.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "514d24875c140ed269eecc2d1b56d7b71b573716922a763c317fb1b1b4b58f15"
-dependencies = [
- "dashmap",
- "fnv",
- "futures",
- "js-sys",
- "lazy_static",
- "thiserror",
-]
-
-[[package]]
-name = "opentelemetry"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b91cea1dfd50064e52db033179952d18c770cbc5dfefc8eba45d619357ba3914"
@@ -2200,7 +2185,7 @@ checksum = "ddd4984441954f9ebbe3eebdfc6fd4fa95be6400d403171228779b949f3cd918"
 dependencies = [
  "async-trait",
  "lazy_static",
- "opentelemetry 0.13.0",
+ "opentelemetry",
  "thiserror",
  "thrift",
  "tokio",
@@ -2214,7 +2199,7 @@ checksum = "09c19adec09e1d86bdc72cbc2dea6d7276d90d6d50ad430842446382a4ef440b"
 dependencies = [
  "async-trait",
  "futures",
- "opentelemetry 0.13.0",
+ "opentelemetry",
  "prost",
  "thiserror",
  "tokio",
@@ -2224,11 +2209,11 @@ dependencies = [
 
 [[package]]
 name = "opentelemetry-prometheus"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c5407eac459699e03e83f55a557920c612d09f202b58f44212b5cdc4e8a7666e"
+checksum = "7162eac03f0bf5edbe2f2d4f44279904f62c779cd1c8260456446db2e1bf200d"
 dependencies = [
- "opentelemetry 0.12.0",
+ "opentelemetry",
  "prometheus",
  "protobuf",
 ]
@@ -2603,16 +2588,16 @@ dependencies = [
 
 [[package]]
 name = "prometheus"
-version = "0.11.0"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c8425533e7122f0c3cc7a37e6244b16ad3a2cc32ae7ac6276e2a75da0d9c200d"
+checksum = "5986aa8d62380092d2f50f8b1cdba9cb9b6731ffd4b25b51fd126b6c3e05b99c"
 dependencies = [
  "cfg-if 1.0.0",
  "fnv",
  "lazy_static",
+ "memchr",
  "parking_lot",
  "protobuf",
- "regex",
  "thiserror",
 ]
 
@@ -4016,7 +4001,7 @@ version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "99003208b647dae59dcefc49c98aecaa3512fbc29351685d4b9ef23a9218458e"
 dependencies = [
- "opentelemetry 0.13.0",
+ "opentelemetry",
  "tracing",
  "tracing-core",
  "tracing-subscriber",

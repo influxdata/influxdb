@@ -45,18 +45,19 @@ pub static IOXD_METRICS: Lazy<SystemMetrics> = Lazy::new(SystemMetrics::new);
 
 impl SystemMetrics {
     fn new() -> Self {
+        let meter = opentelemetry::global::meter("iox");
         Self {
-            lp_lines_errors: meter()
+            lp_lines_errors: meter
                 .u64_counter("ingest.lp.lines.errors")
                 .with_description("line protocol formatted lines which were rejected")
                 .init(),
 
-            lp_lines_success: meter()
+            lp_lines_success: meter
                 .u64_counter("ingest.lp.lines.success")
                 .with_description("line protocol formatted lines which were successfully loaded")
                 .init(),
 
-            lp_bytes_success: meter()
+            lp_bytes_success: meter
                 .u64_counter("ingest.lp.bytes.success")
                 .with_description("line protocol formatted bytes which were successfully loaded")
                 .init(),
@@ -90,30 +91,6 @@ pub fn init_metrics_internal(exporter: opentelemetry_prometheus::PrometheusExpor
         warn!("metrics were already initialized, overwriting configuration");
     }
     *guard = Some(exporter);
-}
-
-/// Returns a global [`Meter`] for reporting metrics. See
-/// [`IOXD_METRICS`] for specific crate wide counters.
-///
-/// # Example
-///
-/// ```
-/// let meter = crate::influxdb_ioxd::metrics::meter();
-///
-/// let counter = meter
-///     .u64_counter("a.counter")
-///     .with_description("Counts things")
-///     .init();
-/// let recorder = meter
-///     .i64_value_recorder("a.value_recorder")
-///     .with_description("Records values")
-///     .init();
-///
-/// counter.add(100, &[KeyValue::new("key", "value")]);
-/// recorder.record(100, &[KeyValue::new("key", "value")]);
-/// ```
-fn meter() -> opentelemetry::metrics::Meter {
-    opentelemetry::global::meter("iox")
 }
 
 /// Gets current metrics state, in UTF-8 encoded Prometheus Exposition Format.
