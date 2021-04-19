@@ -2093,6 +2093,7 @@ dependencies = [
 name = "observability_deps"
 version = "0.1.0"
 dependencies = [
+ "env_logger",
  "opentelemetry",
  "opentelemetry-jaeger",
  "opentelemetry-otlp",
