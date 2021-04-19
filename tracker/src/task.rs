@@ -572,7 +572,7 @@ mod tests {
 
         let assert_complete = |status: TaskStatus,
                                expected_cpu: std::time::Duration,
-                               expected_wal: std::time::Duration| {
+                               expected_wall: std::time::Duration| {
             match status {
                 TaskStatus::Complete {
                     cpu_nanos,
@@ -580,7 +580,7 @@ mod tests {
                     ..
                 } => {
                     assert_fuzzy(cpu_nanos, expected_cpu);
-                    assert_fuzzy(wall_nanos, expected_wal);
+                    assert_fuzzy(wall_nanos, expected_wall);
                 }
                 _ => panic!("expected complete got {:?}", status),
             }
